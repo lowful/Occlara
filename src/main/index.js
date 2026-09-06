@@ -44,6 +44,8 @@ const settingsWindow   = require('./windows/settings-window');
 const historyWindow    = require('./windows/history-window');
 const weeklyWindow     = require('./windows/weekly-window');
 const learnWindow      = require('./windows/learn-window');
+const reviewWindow     = require('./windows/review-window');
+const { LolRecorder }  = require('./services/lol-recorder');
 const aiLogWindow      = require('./windows/ailog-window');
 const statsWindow      = require('./windows/stats-window');
 const audioWindow      = require('./windows/audio-window');
@@ -265,6 +267,29 @@ const controller = {
       engine.start();
       pushTip({
         text: 'Marvel Rivals coach on. Play your match, and the post match scoreboard gets reviewed automatically.',
+        source: 'system',
+      });
+      state.isCoaching = true;
+      return;
+    }
+
+    // LEAGUE RECORDS AND SAYS NOTHING. It is not a live coach and must never
+    // become one: Riot's policy bans overlays that provide game-session-specific
+    // information previously unknown to the player, and bans apps that dictate
+    // player decisions. The legitimate form, named in Riot's own words, is
+    // coaching the player "game over game", so this watches the match in silence
+    // and the review arrives when it is over.
+    if (chosenGame === 'lol') {
+      engine = new LolRecorder({
+        getRole: () => store.get('lolRole') || '',
+        getBand: () => store.get('lolBand') || null,
+        log: (m) => console.log(m),
+      });
+      engine.on('status', (s) => console.log('[lol] status', JSON.stringify(s)));
+      engine.on('game', (record) => finishLolGame(record));
+      engine.start();
+      pushTip({
+        text: 'League recorder on. Nothing will appear during your game, and the review is ready when it ends.',
         source: 'system',
       });
       state.isCoaching = true;
@@ -541,6 +566,9 @@ const controller = {
   openHistory()   { historyWindow.open(); },
   openWeekly()    { weeklyWindow.open(); },
   openLearn()     { learnWindow.open(); },
+  openReview()    { reviewWindow.open(); },
+  /** The last graded League game, so a review window opened later still paints. */
+  getLolReview()  { return lastLolReview; },
 
   /**
    * Everything the learning surface needs, in one call.
@@ -1172,6 +1200,50 @@ async function fetchCoachedMatch(startedAt, endedAt, mctx) {
 // One small record per coached session (four category scores + strengths and
 // weaknesses text). Kept in its own file, NOT the 7-day session archive, so
 // trends survive pruning. Capped at the last 100 sessions.
+/**
+ * A recorded League game: grade it, keep it, show it.
+ *
+ * The history cap matters. lol-targets.BASELINE_GAMES is all a baseline is ever
+ * computed from, so an unbounded list would grow forever inside the config file
+ * for no benefit at all.
+ *
+ * The REVIEW IS BUILT DETERMINISTICALLY, in lol-review.js, not generated. A
+ * review is where a confident wrong sentence is most expensive, because the game
+ * is over and the player cannot check it against anything but a half memory.
+ */
+function finishLolGame(record) {
+  const review = require('../shared/lol-review');
+  const grader = require('../shared/lol-grader');
+  const targets = require('../shared/lol-targets');
+  try {
+    const history = store.get('lolHistory') || [];
+    const built = review.buildReview(record, history);
+    const graded = grader.gradeGame(record, history);
+
+    const entry = {
+      at: Date.now(),
+      champion: record.champion || null,
+      role: record.role || null,
+      mode: record.mode || null,
+      measured: graded.measured,
+      graded: graded.results,
+    };
+    store.set('lolHistory', [...history, entry].slice(-targets.BASELINE_GAMES));
+
+    lastLolReview = built;
+    registry.broadcast(C.PUSH_LOL_REVIEW, built);
+    reviewWindow.open();
+    console.log(`[lol] review ready: ${built.scoreline.kills}/${built.scoreline.deaths}/${built.scoreline.assists}`);
+  } catch (e) {
+    // A failed grade must never lose the game that was recorded, so the raw
+    // record is kept for inspection rather than dropped on the floor.
+    console.error('[lol] review failed:', e.message);
+    lastLolRaw = record;
+  }
+}
+let lastLolReview = null;
+let lastLolRaw = null;
+
 function emptyMatchBucket() { return { data: null, fetchedAt: 0, lastManual: 0 }; }
 let matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };   // per-mode tracker cache
 let lastRiotId = (store.get('riotId') || '').trim();               // detects account switches

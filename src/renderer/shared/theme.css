@@ -64,6 +64,22 @@
   --bad-rgb:  232, 99, 111;
   --warn-rgb: 217, 164, 65;
 
+  /* League rank bands. FIVE, not eight ranks, matching lol-targets.js: the
+     underlying data does not support eight-way granularity.
+
+     These are OUR marks, not Riot's. Riot's ranked emblems live in the game
+     client and are mirrored by CommunityDragon rather than published on Data
+     Dragon (which is where the champion icons this app already ships come
+     from), so they sit under a different permission in a paid product. These
+     are also ornate gold gradients that would fight a near-black interface and
+     the settled no-decorative-gradients rule. Recognisable tier colours on a
+     shape we drew carry the same meaning with none of that. */
+  --tier-1: #8A6F5C;   /* Iron and Bronze */
+  --tier-2: #9AA7B4;   /* Silver */
+  --tier-3: #D8A94B;   /* Gold */
+  --tier-4: #3FC1AE;   /* Platinum and Emerald */
+  --tier-5: #6E8BE0;   /* Diamond and above */
+
   /* Text */
   --text:      #F5F5F7;
   --text-dim:  #A1A1A6;

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Occlara Review</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="review.css" />
+</head>
+<body>
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
+        <h2>Match review</h2>
+      </div>
+      <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+    </header>
+
+    <main class="body">
+      <p id="empty" class="empty" hidden>No game has been recorded yet. Start the recorder, play a game, and the review appears here when it ends.</p>
+
+      <div id="review" hidden>
+        <!-- WHAT WAS PLAYED. First, and named, so the player can tell at a
+             glance that the recorder followed the right game and the right
+             person before they read a word of judgement about it. -->
+        <section class="ident">
+          <div id="r-champ" class="r-champ"></div>
+          <div id="r-meta" class="r-meta"></div>
+        </section>
+
+        <section class="scoreline" id="r-scores"></section>
+
+        <!-- HOW THE DEATHS HAPPENED. The most useful thing in the record, and
+             the only part that needs no baseline, so it works on game one. -->
+        <section class="block">
+          <h3>How you died</h3>
+          <p id="r-death-head" class="r-head"></p>
+          <p id="r-death-detail" class="r-detail"></p>
+        </section>
+
+        <section class="block" id="r-moments-wrap" hidden>
+          <h3>Worth watching back</h3>
+          <p class="hint">Timestamps from the recording. Open the replay and scrub to these.</p>
+          <div id="r-moments"></div>
+        </section>
+
+        <section class="block">
+          <h3>Objectives</h3>
+          <div id="r-obj" class="obj-grid"></div>
+        </section>
+
+        <section class="block" id="r-skills-wrap">
+          <h3>Against your own average</h3>
+          <p id="r-skills-note" class="hint"></p>
+          <div id="r-skills"></div>
+        </section>
+
+        <section class="block" id="r-next-wrap" hidden>
+          <h3>Work on this next</h3>
+          <div class="next-card">
+            <div id="r-next-title" class="next-title"></div>
+            <p id="r-next-mistake" class="l-mistake"></p>
+            <button id="r-next-open" class="btn btn-primary full">Open the lesson</button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="../shared/i18n-apply.js"></script>
+  <script src="review.js"></script>
+</body>
+</html>
