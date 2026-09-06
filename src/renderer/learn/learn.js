@@ -477,14 +477,60 @@ const BANDS = [
 ];
 const ROLES = ['Top', 'Jungle', 'Mid', 'Bot', 'Support'];
 
+/**
+ * A rank mark: a small crest carrying the tier colour, plus one to five pips.
+ *
+ * OURS, not Riot's. Riot's ranked emblems live in the game client and are
+ * mirrored by CommunityDragon rather than published on Data Dragon, which is
+ * where the champion icons this app already ships come from, so they sit under
+ * a different permission in a paid product. They are also ornate gold gradients
+ * that would fight a near-black interface.
+ *
+ * The pip COUNT carries the tier as well as the colour does, so the mark still
+ * reads for anyone who cannot separate the five hues.
+ */
+function rankMark(band) {
+  const n = Math.max(1, Math.min(5, Number(band) || 1));
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 20 20');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('class', 'rank-mark');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.color = `var(--tier-${n})`;
+
+  // A shield outline, drawn rather than filled, so it sits on the dark ground
+  // the way every other mark in this app does.
+  const shield = document.createElementNS(NS, 'path');
+  shield.setAttribute('d', 'M10 1.6 L17 4.4 V9.4 C17 13.6 14 16.9 10 18.4 C6 16.9 3 13.6 3 9.4 V4.4 Z');
+  shield.setAttribute('fill', 'none');
+  shield.setAttribute('stroke', 'currentColor');
+  shield.setAttribute('stroke-width', '1.5');
+  shield.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(shield);
+
+  // Pips: one per band, stacked. Shape as well as colour.
+  for (let i = 0; i < n; i++) {
+    const pip = document.createElementNS(NS, 'circle');
+    pip.setAttribute('cx', String(10 - (n - 1) * 2 + i * 4));
+    pip.setAttribute('cy', '9.2');
+    pip.setAttribute('r', '1.15');
+    pip.setAttribute('fill', 'currentColor');
+    svg.appendChild(pip);
+  }
+  return svg;
+}
+
 /** One segmented control. Plain buttons, no dropdown dependency. */
-function seg(host, options, current, onPick) {
+function seg(host, options, current, onPick, withMark) {
   host.replaceChildren();
   for (const [value, label] of options) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'seg-btn' + (String(value) === String(current) ? ' active' : '');
-    b.textContent = label;
+    if (withMark) b.appendChild(rankMark(value));
+    b.appendChild(document.createTextNode(label));
     b.addEventListener('click', () => onPick(value));
     host.appendChild(b);
   }
@@ -499,7 +545,7 @@ function seg(host, options, current, onPick) {
  * was computed from without leaving the page.
  */
 function paintProfile() {
-  seg($('band-seg'), BANDS, DATA.band, (v) => saveProfile(v, DATA.role));
+  seg($('band-seg'), BANDS, DATA.band, (v) => saveProfile(v, DATA.role), true);
   // '' is a real, chosen value meaning "not saying", and it shows every skill.
   // Guessing a role and hiding a lesson is worse than showing one that does not
   // apply, so the opt out is a visible option rather than an empty state.

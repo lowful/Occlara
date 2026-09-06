@@ -38,6 +38,8 @@ const CHANNELS = {
   // role decide which skills apply and what every target is, so the dashboard
   // edits them in place rather than sending the player to Settings.
   LEARN_PROFILE:    'learn:profile',
+  // () the last League review, so the window can paint if it opens late
+  LOL_REVIEW_GET:   'lol:review',
   AILOG_GET:        'ailog:get',         // (sessionId?) → one AI decision-log session, newest by default { session, sessions, records: [{frameData, state, aiTip, shown}] }
   AILOG_SESSIONS:   'ailog:sessions',    // () → [{ id, at, frames, deaths, maps, mins, live }] metadata only, no frames
   AILOG_CONFIRM:    'ailog:confirm',     // (sessionId) → { status, detected, expected, summary, pairs } check the log's deaths against Riot
@@ -84,6 +86,9 @@ const CHANNELS = {
   // game change had to diff it by hand. Stats did not, which is why it kept
   // showing Valorant rank and agents after switching to League.
   PUSH_GAME:         'push:game',         // { id, label } the game changed, reload anything game-scoped
+  // The recorded League game is graded and ready. Fired ONCE per finished game,
+  // after it ends, never during it.
+  PUSH_LOL_REVIEW:   'push:lolReview',
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -97,6 +102,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_OVERLAY_VIS,
   CHANNELS.PUSH_NUDGE,
   CHANNELS.PUSH_GAME,
+  CHANNELS.PUSH_LOL_REVIEW,
 ];
 
 module.exports = CHANNELS;

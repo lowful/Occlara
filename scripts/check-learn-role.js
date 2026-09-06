@@ -62,7 +62,26 @@ const CS_SHOWN = process.env.OCCLARA_CHECK_CS !== '0';
 
 const fail = (m) => { console.error('FAIL [' + ROLE + '] ' + m); app.exit(1); };
 
+/**
+ * WAIT FOR READINESS, do not sleep a fixed amount.
+ *
+ * This used to start after a flat 6500ms, which was ample on its own and not
+ * ample inside `npm test`, where a dozen other Electron processes are competing
+ * for the machine. The check then failed intermittently and looked like a real
+ * regression in the surface rather than contention in the harness.
+ */
+async function whenReady(pred, tries = 60, gap = 400) {
+  for (let i = 0; i < tries; i++) {
+    try { if (await pred()) return true; } catch { /* not up yet */ }
+    await new Promise((r) => setTimeout(r, gap));
+  }
+  return false;
+}
+
 setTimeout(async () => {
+  const up = await whenReady(() => !!(ipcMain._invokeHandlers && ipcMain._invokeHandlers.get(C.LEARN_GET)));
+  if (!up) return fail('LEARN_GET never registered, the app did not finish starting');
+
   let data;
   try { data = await ipcMain._invokeHandlers.get(C.LEARN_GET)({}, {}); }
   catch (e) { return fail('LEARN_GET threw: ' + e.message); }
@@ -80,13 +99,23 @@ setTimeout(async () => {
 
   ipcMain.emit(C.OPEN_LEARN, { sender: null });
   setTimeout(async () => {
-    const w = BrowserWindow.getAllWindows().find((x) => (x.getTitle() || '').indexOf('Learn') !== -1);
+    let w = null;
+    await whenReady(async () => {
+      w = BrowserWindow.getAllWindows().find((x) => (x.getTitle() || '').indexOf('Learn') !== -1);
+      return !!w;
+    });
     if (!w) return fail('the Learn window never opened');
     const errs = [];
     w.webContents.on('console-message', (e, lvl, msg) => { if (lvl >= 2) errs.push(msg); });
     setTimeout(async () => {
       const js = (src) => w.webContents.executeJavaScript(src);
       try {
+        // The surface paints from an async round trip, so wait for it to have
+        // rendered rather than assuming a delay was long enough.
+        const painted = await whenReady(async () =>
+          (await js("document.querySelectorAll('#tracks .lesson-row').length")) > 0);
+        if (!painted) return fail('the skill list never rendered');
+
         const prog = await js("document.getElementById('prog-text').textContent");
         // The twelve are always on screen now: the surface is a dashboard the
         // player picks from, not an assignment with a browse button behind it.
@@ -104,7 +133,7 @@ setTimeout(async () => {
       } catch (e) { fail('reading the DOM threw: ' + e.message); }
     }, 2200);
   }, 2200);
-}, 6500);
+}, 1500);
 
 // A throwaway profile, so this never touches a real install.
 const ud = path.join(os.tmpdir(), 'occlara-check-learn-role');

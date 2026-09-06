@@ -178,6 +178,58 @@ know the story. Do not refactor these away.
 The governing principle: **the coach reports what is actually on screen and
 never infers.** When code and model disagree, code wins.
 
+## League records in silence and coaches afterwards
+
+There is **no live League coach and there must never be one.** This is policy,
+not an unfinished feature. Riot's League policy approves exactly one overlay
+category, "game overlays that provide static data that is available prior to the
+game", and bans both "any game-session-specific information that would be
+previously unknown to the player" and "apps that dictate player decisions".
+Riot's VALORANT policy names the legitimate alternative in the same sentence:
+altering behaviour "upon reflection, learning and coaching the player game over
+game". Riot also enforced the enemy-ultimate-timer ban by reinterpreting an
+existing clause with about a week's notice, on pain of API key deactivation, so
+the broad clauses have teeth.
+
+So the pipeline is:
+
+```
+src/main/services/lol-recorder.js   polls 127.0.0.1:2999, emits NOTHING to the player
+src/shared/lol-review.js            turns the record into a review, deterministically
+src/renderer/review/                the post-game surface, opens only when a game ends
+```
+
+`finishLolGame()` in `src/main/index.js` grades, appends to `lolHistory` capped
+at `BASELINE_GAMES`, and fires `PUSH_LOL_REVIEW`.
+
+Three things about it that look like details and are not:
+
+- **The review is not generated.** Every line is computed from what the recorder
+  observed. A review is where a confident wrong sentence costs most, because the
+  game is over and the player cannot check it against anything but a half
+  memory. Code wins over the model here for the same reason it does in the
+  Valorant guards.
+- **`collectEvents` de-duplicates by `EventID`.** `/eventdata` returns the FULL
+  list every poll, so appending blindly multiplies every kill by the poll count
+  and turns a 4 death game into a 200 death one.
+- **The schema is unverified against a live patch.** No League client was
+  available when it was written, so field names come from Riot's docs rather
+  than a real payload. Everything reads through `num()`, `str()` and `arr()`, a
+  wrong field name yields "not measured" rather than a wrong number, and the raw
+  events are stored verbatim so a first real game can correct it.
+
+`npm run check:lolreview` boots the app and asserts a review reaches the screen,
+because a channel drifting between main and preload silently shows an empty
+state that looks deliberate.
+
+**Rank marks are ours, not Riot's.** Riot's ranked emblems live in the game
+client and are mirrored by CommunityDragon rather than published on Data Dragon,
+which is where the champion icons this app already ships come from, so they sit
+under a different permission in a paid product. They are also ornate gold
+gradients that would fight `--bg`. `rankMark()` in `learn.js` draws a shield
+with one to five pips in `--tier-1` through `--tier-5`; the pip COUNT carries the
+tier as well as the colour does.
+
 ## One game's data is never shown under another game's name
 
 The stats dashboard is Valorant shaped end to end: a Valorant rank ladder, agent
