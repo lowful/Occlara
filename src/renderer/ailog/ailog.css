@@ -106,6 +106,37 @@ header {
    the one that gets the accent. */
 .deathnav-why.unreviewed { color: var(--warn); }
 
+/* The run up to a death, as the frames either side of it. The selected one is
+   the frame currently in the viewer above, so the strip and the big image never
+   disagree about what is being looked at. */
+.deathstrip { margin-top: var(--space-2); }
+.strip-frames { display: flex; gap: var(--space-2); align-items: flex-start; }
+.strip-shot {
+  position: relative; flex: 1 1 0; min-width: 0; padding: 0;
+  background: none; border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); overflow: hidden; cursor: pointer;
+  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+.strip-shot img { display: block; width: 100%; height: auto; }
+.strip-shot:hover { border-color: var(--text-mute); }
+.strip-shot[aria-selected="true"] {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(var(--cyan-rgb), 0.22);
+}
+/* The first frame that reads dead. Not the death: the death is in the gap
+   before it, which is what the note underneath says. */
+.strip-shot.is-dead { border-color: rgba(var(--red-rgb), 0.55); }
+.strip-cap {
+  display: block; padding: 3px 5px 4px;
+  font-size: 10px; line-height: 1.25; color: var(--text-mute);
+  text-align: left;
+}
+.strip-shot.is-dead .strip-cap { color: var(--red); }
+.strip-note {
+  margin: var(--space-2) 0 0; font-size: 11.5px; color: var(--warn);
+  line-height: 1.45;
+}
+
 /* Riot's verdict on the timeline's deaths. Green when they agree, amber when
    the coach missed some, red when it marked one that never happened. */
 .confirm {

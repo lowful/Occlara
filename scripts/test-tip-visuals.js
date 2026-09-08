@@ -215,7 +215,7 @@ check('an agent named as killing you is marked as an opponent', !!killer && /tv-
   check('an agent renders as an icon, not as its name',
     !!m && /tv-agent-icon/.test(m.className) && m.children.length === 1 && m.children[0].tag === 'img');
   check('and the icon points at a shipped file',
-    !!m && /assets\/agents\/Jett\.png$/.test(m.children[0].src || ''));
+    !!m && /assets\/agents\/bust\/Jett\.png$/.test(m.children[0].src || ''));
   check('THE NAME IS NOT LOST: it is the title',
     !!m && m.title === 'Jett');
   check('and the accessible label',
@@ -228,7 +228,7 @@ check('an agent named as killing you is marked as an opponent', !!killer && /tv-
   const m = marksIn('Watch the KAY/O knife, it suppresses your abilities.', { agent: 'Jett' })
     .find((x) => /tv-agent/.test(x.className));
   check('KAY/O resolves to a slugified filename',
-    !!m && /assets\/agents\/KAYO\.png$/.test((m.children[0] || {}).src || ''));
+    !!m && /assets\/agents\/bust\/KAYO\.png$/.test((m.children[0] || {}).src || ''));
   check('and still carries the real name', !!m && m.title === 'KAY/O');
 }
 

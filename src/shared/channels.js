@@ -73,7 +73,7 @@ const CHANNELS = {
   APP_QUIT:        'app:quit',
 
   // ── main → renderer pushes (webContents.send ⇄ ipcRenderer.on) ────────────
-  PUSH_TIP:          'push:tip',          // { text, source: 'ai'|'library'|'system', time }
+  PUSH_TIP:          'push:tip',          // { text, source: 'ai'|'library'|'system', time, topic?, death?, agent? }
   PUSH_STATUS:       'push:status',       // { status: 'coaching'|'paused'|'stopped'|'idle' }
   PUSH_STATE:        'push:state',        // full state snapshot (panel + settings)
   PUSH_AGENT:        'push:agent',        // { agent, confirmed, role }, drives the confirm bubble

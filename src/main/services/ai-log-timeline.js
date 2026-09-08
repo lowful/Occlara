@@ -288,10 +288,52 @@ function deaths(records) {
       killedBy: killerOf(recs, run.from),
       // Was the player actually told anything about this one?
       reviewed: recs.slice(run.from, run.to + 2).some((r) => r.shown && r.shown.death),
+      // THE RUN UP, and the honest size of the gap in it.
+      //
+      // `at` is the first frame that reads DEAD, which is a frame taken after
+      // the death. The death itself happened between the last living frame and
+      // that one, and at this capture rate it was never photographed at all:
+      // measured across 33 real deaths in five sessions, that window runs 8.9s
+      // to 29.3s with a median of 11.0s, and the frame before a death almost
+      // always shows the player at full health walking somewhere.
+      //
+      // So the log shows the window rather than pretending one frame is the
+      // death. lastAlive walks BACK to the last frame that actually verdicts
+      // alive rather than assuming at-1, because unknown frames are absorbed
+      // into the preceding run and in 3 of those 33 the real last-alive frame
+      // was two or more back.
+      ...windowFor(recs, run.from),
     });
   }
   return out;
 }
+
+/**
+ * The frames around a death, and how much time the camera never saw.
+ *
+ * Returns lastAlive (index, or null when the session opened dead), gapMs (the
+ * real time between that frame and the first dead one) and runUp (the indices
+ * worth looking at, oldest first, ending one frame past the death).
+ */
+function windowFor(recs, at) {
+  let lastAlive = null;
+  for (let i = at - 1; i >= 0; i--) {
+    if (aliveVerdict(recs[i].state) === 'alive') { lastAlive = i; break; }
+  }
+  const t0 = lastAlive !== null ? num(recs[lastAlive].at) : null;
+  const t1 = num(recs[at].at);
+  const from = lastAlive !== null ? lastAlive : at;
+  const to = Math.min(recs.length - 1, at + 1);
+  const runUp = [];
+  for (let i = from; i <= to; i++) runUp.push(i);
+  return {
+    lastAlive,
+    gapMs: (t0 !== null && t1 !== null) ? Math.max(0, t1 - t0) : null,
+    runUp,
+  };
+}
+
+const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
 
 /** Who did it, from the kill feed or the tell, when either says so plainly. */
 /**

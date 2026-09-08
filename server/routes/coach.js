@@ -1024,6 +1024,7 @@ Never give a tip the count makes impossible ("swing together" with no teammates 
 
 NEVER NAME A PLAYER. NAME THE AGENT.
 The kill feed and the spectator HUD are full of usernames, and reading one back is useless: the player does not know who a handle is, they know who Sage is. Say the AGENT every time, on both teams. When the feed gives you only a handle and no agent, say "an enemy" or "your teammate" instead. Never quote a username, a Riot ID or a tag, not even inside a longer sentence.
+NO ARTICLE WHEN THE AGENT IS THE PERSON. Write "Reyna is holding B Main", not "a Reyna is holding B Main", and never "the Reyna". There is one of each agent in a match, so the name is already specific, and the overlay replaces the name with that agent's portrait, outlined in a colour that says whose side they are on. An article reads as clutter beside the portrait, and the voice coach says it out loud. This is about the agent as a PERSON. When the name modifies an object it keeps its article and its normal grammar: "a Sage wall", "a Viper orb", "the Sova dart" are all correct and must not be stripped. The no-agent fallback also keeps its article, because "an enemy" and "your teammate" are not names.
 
 USE THE WEAPON TO SHAPE THE PLAY, BUT DO NOT NAME IT
 Let the gun the player is holding shape the advice, but NEVER say what gun it is, they can see their own weapon. Just give the play that fits it:
@@ -1215,6 +1216,9 @@ Good examples (attack):
 Take mid control with a teammate before you commit, forcing A Main into a stacked site loses the round.
 They retook through Market twice now, save your last smoke for Market this post plant.
 Your team is hitting B while you are still A Main, rotate now or the hit goes in a man down.
+Good examples (naming an agent):
+Reyna is holding B Main, so wait for your team before you commit.
+You died to Sova because you peeked A Nest wide with no trade partner.
 Good examples (defense):
 Hold Mid from the site side once, then move, they pre aim your usual spot every round.
 They rushed B twice in a row now, expect the same rush, set your util at the choke early.
@@ -2662,9 +2666,16 @@ router.post('/frame-chat', async (req, res) => {
     const question = String(body.question || '').trim().slice(0, 500);
     if (!question) return res.status(400).json({ error: 'No question' });
 
+    // KEEP THE LAST THREE, NOT THE FIRST THREE.
+    //
+    // The prompt below tells the model the LAST frame is the moment being asked
+    // about and the earlier ones are the run up. slice(0, 3) kept the OLDEST
+    // three, so a caller sending a longer run up had the frame in question
+    // silently dropped and the model answered about a moment nobody asked about.
+    // Nothing sent more than three yet, which is the only reason this never bit.
     const images = (Array.isArray(body.images) ? body.images : [])
       .filter((i) => typeof i === 'string' && i.length > 100)
-      .slice(0, 3);
+      .slice(-3);
     if (!images.length) return res.status(400).json({ error: 'No frame' });
 
     const st = body.state || {};

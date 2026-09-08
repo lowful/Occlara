@@ -273,7 +273,11 @@
     img.className = 'tv-agent-img';
     img.alt = '';                       // the span already carries the label
     img.decoding = 'async';
-    img.src = '../../../assets/agents/' + slug + '.png';
+    // THE SQUARE BUST, not the kill feed crop beside it. The crop is 2:1, and
+    // forcing a 2:1 face into a square mark cropped most of the face away and
+    // squashed what was left. assets/agents/bust/ is the same art Riot ships at
+    // 1024 square, resampled to 64 by scripts/sync-agent-busts.js.
+    img.src = '../../../assets/agents/bust/' + slug + '.png';
     // A missing file must not leave an empty box in the middle of a sentence.
     // Guarded because this module also runs against the offline test's stub DOM,
     // which has no event plumbing and does not need any.
