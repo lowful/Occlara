@@ -195,8 +195,16 @@ function pushTip(tip) {
   // wrong name green, and a colour that says "this one is yours" has to be
   // right every time or it is worse than no colour.
   const mine = state.agent && state.agent.confirmed ? state.agent.agent : null;
+  // topic AND death ride along. This used to rebuild the object from three
+  // fields, which silently dropped both: the engine sets `topic` (topicOf) and
+  // `death` on every tip it emits, and neither survived the trip. So the
+  // overlay's leading topic glyph never drew, and the death review card never
+  // got its skull label or its .death styling, on any tip, ever. The styling
+  // was there the whole time with nothing to switch it on.
   const full = {
     text: tip.text, source: tip.source || 'system', time: tip.time || Date.now(),
+    ...(tip.topic ? { topic: tip.topic } : {}),
+    ...(tip.death ? { death: true } : {}),
     ...(mine ? { agent: mine } : {}),
   };
   state.tips.unshift(full);

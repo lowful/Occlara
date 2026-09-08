@@ -56,6 +56,13 @@
         <button id="death-next" class="nav-btn" title="Next death">&#8250;</button>
         <span id="death-why" class="deathnav-why"></span>
       </div>
+      <!-- THE RUN UP. The moment of death was never photographed: the capture
+           runs on an interval and the kill lands between two frames. So this
+           shows the window instead of pretending one frame is the death. -->
+      <div id="deathstrip" class="deathstrip" hidden>
+        <div id="strip-frames" class="strip-frames"></div>
+        <p id="strip-note" class="strip-note"></p>
+      </div>
       <div class="frame-meta">
         <span id="pos">0 / 0</span>
         <!-- The map this stretch of the session was confirmed to be on, which is

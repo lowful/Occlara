@@ -97,32 +97,32 @@
    is an enemy, green when it is the player's own confirmed agent, and NOTHING
    when neither is provable. A green teammate who is actually on the other team
    is worse than no colour, because it would be trusted. */
-/* THE RING SITS OUTSIDE THE PORTRAIT.
-   First attempt was an inset shadow, invisible because the image is painted on
-   top of it. Second was a 2px border with border-box sizing: visible, but it ate
-   2px off every edge of a 23px circle and left a 19px face, and at that size you
-   could see the colour and not the agent. A spread box-shadow is the ring
-   instead, so the whole box stays portrait and nothing is cropped to make room
-   for it. The margin keeps the ring off the words either side. */
+/* THE OUTLINE FOLLOWS THE MARK, AND THE MARK IS NOT A CIRCLE.
+   Three attempts got here. An inset shadow was invisible under the image. A 2px
+   border ate 2px off every edge of a 23px box and left a 19px face. Then the
+   circle itself turned out to be the real problem: the art was the 2:1 kill feed
+   crop, so a round mask threw away most of the face and squashed the rest.
+   It is now the square bust in a rounded rectangle, outlined rather than ringed,
+   with the whole face inside the frame. */
 .tv-mark.tv-agent-icon {
   display: inline-flex; align-items: center; justify-content: center;
-  vertical-align: -0.3em;
-  width: 1.62em; height: 1.62em; padding: 0;
-  margin: 0 0.16em;
+  vertical-align: -0.32em;
+  width: 1.55em; height: 1.55em; padding: 0;
+  margin: 0 0.14em;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.06);
   box-shadow: 0 0 0 1px var(--glass-border);
   overflow: hidden;
 }
 .tv-agent-img {
   width: 100%; height: 100%; object-fit: cover;
-  display: block; border-radius: 50%;
+  display: block; border-radius: inherit;
 }
 
 /* Proven enemy: the sentence itself says this agent killed the player.
-   1.5px of ring plus a soft halo outside it. The halo is what makes the colour
-   read at 22px without stealing any of the face. */
+   The outline plus a soft halo, so the colour reads at 20px without taking a
+   single pixel off the face. */
 .tv-mark.tv-agent-icon.tv-enemy {
   background: rgba(var(--red-rgb), 0.2);
   box-shadow: 0 0 0 1.5px var(--red), 0 0 6px rgba(var(--red-rgb), 0.45);

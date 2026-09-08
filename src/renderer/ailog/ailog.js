@@ -152,6 +152,56 @@ function stepDeath(dir) {
   go(deaths[i].at);
 }
 
+/**
+ * The frames either side of a death, and the honest size of the gap.
+ *
+ * The renderer already holds frameData for every record, so this costs no IPC
+ * and no extra capture. The point is what it refuses to claim: none of these
+ * frames IS the death, because the death happened between two of them.
+ */
+function paintDeathStrip(d) {
+  const wrap = document.getElementById('deathstrip');
+  const host = document.getElementById('strip-frames');
+  if (!wrap || !host) return;
+  if (!d || !Array.isArray(d.runUp) || d.runUp.length < 2) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  host.replaceChildren();
+
+  const t0 = (records[d.at] || {}).at;
+  for (const i of d.runUp) {
+    const r = records[i];
+    if (!r) continue;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'strip-shot' + (i === d.at ? ' is-dead' : '');
+    b.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+
+    const img = document.createElement('img');
+    img.src = r.frameData || '';
+    img.alt = '';
+    img.loading = 'lazy';
+    b.appendChild(img);
+
+    // Offsets are measured from the first DEAD frame, so a reader can see how
+    // long before it each shot was taken.
+    const cap = document.createElement('span');
+    cap.className = 'strip-cap';
+    const dt = (typeof r.at === 'number' && typeof t0 === 'number') ? (r.at - t0) / 1000 : null;
+    const off = dt === null ? '' : (dt > 0 ? '+' : '') + dt.toFixed(0) + 's ';
+    cap.textContent = off + (i === d.at ? 'first dead' : (i > d.at ? 'after' : 'alive'));
+    b.appendChild(cap);
+
+    b.addEventListener('click', () => go(i));
+    host.appendChild(b);
+  }
+
+  const note = document.getElementById('strip-note');
+  note.textContent = d.gapMs
+    ? `The kill happened in the ${(d.gapMs / 1000).toFixed(1)} seconds between the last two of these. `
+      + 'No frame of it was captured, so nothing here is the death itself.'
+    : 'This session opened partway through a death, so there is no run up to show.';
+}
+
 /** The death stepper, shown only when this session actually has deaths. */
 function paintDeathNav() {
   const nav = document.getElementById('deathnav');
@@ -167,6 +217,12 @@ function paintDeathNav() {
 
   // What the coach did or did not say about THIS death, which is the whole
   // reason to look at it. An unreviewed death is the interesting case.
+  // The STRIP follows the death being stepped through, so it stays up while you
+  // click along the run up. The WHY line only speaks when the viewer is actually
+  // sitting on the death frame, because otherwise it would describe one frame
+  // while the reader is looking at another.
+  paintDeathStrip(deaths[deathAt] || null);
+
   const d = here !== -1 ? deaths[here] : null;
   const why = document.getElementById('death-why');
   if (!d) { why.textContent = ''; why.className = 'deathnav-why'; return; }

@@ -311,12 +311,49 @@ const VOICE_STYLES = {
 };
 let voiceCfg = { enabled: false, style: 'normal', volume: 0.9 };
 
+/**
+ * Agent names a Windows voice gets wrong, respelled for the ear only.
+ *
+ * KAY/O is the one that is actually broken rather than merely accented: SAPI
+ * reads the slash, so the coach says "kay slash oh" about an agent nobody calls
+ * that. The rest are ordinary mispronunciations of names the player hears said
+ * correctly in game every round, which makes the coach sound like it has never
+ * played it.
+ *
+ * SPOKEN ONLY. tip.text is never touched: it is what the card renders, what the
+ * icon lexicon matches case sensitively, and what the STATE feedback loop reads
+ * back. Respelling it at source would break all three.
+ *
+ * Written as literal pairs rather than one regex, because a table like this is
+ * the kind of thing that gets a name appended to it later, and a fifteen branch
+ * alternation is where that goes wrong.
+ */
+const VOICE_SAYS = [
+  ['KAY/O', 'Kayo'],     // the slash is read aloud otherwise
+  ['Tejo',  'Tay-ho'],   // Spanish j, not "TEE-joe"
+  ['Vyse',  'Vice'],
+  ['Iso',   'Eeso'],     // "EE-so", not "EYE-so"
+  ['Reyna', 'Rayna'],
+  ['Sova',  'Soh-va'],
+  ['Yoru',  'Yo-roo'],
+  ['Cypher', 'Sy-fer'],
+  ['Skye',  'Sky'],
+];
+
+/** Respell the agent names in a sentence for speech. Case sensitive, like the
+ *  icon lexicon, so "breach the site" is never mistaken for the agent. */
+function forSpeech(text) {
+  let out = String(text || '');
+  for (const [name, said] of VOICE_SAYS) out = out.split(name).join(said);
+  return out;
+}
+
 function speakTip(tip) {
   if (!voiceCfg.enabled || !tip || !tip.text) return;
   if (tip.source !== 'ai' && tip.source !== 'library') return;   // never voice system notices
   try {
     const style = VOICE_STYLES[voiceCfg.style] || VOICE_STYLES.normal;
-    let text = tip.text;
+    let text = forSpeech(tip.text);
     if (style.pre && Math.random() < (style.preChance || 0)) {
       text = style.pre[Math.floor(Math.random() * style.pre.length)] + ' ' + text;
     }
