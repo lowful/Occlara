@@ -18,10 +18,16 @@ const path = require('path');
 // two hand-maintained copies of one drawing, which is precisely how the old
 // mark ended up subtly different in five places.
 //
-// The gaps come from the SVG's stroke-dasharray of 42.265 on 8, against a
-// circumference of 2*pi*24 = 150.796. That is three dashes of 100.9 degrees
-// separated by three gaps of 19.1 degrees, starting at twelve o'clock because
-// the SVG carries rotate(-90).
+// The gap comes from the SVG's stroke-dasharray of 130.690 on 20.106, against a
+// circumference of 2*pi*24 = 150.796. That is ONE dash of 312 degrees and ONE
+// gap of 48 degrees, rotated to sit at one to two o'clock because the SVG
+// carries rotate(-54 32 32).
+//
+// This comment described a THREE dash mark with a rotate(-90) until the aperture
+// landed, contradicting the GAPS constant directly beneath it. A stale comment
+// about geometry is worse than none: the whole point of this file is that the
+// mark exists in four places and must not drift, and the comment is what a
+// reader checks the code against.
 
 const C = 12;                 // centre, in the 24 unit space
 const SCALE = 64 / 24;        // the SVG is authored in a 64 viewBox

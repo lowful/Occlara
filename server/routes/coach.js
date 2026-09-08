@@ -87,9 +87,22 @@ function trackCall(key, units = 1) {           // units: frame-memory calls send
   e.costMonth  += cost;
 }
 
+/**
+ * A Riot ID that slipped into a tip, e.g. "MILFSLAYER69#EUW" or "candy#1234".
+ *
+ * The prompt now forbids naming players, but a prompt is a request and this is
+ * the enforcement. Only the unambiguous form is scrubbed: a handle followed by
+ * a tag. A bare word cannot be told apart from an ordinary noun, and deleting
+ * real words out of a tip would be worse than leaving a handle in one.
+ */
+const RIOT_ID = /\b[A-Za-z0-9_.]{3,16}\s?#\s?[A-Za-z0-9]{2,5}\b/g;
+
 function sanitize(t) {
   if (!t) return '';
-  return t.replace(/\u2014/g, ', ').replace(/\u2013/g, ', ').replace(/ - /g, ', ').replace(/\s+/g, ' ').trim();
+  return t
+    .replace(RIOT_ID, 'a player')
+    .replace(/\u2014/g, ', ').replace(/\u2013/g, ', ').replace(/ - /g, ', ')
+    .replace(/\s+/g, ' ').trim();
 }
 
 // ─── Direct Gemini REST call, tries primary model, falls back if 404 ─────────
@@ -206,7 +219,17 @@ BEFORE you name one, check the ability bar in THIS frame: bright means ready, di
 // aliveTell only, which exists to describe the evidence for being alive, so
 // these readings mean the opposite of what the health number says. Every pattern
 // below is a phrasing taken from a real logged session.
-const SPECTATE_TELL = /\bspectat(e|es|ing|or)\b|\bswitch player\b|\bkill ?cam\b|\bteammate\b[^.]{0,24}\bhp\b|\bwatching (a |your )?teammate\b/i;
+// MIRRORED, deliberately, from src/shared/spectate-tells.js. server/ cannot
+// require outside itself (check:server enforces it, because a require reaching
+// into src/ crash-loops the container on Railway), so the vocabulary is
+// duplicated and scripts/test-spectate.js asserts both sides agree on the same
+// real frames. That is the same trade tip-visuals.js makes with the agent list.
+//
+// combat report, killed by and team eliminated were added after a session where
+// the player's genuine first death was rejected twice: the tells on those frames
+// were "own HP 19 and Sova abilities bottom center" and "LOST TEAM ELIMINATED
+// and KILLED BY SAGE top right", and the old pattern matched neither.
+const SPECTATE_TELL = /\bspectat(e|es|ing|or)\b|\bswitch player\b|\bkill ?cam\b|\bdeath ?recap\b|\bcombat report\b|\bobserver\b|\byou died\b|\bkilled by\b|\bteam eliminated\b|\bteammate\b[^.]{0,24}\bhp\b|\bwatching (a |your )?teammate\b|\bteammate'?s? (name|loadout)\b/i;
 
 // THE ONE SCREEN A LIVING PLAYER ALSO OPENS. Everything else the model reports
 // spectating is a person or the spectator interface itself, which is exactly the
@@ -999,6 +1022,9 @@ The players alive on each side decide what is correct RIGHT NOW:
 - LAST ALIVE (1vX): clutch, isolate one duel at a time, play the timer and the spike, use sound, never take two at once.
 Never give a tip the count makes impossible ("swing together" with no teammates alive).
 
+NEVER NAME A PLAYER. NAME THE AGENT.
+The kill feed and the spectator HUD are full of usernames, and reading one back is useless: the player does not know who a handle is, they know who Sage is. Say the AGENT every time, on both teams. When the feed gives you only a handle and no agent, say "an enemy" or "your teammate" instead. Never quote a username, a Riot ID or a tag, not even inside a longer sentence.
+
 USE THE WEAPON TO SHAPE THE PLAY, BUT DO NOT NAME IT
 Let the gun the player is holding shape the advice, but NEVER say what gun it is, they can see their own weapon. Just give the play that fits it:
 - Rifle: standard, crosshair at head level, hold and peek, tap or burst at range.
@@ -1264,7 +1290,8 @@ function mapState(s) {
   // DROPPED rather than reassigned, because it belongs to somebody else and a
   // teammate's health passed off as the player's is worse than no reading.
   if (out.aliveTell && SPECTATE_TELL.test(out.aliveTell)
-      && !(SPECTATE_FALSE_FRIEND.test(out.aliveTell) && !/\bswitch player\b|\bkill ?cam\b/i.test(out.aliveTell))) {
+      && !(SPECTATE_FALSE_FRIEND.test(out.aliveTell)
+           && !/\bswitch player\b|\bkill ?cam\b|\bcombat report\b|\bkilled by\b|\bteam eliminated\b/i.test(out.aliveTell))) {
     if (out.playerAlive !== false || out.playerHp != null) {
       console.log(`[coach] spectator tell beats the health number: "${out.aliveTell}"`
         + ` (reported alive:${out.playerAlive} hp:${out.playerHp})`);
@@ -2260,12 +2287,12 @@ router.post('/score-session', async (req, res) => {
     // agent and the timing all agreed, so it can be trusted as this match.
     const m = (req.body && req.body.match) || null;
     const matchBlock = m ? `
-FINAL SCOREBOARD for this exact match (verified as the coached game, this is hard evidence and outranks everything else for the aim and impact scores):
+FINAL SCOREBOARD for this exact match (verified as the coached game, this is hard evidence and outranks the coaching tips for EVERY category):
 - Result: ${String(m.result || '?').slice(0, 12)} ${String(m.score || '').slice(0, 10)}
 - K/D/A: ${m.kills | 0}/${m.deaths | 0}/${m.assists | 0} (K/D ${Number(m.kd) || 0})
 - ACS ${m.acs | 0}, ADR ${m.adr | 0}, headshot ${m.headshotPct | 0}%${m.grade ? `\n- Tracker grade for this match: ${String(m.grade).slice(0, 3)}` : ''}
 CALIBRATE AGAINST REAL VALORANT NUMBERS, because "strong" means nothing without a scale and these were being read as ordinary. ACS: under 150 is poor, 200 is average, 250 is good, 300 is excellent, 350 and above is exceptional and belongs in the 90s. K/D: 0.8 is losing the duels, 1.0 is even, 1.3 is good, 1.8 and above is dominant. ADR: 120 is low, 160 is solid, 200 and above is carrying. Headshot: 15% is low, 25% is average, 30% and above is strong aim. A tracker grade of S or A is a standout performance.
-Use these numbers. A strong scoreboard means the aim and impact scores should be high even if the coaching corrected a lot, and a weak one means they should be low even if the session was quiet. A player who topped the scoreboard does not get a mediocre aim or impact score because the coach found positioning habits to fix: score the CATEGORY, not the amount of advice given. Positioning and utility are where the corrections belong. Never restate the raw numbers back to the player in summary, strengths, weaknesses, or practice; they can already see their own scoreboard. Let the numbers set the SCORES and describe the habit behind them in words.
+Use these numbers. A strong scoreboard means the aim and impact scores should be high even if the coaching corrected a lot, and a weak one means they should be low even if the session was quiet. A player who topped the scoreboard does not get a mediocre aim or impact score because the coach found positioning habits to fix: score the CATEGORY, not the amount of advice given. THE SCOREBOARD CONSTRAINS POSITIONING AND UTILITY TOO. Positioning is where corrections usually land, but a player cannot post an exceptional ACS with a low death count while positioning badly all game, so a standout scoreboard puts a floor under every category: with a tracker grade of S or A, do not score any category below 55 unless an OBSERVED FACT shows a specific failure. Corrections are evidence of what to work on next, not evidence that the game went badly. Never restate the raw numbers back to the player in summary, strengths, weaknesses, or practice; they can already see their own scoreboard. Let the numbers set the SCORES and describe the habit behind them in words.
 ` : '';
 
     const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n${notesBlock}${matchBlock}\nReturn ONLY valid JSON, no markdown:\n{"impact":82,"positioning":54,"utility":61,"aim":77,"summary":"...","strengths":"...","weaknesses":"...","practice":"..."}\nThe four numbers above are FORMATTING ONLY, they are not this player's scores and copying them is a failure. Score each category independently, 0-100, and expect them to differ from each other: a session where every category lands on the same number almost never happens, so if you are about to return four identical scores, look again at which category the evidence actually separates. Use the range: 30s and 40s for a category that clearly cost them the game, 50s and 60s for below par, 70s for solid, 80s and 90s for genuinely strong. impact means round influence: opening picks, entries that created space, clutch attempts, multikills, and being part of the plays that decided rounds; a quiet passenger scores low even with a clean K/D. When OBSERVED FACTS are provided they are the primary evidence, they describe what the player actually did; the tips only show what the coaching focused on and do NOT prove the player did or failed anything. Many corrections in a category still suggests a lower score there, but never state the player did something unless an observed fact shows it. No signal for a category means a neutral 70-75, but a category with real evidence must move away from neutral in whichever direction the evidence points.

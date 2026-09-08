@@ -169,7 +169,9 @@ function stubDom() {
       tag, children: [], className: '',
       classList: { add(c) { el.className = (el.className + ' ' + c).trim(); } },
       appendChild(c) { el.children.push(c); return c; },
-      setAttribute(k, v) { if (k === 'class') el.className = v; },
+      replaceChildren(...c) { el.children.length = 0; el.children.push(...c); },
+      attrs: {},
+      setAttribute(k, v) { el.attrs[k] = v; if (k === 'class') el.className = v; },
       set textContent(_v) { el.children.length = 0; },
       get textContent() { return ''; },
     };
@@ -202,6 +204,33 @@ check("the player's own agent is marked as theirs", !!mine && /tv-ally/.test(min
 const killer = marksIn('You died to a Sova because you peeked wide.', { agent: 'Jett' })
   .find((m) => /tv-agent/.test(m.className));
 check('an agent named as killing you is marked as an opponent', !!killer && /tv-enemy/.test(killer.className));
+
+// ── AN AGENT RENDERS AS ITS PORTRAIT, and the name survives ────────────────
+// This is the one place the module's "the tip text is never changed" rule bends,
+// so the replacement has to be checked rather than assumed. A reader who cannot
+// see the picture still has to be able to read the sentence.
+{
+  const m = marksIn('Use your dash as Jett to take the off-angle.', { agent: 'Jett' })
+    .find((x) => /tv-agent/.test(x.className));
+  check('an agent renders as an icon, not as its name',
+    !!m && /tv-agent-icon/.test(m.className) && m.children.length === 1 && m.children[0].tag === 'img');
+  check('and the icon points at a shipped file',
+    !!m && /assets\/agents\/Jett\.png$/.test(m.children[0].src || ''));
+  check('THE NAME IS NOT LOST: it is the title',
+    !!m && m.title === 'Jett');
+  check('and the accessible label',
+    !!m && m.attrs['aria-label'] === 'Jett');
+}
+
+// KAY/O has a slash in its name, which is not a filename. The sync script and
+// the renderer have to slugify identically or the icon silently 404s.
+{
+  const m = marksIn('Watch the KAY/O knife, it suppresses your abilities.', { agent: 'Jett' })
+    .find((x) => /tv-agent/.test(x.className));
+  check('KAY/O resolves to a slugified filename',
+    !!m && /assets\/agents\/KAYO\.png$/.test((m.children[0] || {}).src || ''));
+  check('and still carries the real name', !!m && m.title === 'KAY/O');
+}
 
 // The important negative. There is no team composition anywhere in this app, so
 // an agent mentioned with no stated relationship must stay neutral: a green

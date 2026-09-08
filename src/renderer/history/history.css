@@ -2,20 +2,43 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 
 .sheet { margin: 10px; height: calc(100% - 20px); border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; }
 
-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--glass-border); }
-.h-actions { display: flex; align-items: center; gap: 8px; }
-.session-picker {
-  max-width: 170px; height: 30px; padding: 0 8px; border-radius: 8px;
-  font-family: var(--font); font-size: 11.5px; color: var(--text);
-  background: rgba(0,0,0,0.30); border: 1px solid var(--glass-border);
-  outline: none; cursor: pointer;
+/* THE HEADER DID NOT FIT, and flexbox resolved that by squeezing both sides.
+   The window is 440 wide, the sheet takes 10px each side and the header 18px
+   each side, leaving 384px of usable width. The two children wanted about
+   406px: the actions strip is 170 + 8 + 34 + 8 + 34 = 254, and the brand is
+   18 + 9 + the title + 9 + the count pill. So space-between collapsed to zero
+   and the count badge ended up flush against the picker, with its own digits
+   pushed out past its rounded border.
+
+   min-width: 0 lets the title be the thing that gives, and z-index is here for
+   the portalled dropdown list that now opens over this row. */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3);
+  padding: 16px 18px; border-bottom: 1px solid var(--glass-border);
+  position: relative; z-index: 5;
 }
-.session-picker:focus { border-color: rgba(var(--cyan-rgb),0.45); }
-.session-picker option { background: #101c27; color: var(--text); }
-.h-brand { display: flex; align-items: center; gap: 9px; }
+.h-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+/* The Dropdown mount IS the control, so it is sized here and styled by
+   dropdown.css. No transform: a transform would become the containing block for
+   the fixed-position list and break where it opens. */
+/* The picker is what yields when the header runs out of room, not the window's
+   own title. Its label ellipsises inside dropdown.css, and the open list is
+   sized to its content rather than to this trigger, so nothing is lost. */
+.session-picker { width: 148px; min-width: 84px; height: 30px; flex: 0 1 148px; }
+.h-brand { display: flex; align-items: center; gap: 9px; flex: none; }
 .h-brand img { filter: drop-shadow(0 2px 5px rgba(var(--red-rgb),0.45)); }
-header h2 { font-size: 15.5px; font-weight: 700; }
-.count { font-size: 11.5px; font-weight: 700; color: var(--cyan); background: rgba(var(--cyan-rgb),0.10); border: 1px solid rgba(var(--cyan-rgb),0.25); border-radius: 999px; padding: 2px 9px; }
+header h2 { font-size: 15.5px; font-weight: 700; flex: none; white-space: nowrap; }
+/* flex: none and nowrap are the actual fix for the overlap. Without them the
+   pill was allowed to shrink below its content box, so the digits rendered
+   outside their own rounded border. The same author added flex: none to
+   .row .time for exactly this reason and this one was missed. */
+.count {
+  font-size: 11.5px; font-weight: 700; color: var(--cyan);
+  background: rgba(var(--cyan-rgb),0.10); border: 1px solid rgba(var(--cyan-rgb),0.25);
+  border-radius: 999px; padding: 2px 9px;
+  flex: none; white-space: nowrap;
+}
 
 .mixbar { padding: 12px 18px 4px; }
 .mix-text { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-dim); margin-bottom: 7px; }
@@ -66,11 +89,11 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 .rate-btn.good:hover { background: rgba(var(--good-rgb),0.16); border-color: rgba(var(--good-rgb),0.45); }
 .rate-btn.bad:hover  { background: rgba(var(--red-rgb),0.16); border-color: rgba(var(--red-rgb),0.45); }
 
-.rate-badge { font-size: 10px; font-weight: 700; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.rate-badge { font-size: 10px; font-weight: 700; border-radius: 999px; padding: 2px 8px; white-space: nowrap; flex: none; }
 .rate-badge.good { color: var(--good); background: rgba(var(--good-rgb),0.12); border: 1px solid rgba(var(--good-rgb),0.3); }
 .rate-badge.bad  { color: var(--bad); background: rgba(var(--red-rgb),0.12); border: 1px solid rgba(var(--red-rgb),0.3); }
 .row.rated-bad .text { color: var(--text-mute); }
-.row .src { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 700; color: var(--text-dim); }
+.row .src { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 700; color: var(--text-dim); flex: none; white-space: nowrap; }
 .row.ai .src      { color: var(--cyan); }
 .row.library .src { color: var(--red); }
 .row.system .src  { color: var(--red); }

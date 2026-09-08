@@ -253,6 +253,42 @@
     return null;
   }
 
+  /** An agent name as a filename. Must match agentSlug() in sync-valorant-data.js. */
+  function agentSlug(name) {
+    return String(name || '').replace(/[^A-Za-z0-9]/g, '');
+  }
+
+  /**
+   * The agent's kill feed portrait, or null when it is not shipped.
+   *
+   * Null is a real answer and the caller falls back to the word, which is why a
+   * failed icon in the sync script is not fatal. Every surface that loads this
+   * module sits two directories under src/renderer, so the path back to assets
+   * is the same from all of them.
+   */
+  function agentIcon(name) {
+    const slug = agentSlug(name);
+    if (!slug) return null;
+    const img = document.createElement('img');
+    img.className = 'tv-agent-img';
+    img.alt = '';                       // the span already carries the label
+    img.decoding = 'async';
+    img.src = '../../../assets/agents/' + slug + '.png';
+    // A missing file must not leave an empty box in the middle of a sentence.
+    // Guarded because this module also runs against the offline test's stub DOM,
+    // which has no event plumbing and does not need any.
+    if (typeof img.addEventListener !== 'function') return img;
+    img.addEventListener('error', () => {
+      const span = img.parentNode;
+      if (!span) return;
+      span.classList.remove('tv-agent-icon');
+      span.replaceChildren(document.createTextNode(name));
+      const g = glyph('agent');
+      if (g) span.appendChild(g);
+    });
+    return img;
+  }
+
   function render(el, text, opts) {
     if (!el) return;
     el.textContent = '';
@@ -301,8 +337,26 @@
         if (side) mark.classList.add('tv-' + side);
       }
 
-      // Word first, icon after: the word is the information, the glyph is the
-      // confirmation of what was just read.
+      // AN AGENT BECOMES ITS PORTRAIT. Everything else keeps word-then-glyph:
+      // the word is the information and the icon confirms what was just read.
+      //
+      // The portrait is the kill feed art Valorant already uses next to a name,
+      // shipped locally under assets/agents so the overlay's img-src 'self'
+      // policy is untouched. The NAME IS NOT LOST: it stays as the title and the
+      // aria-label, which is what keeps the module's promise that a tip can
+      // always be read back in full.
+      if (tok.kind === 'agent') {
+        const img = agentIcon(tok.value);
+        if (img) {
+          mark.classList.add('tv-agent-icon');
+          mark.title = tok.value;
+          mark.setAttribute('aria-label', tok.value);
+          mark.appendChild(img);
+          el.appendChild(mark);
+          continue;
+        }
+      }
+
       mark.appendChild(document.createTextNode(tok.value));
       const g = glyph(tok.kind);
       if (g) mark.appendChild(g);

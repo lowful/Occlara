@@ -16,6 +16,8 @@ let idx = 0;
 let sessionId = null;   // which session is loaded; rides along with every question
 let segments = [];      // confirmed map stretches, from the main process
 let deaths = [];        // every death found in the frames, reviewed or not
+let deathMode = false;  // opened from the match review card's eye button
+let deathAt = -1;       // which death is on screen, an index into `deaths`
 
 // The STATE fields worth surfacing, in a sensible reading order, with the
 // location + alive reads flagged since those are the usual culprits.
@@ -124,7 +126,58 @@ function render() {
   if (typeof paintConversation === 'function') paintConversation();
 }
 
-function go(to) { idx = Math.max(0, Math.min(records.length - 1, to)); render(); }
+function go(to) { idx = Math.max(0, Math.min(records.length - 1, to)); render(); paintDeathNav(); }
+
+/**
+ * Step to the next or previous death.
+ *
+ * Deaths carry a FRAME INDEX, so this is navigation over a much shorter list
+ * than the scrubber's. It also re-syncs `deathAt` from the current frame, so
+ * scrubbing by hand and then pressing next does the obvious thing rather than
+ * jumping back to wherever the stepper last was.
+ */
+function stepDeath(dir) {
+  if (!deaths.length) return;
+  let i = deaths.findIndex((d) => d.at === idx);
+  if (i === -1) {
+    // Not sitting exactly on a death: find the nearest one in the direction asked.
+    i = dir > 0
+      ? deaths.findIndex((d) => d.at > idx)
+      : (() => { for (let k = deaths.length - 1; k >= 0; k--) if (deaths[k].at < idx) return k; return -1; })();
+    if (i === -1) i = dir > 0 ? deaths.length - 1 : 0;
+  } else {
+    i = Math.max(0, Math.min(deaths.length - 1, i + dir));
+  }
+  deathAt = i;
+  go(deaths[i].at);
+}
+
+/** The death stepper, shown only when this session actually has deaths. */
+function paintDeathNav() {
+  const nav = document.getElementById('deathnav');
+  if (!nav) return;
+  if (!deaths.length) { nav.hidden = true; return; }
+  nav.hidden = false;
+
+  const here = deaths.findIndex((d) => d.at === idx);
+  if (here !== -1) deathAt = here;
+  const n = deathAt >= 0 ? deathAt + 1 : 0;
+  document.getElementById('death-pos').textContent =
+    here === -1 ? `${deaths.length} deaths` : `Death ${n} of ${deaths.length}`;
+
+  // What the coach did or did not say about THIS death, which is the whole
+  // reason to look at it. An unreviewed death is the interesting case.
+  const d = here !== -1 ? deaths[here] : null;
+  const why = document.getElementById('death-why');
+  if (!d) { why.textContent = ''; why.className = 'deathnav-why'; return; }
+  const bits = [];
+  if (d.round) bits.push(`round ${d.round}`);
+  if (d.killedBy) bits.push(`killed by ${d.killedBy}`);
+  why.textContent = d.reviewed
+    ? (bits.length ? bits.join(', ') : 'reviewed')
+    : `${bits.length ? bits.join(', ') + ', ' : ''}the coach said nothing about this one`;
+  why.className = 'deathnav-why' + (d.reviewed ? '' : ' unreviewed');
+}
 
 /**
  * Pin a skull on the scrubber for every frame that showed a death review, so
@@ -312,8 +365,11 @@ function loadSession(id) {
       ? `${records.length} frames from ${when}, ${deaths.length} death${deaths.length === 1 ? '' : 's'}, ${seen} reviewed`
       : `${records.length} frames from ${when}`;
     buildMarks();
-    // Jump to the most recent frame first, that is usually what you want to review.
-    go(records.length - 1);
+    paintDeathNav();
+    // Death review mode opens on the FIRST death, because a review reads
+    // forwards. Otherwise the newest frame, which is usually what you want.
+    if (deathMode && deaths.length) { deathAt = 0; go(deaths[0].at); }
+    else go(records.length - 1);
     confirmDeaths(sessionId);
   }).catch((err) => {
     picker.disabled = false;
@@ -373,6 +429,20 @@ function confirmDeaths(forSession) {
  * An unknown id falls back to the newest inside ai-log-store's read(), so a
  * session pruned between the click and the open still shows something.
  */
+/**
+ * Death review mode, asked for by the match review card's eye button.
+ *
+ * Carried in the same hash as a session id and told apart by not being one. The
+ * session allowlist below rejects it, which is correct: it is a mode, not a
+ * folder, and it means "newest session, opened on the deaths".
+ */
+function requestedMode() {
+  try {
+    const raw = decodeURIComponent(String(location.hash || '').replace(/^#/, '')).trim();
+    return raw === 'deaths' ? 'deaths' : '';
+  } catch { return ''; }
+}
+
 function requestedSession() {
   try {
     const raw = decodeURIComponent(String(location.hash || '').replace(/^#/, '')).trim();
@@ -382,7 +452,11 @@ function requestedSession() {
   } catch { return undefined; }
 }
 
+deathMode = requestedMode() === 'deaths';
 loadSession(requestedSession());
+
+document.getElementById('death-prev').addEventListener('click', () => stepDeath(-1));
+document.getElementById('death-next').addEventListener('click', () => stepDeath(1));
 
 // An already open window is told to move, since the hash was read once above.
 if (window.occlara.onShow) window.occlara.onShow((id) => loadSession(id));

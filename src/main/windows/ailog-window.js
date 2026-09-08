@@ -18,6 +18,12 @@ const registry = require('./registry');
  * finished loading is simply lost. The hash is there before the first line of
  * the renderer runs.
  */
+/**
+ * @param sessionId a session folder name, OR the literal 'deaths' to open in
+ *   death-review mode on the newest session. The match review card's eye button
+ *   sends the latter, because the useful thing after a match is the deaths, not
+ *   frame zero.
+ */
 function open(sessionId) {
   const existing = registry.get('ailog');
   if (existing) {
