@@ -97,18 +97,22 @@
    is an enemy, green when it is the player's own confirmed agent, and NOTHING
    when neither is provable. A green teammate who is actually on the other team
    is worse than no colour, because it would be trusted. */
-/* THE RING IS A BORDER, NOT AN INSET SHADOW. The portrait fills the span, so an
-   inset shadow is painted underneath it and effectively invisible, which is
-   exactly what happened the first time. A border with border-box sizing keeps
-   the ring outside the image where it can actually be seen. */
+/* THE RING SITS OUTSIDE THE PORTRAIT.
+   First attempt was an inset shadow, invisible because the image is painted on
+   top of it. Second was a 2px border with border-box sizing: visible, but it ate
+   2px off every edge of a 23px circle and left a 19px face, and at that size you
+   could see the colour and not the agent. A spread box-shadow is the ring
+   instead, so the whole box stays portrait and nothing is cropped to make room
+   for it. The margin keeps the ring off the words either side. */
 .tv-mark.tv-agent-icon {
   display: inline-flex; align-items: center; justify-content: center;
   vertical-align: -0.3em;
-  width: 1.7em; height: 1.7em; padding: 0;
-  box-sizing: border-box;
-  border: 2px solid var(--glass-border);
+  width: 1.62em; height: 1.62em; padding: 0;
+  margin: 0 0.16em;
+  border: 0;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 1px var(--glass-border);
   overflow: hidden;
 }
 .tv-agent-img {
@@ -116,17 +120,17 @@
   display: block; border-radius: 50%;
 }
 
-/* Proven enemy: the sentence itself says this agent killed the player. */
+/* Proven enemy: the sentence itself says this agent killed the player.
+   1.5px of ring plus a soft halo outside it. The halo is what makes the colour
+   read at 22px without stealing any of the face. */
 .tv-mark.tv-agent-icon.tv-enemy {
-  border-color: var(--red);
   background: rgba(var(--red-rgb), 0.2);
-  box-shadow: 0 0 0 1px rgba(var(--red-rgb), 0.3);
+  box-shadow: 0 0 0 1.5px var(--red), 0 0 6px rgba(var(--red-rgb), 0.45);
 }
 /* Proven ally: the player's own confirmed agent. */
 .tv-mark.tv-agent-icon.tv-ally {
-  border-color: var(--good);
   background: rgba(var(--good-rgb), 0.2);
-  box-shadow: 0 0 0 1px rgba(var(--good-rgb), 0.3);
+  box-shadow: 0 0 0 1.5px var(--good), 0 0 6px rgba(var(--good-rgb), 0.4);
 }
 
 /* Over a bright game frame the minimal style has no card behind it, so the ring

@@ -47,7 +47,14 @@ header h2 { font-size: 15.5px; font-weight: 700; flex: none; white-space: nowrap
 .mix-text .sw.cyan { background: var(--cyan); }
 .mix-text .sw.mute { background: var(--red); }
 .mix-track { height: 6px; border-radius: 3px; background: rgba(138,160,178,0.35); overflow: hidden; }
-.mix-fill { height: 100%; width: 0%; background: var(--cyan); border-radius: 3px; transition: width var(--t-med) var(--ease); }
+/* scaleX, not width: animating width relayouts the bar on every frame, and a
+   transform runs on the compositor. transform-origin keeps it growing from the
+   left the way a progress bar must. */
+.mix-fill {
+  height: 100%; width: 100%; background: var(--cyan); border-radius: 3px;
+  transform: scaleX(0); transform-origin: left center;
+  transition: transform var(--t-med) var(--ease);
+}
 
 .body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .body::-webkit-scrollbar { width: 8px; }
@@ -59,13 +66,13 @@ header h2 { font-size: 15.5px; font-weight: 700; flex: none; white-space: nowrap
 .row {
   display: flex; gap: 11px; align-items: flex-start;
   background: rgba(0,0,0,0.20); border: 1px solid var(--glass-border);
-  border-left: 3px solid var(--text-mute);
+  /* The source used to be a 3px left bar AND the .src label colour below, the
+     same information twice, with the bar clashing against an 11px radius. The
+     label keeps it. */
   border-radius: 11px; padding: 11px 13px;
   animation: rowIn 220ms var(--ease) both;
 }
-.row.ai      { border-left-color: var(--cyan); }
-.row.library { border-left-color: var(--red); }
-.row.system  { border-left-color: var(--red); }
+
 .row.death   { border-left-color: #ffffff; }
 .row.death .src { color: #ffffff; }
 @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

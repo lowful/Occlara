@@ -133,7 +133,7 @@ function renderMix(mix) {
   const aiPct = total ? Math.round((ai / total) * 100) : 0;
   mixAiEl.textContent  = `${aiPct}%`;
   mixLibEl.textContent = `${total ? 100 - aiPct : 0}%`;
-  mixFillEl.style.width = `${aiPct}%`;
+  mixFillEl.style.transform = `scaleX(${(Number(aiPct) || 0) / 100})`;
 }
 
 // Full re-render from the state snapshot.
