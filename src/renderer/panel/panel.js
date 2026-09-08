@@ -96,6 +96,7 @@ pauseBtn.addEventListener('click', () => window.occlara.pauseResume());
 document.getElementById('chat').addEventListener('click', () => window.occlara.openChat());
 document.getElementById('stats').addEventListener('click', () => window.occlara.openStats());
 document.getElementById('learn').addEventListener('click', () => window.occlara.openLearn());
+document.getElementById('vod').addEventListener('click', () => window.occlara.openAiLog());
 document.getElementById('history').addEventListener('click', () => window.occlara.openHistory());
 document.getElementById('minimize').addEventListener('click', () => window.occlara.minimize());
 document.getElementById('settings').addEventListener('click', () => window.occlara.openSettings());
@@ -253,7 +254,9 @@ window.occlara.onTip((tip) => {
   if (!tip || !tip.text) return;
   // Same glyphs as the overlay: the panel shows the last tip, and a callout
   // marked one way on screen and another way here would read as two systems.
-  if (window.tipVisuals) window.tipVisuals.render(lastTipText, tip.text, { topic: tip.topic });
+  // agent is passed here too, so the player's own agent gets its green ring
+  // everywhere the tip is shown, not only on the overlay.
+  if (window.tipVisuals) window.tipVisuals.render(lastTipText, tip.text, { topic: tip.topic, agent: tip.agent });
   else lastTipText.textContent = tip.text;
   lastTipEl.title = tip.text;   // full text on hover, never cut off
   lastTipEl.className = `last-tip no-drag has-tip ${tip.source || 'system'} flash`;

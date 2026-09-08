@@ -89,3 +89,48 @@
   margin-right: 0;
   margin-left: 3px;
 }
+
+
+/* ── Agent portraits ────────────────────────────────────────────────────────
+   An agent name renders as the kill feed portrait Valorant already uses next to
+   a name. The ring is the whole point: red when the sentence proves the agent
+   is an enemy, green when it is the player's own confirmed agent, and NOTHING
+   when neither is provable. A green teammate who is actually on the other team
+   is worse than no colour, because it would be trusted. */
+/* THE RING IS A BORDER, NOT AN INSET SHADOW. The portrait fills the span, so an
+   inset shadow is painted underneath it and effectively invisible, which is
+   exactly what happened the first time. A border with border-box sizing keeps
+   the ring outside the image where it can actually be seen. */
+.tv-mark.tv-agent-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  vertical-align: -0.3em;
+  width: 1.7em; height: 1.7em; padding: 0;
+  box-sizing: border-box;
+  border: 2px solid var(--glass-border);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.tv-agent-img {
+  width: 100%; height: 100%; object-fit: cover;
+  display: block; border-radius: 50%;
+}
+
+/* Proven enemy: the sentence itself says this agent killed the player. */
+.tv-mark.tv-agent-icon.tv-enemy {
+  border-color: var(--red);
+  background: rgba(var(--red-rgb), 0.2);
+  box-shadow: 0 0 0 1px rgba(var(--red-rgb), 0.3);
+}
+/* Proven ally: the player's own confirmed agent. */
+.tv-mark.tv-agent-icon.tv-ally {
+  border-color: var(--good);
+  background: rgba(var(--good-rgb), 0.2);
+  box-shadow: 0 0 0 1px rgba(var(--good-rgb), 0.3);
+}
+
+/* Over a bright game frame the minimal style has no card behind it, so the ring
+   needs its own separation from whatever is underneath. */
+.tips[data-style="minimal"] .tv-mark.tv-agent-icon {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.85));
+}

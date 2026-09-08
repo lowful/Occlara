@@ -38,4 +38,7 @@ contextBridge.exposeInMainWorld('occlara', {
   // The overlay is click-through; while the cursor hovers the review card this
   // asks main to accept mouse input so its ✕ can actually be clicked.
   setInteractive: (on) => ipcRenderer.send(C.OVERLAY_INTERACT, !!on),
+  // The match review card's eye button. 'deaths' asks the log to open in
+  // death-review mode rather than at frame zero.
+  openAiLog:     (mode) => ipcRenderer.send(C.OPEN_AILOG, mode || null),
 });

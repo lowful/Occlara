@@ -55,7 +55,12 @@ function sessions(root, liveId) {
         id,
         at: first.at || startedAt(id),
         frames: recs.length,
-        deaths: recs.filter((r) => r.shown && r.shown.death).length,
+        // DEATHS THAT HAPPENED, not deaths the coach talked about. This used
+        // to count `shown.death` flags, so a session with six real deaths and
+        // one review was labelled "2 deaths" in the picker while the log's own
+        // header said six. Same number, two meanings, one of them wrong.
+        deaths: timeline.deaths(recs).length,
+        deathsReviewed: recs.filter((r) => r.shown && r.shown.death).length,
         // CONFIRMED maps, not the raw reads. Listing what the model said would
         // label all five real sessions on this machine with two or three maps
         // each, when every one of them was a single map from start to finish.

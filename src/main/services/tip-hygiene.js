@@ -119,6 +119,11 @@ function overlapRatio(aWords, bWords) {
  *   authored complete, so the truncation and dropped-noun rules, which describe
  *   model failures, do not apply to it.
  */
+// A death review names the death and then says what to do next time. Kept local
+// and deliberately loose: this only decides how much room the sentence gets, and
+// the engine's DEATH_REVIEW_RE is the one that decides anything consequential.
+const DEATH_REVIEW_HINT = /\byou (died|got (killed|traded|picked)|were (killed|traded|caught))\b|\bnext (?:time|round)\b/i;
+
 function polishText(rawText, source) {
   if (rawText == null) return null;
   let t = String(rawText).replace(/\s+/g, ' ').trim();
@@ -198,7 +203,12 @@ function polishText(rawText, source) {
   // tips are authored complete and may legitimately end on words like "in".
   if (source === 'ai' && TRUNCATION.some((re) => re.test(t))) return null;
 
-  if (t.split(/\s+/).length > 30) return null;   // genuinely rambling (the card wraps to fit)
+  // Genuinely rambling (the card wraps to fit). A DEATH REVIEW gets more room:
+  // it has to name what happened AND what to do next time, which is two clauses
+  // where a live tip is one, and 30 words was clipping real reviews into the
+  // silent-refusal path where they looked like nothing had been generated.
+  const wordCap = DEATH_REVIEW_HINT.test(t) ? 38 : 30;
+  if (t.split(/\s+/).length > wordCap) return null;
 
   return t;
 }

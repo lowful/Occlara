@@ -95,17 +95,44 @@ console.log('\nrespawning takes their own health back:');
     `hp=${e.matchContext.playerHp} weapon=${e.matchContext.playerWeapon}`);
 }
 
-console.log('\nHP STILL BEATS DEATH, which must not regress:');
+console.log('\nA NAMED SPECTATOR TELL NOW BEATS THE HEALTH NUMBER:');
 {
   const e = alivePlayer();
-  // A hallucinated dead tell alongside a readable health number is the case the
-  // engine deliberately overrides: the number is ground truth.
+  // THIS CASE CHANGED, deliberately, and it is worth saying why.
+  //
+  // It used to assert the opposite: that a readable health number refused a
+  // dead read even when the tell said "spectating a teammate". Two things were
+  // wrong with that.
+  //
+  // First, it contradicted the server, which has always dropped the health for
+  // this exact tell ("the tell wins and the health number is DROPPED rather
+  // than reassigned, because it belongs to somebody else"). So the combination
+  // this asserted on could not reach the client in production at all; the test
+  // only saw it because it feeds the engine directly.
+  //
+  // Second, it is the bug. In a real graded session the player's genuine first
+  // death was rejected twice with "said the player was dead while they were
+  // alive at 100 HP", because the spectator camera puts the SPECTATED
+  // teammate's health in the same corner of the screen. Health is only ground
+  // truth for being alive while the HUD is still the player's own.
   e.updateMatchContext({ playerAlive: false, playerHp: 87, aliveTell: 'spectating a teammate' });
-  check('  a dead read with readable health is refused', e.matchContext.playerAlive === true,
-    'the health number is the ground truth for being alive');
+  check('  an explicit spectator tell is believed', e.matchContext.playerAlive === false,
+    'the tell names a spectator screen, so the health belongs to somebody else');
+  check('  and the health is dropped, not adopted', e.matchContext.playerHp == null,
+    `got ${e.matchContext.playerHp}`);
+  check('  the server sees a dead player', serverSeesAlive(e.matchContext) === false);
+}
+
+console.log('\nBUT A HEDGED TELL STILL LOSES TO THE HEALTH NUMBER:');
+{
+  // The protection the case above was really reaching for. A model that is
+  // guessing says so, and a guess must never silence a living player mid round.
+  const e = alivePlayer();
+  e.updateMatchContext({ playerAlive: false, playerHp: 87, aliveTell: 'unreadable, assuming spectating' });
+  check('  an unsure tell does not kill the player', e.matchContext.playerAlive === true,
+    'the model hedged, so the health number wins');
   check('  and that health is kept', e.matchContext.playerHp === 87,
     `got ${e.matchContext.playerHp}`);
-  check('  the server sees a live player', serverSeesAlive(e.matchContext) === true);
 }
 
 console.log('\nan unproven dead read still waits for a second frame:');

@@ -256,7 +256,16 @@ function showReview(data) {
   closeBtn.className = 'review-close';
   closeBtn.title = 'Dismiss';
   closeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>';
-  h.append(closeBtn);
+  // VOD REVIEW. Straight to the deaths in the decision log, which is where a
+  // match review is actually useful. This replaced a system tip that said "open
+  // Ask Coach and ask what to fix": a card telling you to go somewhere else and
+  // type a question costs a tip slot and teaches nothing.
+  const vodBtn = document.createElement('button');
+  vodBtn.className = 'review-vod';
+  vodBtn.title = 'VOD review: every death, frame by frame';
+  vodBtn.setAttribute('aria-label', 'VOD review');
+  vodBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+  h.append(vodBtn, closeBtn);
   const body = document.createElement('div');
   body.className = 'body';
   body.textContent = data.review;
@@ -275,6 +284,14 @@ function showReview(data) {
     setTimeout(() => { reviewEl.hidden = true; reviewEl.innerHTML = ''; }, 300);
   };
   closeBtn.addEventListener('click', dismiss);
+  vodBtn.addEventListener('click', () => {
+    // Hand the mouse back BEFORE opening a window. Skipping this leaves the
+    // overlay capturing input over a live game, which is the worst thing this
+    // surface can do.
+    window.occlara.setInteractive(false);
+    window.occlara.openAiLog('deaths');
+    dismiss();
+  });
   // The overlay is click-through; while the cursor is over the card, main
   // accepts mouse input so the ✕ is clickable, released on leave.
   card.addEventListener('mouseenter', () => window.occlara.setInteractive(true));

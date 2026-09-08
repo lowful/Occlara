@@ -44,6 +44,7 @@ const settingsWindow   = require('./windows/settings-window');
 const historyWindow    = require('./windows/history-window');
 const weeklyWindow     = require('./windows/weekly-window');
 const learnWindow      = require('./windows/learn-window');
+const gradeBlend       = require('../shared/grade-blend');
 const reviewWindow     = require('./windows/review-window');
 const { LolRecorder }  = require('./services/lol-recorder');
 const aiLogWindow      = require('./windows/ailog-window');
@@ -370,8 +371,10 @@ const controller = {
       } catch {}
       registry.broadcast(C.PUSH_MATCH_REVIEW, data);
       saveMatchSummary(data);
-      // Natural moment to go deeper: nudge toward the Ask Coach chat.
-      pushTip({ text: 'Want the full breakdown? Open Ask Coach from the panel and ask what to fix.', source: 'system' });
+      // NO NUDGE TIP HERE ANY MORE. A card that says "open this other window and
+      // ask it something" is a tip that costs a slot and teaches nothing. The
+      // review card now carries an eye button that goes straight to the deaths,
+      // which is the thing the sentence was pointing at.
       // Riot publishes match data a few minutes after the match ends; if it
       // was not up yet, try once more and re-push the review with real stats.
       //
@@ -728,13 +731,21 @@ const controller = {
     const target = recs[i];
     if (!target) return { error: 'That frame is no longer in the log.' };
 
-    // Up to two frames of run-up, oldest first, then the frame in question.
+    // ONE frame of run-up, then the frame in question.
+    //
+    // It used to send three. The live analyze loop sends two and succeeds; this
+    // asked the same model for an extra image AND a longer answer, and the whole
+    // feature simply never replied. The provider currently in front of this is
+    // the one coach.js documents as having once returned an empty string on
+    // every call, and the same session logged 19 timeouts on the lighter
+    // two-image path, so the third image was the difference between flaky and
+    // useless.
     const b64 = (r) => (r && typeof r.frameData === 'string'
       ? r.frameData.replace(/^data:image\/[a-z]+;base64,/, '') : null);
-    const images = [recs[i - 2], recs[i - 1], target].map(b64).filter(Boolean);
+    const images = [recs[i - 1], target].map(b64).filter(Boolean);
 
     try {
-      const { ok, data } = await api.post('/api/coach/frame-chat', {
+      const { ok, status, data } = await api.post('/api/coach/frame-chat', {
         question,
         images,
         state: target.state || {},
@@ -742,13 +753,21 @@ const controller = {
         history: Array.isArray(p.history) ? p.history.slice(-8) : [],
       }, licenseKey, 35000);
       if (ok && data && data.reply) return { reply: data.reply };
-      return { error: (data && (data.message || data.error)) || 'The coach had no answer.' };
+      // SAY WHY, in the log and on screen. This used to return the error and log
+      // NOTHING, so a chat that answered nothing all session left not one line in
+      // debug.log while the engine beside it was logging every 503 it saw. The
+      // feature looked broken and unfixable at the same time.
+      console.error(`[ai-log] frame chat: status=${status} ${(data && (data.error || data.message)) || 'no reply'}`);
+      return { error: chatFailureText(status, data) };
     } catch (e) {
       console.error('[ai-log] frame chat failed:', e.message);
       return { error: 'Could not reach the coach server.' };
     }
   },
 
+  /* Nothing above this line explains a failure to the player, so this does. The
+   * three that actually happen are worth separating: credits, rate limit and the
+   * model itself, because only one of them is worth retrying immediately. */
   /** The weekly report the popup renders. Reading it marks the week as seen
    *  and rolls the comparison baseline, so next week measures from here. */
   getWeeklyReport() {
@@ -955,9 +974,12 @@ const controller = {
       proPlaybook:  playbookMode(),
     };
     try {
-      const { ok, data } = await api.post('/api/coach/chat', { messages, context }, licenseKey, 30000);
+      const { ok, status, data } = await api.post('/api/coach/chat', { messages, context }, licenseKey, 30000);
       if (ok && data && data.reply) return { ok: true, reply: data.reply };
-      return { ok: false, error: (data && data.error) || 'The coach had no answer. Try again.' };
+      // Same defect as the frame chat: this used to return the error and log
+      // nothing, so a chat that failed all session was invisible in debug.log.
+      console.error(`[chat] status=${status} ${(data && (data.error || data.message)) || 'no reply'}`);
+      return { ok: false, error: chatFailureText(status, data) };
     } catch (e) {
       console.error('[chat] failed:', e.message);
       return { ok: false, error: 'Could not reach the coach server.' };
@@ -1244,6 +1266,30 @@ function finishLolGame(record) {
 let lastLolReview = null;
 let lastLolRaw = null;
 
+/**
+ * Turn a failed coach call into something worth reading.
+ *
+ * The old behaviour was a flat "The coach had no answer", which is the same
+ * sentence whether the wallet is empty, the key is rate limited, or the model
+ * timed out. Those need three different reactions from the player and only one
+ * of them is "try again".
+ */
+function chatFailureText(status, data) {
+  const said = String((data && (data.error || data.message)) || '').toLowerCase();
+  if (status === 402 || said.includes('credit')) {
+    return 'The coach is out of credits on the server. This is not your connection, and it comes back when the balance does.';
+  }
+  if (status === 429 || said.includes('rate limit')) {
+    return 'Too many questions too quickly. Wait a few seconds and ask again.';
+  }
+  if (status === 403) return 'That licence is not active any more.';
+  if (status === 503 || status === 504) {
+    return 'The coach took too long to look at this frame. Ask again, and a shorter question usually lands.';
+  }
+  if (said) return said.charAt(0).toUpperCase() + said.slice(1);
+  return 'The coach had no answer for that frame.';
+}
+
 function emptyMatchBucket() { return { data: null, fetchedAt: 0, lastManual: 0 }; }
 let matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };   // per-mode tracker cache
 let lastRiotId = (store.get('riotId') || '').trim();               // detects account switches
@@ -1381,7 +1427,10 @@ async function regradeWithMatch(target, match) {
     if (!row) return;
 
     row.scores = { impact, positioning: data.positioning, utility: data.utility, aim: data.aim };
-    row.overall = Math.round((row.scores.impact + row.scores.positioning + row.scores.utility + row.scores.aim) / 4);
+    // Prefer the summary already stored on the row: scheduleMatchBackfill wrote
+    // it with matchSummary(match) and it is the shape the rest of the app reads.
+    // The raw match is the fallback, and both carry grade and result.
+    row.overall = gradeBlend.overallScore(row.scores, row.match || match);
     if (data.summary)    row.summary    = data.summary;
     if (data.strengths)  row.strengths  = data.strengths;
     if (data.weaknesses) row.weaknesses = data.weaknesses;
@@ -1599,7 +1648,7 @@ async function logSessionPerformance(tips, mctx, durationMin, notes, match) {
       // record so history and the weekly report can show the result next to the
       // grade instead of the grade floating free of any outcome.
       match: matchSummary(match),
-      overall: Math.round((scores.impact + scores.positioning + scores.utility + scores.aim) / 4),
+      overall: gradeBlend.overallScore(scores, match),
       summary:    data.summary    || '',   // the coach's spoken-style recap
       strengths:  data.strengths  || '',
       weaknesses: data.weaknesses || '',

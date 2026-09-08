@@ -74,6 +74,7 @@ const STRINGS = {
     'panel.stats': 'Stats',
     'panel.history': 'History',
     'panel.askCoach': 'Ask Coach',
+    'panel.vodReview': 'VOD review: every death, frame by frame',
 
     'settings.title': 'Settings',
     'settings.tipFrequency': 'Tip frequency',

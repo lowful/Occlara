@@ -7,6 +7,7 @@ const agentData = require('./agent-data');
 const { polishText, cleanTip, tipWords, normalizeTip, overlapRatio, countOf,
         PREAMBLE, TRUNCATION } = require('./tip-hygiene');
 const { API, TIMING, PERFORMANCE_INTERVALS, TIP_PACING, COACHING } = require('../../shared/config');
+const spectate = require('../../shared/spectate-tells');
 
 /**
  * The coaching loop. Lives in the main process; the heavy screen capture runs in
@@ -682,11 +683,27 @@ class CoachingEngine extends EventEmitter {
     if (Date.now() - this.lastTipTime < cooldown) { noteReject('too soon after the last tip (cooldown)'); return; }
 
     const cleaned = agentData.genericizeAbilities(cleanTip(tip));
-    if (this.isSimilarToRecent(cleaned)) { noteReject('too similar to a recent tip'); this.fillQuietSpell(); return; }
+
+    // IS THIS A DEATH REVIEW. Decided HERE, above every repetition gate, and it
+    // used to be decided forty lines below them.
+    //
+    // That ordering was the whole bug. In a real graded session the model wrote
+    // 26 death reviews and 24 were dropped, 22 of them by the repetition gates
+    // underneath this line, which had no idea they were throwing away the one
+    // kind of tip a player actually goes back and reads. A review of a death is
+    // ABOUT a specific moment, so it is supposed to resemble the last one: same
+    // callout, same mistake, same words. Repetition is the point, not a defect.
+    //
+    // The truth gates below still apply in full. A death review that names the
+    // wrong callout, the wrong death spot or contradicts the state is still
+    // dropped, because being about a real moment does not make it accurate.
+    const isDeath = !!response.death || this.inDeathWindow() || DEATH_REVIEW_RE.test(cleaned);
+
+    if (!isDeath && this.isSimilarToRecent(cleaned)) { noteReject('too similar to a recent tip'); this.fillQuietSpell(); return; }
 
     const topic = topicOf(cleaned);
     const recent = this.tipHistory.slice(-3).map((t) => topicOf(t.text));
-    if (recent.length >= 3 && recent.every((t) => t === topic)) { noteReject('same topic as the last three tips'); this.fillQuietSpell(); return; }
+    if (!isDeath && recent.length >= 3 && recent.every((t) => t === topic)) { noteReject('same topic as the last three tips'); this.fillQuietSpell(); return; }
 
     if (!this.validateTipForAgent(cleaned)) {
       noteReject('named an ability the player\'s agent does not have');
@@ -700,23 +717,30 @@ class CoachingEngine extends EventEmitter {
     // topic cooldown. A play may not be recommended again while it is still two
     // tips old, so the coaching has to actually vary.
     const play = playPatternIn(cleaned);
-    if (play && this.recentPlays.slice(-2).includes(play)) {
+    if (!isDeath && play && this.recentPlays.slice(-2).includes(play)) {
       noteReject(`already recommended a ${play} in the last two tips`);
+      // SELF-REINFORCING LOOP, closed. The filler emitted on this reject path
+      // pushes its own play name into recentPlays, so a rejection for repeating
+      // "fall-back" could be answered with library filler that ALSO says fall
+      // back, re-arming the very gate that just fired. In one real session that
+      // one play accounted for eight straight drops.
+      this._suppressPlay = play;
       this.emitLibraryTip();
+      this._suppressPlay = null;
       return;
     }
 
     // Anti-fixation: don't suggest the same ability (e.g. Updraft) in back-to-back
     // tips. Forces variety even if the model repeats itself.
     const abilityWord = abilityWordIn(cleaned);
-    if (abilityWord && this.recentAbilities.slice(-2).includes(abilityWord)) {
+    if (!isDeath && abilityWord && this.recentAbilities.slice(-2).includes(abilityWord)) {
       noteReject('repeated the same ability (' + abilityWord + ') back to back');
       this.emitLibraryTip();
       return;
     }
 
     this.skipCount = 0;
-    const sent = this.emitTip(cleaned, 'ai', { death: !!response.death || this.inDeathWindow() });
+    const sent = this.emitTip(cleaned, 'ai', { death: isDeath });
     if (sent && abilityWord) {
       this.recentAbilities.push(abilityWord);
       if (this.recentAbilities.length > 6) this.recentAbilities.shift();
@@ -977,7 +1001,7 @@ class CoachingEngine extends EventEmitter {
     // the variety guard sees library filler too and cannot be reset by it.
     if (source !== 'system') {
       const playName = playPatternIn(verified);
-      if (playName) {
+      if (playName && playName !== this._suppressPlay) {
         this.recentPlays.push(playName);
         if (this.recentPlays.length > 6) this.recentPlays.shift();
       }
@@ -1401,10 +1425,60 @@ class CoachingEngine extends EventEmitter {
     // A readable health number beats any "dead" read. This is the ground truth
     // and it is what stops a hallucinated spectate tell from silencing the
     // coach for a player who is very much alive.
-    if (updates.playerAlive === false && typeof updates.playerHp === 'number' && updates.playerHp > 0) {
+    //
+    // WHOSE HUD IS THIS. Health only beats a dead read when the health is the
+    // PLAYER'S OWN, and after a death it is not: the spectator camera puts a
+    // teammate's health, weapon and abilities in the same corner of the screen.
+    //
+    // The old rule here had no way to tell the difference and, worse, deleted
+    // the tell at the same time, destroying the only evidence the check below
+    // could have used. A real session went: "own HP 100 and Ghost", "own HP 100
+    // and Bandit", "own HP 19 and Sova abilities" while the player was Iso.
+    // Health won all three times, the death never registered, and with it went
+    // the death flag, the spectator merge guard and two correct death reviews.
+    // A BUY PHASE IS ALWAYS A BOUNDARY, and leaning only on roundNumber is not
+    // safe: in the session this was built from, roundNumber was missing on a
+    // third of the frames. Without this, the weapon and health carried over from
+    // the SPECTATED teammate into the player's next living round and read as two
+    // weak spectate signals, which would have called a living player dead.
+    const roundChanged = (updates.phase === 'buy')
+      || (typeof updates.roundNumber === 'number'
+          && typeof this.matchContext.roundNumber === 'number'
+          && updates.roundNumber !== this.matchContext.roundNumber)
+      // Coming back from spectating is a boundary too: everything remembered
+      // about the HUD belonged to somebody else.
+      || (this.matchContext.spectateSuspected === true && updates.playerAlive === true);
+    if (roundChanged) this.roundWeapons = new Set();
+    if (!this.roundWeapons) this.roundWeapons = new Set();
+    if (updates.playerWeapon) this.roundWeapons.add(String(updates.playerWeapon));
+
+    const hud = spectate.readHudOwner({
+      tell:        updates.aliveTell,
+      agent:       this.matchContext.agent,
+      weapon:      updates.playerWeapon,
+      prevWeapon:  this.matchContext.playerWeapon,
+      weaponChurn: this.roundWeapons.size,
+      hp:          updates.playerHp,
+      prevHp:      this.matchContext.playerHp,
+      roundChanged,
+    });
+    this.matchContext.spectateSuspected = hud.spectating;
+
+    if (hud.spectating) {
+      // The tell wins and the health number is DROPPED rather than reassigned,
+      // because it belongs to somebody else and a teammate's health passed off
+      // as the player's is worse than no reading at all.
+      if (updates.playerHp != null || updates.playerAlive !== false) {
+        console.log(`[engine] spectating: ${hud.signals.join('; ')}`);
+      }
+      updates.playerAlive = false;
+      delete updates.playerHp;
+    } else if (updates.playerAlive === false && typeof updates.playerHp === 'number' && updates.playerHp > 0) {
       console.log(`[engine] ignoring dead read: health is ${updates.playerHp}`);
       updates.playerAlive = true;
-      delete updates.aliveTell;
+      // The tell is NOT deleted any more. It is the evidence the spectate check
+      // above runs on, and throwing it away is what made this bug unfixable
+      // from inside the guard that caused it.
     }
     if (updates.playerAlive === false && updates.phase !== 'dead') {
       const tell   = String(updates.aliveTell || '');
@@ -1490,8 +1564,7 @@ class CoachingEngine extends EventEmitter {
         continue;
       }
       // handled separately (mode needs its 2-read lock), never merged raw
-      if (key === 'recentTopics' || key === 'playerNote' || key === 'gameMode'
-          || key === 'aliveTell') continue;
+      if (key === 'recentTopics' || key === 'playerNote' || key === 'gameMode') continue;
       // The team's plan can CHANGE mid-round (a rotate). A read from the buy
       // phase kept driving tips all round, so the coach would still say "hit B"
       // after the team had rotated to A. Stamp each read, and when the plan
@@ -2332,7 +2405,12 @@ function contradictsState(text, ctx) {
   if (notAlive) {
     const aliveNow = ctx.playerAlive === true
       || (typeof ctx.playerHp === 'number' && ctx.playerHp > 0);
+    // `spectateSuspected` is the fix for the whole class of failure this guard
+    // used to cause. It is set upstream from the HUD identity read, so a death
+    // review written while the model is describing a teammate's HUD is no longer
+    // called a fabrication just because that teammate happens to be at 100.
     const reviewing = ctx.playerAlive === false || ctx.phase === 'dead'
+      || ctx.spectateSuspected === true
       || !!(ctx.lastDeathAt && Date.now() - ctx.lastDeathAt < DEATH_WINDOW_MS);
     if (aliveNow && !reviewing) {
       const at = typeof ctx.playerHp === 'number' ? ` at ${ctx.playerHp} HP` : '';
@@ -2477,7 +2555,19 @@ function scenarioFits(text, source, ctx) {
   }
 
   // A dead player can only watch / comm, don't tell them to peek or shoot.
-  if (ctx.phase === 'dead'
+  //
+  // BUT A DEATH REVIEW IS WRITTEN ABOUT EXACTLY THOSE VERBS, in the past tense:
+  // "you peeked A Main without a trade", "you pushed in alone". This gate is
+  // tenseless and ctx.phase is 'dead' while the review is being written, so a
+  // rule built to stop instructions to a corpse was eating the reviews OF that
+  // corpse instead. It accounted for most of the silent "failed the final verify
+  // gate" drops in a real graded session.
+  //
+  // The exemption is deliberately narrow: the text must actually name the death
+  // or advise for a later round. An imperative with neither is still an
+  // instruction to somebody who cannot act on it, and is still refused.
+  const reviewingADeath = DEATH_REVIEW_RE.test(l) || /\bnext (?:time|round)\b/.test(l);
+  if (ctx.phase === 'dead' && !reviewingADeath
       && /\b(peek|swing|shoot|spray|tap|push|rush|plant|defuse|reload)\b/.test(l)
       && !/\b(comm|call|callout|watch|spectat|info|next round|note)\b/.test(l)) {
     return false;

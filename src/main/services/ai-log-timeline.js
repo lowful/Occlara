@@ -294,11 +294,33 @@ function deaths(records) {
 }
 
 /** Who did it, from the kill feed or the tell, when either says so plainly. */
+/**
+ * Who killed the player, named by AGENT and never by username.
+ *
+ * The raw capture greedily swallowed whatever followed "killed by", which on a
+ * real kill feed is a name and then more feed. One real session produced
+ * "Sage MILFSLAYER69 killed", which is ugly, leaks another player's handle, and
+ * is not what a review should say. A player is an agent here, the same way the
+ * coach names them in a tip.
+ */
 function killerOf(recs, i) {
+  const AGENTS = (() => {
+    try { return Object.keys(require('../../shared/valorant-data.generated.json').agents || {}); }
+    catch { return []; }
+  })();
+
   for (const r of recs.slice(i, i + 3)) {
     const s = r.state || {};
-    const m = /killed by ([A-Za-z0-9|_. -]{2,24})/i.exec(`${s.aliveTell || ''} ${s.killFeed || ''}`);
-    if (m) return m[1].trim().replace(/[,.]$/, '');
+    const text = `${s.aliveTell || ''} ${s.killFeed || ''}`;
+    const m = /killed by ([A-Za-z0-9|_. -]{2,24})/i.exec(text);
+    if (!m) continue;
+    const raw = m[1].trim().replace(/[,.]$/, '');
+    // Prefer an agent name found anywhere in the capture. That is the part worth
+    // showing, and it is usually the first word of a messy match.
+    const agent = AGENTS.find((a) => new RegExp(`\\b${a}\\b`, 'i').test(raw));
+    if (agent) return agent;
+    // No agent in it: a bare handle is not worth showing at all.
+    return /^[A-Za-z]+$/.test(raw) ? raw : null;
   }
   return null;
 }

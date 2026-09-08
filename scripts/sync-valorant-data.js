@@ -85,6 +85,57 @@ function buildAgents(rows) {
   return agents;
 }
 
+/**
+ * Download every agent's kill feed portrait into assets/agents/.
+ *
+ * WHY THE KILL FEED PORTRAIT and not displayIcon. Measured: displayIcon is
+ * 410KB per agent, killfeedPortrait is under 10KB, and 29 of the former would
+ * put twelve megabytes of art into an installer to render marks 16 pixels wide.
+ * It is also the semantically right picture: it is the icon Valorant itself
+ * puts next to a name when somebody kills somebody, which is exactly the job it
+ * does in a tip.
+ *
+ * LOCAL FILES, not remote URLs. The overlay's CSP is `img-src 'self' data:`, so
+ * a media.valorant-api.com image would be blocked outright there, and widening
+ * that policy for decoration is a bad trade. This mirrors what sync-lol.js
+ * already does with 173 champion icons.
+ */
+/** An agent name as a filename. Must match agentSlug() in tip-visuals.js. */
+function agentSlug(name) {
+  return String(name || '').replace(/[^A-Za-z0-9]/g, '');
+}
+
+async function syncAgentIcons(rows) {
+  const dir = path.join(__dirname, '..', 'assets', 'agents');
+  fs.mkdirSync(dir, { recursive: true });
+
+  let fetched = 0, skipped = 0, failed = 0;
+  const BATCH = 8;                    // someone else's CDN, and there is no hurry
+  const list = rows.filter((a) => a.displayName && a.killfeedPortrait);
+
+  for (let i = 0; i < list.length; i += BATCH) {
+    await Promise.all(list.slice(i, i + BATCH).map(async (a) => {
+      // KAY/O has a slash in its name, which is not a filename. The renderer
+      // slugifies the same way, so the two always agree.
+      const dest = path.join(dir, `${agentSlug(a.displayName)}.png`);
+      try {
+        const r = await fetch(a.killfeedPortrait);
+        if (!r.ok) { failed++; return; }
+        const buf = Buffer.from(await r.arrayBuffer());
+        // Only write when the bytes differ, so a re-sync does not add 29
+        // identical blobs to git history.
+        if (fs.existsSync(dest) && fs.readFileSync(dest).equals(buf)) { skipped++; return; }
+        fs.writeFileSync(dest, buf);
+        fetched++;
+      } catch { failed++; }
+    }));
+    process.stdout.write(`\r[valorant] agent icons ${Math.min(i + BATCH, list.length)}/${list.length}`);
+  }
+  process.stdout.write('\n');
+  console.log(`[valorant] agent icons: ${fetched} written, ${skipped} unchanged, ${failed} failed`);
+  if (failed) console.log('[valorant] a failed icon is not fatal: the tip falls back to the agent name.');
+}
+
 // A standard plant/defuse map has a tacticalDescription ("A/B Sites" or
 // "A/B/C Sites"); Team Deathmatch and tutorial maps have null.
 function isStandardMap(m) {
@@ -215,6 +266,7 @@ async function main() {
   const [agentRows, mapRows] = await Promise.all([fetchJson(AGENTS_URL), fetchJson(MAPS_URL)]);
 
   const agents = buildAgents(agentRows);
+  await syncAgentIcons(agentRows);
   const { maps, threeSiteMaps, standardRows } = buildMaps(mapRows);
   const mapCallouts = buildCallouts(standardRows);
   const mapGeometry = buildGeometry(standardRows);

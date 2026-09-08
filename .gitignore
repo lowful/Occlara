@@ -20,3 +20,6 @@ desktop.ini
 fixtures/rivals/*.png
 fixtures/rivals/*.jpg
 dist-surface-shots/
+
+# Logo renders for the website. Generated from assets/logo-mark.svg on demand.
+dist-logo/

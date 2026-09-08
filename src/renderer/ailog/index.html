@@ -47,6 +47,15 @@
       <!-- Riot's own record of the match, checked against the deaths read off
            the screen. Appears only once the check comes back. -->
       <div id="confirm" class="confirm" hidden></div>
+      <!-- DEATH REVIEW MODE. The match review card's eye opens straight into
+           this: walk the deaths rather than 240 frames, since the deaths are
+           the only frames anyone came here to look at. -->
+      <div id="deathnav" class="deathnav" hidden>
+        <button id="death-prev" class="nav-btn" title="Previous death">&#8249;</button>
+        <span id="death-pos" class="deathnav-pos"></span>
+        <button id="death-next" class="nav-btn" title="Next death">&#8250;</button>
+        <span id="death-why" class="deathnav-why"></span>
+      </div>
       <div class="frame-meta">
         <span id="pos">0 / 0</span>
         <!-- The map this stretch of the session was confirmed to be on, which is

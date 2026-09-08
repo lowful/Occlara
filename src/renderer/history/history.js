@@ -32,7 +32,9 @@ function rowFor(tip) {
 
   const text = document.createElement('div');
   text.className = 'text';
-  if (window.tipVisuals) window.tipVisuals.render(text, tip.text, { topic: tip.topic });
+  // agent is passed here too, so the player's own agent gets its green ring
+  // everywhere the tip is shown, not only on the overlay.
+  if (window.tipVisuals) window.tipVisuals.render(text, tip.text, { topic: tip.topic, agent: tip.agent });
   else text.textContent = tip.text;
 
   col.append(meta, text);
@@ -158,19 +160,54 @@ function sessionLabel(s) {
   return `${when}${s.agent ? ' · ' + s.agent : ''} · ${s.tipCount} tips`;
 }
 
+/** The closed button has far less room than the open list, so it drops the count. */
+function sessionShort(s) {
+  const d = new Date(s.endedAt || 0);
+  const when = d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+               d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return `${when}${s.agent ? ' · ' + s.agent : ''}`;
+}
+
+/**
+ * The session picker, on the app's own dropdown rather than a native select.
+ *
+ * `short` is what the closed button shows and `label` is what the open list
+ * shows, which is the whole reason the tip count stopped being clipped: a native
+ * select sizes its options to the trigger, so "Sep 7 3:04 PM, Jett, 42 tips" lost
+ * its tail inside a 170px box. The list here sizes to its content instead.
+ */
+let sessionDD = null;
+
 async function populateSessions() {
+  if (!window.Dropdown) return;
+  let sessions = [];
+  // THE CONTROL EXISTS EVEN WHEN THE LIST DOES NOT. A failed lookup used to
+  // abandon the whole function before the dropdown was ever created, which left
+  // a 148px hole in the header where a control should be, and no way to get
+  // back to the current session.
+  try { sessions = (await window.occlara.listSessions()) || []; } catch { sessions = []; }
   try {
-    const sessions = await window.occlara.listSessions();
-    const current = pickerEl.value;
-    while (pickerEl.options.length > 1) pickerEl.remove(1);
-    for (const s of sessions || []) {
-      const opt = document.createElement('option');
-      opt.value = s.file;
-      opt.textContent = sessionLabel(s);
-      pickerEl.append(opt);
+    const opts = [{ value: '', label: 'Current session', short: 'Current' }].concat(
+      sessions.map((s) => ({
+        value: s.file,
+        label: sessionLabel(s),
+        short: sessionShort(s),
+        tag: s.tipCount ? String(s.tipCount) : '',
+      })),
+    );
+    if (!sessionDD) {
+      sessionDD = window.Dropdown.create(pickerEl, {
+        label: 'Review a past session',
+        options: opts,
+        value: viewingFile,
+        onChange: (file) => openSession(file),
+      });
+    } else {
+      // keepValue, always: repainting the list must never silently move the
+      // player to a different session.
+      sessionDD.setOptions(opts, true).setValue(viewingFile);
     }
-    pickerEl.value = current && [...pickerEl.options].some((o) => o.value === current) ? current : viewingFile;
-  } catch {}
+  } catch { /* the picker keeps whatever it had */ }
 }
 
 /*
@@ -227,22 +264,33 @@ aiLogBtn.addEventListener('click', async () => {
   window.occlara.openAiLog(id || undefined);
 });
 
-pickerEl.addEventListener('mousedown', populateSessions);
-pickerEl.addEventListener('change', async () => {
-  viewingFile = pickerEl.value;
+/**
+ * Show one archived session, or the live one.
+ *
+ * The old picker rebuilt its options on mousedown, which the custom dropdown
+ * cannot do: Dropdown.open() no-ops on an empty list, so a list built on the
+ * click that opens it arrives one click too late. The list is built up front and
+ * refreshed when the state changes instead.
+ */
+async function openSession(file) {
+  viewingFile = file || '';
   if (!viewingFile) {
     window.occlara.getState().then((s) => render(s)).catch(() => {});
     return;
   }
   const session = await window.occlara.getSession(viewingFile).catch(() => null);
-  if (!session) { viewingFile = ''; pickerEl.value = ''; return; }
+  if (!session) {
+    viewingFile = '';
+    if (sessionDD) sessionDD.setValue('');
+    return;
+  }
   const tips = session.tips || [];
   const mix = session.tipMix || {
     ai:      tips.filter((t) => t.source === 'ai').length,
     library: tips.filter((t) => t.source === 'library').length,
   };
   render({ tips, tipMix: mix, tipRatings: {} });
-});
+}
 
 window.occlara.getState().then((s) => render(s)).catch(() => {});
 window.occlara.onState((s) => { if (s && !viewingFile && !fbOpen) render(s); });   // never yank the form mid-typing

@@ -178,6 +178,43 @@ know the story. Do not refactor these away.
 The governing principle: **the coach reports what is actually on screen and
 never infers.** When code and model disagree, code wins.
 
+### Whose HUD is it, and why death reviews used to vanish
+
+Valorant puts you on a teammate's camera the instant you die, so the health, the
+weapon and the abilities in that corner become THEIRS. Every guard reasoning "a
+readable health number means alive" is then reading somebody else's health.
+
+A real graded session: the player's first death was rejected twice with "said the
+player was dead while they were alive at 100 HP". The frames read `own HP 100 and
+Ghost`, then `own HP 100 and Bandit`, then `own HP 19 and **Sova** abilities`,
+while the player was Iso. One bug, four consequences: the death never registered,
+so `lastDeathAt` was never set, so `isSpectating()` stayed false, so `death: true`
+was never set, so the spectator merge guard never engaged and a teammate's Ghost,
+Bandit and Sword were logged as the player's own weapon.
+
+`src/shared/spectate-tells.js` is the fix. **A HUD that changes whose it is mid
+round is spectating, whatever the health says.** One strong signal (a named
+spectator screen, or another agent's abilities called "own") or two weak ones (a
+weapon change, health rising) decides it. A buy phase and a return from
+spectating are boundaries, because `roundNumber` was missing on a third of the
+real frames. `server/routes/coach.js` mirrors the vocabulary by hand, since
+`check:server` forbids reaching into `src/`, and `npm run test:spectate` asserts
+both copies agree on the real frames.
+
+### Death reviews skip the repetition gates, and only those
+
+Of 26 death reviews in that session, **24 were dropped**. Twenty-two of those
+were repetition gates, not truth gates. A review of a death is ABOUT a specific
+moment, so it is supposed to resemble the last one: same callout, same mistake,
+same words.
+
+`isDeath` is now decided in `processAIResponse` **above** the gates rather than
+forty lines below them, and skips `isSimilarToRecent`, the topic cooldown,
+`PLAY_PATTERNS` and `recentAbilities`. Every truth gate still applies, and
+`DEATH_TIPS_MAX` stays at 2. Two related fixes: the dead-player action gate was
+eating past-tense reviews of the corpse it was written to protect, and library
+filler emitted on a reject path was re-arming the very play gate that fired.
+
 ## League records in silence and coaches afterwards
 
 There is **no live League coach and there must never be one.** This is policy,

@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld('occlara', {
   openHistory:   () => ipcRenderer.send(C.OPEN_HISTORY),
   openChat:      () => ipcRenderer.send(C.OPEN_CHAT),
   openStats:     () => ipcRenderer.send(C.OPEN_STATS),
+  // The AI decision log. register-ipc already handled OPEN_AILOG; only the
+  // bridge was missing, so nothing in the panel could reach it.
+  openAiLog:     (id) => ipcRenderer.send(C.OPEN_AILOG, id || null),
   openLearn:     () => ipcRenderer.send(C.OPEN_LEARN),
   quit:          () => ipcRenderer.send(C.APP_QUIT),
   // request/response

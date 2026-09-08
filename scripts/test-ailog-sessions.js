@@ -42,9 +42,20 @@ function makeSession(stamp, recs, mtime) {
 }
 
 const T = Date.UTC(2026, 7, 10, 20, 0, 0);
+// A REAL DEATH, not just a tip that mentions one. The listing used to count
+// `shown.death` flags and call that "deaths", so a session with six real deaths
+// and one review was labelled "2 deaths" in the picker while the log's own
+// header said six: the same word for two different numbers, one of them wrong.
+// The fixture now carries an actual alive-to-dead transition so both counts are
+// exercised.
 makeSession('2026-08-10T20-00-00-000Z', [
-  { at: T, state: { map: 'Bind', locLabel: 'Hookah' } },
-  { at: T + 600000, state: { map: 'Bind', locLabel: 'Showers' }, shown: { text: 'died', death: true } },
+  { at: T, state: { map: 'Bind', locLabel: 'Hookah', playerAlive: true, playerHp: 100 } },
+  // A DEATH LASTS. Dying ends your round, so the spectator HUD stays up until
+  // the next one; at a ten second capture that is never a single frame, and the
+  // detector requires either two frames or printed proof for exactly that reason.
+  { at: T + 600000, state: { map: 'Bind', locLabel: 'Showers', playerAlive: false, phase: 'dead', aliveTell: 'spectating a teammate' },
+    shown: { text: 'died', death: true } },
+  { at: T + 610000, state: { map: 'Bind', locLabel: 'Showers', playerAlive: false, phase: 'dead', aliveTell: 'spectating a teammate' } },
 ], T);
 makeSession('2026-08-12T21-35-10-405Z', [
   { at: T + 86400000, state: { map: 'Haven' } },
@@ -70,7 +81,9 @@ ok(!/frameData|base64|data:image/.test(listJson), 'the session list carries NO f
 ok(listJson.length < 2000, `the session list stays small (${listJson.length} bytes)`);
 
 const bind = list.find((s) => s.id === 'session-2026-08-10T20-00-00-000Z');
-ok(bind.frames === 2 && bind.deaths === 1, 'frame and death counts are right');
+ok(bind.frames === 3, `frame count is right (got ${bind.frames})`);
+ok(bind.deaths === 1, `deaths counts what HAPPENED (got ${bind.deaths})`);
+ok(bind.deathsReviewed === 1, `and deathsReviewed counts what the coach said (got ${bind.deathsReviewed})`);
 ok(bind.mins === 10, `duration is read from the records (${bind.mins} min)`);
 ok(bind.live === false, 'a finished session is not marked live');
 
@@ -97,7 +110,7 @@ ok(newest.session === 'session-2026-08-13T10-00-00-000Z', 'no id opens the newes
 
 const chosen = store.read(root, 'session-2026-08-10T20-00-00-000Z');
 ok(chosen.session === 'session-2026-08-10T20-00-00-000Z', 'an id opens that session');
-ok(chosen.records.length === 2, 'its records come back');
+ok(chosen.records.length === 3, `its records come back (got ${chosen.records.length})`);
 ok(String(chosen.records[0].frameData).startsWith('data:image/jpeg;base64,'),
   'frames ARE inlined when a session is opened');
 ok(Array.isArray(chosen.sessions) && chosen.sessions.length === 3,

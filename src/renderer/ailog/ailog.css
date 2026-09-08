@@ -82,6 +82,30 @@ header {
 }
 .nav-btn:hover { border-color: rgba(var(--cyan-rgb),0.4); }
 .nav-btn:active { transform: scale(0.95); }
+/* DEATH REVIEW MODE. Walking the deaths rather than every frame, which is what
+   the match review card's eye button opens into. The stepper's own buttons are
+   smaller than the frame ones on purpose: this list is short. */
+.deathnav {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: 7px 10px;
+  background: rgba(var(--red-rgb), 0.06);
+  border: 1px solid rgba(var(--red-rgb), 0.22);
+  border-radius: var(--r-sm);
+}
+.deathnav .nav-btn { width: 26px; height: 24px; font-size: 15px; }
+.deathnav-pos {
+  flex: none; font-size: 11.5px; font-weight: 700;
+  color: var(--text); white-space: nowrap;
+}
+.deathnav-why {
+  font-size: 11px; color: var(--text-mute); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* A death the coach never said anything about is the interesting one, so it is
+   the one that gets the accent. */
+.deathnav-why.unreviewed { color: var(--warn); }
+
 /* Riot's verdict on the timeline's deaths. Green when they agree, amber when
    the coach missed some, red when it marked one that never happened. */
 .confirm {
