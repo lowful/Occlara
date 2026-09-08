@@ -44,7 +44,9 @@ header h2 { font-size: 15px; font-weight: 700; }
   align-self: flex-start;
   color: var(--text);
   background: rgba(0,0,0,0.26); border: 1px solid var(--glass-border);
-  border-left: 3px solid var(--cyan);
+  /* Who is speaking is already carried by which side the bubble sits on and by
+     its own fill. A 3px rule on top of that is the same fact a third time, and
+     it fights the 5px corner beside it. */
   border-bottom-left-radius: 5px;
 }
 .msg.coach.error { border-left-color: var(--red); color: var(--text-dim); }

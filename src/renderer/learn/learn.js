@@ -86,7 +86,7 @@ function paintProgress() {
   const total = mine.length;
   const n = mine.filter((l) => done.has(l.id)).length;
   $('prog-text').textContent = `${n} of ${total}`;
-  $('prog-fill').style.width = total ? `${Math.round((n / total) * 100)}%` : '0%';
+  $('prog-fill').style.transform = `scaleX(${total ? n / total : 0})`;
 }
 
 // ── The suggestion ──────────────────────────────────────────────────────────
