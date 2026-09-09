@@ -1916,8 +1916,9 @@ function verifyTip(rawText, source, ctx) {
   // dropped noun, a sentence cut off mid clause, model preamble) is handled in
   // tip-hygiene.js, so a second game inherits it instead of rediscovering it.
   // What remains below is the part that needs to know Valorant.
-  const t = polishText(rawText, source);
+  let t = polishText(rawText, source);
   if (t === null) return null;
+  t = dropAgentArticle(t);
 
   const words = t.split(/\s+/);
 
@@ -1927,6 +1928,78 @@ function verifyTip(rawText, source, ctx) {
     if (!scenarioFits(t, source, ctx)) return null;
   }
   return t;
+}
+
+/*
+ * AN AGENT NAME TAKES NO ARTICLE. "Reyna is holding B Main", never "a Reyna".
+ *
+ * coach.js asks for this in the prompt and the model still slips, which costs
+ * more than it reads. The overlay swaps the name for that agent's portrait, so
+ * the article is left dangling in front of a picture, and the voice coach reads
+ * the line aloud, so it is also SPOKEN as "a Reyna". Fixing it here rather than
+ * in the overlay means the card, the voice, the history and the AI log all say
+ * the same thing, because every one of them reads this string.
+ *
+ * Scoped to the agent as a PERSON. When the name modifies an object the article
+ * belongs to the object and the sentence is already correct, so "a Sage wall",
+ * "a Viper orb" and "the Sova dart" must survive untouched. The test is what
+ * FOLLOWS the name: a possession is followed by the noun it owns, a person by
+ * anything else. PERSON_FOLLOWER lists the words a possessed noun can never be,
+ * so "a Sage wall is up" cannot match, because what follows "Sage" there is
+ * "wall" and not "is".
+ *
+ * PERSON_FOLLOWER is duplicated in src/renderer/shared/tip-visuals.js, which has to
+ * make the same person-or-possession call to decide whether to draw a portrait.
+ * The renderer has no build step and cannot require from src/shared, the same
+ * reason the agent lexicon is duplicated there already. test:tipvisuals asserts
+ * the two lists are identical so they cannot drift apart in silence.
+ */
+const PERSON_FOLLOWER = [
+  // verbs and auxiliaries
+  'is', 'was', 'are', 'were', 'has', 'had', 'will', 'can', 'could', 'would',
+  'should', 'might', 'may', 'just', 'already', 'still', 'never', 'always',
+  'holding', 'pushing', 'playing', 'watching', 'sitting', 'lurking', 'hiding',
+  'rotating', 'peeking', 'waiting', 'coming', 'entering', 'swinging',
+  'flanking', 'took', 'takes', 'got', 'gets', 'went', 'goes', 'killed',
+  'caught', 'traded', 'picked', 'pushed', 'flashed', 'held', 'saw', 'sees',
+  // prepositions
+  'to', 'on', 'in', 'at', 'from', 'with', 'without', 'into', 'onto', 'near',
+  'behind', 'under', 'over', 'through', 'across', 'around', 'by', 'for',
+  'after', 'before', 'while', 'since', 'off', 'up',
+  // conjunctions and relatives
+  'and', 'or', 'so', 'but', 'because', 'if', 'when', 'where', 'who', 'that',
+  'which', 'then', 'they', 'their', 'her', 'his', 'it',
+];
+
+let AGENT_ARTICLE_RE = null;
+function agentArticleRe() {
+  if (AGENT_ARTICLE_RE) return AGENT_ARTICLE_RE;
+  const agents = Object.keys(
+    require('../../shared/valorant-data.generated.json').agents || {}
+  );
+  if (!agents.length) return null;
+  const names = agents
+    .map((n) => n.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'))
+    .sort((a, b) => b.length - a.length)      // KAY/O before KAY, if both existed
+    .join('|');
+  AGENT_ARTICLE_RE = new RegExp(
+    '\\b(?:[Aa]n?|[Tt]he)\\s+(' + names + ')\\b'
+      + '(?=\\s*[.,;:!?)]|$|\\s+(?:' + PERSON_FOLLOWER.join('|') + ')\\b)',
+    'g'
+  );
+  return AGENT_ARTICLE_RE;
+}
+
+/** Strip the article in front of an agent named as a person. */
+function dropAgentArticle(text) {
+  const re = agentArticleRe();
+  if (!re || !text) return text;
+  re.lastIndex = 0;
+  let out = text.replace(re, '$1');
+  // "A Reyna is pushing" loses its opening word, so the sentence needs its
+  // capital back. The name itself is already capitalised.
+  if (/^[a-z]/.test(out)) out = out.charAt(0).toUpperCase() + out.slice(1);
+  return out;
 }
 
 // Non-actionable "meta" advice, nothing the player can do in the moment.
@@ -2579,4 +2652,4 @@ module.exports = CoachingEngine;
 // Exposed for tests. The death-location gate is the kind of rule that is easy
 // to get subtly wrong (gating a general tip, or letting the spectated location
 // through), so it is checked directly rather than only through a live session.
-module.exports.__test = { contradictsState, blamesOwnAdvice, isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold, mapFromLabels, claimsNotAlive, verifyTip };
+module.exports.__test = { contradictsState, blamesOwnAdvice, isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold, mapFromLabels, claimsNotAlive, verifyTip, dropAgentArticle, PERSON_FOLLOWER };

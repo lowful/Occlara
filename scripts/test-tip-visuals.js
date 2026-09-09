@@ -225,7 +225,7 @@ check('an agent named as killing you is marked as an opponent', !!killer && /tv-
 // KAY/O has a slash in its name, which is not a filename. The sync script and
 // the renderer have to slugify identically or the icon silently 404s.
 {
-  const m = marksIn('Watch the KAY/O knife, it suppresses your abilities.', { agent: 'Jett' })
+  const m = marksIn('You died to KAY/O, so clear that angle first.', { agent: 'Jett' })
     .find((x) => /tv-agent/.test(x.className));
   check('KAY/O resolves to a slugified filename',
     !!m && /assets\/agents\/bust\/KAYO\.png$/.test((m.children[0] || {}).src || ''));
@@ -239,6 +239,30 @@ const bystander = marksIn('A Reyna is holding B Main, so wait for your team.', {
   .find((m) => /tv-agent/.test(m.className));
 check('an agent with no known side is left uncoloured rather than guessed',
   !!bystander && !/tv-ally|tv-enemy/.test(bystander.className));
+// ...and, since there is no honest colour for it, no portrait either. A grey
+// face was the third state and it read as a team rather than as an admission.
+check('and gets no portrait either, just the name',
+  !!bystander && !/tv-agent-icon/.test(bystander.className));
+
+// ── A PORTRAIT IS THE PERSON, NEVER A THING THEY OWN ───────────────────────
+// "You died to a Sage wall" put a picture of Sage inside a sentence about a
+// wall, which reads as being killed by a photograph. The name is only swapped
+// for a face when the sentence is about the agent themselves.
+{
+  const owned = marksIn('You died to a Sage wall you could not see through.', { agent: 'Iso' })
+    .find((m) => /tv-agent/.test(m.className));
+  check('an agent that owns the following noun stays a word',
+    !!owned && !/tv-agent-icon/.test(owned.className));
+  check('and the sentence still reads back whole',
+    !!owned && owned.children[0] && owned.children[0].text === 'Sage');
+
+  const person = marksIn('You died to Sage, so clear that angle first.', { agent: 'Iso' })
+    .find((m) => /tv-agent/.test(m.className));
+  check('the same agent as the person becomes a portrait',
+    !!person && /tv-agent-icon/.test(person.className));
+  check('and it is coloured, because every portrait shown is proven',
+    !!person && /tv-enemy/.test(person.className));
+}
 
 if (failures) {
   console.log('\nFAIL: ' + failures + ' tip-visuals check(s) failed');

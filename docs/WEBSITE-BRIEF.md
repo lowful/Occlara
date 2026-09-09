@@ -24,21 +24,25 @@ shows every death and whether it had anything to say about each one.
 ## What this section has to land
 
 The differentiator is not "AI tips appear over your game". Every competitor has
-that. It is that **the coach refuses most of what it writes**. Do not soften that
-into a feature bullet. It is the spine of the section: show tips arriving, show
-the refusals piling up beside them struck through, then show the post-match log
-admitting which deaths it stayed quiet on.
+that. It is that **the coach only speaks when it can prove what it is saying**,
+and says nothing the rest of the time. Do not soften that into a feature bullet.
+It is the spine of the section, and the place it is proved is the post-match log:
+six deaths in a real session, and the coach had something to say about one.
 
-Show the refusal, never the machinery behind it. The count and the strike-through
-are the claim; an internal rule name printed next to a tip is engineering
-vocabulary leaking onto a sales page, and it reads as an error log rather than as
-restraint. The line that closes the section is "Most coaching tools are judged on
-what they say. This one is worth judging on what it will not."
+Do not build a panel that lists refused tips, or a counter of them, or a feed of
+struck-through text. An earlier draft had one and it was cut: a wall of crossed
+out sentences reads as an error log, invites the reader to try to read them, and
+makes restraint look like malfunction. The five silent markers on the death rail
+make the same point without asking anyone to read a rejection. For the same
+reason, never print an internal rule name anywhere on the site.
+
+The line that closes the section is "Most coaching tools are judged on what they
+say. This one is worth judging on what it will not."
 
 Three beats, in this order:
 
-1. **The overlay running**, with a live ledger of refused tips beside it.
-2. **The agent icon**, and why only two of its three states get a colour.
+1. **The overlay running**, one tip at a time over a game frame.
+2. **The agent icon**, and why a colour on it has to be earned.
 3. **The death log**, including the window the camera never saw.
 
 ## Design tokens
@@ -73,7 +77,7 @@ wrong once already.
   gradient is the simulated game frame behind the tip cards, standing in for a
   photograph, plus the hatched fill on the unseen-window slot.
 - **Red is spent in one place at a time.** It is the accent, the enemy glow, and
-  the refusal count. It is not a heading colour or a border on every card.
+  the unseen gap. It is not a heading colour or a border on every card.
 - **Dark only.** Paint every colour explicitly so it holds whatever theme the
   visitor's browser is in. Do not build a light variant.
 - **No em dashes or en dashes anywhere.** Commas. This is a hard rule.
@@ -95,36 +99,42 @@ A meta row above the text: a 6px round dot, then an uppercase 10px label at
 0.09em letter-spacing in `--text-mute`. The dot is `--red` normally. For a death
 review the dot and the label are `--text` and the label reads **DEATH REVIEW**.
 
-**Motion.** Cards arrive one at a time, roughly 2.6s apart. Entrance is 420ms on
-the exponential ease: `opacity 0 to 1`, `translateY(20px) to 0`,
-`scale(0.97) to 1`, `blur(3px) to none`. Keep at most two on screen. The first
-card and several refusals must be present in the **first painted frame** so the
-page is never an empty shell waiting on a timer.
+**Motion** is specified in section 2. One card at a time, never two.
 
-## 2. The refusal ledger
+## 2. One tip at a time
 
-A panel beside the game frame, same height. Header reads "Refused" with a
-running count in `--red`, mono, tabular numerals. Each row is the withheld tip
-in `--text-mute` at 12px with a **line-through** in `rgba(255,70,85,0.6)`,
-clamped to two lines. Rows enter with a 460ms slide from the right. Keep four.
+Tips arrive **one at a time and do not stack.** The card that is up leaves
+before the next one lands, so the frame is never holding more than one sentence.
 
-**Do not print the internal reason.** The rule names the coach uses are
-engineering vocabulary and mean nothing to a player. The point that lands is the
-count and the strike-through: it wrote these and decided not to show you.
-Footer: "Every line here was written by the coach and stopped before it reached
-the screen, because it could not stand behind it."
+This is not a layout preference, it is what the product is. A tip is glanced at
+mid fight and then it is gone; a column of three of them is a feed, which is a
+different and worse thing, and no player reads the second one during a round.
 
-Real withheld tips to use, verbatim:
+```
+enter    420ms  cubic-bezier(0.16, 1, 0.30, 1)
+         opacity 0 to 1, translateY(20px) to 0, scale(0.97) to 1, blur(3px) to none
+exit     300ms
+         opacity 1 to 0, translateY(0 to -12px), scale(1 to 0.985), blur(0 to 2px)
+interval 3400ms
+```
 
-- You died holding A Nest alone after your teammate traded, so next time wait for a trade partner.
-- You died to a close-range pistol while holding a wide angle with no cover.
-- You died holding A Rafters alone with no crossfire, so next round find a partner.
-- Set up a crossfire on A site with your Killjoy so any entry gets traded.
+Animate the outgoing card out and remove it on its own timer so the two never
+overlap in the layout. The first card must be present in the **first painted
+frame**, so the page is never an empty box waiting on an interval.
+
+Real tips to cycle, verbatim, all from one logged session:
+
+- You died to [Sova] because you peeked A Nest wide with no trade partner. (death review)
+- Your ult is up as [Iso], so take the duel you have been avoiding.
+- You died to [Sage] after she walled off the cover you were running to. (death review)
+- You are trading well as [Iso], so keep taking the first duel while it is working.
+- You died to [Clove] who repeeked the smoke you had already cleared. (death review)
 
 ## 3. The agent icon
 
-An agent's name is replaced by that agent's portrait. **The name is never lost**:
-it moves to `title` and `aria-label`.
+An agent's name is replaced by that agent's portrait, when and only when the
+sentence proves whose side they are on. **The name is never lost**: it moves to
+`title` and `aria-label`.
 
 **There is no box.** No background, no border, no border-radius, no pill, no
 circle, no container of any kind. The PNG sits inline in the sentence and the
@@ -178,30 +188,36 @@ the side, so the glow traces the agent. The kill feed crop's alpha is a near
 rectangle, so the identical filter on it draws a glowing box. On the page draw
 the bust at about `2.1em` square.
 
-Three states, and only two are a colour:
+**TWO states, and every portrait carries a colour:**
 
 | State | Glow | When |
 |---|---|---|
 | Proven enemy | red, as above | the sentence says this agent killed the player |
 | Proven ally | green, as above | it is the player's own confirmed agent |
-| Not provable | none, just the dark separation shadow | anything else |
 
-**Do not colour the third state.** There is no team roster anywhere in the
-product, so a green teammate who is actually an opponent would be believed and
-be wrong. No glow is the honest answer and the copy should say so.
+**There is no third state, and no uncoloured portrait.** There is no team roster
+anywhere in the product, so an agent whose side cannot be proven simply keeps
+their name as a word and gets no picture at all. A face with no colour used to be
+that third state and it was the weakest thing on the card: it looked like the
+other two with the meaning filed off, and a reader took grey to mean a team
+rather than an admission. Nothing is guessed, the uncertainty just stops being
+drawn as though it were information.
 
-**No article in front of an agent name.** Write "Reyna is holding B Main", never
-"a Reyna" and never "the Reyna". There is one of each agent in a match, so the
-name was never doing work the picture cannot. When the name modifies an object
-it keeps normal grammar: "a Sage wall" and "a Viper orb" are correct.
+**A portrait is the PERSON, never a thing they own.** "You died to a Sage wall"
+rendered as "you died to a [picture of Sage] wall", which reads as being killed
+by a photograph. So the sentence names who killed the player, and says what their
+utility did in a clause of its own: "You died to Sage, who walled off your cover
+first." If a sentence has to talk about the object, the name stays a plain word
+there and keeps ordinary grammar, article and all: "a Sage wall is up".
 
-Show these three states as three real sentences, not as three feature cards:
+**No article in front of an agent name as a person.** Write "Reyna is holding B
+Main", never "a Reyna" and never "the Reyna". There is one of each agent in a
+match, so the name was never doing work the picture cannot.
 
-- Proven enemy: `You died to a [Sage] wall you could not see through.`
-- Proven ally: `Your [Iso] shield is up, so you win this trade if you take it now.`
-- Not provable: `[Sage] is holding B Main, so wait for your team.`
+Show the two states as two real sentences, not as feature cards:
 
-Using the same agent twice, once glowing and once not, is the point.
+- Proven enemy: `You died to [Sage], who walled off your cover first.`
+- Proven ally: `Your shield is up as [Iso], so you win this trade if you take it now.`
 
 ## 4. The death log
 
@@ -265,10 +281,16 @@ and the OG image, and bring each one up to date. Specifically:
   glow from section 3. No pill, no rounded rectangle, no circle crop, no ring, no
   bordered chip. If a page shows an agent as a username, a coloured text span, or
   a lettered avatar, it becomes the portrait with the name on `title` and
-  `aria-label`. The three colour states are the same everywhere on the site.
-- **Anywhere a refusal is shown**, drop the reason. No rule names, no
+  `aria-label`. Two colour states, everywhere on the site, and no uncoloured
+  portrait: an agent whose side is not proven stays a plain word. A portrait
+  never stands in for a name that is modifying an object.
+- **Anywhere refused tips are listed**, delete the whole thing: the panel, the
+  counter, the struck-through rows. And never print an internal rule name, no
   `PLAY_PATTERNS`, no "too similar to a recent tip", no diagnostic strings, in
-  copy or in screenshots or in alt text. Count plus strike-through, nothing else.
+  copy or in screenshots or in alt text. The restraint is shown by the silent
+  markers in the death log, not by a list of rejections.
+- **Anywhere tips are shown arriving**, they arrive one at a time. No stacks, no
+  columns of two or three cards, no feed.
 - **Anywhere the product is described**, make the description match what it
   actually does now: it watches the screen the way OBS does, it writes a tip
   every few seconds, it refuses most of them, and after the match it shows every
