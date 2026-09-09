@@ -8,8 +8,10 @@ None of this repo's files go into the website repo. This is a description.
 
 ---
 
-Build a product section for **Occlara**, a Valorant coaching overlay. Stack is
-the one this project already uses: Vite, React, TypeScript, Tailwind, shadcn.
+Build a product section for **Occlara**, a Valorant coaching overlay, and then
+bring the rest of the site into line with it. Sections 1 to 4 are the new work,
+section 5 is the sweep, and the sweep is not optional. Stack is the one this
+project already uses: Vite, React, TypeScript, Tailwind, shadcn.
 
 ## What Occlara is, in one paragraph
 
@@ -22,10 +24,16 @@ shows every death and whether it had anything to say about each one.
 ## What this section has to land
 
 The differentiator is not "AI tips appear over your game". Every competitor has
-that. It is that **the coach refuses most of what it writes and can tell you
-why**. Do not soften that into a feature bullet. It is the spine of the section:
-show tips arriving, show the refusals piling up beside them with their real
-reasons, then show the post-match log admitting which deaths it stayed quiet on.
+that. It is that **the coach refuses most of what it writes**. Do not soften that
+into a feature bullet. It is the spine of the section: show tips arriving, show
+the refusals piling up beside them struck through, then show the post-match log
+admitting which deaths it stayed quiet on.
+
+Show the refusal, never the machinery behind it. The count and the strike-through
+are the claim; an internal rule name printed next to a tip is engineering
+vocabulary leaking onto a sales page, and it reads as an error log rather than as
+restraint. The line that closes the section is "Most coaching tools are judged on
+what they say. This one is worth judging on what it will not."
 
 Three beats, in this order:
 
@@ -64,8 +72,8 @@ wrong once already.
 - **No decorative gradients.** Solid fills and hairline borders. The only
   gradient is the simulated game frame behind the tip cards, standing in for a
   photograph, plus the hatched fill on the unseen-window slot.
-- **Red is spent in one place at a time.** It is the accent, the enemy outline,
-  and the refusal count. It is not a heading colour or a border on every card.
+- **Red is spent in one place at a time.** It is the accent, the enemy glow, and
+  the refusal count. It is not a heading colour or a border on every card.
 - **Dark only.** Paint every colour explicitly so it holds whatever theme the
   visitor's browser is in. Do not build a light variant.
 - **No em dashes or en dashes anywhere.** Commas. This is a hard rule.
@@ -96,50 +104,91 @@ page is never an empty shell waiting on a timer.
 ## 2. The refusal ledger
 
 A panel beside the game frame, same height. Header reads "Refused" with a
-running count in `--red`, mono, tabular numerals. Each row: the refused tip in
-`--text-mute` at 12px with a **line-through** in `rgba(255,70,85,0.6)`, clamped
-to two lines, and under it the reason in mono 10.5px in `--red`. Rows enter with
-a 460ms slide from the right. Keep four.
+running count in `--red`, mono, tabular numerals. Each row is the withheld tip
+in `--text-mute` at 12px with a **line-through** in `rgba(255,70,85,0.6)`,
+clamped to two lines. Rows enter with a 460ms slide from the right. Keep four.
 
-Real refused tips and reasons to use, verbatim:
+**Do not print the internal reason.** The rule names the coach uses are
+engineering vocabulary and mean nothing to a player. The point that lands is the
+count and the strike-through: it wrote these and decided not to show you.
+Footer: "Every line here was written by the coach and stopped before it reached
+the screen, because it could not stand behind it."
 
-| Tip | Reason |
-|---|---|
-| You died holding A Nest alone after your teammate traded, so next time wait for a trade partner. | already recommended a fall-back in the last two tips |
-| You died to a close-range pistol while holding a wide angle with no cover. | too similar to a recent tip |
-| You died holding A Rafters alone with no crossfire, so next round find a partner. | said the player was dead while they were alive at 100 HP |
-| Set up a crossfire on A site with your Killjoy so any entry gets traded. | failed the final verify gate |
+Real withheld tips to use, verbatim:
+
+- You died holding A Nest alone after your teammate traded, so next time wait for a trade partner.
+- You died to a close-range pistol while holding a wide angle with no cover.
+- You died holding A Rafters alone with no crossfire, so next round find a partner.
+- Set up a crossfire on A site with your Killjoy so any entry gets traded.
 
 ## 3. The agent icon
 
 An agent's name is replaced by that agent's portrait. **The name is never lost**:
 it moves to `title` and `aria-label`.
 
-```
-size     1.55em square, inline, vertical-align -0.32em, margin 0 0.14em
-shape    rounded RECTANGLE, radius 8px. NOT a circle.
-image    fills the box, object-fit cover, border-radius inherit
-outline  box-shadow spread, never a border
+**There is no box.** No background, no border, no border-radius, no pill, no
+circle, no container of any kind. The PNG sits inline in the sentence and the
+colour is a **glow that follows the character's own silhouette**, made with
+stacked `drop-shadow` filters on the image itself.
+
+```css
+.agent {                       /* the wrapper does nothing but size it */
+  display: inline-block;
+  width: 1.62em; height: 1.62em;
+  vertical-align: -0.34em;
+  margin: 0 0.1em;
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  overflow: visible;
+}
+.agent img {
+  width: 100%; height: 100%;
+  object-fit: contain;         /* not cover: there is no box to crop against */
+  display: block;
+}
+
+/* neutral, and the default */
+.agent img { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.9)); }
+
+/* proven enemy */
+.agent.enemy img {
+  filter: drop-shadow(0 0 1px #FF4655)
+          drop-shadow(0 0 3px rgba(255,70,85,0.9))
+          drop-shadow(0 0 6px rgba(255,70,85,0.55));
+}
+/* proven ally */
+.agent.ally img {
+  filter: drop-shadow(0 0 1px #52C88A)
+          drop-shadow(0 0 3px rgba(82,200,138,0.9))
+          drop-shadow(0 0 6px rgba(82,200,138,0.55));
+}
 ```
 
-**The outline is a spread box-shadow, not a border.** A border eats pixels off
-every edge of a 20px box and leaves almost no face. A spread shadow sits outside
-the art, so the whole box stays portrait.
+`drop-shadow` follows the alpha channel, which is why the art choice below is not
+interchangeable and why this cannot be done with `box-shadow`.
 
-**And it is not a circle.** A round mask on this art threw away most of the face
-and squashed what was left.
+**Use the SQUARE bust, not the kill feed crop.** From
+`https://valorant-api.com/v1/agents?isPlayableCharacter=true`, field
+`displayIcon`. It is 1024x1024 and about 410KB, so resample it to 64px before
+shipping: 29 agents at full size is twelve megabytes to draw a mark twenty
+pixels wide. Self-host, do not hotlink.
+
+The reason is measurable, not taste. The bust's alpha is a real character
+silhouette, roughly a quarter of the box genuinely transparent with notches down
+the side, so the glow traces the agent. The kill feed crop's alpha is a near
+rectangle, so the identical filter on it draws a glowing box. On the page draw
+the bust at about `2.1em` square.
 
 Three states, and only two are a colour:
 
-| State | Outline | Fill | When |
-|---|---|---|---|
-| Proven enemy | `0 0 0 1.5px #FF4655, 0 0 6px rgba(255,70,85,0.45)` | `rgba(255,70,85,0.2)` | the sentence says this agent killed the player |
-| Proven ally | `0 0 0 1.5px #52C88A, 0 0 6px rgba(82,200,138,0.4)` | `rgba(82,200,138,0.2)` | it is the player's own confirmed agent |
-| Not provable | `0 0 0 1px --glass-border` | `rgba(255,255,255,0.06)` | anything else |
+| State | Glow | When |
+|---|---|---|
+| Proven enemy | red, as above | the sentence says this agent killed the player |
+| Proven ally | green, as above | it is the player's own confirmed agent |
+| Not provable | none, just the dark separation shadow | anything else |
 
 **Do not colour the third state.** There is no team roster anywhere in the
 product, so a green teammate who is actually an opponent would be believed and
-be wrong. The grey outline is the honest answer and the copy should say so.
+be wrong. No glow is the honest answer and the copy should say so.
 
 **No article in front of an agent name.** Write "Reyna is holding B Main", never
 "a Reyna" and never "the Reyna". There is one of each agent in a match, so the
@@ -152,14 +201,7 @@ Show these three states as three real sentences, not as three feature cards:
 - Proven ally: `Your [Iso] shield is up, so you win this trade if you take it now.`
 - Not provable: `[Sage] is holding B Main, so wait for your team.`
 
-Using the same agent twice, once coloured and once not, is the point.
-
-**Art**: Valorant's kill feed portraits, about 10KB each and 2:1 wide, from
-`https://valorant-api.com/v1/agents?isPlayableCharacter=true`, field
-`killfeedPortrait`. At the larger size on a web page the wide crop reads better
-than the square one. Download and self-host them; do not hotlink. On the page
-they render at roughly `3.4em x 1.7em`, which is the one place the site
-deliberately differs from the app.
+Using the same agent twice, once glowing and once not, is the point.
 
 ## 4. The death log
 
@@ -171,7 +213,9 @@ nothing about gets a **dashed** border so the gaps are visible before anything
 is clicked.
 
 Below the rail, the selected death shows its index, round, killer **as an agent
-name**, a state chip, then the tip it wrote, then the reason in mono.
+name**, a state chip, then either the tip it wrote or, when it stayed quiet, the
+words "no tip". Nothing else. No reason column, no rule name, no diagnostic
+string: the same restraint as the ledger, for the same reason.
 
 ### The run-up strip, which is the part that matters
 
@@ -188,23 +232,101 @@ never photographed. Say that plainly under the strip in `--warn`.
 Session: Icebox, Iso, 11/6/1, 386 ACS, Victory 5-3, tracker grade S, 49 frames.
 Six deaths, matching Riot's own record of the match.
 
-| # | Frame | Round | Killer | Run-up offsets | Unseen gap | Outcome |
+| # | Frame | Round | Killer | Run-up offsets | Unseen gap | Said anything |
 |---|---|---|---|---|---|---|
-| 1 | 7 | 1 | Sage | -10s, 0s, +14s | 9.6s | shown on the overlay |
-| 2 | 14 | 3 | Clove | -19s, -10s, 0s, +13s | 18.9s | already recommended a trade in the last two tips |
-| 3 | 31 | 6 | Sage | -29s, -9s, 0s, +13s | 28.7s | already recommended a hold-tight in the last two tips |
-| 4 | 34 | not read | Clove | -19s, 0s, +13s | 18.9s | told the player to hold A Nest while 1 enemies are confirmed on B |
-| 5 | 41 | 7 | Clove | -22s, 0s, +13s | 21.8s | already recommended a fall-back in the last two tips |
-| 6 | 44 | 8 | not read | -10s, 0s, +12s | 9.8s | already recommended a fall-back in the last two tips |
+| 1 | 7 | 1 | Sage | -10s, 0s, +14s | 9.6s | yes |
+| 2 | 14 | 3 | Clove | -19s, -10s, 0s, +13s | 18.9s | no |
+| 3 | 31 | 6 | Sage | -29s, -9s, 0s, +13s | 28.7s | no |
+| 4 | 34 | not read | Clove | -19s, 0s, +13s | 18.9s | no |
+| 5 | 41 | 7 | Clove | -22s, 0s, +13s | 21.8s | no |
+| 6 | 44 | 8 | not read | -10s, 0s, +12s | 9.8s | no |
+
+The tip shown for death 1, verbatim: "You died to a Sage wall you could not see
+through, so next round clear that angle before you step out."
+
+One of six is not a number to hide or to spin. It is the honest shape of a coach
+that only speaks when it can prove something, and the five dashed markers are the
+argument.
 
 The `0s` slot is labelled **"first frame that reads dead"**, never "the death",
 because it is a frame taken after it. Negative offsets are labelled
 "alive, full health", positive ones "after".
 
-**Mark which rule stopped each one.** Deaths 2, 3, 5 and 6 were stopped by
-repetition rules, which was the bug and is fixed. Death 4 was stopped by a truth
-rule that was correct and still blocks it. Showing that difference is more
-convincing than showing six failures.
+## 5. Then go through the rest of the site with this
+
+Sections 1 to 4 are the new work. This section is the part that is easy to skip
+and should not be: **the whole site has to end up saying the same things.** Do
+not build the new section next to an older one that contradicts it.
+
+Walk every page, every section, every card, the nav, the footer, the meta tags
+and the OG image, and bring each one up to date. Specifically:
+
+- **Anywhere an agent is drawn**, replace whatever is there now with the boxless
+  glow from section 3. No pill, no rounded rectangle, no circle crop, no ring, no
+  bordered chip. If a page shows an agent as a username, a coloured text span, or
+  a lettered avatar, it becomes the portrait with the name on `title` and
+  `aria-label`. The three colour states are the same everywhere on the site.
+- **Anywhere a refusal is shown**, drop the reason. No rule names, no
+  `PLAY_PATTERNS`, no "too similar to a recent tip", no diagnostic strings, in
+  copy or in screenshots or in alt text. Count plus strike-through, nothing else.
+- **Anywhere the product is described**, make the description match what it
+  actually does now: it watches the screen the way OBS does, it writes a tip
+  every few seconds, it refuses most of them, and after the match it shows every
+  death including the ones it had nothing to say about. If an older section
+  promises real-time League advice, that promise is wrong and has to go: League
+  is recorded silently and reviewed after the game, by policy, and that is
+  explained below.
+- **Every mention of the name.** The product is Occlara. GhostCoach was the old
+  name and should not appear in copy, headings, alt text, filenames the visitor
+  can see, or the page title. Two identifiers deliberately keep the old name and
+  are not typos to correct: the installer `GhostCoach.2.0.Setup.exe` and any
+  releases URL. Leave those exactly as they are, or existing download links die.
+- **The download.** One primary button, pointing at `Occlara-Setup.exe`. Windows
+  only, say so plainly rather than letting a Mac visitor find out after the
+  click.
+- **Tokens and type.** Any page still on an older palette, an older radius, or a
+  font weight outside 400 to 800 moves onto the values in this brief. A missing
+  weight silently falls back to a system font and changes the shape of the whole
+  page without erroring, so check rather than assume.
+- **Anything else you find that is stale, broken, inconsistent or contradictory,
+  fix it.** Dead links, placeholder copy, lorem, a stat that disagrees with
+  another stat, a screenshot of a UI that no longer exists, an empty section, a
+  route that 404s, an image with no `alt`, a heading level that skips. You have
+  the whole site; use that. Where two places disagree about a fact, this brief
+  wins.
+
+Two things not to "fix":
+
+- **Do not invent numbers.** Every figure on the site should trace to something
+  real. If you cannot source a claim, cut it rather than round it up.
+- **Do not add testimonials, logos, user counts, or press mentions** unless you
+  were given real ones. A fabricated quote on a page whose entire argument is
+  honesty is the single worst thing that could ship here.
+
+When you are done, list what you changed outside sections 1 to 4 and why, so the
+sweep can be checked rather than taken on trust.
+
+## What the product actually does, for the copy on other pages
+
+Short version, accurate as of this brief, so nothing on the site has to guess:
+
+- **Valorant.** Live coaching while you play. Screen capture only, the same way
+  OBS sees the display. It never reads game memory, never touches game files,
+  never automates input.
+- **Marvel Rivals.** The same live coaching.
+- **League of Legends.** Recorded silently during the game and reviewed after it
+  ends. **There is no live League coaching and there must never be**, because
+  Riot's League policy approves overlays that show "static data that is available
+  prior to the game" and bans "any game-session-specific information that would
+  be previously unknown to the player". The same policy names the legitimate
+  alternative, coaching the player "game over game". Do not describe League as
+  live, do not imply it, and do not write copy that a reader could reasonably
+  read as live.
+- **After the match**, the death log above, the session grade, and a chat where
+  you can ask about any single captured frame.
+- **Stats** exist for Valorant. Marvel Rivals has no official API and League
+  needs a production key the app does not have, so those two say so instead of
+  showing a Valorant shaped dashboard with someone else's numbers in it.
 
 ## Copy rules
 
