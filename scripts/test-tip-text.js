@@ -18,6 +18,7 @@
  *
  * Run: npm run test:tiptext
  */
+const fs = require('fs');
 const path = require('path');
 const { __test } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'coaching-engine.js'));
 const { verifyTip } = __test;
@@ -83,7 +84,10 @@ console.log('\nthe death marker is a label, not something to read out:');
   // would be testing half the path.
   const out = run(cleanTip(shipped));
   check('  a mid sentence marker takes the review, not the preamble',
-    !!out && !/DEATH\s*:/i.test(out) && /^You died to a Sova/.test(out),
+    // "a Sova" became "Sova" when the agent-article rule landed. That is this
+    // pipeline working, not this case regressing: the subject here is the
+    // DEATH marker, and the article is checked on its own further down.
+    !!out && !/DEATH\s*:/i.test(out) && /^You died to Sova/.test(out),
     'got: ' + out);
 }
 
@@ -113,6 +117,57 @@ for (const good of [
 ]) {
   const out = run(good);
   check('  "' + good.slice(0, 40) + '..."', out === good, 'changed to: ' + out);
+}
+
+/*
+ * AN AGENT NAME TAKES NO ARTICLE, but only when it is the PERSON.
+ *
+ * Both halves are load bearing and they pull in opposite directions, so both
+ * are checked here. Stripping too little leaves "you died to a Reyna", which
+ * the overlay draws as a dangling article beside a portrait and the voice coach
+ * reads out loud. Stripping too much turns "a Sage wall" into "Sage wall",
+ * which is not English and is a worse defect than the one being fixed.
+ */
+console.log('\nan agent name takes no article, unless it owns the noun:');
+for (const [input, want] of [
+  // the agent is the person, so the article goes
+  ['You died to a Reyna.', 'You died to Reyna.'],
+  ['A Reyna is holding B Main.', 'Reyna is holding B Main.'],
+  ['The Jett is already in Heaven.', 'Jett is already in Heaven.'],
+  ['You got traded by a Sova, so reset.', 'You got traded by Sova, so reset.'],
+  ['You died to a Jett on B, so hold the angle.', 'You died to Jett on B, so hold the angle.'],
+  ['Use your dash as a Jett to take the off-angle.', 'Use your dash as Jett to take the off-angle.'],
+  ['You died to an Omen who flanked you.', 'You died to Omen who flanked you.'],
+
+  // the agent owns a thing, so the article belongs to the thing and survives
+  ['You died to a Sage wall you could not see through.', 'You died to a Sage wall you could not see through.'],
+  ['A Sage wall is up, so rotate.', 'A Sage wall is up, so rotate.'],
+  ['Do not walk into a Viper orb.', 'Do not walk into a Viper orb.'],
+  ['The Sova dart just scanned you.', 'The Sova dart just scanned you.'],
+  ['A Killjoy turret is watching that door.', 'A Killjoy turret is watching that door.'],
+
+  // not a name at all, so not this rule's business
+  ['A teammate is holding B Main.', 'A teammate is holding B Main.'],
+  ['An enemy is holding B Main.', 'An enemy is holding B Main.'],
+]) {
+  const got = __test.dropAgentArticle(input);
+  check('  "' + input.slice(0, 46) + '"', got === want, 'got: ' + got);
+}
+
+/*
+ * The renderer makes the SAME person-or-possession call, to decide whether to
+ * draw a portrait at all, and it cannot require this file: there is no build
+ * step in the renderer, which is why the agent lexicon is duplicated there too.
+ * So the two lists are compared textually. A drifted copy would not throw, it
+ * would quietly put a face back inside a sentence about a wall.
+ */
+console.log('\nthe renderer agrees about what a person looks like:');
+{
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'renderer', 'shared', 'tip-visuals.js'), 'utf8');
+  const missing = __test.PERSON_FOLLOWER.filter((w) => !src.includes("'" + w + "'"));
+  check('  tip-visuals.js carries the same follower list', missing.length === 0,
+    'missing there: ' + missing.join(', '));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

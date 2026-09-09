@@ -253,6 +253,52 @@
     return null;
   }
 
+  /**
+   * Is this agent name the PERSON, or is it describing a thing they own?
+   *
+   * "You died to Sage" names a person. "You died to a Sage wall" names a wall.
+   * The difference is invisible in the text and glaring once the name becomes a
+   * portrait: the second one rendered as "you died to a [picture of Sage] wall",
+   * which reads as though the player was killed by a photograph.
+   *
+   * The test is what FOLLOWS the name. A possession is followed by the noun it
+   * owns; a person is followed by anything else, so PERSON_FOLLOWER lists the
+   * words a possessed noun can never be: verbs, prepositions, conjunctions. No
+   * ability noun in this game appears in it, which is what makes "a Sage wall is
+   * up" safe: what follows "Sage" there is "wall", not "is".
+   *
+   * Deliberately a closed list rather than "any lowercase word". The two ways to
+   * be wrong are not equal: a missing follower costs one portrait, while a
+   * missing ability noun renders "you died to a [face] wall", which is the
+   * defect this exists to prevent. So an unrecognised follower means NOT a
+   * person and the name stays a word, the same answer this module gives
+   * everywhere else it cannot prove something.
+   */
+  const PERSON_FOLLOWER = [
+    // verbs and auxiliaries
+    'is', 'was', 'are', 'were', 'has', 'had', 'will', 'can', 'could', 'would',
+    'should', 'might', 'may', 'just', 'already', 'still', 'never', 'always',
+    'holding', 'pushing', 'playing', 'watching', 'sitting', 'lurking', 'hiding',
+    'rotating', 'peeking', 'waiting', 'coming', 'entering', 'swinging',
+    'flanking', 'took', 'takes', 'got', 'gets', 'went', 'goes', 'killed',
+    'caught', 'traded', 'picked', 'pushed', 'flashed', 'held', 'saw', 'sees',
+    // prepositions
+    'to', 'on', 'in', 'at', 'from', 'with', 'without', 'into', 'onto', 'near',
+    'behind', 'under', 'over', 'through', 'across', 'around', 'by', 'for',
+    'after', 'before', 'while', 'since', 'off', 'up',
+    // conjunctions and relatives
+    'and', 'or', 'so', 'but', 'because', 'if', 'when', 'where', 'who', 'that',
+    'which', 'then', 'they', 'their', 'her', 'his', 'it',
+  ];
+  const AGENT_AS_PERSON = new RegExp(
+    '^(?:\\s*[.,;:!?)]|$|\\s+(?:' + PERSON_FOLLOWER.join('|') + ')\\b)'
+  );
+
+  /** True when the name at `at` is the agent themselves, not "a Sage wall". */
+  function isAgentAsPerson(text, at, name) {
+    return AGENT_AS_PERSON.test(String(text).slice(at + String(name).length));
+  }
+
   /** An agent name as a filename. Must match agentSlug() in sync-valorant-data.js. */
   function agentSlug(name) {
     return String(name || '').replace(/[^A-Za-z0-9]/g, '');
@@ -309,7 +355,13 @@
     // Three marks is the ceiling. Past that the emphasis stops meaning anything
     // and the card just looks busy over a moving game frame.
     const MAX_MARKS = 3;
+    // Where this token starts in the original string. tokenize() covers the
+    // text exactly once and in order, so summing the values walked so far is
+    // the real offset, which is what decides whether an agent is a person.
+    let at = 0;
     for (const tok of tokenize(text, { max: o.max || MAX_MARKS })) {
+      const start = at;
+      at += tok.value.length;
       if (tok.type === 'text') {
         el.appendChild(document.createTextNode(tok.value));
         continue;
@@ -333,23 +385,31 @@
        *   which the sentence itself asserts. If that is wrong the tip was
        *   already wrong, so the colour adds no error of its own.
        *
-       * Everything else stays neutral. A green teammate that is actually on
-       * the other team is worse than no colour, because it would be trusted.
+       * Everything else stays a plain word. A green teammate that is actually
+       * on the other team is worse than no colour, because it would be trusted.
        */
-      if (tok.kind === 'agent') {
-        const side = agentSide(tok.value, text, o);
-        if (side) mark.classList.add('tv-' + side);
-      }
+      const side = tok.kind === 'agent' ? agentSide(tok.value, text, o) : null;
+      if (side) mark.classList.add('tv-' + side);
 
-      // AN AGENT BECOMES ITS PORTRAIT. Everything else keeps word-then-glyph:
-      // the word is the information and the icon confirms what was just read.
-      //
-      // The portrait is the kill feed art Valorant already uses next to a name,
-      // shipped locally under assets/agents so the overlay's img-src 'self'
-      // policy is untouched. The NAME IS NOT LOST: it stays as the title and the
-      // aria-label, which is what keeps the module's promise that a tip can
-      // always be read back in full.
-      if (tok.kind === 'agent') {
+      /*
+       * AN AGENT BECOMES ITS PORTRAIT, but only when both halves are true.
+       *
+       * The name has to be the PERSON. "You died to a Sage wall" is a sentence
+       * about a wall, and swapping the name for a face there produced "you died
+       * to a [face] wall", which is not something anyone can read.
+       *
+       * The side has to be PROVEN. A portrait with no colour was the third
+       * state, and it was the weakest thing on the card: it looked like the
+       * other two with the meaning filed off, and a player reasonably read grey
+       * as a team rather than as an admission. There is no honest colour for an
+       * agent whose side is unknown, so there is no portrait either, and the
+       * name stays a word exactly as it was written. Nothing is guessed; the
+       * uncertainty just stops being drawn as if it were information.
+       *
+       * The NAME IS NOT LOST either way: on the portrait it moves to the title
+       * and the aria-label, which keeps the promise that a tip reads back whole.
+       */
+      if (side && isAgentAsPerson(text, start, tok.value)) {
         const img = agentIcon(tok.value);
         if (img) {
           mark.classList.add('tv-agent-icon');
