@@ -26,8 +26,9 @@ shows every death and whether it had anything to say about each one.
 The differentiator is not "AI tips appear over your game". Every competitor has
 that. It is that **the coach only speaks when it can prove what it is saying**,
 and says nothing the rest of the time. Do not soften that into a feature bullet.
-It is the spine of the section, and the place it is proved is the post-match log:
-six deaths in a real session, and the coach had something to say about one.
+It is the spine of the section, and the place it is proved is the post-match
+review: six deaths in a real session, five reviewed, and one it deliberately
+stayed quiet on rather than risk sending the player the wrong way.
 
 Do not build a panel that lists refused tips, or a counter of them, or a feed of
 struck-through text. An earlier draft had one and it was cut: a wall of crossed
@@ -43,7 +44,7 @@ Three beats, in this order:
 
 1. **The overlay running**, one tip at a time over a game frame.
 2. **The agent icon**, and why a colour on it has to be earned.
-3. **The death log**, including the window the camera never saw.
+3. **The match review**, every death, who killed you, and what it actually said.
 
 ## Design tokens
 
@@ -63,8 +64,8 @@ radii          8 / 12 / 16
 easing         cubic-bezier(0.16, 1, 0.30, 1)    exponential ease out
 ```
 
-**Type**: Geist for everything, Geist Mono for digits, timestamps, offsets, and
-anything that lines up in a column. Both are on Google Fonts. Weights 400 to 800
+**Type**: Geist for everything, Geist Mono for digits, scores, labels that index
+something, and anything that lines up in a column. Both are on Google Fonts. Weights 400 to 800
 only, never one outside that set.
 
 **Headings** need an explicit `line-height` near 1.1. Inheriting a body 1.6 at
@@ -75,9 +76,9 @@ wrong once already.
 
 - **No decorative gradients.** Solid fills and hairline borders. The only
   gradient is the simulated game frame behind the tip cards, standing in for a
-  photograph, plus the hatched fill on the unseen-window slot.
-- **Red is spent in one place at a time.** It is the accent, the enemy glow, and
-  the unseen gap. It is not a heading colour or a border on every card.
+  photograph.
+- **Red is spent in one place at a time.** It is the accent and the enemy glow.
+  It is not a heading colour or a border on every card.
 - **Dark only.** Paint every colour explicitly so it holds whatever theme the
   visitor's browser is in. Do not build a light variant.
 - **No em dashes or en dashes anywhere.** Commas. This is a hard rule.
@@ -219,54 +220,107 @@ Show the two states as two real sentences, not as feature cards:
 - Proven enemy: `You died to [Sage], who walled off your cover first.`
 - Proven ally: `Your shield is up as [Iso], so you win this trade if you take it now.`
 
-## 4. The death log
+## 4. The match review, which is the section that sells it
 
-A horizontal rail with one marker per death, positioned by
-`frameIndex / totalFrames`. Markers are 21px circles with a small skull glyph,
-`--bg` fill and a `--glass-border` ring. Selected takes a `--red` border, a
-`0 0 0 4px rgba(255,70,85,0.14)` halo and `scale(1.22)`. A death the coach said
-nothing about gets a **dashed** border so the gaps are visible before anything
-is clicked.
+This is the strongest thing in the product, so build it carefully.
 
-Below the rail, the selected death shows its index, round, killer **as an agent
-name**, a state chip, then either the tip it wrote or, when it stayed quiet, the
-words "no tip". Nothing else. No reason column, no rule name, no diagnostic
-string: the same restraint as the ledger, for the same reason.
+After a match, Occlara shows **every death you took, who killed you, and the
+exact line it put on screen at the time.** Including the deaths it had nothing
+to say about, which it marks rather than hides.
 
-### The run-up strip, which is the part that matters
+**Do not put capture statistics on this page.** An earlier draft of this section
+had frame offsets in seconds, an "unseen window" showing the gap between two
+captures, and a note about the model's polling interval. All of it was true and
+none of it was the player's problem: it explained how the tool works instead of
+what the tool found, and it made a review look like a diagnostic readout. No
+frame numbers, no offsets, no capture rate, no confidence scores, no percentages.
 
-Under that, a row of slots showing the frames either side of the death with
-their real offsets in seconds, and **the unseen window drawn as a slot of its
-own**: dashed `rgba(255,70,85,0.4)` border, a 135deg hatched fill, the gap in
-seconds in mono `--red`, and the word "unseen".
+A player looking at this wants three things per death, in this order: **who
+killed me, what did it say, can I trust it.** Build only those.
 
-The capture waits on the model, so it runs about every eleven seconds, not the
-three the setting implies. The kill always happens between two captures and is
-never photographed. Say that plainly under the strip in `--warn`.
+### Structure
 
-**Real data. Use it verbatim, do not round it into marketing numbers.**
-Session: Icebox, Iso, 11/6/1, 386 ACS, Victory 5-3, tracker grade S, 49 frames.
-Six deaths, matching Riot's own record of the match.
+One card, `--glass-border` hairline, `--r-lg`, `rgba(255,255,255,0.022)` fill,
+max width about 860px.
 
-| # | Frame | Round | Killer | Run-up offsets | Unseen gap | Said anything |
-|---|---|---|---|---|---|---|
-| 1 | 7 | 1 | Sage | -10s, 0s, +14s | 9.6s | yes |
-| 2 | 14 | 3 | Clove | -19s, -10s, 0s, +13s | 18.9s | no |
-| 3 | 31 | 6 | Sage | -29s, -9s, 0s, +13s | 28.7s | no |
-| 4 | 34 | not read | Clove | -19s, 0s, +13s | 18.9s | no |
-| 5 | 41 | 7 | Clove | -22s, 0s, +13s | 21.8s | no |
-| 6 | 44 | 8 | not read | -10s, 0s, +12s | 9.8s | no |
+**Header row**, 18px 22px, hairline underneath:
 
-The tip shown for death 1, verbatim: "You died to a Sage wall you could not see
-through, so next round clear that angle before you step out."
+| Element | Style |
+|---|---|
+| Map name | 15.5px, weight 700 |
+| Agent and K/D/A | Geist Mono 13px, `--text-dim`, tabular numerals |
+| Result | pill, right aligned, `--good` on `rgba(82,200,138,0.12)` with a `0.3` alpha border |
 
-One of six is not a number to hide or to spin. It is the honest shape of a coach
-that only speaks when it can prove something, and the five dashed markers are the
-argument.
+**Count row**, 13px 22px, hairline underneath: "6 deaths, 5 of them reviewed" in
+`--text-mute` at 12.5px, and right aligned a row of one 7px dot per death. A
+reviewed death is a filled `--text-mute` dot at 0.55 opacity; a silent one is
+**hollow with a 1px `--warn` border**. Six dots read the shape of the match
+before a single word is read.
 
-The `0s` slot is labelled **"first frame that reads dead"**, never "the death",
-because it is a frame taken after it. Negative offsets are labelled
-"alive, full health", positive ones "after".
+**Then one row per death**, separated by hairlines, `19px 22px`, a two column
+grid of `186px` and the rest with a 24px gap. Under 720px it stacks.
+
+Left column:
+
+- `DEATH 3 &middot; ROUND 6` in Geist Mono, 11.5px, `--text-mute`, uppercase,
+  0.07em tracking. Omit the round when it was not read, do not print "unknown".
+- `Killed by` in 12.5px `--text-dim`, then the agent portrait with the red enemy
+  glow from section 3, then the name in 14.5px weight 600.
+- When the killer was never legible: **"Killer never identified"** in 13px
+  `--text-mute` italic, and drop the "Killed by" label entirely. "Killed by not
+  identified" is not a sentence. Do not guess a name to fill the space.
+
+Right column, and this is the part that matters: **the real tip card.** Not a
+blockquote, not italic text, not a speech bubble. The same component from
+section 1, with the `DEATH REVIEW` meta label and the white dot, capped at about
+420px wide. The player sees the thing they saw in game.
+
+### The death it said nothing about
+
+Do not leave a blank. A gap reads as an oversight, and this one is the opposite.
+In the same slot, a box with a **dashed** `rgba(217,164,65,0.4)` border on a
+`rgba(217,164,65,0.05)` fill, `--r-md`, 14px 16px:
+
+- Heading: "IT SAID NOTHING HERE", 12.5px, weight 600, `--warn`, uppercase, 0.07em
+- Body: "It wrote a tip for this death and stopped itself before sending it." at
+  13.5px `--text-dim`
+
+Under the whole card, one paragraph in `--text-mute` explaining that specific
+one in plain language, no rule names:
+
+> The fourth one is blank because the coach wrote a tip and then stopped itself.
+> It was about to tell you to hold A Nest, and it had already seen an enemy on B.
+> It would rather leave a gap than send you the wrong way, and it shows you the
+> gap instead of quietly closing it.
+
+### The real data. Use it verbatim.
+
+Session: **Icebox, Iso, 11 / 6 / 1, Victory 5-3.** Six deaths, matching Riot's
+own record of the match. Every line below is what the coach actually wrote.
+
+| # | Round | Killed by | Tip |
+|---|---|---|---|
+| 1 | 1 | Sage | You died to a wide angle with no cover, so next time retreat behind the box and let your team clear the site before you re-engage. |
+| 2 | 3 | Clove | You died to a pistol at close range because you held that A Main angle too wide without a trade partner. |
+| 3 | 6 | Sage | You died to [Sage] on B Site because you were isolated and exposed, so next time hold tight with a teammate. |
+| 4 | not read | Clove | none, see above |
+| 5 | 7 | Clove | You died holding A Site alone after your team pushed B, so you need to fall back into the site and wait. |
+| 6 | 8 | never identified | You died holding A Rafters alone against a full buy, so next round fall back to A Site or wait for a teammate. |
+
+Only row 3 names an agent inside the tip, so only row 3 gets a portrait in the
+tip text. The left column portrait is separate and every identified killer gets
+one, because a killer is a proven enemy by definition.
+
+Row 3 is written "died to Sage", not "died to a Sage". That is not a typo to
+correct: the article is stripped before the tip is ever drawn, for the reasons in
+section 3.
+
+### Motion
+
+Rows fade and rise 8px on scroll into view, 380ms on the exponential ease,
+staggered 60ms apart, once only. Nothing loops. Honour `prefers-reduced-motion`
+by rendering them in place. The card must be fully populated in the first
+painted frame; the animation is a reveal, never a loader.
 
 ## 5. Then go through the rest of the site with this
 
