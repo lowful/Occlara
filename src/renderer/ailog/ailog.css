@@ -106,6 +106,50 @@ header {
    the one that gets the accent. */
 .deathnav-why.unreviewed { color: var(--warn); }
 
+/* ── The keyboard hint ───────────────────────────────────────────────────────
+   Deliberately quiet. It sits under the scrubber for the first few opens and
+   then never appears again, so it teaches the shortcut once and stops. It is
+   NOT a tooltip on the buttons: the shortcut people miss is the one on the keys
+   they never think to press, and a tooltip only reaches someone already
+   reaching for the mouse. */
+.keyhint {
+  display: flex; align-items: center; gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  font-size: 11px; color: var(--text-mute);
+  animation: keyhintIn var(--t-slow) var(--ease-expo) both;
+}
+@keyframes keyhintIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+.kh-row { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.keyhint kbd {
+  font-family: var(--font-mono);
+  font-size: 10px; line-height: 1;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 3px 5px;
+  min-width: 18px; text-align: center;
+}
+.kh-sep { width: 1px; height: 13px; background: var(--glass-border); }
+.kh-x {
+  margin-left: auto; flex: none;
+  background: none; border: 0; padding: 3px 2px;
+  font: inherit; font-size: 11px; color: var(--text-dim);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease);
+}
+.kh-x:hover { color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .keyhint { animation: none; } }
+
 /* The run up to a death, as the frames either side of it. The selected one is
    the frame currently in the viewer above, so the strip and the big image never
    disagree about what is being looked at. */
