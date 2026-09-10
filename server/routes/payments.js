@@ -88,12 +88,26 @@ router.post('/cancel', async (req, res) => {
       cancel_at_period_end: true,
     });
 
+    /*
+     * DO NOT WRITE status HERE, and this is the whole bug that was fixed.
+     *
+     * cancel_at_period_end means Stripe keeps the subscription running until the
+     * period the customer already paid for runs out. This used to write
+     * status:'cancelled' at the same moment, and licence.js rejects any row whose
+     * status is not 'active' BEFORE it ever looks at expires_at. So a customer who
+     * cancelled on day 2 of a paid month was locked out of the app within three
+     * minutes, on a month they had paid for, while this same function was
+     * returning accessUntil telling them the opposite.
+     *
+     * expires_at is the only thing that needs to move. It now holds the end of the
+     * paid period, the guards let them through until then, and
+     * customer.subscription.deleted flips status to 'cancelled' when Stripe
+     * actually ends it. Access stops at the right moment either way, because
+     * expires_at alone would end it even if that webhook never arrived.
+     */
     await supabase
       .from('licenses')
-      .update({
-        status:     'cancelled',
-        expires_at: new Date(subscription.current_period_end * 1000).toISOString(),
-      })
+      .update({ expires_at: new Date(subscription.current_period_end * 1000).toISOString() })
       .eq('id', license.id);
 
     console.log('[payments] Subscription cancelled for user:', userId);

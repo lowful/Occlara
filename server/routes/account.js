@@ -19,6 +19,33 @@ router.get('/dashboard', async (req, res) => {
     .limit(1)
     .single();
 
+  /*
+   * WHETHER IT RENEWS COMES FROM STRIPE, not from the licence row.
+   *
+   * A cancelled subscription keeps running to the end of the paid period, so its
+   * row stays status:'active' with a future expires_at and looks identical to one
+   * that will renew. The row cannot tell them apart and it should not try: Stripe
+   * owns that fact, and a copy of it here would be one more thing to drift.
+   *
+   * Wrapped, and null on any failure. This is the difference between "cancelled"
+   * and "renews on the 8th" in the dashboard's wording, which is worth having and
+   * is never worth failing the whole page over.
+   */
+  let subscription = null;
+  if (license && license.stripe_subscription_id) {
+    try {
+      const s = await stripe.subscriptions.retrieve(license.stripe_subscription_id);
+      subscription = {
+        stripe_status:        s.status,
+        cancel_at_period_end: !!s.cancel_at_period_end,
+        current_period_end:   s.current_period_end
+          ? new Date(s.current_period_end * 1000).toISOString() : null,
+      };
+    } catch (e) {
+      console.warn('[account] could not read subscription:', e.message);
+    }
+  }
+
   let licenseData = null;
   if (license) {
     const thisMonth = new Date().toISOString().slice(0, 7);
@@ -35,11 +62,16 @@ router.get('/dashboard', async (req, res) => {
       device_activated:         !!license.device_name,
       deactivations_this_month: deactivationsThisMonth,
       deactivations_remaining:  Math.max(0, 3 - deactivationsThisMonth),
+      // Derived, so the site does not have to know the rule. False means it has
+      // been cancelled and expires_at is the last day of access. Null when there
+      // is no subscription to ask about, which includes lifetime.
+      renews: subscription ? !subscription.cancel_at_period_end : null,
     };
   }
 
   res.json({
     license: licenseData,
+    subscription,
     stripe: { can_manage_subscription: !!(license?.stripe_customer_id), portal_url: null },
   });
 });
