@@ -110,6 +110,11 @@ function snapshotConfig() {
     voiceStyle:      store.get('voiceStyle'),
     voiceVolume:     store.get('voiceVolume'),
     panelMinimized:  store.get('panelMinimized'),
+    // The log window's keyboard hint counts its own appearances. Same trap as
+    // language below: without it here, getConfig() reads undefined, the counter
+    // restarts from zero on every open, and a hint the user dismissed comes
+    // straight back.
+    ailogHintSeen:   store.get('ailogHintSeen'),
     // WRITTEN BUT NEVER READ BACK, which is why the language would not stick.
     //
     // setConfig persists any key, so choosing a language saved correctly and the

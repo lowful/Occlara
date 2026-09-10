@@ -26,5 +26,10 @@ contextBridge.exposeInMainWorld('occlara', {
   // Jump an already open window to another session, for a second link from
   // Tip History while this one is on screen.
   onShow:   (cb) => ipcRenderer.on(C.AILOG_SHOW, (_e, id) => cb(id)),
+  // Only the keyboard hint's counter needs this, but it goes through the same
+  // config channels every other surface uses rather than a private store, so
+  // "have they seen it" lives with the rest of the preferences.
+  getConfig: () => ipcRenderer.invoke(C.CONFIG_GET),
+  setConfig: (patch) => ipcRenderer.invoke(C.CONFIG_SET, patch),
   close:  () => window.close(),
 });

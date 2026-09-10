@@ -347,10 +347,49 @@ $('prev').addEventListener('click', () => go(idx - 1));
 $('next').addEventListener('click', () => go(idx + 1));
 $('slider').addEventListener('input', (e) => go(Number(e.target.value)));
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') window.occlara.close();
-  else if (e.key === 'ArrowLeft') go(idx - 1);
-  else if (e.key === 'ArrowRight') go(idx + 1);
+  // Typing a question to the coach must not scrub the session underneath it.
+  const t = e.target;
+  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  if (typing && e.key !== 'Escape') return;
+
+  if (e.key === 'Escape') { window.occlara.close(); return; }
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const dir = e.key === 'ArrowRight' ? 1 : -1;
+  // SHIFT JUMPS DEATH TO DEATH. Plain arrows still step one frame, which is
+  // what they have always done, so the modifier carries the bigger move rather
+  // than the existing binding changing meaning under anyone who already uses it.
+  // A session runs to 240 frames and about six deaths, so without this the only
+  // way to reach the next death from the keyboard was forty presses.
+  if (e.shiftKey) stepDeath(dir);
+  else go(idx + dir);
+  e.preventDefault();
 });
+
+/* ── The keyboard hint ──────────────────────────────────────────────────────
+   Shown for the first three opens and then never again. Both of these bindings
+   are useless if nobody knows they exist, and this window has no menu bar to
+   put them in. The counter goes through config like every other preference, so
+   dismissing it sticks across launches. If config is unreachable for any reason
+   the hint simply does not appear: a teaching aid is never worth an error. */
+const HINT_OPENS = 3;
+(async () => {
+  const hint = $('keyhint');
+  if (!hint || !window.occlara.getConfig) return;
+  let seen = 0;
+  try {
+    const cfg = await window.occlara.getConfig();
+    seen = Number(cfg && cfg.ailogHintSeen) || 0;
+  } catch { return; }
+  if (seen >= HINT_OPENS) return;
+
+  hint.hidden = false;
+  const done = (n) => { try { window.occlara.setConfig({ ailogHintSeen: n }); } catch {} };
+  done(seen + 1);
+  $('keyhint-x').addEventListener('click', () => {
+    hint.hidden = true;
+    done(HINT_OPENS);          // dismissed once means dismissed for good
+  });
+})();
 
 // ── Sessions ────────────────────────────────────────────────────────────────
 const picker = $('session');

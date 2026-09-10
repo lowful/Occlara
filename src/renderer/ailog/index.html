@@ -56,6 +56,17 @@
         <button id="death-next" class="nav-btn" title="Next death">&#8250;</button>
         <span id="death-why" class="deathnav-why"></span>
       </div>
+      <!-- The shortcuts, for the first few opens only. Both bindings already
+           worked before this existed and nobody could have known: an arrow key
+           is not something a window advertises on its own. -->
+      <div id="keyhint" class="keyhint" hidden>
+        <span class="kh-row"><kbd>&#8592;</kbd><kbd>&#8594;</kbd> frame by frame</span>
+        <span class="kh-sep" aria-hidden="true"></span>
+        <span class="kh-row"><kbd>Shift</kbd> + <kbd>&#8592;</kbd><kbd>&#8594;</kbd> death to death</span>
+        <span class="kh-sep" aria-hidden="true"></span>
+        <span class="kh-row"><kbd>Esc</kbd> close</span>
+        <button id="keyhint-x" class="kh-x" type="button" aria-label="Got it, hide this">Got it</button>
+      </div>
       <!-- THE RUN UP. The moment of death was never photographed: the capture
            runs on an interval and the kill lands between two frames. So this
            shows the window instead of pretending one frame is the death. -->

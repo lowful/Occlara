@@ -182,6 +182,11 @@ const STORE_DEFAULTS = {
   weeklySnapshot:   null,        // { at, riotId, stats } captured at the start of the week
   weeklyReportWeek: '',          // "2026-W30", the last week whose report was shown
   aiLog:            true,         // save each analyzed frame + STATE + tip for the AI decision-log viewer
+  // How many times the log window has shown its keyboard hint. It appears for
+  // the first few opens and then stops, the same way coachStartCount drives the
+  // minimize nudge: a shortcut nobody is told about is a shortcut nobody uses,
+  // and a hint that never goes away is furniture.
+  ailogHintSeen:    0,
 };
 
 module.exports = {
