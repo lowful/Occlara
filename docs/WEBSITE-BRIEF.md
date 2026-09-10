@@ -74,9 +74,9 @@ wrong once already.
 
 ## Rules that keep getting broken
 
-- **No decorative gradients.** Solid fills and hairline borders. The only
-  gradient is the simulated game frame behind the tip cards, standing in for a
-  photograph.
+- **No decorative gradients.** Solid fills and hairline borders, with no
+  exceptions left. The game frame behind the tip cards used to be a gradient
+  standing in for a photograph, and it is now an actual frame of the game.
 - **Red is spent in one place at a time.** It is the accent and the enemy glow.
   It is not a heading colour or a border on every card.
 - **Dark only.** Paint every colour explicitly so it holds whatever theme the
@@ -122,6 +122,20 @@ interval 3400ms
 Animate the outgoing card out and remove it on its own timer so the two never
 overlap in the layout. The first card must be present in the **first painted
 frame**, so the page is never an empty box waiting on an interval.
+
+**The frame behind them is a real screenshot**, `background-size: cover`,
+centred, radius 16, hairline border. Crop the capture before shipping it so the
+score, the round timer, the minimap and the health and ammo readout are all
+outside the picture: a real HUD next to the tip card makes the card look like
+part of the game's own interface, which is the one thing it must not look like.
+Do not draw a fake HUD on top either, the screenshot is the context.
+
+Over that, a soft pool of `rgba(0,0,0,0.55)` fading to transparent, as a radial
+about 60% by 44% from the centre, so the card has ground to sit on while the
+game stays readable around it. Not a wash over the whole frame.
+
+**The card sits in the centre of the frame**, both axes. Bottom aligned reads as
+a HUD element. Its text stays left aligned.
 
 Real tips to cycle, verbatim, all from one logged session:
 
