@@ -219,6 +219,52 @@ who is on screen. `verify:rivalsheroes` scores it against real frames in
 poor and this still ships because unknown heroes are already silence, but
 nothing downstream catches a hero that was never there.
 
+### MEASURED, 17 Sep 2026. It fails, and not narrowly.
+
+First real grading, against a Season 10 scoreboard with a hand written answer
+key. Six runs of the same frame:
+
+```
+precision  17 to 42%   (gate 90%)
+recall     18 to 45%   (no gate)
+side       33 to 100%  (gate 85%)
+```
+
+**It names different heroes every run**, and it answers outside the game: across
+those runs it produced Mephisto, Doctor Doom, She-Hulk, Wasp, Miles Morales,
+Juggernaut, Havok, Gorgon and Mystique, none of whom are in Marvel Rivals, plus
+Aleksei, Mackintosh, Cherry and Lightning Ace, who are not Marvel characters at
+all. That is the signature of a model sampling plausible names rather than
+reading art.
+
+Things tried that did not fix it:
+
+- **The closed roster in the prompt.** All 54 names, built from the hero table so
+  it cannot drift, with "never answer with a name outside that list". It still
+  answered outside the list.
+- **A 3x upscaled crop of the portrait column.** Scored slightly WORSE than the
+  full frame, so this is not simply pixel count.
+- **Describing the screen, the team colours and the highlighted row.** This did
+  help side accuracy, which moved from 33% toward 100%, and did nothing for
+  identity.
+
+Three real bugs were found and fixed along the way, and they had been hiding each
+other and the result:
+
+1. `sanitize()` collapses newlines, so the reply arrived as one line and the
+   line-anchored parser returned an empty roster.
+2. The grader scored an empty roster as **100% precision and PASS**, because
+   precision is tp/(tp+fp). A gate a mute model clears is not a gate.
+3. Once the prefix was made optional, the scan swallowed "HERO:" into every name
+   after the first, so eleven of twelve reads were scored as hallucinations. The
+   measured precision was a property of the parser.
+
+**What the scoreboard CAN be read for.** Everything on it except hero identity is
+printed text or a three-way glyph, and those are a different problem:
+map, mode, duration, victory or defeat, the season, player names, every K/D/A,
+and the role icons. A post match review built on those is honest today. One built
+on hero identity is not.
+
 **Every external source has been checked and rejected. Do not re-litigate:**
 
 | Source | Why not |
