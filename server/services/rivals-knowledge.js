@@ -106,12 +106,29 @@ const AIM_MODEL = {
  * wrong in a month, and the coach is built so that losing this block entirely
  * costs it nothing structural.
  */
+/*
+ * SEASON 10 LANDED AND THIS SNAPSHOT DID NOT SURVIVE IT.
+ *
+ * A real scoreboard captured on 17 Sep 2026 prints "S10.0 BUTCHER'S BLASPHEMY"
+ * in its own corner, and the official roster is 54 with Gorr the God Butcher
+ * added. The season and the count below were Season 9.5 facts.
+ *
+ * `strong` is the part that cannot simply be renumbered. It was a Season 9.5
+ * list, and a new season is exactly the event that invalidates one, so it is
+ * emptied rather than relabelled. metaBlock() already omits the line when the
+ * list is empty, which is the honest state: the coach knows the season and the
+ * roster size and does not claim to know who is strong in it.
+ *
+ * capturedAt is deliberately NOT moved forward. Re-dating a snapshot to today
+ * because one field was corrected would restart the 45 day clock on knowledge
+ * nobody re-checked, which is the precise failure the expiry exists to prevent.
+ */
 const META = {
   capturedAt: Date.UTC(2026, 7, 22),          // 22 August 2026
-  season: 'Season 9.5',
-  heroCount: 53,
-  note: 'Season 9 reworked the Hero Team-Up system and moved the meta more than any patch since launch.',
-  strong: ['Peni Parker', 'Rocket Raccoon', 'Loki', 'Mantis', 'Captain America', 'Groot', 'Hulk', 'Venom', 'Wolverine', 'Psylocke', 'Star-Lord', 'Adam Warlock'],
+  season: 'Season 10.0, Butcher’s Blasphemy',
+  heroCount: 54,
+  note: 'Season 10 added Gorr the God Butcher. Which heroes are strong in it has not been measured here.',
+  strong: [],
 };
 
 // Past this the snapshot is withheld rather than hedged. Matches the horizon
@@ -160,11 +177,26 @@ healed, and no Vanguard means whoever is picked first decides the fight.`;
 /** The volatile half, only while it is still true. */
 function metaBlock(now = Date.now()) {
   if (!metaIsFresh(now)) return '';
-  return `CURRENT META, captured ${new Date(META.capturedAt).toISOString().slice(0, 10)} for ${META.season} across ${META.heroCount} heroes. ${META.note}
-Heroes performing strongly right now: ${META.strong.join(', ')}.
-Treat this as background only. NEVER tell the player to switch to a hero on this
-list purely because it is on this list, and never claim a hero is weak. The
-player's own results with a hero outrank any tier list.`;
+  // KNOWING THE SEASON AND NOT KNOWING THE TIER LIST IS A REAL STATE, and it is
+  // the one this snapshot is in right after a season rolls. An empty list used
+  // to render as "Heroes performing strongly right now: ." which is a claim
+  // shaped like a sentence with nothing inside it. The line is omitted instead,
+  // and with it the paragraph warning against acting on a list that is not
+  // there, since there is then nothing to warn about.
+  const strong = META.strong.length
+    ? `\nHeroes performing strongly right now: ${META.strong.join(', ')}.
+Treat this as background only.`
+    : '';
+  // THE GUARDRAILS ARE UNCONDITIONAL. Only the first of the three is about the
+  // list; the other two hold whether or not a list exists, and an earlier pass
+  // at this moved all three inside the conditional, which quietly dropped "never
+  // claim a hero is weak" the moment the tier list was emptied. That is the
+  // wrong half to lose: no list plus no rule against calling a hero weak is more
+  // dangerous than a list with rules, not less.
+  return `CURRENT META, captured ${new Date(META.capturedAt).toISOString().slice(0, 10)} for ${META.season} across ${META.heroCount} heroes. ${META.note}${strong}
+NEVER tell the player to switch to a hero purely because a list says it is
+strong, and never claim a hero is weak.
+The player's own results with a hero outrank any tier list.`;
 }
 
 /**
