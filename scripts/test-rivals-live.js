@@ -26,9 +26,30 @@ console.log('[rivals] hero traits');
   const AIMS = ['hitscan', 'projectile', 'melee'];
   const AIRS = ['flight', 'leap', 'ground'];
   const ARCHES = ['dive', 'poke', 'brawl'];
+  /*
+   * ROLE AND ARCHETYPE ARE REQUIRED. AIM AND AIR MAY BE null.
+   *
+   * The table calls itself deliberately partial, and this check used to make
+   * that impossible: adding a hero meant supplying all four fields, so
+   * classifying an archetype forced a guess about aim as the price. Hitscan
+   * versus projectile is not printed on the official hero pages and could not be
+   * sourced, and the rule that reads it (flight-into-hitscan) already treats an
+   * unknown value as silence.
+   *
+   * So null means "not known", an invented value would mean "known and wrong",
+   * and the first of those is the one this repo is built to prefer. A WRONG
+   * value is still a failure: null is allowed, "sniper" is not.
+   */
+  const okOrNull = (list, v) => v == null || list.includes(v);
   const bad = Object.entries(heroes.HEROES).filter(([, h]) =>
-    !ROLES.includes(h.role) || !AIMS.includes(h.aim) || !AIRS.includes(h.air) || !ARCHES.includes(h.arch));
+    !ROLES.includes(h.role) || !ARCHES.includes(h.arch)
+    || !okOrNull(AIMS, h.aim) || !okOrNull(AIRS, h.air));
   check('every entry uses the known vocabulary', bad.length === 0, bad.map(([n]) => n).join(', '));
+
+  const partial = Object.entries(heroes.HEROES).filter(([, h]) => h.aim == null || h.air == null);
+  check('a partial entry is allowed and still carries role and archetype',
+    partial.every(([, h]) => ROLES.includes(h.role) && ARCHES.includes(h.arch)),
+    partial.map(([n]) => n).join(', '));
 
   check('lookup works', heroes.traits('Iron Man').air === 'flight');
   check('lookup is case and space insensitive', heroes.traits('  iron   man ').air === 'flight');
@@ -99,10 +120,47 @@ console.log('\n[rivals] switch advice');
   check('no enemies says nothing', counters.switchAdvice({ mine: 'Iron Man', enemies: [] }) === null);
 
   // Archetype rules.
+  //
+  // The Thing was swapped out of this comp deliberately. He is a named mobility
+  // lockout now, and that rule runs first, so leaving him here tested the
+  // lockout while claiming to test the archetype. Groot, Thor and Luna Snow are
+  // a brawl comp with nothing that switches a dash off.
   const dive = counters.switchAdvice({
-    mine: 'Spider-Man', enemies: ['Groot', 'The Thing', 'Luna Snow'], score: { kills: 0, deaths: 3 },
+    mine: 'Spider-Man', enemies: ['Groot', 'Thor', 'Luna Snow'], score: { kills: 0, deaths: 3 },
   });
   check('diving into a brawl comp fires', !!dive && dive.reason === 'dive-into-brawl', JSON.stringify(dive));
+
+  /*
+   * ── The named mechanical counter ────────────────────────────────────────
+   *
+   * The example the whole feature was requested around: The Thing ends a Black
+   * Panther dive because Yancy Street Charge leaves a zone that prevents
+   * mobility abilities, and Panther's escape IS a mobility ability.
+   *
+   * It outranks the archetype rules on purpose. "Dive loses to brawl" is true
+   * and general; naming the ability is something a player can go and look up.
+   */
+  const lock = counters.switchAdvice({
+    mine: 'Black Panther', enemies: ['The Thing', 'Luna Snow'], score: { kills: 1, deaths: 5 },
+  });
+  check('a mobility lockout on the field beats the archetype rule',
+    !!lock && lock.reason === 'mobility-lockout', JSON.stringify(lock));
+  check('and it names the ability rather than the matchup',
+    !!lock && /Yancy Street Charge/.test(lock.text), lock && lock.text);
+  check('ONE lockout hero is enough, unlike the pattern rules',
+    !!counters.switchAdvice({ mine: 'Spider-Man', enemies: ['Peni Parker'], score: { kills: 0, deaths: 4 } }));
+  check('a poke hero hears nothing about it, they were not leaving anyway',
+    counters.switchAdvice({ mine: 'Hela', enemies: ['The Thing', 'Luna Snow'], score: { kills: 0, deaths: 4 } }) === null);
+  check('and neither does a diver with no lockout on the field',
+    counters.switchAdvice({ mine: 'Black Panther', enemies: ['Luna Snow', 'Magneto'], score: { kills: 0, deaths: 4 } }) === null);
+  check('every lockout tip fits the 22 word tip contract',
+    counters.MOBILITY_LOCKOUT.every((l) => {
+      const r = counters.switchAdvice({ mine: 'Black Panther', enemies: [l.hero, 'Luna Snow'], score: { kills: 0, deaths: 4 } });
+      return r && r.text.split(/\s+/).length <= 22;
+    }));
+  check('and every hero it names is one the table actually knows',
+    counters.MOBILITY_LOCKOUT.every((l) => heroes.traits(l.hero) !== null),
+    counters.MOBILITY_LOCKOUT.filter((l) => !heroes.traits(l.hero)).map((l) => l.hero).join(', '));
 
   const poke = counters.switchAdvice({
     mine: 'Hawkeye', enemies: ['Spider-Man', 'Black Panther', 'Magik'], score: { kills: 1, deaths: 4 },
