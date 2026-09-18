@@ -165,7 +165,23 @@ function known(name) { return traits(name) !== null; }
  * This regex does NOT decide what a hero is. traits() does, and an unrecognised
  * name produces silence.
  */
-const RE_HERO_SCAN = /(?:HERO:)?\s*([^|\n]{1,40}?)\s*\|\s*(mine|ally|enemy|unknown)\b/gi;
+const RE_HERO_SCAN = /([^|\n]{1,40}?)\s*\|\s*(mine|ally|enemy|unknown)\b/gi;
+
+/*
+ * "HERO:" BECOMES THE LINE BREAK IT WAS STANDING IN FOR.
+ *
+ * Making the prefix optional inside the scan was not enough and produced a
+ * subtler wrong answer than leaving it required. Scanning left to right, the
+ * match after the first one begins at the space before "HERO:", the optional
+ * group matches empty there, and the name capture swallows the prefix: the
+ * roster came back as "iron man", "hero: the thing", "hero: luna snow". Every
+ * entry but the first was a name no hero table will ever contain, so the grader
+ * scored them as inventions and reported precision far below the truth.
+ *
+ * Replacing the marker with a newline first restores the structure sanitize()
+ * flattened, and costs nothing when the model omits it.
+ */
+const RE_HERO_MARK = /\bHERO\s*:/gi;
 
 /**
  * Parse the /identify reply into a roster.
@@ -179,9 +195,10 @@ function parseRoster(raw) {
   const out = [];
   // A fresh regex per call: /g carries lastIndex, and a shared instance would
   // start the second call wherever the first one stopped.
+  const text = String(raw || '').replace(RE_HERO_MARK, '\n');
   const re = new RegExp(RE_HERO_SCAN.source, 'gi');
   let m;
-  while ((m = re.exec(String(raw || ''))) !== null) {
+  while ((m = re.exec(text)) !== null) {
     const name = m[1].trim();
     if (name) out.push({ name, side: m[2].toLowerCase() });
   }
