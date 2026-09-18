@@ -2899,6 +2899,13 @@ module.exports.ai = {
   validateKey,
   creditsLookExhausted,
   creditsRetryIn,
+  // Which model a caller gets when it explicitly wants the deeper image read.
+  // Exposed so /api/rivals/identify can ask for it by name: that route reads
+  // twelve small character portraits off one scoreboard, which is a harder
+  // visual task than reading a HUD, and it measured at 17 to 42% precision on
+  // the live vision model. Setting AI_VISION_MODEL_DEEP in Railway now changes
+  // that one call without touching the coaching loop or needing a deploy.
+  deepVisionModel: () => AI.visionDeep,
 };
 module.exports.liveModels = () => ({
   provider:    AI.provider,

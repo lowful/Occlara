@@ -34,7 +34,8 @@ const router = express.Router();
 // The provider layer, exported by coach.js rather than extracted, because its
 // members sit interleaved with Valorant prompt code. See the note at the bottom
 // of that file.
-const { visionInfer, sanitize, validateKey, creditsLookExhausted, creditsRetryIn } = require('./coach').ai;
+const { visionInfer, sanitize, validateKey, creditsLookExhausted, creditsRetryIn,
+  deepVisionModel } = require('./coach').ai;
 
 const knowledge = require('../services/rivals-knowledge');
 
@@ -283,7 +284,20 @@ router.post('/identify', async (req, res) => {
   if (!image) return;
   try {
     if (creditsLookExhausted && creditsLookExhausted()) return creditsReply(res, new Error('breaker open'));
-    const raw = await visionInfer(image, IDENTIFY_PROMPT, 300, false);
+    /*
+     * THE DEEP MODEL, BY NAME, because this is the hardest visual task in the
+     * product and it is currently failing at it.
+     *
+     * Reading twelve small character portraits off one scoreboard is not the
+     * same job as reading a HUD, and the live vision model scores 17 to 42%
+     * precision on it against a 90% gate, naming heroes who are not in the game.
+     * Nothing downstream catches an invented hero, so the read is the gate.
+     *
+     * AI_VISION_MODEL_DEEP defaults to the same model, so this changes nothing
+     * until it is set, and setting it moves this one call without touching the
+     * coaching loop and without a deploy.
+     */
+    const raw = await visionInfer(image, IDENTIFY_PROMPT, 300, false, deepVisionModel());
     return res.json({ heroes: parseRoster(raw), raw });
   } catch (err) {
     if (creditsLookExhausted && creditsLookExhausted(err)) return creditsReply(res, err);
