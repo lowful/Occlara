@@ -102,8 +102,8 @@ const HEROES = {
  */
 const PENDING = [
   'Angela', 'Black Cat', 'Blade', 'Cyclops', 'Daredevil', 'Deadpool',
-  'Devil Dinosaur', 'Elsa Bloodstone', 'Gambit', 'Jubilee', 'Rogue',
-  'The Hood', 'White Fox',
+  'Devil Dinosaur', 'Elsa Bloodstone', 'Gambit', 'Gorr the God Butcher',
+  'Jubilee', 'Rogue', 'The Hood', 'White Fox',
 ];
 
 /** Spellings the kill feed and scoreboard actually use. */

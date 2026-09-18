@@ -54,8 +54,28 @@ const ok = (cond, what) => { if (!cond) { fails++; console.log(`FAIL  ${what}`);
 
   const fresh = k.block({ now: k.META.capturedAt });
   const stale = k.block({ now: k.META.capturedAt + 400 * day });
-  ok(/Peni Parker/.test(fresh), 'a fresh block names the strong heroes');
-  ok(!/Peni Parker/.test(stale), 'a STALE block names no hero at all');
+
+  /*
+   * Driven off META.strong rather than a hardcoded hero name, because this used
+   * to assert /Peni Parker/ and that is a Season 9.5 fact living inside a test.
+   * When Season 10 landed and the list was emptied, the test failed for being
+   * out of date rather than for anything being wrong, which is the sort of
+   * failure that gets a test deleted instead of read.
+   *
+   * Both states are legitimate. A populated list must reach the prompt. An empty
+   * one must produce no strength claim at all, which is the honest position
+   * right after a season rolls: the season is known, the tier list is not.
+   */
+  if (k.META.strong.length) {
+    const first = k.META.strong[0];
+    ok(fresh.includes(first), 'a fresh block names the strong heroes');
+    ok(!stale.includes(first), 'a STALE block names no hero at all');
+  } else {
+    ok(!/performing strongly/i.test(fresh),
+      'an empty strong list makes no strength claim, rather than an empty one');
+    ok(fresh.includes(String(k.META.heroCount)),
+      'but a fresh block still carries the season and the roster size');
+  }
   ok(!/tier|win rate|strongest/i.test(k.metaBlock(k.META.capturedAt + 400 * day)), 'and makes no strength claim');
 
   // Losing the snapshot must not gut the coach. This is what makes the design

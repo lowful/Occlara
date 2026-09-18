@@ -26,7 +26,8 @@
  * model reads rather than infers, and therefore the thing that outranks it.
  */
 const express = require('express');
-const { parseRoster } = require('../services/rivals-heroes');
+const rivalHeroes = require('../services/rivals-heroes');
+const { parseRoster } = rivalHeroes;
 
 const router = express.Router();
 
@@ -213,16 +214,64 @@ function creditsReply(res, err) {
  * everything downstream treats an unknown hero as a reason to stay quiet and a
  * confidently wrong one as a reason to speak.
  */
-const IDENTIFY_PROMPT = `You are reading a Marvel Rivals screenshot to identify heroes.
+/*
+ * THE ROSTER IS A CLOSED SET, and saying so is the whole fix.
+ *
+ * Graded against a real scoreboard the first version scored 30% precision. It
+ * did not misread the art so much as reach outside the game: it answered
+ * Mephisto, Doctor Doom, She-Hulk, Wasp and Miles Morales, none of whom are in
+ * Marvel Rivals, plus Aleksei, Mackintosh and Cherry, who are not Marvel
+ * characters at all. Asked to name Marvel heroes it named Marvel heroes.
+ *
+ * So the list below is built from the hero table at request time rather than
+ * typed here. It cannot drift from the table the answer is checked against, and
+ * a hero added to the table becomes answerable in the same edit. This is the
+ * same move the Valorant prompt makes with agent abilities, for the same reason
+ * recorded there: a hand written vocabulary taught the model words the client's
+ * own gate then rejected.
+ */
+const ROSTER = [...Object.keys(rivalHeroes.HEROES).map((k) => rivalHeroes.traits(k).name),
+  ...rivalHeroes.PENDING].sort();
 
-List ONLY hero names you can actually read or clearly recognise on screen.
+const IDENTIFY_PROMPT = `You are reading a Marvel Rivals screenshot and naming the heroes in it.
+
+This is usually the post match scoreboard: two blocks of six rows, one block per
+team, each row showing a hero portrait, a player name and that player's kills,
+deaths and assists. It may instead be the hero select screen, which shows one
+team only.
+
+THE ONLY HERO NAMES THAT EXIST IN THIS GAME ARE THESE ${ROSTER.length}:
+${ROSTER.join(', ')}.
+
+Never answer with a name outside that list. Marvel has thousands of characters
+and almost none of them are in this game. If a portrait looks like a Marvel
+character who is not on the list, you have misread it, so leave it out.
+
+Which team is which, on a scoreboard:
+- the two teams are drawn in different colours, one block above the other
+- exactly one row is tinted and highlighted differently from the rest of its
+  block. That row is the person who took the screenshot. Mark it "mine"
+- other rows in the same coloured block as that row are "ally"
+- every row in the other block is "enemy"
+
+What will try to fool you:
+- heroes have alternate costumes, so the art may not match the default look.
+  Read the silhouette and the role, not the colour scheme
+- a decorated frame, a crest or a badge around a portrait is a cosmetic
+  progression icon and belongs to the PLAYER, not the hero. It is not a costume,
+  a weapon or a clue to who the hero is
+- the small square beside each portrait is the player's account avatar and often
+  shows a completely different hero. Ignore it
+- chat messages and banners can cover part of a portrait. A covered row is a row
+  you leave out
 
 Rules:
-- Use the exact in-game hero name, one per line.
-- Mark each with the team you can tell it is on: "mine", "ally" or "enemy".
+- Use the exact spelling from the list above.
+- Mark each with the team: "mine", "ally" or "enemy".
 - If you cannot tell the team, use "unknown".
 - If you cannot identify a hero with confidence, LEAVE IT OUT. A missing hero is
   fine. A guessed hero is not.
+- The same hero can appear on both teams. That is normal, list it twice.
 - No commentary, no coaching, no explanation.
 
 Reply in exactly this shape, one hero per line and nothing else:
