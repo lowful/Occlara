@@ -23,3 +23,11 @@ dist-surface-shots/
 
 # Logo renders for the website. Generated from assets/logo-mark.svg on demand.
 dist-logo/
+
+# Agent skill installs (npx skills add). Third party files, hundreds of them,
+# pulled in per machine rather than owned by this project. They arrived in one
+# commit as 45k lines of someone else's content in a public repo, which is not
+# a thing this repository should be carrying.
+.agents/
+.claude/
+skills-lock.json

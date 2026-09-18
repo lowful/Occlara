@@ -172,6 +172,39 @@ console.log('\n[rivals] the tip budget');
   check('the window expires', g2.allows(moments.MOMENTS.death.windowMs + 1) === false);
 }
 
+/*
+ * ── Reading the /identify reply ─────────────────────────────────────────────
+ *
+ * The first real scoreboard ever graded returned an EMPTY roster, and the
+ * grader called it 100% precision and passed. The model had answered fine; it
+ * simply wrote "Venom | enemy" where the prompt asked for "HERO: Venom | enemy",
+ * and the parser required the prefix, so every line was discarded.
+ *
+ * That failure is silent by construction: an empty roster is indistinguishable
+ * from a frame with no heroes in it. These cases exist so it cannot happen
+ * twice, in both directions, because a parser loose enough to accept prose would
+ * be a worse bug than the one it replaced.
+ */
+console.log('\nreading the identify reply:');
+for (const [raw, want, why] of [
+  ['HERO: Venom | enemy',              1, 'the documented shape'],
+  ['Venom | enemy',                    1, 'the shape the model actually returns'],
+  ['Venom | enemy\nStorm | mine',      2, 'several bare lines'],
+  ['Jeff the Land Shark | ally',       1, 'a name with spaces survives'],
+  ['HERO: Luna Snow | unknown',        1, 'an honest abstention still parses'],
+  ['I think that might be Venom',      0, 'prose is refused'],
+  ['Venom',                            0, 'a name with no side is refused'],
+  ['Venom | sideways',                 0, 'an invented side is refused'],
+  ['',                                 0, 'nothing in, nothing out'],
+]) {
+  check('  ' + why, heroes.parseRoster(raw).length === want,
+    'got ' + heroes.parseRoster(raw).length + ', want ' + want);
+}
+check('  the side survives the parse',
+  heroes.parseRoster('Magneto | enemy')[0].side === 'enemy');
+check('  the name is trimmed, not padded',
+  heroes.parseRoster('  Magneto   |  enemy ')[0].name === 'Magneto');
+
 if (failures) {
   console.log('\nFAIL: ' + failures + ' live-Rivals check(s) failed');
   process.exit(1);
