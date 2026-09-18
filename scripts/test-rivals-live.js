@@ -225,6 +225,27 @@ check('  the name is trimmed, not padded',
     heroes.parseRoster(asItArrives).length === got.length);
 }
 
+/*
+ * THE PREFIX MUST BE EATEN ON EVERY ENTRY, NOT JUST THE FIRST.
+ *
+ * When the model does use "HERO:" and sanitize() has flattened the newlines, a
+ * merely optional prefix inside the scan is consumed on the first match and
+ * swallowed into the NAME on every one after it: the roster parsed as
+ * "Iron Man", "HERO: The Thing", "HERO: Luna Snow". Those are names no hero
+ * table will ever hold, so they were scored as inventions and the measured
+ * precision came out well below the real one. A parser bug reading as a model
+ * failure is the worst kind, because the fix gets aimed at the wrong thing.
+ */
+{
+  const prefixed = 'HERO: Iron Man | ally HERO: The Thing | ally HERO: Luna Snow | enemy';
+  const names = heroes.parseRoster(prefixed).map((h) => h.name);
+  check('  every prefixed entry keeps its name clean, not just the first',
+    JSON.stringify(names) === JSON.stringify(['Iron Man', 'The Thing', 'Luna Snow']),
+    'got ' + JSON.stringify(names));
+  check('  and a prefixed name still resolves through the hero table',
+    heroes.traits(heroes.parseRoster('HERO: Venom | enemy HERO: Storm | ally')[1].name) !== null);
+}
+
 if (failures) {
   console.log('\nFAIL: ' + failures + ' live-Rivals check(s) failed');
   process.exit(1);
