@@ -76,6 +76,15 @@ const UNSURE_TELL = /unreadable|kept previous|unclear|not sure|cannot tell|can.?
 /** "own HP 19 and Sova abilities" says the HUD is the player's own. */
 const OWN_HUD = /\bown\s+(?:hp|health|loadout|weapon|abilit)/i;
 
+/*
+ * The player's OWN death banner, not a line about somebody else.
+ *
+ * Anchored to the start: Valorant writes "KILLED BY <name>" about you, and any
+ * feed line about a third party carries the killer's name first. Without the
+ * anchor this fires every time anyone on the server dies.
+ */
+const KILLED_BY_PLAYER = /^\s*(?:you (?:were|got) killed|killed by)\b/i;
+
 /** Captures the name in "Sova abilities", "Jett's abilities", "Killjoy ability bar". */
 const ABILITY_OWNER = /\b([A-Z][a-zA-Z/]+)(?:'s)?\s+(?:abilit|ult|ability bar)/g;
 
@@ -135,6 +144,9 @@ function foreignAgentInTell(tell, lockedAgent) {
  * @param f.prevHp      playerHp last frame
  * @param f.roundChanged true when the round advanced since the last frame
  *
+ * @param f.killFeed    the last kill feed line the model read
+ * @param f.phase       the model's own phase verdict for this frame
+ *
  * Returns { spectating, confidence, signals }. `spectating` is true on ONE
  * strong signal or TWO weak ones. It is deliberately conservative: declaring a
  * living player dead silences the coach mid round, which is the same failure
@@ -178,6 +190,40 @@ function readHudOwner(f) {
     weak += 1;
   }
 
+  /*
+   * THE KILL FEED SAYING THE PLAYER WAS KILLED IS A PRINTED FACT.
+   *
+   * Session 2026-09-18 frame 19: phase "dead", killFeed "Killed by Reyna",
+   * playerNote "Died holding A Lobby alone", and alongside them playerAlive true
+   * at 100 HP with a knife. Three signals said dead, none of them reached here,
+   * and the spectated teammate's health won. The tip was right and the STATE
+   * around it was self contradictory, which is what the accuracy gate then
+   * flagged.
+   *
+   * This is the same class of evidence as the printed location label the map
+   * lock is built on: Valorant puts KILLED BY <name> on screen, so reading it is
+   * not inference. It is ANCHORED to the start deliberately. "Killed by Reyna"
+   * is the player's own death banner; "Sova killed by Reyna" is a line about
+   * somebody else, and treating the second as the first would call the player
+   * dead every time anyone on the server died.
+   */
+  const feed = String(o.killFeed || '');
+  if (KILLED_BY_PLAYER.test(feed)) {
+    signals.push(`kill feed reads "${feed.trim().slice(0, 40)}"`);
+    strong += 1;
+  }
+
+  /*
+   * The model's own "dead" verdict is WEAK on purpose and never decides alone.
+   * Trusting it outright is the bug the HP-beats-death rule exists to stop: it
+   * announced deaths that had not happened. Paired with anything else, though, it
+   * is the difference between a contradiction and a reading.
+   */
+  if (String(o.phase || '').toLowerCase() === 'dead') {
+    signals.push('model reported phase dead');
+    weak += 1;
+  }
+
   // "own HP" is the model asserting the HUD is the player's. It is only counted
   // as evidence FOR being alive, never against, because the session above proves
   // the model writes it while spectating.
@@ -194,6 +240,6 @@ function readHudOwner(f) {
 }
 
 module.exports = {
-  SPECTATE_TELL, SPECTATE_FALSE_FRIEND, UNSURE_TELL, OWN_HUD,
+  SPECTATE_TELL, SPECTATE_FALSE_FRIEND, UNSURE_TELL, OWN_HUD, KILLED_BY_PLAYER,
   tellSaysSpectating, foreignAgentInTell, readHudOwner,
 };

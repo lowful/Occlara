@@ -59,5 +59,50 @@ if (!isDeathReview('You died at A Sewer.', { playerAlive: true, phase: 'active',
   pass++; console.log('PASS  gate is off when no death is in play');
 } else { fail++; console.log('FAIL  gate fired with no death in play'); }
 
+/*
+ * ── THE SITE CHECK, from session 2026-09-18 ─────────────────────────────────
+ *
+ * That session blocked SIXTEEN death reviews here against seven that reached the
+ * player, and death reviews are the most valuable tip the coach writes.
+ *
+ * Six of the sixteen were the model being MORE precise than the record, not
+ * wrong: "a rafters" against a recorded "A Site", "b main" against "B Site".
+ * Rafters is on A. The record is one coarse label from one frame, so naming a
+ * specific place inside the right site is better coaching rather than a lie.
+ *
+ * Three more were blocked with "the player died at Defender Side Spawn", a
+ * sentence the coach should never be able to form. Players do not die in their
+ * own spawn, so that slot held a broken capture rather than a truth.
+ *
+ * The case this gate exists for has to keep working, which is the wrong SITE.
+ */
+console.log('\nthe site check:');
+const spotWhy = (tip, truth, map) => {
+  const r = wrongDeathSpot(tip.toLowerCase(), truth, map);
+  return r ? r.why : 'allowed';
+};
+for (const [tip, truth, map, want, why] of [
+  ['You died at A Rafters holding alone.', 'A Site', 'Ascent', 'allowed', 'finer detail inside the same site'],
+  ['You died at B Main without a trade.', 'B Site', 'Ascent', 'allowed', 'B Main resolves to site B'],
+  ['You died at A Garden pushing wide.', 'A Site', 'Ascent', 'allowed', 'A Garden resolves to site A'],
+  ['You died at A Site holding alone.', 'A Site', 'Ascent', 'allowed', 'an exact match, as before'],
+  ['You died at B Lobby alone.', 'A Site', 'Ascent', 'elsewhere', 'THE WRONG SITE STILL BLOCKS'],
+  ['You died at A Main too wide.', 'Mid Bottom', 'Ascent', 'elsewhere', 'A against Mid still blocks'],
+  ['You died at B Main without cover.', 'Defender Side Spawn', 'Ascent', 'spawn', 'a spawn is not a death location'],
+  ['You died at B Lobby alone.', '', 'Ascent', 'uncaptured', 'nothing captured still blocks'],
+  ['You played that fight well.', 'A Site', 'Ascent', 'allowed', 'no location claimed, nothing to check'],
+]) {
+  const got = spotWhy(tip, truth, map);
+  if (got === want) { pass++; console.log('PASS  ' + why); }
+  else { fail++; console.log('FAIL  ' + why + '  (got ' + got + ', want ' + want + ')'); }
+}
+
+// Without a map there is no geometry, so the site shortcut cannot apply and the
+// gate falls back to exact matching. Losing the map must not start allowing
+// things, only stop the extra leniency.
+if (spotWhy('You died at A Rafters.', 'A Site', undefined) === 'elsewhere') {
+  pass++; console.log('PASS  with no map known, it falls back to strict matching');
+} else { fail++; console.log('FAIL  an unknown map changed the strict behaviour'); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
