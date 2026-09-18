@@ -140,20 +140,32 @@ function known(name) { return traits(name) !== null; }
 // been destroyed twice by being written through a shell heredoc, where \r?\n
 // collapses into a real newline and the file stops parsing. Keeping them here
 // means there is one place to check.
-const RE_LINES = /\r?\n/;
-// THE "HERO:" PREFIX IS OPTIONAL, and that is not a loosening for its own sake.
-// Graded against a real scoreboard the model answered "Venom | enemy" rather
-// than "HERO: Venom | enemy" on every single line, so the prefix requirement
-// discarded the entire read and /identify returned an empty roster. That failure
-// is invisible from the outside: an empty roster looks exactly like a frame with
-// no heroes in it, and it scored 100% precision in the grader because nothing
-// wrong was reported.
-//
-// The shape that actually matters is "<name> | <side>", and it still has to be
-// the whole line. A hero named here is not trusted on the strength of this regex
-// anyway: traits() decides whether it is a hero at all, and an unknown name
-// produces silence.
-const RE_HERO = /^\s*(?:HERO:\s*)?([^|]+?)\s*\|\s*(mine|ally|enemy|unknown)\s*$/i;
+/*
+ * THERE ARE NO LINES BY THE TIME THIS RUNS, which is why this scans rather than
+ * splits.
+ *
+ * The reply is asked for as one hero per line, "HERO: <name> | <side>", and the
+ * model obliges. Then sanitize() in coach.js collapses every run of whitespace
+ * into a single space, newlines included, because it was written for TIPS, where
+ * a tip is one sentence and collapsing is exactly right. By the time /identify
+ * gets the text it is a single line reading
+ * "Hulk | mine Storm | mine Moon Knight | mine ...".
+ *
+ * The old parser split on /\r?\n/ and anchored each hero to the start and end of
+ * a line, so it found one line, failed to match it, and returned an empty
+ * roster. That is invisible from outside: an empty roster looks exactly like a
+ * frame with no heroes in it, and it scored 100% precision in the grader,
+ * because nothing wrong was reported.
+ *
+ * sanitize() is shared with the Valorant tip pipeline and this file is not
+ * allowed to be a reason to edit it, so the fix belongs here. Scanning for the
+ * "<name> | <side>" shape wherever it appears survives either format, and the
+ * "HERO:" prefix is optional because the model drops it in practice.
+ *
+ * This regex does NOT decide what a hero is. traits() does, and an unrecognised
+ * name produces silence.
+ */
+const RE_HERO_SCAN = /(?:HERO:)?\s*([^|\n]{1,40}?)\s*\|\s*(mine|ally|enemy|unknown)\b/gi;
 
 /**
  * Parse the /identify reply into a roster.
@@ -165,9 +177,11 @@ const RE_HERO = /^\s*(?:HERO:\s*)?([^|]+?)\s*\|\s*(mine|ally|enemy|unknown)\s*$/
  */
 function parseRoster(raw) {
   const out = [];
-  for (const line of String(raw || '').split(RE_LINES)) {
-    const m = line.match(RE_HERO);
-    if (!m) continue;
+  // A fresh regex per call: /g carries lastIndex, and a shared instance would
+  // start the second call wherever the first one stopped.
+  const re = new RegExp(RE_HERO_SCAN.source, 'gi');
+  let m;
+  while ((m = re.exec(String(raw || ''))) !== null) {
     const name = m[1].trim();
     if (name) out.push({ name, side: m[2].toLowerCase() });
   }

@@ -205,6 +205,26 @@ check('  the side survives the parse',
 check('  the name is trimmed, not padded',
   heroes.parseRoster('  Magneto   |  enemy ')[0].name === 'Magneto');
 
+/*
+ * THE SHAPE THAT ACTUALLY ARRIVES. sanitize() in coach.js collapses every run of
+ * whitespace into one space, newlines included, because it was written for tips
+ * where that is correct. So by the time /identify sees the reply it is a single
+ * line. This string is verbatim from the live server on a real scoreboard, and
+ * it is the case that returned an empty roster and a false PASS.
+ */
+{
+  const asItArrives = 'Hulk | mine Storm | mine Moon Knight | mine Shark | mine '
+    + 'Adam Warlock | mine Venom | enemy Cherry | enemy Magik | enemy Pyro | enemy '
+    + 'Adam Warlock | enemy X-23 | enemy';
+  const got = heroes.parseRoster(asItArrives);
+  check('  a whole reply collapsed onto one line still parses', got.length === 11,
+    'got ' + got.length + ', want 11');
+  check('  and the sides survive the collapse',
+    got[0] && got[0].side === 'mine' && got[5] && got[5].side === 'enemy');
+  check('  parsing twice gives the same answer, no lastIndex leak',
+    heroes.parseRoster(asItArrives).length === got.length);
+}
+
 if (failures) {
   console.log('\nFAIL: ' + failures + ' live-Rivals check(s) failed');
   process.exit(1);
