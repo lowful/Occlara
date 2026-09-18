@@ -14,6 +14,7 @@
     "release": "node scripts/check-release-ready.js && electron-builder --win --publish always && node scripts/publish-download.js",
     "sync:valorant": "node scripts/sync-valorant-data.js",
     "sync:patch": "node scripts/sync-patch-notes.js",
+    "sync:rivals": "node scripts/sync-rivals-data.js",
     "sync:lol": "node scripts/sync-lol.js",
     "publish:download": "node scripts/publish-download.js",
     "check:playbook": "node scripts/check-playbook.js",
