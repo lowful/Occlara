@@ -184,4 +184,56 @@ const FRAMES = [
   checks += 3;
 }
 
+/*
+ * ── THE KILL FEED, from session 2026-09-18 frame 19 ─────────────────────────
+ *
+ * The state that frame produced, verbatim:
+ *
+ *   phase       "dead"
+ *   killFeed    "Killed by Reyna"
+ *   playerNote  "Died holding A Lobby alone while team committed to B"
+ *   playerAlive true
+ *   playerHp    100
+ *   aliveTell   "own HP 100 and knife bottom center"
+ *
+ * Three signals said the player was dead and none of them reached this function,
+ * so the spectated teammate's 100 HP won and the STATE contradicted itself. The
+ * tip built on it was CORRECT and the accuracy gate flagged it anyway, which is
+ * the worst shape a failure can take: the coach punished for being right.
+ */
+{
+  const frame19 = {
+    tell: 'own HP 100 and knife bottom center',
+    killFeed: 'Killed by Reyna',
+    phase: 'dead',
+    hp: 100,
+    agent: 'Jett',
+  };
+  ok('the real frame 19 reads as spectating', spectate.readHudOwner(frame19).spectating === true);
+  ok('and on a strong signal, not a coincidence of weak ones',
+    spectate.readHudOwner(frame19).confidence === 'strong');
+  ok('"You were killed by" is the same fact in other words',
+    spectate.readHudOwner({ killFeed: 'You were killed by Jett' }).spectating === true);
+  checks += 3;
+
+  // The anchor is the whole safety of this rule. A feed line about anyone else
+  // must not declare the player dead, or the coach goes silent every time a
+  // teammate trades.
+  ok('a teammate dying is not the player dying',
+    spectate.readHudOwner({ killFeed: 'Sova killed by Reyna', tell: 'own HP 100', hp: 100 }).spectating === false);
+  ok('nor is a third party kill',
+    spectate.readHudOwner({ killFeed: 'Reyna killed Sova' }).spectating === false);
+  checks += 2;
+
+  // phase is the MODEL's verdict rather than a printed fact, and trusting it
+  // alone is the bug the HP-beats-death rule exists to prevent.
+  ok('phase dead alone never decides',
+    spectate.readHudOwner({ phase: 'dead', tell: 'own HP 100', hp: 100 }).spectating === false);
+  ok('but phase dead plus the feed does',
+    spectate.readHudOwner({ phase: 'dead', killFeed: 'Killed by Omen' }).spectating === true);
+  ok('an ordinary living frame is still untouched',
+    spectate.readHudOwner({ tell: 'own HP 87 and Vandal', hp: 87, agent: 'Jett' }).spectating === false);
+  checks += 3;
+}
+
 console.log('PASS: all ' + checks + ' spectator and death-review checks passed');

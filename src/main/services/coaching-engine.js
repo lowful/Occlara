@@ -1461,6 +1461,11 @@ class CoachingEngine extends EventEmitter {
       hp:          updates.playerHp,
       prevHp:      this.matchContext.playerHp,
       roundChanged,
+      // The two the model already reads and this check never saw. A kill feed
+      // reading "Killed by <agent>" is printed on screen, not inferred, and it
+      // is the strongest death tell available.
+      killFeed:    updates.killFeed,
+      phase:       updates.phase,
     });
     this.matchContext.spectateSuspected = hud.spectating;
 
@@ -2225,12 +2230,76 @@ function wrongSideHold(text, ctx) {
  * about locations without the real one among them, which is how "pushed into C
  * Link" reached a player who died at A Sewer.
  */
-function wrongDeathSpot(text, deathSpot) {
+// The generated map geometry, keyed by lowercase map name. Loaded the same
+// lazy, degrade-on-missing way as MAP_CALLOUTS and MAP_LABEL_INDEX: a stripped
+// build loses the site check and keeps coaching.
+const MAP_GEOMETRY = (() => {
+  try { return require('../../shared/valorant-data.generated.json').mapGeometry || {}; }
+  catch (e) { console.log('[engine] map geometry unavailable:', e.message); return {}; }
+})();
+
+/**
+ * Which site a callout belongs to, from the game's own geometry.
+ *
+ * Every callout carries one: "A Garden" is site A, "B Main" is site B, and the
+ * two spawns resolve to "Attacker Side" and "Defender Side", which are
+ * deliberately NOT sites.
+ */
+function siteOfCallout(map, name) {
+  const geo = MAP_GEOMETRY[String(map || '').toLowerCase()];
+  if (!geo) return null;
+  const want = String(name || '').trim().toLowerCase();
+  for (const c of geo.callouts || []) {
+    if (String(c.n).toLowerCase() === want) return c.s || null;
+    if (c.a && String(c.a).toLowerCase() === want) return c.s || null;
+  }
+  return null;
+}
+
+/** A spawn is where rounds begin, not where deaths happen. */
+const SPAWN_SITE = /side$/i;
+
+/**
+ * Did the tip name somewhere the player did not die?
+ *
+ * TWO CORRECTIONS, both measured on session 2026-09-18, where this gate blocked
+ * SIXTEEN death reviews against seven that got through. Death reviews are the
+ * most valuable tip the coach writes, so a gate this noisy is expensive.
+ *
+ * SAME SITE IS NOT A CONTRADICTION. Six of the sixteen were the model being MORE
+ * precise than the record: "a rafters" against a recorded "A Site", "b main"
+ * against "B Site", "a garden" against "A Site". Rafters is on A. The record is
+ * one coarse label captured on one frame, and a tip naming a specific place
+ * inside the right site is better coaching, not a lie. Different sites still
+ * block, which is the case this gate was written for: "b lobby" when the player
+ * died on A is exactly the tip that must never ship.
+ *
+ * A SPAWN IS NOT A DEATH LOCATION. Three more were blocked with "the player died
+ * at Defender Side Spawn", which is a sentence the coach should never have been
+ * able to form. Players do not die in their own spawn; a spawn in this slot is
+ * the post-death camera or the next round's first frame, so it is a broken
+ * capture rather than a truth to check against. It still blocks, because
+ * unverifiable is still unverifiable, but it no longer asserts something false
+ * on the way.
+ */
+function wrongDeathSpot(text, deathSpot, map) {
   const spots = namedSpots(text);
   if (!spots.length) return null;                 // no location claimed, fine
   const truth = String(deathSpot || '').trim().toLowerCase();
-  if (!truth) return spots[0];                    // nothing captured: cannot verify any of them
-  return spots.includes(truth) ? null : spots[0];
+  if (!truth) return { spot: spots[0], why: 'uncaptured' };
+
+  const truthSite = siteOfCallout(map, truth);
+  if (truthSite && SPAWN_SITE.test(truthSite)) {
+    return { spot: spots[0], why: 'spawn' };
+  }
+  if (spots.includes(truth)) return null;
+
+  if (truthSite) {
+    for (const s of spots) {
+      if (siteOfCallout(map, s) === truthSite) return null;   // same site, finer detail
+    }
+  }
+  return { spot: spots[0], why: 'elsewhere' };
 }
 
 // The reason the most recent tip was dropped. The console line alone is not
@@ -2597,11 +2666,18 @@ function scenarioFits(text, source, ctx) {
     // server/routes/coach.js.
 
     if (isDeathReview(l, ctx)) {
-      const wrongSpot = wrongDeathSpot(l, ctx.deathSpot);
+      const wrongSpot = wrongDeathSpot(l, ctx.deathSpot, ctx.map);
       if (wrongSpot) {
-        noteReject(ctx.deathSpot
-          ? `said the death was at "${wrongSpot}" but the player died at "${ctx.deathSpot}"`
-          : `named "${wrongSpot}" as the death spot, but no death location was captured`);
+        noteReject(
+          wrongSpot.why === 'spawn'
+            // Never phrase this as "the player died at <spawn>". They did not,
+            // and a reject reason that states a falsehood sends the next person
+            // reading the log after the wrong bug.
+            ? `named "${wrongSpot.spot}" as the death spot, and the captured location `
+              + `was "${ctx.deathSpot}", a spawn, so there is nothing to check against`
+            : wrongSpot.why === 'uncaptured'
+              ? `named "${wrongSpot.spot}" as the death spot, but no death location was captured`
+              : `said the death was at "${wrongSpot.spot}" but the player died at "${ctx.deathSpot}"`);
         return false;
       }
     }
