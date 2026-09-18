@@ -140,6 +140,33 @@ async function main() {
   console.log('  ' + 'side'.padEnd(12) + (sideAcc * 100).toFixed(0) + '%  (min ' + MIN_SIDE * 100 + '%)');
   if (failed) console.log(`  ${failed} frame(s) failed to reach the server`);
 
+  /*
+   * SAYING NOTHING IS NOT PASSING.
+   *
+   * precision is tp/(tp+fp), which is 1 when the model reports no heroes at all,
+   * and this script used to call that a pass. It did, on the first real frame
+   * ever graded: /identify returned an empty roster because a parser change had
+   * silently discarded every line, and the run printed 100% precision, 0% recall
+   * and "good enough to build live tips on".
+   *
+   * A gate that a mute model clears is not a gate. Precision is only meaningful
+   * once there is something to be precise about, so a floor on recall exists
+   * purely to prove the model spoke. It is deliberately low: recall itself still
+   * has no quality bar, because a hero left out costs coverage and nothing else.
+   */
+  const MIN_RECALL_TO_JUDGE = 0.25;
+  if (tp + fp === 0) {
+    console.log('\nFAIL: the model named no heroes at all, so there is nothing to grade.');
+    console.log('This is not a precision result. Check /api/rivals/identify is parsing the reply:');
+    console.log('an empty roster and a frame with no heroes in it look identical from here.');
+    process.exit(1);
+  }
+  if (recall < MIN_RECALL_TO_JUDGE) {
+    console.log(`\nFAIL: recall ${(recall * 100).toFixed(0)}% is too low to judge precision on.`);
+    console.log(`Found ${tp} of ${tp + fn}. Precision over a handful of heroes is noise, not a measurement.`);
+    process.exit(1);
+  }
+
   const ok = precision >= MIN_PRECISION && sideAcc >= MIN_SIDE;
   if (!ok) {
     console.log('\nFAIL: the hero read is not trustworthy enough for live tips.');

@@ -141,7 +141,19 @@ function known(name) { return traits(name) !== null; }
 // collapses into a real newline and the file stops parsing. Keeping them here
 // means there is one place to check.
 const RE_LINES = /\r?\n/;
-const RE_HERO = /^\s*HERO:\s*([^|]+)\|\s*(mine|ally|enemy|unknown)\s*$/i;
+// THE "HERO:" PREFIX IS OPTIONAL, and that is not a loosening for its own sake.
+// Graded against a real scoreboard the model answered "Venom | enemy" rather
+// than "HERO: Venom | enemy" on every single line, so the prefix requirement
+// discarded the entire read and /identify returned an empty roster. That failure
+// is invisible from the outside: an empty roster looks exactly like a frame with
+// no heroes in it, and it scored 100% precision in the grader because nothing
+// wrong was reported.
+//
+// The shape that actually matters is "<name> | <side>", and it still has to be
+// the whole line. A hero named here is not trusted on the strength of this regex
+// anyway: traits() decides whether it is a hero at all, and an unknown name
+// produces silence.
+const RE_HERO = /^\s*(?:HERO:\s*)?([^|]+?)\s*\|\s*(mine|ally|enemy|unknown)\s*$/i;
 
 /**
  * Parse the /identify reply into a roster.
