@@ -59,7 +59,11 @@ const HEROES = {
   'squirrel girl':    { role: 'Duelist',    aim: 'projectile', air: 'ground', arch: 'poke'  },
   'moon knight':      { role: 'Duelist',    aim: 'projectile', air: 'ground', arch: 'poke'  },
   'scarlet witch':    { role: 'Duelist',    aim: 'projectile', air: 'flight', arch: 'brawl' },
-  'winter soldier':   { role: 'Duelist',    aim: 'projectile', air: 'ground', arch: 'brawl' },
+  // POKE, on the player's own call. The community genuinely splits on this one:
+  // Bionic Hook and Tainted Voltage are anti-dive tools, which reads as brawl,
+  // but his damage pattern is chip from range. Someone who plays the game said
+  // poke, and that outranks a coin flip between two defensible reads.
+  'winter soldier':   { role: 'Duelist',    aim: 'projectile', air: 'ground', arch: 'poke'  },
   'namor':            { role: 'Duelist',    aim: 'projectile', air: 'ground', arch: 'poke'  },
   'spider-man':       { role: 'Duelist',    aim: 'melee',      air: 'leap',   arch: 'dive'  },
   'black panther':    { role: 'Duelist',    aim: 'melee',      air: 'leap',   arch: 'dive'  },
@@ -80,6 +84,20 @@ const HEROES = {
   'loki':             { role: 'Strategist', aim: 'projectile', air: 'ground', arch: 'poke'  },
   'invisible woman':  { role: 'Strategist', aim: 'projectile', air: 'ground', arch: 'poke'  },
   'ultron':           { role: 'Strategist', aim: 'projectile', air: 'flight', arch: 'poke'  },
+  // ── Classified 18 Sep 2026, from the request's own ground truth and the
+  //    Season 10 research. aim is null throughout: hitscan versus projectile is
+  //    not printed on the official hero pages and was not sourceable, and a
+  //    guess there would be worse than the gap, since the one rule that reads it
+  //    treats unknown as silence.
+  'black cat':        { role: 'Duelist',   aim: null, air: 'leap',   arch: 'dive'  },
+  'daredevil':        { role: 'Duelist',   aim: null, air: 'leap',   arch: 'dive'  },
+  'rogue':            { role: 'Vanguard',  aim: null, air: 'flight', arch: 'dive'  },
+  'angela':           { role: 'Vanguard',  aim: null, air: 'flight', arch: 'dive'  },
+  'cyclops':          { role: 'Duelist',   aim: null, air: 'ground', arch: 'poke'  },
+  'gambit':           { role: 'Strategist', aim: null, air: 'ground', arch: 'poke' },
+  'elsa bloodstone':  { role: 'Duelist',   aim: null, air: 'ground', arch: 'poke'  },
+  'blade':            { role: 'Duelist',   aim: null, air: 'ground', arch: 'brawl' },
+  'devil dinosaur':   { role: 'Vanguard',  aim: null, air: 'leap',   arch: 'brawl' },
 };
 
 /**
@@ -101,9 +119,13 @@ const HEROES = {
  * Both have said no in their own way, so this list is maintained by hand.
  */
 const PENDING = [
-  'Angela', 'Black Cat', 'Blade', 'Cyclops', 'Daredevil', 'Deadpool',
-  'Devil Dinosaur', 'Elsa Bloodstone', 'Gambit', 'Gorr the God Butcher',
-  'Jubilee', 'Rogue', 'The Hood', 'White Fox',
+  // Deadpool is officially tri-role, data-tag="VANGUARD DUELIST STRATEGIST",
+  // and his page carries four unlabelled health blocks. One archetype cannot
+  // describe him, so he stays here rather than being flattened into a guess.
+  'Deadpool',
+  // Season 9 and 10 arrivals with no settled community read on archetype yet.
+  // Naming them keeps the roster honest at 54 while the coach stays quiet.
+  'Gorr the God Butcher', 'Jubilee', 'The Hood', 'White Fox',
 ];
 
 /** Spellings the kill feed and scoreboard actually use. */
@@ -126,12 +148,67 @@ function normalise(name) {
 }
 
 /** Traits for a hero, or null when it is not one we can vouch for. */
+/*
+ * The fetched half, keyed by lowercase name.
+ *
+ * Health, movement speed and the ability list come from the game's own site via
+ * npm run sync:rivals. They are facts with a source, so they are never hand
+ * written here, and a missing file costs the extra detail without costing the
+ * archetype knowledge this module exists for.
+ */
+const GENERATED = (() => {
+  try {
+    const d = require('../rivals-data.generated.json');
+    const by = {};
+    for (const h of d.heroes || []) by[normalise(h.name)] = h;
+    return by;
+  } catch (e) {
+    console.log('[rivals] generated hero data unavailable:', e.message);
+    return {};
+  }
+})();
+
+/**
+ * Everything known about a hero, or null.
+ *
+ * TWO HALVES, joined here. The hand written half is archetype, aim and air,
+ * which are community vocabulary that appears nowhere official. The fetched half
+ * is health, speed and abilities, which are printed on the game's own hero
+ * pages. Neither half can fill in for the other, and the join is the only place
+ * that needs to know they are separate.
+ *
+ * ABSENCE STILL MEANS SILENCE. A hero with no hand written entry returns null
+ * even when the sync knows its health, because an unclassified hero is one the
+ * coach cannot reason about, and half a record invites exactly the guess this
+ * module exists to refuse.
+ */
 function traits(name) {
   const n = normalise(name);
   if (!n) return null;
   const key = ALIASES[n] || n;
   const h = HEROES[key];
-  return h ? Object.assign({ name: key }, h) : null;
+  if (!h) return null;
+
+  const g = GENERATED[key];
+  const out = Object.assign({ name: key }, h);
+  if (g) {
+    if (g.health) {
+      out.hp = g.health.base;                 // what one burst has to beat
+      out.hpShield = g.health.shield || 0;    // regenerates out of combat
+      out.hpTotal = g.health.total;
+      // THE SQUISHY TEST, and it is exact rather than a feel. Official health is
+      // trimodal: Strategists and most Duelists sit at 250 to 300, dive Duelists
+      // at 150 plus a regenerating shield, Vanguards at 500 and up. So a target
+      // worth diving is one whose BASE pool dies to a burst and who is not a
+      // front liner. The shield is excluded on purpose: it refills out of
+      // combat, which makes it a reason the diver survives rather than a reason
+      // the target does.
+      out.squishy = g.health.base <= 300 && h.role !== 'Vanguard';
+    }
+    if (g.speed) out.speed = g.speed;
+    if (g.abilities && g.abilities.length) out.abilities = g.abilities;
+  }
+  return out;
 }
 
 function known(name) { return traits(name) !== null; }
