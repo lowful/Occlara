@@ -168,14 +168,51 @@ function paintRivals(r) {
       + (n ? `  ·  ${n} change${n === 1 ? '' : 's'}` : '');
   }
 
+  // AGAINST YOUR OWN AVERAGE, reusing the League skill table because it is the
+  // same idea rendered the same way: a metric, this match, and the mean.
+  //
+  // `.pass` and `.fail` here mean ABOVE and BELOW the player's own average, not
+  // good and bad. Deaths carry lowerIsBetter, so a green dot on Deaths means
+  // fewer than usual. The row text always shows both numbers, so the colour is
+  // a hint rather than the claim.
+  const against = Array.isArray(r.against) ? r.against : [];
+  const skills = $('r-skills');
+  const note = $('r-skills-note');
+  skills.replaceChildren();
+  if (!against.length) {
+    const n = r.historyCount || 0;
+    note.textContent = n < 3
+      ? `This is match ${n + 1}. After three in the same role the coach can compare you `
+        + 'against your own average, and this fills in.'
+      : 'No column in this match had enough matching history to compare against.';
+  } else {
+    note.textContent = `Compared against your own recent matches, in the same role. `
+      + 'Accuracy is compared only against the same hero, because a projectile hero '
+      + 'is naturally lower than a hitscan one.';
+    for (const a of against) {
+      const dir = a.better === null ? '' : (a.better ? ' pass' : ' fail');
+      const row = el('div', 'skill-row' + dir);
+      row.append(el('span', 'skill-dot'));
+      const body = el('div', 'skill-body');
+      body.append(el('div', 'skill-metric', a.label));
+      const sign = a.delta > 0 ? '+' : '';
+      body.append(el('div', 'skill-num',
+        `${a.value.toLocaleString()}  (average ${a.baseline.toLocaleString()}`
+        + `${a.delta === 0 ? '' : ', ' + sign + a.delta.toLocaleString()}, ${a.games} matches)`));
+      row.append(body);
+      skills.append(row);
+    }
+  }
+
   const refused = Array.isArray(r.refused) ? r.refused : [];
   $('r-refused-wrap').hidden = !refused.length;
   const list = $('r-refused');
   list.replaceChildren();
   for (const line of refused) list.append(el('li', 'r-refused-item', line));
 
-  // Every League-only section, off.
-  for (const id of ['r-moments-wrap', 'r-skills-wrap', 'r-next-wrap']) $(id).hidden = true;
+  // Every League-only section, off. r-skills-wrap is NOT among them any more:
+  // Rivals fills it with its own comparison.
+  for (const id of ['r-moments-wrap', 'r-next-wrap']) $(id).hidden = true;
   document.querySelector('#r-obj').closest('.block').hidden = true;
 }
 

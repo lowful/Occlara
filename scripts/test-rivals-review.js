@@ -243,5 +243,108 @@ const SCOREBOARD = {
   }
 }
 
+// ── The personal baseline, and the scoping that makes it mean anything ──────
+{
+  const match = (role, hero, sc) => ({ at: Date.now(), hero, role, scoreline: sc });
+  const duelist = (k, d, acc) => match('Duelist', 'hela',
+    { kills: k, deaths: d, assists: 3, damage: 20000, healing: 0, blocked: 0, accuracy: acc });
+
+  const three = [duelist(10, 8, 30), duelist(12, 9, 32), duelist(14, 7, 34)];
+  const now = { phase: 'scoreboard', mode: 'CONVOY',
+    me: { role: 'Duelist', kills: 20, deaths: 5, assists: 6,
+      damage: 30000, healing: 0, blocked: 0, accuracy: 41 } };
+
+  // BELOW THE FLOOR there is no comparison, because a delta off two matches is
+  // not a baseline, it is noise wearing a number.
+  const two = review.buildReview({ hero: 'Hela', state: now, history: three.slice(0, 2) });
+  ok(two.against.length === 0, 'two prior matches produce no comparison');
+  ok(two.historyCount === 2, 'but the count is reported so the surface can say why');
+
+  const r = review.buildReview({ hero: 'Hela', state: now, history: three });
+  ok(r.against.length > 0, `three prior matches produce one (${r.against.length} metrics)`);
+
+  const kills = r.against.find((a) => a.id === 'kills');
+  ok(kills && kills.baseline === 12, `the average is the real mean (${kills && kills.baseline})`);
+  ok(kills && kills.delta === 8, `and the delta is real (${kills && kills.delta})`);
+  ok(kills && kills.better === true, 'more kills than usual reads as better');
+
+  // DEATHS ARE INVERTED, and without that the review congratulates a player for
+  // dying more than usual.
+  const deaths = r.against.find((a) => a.id === 'deaths');
+  ok(deaths && deaths.delta === -3, `deaths delta is real (${deaths && deaths.delta})`);
+  ok(deaths && deaths.better === true, 'FEWER deaths than usual reads as better');
+
+  // ROLE SCOPING. A Strategist match must not enter a Duelist baseline: it
+  // would manufacture a trend out of the player switching role.
+  const mixed = [...three,
+    match('Strategist', 'luna snow', { kills: 1, deaths: 14, assists: 30, accuracy: 20 })];
+  const rm = review.buildReview({ hero: 'Hela', state: now, history: mixed });
+  const k2 = rm.against.find((a) => a.id === 'kills');
+  ok(k2 && k2.games === 3, `the Strategist match is excluded from a Duelist baseline (n=${k2 && k2.games})`);
+  ok(k2 && k2.baseline === 12, 'so the average does not move');
+
+  // HERO SCOPING for accuracy. rivals-knowledge.js states the reason: a
+  // projectile hero is naturally lower than a hitscan one at the same skill.
+  const otherHero = [...three, match('Duelist', 'spider-man',
+    { kills: 11, deaths: 8, assists: 3, accuracy: 5 })];
+  const ro = review.buildReview({ hero: 'Hela', state: now, history: otherHero });
+  const acc = ro.against.find((a) => a.id === 'accuracy');
+  ok(acc && acc.games === 3, `accuracy ignores a different hero (n=${acc && acc.games})`);
+  ok(acc && acc.baseline === 32, `so a 5% Spider-Man game does not drag it (${acc && acc.baseline})`);
+  // ... while a ROLE scoped metric DOES count that same match, since it is the
+  // same role. If these two ever agree, one of the scopes has been lost.
+  const k3 = ro.against.find((a) => a.id === 'kills');
+  ok(k3 && k3.games === 4, `but kills counts it, because the role matches (n=${k3 && k3.games})`);
+
+  // Only the last N matches feed a baseline.
+  const many = Array.from({ length: 40 }, () => duelist(10, 8, 30));
+  const rl = review.buildReview({ hero: 'Hela', state: now, history: many });
+  const kl = rl.against.find((a) => a.id === 'kills');
+  ok(kl && kl.games === review.RIVALS_BASELINE_GAMES,
+    `the baseline is capped at ${review.RIVALS_BASELINE_GAMES} matches (n=${kl && kl.games})`);
+
+  // A COLUMN THAT IS ZERO AND ALWAYS HAS BEEN is dropped, because "Blocked 0
+  // (average 0)" is a row that says nothing. The inverse must survive: a zero
+  // against a real average is the single most informative row there is, and a
+  // filter written carelessly eats exactly that one.
+  const stratHist = [1, 2, 3].map(() => match('Strategist', 'luna snow',
+    { kills: 2, deaths: 9, assists: 18, damage: 8000, healing: 20000, blocked: 0, accuracy: 25 }));
+  const stratNow = { phase: 'scoreboard',
+    me: { role: 'Strategist', kills: 4, deaths: 11, assists: 21,
+      damage: 9840, healing: 0, blocked: 0, accuracy: 29 } };
+  const rs = review.buildReview({ hero: 'Luna Snow', state: stratNow, history: stratHist });
+  ok(!rs.against.some((a) => a.id === 'blocked'), 'an always-zero column is dropped');
+  const heal = rs.against.find((a) => a.id === 'healing');
+  ok(heal, 'but healing 0 against an average of 20,000 is NOT dropped');
+  ok(heal && heal.delta === -20000, `and carries the real drop (${heal && heal.delta})`);
+  ok(heal && heal.better === false, 'and reads as worse');
+
+  // No history at all is a gap, never a zero baseline.
+  const none = review.buildReview({ hero: 'Hela', state: now });
+  ok(none.against.length === 0, 'no history produces no comparison');
+  ok(none.historyCount === 0, 'and says so');
+}
+
+// ── The history entry is built from the REVIEW, not from the raw frame ──────
+{
+  // A hero the review refused to believe must not enter the baseline as that
+  // hero either, or the next match is compared against a lie.
+  const healed = { phase: 'scoreboard', result: 'victory', mode: 'CONVOY',
+    me: { role: 'Duelist', kills: 4, deaths: 9, assists: 21,
+      damage: 9000, healing: 19400, blocked: 0, accuracy: 30 } };
+  const r = review.buildReview({ hero: 'The Punisher', state: healed });
+  ok(r.game.hero === null, 'the contradicted hero is dropped from the review');
+
+  const entry = review.historyEntry(r, 1000);
+  ok(entry !== null, 'and an entry is still recorded');
+  ok(entry.hero === null, 'with no hero, rather than the one the review refused');
+  ok(entry.role === 'Strategist', `and the role the review settled on (${entry.role})`);
+  ok(entry.scoreline.kills === 4, 'carrying the scoreline');
+  ok(entry.at === 1000, 'and the timestamp it was given');
+
+  ok(review.historyEntry(null) === null, 'no review means no entry');
+  ok(review.historyEntry({ empty: true }) === null, 'and neither does an empty one');
+}
+
 console.log(`\n${fails ? fails + ' failure(s)' : 'all rivals review checks passed'}`);
 process.exit(fails ? 1 : 0);

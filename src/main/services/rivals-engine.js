@@ -47,6 +47,11 @@ class RivalsEngine extends EventEmitter {
   constructor(opts = {}) {
     super();
     this.getKey = opts.getKey || (() => null);
+    // Past matches, for the personal baseline the review compares against. A
+    // default of none is the honest fallback: compareToHistory needs three
+    // same-scope matches before it says anything, so no history simply means no
+    // comparison rather than a wrong one.
+    this.getHistory = opts.getHistory || (() => []);
     this.capture = opts.capture || (async () => null);
     this.log = opts.log || (() => {});
     // WHICH QUESTIONS THIS ENGINE IS ALLOWED TO ASK.
@@ -261,7 +266,9 @@ class RivalsEngine extends EventEmitter {
   pushReview(ctx) {
     let review = null;
     try {
-      review = buildReview({ hero: this.mine, state: ctx });
+      let history = [];
+      try { history = this.getHistory() || []; } catch { history = []; }
+      review = buildReview({ hero: this.mine, state: ctx, history });
     } catch (e) {
       this.log('[rivals] review build failed: ' + e.message);
     }
