@@ -1,6 +1,32 @@
 'use strict';
 
 /**
+ * NOT WIRED, AND NOT THE META THE COACH USES. Read this before using it.
+ *
+ * The meta the coach actually reads is META in server/services/rivals-knowledge.js,
+ * which is a hand written snapshot carrying its own patch stamp and is reached
+ * through knowledge.block(). This file is a SECOND meta implementation that
+ * nothing calls, and two meta implementations that do not talk to each other is
+ * the real hazard here: the next person to want a meta fact has an even chance
+ * of picking the one that is never consulted.
+ *
+ * WHAT IS MISSING is not a call site, it is the data. Every function below
+ * expects a snapshot shaped { patch, fetchedAt, heroes: { name: { winRate } } },
+ * and nothing in this repo produces one. Nothing can: every Rivals win rate
+ * source was evaluated and rejected, the reasons are tabulated in
+ * docs/AI-CONTEXT.md, and the plan's instruction is explicit. Either a snapshot
+ * is hand authored once per patch, or this file goes.
+ *
+ * It is kept rather than deleted because the reasoning in it is sound and
+ * expensive to rediscover: bands rather than decimals because two tier lists
+ * disagreed by three points on the same hero on the same day, and the player's
+ * own record outweighing the meta. Both of those are worth having written down
+ * whoever ends up implementing them.
+ *
+ * So: do not wire this expecting it to work. Produce the snapshot first.
+ *
+ * ── What it would do, once it had data ──────────────────────────────────────
+ *
  * How good is a hero, and how good is it FOR THIS PLAYER.
  *
  * Two different questions, and the second one is the reason this file exists.

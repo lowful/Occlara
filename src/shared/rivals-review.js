@@ -59,6 +59,41 @@ const num = (v) => {
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
+/**
+ * The mode as the game printed it, tidied, or null.
+ *
+ * NOT VALIDATED AGAINST A LIST, and the absence of that list is deliberate
+ * rather than unfinished work. marvelrivals.com publishes no game modes page:
+ * /gamemodes/ and /gameinfo/ both 404, and the homepage yields only the word
+ * Convoy, in a paragraph about a map. So any mode table here would be written
+ * from memory and presented as fact, which is the exact shape of the mistake
+ * the counter table's header records: Dexerto and TheGamer both confidently
+ * named an ability that appears on none of the 54 official pages.
+ *
+ * And the read does not need one. The mode is PRINTED TEXT in the corner of the
+ * screen, which is the category of read that works. Checking a printed label
+ * against an unsourced list would substitute a guess for the game's own words
+ * and would drop a real mode the moment one is added. The review only displays
+ * this field, it never branches on it, so a wrong mode costs one wrong word and
+ * a dropped mode costs a true one.
+ *
+ * What IS checked is shape: a mode is a short label, not a sentence. A model
+ * that answers with the objective text instead of the mode name gets dropped,
+ * because that is a misread rather than a mode this code has not heard of.
+ */
+const MODE_MAX_WORDS = 3;
+const MODE_MAX_CHARS = 28;
+
+function modeName(raw) {
+  const v = str(raw);
+  if (!v) return null;
+  if (v.length > MODE_MAX_CHARS) return null;
+  if (v.split(/\s+/).length > MODE_MAX_WORDS) return null;
+  // The game prints modes in capitals. Title case reads better beside a map
+  // name and a result, and loses nothing.
+  return v.replace(/\S+/g, (w) => (/[a-z]/.test(w) ? w : w[0] + w.slice(1).toLowerCase()));
+}
+
 /** What an archetype is FOR. Durable knowledge: it does not expire with a patch. */
 const ARCH_PURPOSE = {
   dive: 'reaching an isolated target and leaving before the rest of the team can answer',
@@ -206,7 +241,7 @@ function buildReview(p) {
       role,
       roleSource,
       map: str(state.map),
-      mode: str(state.mode),
+      mode: modeName(state.mode),
       result: str(state.result),
       mvp: str(state.mvp),
     },
@@ -239,4 +274,4 @@ function refusals(picked) {
   return out;
 }
 
-module.exports = { buildReview, whichHero, roleShape, traitsOf, ARCH_PURPOSE };
+module.exports = { buildReview, whichHero, roleShape, traitsOf, modeName, ARCH_PURPOSE };
