@@ -1,0 +1,98 @@
+name: Sync Marvel Rivals data
+
+# Marvel Rivals knowledge EXPIRES, which is the whole reason this exists.
+#
+# The balance post is withheld from the prompt after 45 days and from the post
+# match review after 30, on purpose: a coach citing a dead patch sounds
+# authoritative while being wrong. The failure mode is therefore SILENCE, not an
+# error. Nothing breaks, no test fails, the coach simply stops mentioning the
+# patch and nobody notices for a month.
+#
+# So the data is refreshed on a schedule, on the same pattern as
+# sync-valorant.yml: commit if it actually changed, and open an issue when the
+# change is one the desktop client bundles, because the client ships src/ and
+# only a release gets it to users.
+#
+# TWO CADENCES, because the two syncs cost very different amounts:
+#   balance  2 requests. Daily, so a new patch reaches the coach within a day.
+#   roster   54 hero pages. Weekly, since the roster changes with a season.
+on:
+  schedule:
+    - cron: '0 16 * * *'   # daily at 16:00 UTC, balance post only
+    - cron: '0 17 * * 1'   # Mondays at 17:00 UTC, full roster as well
+  workflow_dispatch: {}     # also runnable by hand from the Actions tab
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run the syncs
+        id: sync
+        run: |
+          # The balance post always. It is two requests and it is the half that
+          # expires.
+          node scripts/sync-rivals-balance.js | tee sync-output.txt
+
+          # The full roster only on the weekly run, or when kicked off by hand.
+          # 54 hero pages is a lot to ask for daily when the roster changes with
+          # a season.
+          if [ "${{ github.event.schedule }}" != '0 16 * * *' ]; then
+            node scripts/sync-rivals-data.js | tee -a sync-output.txt
+          else
+            echo "roster sync skipped on the daily run" | tee -a sync-output.txt
+          fi
+
+          # The client bundles src/shared, so a change there needs a release.
+          # The server picks its own copy up on the next Railway deploy.
+          if git diff --quiet -- src/shared/rivals-balance.generated.json src/shared/rivals-abilities.generated.json; then
+            echo "needs_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_release=true" >> "$GITHUB_OUTPUT"
+          fi
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check the data before committing it
+        if: steps.sync.outputs.changed == 'true'
+        # A sync that fetched a reshaped page can write a file that parses and
+        # says the wrong thing. check:rivalsknowledge asserts every hero named
+        # is on the roster, that no balance section is empty, and that the
+        # server and client copies agree on the section count, which is the
+        # check that caught Deadpool's three role sections collapsing to one.
+        run: npm run check:rivalsknowledge
+
+      - name: Commit the updated data
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add server/rivals-balance.generated.json src/shared/rivals-balance.generated.json \
+                  server/rivals-data.generated.json src/shared/rivals-abilities.generated.json
+          git commit -m "data: sync Marvel Rivals balance and roster (automated)"
+          git push
+
+      - name: Open a release reminder
+        if: steps.sync.outputs.needs_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -e "console.log(require('./server/rivals-balance.generated.json').version)")
+          gh issue create \
+            --title "Marvel Rivals data changed, cut a client release" \
+            --body "The scheduled sync committed new Rivals data (balance version $VERSION). The server updates on its next deploy, but the desktop client bundles src/shared, so run \`npm run release\` (bump the version first) to ship it to users.
+
+          Note the client side data expires: the post match review stops naming a patch after 30 days and the prompt after 45. A release that is late enough makes the coach go quiet about the patch rather than say anything wrong." \
+            --label "release" 2>/dev/null || echo "issue create skipped (label may not exist)"
