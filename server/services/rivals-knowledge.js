@@ -175,6 +175,48 @@ healed, and no Vanguard means whoever is picked first decides the fight.`;
 }
 
 /** The volatile half, only while it is still true. */
+/**
+ * The official balance post, if one has been synced and is still current.
+ *
+ * THIS IS THE PART OF THE META THAT IS SOURCED. META above is hand written and
+ * expires; this is fetched from marvelrivals.com/balancepost/ by
+ * npm run sync:rivalsbalance, carries the game version and publish date, and is
+ * NetEase describing their own changes.
+ *
+ * ONLY THE GLOBAL CHANGES GO IN THE PROMPT, plus a count. The post also carries
+ * a one line summary for each of 38 heroes, and pasting 38 sentences into every
+ * request would cost more context than it earns and would tempt the model to
+ * bring up a hero it cannot see. The per hero lines are used by the post match
+ * review instead, where the hero IS known and the player asked to read.
+ *
+ * The version number is the load bearing part. Without it the model reasons
+ * from whatever it absorbed in training, which is a different patch, and does
+ * so with no signal that it is out of date.
+ */
+function balanceBlock(now = Date.now()) {
+  let b = null;
+  try { b = require('../rivals-balance.generated.json'); } catch { return ''; }
+  if (!b || !b.version) return '';
+
+  const published = Date.parse(String(b.published) + 'T00:00:00Z');
+  if (!isFinite(published)) return '';
+  // The same horizon the rest of the volatile knowledge uses, so the coach
+  // cannot be citing a live patch in one paragraph and a dead one in the next.
+  if ((now - published) / 86400000 > META_MAX_AGE_DAYS) return '';
+
+  const globals = (b.global || []).filter((g) => g && !/^\s*$/.test(g));
+  const heroCount = Object.keys(b.heroes || {}).length
+    || (Array.isArray(b.heroes) ? b.heroes.length : 0);
+
+  return `
+THE CURRENT PATCH IS VERSION ${b.version}, published ${b.published}. It changed
+${heroCount} heroes. Anything you believe about hero numbers from before this
+patch may be wrong, so do not quote specific damage, healing or cooldown values.${
+  globals.length ? `
+Changes that applied to everyone in that patch:
+${globals.map((g) => '- ' + g).join(String.fromCharCode(10))}` : ''}`;
+}
+
 function metaBlock(now = Date.now()) {
   if (!metaIsFresh(now)) return '';
   // KNOWING THE SEASON AND NOT KNOWING THE TIER LIST IS A REAL STATE, and it is
@@ -207,13 +249,23 @@ The player's own results with a hero outrank any tier list.`;
 function block(opts = {}) {
   const parts = [fundamentals()];
   if (opts.meta !== false) {
+    // TWO SOURCES, TWO CLOCKS, added separately on purpose.
+    //
+    // metaBlock is the hand written snapshot; balanceBlock is fetched from the
+    // game's own balance post. They go stale on different days. Nesting the
+    // balance paragraph inside metaBlock meant the sourced, first party, current
+    // one vanished the moment the hand written one aged out, which is exactly
+    // backwards: that is the point at which the fetched one is the only meta
+    // knowledge left worth having.
     const m = metaBlock(opts.now);
     if (m) parts.push(m);
+    const b = balanceBlock(opts.now);
+    if (b) parts.push(b.trim());
   }
   return parts.join('\n\n');
 }
 
 module.exports = {
   ARCHETYPES, ROLE_CRAFT, AIM_MODEL, META, META_MAX_AGE_DAYS,
-  metaIsFresh, fundamentals, metaBlock, block,
+  metaIsFresh, fundamentals, metaBlock, balanceBlock, block,
 };

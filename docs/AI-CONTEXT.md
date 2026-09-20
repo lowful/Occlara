@@ -321,7 +321,53 @@ name rather than by any test:
 
 Both are filtered in `sync-rivals-data.js` now, 665 ability rows down to 610.
 
-**Every external source has been checked and rejected. Do not re-litigate:**
+### The balance post IS a source, and it was never checked. 20 Sep 2026.
+
+The table below is about **win rate and tier data**, and for that it still
+holds. It was being read as "no Rivals data exists anywhere", which is wrong and
+cost the coach a real source for months.
+
+NetEase publishes the balance changes themselves, at
+`marvelrivals.com/balancepost/`, linked from `/news/`. First party, no key, no
+permission question, and a better kind of knowledge than a tier list:
+
+```
+a tier list says     "Hela is S tier"                  opinion, contested, stale in a month
+a balance post says  "Reduce Nastrond Crow Form        fact, dated, quotable, and the
+                      damage from 70 to 60,             player can go and check it
+                      published 2026/09/08"
+```
+
+`npm run sync:rivalsbalance` parses it: version, publish date, global changes,
+and per hero a one line official summary plus the change bullets. The
+2026/09/08 post yields **38 heroes and 3 global changes**.
+
+**The coach quotes and never judges.** It does not say buffed or nerfed, because
+deciding which requires inference and the inference is unsafe: "reduce cooldown"
+is a buff, "reduce damage" is a nerf, and the verb is identical. NetEase already
+writes a characterisation per hero, so there is a sourced sentence and nothing
+to infer.
+
+Two parse defects worth knowing, both found by reading the output rather than by
+a test:
+
+- **Global changes carry no bullet dash.** The section reads "Strategists:" then
+  two bare sentences, so a bullet-only rule reported zero global changes while
+  the page plainly had two. Nothing errored, and "this patch changed nothing
+  globally" is believable output.
+- **Deadpool has three sections**, `(Vanguard)`, `(Duelist)` and `(Strategist)`,
+  with different changes in each. A one-to-one client map silently kept the last
+  and dropped two, printing 36 against 38 parsed. `check:rivalsknowledge`
+  asserts the two copies agree on the section count.
+
+**Still not reachable, so do not re-hunt:** the site's MAPS and HERO HOT LIST nav
+items are `javascript:;` dropdowns rendered client side. None of `/maps/`,
+`/gamemap/`, `/hotlist/`, `/herolist/`, `/teamup/` or `/hero/` exist, and the nav
+JS does not carry the URLs. `/heroes/`, `/news/` and the article pages are the
+whole of what is statically reachable. `robots.txt` 404s.
+
+**Every external WIN RATE source has been checked and rejected. Do not
+re-litigate:**
 
 | Source | Why not |
 |---|---|

@@ -52,6 +52,27 @@ try {
   TRAITS = {};
 }
 
+let BALANCE = null;
+try {
+  BALANCE = require('./rivals-balance.generated.json');
+} catch {
+  // No balance data costs the patch note and nothing else.
+  BALANCE = null;
+}
+
+/**
+ * How recently a balance post still counts as news.
+ *
+ * A review that opens "your hero changed in the latest patch" about a patch
+ * from six months ago is furniture, not information. Thirty days is a little
+ * over one patch cycle, so a player sees the note for the patch they are
+ * actually playing and stops seeing it once it is simply how the hero works.
+ *
+ * The published date is rendered either way, so the player is never asked to
+ * take "recently" on trust.
+ */
+const PATCH_FRESH_DAYS = 30;
+
 const num = (v) => {
   const n = typeof v === 'string' ? Number(v.replace(/[,\s]/g, '')) : v;
   return typeof n === 'number' && isFinite(n) ? n : null;
@@ -92,6 +113,52 @@ function modeName(raw) {
   // The game prints modes in capitals. Title case reads better beside a map
   // name and a result, and loses nothing.
   return v.replace(/\S+/g, (w) => (/[a-z]/.test(w) ? w : w[0] + w.slice(1).toLowerCase()));
+}
+
+/**
+ * Did this hero change in the latest balance post, and what did NetEase say
+ * about it.
+ *
+ * QUOTED, NEVER JUDGED. This does not report a buff or a nerf, because deciding
+ * which one a change is requires inference and the inference is not safe:
+ * "reduce cooldown" is a buff and "reduce damage" is a nerf, and the verb is
+ * identical. NetEase already writes a one line characterisation per hero, in
+ * their own words, so there is a sourced sentence available and nothing to
+ * infer. The review quotes that and stops.
+ *
+ * It also never counts as a reason for anything. A hero changing is a fact
+ * worth knowing after a match; it is not an explanation of how the match went,
+ * and the review has no way to tell whether the change mattered.
+ *
+ * Deadpool maps to THREE sections because he is officially tri-role, so this
+ * takes the one matching the role in play and otherwise declines to choose.
+ */
+function patchNote(hero, role, now = Date.now()) {
+  if (!BALANCE || !hero) return null;
+  const list = (BALANCE.heroes || {})[norm(hero)];
+  if (!Array.isArray(list) || !list.length) return null;
+
+  const published = Date.parse(BALANCE.published + 'T00:00:00Z');
+  if (!isFinite(published)) return null;
+  const ageDays = (now - published) / 86400000;
+  if (ageDays > PATCH_FRESH_DAYS || ageDays < 0) return null;
+
+  // One section, or the one matching the role actually played. With several
+  // sections and no role to pick by, saying nothing beats picking the wrong
+  // half of a tri-role hero's changes.
+  let entry = list[0];
+  if (list.length > 1) {
+    entry = list.find((e) => e.role === role) || null;
+    if (!entry) return null;
+  }
+
+  return {
+    version: BALANCE.version,
+    published: BALANCE.published,
+    summary: entry.summary || null,
+    count: entry.count,
+    source: BALANCE.source,
+  };
 }
 
 /** What an archetype is FOR. Durable knowledge: it does not expire with a patch. */
@@ -255,6 +322,10 @@ function buildReview(p) {
     // What the hero is FOR. Always true, never a verdict on this match.
     archetype: arch ? { name: arch, purpose: ARCH_PURPOSE[arch] || null } : null,
     shape: roleShape(role, row),
+    // What NetEase changed about this hero in the current patch, in their
+    // words. Null when the hero is unknown, when nothing changed, or when the
+    // patch is no longer news.
+    patch: patchNote(picked.hero, role),
     // Said out loud rather than left as an absence, because a player who can see
     // the enemy team on their own screen will otherwise assume the coach saw it
     // too and chose to say nothing.
@@ -274,4 +345,5 @@ function refusals(picked) {
   return out;
 }
 
-module.exports = { buildReview, whichHero, roleShape, traitsOf, modeName, ARCH_PURPOSE };
+module.exports = { buildReview, whichHero, roleShape, traitsOf, modeName, patchNote,
+  PATCH_FRESH_DAYS, ARCH_PURPOSE };

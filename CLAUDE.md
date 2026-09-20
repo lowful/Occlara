@@ -340,8 +340,32 @@ works, and the review only displays it. Only its SHAPE is checked: a mode is a
 short label, so the objective line is dropped while a mode nobody here has heard
 of comes through.
 
+### The meta comes from the game's own balance post
+
+`npm run sync:rivalsbalance` fetches `marvelrivals.com/balancepost/`, which is
+linked from `/news/`. First party, no key. It is a better source than a tier
+list because it is dated and quotable: "Reduce Nastrond Crow Form damage from 70
+to 60, published 2026/09/08" is a fact the player can check, where "Hela is S
+tier" is a contested opinion that is stale in a month.
+
+**The coach quotes it and never judges it.** It does not say buffed or nerfed,
+because deciding which needs inference and the inference is unsafe: "reduce
+cooldown" is a buff, "reduce damage" is a nerf, and the verb is identical.
+NetEase writes a one line characterisation per hero, so there is a sourced
+sentence and nothing to infer.
+
+Two shapes that bite, both recorded in docs/AI-CONTEXT.md: the GLOBAL CHANGES
+section carries **no bullet dashes**, and **Deadpool has three sections** because
+he is tri-role, so a one-to-one map silently drops two of them.
+
+`balanceBlock()` and `metaBlock()` are added to the prompt **separately**, because
+one is fetched and one is hand written and they go stale on different days.
+Nesting the sourced one inside the hand written one meant it vanished exactly
+when it became the only meta knowledge left.
+
 ```
 npm run sync:rivals          roster, health and abilities from the game's own site
+npm run sync:rivalsbalance   the official balance post: version, date, what changed
 npm run check:rivalsknowledge every hero and ability named is one the game has
 npm run check:rivalsreview    boots the app, paints a Rivals review, then a League
                               one into the same window

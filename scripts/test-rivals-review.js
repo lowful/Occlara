@@ -190,5 +190,58 @@ const SCOREBOARD = {
   ok(r.game.mode === null, 'and a misread mode reaches the review as absent');
 }
 
+// ── The patch note: quoted from the official balance post, never judged ─────
+{
+  const balance = require(path.join(__dirname, '..', 'src', 'shared', 'rivals-balance.generated.json'));
+  const published = Date.parse(balance.published + 'T00:00:00Z');
+  const fresh = published + 5 * 86400000;          // five days after the post
+  const stale = published + 400 * 86400000;        // well past the window
+
+  // A hero the post actually changed.
+  const changed = Object.keys(balance.heroes).find((h) => balance.heroes[h].length === 1);
+  const note = review.patchNote(changed, null, fresh);
+  ok(note !== null, `a changed hero gets a patch note (${changed})`);
+  ok(note && note.version === balance.version, 'carrying the game version');
+  ok(note && note.published === balance.published, 'and the publish date');
+  ok(note && typeof note.summary === 'string' && note.summary.length > 10,
+    'and the official summary sentence');
+  ok(note && /marvelrivals\.com/.test(note.source || ''), 'and a source URL the player can open');
+
+  // NEVER CHARACTERISED. "reduce cooldown" is a buff and "reduce damage" is a
+  // nerf, and the verb is identical, so the review must not use either word.
+  const text = JSON.stringify(note).toLowerCase();
+  for (const word of ['buff', 'nerf', 'stronger', 'weaker', 'better now', 'worse now']) {
+    ok(!text.includes(word), `the patch note never says ${JSON.stringify(word)}`);
+  }
+
+  // AGE. A patch from a year ago is furniture, not news.
+  ok(review.patchNote(changed, null, stale) === null, 'a stale patch produces no note');
+  ok(review.patchNote(changed, null, published - 86400000) === null,
+    'and neither does a clock set before the post');
+
+  // A hero with no changes, and one that is not a hero.
+  const untouched = Object.keys(
+    require(path.join(__dirname, '..', 'src', 'shared', 'rivals-abilities.generated.json')).traits,
+  ).map((n) => n.toLowerCase()).find((n) => !balance.heroes[n]);
+  ok(review.patchNote(untouched, null, fresh) === null,
+    `an unchanged hero gets no note (${untouched})`);
+  ok(review.patchNote('Mephisto', null, fresh) === null, 'and neither does a non hero');
+  ok(review.patchNote(null, null, fresh) === null, 'and neither does no hero at all');
+
+  // DEADPOOL IS TRI-ROLE and the post gives him three sections with different
+  // changes in each. Picking one at random would attribute Vanguard changes to
+  // a Strategist, so without a role it declines.
+  const multi = Object.keys(balance.heroes).find((h) => balance.heroes[h].length > 1);
+  if (multi) {
+    ok(review.patchNote(multi, null, fresh) === null,
+      `a tri-role hero with no role says nothing (${multi})`);
+    const role = balance.heroes[multi][0].role;
+    const picked = review.patchNote(multi, role, fresh);
+    ok(picked !== null, `but names the right section once the role is known (${role})`);
+    ok(picked && picked.summary === balance.heroes[multi][0].summary,
+      'and it is that section summary, not another role section');
+  }
+}
+
 console.log(`\n${fails ? fails + ' failure(s)' : 'all rivals review checks passed'}`);
 process.exit(fails ? 1 : 0);

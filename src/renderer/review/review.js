@@ -157,6 +157,17 @@ function paintRivals(r) {
       + `${arch.purpose}.`;
   }
 
+  // The patch note. Quoted from the official balance post, never characterised
+  // as a buff or a nerf, because the review has no safe way to decide which.
+  const patch = r.patch;
+  $('r-patch-wrap').hidden = !patch;
+  if (patch) {
+    $('r-patch').textContent = patch.summary || '';
+    const n = patch.count;
+    $('r-patch-meta').textContent = `Version ${patch.version}, published ${patch.published}`
+      + (n ? `  ·  ${n} change${n === 1 ? '' : 's'}` : '');
+  }
+
   const refused = Array.isArray(r.refused) ? r.refused : [];
   $('r-refused-wrap').hidden = !refused.length;
   const list = $('r-refused');
@@ -171,7 +182,7 @@ function paintRivals(r) {
 /** Show every block, so neither game's review inherits the other's hidden flags. */
 function resetSections() {
   for (const id of ['r-moments-wrap', 'r-skills-wrap', 'r-next-wrap',
-    'r-arch-wrap', 'r-refused-wrap']) {
+    'r-arch-wrap', 'r-refused-wrap', 'r-patch-wrap']) {
     const n = $(id);
     if (n) n.hidden = false;
   }
@@ -210,6 +221,7 @@ function paint(r) {
   // The two Rivals-only sections, which the reset above just turned back on.
   $('r-arch-wrap').hidden = true;
   $('r-refused-wrap').hidden = true;
+  $('r-patch-wrap').hidden = true;
   // And the shared heading, back to what this block means in League.
   $('r-verdict-head').textContent = 'How you died';
 
