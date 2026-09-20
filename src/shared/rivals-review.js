@@ -29,9 +29,11 @@
  *   anything about positioning, timing, or how a fight went. One frame at the
  *   end of a match contains no fights.
  *
- *   whether the scoreline was good. A number needs a baseline to be judged and
- *   there is no per-player history yet. It reports the numbers and lets the
- *   player judge them, which is what the numbers are for.
+ *   whether the scoreline was good IN THE ABSTRACT. It now compares against the
+ *   player's own recent average, once there are enough matches, because that is
+ *   a baseline it actually has. It still does not compare them to anybody else,
+ *   and it still refuses to call a match good or bad: a delta is a direction of
+ *   travel, not a verdict.
  *
  *   the archetype's verdict on the match. Knowing Black Panther is a dive hero
  *   does not tell you whether this Black Panther dived well.
@@ -161,6 +163,92 @@ function patchNote(hero, role, now = Date.now()) {
   };
 }
 
+/**
+ * How many past matches the baseline draws on, and the floor below which there
+ * is no baseline at all.
+ *
+ * The same numbers lol-targets.js uses, and for the same reason recorded in
+ * lol-grader.js: null is not a failure, it routes to "still learning you",
+ * which is honest, where a delta computed from two matches is not.
+ */
+const RIVALS_BASELINE_GAMES = 10;
+const RIVALS_MIN_BASELINE = 3;
+
+/**
+ * The metrics worth comparing, and WHAT EACH ONE IS COMPARABLE AGAINST.
+ *
+ * The scope is the whole design here. A global average across every match is
+ * arithmetic that means nothing:
+ *
+ *   role   kills, deaths, assists, damage, blocked and healing are role shaped.
+ *          A Strategist's kills and a Duelist's kills are different quantities,
+ *          and a Vanguard dies more than a Strategist by design rather than by
+ *          mistake. Comparing across roles manufactures a trend out of the
+ *          player switching role.
+ *
+ *   hero   accuracy only. rivals-knowledge.js already states why: a projectile
+ *          hero is naturally lower than a hitscan hero at identical skill, so
+ *          the number only means something against the same hero. It says "if
+ *          you cannot tell which the hero is, do not coach the accuracy", and
+ *          comparing Hela's accuracy to Jeff's is that mistake with extra steps.
+ *
+ * `lowerIsBetter` exists for deaths alone and is not cosmetic: without it the
+ * review congratulates a player for dying more than usual.
+ */
+const METRICS = [
+  { id: 'kills',    label: 'Kills',    scope: 'role' },
+  { id: 'deaths',   label: 'Deaths',   scope: 'role', lowerIsBetter: true },
+  { id: 'assists',  label: 'Assists',  scope: 'role' },
+  { id: 'damage',   label: 'Damage',   scope: 'role' },
+  { id: 'healing',  label: 'Healing',  scope: 'role' },
+  { id: 'blocked',  label: 'Blocked',  scope: 'role' },
+  { id: 'accuracy', label: 'Accuracy', scope: 'hero' },
+];
+
+/**
+ * This match against the player's own recent average.
+ *
+ * Returns only the metrics that HAVE a baseline. A metric with two prior
+ * matches behind it is left out rather than shown with a shaky number, and the
+ * caller reports how many matches the comparison rests on so the player can
+ * weigh it themselves.
+ */
+function compareToHistory(history, row, role, hero) {
+  const past = Array.isArray(history) ? history.slice(-RIVALS_BASELINE_GAMES) : [];
+  const out = [];
+
+  for (const m of METRICS) {
+    const value = num(row[m.id]);
+    if (value === null) continue;
+
+    const peers = past.filter((h) => {
+      if (!h || typeof h !== 'object') return false;
+      if (m.scope === 'hero') return hero && norm(h.hero) === norm(hero);
+      return role && h.role === role;
+    }).map((h) => num((h.scoreline || {})[m.id])).filter((v) => v !== null);
+
+    if (peers.length < RIVALS_MIN_BASELINE) continue;
+
+    const mean = peers.reduce((a, b) => a + b, 0) / peers.length;
+    // A COLUMN THAT IS ZERO AND ALWAYS HAS BEEN carries no information, and
+    // rendering it costs a row that says nothing: "Blocked 0 (average 0)" on a
+    // Strategist, every single match. This is not the same as dropping a metric
+    // for being unflattering. A zero against a non-zero average is exactly the
+    // row worth showing, and it still renders.
+    if (value === 0 && mean === 0) continue;
+    const baseline = Math.round(mean * 100) / 100;
+    const delta = Math.round((value - baseline) * 100) / 100;
+    // "Better" is the player's direction of travel, not a verdict on the match.
+    const better = delta === 0 ? null : (m.lowerIsBetter ? delta < 0 : delta > 0);
+
+    out.push({
+      id: m.id, label: m.label, scope: m.scope,
+      value, baseline, delta, better, games: peers.length,
+    });
+  }
+  return out;
+}
+
 /** What an archetype is FOR. Durable knowledge: it does not expire with a patch. */
 const ARCH_PURPOSE = {
   dive: 'reaching an isolated target and leaving before the rest of the team can answer',
@@ -261,9 +349,34 @@ function roleShape(role, row) {
 }
 
 /**
+ * The record to append to rivalsHistory after a review.
+ *
+ * Built from the REVIEW rather than from the raw frame, so whatever the review
+ * refused to believe never enters the baseline either. A hero dropped for
+ * contradicting the healing column does not get recorded as that hero, and a
+ * role that was never verified is stored as whatever the review settled on.
+ * One source of truth, and the history cannot disagree with the screen the
+ * player was shown.
+ */
+function historyEntry(review, at = Date.now()) {
+  if (!review || review.empty) return null;
+  const g = review.game || {};
+  return {
+    at,
+    hero: g.hero || null,
+    role: g.role || null,
+    mode: g.mode || null,
+    map: g.map || null,
+    result: g.result || null,
+    scoreline: review.scoreline || {},
+  };
+}
+
+/**
  * @param {object} p
- * @param {string} [p.hero]   the hero read at hero select, or null
- * @param {object} [p.state]  the scoreboard STATE from /api/rivals/review
+ * @param {string} [p.hero]     the hero read at hero select, or null
+ * @param {object} [p.state]    the scoreboard STATE from /api/rivals/review
+ * @param {Array}  [p.history]  past rivalsHistory entries, oldest first
  * @returns {object} a review, or one carrying `empty: true` when the frame said nothing
  */
 function buildReview(p) {
@@ -326,6 +439,11 @@ function buildReview(p) {
     // words. Null when the hero is unknown, when nothing changed, or when the
     // patch is no longer news.
     patch: patchNote(picked.hero, role),
+    // This match against the player's own recent average, scoped so the
+    // comparison means something. Empty until there are enough matches, which
+    // the caller reports as "still learning you" rather than as a gap.
+    against: compareToHistory(p && p.history, row, role, picked.hero),
+    historyCount: Array.isArray(p && p.history) ? p.history.length : 0,
     // Said out loud rather than left as an absence, because a player who can see
     // the enemy team on their own screen will otherwise assume the coach saw it
     // too and chose to say nothing.
@@ -346,4 +464,5 @@ function refusals(picked) {
 }
 
 module.exports = { buildReview, whichHero, roleShape, traitsOf, modeName, patchNote,
-  PATCH_FRESH_DAYS, ARCH_PURPOSE };
+  compareToHistory, historyEntry, PATCH_FRESH_DAYS, ARCH_PURPOSE,
+  RIVALS_BASELINE_GAMES, RIVALS_MIN_BASELINE, METRICS };

@@ -264,6 +264,7 @@ const controller = {
         getKey: () => store.get('licenseKey'),
         capture: () => capture.captureScreenshot(store.get('captureQuality') === 'performance' ? 'performance' : 'standard'),
         log: (m) => console.log(m),
+        getHistory: () => store.get('rivalsHistory') || [],
         // Only the features that actually work. The draft read gets roles wrong,
         // so no draft tip is ever spoken. heroCapture is separate on purpose:
         // the engine still ASKS the draft question, because that screen is the
@@ -282,6 +283,26 @@ const controller = {
       // review object carries kind: 'rivals' so the surface knows which shape it
       // is looking at rather than sniffing for optional fields.
       engine.on('review', (r) => {
+        // SAVED BEFORE IT IS SHOWN, because a review that is only pushed to a
+        // window is lost the moment the window closes, which is how this
+        // shipped at first: no record, and therefore no baseline to judge the
+        // next match against.
+        //
+        // The entry is built from the REVIEW rather than the raw frame, so a
+        // hero the review refused to believe never enters the baseline either.
+        try {
+          const rivalsReview = require('../shared/rivals-review');
+          const entry = rivalsReview.historyEntry(r);
+          if (entry) {
+            const past = store.get('rivalsHistory') || [];
+            store.set('rivalsHistory',
+              [...past, entry].slice(-rivalsReview.RIVALS_BASELINE_GAMES));
+          }
+        } catch (e) {
+          // Losing the record must never lose the review the player is waiting
+          // for, so this is reported and stepped over.
+          console.error('[rivals] could not record the match:', e.message);
+        }
         lastReviewShown = r;
         registry.broadcast(C.PUSH_RIVALS_REVIEW, r);
         reviewWindow.open();

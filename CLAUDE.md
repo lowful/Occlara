@@ -323,6 +323,27 @@ and everybody else 0 to 567. **Damage blocked gets no such rule**, because those
 rows overlap, and any threshold drawn through an overlap is a coin flip wearing
 a number.
 
+**It compares you against yourself, and the scoping is the whole design.**
+`rivalsHistory` keeps the last 10 matches and a baseline needs 3, matching the
+League numbers. A global average would be arithmetic that means nothing, so:
+
+- **role scoped** for kills, deaths, assists, damage, blocked and healing. A
+  Strategist's kills and a Duelist's kills are different quantities, and a
+  Vanguard dies more than a Strategist by design. Comparing across roles
+  manufactures a trend out of the player switching role.
+- **hero scoped** for accuracy alone, because a projectile hero is naturally
+  lower than a hitscan one at identical skill. `fundamentals()` already says "if
+  you cannot tell which the hero is, do not coach the accuracy", and comparing
+  Hela's accuracy to Jeff's is that mistake with extra steps.
+
+`lowerIsBetter` on deaths is not cosmetic: without it the review congratulates a
+player for dying more than usual. A column that is zero and always has been is
+dropped, but a zero against a real average is the most informative row there is
+and must survive that filter.
+
+The history entry is built from the REVIEW, not the raw frame, so a hero the
+review refused to believe never enters the baseline as that hero either.
+
 Two things that look like details:
 
 - **Heroes switch mid match.** A hero read at draft is the hero they STARTED on.

@@ -136,6 +136,20 @@ const STORE_DEFAULTS = {
   // ignores lesson ids it does not recognise, so changing the skill set can
   // never strand a player on a baseline they cannot move.
   lolHistory:      [],
+  // Per-match Marvel Rivals records, newest last, for the personal baseline the
+  // post match review judges against. Capped at RIVALS_BASELINE_GAMES.
+  //
+  // WITHOUT THIS THE REVIEW REFUSED TO JUDGE ANYTHING, and said so in its own
+  // header: a number needs a baseline before it means anything, and there was
+  // nowhere to keep one. Reviews were pushed to the window and then gone, so
+  // closing it lost the match.
+  //
+  // Each entry stores the ROLE and the HERO alongside the numbers, because the
+  // baseline is scoped rather than global. A Strategist's kills and a Duelist's
+  // kills are different quantities, and accuracy is only comparable within one
+  // hero, since a projectile hero is naturally lower than a hitscan one at the
+  // same skill.
+  rivalsHistory:   [],
   // Rank band 1 to 5, NOT one of eight ranks. The underlying data does not
   // support eight-way granularity, and unset means the default band rather
   // than a guess.

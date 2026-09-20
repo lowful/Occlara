@@ -101,7 +101,16 @@ setTimeout(async () => {
   const reviewWindow = require(path.join(REPO, 'src/main/windows/review-window'));
 
   try {
-    const built = rivals.buildReview({ hero: 'Luna Snow', state: SCOREBOARD });
+    // Enough same-role history that the personal baseline actually renders.
+    // Without it the comparison block shows "this is match N" and the
+    // assertions below would pass against an empty table.
+    const HISTORY = [1, 2, 3].map((n) => ({
+      at: Date.now() - n * 86400000,
+      hero: 'luna snow', role: 'Strategist',
+      scoreline: { kills: 2, deaths: 9, assists: 18,
+        damage: 8000, blocked: 0, healing: 20000, accuracy: 25 },
+    }));
+    const built = rivals.buildReview({ hero: 'Luna Snow', state: SCOREBOARD, history: HISTORY });
     if (built.empty) return report(false, 'the review built empty: ' + built.why);
     lines.push('built  : ' + built.game.hero + ' ' + built.scoreline.kills + '/'
       + built.scoreline.deaths + '/' + built.scoreline.assists
@@ -127,13 +136,16 @@ setTimeout(async () => {
     const arch = await js("document.getElementById('r-arch').textContent");
     const refused = await js("document.querySelectorAll('#r-refused li').length");
     const stats = await js("document.querySelectorAll('#r-scores .stat').length");
-    // The League-only sections must be off, not empty.
+    // The League-only sections must be off, not empty. r-skills-wrap is NOT
+    // one of them any more: Rivals fills it with its own comparison.
     const momentsOn = await js("!document.getElementById('r-moments-wrap').hidden");
-    const skillsOn = await js("!document.getElementById('r-skills-wrap').hidden");
+    const compareRows = await js("document.querySelectorAll('#r-skills .skill-row').length");
+    const compareNote = await js("document.getElementById('r-skills-note').textContent");
 
     lines.push('rivals : hero="' + hero + '" stats=' + stats + ' refusals=' + refused);
     lines.push('       : "' + head + '" / "' + verdict + '"');
     lines.push('       : ' + arch);
+    lines.push('compare: ' + compareRows + ' row(s)');
 
     if (!shown) return report(false, 'the Rivals review stayed hidden, so the push never arrived');
     if (hero !== 'Luna Snow') return report(false, 'hero painted as "' + hero + '"');
@@ -147,7 +159,10 @@ setTimeout(async () => {
     if (refused < 3) return report(false, 'only ' + refused + ' refusals rendered');
     if (stats !== 5) return report(false, stats + ' stat boxes rendered, expected 5');
     if (momentsOn) return report(false, 'the League moments section was left visible');
-    if (skillsOn) return report(false, 'the League skill table was left visible');
+    if (!compareRows) return report(false, 'the personal baseline rendered no rows');
+    if (!/same role/i.test(compareNote)) {
+      return report(false, 'the comparison note does not explain the scoping: "' + compareNote + '"');
+    }
 
     // ── Now a LEAGUE review into the same window ───────────────────────────
     // Everything the Rivals painter hid has to come back.
