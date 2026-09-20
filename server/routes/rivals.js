@@ -105,10 +105,17 @@ standard team is two of each.
 The tip must name a ROLE to pick and say what is missing without it. Do not name
 a specific hero unless you can read its name on screen.
 
+YOUR OWN HERO IS PRINTED IN LARGE TEXT on the left of this screen, under the
+character art, for example "THE PUNISHER". That is the hero the player has
+selected. READ IT, do not identify it from the picture. If no name is printed
+yet, no hero has been picked, so leave it out.
+
 ${knowledge.fundamentals()}
 
 STATE fields, omit any you cannot read rather than guessing:
   phase      always "draft"
+  mine       the hero name printed in large text on the left, exactly as printed,
+             or omitted entirely if no name is on screen yet
   mode       the mode name printed top left, for example "CONVERGENCE"
   suggested  the role from the SUGGESTED PICK banner, exactly as printed
   locked     one entry per FILLED slot in the bottom row, excluding you, using
@@ -183,6 +190,31 @@ function splitReply(raw) {
 function lockedRoles(state) {
   const raw = state && Array.isArray(state.locked) ? state.locked : [];
   return raw.filter((r) => typeof r === 'string' && r.trim()).map((r) => r.trim());
+}
+
+/**
+ * The player's own hero, IF the model read a name the game actually has.
+ *
+ * This is the one hero read that works, and the measurement is why it is here
+ * rather than on the scoreboard. Graded against a real Season 10 frame, naming
+ * heroes from scoreboard PORTRAITS scored 17 to 42% precision over six runs
+ * against a 90% gate, and answered Mephisto, Doctor Doom and Lightning Ace,
+ * two of whom are not in the game and one of whom is not a Marvel character.
+ * The same model on the same day read hero select, where the game PRINTS the
+ * name in large type, correctly: "the punisher", twice, exactly.
+ *
+ * So the rule is text, not art. The coach learns which hero you are on at the
+ * one moment the game writes it down, and never guesses it from a picture.
+ *
+ * Checked against the closed roster even so, because a printed name still
+ * arrives through a model: an OCR slip yields a string, and a string that is
+ * not a hero is worse than no hero at all. Unresolvable means the field is
+ * dropped entirely rather than passed through empty, so every consumer sees the
+ * absence rather than having to test for a falsy hero.
+ */
+function confirmMine(raw) {
+  if (typeof raw !== 'string') return null;
+  return rivalHeroes.onRoster(raw);
 }
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
@@ -320,6 +352,11 @@ router.post('/draft', async (req, res) => {
     // The roster goes back RAW, unreadable entries and all, because the guard
     // that decides whether to trust it runs on the client and needs to see them.
     ctx.locked = lockedRoles(ctx);
+    // The player's own hero is the OPPOSITE case, and it is checked here rather
+    // than raw, because it is a single name rather than a roster to be judged
+    // as a whole. See confirmMine.
+    ctx.mine = confirmMine(ctx.mine);
+    if (!ctx.mine) delete ctx.mine;
     return res.json({ tip, context: ctx });
   } catch (err) {
     if (creditsLookExhausted && creditsLookExhausted(err)) return creditsReply(res, err);
@@ -346,4 +383,4 @@ router.post('/review', async (req, res) => {
 });
 
 module.exports = router;
-module.exports.__test = { splitReply, lockedRoles, DRAFT_PROMPT, REVIEW_PROMPT };
+module.exports.__test = { splitReply, lockedRoles, confirmMine, DRAFT_PROMPT, REVIEW_PROMPT };

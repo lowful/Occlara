@@ -265,10 +265,14 @@ const controller = {
         capture: () => capture.captureScreenshot(store.get('captureQuality') === 'performance' ? 'performance' : 'standard'),
         log: (m) => console.log(m),
         // Only the features that actually work. The draft read gets roles wrong,
-        // so it stays off and the engine simply never asks that question.
+        // so no draft tip is ever spoken. heroCapture is separate on purpose:
+        // the engine still ASKS the draft question, because that screen is the
+        // only place the game prints the player's hero name, and a printed name
+        // is the one hero read that graded clean. See games.js for the numbers.
         features: {
           review: gameRegistry.hasFeature('rivals', 'review'),
           draft: gameRegistry.hasFeature('rivals', 'draft'),
+          heroCapture: gameRegistry.hasFeature('rivals', 'heroCapture'),
         },
       });
       engine.on('tip', (t) => pushTip({ text: t.text, source: t.source || 'ai' }));

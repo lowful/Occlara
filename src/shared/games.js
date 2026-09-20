@@ -57,6 +57,18 @@ const GAMES = {
     features: {
       review: true,         // proven against a real scoreboard
       draft: false,         // roles read wrong, see test-rivals-draft
+      // READING THE DRAFT SCREEN AND SPEAKING ABOUT IT ARE SEPARATE, which is
+      // why this is not covered by the flag above. The draft TIP is arithmetic
+      // over teammate role icons and that arithmetic is wrong. The hero name is
+      // PRINTED IN LARGE TEXT on the same screen, and graded on a real frame the
+      // model read it exactly right on both attempts, the same day it scored 17
+      // to 42% naming heroes from scoreboard portraits. Text is not art.
+      //
+      // So the engine still asks the draft question, throws away the sentence,
+      // and keeps the one field it can trust. That field is what lets the
+      // ability gate exist: a coach that knows your hero can refuse to tell you
+      // to press a button you do not have.
+      heroCapture: true,
       // No rank, win rate or match history. Every Marvel Rivals tracker derives
       // its data by scraping or community submission, there is no official API,
       // and the one MCP server claiming to be one resolves to a parked survey

@@ -18,8 +18,9 @@ let fails = 0;
 const ok = (cond, what) => { if (!cond) { fails++; console.log(`FAIL  ${what}`); } else console.log(`ok    ${what}`); };
 
 /** An engine wired to a fake capture, with the scheduler and emitter observed. */
-function harness() {
-  const e = new RivalsEngine({ getKey: () => 'KEY', capture: async () => 'IMAGEDATA', log: () => {} });
+function harness(features) {
+  const e = new RivalsEngine({ getKey: () => 'KEY', capture: async () => 'IMAGEDATA', log: () => {},
+    ...(features ? { features } : {}) });
   const tips = [];
   const delays = [];
   e.on('tip', (t) => tips.push(t));
@@ -97,7 +98,11 @@ ok(DRAFT_COOLDOWN_MS > PROBE_MS * 5, 'a read draft goes quiet rather than re-rea
 // and the split it forced is the one the Valorant path already uses: coach.js
 // parses, coaching-engine.js decides.
 {
-  const { e } = harness();
+  // draft: true, because this block tests the GATE and not the FLAG. With the
+  // flag off vet() drops every draft tip before the gate is consulted, which is
+  // asserted separately below, and testing the rules through a closed door only
+  // proves the door is closed.
+  const { e } = harness({ review: true, draft: true });
   const draft = { phase: 'draft', locked: ['Vanguard', 'Duelist', 'Duelist'], suggested: 'SUGGESTED PICK: STRATEGIST' };
 
   const enemy = e.vet('They have three dive heroes, take a Strategist.', draft);
@@ -136,9 +141,18 @@ ok(DRAFT_COOLDOWN_MS > PROBE_MS * 5, 'a read draft goes quiet rather than re-rea
 }
 
 // ── Feature flags decide which question is even asked ───────────────────────
-// The draft read gets teammate roles wrong, so it ships OFF. Not asking is
-// stronger than gating the answer: a request never made cannot produce a wrong
-// tip, and it does not spend a vision call only to throw the result away.
+// The draft read gets teammate ROLES wrong, so draft advice ships OFF.
+//
+// THAT NO LONGER MEANS THE SCREEN IS NEVER READ, and this block used to assert
+// that it was. The same screen prints the player's HERO NAME in large text, and
+// a printed name is the one hero read that graded clean: exact on both attempts
+// against a real frame, on the same day portrait recognition scored 17 to 42%.
+// So heroCapture asks the draft question on purpose, spends the vision call on
+// purpose, and throws the sentence away while keeping the field it trusts.
+//
+// Both halves are asserted, because each protects the other: with both flags
+// off nothing is asked, and with heroCapture on the route IS asked while no
+// draft tip escapes.
 //
 // This block is LAST and asynchronous, and the summary below lives inside its
 // continuation. Written first as a bare top level `return`, which in CommonJS
@@ -151,7 +165,7 @@ ok(DRAFT_COOLDOWN_MS > PROBE_MS * 5, 'a read draft goes quiet rather than re-rea
     getKey: () => 'KEY',
     capture: async () => 'IMG',
     log: () => {},
-    features: { review: true, draft: false },
+    features: { review: true, draft: false, heroCapture: false },
   });
   e.running = true;
   e.schedule = () => {};
@@ -166,10 +180,66 @@ ok(DRAFT_COOLDOWN_MS > PROBE_MS * 5, 'a read draft goes quiet rather than re-rea
     api.post = realPost;
     ok(routes.length > 0, 'the engine actually made a request');
     ok(routes.every((r) => /review/.test(r)),
-      `with draft off, every request is a review (${[...new Set(routes)].join(', ')})`);
+      `with draft and heroCapture both off, every request is a review (${[...new Set(routes)].join(', ')})`);
     ok(!routes.some((r) => /draft/.test(r)), 'and the draft route is never called at all');
 
-    console.log(fails ? `\n${fails} failure(s)` : '\nall rivals engine checks passed');
-    process.exit(fails ? 1 : 0);
+    heroCaptureChecks();
+  });
+}
+
+/**
+ * With draft advice off but heroCapture on: the screen is read, the hero is
+ * kept, and the sentence is thrown away.
+ *
+ * THE THIRD ASSERTION IS THE ONE THAT MATTERS. Asking the draft question again
+ * re-opens the exact path that produced confident wrong-role advice on three of
+ * four real frames, and the only thing now standing between that and a player
+ * is vet() returning empty while the flag is off. If that ever stops happening
+ * the old bug comes back silently, and it comes back looking like a feature.
+ */
+function heroCaptureChecks() {
+  const routes = [];
+  const tips = [];
+  const e = new RivalsEngine({
+    getKey: () => 'KEY',
+    capture: async () => 'IMG',
+    log: () => {},
+    features: { review: true, draft: false, heroCapture: true },
+  });
+  e.running = true;
+  e.schedule = () => {};
+  e.on('tip', (t) => tips.push(t));
+
+  const api = require(path.join(__dirname, '..', 'src', 'main', 'services', 'api-client.js'));
+  const realPost = api.post;
+  // A draft reply carrying BOTH a hero name and exactly the kind of wrong-role
+  // sentence this feature is not allowed to speak.
+  api.post = async (route) => {
+    routes.push(route);
+    return { ok: true, data: {
+      tip: 'Take a Vanguard, your team needs a front line.',
+      context: { phase: 'draft', mine: 'the punisher', locked: ['Duelist'],
+        suggested: 'SUGGESTED PICK: STRATEGIST' },
+    } };
+  };
+
+  e.tick().then(() => {
+    api.post = realPost;
+    ok(routes.some((r) => /draft/.test(r)),
+      `with heroCapture on the draft screen IS read (${[...new Set(routes)].join(', ')})`);
+    ok(e.mine === 'the punisher', `and the hero is kept (${e.mine})`);
+    ok(tips.length === 0, `but no draft tip reaches the player (${tips.length} emitted)`);
+
+    // Held, not overwritten. Later probes land on screens that do not print a
+    // hero name, and a null there would erase what hero select established.
+    e.lastDraftAt = 0;
+    api.post = async (route) => { routes.push(route); return { ok: true, data: { tip: 'LOBBY', context: {} } }; };
+    e.tick().then(() => {
+      api.post = realPost;
+      ok(e.mine === 'the punisher', `the hero is held across later probes (${e.mine})`);
+
+      console.log(fails ? `\n${fails} failure(s)` : '\nall rivals engine checks passed');
+      process.exit(fails ? 1 : 0);
+    });
   });
 }
