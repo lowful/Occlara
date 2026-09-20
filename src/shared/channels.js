@@ -89,6 +89,13 @@ const CHANNELS = {
   // The recorded League game is graded and ready. Fired ONCE per finished game,
   // after it ends, never during it.
   PUSH_LOL_REVIEW:   'push:lolReview',
+  // The Marvel Rivals post match review, computed from the end of match
+  // scoreboard. A SEPARATE CHANNEL from the League one rather than a shared
+  // "review" channel, because the two carry different shapes and the review
+  // window has to know which it is holding. It also means the League path is
+  // untouched: that surface has a boot check of its own (check:lolreview) and
+  // widening its channel would put a second producer behind it.
+  PUSH_RIVALS_REVIEW: 'push:rivalsReview',
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -103,6 +110,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_NUDGE,
   CHANNELS.PUSH_GAME,
   CHANNELS.PUSH_LOL_REVIEW,
+  CHANNELS.PUSH_RIVALS_REVIEW,
 ];
 
 module.exports = CHANNELS;

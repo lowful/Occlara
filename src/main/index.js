@@ -277,6 +277,17 @@ const controller = {
       });
       engine.on('tip', (t) => pushTip({ text: t.text, source: t.source || 'ai' }));
       engine.on('status', (s) => console.log('[rivals] status', JSON.stringify(s)));
+      // The post match review, computed from the scoreboard rather than written
+      // by the model. Same channel the Valorant and League reviews use, and the
+      // review object carries kind: 'rivals' so the surface knows which shape it
+      // is looking at rather than sniffing for optional fields.
+      engine.on('review', (r) => {
+        lastReviewShown = r;
+        registry.broadcast(C.PUSH_RIVALS_REVIEW, r);
+        reviewWindow.open();
+        console.log(`[rivals] review ready: ${r.game.hero || 'hero unread'}, `
+          + `${r.scoreline.kills}/${r.scoreline.deaths}/${r.scoreline.assists}`);
+      });
       engine.start();
       pushTip({
         text: 'Marvel Rivals coach on. Play your match, and the post match scoreboard gets reviewed automatically.',
@@ -583,7 +594,15 @@ const controller = {
   openLearn()     { learnWindow.open(); },
   openReview()    { reviewWindow.open(); },
   /** The last graded League game, so a review window opened later still paints. */
-  getLolReview()  { return lastLolReview; },
+  // WHICHEVER REVIEW ARRIVED LAST, not specifically the League one.
+  //
+  // The channel name is historical: this window was built for League and is now
+  // the post match review window for two games. The renderer branches on
+  // review.kind, so the honest answer to "what should this window show" is the
+  // most recent review of either kind. Returning the League one unconditionally
+  // meant a Rivals player who opened the window by hand saw either nothing or
+  // last week's League game.
+  getLolReview()  { return lastReviewShown; },
 
   /**
    * Everything the learning surface needs, in one call.
@@ -1265,6 +1284,7 @@ function finishLolGame(record) {
     store.set('lolHistory', [...history, entry].slice(-targets.BASELINE_GAMES));
 
     lastLolReview = built;
+    lastReviewShown = built;
     registry.broadcast(C.PUSH_LOL_REVIEW, built);
     reviewWindow.open();
     console.log(`[lol] review ready: ${built.scoreline.kills}/${built.scoreline.deaths}/${built.scoreline.assists}`);
@@ -1277,6 +1297,14 @@ function finishLolGame(record) {
 }
 let lastLolReview = null;
 let lastLolRaw = null;
+// Held for the same reason lastLolReview is: the review window can be opened by
+// hand after the push, and a window that opens empty looks like a bug rather
+// than like a match nobody has played yet.
+// Whichever review arrived most recently, of either game, which is what the
+// review window shows. Held because the window can be opened by hand after the
+// push, and one that opens empty reads as a bug rather than as a match nobody
+// has played yet.
+let lastReviewShown = null;
 
 /**
  * Turn a failed coach call into something worth reading.

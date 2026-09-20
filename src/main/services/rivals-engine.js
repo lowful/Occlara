@@ -24,6 +24,7 @@ const api = require('./api-client');
 const { cleanTip, tipWords, overlapRatio } = require('./tip-hygiene');
 const { draftAdvice, draftTipAllowed } = require('../../shared/rivals-draft');
 const { validateTipForHero } = require('../../shared/rivals-abilities');
+const { buildReview } = require('../../shared/rivals-review');
 const { normaliseRole } = require('../../shared/rivals-comp');
 
 // Hero select runs a short countdown, so the probe has to be quicker than the
@@ -156,7 +157,10 @@ class RivalsEngine extends EventEmitter {
           this.mine = ctx.mine;
         }
       }
-      if (ctx.phase === 'scoreboard') this.lastReviewAt = now;
+      if (ctx.phase === 'scoreboard') {
+        this.lastReviewAt = now;
+        this.pushReview(ctx);
+      }
       this.lastState = ctx;
 
       this.offer(this.vet(tip, ctx), ctx, 'ai');
@@ -237,6 +241,35 @@ class RivalsEngine extends EventEmitter {
     this.recentTips.push(words);
     if (this.recentTips.length > 6) this.recentTips.shift();
     this.emit('tip', { text: clean, source, game: 'rivals', phase: (ctx && ctx.phase) || null });
+  }
+
+  /**
+   * Build the post match review and hand it up, then forget the hero.
+   *
+   * THE FORGETTING IS THE PART THAT MATTERS. this.mine is read once at hero
+   * select and held for the whole match, because later probes land on screens
+   * that do not print it. A scoreboard means the match is over, so carrying the
+   * name any further means the NEXT match opens its review naming the hero from
+   * the last one. That is the worst kind of wrong: confidently specific, about
+   * the one line the player checks first, and invisible in every test that only
+   * ever plays one match.
+   *
+   * The review is built here rather than in main/index.js because it is a
+   * judgement about what is fit to show, and every judgement in this codebase
+   * lives on the client beside the guards.
+   */
+  pushReview(ctx) {
+    let review = null;
+    try {
+      review = buildReview({ hero: this.mine, state: ctx });
+    } catch (e) {
+      this.log('[rivals] review build failed: ' + e.message);
+    }
+    // Forget in a finally sense: a review that threw must not leave a stale hero
+    // armed for the next match either.
+    this.mine = null;
+    if (review && !review.empty) this.emit('review', review);
+    else if (review) this.log('[rivals] no review: ' + review.why);
   }
 
   /**
