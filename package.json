@@ -32,6 +32,7 @@
     "sync:lol": "node scripts/sync-lol.js",
     "sync:patch": "node scripts/sync-patch-notes.js",
     "sync:rivals": "node scripts/sync-rivals-data.js",
+    "sync:rivalsbalance": "node scripts/sync-rivals-balance.js",
     "sync:valorant": "node scripts/sync-valorant-data.js",
     "test": "node scripts/run-all.js",
     "test:agentdetect": "node scripts/test-agent-detect.js",

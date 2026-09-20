@@ -126,6 +126,74 @@ if (generated) {
   }
 }
 
+// ── The balance post, if one has been synced ────────────────────────────────
+/*
+ * The balance data names heroes, and a hero the roster does not know is the
+ * same defect here as anywhere else: it means the parser picked up a heading,
+ * a caption or a section title and recorded it as a hero. That produces a
+ * confident sentence about a character who does not exist, which is the exact
+ * failure this whole file exists to prevent.
+ *
+ * It is optional. The file is generated and someone checking out the repo
+ * before running the sync should not see a failure for it.
+ */
+let balance = null;
+try {
+  balance = require(path.join(__dirname, '..', 'server', 'rivals-balance.generated.json'));
+} catch { /* not synced yet, which is fine */ }
+
+if (balance) {
+  const seen = new Set();
+  for (const h of balance.heroes || []) {
+    checked++;
+    if (!ON_ROSTER.has(norm(h.hero))) {
+      note(`the balance post names "${h.printedAs || h.hero}", who is not on the roster`);
+      continue;
+    }
+    // A hero section with no changes means the parser found a name and then
+    // lost the bullets under it, which would render as "your hero changed"
+    // above an empty list.
+    if (!Array.isArray(h.changes) || !h.changes.length) {
+      note(`"${h.printedAs || h.hero}" has a balance section with no changes in it`);
+    }
+    if (!h.summary) {
+      note(`"${h.printedAs || h.hero}" has no summary line, so the review has nothing to quote`);
+    }
+    const key = `${norm(h.hero)}/${h.role}`;
+    if (seen.has(key)) note(`"${h.printedAs || h.hero}" appears twice for the same role`);
+    seen.add(key);
+  }
+
+  checked++;
+  if (!/^\d{8}$/.test(String(balance.version || ''))) {
+    note(`the balance post version is "${balance.version}", expected 8 digits`);
+  }
+  checked++;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(balance.published || ''))) {
+    note(`the balance post publish date is "${balance.published}", expected YYYY-MM-DD`);
+  }
+
+  // The client copy is what the review actually reads, so a section lost
+  // between the two files is a section the player never sees.
+  let client = null;
+  try {
+    client = require(path.join(__dirname, '..', 'src', 'shared', 'rivals-balance.generated.json'));
+  } catch { /* reported below */ }
+  checked++;
+  if (!client) {
+    note('src/shared/rivals-balance.generated.json is missing. Run npm run sync:rivalsbalance.');
+  } else {
+    const sections = Object.values(client.heroes || {}).reduce((n, a) => n + (a || []).length, 0);
+    if (sections !== (balance.heroes || []).length) {
+      note(`the client balance copy has ${sections} hero section(s) and the server copy has `
+        + `${(balance.heroes || []).length}. Deadpool is tri-role, so a one-to-one map loses two.`);
+    }
+    if (client.version !== balance.version) {
+      note(`the two balance copies disagree on version: ${balance.version} and ${client.version}`);
+    }
+  }
+}
+
 // ── House style ─────────────────────────────────────────────────────────────
 const DASHES = /[—–]/;
 for (const [label, text] of [
