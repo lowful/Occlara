@@ -112,3 +112,25 @@ header {
   padding-left: var(--space-3); border-left: 2px solid rgba(var(--red-rgb), 0.4);
 }
 .empty { font-size: 12.5px; color: var(--text-mute); line-height: 1.55; }
+
+/* The Rivals refusal list. Deliberately quiet: it is honest, not a warning, and
+   styling it as an alert would make the app look like it had failed at
+   something rather than declined to guess. Same colour as .hint for that
+   reason. */
+.r-refused { margin: 0; padding: 0 0 0 16px; list-style: none; }
+.r-refused-item {
+  position: relative;
+  font-size: 11.5px;
+  color: var(--text-mute);
+  line-height: 1.5;
+  padding: 2px 0;
+}
+.r-refused-item::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 10px;
+  width: 4px;
+  height: 1px;
+  background: var(--text-mute);
+}

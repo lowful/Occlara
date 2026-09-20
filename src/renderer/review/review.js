@@ -108,6 +108,79 @@ function paintSkills(r) {
   }
 }
 
+/**
+ * The Marvel Rivals review, which is a different shape with a different set of
+ * honest claims in it.
+ *
+ * IT REUSES THE IDENTITY AND SCORELINE SLOTS and hides everything else. Deaths,
+ * moments, objectives and the skill table are all computed from a League
+ * recording that watched a whole game; a Rivals review is built from one frame
+ * at the end of a match and has none of it. Leaving those sections visible and
+ * empty would claim the data exists and happened to be zero.
+ */
+function paintRivals(r) {
+  const g = r.game || {};
+  $('r-champ').textContent = g.hero || 'Your match';
+  // A middot, not two spaces. The League line gets away with spaces because its
+  // parts are short words; a Rivals line carries "Tokyo 2099: Shin-Shibuya" and
+  // the screenshot read as one run-on string. Not a dash, which this repo bans.
+  $('r-meta').textContent = [
+    g.role, g.mode, g.map,
+    g.result ? g.result[0].toUpperCase() + g.result.slice(1) : null,
+  ].filter(Boolean).join('  ·  ');
+
+  const s = r.scoreline || {};
+  const host = $('r-scores');
+  host.replaceChildren();
+  const kda = [s.kills, s.deaths, s.assists].every((v) => v !== null && v !== undefined)
+    ? `${s.kills}/${s.deaths}/${s.assists}` : null;
+  host.append(stat('K / D / A', kda));
+  host.append(stat('Damage', s.damage === null ? null : s.damage.toLocaleString()));
+  // Each of these is shown only when the column was actually read. A dash says
+  // "not captured"; a zero would say "you did none of it", and those are
+  // different claims about the same missing number.
+  host.append(stat('Healing', s.healing === null ? null : s.healing.toLocaleString()));
+  host.append(stat('Blocked', s.blocked === null ? null : s.blocked.toLocaleString()));
+  host.append(stat('Accuracy', s.accuracy === null ? null : s.accuracy + '%'));
+
+  // The one judgement the review makes, where it makes one.
+  const shape = r.shape;
+  $('r-verdict-head').textContent = 'Did you play the role';
+  $('r-death-head').textContent = shape ? (shape.ok ? 'You did the job' : 'The role went unplayed') : '';
+  $('r-death-detail').textContent = shape ? shape.text : '';
+  document.querySelector('#r-death-head').closest('.block').hidden = !shape;
+
+  const arch = r.archetype;
+  $('r-arch-wrap').hidden = !arch;
+  if (arch) {
+    $('r-arch').textContent = `${arch.name[0].toUpperCase() + arch.name.slice(1)} is about `
+      + `${arch.purpose}.`;
+  }
+
+  const refused = Array.isArray(r.refused) ? r.refused : [];
+  $('r-refused-wrap').hidden = !refused.length;
+  const list = $('r-refused');
+  list.replaceChildren();
+  for (const line of refused) list.append(el('li', 'r-refused-item', line));
+
+  // Every League-only section, off.
+  for (const id of ['r-moments-wrap', 'r-skills-wrap', 'r-next-wrap']) $(id).hidden = true;
+  document.querySelector('#r-obj').closest('.block').hidden = true;
+}
+
+/** Show every block, so neither game's review inherits the other's hidden flags. */
+function resetSections() {
+  for (const id of ['r-moments-wrap', 'r-skills-wrap', 'r-next-wrap',
+    'r-arch-wrap', 'r-refused-wrap']) {
+    const n = $(id);
+    if (n) n.hidden = false;
+  }
+  for (const sel of ['#r-death-head', '#r-obj']) {
+    const block = document.querySelector(sel);
+    if (block && block.closest('.block')) block.closest('.block').hidden = false;
+  }
+}
+
 function paint(r) {
   if (!r) {
     $('empty').hidden = false;
@@ -117,10 +190,28 @@ function paint(r) {
   $('empty').hidden = true;
   $('review').hidden = false;
 
+  // EVERY SECTION BACK ON FIRST, because this window renders two shapes and
+  // each hides what the other needs. Without the reset, a League review opened
+  // after a Rivals one keeps Rivals' hidden flags: no deaths, no objectives, no
+  // skill table, and nothing to indicate they were suppressed rather than
+  // missing. The sections that are genuinely conditional are hidden again by
+  // whichever painter runs next.
+  resetSections();
+
+  // Branch on what the review SAYS it is, not on which fields it happens to
+  // carry. A League review with no lesson attached is still a League review.
+  if (r.kind === 'rivals') { paintRivals(r); return; }
+
   const g = r.game || {};
   $('r-champ').textContent = g.champion || 'Your game';
   const bits = [g.role, g.mode, g.duration].filter(Boolean);
   $('r-meta').textContent = bits.join('  ');
+
+  // The two Rivals-only sections, which the reset above just turned back on.
+  $('r-arch-wrap').hidden = true;
+  $('r-refused-wrap').hidden = true;
+  // And the shared heading, back to what this block means in League.
+  $('r-verdict-head').textContent = 'How you died';
 
   paintScores(r.scoreline || {});
   $('r-death-head').textContent = (r.deaths || {}).headline || '';
@@ -143,5 +234,6 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.occ
 
 // Both paths, because the window can be opened by the push OR by hand later.
 window.occlara.onReview(paint);
+if (window.occlara.onRivalsReview) window.occlara.onRivalsReview(paint);
 window.occlara.getReview().then(paint).catch(() => paint(null));
 console.log('[review] ready');

@@ -19,6 +19,15 @@ contextBridge.exposeInMainWorld('occlara', {
     ipcRenderer.on(C.PUSH_LOL_REVIEW, h);
     return () => ipcRenderer.removeListener(C.PUSH_LOL_REVIEW, h);
   },
+  // The Rivals review arrives on its own channel, carrying its own shape. Both
+  // land in the same window, and the renderer branches on review.kind rather
+  // than on which listener fired, so opening the window by hand and receiving
+  // the push take the same path.
+  onRivalsReview: (cb) => {
+    const h = (_e, r) => cb(r);
+    ipcRenderer.on(C.PUSH_RIVALS_REVIEW, h);
+    return () => ipcRenderer.removeListener(C.PUSH_RIVALS_REVIEW, h);
+  },
   openLearn: () => ipcRenderer.send(C.OPEN_LEARN),
   close:     () => window.close(),
 });

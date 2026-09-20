@@ -36,7 +36,12 @@
         <!-- HOW THE DEATHS HAPPENED. The most useful thing in the record, and
              the only part that needs no baseline, so it works on game one. -->
         <section class="block">
-          <h3>How you died</h3>
+          <!-- The heading is SET BY THE PAINTER, because this block holds a
+               different thing in each game: how the deaths happened in League,
+               and whether the role got played in Rivals. It was static, and a
+               screenshot caught "How you died" sitting above "The role went
+               unplayed", which no test could see. -->
+          <h3 id="r-verdict-head">How you died</h3>
           <p id="r-death-head" class="r-head"></p>
           <p id="r-death-detail" class="r-detail"></p>
         </section>
@@ -56,6 +61,21 @@
           <h3>Against your own average</h3>
           <p id="r-skills-note" class="hint"></p>
           <div id="r-skills"></div>
+        </section>
+
+        <!-- RIVALS ONLY. What the hero is FOR, which is durable knowledge and
+             never a verdict on how this match went. -->
+        <section class="block" id="r-arch-wrap" hidden>
+          <h3>What your hero is for</h3>
+          <p id="r-arch" class="r-detail"></p>
+        </section>
+
+        <!-- RIVALS ONLY. Said out loud, because a player who can see the enemy
+             team on their own screen will otherwise assume the coach saw it too
+             and chose to stay quiet. -->
+        <section class="block" id="r-refused-wrap" hidden>
+          <h3>What this review cannot tell you</h3>
+          <ul id="r-refused" class="r-refused"></ul>
         </section>
 
         <section class="block" id="r-next-wrap" hidden>
