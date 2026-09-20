@@ -1,6 +1,28 @@
 'use strict';
 
 /**
+ * NOT WIRED, because there is no live Rivals tip stream for it to gate.
+ *
+ * This file answers "when may a live tip appear", and the Rivals engine does
+ * not send live tips. It probes for two screens, hero select and the end of
+ * match scoreboard, two to five captures a match, and each one produces at most
+ * one sentence. There is no stream to gate, so the gate has nothing to do.
+ *
+ * THAT IS NOT AN OVERSIGHT, it is what the capture frames settled. The events
+ * this file keys on, a death, a team wipe, an objective flip, are read out of a
+ * kill feed that nothing currently captures. Wiring it would mean adding a
+ * continuous capture loop to a game whose whole coaching design is that it does
+ * not need one, and the reasoning below is exactly why that loop would be a bad
+ * trade: a hero shooter fight is continuous, and a tip that lands mid fight is
+ * either ignored or it gets someone killed.
+ *
+ * Kept rather than deleted because the rule it encodes is right and was arrived
+ * at the hard way from the other direction, as the note about the Valorant death
+ * review below records. If live Rivals coaching is ever built, this is the gate
+ * it should be built behind rather than one rediscovered later.
+ *
+ * ── What it gates, if a live stream ever exists ─────────────────────────────
+ *
  * WHEN a live Rivals tip is allowed to appear.
  *
  * Valorant tips ride a timer because a Valorant round has long stretches where

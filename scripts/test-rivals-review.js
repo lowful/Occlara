@@ -165,5 +165,30 @@ const SCOREBOARD = {
   ok(r.scoreline.kills === 22, 'and so does a plain numeric string');
 }
 
+// ── The mode is printed text, tidied but never checked against a list ───────
+// marvelrivals.com publishes no game modes page: /gamemodes/ and /gameinfo/
+// both 404. So a list here would be written from memory and presented as fact,
+// which is how "Earthbound" nearly reached players. What IS checkable is shape:
+// a mode is a short label, not a sentence, and a model answering with the
+// objective line is misreading rather than naming a mode we have not heard of.
+{
+  ok(review.modeName('CONVERGENCE') === 'Convergence', 'a printed mode is title cased');
+  ok(review.modeName('Convoy') === 'Convoy', 'one already cased is left alone');
+  ok(review.modeName('DOMINATION') === 'Domination', 'and so is any other');
+  ok(review.modeName("Escort Knull's Essence to the Underground") === null,
+    'the objective line is not a mode');
+  ok(review.modeName('') === null, 'an empty mode is null');
+  ok(review.modeName(null) === null, 'a missing mode is null');
+
+  // THE IMPORTANT ONE. A mode nobody here has heard of still comes through.
+  // Dropping it would be this code substituting its own memory for what the
+  // game printed, and the game is the source.
+  ok(review.modeName('SKIRMISH') === 'Skirmish', 'an unfamiliar mode is NOT dropped');
+
+  const r = review.buildReview({ hero: 'The Punisher',
+    state: { ...SCOREBOARD, mode: "Escort Knull's Essence to the Underground" } });
+  ok(r.game.mode === null, 'and a misread mode reaches the review as absent');
+}
+
 console.log(`\n${fails ? fails + ' failure(s)' : 'all rivals review checks passed'}`);
 process.exit(fails ? 1 : 0);
