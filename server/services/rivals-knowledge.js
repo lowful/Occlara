@@ -88,6 +88,74 @@ const ROLE_CRAFT = {
   },
 };
 
+/**
+ * What a dive is actually hunting, MEASURED rather than asserted.
+ *
+ * This was the one piece of the archetype work that got built and never
+ * connected: rivals-heroes.js computes `squishy`, `hpShield` and `hpTotal` off
+ * the official health values and nothing read any of them. So the coach knew
+ * the shape of a dive and not its target.
+ *
+ * The numbers come from the game's own hero pages via npm run sync:rivals, and
+ * they are computed here at load rather than typed, so a patch that moves a
+ * health pool moves this paragraph with it. Measured on the current roster:
+ *
+ *   Vanguard    300 to 1400 base
+ *   Duelist     150 to 375
+ *   Strategist  250 to 275, ALL TEN OF THEM
+ *
+ * That last line is why "dive the healers" is a rule rather than a preference.
+ * It is not that Strategists are usually fragile; it is that every Strategist in
+ * the game sits inside a 25 point band that any dive hero's burst clears. No
+ * judgement call, no tier list, and it stays true until NetEase moves it.
+ *
+ * THE COACH STILL CANNOT NAME AN ENEMY, because hero identity off a scoreboard
+ * portrait failed its gate. This is written to be usable without naming one: a
+ * player can act on "the enemy backline dies to one burst" without being told
+ * which hero is standing there.
+ */
+function diveFacts() {
+  let heroes = null;
+  try { heroes = require('./rivals-heroes.js'); } catch { return null; }
+
+  const rows = Object.keys(heroes.HEROES)
+    .map((k) => heroes.traits(k))
+    .filter((t) => t && typeof t.hp === 'number');
+  if (rows.length < 20) return null;         // data missing, say nothing
+
+  const band = (role) => {
+    const hp = rows.filter((t) => t.role === role).map((t) => t.hp).sort((a, b) => a - b);
+    return hp.length ? { min: hp[0], max: hp[hp.length - 1], n: hp.length } : null;
+  };
+  const strat = band('Strategist');
+  if (!strat) return null;
+
+  return {
+    strat,
+    vanguard: band('Vanguard'),
+    duelist: band('Duelist'),
+    divable: rows.filter((t) => t.squishy).length,
+    total: rows.length,
+  };
+}
+
+function diveBlock() {
+  const f = diveFacts();
+  if (!f) return '';
+  const same = f.strat.min === f.strat.max;
+  return `
+
+WHAT A DIVE IS HUNTING, from the game's own health values:
+- Every one of the ${f.strat.n} Strategists has ${same ? `${f.strat.min}` : `between ${f.strat.min} and ${f.strat.max}`} base health. That is
+  why the backline is the dive target: it is not a judgement, it is the whole
+  role sitting in one narrow band that a single burst clears.
+- Vanguards run ${f.vanguard.min} to ${f.vanguard.max}, so diving one alone is not a plan.
+- ${f.divable} of ${f.total} heroes have a base pool at or under 300 and are not Vanguards.
+Do not name which enemy hero is where, because that cannot be read reliably off
+a scoreboard. Coach the SHAPE: who is isolated, and whether the dive has a way
+back out.`;
+}
+
 // Hitscan hits the instant you click; projectile has travel time and must be
 // led. It matters for coaching because it changes what an accuracy number MEANS:
 // a low percentage on a projectile hero can be correct play at range, while the
@@ -171,7 +239,7 @@ if you cannot tell, do not coach the accuracy.
 
 A standard team is two Vanguards, two Duelists and two Strategists. Deviating is
 not automatically wrong, but a role at zero is: no Strategist means nothing gets
-healed, and no Vanguard means whoever is picked first decides the fight.`;
+healed, and no Vanguard means whoever is picked first decides the fight.${diveBlock()}`;
 }
 
 /** The volatile half, only while it is still true. */
@@ -267,5 +335,5 @@ function block(opts = {}) {
 
 module.exports = {
   ARCHETYPES, ROLE_CRAFT, AIM_MODEL, META, META_MAX_AGE_DAYS,
-  metaIsFresh, fundamentals, metaBlock, balanceBlock, block,
+  metaIsFresh, fundamentals, metaBlock, balanceBlock, diveFacts, diveBlock, block,
 };

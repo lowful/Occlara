@@ -112,5 +112,47 @@ ok(k.block({ now: k.META.capturedAt }) === k.block({ now: k.META.capturedAt }),
     'and the coach is told NOT to judge accuracy when it cannot tell which applies');
 }
 
+// ── The dive target block, measured from the hero data ──────────────────────
+// This existed as three unread fields on every hero record for weeks: the coach
+// knew the SHAPE of a dive and not its target. These assert it is computed from
+// the real data rather than typed, so a patch that moves a health pool moves the
+// paragraph with it.
+{
+  const f = k.diveFacts();
+  ok(f !== null, 'the dive facts are computable from the hero data');
+
+  if (f) {
+    // Derive the same numbers independently, so a bug in diveFacts cannot
+    // agree with itself.
+    const heroes = require(path.join(__dirname, '..', 'server', 'services', 'rivals-heroes.js'));
+    const rows = Object.keys(heroes.HEROES).map((name) => heroes.traits(name))
+      .filter((t) => t && typeof t.hp === 'number');
+    const strat = rows.filter((t) => t.role === 'Strategist').map((t) => t.hp);
+
+    ok(f.strat.n === strat.length, `every Strategist is counted (${f.strat.n} of ${strat.length})`);
+    ok(f.strat.min === Math.min(...strat) && f.strat.max === Math.max(...strat),
+      `the Strategist band is the real one (${f.strat.min} to ${f.strat.max})`);
+    ok(f.vanguard.max > f.strat.max,
+      'Vanguards are on a different scale from Strategists, which is the whole point');
+    ok(f.divable > 0 && f.divable < f.total,
+      `some heroes are divable and some are not (${f.divable} of ${f.total})`);
+
+    const block = k.fundamentals();
+    ok(block.includes('WHAT A DIVE IS HUNTING'), 'and the block reaches the prompt');
+    ok(block.includes(String(f.strat.n)), 'carrying the real Strategist count');
+    ok(block.includes(String(f.strat.max)), 'and the real health band');
+
+    // THE REFUSAL. The coach cannot read enemy heroes off a scoreboard, so a
+    // dive paragraph that named one would be teaching it to do the thing that
+    // failed its gate.
+    ok(/Do not name which enemy hero/.test(block),
+      'and it forbids naming which enemy hero is where');
+    for (const hero of ['mantis', 'luna snow', 'jeff', 'rocket']) {
+      ok(!block.toLowerCase().includes(hero),
+        `the dive block names no specific Strategist (${hero})`);
+    }
+  }
+}
+
 console.log(fails ? `\n${fails} failure(s)` : '\nall rivals knowledge checks passed');
 process.exit(fails ? 1 : 0);
