@@ -267,6 +267,93 @@ gradients that would fight `--bg`. `rankMark()` in `learn.js` draws a shield
 with one to five pips in `--tier-1` through `--tier-5`; the pip COUNT carries the
 tier as well as the colour does.
 
+## Marvel Rivals reads TEXT, never art
+
+The whole Rivals design turns on one measured fact, and it is easy to undo by
+accident because the failing approach looks more capable.
+
+**Naming heroes from scoreboard portraits does not work.** Graded against a real
+Season 10 frame with a hand written answer key, six runs scored 17 to 42%
+precision against a 90% gate, and answered Mephisto, Doctor Doom and Lightning
+Ace, two of whom are not in the game and one of whom is not a Marvel character.
+Six prompt revisions moved nothing. A 3x upscaled crop of the portrait column
+scored WORSE than the full frame, so it is not a pixel count problem.
+
+**Reading the hero name that hero select PRINTS works perfectly.** Same model,
+same day, exact both times. This is text recognition versus art recognition, and
+it is the same distinction the Valorant map fingerprint already turns on, where
+the printed location label outranks the model's opinion about the picture.
+
+So:
+
+```
+hero select    the hero name is printed, so the coach learns YOUR hero here
+scoreboard     printed text only: result, map, mode, K/D/A, damage, healing,
+               accuracy, role icons. Never hero identity
+```
+
+`features.heroCapture` is **separate from `features.draft`** on purpose. Draft
+advice is off because the teammate ROLE COUNT reads wrong; the engine still asks
+the draft question for the name, and `vet()` returns empty so no draft sentence
+reaches a player. Do not merge those flags.
+
+`confirmMine()` in `server/routes/rivals.js` checks the printed name against the
+closed roster, so an OCR slip arrives absent rather than wrong. The engine holds
+the hero for the match and **forgets it once a scoreboard is reviewed**, or the
+next match opens its review naming the last match's hero.
+
+What the hero read bought is `src/shared/rivals-abilities.js`, the Rivals
+equivalent of `validateTipForAgent`: no tip may name an ability the player's
+hero does not have. It permits one whose OWNER is named in the same sentence,
+because "The Thing has Yancy Street Charge, which turns your dash off" is the
+counter table's best output.
+
+What it did **not** buy is the switch call. `switchAdvice()` needs the ENEMY
+list, which comes off portraits, which is the read that failed. Counters stay
+unwired. `rivals-meta.js` and `rivals-moments.js` are also unwired and their
+headers say exactly what is missing; read those before calling either.
+
+### The Rivals review is computed, like the League one
+
+`src/shared/rivals-review.js`, and the reason is `lol-review.js`'s reason word
+for word: a review is where a confident wrong sentence costs most. The model is
+not involved. It makes exactly one judgement, the healing check, because that
+data is not close: across twelve real rows Strategists healed 13,068 to 33,213
+and everybody else 0 to 567. **Damage blocked gets no such rule**, because those
+rows overlap, and any threshold drawn through an overlap is a coin flip wearing
+a number.
+
+Two things that look like details:
+
+- **Heroes switch mid match.** A hero read at draft is the hero they STARTED on.
+  The contradiction is detectable in one direction only: a non-Strategist name
+  against a healing column that proves a Strategist means they switched, and the
+  name is dropped.
+- **The refusals are rendered, not just observed.** A player who can see the
+  enemy team on their own screen will otherwise assume the coach saw it too and
+  chose to stay quiet.
+
+**There is no mode table and that is deliberate.** marvelrivals.com publishes no
+modes page, `/gamemodes/` and `/gameinfo/` both 404, so a list would be written
+from memory and presented as fact. The mode is printed text, the read that
+works, and the review only displays it. Only its SHAPE is checked: a mode is a
+short label, so the objective line is dropped while a mode nobody here has heard
+of comes through.
+
+```
+npm run sync:rivals          roster, health and abilities from the game's own site
+npm run check:rivalsknowledge every hero and ability named is one the game has
+npm run check:rivalsreview    boots the app, paints a Rivals review, then a League
+                              one into the same window
+npm run check:clientboot      src/ never requires from server/, which is not shipped
+```
+
+That last one exists because `package.json` ships `src/`, `assets/`,
+`node_modules/` and `package.json`, and **not `server/`**. A require reaching
+across resolves in the repo, passes every test, and throws MODULE_NOT_FOUND on a
+real install. It is the mirror of `check:server`, and `sync:rivals` writes a
+second smaller copy into `src/shared` so the shortcut is never needed.
+
 ## One game's data is never shown under another game's name
 
 The stats dashboard is Valorant shaped end to end: a Valorant rank ladder, agent
