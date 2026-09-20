@@ -23,6 +23,7 @@ const EventEmitter = require('events');
 const api = require('./api-client');
 const { cleanTip, tipWords, overlapRatio } = require('./tip-hygiene');
 const { draftAdvice, draftTipAllowed } = require('../../shared/rivals-draft');
+const { validateTipForHero } = require('../../shared/rivals-abilities');
 const { normaliseRole } = require('../../shared/rivals-comp');
 
 // Hero select runs a short countdown, so the probe has to be quicker than the
@@ -53,7 +54,17 @@ class RivalsEngine extends EventEmitter {
     // engine never sends that request at all. That is stronger than gating the
     // tip afterwards: a request never made cannot produce a wrong answer, and it
     // does not spend a vision call to be thrown away.
-    this.features = { review: true, draft: false, ...(opts.features || {}) };
+    //
+    // heroCapture is SEPARATE from draft and defaults on, because they are
+    // different reads of the same screen and only one of them failed. The draft
+    // tip is arithmetic over teammate ROLE ICONS, which the model miscounts. The
+    // hero name is PRINTED IN LARGE TEXT on the left, and graded against a real
+    // frame the model read it exactly right both times it was asked, on the same
+    // day it scored 17 to 42% naming heroes from scoreboard portraits. Text is
+    // not art. So the engine still asks the draft question, throws the tip away
+    // while draft is off, and keeps the one field it can trust.
+    this.features = { review: true, draft: false, heroCapture: true,
+      ...(opts.features || {}) };
     this.running = false;
     this.timer = null;
     this.lastDraftAt = 0;
@@ -62,6 +73,10 @@ class RivalsEngine extends EventEmitter {
     this.aiTipCount = 0;
     this.paused = false;
     this.lastState = {};
+    // The hero the player picked, read at hero select and held for the match.
+    // Null until a draft is read, and NEVER inferred from anything else: no
+    // other screen prints it.
+    this.mine = null;
     // The session archive reads this on quit. Valorant fills it with per round
     // memory; Rivals has one review a match, so it stays empty rather than
     // absent, because an absent array is a crash and an empty one is a fact.
@@ -103,7 +118,8 @@ class RivalsEngine extends EventEmitter {
     // rather than by trying to classify the screen locally. A local classifier
     // would be a second thing that can be wrong about the screen.
     const now = Date.now();
-    const wantDraft = this.features.draft && now - this.lastDraftAt > DRAFT_COOLDOWN_MS;
+    const wantDraft = (this.features.draft || this.features.heroCapture)
+      && now - this.lastDraftAt > DRAFT_COOLDOWN_MS;
     const route = wantDraft ? '/api/rivals/draft' : '/api/rivals/review';
     // With draft off, every probe is a review question. The model answers LOBBY
     // for anything that is not a scoreboard, which costs a handful of tokens, so
@@ -129,7 +145,17 @@ class RivalsEngine extends EventEmitter {
       // must never reach a player or a tip counter.
       if (/^(SKIP|LOBBY)$/i.test(tip)) { this.schedule(PROBE_MS); return; }
 
-      if (ctx.phase === 'draft') this.lastDraftAt = now;
+      if (ctx.phase === 'draft') {
+        this.lastDraftAt = now;
+        // The server has already checked this against the closed roster, so an
+        // unreadable or invented name arrives absent rather than wrong. Held
+        // rather than overwritten with null, because later probes land on
+        // screens that do not print it.
+        if (this.features.heroCapture && ctx.mine) {
+          if (ctx.mine !== this.mine) this.log('[rivals] hero read at draft: ' + ctx.mine);
+          this.mine = ctx.mine;
+        }
+      }
       if (ctx.phase === 'scoreboard') this.lastReviewAt = now;
       this.lastState = ctx;
 
@@ -152,7 +178,29 @@ class RivalsEngine extends EventEmitter {
    * arithmetic over a roster the guard has already agreed is trustworthy.
    */
   vet(tip, ctx) {
+    // THE ABILITY GATE RUNS FIRST, and on every phase, because it is a truth
+    // gate rather than a draft one. Telling a Punisher to Web-Swing is wrong on
+    // a scoreboard for the same reason it is wrong at hero select, and it is
+    // the one thing a player can catch the coach out on instantly: they look at
+    // their own keys and the button is not there.
+    //
+    // It permits everything while the hero is unknown, which is most of the
+    // time, so it costs nothing on a match where hero select was missed.
+    const spell = validateTipForHero(tip, this.mine);
+    if (!spell.ok) {
+      this.log(`[rivals] tip blocked: names ${spell.ability}, which is `
+        + `${spell.owner}'s, and the player is on ${this.mine}`);
+      return '';
+    }
+
     if (!ctx || ctx.phase !== 'draft') return tip;      // reviews are not gated on a roster
+    // ASKING IS NOT SPEAKING. With draft advice off the engine still sends the
+    // draft request, because that screen is the only place the player's hero is
+    // printed, but the sentence that comes back is built on the teammate role
+    // count and that is the part that reads wrong. Drop it here, unconditionally
+    // and before any other judgement, rather than trusting draftTipAllowed to
+    // catch every case of a read this flag already says is not trusted.
+    if (!this.features.draft) return '';
     const draft = { locked: Array.isArray(ctx.locked) ? ctx.locked : [], suggested: ctx.suggested };
     const verdict = draftTipAllowed(tip, draft);
     if (verdict.ok) return tip;

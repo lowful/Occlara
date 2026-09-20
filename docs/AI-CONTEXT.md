@@ -265,6 +265,62 @@ map, mode, duration, victory or defeat, the season, player names, every K/D/A,
 and the role icons. A post match review built on those is honest today. One built
 on hero identity is not.
 
+### The fix is the SCREEN, not the prompt. 20 Sep 2026.
+
+Six prompt revisions moved nothing, so the next question was whether any hero
+read works. `/identify` was run against two frame types on the same day, same
+model:
+
+```
+HERO SELECT, name printed large     expected: The Punisher
+  read: "the punisher" | mine, "the punisher" | ally        both exact
+
+SCOREBOARD, portrait art only       expected: 11 heroes
+  read: venom, hulk, white fox, loki, jeff the land shark,
+        mister fantastic, cyclops, human torch, scarlet witch,
+        peni parker, ...                                     17 to 42% precision
+```
+
+**This is text recognition versus art recognition, and only one of them works.**
+Valorant's guards already turn on exactly this distinction: the map fingerprint
+is built from the location name Valorant PRINTS on screen, precisely because the
+printed label beats the model's opinion about the picture. Rivals has the same
+property and it had not been used.
+
+So the design changed rather than the prompt:
+
+- The coach learns the player's hero **at hero select, where the game writes it
+  down**, and never guesses a hero from a portrait.
+- `DRAFT_PROMPT` gained a `mine` field. `confirmMine()` in `server/routes/rivals.js`
+  checks it against the closed roster and drops it otherwise, so an OCR slip
+  arrives absent rather than wrong.
+- `features.heroCapture` is separate from `features.draft` **on purpose**. Draft
+  advice stays off because the teammate ROLE count is what reads wrong; the
+  engine still asks the draft question for the name, and `vet()` returns empty
+  so no draft sentence can reach a player.
+
+**What it bought, immediately:** the ability gate. `src/shared/rivals-abilities.js`
+refuses any tip naming an ability the player's hero does not have, which is the
+Rivals equivalent of `validateTipForAgent` and could not exist while the hero was
+unknown. It permits an ability whose OWNER is named in the same sentence, because
+"The Thing has Yancy Street Charge, which turns your dash off" is the counter
+table's most valuable output and a naive gate eats it.
+
+**What it did NOT buy:** the switch call. `switchAdvice()` needs the ENEMY list,
+which comes off scoreboard portraits, which is the read that failed. Counters
+stay unwired, and knowing your own hero does not change that.
+
+Two data defects surfaced while wiring it, both found by listing every ability
+name rather than by any test:
+
+- `占位空格` ("placeholder space"), the site's own spacer row, was scraped as a
+  real ability on **all 54 heroes**. Being universal made it look legitimate.
+- Gorr's Base Stats row parsed as an ability called "Gorr" whose description was
+  "175 Health + 175 Regenerative Shield", because the row-0 skip compares against
+  the full hero name and the cell says just "Gorr".
+
+Both are filtered in `sync-rivals-data.js` now, 665 ability rows down to 610.
+
 **Every external source has been checked and rejected. Do not re-litigate:**
 
 | Source | Why not |

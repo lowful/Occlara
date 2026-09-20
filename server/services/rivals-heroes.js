@@ -213,6 +213,30 @@ function traits(name) {
 
 function known(name) { return traits(name) !== null; }
 
+/**
+ * Is this string a real hero name, and what is its canonical form.
+ *
+ * DELIBERATELY NOT known(). That asks "can the coach reason about this hero",
+ * and answers no for the five in PENDING. This asks "did the model read a name
+ * this game actually has", which is a different and weaker question, and the
+ * right one for recording what the player picked. A player on Deadpool IS on
+ * Deadpool; no rule can fire on him, and every rule downstream already returns
+ * null on an unclassified hero, so carrying the true name costs nothing and
+ * throwing it away loses a fact.
+ *
+ * Everything outside the roster is refused, which is the same closed-set move
+ * the identify prompt makes: the model answered Mephisto and Doctor Doom when
+ * nothing stopped it.
+ */
+const ROSTER_NAMES = new Set([...Object.keys(HEROES), ...PENDING.map(normalise)]);
+
+function onRoster(name) {
+  const n = normalise(name);
+  if (!n) return null;
+  const key = ALIASES[n] || n;
+  return ROSTER_NAMES.has(key) ? key : null;
+}
+
 // Named constants rather than inline literals, because these two have already
 // been destroyed twice by being written through a shell heredoc, where \r?\n
 // collapses into a real newline and the file stops parsing. Keeping them here
@@ -282,4 +306,4 @@ function parseRoster(raw) {
   return out;
 }
 
-module.exports = { HEROES, ALIASES, PENDING, traits, known, normalise, parseRoster };
+module.exports = { HEROES, ALIASES, PENDING, traits, known, onRoster, normalise, parseRoster };
