@@ -72,6 +72,7 @@
     "test:telemetry": "node scripts/test-telemetry.js",
     "test:tiptext": "node scripts/test-tip-text.js",
     "test:tipvisuals": "node scripts/test-tip-visuals.js",
+    "test:ultgate": "node scripts/test-ult-gate.js",
     "test:variety": "node scripts/test-variety.js",
     "verify:ai": "node scripts/verify-ai.js",
     "verify:rivalsheroes": "node scripts/verify-rivals-heroes.js"

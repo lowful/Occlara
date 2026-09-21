@@ -1528,7 +1528,10 @@ class CoachingEngine extends EventEmitter {
     // `alive || hp > 0` and told the model "THE PLAYER IS ALIVE RIGHT NOW, at
     // 100 HP" while they were watching a killcam, which is precisely the
     // contradiction the whole death pipeline exists to prevent.
-    const SPECTATOR_OWNED = ['playerWeapon', 'playerCredits', 'playerSpot', 'mmPos', 'playerHp'];
+    // playerUlt joins this list for the reason the whole list exists: the moment
+    // the player dies the HUD becomes the SPECTATED teammate's, so a charged
+    // ultimate icon down there is THEIR ultimate, not the player's.
+    const SPECTATOR_OWNED = ['playerWeapon', 'playerCredits', 'playerSpot', 'mmPos', 'playerHp', 'playerUlt'];
 
     for (const key of Object.keys(updates)) {
       const v = updates[key];
@@ -1808,6 +1811,9 @@ function freshContext() {
     gameMode: null,   // 'swiftplay' (4-round halves) | 'standard' (12) | null; locked by 2 agreeing reads or score math
     roundNumber: 0, teamScore: 0, enemyScore: 0, clock: null,   // round timer (mm:ss) for stage-aware coaching
     phase: 'unknown', playerCredits: null, playerWeapon: null, playerAlive: true,
+    playerUlt: null,  // 'ready' | 'charging' | null. Spectator-owned: after a death the
+                      // ultimate icon on the HUD belongs to the teammate being watched.
+
     teammatesAlive: null, enemiesAlive: null,   // reported by the AI from the HUD bar
     playerHp: null,   // own health number: the ground truth for being alive
     deathSpot: null,  // where the player died, pinned at death; positional reads go stale once spectating starts
@@ -2037,6 +2043,28 @@ const MOBILITY_MISUSE = new RegExp(
 const ABILITY_COMMAND = new RegExp(
   '\\b(?:use|pop|hit|blow|throw|activate)\\s+(?:your\\s+)?'
   + '(dash(?:es)?|updraft|tailwind|satchel|blast pack|high gear|sprint|blink|gatecrash)\\b', 'i');
+
+/*
+ * Telling a player to ult when the ult is not up.
+ *
+ * The same failure as ABILITY_COMMAND above and a more expensive one: a basic
+ * ability comes back in thirty seconds, an ultimate is a whole round's plan, so
+ * "ult them now" with a half charged ultimate is not a mistimed tip, it is
+ * advice the player cannot act on at all.
+ *
+ * This became checkable when STATE gained an `ult` field. Before that the coach
+ * had NO ability state whatsoever: the model was told to read the icons and
+ * never asked to report what it saw, so every ultimate tip was a guess.
+ *
+ * Only fires on a CONFIRMED "charging". A null read means unknown, and unknown
+ * has to stay permissive or the coach goes silent about ultimates on every
+ * frame where the icon was hard to see, which is most of them.
+ */
+// A LITERAL, not new RegExp with an escaped string. Written the other way this
+// pattern lost every backslash on the way into the file, so \s+ became a
+// literal "s" and \b vanished, and it matched none of seven obvious positives.
+// A regex literal has nothing for a shell or a string parser to eat.
+const ULT_COMMAND = /\b(?:use|pop|press|hit|drop|fire|cast|activate|save)\s+(?:your\s+|the\s+)?(?:ult(?:imate)?|x)\b|\bult(?:imate)?\s+(?:them|now|it|here)\b|\bgo ult\b/i;
 
 // Prompt-echo leaks: fragments of the STATE schema or frame-memory wording
 // must never surface as a tip.
@@ -2595,6 +2623,11 @@ function scenarioFits(text, source, ctx) {
   // Don't command a mobility ability we can't confirm is off cooldown.
   if (source !== 'system' && ABILITY_COMMAND.test(l)) {
     noteReject('told the player to use an ability we cannot confirm is off cooldown');
+    return false;
+  }
+  // An ultimate the player demonstrably does not have yet.
+  if (source !== 'system' && ctx.playerUlt === 'charging' && ULT_COMMAND.test(l)) {
+    noteReject('told the player to ult while the ultimate is still charging');
     return false;
   }
   if (source !== 'system' && PROMPT_LEAK.test(text)) return false;
