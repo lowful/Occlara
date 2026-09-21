@@ -22,6 +22,7 @@ const path = require('path');
 
 const AGENTS_URL = 'https://valorant-api.com/v1/agents?isPlayableCharacter=true';
 const MAPS_URL   = 'https://valorant-api.com/v1/maps';
+const WEAPONS_URL = 'https://valorant-api.com/v1/weapons';
 
 // Ability slots that a player actively USES (a tip can tell them to). Passive is
 // never a "use your X" instruction, so it is excluded.
@@ -261,9 +262,52 @@ function diff(label, prev, next) {
   return lines;
 }
 
+/**
+ * Per weapon damage by range, which is what turns range advice into a fact.
+ *
+ * "Position for the range your gun works at" is a platitude until you can say
+ * that a Bucky does 17 a pellet inside 8m and 9 past 12m. THIRTEEN OF TWENTY
+ * weapons have a damage cliff, so for most of the buy this is real, checkable
+ * advice rather than a feel.
+ *
+ * The Phantom line is the one pros actually talk about: 39 to the body inside
+ * 20m and 35 past it, against a Vandal that is 40 everywhere, so past 20m the
+ * Phantom needs a fifth bullet the Vandal never does.
+ *
+ * Only body damage and the range bounds are kept. Head and leg numbers are in
+ * the source but the coach has no use for them, and an unused number in a
+ * generated file is one more thing that can go stale unnoticed.
+ */
+function buildWeapons(rows) {
+  const out = {};
+  for (const w of rows || []) {
+    const stats = w.weaponStats;
+    if (!stats || !Array.isArray(stats.damageRanges) || !stats.damageRanges.length) continue;
+    const name = String(w.displayName || '').trim();
+    if (!name) continue;
+    const ranges = stats.damageRanges.map((r) => ({
+      from: Number(r.rangeStartMeters),
+      to: Number(r.rangeEndMeters),
+      body: Number(r.bodyDamage),
+    })).filter((r) => isFinite(r.from) && isFinite(r.to) && isFinite(r.body));
+    if (!ranges.length) continue;
+    out[name.toLowerCase()] = {
+      category: String((w.shopData && w.shopData.categoryText) || '').replace('Weapon', '').trim() || null,
+      cost: (w.shopData && Number(w.shopData.cost)) || null,
+      ranges,
+      // A weapon with one tier does the same damage at every range, which is
+      // itself worth knowing: it is why the Vandal can hold any angle.
+      fallsOff: ranges.length > 1,
+    };
+  }
+  return out;
+}
+
 async function main() {
   console.log('Fetching valorant-api.com ...');
-  const [agentRows, mapRows] = await Promise.all([fetchJson(AGENTS_URL), fetchJson(MAPS_URL)]);
+  const [agentRows, mapRows, weaponRows] = await Promise.all([
+    fetchJson(AGENTS_URL), fetchJson(MAPS_URL), fetchJson(WEAPONS_URL),
+  ]);
 
   const agents = buildAgents(agentRows);
   await syncAgentIcons(agentRows);
@@ -271,10 +315,16 @@ async function main() {
   const mapCallouts = buildCallouts(standardRows);
   const mapGeometry = buildGeometry(standardRows);
 
+  const weapons = buildWeapons(weaponRows);
+  if (Object.keys(weapons).length < 15) {
+    throw new Error(`only ${Object.keys(weapons).length} weapons parsed a damage table, `
+      + 'expected at least 15. Refusing to write.');
+  }
+
   const data = {
     generatedAt: new Date().toISOString(),
     source: 'valorant-api.com',
-    agents, maps, threeSiteMaps, mapCallouts, mapGeometry,
+    agents, maps, threeSiteMaps, mapCallouts, mapGeometry, weapons,
   };
 
   // Diff against the current client copy so per-patch changes are visible.
@@ -285,6 +335,9 @@ async function main() {
     ...diff('agent', prev.agents, agents),
     ...diff('callout', prev.mapCallouts, mapCallouts),
     ...diff('map', Object.fromEntries((prev.maps || []).map((m) => [m, 1])), Object.fromEntries(maps.map((m) => [m, 1]))),
+    // Damage changes every patch and playbook notes quote these numbers, so a
+    // silent rebalance is exactly the drift worth printing.
+    ...diff('weapon', prev.weapons, weapons),
   ];
 
   const json = JSON.stringify(data, null, 2) + '\n';
@@ -295,6 +348,8 @@ async function main() {
   const geoTotal = Object.values(mapGeometry).reduce((s, g) => s + g.callouts.length, 0);
   console.log(`\nAgents: ${Object.keys(agents).length} | Maps: ${maps.length} (3-site: ${threeSiteMaps.join(', ')}) | Callouts: ${Object.keys(mapCallouts).length}`);
   console.log(`Minimap geometry: ${Object.keys(mapGeometry).length} maps, ${geoTotal} placed callouts`);
+  const fallers = Object.values(weapons).filter((w) => w.fallsOff).length;
+  console.log(`Weapons: ${Object.keys(weapons).length} with damage tables, ${fallers} with falloff`);
   console.log(changes.length ? '\nChanges since last sync:\n' + changes.join('\n') : '\nNo changes since last sync.');
   console.log(`\nWrote:\n  ${clientPath}\n  ${serverPath}`);
 }
