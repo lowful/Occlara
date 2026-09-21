@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T19:49:06.417Z",
+  "generatedAt": "2026-09-22T02:44:37.829Z",
   "source": "valorant-api.com",
   "agents": {
     "Gekko": {
@@ -2482,6 +2482,326 @@
           "y": 0.496
         }
       ]
+    }
+  },
+  "weapons": {
+    "odin": {
+      "category": "Heavy s",
+      "cost": 3200,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 30,
+          "body": 38
+        },
+        {
+          "from": 30,
+          "to": 50,
+          "body": 31
+        }
+      ],
+      "fallsOff": true
+    },
+    "ares": {
+      "category": "Heavy s",
+      "cost": 1600,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 30,
+          "body": 30
+        },
+        {
+          "from": 30,
+          "to": 50,
+          "body": 28
+        }
+      ],
+      "fallsOff": true
+    },
+    "vandal": {
+      "category": "Assault Rifles",
+      "cost": 2900,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 50,
+          "body": 40
+        }
+      ],
+      "fallsOff": false
+    },
+    "bulldog": {
+      "category": "Assault Rifles",
+      "cost": 2050,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 50,
+          "body": 35
+        }
+      ],
+      "fallsOff": false
+    },
+    "phantom": {
+      "category": "Assault Rifles",
+      "cost": 2900,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 20,
+          "body": 39
+        },
+        {
+          "from": 20,
+          "to": 50,
+          "body": 35
+        }
+      ],
+      "fallsOff": true
+    },
+    "judge": {
+      "category": "Shotguns",
+      "cost": 1850,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 10,
+          "body": 17
+        },
+        {
+          "from": 10,
+          "to": 15,
+          "body": 10
+        },
+        {
+          "from": 15,
+          "to": 50,
+          "body": 7
+        }
+      ],
+      "fallsOff": true
+    },
+    "bucky": {
+      "category": "Shotguns",
+      "cost": 850,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 8,
+          "body": 17
+        },
+        {
+          "from": 8,
+          "to": 12,
+          "body": 13
+        },
+        {
+          "from": 12,
+          "to": 50,
+          "body": 9
+        }
+      ],
+      "fallsOff": true
+    },
+    "frenzy": {
+      "category": "Sidearms",
+      "cost": 450,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 20,
+          "body": 26
+        },
+        {
+          "from": 20,
+          "to": 50,
+          "body": 21
+        }
+      ],
+      "fallsOff": true
+    },
+    "classic": {
+      "category": "Sidearms",
+      "cost": null,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 30,
+          "body": 26
+        },
+        {
+          "from": 30,
+          "to": 50,
+          "body": 22
+        }
+      ],
+      "fallsOff": true
+    },
+    "bandit": {
+      "category": "Sidearms",
+      "cost": 600,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 10,
+          "body": 39
+        },
+        {
+          "from": 10,
+          "to": 30,
+          "body": 39
+        },
+        {
+          "from": 30,
+          "to": 50,
+          "body": 34
+        }
+      ],
+      "fallsOff": true
+    },
+    "ghost": {
+      "category": "Sidearms",
+      "cost": 500,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 30,
+          "body": 30
+        },
+        {
+          "from": 30,
+          "to": 50,
+          "body": 25
+        }
+      ],
+      "fallsOff": true
+    },
+    "sheriff": {
+      "category": "Sidearms",
+      "cost": 800,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 30,
+          "body": 55
+        },
+        {
+          "from": 30,
+          "to": 50,
+          "body": 50
+        }
+      ],
+      "fallsOff": true
+    },
+    "shorty": {
+      "category": "Sidearms",
+      "cost": 300,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 7,
+          "body": 11
+        },
+        {
+          "from": 7,
+          "to": 15,
+          "body": 6
+        },
+        {
+          "from": 15,
+          "to": 50,
+          "body": 3
+        }
+      ],
+      "fallsOff": true
+    },
+    "operator": {
+      "category": "Sniper Rifles",
+      "cost": 4700,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 50,
+          "body": 150
+        }
+      ],
+      "fallsOff": false
+    },
+    "guardian": {
+      "category": "Assault Rifles",
+      "cost": 2250,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 50,
+          "body": 65
+        }
+      ],
+      "fallsOff": false
+    },
+    "outlaw": {
+      "category": "Sniper Rifles",
+      "cost": 2400,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 50,
+          "body": 140
+        }
+      ],
+      "fallsOff": false
+    },
+    "marshal": {
+      "category": "Sniper Rifles",
+      "cost": 950,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 50,
+          "body": 101
+        }
+      ],
+      "fallsOff": false
+    },
+    "spectre": {
+      "category": "SMGs",
+      "cost": 1600,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 15,
+          "body": 26
+        },
+        {
+          "from": 15,
+          "to": 30,
+          "body": 22
+        },
+        {
+          "from": 30,
+          "to": 50,
+          "body": 20
+        }
+      ],
+      "fallsOff": true
+    },
+    "stinger": {
+      "category": "SMGs",
+      "cost": 1100,
+      "ranges": [
+        {
+          "from": 0,
+          "to": 15,
+          "body": 27
+        },
+        {
+          "from": 15,
+          "to": 50,
+          "body": 23
+        }
+      ],
+      "fallsOff": true
     }
   }
 }

@@ -1,0 +1,476 @@
+[
+  {
+    "text": "Throw recon bolt where a teammate can already shoot into the scan, information nobody is positioned to act on is wasted utility.",
+    "agents": [
+      "Sova"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "charity utility"
+    }
+  },
+  {
+    "text": "Fire recon bolt high above an enemy wall rather than into it, the scan clears the wall and you can spam through it for free damage.",
+    "agents": [
+      "Sova"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "dart height"
+    }
+  },
+  {
+    "text": "An instant recon bolt off the barrier is a pro habit built on a coordinated space take, alone it just scans an empty corner and leaves you blind later.",
+    "agents": [
+      "Sova"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "insta dart"
+    }
+  },
+  {
+    "text": "Rotate with recon bolt still up, arriving somewhere new with it already spent turns the rotate into a blind fight.",
+    "agents": [
+      "Sova"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "rotating with util"
+    }
+  },
+  {
+    "text": "Half a second early and recon bolt scans the corner behind them, wait for the contact before you fire it.",
+    "agents": [
+      "Sova"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "dart timing"
+    }
+  },
+  {
+    "text": "Sova anchors a site as well as he rotates, a scan above a push is just as strong from a hold as it is on the move.",
+    "agents": [
+      "Sova"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "anchoring"
+    }
+  },
+  {
+    "text": "Hunter's fury needs runway, back up as you cast so you have room to sweep, walking forward while you ult throws away most of the angle.",
+    "agents": [
+      "Sova"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "ult range"
+    }
+  },
+  {
+    "text": "Entry in checkpoints, take one piece of space, survive behind cover, then wait for the team to reach you before you take the next.",
+    "roles": [
+      "duelist"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "checkpoints"
+    },
+    "agents": [
+      "Iso",
+      "Jett",
+      "Neon",
+      "Phoenix",
+      "Raze",
+      "Reyna",
+      "Waylay",
+      "Yoru"
+    ]
+  },
+  {
+    "text": "Do not move to the next piece of space before your team reaches the last one, you are the fastest player there and they cannot trade what they cannot reach.",
+    "roles": [
+      "duelist"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "checkpoints"
+    },
+    "agents": [
+      "Iso",
+      "Jett",
+      "Neon",
+      "Phoenix",
+      "Raze",
+      "Reyna",
+      "Waylay",
+      "Yoru"
+    ]
+  },
+  {
+    "text": "Sitting far up forces them to respect you, watch the minimap and punish the moment they overstep toward the rest of your team.",
+    "roles": [
+      "duelist"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "being a thorn"
+    }
+  },
+  {
+    "text": "The agent you picked does not decide whether you are allowed to flank or take space, that is a choice about the round, not about your role.",
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "role conventions"
+    }
+  },
+  {
+    "text": "Never stand still while holding an angle, small steps in and out beat a static crosshair because they have to find you again every time.",
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "movement"
+    }
+  },
+  {
+    "text": "Burst, move, burst, move, the kills come from being hard to hit as much as from the first bullet landing.",
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "movement"
+    }
+  },
+  {
+    "text": "You accelerate from a standstill in this game, so hugging the wall you are about to peek means you arrive slowly and get shot first.",
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "acceleration"
+    }
+  },
+  {
+    "text": "Step off the wall and build your speed before the corner, so the peek is fast instead of a slow lean into their crosshair.",
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "acceleration"
+    }
+  },
+  {
+    "text": "Do not walk straight out of a smoke in a straight line, angle the exit so they have to move their crosshair to find you.",
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "smoke exits"
+    }
+  },
+  {
+    "text": "Decide how you are taking an angle before you arrive at it, the way you pick the lane before the turn, hesitating at the corner is what gets you traded.",
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "planning the peek"
+    }
+  },
+  {
+    "text": "Scoping a rifle roots you in place, take the angle unscoped and keep moving unless the range genuinely demands it.",
+    "weight": 1,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "scoping"
+    }
+  },
+  {
+    "text": "Bucky does 17 a pellet inside 8 meters, 13 past that and 9 past 12, so hold where they arrive close, never the long angle.",
+    "weapons": [
+      "bucky"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "shotgun range",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "text": "Judge does 17 a pellet inside 10 meters, 10 past that and 7 past 15, so its whole value is the close re peek.",
+    "weapons": [
+      "judge"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "shotgun range",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "text": "Aim a shotgun at body height rather than head height, a headshot level crosshair sends most of the pellets straight over them.",
+    "weapons": [
+      "bucky",
+      "judge",
+      "shorty"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "shotgun aim"
+    }
+  },
+  {
+    "text": "Phantom does 39 to the body inside 20 meters and 35 past it, so a long hold costs you a fifth bullet the Vandal never needs.",
+    "weapons": [
+      "phantom"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "phantom falloff",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "text": "Two or three stars placed before the round is the sweet spot, none leaves you slow and all five leaves you nothing to answer a rotate with.",
+    "agents": [
+      "Astra"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "pre placed stars"
+    }
+  },
+  {
+    "text": "Nova pulse low and gravity well high pulls them up into the open with nothing to hide behind, the pair is worth far more than either alone.",
+    "agents": [
+      "Astra"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "star combos"
+    }
+  },
+  {
+    "text": "Smoke the same spot every round until they walk into it on trust, then pull it back and take the kills they hand you.",
+    "roles": [
+      "controller"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "building a pattern"
+    }
+  },
+  {
+    "text": "When your team commits, get the smoke down fast and get back on your gun, a perfect smoke that lands after the entry is a wasted round.",
+    "roles": [
+      "controller"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "filling utility"
+    },
+    "agents": [
+      "Astra",
+      "Brimstone",
+      "Clove",
+      "Harbor",
+      "Miks",
+      "Omen",
+      "Viper"
+    ]
+  },
+  {
+    "text": "A shallow smoke beats a deep one, it leaves them exposed to every angle as they step out instead of letting them isolate just one.",
+    "roles": [
+      "controller"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "smoke depth"
+    }
+  },
+  {
+    "text": "Gun in hand is the priority, utility is how you win the fight, not something you do instead of taking it.",
+    "roles": [
+      "controller"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "gun in hand"
+    },
+    "agents": [
+      "Astra",
+      "Brimstone",
+      "Clove",
+      "Harbor",
+      "Miks",
+      "Omen",
+      "Viper"
+    ]
+  },
+  {
+    "text": "Force an operator to play the retake rather than the peek, hit a site from enough lanes at once that holding one angle stops paying.",
+    "roles": [
+      "controller"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "suppressing an op"
+    }
+  },
+  {
+    "text": "If one site keeps working for them they will keep going there, it really is not deeper than that, so start your round toward the site that has been winning.",
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "anti strat"
+    }
+  },
+  {
+    "text": "Do not rotate off a man advantage you already have information on into a site you know nothing about, the numbers and the info are both worth more than the surprise.",
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "rotating into the unknown"
+    }
+  },
+  {
+    "text": "The third time you see the same lurk in the same place it stops being a coincidence, say it out loud so the team can play around it.",
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "paint the picture"
+    }
+  },
+  {
+    "text": "Which side the enemy wall goes up on is the clearest read available, call it every round and watch whether they ever break the pattern.",
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "wall reads"
+    }
+  },
+  {
+    "text": "Make a plan in the buy phase and commit to it, a round where you are still deciding at contact is a round you are playing a step behind.",
+    "phase": "buy",
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "have a plan"
+    }
+  },
+  {
+    "text": "You do not have to lurk just because you picked a sentinel, second entry with your utility already on the site is a real way to play the role.",
+    "roles": [
+      "sentinel"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "role conventions"
+    }
+  },
+  {
+    "text": "Do not take the spike every round, carrying it turns every gunfight into a plant and you lose the reps that actually improve your aim.",
+    "side": "attack",
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "spike carrying"
+    }
+  },
+  {
+    "text": "Vary where you start the round, playing the same opening position every time is the easiest thing in the world to prepare against.",
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "starting positions"
+    }
+  },
+  {
+    "text": "An ultimate you never press is worth nothing, spend it on a round you can still win rather than saving it for a perfect one that never arrives.",
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "ult economy"
+    }
+  },
+  {
+    "text": "Play the same way at zero and ten as at ten and zero, letting the scoreline change how you sound is how a losable game becomes a lost one.",
+    "situations": [
+      "deathstreak"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "tilt"
+    }
+  },
+  {
+    "text": "Keep the call simple enough that four other people can execute it, an overthought read nobody follows is worth less than an obvious one everybody does.",
+    "weight": 2,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "simplicity"
+    }
+  }
+]

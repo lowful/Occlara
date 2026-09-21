@@ -85,12 +85,8 @@ const VALID = {
 };
 
 const problems = [];
-const advisories = [];
 function fail(note, msg) {
   problems.push({ msg, text: String(note.text || '').slice(0, 100) });
-}
-function advise(msg, text) {
-  advisories.push({ msg, text: String(text || '').slice(0, 100) });
 }
 
 /*
@@ -270,6 +266,73 @@ function calloutsForMap(mapLower) {
   return new Set(list.map((c) => String(c.n || '').toLowerCase()).filter(Boolean));
 }
 
+/*
+ * ── Numbers in weapon notes must match the real damage table ─────────────
+ *
+ * A weapon-tagged note that quotes damage or a falloff range is the most
+ * checkable claim in the whole playbook and was, until now, the least checked.
+ * Riot rebalances weapons, and a note saying a Bucky does 17 a pellet becomes
+ * confidently wrong the patch that changes it, in a voice the player trusts.
+ *
+ * Every number in such a note must appear somewhere in that weapon's own table,
+ * either as a body damage value or as a range bound. This cannot tell a correct
+ * sentence from a wrong one built out of right numbers, but it does catch the
+ * failure that actually happens: the table moves and the prose does not.
+ *
+ * Numbers must be DIGITS for this to work. That is also the house style, "force
+ * fights inside 15 meters", and it is why the imported notes were rewritten
+ * from spelled out numbers before this check went in.
+ *
+ * ONLY NOTES THAT CLAIM TO QUOTE THE TABLE ARE CHECKED, via source.numbers.
+ * The first version checked every weapon-tagged note and immediately flagged
+ * two hand written ones: "use it inside 5 meters only" and "the Frenzy melts
+ * inside 10 meters". Both are correct tactical advice and neither is a claim
+ * about the damage table, so 5 and 10 have no business being in it. A checker
+ * that fails good notes gets switched off, so the note declares what it is
+ * doing and only then gets held to it.
+ *
+ * THIS CHECK WAS DEAD ON ARRIVAL AND SAID NOTHING FOR IT. Written through a
+ * shell heredoc, the word boundaries in its number regex collapsed into literal
+ * backspace bytes, so the pattern required a 0x08 around every number, matched
+ * nothing, and every note fell through the guard below. It printed PASS while
+ * checking zero notes. Two planted controls both passed before the bytes were
+ * inspected. See the heredoc warning in CLAUDE.md, and od -c the line rather
+ * than trusting grep, which renders the corruption as a normal escape.
+ */
+const WEAPONS = data.weapons || {};
+if (!Object.keys(WEAPONS).length) {
+  problems.push({ msg: 'the generated data has no weapons block, so no weapon note can be '
+    + 'verified. Run npm run sync:valorant.', text: '' });
+}
+for (const note of notes) {
+  if (!Array.isArray(note.weapons) || !note.weapons.length) continue;
+  // Only a note that says it is quoting the table is held to the table.
+  if (!note.source || !note.source.numbers) continue;
+  const text = String(note.text || '');
+  const nums = (text.match(/\b\d+\b/g) || []).map(Number);
+  if (!nums.length) continue;
+
+  // The union of every legal number across the weapons this note is tagged
+  // with. A note tagged for three shotguns may quote any of their figures.
+  const legal = new Set();
+  let known = false;
+  for (const w of note.weapons) {
+    const rec = WEAPONS[String(w).toLowerCase()];
+    if (!rec) continue;
+    known = true;
+    for (const r of rec.ranges || []) { legal.add(r.from); legal.add(r.to); legal.add(r.body); }
+    if (rec.cost) legal.add(rec.cost);
+  }
+  if (!known) continue;                 // tag is a substring matcher, not a name
+
+  for (const n of nums) {
+    if (!legal.has(n)) {
+      fail(note, `quotes the number ${n}, which is not a damage value, a range bound or a `
+        + `cost for ${note.weapons.join('/')} in the generated table`);
+    }
+  }
+}
+
 // ── Duplicates ──────────────────────────────────────────────────────────────
 // retrieve() serves eight notes. Two copies of the same sentence take two of
 // those eight slots and double that advice's odds of being the one the coach
@@ -289,38 +352,36 @@ for (const note of notes) {
 }
 
 /*
- * ── Contradictions, reported and never failed ───────────────────────────────
+ * ── Contradictions: TRIED, MEASURED, AND REMOVED ────────────────────────────
  *
- * retrieve() serves eight notes chosen partly at random, so two notes giving
- * opposite advice can reach the model in consecutive rounds and the coach
- * contradicts itself with no bug anywhere. This cannot be decided mechanically,
- * because two notes can look opposed and be correctly scoped to different
- * situations, so it prints and does not fail. A human reads it.
+ * The plan called for an advisory flagging notes that give opposing advice,
+ * since retrieve() serves eight notes partly at random and two opposed ones can
+ * reach the model in consecutive rounds. It was built with a small table of
+ * opposing regex pairs and it did not survive its first real run.
  *
- * The pairs are deliberately few and concrete rather than a clever heuristic.
+ * Both advisories it produced were false:
+ *
+ *   "send it" was meant to catch reckless aggression. It matched "send it for
+ *   the plant", "send it before an entry" and "send it into the space you are
+ *   about to take", which are Wingman, Boom Bot and Owl Drone, none of them
+ *   about aggression at all.
+ *
+ *   "hold the angle" against "never stand still" matched a fake defuse note and
+ *   a scoping note that refine each other rather than conflict.
+ *
+ * Nothing real was found, twice. An advisory that cries wolf on its first run
+ * teaches everyone to skip that line of output, which costs more than the check
+ * was ever going to earn.
+ *
+ * WHAT WOULD ACTUALLY WORK, if this is attempted again: two notes only conflict
+ * if they can be RETRIEVED TOGETHER, so overlapping tag sets are the mechanical
+ * half and are cheap to compute. The hard half is deciding that two English
+ * sentences oppose each other, and a regex table is not that. Do not ship a
+ * version that guesses.
  */
-const OPPOSED = [
-  ['never duel without a trade partner', /\bno(?:body|t)\b[^.]*\btrade\b|\bwithout a trade\b|\bonly take fights\b/i,
-    'go for the aggressive play anyway', /\byou are allowed to\b|\bjust go for it\b|\bsend it\b/i],
-  ['hold the angle', /\bhold (?:that|the|your) angle\b/i,
-    'never stop moving', /\bnever stand still\b|\bkeep moving\b/i],
-];
-for (const [aName, aRe, bName, bRe] of OPPOSED) {
-  const aHits = notes.filter((n) => aRe.test(String(n.text || '')));
-  const bHits = notes.filter((n) => bRe.test(String(n.text || '')));
-  if (aHits.length && bHits.length) {
-    advise(`corpus contains both "${aName}" (${aHits.length}) and "${bName}" (${bHits.length}); `
-      + 'check they are scoped to different situations', aHits[0].text);
-  }
-}
 
 console.log(`checked ${notes.length} playbook notes`
   + (imported.length ? ` (${imported.length} imported from server/data/playbook.json)` : ''));
-
-if (advisories.length) {
-  console.log('');
-  for (const a of advisories) console.log(`  note: ${a.msg}`);
-}
 
 if (!problems.length) {
   console.log('PASS: tags, weights, attribution, and every agent, map, ability and callout check out');
