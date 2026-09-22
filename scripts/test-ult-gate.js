@@ -107,5 +107,35 @@ const run = (tip, ult) => verifyTip(tip, 'ai', { ...base, playerUlt: ult });
     'only ready and charging are accepted, anything else is dropped');
 }
 
+// ── mapState actually parses it, not just mentions it ───────────────────────
+// The wiring assertions above are source greps and would pass on a parser that
+// was present and wrong. This calls the real one. coach.js needs Supabase env
+// vars to require at all, so they are stubbed rather than skipping the test.
+{
+  process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co';
+  process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'dummy';
+  let mapState = null;
+  try {
+    mapState = require(path.join(__dirname, '..', 'server', 'routes', 'coach.js')).mapState;
+  } catch (e) {
+    console.log('  (could not load coach.js: ' + e.message + ')');
+  }
+  ok(typeof mapState === 'function', 'mapState is exported for tests');
+  if (typeof mapState === 'function') {
+    const ult = (v) => mapState({ weapon: 'Vandal', ult: v }).playerUlt;
+    ok(ult('ready') === 'ready', 'ready parses');
+    ok(ult('charging') === 'charging', 'charging parses');
+    // The model does not control its own casing, so neither does the parser.
+    ok(ult('READY') === 'ready', 'and casing does not matter');
+    ok(ult('Charging') === 'charging', 'in either direction');
+    // AN ENUM, so a third state never reaches code that only knows two.
+    ok(ult('maybe') === undefined, 'anything outside the enum is dropped');
+    ok(ult('') === undefined, 'an empty string is dropped');
+    ok(ult(null) === undefined, 'null is dropped, which is how an unreadable icon arrives');
+    ok(mapState({ weapon: 'Vandal' }).playerUlt === undefined,
+      'and an absent field stays absent rather than defaulting');
+  }
+}
+
 console.log(`\n${fails ? fails + ' failure(s)' : 'all ult gate checks passed'}`);
 process.exit(fails ? 1 : 0);
