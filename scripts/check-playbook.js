@@ -334,6 +334,31 @@ for (const note of notes) {
   }
   if (!known) continue;                 // tag is a substring matcher, not a name
 
+  /*
+   * A WEAPON NOTE MUST NOT NAME THE WEAPON IT IS TAGGED FOR.
+   *
+   * The prompt carries a hard rule: "USE THE WEAPON TO SHAPE THE PLAY, BUT DO
+   * NOT NAME IT ... they can see their own weapon". Seventeen weapon notes
+   * shipped naming the gun, so the coach was handed a fact it was forbidden to
+   * say, and a live A/B showed it quietly using none of them.
+   *
+   * Naming a DIFFERENT gun is fine and often the point: telling a player their
+   * rifle needs a fifth bullet where the Vandal needs four is information they
+   * cannot see on their own HUD.
+   */
+  for (const w of note.weapons) {
+    const name = String(w);
+    if (name.length < 4) continue;
+    // Word split rather than a regex. Weapon names are plain single words, so
+    // this needs no escaping, and the escaped version of it arrived in this
+    // file corrupted twice over.
+    const words = text.toLowerCase().split(/[^a-z0-9']+/);
+    if (words.includes(name.toLowerCase())) {
+      fail(note, `names "${name}", the weapon it is tagged for, which the prompt forbids `
+        + 'because the player can already see their own gun');
+    }
+  }
+
   for (const n of nums) {
     if (!legal.has(n)) {
       fail(note, `quotes the number ${n}, which is not a damage value, a range bound or a `
