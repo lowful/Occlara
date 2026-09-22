@@ -243,6 +243,68 @@ function lastMatchRow(lm) {
   return row;
 }
 
+/**
+ * The reasoning behind a tip, on demand.
+ *
+ * Reuses the review card rather than adding a surface. That card is already the
+ * one place on this overlay that renders arbitrary length prose, is already
+ * interactive, and already hands the mouse back to the game on dismiss, which
+ * is the part that matters most: an overlay that keeps capturing input over a
+ * live match is the worst thing this window can do.
+ *
+ * NO AUTO DISMISS. The match review times out because it arrives unasked; this
+ * one was requested and is several sentences long, so it stays until the player
+ * closes it. A paragraph that vanishes while you are reading it is worse than
+ * no paragraph.
+ */
+function showExplain(data) {
+  if (!data || !data.body) return;
+  reviewEl.hidden = false;
+  reviewEl.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'review-card';
+
+  const h = document.createElement('h3');
+  h.innerHTML = '<span class="src-dot"></span>';
+  h.append(data.title || 'Why that tip');
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'review-close';
+  closeBtn.title = 'Dismiss';
+  closeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>';
+  h.append(closeBtn);
+
+  // The tip being explained, quoted, so the card stands on its own once the
+  // original card has aged off the stack.
+  const frag = document.createElement('div');
+  frag.className = 'body';
+  if (data.tip) {
+    const quote = document.createElement('div');
+    quote.className = 'explain-tip';
+    quote.textContent = data.tip;
+    frag.append(quote);
+  }
+  const body = document.createElement('div');
+  // PRE-WRAP, because textContent drops the blank lines. A screenshot of the
+  // first version showed three paragraphs of reasoning collapsed into one
+  // unbroken wall, which is exactly the thing nobody reads. The class carries
+  // the whitespace rule so the match review, which is one paragraph, is
+  // untouched.
+  body.className = 'explain-body';
+  body.textContent = data.body;
+  frag.append(body);
+
+  card.append(h, frag);
+  reviewEl.append(card);
+
+  window.occlara.setInteractive(true);
+  const dismiss = () => {
+    window.occlara.setInteractive(false);
+    card.classList.add('out');
+    setTimeout(() => { reviewEl.hidden = true; reviewEl.innerHTML = ''; }, 300);
+  };
+  closeBtn.addEventListener('click', dismiss);
+}
+
 function showReview(data) {
   if (!data || !data.review) return;
   reviewEl.hidden = false;
@@ -385,6 +447,7 @@ window.occlara.onState(applyState);
 // position, size and card style are already correct on the very first tip.
 window.occlara.getState().then(applyState).catch(() => {});
 window.occlara.onMatchReview(showReview);
+if (window.occlara.onExplain) window.occlara.onExplain(showExplain);
 window.occlara.onVisibility(({ visible }) => {
   document.body.classList.toggle('hidden-overlay', !visible);
 });

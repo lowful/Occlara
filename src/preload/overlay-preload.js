@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('occlara', {
   onStatus:     (cb) => subscribe(C.PUSH_STATUS, cb),
   onState:      (cb) => subscribe(C.PUSH_STATE, cb),
   onMatchReview:(cb) => subscribe(C.PUSH_MATCH_REVIEW, cb),
+  onExplain:    (cb) => subscribe(C.PUSH_EXPLAIN, cb),
   onVisibility: (cb) => subscribe(C.PUSH_OVERLAY_VIS, cb),
   // Pull the current state once on load. Without this the overlay only ever
   // learns its look from a PUSH_STATE, and the single launch-time broadcast is
