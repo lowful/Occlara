@@ -4,6 +4,7 @@
   "description": "Occlara, an AI coaching overlay for Valorant and Marvel Rivals, with a League of Legends learning section. Reads the screen, never the game.",
   "main": "src/main/index.js",
   "scripts": {
+    "bench:advanced": "node scripts/ab-advanced.js",
     "bench:models": "node scripts/bench-models.js",
     "check:clientboot": "node scripts/check-client-boot.js",
     "check:config": "node scripts/check-config-bridge.js",

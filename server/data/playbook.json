@@ -230,7 +230,7 @@
     "tier": "core"
   },
   {
-    "text": "Bucky does 17 a pellet inside 8 meters, 13 past that and 9 past 12, so hold where they arrive close, never the long angle.",
+    "text": "Your shotgun does 17 a pellet inside 8 meters, 13 past that and 9 past 12, so hold where they arrive close, never the long angle.",
     "weapons": [
       "bucky"
     ],
@@ -244,7 +244,7 @@
     "tier": "advanced"
   },
   {
-    "text": "Judge does 17 a pellet inside 10 meters, 10 past that and 7 past 15, so its whole value is the close re peek.",
+    "text": "Your shotgun does 17 a pellet inside 10 meters, 10 past that and 7 past 15, so its whole value is the close re peek.",
     "weapons": [
       "judge"
     ],
@@ -273,7 +273,7 @@
     "tier": "core"
   },
   {
-    "text": "Phantom does 39 to the body inside 20 meters and 35 past it, so a long hold costs you a fifth bullet the Vandal never needs.",
+    "text": "Your rifle does 39 to the body inside 20 meters and 35 past it, so a long hold costs you a fifth bullet the Vandal never needs.",
     "weapons": [
       "phantom"
     ],
@@ -515,7 +515,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Spectre does 26 to the body inside 15 meters and 22 past it, so it wins the close fight and loses every long one.",
+    "text": "Your SMG does 26 to the body inside 15 meters and 22 past it, so it wins the close fight and loses every long one.",
     "weapons": [
       "spectre"
     ],
@@ -529,7 +529,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Stinger drops from 27 to 23 past 15 meters, buy it to hold a choke, not to trade across a site.",
+    "text": "Your SMG drops from 27 to 23 past 15 meters, use it to hold a choke, not to trade across a site.",
     "weapons": [
       "stinger"
     ],
@@ -543,7 +543,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Ghost holds 30 to the body all the way to 30 meters, which is why it out ranges every other pistol on an eco.",
+    "text": "Your pistol holds 30 to the body all the way to 30 meters, which out ranges most of what an eco can buy.",
     "weapons": [
       "ghost"
     ],
@@ -557,7 +557,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Sheriff does 55 to the body out to 30 meters, so on a save it beats a rifle at range if you hit the first shot.",
+    "text": "Your pistol does 55 to the body out to 30 meters, so on a save it beats a rifle at range if the first shot lands.",
     "weapons": [
       "sheriff"
     ],
@@ -571,7 +571,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Frenzy falls from 26 to 21 past 20 meters, so it is a close angle gun and never an answer to a rifle across the map.",
+    "text": "Your pistol falls from 26 to 21 past 20 meters, so take a close angle and never answer a rifle across the map.",
     "weapons": [
       "frenzy"
     ],
@@ -585,7 +585,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Classic keeps 26 to the body out to 30 meters, so on a pistol round range matters far less than your first shot landing.",
+    "text": "Your pistol keeps 26 to the body out to 30 meters, so on a pistol round range matters far less than the first shot landing.",
     "weapons": [
       "classic"
     ],
@@ -599,7 +599,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Bandit stays at 39 to the body all the way to 30 meters before it drops, which makes it the eco pistol that punishes a long hold.",
+    "text": "Your pistol stays at 39 to the body all the way to 30 meters before it drops, so it punishes a long hold.",
     "weapons": [
       "bandit"
     ],
@@ -613,7 +613,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Ares only drops from 30 to 28 past 30 meters, so its wall spam stays dangerous at almost any range.",
+    "text": "Your machine gun only drops from 30 to 28 past 30 meters, so its wall spam stays dangerous at almost any range.",
     "weapons": [
       "ares"
     ],
@@ -627,7 +627,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Odin does 38 to the body inside 30 meters and 31 past it, and it shreds walls, so spam the common angle rather than peeking it.",
+    "text": "Your machine gun does 38 to the body inside 30 meters and 31 past it, and it shreds walls, so spam the common angle rather than peeking it.",
     "weapons": [
       "odin"
     ],
@@ -641,7 +641,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Vandal does 40 to the body at every range on the map, so it is the one rifle whose value does not change when the fight gets long.",
+    "text": "Your rifle does 40 to the body at every range on the map, so its value does not change when the fight gets long.",
     "weapons": [
       "vandal"
     ],
@@ -655,7 +655,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Guardian does 65 to the body at any range and two taps a full shield, so it punishes a long hold on a half buy.",
+    "text": "Your rifle does 65 to the body at any range and two taps a full shield, so it punishes a long hold on a half buy.",
     "weapons": [
       "guardian"
     ],
@@ -669,7 +669,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Marshal does 101 to the body at every range, so one body and one pistol shot is a kill and you do not need the head.",
+    "text": "Your sniper does 101 to the body at every range, so one body and one pistol shot is a kill and you do not need the head.",
     "weapons": [
       "marshal"
     ],
@@ -683,7 +683,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Outlaw fires two shots before reloading and does 140 a body at any range, so it wins a double peek an Operator cannot.",
+    "text": "Your sniper fires two shots before reloading and does 140 a body at any range, so it wins a double peek an Operator cannot.",
     "weapons": [
       "outlaw"
     ],
