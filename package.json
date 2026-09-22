@@ -45,6 +45,7 @@
     "test:deathhp": "node scripts/test-death-hp.js",
     "test:deathreconcile": "node scripts/test-death-reconcile.js",
     "test:deathspot": "node scripts/test-death-spot.js",
+    "test:explaingate": "node scripts/test-explain-gate.js",
     "test:games": "node scripts/test-games.js",
     "test:gradeblend": "node scripts/test-grade-blend.js",
     "test:habits": "node scripts/test-habits.js",

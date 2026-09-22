@@ -184,3 +184,13 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
   font-size: 10.5px;
   line-height: 1.45;
 }
+
+/* The note under the shortcut list. Quieter than .lead, which is the section's
+   main paragraph, and sized to match .k so the block reads as one group. */
+.keys-note {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-mute);
+  margin: 10px 0 0;
+}
+.keys-note kbd { font-size: 10.5px; }

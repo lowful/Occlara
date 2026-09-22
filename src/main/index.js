@@ -62,6 +62,7 @@ const { RivalsEngine } = require('./services/rivals-engine');
 const { reconcile: reconcileDeaths, summarise: summariseDeaths, makeCheckCache } = require('./services/death-reconcile');
 const tray     = require('./tray');
 const hotkeys  = require('./hotkeys');
+const { explainAllowed } = require('../shared/explain-gate');
 const registerIpc = require('./ipc/register-ipc');
 const licenseService = require('./services/license-service');
 const agentData = require('./services/agent-data');
@@ -552,6 +553,104 @@ const controller = {
   },
   async forceTip() {
     if (engine) await engine.requestTip();
+  },
+
+  /**
+   * Explain the tip the player just saw, at length, on demand.
+   *
+   * A live tip is ONE SENTENCE because it is read mid fight, which is the right
+   * constraint and also the reason the coaching can feel shallow: the reasoning
+   * behind a good call does not fit in 22 words. This is the same call unpacked,
+   * on the frame it was actually made about.
+   *
+   * IT ONLY FIRES DURING A BUY PHASE OR WHILE DEAD, and that is not politeness.
+   * Reading a paragraph while holding an angle is how a player dies, so a
+   * feature that offers depth mid round would cost more rounds than it wins. The
+   * two moments where there is genuinely nothing else to do are the buy phase
+   * and spectating, which are also the two moments a player is most willing to
+   * read. Refusing says why rather than doing nothing.
+   *
+   * It reuses /api/coach/frame-chat, which already answers in 2 to 5 sentences
+   * against the real screenshot and has no tip length gate on it, rather than
+   * widening the live tip contract. The live tip stays one sentence.
+   */
+  async explainLastTip() {
+    const licenseKey = store.get('licenseKey');
+    if (!licenseKey) return { error: 'No licence active.' };
+
+    // The gate lives in src/shared/explain-gate.js so it can be tested without
+    // booting Electron. It is the safety property of this feature.
+    const allowed = explainAllowed((engine && engine.matchContext) || {});
+    if (!allowed.ok) {
+      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Not now', body: allowed.why, tip: '' });
+      return { error: allowed.why };
+    }
+
+    if (!store.get('aiLog')) {
+      const msg = 'Turn the AI decision log on in Settings, the explanation needs the frame the tip was written about.';
+      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Cannot explain that', body: msg, tip: '' });
+      return { error: msg };
+    }
+
+    // The most recent frame that actually PRODUCED a tip. Frames the guards
+    // rejected are the majority, and explaining one of those would explain a
+    // sentence the player never saw.
+    const log = readAiLog(aiLogLiveId());
+    const recs = Array.isArray(log && log.records) ? log.records : [];
+    let at = -1;
+    for (let i = recs.length - 1; i >= 0; i--) {
+      if (recs[i] && recs[i].shown && recs[i].shown.text) { at = i; break; }
+    }
+    if (at < 0) {
+      const msg = 'No tip has been shown yet this session.';
+      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Nothing to explain', body: msg, tip: '' });
+      return { error: msg };
+    }
+
+    const target = recs[at];
+    const tip = String(target.shown.text || '');
+    const b64 = (r) => (r && typeof r.frameData === 'string'
+      ? r.frameData.replace(/^data:image\/[a-z]+;base64,/, '') : null);
+    // One frame of run up plus the frame itself, matching askAboutFrame. A third
+    // image is what made that feature stop replying at all.
+    const images = [recs[at - 1], target].map(b64).filter(Boolean);
+    if (!images.length) {
+      const msg = 'That frame is no longer on disk.';
+      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Cannot explain that', body: msg, tip: '' });
+      return { error: msg };
+    }
+
+    /*
+     * THE QUESTION IS THE FEATURE. A vague "explain this" gets a restatement of
+     * the tip in more words, which is worth nothing. Asking for the read, the
+     * alternative and what a better player does instead is what turns one
+     * sentence into actual coaching, and naming the screen keeps it anchored to
+     * what is actually there rather than to general theory.
+     */
+    const question = `You told the player: "${tip}". Explain that call properly. `
+      + 'What on this screen made it the right read, what the obvious alternative play was '
+      + 'and why it is worse, and what a Radiant would do from here that the player did not. '
+      + 'Be concrete about the positions, ranges and timings you can actually see in the frame, '
+      + 'and if the tip was weak for this moment, say so plainly.';
+
+    try {
+      const { ok, status, data } = await api.post('/api/coach/frame-chat', {
+        question, images, state: target.state || {}, shown: tip, history: [],
+      }, licenseKey, 35000);
+      if (ok && data && data.reply) {
+        registry.broadcast(C.PUSH_EXPLAIN, { title: 'Why that tip', body: data.reply, tip });
+        return { reply: data.reply };
+      }
+      console.error(`[explain] status=${status} ${(data && (data.error || data.message)) || 'no reply'}`);
+      const msg = chatFailureText(status, data);
+      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Could not explain that', body: msg, tip });
+      return { error: msg };
+    } catch (e) {
+      console.error('[explain] failed:', e.message);
+      const msg = 'Could not reach the coach server.';
+      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Could not explain that', body: msg, tip });
+      return { error: msg };
+    }
   },
   confirmAgent() { if (engine) engine.confirmAgent(); },
   resizePanel(h) { if (typeof h === 'number') panelWindow.setContentHeight(h); },
@@ -2187,6 +2286,7 @@ const hotkeyActions = {
   openSettings:   () => controller.openSettings(),
   openHistory:    () => controller.openHistory(),
   jokeTip:        () => controller.jokeTip(),
+  explainTip:     () => controller.explainLastTip(),
 };
 
 // ── Launch ───────────────────────────────────────────────────────────────────

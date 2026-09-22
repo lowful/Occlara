@@ -96,6 +96,10 @@ const CHANNELS = {
   // untouched: that surface has a boot check of its own (check:lolreview) and
   // widening its channel would put a second producer behind it.
   PUSH_RIVALS_REVIEW: 'push:rivalsReview',
+  // The reasoning behind a tip the player just saw, on demand. A live tip is one
+  // sentence because it is read mid fight; this is the same call explained at
+  // length, and it only ever fires when the player asks for it.
+  PUSH_EXPLAIN:      'push:explain',      // { title, body, tip }
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -111,6 +115,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_GAME,
   CHANNELS.PUSH_LOL_REVIEW,
   CHANNELS.PUSH_RIVALS_REVIEW,
+  CHANNELS.PUSH_EXPLAIN,
 ];
 
 module.exports = CHANNELS;
