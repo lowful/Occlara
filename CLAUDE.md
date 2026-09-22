@@ -464,6 +464,40 @@ A contradiction advisory was built here and **removed after measuring**: both
 alarms it raised were false, "send it" matching Wingman and Owl Drone rather
 than aggression. What would actually work is recorded in the file.
 
+### Advanced tips is a BIAS, never a replacement
+
+`advancedTips` in config, off by default, surfaced in Settings. A note carries
+`tier: 'core' | 'advanced'`, core being the default so the 357 hand written ones
+are untouched. With the toggle on the mix goes from 34% to 75% advanced,
+measured across 12 real logged contexts plus 5 synthetic.
+
+**A floor of core notes always survives, and on a deathstreak core takes the
+majority back.** That is the design, not a hedge: advanced advice assumes the
+fundamentals are in place, and a player dying on repeat needs to stop walking
+into open ground rather than a damage breakpoint. The override is deliberately
+not configurable, because someone who turned advanced mode on is exactly the
+person who will not turn it off while losing.
+
+It is a **reserve, not a score bonus**. A bonus was the first design and does
+not do what it says: with `agents +4` in play, a bonus big enough to guarantee
+advanced notes surface drowns the specificity that makes any note relevant.
+
+**A weapon note must never name the weapon it is tagged for.** The prompt says
+USE THE WEAPON TO SHAPE THE PLAY BUT DO NOT NAME IT, since the player can see
+their own gun. All 17 shipped naming it, so the coach held a fact it was
+forbidden to say, and a live A/B showed it using none of them. They give a
+distance to play now, which is better advice anyway. Naming a DIFFERENT gun is
+allowed and is often the point.
+
+`npm run bench:advanced` runs the live A/B on real frames, toggle on against
+off. It is a bench, not a check: it spends money and only a human can grade
+whether the tip got better. `npm run test:advancedtips` measures the retrieval
+shift offline, which is the half that can be checked.
+
+**The first A/B tested the easy half.** Measured on real contexts alone, all
+twelve came back "no agent", so `agents` notes, the highest scoring tag at +4,
+were never exercised. Always run both sets.
+
 ### The coach can see your ultimate, and only that
 
 STATE carries `ult`, "ready" or "charging" or null. Before it, the coach had **no
