@@ -427,6 +427,90 @@ npm run check:splash       the launch animation is always actually seen
 npm run check:learnrole    a support never sees the CS lesson
 ```
 
+## The Pro Playbook, and how to grow it
+
+`server/services/knowledge.js` holds the playbook: tagged notes scored against
+the live situation by `retrieve()`, which returns **only eight** and injects
+them at `${habitsBlock}`. `playbookMode()` is pinned to `hybrid`, so both the
+static habits and the retrieved notes go in.
+
+**New knowledge goes in `server/data/playbook.json`**, the growth hook the
+module has always documented. It merges at startup, `check:playbook` covers it
+automatically through `knowledge.all()`, and extra fields such as `source` pass
+through untouched. The 40 notes there are from Bonkar (Malkolm Rench, NRG head
+coach, VCT Champions 2025) VOD reviews, and **imported notes must carry
+`source.coach`** or the checker fails them.
+
+**Tagging decides whether a note exists at all.** Scoring is `agents +4`,
+`weapons +4`, `maps +3`, `situations +2` each, `side/phase/roles +2`, and only
+eight notes survive. Measured: a role-tagged note loses to an agent-tagged one
+every time for a confirmed agent, so a Jett got **zero** of the imported notes
+until the load-bearing role notes were given their role's agent list too. An
+untagged note competes with 357 others and loses.
+
+**A typo in a tag is invisible.** `retrieve()` excludes rather than warns, so
+`phase: 'postpant'` makes a note permanently unreachable with no error. That is
+what the tag vocabulary check exists for, and the vocabulary list is itself
+checked against the flags `situationOf` actually produces, in both directions.
+
+**Weapon numbers are computed.** `sync:valorant` pulls the damage table (19
+weapons, 13 with falloff), and any note declaring `source.numbers` has every
+number in it verified against that weapon's real ranges. A Riot rebalance fails
+the build rather than leaving the coach confidently wrong. Notes that give
+tactical distances, "play inside 5 meters", are NOT checked, because that is
+advice and not a claim about the table.
+
+A contradiction advisory was built here and **removed after measuring**: both
+alarms it raised were false, "send it" matching Wingman and Owl Drone rather
+than aggression. What would actually work is recorded in the file.
+
+### The coach can see your ultimate, and only that
+
+STATE carries `ult`, "ready" or "charging" or null. Before it, the coach had **no
+ability state whatsoever**: the prompt told the model to read the ability icons
+and never asked it to report what it saw, so every ultimate tip was a guess.
+
+`ULT_COMMAND` in `coaching-engine.js` drops a tip telling the player to press an
+ultimate the HUD says is charging. **Only a confirmed "charging" blocks.** The
+icon is small and often obscured so null is the common read, and a gate firing
+on null would silence every ultimate tip rather than the wrong ones.
+`playerUlt` is in `SPECTATOR_OWNED`, because after a death that icon belongs to
+the teammate being watched.
+
+Basic abilities still have no state. `ABILITY_COMMAND` remains a blanket ban on
+commanding a mobility ability, which is the honest position while the coach
+cannot see cooldowns.
+
+### Ctrl+Shift+E explains the last tip, and refuses when that is unsafe
+
+The live tip is one sentence because it is read mid fight. `explainLastTip()`
+unpacks the same call on the frame it was made about, through
+`/api/coach/frame-chat`, which already answers at length with no tip-length gate.
+The live tip contract is untouched.
+
+`src/shared/explain-gate.js` allows it **only in a buy phase or while dead**,
+and **refuses on unknown**, which inverts the usual rule here. Elsewhere an
+unreadable field means say nothing and carry on; here the cost is asymmetric, so
+anything not provably safe declines and says when to try again. Dead is
+`playerAlive === false || phase === 'dead'`, matching `isSpectating()`: demanding
+both would refuse a dead player on exactly the ambiguous frames right after a
+death.
+
+It picks the last frame that **produced a shown tip**, not the last frame, since
+the guards reject the majority. It renders through the existing review card and
+needs `white-space: pre-wrap`, because `textContent` drops blank lines and the
+first version rendered three paragraphs as one unbroken wall.
+
+**The post-match review may reason across the observed facts**, and is the only
+place that may. Its fourth sentence names a repeat, "three of four deaths on the
+same angle", and is conditional: the prompt says to stop at three sentences when
+the facts are thin. The CRITICAL GROUNDING RULE above it is unchanged and must
+stay: tips prove what was ADVISED, never what the player did.
+
+**No test grades whether a tip is insightful.** `review-log.js` says so in as
+many words. `verify:ai` is the gate for any prompt or STATE change and it spends
+real money, so it is a manual pre-flight, never CI.
+
 ## Conventions
 
 **No em dashes or en dashes** anywhere, in tips, in UI copy, in docs. Use
