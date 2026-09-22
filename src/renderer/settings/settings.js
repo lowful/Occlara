@@ -78,6 +78,7 @@ function wireBoolSeg(id, key) {
 }
 const showTipsSeg = wireBoolSeg('showtips', 'showTips');
 const beginnerSeg = wireBoolSeg('beginner', 'beginnerTips');
+const advancedSeg = wireBoolSeg('advanced', 'advancedTips');
 const aiLogSeg    = wireBoolSeg('ailog', 'aiLog');
 const soundsSeg   = wireBoolSeg('sounds', 'sounds');
 // Capture quality is a VALUE segment, not a boolean: 'standard' or
@@ -397,6 +398,9 @@ async function load() {
       opacityLabel.textContent = op + '%';
       markSeg(showTipsSeg, cfg.showTips === false ? 'off' : 'on');
       markSeg(beginnerSeg, cfg.beginnerTips === false ? 'off' : 'on');
+      // OFF is the default here, the opposite of beginner tips, so the test is
+      // for an explicit true rather than for anything that is not false.
+      markSeg(advancedSeg, cfg.advancedTips === true ? 'on' : 'off');
       markSeg(aiLogSeg, cfg.aiLog === false ? 'off' : 'on');
       // Default on, so an older config with no key set reads as on rather than
       // as off, which is what `=== true` would do here.

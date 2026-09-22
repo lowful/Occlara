@@ -373,6 +373,8 @@ const controller = {
         // Beginner tips (the curated library): off means the automatic stream
         // never includes them; a manual force press may still fall back to one.
         beginnerTips: store.get('beginnerTips') !== false,
+        // Read live so the toggle applies to the very next capture.
+        advancedTips: store.get('advancedTips') === true,
       }),
       // Death forensics: the freshest rolling game-audio clip (RAM only),
       // attached by the engine only inside the death-review window.

@@ -9,7 +9,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "charity utility"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Fire recon bolt high above an enemy wall rather than into it, the scan clears the wall and you can spam through it for free damage.",
@@ -21,7 +22,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "dart height"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "An instant recon bolt off the barrier is a pro habit built on a coordinated space take, alone it just scans an empty corner and leaves you blind later.",
@@ -33,7 +35,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "insta dart"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Rotate with recon bolt still up, arriving somewhere new with it already spent turns the rotate into a blind fight.",
@@ -45,7 +48,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "rotating with util"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Half a second early and recon bolt scans the corner behind them, wait for the contact before you fire it.",
@@ -57,7 +61,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "dart timing"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Sova anchors a site as well as he rotates, a scan above a push is just as strong from a hold as it is on the move.",
@@ -69,7 +74,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "anchoring"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Hunter's fury needs runway, back up as you cast so you have room to sweep, walking forward while you ult throws away most of the angle.",
@@ -81,7 +87,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "ult range"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Entry in checkpoints, take one piece of space, survive behind cover, then wait for the team to reach you before you take the next.",
@@ -103,7 +110,8 @@
       "Reyna",
       "Waylay",
       "Yoru"
-    ]
+    ],
+    "tier": "advanced"
   },
   {
     "text": "Do not move to the next piece of space before your team reaches the last one, you are the fastest player there and they cannot trade what they cannot reach.",
@@ -125,7 +133,8 @@
       "Reyna",
       "Waylay",
       "Yoru"
-    ]
+    ],
+    "tier": "advanced"
   },
   {
     "text": "Sitting far up forces them to respect you, watch the minimap and punish the moment they overstep toward the rest of your team.",
@@ -137,7 +146,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "being a thorn"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "The agent you picked does not decide whether you are allowed to flank or take space, that is a choice about the round, not about your role.",
@@ -146,7 +156,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "role conventions"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Never stand still while holding an angle, small steps in and out beat a static crosshair because they have to find you again every time.",
@@ -155,7 +166,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "movement"
-    }
+    },
+    "tier": "core"
   },
   {
     "text": "Burst, move, burst, move, the kills come from being hard to hit as much as from the first bullet landing.",
@@ -164,7 +176,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "movement"
-    }
+    },
+    "tier": "core"
   },
   {
     "text": "You accelerate from a standstill in this game, so hugging the wall you are about to peek means you arrive slowly and get shot first.",
@@ -173,7 +186,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "acceleration"
-    }
+    },
+    "tier": "core"
   },
   {
     "text": "Step off the wall and build your speed before the corner, so the peek is fast instead of a slow lean into their crosshair.",
@@ -182,7 +196,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "acceleration"
-    }
+    },
+    "tier": "core"
   },
   {
     "text": "Do not walk straight out of a smoke in a straight line, angle the exit so they have to move their crosshair to find you.",
@@ -191,7 +206,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "smoke exits"
-    }
+    },
+    "tier": "core"
   },
   {
     "text": "Decide how you are taking an angle before you arrive at it, the way you pick the lane before the turn, hesitating at the corner is what gets you traded.",
@@ -200,7 +216,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "planning the peek"
-    }
+    },
+    "tier": "core"
   },
   {
     "text": "Scoping a rifle roots you in place, take the angle unscoped and keep moving unless the range genuinely demands it.",
@@ -209,7 +226,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "scoping"
-    }
+    },
+    "tier": "core"
   },
   {
     "text": "Bucky does 17 a pellet inside 8 meters, 13 past that and 9 past 12, so hold where they arrive close, never the long angle.",
@@ -222,7 +240,8 @@
       "kind": "vod-review",
       "topic": "shotgun range",
       "numbers": "valorant-api.com damage table"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Judge does 17 a pellet inside 10 meters, 10 past that and 7 past 15, so its whole value is the close re peek.",
@@ -235,7 +254,8 @@
       "kind": "vod-review",
       "topic": "shotgun range",
       "numbers": "valorant-api.com damage table"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Aim a shotgun at body height rather than head height, a headshot level crosshair sends most of the pellets straight over them.",
@@ -249,7 +269,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "shotgun aim"
-    }
+    },
+    "tier": "core"
   },
   {
     "text": "Phantom does 39 to the body inside 20 meters and 35 past it, so a long hold costs you a fifth bullet the Vandal never needs.",
@@ -262,7 +283,8 @@
       "kind": "computed",
       "topic": "phantom falloff",
       "numbers": "valorant-api.com damage table"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Two or three stars placed before the round is the sweet spot, none leaves you slow and all five leaves you nothing to answer a rotate with.",
@@ -274,7 +296,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "pre placed stars"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Nova pulse low and gravity well high pulls them up into the open with nothing to hide behind, the pair is worth far more than either alone.",
@@ -286,7 +309,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "star combos"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Smoke the same spot every round until they walk into it on trust, then pull it back and take the kills they hand you.",
@@ -298,7 +322,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "building a pattern"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "When your team commits, get the smoke down fast and get back on your gun, a perfect smoke that lands after the entry is a wasted round.",
@@ -319,7 +344,8 @@
       "Miks",
       "Omen",
       "Viper"
-    ]
+    ],
+    "tier": "advanced"
   },
   {
     "text": "A shallow smoke beats a deep one, it leaves them exposed to every angle as they step out instead of letting them isolate just one.",
@@ -331,7 +357,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "smoke depth"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Gun in hand is the priority, utility is how you win the fight, not something you do instead of taking it.",
@@ -352,7 +379,8 @@
       "Miks",
       "Omen",
       "Viper"
-    ]
+    ],
+    "tier": "core"
   },
   {
     "text": "Force an operator to play the retake rather than the peek, hit a site from enough lanes at once that holding one angle stops paying.",
@@ -364,7 +392,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "suppressing an op"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "If one site keeps working for them they will keep going there, it really is not deeper than that, so start your round toward the site that has been winning.",
@@ -373,7 +402,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "anti strat"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Do not rotate off a man advantage you already have information on into a site you know nothing about, the numbers and the info are both worth more than the surprise.",
@@ -382,7 +412,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "rotating into the unknown"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "The third time you see the same lurk in the same place it stops being a coincidence, say it out loud so the team can play around it.",
@@ -391,7 +422,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "paint the picture"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Which side the enemy wall goes up on is the clearest read available, call it every round and watch whether they ever break the pattern.",
@@ -400,7 +432,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "wall reads"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Make a plan in the buy phase and commit to it, a round where you are still deciding at contact is a round you are playing a step behind.",
@@ -410,7 +443,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "have a plan"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "You do not have to lurk just because you picked a sentinel, second entry with your utility already on the site is a real way to play the role.",
@@ -422,7 +456,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "role conventions"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Do not take the spike every round, carrying it turns every gunfight into a plant and you lose the reps that actually improve your aim.",
@@ -432,7 +467,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "spike carrying"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Vary where you start the round, playing the same opening position every time is the easiest thing in the world to prepare against.",
@@ -441,7 +477,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "starting positions"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "An ultimate you never press is worth nothing, spend it on a round you can still win rather than saving it for a perfect one that never arrives.",
@@ -450,7 +487,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "ult economy"
-    }
+    },
+    "tier": "advanced"
   },
   {
     "text": "Play the same way at zero and ten as at ten and zero, letting the scoreline change how you sound is how a losable game becomes a lost one.",
@@ -462,7 +500,8 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "tilt"
-    }
+    },
+    "tier": "core"
   },
   {
     "text": "Keep the call simple enough that four other people can execute it, an overthought read nobody follows is worth less than an obvious one everybody does.",
@@ -471,6 +510,368 @@
       "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "simplicity"
+    },
+    "tier": "core"
+  },
+  {
+    "tier": "advanced",
+    "text": "Spectre does 26 to the body inside 15 meters and 22 past it, so it wins the close fight and loses every long one.",
+    "weapons": [
+      "spectre"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "spectre falloff",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Stinger drops from 27 to 23 past 15 meters, buy it to hold a choke, not to trade across a site.",
+    "weapons": [
+      "stinger"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "stinger falloff",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Ghost holds 30 to the body all the way to 30 meters, which is why it out ranges every other pistol on an eco.",
+    "weapons": [
+      "ghost"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "ghost falloff",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Sheriff does 55 to the body out to 30 meters, so on a save it beats a rifle at range if you hit the first shot.",
+    "weapons": [
+      "sheriff"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "sheriff falloff",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Frenzy falls from 26 to 21 past 20 meters, so it is a close angle gun and never an answer to a rifle across the map.",
+    "weapons": [
+      "frenzy"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "frenzy falloff",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Classic keeps 26 to the body out to 30 meters, so on a pistol round range matters far less than your first shot landing.",
+    "weapons": [
+      "classic"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "classic falloff",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Bandit stays at 39 to the body all the way to 30 meters before it drops, which makes it the eco pistol that punishes a long hold.",
+    "weapons": [
+      "bandit"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "bandit falloff",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Ares only drops from 30 to 28 past 30 meters, so its wall spam stays dangerous at almost any range.",
+    "weapons": [
+      "ares"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "ares falloff",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Odin does 38 to the body inside 30 meters and 31 past it, and it shreds walls, so spam the common angle rather than peeking it.",
+    "weapons": [
+      "odin"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "odin falloff",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Vandal does 40 to the body at every range on the map, so it is the one rifle whose value does not change when the fight gets long.",
+    "weapons": [
+      "vandal"
+    ],
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "vandal flat",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Guardian does 65 to the body at any range and two taps a full shield, so it punishes a long hold on a half buy.",
+    "weapons": [
+      "guardian"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "guardian flat",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Marshal does 101 to the body at every range, so one body and one pistol shot is a kill and you do not need the head.",
+    "weapons": [
+      "marshal"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "marshal flat",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "tier": "advanced",
+    "text": "Outlaw fires two shots before reloading and does 140 a body at any range, so it wins a double peek an Operator cannot.",
+    "weapons": [
+      "outlaw"
+    ],
+    "weight": 2,
+    "source": {
+      "coach": "Occlara",
+      "kind": "computed",
+      "topic": "outlaw flat",
+      "numbers": "valorant-api.com damage table"
+    }
+  },
+  {
+    "text": "Spread out before you commit, three players stacked in one choke tells them the site before you have taken a single duel.",
+    "side": "attack",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "default spread"
+    }
+  },
+  {
+    "text": "A lurk only pays if it threatens the rotate, sitting in an empty corner where nobody walks is just playing four versus five.",
+    "side": "attack",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "lurk value"
+    }
+  },
+  {
+    "text": "A fake has to cost them something, if they do not spend utility or rotate a player then you announced your real site for free.",
+    "side": "attack",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "fakes"
+    }
+  },
+  {
+    "text": "With a man advantage play slower, not faster, the extra player is worth more as patience than as a fifth body in the choke.",
+    "side": "attack",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "man advantage"
+    }
+  },
+  {
+    "text": "Do not spend the whole team utility on the entry, keep one smoke or flash for the moment they rotate in behind you.",
+    "side": "attack",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "util budget"
+    }
+  },
+  {
+    "text": "Take space early and hold it, ground you own at forty seconds is ground you do not have to fight through at fifteen.",
+    "side": "attack",
+    "phase": "active",
+    "tier": "advanced",
+    "weight": 2,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "tempo"
+    }
+  },
+  {
+    "text": "Once the spike is down the round is about time, so hold the angles that watch it and let them come to you.",
+    "side": "attack",
+    "phase": "postplant",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "post plant"
+    }
+  },
+  {
+    "text": "Do not rotate off a site you already have numbers and information on, the man advantage and the read are both worth more than surprise.",
+    "side": "attack",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "rotating into the unknown"
+    }
+  },
+  {
+    "text": "Early aggression buys information once, doing it every round just donates a player to a team that now expects you.",
+    "side": "defense",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "early aggression"
+    }
+  },
+  {
+    "text": "Anchoring and rotating are two different jobs, decide which one you are doing before the barriers drop rather than halfway through the round.",
+    "side": "defense",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "anchor or rotate"
+    }
+  },
+  {
+    "text": "Giving ground is not losing the site, falling back to a crossfire you can trade from beats dying alone at the choke.",
+    "side": "defense",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "giving ground"
+    }
+  },
+  {
+    "text": "Retake together and with utility, arriving one at a time is how a four versus two retake turns into a lost round.",
+    "side": "defense",
+    "phase": "postplant",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "retake shape"
+    }
+  },
+  {
+    "text": "If the round is lost, save the gun, one rifle kept is worth more than a heroic one versus four that was never going to land.",
+    "side": "defense",
+    "tier": "advanced",
+    "weight": 2,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "saving"
+    }
+  },
+  {
+    "text": "Watching the flank is a job, not a feeling, pick the angle that actually covers it and hold it rather than drifting back to the fight.",
+    "side": "defense",
+    "tier": "advanced",
+    "weight": 2,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "flank watch"
+    }
+  },
+  {
+    "text": "Which side their wall goes up on is the clearest read you get all round, call it every time and watch whether they ever break the pattern.",
+    "side": "defense",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Bonkar (NRG)",
+      "kind": "vod-review",
+      "topic": "wall reads"
+    }
+  },
+  {
+    "text": "Count the bodies before you contest, two of you against four on site is a retake to set up, not a fight to take now.",
+    "side": "defense",
+    "tier": "advanced",
+    "weight": 3,
+    "source": {
+      "coach": "Occlara",
+      "kind": "round-shape",
+      "topic": "contest or retake"
     }
   }
 ]

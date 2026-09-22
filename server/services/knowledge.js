@@ -520,7 +520,37 @@ function situationOf(ctx) {
  * the player is not holding) are excluded outright; the rest are scored by
  * how specifically they match.
  */
-function retrieve(ctx, limit = 8) {
+/*
+ * ── ADVANCED MODE, AND WHY IT IS NEVER 100% ADVANCED ────────────────────────
+ *
+ * A note is `tier: 'advanced'` when it teaches something a player already doing
+ * the basics can use: a damage breakpoint, a utility timing, a read across
+ * rounds. Everything else is core, which is the default, so the 357 hand
+ * written notes stay exactly as they were.
+ *
+ * With the toggle ON the mix tilts hard toward advanced, but a FLOOR of core
+ * notes always survives, and that floor is the whole point rather than a
+ * hedge. Advanced advice assumes the fundamentals are in place. A player who is
+ * dying on repeat does not need a damage breakpoint, they need to stop walking
+ * into open ground, and a coach that answers a fundamentals problem with theory
+ * is worse than one that says nothing.
+ *
+ * THE DEATHSTREAK OVERRIDE is that idea with teeth. situationOf already raises
+ * `deathstreak` at two deaths in a row, which is the cheapest available signal
+ * that whatever the player is doing is not working. On that flag the reserve
+ * INVERTS: core takes the majority back until they stop dying. Nothing about
+ * this is configurable, because a player who turned advanced mode on is exactly
+ * the player who would not turn it off while losing.
+ */
+const ADVANCED_SLOTS = 6;      // of 8, leaving 2 for fundamentals
+const STREAK_CORE_SLOTS = 5;   // on a deathstreak core takes the majority back
+
+/**
+ * @param ctx               live match context
+ * @param limit             how many notes to return (8 in the prompt)
+ * @param opts.advanced     bias toward tier: 'advanced' notes
+ */
+function retrieve(ctx, limit = 8, opts = {}) {
   const s = situationOf(ctx || {});
   const scored = [];
 
@@ -551,19 +581,47 @@ function retrieve(ctx, limit = 8) {
     if (note.roles)   score += 2;
     score += Math.random() * 0.8;
 
-    scored.push({ text: note.text, score });
+    scored.push({ text: note.text, score, advanced: note.tier === 'advanced' });
   }
 
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit).map((n) => n.text);
+  if (!opts.advanced) return scored.slice(0, limit).map((n) => n.text);
+
+  /*
+   * TWO QUEUES, MERGED WITH A RESERVE, rather than a score bonus for advanced
+   * notes. A bonus was the first design and it does not do what it says: with
+   * `agents +4` already in play, a bonus big enough to guarantee advanced notes
+   * surface also drowns the agent and weapon specificity that makes any note
+   * relevant, and a bonus small enough to preserve it guarantees nothing. A
+   * reserve says what it means, and the floor cannot be eroded by scoring.
+   */
+  const streak = s.flags.has('deathstreak');
+  const advWant = streak ? Math.max(0, limit - STREAK_CORE_SLOTS) : Math.min(ADVANCED_SLOTS, limit);
+
+  const adv = scored.filter((n) => n.advanced);
+  const core = scored.filter((n) => !n.advanced);
+  const out = adv.slice(0, advWant);
+  for (const n of core) {
+    if (out.length >= limit) break;
+    out.push(n);
+  }
+  // Short on core notes for this situation: top back up from advanced rather
+  // than returning fewer than the prompt asked for.
+  for (const n of adv.slice(advWant)) {
+    if (out.length >= limit) break;
+    out.push(n);
+  }
+  out.sort((a, b) => b.score - a.score);
+  return out.slice(0, limit).map((n) => n.text);
 }
 
 /** The prompt block /analyze injects in place of (or alongside) the static habits list. */
 function block(ctx, limit) {
-  const notes = retrieve(ctx, limit);
+  const notes = retrieve(ctx, limit, { advanced: !!(ctx && ctx.advancedTips) });
   if (!notes.length) return '';
   return 'PRO PLAYBOOK (proven Radiant and pro habits retrieved for THIS exact situation, ground your tip in these before anything generic):\n'
     + notes.map((t) => '- ' + t).join('\n');
 }
 
-module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: () => ALL };
+module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: () => ALL,
+  ADVANCED_SLOTS, STREAK_CORE_SLOTS };
