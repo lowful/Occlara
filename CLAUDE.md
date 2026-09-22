@@ -545,6 +545,38 @@ stay: tips prove what was ADVISED, never what the player did.
 many words. `verify:ai` is the gate for any prompt or STATE change and it spends
 real money, so it is a manual pre-flight, never CI.
 
+## A refund must take the licence away
+
+The Stripe webhook handled four events and none of them was a refund. That left
+a hole with no floor under it: a LIFETIME purchase writes `expires_at: null` and
+`status: 'active'`, has no subscription to cancel, and `validateKey` asks only
+for an active status and an unexpired date. **Buy lifetime, refund it, keep the
+product forever.** Nothing fired, nothing logged, nothing expired.
+
+`charge.refunded` and `charge.dispute.created` now revoke, writing both the
+status and `expires_at: now`. Two independent reasons for the same answer, so
+the licence dies even if `validateKey` is ever relaxed about status.
+
+**A PARTIAL refund must not revoke.** `charge.refunded` fires for both, and a
+goodwill partial refund is not a reason to take the product away. The amounts
+are compared as well as the flag.
+
+**The customer is a FALLBACK and only when unambiguous.** Licences store
+`stripe_session_id` and `stripe_customer_id`, never the payment intent, so the
+charge is resolved through the checkout session that created it. When that
+fails, the customer is used only if they have exactly ONE active licence: a
+repeat buyer has several, and revoking all of them over one refund is a worse
+bug than the one this fixes. It logs loudly and refuses rather than guessing.
+
+**THE STRIPE DASHBOARD MUST SUBSCRIBE TO BOTH EVENTS.** The handler cannot run
+on an event Stripe never sends, and the endpoint was created listing four. This
+is the one part of the fix that is not in this repo.
+
+`npm run test:refundrevoke` runs the real handler against a fake Stripe and a
+fake Supabase, covering the full refund, the partial, the chargeback, the
+fallback and its safety rail. Proved by disabling the handler and by making
+partial refunds revoke.
+
 ## Conventions
 
 **No em dashes or en dashes** anywhere, in tips, in UI copy, in docs. Use

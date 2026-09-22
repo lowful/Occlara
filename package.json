@@ -59,6 +59,7 @@
     "test:matchlink": "node scripts/test-match-link.js",
     "test:newmatch": "node scripts/test-new-match-reset.js",
     "test:profilemigration": "node scripts/test-profile-migration.js",
+    "test:refundrevoke": "node scripts/test-refund-revoke.js",
     "test:rejects": "node scripts/test-reject-reasons.js",
     "test:rivalsabilities": "node scripts/test-rivals-abilities.js",
     "test:rivalscomp": "node scripts/test-rivals-comp.js",
