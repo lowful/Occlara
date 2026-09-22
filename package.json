@@ -35,6 +35,7 @@
     "sync:rivalsbalance": "node scripts/sync-rivals-balance.js",
     "sync:valorant": "node scripts/sync-valorant-data.js",
     "test": "node scripts/run-all.js",
+    "test:advancedtips": "node scripts/test-advanced-tips.js",
     "test:agentdetect": "node scripts/test-agent-detect.js",
     "test:agentkit": "node scripts/test-agent-kit.js",
     "test:ailog": "node scripts/test-ailog-sessions.js",

@@ -74,6 +74,9 @@ const GENERIC = new Set(['mid', 'site', 'a', 'b', 'c', 'main', 'spawn', 'heaven'
  * bad tag in a template silently kills every note that copied it.
  */
 const VALID = {
+  // 'core' is the default and need not be written. A note with no tier is core,
+  // which is what keeps the 357 hand written ones working untouched.
+  tier: new Set(['core', 'advanced']),
   side: new Set(['attack', 'defense']),
   phase: new Set(['buy', 'active', 'postplant', 'dead']),
   roles: new Set(['duelist', 'controller', 'initiator', 'sentinel']),
@@ -197,6 +200,12 @@ for (const note of notes) {
   }
   if (note.phase !== undefined && !VALID.phase.has(note.phase)) {
     fail(note, `phase "${note.phase}" is not one retrieve() matches, so this note is unreachable`);
+  }
+  // A misspelled tier is not unreachable, it is worse: the note still serves,
+  // but silently as core, so advanced mode quietly returns fundamentals and
+  // looks like it is not working.
+  if (note.tier !== undefined && !VALID.tier.has(note.tier)) {
+    fail(note, `tier "${note.tier}" is not core or advanced, so this note silently counts as core`);
   }
   for (const s of (note.situations || [])) {
     if (!VALID.situations.has(s)) {

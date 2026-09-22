@@ -182,6 +182,15 @@ const STORE_DEFAULTS = {
   // (The pro playbook runs permanently in hybrid mode; frame memory is always
   // on and session-scoped. Neither is a setting anymore.)
   beginnerTips:    true,         // curated library tips in the stream (25-35% of tips); off = AI only
+  // Bias the retrieved playbook toward advanced notes: damage breakpoints,
+  // utility timings, reads across rounds. OFF by default, because advanced
+  // advice assumes the fundamentals are already in place.
+  //
+  // It is a BIAS, never a replacement. A floor of core notes always survives,
+  // and on a deathstreak core takes the majority back, because a player dying
+  // on repeat needs fundamentals rather than theory. See retrieve() in
+  // server/services/knowledge.js.
+  advancedTips:    false,
   sounds:          true,         // the two interface sounds: coaching armed, coaching stood down
   voiceCoach:      false,        // speak tips aloud through the overlay
   voiceStyle:      'normal',     // normal | hype | chill | funny | robot

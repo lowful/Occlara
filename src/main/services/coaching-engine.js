@@ -553,6 +553,9 @@ class CoachingEngine extends EventEmitter {
       focus:        this.nextFocus(),
       // Experimental: playbook mode ('off' | 'on' | 'hybrid') for the server.
       proPlaybook:  this.experiments().proPlaybook || 'off',
+      // Bias retrieval toward advanced notes. knowledge.block() reads this off
+      // the context, so it needs no route change.
+      advancedTips: this.experiments().advancedTips === true,
       // The language the tip should be written in. Read live, so switching it in
       // Settings applies to the very next frame rather than the next session.
       language:     this.experiments().language || 'en',
