@@ -1,98 +1,72 @@
 {
-  "generatedAt": "2026-09-23T18:44:20.458Z",
-  "patch": "13.05",
-  "buildDate": "2026-08-20T23:51:14Z",
-  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-05/",
-  "headline": "Pick’Ems for Champs soon, penalties for stream sniping and instalock tools, and future changes to the Agent Gear system.",
+  "generatedAt": "2026-09-24T18:45:07.330Z",
+  "patch": "13.06",
+  "buildDate": "2026-09-03T00:14:05Z",
+  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-06/",
+  "headline": "VALORANT’s big update is here.",
   "changes": [
     {
-      "type": "agent",
+      "type": "weapon",
       "names": [
-        "Miks",
-        "Astra",
-        "Brimstone",
-        "Clove",
-        "Omen"
+        "Warden"
       ],
-      "line": "We’ve better timed the dissipation for the smokes on Astra, Brimstone, Clove, Miks, and Omen to fix an issue where their smokes could continue blocking flashes and other line-of-sight-dependent abilities while the smoke was dissipating."
+      "line": "TL;DR: The big one is here. A new home and lobby experience, Agent Mastery system, Gauntlet: Glitched, Practice Range in Queue, The Warden, Competitive Updates, and more are ALL LAUNCHING TODAY!"
+    },
+    {
+      "type": "map",
+      "names": [
+        "Haven"
+      ],
+      "line": "If you’ve earned a bunch of new content in recent matches but haven’t yet seen it, you’ll now see indicators in your Collection signifying what’s new to you."
     },
     {
       "type": "agent",
       "names": [
-        "Chamber"
+        "Raze"
       ],
-      "line": "Fixed an issue that could cause performance drops the first time Chamber equipped, aimed, or fired Headhunter during a round."
+      "line": "Send out Raze’s Boom Bot and decide when it goes boom. Clock it."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Gekko"
+      ],
+      "line": "Make Gekko’s Wingman really, really big. They grow up so fast."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Sova",
+        "Clove"
+      ],
+      "line": "Agent Mastery gives you new ways to show your dedication to an Agent. When you play Clove, you progress Clove. When you play Sova, you progress Sova. Every Agent has their own Act levels, Lifetime levels, Reward Track, and Agent ID."
+    },
+    {
+      "type": "weapon",
+      "names": [
+        "Vandal",
+        "Warden",
+        "Phantom"
+      ],
+      "line": "Introducing the latest automatic Rifle to join the Vandal and Phantom in the 2900 credits tier— the Warden. Built to offer a new tactical choice, the Warden brings a distinct long-range option to your arsenal."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Gekko",
+        "Tejo",
+        "Skye",
+        "Cypher",
+        "Sova"
+      ],
+      "line": "Fixed an issue where Agents with possessable abilities (Tejo, Sova, Gekko, Cypher, Skye) were not being flashed when they exited a possessable ability at the exact same time an enemy activated a flash."
     },
     {
       "type": "agent",
       "names": [
         "Cypher"
       ],
-      "line": "Fixed an issue where Cypher's Trapwire debuff could persist indefinitely on a new target if the initial target was killed just before the Trapwire triggered."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Cypher"
-      ],
-      "line": "Fixed an issue where Cypher's Cyber Cage could incorrectly block flashes, detection, and other line-of-sight-dependent abilities."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Deadlock"
-      ],
-      "line": "Fixed an issue where casting Deadlock's GravNet could briefly display unintended VFX on screen."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Fade",
-        "Lotus"
-      ],
-      "line": "Fixed an issue where Fade's Seize would not display its danger indicator to enemies in certain locations on Lotus."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "KAY/O"
-      ],
-      "line": "Fixed an issue where KAY/O's NULL/cmd could cause client-side framerate drops with each pulse."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Omen"
-      ],
-      "line": "Fixed an issue where Omen’s Dark Cover could obscure a player’s vision after the smoke has dissipated."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Sage"
-      ],
-      "line": "Fixed an issue where Sage's Healing Orb ability tooltips could be missing from the HUD when equipping the ability."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Waylay"
-      ],
-      "line": "Fixed an issue where vision-blocking abilities could prevent Waylay's Saturate from applying Hinder to players within its area of effect."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Waylay"
-      ],
-      "line": "Fixed an issue where Waylay's Refract could cause snapshots of dynamic map objects to remain visible after the ability ended."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Waylay"
-      ],
-      "line": "Fixed an issue where Waylay's Saturate could apply Hinder to Agents while they were intangible."
+      "line": "Fixed an issue with Cypher Trapwire where the trap would look active after Cypher was killed or suppressed at the exact moment the trap was reactivating."
     }
   ],
   "notesFound": true
