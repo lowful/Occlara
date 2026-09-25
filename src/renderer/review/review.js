@@ -316,7 +316,13 @@ function paintValorant(r) {
   for (const n of study) {
     const card = el('div', 'v-study-card');
     card.append(el('p', 'v-study-text', n.text));
-    if (n.coach) card.append(el('div', 'v-study-src', `From ${n.coach} VOD reviews`));
+    // Only the imported notes come from VOD reviews. Occlara's own are computed
+    // from the damage table or written from round shapes, and calling those
+    // "VOD reviews" would put words in a coach's mouth.
+    if (n.coach) {
+      card.append(el('div', 'v-study-src', n.coach === 'Occlara'
+        ? "From Occlara's playbook" : `From ${n.coach} VOD reviews`));
+    }
     sHost.append(card);
   }
 
