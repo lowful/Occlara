@@ -270,9 +270,10 @@ function traitsOf(hero) {
  * Is this a real hero name, whether or not anything is known about it.
  *
  * THE SAME SPLIT the server draws between onRoster() and known(), and it is
- * needed again here for the same reason. Five heroes sit unclassified, Deadpool
- * among them because he is officially tri-role and one archetype cannot
- * describe him. A player on Deadpool IS on Deadpool. Dropping the name because
+ * needed again here for the same reason. A hero can be on the roster with no
+ * archetype this review may use: next season's arrival before it is classified,
+ * or Deadpool, who is tri-role and only gets one once his role is proven. A
+ * player on Deadpool IS on Deadpool. Dropping the name because
  * the archetype is unknown throws away a true fact and opens the review with a
  * blank where the player knows exactly what they played, which reads as the app
  * being broken rather than as the app being careful.
@@ -319,6 +320,18 @@ function whichHero(hero, row) {
   if (!t) return { hero: name, traits: null, stale: false, why: null };
 
   const proven = comp.roleFromStats(row);
+
+  // A MULTI ROLE HERO (Deadpool) gets the form for the role the scoreboard
+  // PROVES, and nothing otherwise. Only the healing column proves a role, so in
+  // practice that is his Strategist form. The role icon read is not enough:
+  // his Vanguard and Duelist kits are different archetypes, and the icon is the
+  // read that came back wrong at hero select.
+  if (t.byRole) {
+    const form = proven && t.byRole[proven];
+    return form
+      ? { hero: name, traits: { name, ...form }, stale: false, why: null }
+      : { hero: name, traits: null, stale: false, why: null };
+  }
   if (proven === 'Strategist' && t.role !== 'Strategist') {
     return { hero: null, traits: null, stale: true,
       why: `the healing column proves a Strategist and ${t.name} is a ${t.role}, `

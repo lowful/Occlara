@@ -72,10 +72,24 @@ console.log('[rivals] hero traits');
   const leaky = heroes.PENDING.filter((n) => heroes.traits(n) !== null);
   check('every pending hero still returns null', leaky.length === 0, leaky.join(', '));
 
+  // A multi role hero is silent until the caller proves which role. Deadpool's
+  // Vanguard and Duelist kits are different archetypes, so a guess at the role
+  // is a guess at the archetype.
+  check('Deadpool with no role returns null', heroes.traits('Deadpool') === null);
+  check('Deadpool as a Duelist is a dive hero', (heroes.traits('Deadpool', 'Duelist') || {}).arch === 'dive');
+  check('Deadpool as a Strategist is a brawl hero',
+    (heroes.traits('Deadpool', 'Strategist') || {}).arch === 'brawl'
+    && heroes.traits('Deadpool', 'Strategist').role === 'Strategist');
+  check('Deadpool is on the roster either way', heroes.onRoster('deadpool') === 'deadpool');
+  const forms = Object.values(heroes.ROLE_FORMS).every((f) => Object.entries(f)
+    .every(([role, t]) => ROLES.includes(role) && ARCHES.includes(t.arch)));
+  check('every role form has a real role and archetype', forms);
+
   // The two lists together are the roster. META says 53 for Season 9.5, and if
   // that stops matching then one of the two is out of date, which is exactly
   // the drift this split exists to make visible.
-  const total = Object.keys(heroes.HEROES).length + heroes.PENDING.length;
+  const total = Object.keys(heroes.HEROES).length + Object.keys(heroes.ROLE_FORMS).length
+    + heroes.PENDING.length;
   const meta = require('../server/services/rivals-knowledge').META.heroCount;
   check('classified plus pending equals the known roster', total === meta,
     total + ' vs META ' + meta);

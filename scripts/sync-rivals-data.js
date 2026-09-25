@@ -301,8 +301,13 @@ async function main() {
   const traits = {};
   for (const h of heroes) {
     const t = table.traits(h.name);
+    const forms = table.ROLE_FORMS && table.ROLE_FORMS[table.normalise(h.name)];
     traits[h.name] = t
       ? { role: t.role, arch: t.arch, aim: t.aim, air: t.air }
+      // A multi role hero ships one set per role, and the review picks one only
+      // once the scoreboard has proven the role.
+      : forms ? { byRole: Object.fromEntries(Object.entries(forms)
+        .map(([role, f]) => [role, { role, arch: f.arch, aim: f.aim, air: f.air }])) }
       // PENDING heroes are on the roster and have no traits, and null is the
       // honest answer rather than an omission. A consumer that sees the key and
       // a null knows the hero exists and is unclassified; one that sees nothing

@@ -264,7 +264,7 @@ function creditsReply(res, err) {
  * own gate then rejected.
  */
 const ROSTER = [...Object.keys(rivalHeroes.HEROES).map((k) => rivalHeroes.traits(k).name),
-  ...rivalHeroes.PENDING].sort();
+  ...Object.keys(rivalHeroes.ROLE_FORMS), ...rivalHeroes.PENDING].sort();
 
 const IDENTIFY_PROMPT = `You are reading a Marvel Rivals screenshot and naming the heroes in it.
 

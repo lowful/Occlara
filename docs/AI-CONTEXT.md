@@ -195,10 +195,13 @@ Registered in `src/shared/games.js` as **preview, not shipped**:
 
 **Built and passing (all offline, no external dependency):**
 
-- `server/services/rivals-heroes.js`: 40 heroes classified by role, aim
-  (hitscan/projectile/melee), air (flight/leap/ground) and archetype, plus 13
-  named but unclassified in `PENDING`. 40 + 13 = 53, which independently
-  matches the `META.heroCount` in `rivals-knowledge.js`.
+- `server/services/rivals-heroes.js`: every one of the 54 Season 10 heroes is
+  classified by role, aim (hitscan/projectile/melee), air (flight/leap/ground)
+  and archetype. 53 in `HEROES`, and Deadpool in `ROLE_FORMS`, one set per role,
+  returned only when the caller proves the role. `PENDING` is empty and is where
+  the next season's hero goes first. Gorr, Jubilee, The Hood and White Fox were
+  classified on 25 Sep 2026 from their official kit text, quoted beside each.
+  The total independently matches `META.heroCount` in `rivals-knowledge.js`.
   **ABSENCE MEANS SILENCE**: an unknown hero returns null and produces no advice
   at all, so being a season behind costs coverage, never correctness.
 - `server/services/rivals-counters.js`: the switch call, including
