@@ -42,7 +42,9 @@ const PATTERN_TOPICS = {
   spot: ['starting positions', 'anti strat', 'giving ground', 'planning the peek'],
   ult: ['ult economy', 'ult range'],
   streak: ['tilt', 'simplicity', 'have a plan'],
-  postplant: ['post plant', 'man advantage'],
+  // Not 'man advantage': the first bench put that note on rounds where nobody
+  // knew how many players were alive, and the ledger never knows that.
+  postplant: ['post plant'],
   retake: ['retake shape', 'contest or retake'],
 };
 
@@ -164,7 +166,11 @@ function roundLine(r) {
 const GROUNDING = 'GROUNDING RULES. The ledger was built by watching the screen every ten seconds or so, '
   + 'so a round with no death listed may simply not have been seen, never call it clean. '
   + 'A coach read is what the coach SAID at the time, not proof of what the player did. '
-  + 'Kills, damage, utility usage and economy are not in the ledger, so never state them. '
+  + 'Kills, damage, utility usage, economy and how many players were alive are not in the ledger, so never '
+  + 'state them, and never call a situation a man advantage or a clutch. '
+  + 'Never tell the player to use their ultimate unless that round says the ultimate was ready. '
+  + 'Never do arithmetic on the score, use it exactly as given. '
+  + 'Write round numbers as digits and never list more than four of them in one sentence. '
   + 'Only name places that appear in the ledger. Do not use dashes. No markdown, no lists, no bold.';
 
 /** The old review, kept as variant A so the bench has a baseline. */
@@ -210,13 +216,13 @@ function promptRounds(input, withKnowledge) {
     + (patterns.length ? patterns.map((p) => '- ' + p.text).join('\n') : '- none cleared the bar in this match')
     + knowledgeBlock
     + '\n\nWrite exactly this, each label at the start of its own line:\n'
-    + 'SUMMARY: three sentences on one line. First, what decided this match for the player, drawn from the patterns. '
-    + 'Second, the most repeated mistake, naming the rounds it happened in. Third, what went right if the ledger '
-    + 'shows it, otherwise the habit the coach kept pushing.\n'
+    + 'SUMMARY: three sentences on one line, under 70 words. First, what decided this match for the player, drawn '
+    + 'from the patterns. Second, the most repeated mistake, naming up to four rounds it happened in. Third, what '
+    + 'went right if the ledger shows it, otherwise the habit the coach kept pushing.\n'
     + `Then up to ${MAX_ROUND_LINES} round lines, only for rounds with a death or a coach read, choosing the rounds that `
     + 'teach the most, in round order:\n'
-    + 'R<number>: one or two sentences on WHY that round went the way it did and what the better play was. Explain '
-    + 'the reason, do not just repeat the coach read in the past tense.\n'
+    + 'R<number>: at most two sentences and 45 words on WHY that round went the way it did and what the better play '
+    + 'was. Explain the reason, do not just repeat the coach read in the past tense.\n'
     + 'FOCUS: one concrete habit for the next match, tied to the pattern it fixes, that a player can actually do.\n\n'
     + GROUNDING;
 }
@@ -235,7 +241,16 @@ function parse(text, input) {
   const out = { summary: null, rounds: {}, focus: null };
   const valid = new Set(input.rounds.map((r) => r.n));
   let current = null;
-  for (const raw of String(text || '').split('\n')) {
+  // LABELS ARE SPLIT ONTO THEIR OWN LINES FIRST. The first live bench got every
+  // reply back as ONE line, because textInfer's sanitize() collapses newlines,
+  // so all ten round explanations were parsed as part of the summary and the
+  // review had no rounds at all. The route now asks for the raw text, and this
+  // stays so a model that runs its labels together still parses.
+  const lines = String(text || '')
+    .replace(/\s+(R\s?\d{1,2}\s*:)/g, '\n$1')
+    .replace(/\s+(FOCUS\s*:)/gi, '\n$1')
+    .split('\n');
+  for (const raw of lines) {
     const line = raw.replace(/\*\*/g, '').trim();
     if (!line) continue;
     const label = /^(SUMMARY|FOCUS|R\s?(\d{1,2}))\s*[:.]\s*(.*)$/i.exec(line);
