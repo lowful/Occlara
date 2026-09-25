@@ -47,7 +47,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: a Rivals review paints, and a League review still paints after it');
+  console.log('PASS: Rivals, League and Valorant reviews all paint into the same window, in any order');
   process.exit(0);
 }
 
@@ -190,6 +190,38 @@ setTimeout(async () => {
     if (!objsBack) return report(false, 'the objectives block stayed hidden after a Rivals review');
     if (!archOff) return report(false, 'the Rivals archetype section was left visible under League');
     if (!refusedOff) return report(false, 'the Rivals refusals were left visible under League');
+
+    // ── A VALORANT review, on its own channel, into the same window ─────────
+    // Brand new channel and preload method, so the same drift risk as Rivals
+    // on its first day. Built from the real 24 round fixture.
+    const { replay, load } = require(path.join(REPO, 'scripts/fixtures/replay-match'));
+    const valReview = require(path.join(REPO, 'src/shared/valorant-review'));
+    const rep = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
+    const val = valReview.build({ rounds: rep.rounds, context: { ...rep.context, agent: 'Iso' }, endedBy: rep.endedBy,
+      ai: { summary: 'You won 13 to 11.', rounds: { 2: 'Wait for the team.' }, focus: 'Trade.', study: [] } });
+    registry.broadcast(C.PUSH_VALORANT_REVIEW, val);
+    await new Promise((r) => setTimeout(r, 1600));
+
+    const vShown = await js("!document.getElementById('vreview').hidden");
+    const oldHidden = await js("document.getElementById('review').hidden");
+    const vResult = await js("document.getElementById('v-result').textContent");
+    const cells = await js("document.querySelectorAll('#v-strip .v-cell').length");
+    const cards = await js("document.querySelectorAll('#v-rounds .v-round').length");
+    const why = await js("(document.querySelector('#round-2 .v-why') || {}).textContent || ''");
+    lines.push('valorant: ' + vResult + ' cells=' + cells + ' cards=' + cards + ' why="' + why + '"');
+    if (!vShown) return report(false, 'the Valorant review stayed hidden, so the push never arrived');
+    if (!oldHidden) return report(false, 'the League and Rivals container was left visible under Valorant');
+    if (vResult !== 'VICTORY') return report(false, 'the result painted as "' + vResult + '"');
+    if (cells !== 24) return report(false, cells + ' round cells, expected 24');
+    if (!cards) return report(false, 'no round cards rendered');
+    if (why !== 'Wait for the team.') return report(false, 'round 2 lost its why: "' + why + '"');
+
+    // And League once more, so Valorant cannot strand the shared container.
+    registry.broadcast(C.PUSH_LOL_REVIEW, built2);
+    await new Promise((r) => setTimeout(r, 1600));
+    const backToLol = await js("!document.getElementById('review').hidden && document.getElementById('vreview').hidden");
+    if (!backToLol) return report(false, 'a League review after a Valorant one did not take the window back');
+
     if (errs.length) return report(false, 'renderer errors: ' + errs.join(' | '));
 
     report(true, 'ok');
