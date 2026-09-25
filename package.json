@@ -5,6 +5,7 @@
   "main": "src/main/index.js",
   "scripts": {
     "bench:advanced": "node scripts/ab-advanced.js",
+    "bench:review": "node scripts/bench-review.js",
     "bench:models": "node scripts/bench-models.js",
     "check:clientboot": "node scripts/check-client-boot.js",
     "check:config": "node scripts/check-config-bridge.js",
@@ -78,6 +79,7 @@
     "test:tiptext": "node scripts/test-tip-text.js",
     "test:tipvisuals": "node scripts/test-tip-visuals.js",
     "test:ultgate": "node scripts/test-ult-gate.js",
+    "test:valorantreview": "node scripts/test-valorant-review.js",
     "test:variety": "node scripts/test-variety.js",
     "verify:ai": "node scripts/verify-ai.js",
     "verify:rivalsheroes": "node scripts/verify-rivals-heroes.js"
