@@ -194,3 +194,66 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
   margin: 10px 0 0;
 }
 .keys-note kbd { font-size: 10.5px; }
+
+/* ── Live tips closed ───────────────────────────────────────────────────────
+   A small, static picture of the review, drawn with the review's own shapes
+   (solid cell won, hollow cell lost, red dot died), so the first time a player
+   sees the real one it is already familiar. */
+.ob-review {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+}
+.ob-review[hidden] { display: none; }
+.obr-head { display: flex; align-items: baseline; gap: var(--space-3); }
+.obr-result { font-size: 10px; font-weight: 700; letter-spacing: 0.18em; color: var(--text); }
+.obr-score { font-family: var(--font-mono); font-size: 22px; font-weight: 600; color: var(--text); }
+.obr-strip { display: flex; gap: 4px; }
+.obr-strip i {
+  position: relative; display: block; width: 16px; height: 18px; border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.obr-strip i.w { background: var(--text); border-color: var(--text); }
+.obr-strip i.d::after {
+  content: ''; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px;
+  margin-left: -2px; border-radius: 50%; background: var(--red);
+}
+.obr-strip i.p::after {
+  content: ''; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px;
+  margin-left: -2px; border-radius: 1px; background: var(--bg);
+}
+.obr-card {
+  padding: var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.24);
+}
+.obr-rn { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--text); }
+.obr-rn span {
+  margin-left: 6px; font-family: var(--font); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim);
+}
+.obr-why { font-size: 12px; line-height: 1.5; color: var(--text); margin: 4px 0 0; }
+
+.ob-closed-head {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: 12px; color: var(--text-dim);
+}
+.ob-closed-head[hidden] { display: none; }
+.ob-closed-head .closed-pill { margin-left: 0; }
+/* The entrance animation fills forwards to opacity 1, and an animation's fill
+   beats any ordinary rule, so a greyed row that animates in would arrive at
+   full strength. The first screenshot caught exactly that. */
+.page .ob-greyed { animation: none; opacity: 0.38; filter: grayscale(1); pointer-events: none; }
+.ob-greyed-row > span:first-child { color: var(--text-mute); }
+.ob-greyed-row kbd { opacity: 0.45; }
+
+.keys-closed {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2);
+  margin: 10px 0 0; font-size: 11.5px; color: var(--text-mute);
+}
+.keys-closed[hidden] { display: none; }
+.keys-closed .closed-pill { margin-left: 0; }

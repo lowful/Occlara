@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('occlara', {
   minimize:      () => ipcRenderer.send(C.PANEL_MINIMIZE),
   openSettings:  () => ipcRenderer.send(C.OPEN_SETTINGS),
   openHistory:   () => ipcRenderer.send(C.OPEN_HISTORY),
+  openReview:    () => ipcRenderer.send(C.OPEN_REVIEW),
   openChat:      () => ipcRenderer.send(C.OPEN_CHAT),
   openStats:     () => ipcRenderer.send(C.OPEN_STATS),
   // The AI decision log. register-ipc already handled OPEN_AILOG; only the

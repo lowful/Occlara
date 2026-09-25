@@ -216,6 +216,191 @@ function paintRivals(r) {
   document.querySelector('#r-obj').closest('.block').hidden = true;
 }
 
+/**
+ * The Valorant review, round by round.
+ *
+ * Paints what valorant-review.js computed and adds nothing of its own, for the
+ * reason the League painter gives: a renderer that does arithmetic is a second
+ * place for the numbers to disagree. The one thing it decides is layout.
+ *
+ * Every section that has nothing to say is HIDDEN rather than shown empty,
+ * except the scoreboard, which says it is waiting for Riot, because an empty
+ * scoreboard with no explanation reads as a broken one.
+ */
+function paintValorant(r) {
+  const g = r.game || {};
+  const resultEl = $('v-result');
+  resultEl.textContent = g.result ? g.result.toUpperCase() : 'MATCH REVIEW';
+  resultEl.className = 'v-result' + (g.result === 'Victory' ? ' win' : g.result === 'Defeat' ? ' loss' : '');
+  const score = String(g.score || '').split('-');
+  $('v-score').textContent = score.length === 2 ? `${score[0]} : ${score[1]}` : '';
+  $('v-score').hidden = score.length !== 2;
+  const w = r.watched || {};
+  $('v-meta').textContent = [
+    g.agent, g.map, g.mode,
+    w.rounds ? `${w.rounds} round${w.rounds === 1 ? '' : 's'} watched` : null,
+  ].filter(Boolean).join('  ·  ');
+
+  // Riot's scoreboard, or an honest wait for it.
+  const stats = $('v-stats');
+  stats.replaceChildren();
+  const s = r.scoreline;
+  const note = $('v-stats-note');
+  if (s) {
+    const kda = [s.kills, s.deaths, s.assists].every((v) => v !== null && v !== undefined)
+      ? `${s.kills}/${s.deaths}/${s.assists}` : null;
+    stats.append(stat('K / D / A', kda));
+    stats.append(stat('ACS', s.acs));
+    stats.append(stat('ADR', s.adr));
+    stats.append(stat('Headshot', typeof s.headshotPct === 'number' ? s.headshotPct + '%' : null));
+    stats.hidden = false;
+    note.hidden = true;
+  } else {
+    stats.hidden = true;
+    note.hidden = false;
+    note.textContent = 'Kills, ACS and damage come from Riot once the match is published, usually a few '
+      + 'minutes after it ends. This fills in on its own if your Riot ID is set in Settings.';
+  }
+
+  paintStrip(r);
+
+  // The coach's read. Missing when the model was unreachable or the match was
+  // too short to narrate, and each case says which.
+  const summary = r.summary;
+  $('v-summary-wrap').hidden = !summary && !r.focus && !r.aiUnavailable && !r.thin;
+  $('v-summary').textContent = summary
+    || (r.thin ? 'Too little of this match was seen to write a read of it. The rounds below are what the coach recorded.'
+      : r.aiUnavailable ? 'The coach could not be reached to write this part. Everything else on this page was computed from the match.'
+        : '');
+  $('v-focus-wrap').hidden = !r.focus;
+  $('v-focus').textContent = r.focus || '';
+
+  const pats = Array.isArray(r.patterns) ? r.patterns : [];
+  $('v-patterns-wrap').hidden = !pats.length;
+  const pHost = $('v-patterns');
+  pHost.replaceChildren();
+  for (const p of pats) {
+    const row = el('div', 'v-pattern');
+    row.append(el('span', 'v-pattern-dot ' + (p.key || '')));
+    row.append(el('span', 'v-pattern-text', p.text));
+    pHost.append(row);
+  }
+
+  paintRoundCards(r);
+
+  // Against the player's own average, the Rivals rendering reused.
+  const against = Array.isArray(r.against) ? r.against : [];
+  $('v-against-wrap').hidden = !against.length;
+  const aHost = $('v-against');
+  aHost.replaceChildren();
+  if (against.length) {
+    $('v-against-note').textContent = `Compared against your last ${against[0].games} verified matches in the same role.`;
+    for (const a of against) {
+      const dir = a.better === null ? '' : (a.better ? ' pass' : ' fail');
+      const row = el('div', 'skill-row' + dir);
+      row.append(el('span', 'skill-dot'));
+      const body = el('div', 'skill-body');
+      body.append(el('div', 'skill-metric', a.label));
+      const sign = a.delta > 0 ? '+' : '';
+      body.append(el('div', 'skill-num',
+        `${a.value}  (average ${a.baseline}${a.delta === 0 ? '' : ', ' + sign + a.delta})`));
+      row.append(body);
+      aHost.append(row);
+    }
+  }
+
+  const study = Array.isArray(r.study) ? r.study : [];
+  $('v-study-wrap').hidden = !study.length;
+  const sHost = $('v-study');
+  sHost.replaceChildren();
+  for (const n of study) {
+    const card = el('div', 'v-study-card');
+    card.append(el('p', 'v-study-text', n.text));
+    if (n.coach) card.append(el('div', 'v-study-src', `From ${n.coach} VOD reviews`));
+    sHost.append(card);
+  }
+
+  const refused = Array.isArray(r.refused) ? r.refused : [];
+  $('v-refused-wrap').hidden = !refused.length;
+  const list = $('v-refused');
+  list.replaceChildren();
+  for (const line of refused) list.append(el('li', 'r-refused-item', line));
+}
+
+/** One cell per round, halftime as a gap, the side named over each half. */
+function paintStrip(r) {
+  const host = $('v-strip');
+  host.replaceChildren();
+  const rounds = Array.isArray(r.rounds) ? r.rounds : [];
+  if (!rounds.length) return;
+  const half = r.halftimeAfter;
+  let group = null;
+  let groupSide = null;
+  const flush = () => { if (group) host.append(group); };
+  for (const c of rounds) {
+    const h = half && c.n > half ? 2 : 1;
+    if (!group || group.dataset.half !== String(h)) {
+      flush();
+      group = el('div', 'v-half');
+      group.dataset.half = String(h);
+      groupSide = el('div', 'v-half-side', c.side || '');
+      group.append(groupSide, el('div', 'v-cells'));
+    }
+    if (!groupSide.textContent && c.side) groupSide.textContent = c.side;
+    const cell = el('button', 'v-cell ' + (c.result || 'unknown'));
+    cell.type = 'button';
+    cell.setAttribute('role', 'listitem');
+    cell.title = `Round ${c.n}${c.result ? ', ' + c.result : ''}${c.facts.length ? '. ' + c.facts.join('. ') : ''}`;
+    cell.append(el('span', 'v-cell-n', c.n));
+    const marks = el('span', 'v-cell-marks');
+    if (c.died) marks.append(el('i', 'mk died'));
+    if (c.planted) marks.append(el('i', 'mk planted'));
+    cell.append(marks);
+    cell.addEventListener('click', () => {
+      const card = document.getElementById(`round-${c.n}`);
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.remove('flash');
+      void card.offsetWidth;
+      card.classList.add('flash');
+    });
+    group.lastChild.append(cell);
+  }
+  flush();
+}
+
+/** A card for every round the coach has something to say about. */
+function paintRoundCards(r) {
+  const host = $('v-rounds');
+  host.replaceChildren();
+  const cards = (Array.isArray(r.rounds) ? r.rounds : [])
+    .filter((c) => c.facts.length || c.reads.length || c.why);
+  $('v-rounds-wrap').hidden = !cards.length;
+  for (const c of cards) {
+    const card = el('article', 'v-round' + (c.why ? ' has-why' : ''));
+    card.id = `round-${c.n}`;
+    const head = el('div', 'v-round-head');
+    head.append(el('span', 'v-rn', `R${c.n}`));
+    if (c.result) head.append(el('span', 'v-chip ' + c.result, c.result === 'won' ? 'Won' : 'Lost'));
+    if (c.side) head.append(el('span', 'v-side', c.side));
+    card.append(head);
+    if (c.facts.length) card.append(el('div', 'v-facts', c.facts.join('  ·  ')));
+    if (c.why) {
+      const why = el('div', 'v-why-wrap');
+      why.append(el('div', 'v-reads-label', 'Why it went this way'));
+      why.append(el('p', 'v-why', c.why));
+      card.append(why);
+    }
+    if (c.reads.length) {
+      const reads = el('div', 'v-reads');
+      reads.append(el('div', 'v-reads-label', "The coach's read at the time"));
+      for (const t of c.reads) reads.append(el('p', 'v-read', t));
+      card.append(reads);
+    }
+    host.append(card);
+  }
+}
+
 /** Show every block, so neither game's review inherits the other's hidden flags. */
 function resetSections() {
   for (const id of ['r-moments-wrap', 'r-skills-wrap', 'r-next-wrap',
@@ -233,9 +418,19 @@ function paint(r) {
   if (!r) {
     $('empty').hidden = false;
     $('review').hidden = true;
+    $('vreview').hidden = true;
     return;
   }
   $('empty').hidden = true;
+  // Valorant has its own container, so the League and Rivals one is simply
+  // hidden rather than having each of its sections turned off one by one.
+  if (r.kind === 'valorant') {
+    $('review').hidden = true;
+    $('vreview').hidden = false;
+    paintValorant(r);
+    return;
+  }
+  $('vreview').hidden = true;
   $('review').hidden = false;
 
   // EVERY SECTION BACK ON FIRST, because this window renders two shapes and
@@ -284,5 +479,6 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.occ
 // Both paths, because the window can be opened by the push OR by hand later.
 window.occlara.onReview(paint);
 if (window.occlara.onRivalsReview) window.occlara.onRivalsReview(paint);
+if (window.occlara.onValorantReview) window.occlara.onValorantReview(paint);
 window.occlara.getReview().then(paint).catch(() => paint(null));
 console.log('[review] ready');

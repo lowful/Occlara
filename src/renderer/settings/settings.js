@@ -432,6 +432,61 @@ async function load() {
   }
 }
 
+/*
+ * LIVE TIPS CLOSED. Every control that only shapes a tip on screen during a
+ * match is greyed out, made inert, and carries the same pill, because a switch
+ * that silently does nothing reads as a broken switch. The values are left
+ * exactly as they were, so reopening live tips restores the player's setup.
+ *
+ * Fundamental and advanced tips are NOT here: they decide what the coach
+ * writes, and what it writes is now the review.
+ */
+const LIVE_ONLY = ['showtips', 'tippos', 'tipstyle', 'tipopacity', 'tipscale', 'voicecoach'];
+const CLOSED_TEXT = 'Live Tips are temporarily closed';
+
+function applyLiveClosed(closed) {
+  document.getElementById('live-note').hidden = !closed;
+  for (const id of LIVE_ONLY) {
+    const ctl = document.getElementById(id);
+    const sec = ctl && ctl.closest('section');
+    if (!sec) continue;
+    sec.classList.toggle('live-closed', closed);
+    // The pill is a SIBLING of the heading, never inside it. i18n-apply sets
+    // textContent on every translated heading, which silently deleted a pill
+    // placed inside: the first screenshot had it on four sections and missing
+    // on the two whose headings are translated.
+    const h3 = sec.querySelector('h3');
+    let pill = sec.querySelector(':scope > .closed-pill');
+    if (closed && h3 && !pill) {
+      pill = document.createElement('span');
+      pill.className = 'closed-pill';
+      pill.textContent = CLOSED_TEXT;
+      h3.after(pill);
+    }
+    if (pill) pill.hidden = !closed;
+    for (const child of sec.children) {
+      if (child.tagName === 'H3' || child === pill) continue;
+      if (closed) child.setAttribute('inert', ''); else child.removeAttribute('inert');
+    }
+  }
+  const force = document.getElementById('hk-force');
+  if (force) force.classList.toggle('live-closed', closed);
+  document.getElementById('hk-explain-label').textContent = closed ? 'Open your last match review' : 'Explain the last tip';
+  // The frequency slider still matters: it is how often the coach READS the
+  // screen, and a closer watch gives the review more to work with.
+  const title = document.getElementById('tipfreq-title');
+  const hint = document.getElementById('tipfreq-hint');
+  if (closed) {
+    // Off the translation list while closed, or i18n puts the old name back.
+    title.removeAttribute('data-i18n');
+    title.textContent = 'Watch frequency';
+    hint.textContent = 'How often the coach reads your screen during a match. More often gives your review more to work with, and costs a little more bandwidth. No effect on game FPS.';
+  }
+}
+
+window.occlara.getState().then((s) => applyLiveClosed(!!(s && s.liveTipsClosed))).catch(() => {});
+window.occlara.onState((s) => { if (s) applyLiveClosed(!!s.liveTipsClosed); });
+
 // Keep the license block consistent: on every pushed state, on window focus, and
 // on a slow poll (so an expiry/renewal shows without reopening Settings).
 window.occlara.onState((s) => renderLicense(s));

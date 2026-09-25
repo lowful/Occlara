@@ -63,6 +63,7 @@ const CHANNELS = {
   OPEN_WEEKLY:     'window:openWeekly',  // the weekly report popup
   OPEN_AILOG:      'window:openAiLog',   // (sessionId?) the AI decision-log viewer
   OPEN_LEARN:      'window:openLearn',   // the League learning surface
+  OPEN_REVIEW:     'window:openReview',  // the last post-match review, any game
   AILOG_SHOW:      'ailog:show',         // (sessionId) jump an OPEN log window to one session
   OPEN_CHAT_SEEDED:'window:openChatSeeded', // (sessionSeed) open Ask Coach preloaded with a session's context
   TIP_RATE:        'tip:rate',           // ({ text, source, rating: good|bad })
@@ -100,6 +101,10 @@ const CHANNELS = {
   // sentence because it is read mid fight; this is the same call explained at
   // length, and it only ever fires when the player asks for it.
   PUSH_EXPLAIN:      'push:explain',      // { title, body, tip }
+  // The Valorant post-match review, the round by round one. Its own channel for
+  // the reason the Rivals one has its own: a different shape, and the review
+  // window branches on review.kind rather than sniffing for fields.
+  PUSH_VALORANT_REVIEW: 'push:valorantReview',
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -116,6 +121,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_LOL_REVIEW,
   CHANNELS.PUSH_RIVALS_REVIEW,
   CHANNELS.PUSH_EXPLAIN,
+  CHANNELS.PUSH_VALORANT_REVIEW,
 ];
 
 module.exports = CHANNELS;

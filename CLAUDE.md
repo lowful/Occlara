@@ -1,12 +1,85 @@
 # Occlara
 
-A Valorant AI coaching overlay. An Electron client watches the screen, sends
-frames to a Node/Express backend, and shows short coaching tips on top of the
-game in real time.
+A Valorant AI coach. An Electron client watches the screen, sends frames to a
+Node/Express backend, and turns what it saw into a round by round review that
+opens when the match ends. It used to show tips on top of the game in real
+time, and that is closed: see "Live tips are closed" below before touching
+anything that reaches the screen during a match.
 
 The client never reads game memory, never touches game files, and never
 automates input. It captures the display the same way OBS does. That property
 is the whole product, so nothing should ever be added that breaks it.
+
+## Live tips are closed, and the review is the product
+
+`liveTipsClosed: true` on Valorant in `src/shared/games.js` is **the one switch**.
+Riot's VALORANT developer policy lists as unapproved "in-game apps and overlays
+that include any real-time data that would improve a player's performance
+immediately by altering player behavior (i.e. 'go here now'), vs altering it
+upon reflection, learning and coaching the player game over game". A player got
+a one week ban with the app flagged as third party. The anti-cheat axis (screen
+capture like OBS) was always clean; the written policy was not.
+
+While the switch is on, **nothing the coach writes reaches any surface during a
+match**, and each of these is a separate leak that was closed on purpose:
+
+- `pushTip` holds `ai` and `library` tips in `state.heldTips`, never in
+  `state.tips`, because PUSH_STATE carries `state.tips` to every window.
+- The overlay window is **not created** (`syncOverlay`), not merely hidden. The
+  voice coach speaks whatever the overlay receives, so it goes with it.
+- The AI log seals the live session mid match (`liveLogSealed`), frame chat
+  refuses it, and Ask Coach gets no match memory. Each is a window a player can
+  keep open on a second monitor.
+- Ctrl+Shift+E does nothing mid match and opens the last review after it.
+  Force tip is a no-op.
+
+Settings and onboarding **grey the live controls out** with the pill "Live Tips
+are temporarily closed" rather than deleting them, so the player's setup
+survives. The pill is a SIBLING of the heading, never inside it: i18n-apply sets
+`textContent` on translated headings and silently deleted it.
+
+Do not flip the switch back without Riot's written approval of the product.
+
+### How the match becomes a review
+
+```
+src/shared/valorant-rounds.js   the round ledger, fed the engine's GUARDED context
+src/shared/match-end.js         when the match is over
+src/shared/valorant-review.js   the computed review: patterns, facts, the result
+server/services/match-review.js the model's half: summary, a why per round, focus
+src/renderer/review/            one window for every game, branched on review.kind
+```
+
+**The score lags the round in both directions**, measured on a real 24 round
+match in `scripts/fixtures/`: a buy phase starts while the score still reads the
+old number, and the round end banner prints the next score while the player is
+still spectating. The ledger advances on a buy phase after mid round play, and
+files a death before the new round's first buy back into the round that ended.
+"Play" needs a mid round clock, because the banner is an active phase frame
+with 0:01 on it, and counting it cascaded every later round by one.
+
+**A match ends** on a score no mode can continue from, confirmed by a second
+read or by the next frame being a menu, or on most of a minute of menus after
+three rounds. 13 to 12 is deliberately not final: unrated ends there and
+competitive does not. Too early is the expensive direction, because it opens a
+window over a round in progress.
+
+**What the review may claim.** No "survived" line (the ledger cannot know it),
+no death timing to the second (a bucket, since frames are ten seconds apart), no
+result unless a score end or Riot's verified record says so, a spawn is never a
+death spot, and a pattern must clear its stated floor. The window opens at once
+and repaints when Riot publishes the scoreboard, which is 90 seconds to four
+minutes later.
+
+**Variant C won the bench** (`npm run bench:review`, live, spends money) by
+making fewer unsupported claims than B; the numbers are in `match-review.js`.
+The model's reply is RAW text from `textInfer(..., { json: true })`, sanitized
+per field after parsing, because `sanitize()` collapses newlines and the first
+bench got every labelled line back as one. Spelled round numbers are turned into
+digits in code (`roundDigits`), because the prompt asking was ignored about half
+the time.
+
+`npm run test:valorantreview` replays both real fixtures through all of it.
 
 ## Layout
 
@@ -140,8 +213,10 @@ Line 1 is shown to the player. Line 2 is parsed by `mapState()` in
 format changes, the feedback loop dies silently**: tips keep appearing, they
 just stop being informed by anything.
 
-The coach runs `google/gemini-3-flash-preview` on OpenRouter for both vision
-and text. There is a credits breaker: on a 402 the server reports it honestly
+The model is whatever `AI_VISION_MODEL` and `AI_TEXT_MODEL` say on Railway,
+not what the code says. The code default is `google/gemini-3-flash-preview`;
+Railway was last seen set to `qwen/qwen3.7-flash`, a reasoning model, which is
+why every text path retries on an empty reply. There is a credits breaker: on a 402 the server reports it honestly
 rather than pretending to be down, and the client backs off for three minutes.
 
 ## Do not simplify the guards
@@ -516,6 +591,10 @@ commanding a mobility ability, which is the honest position while the coach
 cannot see cooldowns.
 
 ### Ctrl+Shift+E explains the last tip, and refuses when that is unsafe
+
+**With live tips closed this whole path is bypassed**: the hotkey opens the
+last review after a match and does nothing during one. What follows describes
+the live mode, kept for the day it is approved.
 
 The live tip is one sentence because it is read mid fight. `explainLastTip()`
 unpacks the same call on the frame it was made about, through

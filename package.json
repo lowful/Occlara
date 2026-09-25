@@ -57,6 +57,7 @@
     "test:lol": "node scripts/test-lol.js",
     "test:lolgrader": "node scripts/test-lol-grader.js",
     "test:lolreview": "node scripts/test-lol-review.js",
+    "test:matchlifecycle": "node scripts/test-match-lifecycle.js",
     "test:maps": "node scripts/test-map-labels.js",
     "test:matchlink": "node scripts/test-match-link.js",
     "test:newmatch": "node scripts/test-new-match-reset.js",

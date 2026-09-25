@@ -51,6 +51,10 @@ let sessionActive  = false; // a coaching session is running (drives one bubble 
 let agentAnswered  = false; // player has confirmed/typed their agent this session
 let formActive     = false; // player is typing in the agent field (don't yank it away)
 let doneTimer = null;
+// Live tips closed: no tip reaches this window during a match, so the last tip
+// line says where they went instead of "no tips yet" forever.
+let liveClosed = false;
+let lastTipShown = false;
 
 const STATUS_LABEL = { idle: 'Idle', coaching: 'Coaching', paused: 'Paused', stopped: 'Stopped' };
 
@@ -74,7 +78,11 @@ function render() {
   const status = isCoaching ? (isPaused ? 'paused' : 'coaching') : 'idle';
   dotEl.className = `dot ${status}`;
   statusEl.textContent = STATUS_LABEL[status];
-  tipCountEl.textContent = `${tipCount} ${tipCount === 1 ? 'tip' : 'tips'}`;
+  tipCountEl.textContent = liveClosed ? 'After the match' : `${tipCount} ${tipCount === 1 ? 'tip' : 'tips'}`;
+  tipCountEl.classList.toggle('words', liveClosed);
+  const lbl = document.querySelector('.s-stat .s-lbl');
+  if (lbl) lbl.textContent = liveClosed ? 'your review' : 'this session';
+  renderLiveClosed();
 
   toggleLbl.textContent = tr(isCoaching ? 'panel.stop' : 'panel.start');
   toggleIco.innerHTML = isCoaching ? ICO.stop : ICO.play;
@@ -85,6 +93,27 @@ function render() {
   if (sessionEl) sessionEl.classList.toggle('live', isCoaching);
   pauseBtn.disabled = !isCoaching;
   pauseBtn.innerHTML = isPaused ? ICO.play : ICO.pause;
+}
+
+/**
+ * The last tip line with live tips closed: the pill, and where the reads went.
+ * A system message (a licence ending, a capture failing) still replaces it,
+ * because those still reach this window.
+ */
+function renderLiveClosed() {
+  if (!liveClosed || lastTipShown) return;
+  lastTipText.replaceChildren();
+  const pill = document.createElement('span');
+  pill.className = 'closed-pill';
+  pill.textContent = 'Live Tips are temporarily closed';
+  const line = document.createElement('span');
+  line.className = 'lt-closed-line';
+  line.textContent = isCoaching
+    ? 'Watching silently. Your review opens when the match ends.'
+    : 'Your review opens after each match.';
+  lastTipText.append(pill, line);
+  lastTipEl.title = 'Open your last match review';
+  lastTipEl.className = 'last-tip no-drag closed';
 }
 
 // ── Controls ─────────────────────────────────────────────────────────────────
@@ -101,7 +130,10 @@ document.getElementById('history').addEventListener('click', () => window.occlar
 document.getElementById('minimize').addEventListener('click', () => window.occlara.minimize());
 document.getElementById('settings').addEventListener('click', () => window.occlara.openSettings());
 document.getElementById('quit').addEventListener('click', () => window.occlara.quit());
-lastTipEl.addEventListener('click', () => window.occlara.openHistory());
+lastTipEl.addEventListener('click', () => {
+  if (liveClosed && !lastTipShown && window.occlara.openReview) window.occlara.openReview();
+  else window.occlara.openHistory();
+});
 
 // ── Agent check bubble ─────────────────────────────────────────────────────────
 // Pops up once when coaching starts so the player confirms (or types) their agent
@@ -204,6 +236,11 @@ function applyState(s) {
   if (learnBtn && typeof s.gameId === 'string') learnBtn.hidden = s.gameId !== 'lol';
   isCoaching = !!s.isCoaching;
   isPaused   = !!s.isPaused;
+  if (typeof s.liveTipsClosed === 'boolean') liveClosed = s.liveTipsClosed;
+  const nudgeLine = nudgeEl.querySelector('.nudge-body span');
+  if (nudgeLine && liveClosed) {
+    nudgeLine.innerHTML = 'Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> to minimize. The coach keeps watching, and your review opens when the match ends.';
+  }
   if (typeof s.tipCount === 'number') tipCount = s.tipCount;
   if (typeof s.licenseActive === 'boolean') licenseActive = s.licenseActive;
   if (Array.isArray(s.topAgents)) {
@@ -258,6 +295,7 @@ window.occlara.onTip((tip) => {
   // everywhere the tip is shown, not only on the overlay.
   if (window.tipVisuals) window.tipVisuals.render(lastTipText, tip.text, { topic: tip.topic, agent: tip.agent });
   else lastTipText.textContent = tip.text;
+  lastTipShown = true;
   lastTipEl.title = tip.text;   // full text on hover, never cut off
   lastTipEl.className = `last-tip no-drag has-tip ${tip.source || 'system'} flash`;
   setTimeout(() => lastTipEl.classList.remove('flash'), 500);

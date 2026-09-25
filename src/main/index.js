@@ -84,6 +84,7 @@ const state = {
   licenseActive: true,  // false once the subscription ends (locks coaching)
   licenseReason: '',    // why it ended (expired | cancelled | payment_failed | ...)
   reviewRetryTimer: null,   // pending match-review re-push, cancelled when coaching stops
+  heldTips: [],             // tips written while live tips are closed, never broadcast
 };
 
 let mainLaunched = false;
@@ -129,6 +130,9 @@ function buildState() {
     // gameId is what the panel gates its Learn entry on, so it has to be true.
     game:       gameRegistry.get(store.get('game')).label,
     gameId:     gameRegistry.get(store.get('game')).id,
+    // Every surface greys its live tip controls out from this one field, so
+    // Settings, onboarding and the panel cannot disagree about it.
+    liveTipsClosed: gameRegistry.liveTipsClosed(store.get('game')),
     tips:       state.tips.slice(0, 50),
     tipCount:   state.tips.length,
     tipMix:     engine ? engine.getMix() : { ai: 0, library: 0, aiShare: 0 },
@@ -190,7 +194,45 @@ function maybeNudgeLate() {
   if (running >= NUDGE_LATE_AFTER_MS && gotTips) nudgeMinimize();
 }
 
+/**
+ * Is a match being watched with live tips closed? Then nothing the coach
+ * writes may reach any surface until the review.
+ */
+function holdingTips() {
+  return state.isCoaching && gameRegistry.liveTipsClosed(store.get('game'));
+}
+
+/**
+ * Is a Valorant match being played right now, as opposed to the session merely
+ * running? Between matches the session is still on, the watch has ended the
+ * last match, and nothing is being coached, so the review may be opened.
+ */
+function matchInProgress() {
+  if (!state.isCoaching || !engine || !engine.endWatch) return false;
+  if (engine.endWatch.ended) return false;
+  // Before the first round of the session, a menu is just a menu.
+  return engine.ledger.size() > 0 || !engine.inLobby;
+}
+
+/** The session log is closed to every viewer while its match is in progress. */
+function liveLogSealed() {
+  return holdingTips() && matchInProgress();
+}
+
 function pushTip(tip) {
+  // LIVE TIPS CLOSED: a coaching tip goes nowhere during the match. Not to the
+  // overlay, not to the panel's last tip line, not into state.tips, which
+  // PUSH_STATE carries to every window, and not to the voice coach, which
+  // speaks whatever the overlay receives. The engine already recorded it in
+  // the round ledger, and the review is where the player reads it. System
+  // messages, a licence ending or a capture failing, still go through.
+  if ((tip.source === 'ai' || tip.source === 'library') && holdingTips()) {
+    // Kept for the session grade, which reads the tips the coach wrote, and
+    // kept OUT of state.tips, which every window receives.
+    state.heldTips.unshift({ text: tip.text, source: tip.source, time: tip.time || Date.now() });
+    if (state.heldTips.length > 50) state.heldTips.pop();
+    return;
+  }
   // The player's own agent, carried so the overlay can mark it as theirs.
   // Only when the engine has CONFIRMED it: an unconfirmed read would paint the
   // wrong name green, and a colour that says "this one is yours" has to be
@@ -220,6 +262,124 @@ function setStatus(status) {
   registry.broadcast(C.PUSH_STATUS, { status });
   registry.broadcast(C.PUSH_STATE, buildState());
   tray.update(state.isCoaching, trayActions);
+}
+
+// ── The Valorant post-match review ───────────────────────────────────────────
+/**
+ * The engine says a match is over, or coaching was stopped mid match.
+ *
+ * THE WINDOW OPENS AT ONCE and fills in later. Riot publishes the match a few
+ * minutes after it ends, so waiting for the scoreboard before showing anything
+ * meant a player who had already queued again never saw their review. The
+ * computed half (rounds, patterns) and the coach's read are ready now; the
+ * scoreboard and the comparison against the player's own average land when
+ * the tracker can verify it is THIS match, and the review repaints.
+ */
+function buildValorantReview(snap, tracker) {
+  const valorantReview = require('../shared/valorant-review');
+  const ai = snap.ai || {};
+  const agent = snap.context && snap.context.agent;
+  const role = agent ? agentData.getRole(agent) : null;
+  const built = valorantReview.build({
+    rounds: snap.rounds,
+    context: snap.context,
+    endedBy: snap.endedBy,
+    ai: {
+      summary: ai.summary || ai.review || null,
+      rounds: ai.rounds || {},
+      focus: ai.focus || null,
+      study: Array.isArray(ai.study) ? ai.study : [],
+    },
+    tracker,
+    role,
+    history: store.get('valorantHistory') || [],
+  });
+  built.aiUnavailable = !snap.ai;
+  built.thin = !!ai.thin;
+  return { built, role };
+}
+
+function onValorantMatchReview(reviewText, snap) {
+  if (!snap) return;
+  const liveClosed = gameRegistry.liveTipsClosed(store.get('game'));
+  const first = buildValorantReview(snap, null);
+  lastReviewShown = first.built;
+  registry.broadcast(C.PUSH_VALORANT_REVIEW, first.built);
+  reviewWindow.open();
+  console.log(`[review] valorant review ready: ${snap.rounds.length} rounds, ended by ${snap.endedBy}`
+    + (snap.ai ? '' : ', no model narrative'));
+
+  // The old one card summary, for players with live tips open, whose overlay
+  // still shows it. With live tips closed there is no overlay to show it on.
+  const legacy = {
+    review: reviewText || (first.built.summary || ''), game: 'Valorant',
+    timestamp: Date.now(), tipsCount: snap.tips.length, valorant: first.built,
+  };
+  if (!liveClosed) registry.broadcast(C.PUSH_MATCH_REVIEW, legacy);
+
+  const mctx = { map: snap.context.map, agent: snap.context.agent };
+  let recorded = false;
+  let showing = first.built;
+  const withTracker = (lm) => {
+    const next = buildValorantReview(snap, lm);
+    // ONE HISTORY ROW PER MATCH, whichever attempt found the tracker, and
+    // built before the row is added so the match is not compared with itself.
+    if (!recorded) {
+      recorded = true;
+      const valorantReview = require('../shared/valorant-review');
+      const row = valorantReview.historyEntry(lm, next.role);
+      if (row) {
+        const past = store.get('valorantHistory') || [];
+        store.set('valorantHistory', [...past, row].slice(-valorantReview.BASELINE_GAMES));
+      }
+    }
+    // Only repainted if nothing newer has been shown since. The retry can
+    // land four minutes later, by which time the next match may have its own
+    // review open, and a late scoreboard must not replace it with this one.
+    const stillShowing = lastReviewShown === showing;
+    if (stillShowing) {
+      lastReviewShown = next.built;
+      registry.broadcast(C.PUSH_VALORANT_REVIEW, next.built);
+    }
+    showing = next.built;
+    legacy.lastMatch = lm;
+    legacy.valorant = next.built;
+    if (!liveClosed) registry.broadcast(C.PUSH_MATCH_REVIEW, legacy);
+    saveMatchSummary(legacy);
+  };
+
+  (async () => {
+    // Stat movement against the previous match, for the old card.
+    try {
+      const current = await fetchTrackerStats(true);
+      if (current) {
+        legacy.statsDelta = { current, prev: store.get('lastMatchStats') || null };
+        store.set('lastMatchStats', { ...current, _at: Date.now(), _riotId: (store.get('riotId') || '').trim() });
+      }
+    } catch {}
+    // THE MATCH THIS SESSION COACHED, or nothing. fetchCoachedMatch applies
+    // the map, agent and timing checks, so it returns null rather than a
+    // plausible scoreboard from a different game.
+    let lm = null;
+    try { lm = await fetchCoachedMatch(snap.startedAt, snap.endedAt, mctx); } catch {}
+    if (lm) { withTracker(lm); return; }
+    saveMatchSummary(legacy);
+    // Riot publishes a few minutes after the match. Two more tries, both
+    // verified, both cancelled if coaching is stopped, since a scoreboard
+    // arriving over the next session would be the wrong match.
+    clearTimeout(state.reviewRetryTimer);
+    const retry = (delays) => {
+      if (!delays.length) return;
+      state.reviewRetryTimer = setTimeout(async () => {
+        state.reviewRetryTimer = null;
+        let found = null;
+        try { found = await fetchCoachedMatch(snap.startedAt, snap.endedAt, mctx); } catch {}
+        if (found) withTracker(found);
+        else retry(delays.slice(1));
+      }, delays[0]);
+    };
+    retry([90000, 240000]);
+  })();
 }
 
 // ── Coaching controller ──────────────────────────────────────────────────────
@@ -387,65 +547,7 @@ const controller = {
       state.isPaused = status === 'paused';
       setStatus(status);
     });
-    engine.on('match-review', async (review) => {
-      const data = { review, game: gameRegistry.get(store.get('game')).label, timestamp: Date.now(), tipsCount: state.tips.length };
-      // Stat movement vs the previous match: compact chips on the review card.
-      try {
-        const current = await fetchTrackerStats(true);
-        if (current) {
-          data.statsDelta = { current, prev: store.get('lastMatchStats') || null };
-          store.set('lastMatchStats', { ...current, _at: Date.now(), _riotId: (store.get('riotId') || '').trim() });
-        }
-      } catch {}
-      // THE MATCH THIS SESSION COACHED, or nothing.
-      //
-      // This used raw fetchLastMatch(), which is "whatever the tracker saw most
-      // recently" with only a three hour window on it. After a lost Bind game
-      // the review card announced "Won 5-2" on Abyss, because that was simply a
-      // different match. A scoreboard from the wrong game is worse than no
-      // scoreboard: the player checks it against what they just lived through,
-      // finds it wrong, and stops trusting the review.
-      //
-      // fetchCoachedMatch applies the map, agent and timing checks, so it
-      // returns null rather than something plausible-looking but unrelated.
-      try {
-        const lm = await fetchCoachedMatch(
-          state.sessionStartedAt || Date.now(),
-          Date.now(),
-          { map: engine.matchContext.map, agent: engine.matchContext.agent },
-        );
-        if (lm) data.lastMatch = lm;
-      } catch {}
-      registry.broadcast(C.PUSH_MATCH_REVIEW, data);
-      saveMatchSummary(data);
-      // NO NUDGE TIP HERE ANY MORE. A card that says "open this other window and
-      // ask it something" is a tip that costs a slot and teaches nothing. The
-      // review card now carries an eye button that goes straight to the deaths,
-      // which is the thing the sentence was pointing at.
-      // Riot publishes match data a few minutes after the match ends; if it
-      // was not up yet, try once more and re-push the review with real stats.
-      //
-      // THE RETRY HAS TO VERIFY TOO. It called bare fetchLastMatch(), which is
-      // the exact unverified lookup the block above exists to avoid, so waiting
-      // 90 seconds re-opened the wrong-scoreboard bug rather than fixing the
-      // missing one. The window and the match context are captured now because
-      // the engine may be torn down by the time this fires, and the timer is
-      // held so stopping coaching cancels it: a review from the previous match
-      // must never land on top of a session that has already moved on.
-      if (!data.lastMatch) {
-        const startedAt = state.sessionStartedAt || Date.now();
-        const endedAt   = Date.now();
-        const mctx      = { map: engine.matchContext.map, agent: engine.matchContext.agent };
-        clearTimeout(state.reviewRetryTimer);
-        state.reviewRetryTimer = setTimeout(async () => {
-          state.reviewRetryTimer = null;
-          try {
-            const lm = await fetchCoachedMatch(startedAt, endedAt, mctx);
-            if (lm) registry.broadcast(C.PUSH_MATCH_REVIEW, { ...data, lastMatch: lm });
-          } catch {}
-        }, 90000);
-      }
-    });
+    engine.on('match-review', (reviewText, snap) => onValorantMatchReview(reviewText, snap));
     engine.on('agent', (info) => {
       const wasConfirmed = !!(state.agent && state.agent.confirmed);
       state.agent = info || { agent: null, confirmed: false, role: null };
@@ -466,6 +568,7 @@ const controller = {
     store.set('coachStartCount', (store.get('coachStartCount') || 0) + 1);
     state.agent      = { agent: null, confirmed: false, role: null };
     state.tips       = [];   // fresh session; the previous one is archived on stop
+    state.heldTips   = [];
     engine.start();
     if (state.pendingAgent) {           // player typed their agent before starting
       engine.setAgent(state.pendingAgent);
@@ -504,7 +607,9 @@ const controller = {
     // categories AND writes a coach recap from the tips; logged locally).
     // A session qualifies with multiple tips OR after 5+ minutes of coaching.
     if (engine) {
-      const sessionTips  = state.tips.filter((t) => t.source === 'ai' || t.source === 'library').map((t) => t.text);
+      // Held tips count: with live tips closed they are the whole session.
+      const sessionTips  = state.tips.concat(state.heldTips)
+        .filter((t) => t.source === 'ai' || t.source === 'library').map((t) => t.text);
       const durationMin  = state.sessionStartedAt ? (Date.now() - state.sessionStartedAt) / 60000 : 0;
       if (sessionTips.length >= 3 || (durationMin >= 5 && sessionTips.length >= 1)) {
         const mctx = { map: engine.matchContext.map, agent: engine.matchContext.agent };
@@ -554,6 +659,9 @@ const controller = {
     // state.isPaused + status pushes are driven by the engine 'status' event.
   },
   async forceTip() {
+    // A forced tip with live tips closed would be written and then held,
+    // which spends a model call on nothing the player can see.
+    if (gameRegistry.liveTipsClosed(store.get('game'))) return;
     if (engine) await engine.requestTip();
   },
 
@@ -579,6 +687,20 @@ const controller = {
   async explainLastTip() {
     const licenseKey = store.get('licenseKey');
     if (!licenseKey) return { error: 'No licence active.' };
+
+    // LIVE TIPS CLOSED: the explanation IS the review. Mid match the hotkey
+    // does nothing visible at all, because there is no overlay to draw on and
+    // opening a window over a round in progress is the thing being avoided.
+    // After the match it opens the review, where every round's read already
+    // carries its why.
+    if (gameRegistry.liveTipsClosed(store.get('game'))) {
+      if (matchInProgress()) {
+        console.log('[explain] mid match with live tips closed, nothing shown');
+        return { error: 'Explanations are in the review after the match.' };
+      }
+      reviewWindow.open();
+      return { ok: true, review: true };
+    }
 
     // The gate lives in src/shared/explain-gate.js so it can be tested without
     // booting Electron. It is the safety property of this feature.
@@ -853,8 +975,23 @@ const controller = {
    * point wants.
    */
   openAiLog(sessionId) { aiLogWindow.open(sessionId || null); },
-  getAiLog(id)    { return readAiLog(id); },
-  getAiLogSessions() { return aiLogSessions(); },
+  getAiLog(id) {
+    // SEALED MID MATCH with live tips closed. The log shows every tip the coach
+    // wrote, frame by frame, as it writes them, so an open log window on a
+    // second monitor was the live tip feed by another name. The session in
+    // progress reopens the moment the match ends.
+    if (liveLogSealed() && (!id || id === aiLogLiveId())) {
+      const past = aiLogSessions().filter((x) => !x.live);
+      if (!past.length) return { records: [], sessions: [], sealed: true };
+      const log = readAiLog(past[0].id);
+      return { ...log, sessions: past, sealed: true };
+    }
+    return readAiLog(id);
+  },
+  getAiLogSessions() {
+    const list = aiLogSessions();
+    return liveLogSealed() ? list.filter((x) => !x.live) : list;
+  },
 
   /** Check a logged session's deaths against Riot's own record of the match.
    *  Lazy and best effort: the viewer opens on the screen-read deaths straight
@@ -878,6 +1015,9 @@ const controller = {
     // browsable, reading the newest here would answer a question about frame 12
     // of Tuesday's game using frame 12 of tonight's, with a confident answer and
     // nothing to indicate it looked at the wrong picture.
+    if (liveLogSealed() && (!p.session || p.session === aiLogLiveId())) {
+      return { error: 'This match is still being played. Ask about it once it ends.' };
+    }
     const log = readAiLog(p.session);
     const recs = Array.isArray(log.records) ? log.records : [];
     const i = Math.max(0, Math.min(recs.length - 1, Number(p.index) || 0));
@@ -1096,10 +1236,15 @@ const controller = {
     if (!licenseKey) return { ok: false, error: 'No license active.' };
 
     const hasSessionData = state.tips.length > 0 || listSessions().length > 0;
+    // MID MATCH WITH LIVE TIPS CLOSED, the chat gets nothing about the match
+    // in progress. Ask Coach is a window the player can keep open on a second
+    // monitor, and a chat that knows "died round 5 at A Site" answers "where
+    // should I play" with exactly the live advice that was closed.
+    const midMatch = holdingTips() && matchInProgress();
     const context = {
       agent:        state.agent && state.agent.agent,
-      sessionTips:  state.tips.slice(0, 20).map((t) => t.text),
-      matchMemory:  engine ? engine.matchMemory.slice(-8) : [],
+      sessionTips:  midMatch ? [] : state.tips.slice(0, 20).map((t) => t.text),
+      matchMemory:  engine && !midMatch ? engine.matchMemory.slice(-8) : [],
       stats:        await fetchTrackerStats(),
       noSessionYet: !hasSessionData,
       coachTrend:   (() => { const tp = guardedTrackerPair(); return computeCategoryTrends(loadPerf(), tp.stats, tp.prevStats); })(),
@@ -1250,6 +1395,7 @@ const controller = {
       if (game !== 'lol') learnWindow.close();
 
       console.log(`[game] ${from} -> ${game}, caches cleared`);
+      if (surfacesUp) syncOverlay();
       registry.broadcast(C.PUSH_GAME, { id: game, label: gameRegistry.get(game).label });
     }
 
@@ -1846,7 +1992,10 @@ function sessionsDir() {
 
 function saveSessionArchive(extra = {}) {
   try {
-    if (!state.tips.length) return;
+    // The held tips belong in the archive: it is written when the session
+    // ends, which is after the match, which is exactly when they may be read.
+    const tips = state.tips.concat(state.heldTips).sort((a, b) => (b.time || 0) - (a.time || 0));
+    if (!tips.length) return;
     const dir = sessionsDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const endedAt = Date.now();
@@ -1857,13 +2006,13 @@ function saveSessionArchive(extra = {}) {
       endedAt,
       durationMs,
       agent:    (state.agent && state.agent.agent) || null,
-      tipCount: state.tips.length,
+      tipCount: tips.length,
       tipMix:   extra.tipMix || null,
-      tips:     state.tips,
+      tips,
       matchMemory: extra.matchMemory || [],
       stats:    extra.stats || store.get('playerStats') || null,
     }, null, 2));
-    console.log('[session] archived', file, `(${state.tips.length} tips)`);
+    console.log('[session] archived', file, `(${tips.length} tips)`);
     cleanupOldSessions();
   } catch (e) {
     console.error('[session] archive failed:', e.message);
@@ -2339,11 +2488,30 @@ function openAppWithSplash() {
   else handOver();
 }
 
+/**
+ * The overlay exists only while live tips are open for the chosen game.
+ *
+ * With them closed it is not hidden, it is NOT CREATED: a transparent,
+ * always-on-top, full-screen window sitting over the game is what an overlay
+ * is, whatever it happens to be drawing. Everything it used to show during a
+ * match now goes to the post-match review, which is a normal window that only
+ * opens when the match is over.
+ */
+function syncOverlay() {
+  const closed = gameRegistry.liveTipsClosed(store.get('game'));
+  const win = overlayWindow.get();
+  if (closed) {
+    if (win && !win.isDestroyed()) win.destroy();
+  } else if (!win || win.isDestroyed()) {
+    overlayWindow.create();
+  }
+}
+
 function createAppSurfaces(opts) {
   if (surfacesUp) return;
   surfacesUp = true;
 
-  overlayWindow.create();
+  syncOverlay();
   // deferShow keeps the panel hidden until the launch animation finishes. The
   // overlay needs no such treatment: it is transparent, click through, and
   // renders nothing until a tip arrives.

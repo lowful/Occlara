@@ -28,6 +28,12 @@ contextBridge.exposeInMainWorld('occlara', {
     ipcRenderer.on(C.PUSH_RIVALS_REVIEW, h);
     return () => ipcRenderer.removeListener(C.PUSH_RIVALS_REVIEW, h);
   },
+  // The Valorant review, round by round. Same window, same kind switch.
+  onValorantReview: (cb) => {
+    const h = (_e, r) => cb(r);
+    ipcRenderer.on(C.PUSH_VALORANT_REVIEW, h);
+    return () => ipcRenderer.removeListener(C.PUSH_VALORANT_REVIEW, h);
+  },
   openLearn: () => ipcRenderer.send(C.OPEN_LEARN),
   close:     () => window.close(),
 });

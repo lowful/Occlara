@@ -8,6 +8,9 @@ const { polishText, cleanTip, tipWords, normalizeTip, overlapRatio, countOf,
         PREAMBLE, TRUNCATION } = require('./tip-hygiene');
 const { API, TIMING, PERFORMANCE_INTERVALS, TIP_PACING, COACHING } = require('../../shared/config');
 const spectate = require('../../shared/spectate-tells');
+const { RoundLedger } = require('../../shared/valorant-rounds');
+const { MatchEndWatch } = require('../../shared/match-end');
+const valorantReview = require('../../shared/valorant-review');
 
 /**
  * The coaching loop. Lives in the main process; the heavy screen capture runs in
@@ -92,6 +95,14 @@ class CoachingEngine extends EventEmitter {
     this.standardEvidence = 0;    // consecutive frames whose score/round prove standard
     this.swapEvidence     = 0;    // consecutive flipped side reads in rounds 5-8 (swiftplay tell)
 
+    // THE MATCH, as the post-match review will tell it. The ledger records each
+    // round from the guarded context, the watch decides when the match is
+    // over, and matchStartedAt marks which tips belong to this match rather
+    // than to the one before it in the same session.
+    this.ledger = new RoundLedger();
+    this.endWatch = new MatchEndWatch();
+    this.matchStartedAt = Date.now();
+
     this.timers = [];
     this.loopTimer = null;
     this.agentTimer = null;
@@ -143,19 +154,11 @@ class CoachingEngine extends EventEmitter {
     // useful again, and held one of the four visible card slots for eleven
     // seconds while the player was still loading into the round.
     this.emit('status', 'coaching');
+    this.ledger = new RoundLedger();
+    this.endWatch = new MatchEndWatch();
+    this.matchStartedAt = Date.now();
 
-    this.timers.push(setTimeout(() => this.isRunning && this.detectAgent(), TIMING.agentDetectFirst));
-    this.agentTimer = setInterval(() => {
-      if (!this.isRunning) return;
-      if (this.matchContext.agent) { clearInterval(this.agentTimer); this.agentTimer = null; return; }
-      this.detectAgent();
-    }, TIMING.agentDetectRetry);
-
-    // If detection hasn't locked an agent shortly after the first attempt, ask
-    // the player directly (panel switches the bubble to a "type your agent" field).
-    this.timers.push(setTimeout(() => {
-      if (this.isRunning && !this.matchContext.agent) this.emit('agent', this.agentInfo());
-    }, 9000));
+    this.armAgentDetection();
 
     this.timers.push(setTimeout(() => this.isRunning && this.captureAndAnalyze(), TIMING.firstAnalyze));
     this.loopTimer = setInterval(() => {
@@ -177,9 +180,120 @@ class CoachingEngine extends EventEmitter {
     this.recentFrames = [];
     this.emit('status', 'stopped');
 
-    const aiTips = this.tipHistory.filter((t) => t.source === 'ai').length;
-    if (aiTips >= 3) this.requestMatchReview();
+    // A match the watch already ended has had its review. Anything since, a
+    // match stopped halfway included, gets one for the rounds it watched.
+    if (!this.endWatch.ended) {
+      const snap = this.matchSnapshot('stop');
+      if (snap) this.requestMatchReview(snap);
+    }
     console.log('[engine] stopped');
+  }
+
+  /**
+   * Find the player's agent: a detection shortly after the match is seen, a
+   * retry until one locks, and a prompt to the player if none has after nine
+   * seconds. At session start, and again after every match, because the next
+   * match is usually on a different agent.
+   */
+  armAgentDetection() {
+    if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
+    this.timers.push(setTimeout(() => this.isRunning && this.detectAgent(), TIMING.agentDetectFirst));
+    this.agentTimer = setInterval(() => {
+      if (!this.isRunning) return;
+      if (this.matchContext.agent) { clearInterval(this.agentTimer); this.agentTimer = null; return; }
+      this.detectAgent();
+    }, TIMING.agentDetectRetry);
+
+    // If detection hasn't locked an agent shortly after the first attempt, ask
+    // the player directly (panel switches the bubble to a "type your agent" field).
+    this.timers.push(setTimeout(() => {
+      if (this.isRunning && !this.matchContext.agent) this.emit('agent', this.agentInfo());
+    }, 9000));
+  }
+
+  // ── the match, for the review ──────────────────────────────────────────────
+
+  /**
+   * Record one analysed frame into the round ledger, and end the match when
+   * the watch says it is over.
+   *
+   * Called after processAIResponse, so everything read here has already been
+   * through the guards: the spectator merge, HP beats death, the scoreboard
+   * continuity check. `died` is true only on the frame a death was REGISTERED,
+   * which is the engine's own debounced decision, never the raw alive flag.
+   */
+  recordFrame({ lobby, died }) {
+    const at = Date.now();
+    if (lobby) {
+      const w = this.endWatch.lobby({ at, rounds: this.ledger.size() });
+      if (w && w.kind === 'end') this.endMatch(w.reason);
+      return;
+    }
+    const c = this.matchContext;
+    const w = this.endWatch.play({ team: c.teamScore | 0, enemy: c.enemyScore | 0, mode: c.gameMode, at });
+    if (w && w.kind === 'end') { this.endMatch(w.reason); return; }
+    if (w && w.kind === 'ignore') return;
+    // The agent is NOT reset here: endMatch already did, and the player may
+    // have confirmed the new one in the panel before this first frame landed.
+    if (w && w.kind === 'new-match') this.beginMatch(false);
+    const shown = this._cycleShown;
+    this.ledger.observe({
+      at, team: c.teamScore | 0, enemy: c.enemyScore | 0, side: c.side, phase: c.phase,
+      alive: c.playerAlive, died: !!died, deathSpot: c.deathSpot,
+      clock: c.clock, ult: c.playerUlt, spike: c.spike, spikeSpot: c.spikeSpot,
+      loc: c.locLabel || c.playerSpot,
+      tip: shown ? { text: shown.text, source: shown.source, death: !!shown.death } : null,
+    });
+  }
+
+  /** Everything the review needs about the match so far, or null if too thin. */
+  matchSnapshot(endedBy) {
+    const c = this.matchContext;
+    const lastRound = endedBy === 'score' ? (c.teamScore | 0) + (c.enemyScore | 0) : null;
+    const rounds = this.ledger.list(lastRound);
+    const tips = this.tipHistory
+      .filter((t) => t.source === 'ai' && (t.time || 0) >= this.matchStartedAt)
+      .map((t) => t.text);
+    if (!rounds.length && tips.length < 3) return null;
+    return {
+      endedBy,
+      rounds,
+      tips,
+      notes: this.playerNotes.slice(-20),
+      context: { ...c, proPlaybook: this.experiments().proPlaybook || 'off',
+        advancedTips: this.experiments().advancedTips === true },
+      startedAt: this.matchStartedAt,
+      endedAt: Date.now(),
+    };
+  }
+
+  /** The match is over: review it, then get ready for the next one. */
+  endMatch(reason) {
+    const snap = this.matchSnapshot(reason);
+    console.log(`[engine] match over (${reason}), ${snap ? snap.rounds.length : 0} rounds recorded`);
+    this.beginMatch(true);
+    if (snap) this.requestMatchReview(snap);
+  }
+
+  /**
+   * A clean slate for the next match in the same session.
+   *
+   * The agent goes too. It used to survive for the whole session, which was
+   * harmless while one session was one match, and wrong now that the app
+   * sits running between matches: the second match's review would name the
+   * first match's agent, and the ability gate would check the wrong kit.
+   */
+  beginMatch(resetAgent) {
+    this.ledger = new RoundLedger();
+    this.matchStartedAt = Date.now();
+    this.playerNotes = [];
+    this.matchMemory = [];
+    if (resetAgent && this.matchContext.agent) {
+      this.matchContext.agent = null;
+      this.matchContext.agentConfirmed = false;
+      this.emit('agent', this.agentInfo());
+      if (this.isRunning) this.armAgentDetection();
+    }
   }
 
   pause() {
@@ -253,7 +367,13 @@ class CoachingEngine extends EventEmitter {
       this.failStreak = 0;
       this.analyzedFrames++;
       this._cycleShown = null;                   // reset before this cycle decides
+      const deathBefore = this.lastDeathAt;
       this.processAIResponse(data);
+      // The round ledger and the match-end watch. Guarded, because a bug in
+      // the review's bookkeeping must never cost the coach its next frame.
+      try {
+        this.recordFrame({ lobby: this.inLobby, died: this.lastDeathAt !== deathBefore });
+      } catch (e) { console.log('[engine] round ledger error:', e.message); }
       if (!this.inLobby) this.pushFrame(shot);   // confirmed gameplay: keep for chat
       // AI decision log: record the frame the coach read, the STATE it parsed
       // from it (its "notes"), the tip it produced, and what was actually shown
@@ -1792,18 +1912,29 @@ class CoachingEngine extends EventEmitter {
     }
   }
 
-  async requestMatchReview() {
+  /**
+   * Ask the server to write the review, then hand everything to the app.
+   *
+   * THE REVIEW ARRIVES EVEN WHEN THE MODEL DOES NOT. The rounds, the patterns
+   * and the scoreline are computed here and in valorant-review.js; the model
+   * only adds the summary and a why per round. So a timeout, an empty wallet
+   * or a server that is down costs the player the narrative, never the match.
+   */
+  async requestMatchReview(snap) {
+    if (!snap) return;
+    let data = null;
     try {
-      const tips = this.tipHistory.filter((t) => t.source === 'ai').map((t) => t.text);
-      const data = await this.callServer(API.MATCH_REVIEW, {
-        tips,
-        notes: this.playerNotes.slice(-20),   // observed facts ground the review
-        context: { ...this.matchContext, proPlaybook: this.experiments().proPlaybook || 'off' },
-      });
-      if (data && data.review) this.emit('match-review', data.review);
+      const body = valorantReview.requestBody(snap);
+      body.context = { ...body.context, proPlaybook: snap.context.proPlaybook };
+      // 60s rather than the 30s every frame gets: this is one call a match, it
+      // writes up to ten round explanations, and the player is in a menu.
+      const res = await api.post(API.MATCH_REVIEW, body, this.licenseKey, 60000);
+      data = res && res.ok ? res.data : null;
+      if (!data) console.error('[engine] match-review status', res && res.status);
     } catch (e) {
       console.error('[engine] match-review error:', e.message);
     }
+    this.emit('match-review', data && data.review ? data.review : null, { ...snap, ai: data });
   }
 }
 

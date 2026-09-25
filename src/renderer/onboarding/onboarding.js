@@ -84,10 +84,32 @@ opacityEl.addEventListener('change', () => {
   window.occlara.setConfig({ tipOpacity: Number(opacityEl.value) / 100 }).catch(() => {});
 });
 
+/*
+ * LIVE TIPS CLOSED. Every piece of copy that describes tips on screen has a
+ * closed twin, and the tip look is greyed with the pill Settings uses. Driven
+ * by the same switch as every other surface, so reopening live tips restores
+ * the original tour without touching this file.
+ */
+function applyLiveClosed(closed) {
+  for (const n of document.querySelectorAll('[data-live]')) {
+    n.hidden = (n.dataset.live === 'closed') !== closed;
+  }
+  const look = document.querySelector('[data-page="2"]');
+  for (const sel of ['#tipstyle', '.op-row', '.tip-note']) {
+    const n = look && look.querySelector(sel);
+    if (!n) continue;
+    n.classList.toggle('ob-greyed', closed);
+    if (closed) n.setAttribute('inert', ''); else n.removeAttribute('inert');
+  }
+  const force = document.getElementById('ob-force');
+  if (force) force.classList.toggle('ob-greyed-row', closed);
+}
+
 // Reflect whatever is already saved, so re-running the tour never silently
 // resets a choice the player made in Settings.
 window.occlara.getConfig().then((cfg) => {
   if (!cfg) return;
+  if (window.occlara.liveTipsClosed) applyLiveClosed(window.occlara.liveTipsClosed(cfg.game || 'valorant'));
   const style = cfg.tipStyle || 'glass';
   for (const b of document.getElementById('tipstyle').querySelectorAll('button')) {
     b.classList.toggle('active', b.dataset.val === style);

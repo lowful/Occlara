@@ -134,3 +134,152 @@ header {
   height: 1px;
   background: var(--text-mute);
 }
+
+/* ── Valorant, round by round ──────────────────────────────────────────────
+   White on black with the accent kept for the one thing a player scans for:
+   where they died. Won rounds are the solid cells, lost ones the hollow ones,
+   so the shape of the match reads at a glance without any colour at all. */
+
+#vreview { display: flex; flex-direction: column; gap: var(--space-6); }
+
+.v-hero {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: var(--space-4);
+  background: var(--bg-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+}
+.v-result {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.18em;
+  color: var(--text-mute);
+}
+.v-result.win  { color: var(--text); }
+.v-result.loss { color: var(--red); }
+.v-score {
+  font-family: var(--font-mono); font-size: 40px; font-weight: 600;
+  letter-spacing: -1px; line-height: 1.1; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.v-meta { font-size: 12px; color: var(--text-dim); letter-spacing: 0.01em; margin-top: 2px; }
+
+.v-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); }
+
+/* The strip. Each half is its own row so halftime is a line break, not a
+   number the player has to find. */
+.v-strip { display: flex; flex-direction: column; gap: var(--space-3); }
+.v-half { display: flex; flex-direction: column; gap: 6px; }
+.v-half-side {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-mute); min-height: 12px;
+}
+.v-cells { display: flex; flex-wrap: wrap; gap: 4px; }
+.v-cell {
+  position: relative;
+  width: 30px; height: 34px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: var(--text-dim);
+  font: 600 11px var(--font-mono);
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.v-cell:hover { transform: translateY(-1px); border-color: rgba(255, 255, 255, 0.4); }
+.v-cell:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.v-cell.won { background: var(--text); border-color: var(--text); color: var(--bg); }
+.v-cell.unknown { border-style: dashed; color: var(--text-mute); }
+.v-cell-n { line-height: 1; }
+.v-cell-marks { display: flex; gap: 3px; height: 5px; }
+.mk { display: block; width: 5px; height: 5px; border-radius: 50%; }
+.mk.died { background: var(--red); }
+.mk.planted { border-radius: 1px; background: var(--warn); }
+.v-cell.won .mk.planted { background: var(--bg); }
+
+.v-legend { display: flex; flex-wrap: wrap; gap: var(--space-4); font-size: 11px; color: var(--text-mute); }
+.v-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.lg { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.lg.won { background: var(--text); }
+.lg.lost { border: 1px solid rgba(255, 255, 255, 0.3); }
+.lg.died { width: 6px; height: 6px; border-radius: 50%; background: var(--red); }
+.lg.planted { width: 6px; height: 6px; border-radius: 1px; background: var(--warn); }
+
+.v-summary { font-size: 14px; line-height: 1.6; color: var(--text); margin: 0; }
+.v-focus {
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+}
+.v-focus-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-mute); margin-bottom: 4px;
+}
+.v-focus-text { font-size: 13.5px; font-weight: 600; line-height: 1.5; color: var(--text); margin: 0; }
+
+.v-patterns { display: flex; flex-direction: column; gap: var(--space-1); }
+.v-pattern {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-3);
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+}
+.v-pattern-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; background: var(--text-mute); }
+.v-pattern-dot.spot, .v-pattern-dot.early, .v-pattern-dot.ult { background: var(--red); }
+.v-pattern-text { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+
+.v-rounds { display: flex; flex-direction: column; gap: var(--space-2); }
+.v-round {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  scroll-margin: var(--space-8);
+}
+.v-round.flash { animation: vflash 1.2s var(--ease); }
+@keyframes vflash {
+  0%   { border-color: rgba(255, 255, 255, 0.6); }
+  100% { border-color: var(--glass-border); }
+}
+.v-round-head { display: flex; align-items: center; gap: var(--space-2); }
+.v-rn { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--text); }
+.v-chip {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 2px 7px; border-radius: 999px;
+}
+.v-chip.won  { background: var(--text); color: var(--bg); }
+.v-chip.lost { border: 1px solid rgba(255, 255, 255, 0.22); color: var(--text-dim); }
+.v-side { font-size: 11px; color: var(--text-mute); }
+.v-facts { font-size: 12px; color: var(--text-dim); }
+.v-why-wrap { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+.v-why { font-size: 13px; line-height: 1.55; color: var(--text); margin: 0; }
+.v-reads { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+.v-reads-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-mute);
+}
+.v-read {
+  font-size: 12px; line-height: 1.5; color: var(--text-dim); margin: 0;
+  padding: 6px 10px;
+  background: var(--bg-2);
+  border-radius: var(--r-sm);
+}
+
+.v-study { display: flex; flex-direction: column; gap: var(--space-2); }
+.v-study-card {
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+}
+.v-study-text { font-size: 13px; line-height: 1.55; color: var(--text); margin: 0; }
+.v-study-src { font-size: 11px; color: var(--text-mute); margin-top: 6px; }
+
+.v-foot { font-size: 11px; color: var(--text-mute); text-align: center; margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .v-cell, .v-round.flash { transition: none; animation: none; }
+}

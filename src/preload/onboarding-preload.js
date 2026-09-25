@@ -3,6 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
+const GAMES = require('../shared/games');
 
 /**
  * Onboarding bridge: dismiss the welcome card for good, and save the
@@ -24,4 +25,7 @@ contextBridge.exposeInMainWorld('occlara', {
   // the Settings window uses, so the two can never disagree.
   setConfig: (patch) => ipcRenderer.invoke(C.CONFIG_SET, patch),
   getConfig: () => ipcRenderer.invoke(C.CONFIG_GET),
+  // The same switch every other surface reads, so the tour describes the app
+  // the player is actually about to use.
+  liveTipsClosed: (gameId) => GAMES.liveTipsClosed(gameId),
 });

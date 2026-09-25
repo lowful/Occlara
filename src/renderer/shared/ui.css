@@ -377,3 +377,37 @@ input:focus-visible, select:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Live tips closed ───────────────────────────────────────────────────────
+   One pill, one greyed state, shared by Settings, onboarding and the panel so
+   the three cannot drift into three different ways of saying the same thing.
+   The heading stays at full strength so the pill beside it is readable; only
+   the controls fade, and they are made inert by the script, not just styled. */
+.closed-pill {
+  display: inline-flex; align-items: center;
+  margin-left: var(--space-2);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--warn-rgb), 0.35);
+  background: rgba(var(--warn-rgb), 0.08);
+  color: var(--warn);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+  text-transform: none;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.closed-pill[hidden] { display: none; }
+.live-closed > :not(h3):not(.closed-pill) { opacity: 0.38; filter: grayscale(1); pointer-events: none; }
+/* Heading and pill share a line: the pill sits beside the heading it labels. */
+.live-closed > h3 { display: inline-block; margin-right: 0; }
+.live-closed > h3 + .closed-pill { margin-bottom: 6px; }
+.live-closed.kv, .kv.live-closed { opacity: 0.38; }
+.live-note {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(var(--warn-rgb), 0.22);
+  border-radius: var(--r-md);
+  background: rgba(var(--warn-rgb), 0.04);
+}
+.live-note .closed-pill { margin-left: 0; }
+.live-note[hidden] { display: none; }

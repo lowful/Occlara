@@ -29,9 +29,15 @@
         <div id="ob-language" class="ob-lang"></div>
         <p class="ob-lang-note" id="ob-language-note" hidden></p>
       </div>
-      <ol class="steps">
+      <ol class="steps" data-live="open">
         <li><span class="n">1</span><div><b>Start coaching</b><span>Set Valorant to Windowed Fullscreen, then hit the red button on the panel once you're in a match.</span></div></li>
         <li><span class="n">2</span><div><b>Confirm your agent</b><span>A bubble asks who you're playing. Confirm it, or pick one of your mains. Until you do, you only get general tips and no ability advice.</span></div></li>
+      </ol>
+      <!-- Live tips closed: the same steps, told as the app now works. -->
+      <ol class="steps" data-live="closed" hidden>
+        <li><span class="n">1</span><div><b>Start the coach</b><span>Set Valorant to Windowed Fullscreen, then hit the red button on the panel before your match. Nothing appears on your screen while you play.</span></div></li>
+        <li><span class="n">2</span><div><b>Confirm your agent</b><span>A bubble on the panel asks who you're playing. Confirm it, or pick one of your mains, so your review can talk about your abilities.</span></div></li>
+        <li><span class="n">3</span><div><b>Read your review</b><span>When the match ends, the review opens on its own: every round the coach saw, what it would have told you, and why.</span></div></li>
       </ol>
     </section>
 
@@ -41,25 +47,50 @@
         <h1>Keep it out of your way</h1>
         <p class="sub">The panel should never catch your mouse mid-aim.</p>
       </div>
-      <p class="lead">While you play, minimize the panel with <kbd>Ctrl+Shift+M</kbd>. Coaching keeps running and tips still appear on the overlay. The same shortcut brings it back.</p>
+      <p class="lead" data-live="open">While you play, minimize the panel with <kbd>Ctrl+Shift+M</kbd>. Coaching keeps running and tips still appear on the overlay. The same shortcut brings it back.</p>
+      <p class="lead" data-live="closed" hidden>While you play, minimize the panel with <kbd>Ctrl+Shift+M</kbd>. The coach keeps watching in the background, and the same shortcut brings the panel back.</p>
       <div class="keys">
         <div class="k"><span>Minimize panel</span><kbd>Ctrl+Shift+M</kbd></div>
-        <div class="k"><span>Force a tip</span><kbd>Ctrl+Shift+X</kbd></div>
+        <div class="k" id="ob-force"><span>Force a tip</span><kbd>Ctrl+Shift+X</kbd></div>
         <div class="k"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
         <div class="k"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
-        <div class="k"><span>Why that tip</span><kbd>Ctrl+Shift+E</kbd></div>
+        <div class="k"><span data-live="open">Why that tip</span><span data-live="closed" hidden>Last review</span><kbd>Ctrl+Shift+E</kbd></div>
       </div>
-      <p class="keys-note">A tip is one sentence so you can read it mid fight. <kbd>Ctrl+Shift+E</kbd>
+      <p class="keys-closed" data-live="closed" hidden><span class="closed-pill">Live Tips are temporarily closed</span><span>Force a tip is off until they return.</span></p>
+      <p class="keys-note" data-live="open">A tip is one sentence so you can read it mid fight. <kbd>Ctrl+Shift+E</kbd>
         unpacks the last one properly: the read, the alternative play, and what a Radiant does
         instead. It only opens during a buy phase or while you are dead, because reading a
         paragraph while holding an angle is how you lose the round.</p>
+      <p class="keys-note" data-live="closed" hidden><kbd>Ctrl+Shift+E</kbd> opens your last match
+        review. During a match it does nothing, on purpose: Occlara shows you nothing while you play,
+        and everything it saw is waiting for you when the match ends.</p>
     </section>
 
     <!-- ── 3. Tip look ────────────────────────────────────────────────── -->
     <section class="page" data-page="2" hidden>
-      <div class="hero">
+      <div class="hero" data-live="open">
         <h1>Pick your tip look</h1>
         <p class="sub">Tap one to try it. You can change it any time in Settings.</p>
+      </div>
+      <!-- Live tips closed: this page shows what arrives instead, and the tip
+           look below is greyed with the same pill Settings uses, kept for when
+           live tips return. -->
+      <div class="hero" data-live="closed" hidden>
+        <h1>After every match</h1>
+        <p class="sub">Your review opens on its own. This is the shape of it.</p>
+      </div>
+      <div class="ob-review" data-live="closed" hidden aria-hidden="true">
+        <div class="obr-head"><span class="obr-result">VICTORY</span><span class="obr-score">13 : 11</span></div>
+        <div class="obr-strip">
+          <i class="w"></i><i class="l d"></i><i class="l d"></i><i class="l"></i><i class="w d"></i><i class="l d"></i><i class="w"></i><i class="l"></i><i class="w"></i><i class="w d"></i><i class="w"></i><i class="w p"></i>
+        </div>
+        <div class="obr-card">
+          <div class="obr-rn">R2 <span>Lost</span></div>
+          <p class="obr-why">You took A Vent before your team reached A Main, so nobody could trade you. Take one piece of space, then wait for them.</p>
+        </div>
+      </div>
+      <div class="ob-closed-head" data-live="closed" hidden>
+        <b>Tip look</b><span class="closed-pill">Live Tips are temporarily closed</span>
       </div>
       <div class="style-grid" id="tipstyle">
         <button data-val="glass" class="style-opt active">
@@ -89,7 +120,8 @@
         <h1>One last call</h1>
         <p class="sub">Want the fundamentals mixed in?</p>
       </div>
-      <p class="lead">Curated basics (crosshair placement, trading, positioning) alongside the AI tips. New, or Silver and below? Keep them on. Ranked higher? Off is the usual pick.</p>
+      <p class="lead" data-live="open">Curated basics (crosshair placement, trading, positioning) alongside the AI tips. New, or Silver and below? Keep them on. Ranked higher? Off is the usual pick.</p>
+      <p class="lead" data-live="closed" hidden>Curated basics (crosshair placement, trading, positioning) alongside the coach's own reads in your review. New, or Silver and below? Keep them on. Ranked higher? Off is the usual pick.</p>
       <div class="seg" id="fundamentals">
         <button data-val="on" class="active">On, coach the basics</button>
         <button data-val="off">Off, AI tips only</button>
