@@ -30,7 +30,27 @@
 
 const knowledge = require('./knowledge');
 
-// PENDING THE BENCH. Replaced with the measured winner and the reason.
+/*
+ * C, BY A SMALL MARGIN, AND THE MARGIN IS GROUNDING.
+ *
+ * Measured with npm run bench:review on two real matches (a 24 round overtime
+ * on Abyss and a 7 round swiftplay), two runs each, over three rounds of prompt
+ * fixes. Once the replies parsed, B and C were close:
+ *
+ *   unsupported claims   B 7, C 4 across the last eight replies each (a kill
+ *                        count, an ultimate nobody read, "damage")
+ *   restating the read   B 44%, C 46% word overlap with the coach's own line
+ *   foreign places       0 and 0 after the grader stopped misreading "B. You"
+ *
+ * A wrong sentence is the expensive failure in a review, so the variant that
+ * made fewer of them wins even though it restates a little more. A, the old
+ * review, never names a round because it is never told one, which is the whole
+ * reason this module exists.
+ *
+ * What moved the numbers was not the variant but the instruction: asking each
+ * round line for "what the read does not say" took restating from about 55% to
+ * about 45% in both. That is still high, and it is the next thing to work on.
+ */
 const DEFAULT_VARIANT = 'C';
 const MAX_ROUND_LINES = 10;
 
@@ -170,6 +190,8 @@ const GROUNDING = 'GROUNDING RULES. The ledger was built by watching the screen 
   + 'state them, and never call a situation a man advantage or a clutch. '
   + 'Never tell the player to use their ultimate unless that round says the ultimate was ready. '
   + 'Never do arithmetic on the score, use it exactly as given. '
+  + 'Quote a pattern\'s numbers exactly or not at all, and never merge two patterns into one number. '
+  + 'Speak to the player as you, never as the player. '
   + 'Write round numbers as digits and never list more than four of them in one sentence. '
   + 'Only name places that appear in the ledger. Do not use dashes. No markdown, no lists, no bold.';
 
