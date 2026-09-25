@@ -216,13 +216,15 @@ function promptRounds(input, withKnowledge) {
     + (patterns.length ? patterns.map((p) => '- ' + p.text).join('\n') : '- none cleared the bar in this match')
     + knowledgeBlock
     + '\n\nWrite exactly this, each label at the start of its own line:\n'
-    + 'SUMMARY: three sentences on one line, under 70 words. First, what decided this match for the player, drawn '
-    + 'from the patterns. Second, the most repeated mistake, naming up to four rounds it happened in. Third, what '
-    + 'went right if the ledger shows it, otherwise the habit the coach kept pushing.\n'
+    + 'SUMMARY: three sentences on one line, under 70 words. First, whether the match was won or lost if the score '
+    + 'says so, and what decided it for the player, drawn from the patterns. Second, the most repeated mistake, '
+    + 'naming up to four rounds it happened in. Third, what went right if the ledger shows it, otherwise the habit '
+    + 'the coach kept pushing.\n'
     + `Then up to ${MAX_ROUND_LINES} round lines, only for rounds with a death or a coach read, choosing the rounds that `
     + 'teach the most, in round order:\n'
-    + 'R<number>: at most two sentences and 45 words on WHY that round went the way it did and what the better play '
-    + 'was. Explain the reason, do not just repeat the coach read in the past tense.\n'
+    + 'R<number>: at most two sentences and 45 words. The coach read already says WHAT happened, so your line must '
+    + 'add what the read does not: the principle behind the mistake, or what to do differently next time, in your '
+    + 'own words. If you would only be repeating the read, leave that round out.\n'
     + 'FOCUS: one concrete habit for the next match, tied to the pattern it fixes, that a player can actually do.\n\n'
     + GROUNDING;
 }
@@ -275,5 +277,56 @@ function parse(text, input) {
   return out;
 }
 
-module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine,
+const NUMBER_WORDS = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+  seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+};
+const CONNECTORS = new Set(['and', 'to', 'through', 'or']);
+
+/**
+ * "rounds two, six, seven and fourteen" becomes "rounds 2, 6, 7 and 14".
+ *
+ * The prompt asks for digits and the model ignores it about half the time,
+ * measured on the bench, and a list of spelled numbers is the least readable
+ * sentence in the review. Deterministic, so it is a fix rather than a request.
+ * Only the run of numbers straight after "round" or "rounds" is touched, so
+ * "one teammate" elsewhere in a sentence is left alone.
+ */
+function roundDigits(text) {
+  if (!text) return text;
+  const toks = String(text).split(/(\s+)/);
+  let inRun = false;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    if (/^\s+$/.test(t)) continue;
+    const bare = t.toLowerCase().replace(/[^a-z]/g, '');
+    const trail = t.slice(t.replace(/[^A-Za-z]+$/, '').length);
+    if (bare === 'round' || bare === 'rounds') { inRun = true; continue; }
+    if (!inRun) continue;
+    if (bare in NUMBER_WORDS) {
+      let value = NUMBER_WORDS[bare];
+      // "twenty two": fold the next word in when it is a single digit.
+      let j = i + 1;
+      while (j < toks.length && /^\s+$/.test(toks[j])) j++;
+      const next = j < toks.length ? toks[j].toLowerCase().replace(/[^a-z]/g, '') : '';
+      if (value === 20 && next in NUMBER_WORDS && NUMBER_WORDS[next] < 10 && !/[^A-Za-z]$/.test(t)) {
+        value += NUMBER_WORDS[next];
+        const nextTrail = toks[j].slice(toks[j].replace(/[^A-Za-z]+$/, '').length);
+        toks[i] = String(value) + nextTrail;
+        for (let k = i + 1; k <= j; k++) toks[k] = '';
+        i = j;
+        continue;
+      }
+      toks[i] = String(value) + trail;
+      continue;
+    }
+    if (/^\d+$/.test(bare.replace(/[^0-9]/g, '')) && /^\d/.test(t)) continue;
+    if (CONNECTORS.has(bare)) continue;
+    inRun = false;
+  }
+  return toks.join('');
+}
+
+module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits,
   DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS };

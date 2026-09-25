@@ -199,6 +199,19 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(huge.rounds.length === 40 && huge.rounds[0].reads[0].length === 220, 'a hostile body is bounded');
 }
 
+// ── Spelled round numbers become digits ─────────────────────────────────────
+// The model spelled them out on about half the bench replies, including one
+// list of seventeen, whatever the prompt said.
+{
+  const rd = matchReview.roundDigits;
+  ok(rd('Repeated deaths in rounds two, six, seven and fourteen.') === 'Repeated deaths in rounds 2, 6, 7 and 14.',
+    'a spelled list after "rounds" becomes digits');
+  ok(rd('in rounds twenty two, and twenty three.') === 'in rounds 22, and 23.', 'twenty two folds into 22');
+  ok(rd('Losing three rounds in a row.') === 'Losing three rounds in a row.', 'a count BEFORE "rounds" is not a round number');
+  ok(rd('In round seven you died, then one teammate traded.') === 'In round 7 you died, then one teammate traded.',
+    'and "one teammate" later in the sentence is left alone');
+}
+
 // ── Study notes are sourced and fit the player ──────────────────────────────
 {
   const base = { rounds: [], patterns: [{ key: 'early', text: 'x' }], context: { agent: 'Jett', map: 'Abyss' } };

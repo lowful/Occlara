@@ -2497,12 +2497,13 @@ router.post('/match-review', async (req, res) => {
       // first live bench got every labelled line back as one, so it is applied
       // per field after parsing instead, which keeps its dash removal.
       const text = await Promise.race([
-        textInfer(prompt, 1100, { json: true }),
+        // 1600: variant C was cut off mid focus line at 1100 on the bench.
+        textInfer(prompt, 1600, { json: true }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 45000)),
       ]);
       trackCall(licenseKey);
       const parsed = matchReview.parse(text, input);
-      const clean = (t) => (t ? sanitize(t) : t);
+      const clean = (t) => (t ? matchReview.roundDigits(sanitize(t)) : t);
       const rounds = {};
       for (const [n, why] of Object.entries(parsed.rounds)) rounds[n] = clean(why);
       return res.json({

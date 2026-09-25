@@ -82,6 +82,8 @@ function places(text) {
   for (let i = 0; i < toks.length - 1; i++) {
     const a = toks[i].replace(/[^A-Za-z]/g, '');
     const b = toks[i + 1].replace(/[^A-Za-z]/g, '');
+    // A sentence ending on the letter ("they hit B. You should") is not a place.
+    if (/[.,;:]$/.test(toks[i])) continue;
     if (/^(A|B|C|Mid)$/.test(a) && /^[A-Z][a-z]+$/.test(b)) out.add(`${a} ${b}`.toLowerCase());
   }
   return out;
@@ -93,7 +95,12 @@ function grade(res, body) {
   const all = [res.summary || res.review || '', ...Object.values(res.rounds || {}), res.focus || ''].join(' ');
   const known = new Set();
   for (const r of body.rounds) {
-    for (const s of [r.deathSpot, r.plantSpot]) if (s) known.add(s.toLowerCase());
+    // Two word prefixes too, since the extractor reads two words: "B Boat House".
+    for (const s of [r.deathSpot, r.plantSpot]) {
+      if (!s) continue;
+      known.add(s.toLowerCase());
+      known.add(s.toLowerCase().split(/\s+/).slice(0, 2).join(' '));
+    }
     for (const t of r.reads) for (const p of places(t)) known.add(p);
   }
   const named = [...places(all)];
