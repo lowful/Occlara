@@ -2,6 +2,7 @@
 const express  = require('express');
 const supabase = require('../db/supabase');
 const knowledge = require('../services/knowledge');
+const matchReview = require('../services/match-review');
 // The language list is shared with the client so both agree on what is
 // supported, and so the prompt always names the language in English (a model
 // follows "write in German" far more reliably than "write in Deutsch").
@@ -2472,6 +2473,34 @@ router.post('/match-review', async (req, res) => {
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
     if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+
+    /*
+     * THE ROUND AWARE REVIEW, for clients that send a round ledger.
+     *
+     * Live Valorant tips are closed, so the review is now the whole product for
+     * Valorant rather than a footnote to it. A client from before that change
+     * sends no `rounds` and gets the old answer below, unchanged, so an
+     * installed build never receives a shape it cannot paint.
+     */
+    if (req.body && Array.isArray(req.body.rounds) && req.body.rounds.length) {
+      const input = matchReview.normalise(req.body);
+      if (!input.rounds.length) return res.json({ review: 'Not enough data for a review.' });
+      const prompt = matchReview.buildPrompt(input);
+      const text = await Promise.race([
+        textInfer(prompt, 1100),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 45000)),
+      ]);
+      trackCall(licenseKey);
+      const parsed = matchReview.parse(text, input);
+      return res.json({
+        review: parsed.summary || 'Could not generate review.',
+        summary: parsed.summary,
+        rounds: parsed.rounds,
+        focus: parsed.focus,
+        study: matchReview.study(input, 3),
+        variant: input.variant,
+      });
+    }
 
     const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
     if (tips.length < 3) return res.json({ review: 'Not enough data for a review.' });
