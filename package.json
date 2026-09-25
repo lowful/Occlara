@@ -42,6 +42,7 @@
     "test:ailog": "node scripts/test-ailog-sessions.js",
     "test:ailog-timeline": "node scripts/test-ailog-timeline.js",
     "test:alive": "node scripts/test-alive-claims.js",
+    "test:checkoutplan": "node scripts/test-checkout-plan.js",
     "test:contradiction": "node scripts/test-contradiction.js",
     "test:costrollover": "node scripts/test-cost-rollover.js",
     "test:deathhp": "node scripts/test-death-hp.js",
