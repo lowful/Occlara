@@ -163,8 +163,18 @@ router.get('/success', async (req, res) => {
     await new Promise(r => setTimeout(r, 2000));
   }
 
+  /*
+   * NO EMAIL IS EVER SENT, so this must not promise one.
+   *
+   * It used to say "Your license key will be emailed shortly". There is no mail
+   * code anywhere in the server, so a buyer whose webhook took longer than this
+   * 30 second poll waited for an email that never came, and reported a lifetime
+   * purchase as missing when the licence was usually sitting in their account.
+   * Point them at the place it actually appears.
+   */
   res.status(202).json({
-    message:    'Payment is processing. Your license key will be emailed shortly.',
+    message:    'Payment received. Your licence is still being set up, it will appear in your '
+      + 'account dashboard within a few minutes. Sign in with the same account you paid with.',
     processing: true,
   });
 });

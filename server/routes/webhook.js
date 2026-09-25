@@ -16,6 +16,31 @@ function getExpiresAt(plan) {
   return d.toISOString();
 }
 
+/*
+ * THE PLAN WHEN NOTHING ELSE SAYS, read from how Stripe charged rather than
+ * guessed.
+ *
+ * This used to be `plan = 'monthly'; // safe fallback`, and it was not safe.
+ * Any purchase that arrived without metadata.plan and with a price ID that did
+ * not exactly match an env var, which is every Payment Link, every checkout the
+ * website builds itself, and every price recreated in the dashboard, became a
+ * MONTHLY licence. A lifetime buyer got 30 days and then lost the product they
+ * had paid for once, with nothing logged beyond a plan name.
+ *
+ * session.mode settles it. payments.js maps lifetime to 'payment' and weekly and
+ * monthly to 'subscription', so a one-time charge can only ever be lifetime.
+ * Subscriptions still fall back to monthly, which is at worst generous for a
+ * weekly buyer and never takes anything away.
+ */
+function planFromMode(session) {
+  if (session && session.mode === 'payment') {
+    console.warn(`[webhook] plan unresolved for ${session.id}, one-time payment so LIFETIME`);
+    return 'lifetime';
+  }
+  console.warn(`[webhook] plan unresolved for ${session && session.id}, subscription so monthly`);
+  return 'monthly';
+}
+
 function extendExpiresAt(currentExpires, plan) {
   const base = currentExpires ? new Date(currentExpires) : new Date();
   const from = base < new Date() ? new Date() : base;
@@ -166,15 +191,21 @@ async function webhookHandler(req, res) {
             if (priceId === process.env.STRIPE_PRICE_WEEKLY)   plan = 'weekly';
             else if (priceId === process.env.STRIPE_PRICE_MONTHLY)  plan = 'monthly';
             else if (priceId === process.env.STRIPE_PRICE_LIFETIME) plan = 'lifetime';
-            else plan = 'monthly'; // safe fallback
+            else plan = planFromMode(session);
             console.log('[webhook] Determined plan from price ID:', plan);
           } catch (e) {
             console.error('[webhook] Failed to look up line items:', e.message);
-            plan = 'monthly';
+            plan = planFromMode(session);
           }
         }
 
         if (!userId) {
+          // A PAID PURCHASE WITH NO LICENCE, and the one line support needs to
+          // put it right: who paid, for what, and the session to link by hand.
+          // Search Railway logs for "UNLINKED PURCHASE" to find every one.
+          console.error(`[webhook] UNLINKED PURCHASE: ${session.customer_details?.email || 'no email'} `
+            + `paid for ${plan} in session ${session.id}, customer ${session.customer}. `
+            + 'No licence was created. Create one by hand for this user.');
           console.error('[webhook] CRITICAL: userId is null, cannot create license. Session:', session.id);
           console.error('[webhook] client_reference_id was:', session.client_reference_id);
           console.error('[webhook] metadata was:', JSON.stringify(session.metadata));
