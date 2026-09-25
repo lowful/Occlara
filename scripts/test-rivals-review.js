@@ -51,16 +51,34 @@ const SCOREBOARD = {
     'but no verdict is passed on how the dives went');
 }
 
-// ── A hero still in PENDING is NAMED, and gets no archetype ─────────────────
+// ── Deadpool: NAMED always, an archetype only once his role is PROVEN ───────
 // The name and the archetype are different claims. Deadpool is officially
-// tri-role so no single archetype describes him, but a player on Deadpool is on
-// Deadpool, and blanking the one line they can verify at a glance reads as the
-// app being broken rather than careful.
+// tri-role and his Vanguard and Duelist kits are different archetypes, so the
+// review picks a form only when the healing column proves which role he
+// finished on. A player on Deadpool is on Deadpool either way, and blanking the
+// one line they can verify at a glance reads as the app being broken.
 {
   const r = review.buildReview({ hero: 'Deadpool', state: SCOREBOARD });
-  ok(r.game.hero === 'Deadpool', `an unclassified hero is still named (${r.game.hero})`);
-  ok(r.archetype === null, 'but gets no archetype');
+  ok(r.game.hero === 'Deadpool', `Deadpool is named with no role proven (${r.game.hero})`);
+  ok(r.archetype === null, 'but gets no archetype, since Vanguard and Duelist Deadpool differ');
   ok(r.game.roleSource === 'unverified', `and no role is claimed from him (${r.game.roleSource})`);
+
+  const healed = { ...SCOREBOARD, me: { ...SCOREBOARD.me, role: 'Strategist', healing: 18200 } };
+  const s = review.buildReview({ hero: 'Deadpool', state: healed });
+  ok(s.game.hero === 'Deadpool' && s.game.role === 'Strategist',
+    `the healing column proves Strategist Deadpool (${s.game.hero}, ${s.game.role})`);
+  ok(s.archetype && s.archetype.name === 'brawl', `and his Strategist kit is brawl (${s.archetype && s.archetype.name})`);
+}
+
+// ── The Season 9 and 10 heroes classified from their official kits ─────────
+{
+  const g = review.buildReview({ hero: 'Gorr the God Butcher', state: SCOREBOARD });
+  ok(g.game.hero && g.archetype && g.archetype.name === 'dive', 'Gorr is named and is a dive hero');
+  for (const hero of ['Jubilee', 'White Fox']) {
+    const healed = { ...SCOREBOARD, me: { ...SCOREBOARD.me, role: 'Strategist', healing: 21000 } };
+    const r = review.buildReview({ hero, state: healed });
+    ok(r.game.hero === hero && r.archetype && r.archetype.name === 'brawl', `${hero} is named and is brawl`);
+  }
 }
 
 // ── A name that is not a hero at all is refused ─────────────────────────────

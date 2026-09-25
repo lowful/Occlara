@@ -98,6 +98,58 @@ const HEROES = {
   'elsa bloodstone':  { role: 'Duelist',   aim: null, air: 'ground', arch: 'poke'  },
   'blade':            { role: 'Duelist',   aim: null, air: 'ground', arch: 'brawl' },
   'devil dinosaur':   { role: 'Vanguard',  aim: null, air: 'leap',   arch: 'brawl' },
+  // ── Classified 25 Sep 2026 from the OFFICIAL KIT TEXT on marvelrivals.com,
+  //    as synced into rivals-data.generated.json, because no community read had
+  //    settled. Role is printed. air and aim are filled only where the kit text
+  //    says it outright, quoted beside each, and left null where it does not.
+  //    arch is a reading of the kit, the same vocabulary the rest of this table
+  //    uses: it describes what the kit is built to do, never how good it is.
+  //
+  //    Gorr: primary is "a 4-strike rapid combo with All-Black the Necrosword"
+  //    (melee), Living Abyss "surge forward as an Invincible symbiote mass" and
+  //    Shadow Harvest "warp to a selected Black Berserker" (a warp, which this
+  //    table files as leap, as it does Magik's portals). A melee Duelist whose
+  //    tools are for arriving on a target is dive.
+  'gorr the god butcher': { role: 'Duelist', aim: 'melee', air: 'leap', arch: 'dive' },
+  //    Jubilee: "explosive light blasts" do not say hitscan or projectile, so
+  //    aim is null. Sparking Sprint raises jump height but gives no flight, so
+  //    ground. Blooming Ball heals "allies in its radius" and Firework Finale
+  //    orbits her and "heals allies" in a field, which is healing that works
+  //    when the team stands together: brawl.
+  'jubilee':          { role: 'Strategist', aim: null, air: 'ground', arch: 'brawl' },
+  //    The Hood: "shoot forward dual-wielded pistols" does not settle aim, so
+  //    null. Void Walk is "free-flight", filed as flight exactly as Doctor
+  //    Strange's levitation is. Mantle of Oblivion is "a spherical barrier" and
+  //    the rifles lifesteal at close range: a front line that holds space, brawl.
+  'the hood':         { role: 'Vanguard',  aim: null, air: 'flight', arch: 'brawl' },
+  //    White Fox: "fire a Fox Marble forward that bounces off terrain or heroes,
+  //    then homes in" is a projectile by any reading. Spirit Sanctuary
+  //    "teleport to a chosen ally" is a warp, so leap. She teleports TO her team
+  //    and heals the area on arrival, which is staying together: brawl.
+  'white fox':        { role: 'Strategist', aim: 'projectile', air: 'leap', arch: 'brawl' },
+};
+
+/**
+ * Heroes with more than one role, one set of traits per role.
+ *
+ * DEADPOOL IS OFFICIALLY TRI-ROLE, data-tag="VANGUARD DUELIST STRATEGIST", and
+ * his kit really does change shape with it, which is why he sat unclassified:
+ * one archetype cannot describe him. Per role, it can. The Vanguard kit is
+ * "Nobody lays a finger on my teammates" with a taunt and a shield bubble, the
+ * Strategist kit is the same shape with healing, and the Duelist kit is
+ * "Slash, dash, repeat", up to three chained dashes. All three double jump and
+ * wall jump (Bunny Bounce, Bunny Hop, Healing Hop), so leap throughout.
+ *
+ * traits() returns a form ONLY WHEN THE ROLE IS KNOWN. Without it Deadpool is
+ * still silent, which keeps the absence rule intact: a caller has to prove the
+ * role before it may reason about him.
+ */
+const ROLE_FORMS = {
+  'deadpool': {
+    Vanguard:   { aim: null, air: 'leap', arch: 'brawl' },
+    Duelist:    { aim: null, air: 'leap', arch: 'dive'  },
+    Strategist: { aim: null, air: 'leap', arch: 'brawl' },
+  },
 };
 
 /**
@@ -119,13 +171,10 @@ const HEROES = {
  * Both have said no in their own way, so this list is maintained by hand.
  */
 const PENDING = [
-  // Deadpool is officially tri-role, data-tag="VANGUARD DUELIST STRATEGIST",
-  // and his page carries four unlabelled health blocks. One archetype cannot
-  // describe him, so he stays here rather than being flattened into a guess.
-  'Deadpool',
-  // Season 9 and 10 arrivals with no settled community read on archetype yet.
-  // Naming them keeps the roster honest at 54 while the coach stays quiet.
-  'Gorr the God Butcher', 'Jubilee', 'The Hood', 'White Fox',
+  // Empty since 25 Sep 2026: Gorr, Jubilee, The Hood and White Fox were
+  // classified from their official kits, and Deadpool moved to ROLE_FORMS. The
+  // list stays, because the next season's hero lands here first, and a hero on
+  // the roster with no entry anywhere is exactly the rot this list prevents.
 ];
 
 /** Spellings the kill feed and scoreboard actually use. */
@@ -182,11 +231,16 @@ const GENERATED = (() => {
  * coach cannot reason about, and half a record invites exactly the guess this
  * module exists to refuse.
  */
-function traits(name) {
+/**
+ * @param role  for a multi role hero, the role the caller has PROVEN. Ignored
+ *              for everyone else. Without it a multi role hero returns null.
+ */
+function traits(name, role) {
   const n = normalise(name);
   if (!n) return null;
   const key = ALIASES[n] || n;
-  const h = HEROES[key];
+  let h = HEROES[key];
+  if (!h && ROLE_FORMS[key] && ROLE_FORMS[key][role]) h = { role, ...ROLE_FORMS[key][role] };
   if (!h) return null;
 
   const g = GENERATED[key];
@@ -217,7 +271,8 @@ function known(name) { return traits(name) !== null; }
  * Is this string a real hero name, and what is its canonical form.
  *
  * DELIBERATELY NOT known(). That asks "can the coach reason about this hero",
- * and answers no for the five in PENDING. This asks "did the model read a name
+ * and answers no for anything in PENDING, and for Deadpool until his role is
+ * proven. This asks "did the model read a name
  * this game actually has", which is a different and weaker question, and the
  * right one for recording what the player picked. A player on Deadpool IS on
  * Deadpool; no rule can fire on him, and every rule downstream already returns
@@ -228,7 +283,10 @@ function known(name) { return traits(name) !== null; }
  * the identify prompt makes: the model answered Mephisto and Doctor Doom when
  * nothing stopped it.
  */
-const ROSTER_NAMES = new Set([...Object.keys(HEROES), ...PENDING.map(normalise)]);
+const ROSTER_NAMES = new Set([...Object.keys(HEROES), ...Object.keys(ROLE_FORMS), ...PENDING.map(normalise)]);
+
+/** Every hero name the game has, classified or not, in display case where known. */
+function rosterKeys() { return [...ROSTER_NAMES]; }
 
 function onRoster(name) {
   const n = normalise(name);
@@ -306,4 +364,4 @@ function parseRoster(raw) {
   return out;
 }
 
-module.exports = { HEROES, ALIASES, PENDING, traits, known, onRoster, normalise, parseRoster };
+module.exports = { HEROES, ROLE_FORMS, ALIASES, PENDING, traits, known, onRoster, rosterKeys, normalise, parseRoster };

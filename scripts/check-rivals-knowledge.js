@@ -43,7 +43,8 @@ const note = (what) => problems.push(what);
 const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 // ── The roster is the vocabulary ────────────────────────────────────────────
-const CLASSIFIED = new Set(Object.keys(heroes.HEROES));
+// Multi role heroes (Deadpool) are classified per role, so they count here.
+const CLASSIFIED = new Set([...Object.keys(heroes.HEROES), ...Object.keys(heroes.ROLE_FORMS || {})]);
 const PENDING = new Set(heroes.PENDING.map(norm));
 const ON_ROSTER = new Set([...CLASSIFIED, ...PENDING]);
 
