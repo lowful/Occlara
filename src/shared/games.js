@@ -28,6 +28,26 @@ const GAMES = {
     // How the coach works for this game, which differs more than the palette
     // does: Valorant earns a live tip every few seconds, Marvel Rivals does not.
     cadence: 'live',
+    // LIVE TIPS ARE CLOSED, AND THIS IS THE ONE SWITCH THAT CLOSES THEM.
+    //
+    // Riot's VALORANT developer policy lists, among use cases that will not be
+    // approved, "in-game apps and overlays that include any real-time data that
+    // would improve a player's performance immediately by altering player
+    // behavior (i.e. 'go here now'), vs altering it upon reflection, learning
+    // and coaching the player game over game". A tip card saying "hold A Main"
+    // mid round is the first half of that sentence. A player was banned for a
+    // week with the app flagged as third party.
+    //
+    // So while this is true: no tip card, no voice, no overlay window over the
+    // game, nothing on the panel or the dock during a match. The coach still
+    // watches and still writes its reads, and they arrive in the post-match
+    // review, which is the second half of Riot's sentence. Settings and
+    // onboarding grey the live controls out and say "Live Tips are temporarily
+    // closed", rather than deleting them, because the preferences are kept.
+    //
+    // Flipping this back to false restores the old behaviour everywhere. Do not
+    // do that without Riot's written approval of the product.
+    liveTipsClosed: true,
   },
 
   rivals: {
@@ -178,4 +198,16 @@ function hasFeature(id, name) {
   return !!g.coaching;          // a game with no feature map has all of them
 }
 
-module.exports = { GAMES, DEFAULT_GAME, get, list, canCoach, hasFeature };
+/**
+ * Are live tips closed for this game? Nothing reaches the player during a match
+ * when they are, and the coach's reads go to the post-match review instead.
+ */
+function liveTipsClosed(id) {
+  return get(id).liveTipsClosed === true;
+}
+
+/** The words every surface uses for it, so Settings, onboarding and the panel agree. */
+const LIVE_TIPS_CLOSED_LABEL = 'Live Tips are temporarily closed';
+
+module.exports = { GAMES, DEFAULT_GAME, get, list, canCoach, hasFeature, liveTipsClosed,
+  LIVE_TIPS_CLOSED_LABEL };

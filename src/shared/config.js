@@ -150,6 +150,11 @@ const STORE_DEFAULTS = {
   // hero, since a projectile hero is naturally lower than a hitscan one at the
   // same skill.
   rivalsHistory:   [],
+  // The last 10 Valorant matches the tracker could verify, one row each, from
+  // Riot's numbers only. The review compares against these in the same ROLE,
+  // for the same reason rivalsHistory is role scoped: a controller's ACS and a
+  // duelist's are different quantities.
+  valorantHistory: [],
   // Rank band 1 to 5, NOT one of eight ranks. The underlying data does not
   // support eight-way granularity, and unset means the default band rather
   // than a guess.

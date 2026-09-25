@@ -115,7 +115,7 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const spotReal = pats.find((p) => p.key === 'spot');
   ok(spotReal && /^6 of your 22 deaths were at A Site/.test(spotReal.text),
     `and 6 of 22 deaths at A Site, matching the frames (${spotReal && spotReal.text})`);
-  ok(pats.every((p) => !/[–—]/.test(p.text)), 'no pattern text carries a dash');
+  ok(pats.every((p) => !/[\u2013\u2014]/.test(p.text)), 'no pattern text carries a dash');
   const side = pats.find((p) => p.key === 'sides');
   ok(side && side.text === 'Won 6 of 12 on attack and 7 of 12 on defence.', `side split is exact (${side && side.text})`);
 
@@ -182,7 +182,7 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(input.rounds.length === 24 && input.variant === matchReview.DEFAULT_VARIANT, 'the server accepts it whole');
   const prompt = matchReview.buildPrompt(input);
   ok(/R13 attack, lost\. died at A Lobby/.test(prompt), 'round 13 reaches the prompt as the ledger has it');
-  ok(!/[–—]/.test(prompt), 'the prompt carries no dash for the model to copy');
+  ok(!/[\u2013\u2014]/.test(prompt), 'the prompt carries no dash for the model to copy');
 }
 
 // ── The server parses the reply, and refuses rounds it was never sent ───────

@@ -338,3 +338,17 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 /* Slides in from the right, so it reads as arriving rather than appearing. */
 @keyframes nudgeIn  { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: none; } }
 @keyframes nudgeOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(26px); } }
+
+/* Live tips closed: the pill and where the reads went, instead of an empty
+   "no tips yet" that never fills. */
+.last-tip.closed .lt-text {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  white-space: normal; overflow: visible;
+}
+.last-tip.closed .closed-pill { margin-left: 0; }
+.last-tip.closed .lt-dot { background: var(--warn); box-shadow: none; }
+.lt-closed-line { font-size: 11.5px; line-height: 1.4; color: var(--text-dim); }
+
+/* The session stat holds words instead of a count while live tips are closed,
+   and a sentence set in the digit font reads like a readout. */
+.s-stat b.words { font-family: var(--font); letter-spacing: 0; }

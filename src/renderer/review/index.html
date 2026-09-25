@@ -20,7 +20,71 @@
     </header>
 
     <main class="body">
-      <p id="empty" class="empty" hidden>No game has been recorded yet. Start the recorder, play a game, and the review appears here when it ends.</p>
+      <p id="empty" class="empty" hidden>No match has been reviewed yet. Start the coach, play a match, and the review opens here when it ends.</p>
+
+      <!-- VALORANT. Its own container rather than a third shape squeezed
+           through the League slots: the League and Rivals painters hide and
+           relabel shared sections, and a review that is round by round has
+           none of their sections at all. -->
+      <div id="vreview" hidden>
+        <section class="v-hero">
+          <div id="v-result" class="v-result"></div>
+          <div id="v-score" class="v-score"></div>
+          <div id="v-meta" class="v-meta"></div>
+        </section>
+
+        <section class="v-stats" id="v-stats"></section>
+        <p id="v-stats-note" class="hint" hidden></p>
+
+        <section class="block">
+          <h3>Round by round</h3>
+          <div id="v-strip" class="v-strip" role="list"></div>
+          <div class="v-legend">
+            <span><i class="lg won"></i>Won</span>
+            <span><i class="lg lost"></i>Lost</span>
+            <span><i class="lg died"></i>You died</span>
+            <span><i class="lg planted"></i>Spike down</span>
+          </div>
+        </section>
+
+        <section class="block" id="v-summary-wrap">
+          <h3>The coach's read</h3>
+          <p id="v-summary" class="v-summary"></p>
+          <div id="v-focus-wrap" class="v-focus">
+            <div class="v-focus-label">Next match</div>
+            <p id="v-focus" class="v-focus-text"></p>
+          </div>
+        </section>
+
+        <section class="block" id="v-patterns-wrap">
+          <h3>What the numbers say</h3>
+          <div id="v-patterns" class="v-patterns"></div>
+        </section>
+
+        <section class="block" id="v-rounds-wrap">
+          <h3>Every round the coach saw</h3>
+          <p class="hint">What the coach saw is computed from the screen. The coach's read is what it would have told you, written at the time.</p>
+          <div id="v-rounds" class="v-rounds"></div>
+        </section>
+
+        <section class="block" id="v-against-wrap">
+          <h3>Against your own average</h3>
+          <p id="v-against-note" class="hint"></p>
+          <div id="v-against"></div>
+        </section>
+
+        <section class="block" id="v-study-wrap">
+          <h3>Study before your next match</h3>
+          <div id="v-study" class="v-study"></div>
+        </section>
+
+        <section class="block" id="v-refused-wrap">
+          <h3>What this review cannot tell you</h3>
+          <ul id="v-refused" class="r-refused"></ul>
+        </section>
+
+        <p class="v-foot">Recorded silently. Nothing was shown on your screen while you played.</p>
+      </div>
 
       <div id="review" hidden>
         <!-- WHAT WAS PLAYED. First, and named, so the player can tell at a

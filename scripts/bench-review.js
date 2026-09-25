@@ -131,7 +131,7 @@ function grade(res, body) {
     foreign,
     claims,
     restate: restate.length ? Math.round((restate.reduce((a, b) => a + b, 0) / restate.length) * 100) : null,
-    dashes: (all.match(/[–—]/g) || []).length,
+    dashes: (all.match(/[\u2013\u2014]/g) || []).length,
     words: all.split(/\s+/).filter(Boolean).length,
   };
 }

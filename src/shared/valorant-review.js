@@ -147,7 +147,10 @@ function roundFacts(r) {
     // precision the capture never had.
     if (r.deathClock !== null && r.deathClock !== undefined && !r.planted) {
       const into = 100 - r.deathClock;
-      line += into <= 30 ? ', early in the round' : into <= 70 ? ', mid round' : ', late in the round';
+      const when = into <= 30 ? 'early in the round' : into <= 70 ? 'mid round' : 'late in the round';
+      // "Died, mid round" read as a typo in the screenshot; with no spot the
+      // timing is the whole clause.
+      line += r.deathSpot ? `, ${when}` : ` ${when}`;
     }
     facts.push(line);
     if (r.ultAtDeath === 'ready') facts.push('Ultimate was ready');
