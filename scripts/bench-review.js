@@ -101,6 +101,18 @@ function grade(res, body) {
   const said = all.toLowerCase();
   const claims = UNSUPPORTED.filter((w) => said.includes(w)
     && !body.rounds.some((r) => r.reads.some((t) => t.toLowerCase().includes(w))));
+  // The three failures the first run showed when the text was read by hand: an
+  // ultimate recommended with no ult read, a man advantage nobody could see,
+  // and round numbers spelled out in a list of seventeen.
+  for (const [n, why] of Object.entries(res.rounds || {})) {
+    const r = body.rounds.find((x) => x.n === Number(n));
+    const w = String(why).toLowerCase();
+    if ((w.includes('ultimate') || w.includes(' ult ')) && !(r && r.ultReady)) claims.push(`ult in R${n}`);
+  }
+  if (said.includes('man advantage')) claims.push('man advantage');
+  if (said.includes('clutch')) claims.push('clutch');
+  if (/\b(twenty|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen) (one|two|three|four)?/.test(said)
+      || /\brounds (one|two|three|four|five|six|seven|eight|nine|ten)\b/.test(said)) claims.push('spelled rounds');
   const restate = Object.entries(res.rounds || {}).map(([n, why]) => {
     const r = body.rounds.find((x) => x.n === Number(n));
     return r && r.reads.length ? Math.max(...r.reads.map((t) => overlap(why, t))) : 0;

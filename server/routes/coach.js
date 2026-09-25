@@ -2484,19 +2484,32 @@ router.post('/match-review', async (req, res) => {
      */
     if (req.body && Array.isArray(req.body.rounds) && req.body.rounds.length) {
       const input = matchReview.normalise(req.body);
-      if (!input.rounds.length) return res.json({ review: 'Not enough data for a review.' });
+      // UNDER THREE ROUNDS THERE IS NOTHING TO SAY, and the model says it
+      // anyway: probed with a one round ledger it wrote "this match was decided
+      // by a failure to establish consistent tactical control". The computed
+      // half of the review still shows; it just gets no narrative.
+      if (input.rounds.length < 3) {
+        return res.json({ review: null, summary: null, rounds: {}, focus: null,
+          study: matchReview.study(input, 3), variant: input.variant, thin: true });
+      }
       const prompt = matchReview.buildPrompt(input);
+      // json: true returns the RAW text. sanitize() collapses newlines, and the
+      // first live bench got every labelled line back as one, so it is applied
+      // per field after parsing instead, which keeps its dash removal.
       const text = await Promise.race([
-        textInfer(prompt, 1100),
+        textInfer(prompt, 1100, { json: true }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 45000)),
       ]);
       trackCall(licenseKey);
       const parsed = matchReview.parse(text, input);
+      const clean = (t) => (t ? sanitize(t) : t);
+      const rounds = {};
+      for (const [n, why] of Object.entries(parsed.rounds)) rounds[n] = clean(why);
       return res.json({
-        review: parsed.summary || 'Could not generate review.',
-        summary: parsed.summary,
-        rounds: parsed.rounds,
-        focus: parsed.focus,
+        review: clean(parsed.summary) || 'Could not generate review.',
+        summary: clean(parsed.summary),
+        rounds,
+        focus: clean(parsed.focus),
         study: matchReview.study(input, 3),
         variant: input.variant,
       });
