@@ -241,6 +241,13 @@ function paintValorant(r) {
     w.rounds ? `${w.rounds} round${w.rounds === 1 ? '' : 's'} watched` : null,
   ].filter(Boolean).join('  ·  ');
 
+  // What Riot's record changed, said out loud. A review whose numbers moved
+  // between one look and the next reads as one that cannot decide, unless it
+  // says why they moved.
+  const ver = $('v-verified');
+  ver.hidden = !r.verification;
+  ver.textContent = r.verification || '';
+
   // Riot's scoreboard, or an honest wait for it.
   const stats = $('v-stats');
   stats.replaceChildren();
@@ -267,9 +274,10 @@ function paintValorant(r) {
   // The coach's read. Missing when the model was unreachable or the match was
   // too short to narrate, and each case says which.
   const summary = r.summary;
-  $('v-summary-wrap').hidden = !summary && !r.focus && !r.aiUnavailable && !r.thin;
+  $('v-summary-wrap').hidden = !summary && !r.focus && !r.aiUnavailable && !r.thin && !r.narrativePending;
   $('v-summary').textContent = summary
-    || (r.thin ? 'Too little of this match was seen to write a read of it. The rounds below are what the coach recorded.'
+    || (r.narrativePending ? "Rewriting the coach's read with Riot's record of the match. This takes a few seconds."
+      : r.thin ? 'Too little of this match was seen to write a read of it. The rounds below are what the coach recorded.'
       : r.aiUnavailable ? 'The coach could not be reached to write this part. Everything else on this page was computed from the match.'
         : '');
   $('v-focus-wrap').hidden = !r.focus;

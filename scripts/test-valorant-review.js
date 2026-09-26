@@ -174,7 +174,7 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
 
 // ── What the server is sent ─────────────────────────────────────────────────
 {
-  const body = review.requestBody({ rounds: abyss.rounds, context: { ...abyss.context, agent: 'Iso' }, endedBy: 'score' });
+  const body = review.requestBody({ rounds: abyss.rounds, context: { ...abyss.context, agent: 'Jett' }, endedBy: 'score' });
   ok(body.rounds.length === 24 && body.final.result === 'Victory', 'the body carries every round and the result');
   ok(body.rounds.find((r) => r.n === 2).timing === 'early', 'timing goes as a bucket');
   ok(body.rounds.find((r) => r.n === 6).timing === null, 'and a banner death sends none');
@@ -234,6 +234,102 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const l2 = l.list();
   ok(l2.find((r) => r.n === 6).result === null && l2.find((r) => r.n === 7).result === null,
     'when both sides scored while nobody watched, the order is unknowable and no result is guessed');
+}
+
+// ── Riot's record overrides the screen ──────────────────────────────────────
+// Riot's real record of the same Abyss match, from /api/coach/match-rounds.
+// The screen ledger read 22 deaths and Riot has 21; the extra is round 17. The
+// screen put 6 deaths in the first 30 seconds; Riot puts most of them there,
+// because the spectator camera made the dead player look alive.
+{
+  const verify = require('../src/shared/valorant-verify');
+  const riot = load('riot-abyss-13-11.json');
+  const riotDeaths = riot.perRound.filter((r) => r.died).length;
+  ok(riotDeaths === 21 && riot.me.deaths === 21, `Riot's rounds add up to its scoreboard, 21 deaths (${riotDeaths})`);
+  ok(riot.perRound.reduce((a, r) => a + r.kills, 0) === riot.me.kills,
+    `and the per round kills add up to its ${riot.me.kills}`);
+
+  const { rounds, checks } = verify.reconcile(abyss.rounds, riot);
+  ok(checks.screenDeaths === 22 && checks.riotDeaths === 21, `the screen said 22, Riot says 21 (${checks.screenDeaths}, ${checks.riotDeaths})`);
+  ok(checks.invented.join() === '17' && !checks.missed.length, `the invented death is round 17 and none were missed (${checks.invented}, ${checks.missed})`);
+  ok(rounds.filter((r) => r.died).length === 21, 'after the check the review has 21 deaths');
+  ok(rounds.every((r) => r.verified) && rounds.length === 24, 'every round is verified');
+  ok(!rounds.find((r) => r.n === 17).died && !rounds.find((r) => r.n === 17).deathSpot,
+    'round 17 loses its invented death and its death spot');
+
+  const r2 = rounds.find((r) => r.n === 2);
+  ok(r2.deathSec === 15 && r2.killerAgent === 'Viper' && r2.weapon === 'Marshal' && r2.firstDeath,
+    'round 2 carries Riot\'s 15 seconds, Viper and the Marshal, and the first death');
+  ok(r2.deathSpot === 'A Site', 'and keeps the screen\'s location, which Riot does not record');
+
+  // Every surviving coach read that names a killer names Riot's killer.
+  const wrong = rounds.flatMap((r) => r.reads.filter((x) => {
+    const named = verify.namedKiller(x.text);
+    return named && r.killerAgent && named.toLowerCase() !== r.killerAgent.toLowerCase();
+  }));
+  ok(checks.readsDropped > 0, `reads naming the wrong killer are dropped (${checks.readsDropped})`);
+  ok(wrong.length === 0, 'and no surviving read contradicts Riot');
+  ok(!rounds.some((r) => !r.died && r.reads.some((x) => x.death)), 'no death review survives in a round Riot says was survived');
+
+  const pats = review.patterns(rounds);
+  const early = pats.find((p) => p.key === 'early');
+  const earlyN = rounds.filter((r) => r.early).length;
+  ok(earlyN === 16, `Riot puts 16 deaths in the first 30 seconds before a plant (${earlyN}), the screen said 6`);
+  ok(early && early.text.startsWith('16 of your 21 deaths came in the first 30 seconds'), `the pattern says so (${early && early.text})`);
+  const killer = pats.find((p) => p.key === 'killer');
+  ok(killer && killer.text === 'Skye killed you 7 times, more than anyone else.', `top killer (${killer && killer.text})`);
+  ok(pats.some((p) => p.key === 'firstkill'), 'the first kill pattern, the good news, clears its floor');
+  ok(!pats.some((p) => p.key === 'firstdeath'), '4 first deaths in 24 rounds is under its floor and stays out');
+
+  const rv = review.build({ rounds, context: { ...abyss.context, agent: 'Jett' }, endedBy: 'score',
+    verification: verify.describe(checks) });
+  ok(rv.verified && /Riot has 21/.test(rv.verification), `the review says what the check changed (${rv.verification})`);
+  const c1 = rv.rounds.find((c) => c.n === 1);
+  ok(c1.facts.join('|') === 'Survived|2 kills', `a verified survived round can say so (${c1.facts})`);
+  const c2 = rv.rounds.find((c) => c.n === 2);
+  ok(c2.facts[0] === 'Died at A Site, 15s in, to Viper with a Marshal', `round 2 reads exactly (${c2.facts[0]})`);
+  ok(!rv.refused.some((t) => /Kills, damage/.test(t)), 'the "kills are not on the HUD" refusal goes once Riot supplies them');
+
+  const body = review.requestBody({ rounds, context: abyss.context, endedBy: 'score',
+    riot: { agent: 'Jett', map: 'Abyss', score: '13-11', result: 'Victory' } });
+  const input = matchReview.normalise(body);
+  ok(input.context.agent === 'Jett' && input.final.verified, 'the server is told Riot\'s agent and final score');
+  const prompt = matchReview.buildPrompt(input);
+  ok(/R2 defence, lost\. died at A Site 15 seconds into the round, killed by Viper with a Marshal/.test(prompt),
+    'the model gets Riot\'s facts for each round');
+  ok(/Riot's final score was 13 to 11/.test(prompt) && /checked against Riot/.test(prompt), 'and is told they are Riot\'s');
+}
+
+// ── The v4 parser, on a small synthetic match ───────────────────────────────
+{
+  const riotRounds = require('../server/services/riot-rounds');
+  const me = { name: 'Me', tag: 'EUW', puuid: 'p1', team_id: 'Blue', agent: { name: 'Jett' }, stats: { kills: 1, deaths: 1, assists: 0 } };
+  const foe = { name: 'Foe', tag: 'EUW', puuid: 'p2', team_id: 'Red', agent: { name: 'Sova' }, stats: {} };
+  const d = {
+    metadata: { map: { name: 'Bind' }, queue: { id: 'unrated' } },
+    players: [me, foe],
+    teams: [{ team_id: 'Blue', won: true, rounds: { won: 1, lost: 1 } }, { team_id: 'Red', won: false, rounds: { won: 1, lost: 1 } }],
+    rounds: [
+      { winning_team: 'Red', plant: { round_time_in_ms: 20000, site: 'A' } },
+      { winning_team: 'Blue', plant: null },
+    ],
+    kills: [
+      { round: 0, time_in_round_in_ms: 12000, killer: { puuid: 'p2' }, victim: { puuid: 'p9' }, weapon: { name: 'Vandal' } },
+      { round: 0, time_in_round_in_ms: 25000, killer: { puuid: 'p2' }, victim: { puuid: 'p1' }, weapon: { name: 'Vandal' } },
+      { round: 1, time_in_round_in_ms: 8000, killer: { puuid: 'p1' }, victim: { puuid: 'p2' }, weapon: { name: 'Sheriff' } },
+    ],
+  };
+  const out = riotRounds.parse(d, 'Me', 'EUW');
+  ok(out.perRound.length === 2 && out.score === '1-1', `two rounds, 1-1 (${out.score})`);
+  const [a, b] = out.perRound;
+  ok(a.n === 1 && a.died && a.deathMs === 25000 && a.killerAgent === 'Sova' && a.weapon === 'Vandal',
+    'Riot counts rounds from 0, the death lands in round 1 with its killer\'s agent');
+  ok(!a.firstDeath && a.afterPlant && a.won === false, 'not the first death, after the plant, and a loss');
+  ok(a.side === 'defending' && b.side === 'defending', 'blue defends the first half, red attacks it');
+  ok(b.kills === 1 && b.firstKill && !b.died && b.won === true, 'round 2: the opening kill and a win');
+  ok(riotRounds.parse(d, 'Nobody', 'X').error, 'a Riot ID not in the match is an error, never somebody else\'s rounds');
+  ok(riotRounds.attackersOf(25, 12) === 'red' && riotRounds.attackersOf(26, 12) === 'blue', 'overtime swaps every round');
+  ok(riotRounds.attackersOf(5, 4) === 'blue', 'swiftplay halves are four rounds');
 }
 
 // ── The real swiftplay match ────────────────────────────────────────────────

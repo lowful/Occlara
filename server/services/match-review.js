@@ -84,6 +84,14 @@ function normalise(body) {
     plantSpot: r && r.plantSpot ? clip(r.plantSpot, 40) : null,
     ultReady: !!(r && r.ultReady),
     reads: (Array.isArray(r && r.reads) ? r.reads : []).slice(0, 3).map((t) => clip(t, 220)).filter(Boolean),
+    // Riot's record, when the client could link the match. Exact facts.
+    verified: !!(r && r.verified),
+    sec: r && Number.isFinite(r.sec) && r.sec >= 0 && r.sec < 300 ? Math.round(r.sec) : null,
+    killer: r && r.killer ? clip(r.killer, 20) : null,
+    weapon: r && r.weapon ? clip(r.weapon, 20) : null,
+    firstDeath: !!(r && r.firstDeath),
+    firstKill: !!(r && r.firstKill),
+    kills: r && Number.isInteger(r.kills) && r.kills >= 0 && r.kills <= 10 ? r.kills : null,
   })).filter((r) => r.n > 0);
   const patterns = (Array.isArray(b.patterns) ? b.patterns : []).slice(0, 8).map((p) => ({
     key: clip(p && p.key, 20),
@@ -105,6 +113,7 @@ function normalise(body) {
       team: Number.isInteger(final.team) ? final.team : null,
       enemy: Number.isInteger(final.enemy) ? final.enemy : null,
       result: ['Victory', 'Defeat', 'Draw'].includes(final.result) ? final.result : null,
+      verified: final.verified === true,
     },
     variant: ['A', 'B', 'C'].includes(b.variant) ? b.variant : DEFAULT_VARIANT,
   };
@@ -173,7 +182,21 @@ function roundLine(r) {
   bits.push([r.side === 'attacking' ? 'attack' : r.side === 'defending' ? 'defence' : 'side unread',
     r.result || 'result unread'].join(', '));
   const facts = [];
-  if (r.died) {
+  if (r.verified) {
+    // Riot's record: exact, so stated exactly.
+    if (r.died) {
+      let d = `died${r.deathSpot ? ' at ' + r.deathSpot : ''}`;
+      if (r.sec !== null) d += ` ${r.sec} seconds into the round`;
+      if (r.killer) d += `, killed by ${r.killer}${r.weapon ? ' with a ' + r.weapon : ''}`;
+      facts.push(d);
+      if (r.firstDeath) facts.push('first player to die that round');
+      if (r.ultReady) facts.push('ultimate was ready when they died');
+    } else {
+      facts.push('survived the round');
+    }
+    if (r.kills !== null) facts.push(`${r.kills} kill${r.kills === 1 ? '' : 's'}`);
+    if (r.firstKill) facts.push('got the first kill of the round');
+  } else if (r.died) {
     facts.push(`died${r.deathSpot ? ' at ' + r.deathSpot : ''}${r.timing ? ', ' + r.timing + ' in the round' : ''}`);
     if (r.ultReady) facts.push('ultimate was ready when they died');
   }
@@ -186,8 +209,9 @@ function roundLine(r) {
 const GROUNDING = 'GROUNDING RULES. The ledger was built by watching the screen every ten seconds or so, '
   + 'so a round with no death listed may simply not have been seen, never call it clean. '
   + 'A coach read is what the coach SAID at the time, not proof of what the player did. '
-  + 'Kills, damage, utility usage, economy and how many players were alive are not in the ledger, so never '
-  + 'state them, and never call a situation a man advantage or a clutch. '
+  + 'Damage, utility usage, economy and how many players were alive are not in the ledger, so never state '
+  + 'them, and never call a situation a man advantage or a clutch. Kills may be stated only where the ledger '
+  + 'gives a kill count for that round. '
   + 'Never tell the player to use their ultimate unless that round says the ultimate was ready. '
   + 'Never do arithmetic on the score, use it exactly as given. '
   + 'Quote a pattern\'s numbers exactly or not at all, and never merge two patterns into one number. '
@@ -214,7 +238,7 @@ function promptRounds(input, withKnowledge) {
   const { context, final, rounds, patterns } = input;
   const who = [context.agent ? `playing ${context.agent}` : 'agent unread', context.map ? `on ${context.map}` : 'map unread'].join(' ');
   const score = final.team !== null && final.enemy !== null
-    ? `The score the coach last read was ${final.team} to ${final.enemy}${final.result ? `, a ${final.result.toLowerCase()}` : ''}.`
+    ? `${final.verified ? 'Riot\'s final score was' : 'The score the coach last read was'} ${final.team} to ${final.enemy}${final.result ? `, a ${final.result.toLowerCase()}` : ''}.`
     : 'The final score was not read.';
 
   let knowledgeBlock = '';
@@ -232,8 +256,14 @@ function promptRounds(input, withKnowledge) {
     }
   }
 
+  const verified = rounds.some((r) => r.verified);
+  const ledgerNote = verified
+    ? 'ROUND LEDGER, checked against Riot\'s record of the match. Deaths, the seconds, the killer, kills, '
+      + 'first deaths and round results are Riot\'s and exact. Death locations and coach reads come from the '
+      + 'screen. A coach read that named a different killer than Riot was removed:'
+    : 'ROUND LEDGER:';
   return `You are reviewing one finished Valorant match for the player, ${who}. ${score}\n\n`
-    + `ROUND LEDGER:\n${rounds.map(roundLine).join('\n')}\n\n`
+    + `${ledgerNote}\n${rounds.map(roundLine).join('\n')}\n\n`
     + `COMPUTED PATTERNS (arithmetic over the ledger, these are true):\n`
     + (patterns.length ? patterns.map((p) => '- ' + p.text).join('\n') : '- none cleared the bar in this match')
     + knowledgeBlock

@@ -71,14 +71,38 @@ function patterns(rounds) {
     });
   }
 
-  // Early deaths: before any plant with 70 seconds or more still on the clock.
+  // RIOT ONLY: the first death of the round. Only a round Riot verified can say
+  // who died first, so this counts verified rounds and nothing else. Floor:
+  // three, and a quarter of those rounds.
+  const verified = rounds.filter((r) => r.verified);
+  const firsts = verified.filter((r) => r.firstDeath);
+  if (firsts.length >= 3 && firsts.length * 4 >= verified.length) {
+    out.push({
+      key: 'firstdeath',
+      text: `You were the first player to die in ${firsts.length} of ${verified.length} rounds, `
+        + `${listRounds(firsts)}.`,
+    });
+  }
+
+  // Early deaths: in the first 30 seconds of the round and before any plant.
+  // With Riot's record this is exact; from the screen alone it undercounts,
+  // because the spectator camera makes a dead player look alive for a while.
   const early = deaths.filter((r) => r.early);
   if (early.length >= 2) {
     out.push({
       key: 'early',
-      text: `${early.length} deaths came in the first 30 seconds of the round, before any plant, `
-        + `in rounds ${early.map((r) => r.n).join(', ')}.`,
+      text: `${early.length} of your ${deaths.length} deaths came in the first 30 seconds of the round, `
+        + `before any plant, in ${listRounds(early)}.`,
     });
+  }
+
+  // RIOT ONLY: who killed you most. Three kills and a quarter of the deaths,
+  // so a spread of killers never reads as a rivalry.
+  const byKiller = new Map();
+  for (const r of deaths) if (r.killerAgent) byKiller.set(r.killerAgent, (byKiller.get(r.killerAgent) || 0) + 1);
+  const topKiller = [...byKiller.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (topKiller && topKiller[1] >= 3 && topKiller[1] * 4 >= deaths.length) {
+    out.push({ key: 'killer', text: `${topKiller[0]} killed you ${topKiller[1]} times, more than anyone else.` });
   }
 
   // The ultimate. Only a CONFIRMED ready read counts; the icon is small and a
@@ -134,12 +158,49 @@ function patterns(rounds) {
     out.push({ key: 'retake', text: `On defence, won ${w} of ${retakes.length} rounds after they planted.` });
   }
 
+  // RIOT ONLY, and the one pattern that is good news: opening the round.
+  const openers = verified.filter((r) => r.firstKill);
+  if (openers.length >= 3) {
+    out.push({ key: 'firstkill', text: `You got the first kill of the round ${openers.length} times, ${listRounds(openers)}.` });
+  }
+
   return out;
+}
+
+/** "rounds 2, 5 and 9", or the first eight and a count, so a line stays readable. */
+function listRounds(rows) {
+  const ns = rows.map((r) => r.n);
+  if (ns.length === 1) return `round ${ns[0]}`;
+  const shown = ns.slice(0, 8);
+  const rest = ns.length - shown.length;
+  if (rest > 0) return `rounds ${shown.join(', ')} and ${rest} more`;
+  return `rounds ${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
 }
 
 /** The facts line under a round, computed, never written by the model. */
 function roundFacts(r) {
   const facts = [];
+  // RIOT VERIFIED: exact, so exact numbers. The seconds, the killer and the
+  // weapon are Riot's; only the place is the screen's.
+  if (r.verified) {
+    if (r.died) {
+      let line = r.deathSpot ? `Died at ${r.deathSpot}` : 'Died';
+      if (r.deathSec !== null && r.deathSec !== undefined) line += `, ${r.deathSec}s in`;
+      if (r.killerAgent) line += `, to ${r.killerAgent}${r.weapon ? ` with a ${r.weapon}` : ''}`;
+      facts.push(line);
+      if (r.firstDeath) facts.push('First death of the round');
+      if (r.ultAtDeath === 'ready') facts.push('Ultimate was ready');
+    } else {
+      // Riot knows who survived, so the line the screen could not honestly
+      // write is back.
+      facts.push('Survived');
+    }
+    if (typeof r.kills === 'number' && r.kills > 0) facts.push(plural(r.kills, 'kill'));
+    if (r.firstKill) facts.push('First kill of the round');
+    if (r.planted) facts.push(r.plantSpot ? `Spike planted at ${r.plantSpot}` : 'Spike planted');
+    if (r.watched === false) facts.push('Not watched by the coach');
+    return facts;
+  }
   if (r.died) {
     let line = r.deathSpot ? `Died at ${r.deathSpot}` : 'Died';
     // A BUCKET, NOT A SECOND COUNT. Frames arrive every ten seconds or so, so
@@ -212,20 +273,22 @@ function build(input) {
 
   const deaths = rounds.filter((r) => r.died).length;
   const decided = rounds.filter((r) => r.result);
-  const refused = [
-    'Kills, damage and who won each fight are not printed on the HUD in a way the coach can read, '
-      + 'so a round card says what was seen, not how the duel went.',
-  ];
+  const isVerified = rounds.some((r) => r.verified);
+  const refused = isVerified
+    ? ['Riot records when you died and to whom, not where. Death locations are read off the screen.']
+    : ['Kills, damage and who won each fight are not printed on the HUD in a way the coach can read, '
+      + 'so a round card says what was seen, not how the duel went.'];
   if (input.endedBy === 'stop') {
     refused.push('Coaching was stopped before the match ended, so this covers the rounds the coach watched.');
   }
-  if (!tracker) {
+  if (!tracker && !isVerified) {
     refused.push('The scoreboard comes from Riot once the match is published. '
       + 'Add your Riot ID in Settings, and it fills in here a few minutes after the match.');
   }
 
+  // Riot's agent wins over the screen's, the same as every other fact it has.
   const game = {
-    agent: ctx.agent || (tracker && tracker.agent) || null,
+    agent: (tracker && tracker.agent) || ctx.agent || null,
     map: ctx.map || (tracker && tracker.map) || null,
     mode: ctx.gameMode === 'swiftplay' ? 'Swiftplay' : ctx.gameMode === 'standard' ? 'Standard' : null,
     result,
@@ -248,6 +311,11 @@ function build(input) {
       survival: rounds.length ? pct(rounds.length - deaths, rounds.length) : null,
     },
     halftimeAfter: halftimeAfter(ctx.gameMode, rounds),
+    // Whether Riot's record has been applied, and what it changed. The window
+    // says so, because a review that quietly changed its numbers reads as one
+    // that cannot make up its mind.
+    verified: isVerified,
+    verification: input.verification || null,
     patterns: patterns(rounds),
     summary: ai.summary || null,
     focus: ai.focus || null,
@@ -260,6 +328,8 @@ function build(input) {
 
 /** A death's timing as the bucket roundFacts prints, or null. */
 function timingOf(r) {
+  if (r.verified) return r.died && r.deathSec !== null && r.deathSec !== undefined
+    ? (r.early ? 'early' : r.deathSec <= 70 ? 'mid' : 'late') : null;
   if (!r.died || r.deathClock === null || r.deathClock === undefined || r.planted) return null;
   const into = 100 - r.deathClock;
   return into <= 30 ? 'early' : into <= 70 ? 'mid' : 'late';
@@ -269,7 +339,7 @@ function timingOf(r) {
  * What the server's review route is sent. The engine and the review bench both
  * build it here, so the bench measures exactly what a player's match sends.
  */
-function requestBody({ rounds, context, endedBy, tips, notes }) {
+function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
   const ctx = context || {};
   const team = typeof ctx.teamScore === 'number' ? ctx.teamScore : null;
   const enemy = typeof ctx.enemyScore === 'number' ? ctx.enemyScore : null;
@@ -281,10 +351,23 @@ function requestBody({ rounds, context, endedBy, tips, notes }) {
       timing: timingOf(r), planted: r.planted, plantSpot: r.plantSpot,
       ultReady: r.died && r.ultAtDeath === 'ready',
       reads: r.reads.map((x) => x.text),
+      // Riot's exact facts, when the match has been checked against them.
+      ...(r.verified ? {
+        verified: true, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
+        firstDeath: r.firstDeath, firstKill: r.firstKill, kills: r.kills,
+      } : {}),
     })),
     patterns: patterns(rounds),
-    context: { agent: ctx.agent || null, map: ctx.map || null, advancedTips: ctx.advancedTips === true },
-    final: {
+    context: {
+      agent: (riot && riot.agent) || ctx.agent || null,
+      map: ctx.map || (riot && riot.map) || null,
+      advancedTips: ctx.advancedTips === true,
+    },
+    // Riot's final score and result outrank the last score the screen read.
+    final: riot && riot.score ? {
+      team: Number(riot.score.split('-')[0]), enemy: Number(riot.score.split('-')[1]),
+      result: riot.result || null, verified: true,
+    } : {
       team, enemy,
       result: endedBy === 'score' && team !== null && enemy !== null
         ? (team > enemy ? 'Victory' : team < enemy ? 'Defeat' : 'Draw') : null,
