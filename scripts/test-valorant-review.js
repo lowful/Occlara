@@ -117,7 +117,8 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     `and 6 of 22 deaths at A Site, matching the frames (${spotReal && spotReal.text})`);
   ok(pats.every((p) => !/[\u2013\u2014]/.test(p.text)), 'no pattern text carries a dash');
   const side = pats.find((p) => p.key === 'sides');
-  ok(side && side.text === 'Won 6 of 12 on attack and 7 of 12 on defence.', `side split is exact (${side && side.text})`);
+  ok(side && side.text === 'Defence was your stronger side: won 6 of 12 on attack and 7 of 12 on defence.',
+    `side split is exact, and names the stronger side (${side && side.text})`);
 
   const mk = (n, extra) => ({ n, side: 'defending', result: 'lost', died: false, deathSpot: null, deathClock: null,
     early: false, ultAtDeath: null, planted: false, plantSpot: null, reads: [], frames: 3, ...extra });
@@ -208,6 +209,8 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     'a spelled list after "rounds" becomes digits');
   ok(rd('in rounds twenty two, and twenty three.') === 'in rounds 22, and 23.', 'twenty two folds into 22');
   ok(rd('Losing three rounds in a row.') === 'Losing three rounds in a row.', 'a count BEFORE "rounds" is not a round number');
+  ok(rd('seen in rounds 3 4 6 and 9.') === 'seen in rounds 3, 4, 6 and 9.', 'bare round numbers get their commas back');
+  ok(rd('in rounds 2, 3 and 4.') === 'in rounds 2, 3 and 4.', 'and a list that already has them is left alone');
   ok(rd('In round seven you died, then one teammate traded.') === 'In round 7 you died, then one teammate traded.',
     'and "one teammate" later in the sentence is left alone');
 }

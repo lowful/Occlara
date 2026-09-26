@@ -139,9 +139,16 @@ function patterns(rounds) {
   if (atk.length >= 3 && def.length >= 3) {
     const aw = atk.filter((r) => r.result === 'won').length;
     const dw = def.filter((r) => r.result === 'won').length;
+    // THE STRONGER HALF IS NAMED, not left to be inferred from two fractions.
+    // Given "won 6 of 12 on attack and 7 of 12 on defence", the model wrote
+    // that the player "secured the attack half", which is the opposite.
+    const ar = aw / atk.length;
+    const dr = dw / def.length;
+    const lead = ar === dr ? 'Your attack and defence were level'
+      : ar > dr ? 'Attack was your stronger side' : 'Defence was your stronger side';
     out.push({
       key: 'sides',
-      text: `Won ${aw} of ${atk.length} on attack and ${dw} of ${def.length} on defence.`,
+      text: `${lead}: won ${aw} of ${atk.length} on attack and ${dw} of ${def.length} on defence.`,
     });
   }
 
@@ -185,7 +192,7 @@ function roundFacts(r) {
   if (r.verified) {
     if (r.died) {
       let line = r.deathSpot ? `Died at ${r.deathSpot}` : 'Died';
-      if (r.deathSec !== null && r.deathSec !== undefined) line += `, ${r.deathSec}s in`;
+      if (r.deathSec !== null && r.deathSec !== undefined) line += `${r.deathSpot ? ',' : ''} ${r.deathSec}s in`;
       if (r.killerAgent) line += `, to ${r.killerAgent}${r.weapon ? ` with a ${r.weapon}` : ''}`;
       facts.push(line);
       if (r.firstDeath) facts.push('First death of the round');
