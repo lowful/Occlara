@@ -298,6 +298,14 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(/R2 defence, lost\. died at A Site 15 seconds into the round, killed by Viper with a Marshal/.test(prompt),
     'the model gets Riot\'s facts for each round');
   ok(/Riot's final score was 13 to 11/.test(prompt) && /checked against Riot/.test(prompt), 'and is told they are Riot\'s');
+
+  // The scoreboard line. Without it a 31 kill match MVP was reviewed from his
+  // 21 deaths alone.
+  const withLine = matchReview.buildPrompt(matchReview.normalise(review.requestBody({
+    rounds, context: abyss.context, endedBy: 'score',
+    riot: { agent: 'Jett', map: 'Abyss', score: '13-11', result: 'Victory',
+      scoreline: { kills: 31, deaths: 21, assists: 4, acs: 382 } } })));
+  ok(/31 kills, 21 deaths, 4 assists, combat score 382 a round/.test(withLine), 'the model sees Riot\'s scoreboard line');
 }
 
 // ── The v4 parser, on a small synthetic match ───────────────────────────────

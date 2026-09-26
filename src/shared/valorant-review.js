@@ -367,6 +367,10 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
     final: riot && riot.score ? {
       team: Number(riot.score.split('-')[0]), enemy: Number(riot.score.split('-')[1]),
       result: riot.result || null, verified: true,
+      // The player's own scoreboard line. Without it the model saw 21 deaths
+      // and nothing else, and reviewed a 31 kill match MVP as a struggling
+      // player. Deaths mean something different next to 31 kills.
+      scoreline: riot.scoreline || null,
     } : {
       team, enemy,
       result: endedBy === 'score' && team !== null && enemy !== null
