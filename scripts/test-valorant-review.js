@@ -323,6 +323,15 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(!(5 in parsed.rounds) && parsed.dropped.some((d) => d.n === 5 && d.said === 'Viper' && d.riot === 'Phoenix'),
     'R5 named Viper where Riot says Phoenix, and is dropped');
   ok(4 in parsed.rounds && 10 in parsed.rounds, 'R4 (Viper) and R10 (Cypher) match Riot and stay');
+
+  // THE COUNT GATE, on the sentence the live model wrote, which merged 6 of 12
+  // on attack with 6 of 10 after the plant into one wrong figure.
+  const counted = matchReview.parse('SUMMARY: You won the match 13 to 11 by securing six of twelve attack rounds '
+    + 'after spike plant. Your most repeated mistake was stepping out alone in rounds 2, 3 and 4. '
+    + 'You won 7 out of 12 on defence.', input);
+  ok(counted.summary === 'Your most repeated mistake was stepping out alone in rounds 2, 3 and 4.',
+    `sentences carrying a count are dropped, round numbers are not (${counted.summary})`);
+  ok(/write no counts or fractions/.test(prompt), 'and the prompt asks for none');
 }
 
 // ── The v4 parser, on a small synthetic match ───────────────────────────────

@@ -223,6 +223,8 @@ const GROUNDING = 'GROUNDING RULES. The ledger was built by watching the screen 
   + 'Never do arithmetic on the score, use it exactly as given. '
   + 'Quote a pattern\'s numbers exactly or not at all, and never merge two patterns into one number. '
   + 'Speak to the player as you, never as the player. '
+  + 'In the SUMMARY write no counts or fractions such as 6 of 12, the computed patterns show every number '
+  + 'beside it. The final score and round numbers are fine. '
   + 'Write round numbers as digits and never list more than four of them in one sentence. '
   + 'Only name places that appear in the ledger. Do not use dashes. No markdown, no lists, no bold.';
 
@@ -365,6 +367,13 @@ function namesKiller(text) {
   return null;
 }
 
+// "6 of 12", "six of twelve", "3 out of 5": a count the patterns already show.
+const COUNT_PHRASE = /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s+(?:out\s+)?of\s+(?:the\s+|your\s+)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|twenty\s+\w+)\b/i;
+
+function splitSentences(text) {
+  return String(text || '').match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
+}
+
 function parse(text, input) {
   const out = { summary: null, rounds: {}, focus: null, dropped: [] };
   const valid = new Set(input.rounds.map((r) => r.n));
@@ -400,6 +409,17 @@ function parse(text, input) {
   }
   // Variant A has no labels at all: the whole reply is the summary.
   if (input.variant === 'A' && !out.summary) out.summary = String(text || '').trim() || null;
+
+  // NO COUNTS IN THE SUMMARY. The prompt said to quote a pattern's numbers
+  // exactly or not at all, and the model still wrote "six of twelve attack
+  // rounds after spike plant" on the real Abyss match, merging 6 of 12 on
+  // attack with 6 of 10 after the plant. The computed patterns sit directly
+  // above the summary in the window, so a count here adds nothing and risks a
+  // wrong one. A sentence carrying one is dropped.
+  if (out.summary) {
+    const kept = splitSentences(out.summary).map((s) => s.trim()).filter((s) => s && !COUNT_PHRASE.test(s));
+    out.summary = kept.join(' ').trim() || null;
+  }
 
   // THE KILLER GATE. In a round Riot verified, a line naming any other agent
   // as the one who killed or caught the player is wrong, and it is dropped
