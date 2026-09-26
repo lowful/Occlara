@@ -114,6 +114,13 @@ function normalise(body) {
       enemy: Number.isInteger(final.enemy) ? final.enemy : null,
       result: ['Victory', 'Defeat', 'Draw'].includes(final.result) ? final.result : null,
       verified: final.verified === true,
+      scoreline: (() => {
+        const s = final.scoreline || {};
+        const n = (v, max) => (Number.isFinite(v) && v >= 0 && v <= max ? Math.round(v) : null);
+        const out = { kills: n(s.kills, 99), deaths: n(s.deaths, 99), assists: n(s.assists, 99),
+          acs: n(s.acs, 999), mvp: s.mvp === 'match' || s.mvp === 'team' ? s.mvp : null };
+        return out.kills !== null && out.deaths !== null ? out : null;
+      })(),
     },
     variant: ['A', 'B', 'C'].includes(b.variant) ? b.variant : DEFAULT_VARIANT,
   };
@@ -239,6 +246,12 @@ function promptRounds(input, withKnowledge) {
   const who = [context.agent ? `playing ${context.agent}` : 'agent unread', context.map ? `on ${context.map}` : 'map unread'].join(' ');
   const score = final.team !== null && final.enemy !== null
     ? `${final.verified ? 'Riot\'s final score was' : 'The score the coach last read was'} ${final.team} to ${final.enemy}${final.result ? `, a ${final.result.toLowerCase()}` : ''}.`
+      + (final.scoreline ? ` Riot's scoreboard for the player: ${final.scoreline.kills} kills, `
+        + `${final.scoreline.deaths} deaths, ${final.scoreline.assists === null ? 'unknown' : final.scoreline.assists} assists`
+        + `${final.scoreline.acs !== null ? `, combat score ${final.scoreline.acs} a round` : ''}`
+        + `${final.scoreline.mvp === 'match' ? ', match MVP' : final.scoreline.mvp === 'team' ? ', team MVP' : ''}. `
+        + 'Weigh the deaths against this: a player who dies first but wins the fights around it is paying for '
+        + 'their impact, not failing.' : '')
     : 'The final score was not read.';
 
   let knowledgeBlock = '';

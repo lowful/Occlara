@@ -385,7 +385,11 @@ function onValorantMatchReview(reviewText, snap) {
     try {
       const body = valorantReview.requestBody({
         rounds, context, endedBy: snap.endedBy, tips: snap.tips, notes: snap.notes,
-        riot: { agent: riot.me && riot.me.agent, map: riot.map, score: riot.score, result: riot.result },
+        riot: {
+          agent: riot.me && riot.me.agent, map: riot.map, score: riot.score, result: riot.result,
+          scoreline: { kills: riot.me && riot.me.kills, deaths: riot.me && riot.me.deaths,
+            assists: riot.me && riot.me.assists, acs: lm.acs, mvp: lm.mvp || null },
+        },
       });
       body.context = { ...body.context, proPlaybook: snap.context.proPlaybook };
       const res = await api.post(API.MATCH_REVIEW, body, store.get('licenseKey'), 60000);
