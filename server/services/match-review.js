@@ -285,8 +285,7 @@ function promptRounds(input, withKnowledge) {
     + 'says so, and what decided it for the player, drawn from the patterns. Second, the most repeated mistake, '
     + 'naming up to four rounds it happened in. Third, what went right if the ledger shows it, otherwise the habit '
     + 'the coach kept pushing.\n'
-    + `Then up to ${MAX_ROUND_LINES} round lines, only for rounds with a death or a coach read, choosing the rounds that `
-    + 'teach the most, in round order:\n'
+    + `Then one round line for each of these rounds, in this order: ${teachable(rounds).map((n) => 'R' + n).join(', ')}.\n`
     + 'R<number>: at most two sentences and 45 words. The coach read already says WHAT happened, so your line must '
     + 'add what the read does not: the principle behind the mistake, or what to do differently next time, in your '
     + 'own words. If you would only be repeating the read, leave that round out.\n'
@@ -304,8 +303,70 @@ function buildPrompt(input) {
  * the summary running onto a second line; strict about round numbers, which
  * must be rounds the ledger actually sent.
  */
+/**
+ * The rounds worth a line, chosen HERE rather than by the model.
+ *
+ * Asked to "choose the rounds that teach the most, in round order", the model
+ * took the first ten: on the real 24 round Abyss match it explained rounds 2 to
+ * 11 and never reached the second half. So the choice is arithmetic. A lost
+ * round outranks a won one, a first death or an early death outranks a late
+ * one, and a round the coach said something about outranks a silent one. Ties
+ * go to spreading the picks across the match.
+ */
+function teachable(rounds, limit = MAX_ROUND_LINES) {
+  const scored = rounds
+    .filter((r) => r.died || r.reads.length)
+    .map((r) => ({
+      n: r.n,
+      score: (r.result === 'lost' ? 3 : 0) + (r.firstDeath ? 3 : 0) + (r.died ? 2 : 0)
+        + (r.verified && r.sec !== null && r.sec <= 30 ? 1 : 0) + (r.reads.length ? 1 : 0),
+    }));
+  const picked = [];
+  const byScore = scored.slice().sort((a, b) => b.score - a.score || a.n - b.n);
+  // Two passes: the best round in each third of the match first, then the rest
+  // by score, so a long match is never reviewed from its opening alone.
+  const last = rounds.length ? Math.max(...rounds.map((r) => r.n)) : 0;
+  for (let third = 0; third < 3; third++) {
+    const lo = Math.floor((last * third) / 3);
+    const hi = Math.floor((last * (third + 1)) / 3);
+    const best = byScore.find((r) => r.n > lo && r.n <= hi && !picked.includes(r.n));
+    if (best && picked.length < limit) picked.push(best.n);
+  }
+  for (const r of byScore) {
+    if (picked.length >= limit) break;
+    if (!picked.includes(r.n)) picked.push(r.n);
+  }
+  return picked.sort((a, b) => a - b);
+}
+
+let AGENT_NAMES = [];
+try {
+  AGENT_NAMES = Object.keys(require('../valorant-data.generated.json').agents || {});
+} catch {
+  AGENT_NAMES = [];
+}
+
+/**
+ * The agent a sentence says killed or caught the player, or null.
+ *
+ * Plain string search over a fixed list of phrasings, because this is a truth
+ * gate and a regex here is one heredoc away from matching nothing. Measured on
+ * the real Abyss review: "Peeking A vent alone against Viper" in a round Riot
+ * says Phoenix won.
+ */
+function namesKiller(text) {
+  const t = String(text || '').toLowerCase();
+  for (const agent of AGENT_NAMES) {
+    const a = agent.toLowerCase();
+    const says = [`died to ${a}`, `killed by ${a}`, `${a} killed you`, `${a} caught you`, `${a} catches you`,
+      `${a} picks you`, `${a} picked you`, `gives ${a} an easy`, `against ${a}`, `${a} kills you`];
+    if (says.some((p) => t.includes(p))) return agent;
+  }
+  return null;
+}
+
 function parse(text, input) {
-  const out = { summary: null, rounds: {}, focus: null };
+  const out = { summary: null, rounds: {}, focus: null, dropped: [] };
   const valid = new Set(input.rounds.map((r) => r.n));
   let current = null;
   // LABELS ARE SPLIT ONTO THEIR OWN LINES FIRST. The first live bench got every
@@ -339,6 +400,20 @@ function parse(text, input) {
   }
   // Variant A has no labels at all: the whole reply is the summary.
   if (input.variant === 'A' && !out.summary) out.summary = String(text || '').trim() || null;
+
+  // THE KILLER GATE. In a round Riot verified, a line naming any other agent
+  // as the one who killed or caught the player is wrong, and it is dropped
+  // rather than shown next to the fact line that contradicts it. Code wins
+  // over the model here for the reason it does everywhere in this product.
+  for (const r of input.rounds) {
+    const why = out.rounds[r.n];
+    if (!why || !r.verified || !r.killer) continue;
+    const named = namesKiller(why);
+    if (named && named.toLowerCase() !== r.killer.toLowerCase()) {
+      delete out.rounds[r.n];
+      out.dropped.push({ n: r.n, said: named, riot: r.killer });
+    }
+  }
   return out;
 }
 
@@ -393,5 +468,5 @@ function roundDigits(text) {
   return toks.join('');
 }
 
-module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits,
+module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, teachable, namesKiller,
   DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS };

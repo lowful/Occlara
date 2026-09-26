@@ -306,6 +306,23 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     riot: { agent: 'Jett', map: 'Abyss', score: '13-11', result: 'Victory',
       scoreline: { kills: 31, deaths: 21, assists: 4, acs: 382 } } })));
   ok(/31 kills, 21 deaths, 4 assists, combat score 382 a round/.test(withLine), 'the model sees Riot\'s scoreboard line');
+
+  // THE ROUND PICKER. Left to itself the model explained rounds 2 to 11 of 24.
+  const picks = matchReview.teachable(input.rounds);
+  ok(picks.length === 10, `ten rounds are picked (${picks})`);
+  ok(picks.some((n) => n <= 8) && picks.some((n) => n > 8 && n <= 16) && picks.some((n) => n > 16),
+    `and every third of the match gets at least one (${picks})`);
+  ok([2, 7, 10, 23].every((n) => picks.includes(n)), 'every first death round is among them');
+  ok(/one round line for each of these rounds, in this order: R2, /.test(prompt), 'the prompt names them');
+
+  // THE KILLER GATE, on the exact lines the live model wrote for this match.
+  const reply = 'SUMMARY: You won.\nR4: Taking A vent wide with no trade partner gives Viper an easy kill opportunity.\n'
+    + 'R5: Peeking A vent alone against Viper is a free kill when your team is elsewhere.\n'
+    + 'R10: Dying first as Cypher catches you shows you stepped out without breaking his angle.\nFOCUS: Smoke first.';
+  const parsed = matchReview.parse(reply, input);
+  ok(!(5 in parsed.rounds) && parsed.dropped.some((d) => d.n === 5 && d.said === 'Viper' && d.riot === 'Phoenix'),
+    'R5 named Viper where Riot says Phoenix, and is dropped');
+  ok(4 in parsed.rounds && 10 in parsed.rounds, 'R4 (Viper) and R10 (Cypher) match Riot and stay');
 }
 
 // ── The v4 parser, on a small synthetic match ───────────────────────────────

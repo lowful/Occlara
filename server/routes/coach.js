@@ -2549,6 +2549,10 @@ router.post('/match-review', async (req, res) => {
       ]);
       trackCall(licenseKey);
       const parsed = matchReview.parse(text, input);
+      if (parsed.dropped.length) {
+        console.log('[review] dropped round lines that named the wrong killer:',
+          parsed.dropped.map((d) => `R${d.n} said ${d.said}, Riot says ${d.riot}`).join('; '));
+      }
       const clean = (t) => (t ? matchReview.roundDigits(sanitize(t)) : t);
       const rounds = {};
       for (const [n, why] of Object.entries(parsed.rounds)) rounds[n] = clean(why);
