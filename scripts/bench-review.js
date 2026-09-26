@@ -40,8 +40,10 @@ const APPDATA = process.env.APPDATA || '';
 const cfg = JSON.parse(fs.readFileSync(path.join(APPDATA, 'Occlara', 'occlara-config.json'), 'utf8'));
 
 const MATCHES = [
-  { file: 'valorant-match-abyss-13-11.json', mode: 'standard', agent: 'Iso', map: 'Abyss' },
-  { file: 'valorant-match-swiftplay-2-5.json', mode: 'swiftplay', agent: 'Iso', map: null },
+  // Agents from Riot's record of each match. The Abyss one was first run as Iso
+  // by mistake, and the model duly suggested Iso abilities to a Jett.
+  { file: 'valorant-match-abyss-13-11.json', mode: 'standard', agent: 'Jett', map: 'Abyss', riot: 'riot-abyss-13-11.json' },
+  { file: 'valorant-match-swiftplay-2-5.json', mode: 'swiftplay', agent: 'Iso', map: 'Ascent' },
 ];
 
 function post(body) {
@@ -142,7 +144,16 @@ function grade(res, body) {
     const rep = replay(load(m.file).frames, m.mode);
     const ctx = { ...rep.context, agent: m.agent, map: rep.context.map || m.map };
     const tips = rep.rounds.flatMap((r) => r.reads.map((x) => x.text));
-    const body = review.requestBody({ rounds: rep.rounds, context: ctx, endedBy: rep.endedBy, tips });
+    // Riot's record where the fixture has one, so the bench measures what a
+    // linked match actually sends: the verified rounds, not the screen's.
+    let rounds = rep.rounds;
+    let riotInfo = null;
+    if (m.riot) {
+      const riot = load(m.riot);
+      rounds = require('../src/shared/valorant-verify').reconcile(rep.rounds, riot).rounds;
+      riotInfo = { agent: riot.me.agent, map: riot.map, score: riot.score, result: riot.result };
+    }
+    const body = review.requestBody({ rounds, context: ctx, endedBy: rep.endedBy, tips, riot: riotInfo });
     console.log(`\n${'='.repeat(78)}\n${m.file}: ${rep.rounds.length} rounds, ended by ${rep.endedBy}, `
       + `patterns: ${body.patterns.map((p) => p.key).join(', ') || 'none'}\n${'='.repeat(78)}`);
     for (let run = 0; run < RUNS; run++) {

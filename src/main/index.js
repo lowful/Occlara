@@ -66,6 +66,7 @@ const { explainAllowed } = require('../shared/explain-gate');
 const registerIpc = require('./ipc/register-ipc');
 const licenseService = require('./services/license-service');
 const agentData = require('./services/agent-data');
+const { API } = require('../shared/config');
 const { profileHabits } = require('./services/habits');
 const jokeTips = require('./services/joke-tips');
 const gameRegistry = require('../shared/games');
@@ -275,7 +276,7 @@ function setStatus(status) {
  * scoreboard and the comparison against the player's own average land when
  * the tracker can verify it is THIS match, and the review repaints.
  */
-function buildValorantReview(snap, tracker) {
+function buildValorantReview(snap, tracker, extra) {
   const valorantReview = require('../shared/valorant-review');
   const ai = snap.ai || {};
   const agent = snap.context && snap.context.agent;
@@ -293,10 +294,37 @@ function buildValorantReview(snap, tracker) {
     tracker,
     role,
     history: store.get('valorantHistory') || [],
+    verification: extra && extra.verification,
   });
-  built.aiUnavailable = !snap.ai;
+  built.aiUnavailable = !snap.ai && !(extra && extra.narrativePending);
+  built.narrativePending = !!(extra && extra.narrativePending);
   built.thin = !!ai.thin;
   return { built, role };
+}
+
+/**
+ * Riot's round by round record of a linked match, or null.
+ *
+ * Only ever called with a match fetchCoachedMatch has already VERIFIED as the
+ * one this session watched, so a round list from someone else's game can never
+ * be laid over this review.
+ */
+async function riotRoundsFor(lm) {
+  const riotId = (store.get('riotId') || '').trim();
+  if (!lm || !lm.matchId || !riotId.includes('#')) return null;
+  try {
+    const { ok, data } = await api.get(
+      `/api/coach/match-rounds?matchId=${encodeURIComponent(lm.matchId)}&username=${encodeURIComponent(riotId)}`,
+      store.get('licenseKey'), 30000);
+    if (!ok || !data || data.error || !Array.isArray(data.perRound) || !data.perRound.length) {
+      console.log('[review] no Riot round record:', (data && data.error) || 'no answer');
+      return null;
+    }
+    return data;
+  } catch (e) {
+    console.log('[review] Riot round record failed:', e.message);
+    return null;
+  }
 }
 
 function onValorantMatchReview(reviewText, snap) {
@@ -320,6 +348,58 @@ function onValorantMatchReview(reviewText, snap) {
   const mctx = { map: snap.context.map, agent: snap.context.agent };
   let recorded = false;
   let showing = first.built;
+  // Paint one version of the review, if nothing newer has been shown since.
+  const repaint = (built) => {
+    if (lastReviewShown === showing) {
+      lastReviewShown = built;
+      registry.broadcast(C.PUSH_VALORANT_REVIEW, built);
+    }
+    showing = built;
+  };
+
+  /*
+   * RIOT'S RECORD OVERRIDES THE SCREEN, and the narrative is written again.
+   *
+   * Checked against Riot on the real Abyss fixture, the screen read 22 deaths
+   * where there were 21 and 6 early deaths where there were 19, and three of
+   * the coach's death reviews named the wrong killer. A summary written from
+   * those facts is wrong in the same places, so correcting the numbers and
+   * keeping the old summary would leave the one sentence a player reads first
+   * contradicting the numbers under it. The corrected half is shown at once
+   * with the summary marked as updating, then the model writes it again from
+   * Riot's facts.
+   */
+  const withRiot = async (lm) => {
+    const riot = await riotRoundsFor(lm);
+    if (!riot) return false;
+    const verify = require('../shared/valorant-verify');
+    const valorantReview = require('../shared/valorant-review');
+    const { rounds, checks } = verify.reconcile(snap.rounds, riot);
+    const context = { ...snap.context, agent: (riot.me && riot.me.agent) || snap.context.agent };
+    const vsnap = { ...snap, rounds, context };
+    const verification = verify.describe(checks);
+    console.log(`[review] ${verification}`);
+    repaint(buildValorantReview({ ...vsnap, ai: null }, lm, { verification, narrativePending: true }).built);
+
+    let ai = null;
+    try {
+      const body = valorantReview.requestBody({
+        rounds, context, endedBy: snap.endedBy, tips: snap.tips, notes: snap.notes,
+        riot: { agent: riot.me && riot.me.agent, map: riot.map, score: riot.score, result: riot.result },
+      });
+      body.context = { ...body.context, proPlaybook: snap.context.proPlaybook };
+      const res = await api.post(API.MATCH_REVIEW, body, store.get('licenseKey'), 60000);
+      ai = res && res.ok ? res.data : null;
+    } catch (e) {
+      console.log('[review] verified narrative failed:', e.message);
+    }
+    const final = buildValorantReview({ ...vsnap, ai }, lm, { verification }).built;
+    repaint(final);
+    legacy.valorant = final;
+    saveMatchSummary(legacy);
+    return true;
+  };
+
   const withTracker = (lm) => {
     const next = buildValorantReview(snap, lm);
     // ONE HISTORY ROW PER MATCH, whichever attempt found the tracker, and
@@ -336,16 +416,14 @@ function onValorantMatchReview(reviewText, snap) {
     // Only repainted if nothing newer has been shown since. The retry can
     // land four minutes later, by which time the next match may have its own
     // review open, and a late scoreboard must not replace it with this one.
-    const stillShowing = lastReviewShown === showing;
-    if (stillShowing) {
-      lastReviewShown = next.built;
-      registry.broadcast(C.PUSH_VALORANT_REVIEW, next.built);
-    }
-    showing = next.built;
+    repaint(next.built);
     legacy.lastMatch = lm;
     legacy.valorant = next.built;
     if (!liveClosed) registry.broadcast(C.PUSH_MATCH_REVIEW, legacy);
     saveMatchSummary(legacy);
+    // The totals are Riot's now; the rounds follow, and they are what fixes
+    // the deaths, the timing and the coach's reads.
+    withRiot(lm).catch((e) => console.log('[review] Riot check failed:', e.message));
   };
 
   (async () => {

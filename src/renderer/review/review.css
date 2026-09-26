@@ -283,3 +283,14 @@ header {
 @media (prefers-reduced-motion: reduce) {
   .v-cell, .v-round.flash { transition: none; animation: none; }
 }
+
+/* Riot's record was applied. Quiet, because it is a reassurance, not news. */
+.v-verified {
+  margin: 8px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-dim);
+  display: flex; gap: 6px; align-items: baseline;
+}
+.v-verified::before {
+  content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--good); transform: translateY(-1px);
+}
+.v-verified[hidden] { display: none; }

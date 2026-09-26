@@ -197,7 +197,7 @@ setTimeout(async () => {
     const { replay, load } = require(path.join(REPO, 'scripts/fixtures/replay-match'));
     const valReview = require(path.join(REPO, 'src/shared/valorant-review'));
     const rep = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
-    const val = valReview.build({ rounds: rep.rounds, context: { ...rep.context, agent: 'Iso' }, endedBy: rep.endedBy,
+    const val = valReview.build({ rounds: rep.rounds, context: { ...rep.context, agent: 'Jett' }, endedBy: rep.endedBy,
       ai: { summary: 'You won 13 to 11.', rounds: { 2: 'Wait for the team.' }, focus: 'Trade.', study: [] } });
     registry.broadcast(C.PUSH_VALORANT_REVIEW, val);
     await new Promise((r) => setTimeout(r, 1600));
