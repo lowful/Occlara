@@ -485,7 +485,28 @@ function roundDigits(text) {
     if (CONNECTORS.has(bare)) continue;
     inRun = false;
   }
-  return toks.join('');
+  // COMMAS BETWEEN BARE ROUND NUMBERS. The model wrote "rounds 3 4 6 and 9" on
+  // the real Abyss match; a list of four numbers with no commas reads as one
+  // number. A bare number followed directly by another gets a comma.
+  const words = toks.join('').split(/(\s+)/);
+  const isNum = (w) => w !== undefined && /^\d+$/.test(w);
+  let run = false;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (/^\s+$/.test(w)) continue;
+    const bare = w.toLowerCase().replace(/[^a-z]/g, '');
+    if (bare === 'round' || bare === 'rounds') { run = true; continue; }
+    if (!run) continue;
+    if (isNum(w)) {
+      let j = i + 1;
+      while (j < words.length && /^\s+$/.test(words[j])) j++;
+      if (isNum(words[j]) || isNum((words[j] || '').replace(/[.,;:!?]+$/, ''))) words[i] = w + ',';
+      continue;
+    }
+    if (/^\d+[,.;:!?]$/.test(w) || CONNECTORS.has(bare)) continue;
+    run = false;
+  }
+  return words.join('');
 }
 
 module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, teachable, namesKiller,
