@@ -81,6 +81,37 @@ the time.
 
 `npm run test:valorantreview` replays both real fixtures through all of it.
 
+### Riot's record overrides the screen, and the read is written again
+
+**The screen is wrong in ways only Riot can show.** Checked against Riot's
+record of the real Abyss fixture (`scripts/fixtures/riot-abyss-13-11.json`): the
+screen read 22 deaths where Riot has 21 (round 17 invented from one post-plant
+spectator frame), put 6 deaths in the first 30 seconds where Riot puts 16, and
+5 of the coach's own death reviews named the wrong killer. The timing error is
+the spectator trap again: after a death the HUD shows a teammate alive at 100
+health, so the coach thinks the player lived another half minute.
+
+So when `fetchCoachedMatch` links the match, `withRiot()` in `src/main/index.js`
+fetches `/api/coach/match-rounds` (parsed in `server/services/riot-rounds.js`)
+and `src/shared/valorant-verify.js` reconciles: deaths, the second, the killer
+and weapon, first death, first kill, kills and round results are Riot's; the
+screen keeps only the location, the ult icon and what the coach said. Reads Riot
+contradicts are dropped. The corrected review repaints at once with the summary
+marked as updating, then the model writes it again from Riot's facts, including
+Riot's scoreboard line, because a 31/21 match MVP reviewed from its deaths alone
+reads as a struggling player.
+
+Three things the model got wrong on the verified prompt, each now fixed in code
+rather than asked for: it explained rounds 2 to 11 of 24 (`teachable()` picks
+the rounds, one per third first), it named the wrong killer (`namesKiller()`
+drops that line), and it merged two patterns into one wrong count (a summary
+sentence carrying "N of M" is dropped). The `sides` pattern names the stronger
+side in words, because given two fractions the model inverted them.
+
+**Riot counts rounds from 0**, and `time_in_round_in_ms` runs from the barriers
+dropping. The Riot ID in config is the one looked up, so a match played on
+another account never links, which is correct.
+
 ## Layout
 
 ```
