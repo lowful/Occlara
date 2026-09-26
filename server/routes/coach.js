@@ -3,6 +3,7 @@ const express  = require('express');
 const supabase = require('../db/supabase');
 const knowledge = require('../services/knowledge');
 const matchReview = require('../services/match-review');
+const riotRounds = require('../services/riot-rounds');
 // The language list is shared with the client so both agree on what is
 // supported, and so the prompt always names the language in English (a model
 // follows "write in German" far more reliably than "write in Deutsch").
@@ -1919,7 +1920,11 @@ const matchMvpCache = new Map();   // matchId -> { mvp, team } | null
 
 /** Total rounds from a "13-10" scoreline; ACS is per round. */
 function roundsOf(score) {
-  const m = /^s*(d+)s*-s*(d+)s*$/.exec(String(score || ''));
+  // This regex was written through a shell heredoc once, which stripped every
+  // backslash: /^s*(d+)s*.../ matched the letters s and d and never a score,
+  // so this returned 0 for every match and nothing failed. Edit it with a file
+  // tool, and test-coach-helpers asserts it on "13-10".
+  const m = /^\s*(\d+)\s*-\s*(\d+)\s*$/.exec(String(score || ''));
   return m ? Number(m[1]) + Number(m[2]) : 0;
 }
 
@@ -2095,6 +2100,43 @@ router.get('/match-deaths', async (req, res) => {
   } catch (e) {
     console.error('[coach] match-deaths failed:', e.message);
     res.status(500).json({ error: 'Match death lookup failed.' });
+  }
+});
+
+// GET /api/coach/match-rounds?matchId=...&username=Name%23TAG
+// Riot's round by round record for the post-match review: who won each round,
+// the player's kills, when and to whom they died, first death, the plant.
+// Cached per match and player, since a finished match never changes. The
+// parsing lives in services/riot-rounds.js so the tests can drive it.
+const matchRoundsCache = new Map();
+router.get('/match-rounds', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
+
+  const matchId = String(req.query.matchId || '').trim();
+  const username = String(req.query.username || '');
+  if (!matchId) return res.json({ error: 'No match id.' });
+  if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
+  const [name, tag] = username.split('#').map((s) => s.trim());
+  const cacheKey = matchId + '|' + username.toLowerCase();
+  if (matchRoundsCache.has(cacheKey)) return res.json(matchRoundsCache.get(cacheKey));
+
+  try {
+    const enc = encodeURIComponent;
+    const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
+    const region = acct.json && acct.json.data && acct.json.data.region;
+    if (!region) return res.json({ error: 'Could not resolve the account region.' });
+    const md = await henrikGet(`/valorant/v4/match/${region}/${enc(matchId)}`);
+    if (md.status === 429) return res.json({ error: 'Tracker rate limit, try again shortly.' });
+    const d = md.json && md.json.data;
+    if (!d) return res.json({ error: 'The tracker returned no match detail.' });
+    const out = { matchId, ...riotRounds.parse(d, name, tag) };
+    if (!out.error) cacheSet(matchRoundsCache, cacheKey, out, 200);
+    res.json(out);
+  } catch (e) {
+    console.error('[coach] match-rounds failed:', e.message);
+    res.status(500).json({ error: 'Match round lookup failed.' });
   }
 });
 
@@ -2453,6 +2495,10 @@ router.get('/last-match', async (req, res) => {
     if (kd < 0.7 && gi > 0) gi--;
 
     res.json({
+      // The id, so the post-match review can ask for this exact match's round
+      // by round record once the link is verified. Without it the review could
+      // only ever show totals.
+      matchId: m.meta?.id || null,
       map:     m.meta?.map?.name || 'Unknown',
       agent:   st.character?.name || null,
       result:  myScore > theirs ? 'Victory' : myScore < theirs ? 'Defeat' : 'Draw',
