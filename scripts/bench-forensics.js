@@ -8,6 +8,12 @@
  * client would send (the last one before Riot's death second, and the one just
  * after), and prints what each model said beside Riot's facts.
  *
+ * THE FIXTURE FRAMES CARRY THE OLD LIVE TIP CARDS. This match was played on a
+ * build that still showed tips, and the cards sit over the game in the very
+ * frames being judged. The prompt says to ignore them; a model that repeats a
+ * card's words back ("the death review says...") is reading the card, not the
+ * game, and should be graded down for it.
+ *
  * A BENCH, NOT A CHECK. Whether "you swung wide into mid with no utility" is
  * true of a frame is a human judgement, so this prints and a person grades.
  * What it can count is the plumbing: a label from the list, sentences that
@@ -52,6 +58,7 @@ const deaths = picks.map((r) => {
     n: r.n, side: r.side, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
     firstDeath: r.firstDeath, traded: r.traded, alive: r.aliveAtDeath,
     planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot,
+    gap: recs[0] && deathFrames.secondsIn(recs[0]) !== null ? Math.max(0, r.deathSec - deathFrames.secondsIn(recs[0])) : null,
     frames: recs.map((x) => fs.readFileSync(path.join(dir, x.frame)).toString('base64')),
     shown: recs.map((x) => x.frame),
   };

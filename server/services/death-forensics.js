@@ -122,6 +122,10 @@ function buildPrompt(input, death) {
   if (death.traded === false) facts.push('Nobody on the team killed the killer within five seconds (not traded).');
   if (death.planted) facts.push(death.afterPlant ? 'The spike was already planted.' : 'The spike was planted later in the round.');
   if (death.spot) facts.push(`The screen placed the death at ${death.spot}.`);
+  if (typeof death.gap === 'number') {
+    facts.push(death.gap <= 1 ? 'The first frame was taken in the second the player died.'
+      : `The first frame was taken about ${death.gap} seconds before the player died.`);
+  }
 
   const frames = death.frames.length > 1
     ? 'Two frames from the player\'s own screen: the FIRST is the last one before the death, the SECOND is just after it.'
@@ -140,6 +144,10 @@ ${Object.entries(CAUSES).map(([k, v]) => `${k}: ${v}`).join('\n')}
 
 Rules:
 - Describe only what is visible in the frame and stated in the facts. If the frame does not show the moment (a menu, a death screen only, a blur), the cause is unclear.
+- If the first frame shows no enemy and no fight, and was taken several seconds before the death, you cannot see what happened next: the cause is unclear unless the position itself is the mistake (alone far from every teammate on the minimap, standing in the open on the spike).
+- Where the player is: read the location name printed above the minimap in the top left. Do not guess a place from the scenery.
+- Ignore any text boxes or cards drawn over the game by other apps. Judge from the game itself.
+- Weapons and health are in the bottom HUD. Do not call a pistol a knife or an Operator a rifle.
 - A fair fight from a sound position is lost-duel. Do not invent a positioning error to have something to say.
 - Speak to the player as "you". Name no ability they do not have and no callout that is not in the list. Name no killer other than the one in the facts.
 - No dashes. Plain sentences, each ending with a period.
@@ -188,6 +196,7 @@ function normalise(body) {
     planted: !!(d && d.planted),
     afterPlant: !!(d && d.afterPlant),
     spot: clip(d && d.spot, 32) || null,
+    gap: d && typeof d.gap === 'number' && d.gap >= 0 && d.gap <= 15 ? Math.round(d.gap) : null,
     frames: (Array.isArray(d && d.frames) ? d.frames : [])
       .filter((f) => typeof f === 'string' && f.length > 1000 && f.length < 1500000).slice(0, 2),
   })).filter((d) => d.n > 0 && d.frames.length).slice(0, 4);

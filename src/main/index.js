@@ -347,6 +347,8 @@ async function forensicsFor(rounds, snap) {
       n: r.n, side: r.side, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
       firstDeath: r.firstDeath, traded: r.traded, alive: r.aliveAtDeath,
       planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, frames: imgs, names,
+      gap: recs[0] && deathFrames.secondsIn(recs[0]) !== null && typeof r.deathSec === 'number'
+        ? Math.max(0, r.deathSec - deathFrames.secondsIn(recs[0])) : null,
     });
   }
   if (!deaths.length) return empty;
