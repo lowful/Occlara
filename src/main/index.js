@@ -35,21 +35,18 @@ const logger   = require('./logger');
 const store    = require('./services/store');
 const capture  = require('./services/capture');
 const CoachingEngine = require('./services/coaching-engine');
-const { verifyCoachedMatch, matchSummary } = require('./services/match-link');
+const { verifyCoachedMatch } = require('./services/match-link');
 const { normalize: normalizeLang } = require('../shared/i18n');
 const registry = require('./windows/registry');
-const overlayWindow    = require('./windows/overlay-window');
 const panelWindow      = require('./windows/panel-window');
 const settingsWindow   = require('./windows/settings-window');
-const historyWindow    = require('./windows/history-window');
 const weeklyWindow     = require('./windows/weekly-window');
 const learnWindow      = require('./windows/learn-window');
-const gradeBlend       = require('../shared/grade-blend');
 const reviewWindow     = require('./windows/review-window');
+const matchesWindow    = require('./windows/matches-window');
 const { LolRecorder }  = require('./services/lol-recorder');
 const aiLogWindow      = require('./windows/ailog-window');
 const statsWindow      = require('./windows/stats-window');
-const audioWindow      = require('./windows/audio-window');
 const dockWindow       = require('./windows/dock-window');
 const activationWindow = require('./windows/activation-window');
 const onboardingWindow = require('./windows/onboarding-window');
@@ -62,54 +59,39 @@ const { RivalsEngine } = require('./services/rivals-engine');
 const { reconcile: reconcileDeaths, summarise: summariseDeaths, makeCheckCache } = require('./services/death-reconcile');
 const tray     = require('./tray');
 const hotkeys  = require('./hotkeys');
-const { explainAllowed } = require('../shared/explain-gate');
 const registerIpc = require('./ipc/register-ipc');
 const licenseService = require('./services/license-service');
 const agentData = require('./services/agent-data');
 const { API } = require('../shared/config');
-const { profileHabits } = require('./services/habits');
-const jokeTips = require('./services/joke-tips');
 const gameRegistry = require('../shared/games');
 const { assembleReport, weekKey, rankIndex, trendDirection } = require('./services/weekly-report');
 const updater  = require('./updater');
 const C = require('../shared/channels');
+const { ReviewStore, newId } = require('./services/review-store');
+const grader      = require('../shared/grade');
+const insightsOf  = require('../shared/insights');
+const patternsOf  = require('../shared/patterns');
+const deathFrames = require('../shared/death-frames');
+
+// Every post-match review, for every game. See services/review-store.js.
+const reviewStore = new ReviewStore(path.join(app.getPath('userData'), 'reviews'));
 
 // ── Session state ────────────────────────────────────────────────────────────
 const state = {
   isCoaching: false,
   isPaused:   false,
   status:     'idle',   // idle | coaching | paused | stopped
-  tips:       [],       // recent tips this session (newest first)
   agent:      { agent: null, confirmed: false, role: null }, // detected/confirmed agent
-  tipRatings: store.get('tipRatings') || {},   // text -> 'good'|'bad', disk-backed so ratings survive restarts and mark archived sessions
+  notice:     null,     // one status line for the panel, never about the match
+  cadence:    null,     // the current gap between reads, in ms
+  lastGrade:  null,     // { score, letter, game } of the latest reviewed match
   licenseActive: true,  // false once the subscription ends (locks coaching)
   licenseReason: '',    // why it ended (expired | cancelled | payment_failed | ...)
   reviewRetryTimer: null,   // pending match-review re-push, cancelled when coaching stops
-  heldTips: [],             // tips written while live tips are closed, never broadcast
 };
 
 let mainLaunched = false;
 let surfacesUp   = false;   // overlay/panel/tray built; gated behind onboarding on first run
-
-// One-time reset of X-rated tips (shipped with the 3-strike system): the old
-// single-strike blocklist punished tips too hard, so everyone starts clean.
-if (!store.get('badTipsResetV2')) {
-  store.set('badTipCounts', {});
-  store.set('tipFeedback', []);
-  try { store.delete('badTips'); } catch {}
-  const ratings = store.get('tipRatings') || {};
-  for (const k of Object.keys(ratings)) if (ratings[k] === 'bad') delete ratings[k];
-  store.set('tipRatings', ratings);
-  state.tipRatings = ratings;
-  store.set('badTipsResetV2', true);
-  console.log('[tips] X-ratings reset for the 3-strike system');
-}
-
-/** Tips blocked by the 3-strike rule: same tip rated X three or more times. */
-function blockedBadTips() {
-  const counts = store.get('badTipCounts') || {};
-  return Object.keys(counts).filter((t) => counts[t] >= 3);
-}
 
 // The player's 4 most-played agent names, for the one-tap agent-select bubble.
 // Four is what the bubble's width actually fits on one row.
@@ -131,29 +113,19 @@ function buildState() {
     // gameId is what the panel gates its Learn entry on, so it has to be true.
     game:       gameRegistry.get(store.get('game')).label,
     gameId:     gameRegistry.get(store.get('game')).id,
-    // Every surface greys its live tip controls out from this one field, so
-    // Settings, onboarding and the panel cannot disagree about it.
-    liveTipsClosed: gameRegistry.liveTipsClosed(store.get('game')),
-    tips:       state.tips.slice(0, 50),
-    tipCount:   state.tips.length,
-    tipMix:     engine ? engine.getMix() : { ai: 0, library: 0, aiShare: 0 },
+    // One line for the panel's status: a licence ending, capture blocked, the
+    // server unreachable. Nothing the coach thinks about the match, ever.
+    notice:     state.notice,
+    // How often the game is being read right now, and how it was chosen.
+    cadence:    state.cadence,
+    captureSpeed: store.get('captureSpeed') || 'auto',
+    lastGrade:  state.lastGrade,
     agent:      state.agent,
-    tipRatings: state.tipRatings,
     licenseActive: state.licenseActive,
     licenseReason: state.licenseReason,
     riotId:          (store.get('riotId') || '').trim(),
     topAgents:       topAgentNames(),   // player's 3 most-played, for one-tap agent select
-    tipPosition:     store.get('tipPosition'),
-    tipScale:        store.get('tipScale'),
-    tipStyle:        store.get('tipStyle'),
-    tipOpacity:      store.get('tipOpacity'),
-    showTips:        store.get('showTips'),
     sounds:          store.get('sounds'),
-    voiceCoach:      store.get('voiceCoach'),
-    voiceStyle:      store.get('voiceStyle'),
-    voiceVolume:     store.get('voiceVolume'),
-    overlayPosition: store.get('overlayPosition'),
-    performanceMode: store.get('performanceMode'),
     licensePlan:     store.get('licensePlan'),
     licenseStatus:   store.get('licenseStatus'),
     licenseExpiry:   store.get('licenseExpiry'),
@@ -191,16 +163,8 @@ function maybeNudgeLate() {
   if (!state.isCoaching || state.nudgedThisSession) return;
   if ((store.get('coachStartCount') || 0) <= NUDGE_LEARNING_SESSIONS) return;
   const running = state.sessionStartedAt ? Date.now() - state.sessionStartedAt : 0;
-  const gotTips = state.tips.some((t) => t.source === 'ai' || t.source === 'library');
-  if (running >= NUDGE_LATE_AFTER_MS && gotTips) nudgeMinimize();
-}
-
-/**
- * Is a match being watched with live tips closed? Then nothing the coach
- * writes may reach any surface until the review.
- */
-function holdingTips() {
-  return state.isCoaching && gameRegistry.liveTipsClosed(store.get('game'));
+  const reading = !!(engine && engine.analyzedFrames > 10);
+  if (running >= NUDGE_LATE_AFTER_MS && reading) nudgeMinimize();
 }
 
 /**
@@ -215,47 +179,23 @@ function matchInProgress() {
   return engine.ledger.size() > 0 || !engine.inLobby;
 }
 
-/** The session log is closed to every viewer while its match is in progress. */
+/**
+ * The session log is closed to every viewer while its match is in progress.
+ * The log shows what was read off the screen frame by frame, so an open log on
+ * a second monitor would be a live feed of the match by another name.
+ */
 function liveLogSealed() {
-  return holdingTips() && matchInProgress();
+  return matchInProgress();
 }
 
-function pushTip(tip) {
-  // LIVE TIPS CLOSED: a coaching tip goes nowhere during the match. Not to the
-  // overlay, not to the panel's last tip line, not into state.tips, which
-  // PUSH_STATE carries to every window, and not to the voice coach, which
-  // speaks whatever the overlay receives. The engine already recorded it in
-  // the round ledger, and the review is where the player reads it. System
-  // messages, a licence ending or a capture failing, still go through.
-  if ((tip.source === 'ai' || tip.source === 'library') && holdingTips()) {
-    // Kept for the session grade, which reads the tips the coach wrote, and
-    // kept OUT of state.tips, which every window receives.
-    state.heldTips.unshift({ text: tip.text, source: tip.source, time: tip.time || Date.now() });
-    if (state.heldTips.length > 50) state.heldTips.pop();
-    return;
-  }
-  // The player's own agent, carried so the overlay can mark it as theirs.
-  // Only when the engine has CONFIRMED it: an unconfirmed read would paint the
-  // wrong name green, and a colour that says "this one is yours" has to be
-  // right every time or it is worse than no colour.
-  const mine = state.agent && state.agent.confirmed ? state.agent.agent : null;
-  // topic AND death ride along. This used to rebuild the object from three
-  // fields, which silently dropped both: the engine sets `topic` (topicOf) and
-  // `death` on every tip it emits, and neither survived the trip. So the
-  // overlay's leading topic glyph never drew, and the death review card never
-  // got its skull label or its .death styling, on any tip, ever. The styling
-  // was there the whole time with nothing to switch it on.
-  const full = {
-    text: tip.text, source: tip.source || 'system', time: tip.time || Date.now(),
-    ...(tip.topic ? { topic: tip.topic } : {}),
-    ...(tip.death ? { death: true } : {}),
-    ...(mine ? { agent: mine } : {}),
-  };
-  state.tips.unshift(full);
-  if (state.tips.length > 50) state.tips.pop();
-  registry.broadcast(C.PUSH_TIP, full);
+/**
+ * One line on the panel's status: a licence ending, capture blocked, the server
+ * unreachable. There is no tip stream any more; Occlara says nothing about the
+ * match until the review.
+ */
+function pushNotice(text) {
+  state.notice = text ? { text: String(text), at: Date.now() } : null;
   registry.broadcast(C.PUSH_STATE, buildState());
-  maybeNudgeLate();   // a real tip landing is the signal the match is underway
 }
 
 function setStatus(status) {
@@ -263,6 +203,51 @@ function setStatus(status) {
   registry.broadcast(C.PUSH_STATUS, { status });
   registry.broadcast(C.PUSH_STATE, buildState());
   tray.update(state.isCoaching, trayActions);
+}
+
+// ── The match library ────────────────────────────────────────────────────────
+/**
+ * Keep a review and tell every surface. Called on EVERY version of a review,
+ * because the Valorant one improves twice after it first opens, and the saved
+ * copy must be the best one. The frames it looked at go beside it, so the
+ * library can show the moment long after the AI log has rolled past it.
+ */
+function saveReview(review, game, frames) {
+  if (!review || !review.id) return;
+  try {
+    const { frameData, ...clean } = review;
+    const meta = reviewStore.save({ id: review.id, game, at: review.at || Date.now(), review: clean, frames });
+    if (meta && meta.grade) state.lastGrade = { ...meta.grade, game, id: review.id };
+    registry.broadcast(C.PUSH_REVIEWS, { id: review.id, game });
+    registry.broadcast(C.PUSH_STATE, buildState());
+  } catch (e) {
+    console.error('[reviews] save failed:', e.message);
+  }
+}
+
+/** A saved review with its kept frames attached as data URLs, for the window. */
+function withFrames(review) {
+  if (!review || !review.id) return review;
+  const names = new Set();
+  for (const card of review.rounds || []) {
+    for (const n of (card && card.forensics && card.forensics.frames) || []) names.add(n);
+  }
+  if (!names.size) return review;
+  const frameData = {};
+  for (const n of names) {
+    const b64 = reviewStore.frame(review.id, n);
+    if (b64) frameData[n] = `data:image/jpeg;base64,${b64}`;
+  }
+  return { ...review, frameData };
+}
+
+/** Paint a review in the review window, whichever game it is from. */
+function showReview(review) {
+  if (!review) return;
+  lastReviewShown = review;
+  const ch = review.kind === 'valorant' ? C.PUSH_VALORANT_REVIEW
+    : review.kind === 'rivals' ? C.PUSH_RIVALS_REVIEW : C.PUSH_LOL_REVIEW;
+  registry.broadcast(ch, review);
 }
 
 // ── The Valorant post-match review ───────────────────────────────────────────
@@ -295,6 +280,7 @@ function buildValorantReview(snap, tracker, extra) {
     role,
     history: store.get('valorantHistory') || [],
     verification: extra && extra.verification,
+    riotMe: extra && extra.riotMe,
   });
   built.aiUnavailable = !snap.ai && !(extra && extra.narrativePending);
   built.narrativePending = !!(extra && extra.narrativePending);
@@ -327,34 +313,95 @@ async function riotRoundsFor(lm) {
   }
 }
 
+/**
+ * The coach's look at the deaths worth teaching: the frame before each one,
+ * sent to the server with Riot's facts about it (death-forensics.js), and a
+ * cause from a closed list back. Four deaths at most, one call each.
+ *
+ * Returns { byRound: { n: { cause, what, better, frames } }, frames: { name: b64 } }.
+ * Empty, never an error, when there are no frames: the AI log was off, or the
+ * deaths were in rounds the coach never saw.
+ */
+async function forensicsFor(rounds, snap) {
+  const empty = { byRound: {}, frames: {} };
+  const log = snap.log;
+  if (!log || !log.dir || !log.records.length) return empty;
+  const picks = deathFrames.teachableDeaths(rounds, 4);
+  const deaths = [];
+  const kept = {};
+  for (const r of picks) {
+    const recs = deathFrames.framesFor(log.records, r, { from: snap.startedAt, to: snap.endedAt });
+    const imgs = [];
+    const names = [];
+    recs.forEach((rec, i) => {
+      try {
+        const b64 = fs.readFileSync(path.join(log.dir, rec.frame)).toString('base64');
+        const name = `r${r.n}-${i === 0 ? 'before' : 'after'}.jpg`;
+        imgs.push(b64);
+        names.push(name);
+        kept[name] = b64;
+      } catch {}
+    });
+    if (!imgs.length) continue;
+    deaths.push({
+      n: r.n, side: r.side, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
+      firstDeath: r.firstDeath, traded: r.traded, alive: r.aliveAtDeath,
+      planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, frames: imgs, names,
+    });
+  }
+  if (!deaths.length) return empty;
+  try {
+    const body = {
+      agent: snap.context.agent, map: snap.context.map,
+      deaths: deaths.map(({ names, ...d }) => d),
+    };
+    const { ok, data } = await api.post(API.DEATH_FORENSICS, body, store.get('licenseKey'), 60000);
+    if (!ok || !data || !Array.isArray(data.deaths)) {
+      console.log('[review] death forensics unavailable:', (data && data.error) || 'no answer');
+      return empty;
+    }
+    const out = { byRound: {}, frames: {} };
+    for (const f of data.deaths) {
+      const d = deaths.find((x) => x.n === f.n);
+      if (!d || f.failed) continue;
+      out.byRound[f.n] = { cause: f.cause, what: f.what || null, better: f.better || null, frames: d.names };
+      for (const name of d.names) out.frames[name] = kept[name];
+    }
+    console.log(`[review] death forensics: ${Object.entries(out.byRound).map(([n, f]) => `R${n} ${f.cause}`).join(', ')}`);
+    return out;
+  } catch (e) {
+    console.log('[review] death forensics failed:', e.message);
+    return empty;
+  }
+}
+
 function onValorantMatchReview(reviewText, snap) {
   if (!snap) return;
-  const liveClosed = gameRegistry.liveTipsClosed(store.get('game'));
-  const first = buildValorantReview(snap, null);
-  lastReviewShown = first.built;
-  registry.broadcast(C.PUSH_VALORANT_REVIEW, first.built);
+  const id = newId('valorant', snap.endedAt || Date.now());
+  // The frames of this match, held back from the AI log's thinning until the
+  // review has had its look at them.
+  snap.log = holdAiLogFrames(snap.startedAt, snap.endedAt);
+  const stamp = (built) => Object.assign(built, { id, at: snap.endedAt || Date.now() });
+
+  const first = stamp(buildValorantReview(snap, null).built);
+  showReview(first);
+  saveReview(first, 'valorant');
   reviewWindow.open();
   console.log(`[review] valorant review ready: ${snap.rounds.length} rounds, ended by ${snap.endedBy}`
     + (snap.ai ? '' : ', no model narrative'));
 
-  // The old one card summary, for players with live tips open, whose overlay
-  // still shows it. With live tips closed there is no overlay to show it on.
-  const legacy = {
-    review: reviewText || (first.built.summary || ''), game: 'Valorant',
-    timestamp: Date.now(), tipsCount: snap.tips.length, valorant: first.built,
-  };
-  if (!liveClosed) registry.broadcast(C.PUSH_MATCH_REVIEW, legacy);
-
   const mctx = { map: snap.context.map, agent: snap.context.agent };
   let recorded = false;
-  let showing = first.built;
-  // Paint one version of the review, if nothing newer has been shown since.
-  const repaint = (built) => {
-    if (lastReviewShown === showing) {
-      lastReviewShown = built;
-      registry.broadcast(C.PUSH_VALORANT_REVIEW, built);
+  let showing = first;
+  // Paint one version of the review, if nothing newer has been shown since,
+  // and save it whatever is on screen, because the library keeps the best one.
+  const repaint = (built, frames) => {
+    stamp(built);
+    if (lastReviewShown === showing || (lastReviewShown && lastReviewShown.id === id)) {
+      showReview(frames ? { ...built, frameData: dataUrls(frames) } : built);
     }
-    showing = built;
+    showing = lastReviewShown && lastReviewShown.id === id ? lastReviewShown : built;
+    saveReview(built, 'valorant', frames);
   };
 
   /*
@@ -366,8 +413,8 @@ function onValorantMatchReview(reviewText, snap) {
    * those facts is wrong in the same places, so correcting the numbers and
    * keeping the old summary would leave the one sentence a player reads first
    * contradicting the numbers under it. The corrected half is shown at once
-   * with the summary marked as updating, then the model writes it again from
-   * Riot's facts.
+   * with the summary marked as updating, the coach looks at the deaths worth
+   * teaching, then the model writes the summary again from all of it.
    */
   const withRiot = async (lm) => {
     const riot = await riotRoundsFor(lm);
@@ -379,12 +426,15 @@ function onValorantMatchReview(reviewText, snap) {
     const vsnap = { ...snap, rounds, context };
     const verification = verify.describe(checks);
     console.log(`[review] ${verification}`);
-    repaint(buildValorantReview({ ...vsnap, ai: null }, lm, { verification, narrativePending: true }).built);
+    repaint(buildValorantReview({ ...vsnap, ai: null }, lm, { verification, narrativePending: true, riotMe: riot.me }).built);
+
+    const looked = await forensicsFor(rounds, { ...snap, context });
+    for (const r of rounds) if (looked.byRound[r.n]) r.forensics = looked.byRound[r.n];
 
     let ai = null;
     try {
       const body = valorantReview.requestBody({
-        rounds, context, endedBy: snap.endedBy, tips: snap.tips, notes: snap.notes,
+        rounds, context, endedBy: snap.endedBy, tips: [], notes: snap.notes,
         riot: {
           agent: riot.me && riot.me.agent, map: riot.map, score: riot.score, result: riot.result,
           scoreline: { kills: riot.me && riot.me.kills, deaths: riot.me && riot.me.deaths,
@@ -397,10 +447,9 @@ function onValorantMatchReview(reviewText, snap) {
     } catch (e) {
       console.log('[review] verified narrative failed:', e.message);
     }
-    const final = buildValorantReview({ ...vsnap, ai }, lm, { verification }).built;
-    repaint(final);
-    legacy.valorant = final;
-    saveMatchSummary(legacy);
+    const final = buildValorantReview({ ...vsnap, ai }, lm, { verification, riotMe: riot.me }).built;
+    repaint(final, Object.keys(looked.frames).length ? looked.frames : null);
+    releaseAiLogFrames(snap.log);
     return true;
   };
 
@@ -421,37 +470,31 @@ function onValorantMatchReview(reviewText, snap) {
     // land four minutes later, by which time the next match may have its own
     // review open, and a late scoreboard must not replace it with this one.
     repaint(next.built);
-    legacy.lastMatch = lm;
-    legacy.valorant = next.built;
-    if (!liveClosed) registry.broadcast(C.PUSH_MATCH_REVIEW, legacy);
-    saveMatchSummary(legacy);
     // The totals are Riot's now; the rounds follow, and they are what fixes
     // the deaths, the timing and the coach's reads.
-    withRiot(lm).catch((e) => console.log('[review] Riot check failed:', e.message));
+    withRiot(lm).catch((e) => console.log('[review] Riot check failed:', e.message))
+      .finally(() => releaseAiLogFrames(snap.log));
   };
 
   (async () => {
-    // Stat movement against the previous match, for the old card.
+    // A fresh tracker profile, so the stats view and the next review's
+    // baseline move with the match just played.
     try {
       const current = await fetchTrackerStats(true);
-      if (current) {
-        legacy.statsDelta = { current, prev: store.get('lastMatchStats') || null };
-        store.set('lastMatchStats', { ...current, _at: Date.now(), _riotId: (store.get('riotId') || '').trim() });
-      }
+      if (current) store.set('lastMatchStats', { ...current, _at: Date.now(), _riotId: (store.get('riotId') || '').trim() });
     } catch {}
-    // THE MATCH THIS SESSION COACHED, or nothing. fetchCoachedMatch applies
+    // THE MATCH THIS SESSION WATCHED, or nothing. fetchCoachedMatch applies
     // the map, agent and timing checks, so it returns null rather than a
     // plausible scoreboard from a different game.
     let lm = null;
     try { lm = await fetchCoachedMatch(snap.startedAt, snap.endedAt, mctx); } catch {}
     if (lm) { withTracker(lm); return; }
-    saveMatchSummary(legacy);
     // Riot publishes a few minutes after the match. Two more tries, both
-    // verified, both cancelled if coaching is stopped, since a scoreboard
+    // verified, both cancelled if recording is stopped, since a scoreboard
     // arriving over the next session would be the wrong match.
     clearTimeout(state.reviewRetryTimer);
     const retry = (delays) => {
-      if (!delays.length) return;
+      if (!delays.length) { releaseAiLogFrames(snap.log); return; }
       state.reviewRetryTimer = setTimeout(async () => {
         state.reviewRetryTimer = null;
         let found = null;
@@ -464,6 +507,46 @@ function onValorantMatchReview(reviewText, snap) {
   })();
 }
 
+/**
+ * One saved review as plain text for Ask Coach: the facts, the grade, and what
+ * repeated, so the chat talks about THIS match rather than the player in general.
+ * The newest review when no id was chosen.
+ */
+function chatReviewContext(id) {
+  const e = id ? reviewStore.get(id) : (reviewStore.list()[0] && reviewStore.get(reviewStore.list()[0].id));
+  if (!e) return null;
+  const r = e.review || {};
+  const g = r.game || {};
+  const lines = [];
+  lines.push(`${e.game} match on ${new Date(e.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}: `
+    + [g.map, g.agent || g.hero || g.champion, g.mode, g.result, g.score].filter(Boolean).join(', ') + '.');
+  const sl = r.scoreline || {};
+  if (typeof sl.kills === 'number') lines.push(`Scoreline ${sl.kills}/${sl.deaths}/${sl.assists}${sl.acs ? `, ACS ${sl.acs}` : ''}.`);
+  const gr = r.grade;
+  if (gr && gr.score !== null && gr.score !== undefined) {
+    lines.push(`Grade ${gr.score} (${gr.letter})${gr.provisional ? ', provisional' : ''}: `
+      + (gr.categories || []).filter((c) => c.score !== null).map((c) => `${c.label} ${c.score} (${c.evidence.join('; ')})`).join('. ') + '.');
+  }
+  const ins = r.insights || {};
+  const list = (xs) => (xs || []).slice(0, 3).map((x) => `${x.title}: ${x.detail}`).join(' ');
+  if ((ins.mistakes || []).length) lines.push(`Repeated mistakes: ${list(ins.mistakes)}`);
+  if ((ins.strengths || []).length) lines.push(`Went well: ${list(ins.strengths)}`);
+  if ((ins.missed || []).length) lines.push(`Missed: ${list(ins.missed)}`);
+  for (const card of (r.rounds || []).filter((c) => c.forensics && c.forensics.what).slice(0, 4)) {
+    lines.push(`Round ${card.n} death, the coach looked at the frame: ${card.forensics.what}${card.forensics.better ? ' Better: ' + card.forensics.better : ''}`);
+  }
+  if (r.summary) lines.push(`Review summary: ${r.summary}`);
+  if (r.focus) lines.push(`Focus given: ${r.focus}`);
+  return lines.join('\n').slice(0, 2400);
+}
+
+/** { name: base64 } to { name: data URL }, for the window. */
+function dataUrls(frames) {
+  const out = {};
+  for (const [k, v] of Object.entries(frames || {})) out[k] = `data:image/jpeg;base64,${v}`;
+  return out;
+}
+
 // ── Coaching controller ──────────────────────────────────────────────────────
 // Owns the CoachingEngine instance and forwards its events onto the IPC bus.
 let engine = null;
@@ -474,7 +557,7 @@ const controller = {
     if (!state.licenseActive) {
       // Subscription ended: refuse to coach, remind the user, and re-check in
       // case they just renewed.
-      pushTip({ text: 'Your subscription has ended. Renew in Settings to start coaching.', source: 'system' });
+      pushNotice('Your subscription has ended. Renew in Settings to start coaching.');
       revalidateNow();
       return;
     }
@@ -490,10 +573,7 @@ const controller = {
     const chosenGame = store.get('game');
     if (!gameRegistry.canCoach(chosenGame)) {
       const g = gameRegistry.get(chosenGame);
-      pushTip({
-        text: `${g.label} coaching is not built yet. The look and layout are a preview, so switch back to Valorant in Settings to coach.`,
-        source: 'system',
-      });
+      pushNotice(`${g.label} coaching is not built yet. The look and layout are a preview, so switch back to Valorant in Settings to coach.`);
       return;
     }
 
@@ -519,7 +599,8 @@ const controller = {
           heroCapture: gameRegistry.hasFeature('rivals', 'heroCapture'),
         },
       });
-      engine.on('tip', (t) => pushTip({ text: t.text, source: t.source || 'ai' }));
+      // Rivals says nothing live either: only its system messages reach the panel.
+      engine.on('tip', (t) => { if (t && t.source === 'system') pushNotice(t.text); });
       engine.on('status', (s) => console.log('[rivals] status', JSON.stringify(s)));
       // The post match review, computed from the scoreboard rather than written
       // by the model. Same channel the Valorant and League reviews use, and the
@@ -546,17 +627,23 @@ const controller = {
           // for, so this is reported and stepped over.
           console.error('[rivals] could not record the match:', e.message);
         }
-        lastReviewShown = r;
-        registry.broadcast(C.PUSH_RIVALS_REVIEW, r);
+        // Graded and counted like every other game, then kept in the library.
+        try {
+          r.id = newId('rivals');
+          r.at = Date.now();
+          if (!r.empty) {
+            r.grade = grader.rivals(r, store.get('rivalsHistory') || []);
+            r.insights = insightsOf.rivals(r);
+          }
+        } catch (e) { console.error('[rivals] grade failed:', e.message); }
+        showReview(r);
+        if (!r.empty) saveReview(r, 'rivals');
         reviewWindow.open();
         console.log(`[rivals] review ready: ${r.game.hero || 'hero unread'}, `
           + `${r.scoreline.kills}/${r.scoreline.deaths}/${r.scoreline.assists}`);
       });
       engine.start();
-      pushTip({
-        text: 'Marvel Rivals coach on. Play your match, and the post match scoreboard gets reviewed automatically.',
-        source: 'system',
-      });
+      pushNotice('Recording. Play your match: the scoreboard at the end is reviewed and graded automatically.');
       state.isCoaching = true;
       return;
     }
@@ -576,10 +663,7 @@ const controller = {
       engine.on('status', (s) => console.log('[lol] status', JSON.stringify(s)));
       engine.on('game', (record) => finishLolGame(record));
       engine.start();
-      pushTip({
-        text: 'League recorder on. Nothing will appear during your game, and the review is ready when it ends.',
-        source: 'system',
-      });
+      pushNotice('Recording. Nothing appears during your game, and the graded review opens when it ends.');
       state.isCoaching = true;
       return;
     }
@@ -595,36 +679,27 @@ const controller = {
     if (!gameRegistry.hasFeature(chosenGame, 'live')) {
       const g = gameRegistry.get(chosenGame);
       console.log(`[coach] ${g.label} has no live coach, not starting one`);
-      pushTip({
-        text: `${g.label} has no live coaching yet. What is built for it so far is in the Learn section.`,
-        source: 'system',
-      });
+      pushNotice(`${g.label} has no live coaching yet. What is built for it so far is in the Learn section.`);
       return;
     }
     engine = new CoachingEngine({
       licenseKey:      store.get('licenseKey'),
       captureFunction: () => capture.captureScreenshot(store.get('captureQuality') === 'performance' ? 'performance' : 'standard'),
-      performanceMode: store.get('performanceMode'),
-      badTips:         blockedBadTips(),   // only 3-strike tips are blocked
-      getFeedback:     () => store.get('tipFeedback') || [],
+      captureSpeed:    store.get('captureSpeed') || 'auto',
       // Experimental settings, read live so flipping them in Settings applies
       // to the very next capture without restarting the session.
       experiments: () => ({
         proPlaybook:  playbookMode(),
         language:     normalizeLang(store.get('language')),
-        // Beginner tips (the curated library): off means the automatic stream
-        // never includes them; a manual force press may still fall back to one.
-        beginnerTips: store.get('beginnerTips') !== false,
-        // Read live so the toggle applies to the very next capture.
-        advancedTips: store.get('advancedTips') === true,
       }),
-      // Death forensics: the freshest rolling game-audio clip (RAM only),
-      // attached by the engine only inside the death-review window.
-      audioClip: () => (latestAudio.b64 && Date.now() - latestAudio.at < 12000 ? latestAudio.b64 : null),
       // AI decision log: per-frame screenshot + parsed STATE + tip, to disk.
       diagnostics: (rec) => recordAiFrame(rec),
     });
-    engine.on('tip',    (tip) => pushTip(tip));
+    engine.on('notice', (n) => pushNotice(n && n.text));
+    engine.on('cadence', (ms) => {
+      state.cadence = ms;
+      registry.broadcast(C.PUSH_STATE, buildState());
+    });
     engine.on('status', (status) => {
       state.isPaused = status === 'paused';
       setStatus(status);
@@ -649,30 +724,15 @@ const controller = {
     state.nudgedThisSession = false;       // the minimize hint is once per session
     store.set('coachStartCount', (store.get('coachStartCount') || 0) + 1);
     state.agent      = { agent: null, confirmed: false, role: null };
-    state.tips       = [];   // fresh session; the previous one is archived on stop
-    state.heldTips   = [];
+    state.notice     = null;
     engine.start();
     if (state.pendingAgent) {           // player typed their agent before starting
       engine.setAgent(state.pendingAgent);
       state.pendingAgent = null;
     }
-    // Pull a FRESH tracker profile in the background for every session (force
-    // bypasses the cache): the last match just changed the numbers, and once
-    // it lands every analyze request calibrates to the up-to-date player.
-    fetchTrackerStats(true).then((s) => { if (engine && s) engine.setPlayerStats(s); }).catch(() => {});
-    // The coach also sees the player's coached-session trends (the dashboard
-    // overview), so it knows which category is weakest and where it's heading.
-    { const tp = guardedTrackerPair(); engine.setPerformanceSummary(computeCategoryTrends(loadPerf(), tp.stats, tp.prevStats)); }
-    // ...and the mistakes it has had to point out across the whole week. This
-    // was already computed for the weekly report and never shown to the live
-    // coach, so every session started over with no memory of the player. A
-    // habit is the one thing a coach should carry between games.
-    try { engine.setHabits(profileHabits(loadWeekArchives(), 3)); } catch {}
-    // Start the hidden game-audio listener (session-scoped, RAM only).
-    latestAudio = { b64: null, at: 0 };
-    try { audioWindow.create(); } catch (e) { console.log('[audio] listener unavailable:', e.message); }
+    // A fresh tracker profile for the stats view and the review's baseline.
+    fetchTrackerStats(true).catch(() => {});
     startAiLog();   // fresh AI decision-log folder for this session
-    resetSessionCounts();
     setStatus('coaching');
     console.log('[coach] started');
   },
@@ -685,50 +745,12 @@ const controller = {
       clearTimeout(state.reviewRetryTimer);
       state.reviewRetryTimer = null;
     }
-    // Score the session for the stats dashboard (server AI grades the four
-    // categories AND writes a coach recap from the tips; logged locally).
-    // A session qualifies with multiple tips OR after 5+ minutes of coaching.
-    if (engine) {
-      // Held tips count: with live tips closed they are the whole session.
-      const sessionTips  = state.tips.concat(state.heldTips)
-        .filter((t) => t.source === 'ai' || t.source === 'library').map((t) => t.text);
-      const durationMin  = state.sessionStartedAt ? (Date.now() - state.sessionStartedAt) / 60000 : 0;
-      if (sessionTips.length >= 3 || (durationMin >= 5 && sessionTips.length >= 1)) {
-        const mctx = { map: engine.matchContext.map, agent: engine.matchContext.agent };
-        const startedAt = state.sessionStartedAt || Date.now();
-        const endedAt   = Date.now();
-        // GRADE FIRST, AND NEVER BEHIND THE TRACKER.
-        //
-        // This used to await the match lookup before grading, which is a
-        // network call with a 30 second timeout. Stopping coaching is usually
-        // the last thing a player does before quitting the app, so that await
-        // was routinely killed mid flight and the session was silently never
-        // graded at all. Four qualifying sessions in a row (18 to 25 tips,
-        // 11 to 14 minutes each) produced no grade because of it.
-        //
-        // The grade depends only on data already in memory, so it goes out
-        // immediately. The scoreboard is a bonus that lands separately and
-        // backfills onto the record whenever Riot publishes the match.
-        logSessionPerformance(sessionTips, mctx, durationMin,
-          engine.playerNotes.slice(-20))   // observed facts keep the grading honest
-          .catch((e) => console.error('[perf] scoring failed:', e && e.message));
-        sendSessionReport(durationMin);
-        scheduleMatchBackfill(startedAt, endedAt, mctx);
-      }
-      // The match just played should show in stats right away, not after a
-      // cache window; drop the caches so the next dashboard look refetches,
-      // and the rank journey moves with the fresh RR.
-      matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
-      rankHistCache = { at: 0, riotId: '', data: null };
-    }
-    // Archive the session before tearing the engine down (mix + memory live there).
-    saveSessionArchive(engine ? {
-      tipMix: engine.getMix(),
-      matchMemory: engine.matchMemory.slice(),
-    } : {});
+    // The match just played should show in stats right away, not after a cache
+    // window. The grade is written by the post-match review, per match.
+    matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
+    rankHistCache = { at: 0, riotId: '', data: null };
     if (engine) { engine.stop(); engine = null; }
-    audioWindow.destroy();                 // the audio memory dies with the session
-    latestAudio = { b64: null, at: 0 };
+    flushAiLog(true);
     state.agent = { agent: null, confirmed: false, role: null };
     registry.broadcast(C.PUSH_AGENT, state.agent); // hide the panel bubble/chip
     setStatus('stopped');
@@ -736,127 +758,9 @@ const controller = {
   },
   pauseResume() {
     if (!state.isCoaching || !engine) return;
-    if (state.isPaused) { engine.resume(); engine.requestTip(); }
+    if (state.isPaused) engine.resume();
     else                { engine.pause(); }
     // state.isPaused + status pushes are driven by the engine 'status' event.
-  },
-  async forceTip() {
-    // A forced tip with live tips closed would be written and then held,
-    // which spends a model call on nothing the player can see.
-    if (gameRegistry.liveTipsClosed(store.get('game'))) return;
-    if (engine) await engine.requestTip();
-  },
-
-  /**
-   * Explain the tip the player just saw, at length, on demand.
-   *
-   * A live tip is ONE SENTENCE because it is read mid fight, which is the right
-   * constraint and also the reason the coaching can feel shallow: the reasoning
-   * behind a good call does not fit in 22 words. This is the same call unpacked,
-   * on the frame it was actually made about.
-   *
-   * IT ONLY FIRES DURING A BUY PHASE OR WHILE DEAD, and that is not politeness.
-   * Reading a paragraph while holding an angle is how a player dies, so a
-   * feature that offers depth mid round would cost more rounds than it wins. The
-   * two moments where there is genuinely nothing else to do are the buy phase
-   * and spectating, which are also the two moments a player is most willing to
-   * read. Refusing says why rather than doing nothing.
-   *
-   * It reuses /api/coach/frame-chat, which already answers in 2 to 5 sentences
-   * against the real screenshot and has no tip length gate on it, rather than
-   * widening the live tip contract. The live tip stays one sentence.
-   */
-  async explainLastTip() {
-    const licenseKey = store.get('licenseKey');
-    if (!licenseKey) return { error: 'No licence active.' };
-
-    // LIVE TIPS CLOSED: the explanation IS the review. Mid match the hotkey
-    // does nothing visible at all, because there is no overlay to draw on and
-    // opening a window over a round in progress is the thing being avoided.
-    // After the match it opens the review, where every round's read already
-    // carries its why.
-    if (gameRegistry.liveTipsClosed(store.get('game'))) {
-      if (matchInProgress()) {
-        console.log('[explain] mid match with live tips closed, nothing shown');
-        return { error: 'Explanations are in the review after the match.' };
-      }
-      reviewWindow.open();
-      return { ok: true, review: true };
-    }
-
-    // The gate lives in src/shared/explain-gate.js so it can be tested without
-    // booting Electron. It is the safety property of this feature.
-    const allowed = explainAllowed((engine && engine.matchContext) || {});
-    if (!allowed.ok) {
-      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Not now', body: allowed.why, tip: '' });
-      return { error: allowed.why };
-    }
-
-    if (!store.get('aiLog')) {
-      const msg = 'Turn the AI decision log on in Settings, the explanation needs the frame the tip was written about.';
-      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Cannot explain that', body: msg, tip: '' });
-      return { error: msg };
-    }
-
-    // The most recent frame that actually PRODUCED a tip. Frames the guards
-    // rejected are the majority, and explaining one of those would explain a
-    // sentence the player never saw.
-    const log = readAiLog(aiLogLiveId());
-    const recs = Array.isArray(log && log.records) ? log.records : [];
-    let at = -1;
-    for (let i = recs.length - 1; i >= 0; i--) {
-      if (recs[i] && recs[i].shown && recs[i].shown.text) { at = i; break; }
-    }
-    if (at < 0) {
-      const msg = 'No tip has been shown yet this session.';
-      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Nothing to explain', body: msg, tip: '' });
-      return { error: msg };
-    }
-
-    const target = recs[at];
-    const tip = String(target.shown.text || '');
-    const b64 = (r) => (r && typeof r.frameData === 'string'
-      ? r.frameData.replace(/^data:image\/[a-z]+;base64,/, '') : null);
-    // One frame of run up plus the frame itself, matching askAboutFrame. A third
-    // image is what made that feature stop replying at all.
-    const images = [recs[at - 1], target].map(b64).filter(Boolean);
-    if (!images.length) {
-      const msg = 'That frame is no longer on disk.';
-      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Cannot explain that', body: msg, tip: '' });
-      return { error: msg };
-    }
-
-    /*
-     * THE QUESTION IS THE FEATURE. A vague "explain this" gets a restatement of
-     * the tip in more words, which is worth nothing. Asking for the read, the
-     * alternative and what a better player does instead is what turns one
-     * sentence into actual coaching, and naming the screen keeps it anchored to
-     * what is actually there rather than to general theory.
-     */
-    const question = `You told the player: "${tip}". Explain that call properly. `
-      + 'What on this screen made it the right read, what the obvious alternative play was '
-      + 'and why it is worse, and what a Radiant would do from here that the player did not. '
-      + 'Be concrete about the positions, ranges and timings you can actually see in the frame, '
-      + 'and if the tip was weak for this moment, say so plainly.';
-
-    try {
-      const { ok, status, data } = await api.post('/api/coach/frame-chat', {
-        question, images, state: target.state || {}, shown: tip, history: [],
-      }, licenseKey, 35000);
-      if (ok && data && data.reply) {
-        registry.broadcast(C.PUSH_EXPLAIN, { title: 'Why that tip', body: data.reply, tip });
-        return { reply: data.reply };
-      }
-      console.error(`[explain] status=${status} ${(data && (data.error || data.message)) || 'no reply'}`);
-      const msg = chatFailureText(status, data);
-      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Could not explain that', body: msg, tip });
-      return { error: msg };
-    } catch (e) {
-      console.error('[explain] failed:', e.message);
-      const msg = 'Could not reach the coach server.';
-      registry.broadcast(C.PUSH_EXPLAIN, { title: 'Could not explain that', body: msg, tip });
-      return { error: msg };
-    }
   },
   confirmAgent() { if (engine) engine.confirmAgent(); },
   resizePanel(h) { if (typeof h === 'number') panelWindow.setContentHeight(h); },
@@ -872,34 +776,26 @@ const controller = {
     return { ok: true, ...state.agent };
   },
   getState() { return buildState(); },
-  listSessions() { return listSessions(); },
-  getSession(file) { return getSession(file); },
-  toggleOverlay() { overlayWindow.toggleVisible(); },
 
-  /**
-   * Fire a fake coaching tip on the overlay. Ctrl+Shift+J, developer only.
-   *
-   * Does nothing unless devJokeTips is true in the config, and that key has no
-   * Settings UI, so a normal install cannot reach this however hard it tries.
-   *
-   * It goes STRAIGHT to the overlay and deliberately does not call pushTip,
-   * because pushTip fills state.tips, and state.tips becomes the session
-   * archive, the session grade, the habit profile and the weekly report. A joke
-   * that quietly turned into "recurring mistake: dry peeking" in a real weekly
-   * report, or pulled a session score down, would corrupt the numbers this app
-   * exists to keep honest. It is also absent from the AI decision log, so a
-   * later log review cannot be fooled by a tip the coach never wrote.
-   *
-   * It IS broadcast as source 'ai' so it looks and sounds exactly like the real
-   * thing, voice included, which is the whole point.
-   */
-  jokeTip() {
-    const text = jokeTips.next(store);
-    if (!text) return;   // feature off: silent, not an error
-    console.log(`[joke] fake tip fired (not recorded anywhere): ${text}`);
-    registry.broadcast(C.PUSH_TIP, { text, source: 'ai', time: Date.now() });
+  /** The match library: saved reviews, newest first, one game or all. */
+  listReviews(game) { return reviewStore.list(game || null); },
+  getReview(id) {
+    const e = reviewStore.get(id);
+    return e ? withFrames(e.review) : null;
   },
-  setOverlayInteractive(on) { overlayWindow.setInteractive(!!on); },
+  /** Open the review window on one saved review. */
+  openReviewById(id) {
+    const r = this.getReview(id);
+    if (!r) return;
+    showReview(r);
+    reviewWindow.open();
+  },
+  /** What keeps happening across the last matches of one game. */
+  getPatterns(game) {
+    const g = game || gameRegistry.get(store.get('game')).id;
+    return { game: g, ...patternsOf.summarise(reviewStore.recent(g, patternsOf.WINDOW)) };
+  },
+
   toggleMinimizePanel() {
     // Minimized shows the small floating mark (icon only, click-through,
     // no status dot); Ctrl+Shift+M or the tray restores the panel.
@@ -915,10 +811,23 @@ const controller = {
     return panelWindow.isMinimized();
   },
   openSettings()  { settingsWindow.open(); },
-  openHistory()   { historyWindow.open(); },
+  openHistory()   { matchesWindow.open(); },
   openWeekly()    { weeklyWindow.open(); },
   openLearn()     { learnWindow.open(); },
-  openReview()    { reviewWindow.open(); },
+  /**
+   * The last review. Mid match it does nothing: the review of a match in
+   * progress does not exist yet, and opening an older one over the game helps
+   * nobody. After a restart the newest saved review stands in.
+   */
+  openReview() {
+    if (matchInProgress()) return;
+    if (!lastReviewShown) {
+      const top = reviewStore.list()[0];
+      const e = top && reviewStore.get(top.id);
+      if (e) lastReviewShown = withFrames(e.review);
+    }
+    reviewWindow.open();
+  },
   /** The last graded League game, so a review window opened later still paints. */
   // WHICHEVER REVIEW ARRIVED LAST, not specifically the League one.
   //
@@ -928,7 +837,14 @@ const controller = {
   // most recent review of either kind. Returning the League one unconditionally
   // meant a Rivals player who opened the window by hand saw either nothing or
   // last week's League game.
-  getLolReview()  { return lastReviewShown; },
+  getLolReview() {
+    if (!lastReviewShown) {
+      const top = reviewStore.list()[0];
+      const e = top && reviewStore.get(top.id);
+      if (e) lastReviewShown = withFrames(e.review);
+    }
+    return lastReviewShown;
+  },
 
   /**
    * Everything the learning surface needs, in one call.
@@ -1153,13 +1069,27 @@ const controller = {
     }
     return report;
   },
-  openChat()      { chatWindow.open(); },
+  // Opened plainly, the chat talks about the newest reviewed match.
+  openChat()      { state.chatReviewId = null; chatWindow.open(); },
   openStats()     { statsWindow.open(); },
 
   /** "Ask Coach about this" from the stats dashboard: stash the session's
    *  context, then open chat; the chat window collects the seed via CHAT_SEED
    *  and auto-sends it as the opening question. */
   openChatSeeded(seed) {
+    // "Ask about this match" from a review or the library: the chat is handed
+    // that review as context, and opens by asking about it.
+    if (seed && typeof seed === 'object' && typeof seed.reviewId === 'string') {
+      const e = reviewStore.get(seed.reviewId);
+      if (e) {
+        state.chatReviewId = seed.reviewId;
+        const g = e.review.game || {};
+        state.chatSeed = { reviewId: seed.reviewId,
+          title: [g.map, g.agent || g.hero || g.champion, g.score].filter(Boolean).join(' ') || 'last' };
+      }
+      chatWindow.open();
+      return;
+    }
     if (seed && typeof seed === 'object') {
       const n = (v) => (typeof v === 'number' && isFinite(v) ? Math.round(v) : null);
       state.chatSeed = {
@@ -1181,14 +1111,6 @@ const controller = {
     const s = state.chatSeed || null;
     state.chatSeed = null;
     return s;
-  },
-
-  /** Fresh rolling game-audio clip from the hidden listener (size-sanity only,
-   *  the content never persists anywhere). */
-  onAudioClip(b64) {
-    if (typeof b64 === 'string' && b64.length > 1000 && b64.length < 900000) {
-      latestAudio = { b64, at: Date.now() };
-    }
   },
 
   /** The assembled extended-stats dashboard: category trends from the local
@@ -1237,7 +1159,6 @@ const controller = {
     }
 
     const m = mode === 'unrated' ? 'unrated' : 'competitive';
-    const perf = loadPerf();            // oldest -> newest
     // The tracker profile and the recent-match list are two independent network
     // round-trips. They used to run one after the other, so a cold dashboard
     // open waited for the sum of both; running them together roughly halves it.
@@ -1253,7 +1174,8 @@ const controller = {
         });
     const matchesP = this.getMatches(false, m);
     const [stats, matches] = await Promise.all([statsP, matchesP]);
-    const categories = computeCategoryTrends(perf, stats, prevStats);
+    const categories = computeCategoryTrends([], stats, prevStats);
+    const graded = reviewStore.list(g.id).filter((r) => r.grade).slice(0, 15);
 
     const rank = {
       value: (stats && stats.rank) || null,
@@ -1271,9 +1193,12 @@ const controller = {
       game: g.id, gameLabel: g.label, statsSupported: true,
       categories, rank, winRate, mode: m,
       topAgents: (stats && stats.topAgents) || [],
-      sessions: perf.slice(-15).reverse(),   // newest first for the list
-      sessionCount: perf.length,
-      grading: gradingState(),   // a pending row while the newest session scores
+      // Graded matches from the library, newest first, with what the grade
+      // was built on. Opening one opens its review.
+      sessions: graded,
+      sessionCount: graded.length,
+      patterns: this.getPatterns(g.id),
+      grading: null,
       matches,   // fetched in parallel with the tracker profile above
       riotId: (store.get('riotId') || '').trim(),
       riotConnected: (store.get('riotId') || '').includes('#'),
@@ -1317,19 +1242,19 @@ const controller = {
     const licenseKey = store.get('licenseKey');
     if (!licenseKey) return { ok: false, error: 'No license active.' };
 
-    const hasSessionData = state.tips.length > 0 || listSessions().length > 0;
-    // MID MATCH WITH LIVE TIPS CLOSED, the chat gets nothing about the match
-    // in progress. Ask Coach is a window the player can keep open on a second
-    // monitor, and a chat that knows "died round 5 at A Site" answers "where
-    // should I play" with exactly the live advice that was closed.
-    const midMatch = holdingTips() && matchInProgress();
+    const hasSessionData = !!lastReviewShown || reviewStore.list().length > 0;
+    // MID MATCH, the chat gets nothing about the match in progress. Ask Coach
+    // is a window the player can keep open on a second monitor, and a chat that
+    // knows "died round 5 at A Site" answers "where should I play" with exactly
+    // the live advice Occlara does not give.
+    const midMatch = matchInProgress();
     const context = {
       agent:        state.agent && state.agent.agent,
-      sessionTips:  midMatch ? [] : state.tips.slice(0, 20).map((t) => t.text),
+      sessionTips:  [],
       matchMemory:  engine && !midMatch ? engine.matchMemory.slice(-8) : [],
       stats:        await fetchTrackerStats(),
       noSessionYet: !hasSessionData,
-      coachTrend:   (() => { const tp = guardedTrackerPair(); return computeCategoryTrends(loadPerf(), tp.stats, tp.prevStats); })(),
+      coachTrend:   (() => { const tp = guardedTrackerPair(); return computeCategoryTrends([], tp.stats, tp.prevStats); })(),
       // The chat works WITH the stats dashboard: it sees the same recent
       // matches (with ratings) and coached sessions the player is looking at.
       recentMatches: (await this.getMatches(false)).matches.slice(0, 5).map((m) => ({
@@ -1345,12 +1270,15 @@ const controller = {
           ? new Date(m.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
           : null,
       })),
-      recentSessions: loadPerf().slice(-3).reverse().map((s) => ({
-        date: new Date(s.at).toLocaleDateString([], { month: 'short', day: 'numeric' }),
-        map: s.map, overall: s.overall, scores: s.scores,
-        strengths: String(s.strengths || '').slice(0, 200),
-        weaknesses: String(s.weaknesses || '').slice(0, 200),
+      // The last graded matches from the library, and what keeps repeating.
+      recentSessions: midMatch ? [] : reviewStore.recent(gameRegistry.get(store.get('game')).id, 3).map((e) => ({
+        date: new Date(e.at).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+        map: e.review.game && e.review.game.map, overall: e.review.grade && e.review.grade.score,
+        scores: Object.fromEntries(((e.review.grade && e.review.grade.categories) || []).map((c) => [c.key, c.score])),
+        strengths: ((e.review.insights && e.review.insights.strengths) || []).slice(0, 2).map((x) => x.title).join('. '),
+        weaknesses: ((e.review.insights && e.review.insights.mistakes) || []).slice(0, 2).map((x) => x.title).join('. '),
       })),
+      matchReview: midMatch ? null : chatReviewContext(state.chatReviewId),
       proPlaybook:  playbookMode(),
     };
     try {
@@ -1375,43 +1303,11 @@ const controller = {
     }
     const stats = await fetchTrackerStats(true);
     if (stats) {
-      if (engine) engine.setPlayerStats(stats);
       return { ok: true, stats };
     }
     return { ok: false, error: statsCache.lastError || 'Could not reach the stats service. Try again in a minute.' };
   },
 
-  /** Player rated a tip (live or archived session). Ratings persist to disk.
-   *  X-ratings are 3-strike: the SAME tip must be rated X three times before
-   *  it is blocked; a single X just records the signal. The written reason
-   *  goes to the AI so it understands WHY the tip missed. */
-  rateTip(payload) {
-    const text   = payload && String(payload.text || '').trim();
-    const rating = payload && payload.rating;
-    const reason = payload && String(payload.reason || '').trim().slice(0, 200);
-    if (!text || (rating !== 'good' && rating !== 'bad')) return;
-    state.tipRatings[text] = rating;
-    const keys = Object.keys(state.tipRatings);
-    if (keys.length > 400) delete state.tipRatings[keys[0]];   // oldest-first trim
-    store.set('tipRatings', state.tipRatings);
-    if (rating === 'bad') {
-      const counts = store.get('badTipCounts') || {};
-      counts[text] = (counts[text] || 0) + 1;
-      const ckeys = Object.keys(counts);
-      if (ckeys.length > 300) delete counts[ckeys[0]];
-      store.set('badTipCounts', counts);
-      if (reason) {
-        const fb = store.get('tipFeedback') || [];
-        fb.push({ text: text.slice(0, 140), reason, at: Date.now() });
-        store.set('tipFeedback', fb.slice(-40));
-      }
-      if (counts[text] >= 3 && engine) engine.noteBadTip(text);   // 3rd strike blocks it
-      console.log(`[tips] rated BAD x${counts[text]}${reason ? ' ("' + reason.slice(0, 50) + '")' : ''}:`, text.slice(0, 60));
-    } else {
-      console.log('[tips] rated good:', text.slice(0, 60));
-    }
-    registry.broadcast(C.PUSH_STATE, buildState());
-  },
   logout() {
     // A fresh sign-in gets the tour again (new player on this machine, or a
     // returning one who wants the refresher).
@@ -1428,7 +1324,7 @@ const controller = {
     openAppWithSplash();
   },
   onConfigChanged() {
-    if (engine) engine.setPerformanceMode(store.get('performanceMode'));
+    if (engine && engine.setCaptureSpeed) engine.setCaptureSpeed(store.get('captureSpeed') || 'auto');
     // Riot ID changed (new account connected): every tracker-derived cache is
     // now the WRONG player's data, drop it all immediately. Fresh data flows
     // back in on Connect, session start, or the next dashboard open.
@@ -1439,7 +1335,6 @@ const controller = {
       statsCache = { at: 0, riotId: '', data: null, lastError: null };
       unratedStatsCache = { at: 0, riotId: '', data: null };
       rankHistCache = { at: 0, riotId: '', data: null };
-      if (engine) engine.setPlayerStats(null);
       console.log('[stats] riot id changed, tracker caches cleared');
     }
 
@@ -1469,7 +1364,6 @@ const controller = {
       statsCache = { at: 0, riotId: '', data: null, lastError: null };
       unratedStatsCache = { at: 0, riotId: '', data: null };
       rankHistCache = { at: 0, riotId: '', data: null };
-      if (engine) engine.setPlayerStats(null);
 
       // The Learn surface is League only. The panel button hides on a switch
       // away, but an ALREADY OPEN window just sat there, which is the gate
@@ -1477,7 +1371,6 @@ const controller = {
       if (game !== 'lol') learnWindow.close();
 
       console.log(`[game] ${from} -> ${game}, caches cleared`);
-      if (surfacesUp) syncOverlay();
       registry.broadcast(C.PUSH_GAME, { id: game, label: gameRegistry.get(game).label });
     }
 
@@ -1633,9 +1526,16 @@ function finishLolGame(record) {
     };
     store.set('lolHistory', [...history, entry].slice(-targets.BASELINE_GAMES));
 
+    built.kind = 'lol';
+    built.id = newId('lol');
+    built.at = Date.now();
+    try {
+      built.grade = grader.lol(built);
+      built.insights = insightsOf.lol(built);
+    } catch (e) { console.error('[lol] grade failed:', e.message); }
     lastLolReview = built;
-    lastReviewShown = built;
-    registry.broadcast(C.PUSH_LOL_REVIEW, built);
+    showReview(built);
+    saveReview(built, 'lol');
     reviewWindow.open();
     console.log(`[lol] review ready: ${built.scoreline.kills}/${built.scoreline.deaths}/${built.scoreline.assists}`);
   } catch (e) {
@@ -1688,153 +1588,6 @@ let lastRiotId = (store.get('riotId') || '').trim();               // detects ac
 // language, anything at all) would read as a game switch and stop a live
 // coaching session. Same reason lastRiotId is seeded above.
 let lastGame = gameRegistry.get(store.get('game')).id;             // detects game switches
-let latestAudio = { b64: null, at: 0 };                            // rolling game-audio clip (RAM only)
-
-const PERF_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;   // sessions expire after a week, like the archives
-function perfFile() { return path.join(app.getPath('userData'), 'performance.json'); }
-function loadPerf() {
-  try {
-    const a = JSON.parse(fs.readFileSync(perfFile(), 'utf8'));
-    const cutoff = Date.now() - PERF_MAX_AGE_MS;
-    const rows = Array.isArray(a) ? a.filter((r) => r && typeof r.at === 'number' && r.at >= cutoff) : [];
-    // Sessions graded before the Impact category carry their economy score
-    // over so old history keeps rendering and averaging.
-    for (const r of rows) {
-      if (r.scores && r.scores.impact == null && r.scores.economy != null) {
-        r.scores.impact = r.scores.economy;
-      }
-    }
-    return rows;
-  } catch { return []; }
-}
-function appendPerf(rec) {
-  try {
-    const all = loadPerf();
-    all.push(rec);
-    fs.writeFileSync(perfFile(), JSON.stringify(all.slice(-100), null, 2));
-  } catch (e) { console.error('[perf] save failed:', e.message); }
-}
-
-/**
- * Riot publishes a match a few minutes after it ends, so the scoreboard is
- * usually missing at the moment a session is graded. Retry a couple of times,
- * and when it lands attach it to the session record it belongs to.
- *
- * The record is found by its own timestamp rather than by taking the newest
- * one, so starting another session in the meantime cannot make this land on
- * the wrong row. The grade itself is not recomputed: it is already saved and
- * shown, and quietly changing a score the player has seen is worse than a
- * record whose scoreboard arrived late.
- */
-// First attempt is quick, in case the match is already published, then two
-// spaced retries for the usual few minute publishing delay.
-const MATCH_BACKFILL_DELAYS_MS = [4000, 100000, 240000];
-
-function scheduleMatchBackfill(startedAt, endedAt, mctx, attempt = 0) {
-  const delay = MATCH_BACKFILL_DELAYS_MS[attempt];
-  if (delay == null) return;
-  setTimeout(async () => {
-    try {
-      const match = await fetchCoachedMatch(startedAt, endedAt, mctx);
-      if (!match) return scheduleMatchBackfill(startedAt, endedAt, mctx, attempt + 1);
-
-      const all = loadPerf();
-      // The row written for THIS session: graded after it ended, and the
-      // closest one to that moment.
-      let target = null;
-      for (const r of all) {
-        if (!r || typeof r.at !== 'number' || r.match) continue;
-        if (r.at < endedAt - 60000) continue;
-        if (!target || r.at < target.at) target = r;
-      }
-      if (!target) return;
-
-      target.match = matchSummary(match);
-      fs.writeFileSync(perfFile(), JSON.stringify(all.slice(-100), null, 2));
-      console.log('[match-link] backfilled the scoreboard onto the session record');
-
-      // AND RE-GRADE, now that the scoreboard exists.
-      //
-      // The first grade is written from the coaching tips alone, because it has
-      // to go out immediately and Riot publishes a match minutes late. Tips
-      // record what the coach TALKED about, not how the player did, so a
-      // session full of corrections scored badly even when the player was
-      // dropping kills, which is exactly the complaint that prompted this.
-      // With the real numbers in hand the session is scored again and the row
-      // is updated in place.
-      await regradeWithMatch(target, match);
-    } catch (e) {
-      console.error('[match-link] backfill failed:', e.message);
-    }
-  }, delay);
-}
-
-/**
- * Score a session again with the real scoreboard and update its row in place.
- *
- * Needs the tips the session actually produced, so it reads them back from the
- * archive rather than trusting anything still in memory: by the time a match
- * publishes, the player may have started another session or restarted the app.
- * If the archive cannot be matched the row keeps its first grade, which is
- * still a real grade, just a tips-only one.
- */
-async function regradeWithMatch(target, match) {
-  try {
-    const dir = sessionsDir();
-    if (!fs.existsSync(dir)) return;
-
-    // The archive written for this session: the closest one at or after the
-    // moment it was graded.
-    let file = null, best = Infinity;
-    for (const f of fs.readdirSync(dir)) {
-      if (!SESSION_FILE_RE.test(f)) continue;
-      try {
-        const j = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-        const gap = Math.abs((j.endedAt || 0) - target.at);
-        if (gap < best && gap < 5 * 60 * 1000) { best = gap; file = j; }
-      } catch {}
-    }
-    if (!file || !Array.isArray(file.tips)) return;
-
-    const tips = file.tips.filter((t) => t.source === 'ai' || t.source === 'library').map((t) => t.text);
-    if (!tips.length) return;
-
-    gradingNow = { at: Date.now(), map: target.map, agent: target.agent };
-    registry.broadcast(C.PUSH_STATE, buildState());
-
-    const { ok, data } = await api.post('/api/coach/score-session',
-      { tips: tips.slice(0, 30), notes: [],
-        context: { map: target.map, agent: target.agent, durationMin: target.durationMin },
-        match },
-      store.get('licenseKey'), 32000);
-
-    const impact = data && (data.impact != null ? data.impact : data.economy);
-    if (!ok || !data || data.error || impact == null) return;
-
-    // Re-read from disk: the file may have changed while the request was out.
-    const all = loadPerf();
-    const row = all.find((r) => r && r.at === target.at);
-    if (!row) return;
-
-    row.scores = { impact, positioning: data.positioning, utility: data.utility, aim: data.aim };
-    // Prefer the summary already stored on the row: scheduleMatchBackfill wrote
-    // it with matchSummary(match) and it is the shape the rest of the app reads.
-    // The raw match is the fallback, and both carry grade and result.
-    row.overall = gradeBlend.overallScore(row.scores, row.match || match);
-    if (data.summary)    row.summary    = data.summary;
-    if (data.strengths)  row.strengths  = data.strengths;
-    if (data.weaknesses) row.weaknesses = data.weaknesses;
-    if (data.practice)   row.practice   = data.practice;
-    row.gradedWithMatch = true;
-    fs.writeFileSync(perfFile(), JSON.stringify(all.slice(-100), null, 2));
-    console.log(`[perf] re-graded with the scoreboard: overall ${row.overall}`);
-  } catch (e) {
-    console.error('[perf] re-grade failed:', e.message);
-  } finally {
-    gradingNow = null;
-    try { registry.broadcast(C.PUSH_STATE, buildState()); } catch {}
-  }
-}
 
 /** Tracker-derived category levels, the heavier half of the ratings.
  *  Rubric (what the numbers mean, anchored to competitive reality):
@@ -1871,50 +1624,25 @@ function trackerCategoryScores(st) {
  * snapshot from the SAME account can serve as the baseline, otherwise a
  * switched Riot ID would show as a dramatic week of "improvement".
  */
-/**
- * This week's session archives, which carry the actual coaching tips.
- *
- * Read from disk rather than kept in memory because the archive is the only
- * place tips survive a restart, and the habit profile is about the whole week
- * rather than the current run. Capped so a heavy week cannot turn opening the
- * weekly report into a long synchronous read.
- */
-function loadWeekArchives(maxFiles = 40) {
-  const out = [];
-  try {
-    const dir = sessionsDir();
-    if (!fs.existsSync(dir)) return out;
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const files = fs.readdirSync(dir).filter((f) => SESSION_FILE_RE.test(f)).sort().reverse();
-    for (const f of files.slice(0, maxFiles)) {
-      try {
-        const j = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-        if (!j || (j.endedAt || 0) < cutoff) continue;
-        out.push({ at: j.endedAt, tips: Array.isArray(j.tips) ? j.tips : [] });
-      } catch {}
-    }
-  } catch (e) { console.error('[weekly] could not read archives:', e.message); }
-  return out;
-}
-
 function buildWeeklyReport() {
   const riotId   = (store.get('riotId') || '').trim();
   const snapshot = store.get('weeklySnapshot');
-  const perf     = loadPerf();                       // last 7 days of coached sessions
   const tp       = guardedTrackerPair();
+  const game     = gameRegistry.get(store.get('game')).id;
   const base = snapshot && snapshot.stats && (!snapshot.riotId || snapshot.riotId === riotId)
     ? snapshot.stats : null;
 
   return assembleReport({
     riotId,
-    stats: tp.stats,
-    base,
+    game,
+    // Tracker stats are Valorant's; another game's week is its reviews alone.
+    stats: game === 'valorant' ? tp.stats : null,
+    base: game === 'valorant' ? base : null,
     snapshotAt: snapshot ? snapshot.at : null,
-    perf,
-    // The habit profile counts the tips themselves, which live in the session
-    // archives rather than the perf records.
-    archives: loadWeekArchives(),
-    categories: computeCategoryTrends(perf, tp.stats, tp.prevStats),
+    // The last fortnight of graded matches, so this week can be compared with
+    // the one before it.
+    reviews: reviewStore.recent(game, 40).filter((e) => e.at >= Date.now() - 14 * 24 * 60 * 60 * 1000),
+    patterns: patternsOf.summarise(reviewStore.recent(game, patternsOf.WINDOW)),
   });
 }
 
@@ -1968,93 +1696,6 @@ function computeCategoryTrends(perf, stats, prevStats) {
   return out;
 }
 
-/** Have the server grade the finished session (0-100 per category plus
- *  strengths/weaknesses from the tips), then log it locally. Fire and forget:
- *  a failure just means this session shows no score card. */
-/**
- * Grading takes 20 to 30 seconds of model time, and until now the session
- * simply was not in the list while it ran, which is indistinguishable from it
- * having failed. The stats view reads this to show a pending row instead.
- * { at, map, agent } while a grade is in flight, null otherwise.
- */
-let gradingNow = null;
-function gradingState() { return gradingNow; }
-
-/**
- * Send the aggregate coaching counts for the session that just ended.
- *
- * COUNTS ONLY. How many tips the model wrote, how many reached the player, and
- * which kind of gate stopped the rest. The frames and the tip text stay on this
- * machine, where the AI decision log has always lived, because a frame is a
- * photograph of somebody's screen and that is not ours to collect.
- *
- * Why bother: the reject histogram is what exposed the repetition problem, the
- * ability-vocabulary mismatch and the truncation false positive. Those are
- * obvious in aggregate and invisible in any single session, and right now they
- * can only be seen on the one machine whose logs we can read.
- *
- * Fire and forget, and silent on failure. Telemetry must never cost a player a
- * tip or hold up shutting down.
- */
-function sendSessionReport(durationMin) {
-  try {
-    if (!sessionCounts.tipsGenerated && !sessionCounts.tipsShown) return;
-    api.post('/api/coach/session-report', {
-      version: app.getVersion(),
-      durationMin: Math.round(durationMin || 0),
-      tipsShown: sessionCounts.tipsShown,
-      tipsGenerated: sessionCounts.tipsGenerated,
-      rejects: sessionCounts.rejects,
-    }, store.get('licenseKey'), 8000).catch(() => {});
-  } catch { /* never interrupt a session ending */ }
-}
-
-async function logSessionPerformance(tips, mctx, durationMin, notes, match) {
-  try {
-    if (!Array.isArray(tips) || tips.length < 1) return;
-    gradingNow = { at: Date.now(), map: mctx.map || null, agent: mctx.agent || null };
-    registry.broadcast(C.PUSH_STATE, buildState());
-    // The confirmed match, when we have one. Grading from tips alone means the
-    // score reflects what the coach TALKED about; the scoreboard is what
-    // actually happened, so a session where the player was told to fix their
-    // aim and then went 30/5 should not be graded the same as one where they
-    // went 5/20 hearing the same advice.
-    const { ok, data } = await api.post('/api/coach/score-session',
-      { tips: tips.slice(0, 30), notes: Array.isArray(notes) ? notes.slice(0, 20) : [],
-        context: { map: mctx.map, agent: mctx.agent, durationMin },
-        match: match || null },
-      store.get('licenseKey'), 32000);
-    const impact = data && (data.impact != null ? data.impact : data.economy);
-    if (!ok || !data || data.error || impact == null) return;
-    const scores = { impact, positioning: data.positioning,
-                     utility: data.utility, aim: data.aim };
-    appendPerf({
-      at: Date.now(),
-      map: mctx.map || null,
-      agent: mctx.agent || null,
-      durationMin: Math.round(durationMin || 0),
-      scores,
-      // The scoreboard for the match this session actually coached, kept on the
-      // record so history and the weekly report can show the result next to the
-      // grade instead of the grade floating free of any outcome.
-      match: matchSummary(match),
-      overall: gradeBlend.overallScore(scores, match),
-      summary:    data.summary    || '',   // the coach's spoken-style recap
-      strengths:  data.strengths  || '',
-      weaknesses: data.weaknesses || '',
-      practice:   data.practice   || '',   // concrete homework for the weakest habit
-    });
-    console.log('[perf] session scored and logged');
-  } catch (e) {
-    console.error('[perf] scoring failed:', e.message);
-  } finally {
-    // Cleared on every path, including the early returns above. A pending row
-    // that never resolves would be worse than no row at all.
-    gradingNow = null;
-    try { registry.broadcast(C.PUSH_STATE, buildState()); } catch {}
-  }
-}
-
 // Rank ladder + trend arrows live with the weekly report, which is their main
 // consumer; the stats dashboard shares the same helpers so both agree on what
 // counts as a move up or down.
@@ -2065,135 +1706,33 @@ function playbookMode() {
   return 'hybrid';
 }
 
-// ── Session archive ──────────────────────────────────────────────────────────
-// Every coaching session is saved to disk so players can review past sessions
-// in the History window, even when tips were hidden during play.
-function sessionsDir() {
-  return path.join(app.getPath('userData'), 'sessions');
-}
-
-function saveSessionArchive(extra = {}) {
-  try {
-    // The held tips belong in the archive: it is written when the session
-    // ends, which is after the match, which is exactly when they may be read.
-    const tips = state.tips.concat(state.heldTips).sort((a, b) => (b.time || 0) - (a.time || 0));
-    if (!tips.length) return;
-    const dir = sessionsDir();
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const endedAt = Date.now();
-    // Duration drives tiered retention (very short sessions are pruned sooner).
-    const durationMs = state.sessionStartedAt ? endedAt - state.sessionStartedAt : null;
-    const file = `session-${new Date(endedAt).toISOString().replace(/[:.]/g, '-')}.json`;
-    fs.writeFileSync(path.join(dir, file), JSON.stringify({
-      endedAt,
-      durationMs,
-      agent:    (state.agent && state.agent.agent) || null,
-      tipCount: tips.length,
-      tipMix:   extra.tipMix || null,
-      tips,
-      matchMemory: extra.matchMemory || [],
-      stats:    extra.stats || store.get('playerStats') || null,
-    }, null, 2));
-    console.log('[session] archived', file, `(${tips.length} tips)`);
-    cleanupOldSessions();
-  } catch (e) {
-    console.error('[session] archive failed:', e.message);
-  }
-}
-
-const SESSION_FILE_RE = /^session-[\dTZ-]+\.json$/;
-
-/** Sessions auto-expire after a week so the archive never clutters up. */
-// Tiered retention: very short sessions are usually accidental (opened, closed,
-// a stray minute), so they expire fast; substantial ones keep the normal
-// archive lifetime. Read each file for its recorded duration; a session too old
-// to have a durationMs (or missing it) falls back to the default cap by mtime.
-const RETENTION = [
-  { maxDurationMs: 1 * 60 * 1000, expireAfterMs: 1 * 60 * 60 * 1000 },      // under 1 min: gone after an hour
-  { maxDurationMs: 4 * 60 * 1000, expireAfterMs: 24 * 60 * 60 * 1000 },     // under 4 min: gone after a day
-];
-const DEFAULT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;                       // the rest: the usual 7-day archive
-
-function retentionMsFor(durationMs) {
-  if (typeof durationMs === 'number') {
-    for (const tier of RETENTION) if (durationMs < tier.maxDurationMs) return tier.expireAfterMs;
-  }
-  return DEFAULT_RETENTION_MS;
-}
-
-function cleanupOldSessions() {
-  try {
-    const dir = sessionsDir();
-    if (!fs.existsSync(dir)) return;
-    const now = Date.now();
-    for (const f of fs.readdirSync(dir)) {
-      if (!SESSION_FILE_RE.test(f)) continue;
-      const p = path.join(dir, f);
-      try {
-        // endedAt + duration come from the file; fall back to mtime for the age
-        // and to the default tier when a session predates duration recording.
-        let endedAt = 0, durationMs = null;
-        try {
-          const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-          endedAt = j.endedAt || 0;
-          durationMs = typeof j.durationMs === 'number' ? j.durationMs : null;
-        } catch {}
-        const age = now - (endedAt || fs.statSync(p).mtimeMs);
-        const ttl = retentionMsFor(durationMs);
-        if (age > ttl) {
-          fs.unlinkSync(p);
-          const mins = durationMs != null ? (durationMs / 60000).toFixed(1) + 'min' : 'unknown length';
-          console.log(`[session] pruned (${mins}, ttl ${(ttl / 3600000).toFixed(0)}h):`, f);
-        }
-      } catch {}
-    }
-  } catch {}
-}
-
-function listSessions() {
-  try {
-    const dir = sessionsDir();
-    if (!fs.existsSync(dir)) return [];
-    const out = [];
-    for (const f of fs.readdirSync(dir)) {
-      if (!SESSION_FILE_RE.test(f)) continue;
-      try {
-        const j = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-        out.push({ file: f, endedAt: j.endedAt || 0, tipCount: j.tipCount || 0, agent: j.agent || null });
-      } catch {}
-    }
-    out.sort((a, b) => b.endedAt - a.endedAt);
-    return out.slice(0, 30);
-  } catch {
-    return [];
-  }
-}
-
-function getSession(file) {
-  try {
-    const base = path.basename(String(file || ''));
-    if (!SESSION_FILE_RE.test(base)) return null;   // no traversal, strict name
-    return JSON.parse(fs.readFileSync(path.join(sessionsDir(), base), 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
 // ── AI decision log ──────────────────────────────────────────────────────────
 // One folder per coaching session holding the frames the coach read, plus a
 // log.json of what it parsed and said for each. This is the "look back and see
 // what went wrong" record: every entry pairs a screenshot with the STATE the AI
 // derived (its notes) and the tip. Capped per session and pruned to the few
 // most recent sessions so it never grows without bound.
-const AI_LOG_MAX_FRAMES   = 240;   // ~40 min at a 10s loop; older frames roll off
-const AI_LOG_KEEP_SESSIONS = 5;    // only the most recent sessions survive
+// At a read every second a match is two thousand frames, so the log keeps:
+//   every frame of the last few minutes, whole
+//   every frame around a death the engine registered, before and after it,
+//     because that is what the review goes back to look at
+//   one frame every ten seconds of everything older, for the viewer
+// and holds a finished match's frames whole until its review has looked.
+const AI_LOG_RECENT        = 180;     // the last three minutes at the fastest read
+const AI_LOG_THIN_MS       = 10000;   // older frames: one per ten seconds
+const AI_LOG_DEATH_BEFORE  = 35000;   // kept before a registered death
+const AI_LOG_DEATH_AFTER   = 5000;    // and after it
+const AI_LOG_MAX_FRAMES    = 1500;    // hard ceiling, oldest go first
+const AI_LOG_KEEP_SESSIONS = 5;       // only the most recent sessions survive
+const AI_LOG_WRITE_MS      = 3000;    // log.json is rewritten at most this often
 let aiLogDir = null;               // current session's folder
 let aiLogRecords = [];             // in-memory index, flushed to log.json
 let aiLogWarned = false;           // one write failure is reported per session
-// Counts for the aggregate coaching report, reset at the start of every session.
-// Deliberately separate from the AI log so they survive it being turned off.
-let sessionCounts = { tipsShown: 0, tipsGenerated: 0, rejects: {} };
-function resetSessionCounts() { sessionCounts = { tipsShown: 0, tipsGenerated: 0, rejects: {} }; }
+let aiLogSeq = 0;                  // frame file counter, never reused in a session
+let aiLogKeepUntil = 0;            // frames up to here follow a death, and are kept
+let aiLogHolds = [];               // [{ from, to, until }] matches awaiting their review
+let aiLogLastWrite = 0;
+let aiLogWriteTimer = null;
 
 function aiLogRoot() { return path.join(app.getPath('userData'), 'ai-log'); }
 
@@ -2216,50 +1755,39 @@ function startAiLog() {
     fs.mkdirSync(aiLogDir, { recursive: true });
     aiLogRecords = [];
     aiLogWarned = false;
+    aiLogSeq = 0;
+    aiLogKeepUntil = 0;
     console.log('[ai-log] started', path.basename(aiLogDir));
   } catch (e) { aiLogDir = null; console.error('[ai-log] start failed:', e.message); }
 }
 
-/** Sink handed to the engine: write the frame, append the record, cap size. */
+/** Sink handed to the engine: write the frame, append the record, thin the old ones. */
 function recordAiFrame(d) {
-  // Counted BEFORE the AI-log gate below, because these numbers are worth
-  // having even when the player has the frame log switched off. They are counts
-  // only: how many tips the model wrote, how many survived, and what stopped
-  // the rest. No text, no frames, nothing about what was on screen.
-  if (d) {
-    if (d.aiTip && d.aiTip !== 'SKIP') sessionCounts.tipsGenerated++;
-    if (d.shown) sessionCounts.tipsShown++;
-    if (d.reject) sessionCounts.rejects[d.reject] = (sessionCounts.rejects[d.reject] || 0) + 1;
-  }
-
   if (!aiLogDir || !d || !d.image) return;
   try {
-    const n = aiLogRecords.length;
-    const frameFile = `frame-${String(n).padStart(4, '0')}.jpg`;
+    const at = d.at || Date.now();
+    const i = aiLogSeq++;
+    const frameFile = `frame-${String(i).padStart(5, '0')}.jpg`;
     fs.writeFileSync(path.join(aiLogDir, frameFile), Buffer.from(d.image, 'base64'));
-    aiLogRecords.push({
-      i: n, at: d.at || Date.now(), frame: frameFile,
-      state: d.state || {}, aiTip: d.aiTip || '', shown: d.shown || null, reject: d.reject || null,
-    });
-    // Roll the oldest frames off once past the cap (keep the index tidy too).
-    if (aiLogRecords.length > AI_LOG_MAX_FRAMES) {
-      const drop = aiLogRecords.shift();
-      try { fs.unlinkSync(path.join(aiLogDir, drop.frame)); } catch {}
+    const rec = {
+      i, at, frame: frameFile, state: d.state || {},
+      round: typeof d.round === 'number' ? d.round : null, died: !!d.died, match: d.match || null,
+    };
+    if (rec.died) {
+      for (const r of aiLogRecords) if (r.at >= at - AI_LOG_DEATH_BEFORE) r.keep = true;
+      rec.keep = true;
+      aiLogKeepUntil = at + AI_LOG_DEATH_AFTER;
+    } else if (at <= aiLogKeepUntil) {
+      rec.keep = true;
     }
-    // The app version is stamped so a review of this session can tell whether it
-    // predates a guard. Grading an old session with today's checkers reports
-    // failures the current build already fixes, and a review tool that cries
-    // regression at fixed bugs stops being believed.
-    fs.writeFileSync(path.join(aiLogDir, 'log.json'), JSON.stringify({
-      startedAt: aiLogRecords[0] ? aiLogRecords[0].at : Date.now(),
-      app: app.getVersion(),
-      records: aiLogRecords,
-    }));
+    aiLogRecords.push(rec);
+    if (i % 10 === 0) thinAiLog();
+    flushAiLog(false);
   } catch (e) {
     /*
-     * A dropped frame is not worth interrupting coaching, and it is worth
+     * A dropped frame is not worth interrupting the read, and it is worth
      * saying once. Reported per session rather than per frame: at a frame
-     * every few seconds an unconditional log would bury everything else, and
+     * every second an unconditional log would bury everything else, and
      * silence is what let a whole broken session pass unnoticed for two weeks.
      */
     if (!aiLogWarned) {
@@ -2267,6 +1795,74 @@ function recordAiFrame(d) {
       console.error('[ai-log] cannot write frames, this session will not be logged:', e.message);
     }
   }
+}
+
+/** Drop what the log no longer needs; see the constants above for what stays. */
+function thinAiLog() {
+  const now = Date.now();
+  aiLogHolds = aiLogHolds.filter((h) => h.until > now);
+  const held = (r) => aiLogHolds.some((h) => r.at >= h.from && r.at <= h.to);
+  const edge = aiLogRecords.length - AI_LOG_RECENT;
+  if (edge <= 0) return;
+  const out = [];
+  let lastKept = -Infinity;
+  aiLogRecords.forEach((r, idx) => {
+    const keep = idx >= edge || r.keep || r.kept || held(r) || r.at - lastKept >= AI_LOG_THIN_MS;
+    if (keep) {
+      if (idx < edge) { r.kept = true; lastKept = r.at; }
+      out.push(r);
+    } else {
+      try { fs.unlinkSync(path.join(aiLogDir, r.frame)); } catch {}
+    }
+  });
+  while (out.length > AI_LOG_MAX_FRAMES) {
+    const k = out.findIndex((r) => !held(r));
+    const drop = out.splice(k < 0 ? 0 : k, 1)[0];
+    try { fs.unlinkSync(path.join(aiLogDir, drop.frame)); } catch {}
+  }
+  aiLogRecords = out;
+}
+
+/** Write log.json, at most every few seconds unless forced. */
+function flushAiLog(force) {
+  if (!aiLogDir) return;
+  const write = () => {
+    aiLogWriteTimer = null;
+    aiLogLastWrite = Date.now();
+    try {
+      // The app version is stamped so a review of this session can tell whether
+      // it predates a guard.
+      fs.writeFileSync(path.join(aiLogDir, 'log.json'), JSON.stringify({
+        startedAt: aiLogRecords[0] ? aiLogRecords[0].at : Date.now(),
+        app: app.getVersion(),
+        records: aiLogRecords,
+      }));
+    } catch (e) {
+      if (!aiLogWarned) { aiLogWarned = true; console.error('[ai-log] cannot write the index:', e.message); }
+    }
+  };
+  if (force || Date.now() - aiLogLastWrite >= AI_LOG_WRITE_MS) { clearTimeout(aiLogWriteTimer); write(); return; }
+  if (!aiLogWriteTimer) aiLogWriteTimer = setTimeout(write, AI_LOG_WRITE_MS);
+}
+
+/**
+ * A finished match's frames, for its review, held whole until the review has
+ * looked. Riot publishes the match minutes later, and thinning in the meantime
+ * would delete the very frames the death forensics needs.
+ */
+function holdAiLogFrames(from, to) {
+  if (!aiLogDir) return null;
+  const hold = { from: from - 5000, to: to + 5000, until: Date.now() + 8 * 60 * 1000 };
+  aiLogHolds.push(hold);
+  flushAiLog(true);
+  return {
+    dir: aiLogDir, hold,
+    records: aiLogRecords.filter((r) => r.at >= hold.from && r.at <= hold.to).map((r) => ({ ...r })),
+  };
+}
+function releaseAiLogFrames(log) {
+  if (!log || !log.hold) return;
+  aiLogHolds = aiLogHolds.filter((h) => h !== log.hold);
 }
 
 /** Keep only the most recent session folders. */
@@ -2370,18 +1966,6 @@ async function confirmDeaths(id) {
   }
 }
 
-function saveMatchSummary(data) {
-  try {
-    const dir = path.join(app.getPath('userData'), 'match-summaries');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    fs.writeFileSync(path.join(dir, `match-${ts}.json`), JSON.stringify(data, null, 2));
-    console.log('[match] summary saved');
-  } catch (err) {
-    console.error('[match] save failed:', err.message);
-  }
-}
-
 // ── License (real service) ───────────────────────────────────────────────────
 // Thin adapter over license-service that also drives the window transitions
 // (close activation + launch the app) on a successful activation.
@@ -2411,7 +1995,7 @@ function enterLicenseEnded(reason) {
   if (state.isCoaching) controller.stop();   // kills the engine: no more tips at all
   const msg = licenseService.messageForStatus(state.licenseReason) ||
     'Your Occlara subscription has ended. Renew to keep coaching.';
-  pushTip({ text: msg, source: 'system' });  // one notice explaining why tips stopped
+  pushNotice(msg);  // one notice explaining why tips stopped
   registry.broadcast(C.PUSH_STATE, buildState());
 }
 
@@ -2440,14 +2024,13 @@ function teardownSession() {
   try { hotkeys.unregister(); } catch (e) {}
   try { tray.destroy(); } catch (e) {}
   try { capture.disposeWorker(); } catch (e) {}
-  for (const name of ['dock', 'history', 'settings', 'overlay', 'panel', 'stats', 'audio', 'weekly', 'ailog']) {
+  for (const name of ['dock', 'matches', 'review', 'settings', 'panel', 'stats', 'weekly', 'ailog', 'chat']) {
     const w = registry.get(name);
     if (w && !w.isDestroyed()) w.destroy();
   }
   state.isCoaching = false;
   state.isPaused   = false;
   state.status     = 'idle';
-  state.tips       = [];
   state.agent      = { agent: null, confirmed: false, role: null };
   surfacesUp       = false;   // a fresh login rebuilds the surfaces
 }
@@ -2501,25 +2084,23 @@ function stopLicenseWatch() {
 const trayActions = {
   start:          () => controller.start(),
   stop:           () => controller.stop(),
-  toggleOverlay:  () => controller.toggleOverlay(),
   toggleMinimize: () => controller.toggleMinimizePanel(),
   isMinimized:    () => panelWindow.isMinimized(),
   openSettings:   () => controller.openSettings(),
   openHistory:    () => controller.openHistory(),
+  openReview:     () => controller.openReview(),
   openWeekly:     () => controller.openWeekly(),
   openAiLog:      () => controller.openAiLog(),
   quit:           () => controller.quit(),
 };
 
 const hotkeyActions = {
-  toggleOverlay:  () => controller.toggleOverlay(),
-  forceTip:       () => controller.forceTip(),
   pauseResume:    () => controller.pauseResume(),
   minimizePanel:  () => controller.toggleMinimizePanel(),
   openSettings:   () => controller.openSettings(),
   openHistory:    () => controller.openHistory(),
-  jokeTip:        () => controller.jokeTip(),
-  explainTip:     () => controller.explainLastTip(),
+  // The last review, from anywhere. Ctrl+Shift+E used to explain the last tip.
+  openReview:     () => controller.openReview(),
 };
 
 // ── Launch ───────────────────────────────────────────────────────────────────
@@ -2570,33 +2151,11 @@ function openAppWithSplash() {
   else handOver();
 }
 
-/**
- * The overlay exists only while live tips are open for the chosen game.
- *
- * With them closed it is not hidden, it is NOT CREATED: a transparent,
- * always-on-top, full-screen window sitting over the game is what an overlay
- * is, whatever it happens to be drawing. Everything it used to show during a
- * match now goes to the post-match review, which is a normal window that only
- * opens when the match is over.
- */
-function syncOverlay() {
-  const closed = gameRegistry.liveTipsClosed(store.get('game'));
-  const win = overlayWindow.get();
-  if (closed) {
-    if (win && !win.isDestroyed()) win.destroy();
-  } else if (!win || win.isDestroyed()) {
-    overlayWindow.create();
-  }
-}
-
 function createAppSurfaces(opts) {
   if (surfacesUp) return;
   surfacesUp = true;
 
-  syncOverlay();
-  // deferShow keeps the panel hidden until the launch animation finishes. The
-  // overlay needs no such treatment: it is transparent, click through, and
-  // renders nothing until a tip arrives.
+  // deferShow keeps the panel hidden until the launch animation finishes.
   panelWindow.create({ deferShow: !!(opts && opts.deferShow) });
   tray.create(trayActions);
   hotkeys.register(hotkeyActions);
@@ -2610,12 +2169,11 @@ function createAppSurfaces(opts) {
     });
   }
   startLicenseWatch(); // detect expiry / revocation mid-session and keep Settings fresh
-  cleanupOldSessions(); // prune old session archives on every launch
 
   // Stay connected to the tracker across restarts: refresh the saved profile in
   // the background so live tips + chat have current stats without reconnecting.
   if ((store.get('riotId') || '').trim()) {
-    fetchTrackerStats(true).then((s) => { if (s && engine) engine.setPlayerStats(s); }).catch(() => {});
+    fetchTrackerStats(true).catch(() => {});
   }
 
   maybeShowWeeklyReport();
@@ -2650,13 +2208,9 @@ function maybeShowWeeklyReport() {
 
 function cleanupAndQuit() {
   try {
-    if (state.isCoaching && engine) {
-      saveSessionArchive({
-        tipMix: engine.getMix(),
-        matchMemory: engine.matchMemory.slice(),
-      });
-    }
+
     if (engine) { engine.stop(); engine = null; }
+    flushAiLog(true);
     capture.disposeWorker();
     hotkeys.unregister();
     globalShortcut.unregisterAll();
@@ -2693,27 +2247,12 @@ if (!app.requestSingleInstanceLock()) {
         launchMainApp();
         controller.start();
         if (process.env.OCCLARA_DEV_OPEN_SETTINGS === '1') settingsWindow.open();
-        if (process.env.OCCLARA_DEV_FAKE_MIX === '1' && engine) {
-          ['Pre-aim the angle before you swing, do not react after.',
-           'Trade your teammate, swing right as they take the duel.',
-           'Reposition after the kill, never repeek the same spot.',
-           'Use util before peeking, flash or smoke the angle first.',
-           'Check your minimap, rotate early on solid info.'].forEach((t) => engine.emitTip(t, 'ai'));
-          engine.emitTip('Reset your mental, the next round is a fresh start.', 'library');
-          engine.emitTip('Default first, take map control, then commit as five.', 'library');
-        }
-        if (process.env.OCCLARA_DEV_OPEN_HISTORY === '1') historyWindow.open();
         if (process.env.OCCLARA_DEV_OPEN_WEEKLY === '1') {
           console.log('[dev] weekly report:', JSON.stringify(buildWeeklyReport()).slice(0, 600));
           weeklyWindow.open();
         }
         if (process.env.OCCLARA_DEV_OPEN_AILOG === '1') aiLogWindow.open();
         if (process.env.OCCLARA_DEV_MINIMIZE === '1') setTimeout(() => controller.toggleMinimizePanel(), 1200);
-        const panel = panelWindow.get();
-        if (panel) {
-          panel.webContents.once('did-finish-load', () =>
-            setTimeout(() => controller.forceTip(), 800));
-        }
         if (process.env.OCCLARA_DEV_NOQUIT !== '1') {
           setTimeout(() => { console.log('[dev] self-test: forcing quit'); cleanupAndQuit(); }, 4000);
         }

@@ -35,5 +35,8 @@ contextBridge.exposeInMainWorld('occlara', {
     return () => ipcRenderer.removeListener(C.PUSH_VALORANT_REVIEW, h);
   },
   openLearn: () => ipcRenderer.send(C.OPEN_LEARN),
+  // The library, and Ask Coach opened on this match.
+  openMatches: () => ipcRenderer.send(C.OPEN_HISTORY),
+  askAbout:    (id) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, { reviewId: id }),
   close:     () => window.close(),
 });

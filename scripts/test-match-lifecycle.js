@@ -9,8 +9,7 @@
  * frame through recordFrame the way captureAndAnalyze drives it, so the order
  * of end, reset and review is exercised rather than described.
  *
- * Also asserts the switch itself, because every surface reads it and a typo in
- * one place would leave that surface showing live tips.
+ * Also asserts that nothing live is left: no switch to flip back, no tip path.
  *
  * Run: npm run test:matchlifecycle
  */
@@ -67,11 +66,11 @@ function menu(e) {
 }
 
 (async () => {
-  // ── The switch ────────────────────────────────────────────────────────────
-  ok(games.liveTipsClosed('valorant') === true, 'live tips are closed for Valorant');
-  ok(games.liveTipsClosed('rivals') === false && games.liveTipsClosed('lol') === false,
-    'and only for Valorant, the switch is not global');
-  ok(games.LIVE_TIPS_CLOSED_LABEL === 'Live Tips are temporarily closed', 'every surface gets the same words');
+  // ── Nothing live, in any game ─────────────────────────────────────────────
+  // The switch that used to close live tips is gone with the tips themselves.
+  ok(typeof games.liveTipsClosed === 'undefined', 'there is no live tips switch left to flip back');
+  ok(!('tip' in CoachingEngine.prototype) && typeof CoachingEngine.prototype.requestTip === 'undefined',
+    'and the reader has no tip path');
 
   // ── A match that ends on its score ─────────────────────────────────────────
   {
@@ -126,9 +125,9 @@ function menu(e) {
     frame(e, { team: 13, enemy: 11 });
     frame(e, { team: 13, enemy: 11 });
     await new Promise((r) => setTimeout(r, 20));
-    // The model keeps writing on the end screen. Without the guard in stop(),
-    // three of those are enough to review a "match" of nothing but end screen.
-    for (let i = 0; i < 3; i++) e.tipHistory.push({ text: `End screen tip ${i}.`, source: 'ai', time: Date.now() });
+    // A stray round reaching the ledger after the end (the end screen still
+    // shows a HUD). Without the guard in stop(), it would be reviewed as a match.
+    e.ledger.observe({ at: Date.now(), team: 13, enemy: 11, phase: 'active', clock: '1:00' });
     e.stop();
     await new Promise((r) => setTimeout(r, 20));
     ok(reviews.length === 1, 'stopping after the match ended does not review it twice');

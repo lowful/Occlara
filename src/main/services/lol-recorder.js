@@ -37,9 +37,11 @@ const https = require('https');
 const HOST = '127.0.0.1';
 const PORT = 2999;
 
-/** Every 5s. The game is on the same machine, so this costs nothing, and it is
- *  fine enough to catch the 10:00 and 15:00 snapshots within a few seconds. */
-const POLL_MS = 5000;
+/** Every 2s. The game is on the same machine, so this costs nothing, and the
+ *  snapshots (gold held, who was alive into an objective) land within two
+ *  seconds of the moment they describe instead of five. Events never needed
+ *  it: /eventdata returns the full list and is de-duplicated by EventID. */
+const POLL_MS = 2000;
 
 /** Snapshot marks, in seconds of game time. Both are standard coaching
  *  checkpoints: CS at 10 minutes and deaths before 15 minutes. */

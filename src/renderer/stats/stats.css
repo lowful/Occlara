@@ -267,3 +267,8 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .team-agent { color: var(--text-mute); font-size: 11px; }
 .team-row.me .team-agent { color: var(--cyan); }
 .team-line { font-variant-numeric: tabular-nums; color: var(--text-mute); }
+
+/* Graded matches: the letter beside the number, and the row's two actions. */
+.grade-letter { font-size: 12px; font-weight: 800; color: var(--text-dim); min-width: 14px; text-align: center; }
+.d-note { font-size: 11.5px; color: var(--text-mute); margin: 6px 0 0; }
+.d-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }

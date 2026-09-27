@@ -2,8 +2,8 @@
 
 /**
  * Weekly report popup. Renders whatever the main process could honestly
- * assemble: stat movement against last week's baseline, the four category
- * ratings, and the coach's own notes on the week. Sections with nothing behind
+ * assemble: this week's grades and how each category moved, what keeps
+ * repeating, and tracker stat movement against last week's baseline. Sections with nothing behind
  * them stay hidden rather than showing an empty shell.
  */
 
@@ -41,8 +41,8 @@ function renderTopline(r) {
   box.textContent = '';
   const cards = [];
   if (r.rank) cards.push(card('Rank', r.rank, false));
-  cards.push(card('Sessions coached', r.sessions, true));
-  if (r.avgOverall != null) cards.push(card('Average score', r.avgOverall, true));
+  cards.push(card('Matches graded', r.sessions, true));
+  if (r.avgOverall != null) cards.push(card('Average grade', r.avgOverall, true));
   else if (r.matchesTracked) cards.push(card('Matches tracked', r.matchesTracked, true));
   cards.forEach((c, i) => box.appendChild(stagger(c, i)));
 }
@@ -67,17 +67,13 @@ function renderDeltas(r) {
 function renderCategories(r) {
   const box = $('cats');
   box.textContent = '';
-  const labels = { impact: 'Impact', positioning: 'Positioning', utility: 'Utility', aim: 'Aim' };
-  let shown = 0;
-  for (const [key, label] of Object.entries(labels)) {
-    const c = r.categories && r.categories[key];
-    if (!c || c.avg == null) continue;
-    shown++;
+  const cats = Array.isArray(r.categories) ? r.categories : [];
+  cats.forEach((c, i) => {
     const wrap = el('div', 'cat'
-      + (r.best  && r.best.key  === key ? ' best'  : '')
-      + (r.worst && r.worst.key === key ? ' worst' : ''));
+      + (r.best  && r.best.key  === c.key ? ' best'  : '')
+      + (r.worst && r.worst.key === c.key ? ' worst' : ''));
     const top = el('div', 'cat-top');
-    top.appendChild(el('span', 'name', label));
+    top.appendChild(el('span', 'name', c.label));
     const score = el('span', 'score', String(c.avg));
     if (ARROW[c.direction]) score.appendChild(el('span', 'arrow ' + c.direction, ' ' + ARROW[c.direction]));
     top.appendChild(score);
@@ -87,15 +83,15 @@ function renderCategories(r) {
     const pct = Math.max(0, Math.min(100, c.avg)) + '%';
     bar.appendChild(fill);
     wrap.appendChild(bar);
-    wrap.style.setProperty('--i', shown - 1);
-    box.appendChild(stagger(wrap, shown - 1));
+    wrap.style.setProperty('--i', i);
+    box.appendChild(stagger(wrap, i));
     // Width starts at 0 in CSS; set the real value on the next frame so the
     // transition actually runs instead of the browser collapsing both values
     // into a single style resolution.
     if (REDUCED) fill.style.width = pct;
     else requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = pct; }));
-  }
-  $('cat-section').hidden = shown === 0;
+  });
+  $('cat-section').hidden = cats.length === 0;
 }
 
 function renderNotes(listId, sectionId, items) {
@@ -108,8 +104,8 @@ function renderNotes(listId, sectionId, items) {
 function renderEmpty(r) {
   $('empty').hidden = false;
   const msg = r.reason === 'not-connected'
-    ? 'Connect your Riot ID in Settings and run a coaching session or two. Next week you will get a full breakdown of what improved and what to work on.'
-    : 'Play a few matches with coaching on and your first report will be ready. It gets more useful every week.';
+    ? 'Add your Riot ID in Settings and play a few matches with Occlara recording. Next week you will get a breakdown of your grades, what improved and what keeps repeating.'
+    : 'Play a few matches with Occlara recording and your first report will be ready. It gets more useful every week.';
   $('empty-msg').textContent = msg;
   $('subtitle').textContent = 'Nothing to report yet';
 }
@@ -133,8 +129,8 @@ function render(r) {
 /**
  * The recurring mistakes, each with the fix.
  *
- * Shows how often it came up and across how many sessions, because "3 of 4
- * sessions" is what turns a complaint into evidence. The fix carries equal
+ * Shows how many matches it came up in, because "in 3 of your last 4
+ * matches" is what turns a complaint into evidence. The fix carries equal
  * weight to the mistake: naming a habit without saying what to do about it is
  * the failure mode of every stats product.
  */
@@ -154,7 +150,7 @@ function renderHabits(habits) {
     name.textContent = h.label;
     const freq = document.createElement('span');
     freq.className = 'habit-freq';
-    freq.textContent = h.sessions > 1 ? `${h.sessions} sessions` : `${h.count}x`;
+    freq.textContent = h.sessions > 1 ? `${h.sessions} matches` : `${h.count}x`;
     head.append(name, freq);
 
     const blurb = document.createElement('p');

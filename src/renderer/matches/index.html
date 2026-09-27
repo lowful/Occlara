@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Occlara Matches</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../shared/grade-view.css" />
+  <link rel="stylesheet" href="matches.css" />
+</head>
+<body>
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
+        <h2>Matches</h2>
+      </div>
+      <nav id="tabs" class="tabs no-drag" role="tablist" aria-label="Game"></nav>
+      <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+    </header>
+
+    <main class="body">
+      <!-- ACROSS MATCHES FIRST. One review already says what happened in one
+           match; this is the only place that says what keeps happening, which
+           is what a player can actually work on between sessions. -->
+      <section id="patterns" class="patterns">
+        <div class="p-head">
+          <div>
+            <h3>Your patterns</h3>
+            <p id="p-sub" class="hint"></p>
+          </div>
+          <div id="p-avg" class="p-avg" hidden>
+            <span class="p-avg-num" id="p-avg-num"></span>
+            <span class="p-avg-label">average grade</span>
+          </div>
+        </div>
+        <div id="p-trend" class="p-trend" hidden></div>
+        <div id="p-cats" class="p-cats" hidden></div>
+        <div id="p-lists"></div>
+      </section>
+
+      <section class="block">
+        <h3>Every match</h3>
+        <div id="list" class="list" role="list"></div>
+        <p id="empty" class="empty" hidden>No reviewed matches yet. Press Start in the panel, play a match, and its graded review lands here when it ends.</p>
+      </section>
+    </main>
+  </div>
+
+  <script src="../shared/i18n-apply.js"></script>
+  <script src="../shared/grade-view.js"></script>
+  <script src="matches.js"></script>
+</body>
+</html>

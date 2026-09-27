@@ -20,7 +20,7 @@ function create(actions) {
     tray = new Tray(icon);
     tray.setToolTip('Occlara');
     update(false, actions);
-    tray.on('double-click', () => actions.toggleOverlay());
+    tray.on('double-click', () => actions.toggleMinimize());
   } catch (err) {
     console.warn('[tray] Could not create tray:', err.message);
   }
@@ -31,19 +31,19 @@ function update(isCoaching, actions) {
   if (!tray) return;
   const panelHidden = actions.isMinimized && actions.isMinimized();
   const menu = Menu.buildFromTemplate([
-    { label: isCoaching ? 'Stop Coaching' : 'Start Coaching',
+    { label: isCoaching ? 'Stop Recording' : 'Start Recording',
       click: () => (isCoaching ? actions.stop() : actions.start()) },
     { label: panelHidden ? 'Show Panel' : 'Hide Panel', click: () => actions.toggleMinimize() },
-    { label: 'Show / Hide Overlay', click: () => actions.toggleOverlay() },
+    { label: 'Last Review…',        click: () => actions.openReview() },
+    { label: 'Matches…',            click: () => actions.openHistory() },
     { label: 'Weekly Report…',      click: () => actions.openWeekly() },
     { label: 'AI Log…',             click: () => actions.openAiLog() },
-    { label: 'Tip History…',        click: () => actions.openHistory() },
     { label: 'Settings…',           click: () => actions.openSettings() },
     { type: 'separator' },
     { label: 'Quit Occlara',        click: () => actions.quit() },
   ]);
   tray.setContextMenu(menu);
-  tray.setToolTip(isCoaching ? 'Occlara, Coaching' : 'Occlara');
+  tray.setToolTip(isCoaching ? 'Occlara, recording' : 'Occlara');
 }
 
 function destroy() {

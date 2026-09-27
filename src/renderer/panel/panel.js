@@ -3,7 +3,10 @@
 // Translator for the labels this surface rewrites at runtime. Starts as an
 // identity-ish fallback so the panel renders correctly even if i18n has not
 // resolved yet, then initI18n swaps in the real one and repaints.
-let tr = (k) => ({ 'panel.start': 'Start Coaching', 'panel.stop': 'Stop Coaching' }[k] || k);
+let tr = (k) => ({
+  'panel.start': 'Start', 'panel.stop': 'Stop',
+  'panel.noTips': 'Press Start before your match. The review opens when it ends.',
+}[k] || k);
 
 const toggleBtn = document.getElementById('toggle');
 const toggleIco = toggleBtn.querySelector('.t-ico');
@@ -25,7 +28,8 @@ const ICO = {
 
 const dotEl     = document.getElementById('dot');
 const statusEl  = document.getElementById('status-text');
-const tipCountEl = document.getElementById('tipcount');
+const gradeEl   = document.getElementById('grade');
+const gradeStat = document.getElementById('grade-stat');
 const lastTipEl = document.getElementById('last-tip');
 const lastTipText = lastTipEl.querySelector('.lt-text');
 
@@ -45,18 +49,16 @@ let topAgents     = [];   // player's 4 most-played, from state, for one-tap sel
 
 let isCoaching = false;
 let isPaused   = false;
-let tipCount   = 0;
+let lastGrade  = null;      // { score, letter, provisional, game, id } of the latest reviewed match
+let notice     = null;      // { text, at }: a licence ending, capture blocked, the server down
+let cadence    = null;      // ms between reads right now
+let captureSpeed = 'auto';
 let licenseActive = true;   // false once the subscription ends (locks coaching)
 let sessionActive  = false; // a coaching session is running (drives one bubble per session)
 let agentAnswered  = false; // player has confirmed/typed their agent this session
 let formActive     = false; // player is typing in the agent field (don't yank it away)
 let doneTimer = null;
-// Live tips closed: no tip reaches this window during a match, so the last tip
-// line says where they went instead of "no tips yet" forever.
-let liveClosed = false;
-let lastTipShown = false;
-
-const STATUS_LABEL = { idle: 'Idle', coaching: 'Coaching', paused: 'Paused', stopped: 'Stopped' };
+const STATUS_LABEL = { idle: 'Ready', coaching: 'Recording', paused: 'Paused', stopped: 'Ready' };
 
 function render() {
   // Subscription ended: lock coaching and say so.
@@ -64,7 +66,7 @@ function render() {
     dotEl.className = 'dot stopped';
     statusEl.textContent = 'Subscription ended';
     statusEl.classList.add('ended');
-    tipCountEl.textContent = 'Renew in Settings';
+    gradeEl.textContent = 'Renew in Settings';
     toggleBtn.disabled = true;
     toggleBtn.classList.remove('active');
     toggleLbl.textContent = 'Subscription ended';
@@ -78,11 +80,8 @@ function render() {
   const status = isCoaching ? (isPaused ? 'paused' : 'coaching') : 'idle';
   dotEl.className = `dot ${status}`;
   statusEl.textContent = STATUS_LABEL[status];
-  tipCountEl.textContent = liveClosed ? 'After the match' : `${tipCount} ${tipCount === 1 ? 'tip' : 'tips'}`;
-  tipCountEl.classList.toggle('words', liveClosed);
-  const lbl = document.querySelector('.s-stat .s-lbl');
-  if (lbl) lbl.textContent = liveClosed ? 'your review' : 'this session';
-  renderLiveClosed();
+  renderGrade();
+  renderLine();
 
   toggleLbl.textContent = tr(isCoaching ? 'panel.stop' : 'panel.start');
   toggleIco.innerHTML = isCoaching ? ICO.stop : ICO.play;
@@ -95,25 +94,40 @@ function render() {
   pauseBtn.innerHTML = isPaused ? ICO.play : ICO.pause;
 }
 
+/** The last match's grade, beside the status. */
+function renderGrade() {
+  const g = lastGrade;
+  gradeEl.replaceChildren();
+  gradeEl.className = '';
+  if (!g || typeof g.score !== 'number') {
+    gradeEl.textContent = 'No grade yet';
+    gradeEl.classList.add('words');
+    return;
+  }
+  const letter = document.createElement('span');
+  letter.className = 'g-letter ' + (g.letter === 'S' || g.letter === 'A' ? 'good' : g.letter === 'B' ? 'mid' : g.letter === 'C' ? 'warn' : 'bad');
+  letter.textContent = g.letter;
+  gradeEl.append(letter, document.createTextNode(' ' + g.score));
+  gradeStat.title = g.provisional ? 'Provisional grade. Open your last match review' : 'Open your last match review';
+}
+
 /**
- * The last tip line with live tips closed: the pill, and where the reads went.
- * A system message (a licence ending, a capture failing) still replaces it,
- * because those still reach this window.
+ * The status line: a notice when something is wrong, otherwise what Occlara
+ * is doing. It never says anything about the match being played.
  */
-function renderLiveClosed() {
-  if (!liveClosed || lastTipShown) return;
-  lastTipText.replaceChildren();
-  const pill = document.createElement('span');
-  pill.className = 'closed-pill';
-  pill.textContent = 'Live Tips are temporarily closed';
-  const line = document.createElement('span');
-  line.className = 'lt-closed-line';
-  line.textContent = isCoaching
-    ? 'Watching silently. Your review opens when the match ends.'
-    : 'Your review opens after each match.';
-  lastTipText.append(pill, line);
-  lastTipEl.title = 'Open your last match review';
-  lastTipEl.className = 'last-tip no-drag closed';
+function renderLine() {
+  lastTipEl.classList.toggle('has-tip', !!notice);
+  lastTipEl.classList.toggle('system', !!notice);
+  if (notice && notice.text) {
+    lastTipText.textContent = notice.text;
+    lastTipEl.title = notice.text;
+    return;
+  }
+  const every = cadence ? (cadence < 1000 ? `${cadence}ms` : `${Math.round(cadence / 100) / 10}s`) : null;
+  lastTipText.textContent = isCoaching
+    ? `Reading your game${every ? ' every ' + every : ''}${captureSpeed === 'auto' ? '' : ' (pinned)'}. Your review opens when the match ends.`
+    : tr('panel.noTips');
+  lastTipEl.title = 'Open your matches';
 }
 
 // ── Controls ─────────────────────────────────────────────────────────────────
@@ -125,21 +139,18 @@ pauseBtn.addEventListener('click', () => window.occlara.pauseResume());
 document.getElementById('chat').addEventListener('click', () => window.occlara.openChat());
 document.getElementById('stats').addEventListener('click', () => window.occlara.openStats());
 document.getElementById('learn').addEventListener('click', () => window.occlara.openLearn());
-document.getElementById('vod').addEventListener('click', () => window.occlara.openAiLog());
 document.getElementById('history').addEventListener('click', () => window.occlara.openHistory());
 document.getElementById('minimize').addEventListener('click', () => window.occlara.minimize());
 document.getElementById('settings').addEventListener('click', () => window.occlara.openSettings());
 document.getElementById('quit').addEventListener('click', () => window.occlara.quit());
-lastTipEl.addEventListener('click', () => {
-  if (liveClosed && !lastTipShown && window.occlara.openReview) window.occlara.openReview();
-  else window.occlara.openHistory();
-});
+lastTipEl.addEventListener('click', () => window.occlara.openHistory());
+gradeStat.addEventListener('click', () => (lastGrade ? window.occlara.openReview() : window.occlara.openHistory()));
 
 // ── Agent check bubble ─────────────────────────────────────────────────────────
 // Pops up once when coaching starts so the player confirms (or types) their agent
 // with a single tap, then disappears for the rest of the session and returns next
-// time coaching starts. The confirmed agent is what every tip is verified against,
-// so the AI and library make the right calls.
+// time recording starts. The confirmed agent is what the review is written for,
+// and the kit the review's ability check runs against.
 const AB_ROWS = { detect: abDetect, ask: abAsk, form: abForm, done: abDone };
 function showRow(which) {
   agentBubble.hidden = false;
@@ -236,12 +247,10 @@ function applyState(s) {
   if (learnBtn && typeof s.gameId === 'string') learnBtn.hidden = s.gameId !== 'lol';
   isCoaching = !!s.isCoaching;
   isPaused   = !!s.isPaused;
-  if (typeof s.liveTipsClosed === 'boolean') liveClosed = s.liveTipsClosed;
-  const nudgeLine = nudgeEl.querySelector('.nudge-body span');
-  if (nudgeLine && liveClosed) {
-    nudgeLine.innerHTML = 'Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> to minimize. The coach keeps watching, and your review opens when the match ends.';
-  }
-  if (typeof s.tipCount === 'number') tipCount = s.tipCount;
+  if ('lastGrade' in s) lastGrade = s.lastGrade || null;
+  if ('notice' in s) notice = s.notice || null;
+  if ('cadence' in s) cadence = s.cadence || null;
+  if (s.captureSpeed) captureSpeed = s.captureSpeed;
   if (typeof s.licenseActive === 'boolean') licenseActive = s.licenseActive;
   if (Array.isArray(s.topAgents)) {
     topAgents = s.topAgents.slice(0, 3);
@@ -287,24 +296,16 @@ window.occlara.onStatus(({ status }) => {
   }
   render();
 });
-window.occlara.onTip((tip) => {
-  if (!tip || !tip.text) return;
-  // Same glyphs as the overlay: the panel shows the last tip, and a callout
-  // marked one way on screen and another way here would read as two systems.
-  // agent is passed here too, so the player's own agent gets its green ring
-  // everywhere the tip is shown, not only on the overlay.
-  if (window.tipVisuals) window.tipVisuals.render(lastTipText, tip.text, { topic: tip.topic, agent: tip.agent });
-  else lastTipText.textContent = tip.text;
-  lastTipShown = true;
-  lastTipEl.title = tip.text;   // full text on hover, never cut off
-  lastTipEl.className = `last-tip no-drag has-tip ${tip.source || 'system'} flash`;
-  setTimeout(() => lastTipEl.classList.remove('flash'), 500);
-});
-
 window.occlara.getState().then(applyState).catch(() => {});
 render();
+// The real translator, once the language is known. Until then the fallback
+// above keeps every label in English rather than showing a key.
+if (window.initI18n) {
+  const use = (t) => { if (typeof t === 'function') { tr = t; render(); } };
+  window.initI18n(use).then(use).catch(() => {});
+}
 
-// Keep the window sized to the panel's content (bubble show/hide, tip length),
+// Keep the window sized to the panel's content (bubble show/hide, a long notice),
 // so there's never an invisible click-catching strip over the game.
 const panelEl = document.querySelector('.panel');
 let lastSentH = 0;

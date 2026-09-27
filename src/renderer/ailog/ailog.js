@@ -2,8 +2,8 @@
 
 /**
  * AI decision-log viewer. Scrubs through a session's analyzed frames, each
- * paired with the STATE the coach parsed (its notes) and the tip. Text only,
- * never innerHTML: STATE and tips are AI-written strings.
+ * paired with the STATE the coach parsed from it. Text only, never innerHTML:
+ * STATE is AI-written.
  *
  * The last five sessions are kept on disk and any of them can be opened from the
  * picker, but only one is ever loaded. Frames are the expensive part, running
@@ -75,26 +75,25 @@ function render() {
       : `Unconfirmed: the AI read ${seg.byModel || 'nothing usable'}, the location names point to ${seg.byLabel || 'nothing definite'}. The location names are trusted.`;
   }
 
-  // Tip shown after the gates (and the raw AI tip when it differs / was dropped).
-  const shown = r.shown && r.shown.text;
+  // What the coach saw this frame: the one factual note the read carries, the
+  // round the ledger filed it under, and whether a death registered on it.
+  // Sessions from before the review-only build still carry the tip they showed,
+  // and it is kept visible, labelled as such, so an old log still reads.
+  const st0 = r.state || {};
+  const bits = [];
+  if (typeof r.round === 'number') bits.push(`Round ${r.round}`);
+  if (r.died) bits.push('death registered here');
+  const seen = st0.playerNote || null;
   const shownEl = $('shown');
   shownEl.replaceChildren();
-  // Death reviews are labelled here the same way the overlay labels them, so
-  // the log and the in-game card agree about what you were shown.
-  if (shown && r.shown.death) shownEl.appendChild(el('span', 'death-tag', '\u{1F480} Death Review'));
-  shownEl.appendChild(document.createTextNode(shown || 'No tip shown this frame (SKIP or filtered).'));
-  shownEl.classList.toggle('none', !shown);
-  // Show the model's own tip whenever it differs from what you saw, plus WHY it
-  // was dropped. A rejected AI tip usually gets backfilled by a library tip, so
-  // "something was shown" does not mean the AI's tip made it through.
-  const raw = String(r.aiTip || '').trim();
-  const showRaw = (raw && raw.toUpperCase() !== 'SKIP' && raw !== shown) || !!r.reject;
-  $('raw-block').hidden = !showRaw;
-  if (showRaw) {
-    $('raw').textContent = raw || '(nothing usable)';
-    const why = $('raw-why');
-    why.textContent = r.reject ? 'Dropped: ' + r.reject : '';
-    why.hidden = !r.reject;
+  if (bits.length) shownEl.appendChild(el('span', 'death-tag', bits.join(', ')));
+  shownEl.appendChild(document.createTextNode(seen || (bits.length ? '' : 'Nothing noted this frame. The fields below are what was read.')));
+  shownEl.classList.toggle('none', !seen);
+  const old = (r.shown && r.shown.text) || '';
+  $('raw-block').hidden = !old;
+  if (old) {
+    $('raw').textContent = old;
+    $('raw-why').hidden = true;
   }
 
   // STATE table.

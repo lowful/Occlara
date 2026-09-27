@@ -367,6 +367,34 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(riotRounds.parse(d, 'Nobody', 'X').error, 'a Riot ID not in the match is an error, never somebody else\'s rounds');
   ok(riotRounds.attackersOf(25, 12) === 'red' && riotRounds.attackersOf(26, 12) === 'blue', 'overtime swaps every round');
   ok(riotRounds.attackersOf(5, 4) === 'blue', 'swiftplay halves are four rounds');
+  ok(a.traded === null && a.aliveAtDeath === null, 'a feed with a player off the roster says nothing about teamwork');
+  ok(a.feed.every((k) => !('killer' in k) && !('victim' in k)), 'the feed carries sides and times, never who');
+
+  // Teamwork, on a full ten player round.
+  const P = (id, team) => ({ name: id, tag: 'T', puuid: id, team_id: team, agent: { name: 'Jett' }, stats: {} });
+  const blue = ['me', 'b2', 'b3', 'b4', 'b5'].map((id) => P(id, 'Blue'));
+  const red = ['r1', 'r2', 'r3', 'r4', 'r5'].map((id) => P(id, 'Red'));
+  const K = (ms, killer, victim) => ({ round: 0, time_in_round_in_ms: ms, killer: { puuid: killer }, victim: { puuid: victim }, weapon: { name: 'Vandal' } });
+  const full = (kills, winner) => riotRounds.parse({
+    metadata: { map: { name: 'Bind' }, queue: { id: 'competitive' } },
+    players: [...blue, ...red],
+    teams: [{ team_id: 'Blue', rounds: { won: 1 } }, { team_id: 'Red', rounds: { won: 0 } }],
+    rounds: [{ winning_team: winner }],
+    kills,
+  }, 'me', 'T').perRound[0];
+
+  const traded = full([K(10000, 'r1', 'me'), K(13000, 'b2', 'r1')], 'Red');
+  ok(traded.traded === true && traded.aliveAtDeath.mates === 5 && traded.aliveAtDeath.enemies === 5,
+    'died in the opening duel and a teammate killed the killer three seconds later: traded');
+  const alone = full([K(10000, 'r1', 'me'), K(19000, 'b2', 'r1')], 'Red');
+  ok(alone.traded === false, 'nine seconds later is not a trade');
+  const trader = full([K(10000, 'r1', 'b2'), K(11500, 'me', 'r1')], 'Blue');
+  ok(trader.trades === 1 && trader.traded === null, 'killing the player who just killed a teammate is a trade made');
+  const up = full([K(5000, 'b2', 'r1'), K(6000, 'b3', 'r2'), K(20000, 'r3', 'me')], 'Red');
+  ok(up.aliveAtDeath.mates === 5 && up.aliveAtDeath.enemies === 3, 'died five against three: the advantage is on record');
+  const clutch = full([K(5000, 'r1', 'b2'), K(6000, 'r1', 'b3'), K(7000, 'r2', 'b4'), K(8000, 'r2', 'b5'),
+    K(20000, 'me', 'r1'), K(25000, 'me', 'r2')], 'Blue');
+  ok(clutch.clutch && clutch.clutch.vs === 5 && clutch.clutch.won === true, 'last one standing against five, and won it');
 }
 
 // ── The real swiftplay match ────────────────────────────────────────────────

@@ -21,23 +21,17 @@
         <h1>You're in.</h1>
         <p class="sub">Four quick things, then you're playing.</p>
       </div>
-      <!-- Language first, before anything else is read. Setting it here means
-           the rest of onboarding and every tip that follows arrive in the
-           player's own language rather than being switched afterwards. -->
+      <!-- Language first, before anything else is read, so the rest of the tour
+           and every review arrive in the player's own language. -->
       <div class="ob-lang">
         <label for="ob-language" data-i18n="onboarding.chooseLanguage">Choose your language</label>
         <div id="ob-language" class="ob-lang"></div>
         <p class="ob-lang-note" id="ob-language-note" hidden></p>
       </div>
-      <ol class="steps" data-live="open">
-        <li><span class="n">1</span><div><b>Start coaching</b><span>Set Valorant to Windowed Fullscreen, then hit the red button on the panel once you're in a match.</span></div></li>
-        <li><span class="n">2</span><div><b>Confirm your agent</b><span>A bubble asks who you're playing. Confirm it, or pick one of your mains. Until you do, you only get general tips and no ability advice.</span></div></li>
-      </ol>
-      <!-- Live tips closed: the same steps, told as the app now works. -->
-      <ol class="steps" data-live="closed" hidden>
-        <li><span class="n">1</span><div><b>Start the coach</b><span>Set Valorant to Windowed Fullscreen, then hit the red button on the panel before your match. Nothing appears on your screen while you play.</span></div></li>
-        <li><span class="n">2</span><div><b>Confirm your agent</b><span>A bubble on the panel asks who you're playing. Confirm it, or pick one of your mains, so your review can talk about your abilities.</span></div></li>
-        <li><span class="n">3</span><div><b>Read your review</b><span>When the match ends, the review opens on its own: every round the coach saw, what it would have told you, and why.</span></div></li>
+      <ol class="steps">
+        <li><span class="n">1</span><div><b>Press Start before your match</b><span>Set your game to Windowed Fullscreen, then hit the red button on the panel. Nothing appears on your screen while you play.</span></div></li>
+        <li><span class="n">2</span><div><b>Confirm your agent</b><span>A bubble on the panel asks who you're playing. Confirm it, or tap one of your mains, so the review can talk about your abilities.</span></div></li>
+        <li><span class="n">3</span><div><b>Read your graded review</b><span>When the match ends it opens on its own: a grade out of 100, your repeated mistakes, what went well, and what you missed.</span></div></li>
       </ol>
     </section>
 
@@ -47,86 +41,52 @@
         <h1>Keep it out of your way</h1>
         <p class="sub">The panel should never catch your mouse mid-aim.</p>
       </div>
-      <p class="lead" data-live="open">While you play, minimize the panel with <kbd>Ctrl+Shift+M</kbd>. Coaching keeps running and tips still appear on the overlay. The same shortcut brings it back.</p>
-      <p class="lead" data-live="closed" hidden>While you play, minimize the panel with <kbd>Ctrl+Shift+M</kbd>. The coach keeps watching in the background, and the same shortcut brings the panel back.</p>
+      <p class="lead">While you play, minimize the panel with <kbd>Ctrl+Shift+M</kbd>. Occlara keeps reading your game in the background, and the same shortcut brings the panel back.</p>
       <div class="keys">
+        <div class="k"><span>Last review</span><kbd>Ctrl+Shift+E</kbd></div>
+        <div class="k"><span>Matches</span><kbd>Ctrl+Shift+H</kbd></div>
         <div class="k"><span>Minimize panel</span><kbd>Ctrl+Shift+M</kbd></div>
-        <div class="k" id="ob-force"><span>Force a tip</span><kbd>Ctrl+Shift+X</kbd></div>
         <div class="k"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
-        <div class="k"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
-        <div class="k"><span data-live="open">Why that tip</span><span data-live="closed" hidden>Last review</span><kbd>Ctrl+Shift+E</kbd></div>
       </div>
-      <p class="keys-closed" data-live="closed" hidden><span class="closed-pill">Live Tips are temporarily closed</span><span>Force a tip is off until they return.</span></p>
-      <p class="keys-note" data-live="open">A tip is one sentence so you can read it mid fight. <kbd>Ctrl+Shift+E</kbd>
-        unpacks the last one properly: the read, the alternative play, and what a Radiant does
-        instead. It only opens during a buy phase or while you are dead, because reading a
-        paragraph while holding an angle is how you lose the round.</p>
-      <p class="keys-note" data-live="closed" hidden><kbd>Ctrl+Shift+E</kbd> opens your last match
-        review. During a match it does nothing, on purpose: Occlara shows you nothing while you play,
-        and everything it saw is waiting for you when the match ends.</p>
+      <p class="keys-note">During a match <kbd>Ctrl+Shift+E</kbd> does nothing, on purpose: Occlara shows you
+        nothing while you play, and everything it read is waiting in the review when the match ends.</p>
     </section>
 
-    <!-- ── 3. Tip look ────────────────────────────────────────────────── -->
+    <!-- ── 3. What arrives after the match ────────────────────────────── -->
     <section class="page" data-page="2" hidden>
-      <div class="hero" data-live="open">
-        <h1>Pick your tip look</h1>
-        <p class="sub">Tap one to try it. You can change it any time in Settings.</p>
-      </div>
-      <!-- Live tips closed: this page shows what arrives instead, and the tip
-           look below is greyed with the same pill Settings uses, kept for when
-           live tips return. -->
-      <div class="hero" data-live="closed" hidden>
+      <div class="hero">
         <h1>After every match</h1>
         <p class="sub">Your review opens on its own. This is the shape of it.</p>
       </div>
-      <div class="ob-review" data-live="closed" hidden aria-hidden="true">
-        <div class="obr-head"><span class="obr-result">VICTORY</span><span class="obr-score">13 : 11</span></div>
-        <div class="obr-strip">
-          <i class="w"></i><i class="l d"></i><i class="l d"></i><i class="l"></i><i class="w d"></i><i class="l d"></i><i class="w"></i><i class="l"></i><i class="w"></i><i class="w d"></i><i class="w"></i><i class="w p"></i>
+      <div class="ob-review" aria-hidden="true">
+        <div class="obr-head"><span class="obr-result">VICTORY</span><span class="obr-score">13 : 11</span>
+          <span class="obr-grade"><b>77</b><i>B</i></span></div>
+        <div class="obr-cats">
+          <span>Survival <b>49</b></span><span>Impact <b>96</b></span><span>Teamplay <b>62</b></span><span>Decisions <b>71</b></span>
         </div>
         <div class="obr-card">
-          <div class="obr-rn">R2 <span>Lost</span></div>
-          <p class="obr-why">You took A Vent before your team reached A Main, so nobody could trade you. Take one piece of space, then wait for them.</p>
+          <div class="obr-rn">Your repeated mistake</div>
+          <p class="obr-why">First to die in rounds 2, 10 and 23, so your team played those rounds four against five. Let a teammate or your utility make first contact.</p>
         </div>
       </div>
-      <div class="ob-closed-head" data-live="closed" hidden>
-        <b>Tip look</b><span class="closed-pill">Live Tips are temporarily closed</span>
-      </div>
-      <div class="style-grid" id="tipstyle">
-        <button data-val="glass" class="style-opt active">
-          <span class="sp sp-glass"><i></i></span><b>Glass</b><em>Frosted, default</em>
-        </button>
-        <button data-val="solid" class="style-opt">
-          <span class="sp sp-solid"><i></i></span><b>Solid</b><em>Clearest to read</em>
-        </button>
-        <button data-val="minimal" class="style-opt">
-          <span class="sp sp-minimal"><i></i></span><b>Minimal</b><em>Text only</em>
-        </button>
-        <button data-val="neon" class="style-opt">
-          <span class="sp sp-neon"><i></i></span><b>Neon</b><em>Glowing edge</em>
-        </button>
-      </div>
-      <div class="op-row">
-        <label for="tipopacity">See-through</label>
-        <input id="tipopacity" type="range" min="25" max="100" step="5" value="90" />
-        <b id="tipopacity-label">90%</b>
-      </div>
-      <p class="tip-note">Lower shows more of the game behind the card, higher is easier to read.</p>
+      <p class="tip-note">Every review is kept under Matches, where Occlara also tracks what keeps repeating across your games.</p>
     </section>
 
-    <!-- ── 4. Tips mix + progress ─────────────────────────────────────── -->
+    <!-- ── 4. The two settings worth making now ───────────────────────── -->
     <section class="page" data-page="3" hidden>
       <div class="hero">
-        <h1>One last call</h1>
-        <p class="sub">Want the fundamentals mixed in?</p>
+        <h1>One last thing</h1>
+        <p class="sub">Your Riot ID makes the grade exact.</p>
       </div>
-      <p class="lead" data-live="open">Curated basics (crosshair placement, trading, positioning) alongside the AI tips. New, or Silver and below? Keep them on. Ranked higher? Off is the usual pick.</p>
-      <p class="lead" data-live="closed" hidden>Curated basics (crosshair placement, trading, positioning) alongside the coach's own reads in your review. New, or Silver and below? Keep them on. Ranked higher? Off is the usual pick.</p>
-      <div class="seg" id="fundamentals">
-        <button data-val="on" class="active">On, coach the basics</button>
-        <button data-val="off">Off, AI tips only</button>
+      <p class="lead">Riot's record of each match checks every death Occlara read off your screen, adds who killed you and when, and counts your trades and clutches. Use the account you play on.</p>
+      <div class="ob-riot">
+        <input id="ob-riot" class="input" type="text" placeholder="PlayerName#TAG" maxlength="40" autocomplete="off" spellcheck="false" />
       </div>
-      <p class="tip-note">The bar-chart button on the panel opens your Stats: session scores with trends, your recent matches rated 0 to 100, and your weekly report.</p>
+      <p class="lead">Advanced coaching lets your reviews draw on damage breakpoints, utility timings and reads across rounds. Newer players usually leave it off.</p>
+      <div class="seg" id="advanced">
+        <button data-val="off" class="active">Off, fundamentals</button>
+        <button data-val="on">On, advanced</button>
+      </div>
     </section>
 
     <!-- ── Footer nav ─────────────────────────────────────────────────── -->
