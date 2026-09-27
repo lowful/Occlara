@@ -405,6 +405,9 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
       agent: (riot && riot.agent) || ctx.agent || null,
       map: ctx.map || (riot && riot.map) || null,
       advancedTips: ctx.advancedTips === true,
+      // The review is written in the player's language; the gates below it
+      // still read the labels, which stay English.
+      language: typeof ctx.language === 'string' ? ctx.language : 'en',
     },
     // Riot's final score and result outrank the last score the screen read.
     final: riot && riot.score ? {

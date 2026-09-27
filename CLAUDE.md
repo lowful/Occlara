@@ -1,54 +1,76 @@
 # Occlara
 
-A Valorant AI coach. An Electron client watches the screen, sends frames to a
-Node/Express backend, and turns what it saw into a round by round review that
-opens when the match ends. It used to show tips on top of the game in real
-time, and that is closed: see "Live tips are closed" below before touching
-anything that reaches the screen during a match.
+A post-match AI coach for Valorant, Marvel Rivals and League of Legends. An
+Electron client reads the game while it is played, shows NOTHING during the
+match, and when it ends opens a graded review: a score out of 100 with four
+categories and their evidence, the player's repeated mistakes with a fix for
+each, what went well, and what was missed. Every review is kept in the match
+library, which also counts what keeps repeating across matches.
 
 The client never reads game memory, never touches game files, and never
 automates input. It captures the display the same way OBS does. That property
 is the whole product, so nothing should ever be added that breaks it.
 
-## Live tips are closed, and the review is the product
+## Nothing reaches the screen during a match, in any game
 
-`liveTipsClosed: true` on Valorant in `src/shared/games.js` is **the one switch**.
+Occlara used to show live tips. They are **removed**, not paused, since 8.0:
+the overlay window, the voice coach, the tip library, tip history, tip styles,
+force tip and explain tip are gone from the code, and so is the switch that
+used to close them. Do not add any of it back, and do not add anything else
+that tells a player what to do while they play.
+
 Riot's VALORANT developer policy lists as unapproved "in-game apps and overlays
 that include any real-time data that would improve a player's performance
 immediately by altering player behavior (i.e. 'go here now'), vs altering it
 upon reflection, learning and coaching the player game over game". A player got
 a one week ban with the app flagged as third party. The anti-cheat axis (screen
-capture like OBS) was always clean; the written policy was not.
+capture like OBS) was always clean; the written policy was not. League's policy
+is stricter still (see below). The second half of that sentence is the product.
 
-While the switch is on, **nothing the coach writes reaches any surface during a
-match**, and each of these is a separate leak that was closed on purpose:
+What still counts as "reaching the screen", and is sealed mid match:
 
-- `pushTip` holds `ai` and `library` tips in `state.heldTips`, never in
-  `state.tips`, because PUSH_STATE carries `state.tips` to every window.
-- The overlay window is **not created** (`syncOverlay`), not merely hidden. The
-  voice coach speaks whatever the overlay receives, so it goes with it.
-- The AI log seals the live session mid match (`liveLogSealed`), frame chat
-  refuses it, and Ask Coach gets no match memory. Each is a window a player can
-  keep open on a second monitor.
-- Ctrl+Shift+E does nothing mid match and opens the last review after it.
-  Force tip is a no-op.
-
-Settings and onboarding **grey the live controls out** with the pill "Live Tips
-are temporarily closed" rather than deleting them, so the player's setup
-survives. The pill is a SIBLING of the heading, never inside it: i18n-apply sets
-`textContent` on translated headings and silently deleted it.
-
-Do not flip the switch back without Riot's written approval of the product.
+- The AI log seals the live session (`liveLogSealed`), because an open log on a
+  second monitor is a live feed of the match by another name. Frame chat refuses
+  it, and Ask Coach gets no match memory and no review context mid match.
+- Ctrl+Shift+E opens the last review, and does nothing while a match is in
+  progress (`matchInProgress()`).
+- The panel's status line carries notices only (a licence ending, capture
+  blocked, the server down), never anything about the match.
 
 ### How the match becomes a review
 
 ```
-src/shared/valorant-rounds.js   the round ledger, fed the engine's GUARDED context
-src/shared/match-end.js         when the match is over
-src/shared/valorant-review.js   the computed review: patterns, facts, the result
-server/services/match-review.js the model's half: summary, a why per round, focus
-src/renderer/review/            one window for every game, branched on review.kind
+src/main/services/coaching-engine.js  the READER: capture, /api/coach/read, the STATE guards
+src/shared/valorant-rounds.js         the round ledger, fed the engine's GUARDED context
+src/shared/match-end.js               when the match is over
+src/shared/valorant-verify.js         Riot's record laid over the ledger
+src/shared/death-frames.js            which deaths to look at, and which frames show them
+server/services/death-forensics.js    the model's look at those frames: a cause from a closed list
+src/shared/valorant-review.js         the computed review, which carries the two below
+src/shared/insights.js                repeated mistakes, strengths, misses: counted, per game
+src/shared/grade.js                   0 to 100, a letter, four categories with evidence, per game
+server/services/match-review.js       the model's half: summary, a why per round, focus
+src/main/services/review-store.js     every review saved, userData/reviews
+src/shared/patterns.js                what repeats across the last ten matches of a game
+src/renderer/review/                  one window for every game, branched on review.kind
+src/renderer/matches/                 the library and "Your patterns"
 ```
+
+**The read is facts only.** `POST /api/coach/read` (`server/services/read-prompt.js`)
+returns `LOBBY` or one STATE line, the same shape `mapState()` has always parsed,
+plus a `note`: one factual observation of what the player is doing. No tip is
+written anywhere. The engine keeps **two reads in flight** and applies them in
+capture order (`seq`, `pending`, `drain`), because the ledger, the death edge
+and scoreboard continuity all assume time runs forwards.
+
+**The cadence is measured, not chosen.** `captureSpeed` is `auto` or a pinned
+tier from `CAPTURE_TIERS` (1, 2, 3, 5 seconds). Auto starts at 1s and steps
+down when p90 latency exceeds what two in flight can cover, or reads keep
+failing, and back up with headroom (`adaptCadence`). The read model was chosen
+by `npm run bench:read`, scored against Riot's record of the real Abyss match;
+the numbers are in `server/routes/coach.js` beside `readModel`. DeepSeek V4.1
+Flash is the only one that sustained a read a second, invented no death and
+read every label.
 
 **The score lags the round in both directions**, measured on a real 24 round
 match in `scripts/fixtures/`: a buy phase starts while the score still reads the
@@ -64,44 +86,52 @@ three rounds. 13 to 12 is deliberately not final: unrated ends there and
 competitive does not. Too early is the expensive direction, because it opens a
 window over a round in progress.
 
-**What the review may claim.** No "survived" line (the ledger cannot know it),
-no death timing to the second (a bucket, since frames are ten seconds apart), no
-result unless a score end or Riot's verified record says so, a spawn is never a
-death spot, and a pattern must clear its stated floor. The window opens at once
-and repaints when Riot publishes the scoreboard, which is 90 seconds to four
-minutes later.
+**What the review may claim.** No "survived" line unless Riot says so, no death
+timing to the second without Riot, no result unless a score end or Riot's record
+says so, a spawn is never a death spot, and every insight and pattern must clear
+its stated floor. The window opens at once and repaints when Riot publishes the
+scoreboard, 90 seconds to four minutes later, and every version is saved to the
+same review id.
 
-**Variant C won the bench** (`npm run bench:review`, live, spends money) by
-making fewer unsupported claims than B; the numbers are in `match-review.js`.
+**Variant C won the review bench** (`npm run bench:review`, live, spends money)
+by making fewer unsupported claims than B; the numbers are in `match-review.js`.
 The model's reply is RAW text from `textInfer(..., { json: true })`, sanitized
 per field after parsing, because `sanitize()` collapses newlines and the first
 bench got every labelled line back as one. Spelled round numbers are turned into
 digits in code (`roundDigits`), because the prompt asking was ignored about half
-the time.
+the time. The review is written in the player's language (`languageRule`); the
+labels stay English because `parse()` reads them.
 
 `npm run test:valorantreview` replays both real fixtures through all of it.
 
-### Riot's record overrides the screen, and the read is written again
+### Riot's record overrides the screen
 
 **The screen is wrong in ways only Riot can show.** Checked against Riot's
 record of the real Abyss fixture (`scripts/fixtures/riot-abyss-13-11.json`): the
 screen read 22 deaths where Riot has 21 (round 17 invented from one post-plant
 spectator frame), put 6 deaths in the first 30 seconds where Riot puts 16, and
-5 of the coach's own death reviews named the wrong killer. The timing error is
-the spectator trap again: after a death the HUD shows a teammate alive at 100
-health, so the coach thinks the player lived another half minute.
+5 of the coach's own reads named the wrong killer. The timing error is the
+spectator trap: after a death the HUD shows a teammate alive at 100 health, so
+the coach thinks the player lived another half minute.
 
 So when `fetchCoachedMatch` links the match, `withRiot()` in `src/main/index.js`
 fetches `/api/coach/match-rounds` (parsed in `server/services/riot-rounds.js`)
-and `src/shared/valorant-verify.js` reconciles: deaths, the second, the killer
-and weapon, first death, first kill, kills and round results are Riot's; the
-screen keeps only the location, the ult icon and what the coach said. Reads Riot
-contradicts are dropped. The corrected review repaints at once with the summary
-marked as updating, then the model writes it again from Riot's facts, including
-Riot's scoreboard line, because a 31/21 match MVP reviewed from its deaths alone
-reads as a struggling player.
+and `valorant-verify.js` reconciles: deaths, the second, the killer and weapon,
+first death, first kill, kills and round results are Riot's; the screen keeps
+only the location, the ult icon and what the coach noted. Reads Riot contradicts
+are dropped. The corrected review repaints at once with the summary marked as
+updating, the coach looks at the teachable deaths, then the model writes the
+summary again from all of it, including Riot's scoreboard line, because a 31/21
+match MVP reviewed from its deaths alone reads as a struggling player.
 
-Three things the model got wrong on the verified prompt, each now fixed in code
+**The kill feed gives teamwork** (`teamworkOf`): whether a death was traded (a
+teammate killed the killer within five seconds, generous on purpose), trades the
+player made, how many were standing on each side at the death, and clutches.
+The feed that leaves the server carries sides and times and never a name. On
+the real Abyss match: traded once in 21 deaths, and six rounds lost after the
+player died with the team ahead in numbers.
+
+Three things the model got wrong on the verified prompt, each fixed in code
 rather than asked for: it explained rounds 2 to 11 of 24 (`teachable()` picks
 the rounds, one per third first), it named the wrong killer (`namesKiller()`
 drops that line), and it merged two patterns into one wrong count (a summary
@@ -112,18 +142,85 @@ side in words, because given two fractions the model inverted them.
 dropping. The Riot ID in config is the one looked up, so a match played on
 another account never links, which is correct.
 
+### The coach's look at a death
+
+For the four most teachable verified deaths (`teachableDeaths`: a lost round, a
+first death, an untraded one, a death with the team ahead; spread across the
+match), the client sends the last frame before Riot's death second and the one
+just after, and `/api/coach/death-forensics` returns ONE cause from a closed
+list (`CAUSES`, mirrored in `src/shared/death-causes.js`; `test:forensics` keeps
+the two in step), what happened, and the better play.
+
+- **A cause is a label so it can be counted.** "Your most repeated mistake" is
+  a count, and a sentence cannot be counted across matches.
+- **A lost duel is on the list and is not a mistake**, so the model has an
+  honest place for a fair fight instead of inventing a positioning error.
+- **Unclear carries no sentences.** On the bench every unclear answer came with
+  a sentence about the frame itself.
+- Every sentence passes the map gate (a callout from another map), the ability
+  gate (another agent's ability, unless its owner is named) and the killer gate.
+- The frame picker wants a full two seconds of margin before the death, because
+  the clock is read to the second and a same-second frame showed the combat
+  report instead of the fight.
+- **The fixture frames carry the old tip cards over the game**, and the first
+  bench had models reading the card back. The prompt says to ignore overlays.
+  The model was chosen by `npm run bench:forensics`: GPT 6 Luna said "unclear"
+  when the frame did not show the fight, where the others invented a peek.
+
+The frames the review looked at are saved beside it in the library, so the
+moment survives the AI log rolling past it. The AI log keeps every frame of the
+last three minutes, every frame around a registered death, one frame per ten
+seconds of the rest, and holds a finished match's frames whole until its review
+has looked (`holdAiLogFrames`).
+
+### The grade, and the lists under it
+
+`src/shared/grade.js`, pure, one grader per game. **Every category carries the
+facts it came from**, so a player who disagrees can see which fact they
+disagree with. The model never writes a number a player is judged by; the one
+model judgement that reaches a grade is the death cause label, and only in
+Decisions.
+
+- Valorant: Survival (deaths a round, first deaths beyond the role's share),
+  Impact (combat score against the player's own role average once there are
+  three matches, an absolute ladder until then; first kills; multi kill rounds),
+  Teamplay (traded deaths, trades made, assists), Decisions (deaths with the
+  team ahead and the round lost, ult held, avoidable causes; clutches won).
+- Marvel Rivals: Impact, Survival, Role duty (healing, blocked or damage by
+  role), Accuracy against the same hero. League: Farming (not for supports),
+  Survival, Vision, Objectives.
+- **One category is not a grade.** From the screen alone Valorant can count
+  deaths and nothing else, and that graded a 13 to 11 win at 45. An overall needs
+  two categories carrying half the weight; below that it says what would grade it.
+- **The Duelist curves are shifted**, because the entry dies more and is traded
+  less by design: on the shared curves the real 31 kill Jett read as a player who
+  could not stay alive. The lesson from the retired grade-blend.js stands: a real
+  scoreboard outranks a count of mistakes, which is why Impact weighs most.
+
+`src/shared/insights.js` makes the three lists from the same facts, each entry
+with a floor, a stable `key` (the library counts by it, so renaming one orphans
+every saved review that used it) and, for mistakes, a one line `fix`.
+`patterns.js` counts those keys across the last ten saved reviews of a game;
+**a pattern needs two matches**, and its trend compares the newer half of the
+window with the older half ('rising', 'falling', 'steady').
+
+`npm run test:grade` covers the graders on the real fixture, the lists, the
+frame picker, the store, the patterns and the weekly report. `npm run
+check:matches` boots the app with saved reviews, reads the library back from the
+DOM, and clicks a row through to its review and its kept frame.
+
 ## Layout
 
 ```
 src/main/          Electron main process (Node). Windows, services, IPC handlers.
 src/main/windows/  One file per surface, plus registry.js
-src/main/services/ coaching-engine.js is the client brain
+src/main/services/ coaching-engine.js reads the game; review-store.js keeps reviews
 src/preload/       One preload per surface, contextBridge only
 src/renderer/      The UI. Vanilla HTML + CSS + JS, no framework, no build step
-src/shared/        channels.js, config.js, valorant-data.generated.json
+src/shared/        channels.js, config.js, grade.js, insights.js, the per-game reviews
 server/            Express backend (deployed on Railway)
-server/routes/     coach.js holds the prompt and the coaching routes
-scripts/           sync-valorant-data.js, sync-patch-notes.js
+server/routes/     coach.js holds the routes: read, match-review, death-forensics, chat
+scripts/           sync-*, the benches, the checks and tests
 ```
 
 Entry point is `src/main/index.js`. Version lives in `package.json` and is
@@ -132,28 +229,30 @@ shown at the bottom of Settings.
 ```
 npm start              run the app
 npm run dev            run with devtools and dev userData
+npm test               every offline check and test
+npm run verify:ai      the live read, gated against Riot's record (spends money)
 npm run sync:valorant  regenerate valorant-data.generated.json
 npm run release        build and publish a Windows installer
 ```
 
 ## The UI
 
-Twelve renderer surfaces, each a plain folder with `index.html`, a `.css` and
+Eleven renderer surfaces, each a plain folder with `index.html`, a `.css` and
 usually a `.js`:
 
 ```
-overlay/     the in-game tip cards. The surface players actually see
-panel/       the main control window
-dock/        the compact always-on-top dock
+panel/       the main control window: Start / Stop, status, last grade
+dock/        the compact always-on-top mark, click through
+review/      the post-match review, every game, branched on review.kind
+matches/     the library: every review, and "Your patterns" across them
 onboarding/  multi-page first-run flow. The app is gated behind completing it
 settings/    all preferences, version string at the bottom
-stats/       rank, win rate, match history
-history/     past coaching sessions
-ailog/       AI decision log: screenshots, STATE, and the tip that was sent
-chat/        chat with the AI about one logged frame
-weekly/      weekly report popup
+stats/       rank, win rate, tracker matches, graded matches
+ailog/       the AI log: every frame read and what was parsed from it
+chat/        Ask Coach, opened plainly or on one match's review
+weekly/      weekly report popup: grades, categories, recurring mistakes
+learn/       League lessons
 activation/  license key entry
-audio/       hidden surface, audio capture only. Not a visual surface
 ```
 
 ### Rules for UI work
@@ -172,12 +271,17 @@ durations:
   "secondary accent". Do not rename them: they are consumed 225 times across 15
   files and `npm run check:palette` exists because that edit has gone wrong.
 - Text: `--text`, `--text-dim`, `--text-mute`
+- Status: `--good`, `--warn`, `--red`, each with an `-rgb` twin
 - Glass: `--glass-fill`, `--glass-border`, `--glass-blur`
 - Geometry: `--r-sm` `--r-md` `--r-lg`
 - Motion: `--ease`, `--ease-expo`, `--ease-spring`, `--t-fast` `--t-med` `--t-slow`
 
 `src/renderer/shared/ui.css` holds the shared component styles. If two surfaces
-need the same thing, it belongs there, not copied into both.
+need the same thing, it belongs there, not copied into both. **The grade card
+and the insight lists are drawn by `shared/grade-view.js` and
+`shared/grade-view.css`** in the review, the library and wherever else a grade
+appears, so the three cannot drift. They build DOM with textContent only,
+because detail lines carry the model's sentences.
 
 **Geist is bundled locally** in `assets/fonts` so the app renders offline, with
 Geist Mono for columns of digits. It ships weights 400, 500, 600, 700 and 800
@@ -185,14 +289,7 @@ only. Do not reference a weight outside that set or a webfont URL: the renderer
 CSP forbids the URL, and a missing weight silently falls back to Segoe UI, which
 changes the shape of the whole interface without erroring.
 
-**Tip card styles are user-configurable.** `tipStyle` in `src/shared/config.js`
-is one of `glass | solid | minimal | neon`, and `tipOpacity` runs 0.25 to 1.
-The overlay applies them as `data-style` and a `--tip-alpha` variable on
-`.tips`. Any new style needs a matching `.tips[data-style="..."]` block in
-`overlay/overlay.css` and an option in Settings and onboarding, or the three
-will drift out of sync.
-
-Three settled decisions that keep getting reintroduced by accident:
+Settled decisions that keep getting reintroduced by accident:
 
 - **No decorative gradients anywhere.** Solid fills and hairline borders. The
   two that remain are functional and deliberate: the loading shimmer in
@@ -203,18 +300,15 @@ Three settled decisions that keep getting reintroduced by accident:
   corners measured exactly the desktop behind them, so a square window rendered
   as an oval blob. `.stage` is now a solid `--bg` card with an 18px radius and a
   10px gutter, the same shape as every other surface.
-- **The coaching button stays red.** It is the one control a player must find
+- **The Start button stays red.** It is the one control a player must find
   without looking, and the only place the accent earns full saturation in an
   otherwise white-on-black interface.
-- **No left accent bar on tip cards.** Accent is carried by the meta dot and
-  label colour, via `--tip-accent`.
-
-Transparent or low-opacity tip styles need an outline and a drop shadow, or
-they become unreadable against a bright part of the game.
+- **A grade's colour is never its only signal.** The number and the letter are
+  always beside it.
 
 **Every surface must stay visually synchronised.** A change to a shared
-component, a token, or a tip style is not done until Settings, onboarding and
-the overlay all agree.
+component or a token is not done until Settings, onboarding, the review and the
+library all agree.
 
 ## IPC
 
@@ -222,40 +316,43 @@ the overlay all agree.
 It is imported by main, by every preload, and indirectly by every renderer.
 
 **Never hand-type a channel string anywhere else.** The previous client's worst
-bug was main and preload drifting to different names, after which the overlay
+bug was main and preload drifting to different names, after which a window
 silently stopped receiving events with no error. Add the constant to
 `channels.js` first, then use it on both sides.
 
 Renderers have no Node access. Everything crosses through a preload via
-`contextBridge`.
+`contextBridge`. The library is `REVIEWS_LIST`, `REVIEW_GET`, `REVIEW_OPEN`,
+`PATTERNS_GET`, and `PUSH_REVIEWS` fires whenever a review is saved or improved.
 
-## The coaching pipeline
+## The live read's STATE line
 
-The client captures a frame, sends it to `POST /api/coach/analyze`, and the
-model replies in a fixed two-line shape:
+The model replies `LOBBY` or `STATE: {...}` (`read-prompt.js`). The STATE is
+parsed by `mapState()` in `server/routes/coach.js` and fed back as context on
+the next read. **If that shape changes, the feedback loop dies silently**: reads
+keep arriving, they just stop being informed by the previous one.
 
-```
-<the tip, one sentence>
-STATE: {"side":...,"phase":...,"round":...,"hp":...,"alive":...,"map":...,...}
-```
+The models are whatever Railway says where an env var is set, and the code
+default where it is not: `AI_READ_MODEL` (default deepseek/deepseek-v4.1-flash),
+`AI_FORENSICS_MODEL` (default openai/gpt-6-luna), `AI_REVIEW_MODEL` (falls back
+to `AI_TEXT_MODEL`). `AI_VISION_MODEL` now only serves the older `/analyze` route
+that installed clients before 8.0 still call. Every model call switches
+reasoning off and retries a 400 without the switch. There is a credits breaker:
+on a 402 the server reports it honestly rather than pretending to be down, and
+the client backs off for three minutes.
 
-Line 1 is shown to the player. Line 2 is parsed by `mapState()` in
-`server/routes/coach.js` and fed back as context on the next frame. **If that
-format changes, the feedback loop dies silently**: tips keep appearing, they
-just stop being informed by anything.
-
-The model is whatever `AI_VISION_MODEL` and `AI_TEXT_MODEL` say on Railway,
-not what the code says. The code default is `google/gemini-3-flash-preview`;
-Railway was last seen set to `qwen/qwen3.7-flash`, a reasoning model, which is
-why every text path retries on an empty reply. There is a credits breaker: on a 402 the server reports it honestly
-rather than pretending to be down, and the client backs off for three minutes.
+**`npm run verify:ai` is the gate for any read prompt or model change.** It
+runs the live read over the 240 real frames and fails on parse under 95%,
+labels under 95%, more than one invented death, under 80% of Riot's deaths
+agreed, or a p90 too slow for the 3s tier. It spends real money, so it is a
+manual pre-flight, never CI.
 
 ## Do not simplify the guards
 
-`src/main/services/coaching-engine.js` contains deterministic checks that
-**deliberately override the model**. Each one exists because of a specific,
-reproduced failure, and each one looks like removable defensive cruft until you
-know the story. Do not refactor these away.
+`coaching-engine.js` contains deterministic checks that **deliberately override
+the model**. Each one exists because of a specific, reproduced failure, and each
+one looks like removable defensive cruft until you know the story. They no longer
+guard tips; they guard the facts every review is built from. Do not refactor
+these away.
 
 - **Map lock with correction** (`applyMapRead`). The model repeatedly insisted
   the player was on Ascent while they were on Breeze. Two agreeing reads
@@ -264,27 +361,17 @@ know the story. Do not refactor these away.
   `mapFromLabels`). Valorant prints the location name on screen. Accumulated
   labels identify the map far more reliably than the model's guess, and once
   `mapConfirmedByLabels` is true the model can no longer change it.
-- **Callout gate.** A tip naming a callout that does not exist on the confirmed
-  map is rejected, so the coach cannot send the player to a location from a
-  different map.
 - **Scoreboard continuity** (`scoreboardChallenge`). Scores never move
   backwards, and a forward jump needs two agreeing reads before it is accepted.
 - **HP beats death.** A death is only registered when health is genuinely
   absent and the tell is unambiguous. The model kept announcing deaths that had
   not happened.
-- **Death silence** (`DEATH_TIPS_MAX`, `isSpectating`). At most two review tips
-  after dying, then nothing until the next buy phase.
-- **Play variety** (`PLAY_PATTERNS`). Stops the coach repeating the same stock
-  advice, for example telling the player to hold a crossfire every round.
-- **Ability gate.** Blocks commands to use abilities the player's agent does
-  not have.
-- **Reject reasons** (`noteReject`). Records why a tip was dropped so the
-  diagnostics payload can explain silence.
+- **Spectating** (`isSpectating`, `spectate-tells.js`), below.
 
 The governing principle: **the coach reports what is actually on screen and
 never infers.** When code and model disagree, code wins.
 
-### Whose HUD is it, and why death reviews used to vanish
+### Whose HUD is it
 
 Valorant puts you on a teammate's camera the instant you die, so the health, the
 weapon and the abilities in that corner become THEIRS. Every guard reasoning "a
@@ -294,9 +381,9 @@ A real graded session: the player's first death was rejected twice with "said th
 player was dead while they were alive at 100 HP". The frames read `own HP 100 and
 Ghost`, then `own HP 100 and Bandit`, then `own HP 19 and **Sova** abilities`,
 while the player was Iso. One bug, four consequences: the death never registered,
-so `lastDeathAt` was never set, so `isSpectating()` stayed false, so `death: true`
-was never set, so the spectator merge guard never engaged and a teammate's Ghost,
-Bandit and Sword were logged as the player's own weapon.
+so `lastDeathAt` was never set, so `isSpectating()` stayed false, so the spectator
+merge guard never engaged and a teammate's Ghost, Bandit and Sword were logged as
+the player's own weapon.
 
 `src/shared/spectate-tells.js` is the fix. **A HUD that changes whose it is mid
 round is spectating, whatever the health says.** One strong signal (a named
@@ -305,21 +392,9 @@ weapon change, health rising) decides it. A buy phase and a return from
 spectating are boundaries, because `roundNumber` was missing on a third of the
 real frames. `server/routes/coach.js` mirrors the vocabulary by hand, since
 `check:server` forbids reaching into `src/`, and `npm run test:spectate` asserts
-both copies agree on the real frames.
-
-### Death reviews skip the repetition gates, and only those
-
-Of 26 death reviews in that session, **24 were dropped**. Twenty-two of those
-were repetition gates, not truth gates. A review of a death is ABOUT a specific
-moment, so it is supposed to resemble the last one: same callout, same mistake,
-same words.
-
-`isDeath` is now decided in `processAIResponse` **above** the gates rather than
-forty lines below them, and skips `isSimilarToRecent`, the topic cooldown,
-`PLAY_PATTERNS` and `recentAbilities`. Every truth gate still applies, and
-`DEATH_TIPS_MAX` stays at 2. Two related fixes: the dead-player action gate was
-eating past-tense reviews of the corpse it was written to protect, and library
-filler emitted on a reject path was re-arming the very play gate that fired.
+both copies agree on the real frames. `playerUlt` is spectator owned too: after
+a death that icon is the teammate's, so the ledger only keeps an ult read taken
+while alive.
 
 ## League records in silence and coaches afterwards
 
@@ -408,9 +483,10 @@ closed roster, so an OCR slip arrives absent rather than wrong. The engine holds
 the hero for the match and **forgets it once a scoreboard is reviewed**, or the
 next match opens its review naming the last match's hero.
 
-What the hero read bought is `src/shared/rivals-abilities.js`, the Rivals
-equivalent of `validateTipForAgent`: no tip may name an ability the player's
-hero does not have. It permits one whose OWNER is named in the same sentence,
+What the hero read bought is `src/shared/rivals-abilities.js`: no sentence may
+name an ability the player's hero does not have. The Rivals engine still writes
+draft and scoreboard lines internally, and none of them reach the screen during
+a match; only its system notices reach the panel. It permits one whose OWNER is named in the same sentence,
 because "The Thing has Yancy Street Charge, which turns your dash off" is the
 counter table's best output.
 
@@ -536,9 +612,9 @@ npm run check:learnrole    a support never sees the CS lesson
 ## The Pro Playbook, and how to grow it
 
 `server/services/knowledge.js` holds the playbook: tagged notes scored against
-the live situation by `retrieve()`, which returns **only eight** and injects
-them at `${habitsBlock}`. `playbookMode()` is pinned to `hybrid`, so both the
-static habits and the retrieved notes go in.
+a situation by `retrieve()`, which returns **only eight**. The review draws on
+it twice: `study()` picks the sourced notes worth reading before the next match,
+and the round lines are written with the retrieved notes in the prompt.
 
 **New knowledge goes in `server/data/playbook.json`**, the growth hook the
 module has always documented. It merges at startup, `check:playbook` covers it
@@ -570,12 +646,14 @@ A contradiction advisory was built here and **removed after measuring**: both
 alarms it raised were false, "send it" matching Wingman and Owl Drone rather
 than aggression. What would actually work is recorded in the file.
 
-### Advanced tips is a BIAS, never a replacement
+### Advanced coaching is a BIAS, never a replacement
 
-`advancedTips` in config, off by default, surfaced in Settings. A note carries
-`tier: 'core' | 'advanced'`, core being the default so the 357 hand written ones
-are untouched. With the toggle on the mix goes from 34% to 75% advanced,
-measured across 12 real logged contexts plus 5 synthetic.
+`advancedTips` in config, off by default, surfaced in Settings as Advanced
+coaching. It now shapes the notes the REVIEW draws on (`match-review.js` passes
+`context.advancedTips` to `retrieve()`). A note carries `tier: 'core' |
+'advanced'`, core being the default so the 357 hand written ones are untouched.
+With the toggle on the mix goes from 34% to 75% advanced, measured across 12
+real logged contexts plus 5 synthetic.
 
 **A floor of core notes always survives, and on a deathstreak core takes the
 majority back.** That is the design, not a hedge: advanced advice assumes the
@@ -588,72 +666,13 @@ It is a **reserve, not a score bonus**. A bonus was the first design and does
 not do what it says: with `agents +4` in play, a bonus big enough to guarantee
 advanced notes surface drowns the specificity that makes any note relevant.
 
-**A weapon note must never name the weapon it is tagged for.** The prompt says
-USE THE WEAPON TO SHAPE THE PLAY BUT DO NOT NAME IT, since the player can see
-their own gun. All 17 shipped naming it, so the coach held a fact it was
-forbidden to say, and a live A/B showed it using none of them. They give a
-distance to play now, which is better advice anyway. Naming a DIFFERENT gun is
-allowed and is often the point.
+**A weapon note must never name the weapon it is tagged for**, since the player
+can see their own gun. They give a distance to play instead, which is better
+advice anyway. Naming a DIFFERENT gun is allowed and is often the point.
 
-`npm run bench:advanced` runs the live A/B on real frames, toggle on against
-off. It is a bench, not a check: it spends money and only a human can grade
-whether the tip got better. `npm run test:advancedtips` measures the retrieval
-shift offline, which is the half that can be checked.
-
-**The first A/B tested the easy half.** Measured on real contexts alone, all
-twelve came back "no agent", so `agents` notes, the highest scoring tag at +4,
-were never exercised. Always run both sets.
-
-### The coach can see your ultimate, and only that
-
-STATE carries `ult`, "ready" or "charging" or null. Before it, the coach had **no
-ability state whatsoever**: the prompt told the model to read the ability icons
-and never asked it to report what it saw, so every ultimate tip was a guess.
-
-`ULT_COMMAND` in `coaching-engine.js` drops a tip telling the player to press an
-ultimate the HUD says is charging. **Only a confirmed "charging" blocks.** The
-icon is small and often obscured so null is the common read, and a gate firing
-on null would silence every ultimate tip rather than the wrong ones.
-`playerUlt` is in `SPECTATOR_OWNED`, because after a death that icon belongs to
-the teammate being watched.
-
-Basic abilities still have no state. `ABILITY_COMMAND` remains a blanket ban on
-commanding a mobility ability, which is the honest position while the coach
-cannot see cooldowns.
-
-### Ctrl+Shift+E explains the last tip, and refuses when that is unsafe
-
-**With live tips closed this whole path is bypassed**: the hotkey opens the
-last review after a match and does nothing during one. What follows describes
-the live mode, kept for the day it is approved.
-
-The live tip is one sentence because it is read mid fight. `explainLastTip()`
-unpacks the same call on the frame it was made about, through
-`/api/coach/frame-chat`, which already answers at length with no tip-length gate.
-The live tip contract is untouched.
-
-`src/shared/explain-gate.js` allows it **only in a buy phase or while dead**,
-and **refuses on unknown**, which inverts the usual rule here. Elsewhere an
-unreadable field means say nothing and carry on; here the cost is asymmetric, so
-anything not provably safe declines and says when to try again. Dead is
-`playerAlive === false || phase === 'dead'`, matching `isSpectating()`: demanding
-both would refuse a dead player on exactly the ambiguous frames right after a
-death.
-
-It picks the last frame that **produced a shown tip**, not the last frame, since
-the guards reject the majority. It renders through the existing review card and
-needs `white-space: pre-wrap`, because `textContent` drops blank lines and the
-first version rendered three paragraphs as one unbroken wall.
-
-**The post-match review may reason across the observed facts**, and is the only
-place that may. Its fourth sentence names a repeat, "three of four deaths on the
-same angle", and is conditional: the prompt says to stop at three sentences when
-the facts are thin. The CRITICAL GROUNDING RULE above it is unchanged and must
-stay: tips prove what was ADVISED, never what the player did.
-
-**No test grades whether a tip is insightful.** `review-log.js` says so in as
-many words. `verify:ai` is the gate for any prompt or STATE change and it spends
-real money, so it is a manual pre-flight, never CI.
+`npm run test:advancedtips` measures the retrieval shift offline. **Always run
+it on both sets**: measured on real contexts alone, all twelve came back "no
+agent", so `agents` notes, the highest scoring tag at +4, were never exercised.
 
 ## A refund must take the licence away
 
@@ -689,14 +708,17 @@ partial refunds revoke.
 
 ## Conventions
 
-**No em dashes or en dashes** anywhere, in tips, in UI copy, in docs. Use
-commas. This is a hard rule.
+**No em dashes or en dashes** anywhere, in reviews, in UI copy, in docs, in
+commit messages. Use commas. This is a hard rule. In code that has to match a
+dash, write it as an escape (`\u2014`), never the character.
 
 **Never write a regex through a shell heredoc.** `\b` becomes a literal
 backspace byte, the file still parses, `node --check` still passes, and the
-regex silently matches nothing. This has bitten twice, once killing every
-pattern in `PLAY_PATTERNS`. Edit regexes with a file-editing tool, and always
-assert a new regex matches a known-positive string.
+regex silently matches nothing. This has bitten several times, once killing
+every pattern in a tip gate that no longer exists, and in 8.0 a Python patch
+through a heredoc turned a `'\n'` into a real newline inside a JS string.
+Edit regexes with a file-editing tool, and always assert a new regex matches a
+known-positive string.
 
 **Secrets come from the environment.** `.env` and `server/.env` are gitignored
 and this repo is public. Never commit a key.
