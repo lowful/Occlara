@@ -364,6 +364,16 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
 
   let resp = await send(budget, isThinking);
 
+  // SOME PROVIDERS REJECT THE REASONING SWITCH ITSELF with a 400, rather than
+  // ignoring it as the others do. Found benchmarking the live read: Gemini 3.5
+  // Flash Lite and GLM 5.3 Flash answered every request with a 400 and nothing
+  // else. One retry that leaves the field out, at the same budget.
+  if (resp.status === 400 && !isThinking) {
+    const first = await resp.text();
+    console.warn(`[coach] ${model} rejected the request (400), retrying without the reasoning switch: ${first.slice(0, 120)}`);
+    resp = await send(budget, true);
+  }
+
   if (!resp.ok) {
     const text = await resp.text();
     // 402 means the AI account is out of credits. That is NOT a transient

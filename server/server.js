@@ -87,7 +87,20 @@ const licenseKeyOrIp = (req) => String(req.headers['x-license-key'] || '').trim(
 const coachLimiter = rateLimit({
   windowMs: 60 * 1000, max: 90,   // headroom for the 1s capture tier
   keyGenerator: licenseKeyOrIp,
+  // The live READ has its own budget below. Sharing this one, a match read
+  // every second with two requests in flight would spend all 90 on reads
+  // alone and starve agent detection and the review.
+  skip: (req) => req.path === '/read',
   message: { error: 'Slow down. Too many coaching requests.' },
+  standardHeaders: true, legacyHeaders: false,
+});
+// The live read: facts only, one small call per frame. 150 a minute per licence
+// is a read every 400ms, above the fastest capture tier (one every second with
+// two in flight) with room for a retry, and still a hard ceiling on cost.
+const readLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 150,
+  keyGenerator: licenseKeyOrIp,
+  message: { error: 'Slow down. Too many read requests.' },
   standardHeaders: true, legacyHeaders: false,
 });
 const chatLimiter = rateLimit({
@@ -109,6 +122,7 @@ app.use(express.json({ limit: '2mb' }));
 app.use('/api/license/activate',        activationLimiter);
 app.use('/api/payments/create-checkout', checkoutLimiter);
 app.use('/api/coach/chat',               chatLimiter);
+app.use('/api/coach/read',               readLimiter);
 app.use('/api/coach',                    coachLimiter);
 app.use('/api/rivals',                   coachLimiter);
 

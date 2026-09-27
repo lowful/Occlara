@@ -31,7 +31,6 @@
 const fs = require('fs');
 const path = require('path');
 const { RoundLedger } = require('../src/shared/valorant-rounds');
-const verify = require('../src/shared/valorant-verify');
 const { profileDir, configPath } = require('./profile-path');
 
 const SERVER = process.env.OCCLARA_SERVER || 'https://ghostcoach-production.up.railway.app';
@@ -103,9 +102,19 @@ async function run(model) {
       deathSpot: s.locLabel || s.playerSpot, clock: s.clock, loc: s.locLabel || s.playerSpot });
     ctx = { ...ctx, ...s };
   }
-  const lastRound = finalRead ? 24 : null;
-  const { checks } = verify.reconcile(ledger.list(lastRound), riot);
-  r.deaths = checks;
+  // Scored per Riot round, directly. A round the model never reached counts as
+  // a miss, not as agreement, so a run that stops early cannot look perfect.
+  const byN = new Map(ledger.list(finalRead ? 24 : null).map((x) => [x.n, x]));
+  const d = { riotDeaths: 0, agreed: 0, invented: [], missed: [] };
+  for (const rr of riot.perRound) {
+    const saw = byN.get(rr.n);
+    const sawDeath = !!(saw && saw.died);
+    if (rr.died) d.riotDeaths++;
+    if (rr.died && sawDeath) d.agreed++;
+    else if (rr.died) d.missed.push(rr.n);
+    else if (sawDeath) d.invented.push(rr.n);
+  }
+  r.deaths = d;
   r.finalRead = finalRead;
   return r;
 }
@@ -115,12 +124,20 @@ const q = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s.le
 
 (async () => {
   console.log(`${frames.length} frames from ${SESSION}; Riot has ${riot.perRound.filter((x) => x.died).length} deaths in ${riot.rounds} rounds\n`);
-  const results = await Promise.all(MODELS.map((m) => run(m).then((r) => { console.log(`  done ${m}`); return r; })));
+  // TWO MODELS AT A TIME. The read limiter is per licence, and nine models at
+  // once spent it in seconds: the first sweep came back 90% "slow down".
+  const CONC = Number(flag('parallel', 2));
+  const results = [];
+  for (let i = 0; i < MODELS.length; i += CONC) {
+    const batch = await Promise.all(MODELS.slice(i, i + CONC)
+      .map((m) => run(m).then((r) => { console.log(`  done ${m}`); return r; })));
+    results.push(...batch);
+  }
   console.log(`\n${'model'.padEnd(36)} parse  deaths(ok/inv/miss)  labels-ok  hp    final  p50    p90    gap`);
   console.log('-'.repeat(118));
   for (const r of results) {
-    const d = r.deaths || { riotDeaths: 0, invented: [], missed: [] };
-    const agreed = d.riotDeaths - d.missed.length;
+    const d = r.deaths || { riotDeaths: 0, agreed: 0, invented: [], missed: [] };
+    const agreed = d.agreed;
     const p90 = q(r.ms, 0.9);
     // Two requests in flight: a new read can start every p90 / 2.
     const gap = p90 ? (p90 / 2 <= 1000 ? '1s' : p90 / 2 <= 2000 ? '2s' : p90 / 2 <= 3000 ? '3s' : '5s') : '-';
