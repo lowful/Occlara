@@ -124,7 +124,14 @@ function valorant(input) {
   const survival = { key: 'survival', label: 'Survival', weight: 25, score: null, evidence: [] };
   if (total >= 3) {
     const dpr = deaths / total;
-    let s = curve(dpr, [[0.4, 97], [0.55, 86], [0.7, 70], [0.85, 52], [1.0, 36]]);
+    // A Duelist's job is to take the first fight, so the same death rate means
+    // less for one. Measured on the real Abyss match: a 31 kill Jett at 0.875
+    // deaths a round graded 49 on the shared curve, which read as a player who
+    // could not stay alive rather than an entry doing entry work.
+    const DPR = role === 'Duelist'
+      ? [[0.5, 97], [0.65, 86], [0.8, 70], [0.95, 52], [1.1, 36]]
+      : [[0.4, 97], [0.55, 86], [0.7, 70], [0.85, 52], [1.0, 36]];
+    let s = curve(dpr, DPR);
     survival.evidence.push(`${deaths} deaths in ${total} rounds`);
     if (isVerified) {
       const fd = verified.filter((r) => r.firstDeath).length;
@@ -176,7 +183,13 @@ function valorant(input) {
   if (known.length >= 3) {
     const traded = known.filter((r) => r.traded).length;
     const trades = verified.reduce((a, r) => a + (num(r.trades) || 0), 0);
-    let s = curve(traded / known.length, [[0, 36], [0.15, 50], [0.3, 66], [0.45, 82], [0.6, 94]]);
+    // Same reason: whoever goes in first is the hardest player to trade, and in
+    // solo queue the trade is mostly the team's to make. The real Abyss Jett was
+    // traded once in 21 deaths.
+    const TRADED = role === 'Duelist'
+      ? [[0, 42], [0.12, 56], [0.25, 70], [0.4, 84], [0.55, 95]]
+      : [[0, 36], [0.15, 50], [0.3, 66], [0.45, 82], [0.6, 94]];
+    let s = curve(traded / known.length, TRADED);
     s += Math.min(10, trades * 2);
     if (assists !== null) s += curve(assists / total, [[0, 0], [0.15, 2], [0.3, 5]]);
     teamplay.score = s;
