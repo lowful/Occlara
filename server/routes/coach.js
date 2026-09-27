@@ -3,6 +3,7 @@ const express  = require('express');
 const supabase = require('../db/supabase');
 const knowledge = require('../services/knowledge');
 const matchReview = require('../services/match-review');
+const readPrompt = require('../services/read-prompt');
 const riotRounds = require('../services/riot-rounds');
 // The language list is shared with the client so both agree on what is
 // supported, and so the prompt always names the language in English (a model
@@ -146,6 +147,12 @@ const AI = {
   // a deep-reasoning image read. Defaults to the same vision model so an unset
   // env var cannot silently reintroduce a second model.
   visionDeep:  process.env.AI_VISION_MODEL_DEEP || process.env.AI_VISION_MODEL || 'google/gemini-3-flash-preview',
+  // The live READ (facts only, every one to three seconds) and the post match
+  // REVIEW are different jobs with different budgets, so each has its own
+  // switch. Unset, they fall back to the models above, so nothing changes until
+  // Railway says so. Chosen by scripts/bench-models.js --lean and bench:review.
+  readModel:   process.env.AI_READ_MODEL || process.env.AI_VISION_MODEL || 'google/gemini-3-flash-preview',
+  reviewModel: process.env.AI_REVIEW_MODEL || process.env.AI_TEXT_MODEL || 'google/gemini-3-flash-preview',
 };
 
 // ─── Out-of-credits breaker ──────────────────────────────────────────────────
@@ -463,6 +470,15 @@ const BENCH_MODELS = new Set([
   'qwen/qwen3-vl-30b-a3b-instruct',
   'z-ai/glm-4.6v',
   'mistralai/mistral-small-3.1-24b-instruct',
+  // Candidates for the live READ, 26 Sep 2026, cheapest vision models on
+  // OpenRouter newer than the current one. Scored by scripts/bench-read.js.
+  'inclusionai/ling-3.0-flash-vl',
+  'deepseek/deepseek-v4.1-flash',
+  'z-ai/glm-5.3-flash',
+  'openai/gpt-6-luna',
+  'meta/muse-spark-1.3-contributor',
+  'xiaomi/mimo-v2.6-flash',
+  'qwen/qwen3.8-flash',
 ]);
 function benchModel(req) {
   const m = String((req.body && req.body.benchModel) || '').trim();
@@ -1390,6 +1406,63 @@ async function validateKey(k) {
   return true;
 }
 
+/**
+ * Where the player is, decided from evidence rather than the model's words:
+ * the printed location label fingerprints the map and, when it fits, IS the
+ * location; otherwise the minimap coordinates resolve to a real callout on the
+ * locked map. Shared by /analyze and /read so both answer the same way.
+ * Mutates outCtx in place.
+ */
+function resolveLocation(outCtx, context) {
+  // MAP FINGERPRINT from the game's own printed location label. The model's
+  // map opinion cannot be trusted on its own: it is wrong CONSISTENTLY, so a
+  // rule that waits for it to contradict itself never fires (one session read
+  // Ascent on all 78 frames). The label is independent evidence, so if the
+  // label the game printed does not exist on the map the model claims, the
+  // claim is dropped rather than allowed to drive callouts.
+  if (outCtx.locLabel) {
+    const claimed = outCtx.map || context.map;
+    const fits = locator.labelFitsMap(claimed, outCtx.locLabel);
+    if (fits === false) {
+      console.log(`[coach] map claim "${claimed}" rejected: it has no "${outCtx.locLabel}"`);
+      delete outCtx.map;
+      outCtx.mapLabelConflict = true;
+    } else if (fits === true) {
+      // The label corroborates the map, so the location is known exactly.
+      outCtx.playerSpot = outCtx.locLabel;
+      outCtx.playerSpotVerified = true;
+    }
+  }
+
+  // DETERMINISTIC LOCATION: the model reported WHERE the yellow arrow sits on
+  // the minimap; the callout NAME comes from the map's real geometry, never
+  // from the model's memory. This is what stops callouts belonging to another
+  // map. Needs a locked map (the client only sends one after two agreeing
+  // reads), so an unknown map simply keeps the model's own wording.
+  const mapForSpot = outCtx.map || context.map;
+  if (outCtx.mmPos && mapForSpot && !outCtx.playerSpotVerified) {
+    const fix = locator.resolveSpot(mapForSpot, outCtx.mmPos[0], outCtx.mmPos[1]);
+    if (fix) {
+      // Cross-check against the model's own words. If it also named a spot and
+      // the two disagree about which SITE the player is on, one of the reads is
+      // wrong and we do not know which, so we keep neither rather than state a
+      // confident lie. (A rotating minimap shows up exactly this way.)
+      const claimed = String(outCtx.playerSpot || '').toLowerCase();
+      const sup     = String(fix.superRegion || '').toLowerCase();
+      const claimsOtherSite = claimed && /\b[abc]\b|\bmid\b/.test(claimed)
+        && !claimed.includes(sup) && sup.length <= 3;
+      if (claimsOtherSite) {
+        console.log(`[coach] location conflict: coords say ${fix.spot}, model said "${outCtx.playerSpot}", dropping both`);
+        delete outCtx.playerSpot;
+      } else {
+        outCtx.playerSpot = fix.spot;
+        outCtx.playerSpotVerified = true;
+        console.log(`[coach] location resolved: ${mapForSpot} ${JSON.stringify(outCtx.mmPos)} -> ${fix.spot} (${fix.precision})`);
+      }
+    }
+  }
+}
+
 // POST /api/coach/analyze, JSON body: { image: base64, context: {...} }
 router.post('/analyze', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
@@ -1528,53 +1601,7 @@ router.post('/analyze', async (req, res) => {
     // HUD state report wins over anything the legacy JSON path produced.
     let outCtx = { ...finalContext, ...hudState };
 
-    // MAP FINGERPRINT from the game's own printed location label. The model's
-    // map opinion cannot be trusted on its own: it is wrong CONSISTENTLY, so a
-    // rule that waits for it to contradict itself never fires (one session read
-    // Ascent on all 78 frames). The label is independent evidence, so if the
-    // label the game printed does not exist on the map the model claims, the
-    // claim is dropped rather than allowed to drive callouts.
-    if (outCtx.locLabel) {
-      const claimed = outCtx.map || context.map;
-      const fits = locator.labelFitsMap(claimed, outCtx.locLabel);
-      if (fits === false) {
-        console.log(`[coach] map claim "${claimed}" rejected: it has no "${outCtx.locLabel}"`);
-        delete outCtx.map;
-        outCtx.mapLabelConflict = true;
-      } else if (fits === true) {
-        // The label corroborates the map, so the location is known exactly.
-        outCtx.playerSpot = outCtx.locLabel;
-        outCtx.playerSpotVerified = true;
-      }
-    }
-
-    // DETERMINISTIC LOCATION: the model reported WHERE the yellow arrow sits on
-    // the minimap; the callout NAME comes from the map's real geometry, never
-    // from the model's memory. This is what stops callouts belonging to another
-    // map. Needs a locked map (the client only sends one after two agreeing
-    // reads), so an unknown map simply keeps the model's own wording.
-    const mapForSpot = outCtx.map || context.map;
-    if (outCtx.mmPos && mapForSpot && !outCtx.playerSpotVerified) {
-      const fix = locator.resolveSpot(mapForSpot, outCtx.mmPos[0], outCtx.mmPos[1]);
-      if (fix) {
-        // Cross-check against the model's own words. If it also named a spot and
-        // the two disagree about which SITE the player is on, one of the reads is
-        // wrong and we do not know which, so we keep neither rather than state a
-        // confident lie. (A rotating minimap shows up exactly this way.)
-        const claimed = String(outCtx.playerSpot || '').toLowerCase();
-        const sup     = String(fix.superRegion || '').toLowerCase();
-        const claimsOtherSite = claimed && /\b[abc]\b|\bmid\b/.test(claimed)
-          && !claimed.includes(sup) && sup.length <= 3;
-        if (claimsOtherSite) {
-          console.log(`[coach] location conflict: coords say ${fix.spot}, model said "${outCtx.playerSpot}", dropping both`);
-          delete outCtx.playerSpot;
-        } else {
-          outCtx.playerSpot = fix.spot;
-          outCtx.playerSpotVerified = true;
-          console.log(`[coach] location resolved: ${mapForSpot} ${JSON.stringify(outCtx.mmPos)} -> ${fix.spot} (${fix.precision})`);
-        }
-      }
-    }
+    resolveLocation(outCtx, context);
     delete outCtx.mmPos;   // raw coordinates are of no use to the client
     console.log('[coach] FINAL TIP:', tip.slice(0, 100));
 
@@ -2511,6 +2538,53 @@ router.get('/last-match', async (req, res) => {
   } catch (e) {
     console.error('[coach] last-match error:', e.message);
     res.json({ error: 'Could not load the last match.' });
+  }
+});
+
+// POST /api/coach/read, JSON body: { image: base64, context: {...}, benchModel? }
+//
+// THE LIVE READ, facts only. Occlara shows nothing during a match, so a frame
+// has one job: report the HUD. Same STATE shape as /analyze, parsed by the same
+// mapState() and located by the same resolveLocation(), so every client guard
+// keeps working. No tip, no playbook, no recent tips: the prompt is a small
+// fraction of /analyze's, which is what pays for reading every few seconds.
+// /analyze stays as it is for clients that have not updated yet.
+router.post('/read', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!licenseKey) return res.status(400).json({ error: 'X-License-Key header required' });
+  if (!await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid or expired license key' });
+
+  const image = req.body && req.body.image;
+  const context = (req.body && req.body.context) || {};
+  if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image data' });
+
+  const t0 = Date.now();
+  try {
+    const model = benchModel(req) || AI.readModel;
+    const raw = await Promise.race([
+      visionInfer(image, readPrompt.buildReadPrompt(context), 420, false, model),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('read timeout')), 9000)),
+    ]);
+    trackCall(licenseKey, 1);
+    const text = String(raw || '').replace(/```(?:json)?/gi, '').trim();
+    if (/^LOBBY\b/i.test(text)) return res.json({ lobby: true, context: {}, ms: Date.now() - t0 });
+
+    let outCtx = {};
+    const m = text.match(/STATE\s*:\s*(\{[\s\S]*\})/i) || text.match(/(\{[\s\S]*\})/);
+    if (m) {
+      try { outCtx = mapState(JSON.parse(m[1])); } catch { outCtx = {}; }
+    }
+    resolveLocation(outCtx, context);
+    delete outCtx.mmPos;
+    res.json({ lobby: false, context: outCtx, parsed: !!m, ms: Date.now() - t0 });
+  } catch (e) {
+    // Out of credits is reported honestly, exactly as /analyze does, so the
+    // client backs off instead of hammering an empty wallet.
+    if (e && (e.credits || e.status === 402)) {
+      return res.status(402).json({ error: 'ai-credits', retryInSec: creditsRetryIn(), ms: Date.now() - t0 });
+    }
+    console.error('[coach] read error:', e.message);
+    res.status(503).json({ error: 'read-unavailable', upstream: (e && e.status) || null, ms: Date.now() - t0 });
   }
 });
 
