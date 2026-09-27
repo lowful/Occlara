@@ -48,12 +48,20 @@ ok(!causes.isAvoidable('lost-duel') && !causes.isAvoidable('unclear') && causes.
 // ── The grade on the real match ─────────────────────────────────────────────
 const g = grade.valorant({ rounds, scoreline, role: 'Duelist', history: [] });
 const cat = (k) => g.categories.find((c) => c.key === k);
-ok(g.score >= 70 && g.score <= 90, `a 31 kill MVP win grades B or better, not a D (${g.score} ${g.letter})`);
+ok(g.score >= 70 && g.score <= 85, `a 31 kill MVP win who died alone 20 times grades a B, not an A and not a D (${g.score} ${g.letter})`);
 ok(cat('impact').score >= 90, `impact reads the 382 combat score (${cat('impact').score})`);
-ok(cat('survival').score < 60, `and survival reads the 21 deaths in 24 rounds (${cat('survival').score})`);
+ok(cat('survival').score < 65, `and survival reads the 21 deaths in 24 rounds (${cat('survival').score})`);
 ok(cat('survival').evidence.some((e) => /21 deaths in 24 rounds/.test(e)), 'every category says what it counted');
-ok(g.provisional && cat('decisions').score === null,
+ok(!g.provisional && g.categories.every((c) => c.score !== null), "with Riot's kill feed every category is measured");
+ok(/1 of 21 deaths traded by a teammate/.test(cat('teamplay').evidence[0]), `teamplay reads the real feed (${cat('teamplay').evidence[0]})`);
+ok(/team ahead in numbers and lost the round 6 times/.test(cat('decisions').evidence.join(' ')),
+  'decisions counts the six rounds the team was ahead when the player died and still lost');
+const noFeed = rounds.map((r) => ({ ...r, traded: null, trades: null, aliveAtDeath: null, clutch: null }));
+const gn = grade.valorant({ rounds: noFeed, scoreline, role: 'Duelist', history: [] });
+ok(gn.provisional && gn.categories.find((c) => c.key === 'decisions').score === null,
   'a record fetched before the kill feed was parsed leaves Decisions unmeasured and says so');
+ok(grade.valorant({ rounds, scoreline, role: 'Controller', history: [] }).score < g.score,
+  'the same deaths cost a Controller more than a Duelist, whose job is the first fight');
 ok(g.letter === grade.letter(g.score), 'the letter follows the number');
 ok(grade.letter(90) === 'S' && grade.letter(80) === 'A' && grade.letter(70) === 'B' && grade.letter(60) === 'C' && grade.letter(59) === 'D',
   'the letter bands are S 90, A 80, B 70, C 60');
@@ -77,8 +85,7 @@ fed.find((r) => r.n === 10).forensics = { cause: 'dry-peek', what: 'You swung ag
 fed.find((r) => r.n === 23).forensics = { cause: 'lost-duel', what: 'A fair fight.', better: null };
 const gf = grade.valorant({ rounds: fed, scoreline, role: 'Duelist', history: [] });
 ok(gf.categories.every((c) => c.score !== null) && !gf.provisional, 'with the feed every category is measured');
-ok(cat('teamplay').evidence[0] !== gf.categories.find((c) => c.key === 'teamplay').evidence[0]
-  && /traded by a teammate/.test(gf.categories.find((c) => c.key === 'teamplay').evidence[0]),
+ok(/traded by a teammate/.test(gf.categories.find((c) => c.key === 'teamplay').evidence[0]),
   'teamplay counts trades once the feed is there');
 ok(/2 of the 3 deaths the coach looked at were avoidable/.test(gf.categories.find((c) => c.key === 'decisions').evidence.join(' ')),
   'decisions counts the coach\'s look, and a lost duel is not held against the player');

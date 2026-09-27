@@ -177,6 +177,11 @@ function parse(text, input, death) {
   // A cause the model could not explain in a single surviving sentence is not
   // one the review should count against the player.
   if (!out.what && out.cause !== 'unclear' && out.cause !== 'lost-duel') out.cause = 'unclear';
+  // AN UNCLEAR FRAME GETS NO SENTENCES. On the bench, every unclear answer came
+  // with a sentence about the frame itself ("this frame does not show what
+  // caused your death", "use this frame only to reset"), which is the model
+  // talking about its own input. The label and the picture say it better.
+  if (out.cause === 'unclear') { out.what = null; out.better = null; }
   return out;
 }
 

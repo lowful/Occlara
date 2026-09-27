@@ -52,6 +52,8 @@ ok(good.cause === 'dry-peek' && /no utility thrown\.$/.test(good.what) && good.b
 ok(df.parse('{"cause": "Dry Peek", "what": "You peeked.", "better": "Wait."}', input, d2).cause === 'dry-peek', 'a label in words is normalised');
 ok(df.parse('{"cause": "bad luck", "what": "You peeked.", "better": "Wait."}', input, d2).cause === 'unclear', 'a label off the list is unclear, never invented');
 ok(df.parse('I think you dry peeked.', input, d2).cause === 'unclear', 'no JSON is unclear');
+const unclear = df.parse('{"cause": "unclear", "what": "This frame does not show the fight.", "better": "Use this frame to reset."}', input, d2);
+ok(unclear.what === null && unclear.better === null, 'an unclear frame carries no sentences about itself');
 ok(df.parse('{"cause": "lost-duel", "what": "", "better": ""}', input, d2).cause === 'lost-duel', 'a lost duel needs no explanation');
 ok(df.parse('{"cause": "isolated", "what": "", "better": "Stay near your team."}', input, d2).cause === 'unclear',
   'a mistake with no surviving sentence is not counted against the player');
