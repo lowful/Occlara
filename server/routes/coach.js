@@ -175,7 +175,11 @@ const AI = {
   // The post match look at a handful of deaths, one or two frames each. A
   // vision job like the read, but once a match rather than every second, so it
   // can afford a stronger model than the read can.
-  forensicsModel: process.env.AI_FORENSICS_MODEL || 'google/gemini-3.5-flash-lite',
+  // Chosen by npm run bench:forensics on the four teachable deaths of the real
+  // Abyss match: GPT 6 Luna was the one model that said "unclear" when the
+  // frame did not show the fight, where the others invented a peek to fill the
+  // slot. A confident wrong cause is the one thing this feature must not do.
+  forensicsModel: process.env.AI_FORENSICS_MODEL || 'openai/gpt-6-luna',
 };
 
 // ─── Out-of-credits breaker ──────────────────────────────────────────────────
