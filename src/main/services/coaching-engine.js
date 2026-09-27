@@ -249,7 +249,8 @@ class CoachingEngine extends EventEmitter {
       tips: [],
       notes: this.playerNotes.slice(-20),
       context: { ...c, proPlaybook: this.experiments().proPlaybook || 'off',
-        advancedTips: this.experiments().advancedTips === true },
+        advancedTips: this.experiments().advancedTips === true,
+        language: this.experiments().language || 'en' },
       startedAt: this.matchStartedAt,
       endedAt: Date.now(),
     };

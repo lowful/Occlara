@@ -30,6 +30,7 @@
 
 const knowledge = require('./knowledge');
 const forensics = require('./death-forensics');
+const { promptName } = require('./languages');
 
 /*
  * C, BY A SMALL MARGIN, AND THE MARGIN IS GROUNDING.
@@ -118,6 +119,7 @@ function normalise(body) {
       agent: typeof ctx.agent === 'string' ? clip(ctx.agent, 20) : null,
       map: typeof ctx.map === 'string' ? clip(ctx.map, 20) : null,
       advancedTips: ctx.advancedTips === true,
+      language: typeof ctx.language === 'string' ? clip(ctx.language, 8) : 'en',
     },
     final: {
       team: Number.isInteger(final.team) ? final.team : null,
@@ -306,7 +308,21 @@ function promptRounds(input, withKnowledge) {
     + 'add what the read does not: the principle behind the mistake, or what to do differently next time, in your '
     + 'own words. If you would only be repeating the read, leave that round out.\n'
     + 'FOCUS: one concrete habit for the next match, tied to the pattern it fixes, that a player can actually do.\n\n'
-    + GROUNDING;
+    + GROUNDING
+    + languageRule(context.language);
+}
+
+/**
+ * The player's language, for everything the player reads. The labels stay
+ * English because parse() reads them, and callouts and agent names stay exactly
+ * as the game prints them because that is what is on the player's screen.
+ */
+function languageRule(code) {
+  if (!code || code === 'en') return '';
+  const name = promptName(code);
+  return `\n\nWRITE IN ${name.toUpperCase()}. Everything after SUMMARY:, after each R<number>: and after FOCUS: `
+    + `must be natural ${name}. Keep the labels SUMMARY:, R<number>: and FOCUS: in English, write round numbers `
+    + 'as digits, and keep map callouts and agent names exactly as the game prints them.';
 }
 
 function buildPrompt(input) {

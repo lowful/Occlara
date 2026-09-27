@@ -354,7 +354,7 @@ async function forensicsFor(rounds, snap) {
   if (!deaths.length) return empty;
   try {
     const body = {
-      agent: snap.context.agent, map: snap.context.map,
+      agent: snap.context.agent, map: snap.context.map, language: snap.context.language || 'en',
       deaths: deaths.map(({ names, ...d }) => d),
     };
     const { ok, data } = await api.post(API.DEATH_FORENSICS, body, store.get('licenseKey'), 60000);
@@ -693,6 +693,9 @@ const controller = {
       experiments: () => ({
         proPlaybook:  playbookMode(),
         language:     normalizeLang(store.get('language')),
+        // Read when the match ends, so the review uses the setting as it is
+        // then, not as it was when recording started.
+        advancedTips: store.get('advancedTips') === true,
       }),
       // AI decision log: per-frame screenshot + parsed STATE + tip, to disk.
       diagnostics: (rec) => recordAiFrame(rec),

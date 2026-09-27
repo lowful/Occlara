@@ -28,6 +28,8 @@
  * repaired, and a death whose sentences all fail keeps only its label.
  */
 
+const { promptName } = require('./languages');
+
 let DATA = {};
 try { DATA = require('../valorant-data.generated.json'); } catch { DATA = {}; }
 
@@ -152,7 +154,7 @@ Rules:
 - Speak to the player as "you". Name no ability they do not have and no callout that is not in the list. Name no killer other than the one in the facts.
 - No dashes. Plain sentences, each ending with a period.
 
-Reply with JSON only, no other text:
+${input.language && input.language !== 'en' ? `Write "what" and "better" in ${promptName(input.language)}. Keep "cause" as the English label from the list, and keep callouts and agent names exactly as the game prints them.\n\n` : ''}Reply with JSON only, no other text:
 {"cause": "<one label from the list>", "what": "<one sentence, what happened>", "better": "<one sentence, the play that keeps you alive>"}`;
 }
 
@@ -205,7 +207,8 @@ function normalise(body) {
     frames: (Array.isArray(d && d.frames) ? d.frames : [])
       .filter((f) => typeof f === 'string' && f.length > 1000 && f.length < 1500000).slice(0, 2),
   })).filter((d) => d.n > 0 && d.frames.length).slice(0, 4);
-  return { agent: clip(b.agent, 24) || null, map: clip(b.map, 24) || null, deaths };
+  return { agent: clip(b.agent, 24) || null, map: clip(b.map, 24) || null,
+    language: typeof b.language === 'string' ? clip(b.language, 8) : 'en', deaths };
 }
 
 module.exports = { CAUSES, AVOIDABLE, buildPrompt, parse, normalise, wrongMap, foreignAbility, wrongKiller, calloutsOf };
