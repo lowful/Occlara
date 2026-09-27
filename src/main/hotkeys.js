@@ -7,18 +7,14 @@ const { globalShortcut } = require('electron');
  * already grabbed by another app) are logged, never thrown.
  */
 const BINDINGS = {
-  'CommandOrControl+Shift+X': 'forceTip',
   'CommandOrControl+Shift+P': 'pauseResume',
   'CommandOrControl+Shift+M': 'minimizePanel',
   'CommandOrControl+Shift+S': 'openSettings',
-  // Explain the last tip at length. Refuses outside a buy phase or death, so
-  // the binding is always live and the ACTION decides whether now is safe.
-  'CommandOrControl+Shift+E': 'explainTip',
-  // Developer joke tip. The key is always bound, but the action does nothing
-  // unless devJokeTips is set in the config, which has no Settings UI. Binding
-  // it unconditionally keeps this file a plain list rather than something that
-  // has to read config to know what it registers.
-  'CommandOrControl+Shift+J': 'jokeTip',
+  // The last review. Mid match it does nothing, because the review of a match
+  // in progress does not exist yet and a half one would be live coaching.
+  'CommandOrControl+Shift+E': 'openReview',
+  // The match library.
+  'CommandOrControl+Shift+H': 'openHistory',
 };
 
 function register(actions) {

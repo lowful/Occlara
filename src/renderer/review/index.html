@@ -7,6 +7,7 @@
   <title>Occlara Review</title>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../shared/grade-view.css" />
   <link rel="stylesheet" href="review.css" />
 </head>
 <body>
@@ -16,11 +17,23 @@
         <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
         <h2>Match review</h2>
       </div>
+      <div class="h-actions">
+        <button id="ask" class="btn btn-ghost sm no-drag" hidden>Ask about this match</button>
+        <button id="matches" class="btn btn-ghost sm no-drag">All matches</button>
+      </div>
       <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
     </header>
 
     <main class="body">
-      <p id="empty" class="empty" hidden>No match has been reviewed yet. Start the coach, play a match, and the review opens here when it ends.</p>
+      <p id="empty" class="empty" hidden>No match has been reviewed yet. Press Start, play a match, and the review opens here when it ends.</p>
+
+      <!-- EVERY GAME: the grade and the three lists. Moved by the painter to
+           sit under whichever game's header is showing, so there is one copy
+           of this markup and not three that drift apart. -->
+      <div id="common" class="common" hidden>
+        <div id="grade-host"></div>
+        <div id="insights-host"></div>
+      </div>
 
       <!-- VALORANT. Its own container rather than a third shape squeezed
            through the League slots: the League and Rivals painters hide and
@@ -58,13 +71,13 @@
         </section>
 
         <section class="block" id="v-patterns-wrap">
-          <h3>What the numbers say</h3>
+          <h3>More from the numbers</h3>
           <div id="v-patterns" class="v-patterns"></div>
         </section>
 
         <section class="block" id="v-rounds-wrap">
-          <h3>Every round the coach saw</h3>
-          <p class="hint">What the coach saw is computed from the screen. The coach's read is what it would have told you, written at the time.</p>
+          <h3>Round by round</h3>
+          <p class="hint">Facts come from Riot's record when the match links, and from the screen otherwise. Where the coach looked at the moment before a death, the frame is shown with what it saw.</p>
           <div id="v-rounds" class="v-rounds"></div>
         </section>
 
@@ -84,7 +97,7 @@
           <ul id="v-refused" class="r-refused"></ul>
         </section>
 
-        <p class="v-foot">Recorded silently. Nothing was shown on your screen while you played.</p>
+        <p class="v-foot">Read silently. Nothing was shown on your screen while you played.</p>
       </div>
 
       <div id="review" hidden>
@@ -164,6 +177,7 @@
   </div>
 
   <script src="../shared/i18n-apply.js"></script>
+  <script src="../shared/grade-view.js"></script>
   <script src="review.js"></script>
 </body>
 </html>

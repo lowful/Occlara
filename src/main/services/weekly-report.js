@@ -1,13 +1,15 @@
 'use strict';
 
 /**
- * The weekly report: which stats moved, how the four categories rate, what the
- * player is doing well, and what to work on.
+ * The weekly report: this week's graded matches, how each grade category moved
+ * against the week before, the mistake that keeps repeating, and which tracker
+ * stats moved.
  *
- * Pure assembly, no I/O and no electron. The caller gathers the inputs (tracker
- * profile, the baseline snapshot, the coached-session log) and this decides what
- * is worth saying. Kept separate from the main process so the logic that decides
- * what a player is told about their week can be tested directly.
+ * Pure assembly, no I/O and no electron. The caller gathers the inputs (saved
+ * reviews, the patterns across them, the tracker profile and its baseline) and
+ * this decides what is worth saying. Kept separate from the main process so
+ * the logic that decides what a player is told about their week can be tested
+ * directly.
  */
 
 // Rank ladder for trend arrows: "Gold 2" -> a comparable number. Unknown -> null.
@@ -36,7 +38,6 @@ function weekKey(d = new Date()) {
   return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
-const CATEGORY_LABEL = { impact: 'Impact', positioning: 'Positioning', utility: 'Utility', aim: 'Aim' };
 
 // Which stats the report tracks. deadband keeps normal week-to-week noise from
 // being announced as progress or decline.
@@ -55,22 +56,25 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
  * Build the report.
  *
  * input = {
- *   riotId, stats (current tracker profile | null), base (week-ago snapshot | null),
- *   snapshotAt, perf (coached sessions, oldest first), categories (from
- *   computeCategoryTrends), now
+ *   riotId, game,
+ *   stats (current tracker profile | null), base (week-ago snapshot | null), snapshotAt,
+ *   reviews (saved reviews of the last fortnight, newest first),
+ *   patterns (patterns.summarise over the last matches),
+ *   now
  * }
  *
- * Returns { hasData:false, reason } when there is not enough history to say
- * anything honest, because a report of blanks and invented praise is worse than
- * not opening at all.
+ * Returns { hasData:false, reason } when there is not enough to say anything
+ * honest, because a report of blanks and invented praise is worse than not
+ * opening at all.
  */
-const { profileHabits } = require('./habits');
-
 function assembleReport(input) {
-  const { riotId = '', stats = null, base = null, snapshotAt = null, categories = {} } = input || {};
-  const now  = input && input.now ? input.now : Date.now();
-  const perf = Array.isArray(input && input.perf) ? input.perf : [];
-  const week = perf.filter((r) => r && typeof r.at === 'number' && r.at >= now - WEEK_MS);
+  const { riotId = '', stats = null, base = null, snapshotAt = null } = input || {};
+  const now = input && input.now ? input.now : Date.now();
+  const all = Array.isArray(input && input.reviews) ? input.reviews : [];
+  const graded = all.filter((e) => e && e.review && e.review.grade && typeof e.review.grade.score === 'number');
+  const week = graded.filter((e) => e.at >= now - WEEK_MS);
+  const before = graded.filter((e) => e.at < now - WEEK_MS && e.at >= now - 2 * WEEK_MS);
+  const patterns = (input && input.patterns) || null;
 
   if (!stats && !week.length) {
     return { hasData: false, reason: riotId ? 'no-activity' : 'not-connected', riotId };
@@ -99,27 +103,65 @@ function assembleReport(input) {
     }
   }
 
-  // Strongest and weakest of the four rated categories.
-  const rated = Object.entries(categories || {})
-    .filter(([, v]) => v && v.avg != null)
-    .sort((a, b) => b[1].avg - a[1].avg);
-  const best  = rated.length     ? { key: rated[0][0], label: CATEGORY_LABEL[rated[0][0]], ...rated[0][1] } : null;
-  const worst = rated.length > 1 ? { key: rated[rated.length - 1][0], label: CATEGORY_LABEL[rated[rated.length - 1][0]], ...rated[rated.length - 1][1] } : null;
+  // Each grade category this week, against the week before when it had any.
+  const avgCat = (rows) => {
+    const m = new Map();
+    for (const e of rows) {
+      for (const c of e.review.grade.categories || []) {
+        if (typeof c.score !== 'number') continue;
+        const x = m.get(c.key) || { key: c.key, label: c.label, sum: 0, n: 0 };
+        x.sum += c.score; x.n++;
+        m.set(c.key, x);
+      }
+    }
+    return m;
+  };
+  const nowCats = avgCat(week);
+  const prevCats = avgCat(before);
+  const categories = [...nowCats.values()].map((c) => {
+    const avg = Math.round(c.sum / c.n);
+    const p = prevCats.get(c.key);
+    return { key: c.key, label: c.label, avg, direction: p ? trendDirection(avg, Math.round(p.sum / p.n), 3) : 'flat' };
+  });
+  const rated = categories.slice().sort((a, b) => b.avg - a.avg);
+  const best  = rated.length     ? rated[0] : null;
+  const worst = rated.length > 1 ? rated[rated.length - 1] : null;
 
-  // The coach's own written notes from this week's graded sessions.
-  const clean = (t) => String(t || '').trim().replace(/\s+/g, ' ');
-  const uniq  = (arr) => [...new Set(arr.map(clean).filter((s) => s.length > 8))].slice(0, 3);
-  const doingWell = uniq(week.map((r) => r.strengths));
-  const toImprove = uniq(week.map((r) => r.weaknesses));
+  // What went well and what to fix, from the matches themselves: the entries
+  // that showed up most this week.
+  const count = (list) => {
+    const m = new Map();
+    for (const e of week) {
+      for (const x of ((e.review.insights || {})[list] || [])) {
+        const t = m.get(x.key) || { title: x.title, fix: x.fix || null, n: 0 };
+        t.n++;
+        m.set(x.key, t);
+      }
+    }
+    return [...m.values()].sort((a, b) => b.n - a.n);
+  };
+  const doingWell = count('strengths').slice(0, 3).map((x) => x.n > 1 ? `${x.title}, in ${x.n} matches` : x.title);
 
-  // The recurring mistakes, counted from the tips the coach actually gave
-  // across this week's sessions. Unlike toImprove (which is the grader's
-  // prose from the latest sessions) this describes the PLAYER rather than a
-  // session, because it only surfaces what keeps coming back.
-  const habits = profileHabits(Array.isArray(input && input.archives) ? input.archives : [], 3);
+  // The repeated mistakes across matches, the same list the library shows, as
+  // habits with their fix.
+  const habits = patterns && patterns.enough
+    ? patterns.mistakes.slice(0, 3).map((p) => ({
+      label: p.title,
+      sessions: p.matches,
+      count: p.total,
+      blurb: (p.examples[0] && p.examples[0].detail) || '',
+      fix: p.fix || '',
+    }))
+    : [];
+  // What to work on, only when there are no repeated mistakes to show below:
+  // the same list twice on one page reads as padding.
+  const toImprove = habits.length ? []
+    : count('mistakes').slice(0, 3).map((x) => x.fix ? `${x.title}. ${x.fix}` : x.title);
 
   const avgOverall = week.length
-    ? Math.round(week.reduce((s, r) => s + (r.overall || 0), 0) / week.length) : null;
+    ? Math.round(week.reduce((sum, e) => sum + e.review.grade.score, 0) / week.length) : null;
+  const avgBefore = before.length
+    ? Math.round(before.reduce((sum, e) => sum + e.review.grade.score, 0) / before.length) : null;
 
   return {
     hasData: true,
@@ -130,6 +172,7 @@ function assembleReport(input) {
     matchesTracked: stats ? stats.matches : null,
     sessions: week.length,
     avgOverall,
+    avgDirection: avgOverall !== null && avgBefore !== null ? trendDirection(avgOverall, avgBefore, 2) : 'flat',
     deltas,
     categories,
     best,
@@ -139,8 +182,8 @@ function assembleReport(input) {
     habits,
     // With no baseline we say so, rather than showing flat arrows that read as
     // "no progress" when they really mean "nothing to compare against".
-    firstWeek: !base,
+    firstWeek: !base && !before.length,
   };
 }
 
-module.exports = { assembleReport, weekKey, rankIndex, trendDirection, WEEK_MS, CATEGORY_LABEL };
+module.exports = { assembleReport, weekKey, rankIndex, trendDirection, WEEK_MS };

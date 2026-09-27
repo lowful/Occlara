@@ -29,7 +29,6 @@ contextBridge.exposeInMainWorld('occlara', {
   startCoaching: () => ipcRenderer.send(C.COACH_START),
   stopCoaching:  () => ipcRenderer.send(C.COACH_STOP),
   pauseResume:   () => ipcRenderer.send(C.COACH_PAUSE),
-  toggleOverlay: () => ipcRenderer.send(C.OVERLAY_TOGGLE),
   confirmAgent:  () => ipcRenderer.send(C.AGENT_CONFIRM),
   resizePanel:   (h) => ipcRenderer.send(C.PANEL_RESIZE, h),
   minimize:      () => ipcRenderer.send(C.PANEL_MINIMIZE),
@@ -44,11 +43,9 @@ contextBridge.exposeInMainWorld('occlara', {
   openLearn:     () => ipcRenderer.send(C.OPEN_LEARN),
   quit:          () => ipcRenderer.send(C.APP_QUIT),
   // request/response
-  forceTip:      () => ipcRenderer.invoke(C.COACH_FORCE_TIP),
   getState:      () => ipcRenderer.invoke(C.STATE_GET),
   setAgent:      (name) => ipcRenderer.invoke(C.AGENT_SET, name),
   // subscriptions
-  onTip:    (cb) => subscribe(C.PUSH_TIP, cb),
   onStatus: (cb) => subscribe(C.PUSH_STATUS, cb),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),
   onAgent:  (cb) => subscribe(C.PUSH_AGENT, cb),

@@ -2,46 +2,52 @@
 
 const EventEmitter = require('events');
 const api = require('./api-client');
-const tipLibrary = require('./tip-library');
 const agentData = require('./agent-data');
-const { polishText, cleanTip, tipWords, normalizeTip, overlapRatio, countOf,
-        PREAMBLE, TRUNCATION } = require('./tip-hygiene');
-const { API, TIMING, PERFORMANCE_INTERVALS, TIP_PACING, COACHING } = require('../../shared/config');
+const { API, TIMING, CAPTURE_TIERS } = require('../../shared/config');
+
+// Reads allowed in flight at once. Two doubles the capture rate over one at a
+// time without letting a slow model build a queue of stale frames.
+const MAX_IN_FLIGHT = 2;
 const spectate = require('../../shared/spectate-tells');
 const { RoundLedger } = require('../../shared/valorant-rounds');
 const { MatchEndWatch } = require('../../shared/match-end');
 const valorantReview = require('../../shared/valorant-review');
 
 /**
- * The coaching loop. Lives in the main process; the heavy screen capture runs in
+ * The match reader. Lives in the main process; the heavy screen capture runs in
  * a Worker Thread (injected as captureFunction) so the game never stalls.
  *
+ * It reads the game and says NOTHING during a match. Every read goes through
+ * the guards in updateMatchContext into the round ledger, and when the match
+ * ends the review is written from that ledger.
+ *
  * Emits:
- *   'tip'          { text, source: 'ai'|'library'|'system', time, death? (white skull death review) }
  *   'status'       'coaching' | 'paused' | 'stopped'
- *   'match-review' review string
+ *   'notice'       { kind, text } a problem worth one line on the panel
+ *   'cadence'      the current gap between reads, in ms
+ *   'agent'        the detected or confirmed agent
+ *   'match-review' (reviewText, snapshot)
  */
 class CoachingEngine extends EventEmitter {
   constructor(opts = {}) {
     super();
     this.licenseKey      = opts.licenseKey || '';
     this.captureFunction = opts.captureFunction || null;
-    this.analyzeInterval = PERFORMANCE_INTERVALS[opts.performanceMode] || PERFORMANCE_INTERVALS.balanced;
-    // Tip pacing follows the tier: faster tiers allow more (equally gated) tips.
-    this.pacing = TIP_PACING[opts.performanceMode] || TIP_PACING.balanced;
-    // Tips the player rated as bad: never re-served from the library, and the
-    // most recent ones are sent to the AI so it avoids similar advice.
-    this.badTips = new Set(Array.isArray(opts.badTips) ? opts.badTips : []);
-    this.playerStats = null;   // tracker profile (rank/KD/HS%), set async after start
-    this.habits = null;      // recurring mistakes from the week, carried between sessions
-    this.perfSummary = null;   // coached-session category trends (dashboard overview)
+    // How often the game is read. 'auto' starts at the fastest tier and steps
+    // with measured latency; a number pins it (from Settings).
+    this.captureSpeed = CAPTURE_TIERS.includes(Number(opts.captureSpeed)) ? Number(opts.captureSpeed) : 'auto';
+    this.gapMs = this.captureSpeed === 'auto' ? CAPTURE_TIERS[0] : this.captureSpeed;
+    this.inFlight = 0;
+    this.seq = 0;
+    this.nextSeq = 0;
+    this.pending = new Map();
+    this.latencies = [];
+    this.readErrors = 0;
+    this.lastSendAt = 0;
+    this.lastNote = null;
     // Experimental settings, read live from the store so a settings flip
     // applies to the very next capture: { proPlaybook: 'off'|'on'|'hybrid' }.
     this.experiments = typeof opts.experiments === 'function' ? opts.experiments : () => ({});
-    // Death forensics: fresh rolling game-audio clip getter (null when absent).
-    this.audioClip = typeof opts.audioClip === 'function' ? opts.audioClip : () => null;
-    // Player-written feedback on past tips ({ text, reason }), for the prompt.
-    this.getFeedback = typeof opts.getFeedback === 'function' ? opts.getFeedback : () => [];
     // AI decision log: gets { at, image, state, tip, shown } per analyzed frame,
     // for the "what did the coach see and say" viewer. No-op when not provided.
     this.diagnostics = typeof opts.diagnostics === 'function' ? opts.diagnostics : null;
@@ -53,9 +59,6 @@ class CoachingEngine extends EventEmitter {
     this.paused      = false;
     this.shouldAbort = false;
     this.lastCaptureTime = 0;
-    this.lastTipTime     = 0;
-    this.skipCount       = 0;
-    this.tipHistory      = [];   // { text, source, time }
 
     this.lastServerStatus = null; // last HTTP status (0 = network/unreachable)
     this.warnedFailure    = false; // one-time server "why no AI tips" notice
@@ -64,19 +67,12 @@ class CoachingEngine extends EventEmitter {
     this.warnedCapture    = false; // one-time capture-failure notice
     this.lastAuthSuspect  = 0;     // throttle for 401/403 -> license re-check
 
-    this.aiTipCount      = 0;     // coaching-tip mix tracking (AI must stay majority)
-    this.libraryTipCount = 0;
-
     this.enemyHistory  = [];      // recent enemy spots/angles the AI reported
     this.lastWarnedSpot = null;   // de-dupe the "they keep peeking X" warning
-    this.recentAbilities = [];    // recent ability words in AI tips (anti-fixation)
-    this.recentPlays     = [];    // recent stock plays (crossfire, off-angle...), for variety
     this.lastPhaseChange = null;  // { from, to, at }: round-transition awareness
     this.inLobby        = false;  // server saw a menu/lobby: silence ALL tips
     this.matchMemory    = [];     // running log of the match (rounds, streaks, reads)
     this.playerNotes    = [];     // observed FACTS about what the player did on screen
-    this.recentFrames   = [];     // last few REAL gameplay frames (never lobby/desktop)
-    this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/…)
     this.analyzedFrames = 0;      // frames analyzed this session (warm-up gate)
     this.lastDeathAt    = 0;      // when the player last died (death-review window)
     this.deathTipsSent  = 0;      // coaching tips shown since that death (capped, then silence)
@@ -114,22 +110,23 @@ class CoachingEngine extends EventEmitter {
     this.isRunning = true;
     this.paused = false;
     this.shouldAbort = false;
-    this.lastTipTime = 0;
     this.matchContext = freshContext();
-    this.aiTipCount = 0;
-    this.libraryTipCount = 0;
+    this.inFlight = 0;
+    this.seq = 0;
+    this.nextSeq = 0;
+    this.pending = new Map();
+    this.latencies = [];
+    this.readErrors = 0;
+    this.lastSendAt = 0;
     this.warnedFailure = false;
     this.warnedCapture = false;
     this.failStreak = 0;
     this.enemyHistory = [];
     this.lastWarnedSpot = null;
-    this.recentAbilities = [];
-    this.recentPlays = [];
     this.lastPhaseChange = null;
     this.inLobby = false;
     this.matchMemory = [];
     this.playerNotes = [];
-    this.recentFrames = [];
     this.analyzedFrames = 0;
     this.lastDeathAt = 0;
     this.deathTipsSent = 0;
@@ -148,11 +145,6 @@ class CoachingEngine extends EventEmitter {
     this.pendingMode = null;
     this.standardEvidence = 0;
     this.swapEvidence = 0;
-    // The overlay turns this into its live indicator: the mark, pulsed twice
-    // and gone. This used to ALSO emit a welcome tip ("Coach is live. Trust
-    // your reads and stay tradeable"), a sentence that is read once, is never
-    // useful again, and held one of the four visible card slots for eleven
-    // seconds while the player was still loading into the round.
     this.emit('status', 'coaching');
     this.ledger = new RoundLedger();
     this.endWatch = new MatchEndWatch();
@@ -160,12 +152,12 @@ class CoachingEngine extends EventEmitter {
 
     this.armAgentDetection();
 
-    this.timers.push(setTimeout(() => this.isRunning && this.captureAndAnalyze(), TIMING.firstAnalyze));
-    this.loopTimer = setInterval(() => {
-      if (this.isRunning && !this.isCapturing) this.captureAndAnalyze();
-    }, this.analyzeInterval);
+    // A short heartbeat decides when the next read goes out; the gap and the
+    // two-in-flight ceiling live in tick(), so the cadence can change mid match.
+    this.loopTimer = setInterval(() => this.tick(), 200);
+    this.emit('cadence', this.gapMs);
 
-    console.log('[engine] started, interval', this.analyzeInterval, 'ms, key', this.licenseKey ? 'set' : 'MISSING');
+    console.log('[engine] started, reading every', this.gapMs, 'ms (', this.captureSpeed, '), key', this.licenseKey ? 'set' : 'MISSING');
   }
 
   stop() {
@@ -175,9 +167,7 @@ class CoachingEngine extends EventEmitter {
     this.timers.forEach(clearTimeout); this.timers = [];
     if (this.loopTimer)  { clearInterval(this.loopTimer);  this.loopTimer = null; }
     if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
-    // Frame memory is session-scoped: the controller archives what it needs
-    // BEFORE calling stop(), then the buffer is wiped so nothing carries over.
-    this.recentFrames = [];
+    this.pending.clear();
     this.emit('status', 'stopped');
 
     // A match the watch already ended has had its review. Anything since, a
@@ -236,13 +226,14 @@ class CoachingEngine extends EventEmitter {
     // The agent is NOT reset here: endMatch already did, and the player may
     // have confirmed the new one in the panel before this first frame landed.
     if (w && w.kind === 'new-match') this.beginMatch(false);
-    const shown = this._cycleShown;
     this.ledger.observe({
       at, team: c.teamScore | 0, enemy: c.enemyScore | 0, side: c.side, phase: c.phase,
       alive: c.playerAlive, died: !!died, deathSpot: c.deathSpot,
       clock: c.clock, ult: c.playerUlt, spike: c.spike, spikeSpot: c.spikeSpot,
       loc: c.locLabel || c.playerSpot,
-      tip: shown ? { text: shown.text, source: shown.source, death: !!shown.death } : null,
+      // What the player was SEEN doing this frame, a fact. It fills the round's
+      // "what the coach saw" lines, which live tips used to fill.
+      note: this.lastNote,
     });
   }
 
@@ -251,14 +242,11 @@ class CoachingEngine extends EventEmitter {
     const c = this.matchContext;
     const lastRound = endedBy === 'score' ? (c.teamScore | 0) + (c.enemyScore | 0) : null;
     const rounds = this.ledger.list(lastRound);
-    const tips = this.tipHistory
-      .filter((t) => t.source === 'ai' && (t.time || 0) >= this.matchStartedAt)
-      .map((t) => t.text);
-    if (!rounds.length && tips.length < 3) return null;
+    if (!rounds.length) return null;
     return {
       endedBy,
       rounds,
-      tips,
+      tips: [],
       notes: this.playerNotes.slice(-20),
       context: { ...c, proPlaybook: this.experiments().proPlaybook || 'off',
         advancedTips: this.experiments().advancedTips === true },
@@ -310,102 +298,198 @@ class CoachingEngine extends EventEmitter {
     console.log('[engine] resumed');
   }
 
-  setPerformanceMode(mode) {
-    const next = PERFORMANCE_INTERVALS[mode];
-    if (!next || next === this.analyzeInterval) return;
-    this.analyzeInterval = next;
-    this.pacing = TIP_PACING[mode] || TIP_PACING.balanced;
-    if (this.isRunning && this.loopTimer) {
-      clearInterval(this.loopTimer);
-      this.loopTimer = setInterval(() => {
-        if (this.isRunning && !this.isCapturing) this.captureAndAnalyze();
-      }, this.analyzeInterval);
-      console.log('[engine] interval updated to', next, 'ms');
+  // ── the live read ───────────────────────────────────────────────────────────
+  /**
+   * READING THE GAME, NEVER COACHING IT. Occlara shows nothing during a match:
+   * each frame's only job is to report the HUD (POST /api/coach/read), and the
+   * review writes the coaching once the match is over.
+   *
+   * TWO READS IN FLIGHT, PROCESSED IN CAPTURE ORDER. A read takes one to five
+   * seconds depending on the model, so one at a time capped the capture rate at
+   * the model's latency. Two at once doubles it. Replies can come back out of
+   * order, and the round ledger, the death edge and the scoreboard continuity
+   * guard all assume time runs forwards, so replies wait in `pending` until
+   * every earlier one has been applied.
+   *
+   * THE GAP ADAPTS, "the fastest the pipeline can sustain" rather than a fixed
+   * number: tiers from CAPTURE_TIERS, stepping slower when p90 latency exceeds
+   * what two in flight can cover or reads keep failing, and faster again when
+   * there is clear headroom. A manual speed in Settings pins it.
+   */
+  tick() {
+    if (!this.isRunning || this.paused || this.isCapturing) return;
+    if (this.aiCreditsOutAt && Date.now() - this.aiCreditsOutAt < AI_CREDITS_BACKOFF_MS) return;
+    if (this.inFlight >= MAX_IN_FLIGHT) return;
+    if (Date.now() - this.lastSendAt < this.gapMs) return;
+    this.sendRead();
+  }
+
+  async sendRead() {
+    const seq = this.seq++;
+    this.lastSendAt = Date.now();
+    this.inFlight++;
+    let result = { failed: true };
+    try {
+      let shot = null;
+      this.isCapturing = true;
+      try { shot = await this.captureFunction(); }
+      catch (e) { console.error('[engine] capture error:', e.message); }
+      finally { this.isCapturing = false; }
+      if (this.shouldAbort) return;
+      if (!shot) { this.onCaptureFailed(); return; }
+      this.warnedCapture = false;
+
+      const at = Date.now();
+      const data = await this.callServer(API.READ, { image: shot, context: this.readContext() });
+      if (this.shouldAbort) return;
+      if (!data) { this.onReadFailed(); this.noteLatency(null); return; }
+      this.warnedFailure = false;
+      this.failStreak = 0;
+      this.noteLatency(Date.now() - at);
+      result = { data, shot, at };
+    } catch (e) {
+      console.error('[engine] read error:', e.message);
+    } finally {
+      this.inFlight--;
+      if (!this.shouldAbort) {
+        this.pending.set(seq, result);
+        this.drain();
+      }
     }
   }
 
-  // ── main loop ───────────────────────────────────────────────────────────────
-  async captureAndAnalyze() {
-    if (this.isCapturing || this.paused) return;
-    if (Date.now() - this.lastCaptureTime < this.analyzeInterval - 2000) return;
-    // Out of AI credits: capturing and uploading a screenshot every cycle cannot
-    // produce a tip, it just burns the player's CPU and bandwidth. Idle until
-    // the cooldown passes, then try once to see if credits are back. Library
-    // tips keep flowing throughout, so coaching never goes fully silent.
-    if (this.aiCreditsOutAt && Date.now() - this.aiCreditsOutAt < AI_CREDITS_BACKOFF_MS) return;
-
-    this.isCapturing = true;
-    this.lastCaptureTime = Date.now();
-    try {
-      let shot;
-      try { shot = await this.captureFunction(); }
-      catch (e) { console.error('[engine] capture error:', e.message); this.onCaptureFailed(); return; }
-      if (this.shouldAbort) return;
-      if (!shot) { this.onCaptureFailed(); return; }
-      this.warnedCapture = false;   // capture is healthy
-
-      const body = { image: shot, context: this.buildOutgoingContext() };
-      // Frame memory only when it earns its latency (two images are ~2x slower
-      // per reply, and the loop is single-in-flight, so every slow reply costs
-      // future tips): right after a death, on a phase flip, or as a periodic
-      // pattern sample. Everything else sends one image and replies fast.
-      const prev = this.shouldSendFrameMemory() ? this.previousGameplayFrame() : null;
-      if (prev) body.previousImage = prev;
-      // Death forensics: inside the death window the last seconds of game
-      // audio ride along. The sounds (footsteps, reloads, ult voice lines)
-      // usually explain a death better than any frame, and this is strictly
-      // explanation, never "right now" reaction.
-      if (this.matchContext.lastDeathAt && Date.now() - this.matchContext.lastDeathAt < 15000) {
-        const clip = this.audioClip();
-        if (clip) body.audio = clip;
-      }
-
-      const data = await this.callServer(API.ANALYZE, body);
-      if (this.shouldAbort) return;
-      if (!data) { this.onAnalyzeFailed(); return; }
-      this.warnedFailure = false;   // server is healthy again
-      this.failStreak = 0;
-      this.analyzedFrames++;
-      this._cycleShown = null;                   // reset before this cycle decides
-      const deathBefore = this.lastDeathAt;
-      this.processAIResponse(data);
-      // The round ledger and the match-end watch. Guarded, because a bug in
-      // the review's bookkeeping must never cost the coach its next frame.
-      try {
-        this.recordFrame({ lobby: this.inLobby, died: this.lastDeathAt !== deathBefore });
-      } catch (e) { console.log('[engine] round ledger error:', e.message); }
-      if (!this.inLobby) this.pushFrame(shot);   // confirmed gameplay: keep for chat
-      // AI decision log: record the frame the coach read, the STATE it parsed
-      // from it (its "notes"), the tip it produced, and what was actually shown
-      // after the gates. Only for real gameplay, so lobby frames are not logged.
-      if (this.diagnostics && !this.inLobby) {
-        try {
-          this.diagnostics({
-            at:    Date.now(),
-            image: shot,
-            state: data.context || {},
-            aiTip: data.tip || '',
-            // `death` rides along so the AI log can mark death reviews on the
-            // timeline. Without it the log cannot tell a review apart from an
-            // ordinary tip, because the text alone is not a reliable tell.
-            shown: this._cycleShown
-              ? { text: this._cycleShown.text, source: this._cycleShown.source, death: !!this._cycleShown.death }
-              : null,
-            // Why the model's tip never reached the player. Always read (which
-            // also clears it, so a stale reason cannot leak into a later frame).
-            // NOT conditional on nothing being shown: a rejected AI tip usually
-            // triggers a library tip to fill the gap, so `shown` is set even
-            // though the AI's tip was dropped, and that is exactly the case
-            // worth explaining.
-            reject: takeRejectReason(),
-          });
-        } catch (e) { console.log('[engine] diagnostics sink error:', e.message); }
-      }
-    } catch (e) {
-      console.error('[engine] analyze error:', e.message);
-    } finally {
-      this.isCapturing = false;
+  /** Apply finished reads strictly in the order they were captured. */
+  drain() {
+    while (this.pending.has(this.nextSeq)) {
+      const r = this.pending.get(this.nextSeq);
+      this.pending.delete(this.nextSeq);
+      this.nextSeq++;
+      if (!r.failed) this.applyRead(r);
     }
+  }
+
+  applyRead({ data, shot, at }) {
+    this.analyzedFrames++;
+    const deathBefore = this.lastDeathAt;
+    this.processRead(data);
+    const died = this.lastDeathAt !== deathBefore;
+    // The round ledger and the match-end watch. Guarded, because a bug in the
+    // review's bookkeeping must never cost the reader its next frame.
+    try {
+      this.recordFrame({ lobby: this.inLobby, died });
+    } catch (e) { console.log('[engine] round ledger error:', e.message); }
+    // The AI decision log keeps the frame and what was read from it. The post
+    // match review goes back to these frames for the moments before a death,
+    // matched on the round the ledger filed the frame under and the clock on it.
+    if (this.diagnostics && !this.inLobby) {
+      try {
+        this.diagnostics({ at, image: shot, state: data.context || {}, aiTip: '', shown: null, reject: null,
+          died, round: this.ledger.current(), match: this.matchStartedAt });
+      } catch (e) { console.log('[engine] diagnostics sink error:', e.message); }
+    }
+  }
+
+  /** One read into the match state, through every guard in updateMatchContext. */
+  processRead(data) {
+    this.lastNote = null;
+    if (!data || data.lobby) {
+      if (!this.inLobby) console.log('[engine] menu or lobby');
+      this.inLobby = true;
+      return;
+    }
+    this.inLobby = false;
+    const c = data.context || {};
+    this.updateMatchContext(c);
+    this.trackEnemy(c);
+    // What the player was SEEN doing, a fact rather than advice. It goes into
+    // the round ledger, and the review is written from it.
+    if (c.playerNote) {
+      this.addPlayerNote(c.playerNote);
+      this.lastNote = c.playerNote;
+    }
+  }
+
+  /** The little the read prompt needs: enough to stay consistent frame to frame. */
+  readContext() {
+    this.expireStalePlan();
+    const c = this.matchContext;
+    return {
+      // Only once the player confirmed it, the rule the old context had too.
+      agent: c.agentConfirmed ? c.agent : null,
+      map: c.map, side: c.side, phase: c.phase, gameMode: c.gameMode,
+      teamScore: c.teamScore, enemyScore: c.enemyScore, roundNumber: c.roundNumber,
+      playerAlive: c.playerAlive,
+    };
+  }
+
+  noteLatency(ms) {
+    if (ms === null) this.readErrors++;
+    else {
+      this.readErrors = 0;
+      this.latencies.push(ms);
+      if (this.latencies.length > 30) this.latencies.shift();
+    }
+    this.adaptCadence();
+  }
+
+  adaptCadence() {
+    if (this.captureSpeed !== 'auto') return;
+    const tiers = CAPTURE_TIERS;
+    const i = Math.max(0, tiers.indexOf(this.gapMs));
+    const setTier = (j, why) => {
+      if (j === i) return;
+      console.log(`[engine] read cadence ${tiers[i]}ms -> ${tiers[j]}ms (${why})`);
+      this.gapMs = tiers[j];
+      this.latencies = [];
+      this.readErrors = 0;
+      this.emit('cadence', this.gapMs);
+    };
+    if (this.readErrors >= 3 && i < tiers.length - 1) { setTier(i + 1, 'reads failing'); return; }
+    if (this.latencies.length < 12) return;
+    const sorted = this.latencies.slice().sort((a, b) => a - b);
+    const p90 = sorted[Math.floor(sorted.length * 0.9)];
+    // With two in flight a read may take up to twice the gap before a third
+    // would be needed. Past that, reads pile up and the frames go stale.
+    if (p90 > this.gapMs * MAX_IN_FLIGHT * 1.1 && i < tiers.length - 1) setTier(i + 1, `p90 ${p90}ms`);
+    else if (i > 0 && p90 < tiers[i - 1] * MAX_IN_FLIGHT * 0.7) setTier(i - 1, `p90 ${p90}ms`);
+  }
+
+  /** Pin a speed from Settings, or hand it back to 'auto'. */
+  setCaptureSpeed(speed) {
+    this.captureSpeed = speed === 'auto' || !CAPTURE_TIERS.includes(Number(speed)) ? 'auto' : Number(speed);
+    this.gapMs = this.captureSpeed === 'auto' ? (this.gapMs || CAPTURE_TIERS[0]) : this.captureSpeed;
+    this.latencies = [];
+    this.emit('cadence', this.gapMs);
+  }
+
+  onReadFailed() {
+    // A rejected licence (401/403) asks the controller to re-validate now,
+    // throttled so a burst of failures does not spam the licence endpoint.
+    if ((this.lastServerStatus === 401 || this.lastServerStatus === 403) &&
+        Date.now() - this.lastAuthSuspect > 60000) {
+      this.lastAuthSuspect = Date.now();
+      this.emit('auth-suspect');
+    }
+    // One miss is a hiccup, not an outage. Only a streak is worth a notice, and
+    // it goes to the panel's status line, never over the game.
+    this.failStreak++;
+    if (this.failStreak < 3 || this.warnedFailure) return;
+    this.warnedFailure = true;
+    let text;
+    if (!this.licenseKey) text = 'No licence picked up, so the coach cannot read your match.';
+    else if (this.lastServerStatus === 401 || this.lastServerStatus === 403) text = 'Your licence is not active. Re-activate it in Settings.';
+    else if (this.lastServerStatus === 402) text = 'The coach AI is out of credits, so this match is not being read.';
+    else if (this.lastServerStatus >= 500) text = 'The coach server is having trouble. Reading resumes when it is back.';
+    else text = 'Cannot reach the coach server right now. Reading resumes when it is back.';
+    this.emit('notice', { kind: 'read-failed', text });
+  }
+
+  /** Screen capture failed (an antivirus block, usually). Said once, on the panel. */
+  onCaptureFailed() {
+    if (this.warnedCapture) return;
+    this.warnedCapture = true;
+    this.emit('notice', { kind: 'capture', text: 'Windows blocked screen capture. Add Occlara to your antivirus exclusions '
+      + '(Windows Security, Virus and threat protection, Exclusions), then start again.' });
   }
 
   async detectAgent() {
@@ -467,61 +551,6 @@ class CoachingEngine extends EventEmitter {
     return { ok: true, ...this.agentInfo() };
   }
 
-  async requestTip() {
-    if (!this.isRunning || this.isCapturing) return;
-    this.isCapturing = true;
-    try {
-      let shot;
-      try { shot = await this.captureFunction(); }
-      catch (e) { console.error('[engine] capture error (forced):', e.message); this.onCaptureFailed(true); return; }
-      if (this.shouldAbort) return;
-      if (!shot) { this.onCaptureFailed(true); return; }
-      this.warnedCapture = false;
-      const body = { image: shot, context: this.buildOutgoingContext() };
-      const prev = this.previousGameplayFrame();
-      if (prev) body.previousImage = prev;
-      const data = await this.callServer(API.ANALYZE, body, { forced: true });
-      if (!data) {
-        // Forced press must always produce something useful.
-        this.onAnalyzeFailed(true);
-        return;
-      }
-      this.warnedFailure = false;
-      this.failStreak = 0;
-      if (data.context) this.updateMatchContext(data.context);
-
-      const tip = String(data.tip || '').trim();
-      if (tip.toUpperCase() === 'LOBBY') {
-        // Not in a match (loading screen, agent select, menu): never coach it,
-        // even on a manual press, but the button still deserves an answer.
-        this.inLobby = true;
-        this.emitTip('No live round on screen. Coaching kicks in the moment your match does.', 'system');
-        return;
-      }
-      this.inLobby = false;
-      this.pushFrame(shot);   // confirmed gameplay: keep for chat
-      if (tip.length > 10 && tip.toUpperCase() !== 'SKIP') {
-        const cleaned = agentData.genericizeAbilities(cleanTip(tip));
-        // A manual press deserves a FRESH answer: a repeat of a recent tip
-        // swaps to the library instead of echoing what is already on screen.
-        if (this.isSimilarToRecent(cleaned)) {
-          console.log('[engine] forced tip was a repeat, swapping to library');
-        } else {
-          const sent = this.emitTip(cleaned, 'ai', { death: !!data.death || this.inDeathWindow() });
-          if (sent) return;
-          // Verify gate dropped the forced tip. This used to end in SILENCE (the
-          // "force tip does nothing" bug); fall through to a guaranteed library tip.
-        }
-      }
-      this.emitLibraryTip({ force: true, ignoreRatio: true });
-    } catch (e) {
-      console.error('[engine] forced tip error:', e.message);
-      this.emitLibraryTip({ force: true, ignoreRatio: true }); // manual press always returns something
-    } finally {
-      this.isCapturing = false;
-    }
-  }
-
   async callServer(path, body, opts = {}) {
     try {
       const headers = opts.forced ? { 'X-Forced': 'true' } : undefined;
@@ -552,144 +581,6 @@ class CoachingEngine extends EventEmitter {
     }
   }
 
-  /** Server gave us nothing, explain why once, then keep the overlay alive. */
-  onAnalyzeFailed(force = false) {
-    // A rejected license key (401/403) → ask the controller to re-validate now.
-    // Throttled so a burst of failures doesn't spam the license endpoint.
-    if ((this.lastServerStatus === 401 || this.lastServerStatus === 403) &&
-        Date.now() - this.lastAuthSuspect > 60000) {
-      this.lastAuthSuspect = Date.now();
-      this.emit('auth-suspect');
-    }
-    // One miss is a hiccup (a slow AI reply, a dropped packet), NOT an outage:
-    // stay quiet and let the next cycle succeed. Only a streak is worth a
-    // warning, so the player never sees "can't reach" while things still work.
-    this.failStreak++;
-    if (!force && this.failStreak < 2) return;
-    if (!this.warnedFailure) {
-      this.warnedFailure = true;
-      let msg;
-      if (!this.licenseKey) {
-        msg = 'No license picked up, AI coaching’s off. Running library tactics for now.';
-      } else if (this.lastServerStatus === 401 || this.lastServerStatus === 403) {
-        msg = 'Your license isn’t active, re-activate in Settings. Library tactics for now.';
-      } else if (this.lastServerStatus === 402) {
-        // Out of AI credits. Say so plainly: this is not an app fault and it
-        // will not clear on its own, so "temporarily down" would mislead.
-        msg = 'The coach AI is out of credits, so AI tips are paused. Library tactics until it’s topped up.';
-      } else if (this.lastServerStatus >= 500) {
-        msg = 'The coach’s AI is temporarily down on the server, running library tactics till it’s back.';
-      } else {
-        msg = 'Can’t reach the coach server right now, running library tactics till it’s back.';
-      }
-      this.emitTip(msg, 'system');
-      if (!force) return; // periodic loop: next cycle starts the library cadence
-    }
-    this.emitLibraryTip({ force, ignoreRatio: true }); // AI unavailable → ratio doesn't apply
-  }
-
-  /** Screen capture failed (e.g. antivirus block), surface it, stay useful. */
-  onCaptureFailed(force = false) {
-    if (!this.warnedCapture) {
-      this.warnedCapture = true;
-      this.emitTip('Windows blocked screen capture. Add Occlara to your antivirus exclusions (Windows Security, Virus and threat protection, Exclusions), then restart coaching.', 'system');
-      if (!force) return;
-    }
-    this.emitLibraryTip({ force, ignoreRatio: true }); // capture down → ratio doesn't apply
-  }
-
-  // ── context sent to the server ───────────────────────────────────────────────
-  // Enriches each request with recent round history, the locked agent's role,
-  // tracked enemy positions, and a rotating focus hint so a good share of frames
-  // emphasise the minimap / economy / enemy reads.
-  buildOutgoingContext() {
-    this.expireStalePlan();   // never send a plan the team has already abandoned
-    const recentTopics = this.tipHistory.slice(-3).map((t) => topicOf(t.text));
-    const recentTips   = this.tipHistory.slice(-4).map((t) => t.text);
-    // Only tell the server the agent once the PLAYER has confirmed it. On a mere
-    // detection guess we send agent:null so the AI stays general and never names
-    // an ability (no "use stim beacon" before they've confirmed Brimstone).
-    const confirmedAgent = this.matchContext.agentConfirmed ? this.matchContext.agent : null;
-    return {
-      ...this.matchContext,
-      agent:        confirmedAgent,
-      recentTopics,
-      recentTips,
-      // THE PLAYS THAT WILL BE REJECTED IF IT USES THEM AGAIN.
-      //
-      // The engine blocks a play that appeared in either of the last two tips,
-      // and it never told the model, which is why a quarter of a real session's
-      // calls were spent writing tips that could not possibly be shown: 31 of
-      // them said "trade partner" after a trade tip had just gone out, 12 more
-      // said hold tight. Naming the blocked plays turns a vague instruction to
-      // vary into a constraint the model can actually satisfy.
-      // THE THEME THIS SESSION HAS WORN OUT.
-      //
-      // blockedPlays below only stops back-to-back repeats, and that is not the
-      // shape of the problem. Across one real session 9 of the 15 tips a player
-      // saw contained the word "alone", none of them adjacent, so every
-      // back-to-back rule passed while the session as a whole said one thing
-      // over and over. This reports the theme that has taken over the tips the
-      // player has ACTUALLY seen, so the model can be told to leave it alone
-      // rather than merely to vary its wording.
-      overusedTheme: (() => {
-        const seen = this.tipHistory.slice(-8).map((t) => String(t.text || ''));
-        if (seen.length < 4) return null;
-        const THEMES = [
-          ['playing alone', /\balone\b|\bsolo\b|\bisolated\b/i],
-          ['waiting for a trade', /\btrade\b/i],
-          ['holding tight', /hold[^.]*tight|stay tight|tight to/i],
-          ['waiting for the team', /wait for|until your team|before you peek/i],
-        ];
-        for (const [label, re] of THEMES) {
-          if (seen.filter((t) => re.test(t)).length / seen.length > 0.5) return label;
-        }
-        return null;
-      })(),
-      blockedPlays: this.tipHistory.slice(-2)
-        .map((t) => playPatternIn(t.text)).filter(Boolean),
-      enemyHistory: this.enemyHistory.slice(-6),
-      phaseTransition: this.recentPhaseTransition(),
-      badTips: [...this.badTips].slice(0, 6),   // 3-strike blocked tips only
-      tipFeedback: (this.getFeedback() || []).slice(-6),
-      matchMemory: this.matchMemory.slice(-10),
-      playerStats: this.playerStats,
-      coachTrend:  this.perfSummary || null,
-      habits:      this.habits || null,   // what this player keeps doing wrong   // dashboard category trends
-      agentRole:    agentData.getRole(confirmedAgent),
-      teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
-      // Death review: the player died moments ago, the server prompts for a
-      // cause-and-fix explanation ONLY when the evidence clearly supports one.
-      // The death window closes the moment the player is ALIVE again, not just
-      // after 12 seconds. A short round can end and respawn them inside that
-      // window, and reviewing a death at someone standing at full health with a
-      // fresh round in front of them reads as the coach not watching at all.
-      justDied:     this.isSpectating()
-                    && this.lastDeathAt > 0 && Date.now() - this.lastDeathAt < 12000,
-      // The death review is already done: the coach should stay quiet until the
-      // player respawns rather than spend a call on a tip we would drop.
-      deathReviewDone: this.isSpectating() && this.deathTipsSent >= DEATH_TIPS_MAX,
-      justLostRound: this.lastRoundLostAt > 0 && Date.now() - this.lastRoundLostAt < 12000,
-      focus:        this.nextFocus(),
-      // Experimental: playbook mode ('off' | 'on' | 'hybrid') for the server.
-      proPlaybook:  this.experiments().proPlaybook || 'off',
-      // Bias retrieval toward advanced notes. knowledge.block() reads this off
-      // the context, so it needs no route change.
-      advancedTips: this.experiments().advancedTips === true,
-      // The language the tip should be written in. Read live, so switching it in
-      // Settings applies to the very next frame rather than the next session.
-      language:     this.experiments().language || 'en',
-      // Tell the coach how we want advice phrased / scoped. Greyed-out (unbought
-      // or on-cooldown) abilities show dimmed in-game; only the AI vision can read
-      // that, so we ask it to respect it and to keep ability talk generic.
-      coachingPrefs: {
-        genericAbilities: true,        // say "smoke"/"flash", not agent-specific names
-        teamAware: true,               // consider the player's teammates' agents
-        onlyAvailableAbilities: true,  // don't suggest greyed-out / unbought abilities
-      },
-    };
-  }
-
   /** Drop the team plan once it is too old to trust. A buy-phase read describes
    *  the opening push; by the time most of a round has run, the team has often
    *  rotated and coaching "within the plan" actively points the player the wrong
@@ -703,21 +594,6 @@ class CoachingEngine extends EventEmitter {
       this.matchContext.teamRead = null;
       this.matchContext.teamReadAt = 0;
     }
-  }
-
-  /** "buy->active" while a phase flip is fresh (~10s), else null. */
-  recentPhaseTransition() {
-    const pc = this.lastPhaseChange;
-    return pc && Date.now() - pc.at < 10000 ? `${pc.from}->${pc.to}` : null;
-  }
-
-  nextFocus() {
-    // Some frames emphasise the minimap / enemy reads; 'teammates' and
-    // 'abilities' nudge the coach to factor in the comp and what's actually
-    // usable. (economy was retired: buy advice is banned, reads stay context.)
-    const foci = ['map', 'enemies', 'positioning', 'utility', 'aim', 'teammates', 'abilities'];
-    this.focusIndex = (this.focusIndex + 1) % foci.length;
-    return foci[this.focusIndex];
   }
 
   // ── enemy pattern tracking ────────────────────────────────────────────────────
@@ -748,252 +624,6 @@ class CoachingEngine extends EventEmitter {
     }
   }
 
-  // ── response processing + guardrails ────────────────────────────────────────
-  processAIResponse(response) {
-    if (response.context) {
-      this.updateMatchContext(response.context);
-      this.trackEnemy(response.context);
-      // Observed fact about what the player actually DID (from the screen,
-      // reported in STATE.note): the honest record reviews are written from.
-      if (response.context.playerNote) this.addPlayerNote(response.context.playerNote);
-    }
-
-    const raw = response.tip;
-    if (!raw) return;
-    let tip = String(raw).trim();
-
-    if (tip.startsWith('{') || tip.includes('"tip"')) {            // raw JSON
-      noteReject('the model returned raw JSON, not a sentence');
-      this.fillQuietSpell();
-      return;
-    }
-    if (PREAMBLE.some((re) => re.test(tip))) {                     // AI preamble
-      noteReject('the tip started with AI preamble');
-      this.fillQuietSpell();
-      return;
-    }
-
-    tip = tip.replace(/^["']/, '').replace(/["']$/, '').trim();
-
-    if (tip.toUpperCase() === 'LOBBY') {
-      // Not live gameplay (main menu / lobby / loading): total silence, no
-      // AI tips and no library filler, until real gameplay is seen again.
-      if (!this.inLobby) console.log('[engine] lobby detected, tips muted');
-      this.inLobby = true;
-      this.skipCount = 0;
-      return;
-    }
-    this.inLobby = false;   // any non-LOBBY answer means we are in gameplay
-
-    if (tip.toUpperCase() === 'SKIP' || tip.length < 20) {         // skip / too short
-      this.skipCount++;
-      // One SKIP plus a real quiet spell is enough for the library to step in;
-      // waiting for two consecutive SKIPs starved the overlay of tips.
-      if (this.skipCount >= 1 && Date.now() - this.lastTipTime > this.pacing.silence) {
-        this.skipCount = 0;
-        // AI went quiet: fill in with a library tip, but keep it within the mix
-        // budget so library stays a minority (<=35%). The player wants majority
-        // AI, so we accept a little quiet over drowning it in filler.
-        this.emitLibraryTip();
-      }
-      return;
-    }
-    if (TRUNCATION.some((re) => re.test(tip))) { noteReject('the tip was cut off mid sentence'); this.fillQuietSpell(); return; }
-    if (!/[.!?"]$/.test(tip))                  { noteReject('the tip did not end as a complete sentence'); this.fillQuietSpell(); return; }
-    // A fresh phase flip (round start, spike planted) opens a short window where
-    // a timely tip beats the normal pacing, so the cooldown relaxes.
-    const cooldown = this.recentPhaseTransition() ? Math.min(6000, this.pacing.cooldown) : this.pacing.cooldown;
-    if (Date.now() - this.lastTipTime < cooldown) { noteReject('too soon after the last tip (cooldown)'); return; }
-
-    const cleaned = agentData.genericizeAbilities(cleanTip(tip));
-
-    // IS THIS A DEATH REVIEW. Decided HERE, above every repetition gate, and it
-    // used to be decided forty lines below them.
-    //
-    // That ordering was the whole bug. In a real graded session the model wrote
-    // 26 death reviews and 24 were dropped, 22 of them by the repetition gates
-    // underneath this line, which had no idea they were throwing away the one
-    // kind of tip a player actually goes back and reads. A review of a death is
-    // ABOUT a specific moment, so it is supposed to resemble the last one: same
-    // callout, same mistake, same words. Repetition is the point, not a defect.
-    //
-    // The truth gates below still apply in full. A death review that names the
-    // wrong callout, the wrong death spot or contradicts the state is still
-    // dropped, because being about a real moment does not make it accurate.
-    const isDeath = !!response.death || this.inDeathWindow() || DEATH_REVIEW_RE.test(cleaned);
-
-    if (!isDeath && this.isSimilarToRecent(cleaned)) { noteReject('too similar to a recent tip'); this.fillQuietSpell(); return; }
-
-    const topic = topicOf(cleaned);
-    const recent = this.tipHistory.slice(-3).map((t) => topicOf(t.text));
-    if (!isDeath && recent.length >= 3 && recent.every((t) => t === topic)) { noteReject('same topic as the last three tips'); this.fillQuietSpell(); return; }
-
-    if (!this.validateTipForAgent(cleaned)) {
-      noteReject('named an ability the player\'s agent does not have');
-      this.emitLibraryTip();   // swap in a solid general tip instead of silence
-      return;
-    }
-
-    // Anti-fixation on PLAYS, not just abilities. The model leans hard on a few
-    // stock recommendations (crossfires above all) and re-serves them with fresh
-    // wording on a new site, which slips past both the similarity check and the
-    // topic cooldown. A play may not be recommended again while it is still two
-    // tips old, so the coaching has to actually vary.
-    const play = playPatternIn(cleaned);
-    if (!isDeath && play && this.recentPlays.slice(-2).includes(play)) {
-      noteReject(`already recommended a ${play} in the last two tips`);
-      // SELF-REINFORCING LOOP, closed. The filler emitted on this reject path
-      // pushes its own play name into recentPlays, so a rejection for repeating
-      // "fall-back" could be answered with library filler that ALSO says fall
-      // back, re-arming the very gate that just fired. In one real session that
-      // one play accounted for eight straight drops.
-      this._suppressPlay = play;
-      this.emitLibraryTip();
-      this._suppressPlay = null;
-      return;
-    }
-
-    // Anti-fixation: don't suggest the same ability (e.g. Updraft) in back-to-back
-    // tips. Forces variety even if the model repeats itself.
-    const abilityWord = abilityWordIn(cleaned);
-    if (!isDeath && abilityWord && this.recentAbilities.slice(-2).includes(abilityWord)) {
-      noteReject('repeated the same ability (' + abilityWord + ') back to back');
-      this.emitLibraryTip();
-      return;
-    }
-
-    this.skipCount = 0;
-    const sent = this.emitTip(cleaned, 'ai', { death: isDeath });
-    if (sent && abilityWord) {
-      this.recentAbilities.push(abilityWord);
-      if (this.recentAbilities.length > 6) this.recentAbilities.shift();
-    }
-    // Verify gate dropped it (cut-off, scenario mismatch, ability the player
-    // can't use, etc): cover the gap with a situation-appropriate library tip.
-    if (!sent) this.emitLibraryTip();
-  }
-
-  /**
-   * Emit a fallback library tip.
-   * @param {object} opts
-   *   force, bypass the per-tip cooldown (manual press / failure mode)
-   *   ignoreRatio, bypass the AI-majority governor (only when AI is unavailable:
-   *                 server/capture down, or a manual press the user asked for)
-   */
-  emitLibraryTip(opts = {}) {
-    const { force = false, ignoreRatio = false } = (typeof opts === 'boolean' ? { force: opts } : opts);
-    if (this.inLobby) return;   // loading screen / agent select / menu: NO tips, ever, forced or not
-    // Beginner tips off: the automatic stream is AI-only. A manual force press
-    // is an explicit request for A tip, so its fallback still may answer.
-    if (!force && this.experiments().beginnerTips === false) return;
-    if (this.analyzedFrames < 2 && !force) return;   // warm-up: context before coaching
-    if (!force && Date.now() - this.lastTipTime < this.pacing.cooldown) return;
-
-    // Keep AI the majority: while the AI is available, a "filler" library tip
-    // only fires if it won't push AI's share below the configured floor.
-    if (!ignoreRatio && !this.libraryWithinBudget()) {
-      console.log('[engine] library tip suppressed, preserving AI majority',
-        `(ai=${this.aiTipCount} lib=${this.libraryTipCount})`);
-      return;
-    }
-
-    // Recently shown + player-rated-bad texts are both off the menu.
-    const recentTexts = [...this.tipHistory.slice(-16).map((t) => t.text), ...this.badTips];
-
-    // Occasionally drop an agent-specific reminder, but only once the player has
-    // CONFIRMED the agent; on a mere guess we stick to general tips.
-    // Library tips inside the death window are the death-flavored bucket, so
-    // they wear the same white skull card the AI's death reviews do.
-    const inDeathWindow = { death: this.inDeathWindow() };
-    const agentTip = this.matchContext.agentConfirmed
-      ? agentData.getAgentTip(this.matchContext.agent) : null;
-    if (agentTip && !recentTexts.includes(agentTip) && !this.isSimilarToRecent(agentTip)
-        && Math.random() < 0.22) {
-      this.emitTip(agentTip, 'library', inDeathWindow);
-      return;
-    }
-
-    // A library tip that reads like the tip before it is still a repeat, even
-    // in different words: re-roll away from near-duplicates. A manual force
-    // press must always answer, so as a last resort it takes the final roll.
-    let { text } = tipLibrary.selectTip(this.matchContext, recentTexts);
-    for (let i = 0; i < 3 && text && this.isSimilarToRecent(text); i++) {
-      recentTexts.push(text);
-      ({ text } = tipLibrary.selectTip(this.matchContext, recentTexts));
-    }
-    if (text && this.isSimilarToRecent(text) && !force) {
-      console.log('[engine] library tip suppressed, too close to a recent tip');
-      return;
-    }
-    if (text) this.emitTip(text, 'library', inDeathWindow);
-  }
-
-  /** Tracker profile arrived: every subsequent analyze request carries it so
-   *  the AI calibrates advice to the player's actual rank and weaknesses. */
-  setPlayerStats(stats) {
-    this.playerStats = stats && !stats.error ? stats : null;
-    if (this.playerStats) console.log('[engine] player stats loaded:', this.playerStats.rank || 'unknown rank');
-  }
-
-  /**
-   * The mistakes this coach has had to point out across the week.
-   *
-   * Already computed for the weekly report and never shown to the live coach,
-   * so every session started over knowing nothing about the player. A habit is
-   * exactly what a coach should carry between games: it is stable, it is about
-   * the PLAYER rather than the frame, and it cannot be read off a screenshot.
-   * That also makes it safe to send, unlike volatile state, which the model
-   * starts answering from instead of reading the picture.
-   */
-  setHabits(list) {
-    this.habits = Array.isArray(list) && list.length ? list.slice(0, 3) : null;
-    if (this.habits) {
-      console.log('[engine] player habits: '
-        + this.habits.map((h) => `${h.label} (${h.sessions} sessions)`).join(', '));
-    }
-  }
-
-  /** Coached-session category trends (the dashboard overview): the AI uses
-   *  them to favor the weakest or falling category when the frame supports it. */
-  setPerformanceSummary(summary) {
-    this.perfSummary = summary && typeof summary === 'object' ? summary : null;
-  }
-
-  /** Keep the last few frames of REAL gameplay so the chat can show the player
-   *  what the coach is talking about. Only called after the server confirmed
-   *  the frame is not a lobby/menu, so a desktop or lobby shot never lands here. */
-  pushFrame(image) {
-    if (!image) return;
-    this.recentFrames.push({ image, at: Date.now(), phase: this.matchContext.phase });
-    if (this.recentFrames.length > 5) this.recentFrames.shift();
-  }
-
-  /** Frame memory (always on, session-scoped): the newest CONFIRMED gameplay
-   *  frame, only while fresh enough to still describe "a moment ago" (90s).
-   *  Frames land in recentFrames after the server verifies them, so a lobby
-   *  or desktop shot can never be sent as the previous frame. The buffer is
-   *  wiped on stop() and rebuilt fresh by the next session. */
-  previousGameplayFrame() {
-    const last = this.recentFrames[this.recentFrames.length - 1];
-    return last && Date.now() - last.at < 90000 ? last.image : null;
-  }
-
-  /** A rejected tip leaves the same silence a SKIP does. If the quiet spell
-   *  has outlasted the pacing budget, cover it with a library tip, the same
-   *  treatment SKIP responses already get. */
-  fillQuietSpell() {
-    if (Date.now() - this.lastTipTime > this.pacing.silence) this.emitLibraryTip();
-  }
-
-  /** Frame memory is worth the extra latency when change is the story: the
-   *  player just died (explain it), the phase just flipped, or every 3rd
-   *  frame as a pattern sample. The rest of the time one fast image wins. */
-  shouldSendFrameMemory() {
-    if (this.matchContext.lastDeathAt && Date.now() - this.matchContext.lastDeathAt < 15000) return true;
-    if (this.recentPhaseTransition()) return true;
-    return this.analyzedFrames % 3 === 2;
-  }
-
   /** Observed facts about the player's actual play, deduped and capped.
    *  Unlike tips (advice that was merely SHOWN), these describe what really
    *  happened on screen, so reviews and session grades stay honest. */
@@ -1012,174 +642,6 @@ class CoachingEngine extends EventEmitter {
     if (!line || this.matchMemory[this.matchMemory.length - 1] === line) return;
     this.matchMemory.push(line);
     if (this.matchMemory.length > 16) this.matchMemory.shift();
-  }
-
-  /** Player rated a tip as bad: blocklist it and avoid its topic for a while. */
-  noteBadTip(text) {
-    if (!text) return;
-    this.badTips.add(text);
-    console.log('[engine] bad-tip feedback:', topicOf(text), '|', String(text).slice(0, 50));
-  }
-
-  /** Current AI vs library coaching-tip mix this session. */
-  getMix() {
-    const total = this.aiTipCount + this.libraryTipCount;
-    return {
-      ai: this.aiTipCount,
-      library: this.libraryTipCount,
-      aiShare: total ? this.aiTipCount / total : 0,
-    };
-  }
-
-  /** Would adding one library tip keep AI's share >= the configured floor? */
-  libraryWithinBudget() {
-    const sent = this.aiTipCount + this.libraryTipCount;
-    if (sent < COACHING.bootstrapLibrary) return true; // avoid early dead-air
-    const total = sent + 1; // include the prospective tip
-    return (this.aiTipCount / total) >= COACHING.aiMinShare;
-  }
-
-  /**
-   * The single exit for EVERY tip. Runs the synchronous verifier (grammar,
-   * cut-off, usefulness, scenario fit) and drops anything that doesn't pass, so
-   * nothing malformed or unhelpful ever reaches the overlay. No network → no
-   * added latency. Returns true if the tip was actually sent.
-   */
-  emitTip(text, source, extra) {
-    // Dead players get the death review and then SILENCE. Once you are
-    // spectating there is nothing left to act on this round, so a stream of
-    // tips is just noise over someone watching a killcam. Explain the death
-    // (one or two tips), then say nothing until the next buy phase. System
-    // notices (license, credits, capture problems) are never suppressed,
-    // because those are about the app working at all, not about coaching.
-    if (source !== 'system' && this.isSpectating()) {
-      if (this.deathTipsSent >= DEATH_TIPS_MAX) {
-        noteReject('player is dead, already gave the death review, staying quiet until the next round');
-        return false;
-      }
-    }
-
-    // Every enemy is down: the round is won and there is nothing to act on.
-    if (source !== 'system' && this.roundDecided()) {
-      noteReject('every enemy is dead, the round is already decided, staying quiet until the next one');
-      return false;
-    }
-
-    // THE TIP ASSERTS SOMETHING THE HUD ALREADY DISAGREES WITH.
-    //
-    // Two of these reached a player in one session:
-    //   "You are last alive on defense"          with THREE teammates alive
-    //   "last alive in a 1v5, use the spike timer" during the BUY PHASE, no spike
-    //
-    // Both read as confident, specific coaching, and both describe a round that
-    // is not happening. This is the same principle as HP beats death: the coach
-    // reports what is on screen and never infers, so when a sentence contradicts
-    // a number the app has already counted, the number wins.
-    if (source === 'ai') {
-      const wrong = contradictsState(text, this.matchContext);
-      if (wrong) { noteReject(wrong); return false; }
-    }
-
-    // Never blame the player for a play this coach just recommended. Checked
-    // here rather than inside verifyTip because it needs the tip HISTORY, which
-    // is session state rather than frame state.
-    if (source === 'ai') {
-      const owned = blamesOwnAdvice(text, this.tipHistory.map((t) => t.text));
-      if (owned) {
-        noteReject(`blamed the player for the "${owned}" play this coach just recommended`);
-        return false;
-      }
-    }
-
-    const verified = verifyTip(text, source, this.matchContext);
-    if (!verified) {
-      // DO NOT CLOBBER THE REAL REASON. verifyTip records a specific one for
-      // most of its refusals (wrong death spot, an ability the agent lacks, a
-      // callout from another map, holding while a push lands elsewhere), and
-      // this line used to overwrite every one of them with "failed the final
-      // verify gate", because noteReject just assigns. A fifth of all rejected
-      // tips were logged as unexplained while the explanation had been computed
-      // and thrown away one line earlier. The reject reasons are the main tool
-      // for diagnosing a session, so this was costing more than it looked.
-      if (!lastRejectReason) noteReject(`failed the final verify gate (${source})`);
-      return false;
-    }
-
-    // Carried to the renderer so the overlay can draw a category glyph without
-    // owning a second copy of topicOf(). Those regexes already decide the
-    // variety guard, and a drifting duplicate of them in the renderer is
-    // exactly the main/preload split that channels.js exists to prevent.
-    const tip = { text: verified, source, time: Date.now(), topic: topicOf(verified) };
-    if (extra && extra.death) tip.death = true;   // death review: white skull card
-    if (source !== 'system') {                       // status notices aren't coaching history
-      this.tipHistory.push(tip);
-      if (this.tipHistory.length > 50) this.tipHistory.shift();
-      if (source === 'ai') this.aiTipCount++;
-      else if (source === 'library') this.libraryTipCount++;
-    }
-    this.lastTipTime = Date.now();
-    // Count coaching tips shown while dead, so the review is capped.
-    if (source !== 'system' && this.isSpectating()) this.deathTipsSent++;
-    // Remember which stock play this tip recommended, whatever its source, so
-    // the variety guard sees library filler too and cannot be reset by it.
-    if (source !== 'system') {
-      const playName = playPatternIn(verified);
-      if (playName && playName !== this._suppressPlay) {
-        this.recentPlays.push(playName);
-        if (this.recentPlays.length > 6) this.recentPlays.shift();
-      }
-    }
-    this._cycleShown = tip;   // what got shown this analyze cycle (for the AI log)
-    console.log(`[engine] TIP (${source}): ${verified}  [ai=${this.aiTipCount} lib=${this.libraryTipCount}]`);
-    this.emit('tip', tip);
-    return true;
-  }
-
-  /**
-   * The anti-repeat gate, three rules from strictest to loosest:
-   *   1. VERBATIM: the same sentence (normalized) as any of the last 25 tips
-   *      never shows twice, no matter how much time passed. Repeating
-   *      important advice is fine, repeating the exact wording is lazy.
-   *   2. BACK-TO-BACK: a tip that heavily overlaps the tip right before it
-   *      (a light reshuffle of the same sentence) is a repeat at any age.
-   *   3. RECENT WINDOW: moderate overlap with anything from the last 60
-   *      seconds is a rapid-fire duplicate.
-   * A real re-warning later (fresh wording plus "still" / "again" / "third
-   * time now" escalation) passes: new words drop it under both thresholds.
-   */
-  isSimilarToRecent(newTip) {
-    const words = tipWords(newTip);
-    if (!words.size) return false;
-    const norm = normalizeTip(newTip);
-    const history = this.tipHistory.slice(-25);
-    for (const old of history) {
-      if (normalizeTip(old.text) === norm) return true;              // rule 1
-    }
-    const last = history[history.length - 1];
-    if (last && overlapRatio(words, tipWords(last.text)) > 0.75) return true;   // rule 2
-    const cutoff = Date.now() - 60000;
-    for (const old of history.slice(-10).filter((t) => t.time >= cutoff)) {
-      if (overlapRatio(words, tipWords(old.text)) > 0.5) return true;           // rule 3
-    }
-    return false;
-  }
-
-  validateTipForAgent(tip) {
-    const playerAgent = this.matchContext.agent;
-    if (!playerAgent) return true;
-    const lower = tip.toLowerCase();
-    for (const name of agentData.allNames()) {
-      if (name === playerAgent) continue;
-      for (const ability of agentData.getAbilities(name)) {
-        // only match distinctive ability names to avoid false positives on
-        // generic words like "dash" / "slow"
-        if ((ability.includes(' ') || ability.includes('/') || ability.length >= 6) && lower.includes(ability)) {
-          if (lower.includes('teammate') || lower.includes("'s ")) return true;
-          return false;
-        }
-      }
-    }
-    return true;
   }
 
   /**
@@ -1309,52 +771,6 @@ class CoachingEngine extends EventEmitter {
    *  are kept consistent, but one can land a frame before the other. */
   isSpectating() {
     return this.matchContext.playerAlive === false || this.matchContext.phase === 'dead';
-  }
-
-  /**
-   * Is this tip a death review? Decided by the CLIENT, not by the model.
-   *
-   * The server marks reviews with a "DEATH: " prefix, but that instruction only
-   * reaches the model when ctx.justDied is already true, and justDied is built
-   * from the PREVIOUS frame's state. The death is discovered from the response
-   * to the very frame the model is writing the review on, so on that frame the
-   * model was never told to add the marker. The result: the actual death review
-   * arrives unmarked and renders as an ordinary tip, and by the next frame the
-   * review is usually dropped as a duplicate.
-   *
-   * The player being dead is the fact that matters, and the client already
-   * knows it, so it decides. Library tips have always used this window; the AI
-   * path now uses the same one, which is why the two used to disagree.
-   */
-  /**
-   * The round is already decided, so there is nothing left to coach.
-   *
-   * With every enemy dead nobody can punish a mistake, and a tip like "watch
-   * the cross while your teammate defuses" is noise over a round that is
-   * already won. Coaching resumes on its own next round, because the enemy
-   * count comes back up from the HUD read.
-   */
-  roundDecided() {
-    const foes = this.matchContext.enemiesAlive;
-    if (foes !== 0) return false;            // unknown, or someone is still alive
-    if (this.isSpectating()) return false;   // death silence owns this case already
-    // Attacking with the spike still in hand is NOT decided: failing to plant
-    // is the one way left to lose, so a plant call still deserves to land.
-    const attacking = /attack/i.test(String(this.matchContext.side || ''));
-    if (attacking && this.matchContext.spike !== 'planted') return false;
-    return true;
-  }
-
-  inDeathWindow() {
-    // BEING DEAD IS THE WHOLE TEST, and it ends the moment the player respawns.
-    //
-    // This used to also return true for any tip within 15s of a death, which
-    // put the white skull card on tips shown to a player standing at full
-    // health in the next buy phase: six of them in one session. A death review
-    // aimed at someone who is alive with a fresh round in front of them reads
-    // as the coach not watching. buildOutgoingContext's justDied has always
-    // closed its window on respawn for exactly this reason; this now matches.
-    return this.isSpectating();
   }
 
   updateMatchContext(updates) {
@@ -1980,248 +1396,17 @@ function halfOfRound(rn, mode) {
   return null;
 }
 
-// cleanTip, tipWords, normalizeTip and overlapRatio now live in tip-hygiene.js.
-// They describe how an LLM mangles text, not how Valorant works, so a second
-// game gets them for free rather than growing its own copy that drifts.
-
-/**
- * Which subject a tip belongs to. Sent back as recentTopics so the model can
- * see what it has already covered and pick something else.
- *
- * THE ORDER IS THE ALGORITHM, since the first match wins. That is what broke it:
- * "economy" led the list and matched on bare weapon names, so "holding that
- * angle alone with a pistol" was filed as economy advice. Four positioning tips
- * in one session were reported to the model as economy, which told it to stop
- * talking about the buy (it never had) and left it free to repeat the
- * positioning advice it actually had given, four times.
- *
- * So the incidental nouns are gone from economy, which now needs real economy
- * words, and the behaviour categories are tested first because they describe
- * what the tip is ASKING FOR rather than what it happens to mention.
- */
-function topicOf(text) {
-  const l = (text || '').toLowerCase();
-  if (/spike|plant|defus|retake|post.plant/.test(l)) return 'spike';
-  if (/flash|smoke|drone|molly|util|wall|dash|ability/.test(l)) return 'utility';
-  if (/crosshair|head height|spray|tap|strafe|\baim/.test(l)) return 'aim';
-  if (/peek|wide|jiggle|swing|reposition|off.angle/.test(l)) return 'peeking';
-  // The single most common shape of advice this coach gives, and until now it
-  // had no name at all, so every instance was filed under whatever noun it
-  // happened to contain.
-  if (/stay (tight|low|back)|hold (tight|that angle|the angle|your angle)|tight to|behind (the |that |your )?(wall|corner|cover|box|ledge|crate)|exposed/.test(l)) return 'positioning';
-  if (/rotate|rotation|lurk|minimap|flank/.test(l)) return 'rotation';
-  if (/team|trade|comm|callout|group|alone|solo/.test(l)) return 'teamwork';
-  if (/\b(buy|buying|credits?|eco|force.?buy|full buy|half.?buy|save (this|the) round|save for)\b/.test(l)) return 'economy';
-  if (/tilt|mental|focus|breath|calm/.test(l)) return 'mental';
-  if (/dead|died|death|spectat/.test(l)) return 'death';
-  return 'general';
-}
-
-// PREAMBLE and TRUNCATION moved to tip-hygiene.js: both describe how a model
-// truncates or pads a reply, which is not a Valorant fact.
-
 // Tidy a raw enemy-spot token into a readable callout, e.g. "a_main" → "A Main".
 function prettySpot(spot) {
   return String(spot).replace(/[_-]+/g, ' ').trim().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// AI refusals / placeholders that are never a real coaching tip.
-const NONSENSE = /\b(i cannot|i can.?t|i.?m sorry|as an ai|i am unable|unable to|no tip|not applicable|n\/a|cannot determine|undefined|null)\b/i;
-
-// Ability keywords used to stop the coach fixating on one ability across tips.
-// Precompiled into word-boundary regexes once; this runs on every AI tip.
-const ABILITY_WORDS = ['updraft', 'dash', 'satchel', 'sprint', 'smoke', 'flash', 'molly',
-  'wall', 'recon', 'drone', 'camera', 'tripwire', 'trap', 'dart', 'stun', 'blind',
-  'teleport', 'heal', 'turret', 'sensor', 'decoy', 'shock', 'bubble']
-  .map((w) => [w, new RegExp('\\b' + w + '\\b')]);
-function abilityWordIn(text) {
-  const l = String(text || '').toLowerCase();
-  for (const [w, re] of ABILITY_WORDS) if (re.test(l)) return w;
-  return null;
-}
-
-// countOf moved to tip-hygiene.js alongside the balanced-punctuation check that
-// is its only caller.
-
-/**
- * Final gate applied to EVERY tip before it reaches the overlay. Purely
- * synchronous (regex/string only, no network), so verification is instant.
- * Returns the cleaned text to send, or null to drop the tip.
- *
- *   grammar    capitalised, single-spaced, no doubled words, balanced quotes
- *   cut-off    must end on a complete sentence; trailing connectives = chopped
- *   useful     not too thin, not a refusal/placeholder (coaching tips only)
- *   scenario   fits the current situation (coaching tips only)
- *
- * System status notices skip the useful/scenario rules, they must always show
- * (e.g. the antivirus warning), but still get grammar + cut-off cleanup.
- */
-function verifyTip(rawText, source, ctx) {
-  // Everything that is wrong with a tip REGARDLESS of the game (shouting, a
-  // dropped noun, a sentence cut off mid clause, model preamble) is handled in
-  // tip-hygiene.js, so a second game inherits it instead of rediscovering it.
-  // What remains below is the part that needs to know Valorant.
-  let t = polishText(rawText, source);
-  if (t === null) return null;
-  t = dropAgentArticle(t);
-
-  const words = t.split(/\s+/);
-
-  if (source !== 'system') {
-    if (words.length < 4) return null;           // too thin to be actionable
-    if (NONSENSE.test(t)) return null;           // AI refusal / placeholder
-    if (!scenarioFits(t, source, ctx)) return null;
-  }
-  return t;
-}
-
-/*
- * AN AGENT NAME TAKES NO ARTICLE. "Reyna is holding B Main", never "a Reyna".
- *
- * coach.js asks for this in the prompt and the model still slips, which costs
- * more than it reads. The overlay swaps the name for that agent's portrait, so
- * the article is left dangling in front of a picture, and the voice coach reads
- * the line aloud, so it is also SPOKEN as "a Reyna". Fixing it here rather than
- * in the overlay means the card, the voice, the history and the AI log all say
- * the same thing, because every one of them reads this string.
- *
- * Scoped to the agent as a PERSON. When the name modifies an object the article
- * belongs to the object and the sentence is already correct, so "a Sage wall",
- * "a Viper orb" and "the Sova dart" must survive untouched. The test is what
- * FOLLOWS the name: a possession is followed by the noun it owns, a person by
- * anything else. PERSON_FOLLOWER lists the words a possessed noun can never be,
- * so "a Sage wall is up" cannot match, because what follows "Sage" there is
- * "wall" and not "is".
- *
- * PERSON_FOLLOWER is duplicated in src/renderer/shared/tip-visuals.js, which has to
- * make the same person-or-possession call to decide whether to draw a portrait.
- * The renderer has no build step and cannot require from src/shared, the same
- * reason the agent lexicon is duplicated there already. test:tipvisuals asserts
- * the two lists are identical so they cannot drift apart in silence.
- */
-const PERSON_FOLLOWER = [
-  // verbs and auxiliaries
-  'is', 'was', 'are', 'were', 'has', 'had', 'will', 'can', 'could', 'would',
-  'should', 'might', 'may', 'just', 'already', 'still', 'never', 'always',
-  'holding', 'pushing', 'playing', 'watching', 'sitting', 'lurking', 'hiding',
-  'rotating', 'peeking', 'waiting', 'coming', 'entering', 'swinging',
-  'flanking', 'took', 'takes', 'got', 'gets', 'went', 'goes', 'killed',
-  'caught', 'traded', 'picked', 'pushed', 'flashed', 'held', 'saw', 'sees',
-  // prepositions
-  'to', 'on', 'in', 'at', 'from', 'with', 'without', 'into', 'onto', 'near',
-  'behind', 'under', 'over', 'through', 'across', 'around', 'by', 'for',
-  'after', 'before', 'while', 'since', 'off', 'up',
-  // conjunctions and relatives
-  'and', 'or', 'so', 'but', 'because', 'if', 'when', 'where', 'who', 'that',
-  'which', 'then', 'they', 'their', 'her', 'his', 'it',
-];
-
-let AGENT_ARTICLE_RE = null;
-function agentArticleRe() {
-  if (AGENT_ARTICLE_RE) return AGENT_ARTICLE_RE;
-  const agents = Object.keys(
-    require('../../shared/valorant-data.generated.json').agents || {}
-  );
-  if (!agents.length) return null;
-  const names = agents
-    .map((n) => n.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'))
-    .sort((a, b) => b.length - a.length)      // KAY/O before KAY, if both existed
-    .join('|');
-  AGENT_ARTICLE_RE = new RegExp(
-    '\\b(?:[Aa]n?|[Tt]he)\\s+(' + names + ')\\b'
-      + '(?=\\s*[.,;:!?)]|$|\\s+(?:' + PERSON_FOLLOWER.join('|') + ')\\b)',
-    'g'
-  );
-  return AGENT_ARTICLE_RE;
-}
-
-/** Strip the article in front of an agent named as a person. */
-function dropAgentArticle(text) {
-  const re = agentArticleRe();
-  if (!re || !text) return text;
-  re.lastIndex = 0;
-  let out = text.replace(re, '$1');
-  // "A Reyna is pushing" loses its opening word, so the sentence needs its
-  // capital back. The name itself is already capitalised.
-  if (/^[a-z]/.test(out)) out = out.charAt(0).toUpperCase() + out.slice(1);
-  return out;
-}
-
-// Non-actionable "meta" advice, nothing the player can do in the moment.
-const META_ADVICE = /\b(combat report|scoreboard|tab (?:menu|key|screen|out)|match history|post[- ]?game|kill ?feed|the report)\b/i;
-
-// Economy/buy advice is retired (player feedback: inaccurate and low value).
-// The AI keeps the economy as CONTEXT for reads, but any tip that tells the
-// player what to buy, save, force, or drop is dropped here.
-const ECON_TIP = new RegExp([
-  '\\bfull ?buy\\b', '\\bforce ?buy\\b', '\\bhalf ?buy\\b', '\\beco(?:nomy)?\\b',
-  '\\bfull save\\b', '\\bsave (?:your |the )?(?:creds?|credits?|money|gun|rifle|weapon)\\b',
-  '\\bcredits?\\b', '\\b(?:light|full|half|heavy|buy(?:ing)?) shields?\\b', '\\barmor\\b',
-  '\\b(?:buy|purchase|rebuy)\\b(?!\\s+(?:you|yourself|your team|us|them|some)?\\s*(?:time|seconds|space))',
-  "\\bteam'?s buy\\b", '\\bdrop (?:a |your |him |her |them )?(?:gun|weapon|rifle)\\b',
-].join('|'), 'i');
-
-// Mobility abilities cannot clear, check, or watch anything. "Use Updraft to
-// clear the flank" style tips are nonsense and get dropped outright.
-const MOBILITY_MISUSE = new RegExp(
-  '\\b(updraft|tailwind|dash(?:es)?|satchel|blast pack|high gear|sprint|blink|gatecrash)\\b[^.]{0,44}\\b(clear|check|watch|scan|spot)\\b'
-  + '|\\b(clear|check|watch|scan)(?:ing)?\\b[^.]{0,44}\\b(updraft|tailwind|satchel|high gear|sprint)\\b', 'i');
-
-// Defense in depth for the ability guard (the prompt is the primary fix): a tip
-// that COMMANDS using a specific mobility ability the player may have already
-// spent ("use your dash to reposition", "satchel out and rotate"). We cannot
-// verify cooldown state, and the frame is seconds old, so these gamble on an
-// ability that may be gone. The GOAL is fine ("reposition after the kill"); it
-// is the "use your <ability>" command we drop, since the coach should teach the
-// action, not a button that might be on cooldown.
-const ABILITY_COMMAND = new RegExp(
-  '\\b(?:use|pop|hit|blow|throw|activate)\\s+(?:your\\s+)?'
-  + '(dash(?:es)?|updraft|tailwind|satchel|blast pack|high gear|sprint|blink|gatecrash)\\b', 'i');
-
-/*
- * Telling a player to ult when the ult is not up.
- *
- * The same failure as ABILITY_COMMAND above and a more expensive one: a basic
- * ability comes back in thirty seconds, an ultimate is a whole round's plan, so
- * "ult them now" with a half charged ultimate is not a mistimed tip, it is
- * advice the player cannot act on at all.
- *
- * This became checkable when STATE gained an `ult` field. Before that the coach
- * had NO ability state whatsoever: the model was told to read the icons and
- * never asked to report what it saw, so every ultimate tip was a guess.
- *
- * Only fires on a CONFIRMED "charging". A null read means unknown, and unknown
- * has to stay permissive or the coach goes silent about ultimates on every
- * frame where the icon was hard to see, which is most of them.
- */
-// A LITERAL, not new RegExp with an escaped string. Written the other way this
-// pattern lost every backslash on the way into the file, so \s+ became a
-// literal "s" and \b vanished, and it matched none of seven obvious positives.
-// A regex literal has nothing for a shell or a string parser to eat.
-const ULT_COMMAND = /\b(?:use|pop|press|hit|drop|fire|cast|activate|save)\s+(?:your\s+|the\s+)?(?:ult(?:imate)?|x)\b|\bult(?:imate)?\s+(?:them|now|it|here)\b|\bgo ult\b/i;
-
-// Prompt-echo leaks: fragments of the STATE schema or frame-memory wording
-// must never surface as a tip.
-const PROMPT_LEAK = /"(?:side|phase|round|team|enemy|credits|alive|weapon|map|enemySpot)"|\bSTATE\b|\benemy ?spot\b|\b(?:previous|current|second) frame\b|\bplaybook\b/i;
-
-// Updraft tips are permanently banned (player feedback: the model always gets
-// them wrong). Knife tips are only allowed in the death-review window, i.e.
-// when having the knife out plausibly just got the player killed; commentary
-// on ordinary knife rotations is noise.
-const UPDRAFT_BAN = /\bupdraft\b/i;
-const KNIFE_TIP   = /\bknife\b/i;
-const DEATH_WINDOW_MS = 15000;
 // The fastest a Valorant round can possibly repeat: a 30 second buy phase plus
 // the shortest survivable round. Real rounds average well over a minute, so
 // this is already generous, and it needs to be: too loose and a run of rejected
 // reads banks enough time for the bad value to walk in anyway, which is exactly
 // what 30 seconds did when replayed against the session that prompted this.
 const MIN_ROUND_MS = 40000;
-
-// How many coaching tips a player gets after dying. Enough to explain the death
-// and the fix; past that they are spectating and cannot act on anything, so the
-// coach goes quiet until they respawn.
-const DEATH_TIPS_MAX = 2;
 
 // How long the engine stops sending frames after the AI reports it is out of
 // credits. Long enough that an outage costs almost nothing, short enough that
@@ -2239,244 +1424,6 @@ const TEAM_PLAN_TTL_MS = 45000;
 const DEAD_TELL = /spectat|kill ?cam|death ?recap|observer|you died|respawn|teammate'?s? (?:name|loadout)|no hp|grey(?:ed)?[- ]?out/i;
 // A read the model itself was not sure about never counts as proof.
 const UNSURE_TELL = /unreadable|kept previous|unclear|not sure|cannot tell|can.?t tell|assum/i;
-
-// Advice that requires living teammates: impossible in a solo clutch
-// (teammatesAlive reported as 0 by the AI from the HUD portraits).
-const TEAM_PLAY_TIP = /\btrad(?:e|es|ed|ing)\b|\bteammates?\b|\bcrossfire\b|\bswing (?:with|together)\b|\bas five\b|\bregroup\b|\btrade partner\b|\bentry with\b/i;
-
-// Map-specific callouts and where they belong. A tip naming a callout from
-// the WRONG map, or any distinctive callout while the map is still unknown,
-// is dropped outright: "hold the cross in Hookah" on Ascent is worse than
-// silence. Only distinctive names are listed; shared words (mid, heaven,
-// main, site) are never gated.
-// Distinctive callout -> the standard 5v5 map(s) it belongs to, generated from
-// the game's own region data (valorant-api.com) by `npm run sync:valorant`, so
-// a callout maps to EVERY map that has it and the gate only rejects it when it
-// is truly foreign, and it stays current when a new map ships. A small fallback
-// covers the (never-in-practice) case of the generated file being absent.
-const MAP_CALLOUTS = (() => {
-  try {
-    const c = require('../../shared/valorant-data.generated.json').mapCallouts;
-    if (c && Object.keys(c).length) return c;
-  } catch (e) { console.error('[engine] generated callouts missing, using fallback:', e.message); }
-  return { hookah: ['bind'], showers: ['bind'], lamps: ['bind'], kitchen: ['icebox'],
-    garage: ['haven', 'split', 'icebox'], pyramids: ['breeze'], dish: ['fracture'],
-    tree: ['ascent', 'fracture', 'lotus'], flowers: ['pearl'], waterfall: ['lotus'] };
-})();
-const CALLOUT_RE = new RegExp('\\b(' + Object.keys(MAP_CALLOUTS).join('|') + ')\\b', 'gi');
-function wrongMapCallout(text, map) {
-  const found = String(text || '').toLowerCase().match(CALLOUT_RE);
-  if (!found) return null;
-  const m = String(map || '').toLowerCase();
-  for (const c of new Set(found)) {
-    const homes = MAP_CALLOUTS[c] || [];
-    if (!m || !homes.includes(m)) return c;   // unknown map or a foreign callout
-  }
-  return null;
-}
-
-/** Distinct callout words named in a tip, lowercased. */
-function namedCallouts(text) {
-  const found = String(text || '').toLowerCase().match(CALLOUT_RE);
-  return found ? [...new Set(found)] : [];
-}
-
-// FULL location names ("a sewer", "c link", "mid window"), built from the real
-// per map callout lists. CALLOUT_RE above cannot be reused here: it holds only
-// the 34 DISTINCTIVE words (hookah, boba, snowman) that identify a map, and
-// deliberately excludes the structural ones (link, window, site, long) that
-// make up most actual callouts. Matching by pattern instead, something like
-// "(a|b|c|mid) <word>", would catch every "a free kill" and "a crossfire" in
-// the language, so the names come from the data.
-const SPOT_RE = (() => {
-  try {
-    const geo = require('../../shared/valorant-data.generated.json').mapGeometry || {};
-    const names = new Set();
-    for (const g of Object.values(geo)) {
-      for (const c of (g.callouts || [])) if (c && c.n) names.add(String(c.n).toLowerCase());
-    }
-    if (!names.size) return null;
-    // Longest first, so "b boat house" wins over a nested shorter name.
-    const alts = [...names].sort((a, b) => b.length - a.length)
-      .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    return new RegExp('\\b(' + alts.join('|') + ')\\b', 'gi');
-  } catch { return null; }
-})();
-
-/** Full location names a tip mentions, lowercased. */
-function namedSpots(text) {
-  if (!SPOT_RE) return [];
-  const found = String(text || '').toLowerCase().match(SPOT_RE);
-  return found ? [...new Set(found.map((s) => s.trim()))] : [];
-}
-
-// A tip that explains a death. Matched on the text rather than a flag, because
-// verifyTip is the last gate and runs on library tips and rescued text too,
-// where no flag was ever attached. Deliberately narrow: it must be about the
-// PLAYER dying, so "trade your teammate when they die" is not caught.
-const DEATH_REVIEW_RE = /\byou (died|got (killed|traded|picked)|were (killed|traded|caught)|lost that (duel|fight))\b|\byour death\b|\bthat death\b/i;
-
-// A tip ASSERTING the player is not alive right now, which is a claim about the
-// world that the health number can settle. Split from DEATH_REVIEW_RE because
-// that one asks "is this reviewing a death" while this asks "is this telling the
-// player they are dead", and the second is checkable against the HUD.
-//
-// "you are spectating" belongs here: it is the same false claim wearing
-// different words, and it was shown to a player at full health.
-const CLAIMS_DEAD_RE = /\byou (died|are dead|were killed|got killed|got traded|got picked|were traded|were caught)\b|\byou'?re dead\b/i;
-const CLAIMS_SPECTATING_RE = /\byou (are|'?re) (spectating|watching (a|your) (teammate|killcam))\b|\byou are in the killcam\b/i;
-
-/** What the tip claims about the player's state, or null if it claims nothing. */
-function claimsNotAlive(text) {
-  const t = String(text || '');
-  if (CLAIMS_DEAD_RE.test(t)) return 'dead';
-  if (CLAIMS_SPECTATING_RE.test(t)) return 'spectating';
-  return null;
-}
-
-function isDeathReview(text, ctx) {
-  if (!ctx) return false;
-  // While the player is DEAD every location on screen is the spectated
-  // teammate's, and the player cannot act on any of them, so any location a tip
-  // names is either about their death or is meaningless. Gate regardless of
-  // wording: the tips that drifted worst ("You pushed into C Link alone") never
-  // contained the phrase "you died" at all, so keying off that phrase missed
-  // exactly the cases this exists to catch.
-  if (ctx.playerAlive === false || ctx.phase === 'dead') return true;
-  // Just respawned: only gate text that is actually reviewing the death, so a
-  // live tip about the round now is free to name wherever it needs to.
-  return !!(ctx.lastDeathAt && Date.now() - ctx.lastDeathAt < DEATH_WINDOW_MS
-    && DEATH_REVIEW_RE.test(String(text || '')));
-}
-
-// Advice that parks the player where they are. Deliberately narrow: only
-// phrasings that mean "stay put", never "rotate", "fall back" or "push", which
-// are the correct answers to a push and must survive.
-const HOLD_ADVICE = /\b(hold|holding|anchor|stay|sit|post up|lock down|watch)\b/i;
-const MOVE_ADVICE = /\b(rotate|rotating|fall back|retreat|collapse|reposition|push|move to|head to|get to|go to|leave)\b/i;
-
-/**
- * The tip tells the player to hold their ground while a confirmed push is
- * landing on a different site.
- *
- * Requires ALL of: a live push (question marks are a lean, not a fact), the
- * enemies already inside the site (still in lobby is a look, not a commit),
- * the push at a site the player is NOT at, and hold-shaped advice with no
- * movement in it. Anything less and the tip is allowed, because silencing a
- * round wrongly is worse than an imperfect tip.
- *
- * @returns {{where:string}|null}
- */
-function wrongSideHold(text, ctx) {
-  if (!ctx || !ctx.pushSite || ctx.pushLive !== true || ctx.pushOnSite !== true) return null;
-  if (!/defend/i.test(String(ctx.side || ''))) return null;
-
-  const where = String(ctx.locLabel || ctx.playerSpot || '');
-  const playerSite = (where.match(/^\s*(A|B|C|Mid)\b/i) || [])[1];
-  if (!playerSite) return null;                                   // cannot tell where they are
-  if (playerSite.toUpperCase() === String(ctx.pushSite).toUpperCase()) return null;  // their own fight
-
-  const t = String(text || '');
-  if (!HOLD_ADVICE.test(t)) return null;
-  if (MOVE_ADVICE.test(t)) return null;   // it does tell them to move, let it through
-  return { where };
-}
-
-/**
- * The tip names places, but not the one the player actually died at.
- *
- * At least ONE named spot has to be the death spot, rather than every named
- * spot having to be it. A review legitimately mentions other places, "you died
- * in Mid Window while your team was stacking C Lobby" is a good tip and the
- * strict version threw it away. What must never happen is a tip that talks
- * about locations without the real one among them, which is how "pushed into C
- * Link" reached a player who died at A Sewer.
- */
-// The generated map geometry, keyed by lowercase map name. Loaded the same
-// lazy, degrade-on-missing way as MAP_CALLOUTS and MAP_LABEL_INDEX: a stripped
-// build loses the site check and keeps coaching.
-const MAP_GEOMETRY = (() => {
-  try { return require('../../shared/valorant-data.generated.json').mapGeometry || {}; }
-  catch (e) { console.log('[engine] map geometry unavailable:', e.message); return {}; }
-})();
-
-/**
- * Which site a callout belongs to, from the game's own geometry.
- *
- * Every callout carries one: "A Garden" is site A, "B Main" is site B, and the
- * two spawns resolve to "Attacker Side" and "Defender Side", which are
- * deliberately NOT sites.
- */
-function siteOfCallout(map, name) {
-  const geo = MAP_GEOMETRY[String(map || '').toLowerCase()];
-  if (!geo) return null;
-  const want = String(name || '').trim().toLowerCase();
-  for (const c of geo.callouts || []) {
-    if (String(c.n).toLowerCase() === want) return c.s || null;
-    if (c.a && String(c.a).toLowerCase() === want) return c.s || null;
-  }
-  return null;
-}
-
-/** A spawn is where rounds begin, not where deaths happen. */
-const SPAWN_SITE = /side$/i;
-
-/**
- * Did the tip name somewhere the player did not die?
- *
- * TWO CORRECTIONS, both measured on session 2026-09-18, where this gate blocked
- * SIXTEEN death reviews against seven that got through. Death reviews are the
- * most valuable tip the coach writes, so a gate this noisy is expensive.
- *
- * SAME SITE IS NOT A CONTRADICTION. Six of the sixteen were the model being MORE
- * precise than the record: "a rafters" against a recorded "A Site", "b main"
- * against "B Site", "a garden" against "A Site". Rafters is on A. The record is
- * one coarse label captured on one frame, and a tip naming a specific place
- * inside the right site is better coaching, not a lie. Different sites still
- * block, which is the case this gate was written for: "b lobby" when the player
- * died on A is exactly the tip that must never ship.
- *
- * A SPAWN IS NOT A DEATH LOCATION. Three more were blocked with "the player died
- * at Defender Side Spawn", which is a sentence the coach should never have been
- * able to form. Players do not die in their own spawn; a spawn in this slot is
- * the post-death camera or the next round's first frame, so it is a broken
- * capture rather than a truth to check against. It still blocks, because
- * unverifiable is still unverifiable, but it no longer asserts something false
- * on the way.
- */
-function wrongDeathSpot(text, deathSpot, map) {
-  const spots = namedSpots(text);
-  if (!spots.length) return null;                 // no location claimed, fine
-  const truth = String(deathSpot || '').trim().toLowerCase();
-  if (!truth) return { spot: spots[0], why: 'uncaptured' };
-
-  const truthSite = siteOfCallout(map, truth);
-  if (truthSite && SPAWN_SITE.test(truthSite)) {
-    return { spot: spots[0], why: 'spawn' };
-  }
-  if (spots.includes(truth)) return null;
-
-  if (truthSite) {
-    for (const s of spots) {
-      if (siteOfCallout(map, s) === truthSite) return null;   // same site, finer detail
-    }
-  }
-  return { spot: spots[0], why: 'elsewhere' };
-}
-
-// The reason the most recent tip was dropped. The console line alone is not
-// enough: the AI decision log needs to SHOW why a tip the model produced never
-// reached the player, otherwise a filtered tip looks identical to no tip.
-let lastRejectReason = null;
-function noteReject(reason) {
-  lastRejectReason = reason;
-  console.log('[engine] reject: ' + reason);
-}
-function takeRejectReason() {
-  const r = lastRejectReason;
-  lastRejectReason = null;
-  return r;
-}
 
 // Which maps contain a given printed location label. Built from the game's own
 // callout data, so it stays correct as maps are added or renamed.
@@ -2608,291 +1555,6 @@ function mapFromLabels(labels) {
   return { map: null, confident: false, candidates };
 }
 
-// The stock plays the model reaches for over and over. Naming them lets the
-// engine stop the same recommendation being re-served in fresh wording, which
-// is what made every other tip a crossfire in a real session.
-const PLAY_PATTERNS = [
-  ['crossfire',  /\bcross ?fire\b/i],
-  ['off-angle',  /\boff.?angle\b/i],
-  ['fall-back',  /\bfall back\b|\bplay for the retake\b|\bback to site\b/i],
-  ['group-up',   /\bgroup (?:up|with)\b|\bstick with your team\b|\bwith your teammates?\b|\bstay (?:with|near) the group\b/i],
-  ['reposition', /\breposition\b|\bdo not (?:re)?hold the same\b|\bmove after (?:the|your) kill\b/i],
-  ['trade',      /\btrade (?:your|the|them)\b|\btrade partner\b/i],
-  // THE ADVICE THIS COACH ACTUALLY REPEATS, which had no entry here at all.
-  // Measured on a real session: 14 of 23 tips the player saw were some version
-  // of "stay tight and wait for your team", two of them almost word for word,
-  // and 10 of 11 were invisible to this list. The guard was working perfectly on
-  // the plays the model rarely reaches for while its favourite went uncounted.
-  ['hold-tight', /\b(?:stay|hold|sit|keep)\s+(?:tight|low|back)\b|\btight (?:to|against|behind)\b|\bhold (?:that|the|your) angle\b/i],
-  ['wait-out',   /\bwait for (?:your |the )?(?:team|teammates|entry|them)\b|\buntil (?:your |the )?team (?:clears|commits|arrives)\b|\bbefore you peek out\b|\bwait for them to clear\b/i],
-];
-function playPatternIn(text) {
-  const t = String(text || '');
-  for (const [name, re] of PLAY_PATTERNS) if (re.test(t)) return name;
-  return null;
-}
-
-/**
- * The coach blaming the player for a play it just told them to make.
- *
- * From a real session, twenty seconds apart:
- *   SHOWN  "You have the dash ready, so take an aggressive off-angle on B Main
- *           to catch their defuse attempt."
- *   THEN   "You died to Viper because you took an aggressive off-angle on B
- *           Main alone without a teammate to trade the kill."
- *
- * The player did exactly what they were told, it did not work, and the coach
- * turned round and called it their mistake. Nothing destroys trust faster, and
- * no amount of prompt wording reliably prevents it, because from the model's
- * point of view each sentence is independently true.
- *
- * Narrow on purpose. It only fires on a DEATH REVIEW that faults the same PLAY
- * the coach recommended in its last two tips. A review of something the coach
- * never suggested is honest coaching and passes untouched, and so does advice
- * that merely repeats a play without blaming anyone.
- *
- * @returns the play name when the tip contradicts recent advice, else null
- */
-// Claims the tip can make that the app has already COUNTED, so a disagreement
-// is a fact-check rather than a matter of taste.
-const CLAIMS_LAST_ALIVE = /\blast alive\b|\b1v[2-9]\b|\bclutch(ing)?\b|\ball your teammates are dead\b|\byou are alone against\b/i;
-const CLAIMS_SPIKE_DOWN = /\bspike timer\b|\bspike is (down|planted)\b|\bpost.?plant\b|\bthe defuse\b|\bdefusing\b/i;
-
-/**
- * Does this tip contradict something the HUD read already established?
- *
- * Every rule here fired on a real tip that reached a real player. The failure
- * is not that the advice is bad, it is that the advice is about a round that is
- * not happening, which is far more corrosive: it is specific, confident and
- * checkable, so the player knows immediately that the coach is not watching.
- *
- * Only ever rejects on a POSITIVE contradiction. A missing count means the app
- * does not know, and not knowing is never grounds for throwing away a tip.
- *
- * @returns a reject reason, or null when nothing conflicts
- */
-function contradictsState(text, ctx) {
-  const t = String(text || '');
-  if (!ctx) return null;
-
-  // "Last alive" is a count, and the app has the count.
-  if (CLAIMS_LAST_ALIVE.test(t)
-      && typeof ctx.teammatesAlive === 'number' && ctx.teammatesAlive > 0) {
-    return `said the player was last alive while ${ctx.teammatesAlive} teammates were still up`;
-  }
-
-  // A clutch cannot happen during the buy phase: nobody has died yet. This is
-  // usually a stale count carried over from the end of the previous round, and
-  // it produced "last alive in a 1v5" to a player at full health in buy.
-  if (CLAIMS_LAST_ALIVE.test(t) && ctx.phase === 'buy') {
-    return 'described a clutch during the buy phase, where nobody has died yet';
-  }
-
-  // The spike drives a whole family of advice, so referencing it when it is not
-  // down sends the player to defuse something that does not exist.
-  if (CLAIMS_SPIKE_DOWN.test(t) && ctx.phase === 'buy') {
-    return 'referenced the spike during the buy phase, before it can be planted';
-  }
-
-  // Telling a living player they are dead. Health is the ground truth for being
-  // alive, so this is the same kind of fact-check as "last alive" with four
-  // teammates still up.
-  //
-  // DELIBERATELY NARROW, because the last guard built on this idea did real
-  // damage. Deaths that looked fabricated turned out to be genuine (see
-  // test-alive-claims), and suppressing their reviews silenced correct coaching
-  // at the exact moment it mattered most. So a claim is only rejected when the
-  // player is AFFIRMATIVELY alive and there is no death under review: dead by
-  // either signal, or a death recent enough that reviewing it is still the right
-  // thing to do, both leave the tip alone.
-  const notAlive = claimsNotAlive(t);
-  if (notAlive) {
-    const aliveNow = ctx.playerAlive === true
-      || (typeof ctx.playerHp === 'number' && ctx.playerHp > 0);
-    // `spectateSuspected` is the fix for the whole class of failure this guard
-    // used to cause. It is set upstream from the HUD identity read, so a death
-    // review written while the model is describing a teammate's HUD is no longer
-    // called a fabrication just because that teammate happens to be at 100.
-    const reviewing = ctx.playerAlive === false || ctx.phase === 'dead'
-      || ctx.spectateSuspected === true
-      || !!(ctx.lastDeathAt && Date.now() - ctx.lastDeathAt < DEATH_WINDOW_MS);
-    if (aliveNow && !reviewing) {
-      const at = typeof ctx.playerHp === 'number' ? ` at ${ctx.playerHp} HP` : '';
-      return notAlive === 'spectating'
-        ? `said the player was spectating while they were alive${at} and playing the round`
-        : `said the player was dead while they were alive${at}`;
-    }
-  }
-
-  return null;
-}
-
-function blamesOwnAdvice(text, tipHistory) {
-  const t = String(text || '');
-  if (!DEATH_REVIEW_RE.test(t)) return null;   // only a review assigns fault
-  const play = playPatternIn(t);
-  if (!play) return null;
-  const recent = (tipHistory || []).slice(-2);
-  for (const prev of recent) {
-    const prevText = typeof prev === 'string' ? prev : (prev && prev.text) || '';
-    // The coach's own advice, not an earlier review of the same mistake.
-    if (DEATH_REVIEW_RE.test(prevText)) continue;
-    if (playPatternIn(prevText) === play) return play;
-  }
-  return null;
-}
-
-// High-confidence situational guards only, never reject on a guess.
-function scenarioFits(text, source, ctx) {
-  if (!ctx) return true;
-  const l = text.toLowerCase();
-
-  // No "analyse the combat report"-style tips, give in-the-moment advice.
-  if (source === 'ai' && META_ADVICE.test(l)) return false;
-
-  // Economy/buy tips are retired entirely; mobility abilities can't "clear"
-  // anything; and prompt internals never surface as coaching.
-  if (source === 'ai' && ECON_TIP.test(l)) return false;
-  if (MOBILITY_MISUSE.test(l)) return false;
-  // Don't command a mobility ability we can't confirm is off cooldown.
-  if (source !== 'system' && ABILITY_COMMAND.test(l)) {
-    noteReject('told the player to use an ability we cannot confirm is off cooldown');
-    return false;
-  }
-  // An ultimate the player demonstrably does not have yet.
-  if (source !== 'system' && ctx.playerUlt === 'charging' && ULT_COMMAND.test(l)) {
-    noteReject('told the player to ult while the ultimate is still charging');
-    return false;
-  }
-  if (source !== 'system' && PROMPT_LEAK.test(text)) return false;
-  // Solo clutch: nobody is alive to trade or crossfire with, so team-play
-  // advice is impossible and gets dropped no matter how good it sounds.
-  if (ctx.playerAlive !== false && ctx.teammatesAlive === 0 && TEAM_PLAY_TIP.test(l)) {
-    return false;
-  }
-
-  // Map discipline: a callout from another map, or any distinctive callout
-  // while the map is unknown, makes the tip wrong by definition.
-  if (source !== 'system') {
-    // A contradicting map read is pending, so we do not know which map's
-    // callouts are legal. Block them all rather than trust a lock that may be
-    // about to be corrected: this is the exact failure that put Ascent
-    // callouts ("Elbow", "B Back Site") in front of a player on Breeze.
-    if (ctx.mapUncertain) {
-      const anyCallout = String(text || '').toLowerCase().match(CALLOUT_RE);
-      if (anyCallout) {
-        noteReject(`named "${anyCallout[0]}" while the map read is in doubt`);
-        return false;
-      }
-    }
-    const bad = wrongMapCallout(l, ctx.map);
-    if (bad) { noteReject(`used the callout "${bad}" which does not belong to ${ctx.map || 'the unknown map'}`); return false; }
-
-    // DEATH LOCATION GATE. Telling the prompt where the player died is not
-    // enough on its own: measured over one real session, reviews named the
-    // right spot 7 times and the wrong one 8, either drifting to whatever the
-    // spectator camera was showing (pinned A Sewer, tip said C Link) or
-    // inventing a place when no spot had been captured at all.
-    //
-    // So the client decides, the same way it already decides the map. A review
-    // may name the spot the player actually died at and nothing else; if no
-    // spot was captured it may name no location at all. Rejecting is the right
-    // outcome rather than rewriting, because the sentence is built around the
-    // place and a substitution would leave the reasoning describing somewhere
-    // the player never was.
-    // HOLDING A DEAD ANGLE WHILE THEY HIT SOMEWHERE ELSE.
-    //
-    // With a live push confirmed on site at a DIFFERENT site from the player,
-    // a tip telling them to sit still is the worst one available: it keeps
-    // them out of a round that is already happening without them. The prompt
-    // covers this, but "hold your angle" is the single most common shape of
-    // advice in the whole library, so the model reaches for it constantly and
-    // a rule it can overlook is not enough.
-    const stuck = wrongSideHold(l, ctx);
-    if (stuck) {
-      noteReject(`told the player to hold ${stuck.where} while ${ctx.pushCount} enemies are confirmed on ${ctx.pushSite}`);
-      return false;
-    }
-
-    // NOTE, AND DO NOT REINTRODUCE THIS.
-    //
-    // A guard used to live here rejecting any tip that said "you died" while the
-    // health number was above zero, on the reasoning that HP beats death. It was
-    // removed because the premise is false at exactly the moment it matters: the
-    // instant a player dies the HUD starts showing the SPECTATED teammate's
-    // health in the same place, so "hp 100" is routine while genuinely dead.
-    //
-    // The guard therefore suppressed real death reviews, which is the opposite
-    // of its intent, and it looked like it was working because the tips it threw
-    // away did read like hallucinations. Two sessions of correct coaching were
-    // misfiled as fabrication before anyone opened the screenshots.
-    //
-    // The contradiction is now settled server side, where the evidence lives:
-    // when the model's own aliveTell says it is looking at a spectator HUD, the
-    // tell wins and the health number is dropped. See SPECTATE_TELL in
-    // server/routes/coach.js.
-
-    if (isDeathReview(l, ctx)) {
-      const wrongSpot = wrongDeathSpot(l, ctx.deathSpot, ctx.map);
-      if (wrongSpot) {
-        noteReject(
-          wrongSpot.why === 'spawn'
-            // Never phrase this as "the player died at <spawn>". They did not,
-            // and a reject reason that states a falsehood sends the next person
-            // reading the log after the wrong bug.
-            ? `named "${wrongSpot.spot}" as the death spot, and the captured location `
-              + `was "${ctx.deathSpot}", a spawn, so there is nothing to check against`
-            : wrongSpot.why === 'uncaptured'
-              ? `named "${wrongSpot.spot}" as the death spot, but no death location was captured`
-              : `said the death was at "${wrongSpot.spot}" but the player died at "${ctx.deathSpot}"`);
-        return false;
-      }
-    }
-  }
-
-  // Updraft advice: never. Knife advice: only right after a death it may have caused.
-  if (source !== 'system' && UPDRAFT_BAN.test(l)) return false;
-  if (source !== 'system' && KNIFE_TIP.test(l)
-      && !(ctx.lastDeathAt && Date.now() - ctx.lastDeathAt < DEATH_WINDOW_MS)) {
-    return false;
-  }
-
-  // Don't tell the player to use an ability their agent can't (e.g. "recon
-  // dart" on Reyna). With no confirmed agent, hold back ability-specific tips
-  // until we know what they're on, this is the core "verify before tipping".
-  // Treat the agent as unknown until the player CONFIRMS it, so a detection
-  // guess never lets an ability-specific tip through.
-  const gateAgent = ctx.agentConfirmed ? ctx.agent : null;
-  if (source === 'ai') {
-    // Before confirmation, block ANY named ability (e.g. "stim beacon"), not
-    // just generic ones, so nothing agent-specific slips out on a guess.
-    if (!gateAgent && agentData.mentionsSpecificAbility(text)) return false;
-    if (agentData.tipMisusesAbility(text, gateAgent)) return false;
-  }
-
-  // A dead player can only watch / comm, don't tell them to peek or shoot.
-  //
-  // BUT A DEATH REVIEW IS WRITTEN ABOUT EXACTLY THOSE VERBS, in the past tense:
-  // "you peeked A Main without a trade", "you pushed in alone". This gate is
-  // tenseless and ctx.phase is 'dead' while the review is being written, so a
-  // rule built to stop instructions to a corpse was eating the reviews OF that
-  // corpse instead. It accounted for most of the silent "failed the final verify
-  // gate" drops in a real graded session.
-  //
-  // The exemption is deliberately narrow: the text must actually name the death
-  // or advise for a later round. An imperative with neither is still an
-  // instruction to somebody who cannot act on it, and is still refused.
-  const reviewingADeath = DEATH_REVIEW_RE.test(l) || /\bnext (?:time|round)\b/.test(l);
-  if (ctx.phase === 'dead' && !reviewingADeath
-      && /\b(peek|swing|shoot|spray|tap|push|rush|plant|defuse|reload)\b/.test(l)
-      && !/\b(comm|call|callout|watch|spectat|info|next round|note)\b/.test(l)) {
-    return false;
-  }
-  return true;
-}
-
 module.exports = CoachingEngine;
-// Exposed for tests. The death-location gate is the kind of rule that is easy
-// to get subtly wrong (gating a general tip, or letting the spectated location
-// through), so it is checked directly rather than only through a live session.
-module.exports.__test = { contradictsState, blamesOwnAdvice, isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold, mapFromLabels, claimsNotAlive, verifyTip, dropAgentArticle, PERSON_FOLLOWER };
+// Exposed for tests: the map fingerprint is the guard the review leans on.
+module.exports.__test = { mapFromLabels };

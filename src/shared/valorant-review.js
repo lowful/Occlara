@@ -18,6 +18,9 @@
  * Pure, no Electron, so the tests build real reviews from logged sessions.
  */
 
+const insights = require('./insights');
+const grader = require('./grade');
+
 const BASELINE_GAMES = 10;
 const BASELINE_MIN = 3;
 
@@ -196,6 +199,9 @@ function roundFacts(r) {
       if (r.killerAgent) line += `, to ${r.killerAgent}${r.weapon ? ` with a ${r.weapon}` : ''}`;
       facts.push(line);
       if (r.firstDeath) facts.push('First death of the round');
+      if (r.aliveAtDeath) facts.push(`${r.aliveAtDeath.mates} against ${r.aliveAtDeath.enemies} when you died`);
+      if (r.traded === true) facts.push('Traded by a teammate');
+      if (r.traded === false) facts.push('Not traded');
       if (r.ultAtDeath === 'ready') facts.push('Ultimate was ready');
     } else {
       // Riot knows who survived, so the line the screen could not honestly
@@ -204,6 +210,10 @@ function roundFacts(r) {
     }
     if (typeof r.kills === 'number' && r.kills > 0) facts.push(plural(r.kills, 'kill'));
     if (r.firstKill) facts.push('First kill of the round');
+    if (typeof r.trades === 'number' && r.trades > 0) facts.push(r.trades === 1 ? 'Traded a teammate' : `Traded teammates ${r.trades} times`);
+    if (r.clutch && r.clutch.vs >= 1) {
+      facts.push(`Last one standing against ${r.clutch.vs}${r.clutch.won === true ? ', and won it' : r.clutch.won === false ? ', lost' : ''}`);
+    }
     if (r.planted) facts.push(r.plantSpot ? `Spike planted at ${r.plantSpot}` : 'Spike planted');
     if (r.watched === false) facts.push('Not watched by the coach');
     return facts;
@@ -276,6 +286,12 @@ function build(input) {
     facts: roundFacts(r),
     reads: r.reads.map((x) => x.text),
     why: typeof whys[r.n] === 'string' && whys[r.n] ? whys[r.n] : null,
+    // The coach's look at the frame before the death, when it took one.
+    forensics: r.forensics && r.forensics.cause ? {
+      cause: r.forensics.cause, what: r.forensics.what || null, better: r.forensics.better || null,
+      // The kept frame names; the library stores the images beside the review.
+      frames: Array.isArray(r.forensics.frames) ? r.forensics.frames.slice(0, 2) : [],
+    } : null,
   }));
 
   const deaths = rounds.filter((r) => r.died).length;
@@ -293,6 +309,19 @@ function build(input) {
       + 'Add your Riot ID in Settings, and it fills in here a few minutes after the match.');
   }
 
+  // The numbers the grade is built on: the tracker's scoreboard, else Riot's
+  // own line from the round record, else nothing.
+  const riotMe = input.riotMe || null;
+  const scoreline = tracker ? {
+    kills: tracker.kills, deaths: tracker.deaths, assists: tracker.assists,
+    acs: tracker.acs, adr: tracker.adr, headshotPct: tracker.headshotPct, kd: tracker.kd,
+  } : riotMe && typeof riotMe.kills === 'number' ? {
+    kills: riotMe.kills, deaths: riotMe.deaths, assists: riotMe.assists,
+    acs: typeof riotMe.score === 'number' && rounds.length ? Math.round(riotMe.score / rounds.length) : null,
+    adr: typeof riotMe.damage === 'number' && rounds.length ? Math.round(riotMe.damage / rounds.length) : null,
+  } : null;
+  const totalRounds = score ? score.split('-').reduce((a, b) => a + (Number(b) || 0), 0) : null;
+
   // Riot's agent wins over the screen's, the same as every other fact it has.
   const game = {
     agent: (tracker && tracker.agent) || ctx.agent || null,
@@ -307,10 +336,7 @@ function build(input) {
     at: Date.now(),
     endedBy: input.endedBy || 'stop',
     game,
-    scoreline: tracker ? {
-      kills: tracker.kills, deaths: tracker.deaths, assists: tracker.assists,
-      acs: tracker.acs, adr: tracker.adr, headshotPct: tracker.headshotPct, kd: tracker.kd,
-    } : null,
+    scoreline,
     watched: {
       rounds: rounds.length,
       deaths,
@@ -324,6 +350,11 @@ function build(input) {
     verified: isVerified,
     verification: input.verification || null,
     patterns: patterns(rounds),
+    // Repeated mistakes, what went well, what was missed. Counted, not written.
+    insights: insights.valorant(rounds, { role: input.role || null }),
+    grade: grader.valorant({
+      rounds, scoreline, role: input.role || null, history: input.history || [], totalRounds,
+    }),
     summary: ai.summary || null,
     focus: ai.focus || null,
     study: Array.isArray(ai.study) ? ai.study.slice(0, 3) : [],
@@ -362,7 +393,12 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
       ...(r.verified ? {
         verified: true, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
         firstDeath: r.firstDeath, firstKill: r.firstKill, kills: r.kills,
+        traded: typeof r.traded === 'boolean' ? r.traded : null,
+        alive: r.aliveAtDeath || null,
       } : {}),
+      // The coach's look at the death, so the summary and the round lines
+      // agree with the cause the review counts.
+      ...(r.forensics && r.forensics.cause ? { cause: r.forensics.cause, seen: r.forensics.what || null } : {}),
     })),
     patterns: patterns(rounds),
     context: {

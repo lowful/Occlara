@@ -22,6 +22,7 @@
  */
 
 const lower = (s) => String(s || '').toLowerCase();
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 function playersOf(d) {
   if (Array.isArray(d && d.players)) return d.players;
@@ -57,6 +58,59 @@ function attackersOf(n, halfLength) {
   if (n <= halfLength * 2) return 'blue';
   // Overtime and sudden death swap every round, starting with red.
   return (n - halfLength * 2) % 2 === 1 ? 'red' : 'blue';
+}
+
+/**
+ * A trade is a kill on the player who just killed a teammate. Five seconds is
+ * generous against the two to three coaches usually quote, on purpose: the
+ * review would rather call a slow trade a trade than accuse a player of
+ * dying alone when a teammate did answer.
+ */
+const TRADE_MS = 5000;
+
+/**
+ * What the kill feed says about teamwork in one round, from the player's side.
+ *
+ *   traded       the player died and a teammate killed the killer within TRADE_MS
+ *   trades       kills by the player on someone who had just killed a teammate
+ *   aliveAtDeath { mates, enemies } standing just before the player died,
+ *                the player included in mates, so 5 and 5 is the opening duel
+ *   clutch       { vs, won: null } when the player was the last one standing
+ *                on their team with enemies alive; won is filled by the caller
+ *
+ * Null wherever the feed cannot say, never a guess: a feed with an unplaceable
+ * name counts nobody.
+ */
+function teamworkOf(feed, deathMs) {
+  const out = { traded: null, trades: 0, aliveAtDeath: null, clutch: null };
+  if (!feed.length || feed.some((k) => !k.by || !k.on)) return out;
+  // The player's own kills that answered a teammate's death.
+  for (const k of feed) {
+    if (k.by !== 'me' || k.on !== 'enemy' || k.ms === null) continue;
+    const avenged = feed.some((p) => p.on === 'mate' && p.killer && p.killer === k.victim
+      && p.ms !== null && p.ms <= k.ms && k.ms - p.ms <= TRADE_MS);
+    if (avenged) out.trades++;
+  }
+  // Numbers standing, walked through the feed in order.
+  let mates = 5; let enemies = 5; let clutchAt = null;
+  for (const k of feed) {
+    if (deathMs !== null && k.on === 'me' && k.ms === deathMs) {
+      out.aliveAtDeath = { mates, enemies };
+    }
+    if (k.on === 'me' || k.on === 'mate') mates--;
+    else if (k.on === 'enemy') enemies--;
+    // The player is the last one up on their side, with somebody left to beat.
+    if (clutchAt === null && mates === 1 && enemies > 0 && !feed.some((p) => p.on === 'me' && p.ms <= k.ms)) {
+      clutchAt = { vs: enemies, won: null };
+    }
+  }
+  out.clutch = clutchAt;
+  if (deathMs !== null) {
+    const death = feed.find((k) => k.on === 'me' && k.ms === deathMs);
+    out.traded = !!(death && death.killer && feed.some((k) => k.by === 'mate' && k.victim === death.killer
+      && k.ms !== null && k.ms >= deathMs && k.ms - deathMs <= TRADE_MS));
+  }
+  return out;
 }
 
 /**
@@ -98,6 +152,18 @@ function parse(d, name, tag) {
     weapon: (k.weapon && (k.weapon.name || k.weapon.type)) || k.damage_weapon_name || null,
   })).filter((k) => k.n);
 
+  // Which side a player in the kill feed is on, relative to the player. Kill
+  // events name players by puuid, name and tag, or both, so the team is looked
+  // up from the roster rather than trusted from the event.
+  const teamById = new Map(players.map((p) => [idOf(p), teamOfPlayer(p)]));
+  const whoIs = (x) => {
+    if (!x) return null;
+    if (isMe(x)) return 'me';
+    const t = lower(x.team) || teamById.get(idOf(x)) || null;
+    if (!t) return null;
+    return t === myTeam ? 'mate' : 'enemy';
+  };
+
   const perRound = rounds.map((r, i) => {
     const n = i + 1;
     const inRound = kills.filter((k) => k.n === n).sort((a, b) => (a.ms || 0) - (b.ms || 0));
@@ -107,6 +173,9 @@ function parse(d, name, tag) {
     const plant = r.plant || r.plant_events || null;
     const plantMs = plant && (typeof plant.round_time_in_ms === 'number' ? plant.round_time_in_ms
       : typeof plant.plant_time_in_round === 'number' ? plant.plant_time_in_round : null);
+    const feed = inRound.map((k) => ({ ms: k.ms, by: whoIs(k.killer), on: whoIs(k.victim),
+      killer: idOf(k.killer), victim: idOf(k.victim) }));
+    const teamwork = teamworkOf(feed, death ? death.ms : null);
     return {
       n,
       won: winner ? winner === myTeam : null,
@@ -124,6 +193,12 @@ function parse(d, name, tag) {
       plantMs,
       // A death after the spike went down is a post-plant death, never "early".
       afterPlant: !!(death && plantMs !== null && death.ms !== null && death.ms > plantMs),
+      ...teamwork,
+      clutch: teamwork.clutch ? { ...teamwork.clutch, won: winner ? winner === myTeam : null } : null,
+      // The kill feed with every name taken out: when, and which side each end
+      // was on. Enough for the review to reason about trades, and nothing that
+      // identifies the other nine players.
+      feed: feed.map((k) => ({ ms: k.ms, by: k.by, on: k.on })),
     };
   });
 
@@ -149,6 +224,11 @@ function parse(d, name, tag) {
       kills: typeof st.kills === 'number' ? st.kills : null,
       deaths: typeof st.deaths === 'number' ? st.deaths : null,
       assists: typeof st.assists === 'number' ? st.assists : null,
+      // Combat score and damage, for ACS and ADR over Riot's own round count.
+      score: typeof st.score === 'number' ? st.score : null,
+      damage: num(st.damage && (st.damage.dealt != null ? st.damage.dealt : st.damage.made))
+        ?? num(me.damage_made),
+      headshots: num(st.headshots), bodyshots: num(st.bodyshots), legshots: num(st.legshots),
     },
     score: my !== null && their !== null ? `${my}-${their}` : null,
     result: my !== null && their !== null ? (my > their ? 'Victory' : my < their ? 'Defeat' : 'Draw') : null,
@@ -157,4 +237,4 @@ function parse(d, name, tag) {
   };
 }
 
-module.exports = { parse, attackersOf, killsOf, playersOf };
+module.exports = { parse, attackersOf, killsOf, playersOf, teamworkOf, TRADE_MS };

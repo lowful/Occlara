@@ -32,6 +32,9 @@ function replay(frames, mode) {
   const ledger = new RoundLedger();
   const watch = new MatchEndWatch();
   const events = [];
+  // Each frame as the AI log would have recorded it, with the round the ledger
+  // filed it under, so the death frame picker can be run against a real match.
+  const records = [];
   let team = 0;
   let enemy = 0;
   let prevAlive = true;
@@ -64,6 +67,8 @@ function replay(frames, mode) {
       spike: f.spike, spikeSpot: f.spikeSpot, loc: f.locLabel || f.playerSpot,
       tip: f.shown ? { text: f.shown.text, source: 'ai', death: f.shown.death } : null,
     });
+    records.push({ at, frame: `frame-${String(records.length).padStart(4, '0')}.jpg`,
+      state: { phase: f.phase, clock: f.clock }, round: ledger.current(), died });
   }
   // The log stops when the player pressed stop; in the app the next frames are
   // menus, which is what confirms a final score read once.
@@ -79,6 +84,7 @@ function replay(frames, mode) {
     context: { teamScore: team, enemyScore: enemy, map, gameMode: mode },
     endedBy: endedBy || 'stop',
     events,
+    records,
   };
 }
 

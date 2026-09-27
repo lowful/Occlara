@@ -240,6 +240,14 @@ class RoundLedger {
 
     // A death review is ABOUT the round the player died in, and it usually
     // lands in the next buy phase, so it is filed where the death was.
+    // WHAT THE COACH SAW this frame, a fact about the player ("holding A Main
+    // alone"). Live tips used to fill these lines; the reader writes no tips.
+    if (f.note) {
+      const text = String(f.note).trim();
+      if (text && !r.reads.some((x) => sameRead(x.text, text)) && r.reads.length < MAX_READS_PER_ROUND) {
+        r.reads.push({ text, death: false, seen: true });
+      }
+    }
     const t = f.tip;
     if (t && t.text && t.source === 'ai') {
       const home = t.death && this.lastDeathRound && this.rounds.get(this.lastDeathRound)
@@ -278,6 +286,9 @@ class RoundLedger {
   }
 
   size() { return this.rounds.size; }
+
+  /** The round the last frame was filed under, or null before the first. */
+  current() { return this.base ? this.base + this.offset : null; }
 }
 
 module.exports = { RoundLedger, clockSeconds, EARLY_DEATH_LEFT, ROUND_SECONDS };

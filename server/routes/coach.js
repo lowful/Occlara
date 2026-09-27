@@ -5,6 +5,7 @@ const knowledge = require('../services/knowledge');
 const matchReview = require('../services/match-review');
 const readPrompt = require('../services/read-prompt');
 const riotRounds = require('../services/riot-rounds');
+const deathForensics = require('../services/death-forensics');
 // The language list is shared with the client so both agree on what is
 // supported, and so the prompt always names the language in English (a model
 // follows "write in German" far more reliably than "write in Deutsch").
@@ -147,12 +148,34 @@ const AI = {
   // a deep-reasoning image read. Defaults to the same vision model so an unset
   // env var cannot silently reintroduce a second model.
   visionDeep:  process.env.AI_VISION_MODEL_DEEP || process.env.AI_VISION_MODEL || 'google/gemini-3-flash-preview',
-  // The live READ (facts only, every one to three seconds) and the post match
+  // The live READ (facts only, every one to five seconds) and the post match
   // REVIEW are different jobs with different budgets, so each has its own
-  // switch. Unset, they fall back to the models above, so nothing changes until
-  // Railway says so. Chosen by scripts/bench-models.js --lean and bench:review.
-  readModel:   process.env.AI_READ_MODEL || process.env.AI_VISION_MODEL || 'google/gemini-3-flash-preview',
+  // switch.
+  //
+  // THE READ MODEL WAS CHOSEN BY MEASUREMENT, npm run bench:read, 240 real
+  // frames of the Abyss 13 to 11 scored against Riot's record of its 21 deaths
+  // (agreed / invented / missed), with two reads in flight:
+  //
+  //   deepseek/deepseek-v4.1-flash   19/0/2   labels 100%   p90 1.25s   1s tier, 0 errors
+  //   google/gemini-3.5-flash-lite   21/1/0   labels  98%   p90 2.01s   2s tier, 9x the price
+  //   openai/gpt-6-luna              19/1/2   labels 100%   p90 2.55s   2s tier
+  //   qwen/qwen3.7-flash (was live)  20/1/1   labels  99%   p90 5.70s   3s tier, 31 errors
+  //   qwen/qwen3.8-flash             19/1/2   labels 100%   p90 4.45s   3s tier
+  //   inclusionai/ling-3.0-flash-vl  15/0/6   labels 100%   p90 3.27s   2s tier
+  //   xiaomi/mimo-v2.6-flash         16/0/5   labels 100%   p90 4.88s   3s tier
+  //   z-ai/glm-5.3-flash             10/1/11                p90 6.25s   126 errors
+  //
+  // DeepSeek is the only one that sustains a read every second, invents no
+  // death and reads every location label. Riot's record decides deaths in the
+  // review anyway, so the screen's job is the round, the place and the moment,
+  // and speed buys more of those. The default no longer falls through to
+  // AI_VISION_MODEL on purpose: that one was set for the old tip prompt.
+  readModel:   process.env.AI_READ_MODEL || 'deepseek/deepseek-v4.1-flash',
   reviewModel: process.env.AI_REVIEW_MODEL || process.env.AI_TEXT_MODEL || 'google/gemini-3-flash-preview',
+  // The post match look at a handful of deaths, one or two frames each. A
+  // vision job like the read, but once a match rather than every second, so it
+  // can afford a stronger model than the read can.
+  forensicsModel: process.env.AI_FORENSICS_MODEL || 'google/gemini-3.5-flash-lite',
 };
 
 // ─── Out-of-credits breaker ──────────────────────────────────────────────────
@@ -537,7 +560,7 @@ function textModelNow() {
 
 async function textInfer(prompt, maxTokens, opts) {
   if (AI.provider === 'gemini') return geminiTextCall(prompt, maxTokens);
-  const { json = false, timeoutMs = 0 } = opts || {};
+  const { json = false, timeoutMs = 0, model: pinned = null } = opts || {};
   const finish = (t) => (json ? String(t || '') : sanitize(t));
   const run = (model) => {
     const call = chatCall({ prompt, maxTokens, temperature: 0.5, model });
@@ -548,7 +571,7 @@ async function textInfer(prompt, maxTokens, opts) {
     ]);
   };
 
-  const model = textModelNow();
+  const model = pinned || textModelNow();
   const fallback = instructFallbackModel(model);
   // THE SYMPTOM IS THE EMPTY REPLY, NOT THE MODEL'S NAME.
   //
@@ -2598,6 +2621,47 @@ router.post('/read', async (req, res) => {
   }
 });
 
+// POST /api/coach/death-forensics, JSON body: { agent, map, deaths: [{ n, side,
+// sec, killer, weapon, firstDeath, traded, alive, planted, afterPlant, spot,
+// frames: [jpeg base64, ...] }] }
+// One look at each of the most teachable deaths of a finished match: a cause
+// from a fixed list, what happened, and the better play. See
+// services/death-forensics.js for why the cause is a label and not a sentence.
+router.post('/death-forensics', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  const input = deathForensics.normalise(req.body);
+  if (!input.deaths.length) return res.json({ deaths: [] });
+  const model = benchModel(req) || AI.forensicsModel;
+  const one = async (death) => {
+    try {
+      const raw = await Promise.race([
+        visionInfer(death.frames, deathForensics.buildPrompt(input, death), 320, true, model),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('forensics timeout')), 25000)),
+      ]);
+      const out = deathForensics.parse(raw, input, death);
+      if (out.dropped.length) {
+        console.log(`[forensics] R${death.n} dropped:`, out.dropped.map((d) => `${d.field} (${d.why})`).join(', '));
+      }
+      out.what = out.what && matchReview.roundDigits(out.what);
+      out.better = out.better && matchReview.roundDigits(out.better);
+      delete out.dropped;
+      return out;
+    } catch (e) {
+      console.log(`[forensics] R${death.n} failed:`, e.message);
+      return { n: death.n, cause: 'unclear', what: null, better: null, failed: true };
+    }
+  };
+  try {
+    const deaths = await Promise.all(input.deaths.map(one));
+    trackCall(licenseKey, input.deaths.length);
+    res.json({ deaths, model });
+  } catch (e) {
+    console.error('[forensics] error:', e.message);
+    res.status(503).json({ error: 'forensics-unavailable' });
+  }
+});
+
 // POST /api/coach/match-review, JSON body: { tips: string[] }
 router.post('/match-review', async (req, res) => {
   try {
@@ -2628,7 +2692,7 @@ router.post('/match-review', async (req, res) => {
       // per field after parsing instead, which keeps its dash removal.
       const text = await Promise.race([
         // 1600: variant C was cut off mid focus line at 1100 on the bench.
-        textInfer(prompt, 1600, { json: true }),
+        textInfer(prompt, 1600, { json: true, model: benchModel(req) || AI.reviewModel }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 45000)),
       ]);
       trackCall(licenseKey);
@@ -2955,11 +3019,17 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
         + '\nALWAYS SAY WHICH MATCH YOU MEAN. When you refer to one of these games, name it: the map, the agent, and the result, for example "your Sunset loss on Jett" or "the 13-9 win on Bind this afternoon". "Your last game" and "that match" are useless to someone who has played five, and if two share a map the agent or the time tells them apart. If you are talking about a pattern ACROSS matches, say that explicitly instead ("across your last five, on defence you...").\n'
       : '';
     const sessionsBlock = Array.isArray(ctx.recentSessions) && ctx.recentSessions.length
-      ? 'Their recent coached sessions (scored 0-100 per category):\n'
+      ? 'Their recent graded matches (0-100 per category):\n'
         + ctx.recentSessions.slice(0, 3).map((s) => {
             const sc = s.scores || {};
-            return `- ${s.date || '?'}${s.map ? ' on ' + s.map : ''}: overall ${s.overall}, impact ${sc.impact != null ? sc.impact : sc.economy}, positioning ${sc.positioning}, utility ${sc.utility}, aim ${sc.aim}. Strengths: ${s.strengths || 'n/a'} Weaknesses: ${s.weaknesses || 'n/a'}`;
+            const cats = Object.entries(sc).filter(([, v]) => v != null).map(([k, v]) => `${k} ${v}`).join(', ');
+            return `- ${s.date || '?'}${s.map ? ' on ' + s.map : ''}: overall ${s.overall}${cats ? ', ' + cats : ''}. Went well: ${s.strengths || 'n/a'}. Repeated mistakes: ${s.weaknesses || 'n/a'}`;
           }).join('\n')
+      : '';
+    // The one match the player opened the chat from, as its review computed it.
+    const reviewBlock = typeof ctx.matchReview === 'string' && ctx.matchReview.trim()
+      ? 'THE MATCH THEY ARE ASKING ABOUT, from its post-match review. These are computed facts, quote them and never contradict them:\n'
+        + ctx.matchReview.slice(0, 2400)
       : '';
 
     // Coached-session trends (the stats dashboard overview) so the chat can
@@ -2988,6 +3058,7 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
 
 ${statsLine}
 ${trendLine}
+${reviewBlock}
 ${matchesBlock}
 ${sessionsBlock}
 Player's agent this session: ${ctx.agent || 'unknown'}.

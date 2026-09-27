@@ -29,6 +29,7 @@
  */
 
 const knowledge = require('./knowledge');
+const forensics = require('./death-forensics');
 
 /*
  * C, BY A SMALL MARGIN, AND THE MARGIN IS GROUNDING.
@@ -92,6 +93,15 @@ function normalise(body) {
     firstDeath: !!(r && r.firstDeath),
     firstKill: !!(r && r.firstKill),
     kills: r && Number.isInteger(r.kills) && r.kills >= 0 && r.kills <= 10 ? r.kills : null,
+    // From Riot's kill feed: whether a teammate answered the death, and how
+    // many were standing on each side when it happened.
+    traded: r && typeof r.traded === 'boolean' ? r.traded : null,
+    alive: r && r.alive && Number.isInteger(r.alive.mates) && Number.isInteger(r.alive.enemies)
+      && r.alive.mates >= 1 && r.alive.mates <= 5 && r.alive.enemies >= 1 && r.alive.enemies <= 5
+      ? { mates: r.alive.mates, enemies: r.alive.enemies } : null,
+    // The coach's look at the frame before the death (death-forensics.js).
+    cause: r && typeof r.cause === 'string' && forensics.CAUSES[r.cause] && r.cause !== 'unclear' ? r.cause : null,
+    seen: r && r.seen ? clip(r.seen, 240) : null,
   })).filter((r) => r.n > 0);
   const patterns = (Array.isArray(b.patterns) ? b.patterns : []).slice(0, 8).map((p) => ({
     key: clip(p && p.key, 20),
@@ -197,7 +207,11 @@ function roundLine(r) {
       if (r.killer) d += `, killed by ${r.killer}${r.weapon ? ' with a ' + r.weapon : ''}`;
       facts.push(d);
       if (r.firstDeath) facts.push('first player to die that round');
+      if (r.alive) facts.push(`${r.alive.mates} of their team standing against ${r.alive.enemies} when they died`);
+      if (r.traded === true) facts.push('a teammate traded the death');
+      if (r.traded === false) facts.push('nobody traded the death');
       if (r.ultReady) facts.push('ultimate was ready when they died');
+      if (r.cause) facts.push(`the coach looked at the frame before the death: ${forensics.CAUSES[r.cause]}${r.seen ? ` (${r.seen.replace(/\.$/, '')})` : ''}`);
     } else {
       facts.push('survived the round');
     }
@@ -216,9 +230,9 @@ function roundLine(r) {
 const GROUNDING = 'GROUNDING RULES. The ledger was built by watching the screen every ten seconds or so, '
   + 'so a round with no death listed may simply not have been seen, never call it clean. '
   + 'A coach read is what the coach SAID at the time, not proof of what the player did. '
-  + 'Damage, utility usage, economy and how many players were alive are not in the ledger, so never state '
-  + 'them, and never call a situation a man advantage or a clutch. Kills may be stated only where the ledger '
-  + 'gives a kill count for that round. '
+  + 'Damage, utility usage and economy are not in the ledger, so never state them. How many players were '
+  + 'standing is known only where a round states it, so call a situation a man advantage or a clutch only there. '
+  + 'Kills may be stated only where the ledger gives a kill count for that round. '
   + 'Never tell the player to use their ultimate unless that round says the ultimate was ready. '
   + 'Never do arithmetic on the score, use it exactly as given. '
   + 'Quote a pattern\'s numbers exactly or not at all, and never merge two patterns into one number. '

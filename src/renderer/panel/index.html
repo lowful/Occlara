@@ -7,7 +7,6 @@
   <title>Occlara</title>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
-  <link rel="stylesheet" href="../shared/tip-visuals.css" />
   <link rel="stylesheet" href="../shared/dropdown.css" />
   <link rel="stylesheet" href="panel.css" />
 </head>
@@ -30,13 +29,9 @@
         <button id="chat" class="icon-btn no-drag" title="Ask Coach" aria-label="Ask Coach" data-i18n-title="panel.askCoach">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </button>
-        <!-- VOD review: walk the deaths in the decision log. An eye, matching
-             the one the stats window already uses for the same destination. -->
-        <button id="vod" class="icon-btn no-drag" title="VOD review: every death, frame by frame" aria-label="VOD review" data-i18n-title="panel.vodReview">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-        <button id="history" class="icon-btn no-drag" title="Tip history" aria-label="Tip history" data-i18n-title="panel.history">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg>
+        <!-- The match library: every reviewed match and what keeps repeating. -->
+        <button id="history" class="icon-btn no-drag" title="Matches (Ctrl+Shift+H)" aria-label="Matches" data-i18n-title="panel.history">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10"/><path d="M7 13h10"/><path d="M7 17h6"/></svg>
         </button>
         <button id="settings" class="icon-btn no-drag" title="Settings (Ctrl+Shift+S)" aria-label="Settings" data-i18n-title="common.settings">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -87,15 +82,15 @@
         <span class="dot" id="dot"></span>
         <span id="status-text">Idle</span>
       </div>
-      <div class="s-stat">
-        <b id="tipcount">0 tips</b>
-        <span class="s-lbl">this session</span>
-      </div>
+      <button class="s-stat no-drag" id="grade-stat" title="Open your last match review">
+        <b id="grade">No grade yet</b>
+        <span class="s-lbl">last match</span>
+      </button>
     </div>
 
     <div class="controls">
       <button id="toggle" class="btn btn-primary toggle">
-        <span class="t-ico"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg></span><span class="t-label" data-i18n="panel.start">Start Coaching</span>
+        <span class="t-ico"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg></span><span class="t-label" data-i18n="panel.start">Start</span>
       </button>
       <button id="pause" class="icon-btn lg" title="Pause / Resume (Ctrl+Shift+P)" disabled>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5v14"/><path d="M15 5v14"/></svg>
@@ -106,20 +101,21 @@
     <div id="nudge" class="nudge no-drag" hidden>
       <div class="nudge-body">
         <b>Tuck me away while you play</b>
-        <span>Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> to minimize. Tips keep coming on the overlay.</span>
+        <span>Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> to minimize. Occlara keeps reading, and your review opens when the match ends.</span>
       </div>
       <button id="nudge-x" class="nudge-x" title="Got it" aria-label="Dismiss"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
     </div>
 
-    <button class="last-tip no-drag" id="last-tip" title="Open tip history">
+    <!-- One line of status: what Occlara is doing, or the one thing that is
+         wrong. Never anything about the match being played. -->
+    <button class="last-tip no-drag" id="last-tip" title="Open your matches">
       <span class="lt-dot"></span>
-      <span class="lt-text" data-i18n="panel.noTips">No tips yet, start coaching.</span>
+      <span class="lt-text" data-i18n="panel.noTips">Press Start before your match. The review opens when it ends.</span>
     </button>
   </div>
 
   <script src="../shared/dropdown.js"></script>
   <script src="../shared/i18n-apply.js"></script>
-  <script src="../shared/tip-visuals.js"></script>
   <script src="panel.js"></script>
 </body>
 </html>

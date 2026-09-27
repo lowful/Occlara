@@ -283,7 +283,14 @@ function paintValorant(r) {
   $('v-focus-wrap').hidden = !r.focus;
   $('v-focus').textContent = r.focus || '';
 
-  const pats = Array.isArray(r.patterns) ? r.patterns : [];
+  // The patterns the insight lists above already say are left out here, so a
+  // fact is never shown twice on one page; what remains (the sides, a losing
+  // streak, the retakes) is context the lists do not carry.
+  const SAID = { spot: 'same-spot', early: 'early', killer: 'same-killer', firstkill: 'first-kill',
+    firstdeath: 'first-death', ult: 'ult-held', postplant: 'postplant', retake: 'retake' };
+  const ins = r.insights || {};
+  const shown = new Set([...(ins.mistakes || []), ...(ins.strengths || []), ...(ins.missed || [])].map((e) => e.key));
+  const pats = (Array.isArray(r.patterns) ? r.patterns : []).filter((p) => !shown.has(SAID[p.key]));
   $('v-patterns-wrap').hidden = !pats.length;
   const pHost = $('v-patterns');
   pHost.replaceChildren();
@@ -370,14 +377,7 @@ function paintStrip(r) {
     if (c.died) marks.append(el('i', 'mk died'));
     if (c.planted) marks.append(el('i', 'mk planted'));
     cell.append(marks);
-    cell.addEventListener('click', () => {
-      const card = document.getElementById(`round-${c.n}`);
-      if (!card) return;
-      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      card.classList.remove('flash');
-      void card.offsetWidth;
-      card.classList.add('flash');
-    });
+    cell.addEventListener('click', () => goRound(c.n));
     group.lastChild.append(cell);
   }
   flush();
@@ -388,7 +388,7 @@ function paintRoundCards(r) {
   const host = $('v-rounds');
   host.replaceChildren();
   const cards = (Array.isArray(r.rounds) ? r.rounds : [])
-    .filter((c) => c.facts.length || c.reads.length || c.why);
+    .filter((c) => c.facts.length || c.reads.length || c.why || c.forensics);
   $('v-rounds-wrap').hidden = !cards.length;
   for (const c of cards) {
     const card = el('article', 'v-round' + (c.why ? ' has-why' : ''));
@@ -399,6 +399,7 @@ function paintRoundCards(r) {
     if (c.side) head.append(el('span', 'v-side', c.side));
     card.append(head);
     if (c.facts.length) card.append(el('div', 'v-facts', c.facts.join('  ·  ')));
+    if (c.forensics) card.append(forensicsBlock(c.forensics, r.frameData || {}));
     if (c.why) {
       const why = el('div', 'v-why-wrap');
       why.append(el('div', 'v-reads-label', 'Why it went this way'));
@@ -407,11 +408,89 @@ function paintRoundCards(r) {
     }
     if (c.reads.length) {
       const reads = el('div', 'v-reads');
-      reads.append(el('div', 'v-reads-label', "The coach's read at the time"));
+      reads.append(el('div', 'v-reads-label', 'What the coach saw at the time'));
       for (const t of c.reads) reads.append(el('p', 'v-read', t));
       card.append(reads);
     }
     host.append(card);
+  }
+}
+
+/**
+ * The coach's look at one death: the frame before it (and after, when there is
+ * one), the cause as a label, what it saw and the better play. The label is the
+ * part that gets counted across rounds and matches, so it is shown as a chip,
+ * and the sentences are marked as the coach's read of a picture.
+ */
+const CAUSE_TITLE = {
+  'dry-peek': 'Dry peek', 'isolated': 'Caught alone', 'repeek': 'Repeek', 'crossfire': 'Crossfire',
+  'rotating': 'Caught rotating', 'overextend': 'Overextended', 'exposed': 'Exposed on the spike',
+  'lost-duel': 'Lost the duel', 'unclear': 'Frame unclear',
+};
+function forensicsBlock(f, frames) {
+  const wrap = el('div', 'v-look');
+  const head = el('div', 'v-look-head');
+  head.append(el('span', 'v-reads-label', "The coach's look at this death"));
+  head.append(el('span', 'v-cause ' + (f.cause === 'lost-duel' || f.cause === 'unclear' ? 'neutral' : 'bad'),
+    CAUSE_TITLE[f.cause] || f.cause));
+  wrap.append(head);
+  const shots = (f.frames || []).filter((n) => frames[n]);
+  if (shots.length) {
+    const strip = el('div', 'v-shots' + (shots.length > 1 ? ' two' : ''));
+    shots.forEach((n) => {
+      const fig = el('figure', 'v-shot');
+      const img = document.createElement('img');
+      img.src = frames[n];
+      img.alt = n.includes('after') ? 'Just after the death' : 'Just before the death';
+      img.loading = 'lazy';
+      img.addEventListener('click', () => fig.classList.toggle('zoom'));
+      fig.append(img, el('figcaption', null, n.includes('after') ? 'Just after' : 'Just before'));
+      strip.append(fig);
+    });
+    wrap.append(strip);
+  }
+  if (f.what) wrap.append(el('p', 'v-look-what', f.what));
+  if (f.better) {
+    const b = el('p', 'v-look-better');
+    b.append(el('span', 'gv-fix-label', 'Better'), document.createTextNode(f.better));
+    wrap.append(b);
+  }
+  return wrap;
+}
+
+/** Jump to one round's card and flash it. */
+function goRound(n) {
+  const card = document.getElementById(`round-${n}`);
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.remove('flash');
+  void card.offsetWidth;
+  card.classList.add('flash');
+}
+
+/**
+ * The grade and the three lists, for every game, placed under whichever
+ * game's header is showing. Hidden when the review carries neither, which is
+ * a review saved before grades existed.
+ */
+function paintCommon(r, anchor) {
+  const common = $('common');
+  const has = !!(r.grade || r.insights);
+  common.hidden = !has;
+  if (!has) return;
+  if (anchor && anchor.parentNode) anchor.after(common);
+  const gHost = $('grade-host');
+  gHost.replaceChildren();
+  if (r.grade) gHost.append(window.GradeView.gradeCard(r.grade));
+  const iHost = $('insights-host');
+  iHost.replaceChildren();
+  if (r.insights) {
+    iHost.append(window.GradeView.insightLists(r.insights, {
+      onRound: r.kind === 'valorant' ? goRound : false,
+      empty: r.kind === 'valorant' && !r.verified
+        ? 'Most of what this section counts comes from Riot\'s record of the match. It fills in once the match links.'
+        : undefined,
+    }));
   }
 }
 
@@ -430,18 +509,22 @@ function resetSections() {
 
 function paint(r) {
   if (!r) {
+    $('common').hidden = true;
     $('empty').hidden = false;
     $('review').hidden = true;
     $('vreview').hidden = true;
     return;
   }
   $('empty').hidden = true;
+  current = r;
+  $('ask').hidden = !r.id;
   // Valorant has its own container, so the League and Rivals one is simply
   // hidden rather than having each of its sections turned off one by one.
   if (r.kind === 'valorant') {
     $('review').hidden = true;
     $('vreview').hidden = false;
     paintValorant(r);
+    paintCommon(r, $('v-stats-note'));
     return;
   }
   $('vreview').hidden = true;
@@ -457,7 +540,7 @@ function paint(r) {
 
   // Branch on what the review SAYS it is, not on which fields it happens to
   // carry. A League review with no lesson attached is still a League review.
-  if (r.kind === 'rivals') { paintRivals(r); return; }
+  if (r.kind === 'rivals') { paintRivals(r); paintCommon(r, $('r-scores')); return; }
 
   const g = r.game || {};
   $('r-champ').textContent = g.champion || 'Your game';
@@ -472,6 +555,7 @@ function paint(r) {
   $('r-verdict-head').textContent = 'How you died';
 
   paintScores(r.scoreline || {});
+  paintCommon(r, $('r-scores'));
   $('r-death-head').textContent = (r.deaths || {}).headline || '';
   $('r-death-detail').textContent = (r.deaths || {}).detail || '';
   paintMoments(r.moments);
@@ -487,7 +571,10 @@ function paint(r) {
   }
 }
 
+let current = null;
 $('close').addEventListener('click', () => window.occlara.close());
+$('matches').addEventListener('click', () => window.occlara.openMatches());
+$('ask').addEventListener('click', () => { if (current && current.id) window.occlara.askAbout(current.id); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.occlara.close(); });
 
 // Both paths, because the window can be opened by the push OR by hand later.

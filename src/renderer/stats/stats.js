@@ -13,18 +13,19 @@ let lastFetchedAt = 0;
 let refreshBlockedUntil = 0;
 let matchMode = 'competitive';   // always opens on Competitive; Unrated = unrated + swiftplay
 
-// ── Session MVP badges ───────────────────────────────────────────────────────
-// Sessions are not tied to a match id, so link them by time and map: a match
-// that started inside the session's coaching window is the match that session
-// coached. Matches from every loaded mode bucket accumulate in knownMatches.
+// ── Match MVP badges ─────────────────────────────────────────────────────────
+// A graded match is linked to the tracker row by time and map: a tracker match
+// that started in the hour before the review was written is that match. Matches from every loaded mode bucket accumulate in knownMatches.
 const knownMatches = new Map();   // match id -> { startedAt, map, mvp }
 const sessionMvpSlots = [];       // { s, slot } placeholders on rendered session rows
 
 function annotateSessionMvps() {
   for (const { s, slot } of sessionMvpSlots) {
     if (slot.dataset.done) continue;
-    const start = (s.at || 0) - ((s.durationMin || 0) + 20) * 60000;
-    const end   = (s.at || 0) + 10 * 60000;
+    // A review is stamped when its match ended, so the match started in the
+    // hour before it.
+    const start = (s.at || 0) - 70 * 60000;
+    const end   = (s.at || 0) + 2 * 60000;
     for (const m of knownMatches.values()) {
       if (!m.mvp || !m.startedAt || m.startedAt < start || m.startedAt > end) continue;
       if (s.map && m.map && s.map !== m.map) continue;
@@ -489,6 +490,10 @@ function revealScore(el, target, delay) {
   requestAnimationFrame(frame);
 }
 
+/**
+ * One graded match from the library. The number is the review's grade; opening
+ * the row shows what it was built on, and the button opens the whole review.
+ */
 function sessionRow(s, i) {
   const row = document.createElement('div');
   row.className = 'row expandable session';
@@ -503,91 +508,48 @@ function sessionRow(s, i) {
   place.textContent = fmtDate(s.at);
   const sub = document.createElement('span');
   sub.className = 'sub';
-  // Result in the collapsed row: whether the session was a win is the first
+  // Result in the collapsed row: whether the match was a win is the first
   // thing anyone wants next to its grade, and it should not need a click.
-  sub.textContent = [s.map, s.agent, s.match && s.match.score ? s.match.score : null]
+  sub.textContent = [s.map, s.title, s.result && s.score ? `${s.result} ${s.score}` : s.score]
     .filter(Boolean).join(' · ');
   const spacer = document.createElement('span');
   spacer.className = 'spacer';
   const mvpSlot = document.createElement('span');
-  mvpSlot.hidden = true;   // fills in when a known match links to this session
+  mvpSlot.hidden = true;   // fills in when a known match links to this one
   sessionMvpSlots.push({ s, slot: mvpSlot });
   const score = document.createElement('span');
   score.className = 'rating';
-  score.title = 'Session score (average of the four categories)';
+  score.title = s.grade && s.grade.provisional ? 'Match grade, provisional' : 'Match grade';
   score.textContent = '0';
-  revealScore(score, s.overall || 0, 150 + i * 120);
-  top.append(chev, place, sub, spacer, mvpSlot, score);
+  revealScore(score, (s.grade && s.grade.score) || 0, 150 + i * 120);
+  const letter = document.createElement('span');
+  letter.className = 'grade-letter';
+  letter.textContent = s.grade ? s.grade.letter : '';
+  top.append(chev, place, sub, spacer, mvpSlot, score, letter);
 
   const detail = document.createElement('div');
   detail.className = 'detail';
-  const scores = document.createElement('div');
-  scores.className = 'scores4';
-  for (const [label, key] of [['Impact', 'impact'], ['Positioning', 'positioning'], ['Utility', 'utility'], ['Aim', 'aim']]) {
-    const chip = document.createElement('span');
-    chip.className = 'sc';
-    chip.innerHTML = '';
-    const b = document.createElement('b');
-    b.textContent = (s.scores && s.scores[key] != null) ? s.scores[key] : '·';
-    chip.append(label + ' ', b);
-    scores.append(chip);
+  if (s.topMistake) {
+    const wl = document.createElement('div'); wl.className = 'd-label w'; wl.textContent = 'Top repeated mistake';
+    const wp = document.createElement('p');   wp.textContent = s.topMistake;
+    detail.append(wl, wp);
   }
-  // The coach's spoken-style recap of the session, front and center.
-  const rl = document.createElement('div'); rl.className = 'd-label r'; rl.textContent = "Coach's recap";
-  const rp = document.createElement('p');   rp.textContent = s.summary || 'No recap recorded for this session.';
-  const sl = document.createElement('div'); sl.className = 'd-label s'; sl.textContent = 'Strengths';
-  const sp = document.createElement('p');   sp.textContent = s.strengths || 'No strengths recorded for this session.';
-  const wl = document.createElement('div'); wl.className = 'd-label w'; wl.textContent = 'Weaknesses';
-  const wp = document.createElement('p');   wp.textContent = s.weaknesses || 'No weaknesses recorded for this session.';
-  // Homework: the actual drill for the habit above. Only shown when the coach
-  // wrote one, so older sessions do not sprout an empty heading.
-  const pl = document.createElement('div'); pl.className = 'd-label p'; pl.textContent = 'How to practice this';
-  const pp = document.createElement('p');   pp.textContent = s.practice || '';
-  const hasPractice = !!(s.practice && s.practice.trim());
+  const note = document.createElement('p');
+  note.className = 'd-note';
+  note.textContent = s.verified ? "Checked against Riot's record of the match." : 'Graded from what the screen showed.';
+  detail.append(note);
+  const actions = document.createElement('div');
+  actions.className = 'd-actions';
+  const open = document.createElement('button');
+  open.className = 'ask-btn no-drag';
+  open.textContent = 'Open the review';
+  open.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.openReview(s.id); });
   const ask = document.createElement('button');
   ask.className = 'ask-btn no-drag';
   ask.textContent = 'Ask Coach about this';
-  ask.addEventListener('click', (e) => {
-    e.stopPropagation();
-    window.occlara.askAboutSession({
-      date: fmtDate(s.at), map: s.map, overall: s.overall,
-      scores: s.scores, strengths: s.strengths, weaknesses: s.weaknesses,
-    });
-  });
-  detail.append(scores);
-  // The scoreboard of the match this session actually coached, when the app
-  // could confirm the match was this one. It sits above the recap so the grade
-  // is read next to the result that produced it, rather than floating free.
-  if (s.match) {
-    const mrow = document.createElement('div');
-    mrow.className = 'scores4 matchline';
-    const won = /vict|win/i.test(s.match.result || '');
-    const res = document.createElement('span');
-    res.className = 'sc ' + (won ? 'won' : 'lost');
-    const rb = document.createElement('b');
-    rb.textContent = s.match.score || '';
-    res.append((s.match.result || '') + ' ', rb);
-    mrow.append(res);
-    const pairs = [
-      ['K/D/A', `${s.match.kills}/${s.match.deaths}/${s.match.assists}`],
-      ['ACS', s.match.acs],
-      ['ADR', s.match.adr],
-      ['HS', (s.match.headshotPct != null ? s.match.headshotPct + '%' : null)],
-    ];
-    for (const [label, value] of pairs) {
-      if (value == null || value === '') continue;
-      const chip = document.createElement('span');
-      chip.className = 'sc';
-      const b = document.createElement('b');
-      b.textContent = value;
-      chip.append(label + ' ', b);
-      mrow.append(chip);
-    }
-    detail.append(mrow);
-  }
-  detail.append(rl, rp, sl, sp, wl, wp);
-  if (hasPractice) detail.append(pl, pp);
-  detail.append(ask);
+  ask.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.askAboutSession({ reviewId: s.id }); });
+  actions.append(open, ask);
+  detail.append(actions);
   row.append(top, detail);
   row.addEventListener('click', () => row.classList.toggle('open'));
   return row;

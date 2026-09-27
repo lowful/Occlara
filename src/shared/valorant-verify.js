@@ -113,6 +113,13 @@ function reconcile(rounds, riot) {
       weapon: rr.weapon || null,
       firstDeath: !!rr.firstDeath,
       firstKill: !!rr.firstKill,
+      // From Riot's kill feed, null when the feed could not say (a record
+      // fetched before the server parsed teamwork has none of these).
+      traded: typeof rr.traded === 'boolean' ? rr.traded : null,
+      trades: typeof rr.trades === 'number' ? rr.trades : null,
+      aliveAtDeath: rr.aliveAtDeath && typeof rr.aliveAtDeath.mates === 'number' ? rr.aliveAtDeath : null,
+      clutch: rr.clutch && typeof rr.clutch.vs === 'number' ? rr.clutch : null,
+      afterPlant: !!rr.afterPlant,
     };
   });
 

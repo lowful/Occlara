@@ -39,7 +39,10 @@ const args = process.argv.slice(2);
 const flag = (name, d) => { const i = args.indexOf('--' + name); return i >= 0 ? args[i + 1] : d; };
 const SESSION = flag('session', 'session-2026-09-22T04-24-07-240Z');
 const LIMIT = Number(flag('frames', 0)) || Infinity;
-const MODELS = args.filter((a) => a.includes('/') && !a.startsWith('--'));
+// 'live' is whatever the server runs with no override, which is what a player
+// gets: npm run verify:ai measures that and fails below the gate.
+const MODELS = args.filter((a) => (a.includes('/') || a === 'live') && !a.startsWith('--'));
+const GATE = args.includes('--gate');
 if (!MODELS.length) { console.log('name at least one model'); process.exit(1); }
 
 const dir = path.join(ROOT, 'ai-log', SESSION);
@@ -60,7 +63,7 @@ async function read(model, image, context) {
   const resp = await fetch(`${SERVER}/api/coach/read`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-license-key': cfg.licenseKey },
-    body: JSON.stringify({ image, context, benchModel: model }),
+    body: JSON.stringify({ image, context, benchModel: model === 'live' ? undefined : model }),
   });
   const ms = Date.now() - t0;
   if (!resp.ok) return { err: `${resp.status} ${(await resp.text()).slice(0, 80)}`, ms };
@@ -149,4 +152,24 @@ const q = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s.le
   }
   console.log('\ndeaths is the number that matters: agreed with Riot / invented / missed, out of Riot\'s real deaths.');
   console.log('gap is the fastest read cadence the model sustains with two requests in flight.');
+
+  // THE GATE, for npm run verify:ai. Every model or prompt change runs this
+  // before it ships: the read must parse, must not invent deaths Riot does
+  // not have, must read real labels, and must keep up with at least the 3s tier.
+  if (GATE) {
+    const bad = [];
+    for (const r of results) {
+      const d = r.deaths;
+      const parsed = pct(r.parsed, r.n - r.lobby - r.errs);
+      const labels = pct(r.labelsOk, r.labels);
+      if (parsed < 95) bad.push(`${r.model}: STATE parsed on ${parsed}% of frames, gate 95%`);
+      if (labels < 95) bad.push(`${r.model}: ${labels}% of location labels exist on the map, gate 95%`);
+      if (d.invented.length > 1) bad.push(`${r.model}: invented ${d.invented.length} deaths Riot does not have, gate 1`);
+      if (d.agreed < d.riotDeaths * 0.8) bad.push(`${r.model}: agreed with ${d.agreed} of Riot's ${d.riotDeaths} deaths, gate 80%`);
+      if (q(r.ms, 0.9) > 6000) bad.push(`${r.model}: p90 ${q(r.ms, 0.9)}ms is too slow for even the 3s tier`);
+      if (r.errs > r.n * 0.05) bad.push(`${r.model}: ${r.errs} failed reads of ${r.n}`);
+    }
+    console.log(bad.length ? `\nGATE FAILED\n${bad.map((b) => '  ' + b).join('\n')}` : '\nGATE PASSED');
+    process.exit(bad.length ? 1 : 0);
+  }
 })();

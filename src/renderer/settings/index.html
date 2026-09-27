@@ -25,27 +25,28 @@
     </header>
 
     <div class="body">
-      <!-- Shown while live tips are closed. One explanation here, and a pill on
-           every greyed control below, so nobody hunts for why a switch does
-           nothing. -->
-      <section id="live-note" class="live-note" hidden>
-        <span class="closed-pill">Live Tips are temporarily closed</span>
-        <p class="hint">Valorant coaching now happens after the match. The coach still watches every round, and when the match ends your review opens with a read of each round and why it went the way it did. Nothing appears on your screen while you play. Your tip settings are kept for when live tips return.</p>
+      <!-- What Occlara is, in one line, for anyone who opens Settings looking
+           for the tip controls that used to be here. -->
+      <section class="about-note">
+        <p class="hint">Occlara reads your game while you play and shows nothing until the match ends. Then it opens a graded review: your repeated mistakes, what went well, and what you missed. Every review is kept under Matches.</p>
       </section>
 
       <section>
-        <h3 data-i18n="settings.tipFrequency" id="tipfreq-title">Tip frequency</h3>
-        <p class="hint" id="tipfreq-hint">How many tips your coach gives. More tips means more screenshots behind the scenes, and every tip still passes the same quality gates, so more never means worse. No effect on game FPS.</p>
-        <div class="scale-row">
-          <input id="tipfreq" type="range" min="0" max="5" step="1" value="2" />
-          <b id="tipfreq-label" class="scale-label">Default</b>
+        <h3 data-i18n="settings.tipFrequency" id="capture-title">Capture speed</h3>
+        <p class="hint">How often Occlara reads your screen during a match. Faster reads catch more of every fight, so the review has more to go on. Auto picks the fastest the connection and the AI can keep up with, and steps down on its own if replies start to lag. No effect on game FPS.</p>
+        <div class="seg" id="capturespeed">
+          <button data-val="auto">Auto</button>
+          <button data-val="1000">1s</button>
+          <button data-val="2000">2s</button>
+          <button data-val="3000">3s</button>
+          <button data-val="5000">5s</button>
         </div>
-        <div class="freq-ends"><span data-i18n="settings.minimal">Minimal</span><span data-i18n="settings.max">Max</span></div>
+        <p class="hint live-cadence" id="cadence-now" hidden></p>
       </section>
 
       <section>
         <h3 data-i18n="settings.riotId">Riot ID</h3>
-        <p class="hint">Name#TAG. Lets your coach use tracker stats (rank, K/D, headshot %) in your match review and chat.</p>
+        <p class="hint">Name#TAG of the account you play Valorant on. A full grade needs it: Riot's record of each match checks every death the screen read, adds who killed you and when, and counts trades and clutches.</p>
         <div class="riot-row">
           <input id="riotid" class="input riot-input" type="text" placeholder="PlayerName#TAG"
                  maxlength="40" autocomplete="off" spellcheck="false" />
@@ -55,90 +56,17 @@
       </section>
 
       <section>
-        <h3 data-i18n="settings.showTips">Show tips</h3>
-        <p class="hint">When off, tips stay hidden in-game but are still recorded in your history and session archive, so you can review them after the match.</p>
-        <div class="seg" id="showtips">
-          <button data-val="on">On</button>
-          <button data-val="off">Off</button>
-        </div>
-      </section>
-
-      <section>
-        <h3>Tip position</h3>
-        <p class="hint">Where coaching cards appear on screen.</p>
-        <div class="seg" id="tippos">
-          <button data-val="middle">Middle</button>
-          <button data-val="top-left">Top-left</button>
-          <button data-val="top-right">Top-right</button>
-          <button data-val="bottom-left">Bottom-left</button>
-          <button data-val="bottom-right">Bottom-right</button>
-        </div>
-      </section>
-
-      <section>
-        <h3 data-i18n="settings.tipStyle">Tip style</h3>
-        <p class="hint">How the coaching cards look. Solid is the easiest to read over a busy screen, Minimal is the least distracting.</p>
-        <div class="style-grid" id="tipstyle">
-          <button data-val="glass" class="style-opt">
-            <span class="sp sp-glass"><i></i></span>
-            <b>Glass</b><em>Frosted, default</em>
-          </button>
-          <button data-val="solid" class="style-opt">
-            <span class="sp sp-solid"><i></i></span>
-            <b>Solid</b><em>Clearest to read</em>
-          </button>
-          <button data-val="minimal" class="style-opt">
-            <span class="sp sp-minimal"><i></i></span>
-            <b>Minimal</b><em>Text only</em>
-          </button>
-          <button data-val="neon" class="style-opt">
-            <span class="sp sp-neon"><i></i></span>
-            <b>Neon</b><em>Glowing edge</em>
-          </button>
-        </div>
-      </section>
-
-      <section>
-        <h3>Tip background</h3>
-        <p class="hint">How see-through the cards are. Lower shows more of the game behind them, higher is easier to read.</p>
-        <div class="scale-row">
-          <input id="tipopacity" type="range" min="25" max="100" step="5" value="90" />
-          <b id="tipopacity-label" class="scale-label">90%</b>
-        </div>
-      </section>
-
-      <section>
-        <h3>Tip size</h3>
-        <p class="hint">Scales the tip cards in ratio. 100% is the normal size, and the cards stay anchored to your chosen corner.</p>
-        <div class="scale-row">
-          <input id="tipscale" type="range" min="80" max="130" step="5" value="100" />
-          <b id="tipscale-label" class="scale-label">100%</b>
-        </div>
-      </section>
-
-      <section>
-        <h3>Fundamental tips</h3>
-        <p class="hint">Curated basics (crosshair, trades, positioning) from Occlara's library, mixed in at roughly a quarter to a third of your tips. Great for newer players and Silver and below. Ranked higher? Turn them off for AI-only coaching.</p>
-        <div class="seg" id="beginner">
-          <button data-val="on">On</button>
-          <button data-val="off">Off</button>
-        </div>
-      </section>
-
-      <section>
-        <h3>Advanced tips</h3>
-        <p class="hint">Weights the coaching toward the deeper material: damage breakpoints for the gun you are holding, utility timings, and reads across rounds. Built from VOD reviews by Bonkar, head coach of NRG. Some fundamentals always stay in the mix, and if you start dying repeatedly the basics take over until you stop, because advanced advice assumes the basics are already there.</p>
+        <h3>Advanced coaching</h3>
+        <p class="hint">Lets your review draw on the deeper material: damage breakpoints, utility timings and reads across rounds, built from VOD reviews by Bonkar, head coach of NRG. Fundamentals always stay in, and they take over when a match shows you dying on repeat.</p>
         <div class="seg" id="advanced">
           <button data-val="on">On</button>
           <button data-val="off">Off</button>
         </div>
       </section>
 
-      <!-- Game picker. Hidden entirely unless more than one game can actually
-           be coached, so it never appears as a control with one option. -->
       <section>
         <h3 data-i18n="settings.performance">Performance</h3>
-        <p class="hint">Screenshots are sent at 720p so the coach can read your health, the round timer, the score and the location label. Turn this on to send smaller frames on an older PC or a slow connection. It uses less bandwidth, and the coach reads the HUD less reliably.</p>
+        <p class="hint">Screenshots are read at 720p so health, the round timer, the score and the location label are legible. Performance sends smaller frames for an older PC or a slow connection, and the reads get less reliable.</p>
         <div class="seg" id="capturequality">
           <button data-val="standard">Quality</button>
           <button data-val="performance">Performance</button>
@@ -146,44 +74,11 @@
       </section>
 
       <section>
-        <h3>AI decision log</h3>
-        <p class="hint">Saves the frames the coach reads plus what it parsed and said, so you can open the AI Log (from the tray) and scrub through to see what went wrong. Kept to your last few sessions on disk. Turn off if you would rather it save nothing.</p>
-        <div class="seg" id="ailog">
-          <button data-val="on">On</button>
-          <button data-val="off">Off</button>
-        </div>
-      </section>
-
-      <section>
         <h3>Sounds</h3>
-        <p class="hint">A short sound when coaching starts and another when it ends, so you know it is watching without looking away from the game. Volume follows the voice coach slider below.</p>
+        <p class="hint">A short sound when recording starts and another when it stops, so you know it is on without looking away from the game.</p>
         <div class="seg" id="sounds">
           <button data-val="on">On</button>
           <button data-val="off">Off</button>
-        </div>
-      </section>
-
-      <section>
-        <h3>Voice coach</h3>
-        <p class="hint">Your coach speaks tips out loud, like an IGL in your ear. Uses your Windows voices, works offline, and never talks over itself.</p>
-        <div class="seg" id="voicecoach">
-          <button data-val="on">On</button>
-          <button data-val="off">Off</button>
-        </div>
-        <div class="voice-sub" id="voice-sub">
-          <p class="hint sub-hint">Style</p>
-          <div class="seg" id="voicestyle">
-            <button data-val="normal">Normal</button>
-            <button data-val="hype">Hype</button>
-            <button data-val="chill">Chill</button>
-            <button data-val="funny">Funny</button>
-            <button data-val="robot">Robot</button>
-          </div>
-          <p class="hint sub-hint">Volume</p>
-          <div class="scale-row">
-            <input id="voicevol" type="range" min="10" max="100" step="5" value="90" />
-            <b id="voicevol-label" class="scale-label">90%</b>
-          </div>
         </div>
       </section>
 
@@ -211,11 +106,24 @@
 
       <section>
         <h3>Hotkeys</h3>
+        <div class="kv"><span>Open your last review</span><kbd>Ctrl+Shift+E</kbd></div>
+        <div class="kv"><span>Open Matches</span><kbd>Ctrl+Shift+H</kbd></div>
         <div class="kv"><span>Minimize panel</span><kbd>Ctrl+Shift+M</kbd></div>
-        <div class="kv" id="hk-force"><span>Force tip</span><kbd>Ctrl+Shift+X</kbd></div>
-        <div class="kv"><span id="hk-explain-label">Explain the last tip</span><kbd>Ctrl+Shift+E</kbd></div>
         <div class="kv"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
         <div class="kv"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
+      </section>
+
+      <!-- ADVANCED. The frame log is the raw material of every review, and the
+           viewer for it is a debugging tool, so it lives down here rather than
+           on the panel. -->
+      <section>
+        <h3>AI log</h3>
+        <p class="hint">Keeps the frames Occlara reads and what it parsed from each, for your last few sessions. The review goes back to these to look at the moment before a death, so with this off the review has no frames to show. Sealed while a match is in progress.</p>
+        <div class="seg" id="ailog">
+          <button data-val="on">On</button>
+          <button data-val="off">Off</button>
+        </div>
+        <button id="open-ailog" class="btn trk-btn ailog-open">Open the AI log</button>
       </section>
 
       <section class="wip">

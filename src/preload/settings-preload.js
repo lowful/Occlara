@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld('occlara', {
   getVersion:   () => ipcRenderer.invoke(C.APP_VERSION),
   checkUpdate:  () => ipcRenderer.invoke(C.APP_UPDATE_CHECK),
   openPurchase: () => ipcRenderer.send(C.OPEN_PURCHASE),
+  openAiLog:    () => ipcRenderer.send(C.OPEN_AILOG),
   logout:       () => ipcRenderer.send(C.LICENSE_LOGOUT),
   quit:         () => ipcRenderer.send(C.APP_QUIT),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),

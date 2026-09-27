@@ -294,3 +294,39 @@ header {
   background: var(--good); transform: translateY(-1px);
 }
 .v-verified[hidden] { display: none; }
+
+/* ── Every game: the grade, the lists, the header actions ───────────────── */
+.h-actions { display: flex; align-items: center; gap: var(--space-1); }
+.btn.sm { padding: 6px 10px; font-size: 12px; border-radius: var(--r-sm); }
+.common { display: flex; flex-direction: column; gap: var(--space-6); }
+.common[hidden] { display: none; }
+#insights-host:empty { display: none; }
+
+/* ── The coach's look at a death ────────────────────────────────────────── */
+.v-look {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  margin-top: 4px; padding: var(--space-3);
+  background: var(--bg-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+}
+.v-look-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.v-cause {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--glass-border); color: var(--text-dim);
+}
+.v-cause.bad { color: var(--red); border-color: rgba(var(--red-rgb), 0.40); background: rgba(var(--red-rgb), 0.07); }
+.v-shots { display: grid; grid-template-columns: 1fr; gap: var(--space-2); }
+.v-shots.two { grid-template-columns: 1fr 1fr; }
+.v-shot { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.v-shot img {
+  width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
+  border-radius: var(--r-sm); border: 1px solid var(--glass-border);
+  cursor: zoom-in; background: #000;
+}
+.v-shot.zoom { grid-column: 1 / -1; }
+.v-shot.zoom img { object-fit: contain; cursor: zoom-out; }
+.v-shot figcaption { font-size: 10.5px; color: var(--text-mute); }
+.v-look-what { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); margin: 0; }
+.v-look-better { font-size: 12.5px; line-height: 1.5; color: var(--text); margin: 0; }

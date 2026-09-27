@@ -148,34 +148,6 @@ const FRAMES = [
   }
 }
 
-// ── Death reviews must survive the repetition gates ─────────────────────────
-{
-  // The engine decides deathness with DEATH_REVIEW_RE before the repetition
-  // gates run. These are real tips from the session, 15 of which were dropped
-  // for repetition and should not have been.
-  const engineSrc = require('fs').readFileSync(
-    require('path').join(__dirname, '..', 'src/main/services/coaching-engine.js'), 'utf8');
-  const m = engineSrc.split(/\r?\n/).find((l) => l.indexOf('const DEATH_REVIEW_RE =') === 0);
-  ok('the engine still declares DEATH_REVIEW_RE', !!m);
-  const RE = eval(m.slice(m.indexOf('/'), m.lastIndexOf('/i') + 2));  // eslint-disable-line no-eval
-
-  const reviews = [
-    'You died holding A Nest alone after your teammate traded, so next time wait for a trade partner.',
-    'You died to a wide angle with no cover, so next time retreat behind the box.',
-    'You died to a Sage wall because you peeked A Nest wide with no trade partner.',
-    'You died holding A Rafters alone with no crossfire, so next round find a partner.',
-    'You died to a close-range pistol while holding a wide angle with no cover.',
-  ];
-  for (const t of reviews) ok(`recognised as a death review: "${t.slice(0, 38)}"`, RE.test(t));
-
-  const notReviews = [
-    'Stay tight to the wall on your right and hold a head-level crosshair.',
-    'The spike is planting at B Site, so hold your angle tight.',
-    'Set up a crossfire on A site with your Killjoy.',
-  ];
-  for (const t of notReviews) ok(`NOT a death review: "${t.slice(0, 38)}"`, !RE.test(t));
-}
-
 // ── Nothing throws on junk ──────────────────────────────────────────────────
 {
   assert.doesNotThrow(() => spectate.readHudOwner(null), 'null frame');

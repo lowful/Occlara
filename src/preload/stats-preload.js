@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('occlara', {
   openWeekly:      () => ipcRenderer.send(C.OPEN_WEEKLY),
   openAiLog:       (sessionId) => ipcRenderer.send(C.OPEN_AILOG, sessionId || null),
   askAboutSession: (seed) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, seed),
+  openReview:      (id) => ipcRenderer.send(C.REVIEW_OPEN, id),
   // Pushed app state; the stats window watches it to follow a Riot ID switch.
   onState: (cb) => {
     const h = (_e, s) => cb(s);

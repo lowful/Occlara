@@ -62,71 +62,35 @@ function wireSeg(seg, onPick) {
   });
 }
 
-wireSeg(document.getElementById('fundamentals'), (v) => window.occlara.setFundamentals(v === 'on'));
-wireSeg(document.getElementById('tipstyle'), (v) => {
-  window.occlara.setConfig({ tipStyle: v }).catch(() => {});
-  syncOpacityAvailability(v);
+wireSeg(document.getElementById('advanced'), (v) => {
+  window.occlara.setConfig({ advancedTips: v === 'on' }).catch(() => {});
 });
 
-const opacityEl    = document.getElementById('tipopacity');
-const opacityLabel = document.getElementById('tipopacity-label');
-
-// Minimal has no card behind the text, so there is nothing to fade. Disable
-// the slider rather than leave one that does nothing.
-function syncOpacityAvailability(style) {
-  const off = style === 'minimal';
-  opacityEl.disabled = off;
-  const row = opacityEl.closest('.op-row');
-  if (row) row.classList.toggle('disabled', off);
-}
-opacityEl.addEventListener('input', () => { opacityLabel.textContent = opacityEl.value + '%'; });
-opacityEl.addEventListener('change', () => {
-  window.occlara.setConfig({ tipOpacity: Number(opacityEl.value) / 100 }).catch(() => {});
+// The Riot ID saves as it is typed, like Settings, so leaving the tour at any
+// point keeps it.
+const riotEl = document.getElementById('ob-riot');
+let riotTimer = null;
+riotEl.addEventListener('input', () => {
+  clearTimeout(riotTimer);
+  riotTimer = setTimeout(() => window.occlara.setConfig({ riotId: riotEl.value.trim() }).catch(() => {}), 500);
 });
-
-/*
- * LIVE TIPS CLOSED. Every piece of copy that describes tips on screen has a
- * closed twin, and the tip look is greyed with the pill Settings uses. Driven
- * by the same switch as every other surface, so reopening live tips restores
- * the original tour without touching this file.
- */
-function applyLiveClosed(closed) {
-  for (const n of document.querySelectorAll('[data-live]')) {
-    n.hidden = (n.dataset.live === 'closed') !== closed;
-  }
-  const look = document.querySelector('[data-page="2"]');
-  for (const sel of ['#tipstyle', '.op-row', '.tip-note']) {
-    const n = look && look.querySelector(sel);
-    if (!n) continue;
-    n.classList.toggle('ob-greyed', closed);
-    if (closed) n.setAttribute('inert', ''); else n.removeAttribute('inert');
-  }
-  const force = document.getElementById('ob-force');
-  if (force) force.classList.toggle('ob-greyed-row', closed);
-}
+// Enter in the field is not "next page".
+riotEl.addEventListener('keydown', (e) => e.stopPropagation());
 
 // Reflect whatever is already saved, so re-running the tour never silently
 // resets a choice the player made in Settings.
 window.occlara.getConfig().then((cfg) => {
   if (!cfg) return;
-  if (window.occlara.liveTipsClosed) applyLiveClosed(window.occlara.liveTipsClosed(cfg.game || 'valorant'));
-  const style = cfg.tipStyle || 'glass';
-  for (const b of document.getElementById('tipstyle').querySelectorAll('button')) {
-    b.classList.toggle('active', b.dataset.val === style);
-  }
-  syncOpacityAvailability(style);
-  const op = Math.round((cfg.tipOpacity != null ? cfg.tipOpacity : 0.9) * 100);
-  opacityEl.value = String(op);
-  opacityLabel.textContent = op + '%';
-  for (const b of document.getElementById('fundamentals').querySelectorAll('button')) {
-    b.classList.toggle('active', (b.dataset.val === 'on') === (cfg.beginnerTips !== false));
+  if (typeof cfg.riotId === 'string') riotEl.value = cfg.riotId;
+  for (const b of document.getElementById('advanced').querySelectorAll('button')) {
+    b.classList.toggle('active', (b.dataset.val === 'on') === (cfg.advancedTips === true));
   }
 }).catch(() => {});
 
 
 // ── Language ────────────────────────────────────────────────────────────────
-// Chosen on page one, so the rest of onboarding and every coaching tip that
-// follows arrive in the player's language rather than being switched later.
+// Chosen on page one, so the rest of onboarding and every review that follows
+// arrive in the player's language rather than being switched later.
 const obLang = document.getElementById('ob-language');
 const obLangNote = document.getElementById('ob-language-note');
 
@@ -136,7 +100,7 @@ function obShowNote(code) {
   obLangNote.hidden = translated;
   if (!translated) {
     obLangNote.textContent =
-      'Coaching tips will be in this language. The app’s own buttons stay English for now.';
+      'Your reviews will be in this language. The app’s own buttons stay English for now.';
   }
 }
 
@@ -153,7 +117,7 @@ if (obLang && window.occlara.i18n && window.Dropdown) {
       options: window.occlara.i18n.languages().map((l) => ({
         value: l.code,
         label: l.name,
-        tag: window.occlara.i18n.hasUi(l.code) ? '' : 'tips only',
+        tag: window.occlara.i18n.hasUi(l.code) ? '' : 'reviews only',
       })),
       onChange: async (code) => {
         await window.occlara.setConfig({ language: code });

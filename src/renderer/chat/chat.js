@@ -87,6 +87,12 @@ async function checkSeed() {
   try {
     const seed = await window.occlara.getSeed();
     if (!seed || busy) return;
+    // "Ask about this match" from a review or the library. The main process
+    // hands the chat that review as context; this only opens the conversation.
+    if (seed.reviewId) {
+      send(`Go through my ${seed.title || 'last'} match with me. What was my most costly mistake, and what should I work on first?`);
+      return;
+    }
     const sc = seed.scores || {};
     const parts = [`Review my coached session${seed.date ? ' from ' + seed.date : ''}${seed.map ? ' on ' + seed.map : ''}.`];
     // openChatSeeded migrates the retired `economy` score onto `impact`, so the
