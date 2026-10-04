@@ -1,6 +1,9 @@
 'use strict';
 
 const { SERVER_BASE_URL, TIMING } = require('../../shared/config');
+// Which build is calling, so the server's live view can tell an updated client
+// from one still on an old release.
+const VERSION = (() => { try { return require('../../../package.json').version; } catch { return 'unknown'; } })();
 
 /**
  * Minimal POST helper for the Occlara backend. Always JSON, always sends the
@@ -18,6 +21,7 @@ async function post(path, body, licenseKey, timeoutMs, extraHeaders) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Occlara-Version': VERSION,
         ...(licenseKey ? { 'X-License-Key': licenseKey } : {}),
         ...(extraHeaders || {}),
       },
@@ -41,7 +45,7 @@ async function get(path, licenseKey, timeoutMs) {
   const timer = setTimeout(() => controller.abort(), timeoutMs || TIMING.serverTimeout);
   try {
     const res = await fetch(SERVER_BASE_URL + path, {
-      headers: { ...(licenseKey ? { 'X-License-Key': licenseKey } : {}) },
+      headers: { 'X-Occlara-Version': VERSION, ...(licenseKey ? { 'X-License-Key': licenseKey } : {}) },
       signal: controller.signal,
     });
     const text = await res.text().catch(() => '');

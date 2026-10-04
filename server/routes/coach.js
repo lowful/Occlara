@@ -1431,15 +1431,27 @@ const ROUND_SUMMARY_PROMPT = 'You are analyzing a Valorant round that just ended
 
 const KEY_REGEX = /^GC-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 
+/*
+ * A LIVE READ ARRIVES EVERY SECOND, and each one used to ask Supabase whether
+ * its licence was valid: two database round trips a second per player, added
+ * to the latency of every read. A good answer is remembered for a minute.
+ * A bad one is never remembered, so a renewal works on the very next request,
+ * and a refund or a cancel takes at most a minute to bite.
+ */
+const VALID_KEY_MS = 60 * 1000;
+const validKeys = new Map();   // key -> expires (ms)
 async function validateKey(k) {
   if (!k || !KEY_REGEX.test(k)) return false;
+  const hit = validKeys.get(k);
+  if (hit && hit > Date.now()) return true;
   const { data } = await supabase
     .from('licenses')
     .select('status,expires_at')
     .eq('license_key', k)
     .single();
-  if (!data || data.status !== 'active') return false;
-  if (data.expires_at && new Date(data.expires_at) < new Date()) return false;
+  if (!data || data.status !== 'active') { validKeys.delete(k); return false; }
+  if (data.expires_at && new Date(data.expires_at) < new Date()) { validKeys.delete(k); return false; }
+  cacheSet(validKeys, k, Date.now() + VALID_KEY_MS, 5000);
   return true;
 }
 
@@ -3169,6 +3181,11 @@ module.exports.ai = {
 };
 module.exports.liveModels = () => ({
   provider:    AI.provider,
+  // What 8.0 clients actually use: the live read, the look at a death, and the
+  // review narrative. visionModel is only the older /analyze route now.
+  readModel:      AI.readModel,
+  forensicsModel: AI.forensicsModel,
+  reviewModel:    AI.reviewModel,
   visionModel: AI.visionModel,
   textModel:   AI.textModel,
 });

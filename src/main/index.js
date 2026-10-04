@@ -2159,6 +2159,12 @@ function openAppWithSplash() {
 function createAppSurfaces(opts) {
   if (surfacesUp) return;
   surfacesUp = true;
+  // The panel's "last match" grade survives a restart: it is the newest saved
+  // review's, not only one reviewed since the app opened.
+  try {
+    const top = reviewStore.list().find((r) => r.grade);
+    if (top && !state.lastGrade) state.lastGrade = { ...top.grade, game: top.game, id: top.id };
+  } catch {}
 
   // deferShow keeps the panel hidden until the launch animation finishes.
   panelWindow.create({ deferShow: !!(opts && opts.deferShow) });
