@@ -52,14 +52,20 @@ jobs:
             echo "roster sync skipped on the daily run" | tee -a sync-output.txt
           fi
 
+          # A STAMP IS NOT A CHANGE. Every sync rewrites generatedAt, so a plain
+          # git diff called every run a change: the bot committed a new
+          # timestamp twice a day, and every commit redeployed the server on
+          # Railway, restarting it under anyone mid match. -I drops lines that
+          # only differ in the stamp.
+          STAMP='"(generatedAt|fetchedAt)"'
           # The client bundles src/shared, so a change there needs a release.
           # The server picks its own copy up on the next Railway deploy.
-          if git diff --quiet -- src/shared/rivals-balance.generated.json src/shared/rivals-abilities.generated.json; then
+          if git diff --quiet -I"$STAMP" -- src/shared/rivals-balance.generated.json src/shared/rivals-abilities.generated.json; then
             echo "needs_release=false" >> "$GITHUB_OUTPUT"
           else
             echo "needs_release=true" >> "$GITHUB_OUTPUT"
           fi
-          if git diff --quiet; then
+          if git diff --quiet -I"$STAMP"; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
