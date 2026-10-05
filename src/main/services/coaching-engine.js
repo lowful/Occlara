@@ -10,7 +10,7 @@ const { API, TIMING, CAPTURE_TIERS } = require('../../shared/config');
 const MAX_IN_FLIGHT = 2;
 const spectate = require('../../shared/spectate-tells');
 const { RoundLedger, clockSeconds, isBuyPhase, BUY_MAX_LEFT } = require('../../shared/valorant-rounds');
-const { MatchEndWatch } = require('../../shared/match-end');
+const { MatchEndWatch, isFinalScore } = require('../../shared/match-end');
 const valorantReview = require('../../shared/valorant-review');
 
 /**
@@ -195,11 +195,16 @@ class CoachingEngine extends EventEmitter {
       // player stopped on the end screen. Not a swiftplay one, whose mode is
       // the weakest fact the engine has.
       const p = this.endWatch.pendingFinal;
-      const snap = this.matchSnapshot(p && !p.swift ? 'score' : 'stop');
+      // Or a final score read once, on the banner, with only menus after it,
+      // or on the very last frame read: the player stopped on the banner.
+      const fc = this.finalCandidate;
+      const candidate = !p && !!fc && (this.inLobby || fc.frame === this.analyzedFrames)
+        && this.adoptFinalCandidate();
+      const snap = this.matchSnapshot((p && !p.swift) || candidate ? 'score' : 'stop');
       // Stopped with a round on screen rather than a menu or an end screen: the
       // match is most likely still being played, so its review must not open
       // over it (the player restarting to fix tracking, say).
-      if (snap) snap.stoppedLive = !this.inLobby && !p;
+      if (snap) snap.stoppedLive = !this.inLobby && !p && !candidate;
       if (snap) this.requestMatchReview(snap);
     }
     console.log('[engine] stopped');
@@ -305,6 +310,14 @@ class CoachingEngine extends EventEmitter {
 
   /** The match is over: review it, then get ready for the next one. */
   endMatch(reason) {
+    // The banner read the final score once and the end screen then read as
+    // menus: the menu path ended it, and the score it ended on is that one.
+    if (reason === 'lobby' && this.adoptFinalCandidate()) {
+      reason = 'score';
+      const c = this.matchContext;
+      this.endWatch.adoptFinal(c.teamScore | 0, c.enemyScore | 0);
+    }
+    this.finalCandidate = null;
     const snap = this.matchSnapshot(reason);
     console.log(`[engine] match over (${reason}), ${snap ? snap.rounds.length : 0} rounds recorded`);
     const c = this.matchContext;
@@ -316,6 +329,34 @@ class CoachingEngine extends EventEmitter {
     this.afterEnd = [];
     this.beginMatch(true);
     if (snap) this.requestMatchReview(snap);
+  }
+
+  /**
+   * A FINAL SCORE READ ONCE. A step forward needs two agreeing reads, and at a
+   * read a second the round end banner of the last round is often read once
+   * before the end screen, which reads as a menu: the real 13 to 11 Abyss match
+   * read 13-11 on its last frame only, and ended 45 seconds later on the menu
+   * path at 12-11 with no result. So that one read is kept (finalCandidate)
+   * and, when nothing but menus came after it, it is the score the match ended
+   * on. It is never taken while a round could still be on: a later read of
+   * another score, or a buy phase, drops it.
+   *
+   * @returns true when the candidate was applied to the context and the ledger
+   */
+  adoptFinalCandidate() {
+    const f = this.finalCandidate;
+    this.finalCandidate = null;
+    if (!f) return false;
+    const c = this.matchContext;
+    if ((c.teamScore | 0) > f.team || (c.enemyScore | 0) > f.enemy) return false;
+    console.log(`[engine] the final score ${f.team}-${f.enemy} was read once on the banner, then only menus: the match ended on it`);
+    c.teamScore = f.team;
+    c.enemyScore = f.enemy;
+    c.roundNumber = f.team + f.enemy + 1;
+    // One observation at the final score, so the last round gets its result.
+    this.ledger.observe({ at: Date.now(), team: f.team, enemy: f.enemy, side: c.side, phase: null,
+      alive: c.playerAlive, died: false, clock: null });
+    return true;
   }
 
   /**
@@ -355,9 +396,13 @@ class CoachingEngine extends EventEmitter {
     this.playerNotes = m.notes.concat(this.playerNotes).slice(-25);
     this.matchMemory = m.memory.concat(this.matchMemory).slice(-16);
     for (const seen of since) this.ledger.observe(seen);
-    if (!this.matchContext.agent && m.agent) {
-      this.matchContext.agent = m.agent;
-      this.matchContext.agentConfirmed = m.agentConfirmed;
+    // The match's own agent, unless the player confirmed another since. The
+    // false end reset it and armed detection, and a detection in the gap left
+    // the resumed match on an unconfirmed (or wrong) agent for the rest of it.
+    const ctx = this.matchContext;
+    if (m.agent && (!ctx.agent || (m.agentConfirmed && !ctx.agentConfirmed))) {
+      ctx.agent = m.agent;
+      ctx.agentConfirmed = m.agentConfirmed;
       if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
       this.emit('agent', this.agentInfo());
     }
@@ -967,6 +1012,8 @@ class CoachingEngine extends EventEmitter {
       this.roundWeapons = new Set();
       this.lastStep = null;
       this.rollbackReads = 0;
+      this.finalCandidate = null;
+      this.lastRoundClock = null;
       newMatch = true;
     }
 
@@ -1106,12 +1153,21 @@ class CoachingEngine extends EventEmitter {
           // frames (alt-tab, a long death) rather than a one-off misread.
           if (jump > 1 || inconsistent) console.log(`[engine] scoreboard jump confirmed, accepting round ${updates.roundNumber}`);
           this.scoreboardChallenge = null;
+          this.finalCandidate = null;   // read twice: the watch holds it now
           if (typeof updates.teamScore === 'number' && typeof updates.enemyScore === 'number') {
+            // The frame that accepted it, which can never be the one that
+            // confirms it (see bought below).
             this.lastStep = { from: { team: prevTeam, enemy: prevEnemy },
-              to: { team: updates.teamScore, enemy: updates.enemyScore }, at: Date.now(), bought: false };
+              to: { team: updates.teamScore, enemy: updates.enemyScore }, at: Date.now(), bought: false,
+              frame: this.analyzedFrames };
           }
         } else {
           this.scoreboardChallenge = sig;
+          // A final score read once is kept, in case the next frame is the end
+          // screen (adoptFinalCandidate).
+          this.finalCandidate = jump === 1 && !inconsistent
+            && isFinalScore(updates.teamScore, updates.enemyScore, 'standard')
+            ? { team: updates.teamScore, enemy: updates.enemyScore, frame: this.analyzedFrames } : null;
           if (jump > 1 || inconsistent) {
             console.log(`[engine] implausible scoreboard read ignored: round ${prevRound} -> ${updates.roundNumber}`
               + `, score ${prevTeam}-${prevEnemy} -> ${updates.teamScore}-${updates.enemyScore}`
@@ -1149,11 +1205,21 @@ class CoachingEngine extends EventEmitter {
       this.matchContext.spikeSpot = null;
       this.matchContext.clock = null;
     }
-    // A buy phase read AT the new score confirms the last step: from here the
-    // match has moved on, and nothing takes the step back.
-    if (this.lastStep && this.scoreReadThisFrame && isBuyPhase(updates.phase, updates.clock)
+    // A buy phase read AT the new score, on a LATER frame than the one that
+    // accepted the step, confirms it: from here the match has moved on, and
+    // nothing takes the step back. The accepting frames themselves could not:
+    // two buy phase frames misreading 6-3 at 5-3 confirmed their own misread.
+    if (this.lastStep && this.scoreReadThisFrame && this.analyzedFrames > (this.lastStep.frame || 0)
+        && isBuyPhase(updates.phase, updates.clock)
         && updates.teamScore === this.lastStep.to.team && updates.enemyScore === this.lastStep.to.enemy) {
       this.lastStep.bought = true;
+    }
+    // The candidate final goes the moment the game shows it was not the end:
+    // another score read on a later frame, or a buy phase.
+    if (this.finalCandidate && this.analyzedFrames > this.finalCandidate.frame
+        && ((this.scoreReadThisFrame && (updates.teamScore !== this.finalCandidate.team
+          || updates.enemyScore !== this.finalCandidate.enemy)) || isBuyPhase(updates.phase, updates.clock))) {
+      this.finalCandidate = null;
     }
 
     // Game mode from the HUD (agent select header, loading screen, scoreboard,
@@ -1286,10 +1352,27 @@ class CoachingEngine extends EventEmitter {
     // or an earlier one is still running, a dead read is a living player
     // buying. A round clock, more than 45 seconds, ends it: the round is live.
     const clockLeft = clockSeconds(updates.clock);
+    // But only a REAL buy phase opens that window. A "buy" read whose clock
+    // carries on the round clock read a moment ago is the round still running
+    // (on the real session, "buy 0:30" two seconds after "active 0:32"), and
+    // opening the window there hid the player's real death for half a minute.
+    // The round clock chain is anchored on what cannot be a buy timer (more than
+    // 45 seconds, or a post plant spike timer), so a buy phase misread as active
+    // can never start one.
+    const now = Date.now();
+    const rc = this.lastRoundClock;
+    const carriesOn = (left) => !!rc && left !== null && now - rc.at < 15000
+      && Math.abs(rc.left - (now - rc.at) / 1000 - left) <= 3;
+    if (updates.phase === 'buy' && carriesOn(clockLeft)) updates.phase = rc.phase;
     const buyRead = isBuyPhase(updates.phase, updates.clock);
-    if (buyRead) this.buyUntil = Date.now() + (clockLeft === null ? 0 : clockLeft * 1000) + 2000;
+    if (buyRead) this.buyUntil = now + (clockLeft === null ? 0 : clockLeft * 1000) + 2000;
     const inBuy = buyRead
-      || (Date.now() < (this.buyUntil || 0) && (clockLeft === null || clockLeft <= BUY_MAX_LEFT));
+      || (now < (this.buyUntil || 0) && (clockLeft === null || clockLeft <= BUY_MAX_LEFT));
+    if (!inBuy && clockLeft !== null
+        && ((updates.phase === 'active' && (clockLeft > BUY_MAX_LEFT || carriesOn(clockLeft)))
+          || updates.phase === 'postplant')) {
+      this.lastRoundClock = { at: now, left: clockLeft, phase: updates.phase };
+    }
     if (inBuy && (updates.playerAlive === false || updates.phase === 'dead')) {
       console.log('[engine] ignoring a dead read in the buy phase, it is the combat report of the round before'
         + (updates.aliveTell ? ` ("${String(updates.aliveTell).slice(0, 50)}")` : ''));
@@ -1545,7 +1628,8 @@ class CoachingEngine extends EventEmitter {
     }
     // A team on 5 wins buying another round can only be a standard match,
     // because swiftplay is over at 5.
-    if (buying && Math.max(team, enemy) === 5 && this.matchContext.gameMode !== 'standard') {
+    if (buying && this.scoreReadThisFrame && Math.max(updates.teamScore, updates.enemyScore) === 5
+        && this.matchContext.gameMode !== 'standard') {
       this.buyAtFiveEvidence++;
       if (this.buyAtFiveEvidence >= 2) this.lockStandard(`a buy phase at ${team}-${enemy}, and swiftplay ends at 5`);
     }

@@ -382,7 +382,9 @@ function build(input) {
       + `so ${unseen.length === 1 ? 'that round has' : 'those rounds have'} no location or coach's read.`);
   }
   if (!tracker && !isVerified) {
-    refused.push(input.linkMissing
+    refused.push(input.linkMissing === 'taken'
+      ? "Riot's record of this match is already on another review in your library, so it is not repeated here."
+      : input.linkMissing
       ? "Riot's record of this match was not found, so there is no scoreboard. "
         + 'A match played on another account than the Riot ID in Settings never links.'
       : input.riotIdSet

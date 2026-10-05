@@ -126,7 +126,9 @@ function valorant(input) {
     : (sl && num(sl.deaths) !== null ? sl.deaths : rows.filter((r) => r.died).length);
   const notes = [];
   if (!isVerified && !sl) {
-    notes.push(input.linkMissing
+    notes.push(input.linkMissing === 'taken'
+      ? "A full grade needs Riot's record of the match, and it is on another review of this match in your library."
+      : input.linkMissing
       ? "A full grade needs Riot's record of the match, and it was not found. A match played on another account than the Riot ID in Settings never links."
       : input.riotIdSet
         ? "A full grade needs Riot's record of the match. It grades itself once Riot publishes it, a few minutes after the match."

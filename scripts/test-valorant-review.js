@@ -166,8 +166,22 @@ ok(isFinalScore(5, 3, 'swiftplay') && isFinalScore(4, 5, 'swiftplay'), 'swiftpla
     'three menu frames inside 45 seconds do not end it, an alt tab in a buy phase looks like this');
   const e = w.lobby({ at: 50000, rounds: 6 });
   ok(e && e.kind === 'end' && e.reason === 'lobby', 'most of a minute of menus does');
-  ok(w.play({ team: 3, enemy: 2, mode: null, at: 60000 }).kind === 'new-match',
-    'after a menu end any gameplay is the next thing played');
+  ok(w.play({ team: 3, enemy: 2, mode: null, at: 60000 }).kind === 'ignore',
+    'after a menu end, play at the same score waits: it may be the same match coming back');
+  ok(w.play({ team: 0, enemy: 0, mode: null, at: 62000 }).kind === 'new-match',
+    'and a lower score read on its own frame is the next match');
+}
+{
+  // A crash or a long alt tab in a buy phase ends the match on the menu path,
+  // and the player comes back mid round at the same score: the same match.
+  const w = new MatchEndWatch();
+  w.play({ team: 5, enemy: 3, map: 'Bind', phase: 'buy', clock: '0:20', at: 0 });
+  for (let i = 1; i <= 5; i++) w.lobby({ at: i * 12000, rounds: 8 });
+  ok(w.ended && w.ended.reason === 'lobby', 'a reconnect starts with the menu path ending the match');
+  ok(w.play({ team: 5, enemy: 3, map: 'Bind', phase: 'active', clock: '1:05', at: 90000 }).kind === 'ignore',
+    'one live round read at the ended score waits for a second');
+  const r = w.play({ team: 5, enemy: 3, map: 'Bind', phase: 'active', clock: '1:03', at: 92000 });
+  ok(r && r.kind === 'resume' && r.from === 'lobby', 'two of them resume it, mid round');
 }
 {
   const w = new MatchEndWatch();

@@ -63,6 +63,9 @@ function metaOf(id, game, review, at) {
     // The Riot match it is linked to, so the match link never gives the same
     // match to a second review.
     matchId: r.matchId || null,
+    // A review recording was stopped in the middle of: it never owns its Riot
+    // link against a later recording of the same match.
+    stoppedLive: !!r.stoppedLive,
   };
 }
 

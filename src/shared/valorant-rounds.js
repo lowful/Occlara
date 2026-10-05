@@ -199,14 +199,25 @@ class RoundLedger {
     // the buy phase misread. At a read a second both happened every few rounds,
     // and each one advanced the ledger a round that had not started.
     const at = typeof f.at === 'number' ? f.at : null;
-    let phase = f.phase === 'buy' && !isBuyPhase(f.phase, f.clock) ? 'active' : f.phase;
     // And a "buy" read whose clock carries on the round clock seen a moment
     // ago is that round still counting down: at 0:30, two seconds after an
     // active 0:32, it moved the ledger to round 10 in the middle of round 9.
+    // The chain is anchored on what cannot be a buy timer (an active clock over
+    // 45 seconds, or a post plant spike timer), so a buy phase misread as
+    // active never starts one.
     const lp = this.lastPlayClock;
-    if (phase === 'buy' && at !== null && clockLeft !== null && lp && at - lp.at < 15000
-        && Math.abs(lp.left - (at - lp.at) / 1000 - clockLeft) <= 3) {
-      phase = 'active';
+    const carriesOn = (left) => !!lp && at !== null && left !== null && at - lp.at < 15000
+      && Math.abs(lp.left - (at - lp.at) / 1000 - left) <= 3;
+    let phase = f.phase;
+    if (phase === 'buy' && !isBuyPhase(f.phase, f.clock)) {
+      // More than 45 seconds on a "buy" read: the round timer once the round
+      // has had its buy phase, or when it carries on the round clock. At a
+      // fresh boundary it is neither: a real session's first frame read "buy
+      // 0:57" for a 45 second pistol buy timer, and as play it moved the
+      // ledger a round early and gave round 1's death to round 2.
+      phase = this.since.bought || carriesOn(clockLeft) ? 'active' : null;
+    } else if (phase === 'buy' && carriesOn(clockLeft)) {
+      phase = lp.phase;
     }
     // Only "active": a post plant frame is never the buy phase, and its spike
     // timer reads like a buy timer.
@@ -217,7 +228,10 @@ class RoundLedger {
     if (phase === 'buy' && at !== null && clockLeft !== null && clockLeft <= BUY_MAX_LEFT) {
       this.buyEndsAt = at + clockLeft * 1000;
     }
-    if (phase === 'active' && at !== null && clockLeft !== null) this.lastPlayClock = { at, left: clockLeft };
+    if (at !== null && clockLeft !== null
+        && ((phase === 'active' && (clockLeft > BUY_MAX_LEFT || carriesOn(clockLeft))) || phase === 'postplant')) {
+      this.lastPlayClock = { at, left: clockLeft, phase };
+    }
     if (phase === 'buy' && this.since.played && this.offset < 1) {
       this.offset++;
       this.since = { bought: false, played: false, frames: 0 };
