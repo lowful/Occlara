@@ -56,10 +56,62 @@ ok(!g.provisional && g.categories.every((c) => c.score !== null), "with Riot's k
 ok(/1 of 21 deaths traded by a teammate/.test(cat('teamplay').evidence[0]), `teamplay reads the real feed (${cat('teamplay').evidence[0]})`);
 ok(/team ahead in numbers and lost the round 6 times/.test(cat('decisions').evidence.join(' ')),
   'decisions counts the six rounds the team was ahead when the player died and still lost');
-const noFeed = rounds.map((r) => ({ ...r, traded: null, trades: null, aliveAtDeath: null, clutch: null }));
+const noFeed = rounds.map((r) => ({ ...r, feedKnown: null, traded: null, trades: null, aliveAtDeath: null, clutch: null }));
 const gn = grade.valorant({ rounds: noFeed, scoreline, role: 'Duelist', history: [] });
 ok(gn.provisional && gn.categories.find((c) => c.key === 'decisions').score === null,
   'a record fetched before the kill feed was parsed leaves Decisions unmeasured and says so');
+ok(rounds.every((r) => r.feedKnown === true), "every round of the real record carries a kill feed read whole");
+
+// ── A verified match with few deaths is graded on Riot's record ─────────────
+// The failure: a 7 round swiftplay at 14/2/3 had its trades ignored under a
+// note that the kill feed "was not available", and the same match with no
+// deaths was provisional on a complete record, Decisions left unmeasured.
+{
+  const per = (deathRounds) => Array.from({ length: 7 }, (_, i) => {
+    const n = i + 1;
+    const died = deathRounds.includes(n);
+    return {
+      n, won: n <= 5, side: n <= 4 ? 'attacking' : 'defending', kills: 2, died, deathMs: died ? 20000 : null,
+      killerAgent: died ? 'Sova' : null, weapon: died ? 'Vandal' : null, firstDeath: false, firstKill: n === 1,
+      planted: false, plantMs: null, afterPlant: false, traded: died ? false : null, trades: n === 3 || n === 4 ? 1 : 0,
+      aliveAtDeath: died ? { mates: 4, enemies: 4 } : null, clutch: null,
+      feed: [{ ms: 9000, by: 'me', on: 'enemy' }, ...(died ? [{ ms: 20000, by: 'enemy', on: 'me' }] : [])],
+    };
+  });
+  const two = verify.reconcile([], { perRound: per([2, 6]) }).rounds;
+  const g2 = grade.valorant({ rounds: two, scoreline: { kills: 14, deaths: 2, assists: 3, acs: 300 }, role: 'Duelist', history: [] });
+  const tp = g2.categories.find((c) => c.key === 'teamplay');
+  ok(tp.evidence.includes('you traded a teammate twice'), `two deaths: the trades made are counted (${tp.evidence.join('; ')})`);
+  ok(!g2.notes.some((n) => /not available/.test(n)), `and no note claims the feed was missing (${g2.notes.join(' | ')})`);
+  const assistsOnly = grade.valorant({ rounds: two.map((r) => ({ ...r, feedKnown: null, trades: null, aliveAtDeath: null })),
+    scoreline: { kills: 14, deaths: 2, assists: 3, acs: 300 }, role: 'Duelist', history: [] });
+  ok(tp.score > assistsOnly.categories.find((c) => c.key === 'teamplay').score,
+    'two trades lift Teamplay over the same assists without a feed');
+
+  const none = verify.reconcile([], { perRound: per([]) }).rounds;
+  const g0 = grade.valorant({ rounds: none, scoreline: { kills: 14, deaths: 0, assists: 3, acs: 300 }, role: 'Duelist', history: [] });
+  const dec = g0.categories.find((c) => c.key === 'decisions');
+  ok(dec.score >= 90 && dec.evidence.join() === 'no avoidable death on record',
+    `no deaths: Decisions scores the top of its curve rather than going unmeasured (${dec.score})`);
+  ok(!g0.provisional && g0.categories.every((c) => c.score !== null) && g0.score !== null,
+    `and a complete Riot record is not provisional (${g0.score} ${g0.letter})`);
+
+  const unplaced = per([2, 6]).map((r) => ({ ...r, traded: null, trades: 0, aliveAtDeath: null,
+    feed: [{ ms: 9000, by: null, on: 'enemy' }] }));
+  const gu = grade.valorant({ rounds: verify.reconcile([], { perRound: unplaced }).rounds,
+    scoreline: { kills: 14, deaths: 2, assists: 3, acs: 300 }, role: 'Duelist', history: [] });
+  ok(gu.notes.some((n) => /not available/.test(n)) && gu.provisional,
+    'a feed with a kill nobody can place still says so, and stays provisional');
+  ok(verify.reconcile([], { perRound: unplaced }).rounds.every((r) => r.feedKnown === false && r.trades === null),
+    "and those rounds keep no trade count, since the server's 0 there is not a count");
+
+  // One category is still not a grade, few deaths or not.
+  const thin = grade.valorant({ rounds: none, scoreline: null, role: 'Duelist', history: [] });
+  ok(thin.score !== null && thin.categories.filter((c) => c.score !== null).length >= 2,
+    'with no scoreboard at all, Riot\'s rounds still give two categories, so it grades');
+  const tiny = grade.valorant({ rounds: none.slice(0, 2), scoreline: null, role: 'Duelist', history: [] });
+  ok(tiny.score === null, `two rounds carry too little weight for an overall (${tiny.score})`);
+}
 ok(grade.valorant({ rounds, scoreline, role: 'Controller', history: [] }).score < g.score,
   'the same deaths cost a Controller more than a Duelist, whose job is the first fight');
 ok(g.letter === grade.letter(g.score), 'the letter follows the number');
@@ -128,10 +180,77 @@ for (const r of rounds.filter((x) => x.died)) {
   const fr = deathFrames.framesFor(abyss.records, r, {});
   if (fr.length) found++;
   for (const f of fr) {
-    if (f.round !== r.n) { ok(false, `a frame from round ${f.round} was picked for round ${r.n}`); }
+    // The one frame allowed from the next round is the one that registered
+    // this round's death on its banner.
+    const banner = f.round === r.n + 1 && f.died;
+    if (f.round !== r.n && !banner) { ok(false, `a frame from round ${f.round} was picked for round ${r.n}`); }
   }
 }
-ok(found >= 17, `the frame before the death is found for most deaths, at a frame every ten seconds (${found} of 21)`);
+ok(found === 21, `the frame before the death is found for every death, at a frame every ten seconds (${found} of 21)`);
+// THE BANNER CASE, on the real match: rounds 6 and 24 are post plant deaths
+// the screen registered on the banner that already printed the next score.
+// The ledger files them back; the log stamps that frame a round later.
+for (const n of [6, 24]) {
+  const r = rounds.find((x) => x.n === n);
+  const fr = deathFrames.framesFor(abyss.records, r, {});
+  ok(r.afterPlant && fr.length === 2 && fr[0].round === n && fr[1].round === n + 1 && fr[1].died,
+    `round ${n}: its last frame and the banner frame that registered the death (${fr.map((f) => `R${f.round}`).join(', ')})`);
+}
+{
+  const rec = (i, round, phase, died) => ({ at: i * 1000, frame: `f${i}.jpg`, round, died: !!died, state: { phase, clock: '0:30' } });
+  const death = { n: 4, deathSec: null, afterPlant: true, verified: true, died: true, screenDied: true };
+  const banner = [rec(1, 4, 'active'), rec(2, 4, 'active'), rec(3, 5, 'active', true), rec(4, 5, 'buy')];
+  const picked = deathFrames.framesFor(banner, death, {});
+  ok(picked.map((f) => f.frame).join() === 'f2.jpg,f3.jpg', `the banner case: round 4's last frame, then the banner (${picked.map((f) => f.frame)})`);
+  ok(deathFrames.framesFor(banner, { ...death, screenDied: false }, {}).length === 0,
+    "a death Riot has and the screen never registered borrows no other round's frame");
+  // A death of the next round's own, after its buy phase, is never taken.
+  const own = [rec(1, 4, 'active'), rec(2, 4, 'active'), rec(3, 5, 'buy'), rec(4, 5, 'active'), rec(5, 5, 'active', true)];
+  ok(deathFrames.framesFor(own, death, {}).length === 0,
+    'a death registered in the next round after its buy phase belongs to that round');
+  const late = [rec(1, 4, 'active'), rec(2, 5, 'active'), rec(3, 5, 'active'), rec(4, 5, 'active'), rec(5, 5, 'active', true)];
+  ok(deathFrames.framesFor(late, death, {}).length === 0,
+    'nor is one registered past the first few frames of the next round');
+
+  // AND THE BANNER FRAME IS THAT ROUND'S ALONE. It is also the first died frame
+  // of the round it sits in, so round 5's own post plant death, which has no
+  // clock to match, was handed round 4's banner as its death.
+  const next = { n: 5, deathSec: null, afterPlant: true, verified: true, died: true, screenDied: true };
+  const both = [rec(1, 4, 'active'), rec(2, 4, 'active'), rec(3, 5, 'dead', true), rec(4, 5, 'buy'),
+    rec(5, 5, 'active'), rec(6, 5, 'postplant'), rec(7, 5, 'dead', true)];
+  ok(deathFrames.framesFor(both, death, {}).map((f) => f.frame).join() === 'f2.jpg,f3.jpg',
+    'with a death of its own in the next round, round 4 still takes its banner');
+  const own5 = deathFrames.framesFor(both, next, {});
+  ok(own5.map((f) => f.frame).join() === 'f6.jpg,f7.jpg',
+    `and round 5 takes its own death, never round 4's banner (${own5.map((f) => f.frame)})`);
+  const only = [rec(1, 4, 'active'), rec(2, 4, 'active'), rec(3, 5, 'dead', true), rec(4, 5, 'buy'), rec(5, 5, 'active')];
+  ok(deathFrames.framesFor(only, next, {}).length === 0,
+    "a round whose only died frame is the round before's banner has no look rather than the wrong one");
+  // A death after the next round's play began is that round's: the ledger
+  // files a death back only before the new round has been bought or played.
+  const played = [rec(1, 4, 'active'), rec(2, 4, 'active'), { ...rec(3, 5, 'active'), state: { phase: 'active', clock: '1:20' } },
+    rec(4, 5, 'dead', true)];
+  ok(deathFrames.framesFor(played, death, {}).length === 0, 'a died frame after the next round began is not filed back');
+  ok(deathFrames.framesFor(played, next, {}).map((f) => f.frame).join() === 'f3.jpg,f4.jpg', "it stays the next round's own");
+  // Two banner deaths in a row: round 3's sits in round 4, round 4's in round 5.
+  const chain = [rec(1, 3, 'active'), rec(2, 3, 'active'),
+    rec(3, 4, 'dead', true), rec(4, 4, 'buy'), rec(5, 4, 'active'), rec(6, 4, 'postplant'),
+    rec(7, 5, 'dead', true), rec(8, 5, 'buy'), rec(9, 5, 'active'), rec(10, 5, 'postplant'), rec(11, 5, 'dead', true)];
+  const at = (n) => deathFrames.framesFor(chain, { ...death, n }, {}).map((f) => f.frame).join();
+  ok(at(3) === 'f2.jpg,f3.jpg' && at(4) === 'f6.jpg,f7.jpg' && at(5) === 'f10.jpg,f11.jpg',
+    `two banner deaths in a row are each their own round's (${at(3)} | ${at(4)} | ${at(5)})`);
+}
+// No died frame is handed to two rounds on the real match.
+{
+  const owners = new Map();
+  for (const r of rounds.filter((x) => x.died)) {
+    for (const f of deathFrames.framesFor(abyss.records, r, {})) {
+      if (f.died) owners.set(f, (owners.get(f) || []).concat(r.n));
+    }
+  }
+  const shared = [...owners.values()].filter((ns) => ns.length > 1);
+  ok(!shared.length, `every died frame picked is one round's (${shared.map((ns) => ns.join('+')).join(', ') || 'none shared'})`);
+}
 const r2 = rounds.find((r) => r.n === 2);
 const f2 = deathFrames.framesFor(abyss.records, r2, {});
 ok(f2.length >= 1 && deathFrames.secondsIn(f2[0]) <= r2.deathSec && r2.deathSec - deathFrames.secondsIn(f2[0]) <= 10,
@@ -207,6 +326,12 @@ const gl = grade.lol(lv);
 ok(gl && gl.score !== null && gl.categories.length === 4, `a League game grades on four categories (${gl && gl.score})`);
 const gs = grade.lol({ ...lv, game: { ...lv.game, role: 'Support' } });
 ok(gs.categories.every((c) => c.key !== 'farming'), 'a support is not graded on farming');
+const conceded = (o) => (insights.lol({ ...lv, objectives: o }).missed.find((e) => e.key === 'objectives-lost') || {}).detail;
+ok(conceded({ dragonsAgainst: 2, baronsAgainst: 1 }) === 'The enemy took 2 dragons and 1 baron.',
+  `objectives conceded count each kind in its own number (${conceded({ dragonsAgainst: 2, baronsAgainst: 1 })})`);
+ok(conceded({ dragonsAgainst: 3, baronsAgainst: 0 }) === 'The enemy took 3 dragons.',
+  `and a kind they took none of is left out (${conceded({ dragonsAgainst: 3, baronsAgainst: 0 })})`);
+ok(conceded({ dragonsAgainst: 1, baronsAgainst: 2 }) === 'The enemy took 1 dragon and 2 barons.', 'one dragon is a dragon');
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' grade and library checks passed'}`);
 process.exit(fails ? 1 : 0);

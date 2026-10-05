@@ -60,6 +60,9 @@ function metaOf(id, game, review, at) {
       ? { score: grade.score, letter: grade.letter, provisional: !!grade.provisional } : null,
     topMistake: top ? top.title : null,
     verified: !!r.verified,
+    // The Riot match it is linked to, so the match link never gives the same
+    // match to a second review.
+    matchId: r.matchId || null,
   };
 }
 

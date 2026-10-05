@@ -21,6 +21,10 @@
  *
  * COSTS REAL MONEY, a little: four calls per model, two images each.
  *
+ * NEEDS THE ADMIN PASSWORD. The server honours benchModel only beside
+ * X-Admin-Password, so set ADMIN_PASSWORD in the environment or in server/.env
+ * (the value Railway has).
+ *
  *   node scripts/bench-forensics.js google/gemini-3.5-flash-lite openai/gpt-6-luna
  */
 
@@ -36,6 +40,27 @@ const ROOT = profileDir(process.env.APPDATA || '');
 const SESSION = 'session-2026-09-22T04-24-07-240Z';
 const MODELS = process.argv.slice(2).filter((a) => a.includes('/'));
 if (!MODELS.length) { console.log('name at least one model'); process.exit(1); }
+
+/** ADMIN_PASSWORD from the environment, or from server/.env when it exists. */
+function adminPassword() {
+  const envFile = path.join(__dirname, '..', 'server', '.env');
+  if (!process.env.ADMIN_PASSWORD && fs.existsSync(envFile)) {
+    try {
+      let dotenv;
+      try { dotenv = require(path.join(__dirname, '..', 'server', 'node_modules', 'dotenv')); }
+      catch { dotenv = require('dotenv'); }
+      dotenv.config({ path: envFile });
+    } catch (e) { console.log(`could not read ${envFile}: ${e.message}`); }
+  }
+  return process.env.ADMIN_PASSWORD || '';
+}
+const ADMIN = adminPassword();
+if (!ADMIN) {
+  console.log('This bench needs the admin password: the server ignores benchModel without it, and every '
+    + 'death would quietly be looked at by the live model.\n'
+    + 'Set ADMIN_PASSWORD in the environment or in server/.env (the same value Railway has).');
+  process.exit(1);
+}
 
 const dir = path.join(ROOT, 'ai-log', SESSION);
 const cfg = JSON.parse(fs.readFileSync(configPath(ROOT), 'utf8'));
@@ -70,13 +95,17 @@ const deaths = picks.map((r) => {
     const t0 = Date.now();
     const resp = await fetch(`${SERVER}/api/coach/death-forensics`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-license-key': cfg.licenseKey },
+      headers: { 'content-type': 'application/json', 'x-license-key': cfg.licenseKey, 'x-admin-password': ADMIN },
       body: JSON.stringify({ agent: 'Jett', map: 'Abyss', deaths: deaths.map(({ shown, ...d }) => d), benchModel: model }),
     });
     const ms = Date.now() - t0;
     const j = resp.ok ? await resp.json() : { error: `${resp.status} ${(await resp.text()).slice(0, 100)}` };
     console.log(`── ${model}  (${ms}ms, served by ${j.model || '?'})`);
     if (j.error) { console.log('   ', j.error); continue; }
+    if (j.model !== model) {
+      console.log(`    the server ran ${j.model || 'its live model'}, not ${model}, so these are not this model's answers: check ADMIN_PASSWORD`);
+      continue;
+    }
     for (const d of j.deaths || []) {
       const facts = deaths.find((x) => x.n === d.n);
       console.log(`   R${d.n}  ${d.cause}${d.failed ? '  FAILED' : ''}   [Riot: ${facts.sec}s, ${facts.killer} with a ${facts.weapon}${facts.firstDeath ? ', first death' : ''}]`);

@@ -38,7 +38,7 @@ ok(!isFinalScore(5, 3, 'standard'), 'a standard match passes through 5 to 3');
 ok(!isFinalScore(5, 3, null), 'and with the mode unknown 5 to 3 is not trusted either');
 ok(isFinalScore(5, 3, 'swiftplay') && isFinalScore(4, 5, 'swiftplay'), 'swiftplay ends at 5, sudden death included');
 
-// ── The watch: a final score needs a second opinion ─────────────────────────
+// ── The watch: a final score waits for the game to stop ─────────────────────
 {
   const w = new MatchEndWatch();
   w.play({ team: 12, enemy: 10, mode: 'standard', at: 1000 });
@@ -46,20 +46,115 @@ ok(isFinalScore(5, 3, 'swiftplay') && isFinalScore(4, 5, 'swiftplay'), 'swiftpla
     'one final score read does not end the match on its own');
   ok(w.play({ team: 12, enemy: 11, mode: 'standard', at: 21000 }) === null && !w.pendingFinal,
     'and play continuing at a score that is not final cancels it, that read was a misread');
-  const e = (w.play({ team: 13, enemy: 11, mode: 'standard', at: 31000 }),
-    w.play({ team: 13, enemy: 11, mode: 'standard', at: 41000 }));
-  ok(e && e.kind === 'end' && e.reason === 'score', 'two agreeing final reads end it');
-  ok(w.play({ team: 13, enemy: 11, mode: 'standard', at: 51000 }).kind === 'ignore',
+  w.play({ team: 13, enemy: 11, mode: 'standard', at: 31000 });
+  ok(w.play({ team: 13, enemy: 11, mode: 'standard', at: 33000 }) === null,
+    'two reads two seconds apart are one moment read twice, not a confirmation');
+  const e = w.play({ team: 13, enemy: 11, mode: 'standard', at: 52000 });
+  ok(e && e.kind === 'end' && e.reason === 'score', 'twenty seconds at the final score with nothing played ends it');
+  ok(w.play({ team: 13, enemy: 11, mode: 'standard', at: 62000 }).kind === 'ignore',
     'the end screen still shows the final score and a HUD, and is not recorded');
+  ok(w.play({ team: 0, enemy: 0, mode: null, scoreRead: false, at: 300000 }).kind === 'ignore',
+    "a frame with no score of its own carries the engine's held copy of the end, and starts nothing");
   ok(w.play({ team: 0, enemy: 0, mode: null, at: 400000 }).kind === 'new-match',
-    'a lower score is the next match');
+    'a lower score read on its own frame is the next match');
 }
 {
   const w = new MatchEndWatch();
   w.play({ team: 12, enemy: 11, mode: 'standard', at: 0 });
   w.play({ team: 13, enemy: 11, mode: 'standard', at: 10000 });
-  const e = w.lobby({ at: 20000, rounds: 24 });
+  const e = w.lobby({ at: 12000, rounds: 24 });
   ok(e && e.kind === 'end' && e.reason === 'score', 'a final read followed by a menu ends it at once');
+}
+{
+  const w = new MatchEndWatch();
+  w.play({ team: 12, enemy: 10, mode: 'standard', at: 0 });
+  w.play({ team: 13, enemy: 10, mode: 'standard', phase: 'active', clock: '0:02', at: 2000 });
+  ok(w.play({ team: 13, enemy: 10, mode: 'standard', phase: 'buy', clock: '0:24', at: 9000 }) === null && !w.pendingFinal,
+    'a buy phase at a final score is the next round being bought, so that 13 was a misread');
+  w.play({ team: 13, enemy: 10, mode: 'standard', phase: 'active', clock: '1:05', at: 30000 });
+  ok(w.play({ team: 13, enemy: 10, mode: 'standard', phase: 'active', clock: '1:05', at: 32000 }) === null && !!w.pendingFinal,
+    'a clock frozen on the round end banner is not play');
+  ok(w.play({ team: 13, enemy: 10, mode: 'standard', phase: 'dead', clock: '0:58', at: 39000 }) === null && !w.pendingFinal,
+    'a round clock still counting down is a round still being played');
+  ok(!w.play({ team: 13, enemy: 10, mode: 'standard', phase: 'buy', clock: '1:34', at: 41000 }) && !!w.pendingFinal,
+    'a "buy" read with the round timer on it is not a buy phase');
+}
+
+// ── The watch: swiftplay needs the menu, twice ─────────────────────────────
+{
+  const w = new MatchEndWatch();
+  w.play({ team: 3, enemy: 4, mode: 'swiftplay', at: 0 });
+  for (let t = 2000; t <= 60000; t += 2000) w.play({ team: 3, enemy: 5, mode: 'swiftplay', phase: 'dead', at: t });
+  ok(!w.ended, 'a minute at 3 to 5 does not end a swiftplay on time, 5 to 3 is an ordinary standard score');
+  ok(w.lobby({ at: 62000, rounds: 8 }) === null, 'one menu frame does not, an alt tab looks like that');
+  const e = w.lobby({ at: 64000, rounds: 8 });
+  ok(e && e.kind === 'end' && e.reason === 'score', 'two menu frames in a row do');
+}
+{
+  // THE REAL FAILURE: a competitive match with swiftplay wrongly locked, 3 to 5
+  // read twice two seconds apart at the end of round 8, then round 9 bought.
+  const w = new MatchEndWatch();
+  w.play({ team: 3, enemy: 4, mode: 'swiftplay', at: 0 });
+  w.play({ team: 3, enemy: 5, mode: 'swiftplay', phase: 'dead', clock: '0:03', at: 1000 });
+  ok(w.play({ team: 3, enemy: 5, mode: 'swiftplay', phase: 'dead', at: 3000 }) === null,
+    'the two reads that opened a review over round 9 no longer end anything');
+  ok(w.play({ team: 3, enemy: 5, mode: 'swiftplay', phase: 'buy', clock: '0:20', at: 11000 }) === null && !w.pendingFinal,
+    'and the buy phase of round 9 clears the pending end');
+  w.lobby({ at: 13000, rounds: 8 });
+  w.lobby({ at: 15000, rounds: 8 });
+  ok(!w.ended, 'so an alt tab during that buy phase cannot end it either');
+}
+
+// ── The watch: a match that was not over resumes ───────────────────────────
+{
+  const w = new MatchEndWatch();
+  w.play({ team: 3, enemy: 4, mode: 'swiftplay', map: 'Split', at: 0 });
+  w.play({ team: 3, enemy: 5, mode: 'swiftplay', map: 'Split', phase: 'dead', at: 2000 });
+  w.lobby({ at: 4000, rounds: 8 });
+  w.lobby({ at: 6000, rounds: 8 });
+  ok(w.ended && w.ended.reason === 'score', 'an alt tab right at the round end still ends it, the case resume exists for');
+  ok(w.play({ team: 3, enemy: 5, mode: 'swiftplay', map: 'Split', phase: 'buy', clock: '0:20', scoreRead: false, at: 9000 }).kind === 'ignore',
+    'a buy phase on the held score proves nothing');
+  ok(w.play({ team: 3, enemy: 5, mode: 'swiftplay', map: 'Split', phase: 'buy', clock: '0:18', at: 11000 }).kind === 'ignore',
+    'one buy phase read at the ended score waits for a second');
+  const r = w.play({ team: 3, enemy: 5, mode: 'swiftplay', map: 'Split', phase: 'buy', clock: '0:16', at: 13000 });
+  ok(r && r.kind === 'resume' && r.from === 'score' && !w.ended, 'two of them resume the same match');
+}
+{
+  const w = new MatchEndWatch();
+  w.play({ team: 3, enemy: 4, mode: 'swiftplay', at: 0 });
+  w.play({ team: 3, enemy: 5, mode: 'swiftplay', phase: 'dead', at: 2000 });
+  w.lobby({ at: 4000, rounds: 8 }); w.lobby({ at: 6000, rounds: 8 });
+  w.play({ team: 4, enemy: 5, mode: 'standard', phase: 'dead', at: 100000 });
+  const r = w.play({ team: 4, enemy: 5, mode: 'standard', phase: 'active', clock: '1:20', at: 102000 });
+  ok(r && r.kind === 'resume', 'a score past the end, read twice, resumes it too');
+}
+{
+  const w = new MatchEndWatch();
+  w.play({ team: 7, enemy: 5, map: 'Bind', at: 0 });
+  for (let i = 1; i <= 5; i++) w.lobby({ at: i * 12000, rounds: 12 });
+  ok(w.ended && w.ended.reason === 'lobby', 'a crash to the menu ends the match on the menu path');
+  w.play({ team: 7, enemy: 5, map: 'Bind', phase: 'buy', clock: '0:25', at: 150000 });
+  const r = w.play({ team: 7, enemy: 5, map: 'Bind', phase: 'buy', clock: '0:23', at: 152000 });
+  ok(r && r.kind === 'resume' && r.from === 'lobby', 'and reconnecting to it resumes the same match');
+}
+{
+  const w = new MatchEndWatch();
+  w.play({ team: 7, enemy: 5, map: 'Bind', at: 0 });
+  for (let i = 1; i <= 5; i++) w.lobby({ at: i * 12000, rounds: 12 });
+  ok(w.play({ team: 7, enemy: 6, map: 'Haven', phase: 'buy', clock: '0:25', at: 150000 }).kind === 'new-match',
+    'the same score on another map is not the same match');
+  const v = new MatchEndWatch();
+  v.play({ team: 7, enemy: 5, map: 'Bind', at: 0 });
+  for (let i = 1; i <= 5; i++) v.lobby({ at: i * 12000, rounds: 12 });
+  ok(v.play({ team: 7, enemy: 5, map: 'Bind', phase: 'buy', clock: '0:25', at: 60000 + 6 * 60000 }).kind === 'new-match',
+    'nor is play six minutes after the end');
+  const x = new MatchEndWatch();
+  x.play({ team: 12, enemy: 10, at: 0 });
+  x.play({ team: 13, enemy: 10, at: 2000 });
+  x.lobby({ at: 4000, rounds: 23 });
+  ok(x.play({ team: 0, enemy: 0, phase: 'buy', clock: '0:40', at: 120000 }).kind === 'new-match',
+    'a real end is followed by a 0 to 0 buy phase, which is the next match, not a resume');
 }
 
 // ── The watch: the menu path ────────────────────────────────────────────────
@@ -151,7 +246,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const stopped = review.build({ rounds: abyss.rounds, context: abyss.context, endedBy: 'stop' });
   ok(stopped.game.result === null && stopped.game.score === '13-11',
     'a stopped session shows the score it read but does not claim a result');
-  ok(stopped.refused.some((t) => /stopped before the match ended/.test(t)), 'and says why');
+  // Not "before the match ended": from the screen alone, Stop pressed on the
+  // end screen of a match the watch had not ended looks exactly like this.
+  ok(stopped.refused.some((t) => t === 'Coaching was stopped before the coach saw the match end, so this covers the rounds it watched.'),
+    'and says why, claiming only what the screen knows');
   const tracked = review.build({ rounds: abyss.rounds, context: abyss.context, endedBy: 'stop',
     tracker: { result: 'Defeat', score: '11-13', kills: 10, deaths: 17, assists: 4, acs: 180, adr: 120, headshotPct: 20, kd: 0.59 } });
   ok(tracked.game.result === 'Defeat' && tracked.scoreline.acs === 180, "Riot's verified record outranks the screen");
@@ -335,6 +433,151 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(counted.summary === 'Your most repeated mistake was stepping out alone in rounds 2, 3 and 4.',
     `sentences carrying a count are dropped, round numbers are not (${counted.summary})`);
   ok(/write no counts or fractions/.test(prompt), 'and the prompt asks for none');
+}
+
+// ── A plant belongs to the round it was seen in ─────────────────────────────
+// The failure: round 6 planted at B Site and won, and the banner frames that
+// already print 4 to 2 still carry "planted" from the engine's context, which
+// only a buy phase clears. They are filed under round 7, so round 7 was
+// planted at B Site, its early death lost its bucket, and Riot's record could
+// not take it back because the merge was an OR.
+{
+  const l = new RoundLedger();
+  let at = 0;
+  const f = (o) => { at += 1000; l.observe({ at, side: 'attacking', ...o }); };
+  const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  for (let s = 30; s >= 1; s -= 2) f({ team: 3, enemy: 2, phase: 'buy', clock: clock(s) });
+  for (let s = 100; s >= 60; s -= 2) f({ team: 3, enemy: 2, phase: 'active', clock: clock(s) });
+  for (let i = 0; i < 20; i++) f({ team: 3, enemy: 2, phase: 'postplant', spike: 'planted', spikeSpot: 'B Site' });
+  // The banner, read three ways: the clock it prints, no clock, and post plant.
+  f({ team: 4, enemy: 2, phase: 'active', clock: '0:01', spike: 'planted', spikeSpot: 'B Site' });
+  f({ team: 4, enemy: 2, phase: 'active', spike: 'planted', spikeSpot: 'B Site' });
+  f({ team: 4, enemy: 2, phase: 'postplant', spike: 'planted', spikeSpot: 'B Site' });
+  for (let s = 30; s >= 1; s -= 2) f({ team: 4, enemy: 2, phase: 'buy', clock: clock(s) });
+  for (let s = 100; s >= 86; s -= 2) f({ team: 4, enemy: 2, phase: 'active', clock: clock(s) });
+  f({ team: 4, enemy: 2, phase: 'dead', clock: '1:25', died: true, deathSpot: 'A Main' });
+  for (let s = 84; s >= 20; s -= 4) f({ team: 4, enemy: 2, phase: 'dead', clock: clock(s) });
+  f({ team: 4, enemy: 3, phase: 'active', clock: '0:01' });
+  const rows = l.list();
+  const r6 = rows.find((r) => r.n === 6);
+  const r7 = rows.find((r) => r.n === 7);
+  ok(r6.planted && r6.plantSpot === 'B Site', 'round 6 keeps its plant at B Site');
+  ok(!r7.planted && r7.plantSpot === null, `the banner frames after it do not plant round 7 (${r7.planted}, ${r7.plantSpot})`);
+  ok(r7.early && review.timingOf(r7) === 'early', 'so round 7\'s death 15 seconds in keeps its early flag and its bucket');
+  ok(!review.roundFacts(r7).some((t) => /Spike planted/.test(t)), `and its card says nothing about a spike (${review.roundFacts(r7)})`);
+
+  // A banner plant with no plant seen in the round before is that round's.
+  const b = new RoundLedger();
+  at = 0;
+  const g = (o) => { at += 1000; b.observe({ at, side: 'defending', ...o }); };
+  for (let s = 100; s >= 30; s -= 5) g({ team: 1, enemy: 1, phase: 'dead', clock: clock(s) });
+  g({ team: 1, enemy: 2, phase: 'dead', clock: '0:00', spike: 'planted', spikeSpot: 'A Site' });
+  ok(b.list().find((r) => r.n === 3).planted && !b.rounds.get(4).planted,
+    'a plant seen only on the banner is credited back to the round that ended');
+
+  // Riot's planted flag outranks the screen's, when its record has plants.
+  const verify = require('../src/shared/valorant-verify');
+  const screen = rows.map((r) => (r.n === 7 ? { ...r, planted: true, plantSpot: 'B Site' } : r));
+  const riotPlants = { perRound: [
+    { n: 6, won: true, died: false, planted: true, kills: 1 },
+    { n: 7, won: false, died: true, deathMs: 15000, planted: false, kills: 0 },
+  ] };
+  const v = verify.reconcile(screen, riotPlants).rounds;
+  ok(v.find((r) => r.n === 6).planted && v.find((r) => r.n === 6).plantSpot === 'B Site',
+    "Riot's plant keeps the site the screen read");
+  ok(!v.find((r) => r.n === 7).planted && v.find((r) => r.n === 7).plantSpot === null,
+    'and a plant Riot does not have is dropped, site and all');
+  const noPlantData = { perRound: riotPlants.perRound.map((r) => ({ ...r, planted: false })) };
+  ok(verify.reconcile(screen, noPlantData).rounds.find((r) => r.n === 6).planted,
+    'a record with no plant in any round falls back to the screen, which is what a renamed field looks like');
+}
+
+// ── The round after the last one ────────────────────────────────────────────
+// An unrated 13 to 12 is deliberately not a final score, so it ends on the menu
+// path, and the banner that printed 13 to 12 opened a round 26 nobody played.
+{
+  const l = new RoundLedger();
+  let at = 0;
+  const f = (o, dt = 2000) => { at += dt; l.observe({ at, side: 'defending', ...o }); };
+  f({ team: 12, enemy: 12, phase: 'buy', clock: '0:20' });
+  f({ team: 12, enemy: 12, phase: 'active', clock: '1:20' }, 40000);
+  f({ team: 12, enemy: 12, phase: 'active', clock: '0:40' }, 40000);
+  f({ team: 13, enemy: 12, phase: 'active', clock: '0:01' }, 30000);
+  f({ team: 13, enemy: 12, phase: 'active', clock: '0:01' });
+  const list = l.list();
+  ok(list.length === 1 && list[0].n === 25 && list[0].result === 'won',
+    `a lobby or stop end has no empty last round (${list.map((r) => r.n)})`);
+  ok(l.size() === 2, 'the ledger itself still holds the banner frames, only the list leaves the round out');
+  f({ team: 13, enemy: 12, phase: 'buy', clock: '0:28' }, 8000);
+  ok(l.list().map((r) => r.n).join() === '25,26', 'a last round with its buy phase seen is kept');
+  const d = new RoundLedger();
+  d.observe({ at: 1000, team: 3, enemy: 3, phase: 'buy', clock: '0:20' });
+  d.observe({ at: 60000, team: 3, enemy: 3, phase: 'active', clock: '0:30' });
+  d.observe({ at: 90000, team: 3, enemy: 4, phase: 'dead', clock: '0:01', died: true });
+  ok(d.list().map((r) => r.n).join() === '7', 'and a banner death is filed back, so it keeps no round of its own');
+}
+
+// ── What Riot's check says it changed ───────────────────────────────────────
+{
+  const verify = require('../src/shared/valorant-verify');
+  const riot = load('riot-abyss-13-11.json');
+  const mk = (n, died) => ({ n, side: 'defending', result: 'lost', died, deathSpot: null, deathClock: null, early: false,
+    ultAtDeath: null, ultSeen: null, planted: false, plantSpot: null, locs: [], reads: [], frames: 5 });
+  const line = (ledger, per) => verify.describe(verify.reconcile(ledger, { perRound: per }).checks);
+  const R = (n, died) => ({ n, died, deathMs: died ? 20000 : null, won: false });
+
+  // A death filed a round late: equal totals, different rounds.
+  const moved = line([mk(4, false), mk(5, false), mk(6, true)], [R(4, false), R(5, true), R(6, false)]);
+  ok(moved === "Checked against Riot's record of the match: the screen read 1 death and Riot has 1, "
+    + 'with none in round 6 and one in round 5 the screen missed.', `a moved death is never "confirmed" (${moved})`);
+  ok(line([mk(1, true), mk(2, false)], [R(1, true), R(2, false)])
+    === "Checked against Riot's record of the match: Riot confirms the one death the screen read.", 'one death, in words');
+  ok(line([mk(1, false), mk(2, false)], [R(1, false), R(2, false)])
+    === "Checked against Riot's record of the match: the screen read no deaths, and Riot has none either.", 'and none');
+  ok(line([mk(1, true)], [R(1, false)]) === "Checked against Riot's record of the match: the screen read 1 death, in round 1, and Riot has none.",
+    'a death Riot does not have');
+
+  // Watched from round 15: Riot's deaths before it are not the screen's to miss.
+  const late = abyss.rounds.filter((r) => r.n >= 15);
+  const c = verify.reconcile(late, riot);
+  ok(c.checks.watched === 10 && c.checks.screenDeaths === 9 && c.checks.riotDeaths === 8,
+    `counted over the 10 rounds the coach watched (${c.checks.watched}, ${c.checks.screenDeaths}, ${c.checks.riotDeaths})`);
+  const said = verify.describe(c.checks);
+  ok(said.startsWith("Checked against Riot's record of the 10 rounds the coach watched: the screen read 9 deaths and Riot has 8, with none in round 17."),
+    `and said that way (${said})`);
+  ok(!/21/.test(said), 'never against the 21 deaths of rounds it never saw');
+  const one = verify.describe({ ...c.checks, readsDropped: 1 });
+  ok(/Riot contradicts one of the coach's reads, so it is hidden\.$/.test(one), `one hidden read, singular (${one})`);
+  // Built from code points, so this file never carries the character it bans.
+  const dashed = (t) => [0x2013, 0x2014].some((c) => t.includes(String.fromCharCode(c)));
+  ok(dashed(`a ${String.fromCharCode(0x2014)} b`) && !dashed('a - b'), 'the dash check catches a dash and lets a hyphen through');
+  ok(![moved, said, one].some(dashed), 'no line carries a dash');
+
+  // The review over that partial session.
+  const partial = review.build({ rounds: c.rounds, context: abyss.context, endedBy: 'stop', verification: said });
+  ok(partial.watched.rounds === 10 && partial.watched.deaths === 8,
+    `the header counts the rounds the coach saw, not Riot's 24 (${partial.watched.rounds} watched, ${partial.watched.deaths} deaths)`);
+  ok(!partial.refused.some((t) => /stopped before/.test(t)),
+    'stopped on the last round, the review does not claim the match went on');
+  ok(partial.refused.includes("Riot's record fills in rounds 1 to 14, which the coach did not watch, so those rounds have no location or coach's read."),
+    `and it says where the other rounds come from (${partial.refused.join(' | ')})`);
+  const early = verify.reconcile(abyss.rounds.filter((r) => r.n <= 20), riot);
+  const cut = review.build({ rounds: early.rounds, context: abyss.context, endedBy: 'stop' });
+  ok(cut.refused.includes("Coaching was stopped before the match ended. Riot's record fills in rounds 21 to 24, "
+    + "which the coach did not watch, so those rounds have no location or coach's read."),
+    `stopped at round 20 of 24, Riot's record shows the match went on (${cut.refused.join(' | ')})`);
+  ok(review.spans([1, 2, 3, 4, 24]) === 'rounds 1 to 4 and 24' && review.spans([5, 6, 9]) === 'rounds 5, 6 and 9'
+    && review.spans([7]) === 'round 7', 'round runs read as a person would write them');
+}
+
+// ── a or an ─────────────────────────────────────────────────────────────────
+{
+  const a = review.withArticle;
+  ok(a('Outlaw') === 'an Outlaw' && a('Operator') === 'an Operator' && a('Odin') === 'an Odin' && a('Ares') === 'an Ares',
+    'an Outlaw, an Operator, an Odin, an Ares');
+  ok(a('Vandal') === 'a Vandal' && a('Marshal') === 'a Marshal' && a('Sheriff') === 'a Sheriff', 'a Vandal, a Marshal, a Sheriff');
+  const card = review.roundFacts({ verified: true, died: true, deathSpot: 'B Site', deathSec: 28, killerAgent: 'Cypher', weapon: 'Outlaw' });
+  ok(card[0] === 'Died at B Site, 28s in, to Cypher with an Outlaw', `the round card (${card[0]})`);
 }
 
 // ── The v4 parser, on a small synthetic match ───────────────────────────────

@@ -1,6 +1,12 @@
 /* The post-game review. Reports a finished game and never comments on one in
    progress, which is the whole shape of the feature. */
 
+/* The DOCUMENT never scrolls; .body does. Without a height here the sheet's
+   calc(100% - 20px) resolved against an auto height, the sheet grew to its
+   content, and the whole window scrolled with Windows' default light
+   scrollbar beside the dark one this file styles. */
+html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+
 .sheet {
   margin: 10px; height: calc(100% - 20px);
   border-radius: 18px;

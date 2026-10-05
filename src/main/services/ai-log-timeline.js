@@ -31,6 +31,7 @@
  * reported as unconfirmed so the interface can say so rather than assert it.
  */
 const { __test } = require('./coaching-engine');
+const { clockSeconds, isBuyPhase, BUY_MAX_LEFT } = require('../../shared/valorant-rounds');
 
 // A map change with no score reset behind it needs this many consecutive frames
 // AND an agreeing label fingerprint before it counts. The longest run of pure
@@ -245,6 +246,21 @@ function aliveVerdict(state) {
  * because the hud is genuinely unreadable during a killcam and a gap is not
  * evidence of anything.
  */
+/**
+ * When the buy timer last read at or before frame i runs out, in ms, or 0.
+ * Looks back a few dozen frames, which is more than a buy phase at any rate.
+ */
+function buyTimerEnd(recs, i) {
+  for (let j = i; j >= 0 && j >= i - 40; j--) {
+    const s = recs[j].state || {};
+    if (isBuyPhase(s.phase, s.clock)) {
+      const left = clockSeconds(s.clock);
+      return (recs[j].at || 0) + (left === null ? 0 : left * 1000) + 2000;
+    }
+  }
+  return 0;
+}
+
 function deaths(records) {
   const recs = Array.isArray(records) ? records : [];
 
@@ -272,6 +288,14 @@ function deaths(records) {
     // frame. A lone dead frame between two living ones is the model misreading a
     // teammate in the world as a spectator view, so it needs the printed proof.
     if (!proven && frames < 2) continue;
+
+    // NOBODY DIES IN A BUY PHASE. A dead run that starts while a buy timer is
+    // still running is the last round's combat report, which Valorant puts
+    // back up as the buy phase starts ("KILLED BY Reyna" in its panel). On a
+    // real session read every second that made 21 deaths out of 20 rounds.
+    const first = recs[run.from];
+    const left = clockSeconds((first.state || {}).clock);
+    if ((left === null || left <= BUY_MAX_LEFT) && (first.at || 0) < buyTimerEnd(recs, run.from)) continue;
 
     const s = recs[run.from].state || {};
     out.push({

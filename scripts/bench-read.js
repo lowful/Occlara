@@ -26,6 +26,12 @@
  *
  *   node scripts/bench-read.js qwen/qwen3.7-flash deepseek/deepseek-v4.1-flash
  *   node scripts/bench-read.js --frames 60 <models...>     first 60 frames only
+ *
+ * A MODEL OTHER THAN 'live' NEEDS THE ADMIN PASSWORD. The server honours
+ * benchModel only beside X-Admin-Password, because any licence could otherwise
+ * switch every read to a dearer model. Set ADMIN_PASSWORD in the environment
+ * or in server/.env (the value Railway has). 'live', which is all verify:ai
+ * runs, needs nothing.
  */
 
 const fs = require('fs');
@@ -45,6 +51,28 @@ const MODELS = args.filter((a) => (a.includes('/') || a === 'live') && !a.starts
 const GATE = args.includes('--gate');
 if (!MODELS.length) { console.log('name at least one model'); process.exit(1); }
 
+/** ADMIN_PASSWORD from the environment, or from server/.env when it exists. */
+function adminPassword() {
+  const envFile = path.join(__dirname, '..', 'server', '.env');
+  if (!process.env.ADMIN_PASSWORD && fs.existsSync(envFile)) {
+    try {
+      let dotenv;
+      try { dotenv = require(path.join(__dirname, '..', 'server', 'node_modules', 'dotenv')); }
+      catch { dotenv = require('dotenv'); }
+      dotenv.config({ path: envFile });
+    } catch (e) { console.log(`could not read ${envFile}: ${e.message}`); }
+  }
+  return process.env.ADMIN_PASSWORD || '';
+}
+const BENCHING = MODELS.some((m) => m !== 'live');
+const ADMIN = BENCHING ? adminPassword() : '';
+if (BENCHING && !ADMIN) {
+  console.log('A bench model needs the admin password: the server ignores benchModel without it, and every '
+    + 'frame would quietly run on the live model under the name you asked for.\n'
+    + 'Set ADMIN_PASSWORD in the environment or in server/.env (the same value Railway has), or bench "live" only.');
+  process.exit(1);
+}
+
 const dir = path.join(ROOT, 'ai-log', SESSION);
 const cfg = JSON.parse(fs.readFileSync(configPath(ROOT), 'utf8'));
 const log = JSON.parse(fs.readFileSync(path.join(dir, 'log.json'), 'utf8'));
@@ -60,14 +88,20 @@ const validLabel = (l) => {
 
 async function read(model, image, context) {
   const t0 = Date.now();
+  const bench = model !== 'live';
   const resp = await fetch(`${SERVER}/api/coach/read`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-license-key': cfg.licenseKey },
-    body: JSON.stringify({ image, context, benchModel: model === 'live' ? undefined : model }),
+    headers: { 'content-type': 'application/json', 'x-license-key': cfg.licenseKey,
+      ...(bench ? { 'x-admin-password': ADMIN } : {}) },
+    body: JSON.stringify({ image, context, benchModel: bench ? model : undefined }),
   });
   const ms = Date.now() - t0;
   if (!resp.ok) return { err: `${resp.status} ${(await resp.text()).slice(0, 80)}`, ms };
-  return { ...(await resp.json()), ms };
+  const j = await resp.json();
+  // The server names the model that answered a bench request. Anything else
+  // means benchModel was not honoured, and the numbers would belong to the
+  // live model, so the run stops rather than reporting them under this name.
+  return { ...j, ms, ignored: bench && j.model !== model };
 }
 
 async function run(model) {
@@ -85,6 +119,12 @@ async function run(model) {
     let j;
     try { j = await read(model, image, ctx); } catch (e) { j = { err: e.message, ms: 0 }; }
     if (j.err) { r.errs++; r.firstErr = r.firstErr || j.err; continue; }
+    if (j.ignored) {
+      r.errs = frames.length;
+      r.firstErr = `the server ran ${j.model || 'the live model'}, not ${model}: check ADMIN_PASSWORD`;
+      console.log(`  ${model}: ${r.firstErr}`);
+      break;
+    }
     r.ms.push(j.ms);
     if (j.lobby) { r.lobby++; continue; }
     const s = j.context || {};

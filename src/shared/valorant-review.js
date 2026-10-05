@@ -28,13 +28,64 @@ function pct(a, b) { return b ? Math.round((a / b) * 100) : 0; }
 
 function plural(n, one, many) { return `${n} ${n === 1 ? one : (many || one + 's')}`; }
 
+/**
+ * "a Vandal", "an Outlaw". Riot's weapon names include Outlaw, Operator, Odin
+ * and Ares, and the verified round card read "to Cypher with a Outlaw". Every
+ * name the game uses that starts with a vowel letter also starts with a vowel
+ * sound, so the letter decides.
+ */
+function withArticle(noun) {
+  const s = String(noun || '').trim();
+  return `${/^[aeiou]/i.test(s) ? 'an' : 'a'} ${s}`;
+}
+
+/** "rounds 1 to 14", "rounds 1 to 14 and 24", "round 5": runs of consecutive rounds. */
+function spans(ns) {
+  const sorted = ns.slice().sort((a, b) => a - b);
+  const runs = [];
+  for (const n of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && n === last[1] + 1) last[1] = n;
+    else runs.push([n, n]);
+  }
+  const text = runs.flatMap(([a, b]) => (a === b ? [`${a}`] : b === a + 1 ? [`${a}`, `${b}`] : [`${a} to ${b}`]));
+  const joined = text.length === 1 ? text[0] : `${text.slice(0, -1).join(', ')} and ${text[text.length - 1]}`;
+  return `${sorted.length === 1 ? 'round' : 'rounds'} ${joined}`;
+}
+
 function sideLabel(side) {
   return side === 'attacking' ? 'Attack' : side === 'defending' ? 'Defence' : null;
+}
+
+/*
+ * THE MODE A PLAYER KNOWS IT BY. The screen can only tell swiftplay's 4 round
+ * halves from a standard match's 12, and "Standard" is not a name Valorant uses.
+ * Riot's record names the queue, so once the match links, the review says
+ * Competitive or Unrated, and a match the screen got wrong is put right.
+ */
+const QUEUE_LABELS = {
+  competitive: 'Competitive', unrated: 'Unrated', swiftplay: 'Swiftplay', premier: 'Premier',
+  spikerush: 'Spike Rush', 'spike rush': 'Spike Rush', deathmatch: 'Deathmatch',
+  hurm: 'Team Deathmatch', 'team deathmatch': 'Team Deathmatch', teamdeathmatch: 'Team Deathmatch',
+  ggteam: 'Escalation', escalation: 'Escalation', onefa: 'Replication', replication: 'Replication',
+  newmap: 'New Map', snowball: 'Snowball Fight', custom: 'Custom',
+};
+function queueLabel(queue) {
+  return QUEUE_LABELS[String(queue || '').toLowerCase().trim()] || null;
+}
+/** The halftime rule a queue plays by: 'swiftplay', 'standard', 'spikerush' or null. */
+function queueHalves(queue) {
+  const q = String(queue || '').toLowerCase();
+  if (/swift/.test(q)) return 'swiftplay';
+  if (/spike ?rush/.test(q)) return 'spikerush';
+  if (/competitive|unrated|premier|custom|newmap/.test(q)) return 'standard';
+  return null;
 }
 
 /** Where halftime falls, so the timeline can draw it. Null when unknown. */
 function halftimeAfter(mode, rounds) {
   if (mode === 'swiftplay') return 4;
+  if (mode === 'spikerush') return 3;
   if (mode === 'standard') return 12;
   // Unknown mode: a match that reached round 10 cannot be swiftplay.
   return rounds.some((r) => r.n >= 10) ? 12 : null;
@@ -196,7 +247,7 @@ function roundFacts(r) {
     if (r.died) {
       let line = r.deathSpot ? `Died at ${r.deathSpot}` : 'Died';
       if (r.deathSec !== null && r.deathSec !== undefined) line += `${r.deathSpot ? ',' : ''} ${r.deathSec}s in`;
-      if (r.killerAgent) line += `, to ${r.killerAgent}${r.weapon ? ` with a ${r.weapon}` : ''}`;
+      if (r.killerAgent) line += `, to ${r.killerAgent}${r.weapon ? ` with ${withArticle(r.weapon)}` : ''}`;
       facts.push(line);
       if (r.firstDeath) facts.push('First death of the round');
       if (r.aliveAtDeath) facts.push(`${r.aliveAtDeath.mates} against ${r.aliveAtDeath.enemies} when you died`);
@@ -294,19 +345,50 @@ function build(input) {
     } : null,
   }));
 
-  const deaths = rounds.filter((r) => r.died).length;
-  const decided = rounds.filter((r) => r.result);
+  // WHAT THE COACH WATCHED, which is not every round once Riot's record is laid
+  // over a session started or stopped partway: reconcile() returns all of
+  // Riot's rounds and marks the ones the coach never saw. Counting those, a
+  // session watched from round 15 of the real Abyss match said "24 rounds
+  // watched" over round cards reading "Not watched by the coach". A ledger row
+  // carries no flag, and every one of them was watched.
+  const seen = rounds.filter((r) => r.watched !== false);
+  const unseen = rounds.filter((r) => r.watched === false).map((r) => r.n);
+  const deaths = seen.filter((r) => r.died).length;
+  const decided = seen.filter((r) => r.result);
   const isVerified = rounds.some((r) => r.verified);
   const refused = isVerified
     ? ['Riot records when you died and to whom, not where. Death locations are read off the screen.']
     : ['Kills, damage and who won each fight are not printed on the HUD in a way the coach can read, '
       + 'so a round card says what was seen, not how the duel went.'];
-  if (input.endedBy === 'stop') {
-    refused.push('Coaching was stopped before the match ended, so this covers the rounds the coach watched.');
+  // STOPPED PARTWAY, SAID ONLY WHERE IT IS TRUE. From the screen alone a match
+  // stopped halfway and one stopped on its end screen look the same, so the
+  // line says only what is known: the coach never saw the end. Riot's record
+  // knows, because its rounds after the last one watched are the match going
+  // on, and it fills those in, so the old "this covers the rounds the coach
+  // watched" was false the moment it linked.
+  if (!isVerified && input.endedBy === 'stop') {
+    refused.push('Coaching was stopped before the coach saw the match end, so this covers the rounds it watched.');
+  }
+  // The next match began before this one was seen ending (a remake, an unrated
+  // 13 to 12 with no menu read), so nothing on screen says how it ended.
+  if (!isVerified && input.endedBy === 'next-match') {
+    refused.push('The next match started before the coach saw this one end, so this covers the rounds it watched.');
+  }
+  if (isVerified && unseen.length) {
+    const lastSeen = seen.reduce((a, r) => Math.max(a, r.n), 0);
+    const stoppedEarly = input.endedBy === 'stop' && unseen.some((n) => n > lastSeen);
+    refused.push(`${stoppedEarly ? 'Coaching was stopped before the match ended. ' : ''}`
+      + `Riot's record fills in ${spans(unseen)}, which the coach did not watch, `
+      + `so ${unseen.length === 1 ? 'that round has' : 'those rounds have'} no location or coach's read.`);
   }
   if (!tracker && !isVerified) {
-    refused.push('The scoreboard comes from Riot once the match is published. '
-      + 'Add your Riot ID in Settings, and it fills in here a few minutes after the match.');
+    refused.push(input.linkMissing
+      ? "Riot's record of this match was not found, so there is no scoreboard. "
+        + 'A match played on another account than the Riot ID in Settings never links.'
+      : input.riotIdSet
+        ? 'The scoreboard comes from Riot once the match is published, and fills in here a few minutes after the match.'
+        : 'The scoreboard comes from Riot once the match is published. '
+          + 'Add your Riot ID in Settings, and it fills in here a few minutes after the match.');
   }
 
   // The numbers the grade is built on: the tracker's scoreboard, else Riot's
@@ -326,7 +408,8 @@ function build(input) {
   const game = {
     agent: (tracker && tracker.agent) || ctx.agent || null,
     map: ctx.map || (tracker && tracker.map) || null,
-    mode: ctx.gameMode === 'swiftplay' ? 'Swiftplay' : ctx.gameMode === 'standard' ? 'Standard' : null,
+    mode: queueLabel(input.queue)
+      || (ctx.gameMode === 'swiftplay' ? 'Swiftplay' : ctx.gameMode === 'standard' ? 'Standard' : null),
     result,
     score,
   };
@@ -338,12 +421,12 @@ function build(input) {
     game,
     scoreline,
     watched: {
-      rounds: rounds.length,
+      rounds: seen.length,
       deaths,
       decided: decided.length,
-      survival: rounds.length ? pct(rounds.length - deaths, rounds.length) : null,
+      survival: seen.length ? pct(seen.length - deaths, seen.length) : null,
     },
-    halftimeAfter: halftimeAfter(ctx.gameMode, rounds),
+    halftimeAfter: halftimeAfter(queueHalves(input.queue) || ctx.gameMode, rounds),
     // Whether Riot's record has been applied, and what it changed. The window
     // says so, because a review that quietly changed its numbers reads as one
     // that cannot make up its mind.
@@ -354,6 +437,7 @@ function build(input) {
     insights: insights.valorant(rounds, { role: input.role || null }),
     grade: grader.valorant({
       rounds, scoreline, role: input.role || null, history: input.history || [], totalRounds,
+      riotIdSet: input.riotIdSet, linkMissing: input.linkMissing,
     }),
     summary: ai.summary || null,
     focus: ai.focus || null,
@@ -470,4 +554,4 @@ function against(tracker, role, history) {
 }
 
 module.exports = { build, patterns, roundFacts, historyEntry, against, halftimeAfter, requestBody, timingOf,
-  BASELINE_GAMES, BASELINE_MIN };
+  queueLabel, queueHalves, withArticle, spans, BASELINE_GAMES, BASELINE_MIN };

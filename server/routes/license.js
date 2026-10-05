@@ -1,13 +1,55 @@
 'use strict';
 const express  = require('express');
 const supabase = require('../db/supabase');
+const { requireUser } = require('../services/account-auth');
 
 const router = express.Router();
+const signedIn = requireUser(supabase);
 
 const KEY_REGEX = /^GC-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 const DANGEROUS = /<script|--|;drop|;delete|union select/i;
 
 function sanitizeKey(key) { return String(key).trim().toUpperCase(); }
+
+/*
+ * A FAILED LOOKUP IS NOT "NOT FOUND".
+ *
+ * supabase-js answers a network failure, a pooler timeout, a PostgREST 5xx or a
+ * paused project with { data: null, error }, exactly the shape of "no such
+ * row", and both routes below read either as "License key not found" with
+ * valid:false. The desktop app re-checks its licence here every three minutes
+ * and takes an explicit valid:false as final: it stored the licence as
+ * expired, stopped the recording in progress mid match and told a paying
+ * player to renew. One failed query was enough.
+ *
+ * Only PGRST116 means the row is not there. Anything else is answered 503 with
+ * retry and NO valid field, which the client already treats as "ask again
+ * later" and keeps its session through. The lookup also gives up after five
+ * seconds, inside the client's own eight, so a hung connection reads as an
+ * outage instead of as the client timing out.
+ */
+const LOOKUP_MS = 5000;
+const notFound = (error) => !!(error && error.code === 'PGRST116');
+// A sentence in `error`, because the activation window of every installed
+// client prints that field as it is; the code is for anything that branches.
+const UNAVAILABLE = {
+  error: 'The licence server could not check your key just now. Try again in a minute.',
+  code: 'licence-check-unavailable',
+  retry: true,
+};
+
+async function licenceByKey(cleanKey) {
+  try {
+    return await supabase
+      .from('licenses')
+      .select('*')
+      .eq('license_key', cleanKey)
+      .abortSignal(AbortSignal.timeout(LOOKUP_MS))
+      .single();
+  } catch (e) {
+    return { data: null, error: { code: '', message: e.message } };
+  }
+}
 
 // POST /api/license/activate
 // Body: { key, device_id, device_name }
@@ -22,13 +64,13 @@ router.post('/activate', async (req, res) => {
   const cleanKey = sanitizeKey(key);
   if (!KEY_REGEX.test(cleanKey)) return res.status(400).json({ valid: false, error: 'Invalid license key format' });
 
-  const { data: license, error: fetchErr } = await supabase
-    .from('licenses')
-    .select('*')
-    .eq('license_key', cleanKey)
-    .single();
+  const { data: license, error: fetchErr } = await licenceByKey(cleanKey);
 
-  if (fetchErr || !license) return res.status(404).json({ valid: false, error: 'License key not found' });
+  if (fetchErr && !notFound(fetchErr)) {
+    console.error('[license] activate lookup failed:', fetchErr.message || fetchErr.code);
+    return res.status(503).json(UNAVAILABLE);
+  }
+  if (!license) return res.status(404).json({ valid: false, error: 'License key not found' });
 
   if (license.expires_at && new Date(license.expires_at) < new Date())
     return res.json({ valid: false, status: 'expired', error: 'License has expired' });
@@ -60,11 +102,13 @@ router.post('/activate', async (req, res) => {
 });
 
 // POST /api/license/deactivate
-// Body: { userId }, called from account dashboard (Supabase userId).
+// Header: Authorization: Bearer <Supabase access token>. Body: { userId? },
+// which must be the token's own user when it is sent at all.
 // Clears device lock. Max 3 deactivations per calendar month.
-router.post('/deactivate', async (req, res) => {
-  const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'userId is required' });
+// It acts on the SIGNED IN user, never on a userId the caller names: anyone
+// who knew an id could clear its lock and take the key for their own PC.
+router.post('/deactivate', signedIn, async (req, res) => {
+  const userId = req.user.id;
 
   const { data: license, error } = await supabase
     .from('licenses')
@@ -74,7 +118,11 @@ router.post('/deactivate', async (req, res) => {
     .limit(1)
     .single();
 
-  if (error || !license) return res.status(404).json({ error: 'No license found for this account' });
+  if (error && !notFound(error)) {
+    console.error('[license] deactivate lookup failed:', error.message || error.code);
+    return res.status(503).json(UNAVAILABLE);
+  }
+  if (!license) return res.status(404).json({ error: 'No license found for this account' });
   if (!license.device_id) return res.status(400).json({ error: 'License is not activated on any device' });
 
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -106,13 +154,13 @@ router.post('/validate', async (req, res) => {
   const cleanKey = sanitizeKey(key);
   if (!KEY_REGEX.test(cleanKey)) return res.status(400).json({ valid: false, error: 'Invalid license key format' });
 
-  const { data: license, error } = await supabase
-    .from('licenses')
-    .select('*')
-    .eq('license_key', cleanKey)
-    .single();
+  const { data: license, error } = await licenceByKey(cleanKey);
 
-  if (error || !license) return res.status(404).json({ valid: false, error: 'License key not found' });
+  if (error && !notFound(error)) {
+    console.error('[license] validate lookup failed:', error.message || error.code);
+    return res.status(503).json(UNAVAILABLE);
+  }
+  if (!license) return res.status(404).json({ valid: false, error: 'License key not found' });
 
   if (license.expires_at && new Date(license.expires_at) < new Date())
     return res.json({ valid: false, status: 'expired', error: 'License has expired' });

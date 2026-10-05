@@ -32,6 +32,10 @@ const knowledge = require('./knowledge');
 const forensics = require('./death-forensics');
 const { promptName } = require('./languages');
 
+// "a Vandal", "an Outlaw". The prompt's own grammar is what the model copies,
+// and "with a Outlaw" came back in its sentences.
+const withArticle = (w) => `${/^[aeiou]/i.test(String(w)) ? 'an' : 'a'} ${w}`;
+
 /*
  * C, BY A SMALL MARGIN, AND THE MARGIN IS GROUNDING.
  *
@@ -206,7 +210,7 @@ function roundLine(r) {
     if (r.died) {
       let d = `died${r.deathSpot ? ' at ' + r.deathSpot : ''}`;
       if (r.sec !== null) d += ` ${r.sec} seconds into the round`;
-      if (r.killer) d += `, killed by ${r.killer}${r.weapon ? ' with a ' + r.weapon : ''}`;
+      if (r.killer) d += `, killed by ${r.killer}${r.weapon ? ' with ' + withArticle(r.weapon) : ''}`;
       facts.push(d);
       if (r.firstDeath) facts.push('first player to die that round');
       if (r.alive) facts.push(`${r.alive.mates} of their team standing against ${r.alive.enemies} when they died`);

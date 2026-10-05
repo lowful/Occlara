@@ -189,6 +189,16 @@ html, body {
   cursor: default;
 }
 
+/* Every scrollbar in the app is the dark hairline one, whatever scrolls. Each
+   surface styles its own scroller, and the one it forgets falls back to the
+   default light Windows bar, which is exactly what the review window showed.
+   Not color-scheme: dark, which would also repaint the canvas behind the
+   transparent windows. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); }
+
 /* Reusable glass surface (windowed: panel, settings, history, activation).
    The sheen is a background LAYER, not a pseudo-element: backgrounds always
    paint behind content, so it cannot cover text or swallow a click, and it

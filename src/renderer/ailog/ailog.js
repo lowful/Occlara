@@ -15,9 +15,28 @@ let records = [];
 let idx = 0;
 let sessionId = null;   // which session is loaded; rides along with every question
 let segments = [];      // confirmed map stretches, from the main process
-let deaths = [];        // every death found in the frames, reviewed or not
+let deaths = [];        // every death found in the frames
 let deathMode = false;  // opened from the match review card's eye button
 let deathAt = -1;       // which death is on screen, an index into `deaths`
+
+/*
+ * WHETHER THIS SESSION COULD HAVE SHOWN THE PLAYER ANYTHING.
+ *
+ * Before 8.0 the coach spoke during the match. Every frame was logged with what
+ * it showed (`shown`, null when it said nothing), and a death the coach never
+ * reviewed was the interesting case, so the log counted reviewed deaths and
+ * greyed the rest. Since 8.0 nothing reaches the screen during a match in any
+ * game, by design, and frames are logged with no `shown` field at all. Judged
+ * the old way, every death in every 8.0 session read as the coach going quiet:
+ * "0 reviewed", grey skulls, "no review was shown". So a session whose frames
+ * carry no `shown` field describes its deaths plainly, and only a log from the
+ * tip era keeps the reviewed split it was written with.
+ */
+let tipEra = false;
+const recordedTips = (recs) => recs.some((r) => r && Object.prototype.hasOwnProperty.call(r, 'shown'));
+
+/** "an Outlaw", "an Odin", "a Vandal": the kill line names Riot's weapon. */
+const withWeapon = (w) => (w ? ` with ${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}` : '');
 
 // The STATE fields worth surfacing, in a sensible reading order, with the
 // location + alive reads flagged since those are the usual culprits.
@@ -214,8 +233,10 @@ function paintDeathNav() {
   document.getElementById('death-pos').textContent =
     here === -1 ? `${deaths.length} deaths` : `Death ${n} of ${deaths.length}`;
 
-  // What the coach did or did not say about THIS death, which is the whole
-  // reason to look at it. An unreviewed death is the interesting case.
+  // The round and the killer of THIS death, and, in a log from the tip era,
+  // whether the coach said anything about it, which was the reason to look at
+  // it then. Since 8.0 the coach says nothing during a match by design, so a
+  // death is described as what it was and never as a miss (see tipEra).
   // The STRIP follows the death being stepped through, so it stays up while you
   // click along the run up. The WHY line only speaks when the viewer is actually
   // sitting on the death frame, because otherwise it would describe one frame
@@ -228,6 +249,11 @@ function paintDeathNav() {
   const bits = [];
   if (d.round) bits.push(`round ${d.round}`);
   if (d.killedBy) bits.push(`killed by ${d.killedBy}`);
+  if (!tipEra) {
+    why.textContent = bits.join(', ');
+    why.className = 'deathnav-why';
+    return;
+  }
   why.textContent = d.reviewed
     ? (bits.length ? bits.join(', ') : 'reviewed')
     : `${bits.length ? bits.join(', ') + ', ' : ''}the coach said nothing about this one`;
@@ -235,8 +261,8 @@ function paintDeathNav() {
 }
 
 /**
- * Pin a skull on the scrubber for every frame that showed a death review, so
- * the deaths in a session are findable at a glance instead of by scrubbing.
+ * Pin a skull on the scrubber for every death in the session, so the deaths
+ * are findable at a glance instead of by scrubbing.
  *
  * Built once after load, because the set never changes while the log is open.
  * Older logs recorded no `death` flag at all, so they simply get no marks
@@ -261,19 +287,22 @@ function buildMarks() {
   });
 
   // EVERY death, not only the ones the coach reviewed. Marking review tips meant
-  // the timeline stopped wherever the coaching stopped: the engine sends at most
-  // two reviews per death and then stays quiet until the next buy phase, so on a
-  // real session it pinned 5 marks for 8 deaths and the other three could not be
-  // found by scrubbing at all.
+  // the timeline stopped wherever the coaching stopped: the engine sent at most
+  // two reviews per death and then stayed quiet until the next buy phase, so on
+  // a real session it pinned 5 marks for 8 deaths and the other three could not
+  // be found by scrubbing at all. Only a tip era log greys the ones the coach
+  // never spoke about; since 8.0 it speaks about none of them during a match.
   deaths.forEach((d) => {
-    const b = el('button', 'mark-death' + (d.reviewed ? '' : ' unreviewed'), '\u{1F480}');
+    const unreviewed = tipEra && !d.reviewed;
+    const b = el('button', 'mark-death' + (unreviewed ? ' unreviewed' : ''), '\u{1F480}');
     b.type = 'button';
     b.style.left = `${(d.at / (records.length - 1)) * 100}%`;
     const who = d.killedBy ? ` to ${d.killedBy}` : '';
     const where = d.round ? ` in round ${d.round}` : '';
-    b.title = d.reviewed
-      ? `Death${where}${who}, reviewed by the coach. Frame ${d.at + 1}.`
-      : `Death${where}${who}, no review was shown. Frame ${d.at + 1}.`;
+    b.title = !tipEra ? `Death${where}${who}. Frame ${d.at + 1}.`
+      : d.reviewed
+        ? `Death${where}${who}, reviewed by the coach. Frame ${d.at + 1}.`
+        : `Death${where}${who}, no review was shown. Frame ${d.at + 1}.`;
     b.addEventListener('click', () => go(d.at));
     box.appendChild(b);
   });
@@ -436,6 +465,7 @@ function loadSession(id) {
     segments = (log && Array.isArray(log.segments)) ? log.segments : [];
     deaths = (log && Array.isArray(log.deaths)) ? log.deaths : [];
     sessionId = (log && log.session) || null;
+    tipEra = recordedTips(records);
     paintPicker((log && log.sessions) || []);
     picker.disabled = false;
 
@@ -451,13 +481,15 @@ function loadSession(id) {
     $('slider').max = String(records.length - 1);
     const which = (log.sessions || []).find((s) => s.id === sessionId);
     const when = which ? sessionWhen(which.at).toLowerCase() : 'your latest session';
-    // Deaths and reviews are counted separately, because they are different
-    // numbers and the gap between them is the useful part: it says how many
-    // times you died without the coach telling you anything about it.
+    // In a tip era log, deaths and reviews are counted separately, because the
+    // gap between them said how many times you died without the coach telling
+    // you anything. Since 8.0 that gap is every death by design, so a session
+    // recorded then counts its deaths and nothing else.
     const seen = deaths.filter((d) => d.reviewed).length;
-    $('subtitle').textContent = deaths.length
-      ? `${records.length} frames from ${when}, ${deaths.length} death${deaths.length === 1 ? '' : 's'}, ${seen} reviewed`
-      : `${records.length} frames from ${when}`;
+    const died = `${deaths.length} death${deaths.length === 1 ? '' : 's'}`;
+    $('subtitle').textContent = !deaths.length ? `${records.length} frames from ${when}`
+      : tipEra ? `${records.length} frames from ${when}, ${died}, ${seen} reviewed`
+        : `${records.length} frames from ${when}, ${died}`;
     buildMarks();
     paintDeathNav();
     // Death review mode opens on the FIRST death, because a review reads
@@ -505,8 +537,8 @@ function confirmDeaths(forSession) {
         const d = deaths[i];
         if (!d || !marks[i]) return;
         d.round = p.round; d.killedBy = p.killer; d.weapon = p.weapon; d.confirmed = true;
-        marks[i].title = `Round ${p.round}: killed by ${p.killer}${p.weapon ? ` with a ${p.weapon}` : ''}`
-          + `${d.reviewed ? ', reviewed by the coach' : ', no review was shown'}. Confirmed by Riot.`;
+        const said = !tipEra ? '' : d.reviewed ? ', reviewed by the coach' : ', no review was shown';
+        marks[i].title = `Round ${p.round}: killed by ${p.killer}${withWeapon(p.weapon)}${said}. Confirmed by Riot.`;
       });
     }
   }).catch(() => { /* a confirmation that does not arrive changes nothing */ });

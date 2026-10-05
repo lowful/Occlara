@@ -2,22 +2,39 @@
 const express  = require('express');
 const stripe   = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const supabase = require('../db/supabase');
+const { requireUser } = require('../services/account-auth');
 
 const router = express.Router();
 
-// GET /api/account/dashboard?userId=xxx
-// Returns full license + deactivation info for the website dashboard.
-router.get('/dashboard', async (req, res) => {
-  const userId = req.query.userId;
-  if (!userId) return res.status(400).json({ error: 'userId is required' });
+// Both routes act on the SIGNED IN user: the caller sends its Supabase access
+// token as Authorization: Bearer, and a userId it names as well must be that
+// same user. They used to take any userId at all, which handed anyone who knew
+// an id that account's licence key and its Stripe billing portal.
+const signedIn = requireUser(supabase);
 
-  const { data: license } = await supabase
+// A failed read is not an account with no licence. See routes/license.js.
+const UNAVAILABLE = { error: 'account-unavailable', retry: true };
+
+// GET /api/account/dashboard[?userId=xxx]
+// Header: Authorization: Bearer <Supabase access token>.
+// Returns full license + deactivation info for the website dashboard.
+router.get('/dashboard', signedIn, async (req, res) => {
+  const userId = req.user.id;
+
+  // Every licence, newest first. The newest is the one shown, as before, but
+  // whether the billing portal can open is a question about ALL of them: see
+  // can_manage_subscription below.
+  const { data: rows, error } = await supabase
     .from('licenses')
     .select('*')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('[account] dashboard lookup failed:', error.message || error.code);
+    return res.status(503).json(UNAVAILABLE);
+  }
+  const all = (rows || []).filter(Boolean);
+  const license = all[0] || null;
 
   /*
    * WHETHER IT RENEWS COMES FROM STRIPE, not from the licence row.
@@ -72,26 +89,48 @@ router.get('/dashboard', async (req, res) => {
   res.json({
     license: licenseData,
     subscription,
-    stripe: { can_manage_subscription: !!(license?.stripe_customer_id), portal_url: null },
+    // True exactly when /portal can open, which is when ANY licence has a
+    // Stripe customer. Read off the newest alone, a monthly subscriber who
+    // later bought lifetime (a one time Checkout creates no customer) was told
+    // there was nothing to manage while the monthly kept charging.
+    stripe: { can_manage_subscription: all.some((r) => !!r.stripe_customer_id), portal_url: null },
   });
 });
 
 // POST /api/account/portal
-// Body: { userId }
+// Header: Authorization: Bearer <Supabase access token>. Body: { userId? }.
 // Creates a Stripe Customer Portal session for subscription management.
-router.post('/portal', async (req, res) => {
-  const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'userId is required' });
+router.post('/portal', signedIn, async (req, res) => {
+  const userId = req.user.id;
 
-  const { data: license } = await supabase
+  /*
+   * THE NEWEST LICENCE THAT HAS A STRIPE CUSTOMER, not simply the newest one.
+   *
+   * The webhook writes one row per purchase. A monthly subscriber who later
+   * bought lifetime has the lifetime as their newest row, and a one time
+   * Checkout with only an email creates no Stripe customer, so that row's
+   * stripe_customer_id is null. Taking the newest row answered "No Stripe
+   * subscription found" while the monthly kept charging, and left the site
+   * with no way to stop it.
+   *
+   * A row that also carries a subscription comes first, because that is the
+   * customer the subscription bills: if a one time purchase ever does get a
+   * customer of its own, it is a different one, whose portal has nothing to
+   * cancel.
+   */
+  const { data: rows, error } = await supabase
     .from('licenses')
-    .select('stripe_customer_id')
+    .select('stripe_customer_id,stripe_subscription_id,created_at')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('[account] portal lookup failed:', error.message || error.code);
+    return res.status(503).json(UNAVAILABLE);
+  }
+  const withCustomer = (rows || []).filter((r) => r && r.stripe_customer_id);
+  const license = withCustomer.find((r) => r.stripe_subscription_id) || withCustomer[0];
 
-  if (!license?.stripe_customer_id) {
+  if (!license) {
     return res.status(400).json({ error: 'No Stripe subscription found for this account' });
   }
 

@@ -32,6 +32,8 @@ const ROUND_SECONDS = 100;
 const EARLY_DEATH_LEFT = 70;
 // An active frame with less than this left is a round end banner, not play.
 const MID_ROUND_LEFT = 15;
+// The longest buy phase is a pistol round's 45 seconds; every other one is 30.
+const BUY_MAX_LEFT = 45;
 
 /** "1:05" -> 65, anything unreadable -> null. */
 function clockSeconds(clock) {
@@ -39,6 +41,18 @@ function clockSeconds(clock) {
   if (!m) return null;
   const s = Number(m[1]) * 60 + Number(m[2]);
   return s >= 0 && s <= ROUND_SECONDS ? s : null;
+}
+
+/**
+ * Barriers up with a BUY timer on the clock. A "buy" read with more than 45
+ * seconds left is the round timer, so it is play misread as a buy phase: on a
+ * real session the model said "buy" at 1:34 of round 5, which advanced the
+ * ledger a round that had not started.
+ */
+function isBuyPhase(phase, clock) {
+  if (phase !== 'buy') return false;
+  const left = clockSeconds(clock);
+  return left === null || left <= BUY_MAX_LEFT;
 }
 
 function cleanSpot(v) {
@@ -178,7 +192,33 @@ class RoundLedger {
       this.since = { bought: false, played: false, frames: 0 };
     }
     if (!this.since) this.since = { bought: false, played: false, frames: 0 };
-    if (f.phase === 'buy' && this.since.played && this.offset < 1) {
+    const clockLeft = clockSeconds(f.clock);
+    // A buy read with the round timer on it is the round being played. And the
+    // other way round: once a buy timer has been read, the buy phase lasts until
+    // it runs out, so an "active" read before then with a buy timer's clock is
+    // the buy phase misread. At a read a second both happened every few rounds,
+    // and each one advanced the ledger a round that had not started.
+    const at = typeof f.at === 'number' ? f.at : null;
+    let phase = f.phase === 'buy' && !isBuyPhase(f.phase, f.clock) ? 'active' : f.phase;
+    // And a "buy" read whose clock carries on the round clock seen a moment
+    // ago is that round still counting down: at 0:30, two seconds after an
+    // active 0:32, it moved the ledger to round 10 in the middle of round 9.
+    const lp = this.lastPlayClock;
+    if (phase === 'buy' && at !== null && clockLeft !== null && lp && at - lp.at < 15000
+        && Math.abs(lp.left - (at - lp.at) / 1000 - clockLeft) <= 3) {
+      phase = 'active';
+    }
+    // Only "active": a post plant frame is never the buy phase, and its spike
+    // timer reads like a buy timer.
+    if (phase === 'active' && at !== null && this.buyEndsAt && at < this.buyEndsAt - 1000
+        && (clockLeft === null || clockLeft <= BUY_MAX_LEFT)) {
+      phase = 'buy';
+    }
+    if (phase === 'buy' && at !== null && clockLeft !== null && clockLeft <= BUY_MAX_LEFT) {
+      this.buyEndsAt = at + clockLeft * 1000;
+    }
+    if (phase === 'active' && at !== null && clockLeft !== null) this.lastPlayClock = { at, left: clockLeft };
+    if (phase === 'buy' && this.since.played && this.offset < 1) {
       this.offset++;
       this.since = { bought: false, played: false, frames: 0 };
     }
@@ -187,12 +227,11 @@ class RoundLedger {
     r.frames++;
     r.firstAt = r.firstAt || f.at || null;
     r.lastAt = f.at || r.lastAt;
-    const clockLeft = clockSeconds(f.clock);
-    const midRound = PLAY_PHASES.has(f.phase)
+    const midRound = PLAY_PHASES.has(phase)
       && (this.since.bought || (clockLeft !== null && clockLeft >= MID_ROUND_LEFT));
     const fresh = !this.since.bought && !this.since.played;
     this.since.frames++;
-    if (f.phase === 'buy') { r.bought = true; this.since.bought = true; }
+    if (phase === 'buy') { r.bought = true; this.since.bought = true; }
     if (midRound) { r.played = true; this.since.played = true; }
 
     if (f.side === 'attacking' || f.side === 'defending') {
@@ -203,9 +242,24 @@ class RoundLedger {
         && r.locs.length < MAX_LOCS_PER_ROUND) {
       r.locs.push(loc);
     }
-    if (f.spike === 'planted') {
-      r.planted = true;
-      r.plantSpot = r.plantSpot || cleanSpot(f.spikeSpot);
+    // A PLANT BELONGS TO THE ROUND IT WAS SEEN IN, which is not always the
+    // round the frame is filed under. The round end banner prints the new
+    // score while the spike is still down, and the engine's context keeps
+    // "planted" until the next buy phase clears it, so every banner frame after
+    // a plant used to plant the NEXT round too. Replayed: round 6 planted at B
+    // Site and won gave round 7 a B Site plant it never had, which took the
+    // early flag and the timing bucket off its death and counted it as a post
+    // plant round. And on the real Abyss session the round 17 banner, already
+    // reading 10 to 7, was round 18's only plant.
+    //
+    // So a plant read before the new round has had a buy phase or any play is
+    // the round that just ended, the rule a death on the banner follows. No
+    // spike is down in a buy phase, so a buy frame plants nothing.
+    if (f.spike === 'planted' && phase !== 'buy') {
+      const prev = this.rounds.get(n - 1);
+      const home = this.since.bought || this.since.played || !prev ? r : prev;
+      home.planted = true;
+      home.plantSpot = home.plantSpot || cleanSpot(f.spikeSpot);
     }
     // The ult icon belongs to the spectated teammate once the player is dead,
     // so only a read taken while alive and before the death counts.
@@ -216,7 +270,7 @@ class RoundLedger {
 
     if (f.died) {
       const prev = this.rounds.get(n - 1);
-      const endOfLast = fresh && f.phase !== 'buy' && !midRound && prev && !prev.died
+      const endOfLast = fresh && phase !== 'buy' && !midRound && prev && !prev.died
         && (scoreMoved || this.since.frames <= 2);
       const target = endOfLast ? prev : r;
       // One death per round. The engine already debounces a flapping read, and
@@ -233,7 +287,7 @@ class RoundLedger {
         const timed = !endOfLast && this.since.played
           && clockLeft !== null && clockLeft >= 5 && clockLeft < ROUND_SECONDS;
         target.deathClock = timed ? clockLeft : null;
-        target.deathPhase = endOfLast ? null : (f.phase || null);
+        target.deathPhase = endOfLast ? null : (phase || null);
         this.lastDeathRound = target.n;
       }
     }
@@ -260,17 +314,74 @@ class RoundLedger {
   }
 
   /**
+   * The engine took back a score step that was a misread (coaching-engine.js,
+   * lastStep): the round the step "ended" is still being played. Undo what the
+   * step did here, or its frames stay filed one round late and that round's
+   * death pushes out the next round's real one: the result it gave that round
+   * goes, and every round the step opened is folded back into it.
+   *
+   * @param from  { team, enemy } the score before the step
+   */
+  rollback(from) {
+    if (!from || typeof from.team !== 'number' || typeof from.enemy !== 'number') return;
+    const round = from.team + from.enemy + 1;
+    const into = this.entry(round);
+    into.result = null;
+    for (const [n, e] of [...this.rounds.entries()].sort((a, b) => a[0] - b[0])) {
+      if (n <= round) continue;
+      into.frames += e.frames;
+      into.firstAt = into.firstAt || e.firstAt;
+      into.lastAt = e.lastAt || into.lastAt;
+      for (const [side, c] of Object.entries(e.sides)) into.sides[side] = (into.sides[side] || 0) + c;
+      if (e.died && !into.died) {
+        into.died = true;
+        into.deathSpot = e.deathSpot;
+        into.deathClock = e.deathClock;
+        into.deathPhase = e.deathPhase;
+        into.ultAtDeath = e.ultAtDeath;
+      }
+      if (e.ultSeen) into.ultSeen = e.ultSeen;
+      if (e.planted && !into.planted) { into.planted = true; into.plantSpot = e.plantSpot; }
+      for (const l of e.locs) {
+        if (into.locs.length < MAX_LOCS_PER_ROUND && !into.locs.some((x) => x.toLowerCase() === l.toLowerCase())) into.locs.push(l);
+      }
+      for (const r of e.reads) {
+        if (into.reads.length < MAX_READS_PER_ROUND && !into.reads.some((x) => sameRead(x.text, r.text))) into.reads.push(r);
+      }
+      into.bought = into.bought || e.bought;
+      into.played = into.played || e.played;
+      this.rounds.delete(n);
+    }
+    this.last = { team: from.team, enemy: from.enemy };
+    this.base = round;
+    this.offset = 0;
+    // Still inside that round: the next buy phase is the next round.
+    this.since = { bought: into.bought, played: into.played, frames: into.frames };
+    if (this.lastDeathRound && this.lastDeathRound > round) this.lastDeathRound = round;
+  }
+
+  /**
    * Rounds in order, each with its majority side resolved.
    *
    * @param lastRound  drop anything past it. A final score of 13 to 11 means
    *   24 rounds, and the frame that READ that score opened a round 25 that was
    *   never played. Leaving it in paints an empty round at the end of every
    *   match that ended on a score read.
+   *
+   * AND THE SAME ROUND GOES WHATEVER ENDED THE MATCH. Only a score end knows
+   * its last round, so a match ended on the menu or by Stop kept the round the
+   * final banner opened: an unrated 13 to 12, deliberately not a final score,
+   * was reviewed as 26 rounds with an empty 26th cell in the strip and its
+   * survival worked out over 26. A last round that was never bought, never
+   * played and has no death, plant or result is not a round the player played.
    */
   list(lastRound) {
-    return [...this.rounds.values()]
+    const kept = [...this.rounds.values()]
       .filter((r) => !lastRound || r.n <= lastRound)
-      .sort((a, b) => a.n - b.n)
+      .sort((a, b) => a.n - b.n);
+    const unplayed = (r) => !r.bought && !r.played && !r.died && !r.planted && !r.result;
+    while (kept.length && unplayed(kept[kept.length - 1])) kept.pop();
+    return kept
       .map((r) => {
         const entries = Object.entries(r.sides).sort((a, b) => b[1] - a[1]);
         const side = entries.length ? entries[0][0] : null;
@@ -291,4 +402,4 @@ class RoundLedger {
   current() { return this.base ? this.base + this.offset : null; }
 }
 
-module.exports = { RoundLedger, clockSeconds, EARLY_DEATH_LEFT, ROUND_SECONDS };
+module.exports = { RoundLedger, clockSeconds, isBuyPhase, EARLY_DEATH_LEFT, ROUND_SECONDS, BUY_MAX_LEFT, MID_ROUND_LEFT };

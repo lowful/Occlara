@@ -5,6 +5,7 @@
 // resolved yet, then initI18n swaps in the real one and repaints.
 let tr = (k) => ({
   'panel.start': 'Start', 'panel.stop': 'Stop',
+  'panel.coaching': 'Recording', 'panel.paused': 'Paused',
   'panel.noTips': 'Press Start before your match. The review opens when it ends.',
 }[k] || k);
 
@@ -57,8 +58,34 @@ let licenseActive = true;   // false once the subscription ends (locks coaching)
 let sessionActive  = false; // a coaching session is running (drives one bubble per session)
 let agentAnswered  = false; // player has confirmed/typed their agent this session
 let formActive     = false; // player is typing in the agent field (don't yank it away)
+let gameId = 'valorant';    // the game being recorded, from state
 let doneTimer = null;
-const STATUS_LABEL = { idle: 'Ready', coaching: 'Recording', paused: 'Paused', stopped: 'Ready' };
+
+/** The status word, in the player's language. */
+function statusLabel(status) {
+  if (status === 'coaching') return tr('panel.coaching');
+  if (status === 'paused') return tr('panel.paused');
+  const word = tr('panel.idle');
+  return word === 'panel.idle' ? 'Ready' : word;
+}
+
+/**
+ * The status line while the licence has ended: why, and what to do.
+ *
+ * render() returns early for an ended licence, and it used to return before
+ * the line was painted at all. The panel then kept "Press Start before your
+ * match" beside a disabled Subscription ended button, and the notice main
+ * pushes when a licence ends (expired, cancelled, a failed payment) never
+ * appeared. renderLine() is not the answer either, because with no notice its
+ * idle text is that same Press Start hint, so a plain renew line stands in.
+ */
+function renderEndedLine() {
+  const text = (notice && notice.text)
+    || 'Your subscription has ended. Renew in Settings to keep getting reviews.';
+  lastTipEl.classList.add('has-tip', 'system');
+  lastTipText.textContent = text;
+  lastTipEl.title = text;
+}
 
 function render() {
   // Subscription ended: lock coaching and say so.
@@ -72,6 +99,7 @@ function render() {
     toggleLbl.textContent = 'Subscription ended';
     toggleIco.textContent = '⚠';
     pauseBtn.disabled = true;
+    renderEndedLine();
     return;
   }
   statusEl.classList.remove('ended');
@@ -79,7 +107,7 @@ function render() {
 
   const status = isCoaching ? (isPaused ? 'paused' : 'coaching') : 'idle';
   dotEl.className = `dot ${status}`;
-  statusEl.textContent = STATUS_LABEL[status];
+  statusEl.textContent = statusLabel(status);
   renderGrade();
   renderLine();
 
@@ -105,7 +133,9 @@ function renderGrade() {
     return;
   }
   const letter = document.createElement('span');
-  letter.className = 'g-letter ' + (g.letter === 'S' || g.letter === 'A' ? 'good' : g.letter === 'B' ? 'mid' : g.letter === 'C' ? 'warn' : 'bad');
+  // The one grade colour rule (shared/grade-view.js), so this letter is the
+  // colour the same grade is in the review, the library and Stats.
+  letter.className = 'g-letter ' + (window.GradeView ? window.GradeView.gradeTone(g) : '');
   letter.textContent = g.letter;
   gradeEl.append(letter, document.createTextNode(' ' + g.score));
   gradeStat.title = g.provisional ? 'Provisional grade. Open your last match review' : 'Open your last match review';
@@ -229,13 +259,45 @@ abForm.addEventListener('submit', (e) => {
 });
 
 window.occlara.onAgent((info) => {
-  if (!isCoaching || agentAnswered) return;
+  if (!isCoaching || agentAnswered || gameId !== 'valorant') return;
   info = info || {};
   if (info.agent && info.confirmed) { showDoneAndHide(info.agent); return; }
   if (formActive) return;            // player is typing their agent; don't interrupt
   if (info.agent) showConfirm(info.agent);
   else            showForm();          // engine couldn't detect: ask directly
 });
+
+// ── Sounds ───────────────────────────────────────────────────────────────────
+/*
+ * The two sounds Settings promises: one when recording starts and one when it
+ * stops, so a player knows it is on without looking away from the game. They
+ * lived in the overlay and went silent when 8.0 removed it, because nothing
+ * else loaded shared/sfx.js. The panel is alive for the whole session, hidden
+ * or not, and it is where Start and Stop are pressed, so it plays them.
+ *
+ * ON REAL TRANSITIONS ONLY, judged on what the panel itself now shows rather
+ * than on one channel. A Valorant start arrives as PUSH_STATUS, a Rivals or
+ * League start as PUSH_STATE alone, and every status is followed by a state
+ * push saying the same thing, so either channel by itself would miss a start or
+ * play one twice. The first state is the app saying what is already true, not
+ * a change, so it only sets the baseline: a chime on every launch is the first
+ * thing anybody turns off. Pausing stays silent, as it was in the overlay,
+ * because it happens often enough that a sound for it would nag; resuming is
+ * recording starting again, and stopping from a pause is still the end.
+ */
+const SFX_VOLUME = 0.9;
+let soundsOn = true;   // config.sounds; on by default, so only an explicit false mutes
+let heard = null;      // { coaching, paused } at the last check, null until a state arrives
+function soundCue() {
+  const now = { coaching: isCoaching, paused: isPaused };
+  const before = heard;
+  heard = now;
+  if (!before || !soundsOn || !window.occlaraSfx) return;
+  const was = before.coaching && !before.paused;
+  const is = now.coaching && !now.paused;
+  if (is && !was) window.occlaraSfx.play('start', SFX_VOLUME);
+  else if (before.coaching && !now.coaching) window.occlaraSfx.play('stop', SFX_VOLUME);
+}
 
 // ── State sync ───────────────────────────────────────────────────────────────
 function applyState(s) {
@@ -245,11 +307,13 @@ function applyState(s) {
   // of you is worse than one that is not there.
   const learnBtn = document.getElementById('learn');
   if (learnBtn && typeof s.gameId === 'string') learnBtn.hidden = s.gameId !== 'lol';
+  if (typeof s.gameId === 'string') gameId = s.gameId;
   isCoaching = !!s.isCoaching;
   isPaused   = !!s.isPaused;
   if ('lastGrade' in s) lastGrade = s.lastGrade || null;
   if ('notice' in s) notice = s.notice || null;
   if ('cadence' in s) cadence = s.cadence || null;
+  if ('sounds' in s) soundsOn = s.sounds !== false;
   if (s.captureSpeed) captureSpeed = s.captureSpeed;
   if (typeof s.licenseActive === 'boolean') licenseActive = s.licenseActive;
   if (Array.isArray(s.topAgents)) {
@@ -257,6 +321,7 @@ function applyState(s) {
     if (!agentBubble.hidden && !agentAnswered) renderQuickPicks();   // fill in if stats arrived after the bubble
   }
   render();
+  soundCue();
   if (!isCoaching) { sessionActive = false; agentAnswered = false; hideAgentUI(); }
 }
 
@@ -285,7 +350,10 @@ window.occlara.onStatus(({ status }) => {
     isCoaching = true; isPaused = false;
     if (!sessionActive) {                 // a fresh start (not a resume from pause)
       sessionActive = true; agentAnswered = false;
-      showDetecting();
+      // The agent bubble is a Valorant question. Rivals learns the hero from
+      // hero select and League reads the champion from the game, and neither
+      // engine answers the bubble, so it would sit spinning all session.
+      if (gameId === 'valorant') showDetecting();
     }
   } else if (status === 'paused') {
     isCoaching = true; isPaused = true;
@@ -295,6 +363,7 @@ window.occlara.onStatus(({ status }) => {
     hideAgentUI();
   }
   render();
+  soundCue();
 });
 window.occlara.getState().then(applyState).catch(() => {});
 render();

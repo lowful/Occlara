@@ -59,7 +59,11 @@ console.log('\nthe model cannot overturn a label lock, which must not regress:')
 console.log('\nnow a NEW MATCH starts in the same session:');
 {
   const e = matchInProgress();
-  // Round falls back and both scores reset: the agreement bar the reset needs.
+  // Round falls back and both scores reset, on two reads in a row: the
+  // agreement bar the reset needs, since one misread 0 to 0 must not wipe a
+  // live match's locks.
+  e.updateMatchContext({ roundNumber: 1, teamScore: 0, enemyScore: 0, phase: 'buy' });
+  check('  one 0 to 0 read is not enough to reset a live match', e.mapConfirmedByLabels === true);
   e.updateMatchContext({ roundNumber: 1, teamScore: 0, enemyScore: 0, phase: 'buy' });
 
   check('  the map was cleared', e.matchContext.map === null, `still ${e.matchContext.map}`);
@@ -81,6 +85,7 @@ console.log('\nnow a NEW MATCH starts in the same session:');
 console.log('\nand a new match can be identified from its own labels:');
 {
   const e = matchInProgress();
+  e.updateMatchContext({ roundNumber: 1, teamScore: 0, enemyScore: 0, phase: 'buy' });
   e.updateMatchContext({ roundNumber: 1, teamScore: 0, enemyScore: 0, phase: 'buy' });
   e.applyLocationLabel('A Wine');          // occurs on exactly one map: Ascent
   e.applyLocationLabel('B Boat House');

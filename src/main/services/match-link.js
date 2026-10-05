@@ -24,6 +24,14 @@ function sameName(a, b) {
   return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 }
 
+// Queues with no rounds to them. The tracker's teams there are not a round
+// score, so a deathmatch reads as a 0-0 draw at 0 combat score, and a warm-up
+// one played just before Start passed every other check and was graded as the
+// coached match. The app's own fix text tells players to warm up exactly so.
+// Replication, Spike Rush and custom games ARE played in rounds, and link.
+const ROUNDLESS = ['deathmatch', 'team deathmatch', 'teamdeathmatch', 'hurm', 'escalation', 'ggteam',
+  'snowball fight', 'snowball'];
+
 /** Total rounds played, read off the "5-2" scoreline the tracker already sends. */
 function roundsPlayed(lm) {
   const m = /^\s*(\d+)\s*-\s*(\d+)\s*$/.exec(String((lm && lm.score) || ''));
@@ -61,6 +69,10 @@ function matchEndEstimate(lm) {
  */
 function verifyCoachedMatch(lm, startedAt, endedAt, mctx) {
   if (!lm || !lm.startedAt) return { ok: false, why: 'no match start time' };
+  if (ROUNDLESS.includes(String(lm.mode || '').trim().toLowerCase())
+      || (lm.score && roundsPlayed(lm) === 0)) {
+    return { ok: false, why: `not a match with rounds (${lm.mode || lm.score})` };
+  }
 
   if (lm.startedAt > endedAt + MATCH_LINK_TRAIL_MS)  return { ok: false, why: 'match started after the session' };
 
@@ -88,7 +100,51 @@ function verifyCoachedMatch(lm, startedAt, endedAt, mctx) {
   if (!(ourMap && lm.map) && !(ourAgent && lm.agent)) {
     return { ok: false, why: 'no map or agent to confirm the match with' };
   }
+  // THE ROUNDS HAVE TO FIT. The coach cannot have watched more rounds than the
+  // match had, and a match it saw end on its score has that many rounds, one
+  // either way for a misread digit. This is what tells two back to back
+  // matches on the same map and agent apart, which the clock alone did not:
+  // the last match's estimated end runs a minute or more past its real one.
+  const ours = mctx && mctx.score;
+  const theirs = roundsPlayed(lm);
+  if (ours && theirs) {
+    const watched = (ours.team | 0) + (ours.enemy | 0);
+    if (watched > theirs) {
+      return { ok: false, why: `the coach watched ${watched} rounds and the match had ${theirs}` };
+    }
+    if (ours.final && Math.abs(watched - theirs) > 1) {
+      return { ok: false, why: `the coached match ended after ${watched} rounds and this one after ${theirs}` };
+    }
+  }
   return { ok: true };
+}
+
+/**
+ * The coached match among the newest one and the few before it, which the
+ * server sends as `recent`. The newest is not always this one: a deathmatch or
+ * a skirmish queued straight after it used to fail the map check on every try.
+ *
+ * @returns { match, why, tried }  match is null when none of them verifies
+ */
+function pickCoachedMatch(lm, startedAt, endedAt, mctx) {
+  const candidates = [lm, ...(lm && Array.isArray(lm.recent) ? lm.recent : [])];
+  // A match already linked to another saved review is that review's, never
+  // this one's too: a session restarted right after a match used to link the
+  // previous match, and both reviews then showed the same scoreboard.
+  const taken = new Set((mctx && mctx.exclude) || []);
+  const seen = new Set();
+  let why = null;
+  let tried = 0;
+  for (const m of candidates) {
+    if (!m || (m.matchId && seen.has(m.matchId))) continue;
+    if (m.matchId) seen.add(m.matchId);
+    if (m.matchId && taken.has(m.matchId)) { why = why || 'already linked to another review'; continue; }
+    tried++;
+    const v = verifyCoachedMatch(m, startedAt, endedAt, mctx);
+    if (v.ok) return { match: m, why: null, tried };
+    why = why || v.why;
+  }
+  return { match: null, why: why || 'no match to check', tried };
 }
 
 /** The scoreboard fields worth keeping on a session record. */
@@ -104,7 +160,7 @@ function matchSummary(m) {
 }
 
 module.exports = {
-  verifyCoachedMatch, matchSummary, sameName,
+  verifyCoachedMatch, pickCoachedMatch, matchSummary, sameName,
   matchEndEstimate, roundsPlayed,
   MATCH_LINK_LEAD_MS, MATCH_LINK_TRAIL_MS, ROUND_MS,
 };

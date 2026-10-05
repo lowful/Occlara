@@ -2,7 +2,8 @@
 
 /**
  * The grade and the three insight lists, drawn the same way everywhere they
- * appear: the review window, the match library and the weekly report.
+ * appear: the review window, the match library and the weekly report. The
+ * panel and Stats draw their own grade chips and take the colour from here.
  *
  * TEXT ONLY, never innerHTML. Detail lines carry agent names, callouts and the
  * coach's sentences about a frame, and none of that is ours to trust as markup.
@@ -18,12 +19,51 @@
     return n;
   }
 
+  /*
+   * THE ONE GRADE COLOUR RULE, keyed to the letter bands in src/shared/grade.js.
+   *
+   * There used to be three. Letters went by tone() below, numbers by a
+   * scoreTone() with its own cut-offs at 80, 65 and 50, and Stats by a
+   * ratingClass() at 85, 70 and 55, so one 58 was a red D in its library row,
+   * a yellow bar in the trend above that row and a yellow 58 in Stats, and an
+   * 82 A was green everywhere except Stats, where it was white. Every grade the
+   * app draws now goes through here: the panel, the library, Stats and the
+   * review, the categories included, so a category and an overall reading the
+   * same number can never disagree on one card.
+   *
+   * letterOf() mirrors grade.js letter() because a renderer cannot require
+   * src/shared, and npm run test:surfaces asserts the two agree on every score
+   * from 0 to 100.
+   */
+
+  /** S 90+, A 80+, B 70+, C 60+, D below. The same bands as grade.js. */
+  function letterOf(score) {
+    if (typeof score !== 'number' || !Number.isFinite(score)) return null;
+    return score >= 90 ? 'S' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'D';
+  }
+
   /** S and A read as good, B as neutral, C as a warning, D as a problem. */
   function tone(letter) {
     return letter === 'S' || letter === 'A' ? 'good' : letter === 'B' ? 'mid' : letter === 'C' ? 'warn' : 'bad';
   }
+
+  /**
+   * A bare number, such as a category score, coloured as its letter would be.
+   * No number, no colour: tone() reads a missing letter as a D, and a grade
+   * that does not exist must not be painted as a bad one.
+   */
   function scoreTone(score) {
-    return score >= 80 ? 'good' : score >= 65 ? 'mid' : score >= 50 ? 'warn' : 'bad';
+    const l = letterOf(score);
+    return l ? tone(l) : '';
+  }
+
+  /**
+   * A grade object ({ score, letter }) or a bare score. The letter the grade
+   * carries wins, because it is the one printed beside the colour.
+   */
+  function gradeTone(g) {
+    if (g && typeof g === 'object') return g.letter ? tone(g.letter) : scoreTone(g.score);
+    return scoreTone(g);
   }
 
   /**
@@ -126,5 +166,9 @@
     return wrap;
   }
 
-  window.GradeView = { gradeCard, insightLists, roundChips, tone, scoreTone, el };
+  const api = { gradeCard, insightLists, roundChips, letterOf, tone, scoreTone, gradeTone, el };
+  if (typeof window !== 'undefined') window.GradeView = api;
+  // Node, for the test that holds the colour rule to grade.js. Nothing here
+  // touches the DOM until a card is drawn, so requiring it is safe.
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

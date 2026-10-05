@@ -1,6 +1,11 @@
 'use strict';
 const express = require('express');
 const router  = express.Router();
+// One password check for every admin route: the header only, compared in
+// constant time, and failures are rate limited in server.js. See admin-auth.js.
+const { isAdmin } = require('../services/admin-auth');
+const { presence, hashOf } = require('../services/presence');
+const supabase = require('../db/supabase');
 
 /**
  * GET /api/admin/coaching
@@ -19,11 +24,7 @@ const router  = express.Router();
  * any single session.
  */
 router.get('/coaching', (req, res) => {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  const provided = req.headers['x-admin-password'] || req.query.password;
-  if (!adminPassword || provided !== adminPassword) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
   try {
     res.json(require('./coach').telemetry.summary());
   } catch (e) {
@@ -32,15 +33,10 @@ router.get('/coaching', (req, res) => {
 });
 
 // GET /api/admin/costs
-// Protected by ADMIN_PASSWORD env var
+// Protected by ADMIN_PASSWORD env var, sent as the X-Admin-Password header
 // Returns cost tracking data from the coach module
 router.get('/costs', (req, res) => {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  const provided = req.headers['x-admin-password'] || req.query.password;
-
-  if (!adminPassword || provided !== adminPassword) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
 
   // Lazy-require to avoid circular deps
   let coachModule;
@@ -52,10 +48,12 @@ router.get('/costs', (req, res) => {
 
   const { costStore, globalStats } = coachModule;
 
-  // Top 10 by calls today
+  // Top 10 by calls today. Each user is the same 8 character hash the live
+  // view shows, so a row here can be matched to a person there, and no part of
+  // a licence key leaves the server: this used to print its first 8 characters.
   const byKey = [];
   for (const [key, stats] of costStore.entries()) {
-    byKey.push({ key: key.slice(0, 8) + '...', callsToday: stats.callsToday, callsMonth: stats.callsMonth, costToday: +stats.costToday.toFixed(4), costMonth: +stats.costMonth.toFixed(4) });
+    byKey.push({ user: hashOf(String(key).trim().toUpperCase()), callsToday: stats.callsToday, callsMonth: stats.callsMonth, costToday: +stats.costToday.toFixed(4), costMonth: +stats.costMonth.toFixed(4) });
   }
   byKey.sort((a, b) => b.callsToday - a.callsToday);
 
@@ -84,47 +82,83 @@ router.get('/costs', (req, res) => {
  * The emails come from Supabase, looked up from the licence and remembered for
  * ten minutes. This is the only place they are shown, behind the admin password.
  */
-const { presence } = require('../services/presence');
-const supabase = require('../db/supabase');
-
 const WHO_MS = 10 * 60 * 1000;
-const who = new Map();   // hash -> { email, plan, at }
+const WHO_BATCH = 100;      // licence keys asked about per lookup
+const WHO_PARALLEL = 8;     // account lookups in flight at once
+const who = new Map();      // hash -> { email, plan, at }
+let resolving = null;       // the lookup in flight, shared by overlapping loads
 
-async function resolveWho() {
+/*
+ * WHO EACH HASH IS, and three ways this used to go wrong:
+ *
+ *   It only asked about the first hundred missing keys but wrote an entry for
+ *   every missing key, so person 101 onwards was cached as nobody for ten
+ *   minutes, and since they all expired together the same tail was skipped on
+ *   every refresh and never resolved. Only keys actually asked about get one.
+ *
+ *   Nothing was ever removed. presence forgets a user after a day; this map
+ *   now forgets them with it.
+ *
+ *   The page reloads every five seconds and a slow first lookup overlapped
+ *   itself, repeating the same account lookups one at a time. Overlapping
+ *   loads now share one lookup, and the accounts are fetched in parallel.
+ */
+function resolveWho() {
+  if (!resolving) resolving = resolveOnce().finally(() => { resolving = null; });
+  return resolving;
+}
+
+async function emailsOf(userIds) {
+  const out = new Map();
+  const queue = [...new Set(userIds)];
+  const worker = async () => {
+    while (queue.length) {
+      const id = queue.shift();
+      try {
+        const { data: u } = await supabase.auth.admin.getUserById(id);
+        out.set(id, (u && u.user && u.user.email) || null);
+      } catch { out.set(id, null); }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(WHO_PARALLEL, queue.length) }, worker));
+  return out;
+}
+
+async function resolveOnce() {
+  for (const hash of who.keys()) if (!presence.keys.has(hash)) who.delete(hash);
   const missing = [];
   for (const [hash, key] of presence.keys) {
     const w = who.get(hash);
     if (!w || Date.now() - w.at > WHO_MS) missing.push({ hash, key });
   }
-  if (missing.length) {
+  const batch = missing.slice(0, WHO_BATCH);
+  if (batch.length) {
     try {
-      const { data } = await supabase.from('licenses').select('license_key,plan,user_id')
-        .in('license_key', missing.map((m) => m.key).slice(0, 100));
-      for (const m of missing) {
-        const row = (data || []).find((r) => r.license_key === m.key);
-        let email = null;
-        if (row && row.user_id) {
-          try {
-            const { data: u } = await supabase.auth.admin.getUserById(row.user_id);
-            email = (u && u.user && u.user.email) || null;
-          } catch { email = null; }
-        }
-        who.set(m.hash, { email, plan: row ? row.plan : null, at: Date.now() });
+      const { data, error } = await supabase.from('licenses').select('license_key,plan,user_id')
+        .in('license_key', batch.map((m) => m.key));
+      // A failed lookup writes nothing, so the next refresh asks again rather
+      // than showing everyone as unknown for ten minutes.
+      if (error) throw new Error(error.message || error.code || 'licence lookup failed');
+      const rows = new Map((data || []).map((r) => [r.license_key, r]));
+      const emails = await emailsOf([...rows.values()].map((r) => r.user_id).filter(Boolean));
+      const at = Date.now();
+      for (const m of batch) {
+        const row = rows.get(m.key);
+        who.set(m.hash, { email: (row && row.user_id && emails.get(row.user_id)) || null,
+          plan: row ? row.plan : null, at });
       }
     } catch (e) {
       console.warn('[admin] could not resolve accounts:', e.message);
     }
   }
   const out = {};
-  for (const [hash, w] of who) out[hash] = w;
+  for (const [hash, w] of who) out[hash] = { email: w.email, plan: w.plan };
   return out;
 }
 
 router.get('/live', async (req, res) => {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return res.status(503).json({ error: 'admin-not-configured' });
-  const provided = req.headers['x-admin-password'] || req.query.password;
-  if (provided !== adminPassword) return res.status(401).json({ error: 'Unauthorized' });
+  if (!process.env.ADMIN_PASSWORD) return res.status(503).json({ error: 'admin-not-configured' });
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
   try {
     res.json(presence.snapshot(await resolveWho()));
   } catch (e) {
@@ -198,8 +232,14 @@ async function load() {
   try {
     const r = await fetch('/api/admin/live', { headers: { 'X-Admin-Password': pw || '' }, cache: 'no-store' });
     if (r.status === 401) { lock('That password was not accepted.'); return; }
-    if (r.status === 503) { lock('ADMIN_PASSWORD is not set on Railway. Add it under the service Variables, then reload.'); return; }
-    const d = await r.json();
+    // The failed password limiter (admin-auth.js) answers 429 for the rest of
+    // its hour, even to the right password, so polling on would only fail.
+    if (r.status === 429) { lock('Too many wrong passwords from this address. Try again in an hour.'); return; }
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 503 && d.error === 'admin-not-configured') { lock('ADMIN_PASSWORD is not set on Railway. Add it under the service Variables, then reload.'); return; }
+    // Anything else is the server failing (a restart, an edge 502): say so and
+    // keep polling, rather than failing on a body that is not the live view.
+    if (!r.ok || !d.now) { $('err').textContent = 'The server answered ' + r.status + ', trying again in 5 seconds.'; $('err').hidden = false; return; }
     $('err').hidden = true; $('view').hidden = false; $('login').hidden = true; $('logout').hidden = false;
     $('asof').textContent = 'Updated ' + new Date(d.asOf).toLocaleTimeString() + ', refreshes every 5 seconds';
     $('n-rec').textContent = d.now.recording; $('n-rev').textContent = d.now.reviewing;
@@ -235,3 +275,4 @@ if (pw) start();
 `;
 
 module.exports = router;
+module.exports.__test = { resolveWho, who };

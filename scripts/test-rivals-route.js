@@ -97,6 +97,13 @@ ok(/Never invent a number that is not printed/i.test(REVIEW_PROMPT),
   'the review prompt forbids inventing numbers');
 ok(/GROUPED BY ROLE/i.test(REVIEW_PROMPT),
   'and states the scoreboard grouping the frames showed');
+// The engine believes a hero select answer only when it read what only hero
+// select prints, its countdown or the SUGGESTED PICK banner (readsAsSelect in
+// rivals-engine.js). A prompt that stopped asking for either would end hero
+// capture with no error anywhere.
+ok(/^\s*timer\s/m.test(DRAFT_PROMPT) && /^\s*suggested\s/m.test(DRAFT_PROMPT),
+  'the draft prompt still asks for the countdown and the suggested pick the engine checks for');
+
 for (const p of [DRAFT_PROMPT, REVIEW_PROMPT]) {
   ok(/Reply in EXACTLY two lines/.test(p), 'both prompts carry the two-line contract');
 }
@@ -104,7 +111,7 @@ for (const p of [DRAFT_PROMPT, REVIEW_PROMPT]) {
 // No em or en dashes anywhere in the prompts, which is a hard rule for anything
 // the model is shown, since it copies the punctuation it is given.
 for (const [name, p] of [['draft', DRAFT_PROMPT], ['review', REVIEW_PROMPT]]) {
-  ok(!/[—–]/.test(p), `the ${name} prompt has no em or en dashes`);
+  ok(!/[\u2013\u2014]/.test(p), `the ${name} prompt has no em or en dashes`);
 }
 
 console.log(fails ? `\n${fails} failure(s)` : '\nall rivals route checks passed');

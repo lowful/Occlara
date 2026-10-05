@@ -461,6 +461,13 @@ const ALL = PLAYBOOK.concat(EXTRA);
 const TEAM_PLAY = /\btrad(?:e|es|ed|ing)\b|\bteammates?\b|\bcrossfire\b|\bswing (?:with|together)\b|\bas five\b|\bregroup\b|\btrade partner\b|\bentry\b|\bretake as\b|\byour team\b/i;
 
 // Agent -> role, so role notes fire off the confirmed agent.
+//
+// FROM THE GAME'S DATA, with the typed table as the floor. The table stopped at
+// Vyse, so Veto and Miks resolved to no role and every role tagged note was
+// unreachable for them: measured on the review's own retrieve({ agent, map }),
+// Omen drew two Controller notes on average and Miks none. The generated file
+// (npm run sync:valorant) carries every agent's role, so an agent is covered
+// the day it syncs. It lives in server/, because nothing here may require src/.
 const ROLE_OF = {
   jett: 'duelist', reyna: 'duelist', phoenix: 'duelist', raze: 'duelist',
   neon: 'duelist', yoru: 'duelist', iso: 'duelist', waylay: 'duelist',
@@ -471,6 +478,15 @@ const ROLE_OF = {
   sage: 'sentinel', killjoy: 'sentinel', cypher: 'sentinel',
   chamber: 'sentinel', deadlock: 'sentinel', vyse: 'sentinel',
 };
+try {
+  const agents = require('../valorant-data.generated.json').agents || {};
+  for (const [name, a] of Object.entries(agents)) {
+    const role = String((a && a.role) || '').toLowerCase();
+    if (['duelist', 'controller', 'initiator', 'sentinel'].includes(role)) ROLE_OF[name.toLowerCase()] = role;
+  }
+} catch (e) {
+  console.error('[knowledge] agent roles from the game data unavailable:', e.message);
+}
 
 /** Read the live context into the flags the notes are tagged with. */
 function situationOf(ctx) {
@@ -624,4 +640,5 @@ function block(ctx, limit) {
 }
 
 module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: () => ALL,
+  roleOf: (agent) => ROLE_OF[String(agent || '').toLowerCase()] || null,
   ADVANCED_SLOTS, STREAK_CORE_SLOTS };

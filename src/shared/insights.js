@@ -26,6 +26,7 @@
 const { CAUSES, isAvoidable } = require('./death-causes');
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
+const times = (n) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
 
 /** "round 4", "rounds 2 and 9", "rounds 2, 5, 9 and 3 more". */
 function roundList(ns) {
@@ -109,7 +110,7 @@ function valorant(rounds, opts = {}) {
   if (untraded.length >= 3 && untraded.length * 10 >= knownTrade.length * 6) {
     push(out.mistakes, {
       key: 'untraded', title: 'Died where nobody could trade',
-      detail: `${untraded.length} of your ${knownTrade.length} deaths went unanswered: no teammate killed your killer `
+      detail: `${untraded.length} of your ${plural(knownTrade.length, 'death')} went unanswered: no teammate killed your killer `
         + 'within five seconds.',
       rounds: untraded.map((r) => r.n), weight: WEIGHT.untraded,
       fix: 'Before you swing, check someone can see the same angle. If nobody can, wait or reposition.',
@@ -123,7 +124,7 @@ function valorant(rounds, opts = {}) {
   if (early.length >= 3 && early.length >= deaths.length * earlyShare) {
     push(out.mistakes, {
       key: 'early', title: 'Dying in the first 30 seconds',
-      detail: `${early.length} of your ${deaths.length} deaths came in the first 30 seconds, before any plant.`,
+      detail: `${early.length} of your ${plural(deaths.length, 'death')} came in the first 30 seconds, before any plant.`,
       rounds: early.map((r) => r.n), weight: WEIGHT.early,
       fix: 'Slow the first 30 seconds down: clear one angle at a time and let information come to you.',
     });
@@ -157,7 +158,7 @@ function valorant(rounds, opts = {}) {
   if (topKiller && topKiller[1].length >= 3 && topKiller[1].length * 4 >= deaths.length) {
     push(out.mistakes, {
       key: 'same-killer', title: `${topKiller[0]} kept winning`,
-      detail: `${topKiller[0]} killed you ${topKiller[1].length} times, ${roundList(topKiller[1])}.`,
+      detail: `${topKiller[0]} killed you ${times(topKiller[1].length)}, ${roundList(topKiller[1])}.`,
       rounds: topKiller[1], weight: WEIGHT['same-killer'], agent: topKiller[0],
       fix: `Track where their ${topKiller[0]} plays, then fight them with a teammate or with utility, never alone.`,
     });
@@ -187,7 +188,7 @@ function valorant(rounds, opts = {}) {
   if (openers.length >= 3) {
     push(out.strengths, {
       key: 'first-kill', title: 'Opened rounds',
-      detail: `You got the first kill of the round ${openers.length} times, ${roundList(openers)}.`,
+      detail: `You got the first kill of the round ${times(openers.length)}, ${roundList(openers)}.`,
       rounds: openers,
     });
   }
@@ -204,7 +205,7 @@ function valorant(rounds, opts = {}) {
   if (tradeCount >= 3) {
     push(out.strengths, {
       key: 'trades', title: 'Traded your teammates',
-      detail: `You killed the player who had just killed a teammate ${tradeCount} times.`,
+      detail: `You killed the player who had just killed a teammate ${times(tradeCount)}.`,
       rounds: tradeRounds.map((r) => r.n), count: tradeCount,
     });
   }
@@ -240,7 +241,7 @@ function valorant(rounds, opts = {}) {
   if (verified.length >= 6 && lived.length * 10 >= verified.length * 4) {
     push(out.strengths, {
       key: 'survived', title: 'Stayed alive',
-      detail: `You survived ${lived.length} of ${verified.length} rounds.`,
+      detail: `You survived ${lived.length} of ${plural(verified.length, 'round')}.`,
       rounds: lived.map((r) => r.n),
     });
   }
@@ -319,7 +320,7 @@ function rivals(review) {
   const s = review.scoreline || {};
   if (typeof s.deaths === 'number' && typeof s.kills === 'number' && s.deaths >= 8 && s.deaths > s.kills + (s.assists || 0) / 2) {
     out.missed.push({ key: 'deaths-heavy', title: 'More deaths than fights won',
-      detail: `${s.deaths} deaths against ${s.kills} kills and ${s.assists || 0} assists. Every death is a respawn walk your team plays short.`,
+      detail: `${plural(s.deaths, 'death')} against ${plural(s.kills, 'kill')} and ${plural(s.assists || 0, 'assist')}. Every death is a respawn walk your team plays short.`,
       rounds: [], count: 1 });
   }
   return out;
@@ -347,18 +348,23 @@ function lol(review) {
   const total = typeof f.deaths === 'number' ? f.deaths : 0;
   if (total >= 3 && (f.caughtAlone || 0) * 10 >= total * 4) {
     out.mistakes.push({ key: 'caught-alone', title: 'Caught alone',
-      detail: `${f.caughtAlone} of your ${total} deaths happened with no ally dying anywhere near.`, rounds: [], count: f.caughtAlone, weight: 3 });
+      detail: `${f.caughtAlone} of your ${plural(total, 'death')} happened with no ally dying anywhere near.`, rounds: [], count: f.caughtAlone, weight: 3 });
   }
   if (total >= 3 && (f.joinedLost || 0) * 10 >= total * 4) {
     out.mistakes.push({ key: 'joined-lost', title: 'Walked into lost fights',
-      detail: `${f.joinedLost} of your ${total} deaths came after an ally had already died there.`, rounds: [], count: f.joinedLost, weight: 2.5 });
+      detail: `${f.joinedLost} of your ${plural(total, 'death')} came after an ally had already died there.`, rounds: [], count: f.joinedLost, weight: 2.5 });
   }
   out.mistakes.sort((a, b) => b.weight * b.count - a.weight * a.count);
   const o = review.objectives || {};
   const lost = (o.dragonsAgainst || 0) + (o.baronsAgainst || 0);
   if (lost >= 3) {
+    // "2 dragons and 1 barons" and "3 dragons and 0 barons" both reached the
+    // list: the recorder fills both counts, so a zero is left out of the
+    // sentence rather than read out.
+    const took = [[o.dragonsAgainst, 'dragon'], [o.baronsAgainst, 'baron']]
+      .filter(([n]) => n > 0).map(([n, what]) => plural(n, what));
     out.missed.push({ key: 'objectives-lost', title: 'Objectives conceded',
-      detail: `The enemy took ${o.dragonsAgainst || 0} dragons and ${o.baronsAgainst || 0} barons.`, rounds: [], count: lost });
+      detail: `The enemy took ${took.join(' and ')}.`, rounds: [], count: lost });
   }
   return out;
 }

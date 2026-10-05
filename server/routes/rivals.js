@@ -34,7 +34,7 @@ const router = express.Router();
 // The provider layer, exported by coach.js rather than extracted, because its
 // members sit interleaved with Valorant prompt code. See the note at the bottom
 // of that file.
-const { visionInfer, sanitize, validateKey, creditsLookExhausted, creditsRetryIn,
+const { visionInfer, sanitize, checkLicence, trackCall, creditsLookExhausted, creditsRetryIn,
   deepVisionModel } = require('./coach').ai;
 
 const knowledge = require('../services/rivals-knowledge');
@@ -222,10 +222,24 @@ function confirmMine(raw) {
 async function guard(req, res) {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
   if (!licenseKey) { res.status(400).json({ error: 'X-License-Key header required' }); return null; }
-  if (!await validateKey(licenseKey)) { res.status(403).json({ error: 'Invalid or expired license key' }); return null; }
+  // A licence that could not be CHECKED is not an invalid one: an outage is a
+  // 503 with retry, the same answer the Valorant routes give (coach.js checkKey).
+  const licence = await checkLicence(licenseKey);
+  if (licence === 'unavailable') { res.status(503).json({ error: 'licence-check-unavailable', retry: true }); return null; }
+  if (licence !== 'valid') { res.status(403).json({ error: 'Invalid or expired license key' }); return null; }
   const image = req.body && req.body.image;
   if (!image || typeof image !== 'string') { res.status(400).json({ error: 'No image data' }); return null; }
+  req.licenseKey = licenseKey;
   return image;
+}
+
+/*
+ * One vision call, counted. These routes never called trackCall, so every
+ * Rivals read was missing from /api/admin/costs. Counted as it is sent, after
+ * the breaker check, so a call the breaker refused is not counted.
+ */
+function counted(req) {
+  trackCall(req.licenseKey, 1);
 }
 
 /** Report a credits outage honestly rather than pretending to be down. */
@@ -329,6 +343,7 @@ router.post('/identify', async (req, res) => {
      * until it is set, and setting it moves this one call without touching the
      * coaching loop and without a deploy.
      */
+    counted(req);
     const raw = await visionInfer(image, IDENTIFY_PROMPT, 300, false, deepVisionModel());
     return res.json({ heroes: parseRoster(raw), raw });
   } catch (err) {
@@ -344,6 +359,7 @@ router.post('/draft', async (req, res) => {
   if (!image) return;
   try {
     if (creditsLookExhausted && creditsLookExhausted()) return creditsReply(res, new Error('breaker open'));
+    counted(req);
     const raw = await visionInfer(image, DRAFT_PROMPT, 320, false);
     const { tip, state, protocol } = splitReply(raw);
     if (protocol) return res.json({ tip: protocol, context: {} });
@@ -371,6 +387,7 @@ router.post('/review', async (req, res) => {
   if (!image) return;
   try {
     if (creditsLookExhausted && creditsLookExhausted()) return creditsReply(res, new Error('breaker open'));
+    counted(req);
     const raw = await visionInfer(image, REVIEW_PROMPT, 380, false);
     const { tip, state, protocol } = splitReply(raw);
     if (protocol) return res.json({ tip: protocol, context: {} });

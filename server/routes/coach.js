@@ -13,6 +13,7 @@ const { promptName: langPrompt } = require('../services/languages');
 const locator   = require('../services/callout-locator');
 const patchCtx  = require('../services/patch-context');
 const telemetry = require('../services/telemetry');
+const { isAdmin } = require('../services/admin-auth');
 const crypto    = require('crypto');
 const router = express.Router();
 
@@ -322,7 +323,16 @@ function creditsRetryIn() {
 // One OpenAI-style chat call. `imageB64` present => multimodal (vision) request.
 // Accepts a single base64 string or an ordered array (frame memory sends
 // [previousFrame, currentFrame]; the prompt explains the order).
-async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinnedModel }) {
+//
+// `abortMs` is a deadline for the whole call, retries included. The routes race
+// every call against a timer, and a race only stops WAITING: the request itself
+// ran on to completion, holding its socket and its frame (an 8 MB body for a
+// death look) for up to undici's five minutes. During a provider slowdown, with
+// two reads in flight per player and a 9 second race, those orphans piled up by
+// the dozen per player on a server that has died of memory before. Aborting
+// frees them. It does not save the money, which is why /read still counts a
+// read that timed out.
+async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinnedModel, abortMs }) {
   // Fail fast while the credits breaker is open: the provider would only 402
   // again, and every attempt costs a round trip and another identical log line.
   if (creditsLookExhausted()) {
@@ -369,9 +379,11 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
   // because a live tip has to land inside the frame timeout.
   const headroom = isThinking ? (images.length ? 700 : 2200) : 0;
   const budget = (maxTokens || 100) + headroom;
+  const signal = abortMs > 0 ? AbortSignal.timeout(abortMs) : undefined;
 
   const send = (maxT, thinkOn) => fetch(`${AI.baseUrl}/chat/completions`, {
     method: 'POST',
+    signal,
     headers: {
       'Content-Type':  'application/json',
       'Authorization': `Bearer ${AI.apiKey}`,
@@ -490,10 +502,19 @@ function stripThinking(text) {
  * analyze route so the bake-off exercises the production prompt, budget, timeout
  * and STATE parsing rather than an approximation of them.
  *
- * Safety: the allowlist is fixed and every entry costs no more per hour than the
- * configured model, so a leaked license key cannot use this to run up a bill on
- * an expensive model. Unknown values are ignored rather than rejected, so this
- * can never break a normal client call.
+ * Safety used to be the allowlist alone, on the claim that every entry cost no
+ * more than the configured model. That was written for the old tip model and is
+ * no longer true: the read now runs on the cheapest model in the list, and
+ * google/gemini-3.5-flash-lite, which is in it, costs about nine times as much
+ * (the bench table beside AI.readModel). Any licence, or a leaked key, could
+ * send benchModel on every read, death look and review and drain the OpenRouter
+ * balance nine times faster, which trips the credits breaker for every player,
+ * while trackCall's flat price kept /api/admin/costs from showing it.
+ *
+ * So a bench is an admin act: benchModel is honoured only beside the admin
+ * password (X-Admin-Password, checked by services/admin-auth.js), and the bench
+ * scripts send it. Without it, or with an unknown model, the field is ignored
+ * rather than rejected, so this can never break a normal client call.
  */
 const BENCH_MODELS = new Set([
   'google/gemini-3-flash-preview',        // the previous default, the read to beat
@@ -519,13 +540,29 @@ const BENCH_MODELS = new Set([
 ]);
 function benchModel(req) {
   const m = String((req.body && req.body.benchModel) || '').trim();
-  return BENCH_MODELS.has(m) ? m : null;
+  return m && BENCH_MODELS.has(m) && isAdmin(req) ? m : null;
 }
 
+/**
+ * Wait for `p` at most `ms`, then reject with Error(label). The timer is
+ * cleared either way, rather than left pending for the full wait after every
+ * read that answered in time.
+ */
+function withTimeout(p, ms, label) {
+  let timer = null;
+  return Promise.race([
+    p,
+    new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(label)), ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
+const READ_TIMEOUT_MS = 9000;
+
 // Unified entry points the routes call: dispatch to the configured provider.
-async function visionInfer(imageB64, prompt, maxTokens, jsonMode, model) {
+// opts.abortMs: cancel the upstream request after that long (see chatCall).
+async function visionInfer(imageB64, prompt, maxTokens, jsonMode, model, opts) {
   if (AI.provider === 'gemini') return geminiCall(imageB64, prompt, maxTokens, jsonMode);
-  const text = await chatCall({ imageB64, prompt, maxTokens, temperature: 0.7, model });
+  const text = await chatCall({ imageB64, prompt, maxTokens, temperature: 0.7, model,
+    abortMs: opts && opts.abortMs });
   return jsonMode ? text : sanitize(text);
 }
 /**
@@ -567,7 +604,12 @@ async function textInfer(prompt, maxTokens, opts) {
   const { json = false, timeoutMs = 0, model: pinned = null } = opts || {};
   const finish = (t) => (json ? String(t || '') : sanitize(t));
   const run = (model) => {
-    const call = chatCall({ prompt, maxTokens, temperature: 0.5, model });
+    // The upstream request is cancelled a second after the race gives up on
+    // it, so a model that timed out stops holding a socket while the fallback
+    // runs. Only with timeoutMs: without one there is no race in here, and an
+    // abort would read as a failure and fall back on its own.
+    const call = chatCall({ prompt, maxTokens, temperature: 0.5, model,
+      abortMs: timeoutMs ? timeoutMs + 1000 : 0 });
     if (!timeoutMs) return call;
     return Promise.race([
       call,
@@ -1437,22 +1479,90 @@ const KEY_REGEX = /^GC-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
  * to the latency of every read. A good answer is remembered for a minute.
  * A bad one is never remembered, so a renewal works on the very next request,
  * and a refund or a cancel takes at most a minute to bite.
+ *
+ * A FAILED LOOKUP IS NOT A "NO". supabase-js answers a network failure, a
+ * pooler timeout, a PostgREST 5xx or a paused project with { data: null,
+ * error }, the same shape as "no such key", and this read both as invalid. A
+ * coach route then answered 403, the client took that as a licence problem and
+ * re-checked it, and during an outage the re-check failed the same way and
+ * stopped the recording mid match.
+ *
+ * So there are three answers. Only PGRST116 (no such row) is invalid. Any other
+ * error is UNAVAILABLE and the route answers 503 with retry, never 403. And a
+ * key Supabase confirmed in the last half hour is still honoured through an
+ * outage (stale if error): the player was paying a minute ago, and a database
+ * blip is not a reason to stop reading their match.
  */
 const VALID_KEY_MS = 60 * 1000;
-const validKeys = new Map();   // key -> expires (ms)
+const STALE_KEY_MS = 30 * 60 * 1000;
+const LICENCE_LOOKUP_MS = 5000;
+// While the database is failing it is asked again every fifteen seconds, not
+// on every request: a read a second per player would each wait out the five
+// second lookup timeout before reaching the model, and a hung database would
+// slow every match being read instead of none.
+const LICENCE_PROBE_MS = 15 * 1000;
+const licenceDb = { downAt: 0 };   // when a lookup last failed for an outage
+const validKeys = new Map();   // key -> when Supabase last confirmed it (ms)
+const LICENCE_UNAVAILABLE = { error: 'licence-check-unavailable', retry: true };
+let licenceWarnedAt = 0;
+
+/** 'valid', 'invalid' or 'unavailable'. Never throws. */
+async function checkKey(k) {
+  if (!k || !KEY_REGEX.test(k)) return 'invalid';
+  const seen = validKeys.get(k);
+  const age = seen ? Date.now() - seen : Infinity;
+  if (age < VALID_KEY_MS) return 'valid';
+  let data = null;
+  let error = null;
+  if (licenceDb.downAt && Date.now() - licenceDb.downAt < LICENCE_PROBE_MS) {
+    error = { code: '', message: 'the licence database failed moments ago' };
+  } else {
+    try {
+      ({ data, error } = await supabase
+        .from('licenses')
+        .select('status,expires_at')
+        .eq('license_key', k)
+        .abortSignal(AbortSignal.timeout(LICENCE_LOOKUP_MS))
+        .single());
+    } catch (e) {
+      error = { code: '', message: e.message };
+    }
+    licenceDb.downAt = error && error.code !== 'PGRST116' ? Date.now() : 0;
+  }
+  if (error && error.code !== 'PGRST116') {
+    if (age < STALE_KEY_MS) return 'valid';
+    // One line every half minute, not one per request: an outage is every
+    // request at once, and the credits breaker learned that lesson already.
+    if (Date.now() - licenceWarnedAt > 30000) {
+      licenceWarnedAt = Date.now();
+      console.warn('[coach] licence check unavailable:', error.message || error.code || 'unknown error');
+    }
+    return 'unavailable';
+  }
+  if (!data || data.status !== 'active'
+      || (data.expires_at && new Date(data.expires_at) < new Date())) {
+    validKeys.delete(k);
+    return 'invalid';
+  }
+  cacheSet(validKeys, k, Date.now(), 5000);
+  return 'valid';
+}
+
+/** The old yes or no, for anything that only needs that. */
 async function validateKey(k) {
-  if (!k || !KEY_REGEX.test(k)) return false;
-  const hit = validKeys.get(k);
-  if (hit && hit > Date.now()) return true;
-  const { data } = await supabase
-    .from('licenses')
-    .select('status,expires_at')
-    .eq('license_key', k)
-    .single();
-  if (!data || data.status !== 'active') { validKeys.delete(k); return false; }
-  if (data.expires_at && new Date(data.expires_at) < new Date()) { validKeys.delete(k); return false; }
-  cacheSet(validKeys, k, Date.now() + VALID_KEY_MS, 5000);
-  return true;
+  return (await checkKey(k)) === 'valid';
+}
+
+/**
+ * Let the request through, or answer it: 403 with `denied` for a key that is
+ * not valid, 503 with retry when the licence could not be checked at all.
+ */
+async function admit(res, key, denied = { error: 'Invalid license' }) {
+  const v = await checkKey(key);
+  if (v === 'valid') return true;
+  if (v === 'unavailable') res.status(503).json(LICENCE_UNAVAILABLE);
+  else res.status(403).json(denied);
+  return false;
 }
 
 /**
@@ -1517,7 +1627,7 @@ router.post('/analyze', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
 
   if (!licenseKey) return res.status(400).json({ error: 'X-License-Key header required' });
-  if (!await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid or expired license key' });
+  if (!await admit(res, licenseKey, { error: 'Invalid or expired license key' })) return;
 
   const image   = req.body && req.body.image;
   const context = (req.body && req.body.context) || {};
@@ -1568,10 +1678,10 @@ router.post('/analyze', async (req, res) => {
     const visionModel  = benchModel(req) || AI.visionModel;
     const answerBudget = buyPhase ? 300 : 220;
     const visionTimeout = (buyPhase ? (prevImage ? 17000 : 15000) : (prevImage ? 13000 : 11000)) - (audioBlock ? 2500 : 0);
-    const raw = await Promise.race([
-      visionInfer(prevImage ? [prevImage, image] : image, prompt, answerBudget, false, visionModel),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), visionTimeout)),
-    ]);
+    const raw = await withTimeout(
+      visionInfer(prevImage ? [prevImage, image] : image, prompt, answerBudget, false, visionModel,
+        { abortMs: visionTimeout + 1000 }),
+      visionTimeout, 'Gemini timeout');
     trackCall(licenseKey, (prevImage ? 2 : 1) + (audio ? 1 : 0));
 
     let finalTip     = null;
@@ -1704,7 +1814,7 @@ router.post('/analyze', async (req, res) => {
 // POST /api/coach/summary/round, raw binary JPEG body
 router.post('/summary/round', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!await admit(res, licenseKey)) return;
   if (!req.body || !req.body.length) return res.status(400).json({ error: 'No image data' });
   try {
     const text = await Promise.race([
@@ -1722,7 +1832,7 @@ router.post('/summary/round', async (req, res) => {
 // POST /api/coach/summary/match, JSON body: { tips: string[] }
 router.post('/summary/match', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!await admit(res, licenseKey)) return;
   const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
   if (tips.length < 3) return res.status(400).json({ error: 'Not enough tips' });
 
@@ -1749,7 +1859,7 @@ router.post('/summary/match', async (req, res) => {
 // POST /api/coach/recap, JSON body: { tips: string[] }
 router.post('/recap', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!await admit(res, licenseKey)) return;
   const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 10) : [];
   if (tips.length === 0) return res.status(400).json({ error: 'No tips provided' });
 
@@ -1769,14 +1879,64 @@ router.post('/recap', async (req, res) => {
 });
 
 // ─── Player stats providers ───────────────────────────────────────────────────
-async function henrikGet(pathPart) {
+// Eight seconds, then the call is abandoned rather than awaited forever: fetch
+// has no timeout of its own, and /player-stats chains up to four of these.
+//
+// Riot's round record for the review gets longer. A full match's detail is
+// the biggest payload HenrikDev sends, the client waits 30 seconds for
+// /match-rounds, and a deadline under the time it can legitimately take turns
+// a slow answer into no record at all, which is the very loss the 503 and
+// retry around it exist to prevent. Twenty, plus a cached region, still lands
+// inside the client's 30.
+const TRACKER_TIMEOUT_MS = 8000;
+const MATCH_DETAIL_TIMEOUT_MS = 20000;
+async function henrikGet(pathPart, timeoutMs = TRACKER_TIMEOUT_MS) {
   const r = await fetch('https://api.henrikdev.xyz' + pathPart, {
     headers: { Authorization: process.env.HENRIKDEV_API_KEY, 'User-Agent': 'Occlara/4.0' },
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const text = await r.text();
   let json = null; try { json = JSON.parse(text); } catch {}
   return { status: r.status, ok: r.ok, json };
 }
+
+/*
+ * THE ACCOUNT'S REGION, looked up once and remembered.
+ *
+ * Every tracker route began by asking HenrikDev which region the account plays
+ * in, so one match end asked the same question three times (player stats, the
+ * last match, Riot's round record) on the single key every player shares. That
+ * account lookup is the call HenrikDev's rate limit turns away, and when it
+ * failed on the way to Riot's round record the review lost Riot's record for
+ * good. A region does not change from one match to the next, so it is kept a
+ * day per Riot ID, and an older answer is still used when a fresh lookup fails.
+ *
+ * Returns { region, status }: region null when it could not be resolved, with
+ * the status of the lookup that failed (0 when it never answered).
+ */
+const REGION_MS = 24 * 60 * 60 * 1000;
+const regionCache = new Map();   // riotId (lower) -> { region, at }
+async function regionOf(name, tag) {
+  const id = `${name}#${tag}`.toLowerCase();
+  const hit = regionCache.get(id);
+  if (hit && Date.now() - hit.at < REGION_MS) return { region: hit.region, status: 200 };
+  let acct = { status: 0, json: null };
+  try {
+    acct = await henrikGet(`/valorant/v2/account/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`);
+  } catch (e) {
+    console.warn('[stats] account lookup failed:', e.message);
+  }
+  const region = acct.json && acct.json.data && acct.json.data.region;
+  if (region) {
+    cacheSet(regionCache, id, { region, at: Date.now() }, 5000);
+    return { region, status: acct.status };
+  }
+  if (hit) return { region: hit.region, status: 200 };
+  return { region: null, status: acct.status };
+}
+
+/** An upstream answer worth asking again shortly: throttled, failing or silent. */
+const upstreamTransient = (status) => status === 0 || status === 408 || status === 429 || status >= 500;
 
 // HenrikDev works from datacenter IPs (unlike tracker.gg). Resolve region from
 // the account, read current + peak rank, then mine the recent competitive
@@ -1786,11 +1946,11 @@ async function henrikGet(pathPart) {
 async function henrikStats(name, tag, modeKey) {
   const enc = encodeURIComponent;
   const queues = MODE_QUEUES[modeKey === 'unrated' ? 'unrated' : 'competitive'];
-  const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
-  if (acct.status === 401 || acct.status === 403) return { fail: 'HenrikDev key rejected (401/403). Check HENRIKDEV_API_KEY.' };
-  if (acct.status === 404) return { fail: 'HenrikDev could not find that Riot ID. Check Name#TAG is exact.' };
-  if (acct.status === 429) return { fail: 'HenrikDev rate limit hit. Wait a minute and try again.' };
-  const region = acct.json && acct.json.data && acct.json.data.region;
+  const acct = await regionOf(name, tag);
+  const region = acct.region;
+  if (!region && (acct.status === 401 || acct.status === 403)) return { fail: 'HenrikDev key rejected (401/403). Check HENRIKDEV_API_KEY.' };
+  if (!region && acct.status === 404) return { fail: 'HenrikDev could not find that Riot ID. Check Name#TAG is exact.' };
+  if (!region && acct.status === 429) return { fail: 'HenrikDev rate limit hit. Wait a minute and try again.' };
   if (!region) return { fail: 'HenrikDev returned no region for that account (status ' + acct.status + ').' };
 
   const mmr  = await henrikGet(`/valorant/v2/mmr/${region}/${enc(name)}/${enc(tag)}`);
@@ -1868,6 +2028,7 @@ async function trackerStats(name, tag) {
     const url = `https://api.tracker.gg/api/v2/valorant/standard/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}`;
     const response = await fetch(url, {
       headers: { 'User-Agent': 'Occlara/4.0', 'TRN-Api-Key': process.env.TRACKER_API_KEY },
+      signal: AbortSignal.timeout(TRACKER_TIMEOUT_MS),
     });
     const text = await response.text();
     let data = null; try { data = JSON.parse(text); } catch {}
@@ -1897,7 +2058,7 @@ async function trackerStats(name, tag) {
 // GET /api/coach/player-stats?username=Name%23TAG
 router.get('/player-stats', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!await admit(res, licenseKey)) return;
 
   const username = String(req.query.username || '');
   if (!username.includes('#')) return res.json({ error: 'Enter your Riot ID as Name#TAG.' });
@@ -1954,7 +2115,7 @@ const queueCache = new Map();     // riotId|mode|queue -> { rows, at }
 const rankHistoryCache = new Map();   // riotId(lower) -> { at, data }
 router.get('/rank-history', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!await admit(res, licenseKey)) return;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
   const username = String(req.query.username || '');
   if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
@@ -1964,8 +2125,7 @@ router.get('/rank-history', async (req, res) => {
   const [name, tag] = username.split('#').map((s) => s.trim());
   const enc = encodeURIComponent;
   try {
-    const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
-    const region = acct.json?.data?.region;
+    const { region } = await regionOf(name, tag);
     if (!region) return res.json({ error: 'Account not found.' });
     const mh = await henrikGet(`/valorant/v1/mmr-history/${region}/${enc(name)}/${enc(tag)}`);
     const arr = (mh.json && Array.isArray(mh.json.data)) ? mh.json.data : [];
@@ -2122,7 +2282,7 @@ const whoIs = (x) => (x && typeof x === 'object')
 // GET /api/coach/match-deaths?matchId=...&username=Name%23TAG
 router.get('/match-deaths', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!await admit(res, licenseKey)) return;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
 
   const matchId = String(req.query.matchId || '').trim();
@@ -2136,8 +2296,7 @@ router.get('/match-deaths', async (req, res) => {
 
   try {
     const enc = encodeURIComponent;
-    const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
-    const region = acct.json && acct.json.data && acct.json.data.region;
+    const { region } = await regionOf(name, tag);
     if (!region) return res.json({ error: 'Could not resolve the account region.' });
 
     const md = await henrikGet(`/valorant/v4/match/${region}/${enc(matchId)}`);
@@ -2184,10 +2343,19 @@ router.get('/match-deaths', async (req, res) => {
 // the player's kills, when and to whom they died, first death, the plant.
 // Cached per match and player, since a finished match never changes. The
 // parsing lives in services/riot-rounds.js so the tests can drive it.
+//
+// A FAILURE THAT WILL PASS IS A 503, and only that. HenrikDev rate limits the
+// one key every player shares, and a throttled lookup here used to answer 200
+// with an error, which reads exactly like "this match has no record": the
+// client gave up and the review kept the screen's unverified rounds for good.
+// Throttled, failing or silent upstream now answers 503 { error, retry: true }
+// so the client can ask again in a minute. What will not change on a retry,
+// an unknown Riot ID or one that is not in this match, stays a 200 { error }.
 const matchRoundsCache = new Map();
+const roundsRetry = (res, error) => res.status(503).json({ error, retry: true });
 router.get('/match-rounds', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!await admit(res, licenseKey)) return;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
 
   const matchId = String(req.query.matchId || '').trim();
@@ -2200,19 +2368,29 @@ router.get('/match-rounds', async (req, res) => {
 
   try {
     const enc = encodeURIComponent;
-    const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
-    const region = acct.json && acct.json.data && acct.json.data.region;
-    if (!region) return res.json({ error: 'Could not resolve the account region.' });
-    const md = await henrikGet(`/valorant/v4/match/${region}/${enc(matchId)}`);
-    if (md.status === 429) return res.json({ error: 'Tracker rate limit, try again shortly.' });
+    const acct = await regionOf(name, tag);
+    if (!acct.region) {
+      if (!upstreamTransient(acct.status)) return res.json({ error: 'Could not resolve the account region.' });
+      return roundsRetry(res, acct.status === 429
+        ? 'Tracker rate limit, try again shortly.' : 'Could not resolve the account region.');
+    }
+    const md = await henrikGet(`/valorant/v4/match/${acct.region}/${enc(matchId)}`, MATCH_DETAIL_TIMEOUT_MS);
+    if (md.status === 429) return roundsRetry(res, 'Tracker rate limit, try again shortly.');
+    // The id came from the tracker's own match list, so a 404 for its detail
+    // is the record not being ready yet rather than a match that never was.
+    if (upstreamTransient(md.status) || md.status === 404) {
+      return roundsRetry(res, `The tracker could not return the match yet (status ${md.status}).`);
+    }
+    if (!md.ok) return res.json({ error: `The tracker refused the match lookup (status ${md.status}).` });
     const d = md.json && md.json.data;
-    if (!d) return res.json({ error: 'The tracker returned no match detail.' });
+    if (!d) return roundsRetry(res, 'The tracker returned no match detail.');
     const out = { matchId, ...riotRounds.parse(d, name, tag) };
     if (!out.error) cacheSet(matchRoundsCache, cacheKey, out, 200);
     res.json(out);
   } catch (e) {
+    // A timeout or a dropped connection to the tracker: worth another try.
     console.error('[coach] match-rounds failed:', e.message);
-    res.status(500).json({ error: 'Match round lookup failed.' });
+    roundsRetry(res, 'Match round lookup failed.');
   }
 });
 
@@ -2223,7 +2401,7 @@ const MODE_QUEUES = { competitive: ['competitive'], unrated: ['unrated', 'swiftp
 
 router.get('/matches', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!await admit(res, licenseKey)) return;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
 
   const username = String(req.query.username || '');
@@ -2242,8 +2420,7 @@ router.get('/matches', async (req, res) => {
   const [name, tag] = username.split('#').map((s) => s.trim());
   const enc = encodeURIComponent;
   try {
-    const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
-    const region = acct.json?.data?.region;
+    const { region } = await regionOf(name, tag);
     if (!region) return res.json({ error: 'Account not found.' });
 
     // ONE UPSTREAM FAILURE MUST NOT LOOK LIKE AN EMPTY QUEUE.
@@ -2265,7 +2442,11 @@ router.get('/matches', async (req, res) => {
     const failedQueues = [];
     for (const q of MODE_QUEUES[modeKey]) {
       const qKey = key + '|' + q;
-      const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=${q}&size=10`);
+      // A call past henrikGet's deadline throws rather than answering, and a
+      // throw here used to fail the whole tab. It is one failed queue, like a
+      // 429, so it takes the same fallback to that queue's last good rows.
+      const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=${q}&size=10`)
+        .catch((e) => ({ status: 0, ok: false, json: null, error: e.message }));
       const arr = (sm.ok && sm.json && Array.isArray(sm.json.data)) ? sm.json.data : null;
 
       if (arr) {
@@ -2388,7 +2569,7 @@ router.get('/matches', async (req, res) => {
 router.post('/session-report', async (req, res) => {
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+    if (!await admit(res, licenseKey)) return;
     const hash = crypto.createHash('sha256').update(licenseKey).digest('hex').slice(0, 8);
     telemetry.record(req.body || {}, hash);
     res.json({ ok: true });
@@ -2401,7 +2582,7 @@ router.post('/session-report', async (req, res) => {
 router.post('/score-session', async (req, res) => {
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+    if (!await admit(res, licenseKey)) return;
 
     const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30).map((t) => String(t).slice(0, 160)) : [];
     if (tips.length < 1) return res.json({ error: 'Not enough tips to score.' });
@@ -2515,13 +2696,85 @@ Ground everything strictly in the tips and observed facts, invent nothing. Use c
   }
 });
 
+/*
+ * ONLY A ROUND BASED MATCH CAN BE THE COACHED ONE.
+ *
+ * /last-match answered with the newest match of any mode, and a warm up
+ * deathmatch has no team rounds: it came back as a 0-0 draw with a combat score
+ * of 0. On the same map and agent it passed every client check, so the review
+ * was repainted "Draw 0-0", Impact was graded on ACS 0, ACS 0 joined the role
+ * baseline, and the search for the real match stopped. The app's own fix text
+ * tells players to deathmatch before they queue, so that is the normal order of
+ * a session, not an edge case.
+ *
+ * Refused by name (deathmatch, team deathmatch, escalation, snowball fight,
+ * and their internal ids in case a payload carries those), and by shape
+ * whatever the name: two team scores that sum to zero mean no rounds were
+ * played, so there is nothing to review. The name matters because a team
+ * deathmatch or an escalation can carry non zero team scores that are kills or
+ * levels, not rounds.
+ *
+ * Replication is NOT on the list: every player on a team is the same agent,
+ * but it is played in rounds, first to five, with a spike, and a coached
+ * Replication match is a real match to link. Neither is Spike Rush or a custom
+ * game. A name list that refused those would cost them Riot's record, which
+ * the old code, linking any mode, still gave them.
+ */
+const NOT_ROUND_BASED = /deathmatch|escalation|snowball|^hurm$|^ggteam$/;
+function roundBased(m) {
+  const meta = (m && m.meta) || {};
+  const mode = String(meta.mode || meta.mode_id || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (NOT_ROUND_BASED.test(mode)) return false;
+  const teams = (m && m.teams) || {};
+  return (teams.red | 0) + (teams.blue | 0) > 0;
+}
+
+/** One stored match as the client's review and match link read it. */
+function lastMatchRow(m) {
+  const st = m.stats, teams = m.teams || {};
+  const rounds  = (teams.red | 0) + (teams.blue | 0);
+  const mine    = String(st.team || '').toLowerCase();
+  const myScore = teams[mine] | 0;
+  const theirs  = teams[mine === 'red' ? 'blue' : 'red'] | 0;
+  const kills = st.kills | 0, deaths = st.deaths | 0, assists = st.assists | 0;
+  const kd  = deaths > 0 ? +(kills / deaths).toFixed(2) : kills;
+  const acs = rounds ? Math.round((st.score | 0) / rounds) : 0;
+  const dmg = (st.damage && (st.damage.made != null ? st.damage.made : st.damage.dealt)) || 0;
+  const adr = rounds ? Math.round(dmg / rounds) : 0;
+  const sh  = st.shots || {};
+  const shots = (sh.head | 0) + (sh.body | 0) + (sh.leg | 0);
+
+  const ladder = ['D', 'C', 'B', 'A', 'S'];
+  let gi = acs >= 270 ? 4 : acs >= 230 ? 3 : acs >= 190 ? 2 : acs >= 150 ? 1 : 0;
+  if (kd >= 1.5 && gi < 4) gi++;
+  if (kd < 0.7 && gi > 0) gi--;
+
+  return {
+    // The id, so the post-match review can ask for this exact match's round
+    // by round record once the link is verified. Without it the review could
+    // only ever show totals.
+    matchId: m.meta?.id || null,
+    map:     m.meta?.map?.name || 'Unknown',
+    // The queue as Riot names it, so the review can say Competitive or
+    // Unrated instead of the screen's guess at the mode.
+    mode:    m.meta?.mode || null,
+    agent:   st.character?.name || null,
+    result:  myScore > theirs ? 'Victory' : myScore < theirs ? 'Defeat' : 'Draw',
+    score:   myScore + '-' + theirs,
+    kills, deaths, assists, kd, acs, adr,
+    headshotPct: shots ? Math.round(((sh.head | 0) / shots) * 100) : 0,
+    grade:   ladder[gi],
+    startedAt: m.meta?.started_at ? Date.parse(m.meta.started_at) : null,
+  };
+}
+
 // GET /api/coach/last-match?username=Name%23TAG
 // The player's most recent COMPLETED competitive match from the tracker, with
 // a simple performance grade. (There is no live in-match API; matches appear
 // here a few minutes after they end.) Grade: ACS ladder, adjusted by K/D.
 router.get('/last-match', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!await admit(res, licenseKey)) return;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
 
   const username = String(req.query.username || '');
@@ -2529,8 +2782,7 @@ router.get('/last-match', async (req, res) => {
   const [name, tag] = username.split('#').map((s) => s.trim());
   const enc = encodeURIComponent;
   try {
-    const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
-    const region = acct.json?.data?.region;
+    const { region } = await regionOf(name, tag);
     if (!region) return res.json({ error: 'Account not found.' });
 
     // EVERY QUEUE, NOT JUST COMPETITIVE.
@@ -2542,48 +2794,21 @@ router.get('/last-match', async (req, res) => {
     // different agent, month old timestamp), so no coached session ever got a
     // scoreboard. The guard was working; it was being fed the wrong match.
     //
-    // No mode filter and a handful of rows, newest first. One upstream call,
-    // which also keeps this off the rate limit that made the merged unrated
-    // view flicker earlier. Anything irrelevant is rejected downstream by the
-    // map, agent and timing checks, so casting wide here is safe.
-    const sm   = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?size=5`);
-    const rows = Array.isArray(sm.json?.data) ? sm.json.data.filter((x) => x && x.stats) : [];
+    // No queue filter upstream, newest first, one call, which also keeps this
+    // off the rate limit that made the merged unrated view flicker earlier.
+    // Anything that is not round based is dropped here (roundBased), before
+    // the newest is picked, and ten rows rather than five so a real match
+    // behind a few deathmatches is still found. The rest is rejected
+    // downstream by the map, agent and timing checks.
+    const sm   = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?size=10`);
+    const rows = Array.isArray(sm.json?.data) ? sm.json.data.filter((x) => x && x.stats && roundBased(x)) : [];
     rows.sort((a, b) => (Date.parse(b.meta?.started_at || 0) || 0) - (Date.parse(a.meta?.started_at || 0) || 0));
     const m = rows[0];
     if (!m) return res.json({ error: 'No recent match found yet. Matches appear a few minutes after they end.' });
-
-    const st = m.stats, teams = m.teams || {};
-    const rounds  = (teams.red | 0) + (teams.blue | 0);
-    const mine    = String(st.team || '').toLowerCase();
-    const myScore = teams[mine] | 0;
-    const theirs  = teams[mine === 'red' ? 'blue' : 'red'] | 0;
-    const kills = st.kills | 0, deaths = st.deaths | 0, assists = st.assists | 0;
-    const kd  = deaths > 0 ? +(kills / deaths).toFixed(2) : kills;
-    const acs = rounds ? Math.round((st.score | 0) / rounds) : 0;
-    const dmg = (st.damage && (st.damage.made != null ? st.damage.made : st.damage.dealt)) || 0;
-    const adr = rounds ? Math.round(dmg / rounds) : 0;
-    const sh  = st.shots || {};
-    const shots = (sh.head | 0) + (sh.body | 0) + (sh.leg | 0);
-
-    const ladder = ['D', 'C', 'B', 'A', 'S'];
-    let gi = acs >= 270 ? 4 : acs >= 230 ? 3 : acs >= 190 ? 2 : acs >= 150 ? 1 : 0;
-    if (kd >= 1.5 && gi < 4) gi++;
-    if (kd < 0.7 && gi > 0) gi--;
-
-    res.json({
-      // The id, so the post-match review can ask for this exact match's round
-      // by round record once the link is verified. Without it the review could
-      // only ever show totals.
-      matchId: m.meta?.id || null,
-      map:     m.meta?.map?.name || 'Unknown',
-      agent:   st.character?.name || null,
-      result:  myScore > theirs ? 'Victory' : myScore < theirs ? 'Defeat' : 'Draw',
-      score:   myScore + '-' + theirs,
-      kills, deaths, assists, kd, acs, adr,
-      headshotPct: shots ? Math.round(((sh.head | 0) / shots) * 100) : 0,
-      grade:   ladder[gi],
-      startedAt: m.meta?.started_at ? Date.parse(m.meta.started_at) : null,
-    });
+    // The newest match, plus the few before it. The client links whichever one
+    // passes its time, map and agent checks: a deathmatch queued straight
+    // after the coached match used to stand in front of it on every try.
+    res.json({ ...lastMatchRow(m), recent: rows.slice(1, 5).map(lastMatchRow) });
   } catch (e) {
     console.error('[coach] last-match error:', e.message);
     res.json({ error: 'Could not load the last match.' });
@@ -2601,22 +2826,26 @@ router.get('/last-match', async (req, res) => {
 router.post('/read', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
   if (!licenseKey) return res.status(400).json({ error: 'X-License-Key header required' });
-  if (!await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid or expired license key' });
+  if (!await admit(res, licenseKey, { error: 'Invalid or expired license key' })) return;
 
   const image = req.body && req.body.image;
   const context = (req.body && req.body.context) || {};
   if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image data' });
 
   const t0 = Date.now();
+  // A bench asks which model answered, so a request whose benchModel was not
+  // honoured (no admin password) cannot pass for a run on that model.
+  const benching = !!(req.body && req.body.benchModel);
+  const model = benchModel(req) || AI.readModel;
   try {
-    const model = benchModel(req) || AI.readModel;
-    const raw = await Promise.race([
-      visionInfer(image, readPrompt.buildReadPrompt(context), 420, false, model),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('read timeout')), 9000)),
-    ]);
+    const raw = await withTimeout(
+      visionInfer(image, readPrompt.buildReadPrompt(context), 420, false, model, { abortMs: READ_TIMEOUT_MS + 1000 }),
+      READ_TIMEOUT_MS, 'read timeout');
     trackCall(licenseKey, 1);
     const text = String(raw || '').replace(/```(?:json)?/gi, '').trim();
-    if (/^LOBBY\b/i.test(text)) return res.json({ lobby: true, context: {}, ms: Date.now() - t0 });
+    if (/^LOBBY\b/i.test(text)) {
+      return res.json({ lobby: true, context: {}, ms: Date.now() - t0, ...(benching ? { model } : {}) });
+    }
 
     let outCtx = {};
     const m = text.match(/STATE\s*:\s*(\{[\s\S]*\})/i) || text.match(/(\{[\s\S]*\})/);
@@ -2625,13 +2854,17 @@ router.post('/read', async (req, res) => {
     }
     resolveLocation(outCtx, context);
     delete outCtx.mmPos;
-    res.json({ lobby: false, context: outCtx, parsed: !!m, ms: Date.now() - t0 });
+    res.json({ lobby: false, context: outCtx, parsed: !!m, ms: Date.now() - t0, ...(benching ? { model } : {}) });
   } catch (e) {
     // Out of credits is reported honestly, exactly as /analyze does, so the
     // client backs off instead of hammering an empty wallet.
     if (e && (e.credits || e.status === 402)) {
       return res.status(402).json({ error: 'ai-credits', retryInSec: creditsRetryIn(), ms: Date.now() - t0 });
     }
+    // A read that timed out was sent and is still being generated, and it is
+    // billed like one that answered. Counting only answers undercounted the
+    // admin cost view exactly when the provider was slowest.
+    if (e && e.message === 'read timeout') trackCall(licenseKey, 1);
     console.error('[coach] read error:', e.message);
     res.status(503).json({ error: 'read-unavailable', upstream: (e && e.status) || null, ms: Date.now() - t0 });
   }
@@ -2645,16 +2878,15 @@ router.post('/read', async (req, res) => {
 // services/death-forensics.js for why the cause is a label and not a sentence.
 router.post('/death-forensics', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!await admit(res, licenseKey)) return;
   const input = deathForensics.normalise(req.body);
   if (!input.deaths.length) return res.json({ deaths: [] });
   const model = benchModel(req) || AI.forensicsModel;
   const one = async (death) => {
     try {
-      const raw = await Promise.race([
-        visionInfer(death.frames, deathForensics.buildPrompt(input, death), 320, true, model),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('forensics timeout')), 25000)),
-      ]);
+      const raw = await withTimeout(
+        visionInfer(death.frames, deathForensics.buildPrompt(input, death), 320, true, model, { abortMs: 26000 }),
+        25000, 'forensics timeout');
       const out = deathForensics.parse(raw, input, death);
       if (out.dropped.length) {
         console.log(`[forensics] R${death.n} dropped:`, out.dropped.map((d) => `${d.field} (${d.why})`).join(', '));
@@ -2678,11 +2910,23 @@ router.post('/death-forensics', async (req, res) => {
   }
 });
 
-// POST /api/coach/match-review, JSON body: { tips: string[] }
+// POST /api/coach/match-review, JSON body: { rounds, ... }, or { tips: string[] } from older clients
+//
+// NOTHING THAT IS NOT THE COACH'S WORDS GOES OUT AS THE REVIEW. A failure used
+// to answer 200 { review: 'Review generation failed.' } and an emptied summary
+// 200 { review: 'Could not generate review.' }. Every client keeps a 200's body
+// and prints `review` as the coach's read, so the placeholder appeared in the
+// review window, was saved to the library, was handed to Ask Coach, and in the
+// Riot verified repaint replaced a good narrative written a minute earlier. And
+// because a body had arrived, the honest "the coach could not be reached" line
+// never showed. A failure is now 503 (402 when the AI credits ran out) with
+// review: null, which every client reads as no narrative, and a reply that
+// parses to no summary is review: null and summary: null with its round lines
+// and focus kept.
 router.post('/match-review', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
   try {
-    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+    if (!await admit(res, licenseKey)) return;
 
     /*
      * THE ROUND AWARE REVIEW, for clients that send a round ledger.
@@ -2721,8 +2965,8 @@ router.post('/match-review', async (req, res) => {
       const rounds = {};
       for (const [n, why] of Object.entries(parsed.rounds)) rounds[n] = clean(why);
       return res.json({
-        review: clean(parsed.summary) || 'Could not generate review.',
-        summary: clean(parsed.summary),
+        review: clean(parsed.summary) || null,
+        summary: clean(parsed.summary) || null,
         rounds,
         focus: clean(parsed.focus),
         study: matchReview.study(input, 3),
@@ -2731,7 +2975,7 @@ router.post('/match-review', async (req, res) => {
     }
 
     const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
-    if (tips.length < 3) return res.json({ review: 'Not enough data for a review.' });
+    if (tips.length < 3) return res.json({ review: null, thin: true });
     const notes = Array.isArray(req.body && req.body.notes)
       ? req.body.notes.slice(0, 20).map((n) => String(n).slice(0, 90)) : [];
     const notesBlock = notes.length
@@ -2754,15 +2998,99 @@ router.post('/match-review', async (req, res) => {
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 24000)),
     ]);
     trackCall(licenseKey);
-    res.json({ review: review || 'Could not generate review.' });
+    res.json({ review: review || null });
   } catch (e) {
     console.error('[review] Error:', e.message);
     console.error(e.stack);
-    res.json({ review: 'Review generation failed.' });
+    // A call that timed out is still running upstream and will still be
+    // billed, so it is counted like one that answered.
+    if (e && e.message === 'timeout') trackCall(licenseKey);
+    if (e && (e.credits || e.status === 402)) {
+      return res.status(402).json({ error: 'ai-credits', review: null, retryInSec: creditsRetryIn() });
+    }
+    res.status(503).json({ error: 'review-unavailable', review: null });
   }
 });
 
-const DETECTABLE_AGENTS = ['Jett','Reyna','Phoenix','Raze','Neon','Iso','Yoru','Sova','Breach','Skye','KAY/O','Fade','Gekko','Tejo','Omen','Brimstone','Viper','Astra','Harbor','Clove','Sage','Killjoy','Cypher','Chamber','Deadlock','Vyse','Waylay'];
+/*
+ * THE ROSTER COMES FROM THE GAME'S DATA, not from a list typed here.
+ *
+ * The typed list stopped at Waylay, so when Veto and Miks arrived
+ * detectAgentName returned null for both. Their players never got an agent
+ * lock: the client asked again every 30 seconds for the whole session, a paid
+ * vision call each time, and the live read paused for the length of each one.
+ * The prompt had already given Tejo, Vyse and Waylay a bare name and no kit.
+ *
+ * valorant-data.generated.json (npm run sync:valorant) has every agent with
+ * its role and abilities, and AGENT_KIT above already reads it, so the
+ * detectable names and the prompt's kit lines are built from it and a new
+ * agent is detectable the day it syncs. The typed list stays as a floor for a
+ * deploy where the data file is missing. The hints describe what each icon
+ * LOOKS like (a smoke, a dash, a knife ult), which a bare ability name does
+ * not, so they are kept where somebody wrote one.
+ */
+const KNOWN_AGENTS = ['Jett','Reyna','Phoenix','Raze','Neon','Iso','Yoru','Sova','Breach','Skye','KAY/O','Fade','Gekko','Tejo','Omen','Brimstone','Viper','Astra','Harbor','Clove','Sage','Killjoy','Cypher','Chamber','Deadlock','Vyse','Waylay'];
+const ICON_HINTS = {
+  Jett: 'Cloudburst smoke, Updraft jump, Tailwind dash, Blade Storm knife ult',
+  Reyna: 'Leer eye, Devour heal, Dismiss escape, Empress ult',
+  Phoenix: 'Curveball flash, Hot Hands molly, Blaze fire wall, Run It Back ult',
+  Raze: 'Boom Bot, Blast Pack satchel, Paint Shells nade, Showstopper rocket',
+  Neon: 'Fast Lane walls, Relay Bolt stun, High Gear sprint, Overdrive beam',
+  Iso: 'Undercut, Double Tap shield, Contingency wall, Kill Contract',
+  Yoru: 'Fakeout decoy, Blindside flash, Gatecrash teleport, Dimensional Drift',
+  Sova: "Owl Drone, Shock Bolt, Recon Bolt, Hunter's Fury",
+  Breach: 'Flashpoint, Fault Line, Aftershock, Rolling Thunder',
+  Skye: 'Trailblazer dog, Guiding Light bird, Regrowth, Seekers',
+  'KAY/O': 'FLASH/drive, ZERO/point knife, FRAG/ment, NULL/cmd',
+  Fade: 'Prowler, Seize tether, Haunt eye, Nightfall',
+  Gekko: 'Wingman, Dizzy, Mosh Pit, Thrash',
+  Omen: 'Shrouded Step teleport, Paranoia blind, Dark Cover smokes, From The Shadows',
+  Brimstone: 'Stim Beacon, Incendiary, Sky Smoke, Orbital Strike',
+  Viper: "Snake Bite, Poison Cloud, Toxic Screen wall, Viper's Pit",
+  Astra: 'Gravity Well, Nova Pulse, Nebula smoke, Cosmic Divide',
+  Harbor: 'Cove bubble, High Tide wall, Storm Surge, Reckoning',
+  Clove: 'Pick-Me-Up, Meddle, Ruse smokes, Not Dead Yet',
+  Sage: 'Slow Orb, Healing Orb, Barrier Orb wall, Resurrection',
+  Killjoy: 'Nanoswarm, Alarmbot, Turret, Lockdown',
+  Cypher: 'Trapwire, Cyber Cage smoke, Spycam, Neural Theft',
+  Chamber: 'Trademark, Headhunter, Rendezvous, Tour De Force',
+  Deadlock: 'GravNet, Sonic Sensor, Barrier Mesh, Annihilation',
+};
+const ROLE_ORDER = ['Duelist', 'Initiator', 'Controller', 'Sentinel'];
+const roleRank = (name) => {
+  const i = ROLE_ORDER.indexOf(AGENT_KIT[name] && AGENT_KIT[name].role);
+  return i < 0 ? ROLE_ORDER.length : i;
+};
+const DETECTABLE_AGENTS = [...new Set([...Object.keys(AGENT_KIT), ...KNOWN_AGENTS])]
+  .sort((a, b) => roleRank(a) - roleRank(b) || a.localeCompare(b));
+
+/*
+ * A hint is used only while it still names every ability the data lists. The
+ * typed hints had already drifted once (Harbor's said Cascade, which a rework
+ * replaced with Storm Surge), so a kit the data no longer agrees with falls
+ * back to the real names instead of describing icons that are not there.
+ */
+function hintFits(name) {
+  const hint = String(ICON_HINTS[name] || '').toLowerCase();
+  const kit = (AGENT_KIT[name] && AGENT_KIT[name].abilities) || [];
+  return !!hint && kit.every((a) => String(a).toLowerCase().split('/')
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .some((p) => p && hint.includes(p)));
+}
+
+/** One line per agent for the detection prompt: the hint, or the real kit. */
+function agentKitLines() {
+  const word = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+  return DETECTABLE_AGENTS.map((name) => {
+    if (hintFits(name)) return `${name}: ${ICON_HINTS[name]}`;
+    const kit = ((AGENT_KIT[name] && AGENT_KIT[name].abilities) || [])
+      .map((a) => String(a).replace(/\s+/g, ' ').trim().split(' ').map(word).join(' '))
+      .filter(Boolean);
+    return kit.length ? `${name}: ${kit.join(', ')}` : name;
+  }).join('\n');
+}
+const AGENT_KIT_LINES = agentKitLines();
+
 const AGENT_WORD_RE = new RegExp(
   '\\b(' + DETECTABLE_AGENTS.map((a) => a.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|') + ')\\b', 'gi');
 
@@ -2803,7 +3131,7 @@ function detectAgentName(reply) {
 router.post('/detect-agent', async (req, res) => {
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+    if (!await admit(res, licenseKey)) return;
 
     const image = req.body && req.body.image;
     if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image' });
@@ -2812,41 +3140,14 @@ router.post('/detect-agent', async (req, res) => {
 
 Identify the player's agent by matching those 4 ability icons to one of these agents:
 
-Jett: Cloudburst smoke, Updraft jump, Tailwind dash, Blade Storm knife ult
-Reyna: Leer eye, Devour heal, Dismiss escape, Empress ult
-Phoenix: Curveball flash, Hot Hands molly, Blaze fire wall, Run It Back ult
-Raze: Boom Bot, Blast Pack satchel, Paint Shells nade, Showstopper rocket
-Neon: Fast Lane walls, Relay Bolt stun, High Gear sprint, Overdrive beam
-Iso: Undercut, Double Tap shield, Contingency wall, Kill Contract
-Yoru: Fakeout decoy, Blindside flash, Gatecrash teleport, Dimensional Drift
-Sova: Owl Drone, Shock Bolt, Recon Bolt, Hunter's Fury
-Breach: Flashpoint, Fault Line, Aftershock, Rolling Thunder
-Skye: Trailblazer dog, Guiding Light bird, Regrowth, Seekers
-KAY/O: FLASH/drive, ZERO/point knife, FRAG/ment, NULL/cmd
-Fade: Prowler, Seize tether, Haunt eye, Nightfall
-Gekko: Wingman, Dizzy, Mosh Pit, Thrash
-Tejo
-Omen: Shrouded Step teleport, Paranoia blind, Dark Cover smokes, From The Shadows
-Brimstone: Stim Beacon, Incendiary, Sky Smoke, Orbital Strike
-Viper: Snake Bite, Poison Cloud, Toxic Screen wall, Viper's Pit
-Astra: Gravity Well, Nova Pulse, Nebula smoke, Cosmic Divide
-Harbor: Cove bubble, High Tide wall, Cascade, Reckoning
-Clove: Pick-Me-Up, Meddle, Ruse smokes, Not Dead Yet
-Sage: Slow Orb, Healing Orb, Barrier wall, Resurrection
-Killjoy: Nanoswarm, Alarmbot, Turret, Lockdown
-Cypher: Trapwire, Cyber Cage smoke, Spycam, Neural Theft
-Chamber: Trademark, Headhunter, Rendezvous, Tour De Force
-Deadlock: GravNet, Sonic Sensor, Barrier Mesh, Annihilation
-Vyse, Waylay
+${AGENT_KIT_LINES}
 
 Respond with ONLY the agent name. Just one word. No explanation. No punctuation.
 
 If you cannot clearly see all 4 ability icons or are not 100% sure, respond with: UNKNOWN`;
 
-    const text = await Promise.race([
-      visionInfer(image, prompt, 20, false),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 22000)),
-    ]);
+    const text = await withTimeout(visionInfer(image, prompt, 20, false, undefined, { abortMs: 23000 }),
+      22000, 'timeout');
     trackCall(licenseKey);
 
     const cleanText = String(text || '').trim();
@@ -2864,7 +3165,7 @@ If you cannot clearly see all 4 ability icons or are not 100% sure, respond with
 router.post('/suggest-library-tip', async (req, res) => {
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+    if (!await admit(res, licenseKey)) return;
 
     const context       = (req.body && req.body.context) || {};
     const availableTips = Array.isArray(req.body && req.body.availableTips) ? req.body.availableTips.slice(0, 30) : [];
@@ -2927,7 +3228,7 @@ function chatReplyOk(t) {
 router.post('/frame-chat', async (req, res) => {
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+    if (!await admit(res, licenseKey)) return;
 
     const body = req.body || {};
     const question = String(body.question || '').trim().slice(0, 500);
@@ -2979,10 +3280,8 @@ Answer as their coach, talking about this exact moment.
 - Be specific and practical: what happened, why it happened, and what to do differently. Do not lecture, and do not repeat the tip above word for word.
 - 2 to 5 sentences, plain conversational English, no markdown, no lists. Use commas and periods, never dashes.`;
 
-    const raw = await Promise.race([
-      visionInfer(images, prompt, 420, false, AI.visionModel),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 30000)),
-    ]);
+    const raw = await withTimeout(visionInfer(images, prompt, 420, false, AI.visionModel, { abortMs: 31000 }),
+      30000, 'timeout');
     trackCall(licenseKey, images.length);
 
     const reply = sanitize(stripThinking(String(raw || ''))).trim();
@@ -3000,7 +3299,7 @@ Answer as their coach, talking about this exact moment.
 router.post('/chat', async (req, res) => {
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+    if (!await admit(res, licenseKey)) return;
 
     const body     = req.body || {};
     const messages = (Array.isArray(body.messages) ? body.messages : [])
@@ -3070,31 +3369,37 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
         })()
       : '';
 
-    const prompt = `You are Occlara, a Radiant-level Valorant coach talking directly with your player after (or during) a session. Be honest, specific, and encouraging, like a real coach in a VOD review. Casual tone, no fluff.
+    // THE GAME THE PLAYER CHOSE. The app sends it, and with League or Marvel
+    // Rivals chosen it sends no Valorant tracker data, so a prompt that still
+    // said "Only discuss Valorant" answered a League question about Valorant.
+    const gameName = ctx.game === 'rivals' ? 'Marvel Rivals' : ctx.game === 'lol' ? 'League of Legends' : 'Valorant';
+    const valorant = gameName === 'Valorant';
+    const picks = valorant ? 'agents' : ctx.game === 'rivals' ? 'heroes' : 'champions';
+    const prompt = `You are Occlara, a ${valorant ? 'Radiant-level ' : 'high level '}${gameName} coach talking directly with your player after (or during) a session. Be honest, specific, and encouraging, like a real coach in a VOD review. Casual tone, no fluff.
 
 ${statsLine}
 ${trendLine}
 ${reviewBlock}
 ${matchesBlock}
 ${sessionsBlock}
-Player's agent this session: ${ctx.agent || 'unknown'}.
+${valorant ? `Player's agent this session: ${ctx.agent || 'unknown'}.` : ''}
 ${memLine}
 ${playbookLine}
 ${tipsBlock}
-${ctx.noSessionYet ? 'IMPORTANT: this player has NOT played a coached session yet. You have no gameplay and no tips from them. Do not invent observations about their play. Answer general Valorant questions briefly and invite them to start coaching and play a match so you can review it together.' : ''}
+${ctx.noSessionYet ? 'IMPORTANT: this player has NOT played a coached session yet. You have no gameplay and no tips from them. Do not invent observations about their play. Answer general ${gameName} questions briefly and invite them to start coaching and play a match so you can review it together.' : ''}
 
 Conversation so far:
 ${messages.map((m) => m.role + ': ' + m.content).join('\n')}
 
 Reply as Coach to the player's last message. Rules:
-- ANSWER THE QUESTION THEY ACTUALLY ASKED, FIRST. This is the most important rule. If they ask a real Valorant question, the current meta, which agents are strong, how to use an ability, what to buy, how a map should be played, then give them the actual answer in the first sentence or two. Name real agents, real numbers, real specifics. Only after answering do you connect it to their game.
-- NEVER deflect a genuine question into a lesson. Answering "what are the best agents in this meta" with "the meta does not matter for you, your positioning is the problem" is a failure, even when the positioning point is true. It reads as dodging, and the player came for an answer. Give them both: the answer they asked for, then the thing that actually moves their rank. "Right now Jett, Raze and Omen are the strongest picks. That said, none of them fix the thing costing you games, which is ..." is the shape to aim for.
+- ANSWER THE QUESTION THEY ACTUALLY ASKED, FIRST. This is the most important rule. If they ask a real ${gameName} question, the current meta, which ${picks} are strong, how to use an ability, ${valorant ? 'what to buy, how a map should be played' : 'how a map or objective should be played'}, then give them the actual answer in the first sentence or two. Name real ${picks}, real numbers, real specifics. Only after answering do you connect it to their game.
+- NEVER deflect a genuine question into a lesson. Answering "what are the best ${picks} in this meta" with "the meta does not matter for you, your positioning is the problem" is a failure, even when the positioning point is true. It reads as dodging, and the player came for an answer. Give them both: the answer they asked for, then the thing that actually moves their rank.${valorant ? ' "Right now Jett, Raze and Omen are the strongest picks. That said, none of them fix the thing costing you games, which is ..." is the shape to aim for.' : ''}
 - If a question genuinely has no factual answer you can stand behind, say so plainly in one sentence rather than substituting a lesson for it.
-- Only discuss Valorant and the player's gaming performance. If asked about something truly unrelated, steer back to their gameplay in one friendly sentence.
-- COACH LIKE THE BEST, in the second half of your reply: diagnose the ROOT CAUSE behind what they are asking (deaths usually trace to positioning, timing, or fighting without a trade partner before they trace to aim). Name the ONE highest-impact fix, then give a concrete drill or in-game habit to build it, for example 10 minutes of deathmatch focusing only on counter-strafe headshots, a minimap glance every 5 seconds, or reviewing one lost round per match and asking what info they had before the fight.
-- Ground advice in proven Radiant and pro fundamentals: fight with a trade partner in view, clear angles in slices, use util before contact, take an off-angle once then move, keep economy discipline, reposition after kills.
+- Only discuss ${gameName} and the player's gaming performance. If asked about something truly unrelated, steer back to their gameplay in one friendly sentence.
+${valorant ? `- COACH LIKE THE BEST, in the second half of your reply: diagnose the ROOT CAUSE behind what they are asking (deaths usually trace to positioning, timing, or fighting without a trade partner before they trace to aim). Name the ONE highest-impact fix, then give a concrete drill or in-game habit to build it, for example 10 minutes of deathmatch focusing only on counter-strafe headshots, a minimap glance every 5 seconds, or reviewing one lost round per match and asking what info they had before the fight.
+- Ground advice in proven Radiant and pro fundamentals: fight with a trade partner in view, clear angles in slices, use util before contact, take an off-angle once then move, keep economy discipline, reposition after kills.` : `- COACH LIKE THE BEST, in the second half of your reply: diagnose the ROOT CAUSE behind what they are asking, name the ONE highest-impact fix, then give a concrete habit or drill to build it. Ground it in the fundamentals of ${gameName} that high level players rely on, and never borrow advice from another game.`}
 - Combine their career stats with the match flow and this session's tips. The best answer ties a stat to a concrete example, and covers both aim and game sense, not just headshot rate.
-- Be honest, do not praise a mistake as if it were good, and do not invent a mistake that is not there. Knife out while rotating through safe space is CORRECT (fastest movement), knife out where contact is possible is the mistake. Match abilities to their real purpose (Updraft and dashes are mobility, not tools to clear angles).
+- Be honest, do not praise a mistake as if it were good, and do not invent a mistake that is not there.${valorant ? ' Knife out while rotating through safe space is CORRECT (fastest movement), knife out where contact is possible is the mistake. Match abilities to their real purpose (Updraft and dashes are mobility, not tools to clear angles).' : ''}
 - Be concrete: name the exact habit or mistake and the fix, not generalities.
 - 3 to 6 short sentences, under 150 words total. Plain text, no markdown, no lists. The reply has two jobs now, the answer and the coaching, so it gets a little more room, but do not ramble.
 - Use commas and periods, never dashes.
@@ -3120,6 +3425,13 @@ Reply as Coach to the player's last message. Rules:
     }
     res.json({ reply: reply.slice(0, 1500) });
   } catch (e) {
+    // An empty wallet is its own answer, as it is on every other route: Ask
+    // Coach has a line for it ("out of credits on the server"), and a 500 here
+    // showed "Chat failed" instead, which reads as a bug in the app.
+    if (e && (e.credits || e.status === 402)) {
+      return res.status(402).json({ error: 'ai-credits', message: 'The coach AI is out of credits.',
+        retryInSec: creditsRetryIn() });
+    }
     console.error('[coach] chat error:', e.message);
     // Same reasoning as analyze: without the provider's status this is not
     // diagnosable from outside Railway.
@@ -3134,6 +3446,11 @@ module.exports.mapState    = mapState;             // exported for tests
 module.exports.trackCall   = trackCall;            // exported for tests
 module.exports.detectAgentName = detectAgentName;  // exported for tests
 module.exports.buildContextPrompt = buildContextPrompt;
+// For the offline tests of the guards above, nothing else reads these.
+module.exports.__test = {
+  checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,
+  benchModel, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,
+};
 // The models actually in use, so /health reports THIS rather than keeping its
 // own copy of the defaults. It kept a separate copy and they drifted, which
 // turned the one endpoint whose job is answering "what is live" into a thing
@@ -3169,6 +3486,10 @@ module.exports.ai = {
   textInfer,
   sanitize,
   validateKey,
+  // The licence answer in three parts ('valid', 'invalid', 'unavailable'), so
+  // another game's routes can answer an outage with 503 rather than 403.
+  checkLicence: checkKey,
+  trackCall,
   creditsLookExhausted,
   creditsRetryIn,
   // Which model a caller gets when it explicitly wants the deeper image read.

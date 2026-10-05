@@ -69,6 +69,20 @@ const gamePickEl = document.getElementById('gamepick');
 let gameDD = null;
 
 /**
+ * What a preview game's review is built from, as the row's tooltip. Every game
+ * is reviewed after the match and shows nothing during one; what differs is
+ * where the review's facts come from and what is not there yet, which is what
+ * the preview label is about. Taken from games.js and the engine each game
+ * starts: Rivals reads its hero from hero select and its end of match
+ * scoreboard, League records the game in silence through Riot's own local
+ * game data, and neither has a stats source.
+ */
+const GAME_NOTES = {
+  rivals: 'Graded after every match from the end of match scoreboard. No stats page for this game yet.',
+  lol: 'Recorded in silence and graded after every game. No stats page for this game yet.',
+};
+
+/**
  * Which game is being coached, in the HEADER.
  *
  * It used to be a segmented control in a section partway down the page, which
@@ -88,9 +102,15 @@ function buildGamePicker(current, includeUnavailable) {
   const opts = games.map((g) => ({
     value: g.id,
     label: g.label,
-    // An unfinished coach is said plainly rather than hidden behind a colour.
-    tag: g.coaching ? '' : 'preview',
-    note: g.coaching ? '' : 'The look and layout are real. Coaching for this game is not built yet.',
+    // A game that is only partly finished says so plainly rather than hiding
+    // behind a colour. The label is the registry's own preview flag, and the
+    // note says what its review is made from. It used to say "Coaching for this
+    // game is not built yet" about Rivals and League, which Start records and
+    // grades, and that "the look and layout are real", about palettes that are
+    // gone. Only a game Start would refuse is called unbuilt.
+    tag: g.preview || !g.coaching ? 'preview' : '',
+    note: !g.coaching ? 'Recording is not built for this game yet. Start will say so and do nothing.'
+      : (GAME_NOTES[g.id] || ''),
   }));
 
   if (!gameDD) {

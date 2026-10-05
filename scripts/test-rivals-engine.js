@@ -128,16 +128,45 @@ ok(DRAFT_COOLDOWN_MS > PROBE_MS * 5, 'a read draft goes quiet rather than re-rea
 }
 
 // ── Lifecycle ───────────────────────────────────────────────────────────────
+// The Valorant engine's words, 'coaching', 'paused' and 'stopped', because the
+// controller tracks a pause by them. This engine used to emit objects here, and
+// pause and resume emitted nothing at all, so a paused Rivals session could
+// never be resumed: the controller never learned it was paused.
 {
   const e = new RivalsEngine({ getKey: () => null, capture: async () => null, log: () => {} });
   const states = [];
   e.on('status', (s) => states.push(s));
   e.start();
-  ok(e.running === true && states[0].running === true, 'start emits a running status');
+  ok(e.running === true && states[0] === 'coaching', `start emits 'coaching' (${JSON.stringify(states[0])})`);
   e.stop();
-  ok(e.running === false && states[states.length - 1].running === false, 'stop emits a stopped status');
+  ok(e.running === false && states[states.length - 1] === 'stopped', `stop emits 'stopped' (${JSON.stringify(states[states.length - 1])})`);
   e.stop();
-  ok(true, 'stopping twice does not throw');
+  ok(states.filter((s) => s === 'stopped').length === 1, 'stopping twice does not throw, and says so once');
+  ok(states.every((s) => typeof s === 'string'), 'every status is a word, never an object');
+}
+{
+  // Pause and resume, with the probe itself stubbed out: this block is about
+  // what the controller hears and whether reading starts again.
+  const e = new RivalsEngine({ getKey: () => 'KEY', capture: async () => null, log: () => {} });
+  const states = [];
+  let ticks = 0;
+  e.on('status', (s) => states.push(s));
+  e.tick = () => { ticks++; };
+  e.pause();
+  ok(states.length === 0 && !e.paused, 'pausing an engine that is not running does nothing');
+  e.start();
+  const started = ticks;
+  e.pause();
+  e.pause();
+  ok(states.filter((s) => s === 'paused').length === 1, `pause says 'paused', once however often it is pressed (${states.join(', ')})`);
+  ok(e.paused === true && e.timer === null, 'and no probe is left scheduled');
+  e.resume();
+  ok(states[states.length - 1] === 'coaching' && e.paused === false, `resume says 'coaching' (${states.join(', ')})`);
+  ok(ticks === started + 1, 'and reads again at once');
+  e.resume();
+  ok(states.filter((s) => s === 'coaching').length === 2 && ticks === started + 1,
+    'resuming an engine that is not paused does nothing');
+  e.stop();
 }
 
 // ── Feature flags decide which question is even asked ───────────────────────
@@ -232,11 +261,14 @@ function heroCaptureChecks() {
 
     // Held, not overwritten. Later probes land on screens that do not print a
     // hero name, and a null there would erase what hero select established.
-    e.lastDraftAt = 0;
     api.post = async (route) => { routes.push(route); return { ok: true, data: { tip: 'LOBBY', context: {} } }; };
     e.tick().then(() => {
       api.post = realPost;
       ok(e.mine === 'the punisher', `the hero is held across later probes (${e.mine})`);
+      // With a hero held the next question is the scoreboard's. It used to be
+      // hero select's again on every probe, so the scoreboard was never asked.
+      ok(routes[routes.length - 1] === '/api/rivals/review',
+        `and once it is held, the next question is the scoreboard's (${routes[routes.length - 1]})`);
 
       console.log(fails ? `\n${fails} failure(s)` : '\nall rivals engine checks passed');
       process.exit(fails ? 1 : 0);

@@ -78,20 +78,65 @@ old number, and the round end banner prints the next score while the player is
 still spectating. The ledger advances on a buy phase after mid round play, and
 files a death before the new round's first buy back into the round that ended.
 "Play" needs a mid round clock, because the banner is an active phase frame
-with 0:01 on it, and counting it cascaded every later round by one.
+with 0:01 on it, and counting it cascaded every later round by one. At a read a
+second the model also says "buy" with the round timer on screen and "active"
+with the buy timer on screen, so a buy phase is a buy read with at most 0:45 on
+it, and lasts until the buy timer it showed runs out (`isBuyPhase`).
 
-**A match ends** on a score no mode can continue from, confirmed by a second
-read or by the next frame being a menu, or on most of a minute of menus after
-three rounds. 13 to 12 is deliberately not final: unrated ends there and
-competitive does not. Too early is the expensive direction, because it opens a
-window over a round in progress.
+**Nobody dies in a buy phase.** Valorant shows the last round's COMBAT REPORT
+again as the buy phase starts, "KILLED BY Reyna" in its panel, and on a real
+competitive session 9 of 29 death registrations were that panel, each filed
+into the new round where the ledger's one death a round then refused the
+round's real death. While a buy timer is running a dead read is a living player
+buying, in the engine and in the AI log's death list.
+
+**The mode comes from printed numbers in round 5's buy phase.** Swiftplay swaps
+sides after round 4, so its round 5 is a pistol round: 800 credits and a 45
+second buy timer. A standard round 5 has four rounds of money and 30 seconds.
+Measured: swiftplay round 5 bought at 0:43 with 800, competitive at 0:29 with
+3,550. The side swap used to be the swiftplay tell, and it is the model's
+inference: on a real competitive match it read the side flipped twice in two
+seconds, locked swiftplay, and the wrong lock went back to the model as context,
+so rounds 5 to 9 all read as defence. It is now a fallback (buy phase reads
+only, four in a row), and a buy phase with a team on 5 proves standard.
+
+**A match ends** on a score no mode can continue from, confirmed by the game
+stopping: a menu frame (the end of match screen reads as one), or twenty seconds
+of reads at that score with no buy phase and no running round clock. "A second
+read" stopped being enough at a read a second, because two reads a second apart
+are one moment read twice. A swiftplay final needs the menu, twice, because 5 to
+3 is an ordinary standard score and swiftplay is the weakest fact the engine
+has. Or on most of a minute of menus after three rounds. 13 to 12 is
+deliberately not final: unrated ends there and competitive does not. Too early
+is the expensive direction, because it opens a window over a round in progress.
+
+**And if it was not the end, the match resumes.** Play that carries on from the
+ended score (a buy phase at it, or a higher score), read twice within five
+minutes on the same map, puts the match back with every frame read since, and
+the review it opened is withdrawn from the window and the library. A real
+session ended a competitive match at 3 to 5 in round 9, ignored the rest as the
+end screen, and stopping at 12 to 7 reviewed nothing. A new match the watch
+never saw the last one end (a remake, an unrated 13-12 with no menus read)
+closes the last one into the library, never opened over the new one.
+`npm run test:sessionreplay` replays that session and two others through the
+real engine, deaths checked against Riot's record.
 
 **What the review may claim.** No "survived" line unless Riot says so, no death
 timing to the second without Riot, no result unless a score end or Riot's record
 says so, a spawn is never a death spot, and every insight and pattern must clear
-its stated floor. The window opens at once and repaints when Riot publishes the
-scoreboard, 90 seconds to four minutes later, and every version is saved to the
-same review id.
+its stated floor. The review is SAVED the moment the match ends, before the
+narrative call (`match-ended`), because a quit or a Stop then Start in that
+minute lost it or pointed its death frames at the next session's empty log. The
+window opens at once and repaints when Riot publishes the scoreboard, 90 seconds
+to four minutes later, and every version is saved to the same review id, except
+the corrected numbers shown while the summary is rewritten. It never opens over
+a match in progress: one already under way, or the one recording was stopped in
+the middle of, which is saved to Matches with a notice. Each review keeps its
+own Riot retries, and stopping recording does not cancel them: each try is
+verified against that match's own window, so a late answer can only be that
+match. The link checks the newest match and the four before it, and refuses a
+deathmatch, a match with fewer rounds than the coach watched, and a match
+already linked to another review.
 
 **Variant C won the review bench** (`npm run bench:review`, live, spends money)
 by making fewer unsupported claims than B; the numbers are in `match-review.js`.
@@ -361,7 +406,11 @@ these away.
   `mapFromLabels`). Valorant prints the location name on screen. Accumulated
   labels identify the map far more reliably than the model's guess, and once
   `mapConfirmedByLabels` is true the model can no longer change it.
-- **Scoreboard continuity** (`scoreboardChallenge`). Scores never move
+- **Scoreboard continuity** (`scoreboardChallenge`). One round forward needs two
+  agreeing reads like any other jump, a step the model misread on consecutive
+  frames is taken back by three reads that carry on from the score before it
+  (`lastStep`, never once a buy phase has confirmed it), and a lone digit is
+  checked against the held other one rather than merged raw. Scores never move
   backwards, and a forward jump needs two agreeing reads before it is accepted.
 - **HP beats death.** A death is only registered when health is genuinely
   absent and the tell is unambiguous. The model kept announcing deaths that had

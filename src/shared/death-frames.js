@@ -23,13 +23,72 @@
  * no clock to match. Those use the frames around the moment the screen
  * registered the death, when it did.
  *
+ * WITH ONE EXCEPTION TO THE AGREEMENT. A death registered on the round end
+ * banner, which already prints the next score, is filed back into the round
+ * that ended, but the log stamps that frame with the round it was filed under,
+ * one later. So the registering frame of round N can sit at the very start of
+ * round N + 1, before its buy phase. On the real Abyss match that was the post
+ * plant deaths of rounds 6 and 24, the spectator trap's usual shape, and both
+ * had no look at all.
+ *
+ * AND THAT FRAME IS ROUND N's ALONE. Sitting in round N + 1, it is also the
+ * first died frame that round has, and a post plant death there, which has no
+ * clock to match, took it as its own: the look was of the end of round N, and
+ * its cause was counted against round N + 1.
+ *
  * Pure, so the tests run it against a real logged session.
  */
 
-const { clockSeconds, ROUND_SECONDS } = require('./valorant-rounds');
+const { clockSeconds, ROUND_SECONDS, MID_ROUND_LEFT } = require('./valorant-rounds');
 
 const BEFORE_MS = 10000;
 const AFTER_MS = 4000;
+// How far into the next round a banner death can be registered: the ledger
+// files a death back only on the first frames after the score moved.
+const BANNER_RECORDS = 3;
+
+// A buy phase frame shows the shop, never the fight, and the score lag files
+// a few of them under the round that follows, so they are passed over.
+const usable = (r) => r && (r.state || {}).phase !== 'buy';
+// Play with a mid round clock, which is what the ledger counts as the new
+// round having begun. A death after it is that round's, never filed back.
+const inPlay = (r) => {
+  const st = (r && r.state) || {};
+  const left = clockSeconds(st.clock);
+  return (st.phase === 'active' || st.phase === 'postplant') && left !== null && left >= MID_ROUND_LEFT;
+};
+
+/**
+ * The frame that registered round n's death on the banner of round n + 1: a
+ * died frame among the first few of round n + 1, before its buy phase or any
+ * play, the frames the ledger files a death back from. Null otherwise.
+ */
+function bannerDeath(inMatch, n) {
+  const next = inMatch.filter((r) => r.round === n + 1);
+  const j = next.findIndex((r) => r.died);
+  if (j < 0 || j >= BANNER_RECORDS || !usable(next[j])) return null;
+  if (next.slice(0, j).some((r) => !usable(r) || inPlay(r))) return null;
+  return next[j];
+}
+
+/**
+ * The round before's banner death, sitting at the start of round n, or null.
+ * The round before claims it when it has no died frame of its own, the rule
+ * the ledger files a banner death back by, and whether it has one depends on
+ * the round before IT, so two banner deaths in a row are each their own.
+ */
+function borrowedInto(inMatch, n) {
+  if (!inMatch.some((r) => r.round === n - 1)) return null;
+  return ownDeaths(inMatch, n - 1).length ? null : bannerDeath(inMatch, n - 1);
+}
+
+/** Round n's died frames, less the one that belongs to the round before. */
+function ownDeaths(inMatch, n) {
+  const died = inMatch.filter((r) => r.round === n && r.died);
+  if (!died.length) return died;
+  const borrowed = borrowedInto(inMatch, n);
+  return borrowed ? died.filter((r) => r !== borrowed) : died;
+}
 
 /** Up to `limit` verified deaths, most teachable first. */
 function teachableDeaths(rounds, limit = 4) {
@@ -65,7 +124,8 @@ function secondsIn(rec) {
  * The frames around one death.
  *
  * @param records  AI log records: { at, frame, state, round, died }
- * @param death    a reconciled round: { n, deathSec, afterPlant }
+ * @param death    a reconciled round: { n, deathSec, afterPlant, screenDied },
+ *                 or a ledger row, whose died is the screen's own
  * @param window   { from, to } wall clock bounds of the match
  * @returns        [before, after?] records, or [] when nothing shows the moment
  */
@@ -103,13 +163,28 @@ function framesFor(records, death, window = {}) {
 
   // No clock to match: the frame the screen registered the death on, and the
   // one before it, when the screen saw it at all.
-  // A buy phase frame shows the shop, never the fight, and the score lag files
-  // a few of them under the round that follows, so they are passed over.
-  const i = round.findIndex((r) => r.died);
-  if (i < 0) return [];
-  const usable = (r) => r && (r.state || {}).phase !== 'buy';
-  const at = round[i];
-  const before = round.slice(0, i).reverse().find(usable) || null;
+  //
+  // The round before's banner death is left out first, as this round's death
+  // and as the frame before one.
+  const borrowed = borrowedInto(inMatch, death.n);
+  let list = round.filter((r) => r !== borrowed);
+  let i = list.findIndex((r) => r.died);
+  if (i < 0) {
+    // The banner case above: a registering frame among the first few of the
+    // next round, before that round's buy phase began, is this round's death.
+    // The frame before it is then this round's last, never the banner's.
+    // ONLY WHEN THE SCREEN FILED A DEATH IN THIS ROUND. A death Riot has and
+    // the screen never registered has no registering frame anywhere, and on
+    // the real Abyss session round 8 was handed round 9's own death frame.
+    const screenDied = typeof death.screenDied === 'boolean' ? death.screenDied : !death.verified && !!death.died;
+    if (!screenDied) return [];
+    const banner = bannerDeath(inMatch, death.n);
+    if (!banner) return [];
+    list = list.concat([banner]);
+    i = list.length - 1;
+  }
+  const at = list[i];
+  const before = list.slice(0, i).reverse().find(usable) || null;
   if (before && usable(at)) return [before, at];
   if (before) return [before];
   return usable(at) ? [at] : [];
