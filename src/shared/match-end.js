@@ -135,8 +135,22 @@ class MatchEndWatch {
     if (sum - e.sum > RESUME_ROUNDS) return false;
     if (e.map && f.map && e.map !== f.map) return false;
     if (e.reason === 'score') return sum > e.sum || isBuyPhase(f.phase, f.clock);
-    // A menu end has no final score, so only play at or past where it stopped.
-    return e.sum > 0 && (sum > e.sum || isBuyPhase(f.phase, f.clock));
+    // A menu end has no final score, so play at or past where it stopped. A
+    // round clock still counting is play too: a reconnect after the menu path
+    // fired usually lands mid round at the same score, not in a buy phase.
+    const left = CLOCK_PHASES.has(f.phase) ? clockSeconds(f.clock) : null;
+    return e.sum > 0 && (sum > e.sum || isBuyPhase(f.phase, f.clock) || (left !== null && left >= LIVE_CLOCK_LEFT));
+  }
+
+  /**
+   * The engine ended the match on a final score the watch never held: the
+   * banner read it once and the end screen then read as menus. The ended
+   * state takes that score, so the end screen after it is not mistaken for
+   * the match carrying on.
+   */
+  adoptFinal(team, enemy) {
+    if (!this.ended) return;
+    this.ended = { ...this.ended, reason: 'score', team, enemy, sum: team + enemy };
   }
 
   /**
@@ -171,7 +185,16 @@ class MatchEndWatch {
         return { kind: 'resume', from };
       }
       this.resumeStreak = 0;
-      if (frame.scoreRead && (this.ended.reason === 'lobby' || sum < this.ended.sum)) {
+      // A NEW MATCH is a lower score read on its own frame. After a menu end
+      // also anything that cannot be the same match: nothing to compare with
+      // (deathmatch, e.sum 0), too far on, too late, or another map. Play at
+      // the ended score that is none of those waits (ignored, kept in afterEnd),
+      // since it may be the same match coming back.
+      const e = this.ended;
+      const lower = sum < e.sum;
+      const unrelated = e.reason === 'lobby' && (e.sum === 0 || sum - e.sum > RESUME_ROUNDS
+        || at - e.at > RESUME_MS || (!!e.map && !!frame.map && e.map !== frame.map));
+      if (frame.scoreRead && (lower || unrelated)) {
         this.ended = null;
         this.lastPlayAt = at;
         this.lobbyStreak = 0;

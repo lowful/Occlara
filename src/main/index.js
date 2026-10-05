@@ -190,7 +190,10 @@ function matchInProgress() {
  * a second monitor would be a live feed of the match by another name.
  */
 function liveLogSealed() {
-  return matchInProgress();
+  // Only the Valorant reader writes the log. A League game or a Rivals match
+  // in progress has nothing in it to seal, and sealing hid the finished
+  // Valorant session behind them.
+  return engine instanceof CoachingEngine && matchInProgress();
 }
 
 /**
@@ -292,7 +295,7 @@ function buildValorantReview(snap, tracker, extra) {
     // rather than the screen's guess at the mode.
     queue: (extra && extra.queue) || (tracker && tracker.mode) || null,
     riotIdSet: (store.get('riotId') || '').includes('#'),
-    linkMissing: !!(extra && extra.linkMissing),
+    linkMissing: (extra && extra.linkMissing) || false,
   });
   // narrativeComing: the first version, saved before the narrative call, says
   // nothing about the narrative rather than that it failed.
@@ -301,6 +304,8 @@ function buildValorantReview(snap, tracker, extra) {
   built.thin = !!ai.thin;
   // The Riot match this review is linked to, so no other review links it too.
   built.matchId = (tracker && tracker.matchId) || null;
+  // Recording stopped mid match: the link rules above treat it as a part.
+  built.stoppedLive = !!snap.stoppedLive;
   return { built, role };
 }
 
@@ -451,9 +456,42 @@ function repaintReview(job, built, frames, opts) {
 }
 
 /** Riot match ids already linked to another saved review, never linked twice. */
-function linkedMatchIds(exceptId) {
+function linkedMatchIds(job) {
+  // Except a review recording was STOPPED in the middle of, against a later
+  // recording: the player stopped and started again in the same match, and the
+  // later one watched it end. Polling first, the stub used to take Riot's
+  // record from it, and the review that opened was told the match was played
+  // on another account.
   return new Set(reviewStore.list('valorant')
-    .filter((r) => r && r.id !== exceptId && r.matchId).map((r) => r.matchId));
+    .filter((r) => r && r.id !== job.id && r.matchId && !(r.stoppedLive && r.at <= job.snap.startedAt))
+    .map((r) => r.matchId));
+}
+
+/**
+ * A later recording of the same match linked Riot's record: the review of the
+ * part before the player stopped is folded into it and goes, from the library
+ * and from the retries, so the match is linked and counted once.
+ */
+function retireStopStubs(job, lm) {
+  const verifyFor = (startedAt, endedAt, map) => verifyCoachedMatch(lm, startedAt, endedAt, { map }).ok;
+  for (const [key, other] of [...reviewJobs.entries()]) {
+    const o = other.snap;
+    if (other === job || !o.stoppedLive || o.endedAt > job.snap.startedAt) continue;
+    if (!verifyFor(o.startedAt, o.endedAt, o.context && o.context.map)) continue;
+    other.cancelled = true;
+    clearTimeout(other.timer);
+    releaseAiLogFrames(other.log);
+    reviewJobs.delete(key);
+    reviewStore.remove(other.id);
+    console.log(`[review] ${other.id} was the start of this match, recorded before a stop: folded into ${job.id}`);
+    registry.broadcast(C.PUSH_REVIEWS, { id: other.id, game: 'valorant', removed: true });
+  }
+  for (const r of reviewStore.list('valorant')) {
+    if (r.id !== job.id && r.matchId === lm.matchId && r.stoppedLive && r.at <= job.snap.startedAt) {
+      reviewStore.remove(r.id);
+      registry.broadcast(C.PUSH_REVIEWS, { id: r.id, game: 'valorant', removed: true });
+    }
+  }
 }
 
 /**
@@ -537,7 +575,8 @@ function linkRiotRecord(job) {
     releaseAiLogFrames(job.log);
     if (reviewJobs.get(snap.startedAt) === job) reviewJobs.delete(snap.startedAt);
   };
-  const find = () => fetchCoachedMatch(snap.startedAt, snap.endedAt, { ...mctx, exclude: linkedMatchIds(job.id) });
+  const lastTry = {};
+  const find = () => fetchCoachedMatch(snap.startedAt, snap.endedAt, { ...mctx, exclude: linkedMatchIds(job) }, lastTry);
 
   /*
    * RIOT'S RECORD OVERRIDES THE SCREEN, and the narrative is written again.
@@ -620,6 +659,7 @@ function linkRiotRecord(job) {
     // land minutes later, by which time the next match may have its own
     // review open, and a late scoreboard must not replace it with this one.
     repaintReview(job, next.built);
+    if (lm.matchId) retireStopStubs(job, lm);
     // The totals are Riot's now; the rounds follow, and they are what fixes
     // the deaths, the timing and the coach's reads.
     riotThen(lm, [120000, 300000]);
@@ -647,7 +687,10 @@ function linkRiotRecord(job) {
         // Nothing linked. Said in the review, rather than leaving it promising
         // a grade that is not coming.
         if ((store.get('riotId') || '').includes('#')) {
-          repaintReview(job, buildValorantReview(snap, null, { history: job.history, linkMissing: true }).built);
+          // Refused because another review holds it is not "not found".
+          const taken = /already linked/.test(String(lastTry.why || ''));
+          repaintReview(job, buildValorantReview(snap, null,
+            { history: job.history, linkMissing: taken ? 'taken' : true }).built);
         }
         done();
         return;
@@ -1440,7 +1483,6 @@ const controller = {
     const licenseKey = store.get('licenseKey');
     if (!licenseKey) return { ok: false, error: 'No license active.' };
 
-    const hasSessionData = !!lastReviewShown || reviewStore.list().length > 0;
     // MID MATCH, the chat gets nothing about the match in progress. Ask Coach
     // is a window the player can keep open on a second monitor, and a chat that
     // knows "died round 5 at A Site" answers "where should I play" with exactly
@@ -1449,11 +1491,17 @@ const controller = {
     // ONE GAME'S DATA IS NEVER SHOWN UNDER ANOTHER GAME'S NAME. The tracker
     // profile and match list are Valorant's, so with League or Rivals chosen
     // the chat was answering about the player's Valorant rank.
-    const gameId = gameRegistry.get(store.get('game')).id;
+    // Asked about one saved review, that review's game, whatever Settings says.
+    const seeded = state.chatReviewId ? reviewStore.get(state.chatReviewId) : null;
+    const gameId = (seeded && seeded.game) || gameRegistry.get(store.get('game')).id;
     const valorant = gameId === 'valorant';
+    // Played this game before: a review of THIS game, or the one on screen.
+    const hasSessionData = reviewStore.list(gameId).length > 0
+      || !!(lastReviewShown && lastReviewShown.kind === gameId);
+    const seededAgent = seeded && seeded.review && seeded.review.game && seeded.review.game.agent;
     const context = {
       game:         gameId,
-      agent:        valorant ? state.agent && state.agent.agent : null,
+      agent:        valorant ? (seeded ? seededAgent || null : state.agent && state.agent.agent) : null,
       sessionTips:  [],
       // The League recorder keeps no match memory; reading it threw on every message.
       matchMemory:  engine && !midMatch && Array.isArray(engine.matchMemory) ? engine.matchMemory.slice(-8) : [],
@@ -1476,7 +1524,7 @@ const controller = {
           : null,
       })),
       // The last graded matches from the library, and what keeps repeating.
-      recentSessions: midMatch ? [] : reviewStore.recent(gameRegistry.get(store.get('game')).id, 3).map((e) => ({
+      recentSessions: midMatch ? [] : reviewStore.recent(gameId, 3).map((e) => ({
         date: new Date(e.at).toLocaleDateString([], { month: 'short', day: 'numeric' }),
         map: e.review.game && e.review.game.map, overall: e.review.grade && e.review.grade.score,
         scores: Object.fromEntries(((e.review.grade && e.review.grade.categories) || []).map((c) => [c.key, c.score])),
@@ -1484,7 +1532,9 @@ const controller = {
         weaknesses: ((e.review.insights && e.review.insights.mistakes) || []).slice(0, 2).map((x) => x.title).join('. '),
       })),
       matchReview: midMatch ? null : chatReviewContext(state.chatReviewId, gameId),
-      proPlaybook:  playbookMode(),
+      // The playbook is Valorant's: its notes would ground a League answer in
+      // Valorant tactics.
+      proPlaybook:  valorant ? playbookMode() : 'off',
     };
     try {
       const { ok, status, data } = await api.post('/api/coach/chat', { messages, context }, licenseKey, 30000);
@@ -1685,11 +1735,12 @@ async function fetchLastMatch() {
  * not evidence against the match. But whatever we do know must not contradict.
  */
 /** The coached match, or null when it cannot be confirmed as ours. */
-async function fetchCoachedMatch(startedAt, endedAt, mctx) {
+async function fetchCoachedMatch(startedAt, endedAt, mctx, out) {
   const lm = await fetchLastMatch();
   if (!lm) return null;
   // The newest match and the few before it, each verified (pickCoachedMatch).
   const { match: m, why, tried } = pickCoachedMatch(lm, startedAt, endedAt, mctx);
+  if (out) out.why = why;
   if (!m) {
     console.log(`[match-link] not linking any of the last ${tried} matches to this session: ${why}`);
     return null;
@@ -2023,9 +2074,17 @@ function thinAiLog() {
       try { fs.unlinkSync(path.join(aiLogDir, r.frame)); } catch {}
     }
   });
+  // THE CAP LOSES THE LEAST FIRST, and never the last three minutes. Taking
+  // the oldest unheld record took the live match's death windows once a long
+  // hold (a review still waiting for Riot) filled the log.
   while (out.length > AI_LOG_MAX_FRAMES) {
-    const k = out.findIndex((r) => !held(r));
-    const drop = out.splice(k < 0 ? 0 : k, 1)[0];
+    const limit = out.length - AI_LOG_RECENT;
+    const first = (test) => { for (let i = 0; i < limit; i++) if (test(out[i])) return i; return -1; };
+    let k = first((r) => !r.keep && !held(r));
+    if (k < 0) k = first((r) => !r.keep && held(r));
+    if (k < 0) k = first((r) => r.keep && !held(r));
+    if (k < 0) k = 0;
+    const drop = out.splice(k, 1)[0];
     try { fs.unlinkSync(path.join(aiLogDir, drop.frame)); } catch {}
   }
   aiLogRecords = out;

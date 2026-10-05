@@ -67,6 +67,13 @@ function read(e, sec, context) {
 }
 const score = (e) => `${e.matchContext.teamScore}-${e.matchContext.enemyScore}`;
 
+/** A menu frame (the end of match screen reads as one), `sec` seconds on. */
+function menu(e, sec) {
+  clock += sec * 1000;
+  console.log = () => {};
+  try { e.applyRead({ data: { lobby: true }, shot: null, at: clock }); } finally { console.log = realLog; }
+}
+
 /** A match played up to a score, a round a minute and a half, two reads a round. */
 function playTo(e, team, enemy) {
   let t = 0;
@@ -169,6 +176,68 @@ function playTo(e, team, enemy) {
     ok(e.ended[0] && e.ended[0].rounds.length === 26 && e.ended[0].rounds[25].n === 26,
       `with its own rounds and no phantom one from the 0-0 read (${e.ended[0] && e.ended[0].rounds.length})`);
     ok(e.ledger.size() === 1 && e.ledger.list()[0].n === 1, `and the new match starts at round 1 (${e.ledger.list().map((r) => r.n)})`);
+  }
+
+  // ── A final score read once, then the end screen ─────────────────────────
+  // At a read a second the last round's banner is often read once before the
+  // end screen, which reads as a menu. Found replaying the real 24 round Abyss
+  // match: it ended 45 s later on the menu path at 12-11, with no result.
+  {
+    const e = engine();
+    playTo(e, 12, 10);
+    read(e, 30, { phase: 'active', clock: '0:20', teamScore: 13, enemyScore: 10, playerAlive: true, playerHp: 100 });
+    for (let i = 0; i < 20 && !e.endWatch.ended; i++) menu(e, 3);
+    await new Promise((r) => setTimeout(r, 20));
+    const snap = e.ended[0];
+    ok(snap && snap.endedBy === 'score' && snap.context.teamScore === 13 && snap.context.enemyScore === 10,
+      `a final read once and then only menus ends the match on that score (${snap && snap.endedBy} ${snap && snap.context.teamScore}-${snap && snap.context.enemyScore})`);
+    ok(snap && snap.rounds.find((r) => r.n === 23).result === 'won', 'and the last round gets its result');
+  }
+  {
+    const e = engine();
+    playTo(e, 12, 10);
+    read(e, 30, { phase: 'active', clock: '0:20', teamScore: 13, enemyScore: 10, playerAlive: true, playerHp: 100 });
+    console.log = () => {};
+    e.stop();
+    console.log = realLog;
+    const snap = e.ended[0];
+    ok(snap && snap.endedBy === 'score' && !snap.stoppedLive, 'Stop pressed on that banner is a score end too, and opens');
+  }
+  {
+    const e = engine();
+    playTo(e, 12, 10);
+    read(e, 30, { phase: 'active', clock: '0:55', teamScore: 13, enemyScore: 10, playerAlive: true, playerHp: 100 });
+    read(e, 2, { phase: 'active', clock: '0:53', teamScore: 12, enemyScore: 10, playerAlive: true, playerHp: 100 });
+    for (let i = 0; i < 20 && !e.endWatch.ended; i++) menu(e, 3);
+    await new Promise((r) => setTimeout(r, 20));
+    ok(e.ended[0] && e.ended[0].endedBy === 'lobby',
+      'a final read once and then contradicted is no final: an alt tab after it ends nothing on that score');
+  }
+
+  // ── A buy read inside a running round clock is the round ─────────────────
+  {
+    const e = engine();
+    playTo(e, 3, 4);
+    for (let left = 70; left >= 32; left -= 2) {
+      read(e, 2, { phase: 'active', clock: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`,
+        teamScore: 3, enemyScore: 4, playerAlive: true, playerHp: 100 });
+    }
+    read(e, 2, { phase: 'buy', clock: '0:30', teamScore: 3, enemyScore: 4, playerAlive: true, playerHp: 100 });
+    const before = e.lastDeathAt;
+    read(e, 4, { phase: 'dead', clock: '0:26', teamScore: 3, enemyScore: 4, playerAlive: false,
+      aliveTell: 'COMBAT REPORT visible with KILLED BY REYNA and no own health' });
+    ok(e.lastDeathAt !== before, 'a "buy 0:30" two seconds after "active 0:32" does not hide the real death after it');
+  }
+
+  // ── A step misread on buy frames is still taken back ──────────────────────
+  {
+    const e = engine();
+    playTo(e, 5, 3);
+    read(e, 20, { phase: 'buy', clock: '0:24', teamScore: 6, enemyScore: 3, playerAlive: true, playerHp: 100 });
+    read(e, 2, { phase: 'buy', clock: '0:22', teamScore: 6, enemyScore: 3, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '6-3' && e.lastStep && !e.lastStep.bought, 'the frames that accepted a step cannot confirm it');
+    for (let i = 0; i < 3; i++) read(e, 2, { phase: 'buy', clock: '0:18', teamScore: 5, enemyScore: 3, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '5-3', `so a misread pair on buy frames is taken back too (${score(e)})`);
   }
 
   // ── The review is announced before the narrative is written ──────────────

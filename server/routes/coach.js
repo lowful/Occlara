@@ -3362,7 +3362,10 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
     // Pro Playbook (experimental): pull the player-relevant habits into the
     // conversation so drills and fixes come from the curated knowledge base.
     // ('on' and 'hybrid' both retrieve here; chat has no static block to layer.)
-    const playbookLine = (ctx.proPlaybook && ctx.proPlaybook !== 'off')
+    // The playbook is Valorant's, so another game's chat never gets it, even
+    // from a client that still sends it.
+    const playbookLine = (ctx.proPlaybook && ctx.proPlaybook !== 'off'
+      && (!ctx.game || ctx.game === 'valorant'))
       ? (() => {
           const notes = knowledge.retrieve({ agent: ctx.agent }, 5);
           return notes.length ? 'PRO PLAYBOOK (curated high-elo habits, ground your advice and drills in these):\n' + notes.map((t) => '- ' + t).join('\n') : '';
