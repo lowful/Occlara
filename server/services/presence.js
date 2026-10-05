@@ -37,6 +37,12 @@ const MAX_ERRORS = 50;
 
 const hashOf = (key) => crypto.createHash('sha256').update(String(key)).digest('hex').slice(0, 8);
 
+// THE LICENCE FORMAT, checked before anything is a person. Any header or body
+// key of eight characters used to count, so a mistyped activation or a junk
+// header became a user, and enough of them evicted the real ones at MAX_USERS.
+const KEY_FORMAT = /^GC-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+const MAX_ROUTES = 200;
+
 /** Which game and what kind of call a path is. */
 function classify(path) {
   const p = String(path || '').toLowerCase();
@@ -64,9 +70,10 @@ class Presence {
   /** One request from a client. Never throws. */
   touch({ key, path, version }) {
     try {
-      if (!key || String(key).length < 8) return;
+      const clean = typeof key === 'string' ? key.trim().toUpperCase() : '';
+      if (!KEY_FORMAT.test(clean)) return;
       const at = this.now();
-      const hash = hashOf(String(key).trim().toUpperCase());
+      const hash = hashOf(clean);
       const c = classify(path);
       let u = this.users.get(hash);
       if (!u) {
@@ -74,7 +81,7 @@ class Presence {
         u = { hash, firstSeen: at, lastSeen: at, lastRead: 0, lastReview: 0, game: null, version: null,
           reads: [], callsToday: 0, day: '' };
         this.users.set(hash, u);
-        this.keys.set(hash, String(key).trim().toUpperCase());
+        this.keys.set(hash, clean);
       }
       const day = new Date(at).toISOString().slice(0, 10);
       if (u.day !== day) { u.day = day; u.callsToday = 0; }
@@ -105,8 +112,12 @@ class Presence {
       if (status >= 500) { r.errors5xx++; r.lastError = this.now(); }
       else if (status >= 400) r.errors4xx++;
       if (ms > 10000) r.slow++;
+      // Deleted and set again so the Map's order is least recently used. A set
+      // on an existing key keeps its first position, so the route evicted at
+      // the cap used to be the first one ever seen, which is the busiest.
+      this.routes.delete(route);
       this.routes.set(route, r);
-      if (this.routes.size > 200) this.routes.delete(this.routes.keys().next().value);
+      if (this.routes.size > MAX_ROUTES) this.routes.delete(this.routes.keys().next().value);
     } catch { /* never cost a request */ }
   }
 
@@ -189,4 +200,4 @@ class Presence {
 /** The one shared tracker the server and the admin routes use. */
 const presence = new Presence();
 
-module.exports = { Presence, presence, classify, hashOf, RECORDING_MS, REVIEWING_MS, OPEN_MS };
+module.exports = { Presence, presence, classify, hashOf, KEY_FORMAT, RECORDING_MS, REVIEWING_MS, OPEN_MS };

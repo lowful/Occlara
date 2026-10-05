@@ -170,26 +170,10 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .detail .sc { font-size: 10.5px; color: var(--text-dim); background: rgba(0,0,0,0.26); border: 1px solid var(--glass-border); border-radius: 999px; padding: 3px 9px; }
 .detail .sc b { color: var(--text); }
 
-/* Session currently being graded. Muted and not expandable, so it never reads
-   as a finished result sitting at the top of the list. */
-.row.session.grading { cursor: default; opacity: 0.85; }
-.row.session.grading .place { color: var(--text-dim); }
-.grading-label {
-  font-size: 10.5px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
-  color: var(--cyan);
-}
-.grading-spin {
-  width: 11px; height: 11px; flex: none; margin-right: 8px;
-  border: 2px solid rgba(var(--cyan-rgb), 0.22);
-  border-top-color: var(--cyan);
-  border-radius: 50%;
-  animation: gradingSpin 720ms linear infinite;
-}
-@keyframes gradingSpin { to { transform: rotate(360deg); } }
+/* A graded match repainted because another review was saved. It was already on
+   screen, so it does not slide in again. */
+.row.session.settled { animation: none; }
 
-@media (prefers-reduced-motion: reduce) {
-  .grading-spin { animation: none; border-top-color: rgba(var(--cyan-rgb), 0.22); }
-}
 /* The confirmed match scoreboard. Separated from the category chips by a rule
    so it reads as fact from the tracker rather than another graded number. */
 .detail .matchline { padding-bottom: 10px; border-bottom: 1px solid var(--glass-border); }
@@ -268,7 +252,22 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .team-row.me .team-agent { color: var(--cyan); }
 .team-line { font-variant-numeric: tabular-nums; color: var(--text-mute); }
 
-/* Graded matches: the letter beside the number, and the row's two actions. */
+/* Graded matches: the letter beside the number, and the row's two actions.
+   The chip is the tracker rating's shape, but its colour is the grade's LETTER
+   tone from shared/grade-view.js (good, mid, warn, bad), the rule the review,
+   the library and the panel use, so one grade is one colour in every window. */
+.grade-chip {
+  font-size: 12px; font-weight: 800; min-width: 34px; text-align: center; border-radius: 8px; padding: 3px 0;
+  color: var(--text-dim); border: 1px solid var(--glass-border);
+}
+.grade-chip.good { color: var(--good); background: rgba(var(--good-rgb),0.10); border-color: rgba(var(--good-rgb),0.3); }
+.grade-chip.mid  { color: var(--text); background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.28); }
+.grade-chip.warn { color: var(--warn); background: rgba(var(--warn-rgb),0.10); border-color: rgba(var(--warn-rgb),0.3); }
+.grade-chip.bad  { color: var(--red); background: rgba(var(--red-rgb),0.10); border-color: rgba(var(--red-rgb),0.3); }
 .grade-letter { font-size: 12px; font-weight: 800; color: var(--text-dim); min-width: 14px; text-align: center; }
+.grade-letter.good { color: var(--good); }
+.grade-letter.mid  { color: var(--text); }
+.grade-letter.warn { color: var(--warn); }
+.grade-letter.bad  { color: var(--red); }
 .d-note { font-size: 11.5px; color: var(--text-mute); margin: 6px 0 0; }
 .d-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }

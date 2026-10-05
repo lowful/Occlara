@@ -56,7 +56,7 @@ function replay(frames, mode) {
     if (died) lastDeath = at;
     prevAlive = alive;
 
-    const w = watch.play({ team, enemy, mode, at });
+    const w = watch.play({ team, enemy, mode, phase: f.phase, clock: f.clock, map, at });
     if (w) events.push({ at: f.t, ...w, score: `${team}-${enemy}` });
     if (w && w.kind === 'end') { endedBy = w.reason; finalScore = { team, enemy }; }
     if (w && (w.kind === 'ignore' || w.kind === 'end')) continue;
@@ -71,10 +71,11 @@ function replay(frames, mode) {
       state: { phase: f.phase, clock: f.clock }, round: ledger.current(), died });
   }
   // The log stops when the player pressed stop; in the app the next frames are
-  // menus, which is what confirms a final score read once.
-  if (!endedBy) {
-    const last = frames.length ? frames[frames.length - 1].t * 1000 : 0;
-    const w = watch.lobby({ at: last + 10000, rounds: ledger.size() });
+  // menus, which is what confirms a final score. Two of them, because a
+  // swiftplay final needs the menu twice.
+  const last = frames.length ? frames[frames.length - 1].t * 1000 : 0;
+  for (let i = 1; i <= 2 && !endedBy; i++) {
+    const w = watch.lobby({ at: last + i * 5000, rounds: ledger.size() });
     if (w) events.push({ at: 'menu', ...w, score: `${team}-${enemy}` });
     if (w && w.kind === 'end') { endedBy = w.reason; finalScore = { team, enemy }; }
   }

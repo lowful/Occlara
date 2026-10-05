@@ -41,4 +41,13 @@ contextBridge.exposeInMainWorld('occlara', {
     ipcRenderer.on(C.PUSH_GAME, h);
     return () => ipcRenderer.removeListener(C.PUSH_GAME, h);
   },
+  // A review was saved or improved: the first version when a match ends, then
+  // Riot's record a few minutes later. The same push the match library repaints
+  // on. Without it Graded matches only ever showed what was saved before the
+  // window opened, however long it stayed open.
+  onReviews: (cb) => {
+    const h = (_e, r) => cb(r);
+    ipcRenderer.on(C.PUSH_REVIEWS, h);
+    return () => ipcRenderer.removeListener(C.PUSH_REVIEWS, h);
+  },
 });

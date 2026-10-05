@@ -21,7 +21,7 @@
  * Run: npm run test:matchlink
  */
 const path = require('path');
-const { verifyCoachedMatch, roundsPlayed, matchEndEstimate } =
+const { verifyCoachedMatch, pickCoachedMatch, roundsPlayed, matchEndEstimate } =
   require(path.join(__dirname, '..', 'src', 'main', 'services', 'match-link.js'));
 
 let pass = 0, fail = 0;
@@ -81,6 +81,49 @@ check('  unknown length beyond the lead is refused', !noScore.ok, noScore.why);
 const noScoreRecent = verifyCoachedMatch({ startedAt: T(-5), map: 'Breeze', agent: 'Iso' },
   SESSION_START, SESSION_END, COACHED);
 check('  unknown length inside the lead still links', noScoreRecent.ok, noScoreRecent.why);
+
+console.log('\nthe newest match is not always the coached one:');
+{
+  const coached = { matchId: 'b', startedAt: T(-10), map: 'Breeze', agent: 'Iso', score: '13-11' };
+  const skirmish = { matchId: 'a', startedAt: T(14), map: 'Skirmish E', agent: 'Iso', score: '5-3' };
+  const pick = pickCoachedMatch({ ...skirmish, recent: [coached] }, SESSION_START, SESSION_END, COACHED);
+  check('  a skirmish queued after it no longer hides it', pick.match && pick.match.matchId === 'b',
+    JSON.stringify(pick));
+  const none = pickCoachedMatch({ ...skirmish, recent: [{ ...coached, map: 'Ascent' }] }, SESSION_START, SESSION_END, COACHED);
+  check('  and every candidate still has to verify', !none.match && none.tried === 2, JSON.stringify(none));
+  const solo = pickCoachedMatch(coached, SESSION_START, SESSION_END, COACHED);
+  check('  a server without the list still links the newest', solo.match === coached, JSON.stringify(solo));
+}
+
+console.log('\na deathmatch is never the coached match:');
+{
+  const dm = { matchId: 'dm', startedAt: T(-8), map: 'Breeze', agent: 'Iso', score: '0-0', mode: 'Deathmatch' };
+  const v = verifyCoachedMatch(dm, SESSION_START, SESSION_END, COACHED);
+  check('  a 0-0 deathmatch on the same map and agent is refused', !v.ok, JSON.stringify(v));
+  const tdm = verifyCoachedMatch({ ...dm, score: '100-87', mode: 'Team Deathmatch' }, SESSION_START, SESSION_END, COACHED);
+  check('  and so is team deathmatch, whatever its score', !tdm.ok, JSON.stringify(tdm));
+}
+
+console.log('\nthe rounds have to fit:');
+{
+  const prev = { matchId: 'p', startedAt: T(-25), map: 'Breeze', agent: 'Iso', score: '13-5' };
+  const watched12to7 = { ...COACHED, score: { team: 12, enemy: 7, final: false } };
+  const v = verifyCoachedMatch(prev, SESSION_START, SESSION_END, watched12to7);
+  check('  an 18 round match cannot be one the coach watched 19 rounds of', !v.ok, JSON.stringify(v));
+  const real = { ...prev, matchId: 'r', score: '13-9' };
+  check('  a 22 round one can', verifyCoachedMatch(real, SESSION_START, SESSION_END, watched12to7).ok);
+  const ended = { ...COACHED, score: { team: 13, enemy: 11, final: true } };
+  const shorter = verifyCoachedMatch({ ...prev, score: '13-8' }, SESSION_START, SESSION_END, ended);
+  check('  a match seen ending at 24 rounds is not a 21 round one', !shorter.ok, JSON.stringify(shorter));
+  check('  but it is a 24 round one', verifyCoachedMatch({ ...prev, score: '11-13' }, SESSION_START, SESSION_END, ended).ok);
+}
+
+console.log('\na match already linked to another review is skipped:');
+{
+  const a = { matchId: 'a', startedAt: T(-10), map: 'Breeze', agent: 'Iso', score: '13-11' };
+  const pick = pickCoachedMatch(a, SESSION_START, SESSION_END, { ...COACHED, exclude: ['a'] });
+  check('  its id is not linked twice', !pick.match && /already linked/.test(pick.why), JSON.stringify(pick));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

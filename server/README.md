@@ -100,17 +100,26 @@ Subscribe to these events:
 - `invoice.paid`
 - `invoice.payment_failed`
 - `customer.subscription.deleted`
+- `charge.refunded`
+- `charge.dispute.created`
+
+The last two revoke a refunded or disputed licence. The handler cannot run on an
+event Stripe never sends, so the endpoint must list them.
 
 ## API Endpoints
 
 The `Gate` column is what the server actually enforces today, not what it ought to.
+
+`session` means `Authorization: Bearer <Supabase access token>`. The route acts on
+the user Supabase says the token belongs to; a `userId` sent as well must be that
+same user or the request is refused (403). See `services/account-auth.js`.
 
 ### Payments
 
 | Method | Path                            | Gate | Description                        |
 |--------|---------------------------------|------|------------------------------------|
 | POST   | `/api/payments/create-checkout` | none | Create Stripe Checkout session URL |
-| POST   | `/api/payments/cancel`          | none | Cancel a subscription by `userId`  |
+| POST   | `/api/payments/cancel`          | session | Cancel the signed in user's subscription |
 | GET    | `/api/payments/success`         | none | Poll for license after payment     |
 | POST   | `/api/payments/webhook`         | Stripe signature | Stripe webhook receiver |
 
@@ -119,22 +128,28 @@ The `Gate` column is what the server actually enforces today, not what it ought 
 | Method | Path                      | Gate | Description                            |
 |--------|---------------------------|------|----------------------------------------|
 | POST   | `/api/license/activate`   | none, rate limited | Bind a key to a device   |
-| POST   | `/api/license/deactivate` | none | Unbind the device for a `userId`       |
+| POST   | `/api/license/deactivate` | session | Unbind the signed in user's device |
 | POST   | `/api/license/validate`   | none | Validate a key, used by the client     |
+
+A licence lookup that fails for a database or network reason is answered 503
+with `retry: true` and no `valid` field, never as "not found". Only a missing row
+is a 404.
 
 ### Account
 
 | Method | Path                     | Gate | Description                              |
 |--------|--------------------------|------|------------------------------------------|
-| GET    | `/api/account/dashboard` | none | License and billing summary for a `userId` |
-| POST   | `/api/account/portal`    | none | Stripe billing portal URL for a `userId` |
+| GET    | `/api/account/dashboard` | session | License and billing summary for the signed in user |
+| POST   | `/api/account/portal`    | session | Stripe billing portal URL for the signed in user |
 
 ### Coach
 
 Every `/api/coach/*` route requires an `X-License-Key` header holding an active,
 unexpired key, and is rate limited. Routes cover `analyze`, `chat`, `frame-chat`,
 `recap`, round and match summaries, session scoring, match and rank lookups,
-`detect-agent`, and `match-review`. See `routes/coach.js`.
+`detect-agent`, and `match-review`. See `routes/coach.js`. A key that cannot be
+checked because the database is failing is answered 503 with `retry: true`, not
+403, and a key confirmed in the last half hour is still honoured through it.
 
 ### Admin
 
@@ -142,6 +157,11 @@ unexpired key, and is rate limited. Routes cover `analyze`, `chat`, `frame-chat`
 |--------|------------------------|--------------------------|--------------------------|
 | GET    | `/api/admin/coaching`  | `x-admin-password` header | Aggregate tip/reject counts |
 | GET    | `/api/admin/costs`     | `x-admin-password` header | AI call and cost totals  |
+| GET    | `/api/admin/live`      | `x-admin-password` header | Who is using it right now |
+
+The header only, never a query string, compared in constant time. Ten failed
+attempts an hour per IP, across `/api/admin` and `/admin`, then 429. The same
+password is what lets a bench run `benchModel` (see `benchModel` in coach.js).
 
 ### Health
 
@@ -163,16 +183,33 @@ Tables:
 ## Authorization, still to do
 
 Because the service role key bypasses row level security, these handlers are the
-only place authorization can happen, and two pieces are not built yet:
+only place authorization can happen.
 
-- Routes marked `Gate: none` accept a `userId` from the caller. They need to verify
-  a Supabase JWT and confirm it belongs to that `userId` before reading or writing
-  anything.
+The account routes (`cancel`, `deactivate`, `dashboard`, `portal`) now verify a
+Supabase session.
+
+**Deploy order.** These four answer 401 to a request that carries no
+`Authorization: Bearer <access token>`, so the website (and anything else that
+calls them, such as a Lovable server function) must send the signed in user's
+access token BEFORE this server is deployed, or the account page stops working
+for everyone at once. The token is `session.access_token` from the site's
+Supabase client. Nothing in this repo can check what the site sends.
+
+`/api/payments/cancel` answers 400 with the reason in `error` when the account
+has nothing that can charge again (lifetime, or no live subscription), the same
+shape lifetime always got, and writes nothing.
+
+Two pieces are still open:
+
+- `/api/payments/create-checkout` still takes `userId` and `email` from the body.
+  The worst a caller can do with it is pay for a licence on someone else's
+  account, but it should take the session too once the site sends one there.
 - `/api/coach/*` checks that the license key is active but not that it is being
   used from the device it was activated on, so the one device per key rule that
   `/api/license/activate` enforces does not hold on the paid routes.
 
-Treat both as required before any new route that takes a `userId` is added.
+Any new route that acts on an account uses `requireUser` from
+`services/account-auth.js`, never a `userId` the caller names.
 
 ## License Key Format
 

@@ -241,7 +241,15 @@ function renderCards(d) {
 }
 
 // ── Recent matches ────────────────────────────────────────────────────────────
+// The TRACKER's match rating (the server's computeMatchRating: a base for the
+// result plus a K/D bonus), not Occlara's grade, so it keeps its own bands. A
+// review's grade is coloured by its letter, below in Graded matches.
 function ratingClass(r) { return r >= 85 ? 'great' : r >= 70 ? 'good' : r >= 55 ? 'mid' : 'low'; }
+
+// The one grade colour rule (shared/grade-view.js), keyed to the letter bands.
+// Without the script a grade only loses its colour; the number and the letter
+// are still printed.
+const gradeTone = (g) => (window.GradeView ? window.GradeView.gradeTone(g) : '');
 
 // Grade a per-match stat for the tile colors: g = good, y = okay, r = bad.
 // Thresholds follow common tracker expectations for competitive play.
@@ -475,8 +483,9 @@ function fmtDate(ts) {
 }
 
 /** Anticipation-then-reveal: the overall score counts up from 0, matching the
- *  match-review flow's reveal treatment instead of dropping a static number. */
-function revealScore(el, target, delay) {
+ *  match-review flow's reveal treatment instead of dropping a static number.
+ *  The colour lands with the final number, and it is the grade's letter tone. */
+function revealScore(el, target, delay, tone) {
   const start = performance.now() + delay;
   const DUR = 700;
   function frame(now) {
@@ -485,7 +494,7 @@ function revealScore(el, target, delay) {
     const eased = 1 - Math.pow(1 - t, 3);
     el.textContent = Math.round(target * eased);
     if (t < 1) requestAnimationFrame(frame);
-    else el.classList.add(ratingClass(target));
+    else if (tone) el.classList.add(tone);
   }
   requestAnimationFrame(frame);
 }
@@ -493,11 +502,16 @@ function revealScore(el, target, delay) {
 /**
  * One graded match from the library. The number is the review's grade; opening
  * the row shows what it was built on, and the button opens the whole review.
+ *
+ * `settled` is a row that was already on screen with the same grade and is
+ * being repainted because another review was saved. It skips the count up and
+ * the entrance, so only the match that is new or changed draws the eye.
  */
-function sessionRow(s, i) {
+function sessionRow(s, i, settled) {
   const row = document.createElement('div');
-  row.className = 'row expandable session';
-  row.style.animationDelay = Math.min(i * 50, 400) + 'ms';   // staggered entrance
+  row.className = 'row expandable session' + (settled ? ' settled' : '');
+  row.dataset.id = s.id || '';
+  if (!settled) row.style.animationDelay = Math.min(i * 50, 400) + 'ms';   // staggered entrance
   const top = document.createElement('div');
   top.className = 'top';
   const chev = document.createElement('span');
@@ -517,13 +531,23 @@ function sessionRow(s, i) {
   const mvpSlot = document.createElement('span');
   mvpSlot.hidden = true;   // fills in when a known match links to this one
   sessionMvpSlots.push({ s, slot: mvpSlot });
+  // Coloured by the grade's LETTER, as everywhere else. This chip used the
+  // tracker rating's bands at 85, 70 and 55, so an 82 A was white here and green
+  // in the review, the library and the panel.
+  const tone = gradeTone(s.grade);
+  const target = (s.grade && s.grade.score) || 0;
   const score = document.createElement('span');
-  score.className = 'rating';
+  score.className = 'grade-chip';
   score.title = s.grade && s.grade.provisional ? 'Match grade, provisional' : 'Match grade';
-  score.textContent = '0';
-  revealScore(score, (s.grade && s.grade.score) || 0, 150 + i * 120);
+  if (settled) {
+    score.textContent = String(target);
+    if (tone) score.classList.add(tone);
+  } else {
+    score.textContent = '0';
+    revealScore(score, target, 150 + i * 120, tone);
+  }
   const letter = document.createElement('span');
-  letter.className = 'grade-letter';
+  letter.className = 'grade-letter' + (tone ? ' ' + tone : '');
   letter.textContent = s.grade ? s.grade.letter : '';
   top.append(chev, place, sub, spacer, mvpSlot, score, letter);
 
@@ -552,41 +576,6 @@ function sessionRow(s, i) {
   detail.append(actions);
   row.append(top, detail);
   row.addEventListener('click', () => row.classList.toggle('open'));
-  return row;
-}
-
-/**
- * The row shown while the newest session is being graded. Deliberately not
- * expandable and not a real score: it is a placeholder that gets replaced by
- * the genuine row when the grade lands, so it must never look like a result.
- */
-function gradingRow(g) {
-  const row = document.createElement('div');
-  row.className = 'row session grading';
-
-  const top = document.createElement('div');
-  top.className = 'top';
-
-  const spinner = document.createElement('span');
-  spinner.className = 'grading-spin';
-
-  const place = document.createElement('span');
-  place.className = 'place';
-  place.textContent = 'Latest session';
-
-  const sub = document.createElement('span');
-  sub.className = 'sub';
-  sub.textContent = [g.map, g.agent].filter(Boolean).join(' · ');
-
-  const spacer = document.createElement('span');
-  spacer.className = 'spacer';
-
-  const label = document.createElement('span');
-  label.className = 'grading-label';
-  label.textContent = 'Grading';
-
-  top.append(spinner, place, sub, spacer, label);
-  row.append(top);
   return row;
 }
 
@@ -801,23 +790,37 @@ async function buildMatchCard(m) {
   return cv;
 }
 
+// The grade each row on screen is showing, by review id, so a repaint can tell
+// a new or changed grade (counts up, slides in) from one already there.
+const shownGrades = new Map();
+
+/**
+ * Every graded review in the library, newest first; the empty state only
+ * appears with none at all. A review is saved the moment its match ends, so
+ * there is no "grading" placeholder any more: the row is the review, and it
+ * repaints when Riot's record improves it (onReviews below).
+ */
 function renderSessions(d) {
+  // A row someone has opened stays open through a repaint, rather than folding
+  // shut under the cursor because a different match was saved.
+  const open = new Set([...sessionListEl.querySelectorAll('.row.session.open')].map((r) => r.dataset.id));
   sessionListEl.innerHTML = '';
   sessionMvpSlots.length = 0;   // rows are being rebuilt, drop stale slots
   const sessions = d.sessions || [];
-  // Grading takes 20 to 30 seconds. Without this row the session is simply
-  // absent while it runs, which looks exactly like it failed.
-  const pending = d.grading ? gradingRow(d.grading) : null;
-
-  // Every graded session shows up (a session qualifies with multiple tips or
-  // 5+ minutes of coaching); the empty state only appears with none at all.
-  if (!sessions.length && !pending) {
+  const before = new Map(shownGrades);
+  shownGrades.clear();
+  if (!sessions.length) {
     sessionEmptyEl.hidden = false;
     return;
   }
   sessionEmptyEl.hidden = true;
-  if (pending) sessionListEl.append(pending);
-  sessions.forEach((s, i) => sessionListEl.append(sessionRow(s, i)));
+  sessions.forEach((s, i) => {
+    const score = s.grade ? s.grade.score : null;
+    const row = sessionRow(s, i, before.has(s.id) && before.get(s.id) === score);
+    if (open.has(s.id)) row.classList.add('open');
+    shownGrades.set(s.id, score);
+    sessionListEl.append(row);
+  });
   annotateSessionMvps();   // matches may have loaded first
 }
 
@@ -966,7 +969,6 @@ async function load() {
         + 'Rank and match history need a connection this app does not have yet. '
         + 'Switch to Valorant in Settings for the full dashboard.';
       showDashboard(false);
-      watchGrading(false);
       return;
     }
     showDashboard(true);
@@ -976,25 +978,44 @@ async function load() {
     renderAgents(d.topAgents);
     renderMatches(d.matches);
     renderSessions(d);
-    watchGrading(!!d.grading);
   } catch (e) {
     console.error('[stats] load failed', e);
   }
 }
 
-/**
- * While a grade is in flight, re-pull the dashboard so the pending row turns
- * into the real one without the player reopening the window. Stops the moment
- * grading finishes, so an idle stats window is not polling forever.
+/*
+ * A REVIEW SAVED WHILE THIS WINDOW IS OPEN lands in Graded matches without
+ * reopening it. It used to wait on a 4 second poll that only ran while the
+ * dashboard reported a grade in flight, and the dashboard never reports one
+ * (grading is always null since reviews are saved when the match ends), so a
+ * Stats window left open on a second monitor never showed the match just
+ * played.
+ *
+ * Only that list is repainted. The tracker sections did not change, and a
+ * skeleton over them on every save reads as the dashboard reloading for
+ * nothing. A Valorant review is saved again every time Riot's record improves
+ * it, so a burst of pushes is folded into one fetch, and the sequence number
+ * drops an older answer that lands after a newer one.
  */
-let gradingPoll = null;
-function watchGrading(active) {
-  if (active && !gradingPoll) {
-    gradingPoll = setInterval(load, 4000);
-  } else if (!active && gradingPoll) {
-    clearInterval(gradingPoll);
-    gradingPoll = null;
-  }
+let reviewsTimer = null;
+let reviewsSeq = 0;
+async function refreshSessions() {
+  const seq = ++reviewsSeq;
+  try {
+    const d = await window.occlara.getDashboard(matchMode);
+    // A dashboard that failed comes back as { ok: false, error } from
+    // safeHandle, with no sessions in it. renderSessions reads a missing list as
+    // an empty library, so painting it would wipe the graded matches already on
+    // screen and show "no graded matches" over a hiccup. Keep what is there.
+    if (!d || seq !== reviewsSeq || d.statsSupported === false || !Array.isArray(d.sessions)) return;
+    renderSessions(d);
+  } catch {}
+}
+if (window.occlara.onReviews) {
+  window.occlara.onReviews(() => {
+    clearTimeout(reviewsTimer);
+    reviewsTimer = setTimeout(refreshSessions, 400);
+  });
 }
 
 document.getElementById('weekly').addEventListener('click', () => window.occlara.openWeekly());

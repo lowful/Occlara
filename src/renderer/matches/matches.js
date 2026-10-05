@@ -9,7 +9,9 @@
  */
 
 const $ = (id) => document.getElementById(id);
-const { el, tone, scoreTone } = window.GradeView;
+// Every grade here is coloured by its letter through GradeView.gradeTone, the
+// same rule the review, the panel and Stats use.
+const { el, gradeTone } = window.GradeView;
 
 let game = null;
 
@@ -32,7 +34,16 @@ function paintTabs(games) {
   }
 }
 
-/** One bar per graded match, oldest on the left. */
+/**
+ * One bar per graded match, oldest on the left.
+ *
+ * The score sets --h on the bar, and both the fill's height and the number's
+ * place read it, so a 95 stands taller than a 77. The number used to sit in
+ * the same flex column as the fill, where it could not shrink and the fill
+ * could: every grade from about 77 up drew the same bar, and a player climbing
+ * through A and S saw a flat line. matches.css takes the number out of that
+ * column.
+ */
 function paintTrend(grades) {
   const host = $('p-trend');
   host.replaceChildren();
@@ -40,9 +51,9 @@ function paintTrend(grades) {
   for (const g of grades.slice().reverse()) {
     const bar = el('div', 'p-bar');
     bar.title = `${fmtWhen(g.at)}: ${g.score} (${g.letter})${g.provisional ? ', provisional' : ''}`;
-    const fill = el('i', scoreTone(g.score) + (g.provisional ? ' prov' : ''));
-    fill.style.setProperty('--h', Math.max(4, g.score) + '%');
-    bar.append(el('span', null, g.score), fill);
+    bar.style.setProperty('--h', Math.max(4, Math.min(100, g.score)) + '%');
+    const fill = el('i', gradeTone(g) + (g.provisional ? ' prov' : ''));
+    bar.append(fill, el('span', null, g.score));
     host.append(bar);
   }
 }
@@ -144,7 +155,7 @@ function row(m) {
   const grade = el('div', 'm-grade');
   const g = m.grade;
   grade.append(el('span', 'm-score', g ? g.score : '--'));
-  grade.append(el('span', 'm-letter ' + (g ? tone(g.letter) : 'none'), g ? g.letter : '?'));
+  grade.append(el('span', 'm-letter ' + (g ? gradeTone(g) : 'none'), g ? g.letter : '?'));
   if (g && g.provisional) grade.title = 'Provisional: some of the record was missing';
   side.append(grade);
   b.append(main, side);

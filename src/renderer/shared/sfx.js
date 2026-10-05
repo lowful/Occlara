@@ -1,8 +1,12 @@
 /**
  * The two sounds the app makes: coaching armed, and coaching stood down.
  *
+ * Played by the panel on its status transitions (panel.js soundCue), and only
+ * when config.sounds is not false. The overlay played them until 8.0 removed
+ * it, and for a while after that nothing did.
+ *
  * Synthesised rather than shipped as files, for three reasons that all matter
- * here. The overlay's CSP is `default-src 'self'` with no media-src, and Web
+ * here. The panel's CSP is `default-src 'self'` with no media-src, and Web
  * Audio needs no source at all, so this cannot be blocked. Nothing is added to
  * the installer. And the shape of the sound is in the code, where it can be
  * tuned by ear against the game rather than by opening an audio editor.

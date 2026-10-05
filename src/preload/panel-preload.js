@@ -44,6 +44,11 @@ contextBridge.exposeInMainWorld('occlara', {
   quit:          () => ipcRenderer.send(C.APP_QUIT),
   // request/response
   getState:      () => ipcRenderer.invoke(C.STATE_GET),
+  // The panel's translator reads the language from here, exactly as Settings
+  // does. Without it initI18n's refresh threw inside its own try on every call,
+  // the language stayed English, and the panel was the one surface that never
+  // followed the setting: Settings said "Starten" while the panel said "Start".
+  getConfig:     () => ipcRenderer.invoke(C.CONFIG_GET),
   setAgent:      (name) => ipcRenderer.invoke(C.AGENT_SET, name),
   // subscriptions
   onStatus: (cb) => subscribe(C.PUSH_STATUS, cb),

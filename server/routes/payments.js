@@ -2,8 +2,20 @@
 const express  = require('express');
 const stripe   = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const supabase = require('../db/supabase');
+const { requireUser } = require('../services/account-auth');
 
 const router = express.Router();
+const signedIn = requireUser(supabase);
+
+/*
+ * The licence /cancel acts on: the newest one with a subscription that can
+ * still charge. 'payment_failed' counts, because Stripe is still retrying that
+ * card and stopping it is exactly what the player wants. Rows come newest first.
+ */
+const CANCELLABLE = new Set(['active', 'payment_failed']);
+function cancellableOf(rows) {
+  return (rows || []).find((l) => l && l.stripe_subscription_id && CANCELLABLE.has(l.status)) || null;
+}
 
 const PRICE_IDS = {
   weekly:   process.env.STRIPE_PRICE_WEEKLY,
@@ -56,32 +68,57 @@ router.post('/create-checkout', async (req, res) => {
 });
 
 // POST /api/payments/cancel
-// Body: { userId }
-router.post('/cancel', async (req, res) => {
+// Header: Authorization: Bearer <Supabase access token>. Body: { userId?, email? },
+// and a userId sent must be the token's own user. The website sends both.
+router.post('/cancel', signedIn, async (req, res) => {
   try {
-    const { userId } = req.body;
-    if (!userId) return res.status(400).json({ error: 'Missing userId' });
+    const userId = req.user.id;
 
-    const { data: license, error: licenseError } = await supabase
+    /*
+     * EVERY LICENCE THIS USER HOLDS, newest first, then the one to cancel.
+     *
+     * This used to be .eq('user_id').single(), and .single() errors on more
+     * than one row. The webhook writes a row per purchase, so a monthly
+     * subscriber who resubscribed or later bought lifetime was told "No license
+     * found" and could not stop the subscription that was still charging them.
+     */
+    const { data: rows, error: licenseError } = await supabase
       .from('licenses')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .order('created_at', { ascending: false });
 
-    if (licenseError || !license) {
-      return res.status(404).json({ error: 'No license found' });
+    if (licenseError) {
+      console.error('[payments] cancel lookup failed:', licenseError.message || licenseError.code);
+      return res.status(503).json({ error: 'Could not read your licences right now. Try again in a minute.', retry: true });
     }
+    const all = rows || [];
+    if (!all.length) return res.status(404).json({ error: 'No license found' });
 
-    if (license.plan === 'lifetime') {
-      return res.status(400).json({ error: 'Lifetime plans cannot be cancelled' });
-    }
-
-    if (!license.stripe_subscription_id) {
-      await supabase
-        .from('licenses')
-        .update({ status: 'cancelled' })
-        .eq('id', license.id);
-      return res.json({ success: true, message: 'Subscription cancelled' });
+    const license = cancellableOf(all);
+    if (!license) {
+      // NOTHING THAT CAN CHARGE AGAIN: a lifetime licence never renews, and
+      // neither does one granted without Stripe. Nothing is written, where a
+      // row with no subscription used to be set to 'cancelled' on the spot,
+      // ending access the player still had.
+      //
+      // Still a 400 with the sentence in `error`, the shape lifetime always
+      // got. The website is a separate repo and cannot be seen from here, and
+      // a page that branches on res.ok would read a 200 as "your subscription
+      // was cancelled" when nothing was. The fields after `error` are for a
+      // page that wants to say which case it is.
+      const newest = all.find((l) => l.status === 'active') || all[0];
+      const message = newest.plan === 'lifetime'
+        ? 'A lifetime licence has no subscription, so nothing will be charged again and there is nothing to cancel.'
+        : 'There is no active subscription on this account to cancel.';
+      return res.status(400).json({
+        error: message,
+        success: false,
+        cancelled: false,
+        reason: 'no-subscription',
+        plan: newest.plan || null,
+        message,
+      });
     }
 
     const subscription = await stripe.subscriptions.update(license.stripe_subscription_id, {
@@ -113,6 +150,7 @@ router.post('/cancel', async (req, res) => {
     console.log('[payments] Subscription cancelled for user:', userId);
     res.json({
       success:     true,
+      cancelled:   true,
       message:     'Subscription cancelled',
       accessUntil: new Date(subscription.current_period_end * 1000).toISOString(),
     });

@@ -40,6 +40,8 @@ const coachRoutes   = require('./routes/coach');
 const rivalsRoutes  = require('./routes/rivals');
 const adminRoutes   = require('./routes/admin');
 const webhookHandler = require('./routes/webhook');
+const { errorHandler, corsRefusal } = require('./services/http-errors');
+const { makeAdminLimiter } = require('./services/admin-auth');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -75,7 +77,9 @@ app.use(cors({
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     if (origin.endsWith('.lovable.app') || origin.endsWith('.lovable.dev')) return callback(null, true);
-    callback(new Error('Not allowed by CORS')); // everything else is rejected
+    // Everything else is rejected before any route runs, as a client error
+    // (400) rather than the 500 a plain Error became. See http-errors.js.
+    callback(corsRefusal());
   },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key', 'X-Prompt-Mode', 'X-Combat-Tip-Given', 'X-Recent-Tips', 'X-Admin-Password', 'X-Forced', 'X-Player-Stats', 'X-Occlara-Version'],
@@ -87,9 +91,13 @@ app.use(cors({
 // this same route every three minutes, twenty times an hour, so counting every
 // call meant an app left open spent the whole budget on good checks and a real
 // sign in from that machine was refused for an hour. Brute force is failures.
+// A 503 is the licence database failing, not a guess, so it is not counted
+// either: an outage answers every client's re-check 503, and counting those
+// left whole IPs locked out of a real sign in for an hour after it ended.
 const activationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, max: 10,
   skipSuccessfulRequests: true,
+  requestWasSuccessful: (req, res) => res.statusCode < 400 || res.statusCode >= 500,
   message: { error: 'Too many activation attempts. Try again in 1 hour.' },
   standardHeaders: true, legacyHeaders: false,
 });
@@ -131,6 +139,9 @@ const chatLimiter = rateLimit({
   message: { error: 'Too many chat messages. Give it a few minutes.' },
   standardHeaders: true, legacyHeaders: false,
 });
+// Failed admin passwords, ten an hour per IP. One instance for the API and the
+// page, so the count is shared. See services/admin-auth.js.
+const adminLimiter = makeAdminLimiter();
 
 // ─── Raw body routes, MUST come before JSON parser ──────────────────────────
 // Stripe webhook needs raw JSON; coach/summary/round needs raw binary JPEG
@@ -157,7 +168,12 @@ app.use('/api', (req, res, next) => {
     path,
     version: req.headers['x-occlara-version'],
   });
-  res.on('finish', () => presence.finish({ path, status: res.statusCode, ms: Date.now() - t0 }));
+  // A path no route answered is one bucket, not one row each: a scan of 200
+  // made up paths used to push the real routes out of the admin view.
+  res.on('finish', () => presence.finish({
+    path: res.statusCode === 404 && !req.route ? '(no such route)' : path,
+    status: res.statusCode, ms: Date.now() - t0,
+  }));
   next();
 });
 
@@ -168,6 +184,8 @@ app.use('/api/coach/chat',               chatLimiter);
 app.use('/api/coach/read',               readLimiter);
 app.use('/api/coach',                    coachLimiter);
 app.use('/api/rivals',                   coachLimiter);
+app.use('/api/admin',                    adminLimiter);
+app.use('/admin',                        adminLimiter);
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use('/api/payments', paymentRoutes);
@@ -204,17 +222,9 @@ app.get('/api/health', (_, res) => res.json(healthInfo()));
 
 // ─── 404 / Error ─────────────────────────────────────────────────────────────
 app.use((_, res) => res.status(404).json({ error: 'Not found' }));
-app.use((err, req, res, __) => {
-  // A body over the limit is the client's problem and gets its real status,
-  // not a 500 that reads as the server failing.
-  if (err && (err.type === 'entity.too.large' || err.status === 413)) {
-    console.warn(`[server] body too large on ${req.originalUrl}`);
-    return res.status(413).json({ error: 'Request too large' });
-  }
-  console.error('[server] Error:', err.message);
-  presence.error(req.originalUrl.split('?')[0], err);
-  res.status(500).json({ error: 'Internal server error' });
-});
+// A client's mistake (a malformed or aborted body, a refused origin) keeps its
+// own 4xx; only the server's own failures are a 500. See http-errors.js.
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`[server] Occlara API running on port ${PORT}`);

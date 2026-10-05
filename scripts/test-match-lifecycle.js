@@ -26,12 +26,14 @@ const ok = (cond, what) => {
 
 const posted = [];
 let failNext = false;
+let slowNext = 0;   // ms the next review call takes, to race a resume against it
 const realLoad = Module._load;
 Module._load = function patched(request, parent, isMain) {
   if (request === './api-client') {
     return {
       post: async (p, body) => {
         posted.push({ path: p, body });
+        if (slowNext) { const ms = slowNext; slowNext = 0; await new Promise((r) => setTimeout(r, ms)); }
         if (failNext) { failNext = false; return { ok: false, status: 502, data: null }; }
         return { ok: true, status: 200, data: { review: 'A summary.', summary: 'A summary.', rounds: {}, focus: 'Wait.', study: [] } };
       },
@@ -54,8 +56,8 @@ function engine() {
   return e;
 }
 
-function frame(e, { team, enemy, phase = 'active', clock = '1:10', died = false, side = 'defending' }) {
-  Object.assign(e.matchContext, { teamScore: team, enemyScore: enemy, phase, clock, side, gameMode: 'standard' });
+function frame(e, { team, enemy, phase = 'active', clock = '1:10', died = false, side = 'defending', mode = 'standard' }) {
+  Object.assign(e.matchContext, { teamScore: team, enemyScore: enemy, phase, clock, side, gameMode: mode });
   e.inLobby = false;
   e.recordFrame({ lobby: false, died });
 }
@@ -123,14 +125,107 @@ function menu(e) {
     e.on('match-review', (text, snap) => reviews.push(snap));
     frame(e, { team: 12, enemy: 11 });
     frame(e, { team: 13, enemy: 11 });
-    frame(e, { team: 13, enemy: 11 });
+    menu(e);
     await new Promise((r) => setTimeout(r, 20));
+    ok(reviews.length === 1, 'the menu after the final score ends it');
     // A stray round reaching the ledger after the end (the end screen still
     // shows a HUD). Without the guard in stop(), it would be reviewed as a match.
     e.ledger.observe({ at: Date.now(), team: 13, enemy: 11, phase: 'active', clock: '1:00' });
     e.stop();
     await new Promise((r) => setTimeout(r, 20));
     ok(reviews.length === 1, 'stopping after the match ended does not review it twice');
+  }
+
+  // ── Stopping on the end screen, before the final score settled ────────────
+  {
+    const e = engine();
+    const reviews = [];
+    e.on('match-review', (text, snap) => reviews.push(snap));
+    frame(e, { team: 12, enemy: 10 });
+    frame(e, { team: 13, enemy: 10, clock: '0:02' });
+    e.stop();
+    await new Promise((r) => setTimeout(r, 20));
+    ok(reviews.length === 1 && reviews[0].endedBy === 'score',
+      `a final score still waiting to settle is a score end when the player stops (${reviews[0] && reviews[0].endedBy})`);
+    ok(reviews[0] && reviews[0].rounds.every((r) => r.n <= 23), 'with no phantom round after it');
+
+    const s = engine();
+    const sr = [];
+    s.on('match-review', (text, snap) => sr.push(snap));
+    frame(s, { team: 3, enemy: 4, mode: 'swiftplay' });
+    frame(s, { team: 3, enemy: 5, mode: 'swiftplay', phase: 'dead', clock: '0:02' });
+    s.stop();
+    await new Promise((r) => setTimeout(r, 20));
+    ok(sr.length === 1 && sr[0].endedBy === 'stop', 'but a swiftplay one is not, its mode is too weak to claim a result on');
+  }
+
+  // ── An end that was not the end: the match resumes ────────────────────────
+  {
+    const realNow = Date.now;
+    let clock = Date.parse('2026-10-04T23:00:00Z');
+    Date.now = () => clock;
+    const e = engine();
+    const reviews = [];
+    const resumed = [];
+    e.on('match-review', (text, snap) => reviews.push(snap));
+    e.on('match-resumed', (r) => resumed.push(r));
+    e.matchContext.agent = 'Jett';
+    e.matchContext.agentConfirmed = true;
+    const at = (sec) => { clock = Date.parse('2026-10-04T23:00:00Z') + sec * 1000; };
+    at(0);  frame(e, { team: 3, enemy: 3, phase: 'buy', clock: '0:20', mode: 'swiftplay' });
+    at(30); frame(e, { team: 3, enemy: 3, clock: '1:10', mode: 'swiftplay' });
+    at(60); frame(e, { team: 3, enemy: 4, phase: 'buy', clock: '0:20', mode: 'swiftplay' });
+    at(90); frame(e, { team: 3, enemy: 4, died: true, clock: '1:00', mode: 'swiftplay' });
+    at(120); frame(e, { team: 3, enemy: 5, phase: 'dead', clock: '0:01', mode: 'swiftplay' });
+    // An alt tab right at the round end: two menu frames.
+    at(122); menu(e);
+    at(124); menu(e);
+    await new Promise((r) => setTimeout(r, 20));
+    ok(reviews.length === 1 && e.endWatch.ended, 'the swiftplay final is ended by two menu frames');
+    const startedAt = reviews[0] && reviews[0].startedAt;
+    ok(e.matchContext.agent === null, 'and the agent is let go for the next match');
+    // Back in the game, buying round 9 at 3 to 5.
+    at(130); frame(e, { team: 3, enemy: 5, phase: 'buy', clock: '0:20', mode: 'swiftplay' });
+    ok(!resumed.length, 'one buy phase at the ended score waits for a second');
+    at(132); frame(e, { team: 3, enemy: 5, phase: 'buy', clock: '0:18', mode: 'swiftplay' });
+    ok(resumed.length === 1 && resumed[0].startedAt === startedAt,
+      'two of them resume the match, named by when it started so the app can withdraw its review');
+    ok(!e.endWatch.ended && e.matchStartedAt === startedAt, 'the match is in progress again, the same match');
+    ok(e.matchContext.agent === 'Jett' && e.matchContext.agentConfirmed, 'with its agent back');
+    ok(e.ledger.list().some((r) => r.n === 9 && r.frames >= 2), 'and the frames read while it looked over are in round 9');
+    at(200); frame(e, { team: 4, enemy: 5, phase: 'buy', clock: '0:20', mode: 'standard' });
+    at(260); frame(e, { team: 13, enemy: 5, clock: '0:02', mode: 'standard' });
+    at(262); menu(e);
+    await new Promise((r) => setTimeout(r, 20));
+    ok(reviews.length === 2 && reviews[1].startedAt === startedAt && reviews[1].endedBy === 'score',
+      'the real end reviews the whole match under the same start');
+    ok(reviews[1] && reviews[1].rounds.some((r) => r.n === 8 && r.died) && reviews[1].rounds.some((r) => r.n === 9),
+      'with the rounds from before the false end and after it');
+    Date.now = realNow;
+  }
+
+  // ── A resume that lands while the review is still being written ───────────
+  {
+    const realNow = Date.now;
+    let clock = Date.parse('2026-10-04T23:00:00Z');
+    Date.now = () => clock;
+    const e = engine();
+    const reviews = [];
+    const resumed = [];
+    e.on('match-review', (text, snap) => reviews.push(snap));
+    e.on('match-resumed', (r) => resumed.push(r));
+    frame(e, { team: 3, enemy: 4, phase: 'buy', clock: '0:20', mode: 'swiftplay' });
+    clock += 30000; frame(e, { team: 3, enemy: 4, died: true, clock: '1:00', mode: 'swiftplay' });
+    clock += 30000; frame(e, { team: 3, enemy: 5, phase: 'dead', clock: '0:01', mode: 'swiftplay' });
+    slowNext = 60;
+    clock += 2000; menu(e);
+    clock += 2000; menu(e);
+    clock += 6000; frame(e, { team: 3, enemy: 5, phase: 'buy', clock: '0:20', mode: 'swiftplay' });
+    clock += 2000; frame(e, { team: 3, enemy: 5, phase: 'buy', clock: '0:18', mode: 'swiftplay' });
+    Date.now = realNow;
+    await new Promise((r) => setTimeout(r, 120));
+    ok(resumed.length === 1 && reviews.length === 0,
+      `the review being written when the match resumed is dropped, it never opens (${reviews.length})`);
   }
 
   // ── The server being down never costs the player the review ───────────────

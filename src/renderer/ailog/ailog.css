@@ -49,9 +49,11 @@ header {
   background: none; border: 0; padding: 0;
 }
 .mark-death:hover { transform: translateX(-50%) scale(1.25); }
-/* A death the coach never reviewed. Dimmed rather than hidden, because it is
-   still a moment worth scrubbing to, and the contrast with the solid marks is
-   the point: it shows where the coaching went quiet. */
+/* A death the coach never reviewed, in a log from before 8.0, when the coach
+   spoke during a match. ailog.js never sets this on a later session, where
+   silence during the match is the design. Dimmed rather than hidden, because
+   it is still a moment worth scrubbing to, and the contrast with the solid
+   marks is the point: it shows where the coaching went quiet. */
 .mark-death.unreviewed { opacity: 0.45; filter: grayscale(1) drop-shadow(0 0 4px rgba(255,255,255,0.35)); }
 .mark-death.unreviewed:hover { opacity: 1; }
 
@@ -102,8 +104,9 @@ header {
   font-size: 11px; color: var(--text-mute); line-height: 1.35;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* A death the coach never said anything about is the interesting one, so it is
-   the one that gets the accent. */
+/* In a log from before 8.0, a death the coach never said anything about is the
+   interesting one, so it is the one that gets the accent. A later session
+   never carries this class. */
 .deathnav-why.unreviewed { color: var(--warn); }
 
 /* ── The keyboard hint ───────────────────────────────────────────────────────

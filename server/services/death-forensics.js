@@ -30,6 +30,10 @@
 
 const { promptName } = require('./languages');
 
+// "a Vandal", "an Outlaw". The prompt's own grammar is what the model copies,
+// and "with a Outlaw" came back in its sentences.
+const withArticle = (w) => `${/^[aeiou]/i.test(String(w)) ? 'an' : 'a'} ${w}`;
+
 let DATA = {};
 try { DATA = require('../valorant-data.generated.json'); } catch { DATA = {}; }
 
@@ -117,7 +121,7 @@ function buildPrompt(input, death) {
   const facts = [];
   facts.push(`Round ${death.n}, ${death.side === 'attacking' ? 'on attack' : death.side === 'defending' ? 'on defence' : 'side unknown'}.`);
   if (typeof death.sec === 'number') facts.push(`Died ${death.sec} seconds after the barriers dropped.`);
-  if (death.killer) facts.push(`Killed by ${death.killer}${death.weapon ? ` with a ${death.weapon}` : ''}.`);
+  if (death.killer) facts.push(`Killed by ${death.killer}${death.weapon ? ` with ${withArticle(death.weapon)}` : ''}.`);
   if (death.firstDeath) facts.push('The first death of the round, on either team.');
   if (death.alive) facts.push(`Standing when it happened: ${death.alive.mates} of their team, player included, against ${death.alive.enemies}.`);
   if (death.traded === true) facts.push('A teammate killed the killer within five seconds (the death was traded).');

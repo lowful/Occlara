@@ -47,19 +47,33 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 .p-avg-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-mute); margin-top: 4px; }
 
 /* The grade trend: one bar per match, oldest on the left, so improvement reads
-   as a line climbing to the right. The number sits on every bar. */
+   as a line climbing to the right. The number sits on every bar.
+
+   The fill's height is the score as a share of the WHOLE bar, so 0 to 100 uses
+   every pixel. The number is positioned off the fill's top instead of stacked
+   above it in the same flex column, because stacked it took its own height out
+   of the fill's: the fill was capped near 77% and every grade from B+ to S drew
+   the same bar. The bar's top margin is the room the number needs over a 100.
+   Both read --h, which matches.js sets on the bar. */
 .p-trend {
-  display: flex; align-items: flex-end; gap: 6px; height: 96px;
+  display: flex; gap: 6px; height: 112px;
   padding: var(--space-3); background: var(--bg-2);
   border: 1px solid var(--glass-border); border-radius: var(--r-md);
 }
-.p-bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; min-width: 0; }
-.p-bar i { display: block; width: 100%; max-width: 34px; border-radius: 4px 4px 2px 2px; background: var(--text); height: var(--h, 0%); }
+.p-bar { position: relative; flex: 1; min-width: 0; margin-top: 16px; }
+.p-bar i {
+  position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto;
+  width: 100%; max-width: 34px; height: var(--h, 0%);
+  border-radius: 4px 4px 2px 2px; background: var(--text);
+}
 .p-bar i.good { background: var(--good); }
 .p-bar i.warn { background: var(--warn); }
 .p-bar i.bad  { background: var(--red); }
 .p-bar i.prov { opacity: 0.55; }
-.p-bar span { font: 600 10px var(--font-mono); color: var(--text-dim); }
+.p-bar span {
+  position: absolute; left: 0; right: 0; bottom: calc(var(--h, 0%) + 4px);
+  text-align: center; font: 600 10px/12px var(--font-mono); color: var(--text-dim);
+}
 
 .p-cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); }
 .p-cat {

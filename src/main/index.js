@@ -35,7 +35,7 @@ const logger   = require('./logger');
 const store    = require('./services/store');
 const capture  = require('./services/capture');
 const CoachingEngine = require('./services/coaching-engine');
-const { verifyCoachedMatch } = require('./services/match-link');
+const { verifyCoachedMatch, pickCoachedMatch } = require('./services/match-link');
 const { normalize: normalizeLang } = require('../shared/i18n');
 const registry = require('./windows/registry');
 const panelWindow      = require('./windows/panel-window');
@@ -87,7 +87,6 @@ const state = {
   lastGrade:  null,     // { score, letter, game } of the latest reviewed match
   licenseActive: true,  // false once the subscription ends (locks coaching)
   licenseReason: '',    // why it ended (expired | cancelled | payment_failed | ...)
-  reviewRetryTimer: null,   // pending match-review re-push, cancelled when coaching stops
 };
 
 let mainLaunched = false;
@@ -173,7 +172,13 @@ function maybeNudgeLate() {
  * last match, and nothing is being coached, so the review may be opened.
  */
 function matchInProgress() {
-  if (!state.isCoaching || !engine || !engine.endWatch) return false;
+  if (!state.isCoaching || !engine) return false;
+  // League records from the game client's own API, live while a game is on.
+  if (engine instanceof LolRecorder) return !!engine.live;
+  // Rivals reads hero select and the end screen; what is between them, the
+  // screens it is told to skip, is the match.
+  if (engine instanceof RivalsEngine) return engine.seen === 'away' || engine.seen === 'select';
+  if (!engine.endWatch) return false;
   if (engine.endWatch.ended) return false;
   // Before the first round of the session, a menu is just a menu.
   return engine.ledger.size() > 0 || !engine.inLobby;
@@ -193,8 +198,8 @@ function liveLogSealed() {
  * unreachable. There is no tip stream any more; Occlara says nothing about the
  * match until the review.
  */
-function pushNotice(text) {
-  state.notice = text ? { text: String(text), at: Date.now() } : null;
+function pushNotice(text, kind) {
+  state.notice = text ? { text: String(text), at: Date.now(), kind: kind || null } : null;
   registry.broadcast(C.PUSH_STATE, buildState());
 }
 
@@ -271,20 +276,31 @@ function buildValorantReview(snap, tracker, extra) {
     context: snap.context,
     endedBy: snap.endedBy,
     ai: {
-      summary: ai.summary || ai.review || null,
+      // summary, never review: the server fills review with placeholder text
+      // when the model fails, and that was painted as the coach's read.
+      summary: ai.summary || null,
       rounds: ai.rounds || {},
       focus: ai.focus || null,
       study: Array.isArray(ai.study) ? ai.study : [],
     },
     tracker,
     role,
-    history: store.get('valorantHistory') || [],
+    history: (extra && extra.history) || store.get('valorantHistory') || [],
     verification: extra && extra.verification,
     riotMe: extra && extra.riotMe,
+    // Riot's name for the queue, so the review says Competitive or Unrated
+    // rather than the screen's guess at the mode.
+    queue: (extra && extra.queue) || (tracker && tracker.mode) || null,
+    riotIdSet: (store.get('riotId') || '').includes('#'),
+    linkMissing: !!(extra && extra.linkMissing),
   });
-  built.aiUnavailable = !snap.ai && !(extra && extra.narrativePending);
+  // narrativeComing: the first version, saved before the narrative call, says
+  // nothing about the narrative rather than that it failed.
+  built.aiUnavailable = !snap.ai && !(extra && (extra.narrativePending || extra.narrativeComing));
   built.narrativePending = !!(extra && extra.narrativePending);
   built.thin = !!ai.thin;
+  // The Riot match this review is linked to, so no other review links it too.
+  built.matchId = (tracker && tracker.matchId) || null;
   return { built, role };
 }
 
@@ -377,34 +393,151 @@ async function forensicsFor(rounds, snap) {
   }
 }
 
+/*
+ * EVERY VALORANT REVIEW STILL BEING IMPROVED, by when its match started. Riot's
+ * record lands minutes after the match, so a review keeps working long after it
+ * first opens, and that work has to be stoppable: a match the watch ended too
+ * early resumes, and its review is withdrawn (withdrawReview). Each review keeps
+ * its own retries, so the next match ending, or the player stopping recording,
+ * no longer cancels the Riot link of the one before.
+ */
+const reviewJobs = new Map();
+
+/**
+ * The engine says the last end was wrong: the match is still being played.
+ * Its review is taken back everywhere it went, the window included, and the
+ * real end reviews the whole match.
+ */
+function withdrawReview(startedAt) {
+  const job = reviewJobs.get(startedAt);
+  if (!job) return;
+  reviewJobs.delete(startedAt);
+  job.cancelled = true;
+  clearTimeout(job.timer);
+  releaseAiLogFrames(job.log);
+  reviewStore.remove(job.id);
+  if (lastReviewShown && lastReviewShown.id === job.id) {
+    lastReviewShown = null;
+    reviewWindow.close();
+  }
+  if (state.lastGrade && state.lastGrade.id === job.id) {
+    const top = reviewStore.list().find((r) => r.grade);
+    state.lastGrade = top ? { ...top.grade, game: top.game, id: top.id } : null;
+  }
+  registry.broadcast(C.PUSH_REVIEWS, { id: job.id, game: 'valorant', removed: true });
+  registry.broadcast(C.PUSH_STATE, buildState());
+  console.log(`[review] withdrawn, the match was not over: ${job.id}`);
+}
+
+function stampReview(job, built) {
+  return Object.assign(built, { id: job.id, at: job.snap.endedAt || Date.now() });
+}
+
+/**
+ * Paint one version of a review, if nothing newer has been shown since, and
+ * save it whatever is on screen, because the library keeps the best one. A
+ * TRANSIENT version (the corrected numbers while the summary is rewritten) is
+ * painted and not saved: a quit in that minute left the library copy saying
+ * "Rewriting the coach's read" for good, with the old summary gone.
+ */
+function repaintReview(job, built, frames, opts) {
+  if (job.cancelled) return;
+  stampReview(job, built);
+  if (lastReviewShown === job.showing || (lastReviewShown && lastReviewShown.id === job.id)) {
+    showReview(frames ? { ...built, frameData: dataUrls(frames) } : built);
+  }
+  job.showing = lastReviewShown && lastReviewShown.id === job.id ? lastReviewShown : built;
+  if (!(opts && opts.transient)) saveReview(built, 'valorant', frames);
+}
+
+/** Riot match ids already linked to another saved review, never linked twice. */
+function linkedMatchIds(exceptId) {
+  return new Set(reviewStore.list('valorant')
+    .filter((r) => r && r.id !== exceptId && r.matchId).map((r) => r.matchId));
+}
+
+/**
+ * The match is over, or recording stopped. The engine says so the moment it
+ * happens, before the narrative call, and THIS is when the review is saved and
+ * the match's AI log frames are held. Waiting for the narrative meant a quit or
+ * an update in the next minute lost the review, and a Stop then Start pointed
+ * its death frames at the next session's empty log.
+ */
+function onValorantMatchEnded(snap) {
+  if (!snap) return;
+  // Two reviews of one match only happen when it resumed: the newer one is the
+  // whole match, and the older one goes, from the library too.
+  const prior = reviewJobs.get(snap.startedAt);
+  if (prior) {
+    prior.cancelled = true;
+    clearTimeout(prior.timer);
+    releaseAiLogFrames(prior.log);
+    reviewStore.remove(prior.id);
+  }
+  const job = {
+    id: newId('valorant', snap.endedAt || Date.now()),
+    snap, cancelled: false, timer: null, recorded: false, showing: null,
+    // The baseline as it was BEFORE this match. Its own history row is added
+    // when the tracker links, and every version built after that compared the
+    // match with an average that included the match itself.
+    history: (store.get('valorantHistory') || []).slice(),
+    // Held for as long as the Riot link may keep trying (released when it is
+    // done), so a match linked twenty minutes later still has its frames.
+    log: holdAiLogFrames(snap.startedAt, snap.endedAt, 40 * 60 * 1000),
+  };
+  snap.log = job.log;
+  reviewJobs.set(snap.startedAt, job);
+
+  // NOTHING OPENS OVER A MATCH IN PROGRESS: the next one already being played,
+  // one the player had already left for the next (next-match), or the one
+  // recording was stopped in the middle of. Those are kept in the library.
+  const live = matchInProgress() || snap.endedBy === 'next-match' || !!snap.stoppedLive;
+  const first = stampReview(job, buildValorantReview(snap, null, { history: job.history, narrativeComing: true }).built);
+  job.showing = first;
+  if (!live) showReview(first);
+  saveReview(first, 'valorant');
+  if (!live) reviewWindow.open();
+  else if (snap.stoppedLive) pushNotice('Recording stopped in the middle of a match. Its review is saved in Matches.', 'review');
+  console.log(`[review] valorant review ready: ${snap.rounds.length} rounds, ended by ${snap.endedBy}`
+    + (live ? ', saved but not shown, a match is in progress' : ''));
+}
+
+/**
+ * The narrative came back, or failed. Repaint with it, then link the match to
+ * Riot's record, which is what grades it.
+ */
 function onValorantMatchReview(reviewText, snap) {
   if (!snap) return;
-  const id = newId('valorant', snap.endedAt || Date.now());
-  // The frames of this match, held back from the AI log's thinning until the
-  // review has had its look at them.
-  snap.log = holdAiLogFrames(snap.startedAt, snap.endedAt);
-  const stamp = (built) => Object.assign(built, { id, at: snap.endedAt || Date.now() });
+  if (!reviewJobs.has(snap.startedAt)) onValorantMatchEnded(snap);
+  const job = reviewJobs.get(snap.startedAt);
+  if (!job || job.cancelled) return;
+  snap.log = job.log;
+  job.snap = snap;
+  if (!snap.ai) console.log('[review] no model narrative for this match');
+  repaintReview(job, buildValorantReview(snap, null, { history: job.history }).built);
+  linkRiotRecord(job);
+}
 
-  const first = stamp(buildValorantReview(snap, null).built);
-  showReview(first);
-  saveReview(first, 'valorant');
-  reviewWindow.open();
-  console.log(`[review] valorant review ready: ${snap.rounds.length} rounds, ended by ${snap.endedBy}`
-    + (snap.ai ? '' : ', no model narrative'));
-
-  const mctx = { map: snap.context.map, agent: snap.context.agent };
-  let recorded = false;
-  let showing = first;
-  // Paint one version of the review, if nothing newer has been shown since,
-  // and save it whatever is on screen, because the library keeps the best one.
-  const repaint = (built, frames) => {
-    stamp(built);
-    if (lastReviewShown === showing || (lastReviewShown && lastReviewShown.id === id)) {
-      showReview(frames ? { ...built, frameData: dataUrls(frames) } : built);
-    }
-    showing = lastReviewShown && lastReviewShown.id === id ? lastReviewShown : built;
-    saveReview(built, 'valorant', frames);
+/**
+ * THE MATCH THIS SESSION WATCHED, verified, then Riot's round record laid over
+ * it. Retried on its own clock until Riot has published, and said plainly in
+ * the review when it never links.
+ */
+function linkRiotRecord(job) {
+  const snap = job.snap;
+  const c = snap.context || {};
+  const mctx = {
+    map: c.map,
+    // Only an agent the player confirmed: a detection taken while spectating
+    // names a teammate, and the link then refused the real match.
+    agent: c.agentConfirmed ? c.agent : null,
+    score: { team: c.teamScore | 0, enemy: c.enemyScore | 0, final: snap.endedBy === 'score' },
   };
+  const done = () => {
+    releaseAiLogFrames(job.log);
+    if (reviewJobs.get(snap.startedAt) === job) reviewJobs.delete(snap.startedAt);
+  };
+  const find = () => fetchCoachedMatch(snap.startedAt, snap.endedAt, { ...mctx, exclude: linkedMatchIds(job.id) });
 
   /*
    * RIOT'S RECORD OVERRIDES THE SCREEN, and the narrative is written again.
@@ -420,7 +553,7 @@ function onValorantMatchReview(reviewText, snap) {
    */
   const withRiot = async (lm) => {
     const riot = await riotRoundsFor(lm);
-    if (!riot) return false;
+    if (!riot || job.cancelled) return false;
     const verify = require('../shared/valorant-verify');
     const valorantReview = require('../shared/valorant-review');
     const { rounds, checks } = verify.reconcile(snap.rounds, riot);
@@ -428,9 +561,12 @@ function onValorantMatchReview(reviewText, snap) {
     const vsnap = { ...snap, rounds, context };
     const verification = verify.describe(checks);
     console.log(`[review] ${verification}`);
-    repaint(buildValorantReview({ ...vsnap, ai: null }, lm, { verification, narrativePending: true, riotMe: riot.me }).built);
+    const extra = { verification, riotMe: riot.me, queue: riot.queue, history: job.history };
+    repaintReview(job, buildValorantReview({ ...vsnap, ai: null }, lm, { ...extra, narrativePending: true }).built,
+      null, { transient: true });
 
     const looked = await forensicsFor(rounds, { ...snap, context });
+    if (job.cancelled) return false;
     for (const r of rounds) if (looked.byRound[r.n]) r.forensics = looked.byRound[r.n];
 
     let ai = null;
@@ -449,19 +585,31 @@ function onValorantMatchReview(reviewText, snap) {
     } catch (e) {
       console.log('[review] verified narrative failed:', e.message);
     }
-    const final = buildValorantReview({ ...vsnap, ai }, lm, { verification, riotMe: riot.me }).built;
-    repaint(final, Object.keys(looked.frames).length ? looked.frames : null);
-    releaseAiLogFrames(snap.log);
+    const final = buildValorantReview({ ...vsnap, ai }, lm, extra).built;
+    repaintReview(job, final, Object.keys(looked.frames).length ? looked.frames : null);
     return true;
   };
 
+  // Riot's round record can fail on its own (a rate limit, a slow publish)
+  // after the scoreboard has linked, so it gets retries of its own.
+  const riotThen = (lm, delays) => {
+    withRiot(lm)
+      .catch((e) => { console.log('[review] Riot check failed:', e.message); return false; })
+      .then((ok) => {
+        if (ok || job.cancelled || !delays.length) { done(); return; }
+        job.timer = setTimeout(() => { job.timer = null; if (!job.cancelled) riotThen(lm, delays.slice(1)); }, delays[0]);
+      });
+  };
+
   const withTracker = (lm) => {
-    const next = buildValorantReview(snap, lm);
-    // ONE HISTORY ROW PER MATCH, whichever attempt found the tracker, and
-    // built before the row is added so the match is not compared with itself.
-    if (!recorded) {
-      recorded = true;
-      const valorantReview = require('../shared/valorant-review');
+    if (job.cancelled) return;
+    const valorantReview = require('../shared/valorant-review');
+    const next = buildValorantReview(snap, lm, { history: job.history });
+    // ONE HISTORY ROW PER MATCH, whichever attempt found the tracker. Every
+    // version of this review is built from job.history, the baseline from
+    // before this match, so the row never ends up compared with itself.
+    if (!job.recorded) {
+      job.recorded = true;
       const row = valorantReview.historyEntry(lm, next.role);
       if (row) {
         const past = store.get('valorantHistory') || [];
@@ -469,13 +617,12 @@ function onValorantMatchReview(reviewText, snap) {
       }
     }
     // Only repainted if nothing newer has been shown since. The retry can
-    // land four minutes later, by which time the next match may have its own
+    // land minutes later, by which time the next match may have its own
     // review open, and a late scoreboard must not replace it with this one.
-    repaint(next.built);
+    repaintReview(job, next.built);
     // The totals are Riot's now; the rounds follow, and they are what fixes
     // the deaths, the timing and the coach's reads.
-    withRiot(lm).catch((e) => console.log('[review] Riot check failed:', e.message))
-      .finally(() => releaseAiLogFrames(snap.log));
+    riotThen(lm, [120000, 300000]);
   };
 
   (async () => {
@@ -485,27 +632,37 @@ function onValorantMatchReview(reviewText, snap) {
       const current = await fetchTrackerStats(true);
       if (current) store.set('lastMatchStats', { ...current, _at: Date.now(), _riotId: (store.get('riotId') || '').trim() });
     } catch {}
+    if (job.cancelled) return;
     // THE MATCH THIS SESSION WATCHED, or nothing. fetchCoachedMatch applies
-    // the map, agent and timing checks, so it returns null rather than a
-    // plausible scoreboard from a different game.
+    // the map, agent, score and timing checks, so it returns null rather than
+    // a plausible scoreboard from a different game.
     let lm = null;
-    try { lm = await fetchCoachedMatch(snap.startedAt, snap.endedAt, mctx); } catch {}
+    try { lm = await find(); } catch {}
     if (lm) { withTracker(lm); return; }
-    // Riot publishes a few minutes after the match. Two more tries, both
-    // verified, both cancelled if recording is stopped, since a scoreboard
-    // arriving over the next session would be the wrong match.
-    clearTimeout(state.reviewRetryTimer);
+    // Riot publishes a few minutes after the match. A match stopped halfway
+    // may still be being played, so its review keeps trying for longer.
     const retry = (delays) => {
-      if (!delays.length) { releaseAiLogFrames(snap.log); return; }
-      state.reviewRetryTimer = setTimeout(async () => {
-        state.reviewRetryTimer = null;
+      if (job.cancelled) return;
+      if (!delays.length) {
+        // Nothing linked. Said in the review, rather than leaving it promising
+        // a grade that is not coming.
+        if ((store.get('riotId') || '').includes('#')) {
+          repaintReview(job, buildValorantReview(snap, null, { history: job.history, linkMissing: true }).built);
+        }
+        done();
+        return;
+      }
+      job.timer = setTimeout(async () => {
+        job.timer = null;
+        if (job.cancelled) return;
         let found = null;
-        try { found = await fetchCoachedMatch(snap.startedAt, snap.endedAt, mctx); } catch {}
+        try { found = await find(); } catch {}
         if (found) withTracker(found);
         else retry(delays.slice(1));
       }, delays[0]);
     };
-    retry([90000, 240000]);
+    retry(snap.endedBy === 'stop' || snap.endedBy === 'next-match'
+      ? [90000, 240000, 600000, 1200000] : [90000, 240000, 480000]);
   })();
 }
 
@@ -514,8 +671,9 @@ function onValorantMatchReview(reviewText, snap) {
  * repeated, so the chat talks about THIS match rather than the player in general.
  * The newest review when no id was chosen.
  */
-function chatReviewContext(id) {
-  const e = id ? reviewStore.get(id) : (reviewStore.list()[0] && reviewStore.get(reviewStore.list()[0].id));
+function chatReviewContext(id, game) {
+  const newest = reviewStore.list(game || null)[0];
+  const e = id ? reviewStore.get(id) : (newest && reviewStore.get(newest.id));
   if (!e) return null;
   const r = e.review || {};
   const g = r.game || {};
@@ -575,7 +733,7 @@ const controller = {
     const chosenGame = store.get('game');
     if (!gameRegistry.canCoach(chosenGame)) {
       const g = gameRegistry.get(chosenGame);
-      pushNotice(`${g.label} coaching is not built yet. The look and layout are a preview, so switch back to Valorant in Settings to coach.`);
+      pushNotice(`${g.label} is not reviewed yet. Switch to Valorant, Marvel Rivals or League of Legends in Settings to record a match.`);
       return;
     }
 
@@ -603,7 +761,22 @@ const controller = {
       });
       // Rivals says nothing live either: only its system messages reach the panel.
       engine.on('tip', (t) => { if (t && t.source === 'system') pushNotice(t.text); });
-      engine.on('status', (s) => console.log('[rivals] status', JSON.stringify(s)));
+      // The out of credits notice, and its clearing once reads work again.
+      engine.on('notice', (n) => {
+        if (!n) return;
+        if (n.text) pushNotice(n.text, n.kind);
+        else if (state.notice && state.notice.kind === n.kind) pushNotice(null);
+      });
+      // 'paused' and 'coaching' drive the panel and the pause button, the same
+      // contract as the Valorant engine; anything else is only logged.
+      engine.on('status', (s) => {
+        if (s === 'paused' || s === 'coaching') {
+          state.isPaused = s === 'paused';
+          setStatus(s);
+        } else {
+          console.log('[rivals] status', JSON.stringify(s));
+        }
+      });
       // The post match review, computed from the scoreboard rather than written
       // by the model. Same channel the Valorant and League reviews use, and the
       // review object carries kind: 'rivals' so the surface knows which shape it
@@ -644,9 +817,14 @@ const controller = {
         console.log(`[rivals] review ready: ${r.game.hero || 'hero unread'}, `
           + `${r.scoreline.kills}/${r.scoreline.deaths}/${r.scoreline.assists}`);
       });
-      engine.start();
-      pushNotice('Recording. Play your match: the scoreboard at the end is reviewed and graded automatically.');
+      // Coaching is set BEFORE anything is pushed: the panel and the tray used
+      // to receive a state that still said stopped, showed Ready and a Start
+      // button that did nothing, and could not stop the session.
       state.isCoaching = true;
+      state.isPaused = false;
+      engine.start();
+      pushNotice('Recording. Play your match: the scoreboard at the end is reviewed and graded automatically.', 'recording');
+      setStatus('coaching');
       return;
     }
 
@@ -664,9 +842,11 @@ const controller = {
       });
       engine.on('status', (s) => console.log('[lol] status', JSON.stringify(s)));
       engine.on('game', (record) => finishLolGame(record));
-      engine.start();
-      pushNotice('Recording. Nothing appears during your game, and the graded review opens when it ends.');
       state.isCoaching = true;
+      state.isPaused = false;
+      engine.start();
+      pushNotice('Recording. Nothing appears during your game, and the graded review opens when it ends.', 'recording');
+      setStatus('coaching');
       return;
     }
 
@@ -700,7 +880,13 @@ const controller = {
       // AI decision log: per-frame screenshot + parsed STATE + tip, to disk.
       diagnostics: (rec) => recordAiFrame(rec),
     });
-    engine.on('notice', (n) => pushNotice(n && n.text));
+    // A notice with no text is the engine saying the problem it reported is
+    // over (reads or capture work again); it clears only that kind of notice.
+    engine.on('notice', (n) => {
+      if (!n) return;
+      if (n.text) pushNotice(n.text, n.kind);
+      else if (state.notice && state.notice.kind === n.kind) pushNotice(null);
+    });
     engine.on('cadence', (ms) => {
       state.cadence = ms;
       registry.broadcast(C.PUSH_STATE, buildState());
@@ -709,7 +895,9 @@ const controller = {
       state.isPaused = status === 'paused';
       setStatus(status);
     });
+    engine.on('match-ended', (snap) => onValorantMatchEnded(snap));
     engine.on('match-review', (reviewText, snap) => onValorantMatchReview(reviewText, snap));
+    engine.on('match-resumed', (r) => withdrawReview(r && r.startedAt));
     engine.on('agent', (info) => {
       const wasConfirmed = !!(state.agent && state.agent.confirmed);
       state.agent = info || { agent: null, confirmed: false, role: null };
@@ -745,15 +933,18 @@ const controller = {
     if (!state.isCoaching) return;
     state.isCoaching = false;
     state.isPaused   = false;
-    // A pending match-review retry belongs to the session that just ended.
-    if (state.reviewRetryTimer) {
-      clearTimeout(state.reviewRetryTimer);
-      state.reviewRetryTimer = null;
-    }
+    // A review's Riot link keeps trying after recording stops: the player who
+    // stops on the end screen is the usual case, and Riot publishes a few
+    // minutes later. The link is verified against the coached window, map and
+    // agent, so a late answer can only ever be that match.
     // The match just played should show in stats right away, not after a cache
     // window. The grade is written by the post-match review, per match.
     matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
     rankHistCache = { at: 0, riotId: '', data: null };
+    // The session's notices end with it ("Recording...", a server that was
+    // down). A licence notice stays, it is still true. Cleared before the engine
+    // stops, because stopping can leave a notice of its own about the review.
+    if (state.licenseActive) state.notice = null;
     if (engine) { engine.stop(); engine = null; }
     flushAiLog(true);
     state.agent = { agent: null, confirmed: false, role: null };
@@ -762,7 +953,9 @@ const controller = {
     console.log('[coach] stopped');
   },
   pauseResume() {
-    if (!state.isCoaching || !engine) return;
+    // The League recorder has nothing to pause: it reads what the game client
+    // reports, and the hotkey used to throw on it.
+    if (!state.isCoaching || !engine || typeof engine.pause !== 'function') return;
     if (state.isPaused) engine.resume();
     else                { engine.pause(); }
     // state.isPaused + status pushes are driven by the engine 'status' event.
@@ -1253,16 +1446,23 @@ const controller = {
     // knows "died round 5 at A Site" answers "where should I play" with exactly
     // the live advice Occlara does not give.
     const midMatch = matchInProgress();
+    // ONE GAME'S DATA IS NEVER SHOWN UNDER ANOTHER GAME'S NAME. The tracker
+    // profile and match list are Valorant's, so with League or Rivals chosen
+    // the chat was answering about the player's Valorant rank.
+    const gameId = gameRegistry.get(store.get('game')).id;
+    const valorant = gameId === 'valorant';
     const context = {
-      agent:        state.agent && state.agent.agent,
+      game:         gameId,
+      agent:        valorant ? state.agent && state.agent.agent : null,
       sessionTips:  [],
-      matchMemory:  engine && !midMatch ? engine.matchMemory.slice(-8) : [],
-      stats:        await fetchTrackerStats(),
+      // The League recorder keeps no match memory; reading it threw on every message.
+      matchMemory:  engine && !midMatch && Array.isArray(engine.matchMemory) ? engine.matchMemory.slice(-8) : [],
+      stats:        valorant ? await fetchTrackerStats() : null,
       noSessionYet: !hasSessionData,
-      coachTrend:   (() => { const tp = guardedTrackerPair(); return computeCategoryTrends([], tp.stats, tp.prevStats); })(),
+      coachTrend:   valorant ? (() => { const tp = guardedTrackerPair(); return computeCategoryTrends([], tp.stats, tp.prevStats); })() : null,
       // The chat works WITH the stats dashboard: it sees the same recent
       // matches (with ratings) and coached sessions the player is looking at.
-      recentMatches: (await this.getMatches(false)).matches.slice(0, 5).map((m) => ({
+      recentMatches: !valorant ? [] : (await this.getMatches(false)).matches.slice(0, 5).map((m) => ({
         map: m.map, agent: m.agent, result: m.result, score: m.score,
         kills: m.kills, deaths: m.deaths, assists: m.assists,
         kd: m.kd, acs: m.acs, adr: m.adr, headshotPct: m.headshotPct, rating: m.rating,
@@ -1283,7 +1483,7 @@ const controller = {
         strengths: ((e.review.insights && e.review.insights.strengths) || []).slice(0, 2).map((x) => x.title).join('. '),
         weaknesses: ((e.review.insights && e.review.insights.mistakes) || []).slice(0, 2).map((x) => x.title).join('. '),
       })),
-      matchReview: midMatch ? null : chatReviewContext(state.chatReviewId),
+      matchReview: midMatch ? null : chatReviewContext(state.chatReviewId, gameId),
       proPlaybook:  playbookMode(),
     };
     try {
@@ -1488,13 +1688,14 @@ async function fetchLastMatch() {
 async function fetchCoachedMatch(startedAt, endedAt, mctx) {
   const lm = await fetchLastMatch();
   if (!lm) return null;
-  const v = verifyCoachedMatch(lm, startedAt, endedAt, mctx);
-  if (!v.ok) {
-    console.log(`[match-link] not linking the last match to this session: ${v.why}`);
+  // The newest match and the few before it, each verified (pickCoachedMatch).
+  const { match: m, why, tried } = pickCoachedMatch(lm, startedAt, endedAt, mctx);
+  if (!m) {
+    console.log(`[match-link] not linking any of the last ${tried} matches to this session: ${why}`);
     return null;
   }
-  console.log(`[match-link] linked: ${lm.map} ${lm.agent} ${lm.result} ${lm.score} (${lm.kills}/${lm.deaths}/${lm.assists}, ACS ${lm.acs})`);
-  return lm;
+  console.log(`[match-link] linked: ${m.map} ${m.agent} ${m.result} ${m.score} (${m.kills}/${m.deaths}/${m.assists}, ACS ${m.acs})`);
+  return m;
 }
 
 // ── Session performance log (extended stats dashboard) ──────────────────────
@@ -1514,12 +1715,14 @@ async function fetchCoachedMatch(startedAt, endedAt, mctx) {
  */
 function finishLolGame(record) {
   const review = require('../shared/lol-review');
-  const grader = require('../shared/lol-grader');
+  // Not "grader": that name is grade.js at the top of this file, and shadowing
+  // it here made grader.lol throw, so every League review was saved ungraded.
+  const lolGrader = require('../shared/lol-grader');
   const targets = require('../shared/lol-targets');
   try {
     const history = store.get('lolHistory') || [];
     const built = review.buildReview(record, history);
-    const graded = grader.gradeGame(record, history);
+    const graded = lolGrader.gradeGame(record, history);
 
     const entry = {
       at: Date.now(),
@@ -1855,9 +2058,9 @@ function flushAiLog(force) {
  * looked. Riot publishes the match minutes later, and thinning in the meantime
  * would delete the very frames the death forensics needs.
  */
-function holdAiLogFrames(from, to) {
+function holdAiLogFrames(from, to, forMs) {
   if (!aiLogDir) return null;
-  const hold = { from: from - 5000, to: to + 5000, until: Date.now() + 8 * 60 * 1000 };
+  const hold = { from: from - 5000, to: to + 5000, until: Date.now() + (forMs || 8 * 60 * 1000) };
   aiLogHolds.push(hold);
   flushAiLog(true);
   return {
@@ -2008,6 +2211,7 @@ function exitLicenseEnded() {
   if (state.licenseActive) return;
   state.licenseActive = true;
   state.licenseReason = '';
+  state.notice = null;   // "your subscription has ended" is no longer true
   console.log('[license] subscription active again');
   registry.broadcast(C.PUSH_STATE, buildState());
 }
@@ -2048,7 +2252,7 @@ function logoutToActivation(reason) {
   teardownSession();
   mainLaunched = false;
   console.log('[license] logged out', reason ? `(${reason})` : '(manual)');
-  activationWindow.create(reason);
+  showActivation(reason);
 }
 
 // ── License watchdog ─────────────────────────────────────────────────────────
@@ -2118,11 +2322,36 @@ function launchMainApp() {
   mainLaunched = true;
 
   if (!store.get('onboardingCompleted')) {
-    onboardingWindow.create();
+    const tour = onboardingWindow.create();
+    // Closed with Alt+F4 or from the taskbar rather than finished: the window
+    // already marks the tour done, so the app opens as if it was. Without this
+    // nothing else existed, no panel, no tray, and the process stayed alive
+    // holding the single instance lock, so the app could not be opened again.
+    if (tour) tour.on('closed', () => { if (!surfacesUp && mainLaunched) openAppWithSplash(); });
     console.log('[main] first run, waiting on onboarding before opening the app');
     return;
   }
   openAppWithSplash();
+}
+
+/**
+ * The licence window, the only window there is until a key is activated. Closed
+ * without activating (Alt+F4, the taskbar), it quits the app: before, the
+ * process stayed alive with no window and no tray, held the single instance
+ * lock, and every attempt to open the app again did nothing.
+ */
+function showActivation(reason) {
+  const win = activationWindow.create(reason);
+  if (win && !win.__quitsWhenAlone) {
+    win.__quitsWhenAlone = true;
+    win.on('closed', () => {
+      if (!surfacesUp && !registry.get('onboarding') && !licenseService.isLocallyValid()) {
+        console.log('[main] licence window closed without a licence, quitting');
+        cleanupAndQuit();
+      }
+    });
+  }
+  return win;
 }
 
 /**
@@ -2293,7 +2522,7 @@ if (!app.requestSingleInstanceLock()) {
         .then((r) => { if (r.valid === false) enterLicenseEnded(r.status); })
         .catch((err) => console.warn('[license] revalidate failed:', err.message));
     } else {
-      activationWindow.create();
+      showActivation();
     }
   });
 

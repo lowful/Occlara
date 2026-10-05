@@ -33,6 +33,11 @@
 
 const { isAvoidable } = require('./death-causes');
 
+// "1 deaths", "traded a teammate 1 times" and "of the 1 deaths" all reached the
+// evidence lines, which are the sentences a player checks the grade against.
+const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
+const times = (n) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
+
 const clamp = (v, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const round1 = (v) => Math.round(v * 10) / 10;
@@ -61,7 +66,10 @@ function combine(categories) {
   const scored = categories.filter((c) => c.score !== null);
   if (!scored.length) return null;
   const w = scored.reduce((a, c) => a + c.weight, 0);
-  return Math.round(scored.reduce((a, c) => a + c.score * c.weight, 0) / w);
+  // Each category as the card SHOWS it, capped at 100. Averaging the raw ones
+  // let an Impact of 109 lift the overall above what the four numbers under it
+  // could make, so a player checking the grade against them could not.
+  return Math.round(scored.reduce((a, c) => a + clamp(c.score) * c.weight, 0) / w);
 }
 
 /**
@@ -117,7 +125,13 @@ function valorant(input) {
   const deaths = isVerified ? verified.filter((r) => r.died).length
     : (sl && num(sl.deaths) !== null ? sl.deaths : rows.filter((r) => r.died).length);
   const notes = [];
-  if (!isVerified && !sl) notes.push('A full grade needs Riot\'s record of the match. Add your Riot ID in Settings and it grades itself a few minutes after the match.');
+  if (!isVerified && !sl) {
+    notes.push(input.linkMissing
+      ? "A full grade needs Riot's record of the match, and it was not found. A match played on another account than the Riot ID in Settings never links."
+      : input.riotIdSet
+        ? "A full grade needs Riot's record of the match. It grades itself once Riot publishes it, a few minutes after the match."
+        : "A full grade needs Riot's record of the match. Add your Riot ID in Settings and it grades itself a few minutes after the match.");
+  }
   else if (!isVerified) notes.push('Graded from the scoreboard. It firms up once Riot\'s round record links.');
 
   // Survival: deaths a round, and being the first to die more than the role explains.
@@ -132,15 +146,15 @@ function valorant(input) {
       ? [[0.5, 97], [0.65, 86], [0.8, 70], [0.95, 52], [1.1, 36]]
       : [[0.4, 97], [0.55, 86], [0.7, 70], [0.85, 52], [1.0, 36]];
     let s = curve(dpr, DPR);
-    survival.evidence.push(`${deaths} deaths in ${total} rounds`);
+    survival.evidence.push(`${plural(deaths, 'death')} in ${plural(total, 'round')}`);
     if (isVerified) {
       const fd = verified.filter((r) => r.firstDeath).length;
       const allowance = role === 'Duelist' ? 0.22 : 0.14;
       const excess = Math.max(0, fd / total - allowance);
-      if (fd) survival.evidence.push(`first to die in ${fd} of ${total} rounds`);
+      if (fd) survival.evidence.push(`first to die in ${fd} of ${plural(total, 'round')}`);
       s -= excess * 100;
       const lived = verified.filter((r) => !r.died).length;
-      if (lived) survival.evidence.push(`survived ${lived} rounds`);
+      if (lived) survival.evidence.push(`survived ${plural(lived, 'round')}`);
     }
     survival.score = s;
   }
@@ -160,12 +174,12 @@ function valorant(input) {
       s = curve(acs, [[110, 30], [160, 48], [210, 64], [260, 78], [320, 90], [390, 98]]);
       impact.evidence.push(`${Math.round(acs)} combat score a round`);
     }
-    if (sl && num(sl.kills) !== null) impact.evidence.push(`${sl.kills} kills, ${sl.deaths} deaths, ${sl.assists == null ? 0 : sl.assists} assists`);
+    if (sl && num(sl.kills) !== null) impact.evidence.push(`${plural(sl.kills, 'kill')}, ${plural(sl.deaths, 'death')}, ${plural(sl.assists == null ? 0 : sl.assists, 'assist')}`);
     if (isVerified) {
       const fk = verified.filter((r) => r.firstKill).length;
       const multi = verified.filter((r) => num(r.kills) !== null && r.kills >= 3).length;
-      if (fk) impact.evidence.push(`first kill in ${fk} rounds`);
-      if (multi) impact.evidence.push(`${multi} rounds with three or more kills`);
+      if (fk) impact.evidence.push(`first kill in ${plural(fk, 'round')}`);
+      if (multi) impact.evidence.push(`${plural(multi, 'round')} with three or more kills`);
       s += Math.min(6, Math.max(0, fk / total - 0.1) * 60) + Math.min(6, multi * 2);
     }
     impact.score = s;
@@ -173,8 +187,22 @@ function valorant(input) {
     // Riot's rounds without a combat score: kills a round.
     const kills = verified.reduce((a, r) => a + (num(r.kills) || 0), 0);
     impact.score = curve(kills / total, [[0.3, 30], [0.55, 50], [0.8, 68], [1.05, 84], [1.35, 96]]);
-    impact.evidence.push(`${kills} kills in ${total} rounds`);
+    impact.evidence.push(`${plural(kills, 'kill')} in ${plural(total, 'round')}`);
   }
+
+  /*
+   * RIOT'S KILL FEED IS A FACT ABOUT THE WHOLE MATCH, not about the deaths in
+   * it. This used to be inferred from the deaths: the count of who was standing
+   * only exists on a death round, and the trade ratio needed three deaths. So a
+   * verified swiftplay at 14/2/3 had its two trades ignored under a note saying
+   * the feed "was not available", and the same match with no deaths left
+   * Decisions unmeasured and the whole grade provisional on a complete record.
+   * reconcile() now says per round whether the feed was read whole
+   * (feedKnown); the numbers standing are kept as a fallback for rows built
+   * without it.
+   */
+  const hasFeed = verified.some((r) => r.feedKnown === true || !!r.aliveAtDeath);
+  const trades = verified.reduce((a, r) => a + (num(r.trades) || 0), 0);
 
   // Teamplay: were your deaths answered, did you answer theirs, and assists.
   const teamplay = { key: 'teamplay', label: 'Teamplay', weight: 20, score: null, evidence: [] };
@@ -182,7 +210,6 @@ function valorant(input) {
   const assists = sl ? num(sl.assists) : null;
   if (known.length >= 3) {
     const traded = known.filter((r) => r.traded).length;
-    const trades = verified.reduce((a, r) => a + (num(r.trades) || 0), 0);
     // Same reason: whoever goes in first is the hardest player to trade, and in
     // solo queue the trade is mostly the team's to make. The real Abyss Jett was
     // traded once in 21 deaths.
@@ -193,24 +220,35 @@ function valorant(input) {
     s += Math.min(10, trades * 2);
     if (assists !== null) s += curve(assists / total, [[0, 0], [0.15, 2], [0.3, 5]]);
     teamplay.score = s;
-    teamplay.evidence.push(`${traded} of ${known.length} deaths traded by a teammate`);
-    if (trades) teamplay.evidence.push(`you traded a teammate ${trades} times`);
-    if (assists !== null) teamplay.evidence.push(`${assists} assists`);
+    teamplay.evidence.push(`${traded} of ${plural(known.length, 'death')} traded by a teammate`);
+    if (trades) teamplay.evidence.push(`you traded a teammate ${times(trades)}`);
+    if (assists !== null) teamplay.evidence.push(plural(assists, 'assist'));
   } else if (assists !== null && total >= 3) {
-    teamplay.score = curve(assists / total, [[0.05, 45], [0.15, 60], [0.3, 76], [0.45, 90]]);
-    teamplay.evidence.push(`${assists} assists in ${total} rounds`);
-    notes.push('Teamplay is from assists alone: Riot\'s kill feed was not available to count trades.');
+    // Under three deaths there are too few to say whether this player's deaths
+    // get answered, so that ratio waits. The trades they MADE do not depend on
+    // how often they died, and count whenever the feed was there.
+    let s = curve(assists / total, [[0.05, 45], [0.15, 60], [0.3, 76], [0.45, 90]]);
+    teamplay.evidence.push(`${plural(assists, 'assist')} in ${plural(total, 'round')}`);
+    if (hasFeed) {
+      s += Math.min(10, trades * 2);
+      if (trades) teamplay.evidence.push(`you traded a teammate ${times(trades)}`);
+    } else {
+      notes.push('Teamplay is from assists alone: Riot\'s kill feed was not available to count trades.');
+    }
+    teamplay.score = s;
   }
 
   // Decisions: deaths the record calls avoidable, against the rounds played.
   //   the team was up in numbers and the round was lost
   //   the ultimate was ready and never used
   //   the coach looked at the frame and saw a mistake from the closed list
-  // Clutches won count the other way.
+  // Clutches won count the other way. With the feed and no deaths at all,
+  // nothing was thrown, which is the top of the curve, not a missing category.
+  // Three rounds at least, the floor the other categories keep, or a remake
+  // two rounds long would grade on a share of two.
   const decisions = { key: 'decisions', label: 'Decisions', weight: 25, score: null, evidence: [] };
   const looked = rows.filter((r) => r.died && r.forensics && r.forensics.cause && r.forensics.cause !== 'unclear');
-  const hasFeed = verified.some((r) => r.aliveAtDeath);
-  if (hasFeed || looked.length) {
+  if (total >= 3 && (hasFeed || looked.length)) {
     const flagged = new Set();
     const thrown = verified.filter((r) => r.died && r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies && r.result === 'lost');
     for (const r of thrown) flagged.add(r.n);
@@ -222,9 +260,13 @@ function valorant(input) {
     const clutches = verified.filter((r) => r.clutch && r.clutch.won === true).length;
     s += Math.min(8, clutches * 4);
     decisions.score = s;
-    if (thrown.length) decisions.evidence.push(`died with the team ahead in numbers and lost the round ${thrown.length} times`);
-    if (ult.length) decisions.evidence.push(`died with the ultimate ready ${ult.length} times`);
-    if (looked.length) decisions.evidence.push(`${avoid.length} of the ${looked.length} deaths the coach looked at were avoidable`);
+    if (thrown.length) decisions.evidence.push(`died with the team ahead in numbers and lost the round ${times(thrown.length)}`);
+    if (ult.length) decisions.evidence.push(`died with the ultimate ready ${times(ult.length)}`);
+    if (looked.length) {
+      decisions.evidence.push(looked.length === 1
+        ? `the one death the coach looked at was ${avoid.length ? '' : 'not '}avoidable`
+        : `${avoid.length} of the ${looked.length} deaths the coach looked at ${avoid.length === 1 ? 'was' : 'were'} avoidable`);
+    }
     if (clutches) decisions.evidence.push(`won ${clutches} clutch${clutches === 1 ? '' : 'es'}`);
     if (!decisions.evidence.length) decisions.evidence.push('no avoidable death on record');
   }
@@ -261,7 +303,7 @@ function rivals(review, history) {
     const kv = vs('kills', ratioPts);
     const kda = (k + (as || 0) * 0.5) / Math.max(1, d);
     impact.score = kv ? kv.score : curve(kda, [[0.8, 38], [1.5, 55], [2.5, 70], [4, 84], [6, 95]]);
-    impact.evidence.push(`${k} kills, ${d} deaths, ${as || 0} assists`);
+    impact.evidence.push(`${plural(k, 'kill')}, ${plural(d, 'death')}, ${plural(as || 0, 'assist')}`);
     if (kv) impact.evidence.push(`your ${role || ''} average is ${round1(kv.a.baseline)} kills`.replace('  ', ' '));
     else noBaseline.push('impact');
   }
@@ -270,7 +312,7 @@ function rivals(review, history) {
   if (d !== null) {
     const dv = vs('deaths', ratioPts, true);
     survival.score = dv ? dv.score : curve(d, [[2, 95], [5, 82], [8, 66], [11, 52], [15, 38]]);
-    survival.evidence.push(`${d} deaths`);
+    survival.evidence.push(plural(d, 'death'));
     if (dv) survival.evidence.push(`your ${role || ''} average is ${round1(dv.a.baseline)}`.replace('  ', ' '));
     else noBaseline.push('survival');
   }
@@ -324,7 +366,7 @@ function lol(review) {
     const f = review.fights || {};
     if (num(f.caughtAlone) !== null && s.deaths) sc -= Math.min(10, (f.caughtAlone / s.deaths) * 12);
     survival.score = sc;
-    survival.evidence.push(`${s.deaths} deaths in ${Math.round(min)} minutes`);
+    survival.evidence.push(`${plural(s.deaths, 'death')} in ${plural(Math.round(min), 'minute')}`);
     if (f.caughtAlone) survival.evidence.push(`${f.caughtAlone} caught alone`);
   }
 
