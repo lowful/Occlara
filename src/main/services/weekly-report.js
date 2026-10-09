@@ -12,6 +12,8 @@
  * directly.
  */
 
+const { repeatTitle, specificOf } = require('../../shared/insights');
+
 // Rank ladder for trend arrows: "Gold 2" -> a comparable number. Unknown -> null.
 const RANK_LADDER = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'ascendant', 'immortal', 'radiant'];
 
@@ -129,16 +131,23 @@ function assembleReport(input) {
 
   // What went well and what to fix, from the matches themselves: the entries
   // that showed up most this week.
+  // A count across matches carries a title true of all of them
+  // (insights.repeatTitle): "Healing up 32%, in 3 matches" pinned one match's
+  // figure on three, and "Dying at B Main" one match's place.
   const count = (list) => {
     const m = new Map();
     for (const e of week) {
+      const map = e.review.game && e.review.game.map;
       for (const x of ((e.review.insights || {})[list] || [])) {
-        const t = m.get(x.key) || { title: x.title, fix: x.fix || null, n: 0 };
+        const t = m.get(x.key) || { key: x.key, title: x.title, fix: x.fix || null, n: 0, specifics: new Set() };
         t.n++;
+        t.specifics.add(specificOf(x, map));
         m.set(x.key, t);
       }
     }
-    return [...m.values()].sort((a, b) => b.n - a.n);
+    return [...m.values()]
+      .map((t) => (t.n > 1 ? { ...t, ...repeatTitle(t.key, list, t, t.specifics) } : t))
+      .sort((a, b) => b.n - a.n);
   };
   const doingWell = count('strengths').slice(0, 3).map((x) => x.n > 1 ? `${x.title}, in ${x.n} matches` : x.title);
 
@@ -149,7 +158,9 @@ function assembleReport(input) {
       label: p.title,
       sessions: p.matches,
       count: p.total,
-      blurb: (p.examples[0] && p.examples[0].detail) || '',
+      // One match's own sentence under a habit counted across several, so it
+      // is labelled as the latest, as the library labels it.
+      blurb: p.examples[0] && p.examples[0].detail ? `Latest match: ${p.examples[0].detail}` : '',
       fix: p.fix || '',
     }))
     : [];

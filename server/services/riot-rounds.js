@@ -113,6 +113,20 @@ function teamworkOf(feed, deathMs) {
   return out;
 }
 
+/** When Riot says the match started, in ms, or null. */
+function startedAtOf(d) {
+  const m = (d && d.metadata) || {};
+  const t = m.started_at ? Date.parse(m.started_at)
+    : (typeof m.game_start === 'number' ? m.game_start * 1000 : NaN);
+  return Number.isFinite(t) ? t : null;
+}
+
+/** How long the match ran, in ms, or null. */
+function lengthOf(d) {
+  const m = (d && d.metadata) || {};
+  return typeof m.game_length_in_ms === 'number' && m.game_length_in_ms > 0 ? m.game_length_in_ms : null;
+}
+
 /**
  * @param d     the v4 `data` object
  * @param name  Riot name
@@ -232,6 +246,10 @@ function parse(d, name, tag) {
     },
     score: my !== null && their !== null ? `${my}-${their}` : null,
     result: my !== null && their !== null ? (my > their ? 'Victory' : my < their ? 'Defeat' : 'Draw') : null,
+    // When the match started and how long it ran, so a match graded after the
+    // fact is filed where it was played (src/shared/riot-review.js).
+    startedAt: startedAtOf(d),
+    lengthMs: lengthOf(d),
     perRound,
     shape,
   };

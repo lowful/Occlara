@@ -52,8 +52,11 @@ src/shared/grade.js                   0 to 100, a letter, four categories with e
 server/services/match-review.js       the model's half: summary, a why per round, focus
 src/main/services/review-store.js     every review saved, userData/reviews
 src/shared/patterns.js                what repeats across the last ten matches of a game
+src/shared/breakdown.js               the library by map and agent (hero, champion), counted
+src/shared/riot-review.js             a review from Riot's record alone, or a recording linked late
+src/main/services/backfill.js         Connect grades the last ten matches from Riot's record
 src/renderer/review/                  one window for every game, branched on review.kind
-src/renderer/matches/                 the library and "Your patterns"
+src/renderer/matches/                 the library, "Your patterns" and the breakdown
 ```
 
 **The read is facts only.** `POST /api/coach/read` (`server/services/read-prompt.js`)
@@ -252,7 +255,103 @@ window with the older half ('rising', 'falling', 'steady').
 `npm run test:grade` covers the graders on the real fixture, the lists, the
 frame picker, the store, the patterns and the weekly report. `npm run
 check:matches` boots the app with saved reviews, reads the library back from the
-DOM, and clicks a row through to its review and its kept frame.
+DOM, paints the breakdown, and clicks a row through to its review and its kept
+frame.
+
+### Matches graded from Riot's record
+
+Connect (in onboarding, with Skip, and in Settings) and "Grade my recent
+matches" in Matches grade the account's last ten Competitive, Unrated,
+Swiftplay or Premier matches from Riot's record (`backfill.js`,
+`riot-review.js`), so a new player's library, patterns and role baseline are
+not empty on day one. The list is `GET /api/coach/recent-matches`; an older
+server falls back to `/last-match`.
+
+- **Never twice.** Every match is planned before anything is fetched, and a
+  saved recording CLAIMS the listed match that shares the most of its window
+  (at least half), plus any match it covers half of, because a player cannot
+  play two at once; the seam between back to back matches is not a claim. A
+  best share that is mostly clock slack decides nothing, so a short stop at a
+  seam claims both neighbours and both are left alone, and a recording whose
+  own link is still running (a stop retries for over half an hour) holds back
+  every match near it. A listed match's span is Riot's start to 100 seconds a
+  round, never past the next listed match's start. One in the library and checked is skipped; one
+  linked but never checked against Riot's rounds is checked in place, unless
+  the listed row's kills, deaths and assists are not the `scoreline` the link
+  saved (a duo partner's ID typed by mistake lists the same match); one 8.0.0
+  or 8.0.1 linked (verified, with no matchId, which those versions never
+  stored) is stamped with its matchId, as is a recording of a queue the grade
+  is not built for, named for what it was; one a recording is still linking is
+  left to it; one a recording watched but never linked is upgraded IN PLACE
+  (the `ledger` an unverified review now keeps, or for an older one its cards
+  read back); and one claimed by a recording that fails the link's checks, or
+  by two, is left alone. A duplicate is a match counted twice in every pattern
+  and twice in the role baseline.
+- **Riot's own start and length decide** (`confirm()`). Real matches run 83 to
+  103 seconds a round, so the estimate is minutes out either way: a recording
+  of only the last round of a slow match fell outside its own match, which was
+  filed again beside it. So every match fetched, the ones the plan left alone
+  included, is decided again on its round record's `startedAt` and `lengthMs`,
+  and stays real for the matches after it. `test:backfill` runs 510 timelines
+  on real pacing (Riot's start at the load or at agent select, the PC clock up
+  to two minutes off, the app left running between matches) through the whole
+  run, and the plan alone on the stamps and links it decides by itself; the
+  clock allowance (90 seconds) was set on them.
+- **Only the account in Settings.** `start()` refuses any other, and a run
+  stops itself before listing and before every save once Settings holds
+  another ID for more than a few seconds, and TAKES BACK what it did: the
+  reviews it filed from Riot's record alone and their baseline rows go, the
+  player's own rows those pushed out of the ten come back, the reviews its
+  saves pushed out of a full library (of any game) are saved again whole with
+  their frames, and the recordings it checked or stamped are saved back as
+  they were. A corrected typo that was
+  somebody's real account leaves none of their matches behind. A run that
+  finished keeps everything, so a duo partner's ID left in Settings until the
+  run ends leaves their numbers on the recordings it checked. Connect reads
+  the ID again after its profile lookup for the same reason, and an ID HenrikDev
+  cannot find loses the profile kept from an earlier Connect.
+- **A Riot only review claims nothing the screen saw** (`source: 'riot'`): no
+  death location, no ult read, no look at a death, no model call, and both the
+  review and its grade's notes say so.
+- Oldest first, each against the history from before it, one baseline row per
+  match. Three seconds between requests on the one HenrikDev key, two retries
+  on a failure that passes, and three matches Riot did not answer in a row end
+  the run. It waits while a match is in progress, and a Riot ID change or a
+  logout cancels it.
+- `npm run test:riotreview`, `npm run test:backfill`, `npm run check:onboardingriot`.
+
+### The breakdown
+
+`src/shared/breakdown.js` cuts every saved review of a game by map and agent
+(map and hero for Rivals, champion for League), cached in main until the next
+save. Counted, never written, and every number carries its sample:
+
+- Round numbers come only from Riot checked rounds (the screen files a result a
+  round late often enough to fake a side win rate), death locations only from
+  recorded rounds, the scoreboard only from matches that have one. K/D is total
+  kills over total deaths; ACS, ADR and headshot % are weighted by rounds.
+  Pistol rounds are round 1 and the first round Riot's sides change, never
+  overtime; the review's own halftime is used only when no side is known,
+  because an 8.0.0 or 8.0.1 review carries the screen's guess at it.
+- A rate under its floor (`FLOOR`) is shown as "3 of 7", never a percentage.
+  A row against the rest needs three matches on each side.
+- A headline (strongest or weakest map, best agent) needs three graded matches
+  on the row, three outside it, six in all, and a gap of six points that is
+  also one and a half standard errors. Otherwise the page says nothing stands
+  out yet.
+- **Cards saved before 8.0.3 have no structured fields**, so the breakdown and
+  the late link read their facts back from the sentences `roundFacts()` writes.
+  Change one of those sentences and `npm run test:breakdown` fails, which is
+  the point: the two readings are held equal on the real match.
+- Spike Rush, Replication, Escalation, customs and deathmatches are left out,
+  and counted as left out. **League is one mode at a time, with no All**:
+  Summoner's Rift, ARAM, Arena and Swiftplay are other maps or clocks, so a CS
+  a minute across them is a number about nothing; the most played opens first.
+- **A repeat across matches is the same thing each time.** "Dying at A Site"
+  repeats only at A Site on the same map (the name exists on nearly every
+  map), "Skye kept winning" only against Skye, and a Rivals comparison only in
+  its direction (`insights.repeatTitle`, used by the patterns too). Otherwise
+  the title is one that is true of every match it counts.
 
 ## Layout
 
@@ -367,7 +466,10 @@ silently stopped receiving events with no error. Add the constant to
 
 Renderers have no Node access. Everything crosses through a preload via
 `contextBridge`. The library is `REVIEWS_LIST`, `REVIEW_GET`, `REVIEW_OPEN`,
-`PATTERNS_GET`, and `PUSH_REVIEWS` fires whenever a review is saved or improved.
+`PATTERNS_GET`, `BREAKDOWN_GET`, and `PUSH_REVIEWS` fires whenever a review is
+saved or improved. Grading from Riot's record is `BACKFILL_START` and
+`BACKFILL_STATUS`, and `PUSH_BACKFILL` carries its status on every change to
+onboarding, Settings and Matches.
 
 ## The live read's STATE line
 

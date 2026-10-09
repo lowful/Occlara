@@ -238,6 +238,9 @@ function paintValorant(r) {
   const w = r.watched || {};
   $('v-meta').textContent = [
     g.agent, g.map, g.mode,
+    // A match graded after the fact (riot-review.js), which the coach never
+    // watched, says where its facts came from instead of a rounds count.
+    r.source === 'riot' ? "From Riot's record" : null,
     w.rounds ? `${w.rounds} round${w.rounds === 1 ? '' : 's'} watched` : null,
   ].filter(Boolean).join('  ·  ');
 

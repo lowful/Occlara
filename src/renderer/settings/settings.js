@@ -159,50 +159,137 @@ document.getElementById('version').addEventListener('click', () => {
 
 document.getElementById('open-ailog').addEventListener('click', () => window.occlara.openAiLog());
 
-// Riot ID: save on change/blur (debounced enough for a text field).
+// ── Riot ID ─────────────────────────────────────────────────────────────────
+// THE LINES UNDER THE FIELD ARE ABOUT ONE RIOT ID EACH: the Connect line
+// about the ID it checked (trkAbout), the grading line about the account its
+// run is for. Each shows only while the field holds its ID, compared without
+// case as Riot compares them. Edited, the field used to keep "Connected ...
+// being graded" and the grading line on screen for an ID no longer in it.
 const riotEl = document.getElementById('riotid');
+const trkBtn = document.getElementById('trk-connect');
+const trkStatus = document.getElementById('trk-status');
+const bfStatus = document.getElementById('bf-status');
+const bfOpen = document.getElementById('bf-open');
+const STALE = 'Your Riot ID changed while it was being checked. Press Connect again.';
+const PROFILE_NOT_LOADED = "Your rank could not be loaded right now. Your recent matches are being graded from Riot's record.";
+const sameId = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+let trkAbout = '';
+let checking = false;
+// The ID a Connect connected without a profile, so without knowing the
+// account exists ('' otherwise), and the run's last status.
+let unconfirmed = '';
+let lastBf = null;
+
+// Save on change (debounced enough for a text field).
 let riotTimer = null;
 riotEl.addEventListener('input', () => {
   clearTimeout(riotTimer);
   riotTimer = setTimeout(() => window.occlara.setConfig({ riotId: riotEl.value.trim() }).catch(() => {}), 500);
+  syncRiot();
 });
 
-// Connect: save the ID, test the tracker link live, show exactly what happened.
-const trkBtn = document.getElementById('trk-connect');
-const trkStatus = document.getElementById('trk-status');
-function showTrk(ok, msg) {
-  trkStatus.className = `trk-status ${ok ? 'ok' : 'err'}`;
-  trkStatus.textContent = msg;
-  trkStatus.hidden = false;
+/** The Connect line: tone true is good news, false a failure, null neither. */
+function showTrk(tone, msg, about) {
+  trkStatus.className = 'trk-status' + (tone === true ? ' ok' : tone === false ? ' err' : '');
+  trkStatus.textContent = msg || '';
+  trkAbout = about === undefined ? riotEl.value : about;
+  syncRiot();
 }
+
+/** Show what is about the Riot ID now in the field, and nothing else. */
+function syncRiot() {
+  // "Checking" stays up through an edit: the answer says the ID changed.
+  trkStatus.hidden = !trkStatus.textContent || !(checking || sameId(trkAbout, riotEl.value));
+  const s = lastBf;
+  const show = !!s && s.state !== 'idle' && !!s.message && sameId(s.account, riotEl.value);
+  bfStatus.hidden = !show;
+  bfOpen.hidden = !(show && s.state === 'done' && (s.graded + s.upgraded) > 0);
+}
+
+/** A profile Riot answered with, as the facts it holds. */
+function profileLine(s) {
+  const bits = [`rank ${s.rank || 'unknown'}`];
+  if (s.peakRank) bits.push(`peak ${s.peakRank}`);
+  if (s.kd) bits.push(`K/D ${s.kd}`);
+  if (s.kpr != null) bits.push(`${s.kpr} kills/round`);
+  if (s.adr) bits.push(`ADR ${s.adr}`);
+  if (s.acs) bits.push(`ACS ${s.acs}`);
+  if (s.headshotPct) bits.push(`HS ${s.headshotPct}%`);
+  return `Connected. ${bits.join(', ')}.`;
+}
+
+// Connect: save the ID, test the tracker link live, show exactly what happened.
 trkBtn.addEventListener('click', async () => {
+  const id = riotEl.value.trim();
+  clearTimeout(riotTimer);
   trkBtn.classList.add('busy');
   trkBtn.textContent = 'Connecting';
-  showTrk(true, 'Checking your tracker profile...');
-  trkStatus.className = 'trk-status';
+  checking = true;
+  showTrk(null, 'Checking your tracker profile...', id);
+  let res = null;
   try {
-    await window.occlara.setConfig({ riotId: riotEl.value.trim() });
-    const res = await window.occlara.testTracker();
-    if (res && res.ok && res.stats) {
-      const s = res.stats;
-      const bits = [`rank ${s.rank || 'unknown'}`];
-      if (s.peakRank) bits.push(`peak ${s.peakRank}`);
-      if (s.kd) bits.push(`K/D ${s.kd}`);
-      if (s.kpr != null) bits.push(`${s.kpr} kills/round`);
-      if (s.adr) bits.push(`ADR ${s.adr}`);
-      if (s.acs) bits.push(`ACS ${s.acs}`);
-      if (s.headshotPct) bits.push(`HS ${s.headshotPct}%`);
-      showTrk(true, `Connected. ${bits.join(', ')}. Your reviews now use Riot's record of each match.`);
-    } else {
-      showTrk(false, (res && res.error) || 'Could not connect. Try again in a minute.');
-    }
+    await window.occlara.setConfig({ riotId: id });
+    res = await window.occlara.testTracker();
   } catch {
-    showTrk(false, 'Could not connect. Try again in a minute.');
-  } finally {
-    trkBtn.classList.remove('busy');
-    trkBtn.textContent = 'Connect';
+    res = null;
+  }
+  checking = false;
+  trkBtn.classList.remove('busy');
+  trkBtn.textContent = 'Connect';
+  unconfirmed = '';
+  if ((res && res.stale) || !sameId(riotEl.value, id)) {
+    // The answer is about the ID that was checked, and the field saves as it
+    // is typed. Main refuses an ID changed mid check itself; an edit in the
+    // half second before the field saved is caught here.
+    showTrk(false, (res && res.stale && res.error) || STALE);
+  } else if (res && res.ok && res.stats) {
+    // THE CONNECT LINE IS ABOUT THE ACCOUNT ONLY. The grading has a line of its
+    // own below, which follows it to its end: written here, "being graded"
+    // stayed up over a run that had found nothing to grade, or failed.
+    showTrk(true, profileLine(res.stats), id);
+  } else if (res && res.ok && res.unranked) {
+    // Found, with no ranked profile: someone who only plays unrated. Their
+    // matches still have Riot's record, and the grading line below says so.
+    showTrk(true, 'Connected. No ranked profile on this account yet.', id);
+  } else if (res && res.ok) {
+    // NOT A FAILED CONNECT. The profile could not be loaded right now (a rate
+    // limit, the stats service down) and the grading started all the same.
+    // Neither red nor "Connected": nothing has shown the account exists yet,
+    // and the grading line below says if it turns out not to.
+    unconfirmed = id;
+    showTrk(null, PROFILE_NOT_LOADED, id);
+  } else {
+    showTrk(false, (res && res.error) || 'Could not connect. Try again in a minute.', id);
   }
 });
+
+// The grading Connect started, followed as main pushes it.
+function paintBackfill(s) {
+  lastBf = s || null;
+  // THE RUN SETTLES A CONNECT THAT NEVER SAW THE ACCOUNT: one that lists its
+  // matches proves it exists, and the line says Connected; one that ends in
+  // any error leaves it unproven, the line above goes, and this one says why.
+  if (s && unconfirmed && sameId(s.account, unconfirmed)) {
+    if (s.state === 'grading' || s.state === 'done') {
+      if (sameId(trkAbout, unconfirmed)) showTrk(true, 'Connected. Your rank could not be loaded right now.', unconfirmed);
+      unconfirmed = '';
+    } else if (s.state === 'error') {
+      if (sameId(trkAbout, unconfirmed)) trkStatus.textContent = '';
+      unconfirmed = '';
+    }
+  }
+  if (s && s.message) {
+    bfStatus.textContent = s.message;
+    // A run that ended with failures and nothing graded is not a success,
+    // whatever its state says.
+    const empty = s.failed > 0 && !((s.graded || 0) + (s.upgraded || 0));
+    bfStatus.className = 'trk-status' + (s.state === 'error' ? ' err' : s.state === 'done' && !empty ? ' ok' : '');
+  }
+  syncRiot();
+}
+bfOpen.addEventListener('click', () => window.occlara.openMatches());
+window.occlara.onBackfill(paintBackfill);
+window.occlara.getBackfill().then(paintBackfill).catch(() => {});
 
 // Render the license block. Accepts either a getLicense() result or a state
 // snapshot (both carry licensePlan / licenseStatus / licenseExpiry).
@@ -360,16 +447,16 @@ async function load() {
       // as off, which is what `=== true` would do here.
       markSeg(soundsSeg, cfg.sounds === false ? 'off' : 'on');
       if (typeof cfg.riotId === 'string') riotEl.value = cfg.riotId;
-      // Already connected from a previous session? Show it, no reconnect needed.
-      if (cfg.playerStats && cfg.playerStats.rank) {
-        const s = cfg.playerStats;
-        const bits = [`rank ${s.rank}`];
-        if (s.kd) bits.push(`K/D ${s.kd}`);
-        if (s.kpr != null) bits.push(`${s.kpr} kills/round`);
-        if (s.adr) bits.push(`ADR ${s.adr}`);
-        if (s.headshotPct) bits.push(`HS ${s.headshotPct}%`);
-        showTrk(true, `Connected. ${bits.join(', ')}.`);
-      }
+      // Already connected from a previous session? Show it, no reconnect
+      // needed: the profile saved for the Riot ID in config.
+      const id = String(cfg.riotId || '').trim();
+      const s = cfg.playerStats;
+      if (id.includes('#') && s && s.rank && sameId(s._riotId, id) && !checking) showTrk(true, profileLine(s), id);
+      // Shown to exist with no profile kept (no ranked one, or one that
+      // could not be loaded when its matches were graded).
+      else if (id.includes('#') && sameId(cfg.riotConnected, id) && !checking) showTrk(true, 'Connected.', id);
+      // The field was filled after the run's status may have arrived for it.
+      else syncRiot();
     }
     await refreshLicense();
   } catch (err) {

@@ -2815,6 +2815,92 @@ router.get('/last-match', async (req, res) => {
   }
 });
 
+// GET /api/coach/recent-matches?username=Name%23TAG
+// The player's last matches with rounds, newest first, as the rows /last-match
+// builds. When a Riot ID is connected, the client grades the ones it has never
+// seen from Riot's record (src/main/services/backfill.js), so a new player's
+// library, patterns and baseline are not empty on day one.
+//
+// ONE STORED-MATCHES CALL, and a second page only when deathmatches crowd the
+// first: a player who warms up in deathmatch every session can have most of
+// page one taken by it. Cached two minutes per Riot ID, because Connect can be
+// pressed twice and every player shares one key. A failure that will pass is a
+// 503 { error, retry: true }, exactly as /match-rounds answers one; what will
+// not change on a retry is a 200 { error }.
+const recentMatchesCache = new Map();
+const RECENT_MATCHES_TTL_MS = 2 * 60 * 1000;
+const RECENT_MATCHES_MAX = 10;
+router.get('/recent-matches', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!await admit(res, licenseKey)) return;
+  if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
+
+  const username = String(req.query.username || '');
+  if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
+  const [name, tag] = username.split('#').map((s) => s.trim());
+  const key = username.toLowerCase();
+  const hit = recentMatchesCache.get(key);
+  if (hit && Date.now() - hit.at < RECENT_MATCHES_TTL_MS) return res.json({ matches: hit.rows, cached: true });
+
+  const enc = encodeURIComponent;
+  const retry = (error) => res.status(503).json({ error, retry: true });
+  try {
+    const acct = await regionOf(name, tag);
+    if (!acct.region) {
+      if (upstreamTransient(acct.status)) {
+        return retry(acct.status === 429 ? 'Tracker rate limit, try again shortly.' : 'Could not resolve the account region.');
+      }
+      // ONLY HENRIKDEV SAYING THE ACCOUNT IS NOT THERE IS "NOT FOUND". A key it
+      // refuses is the server's fault, and answering "Account not found" told
+      // every player to fix a Riot ID that was right.
+      if (acct.status === 401 || acct.status === 403) return res.json({ error: 'The tracker refused the server key.' });
+      if (acct.status === 404 || acct.status === 400) return res.json({ error: 'Account not found.' });
+      return res.json({ error: `Could not resolve the account region (status ${acct.status}).` });
+    }
+    const base = `/valorant/v1/stored-matches/${acct.region}/${enc(name)}/${enc(tag)}?size=10`;
+    const first = await henrikGet(base).catch(() => ({ status: 0, ok: false, json: null }));
+    // An account HenrikDev has no stored matches for is an account with none
+    // to grade, not a tracker that refused: the region lookup above already
+    // proved the account exists. Not cached, so a first match shows up.
+    if (first.status === 404) return res.json({ matches: [] });
+    if (!first.ok) {
+      if (upstreamTransient(first.status)) {
+        return retry(first.status === 429 ? 'Tracker rate limit, try again shortly.' : 'The tracker could not list the matches yet.');
+      }
+      return res.json({ error: `The tracker refused the match list (status ${first.status}).` });
+    }
+    const page1 = Array.isArray(first.json && first.json.data) ? first.json.data : [];
+    let rows = page1.filter((x) => x && x.stats && roundBased(x));
+    // A second page that failed leaves a shorter list that is still right,
+    // so it is answered but not kept: the next ask tries the page again.
+    let partial = false;
+    if (rows.length < RECENT_MATCHES_MAX && page1.length >= 10) {
+      const second = await henrikGet(`${base}&page=2`).catch(() => null);
+      partial = !(second && second.ok);
+      const page2 = second && second.ok && Array.isArray(second.json && second.json.data) ? second.json.data : [];
+      rows = rows.concat(page2.filter((x) => x && x.stats && roundBased(x)));
+    }
+    // A second page that failed with nothing round based on the first is a
+    // failure that passes, not an account with no matches: answered as an
+    // empty list, the client said so and never asked again.
+    if (partial && !rows.length) return retry('The tracker could not list the matches yet.');
+    const seen = new Set();
+    rows = rows.filter((m) => {
+      const id = m.meta && m.meta.id;
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    rows.sort((a, b) => (Date.parse(b.meta?.started_at || 0) || 0) - (Date.parse(a.meta?.started_at || 0) || 0));
+    const out = rows.slice(0, RECENT_MATCHES_MAX).map(lastMatchRow);
+    if (!partial) cacheSet(recentMatchesCache, key, { at: Date.now(), rows: out }, 500);
+    res.json({ matches: out });
+  } catch (e) {
+    console.error('[coach] recent-matches failed:', e.message);
+    retry('Recent match lookup failed.');
+  }
+});
+
 // POST /api/coach/read, JSON body: { image: base64, context: {...}, benchModel? }
 //
 // THE LIVE READ, facts only. Occlara shows nothing during a match, so a frame

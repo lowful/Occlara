@@ -63,21 +63,23 @@ function sideLabel(side) {
  * Riot's record names the queue, so once the match links, the review says
  * Competitive or Unrated, and a match the screen got wrong is put right.
  */
+// Keyed by letters only, because Riot's record says "custom" and "newmap"
+// where HenrikDev's match list says "Custom Game" and "New Map", and a custom
+// game named for neither was counted in the breakdown as a standard match.
 const QUEUE_LABELS = {
   competitive: 'Competitive', unrated: 'Unrated', swiftplay: 'Swiftplay', premier: 'Premier',
-  spikerush: 'Spike Rush', 'spike rush': 'Spike Rush', deathmatch: 'Deathmatch',
-  hurm: 'Team Deathmatch', 'team deathmatch': 'Team Deathmatch', teamdeathmatch: 'Team Deathmatch',
+  spikerush: 'Spike Rush', deathmatch: 'Deathmatch', hurm: 'Team Deathmatch', teamdeathmatch: 'Team Deathmatch',
   ggteam: 'Escalation', escalation: 'Escalation', onefa: 'Replication', replication: 'Replication',
-  newmap: 'New Map', snowball: 'Snowball Fight', custom: 'Custom',
+  newmap: 'New Map', snowball: 'Snowball Fight', snowballfight: 'Snowball Fight', custom: 'Custom', customgame: 'Custom',
 };
 function queueLabel(queue) {
-  return QUEUE_LABELS[String(queue || '').toLowerCase().trim()] || null;
+  return QUEUE_LABELS[String(queue || '').toLowerCase().replace(/[^a-z]/g, '')] || null;
 }
 /** The halftime rule a queue plays by: 'swiftplay', 'standard', 'spikerush' or null. */
 function queueHalves(queue) {
-  const q = String(queue || '').toLowerCase();
+  const q = String(queue || '').toLowerCase().replace(/[^a-z]/g, '');
   if (/swift/.test(q)) return 'swiftplay';
-  if (/spike ?rush/.test(q)) return 'spikerush';
+  if (/spikerush/.test(q)) return 'spikerush';
   if (/competitive|unrated|premier|custom|newmap/.test(q)) return 'standard';
   return null;
 }
@@ -239,7 +241,7 @@ function listRounds(rows) {
 }
 
 /** The facts line under a round, computed, never written by the model. */
-function roundFacts(r) {
+function roundFacts(r, opts) {
   const facts = [];
   // RIOT VERIFIED: exact, so exact numbers. The seconds, the killer and the
   // weapon are Riot's; only the place is the screen's.
@@ -266,7 +268,9 @@ function roundFacts(r) {
       facts.push(`Last one standing against ${r.clutch.vs}${r.clutch.won === true ? ', and won it' : r.clutch.won === false ? ', lost' : ''}`);
     }
     if (r.planted) facts.push(r.plantSpot ? `Spike planted at ${r.plantSpot}` : 'Spike planted');
-    if (r.watched === false) facts.push('Not watched by the coach');
+    // A review built from Riot's record alone was watched in no round, and
+    // saying so on every card says nothing the header has not.
+    if (r.watched === false && !(opts && opts.riotOnly)) facts.push('Not watched by the coach');
     return facts;
   }
   if (r.died) {
@@ -310,6 +314,9 @@ function build(input) {
   const ai = input.ai || {};
   const tracker = input.tracker || null;
   const whys = ai.rounds || {};
+  // A match the coach never watched, graded from Riot's record after the fact
+  // (riot-review.js). It claims nothing only the screen could have seen.
+  const riotOnly = input.source === 'riot';
 
   const team = typeof ctx.teamScore === 'number' ? ctx.teamScore : null;
   const enemy = typeof ctx.enemyScore === 'number' ? ctx.enemyScore : null;
@@ -330,11 +337,36 @@ function build(input) {
   const cards = rounds.map((r) => ({
     n: r.n,
     side: sideLabel(r.side),
+    // The side as Riot or the ledger names it, and the facts below as fields:
+    // the label and the sentences are for reading, these are for counting
+    // (breakdown.js). A card saved before these existed is read back from its
+    // fact sentences instead.
+    sideKey: r.side === 'attacking' || r.side === 'defending' ? r.side : null,
     result: r.result,
     died: r.died,
     early: !!r.early,
     planted: r.planted,
-    facts: roundFacts(r),
+    verified: !!r.verified,
+    watched: !riotOnly && r.watched !== false,
+    // Where the screen placed the death. Riot records no locations.
+    spot: r.died && r.deathSpot ? r.deathSpot : null,
+    ultReady: !!(r.died && r.ultAtDeath === 'ready'),
+    riot: r.verified ? {
+      sec: typeof r.deathSec === 'number' ? r.deathSec : null,
+      killer: r.killerAgent || null,
+      weapon: r.weapon || null,
+      firstDeath: !!r.firstDeath,
+      firstKill: !!r.firstKill,
+      kills: typeof r.kills === 'number' ? r.kills : null,
+      traded: typeof r.traded === 'boolean' ? r.traded : null,
+      trades: typeof r.trades === 'number' ? r.trades : null,
+      clutch: r.clutch && typeof r.clutch.vs === 'number'
+        ? { vs: r.clutch.vs, won: typeof r.clutch.won === 'boolean' ? r.clutch.won : null } : null,
+      alive: r.aliveAtDeath && typeof r.aliveAtDeath.mates === 'number'
+        ? { mates: r.aliveAtDeath.mates, enemies: r.aliveAtDeath.enemies } : null,
+      afterPlant: !!r.afterPlant,
+    } : null,
+    facts: roundFacts(r, { riotOnly }),
     reads: r.reads.map((x) => x.text),
     why: typeof whys[r.n] === 'string' && whys[r.n] ? whys[r.n] : null,
     // The coach's look at the frame before the death, when it took one.
@@ -356,32 +388,35 @@ function build(input) {
   const deaths = seen.filter((r) => r.died).length;
   const decided = seen.filter((r) => r.result);
   const isVerified = rounds.some((r) => r.verified);
-  const refused = isVerified
-    ? ['Riot records when you died and to whom, not where. Death locations are read off the screen.']
-    : ['Kills, damage and who won each fight are not printed on the HUD in a way the coach can read, '
-      + 'so a round card says what was seen, not how the duel went.'];
+  const refused = riotOnly
+    ? ['The coach did not watch this match, so it has no death locations, no ultimate reads and no look at '
+      + 'your deaths. Record your next match for the full review.']
+    : isVerified
+      ? ['Riot records when you died and to whom, not where. Death locations are read off the screen.']
+      : ['Kills, damage and who won each fight are not printed on the HUD in a way the coach can read, '
+        + 'so a round card says what was seen, not how the duel went.'];
   // STOPPED PARTWAY, SAID ONLY WHERE IT IS TRUE. From the screen alone a match
   // stopped halfway and one stopped on its end screen look the same, so the
   // line says only what is known: the coach never saw the end. Riot's record
   // knows, because its rounds after the last one watched are the match going
   // on, and it fills those in, so the old "this covers the rounds the coach
   // watched" was false the moment it linked.
-  if (!isVerified && input.endedBy === 'stop') {
+  if (!riotOnly && !isVerified && input.endedBy === 'stop') {
     refused.push('Coaching was stopped before the coach saw the match end, so this covers the rounds it watched.');
   }
   // The next match began before this one was seen ending (a remake, an unrated
   // 13 to 12 with no menu read), so nothing on screen says how it ended.
-  if (!isVerified && input.endedBy === 'next-match') {
+  if (!riotOnly && !isVerified && input.endedBy === 'next-match') {
     refused.push('The next match started before the coach saw this one end, so this covers the rounds it watched.');
   }
-  if (isVerified && unseen.length) {
+  if (!riotOnly && isVerified && unseen.length) {
     const lastSeen = seen.reduce((a, r) => Math.max(a, r.n), 0);
     const stoppedEarly = input.endedBy === 'stop' && unseen.some((n) => n > lastSeen);
     refused.push(`${stoppedEarly ? 'Coaching was stopped before the match ended. ' : ''}`
       + `Riot's record fills in ${spans(unseen)}, which the coach did not watch, `
       + `so ${unseen.length === 1 ? 'that round has' : 'those rounds have'} no location or coach's read.`);
   }
-  if (!tracker && !isVerified) {
+  if (!riotOnly && !tracker && !isVerified) {
     refused.push(input.linkMissing === 'taken'
       ? "Riot's record of this match is already on another review in your library, so it is not repeated here."
       : input.linkMissing
@@ -418,11 +453,13 @@ function build(input) {
 
   return {
     kind: 'valorant',
+    // Recorded and reviewed, or graded from Riot's record after the fact.
+    source: riotOnly ? 'riot' : 'watched',
     at: Date.now(),
     endedBy: input.endedBy || 'stop',
     game,
     scoreline,
-    watched: {
+    watched: riotOnly ? null : {
       rounds: seen.length,
       deaths,
       decided: decided.length,
@@ -433,14 +470,16 @@ function build(input) {
     // says so, because a review that quietly changed its numbers reads as one
     // that cannot make up its mind.
     verified: isVerified,
-    verification: input.verification || null,
+    verification: riotOnly
+      ? "Graded from Riot's record of the match. The coach did not watch it, so everything here is what Riot records."
+      : input.verification || null,
     patterns: patterns(rounds),
     // Repeated mistakes, what went well, what was missed. Counted, not written.
     insights: insights.valorant(rounds, { role: input.role || null }),
-    grade: grader.valorant({
+    grade: riotOnlyNote(grader.valorant({
       rounds, scoreline, role: input.role || null, history: input.history || [], totalRounds,
       riotIdSet: input.riotIdSet, linkMissing: input.linkMissing,
-    }),
+    }), riotOnly),
     summary: ai.summary || null,
     focus: ai.focus || null,
     study: Array.isArray(ai.study) ? ai.study.slice(0, 3) : [],
@@ -448,6 +487,24 @@ function build(input) {
     against: against(tracker, input.role || null, input.history || []),
     refused,
   };
+}
+
+/**
+ * DECISIONS MEASURES LESS WITHOUT THE SCREEN, and a Riot only grade says so.
+ * Two of its three counts need a recording: the ultimate ready at a death, and
+ * the coach's look at the frame before one. Graded from Riot's record alone,
+ * Decisions counts the deaths with the team ahead in a lost round, and the
+ * clutches, so the same match can score higher there than it would recorded.
+ */
+function riotOnlyNote(grade, riotOnly) {
+  // Only beside a Decisions score: beside "not measured" it explained a
+  // number the card does not show.
+  const decisions = grade && Array.isArray(grade.categories) ? grade.categories.find((c) => c.key === 'decisions') : null;
+  if (riotOnly && grade && Array.isArray(grade.notes) && decisions && decisions.score !== null) {
+    grade.notes.push("Decisions counts what Riot records: deaths with your team ahead in a round you lost, and "
+      + "clutches. Your ultimate at each death and the coach's look at it need a recorded match.");
+  }
+  return grade;
 }
 
 /** A death's timing as the bucket roundFacts prints, or null. */
@@ -529,6 +586,48 @@ function historyEntry(tracker, role) {
 }
 
 /**
+ * What a review needs to be checked against Riot's record later: the screen's
+ * rounds as reconcile() reads them, and the window and context the match link
+ * checks. Kept only while a review is unverified (index.js), so a Riot ID
+ * added after the link gave up can still grade the match (backfill.js).
+ * Reads are trimmed to the fields reconcile() uses; a location trail to eight.
+ */
+function ledgerOf(snap) {
+  if (!snap || !Array.isArray(snap.rounds)) return null;
+  const c = snap.context || {};
+  return {
+    startedAt: typeof snap.startedAt === 'number' ? snap.startedAt : null,
+    endedAt: typeof snap.endedAt === 'number' ? snap.endedAt : null,
+    endedBy: snap.endedBy || null,
+    context: {
+      agent: c.agent || null,
+      agentConfirmed: !!c.agentConfirmed,
+      map: c.map || null,
+      teamScore: typeof c.teamScore === 'number' ? c.teamScore : null,
+      enemyScore: typeof c.enemyScore === 'number' ? c.enemyScore : null,
+      gameMode: c.gameMode || null,
+    },
+    rounds: snap.rounds.map((r) => ({
+      n: r.n,
+      side: r.side || null,
+      result: r.result || null,
+      died: !!r.died,
+      deathSpot: r.deathSpot || null,
+      deathClock: typeof r.deathClock === 'number' ? r.deathClock : null,
+      early: !!r.early,
+      ultAtDeath: r.ultAtDeath || null,
+      ultSeen: r.ultSeen === undefined ? null : r.ultSeen,
+      planted: !!r.planted,
+      plantSpot: r.plantSpot || null,
+      locs: Array.isArray(r.locs) ? r.locs.slice(0, 8) : [],
+      frames: typeof r.frames === 'number' ? r.frames : 0,
+      reads: (Array.isArray(r.reads) ? r.reads : []).slice(0, 12)
+        .map((x) => ({ text: String((x && x.text) || ''), death: !!(x && x.death) })),
+    })),
+  };
+}
+
+/**
  * Against the player's own recent matches, IN THE SAME ROLE.
  *
  * A controller's ACS and a duelist's ACS are different quantities, the same
@@ -555,5 +654,5 @@ function against(tracker, role, history) {
   return out;
 }
 
-module.exports = { build, patterns, roundFacts, historyEntry, against, halftimeAfter, requestBody, timingOf,
+module.exports = { build, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
   queueLabel, queueHalves, withArticle, spans, BASELINE_GAMES, BASELINE_MIN };

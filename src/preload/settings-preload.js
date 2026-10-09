@@ -49,6 +49,11 @@ contextBridge.exposeInMainWorld('occlara', {
   openAiLog:    () => ipcRenderer.send(C.OPEN_AILOG),
   logout:       () => ipcRenderer.send(C.LICENSE_LOGOUT),
   quit:         () => ipcRenderer.send(C.APP_QUIT),
+  // The grading Connect starts, followed under the Connect status, and the
+  // library it fills.
+  getBackfill:  () => ipcRenderer.invoke(C.BACKFILL_STATUS),
+  onBackfill:   (cb) => subscribe(C.PUSH_BACKFILL, cb),
+  openMatches:  () => ipcRenderer.send(C.OPEN_HISTORY),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),
   onStatus: (cb) => subscribe(C.PUSH_STATUS, cb),
 });

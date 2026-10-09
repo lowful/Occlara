@@ -45,6 +45,9 @@ function registerIpc(deps) {
   safeHandle(C.REVIEWS_LIST, async (_e, game) => controller.listReviews(game));
   safeHandle(C.REVIEW_GET, async (_e, id) => controller.getReview(id));
   safeHandle(C.PATTERNS_GET, async (_e, game) => controller.getPatterns(game));
+  safeHandle(C.BREAKDOWN_GET, async (_e, game, opts) => controller.getBreakdown(game, opts));
+  safeHandle(C.BACKFILL_START, async () => controller.startBackfill());
+  safeHandle(C.BACKFILL_STATUS, async () => controller.getBackfillStatus());
 
   safeHandle(C.STATS_DASHBOARD, async (_e, mode, force) => controller.getStatsDashboard(mode, force));
   safeHandle(C.STATS_REFRESH, async (_e, mode) => controller.getMatches(true, mode));
@@ -93,6 +96,10 @@ function snapshotConfig() {
     advancedTips:    store.get('advancedTips') === true,
     riotId:          store.get('riotId'),
     playerStats:     stats && stats._riotId === (store.get('riotId') || '').trim() ? stats : null,
+    // The last Riot ID shown to exist: by a profile, by Riot saying it has no
+    // ranked one, or by a grading run listing its matches. Without it a player
+    // with no ranked profile read as never connected (backfill.js).
+    riotConnected:   store.get('riotConnected') || null,
     aiLog:           store.get('aiLog'),
     sounds:          store.get('sounds'),
     panelMinimized:  store.get('panelMinimized'),

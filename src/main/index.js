@@ -67,14 +67,19 @@ const gameRegistry = require('../shared/games');
 const { assembleReport, weekKey, rankIndex, trendDirection } = require('./services/weekly-report');
 const updater  = require('./updater');
 const C = require('../shared/channels');
-const { ReviewStore, newId } = require('./services/review-store');
+const { ReviewStore, newId, MAX_REVIEWS } = require('./services/review-store');
 const grader      = require('../shared/grade');
 const insightsOf  = require('../shared/insights');
 const patternsOf  = require('../shared/patterns');
+const breakdownOf = require('../shared/breakdown');
+const { Backfill } = require('./services/backfill');
 const deathFrames = require('../shared/death-frames');
 
 // Every post-match review, for every game. See services/review-store.js.
 const reviewStore = new ReviewStore(path.join(app.getPath('userData'), 'reviews'));
+// The breakdown reads every saved review of a game, so it is kept until the
+// next save or removal rather than read from disk on every repaint.
+const breakdownCache = new Map();
 
 // ── Session state ────────────────────────────────────────────────────────────
 const state = {
@@ -225,13 +230,117 @@ function saveReview(review, game, frames) {
   try {
     const { frameData, ...clean } = review;
     const meta = reviewStore.save({ id: review.id, game, at: review.at || Date.now(), review: clean, frames });
-    if (meta && meta.grade) state.lastGrade = { ...meta.grade, game, id: review.id };
+    breakdownCache.clear();
+    // THE PANEL'S "LAST MATCH" IS THE NEWEST GRADED MATCH IN THE LIBRARY, the
+    // rule the startup and a withdrawn review already use. An older match
+    // graded after the fact (Riot's record, a late link) never takes it, and
+    // the newest one re-graded updates it.
+    if (meta) {
+      const top = reviewStore.list().find((r) => r.grade);
+      state.lastGrade = top ? { ...top.grade, game: top.game, id: top.id } : null;
+    }
     registry.broadcast(C.PUSH_REVIEWS, { id: review.id, game });
     registry.broadcast(C.PUSH_STATE, buildState());
   } catch (e) {
     console.error('[reviews] save failed:', e.message);
   }
 }
+
+// ── Grading recent matches from Riot's record ────────────────────────────────
+// backfill.js says what it does and why. This is only what it is wired to.
+const backfill = new Backfill({
+  get: (p, timeoutMs) => api.get(p, store.get('licenseKey'), timeoutMs),
+  library: () => reviewStore.list('valorant').map((meta) => ({
+    meta,
+    // The whole review only where the plan reads one: those not checked
+    // against Riot yet, linked or not.
+    review: meta.source !== 'riot' && (!meta.matchId || !meta.verified)
+      ? ((reviewStore.get(meta.id) || {}).review || null) : null,
+  })),
+  // The index alone for "linked already?", and the one review an upgrade
+  // rewrites read whole, so a run never re-reads the library per match.
+  metas: () => reviewStore.list('valorant'),
+  whole: (id) => ((reviewStore.get(id) || {}).review || null),
+  activeIds: () => new Set([...reviewJobs.values()].map((j) => j.id)),
+  // A review a run takes back (backfill.js takeBack()): out of the library and
+  // every window, and off the panel if it was the last grade.
+  remove: (id) => {
+    reviewStore.remove(id);
+    breakdownCache.clear();
+    // Open from Matches, it stayed painted, and Ctrl+Shift+E opened it again.
+    if (lastReviewShown && lastReviewShown.id === id) {
+      lastReviewShown = null;
+      reviewWindow.close();
+    }
+    if (state.lastGrade && state.lastGrade.id === id) {
+      const top = reviewStore.list().find((r) => r.grade);
+      state.lastGrade = top ? { ...top.grade, game: top.game, id: top.id } : null;
+    }
+    registry.broadcast(C.PUSH_REVIEWS, { id, game: 'valorant', removed: true });
+    registry.broadcast(C.PUSH_STATE, buildState());
+  },
+  // What saving a new review pushes out of the full library, of any game,
+  // read whole with its kept frames before the save deletes it, and saved
+  // again whole when a run takes back what it did (backfill.js takeBack()).
+  evicts: (review) => reviewStore.pushedOutBy(review.id, review.at).map((id) => {
+    const e = reviewStore.get(id);
+    return e ? { id: e.id, game: e.game, at: e.at, review: e.review, frames: reviewStore.framesOf(id) } : null;
+  }).filter(Boolean),
+  restore: (entry) => {
+    reviewStore.save(entry);
+    breakdownCache.clear();
+    // Open in the window, it repaints as it was put back.
+    if (lastReviewShown && lastReviewShown.id === entry.id) showReview(withFrames(entry.review));
+    const top = reviewStore.list().find((r) => r.grade);
+    state.lastGrade = top ? { ...top.grade, game: top.game, id: top.id } : null;
+    registry.broadcast(C.PUSH_REVIEWS, { id: entry.id, game: entry.game });
+    registry.broadcast(C.PUSH_STATE, buildState());
+  },
+  // The Riot ID in Settings: a run for any other account stops (backfill.js).
+  account: () => (store.get('riotId') || '').trim(),
+  // Whether a review dated `at` would survive the library's cap, which prunes
+  // the oldest of every game on each save.
+  keeps: (at) => {
+    const rows = reviewStore.list();
+    return rows.length < MAX_REVIEWS || at > rows[rows.length - 1].at;
+  },
+  save: (review) => {
+    saveReview(review, 'valorant', null);
+    // saveReview swallows a failed write, so what landed is read back: THIS
+    // version, not just the id, because an upgrade whose write failed leaves
+    // the old unlinked review under the same id. A review that is not in the
+    // library is not counted as graded, and gets no baseline row.
+    const back = reviewStore.get(review.id);
+    if (!back || back.review.matchId !== review.matchId || !!back.review.verified !== !!review.verified) {
+      throw new Error('the review was not saved');
+    }
+    // A recording upgraded with Riot's record while its window is open
+    // repaints there, rather than staying on the version Riot just corrected.
+    if (lastReviewShown && lastReviewShown.id === review.id) showReview(withFrames(review));
+  },
+  history: {
+    get: () => store.get('valorantHistory') || [],
+    set: (rows) => store.set('valorantHistory', rows),
+  },
+  inMatch: () => matchInProgress(),
+  onStatus: (s) => {
+    // A run that listed its matches proves the account exists, whether or not
+    // Riot has a ranked profile for it, so the Riot ID is remembered as
+    // connected: the tour shown again and Settings say so without a Connect.
+    if ((s.state === 'grading' || s.state === 'done') && s.account && store.get('riotConnected') !== s.account) {
+      store.set('riotConnected', s.account);
+    }
+    // And one Riot says does not exist is connected no longer.
+    if (s.state === 'error' && s.error === 'not-found' && s.account) forgetRiotId(s.account);
+    registry.broadcast(C.PUSH_BACKFILL, s);
+  },
+  // Not while recording: the panel's line then says it is recording, and that
+  // matters more than a library update.
+  notice: (text) => { if (!state.isCoaching) pushNotice(text, 'review'); },
+  sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  now: () => Date.now(),
+  log: (...a) => console.log(...a),
+});
 
 /** A saved review with its kept frames attached as data URLs, for the window. */
 function withFrames(review) {
@@ -306,6 +415,10 @@ function buildValorantReview(snap, tracker, extra) {
   built.matchId = (tracker && tracker.matchId) || null;
   // Recording stopped mid match: the link rules above treat it as a part.
   built.stoppedLive = !!snap.stoppedLive;
+  // What a later Riot link needs, kept only while Riot's record is missing:
+  // a Riot ID added after this review's link gave up can still grade it
+  // (riot-review.js, backfill.js).
+  built.ledger = built.verified ? null : valorantReview.ledgerOf(snap);
   return { built, role };
 }
 
@@ -429,6 +542,7 @@ function withdrawReview(startedAt) {
     const top = reviewStore.list().find((r) => r.grade);
     state.lastGrade = top ? { ...top.grade, game: top.game, id: top.id } : null;
   }
+  breakdownCache.clear();
   registry.broadcast(C.PUSH_REVIEWS, { id: job.id, game: 'valorant', removed: true });
   registry.broadcast(C.PUSH_STATE, buildState());
   console.log(`[review] withdrawn, the match was not over: ${job.id}`);
@@ -484,11 +598,13 @@ function retireStopStubs(job, lm) {
     reviewJobs.delete(key);
     reviewStore.remove(other.id);
     console.log(`[review] ${other.id} was the start of this match, recorded before a stop: folded into ${job.id}`);
+    breakdownCache.clear();
     registry.broadcast(C.PUSH_REVIEWS, { id: other.id, game: 'valorant', removed: true });
   }
   for (const r of reviewStore.list('valorant')) {
     if (r.id !== job.id && r.matchId === lm.matchId && r.stoppedLive && r.at <= job.snap.startedAt) {
       reviewStore.remove(r.id);
+      breakdownCache.clear();
       registry.broadcast(C.PUSH_REVIEWS, { id: r.id, game: 'valorant', removed: true });
     }
   }
@@ -511,6 +627,7 @@ function onValorantMatchEnded(snap) {
     clearTimeout(prior.timer);
     releaseAiLogFrames(prior.log);
     reviewStore.remove(prior.id);
+    breakdownCache.clear();
   }
   const job = {
     id: newId('valorant', snap.endedAt || Date.now()),
@@ -1036,6 +1153,25 @@ const controller = {
     const g = game || gameRegistry.get(store.get('game')).id;
     return { game: g, ...patternsOf.summarise(reviewStore.recent(g, patternsOf.WINDOW)) };
   },
+  /** By map and agent (hero, champion), counted from every saved review of one game. */
+  getBreakdown(game, opts) {
+    const g = game || gameRegistry.get(store.get('game')).id;
+    const queue = opts && typeof opts.queue === 'string' ? opts.queue : 'All';
+    const key = `${g}|${queue}`;
+    if (!breakdownCache.has(key)) {
+      breakdownCache.set(key, breakdownOf.build(g, reviewStore.recent(g, MAX_REVIEWS), { queue }));
+    }
+    return breakdownCache.get(key);
+  },
+  /** The Matches button: grade the recent matches of the Riot ID in Settings. */
+  startBackfill() {
+    const riotId = (store.get('riotId') || '').trim();
+    if (!riotId.includes('#')) {
+      return { ...backfill.getStatus(), state: 'error', error: 'no-riot-id', message: 'Add your Riot ID in Settings first.' };
+    }
+    return backfill.start(riotId);
+  },
+  getBackfillStatus() { return backfill.getStatus(); },
 
   toggleMinimizePanel() {
     // Minimized shows the small floating mark (icon only, click-through,
@@ -1549,18 +1685,51 @@ const controller = {
     }
   },
 
-  /** Settings "Connect" button: test the tracker link right now, and if it
-   *  works, push the stats into the running engine + chat immediately. */
+  /** Settings and onboarding "Connect": test the tracker link right now, and
+   *  grade the account's recent matches from Riot's record. */
   async testTracker() {
     const riotId = (store.get('riotId') || '').trim();
     if (!riotId || !riotId.includes('#')) {
       return { ok: false, error: 'Enter your Riot ID as Name#TAG first.' };
     }
     const stats = await fetchTrackerStats(true);
-    if (stats) {
-      return { ok: true, stats };
+    // THE FIELD SAVES AS IT IS TYPED, so it may hold another ID by the time
+    // the profile answers. Grading the one read before the wait filed a
+    // stranger's matches into the library when a typo that was somebody's
+    // real account was corrected mid check. The answer belongs to the ID in
+    // Settings now, or to nobody.
+    if ((store.get('riotId') || '').trim().toLowerCase() !== riotId.toLowerCase()) {
+      return { ok: false, stale: true, error: 'Your Riot ID changed while it was being checked. Press Connect again.' };
     }
-    return { ok: false, error: statsCache.lastError || 'Could not reach the stats service. Try again in a minute.' };
+    // What this lookup answered. fetchTrackerStats hands back a profile kept
+    // from an earlier Connect when the lookup fails, so a profile is not proof
+    // the account still exists: a Riot ID renamed since read as connected with
+    // its old rank. The lookup's own error decides.
+    const lastError = statsCache.riotId === riotId ? statsCache.lastError : null;
+    const error = stats ? null : (lastError || 'Could not reach the stats service. Try again in a minute.');
+    // AN ACCOUNT WITH NO RANKED PROFILE IS STILL AN ACCOUNT. HenrikDev answers
+    // "found the account but no rank or match data yet" for a player who only
+    // plays unrated, and their matches can still be graded. Only an account
+    // that does not exist stops the backfill before it starts; anything else
+    // is for it to find out and say. A Riot ID with no name or no tag cannot
+    // exist either, and /player-stats says so as "Enter your Riot ID as
+    // Name#TAG", where the other routes say "must be Name#TAG".
+    const unranked = !stats && /found the account/i.test(error || '');
+    const missing = /could not find|name#tag/i.test(lastError || error || '');
+    if (missing) {
+      forgetRiotId(riotId);
+      return { ok: false, error: lastError || error };
+    }
+    backfill.start(riotId);
+    // Found, ranked or not: the account exists (see the backfill's onStatus).
+    if (stats || unranked) store.set('riotConnected', riotId);
+    if (stats) return { ok: true, stats };
+    if (unranked) return { ok: true, stats: null, unranked: true };
+    // The profile could not be loaded right now (a rate limit, the service
+    // down), and the grading started anyway: it says for itself if the
+    // account turns out not to exist. Reported as a failed Connect, the page
+    // said "not connected" over a run grading every match.
+    return { ok: true, stats: null, profileError: error };
   },
 
   logout() {
@@ -1591,6 +1760,11 @@ const controller = {
       unratedStatsCache = { at: 0, riotId: '', data: null };
       rankHistCache = { at: 0, riotId: '', data: null };
       console.log('[stats] riot id changed, tracker caches cleared');
+      // A grading run for another account stops by itself: it checks the
+      // Riot ID in Settings before listing and before every save, and gives
+      // a field being retyped a few seconds to come back (backfill.js ours()).
+      // Cancelling here, on every debounced keystroke, stopped a run for good
+      // when the player only retyped their own ID.
     }
 
     // GAME CHANGED. A harder boundary than a riot id change: it invalidates the
@@ -1639,6 +1813,22 @@ const controller = {
 // the store on boot and returned instantly, while a background refresh updates
 // it. Returns the profile object or null.
 let statsCache = { at: 0, riotId: '', data: null, lastError: null };
+
+/**
+ * A Riot ID that Riot says does not exist is connected no longer, and the
+ * profile kept from an earlier Connect of it goes too: Settings and
+ * onboarding read that profile back as "Connected, rank Gold 2" for an
+ * account that is not there any more, a renamed one included.
+ */
+function forgetRiotId(riotId) {
+  const id = String(riotId || '').trim().toLowerCase();
+  if (!id) return;
+  if (String(store.get('riotConnected') || '').toLowerCase() === id) store.set('riotConnected', null);
+  const saved = store.get('playerStats');
+  if (saved && String(saved._riotId || '').trim().toLowerCase() === id) store.set('playerStats', null);
+  if (String(statsCache.riotId || '').toLowerCase() === id) statsCache.data = null;
+}
+
 (function seedStatsFromDisk() {
   try {
     const savedId = (store.get('riotId') || '').trim();
@@ -1689,13 +1879,20 @@ async function fetchTrackerStats(force, mode) {
       statsCache = { at: Date.now(), riotId, data: stats, lastError: null };
       store.set('playerStats', { ...stats, _riotId: riotId });   // persist = always connected
     } else {
-      // Keep serving the last good profile on a transient failure; just note why.
+      // Keep serving the last good profile on a transient failure; just note
+      // why. Only this ID's: a lookup for the old ID landing after the switch
+      // left its profile here, and relabelled, it read as this account's rank.
+      if (statsCache.riotId !== riotId) statsCache = { at: 0, riotId, data: null, lastError: null };
       statsCache.lastError = (data && data.error) || 'Could not reach the stats service.';
-      statsCache.riotId = riotId;
     }
     return stats || (statsCache.riotId === riotId ? statsCache.data : null);
   } catch {
-    return statsCache.riotId === riotId ? statsCache.data : null;
+    // A lookup that timed out says nothing about the account. Left as it
+    // was, the error of the lookup before stood in for this one, and an ID
+    // once not found read as not found again for a dropped connection.
+    if (statsCache.riotId !== riotId) statsCache = { at: 0, riotId, data: null, lastError: null };
+    statsCache.lastError = 'Could not reach the stats service.';
+    return statsCache.data;
   }
 }
 
@@ -2289,6 +2486,8 @@ function revalidateNow() {
 // the app, so we can return to the activation window.
 function teardownSession() {
   try { if (engine) { engine.stop(); engine = null; } } catch (e) {}
+  // Logged out: no grading carries on under a licence that is gone.
+  try { backfill.cancel(); } catch (e) {}
   try { hotkeys.unregister(); } catch (e) {}
   try { tray.destroy(); } catch (e) {}
   try { capture.disposeWorker(); } catch (e) {}
@@ -2447,6 +2646,17 @@ function openAppWithSplash() {
 function createAppSurfaces(opts) {
   if (surfacesUp) return;
   surfacesUp = true;
+  // Once: Rivals titles saved before 8.0.3 read backwards for deaths, and the
+  // library row, the review and the weekly report read the saved words.
+  if (!store.get('rivalsTitlesRepaired')) {
+    try {
+      const n = require('./services/review-repair').repairRivalsTitles(reviewStore, insightsOf);
+      store.set('rivalsTitlesRepaired', true);
+      if (n) { breakdownCache.clear(); console.log(`[reviews] rewrote the comparison titles of ${n} Rivals reviews`); }
+    } catch (e) {
+      console.warn('[reviews] Rivals title repair failed:', e.message);
+    }
+  }
   // The panel's "last match" grade survives a restart: it is the newest saved
   // review's, not only one reviewed since the app opened.
   try {

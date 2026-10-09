@@ -41,8 +41,32 @@
         <div id="p-lists"></div>
       </section>
 
+      <!-- WHERE AND ON WHAT. The patterns say what keeps happening; this says
+           on which map and which agent, counted from the same saved reviews by
+           src/shared/breakdown.js. Every number carries its sample. -->
+      <section id="breakdown" class="block breakdown" hidden>
+        <div class="b-head">
+          <div>
+            <h3>Breakdown</h3>
+            <p id="b-sub" class="hint"></p>
+          </div>
+          <div id="b-dims" class="seg-mini" role="tablist" aria-label="Break down by"></div>
+        </div>
+        <div id="b-queues" class="b-queues" role="group" aria-label="Queue" hidden></div>
+        <div id="b-headline" class="b-headline" hidden></div>
+        <p id="b-note" class="b-note" hidden></p>
+        <div id="b-table" class="b-table" role="table" aria-label="Breakdown"></div>
+        <p id="b-empty" class="empty" hidden></p>
+      </section>
+
       <section class="block">
-        <h3>Every match</h3>
+        <div class="l-head">
+          <h3>Every match</h3>
+          <div id="bf" class="bf" hidden>
+            <span id="bf-status" class="bf-status" aria-live="polite"></span>
+            <button id="bf-go" class="btn btn-ghost bf-go" type="button">Grade my recent matches</button>
+          </div>
+        </div>
         <div id="list" class="list" role="list"></div>
         <p id="empty" class="empty" hidden>No reviewed matches yet. Press Start in the panel, play a match, and its graded review lands here when it ends.</p>
       </section>

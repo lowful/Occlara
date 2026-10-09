@@ -26,6 +26,8 @@
  * Pure: the library hands it the saved reviews, newest first.
  */
 
+const { repeatTitle, specificOf } = require('./insights');
+
 const MIN_MATCHES = 2;
 const WINDOW = 10;
 
@@ -38,8 +40,9 @@ function tally(reviews, list) {
       seen.add(e.key);
       const t = map.get(e.key) || {
         key: e.key, title: e.title, weight: e.weight || 1, matches: 0, total: 0,
-        newer: 0, older: 0, examples: [], judged: !!e.judged, fix: e.fix || null,
+        newer: 0, older: 0, examples: [], judged: !!e.judged, fix: e.fix || null, specifics: new Set(),
       };
+      t.specifics.add(specificOf(e, rv.review.game && rv.review.game.map));
       t.matches++;
       t.total += e.count || 1;
       if (i < reviews.length / 2) t.newer++; else t.older++;
@@ -57,7 +60,11 @@ function tally(reviews, list) {
       const olderRate = t.older / Math.max(1, Math.floor(half));
       const trend = reviews.length < 4 ? null
         : newerRate > olderRate + 0.15 ? 'rising' : newerRate < olderRate - 0.15 ? 'falling' : 'steady';
-      return { ...t, share: t.matches / reviews.length, trend };
+      // The title and fix the count may carry (insights.repeatTitle): the
+      // newest one's only when every sighting named the same place or agent.
+      const { title, fix } = repeatTitle(t.key, list, t, t.specifics);
+      const { specifics, ...rest } = t;
+      return { ...rest, title, fix, share: t.matches / reviews.length, trend };
     });
 }
 

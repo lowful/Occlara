@@ -64,6 +64,13 @@ const CHANNELS = {
   REVIEW_GET:      'reviews:get',        // (id) -> the saved review
   REVIEW_OPEN:     'reviews:open',       // (id) open the review window on one saved review
   PATTERNS_GET:    'reviews:patterns',   // (game) -> repeated mistakes, strengths, misses, grade trend
+  // The breakdown in Matches: by map and agent (hero, champion), counted from
+  // the saved reviews of one game (src/shared/breakdown.js).
+  BREAKDOWN_GET:   'reviews:breakdown',  // (game, { queue }) -> { game, matches, dims, rows, headline, ... }
+  // Grading the recent matches of the Riot ID in config from Riot's record
+  // (src/main/services/backfill.js).
+  BACKFILL_START:  'backfill:start',     // () -> the run's status
+  BACKFILL_STATUS: 'backfill:status',    // () -> the run's status
   AILOG_SHOW:      'ailog:show',         // (sessionId) jump an OPEN log window to one session
   OPEN_CHAT_SEEDED:'window:openChatSeeded', // (sessionSeed) open Ask Coach preloaded with a session's context
   OPEN_PURCHASE:   'window:openPurchase',
@@ -83,6 +90,8 @@ const CHANNELS = {
   // showing Valorant rank and agents after switching to League.
   PUSH_REVIEWS:      'push:reviews',      // { id, game } a review was saved or improved; the library repaints
   PUSH_GAME:         'push:game',         // { id, label } the game changed, reload anything game-scoped
+  // The backfill's status on every change: { state, account, total, done, items, message, ... }
+  PUSH_BACKFILL:     'push:backfill',
   // The recorded League game is graded and ready. Fired ONCE per finished game,
   // after it ends, never during it.
   PUSH_LOL_REVIEW:   'push:lolReview',
@@ -111,6 +120,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_NUDGE,
   CHANNELS.PUSH_GAME,
   CHANNELS.PUSH_REVIEWS,
+  CHANNELS.PUSH_BACKFILL,
   CHANNELS.PUSH_LOL_REVIEW,
   CHANNELS.PUSH_RIVALS_REVIEW,
   CHANNELS.PUSH_VALORANT_REVIEW,
