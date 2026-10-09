@@ -291,6 +291,109 @@ const V4 = {
       `a swiftplay call past its deadline keeps that queue's last rows beside the fresh unrated ones (${ids.join(', ')})`);
   }
 
+  // ── /recent-matches: the matches Connect grades from Riot's record ──────
+  regionCache.clear();
+  calls.length = 0;
+  henrik.account = async () => ({ status: 200, json: { data: { region: 'eu' } } });
+  henrik.stored = async (u) => {
+    if (/[?&]page=2\b/.test(u)) {
+      return { status: 200, json: { data: [row('p2a', 'Competitive', 13, 7, 400), row('c3', 'Unrated', 13, 9, 30)] } };
+    }
+    return { status: 200, json: { data: [
+      row('dm1', 'Deathmatch', null, null, 1), row('c1', 'Competitive', 13, 11, 10),
+      row('dm2', 'Deathmatch', null, null, 50), row('c2', 'Swiftplay', 5, 3, 20),
+      row('c3', 'Unrated', 13, 9, 30), row('dm3', 'Deathmatch', null, null, 60),
+      row('dm4', 'Deathmatch', null, null, 70), row('dm5', 'Deathmatch', null, null, 80),
+      row('dm6', 'Deathmatch', null, null, 90), row('dm7', 'Deathmatch', null, null, 95),
+    ] } };
+  };
+  ok(/[?&]page=2\b/.test('/x?size=10&page=2') && !/[?&]page=2\b/.test('/x?size=10&page=20'),
+    'the second page pattern matches page 2 and only page 2');
+  {
+    const r = await call(coach, 'GET', `/recent-matches?username=${ME}`, { headers: H });
+    const ids = (r.body.matches || []).map((m) => m.matchId);
+    ok(r.status === 200 && ids.join() === 'c1,c2,c3,p2a',
+      `round based matches only, newest first, once each across both pages (${ids.join()})`);
+    ok(count('stored') === 2 && calls.some((u) => /[?&]page=2\b/.test(u)),
+      'a full first page crowded by deathmatches asks for a second one');
+    const c1 = (r.body.matches || [])[0] || {};
+    ok(c1.result === 'Victory' && c1.score === '13-11' && c1.acs > 0 && c1.mode === 'Competitive' && c1.startedAt > 0,
+      'each row is the row /last-match builds');
+  }
+  {
+    calls.length = 0;
+    const r = await call(coach, 'GET', `/recent-matches?username=${ME}`, { headers: H });
+    ok(r.status === 200 && calls.length === 0 && (r.body.matches || []).length === 4,
+      'asked again within two minutes, the list comes from memory');
+  }
+  henrik.stored = async () => ({ status: 429, json: {} });
+  {
+    const r = await call(coach, 'GET', `/recent-matches?username=${encodeURIComponent('Other#EUW')}`, { headers: H });
+    ok(r.status === 503 && r.body.retry === true, `a rate limit is a 503 to retry, never an empty list (${r.status})`);
+  }
+  regionCache.clear();
+  henrik.account = async () => ({ status: 404, json: {} });
+  {
+    const r = await call(coach, 'GET', `/recent-matches?username=${encodeURIComponent('Nobody#000')}`, { headers: H });
+    ok(r.status === 200 && /not found/i.test(r.body.error || ''), 'an account that does not exist is a plain answer');
+  }
+  {
+    const r = await call(coach, 'GET', '/recent-matches?username=nohash', { headers: H });
+    ok(r.status === 200 && /Name#TAG/.test(r.body.error || ''), 'a malformed Riot ID is refused');
+  }
+  // A key HenrikDev refuses is the server's fault, never "Account not found".
+  regionCache.clear();
+  henrik.account = async () => ({ status: 401, json: {} });
+  {
+    const r = await call(coach, 'GET', `/recent-matches?username=${encodeURIComponent('Keyless#EUW')}`, { headers: H });
+    ok(r.status === 200 && /refused the server key/.test(r.body.error || '') && !/not found/i.test(r.body.error || ''),
+      `a refused server key is not reported as a missing account (${r.body.error})`);
+  }
+  henrik.account = async () => ({ status: 200, json: { data: { region: 'eu' } } });
+  // A second page that fails: the first page's rows, answered and not kept.
+  henrik.stored = async (u) => (/[?&]page=2\b/.test(u) ? { status: 429, json: {} } : { status: 200, json: { data: [
+    row('q1', 'Competitive', 13, 4, 10), ...Array.from({ length: 9 }, (_, i) => row(`qdm${i}`, 'Deathmatch', null, null, 20 + i)),
+  ] } });
+  {
+    const who = `/recent-matches?username=${encodeURIComponent('Paged#EUW')}`;
+    const r1 = await call(coach, 'GET', who, { headers: H });
+    calls.length = 0;
+    const r2 = await call(coach, 'GET', who, { headers: H });
+    ok(r1.status === 200 && (r1.body.matches || []).map((m) => m.matchId).join() === 'q1',
+      'a failed second page still answers with the first page\'s matches');
+    ok(r2.status === 200 && count('stored') === 2, 'and is not kept, so the next ask tries both pages again');
+  }
+  // A failed second page behind a first page of nothing but deathmatches is a
+  // failure that passes: a 503 to ask again, never "no matches".
+  henrik.stored = async (u) => (/[?&]page=2\b/.test(u) ? { status: 429, json: {} } : { status: 200, json: { data:
+    Array.from({ length: 10 }, (_, i) => row(`wdm${i}`, 'Deathmatch', null, null, 5 + i)) } });
+  {
+    const r = await call(coach, 'GET', `/recent-matches?username=${encodeURIComponent('Warmup#EUW')}`, { headers: H });
+    ok(r.status === 503 && r.body.retry === true, `a page of deathmatches and a failed second page asks again (${r.status})`);
+  }
+  // No stored matches for an account that exists: an empty list, not a refusal.
+  henrik.stored = async () => ({ status: 404, json: {} });
+  {
+    const r = await call(coach, 'GET', `/recent-matches?username=${encodeURIComponent('Fresh#EUW')}`, { headers: H });
+    ok(r.status === 200 && Array.isArray(r.body.matches) && r.body.matches.length === 0 && !r.body.error,
+      `an account with no stored matches has none to grade (${JSON.stringify(r.body)})`);
+  }
+
+  // ── Riot's start and length come back with the rounds ───────────────────
+  henrik.match = async () => ({ status: 200, json: { data: {
+    ...V4, metadata: { ...V4.metadata, started_at: '2026-09-20T18:00:00.000Z', game_length_in_ms: 2400000 },
+  } } });
+  {
+    const r = await call(coach, 'GET', `/match-rounds?matchId=m-started&username=${ME}`, { headers: H });
+    ok(r.body.startedAt === Date.parse('2026-09-20T18:00:00.000Z') && r.body.lengthMs === 2400000,
+      `Riot's start and length come back with the rounds (${r.body.startedAt}, ${r.body.lengthMs})`);
+  }
+  henrik.match = async () => ({ status: 200, json: { data: V4 } });
+  {
+    const r = await call(coach, 'GET', `/match-rounds?matchId=m-unstarted&username=${ME}`, { headers: H });
+    ok(r.body.startedAt === null && r.body.lengthMs === null, 'and are null when Riot leaves them out');
+  }
+
   // ── every tracker call can time out ──────────────────────────────────────
   ok(signals.length > 0 && signals.every((s) => s && typeof s.aborted === 'boolean'),
     'every HenrikDev request carries an abort signal, so a hung one ends instead of holding the route');

@@ -5,9 +5,17 @@ const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
 
 /**
- * Onboarding bridge: dismiss the welcome tour for good, and save its two
- * choices (Riot ID, advanced coaching) straight to config.
+ * Onboarding bridge: dismiss the welcome tour for good, save its two choices
+ * (Riot ID, advanced coaching) straight to config, and Connect a Riot ID,
+ * whose recent matches main then grades and pushes as it goes.
  */
+function subscribe(channel, cb) {
+  if (!C.PUSH_LIST.includes(channel)) return () => {};
+  const h = (_e, payload) => cb(payload);
+  ipcRenderer.on(channel, h);
+  return () => ipcRenderer.removeListener(channel, h);
+}
+
 contextBridge.exposeInMainWorld('occlara', {
   // i18n: the catalogue is required here (preloads have Node) and handed to the
   // renderer as a plain translator, so no surface needs Node access to be
@@ -23,4 +31,9 @@ contextBridge.exposeInMainWorld('occlara', {
   // can never disagree.
   setConfig: (patch) => ipcRenderer.invoke(C.CONFIG_SET, patch),
   getConfig: () => ipcRenderer.invoke(C.CONFIG_GET),
+  // Connect tests the Riot ID and starts grading its recent matches; the
+  // page then follows the grading as main pushes it.
+  testTracker: () => ipcRenderer.invoke(C.STATS_TEST),
+  getBackfill: () => ipcRenderer.invoke(C.BACKFILL_STATUS),
+  onBackfill:  (cb) => subscribe(C.PUSH_BACKFILL, cb),
 });

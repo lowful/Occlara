@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- No em dashes and no en dashes anywhere: code, comments, UI copy, tests, docs. Use commas. In code that must match one, write `—` or `–`.
+- No em dashes and no en dashes anywhere: code, comments, UI copy, tests, docs. Use commas. In code that must match one, write `\u2014` or `\u2013`.
 - Never write a regex through a shell heredoc. Create and edit files with the Write and Edit tools only. Every new regex gets a test against a known positive string.
 - Renderers: plain DOM, no framework, no build step, no `innerHTML`, text through `textContent` only. Colours, radii, easings and durations come from `src/renderer/shared/theme.css` tokens. No decorative gradients. Geist weights 400 to 800 only, Geist Mono (`var(--font-mono)`) for columns of digits. A grade's colour is never its only signal: its number and letter are always beside it.
 - IPC channel names exist only in `src/shared/channels.js`. Never hand type a channel string.
@@ -1866,7 +1866,7 @@ const abyss = one.rows.map[0];
   ok(jett.vsRest && jett.vsRest.firstDeath === null, 'an agent is not compared on first deaths, which differ by role');
   const kinds = b.headline.map((h) => `${h.kind}:${h.label}`).join();
   ok(kinds === 'strongest:Abyss,weakest:Bind,most:Jett', `the headline calls what clears the bar (${kinds})`);
-  ok(b.headline.every((h) => h.title && h.detail && !/[–—]/.test(h.title + h.detail)), 'each with a title and a detail, no dashes');
+  ok(b.headline.every((h) => h.title && h.detail && !/[\u2013\u2014]/.test(h.title + h.detail)), 'each with a title and a detail, no dashes');
   ok(b.note === null, 'and no note when something was called');
 }
 {

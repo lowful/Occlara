@@ -17,21 +17,22 @@
     <!-- ── 1. Welcome ─────────────────────────────────────────────────── -->
     <section class="page" data-page="0">
       <div class="hero">
-        <img class="mark" src="../../../assets/logo-mark.svg" alt="" width="60" height="60" />
+        <img class="mark" src="../../../assets/logo-mark.svg" alt="" width="36" height="36" />
         <h1>You're in.</h1>
         <p class="sub">Four quick things, then you're playing.</p>
       </div>
       <!-- Language first, before anything else is read, so the rest of the tour
-           and every review arrive in the player's own language. -->
-      <div class="ob-lang">
+           and every review arrive in the player's own language. One row with
+           its label, so the welcome page fits its card (onboarding.css). -->
+      <div class="ob-lang ob-lang-row">
         <label for="ob-language" data-i18n="onboarding.chooseLanguage">Choose your language</label>
-        <div id="ob-language" class="ob-lang"></div>
+        <div id="ob-language" class="ob-lang-pick"></div>
         <p class="ob-lang-note" id="ob-language-note" hidden></p>
       </div>
       <ol class="steps">
-        <li><span class="n">1</span><div><b>Press Start before your match</b><span>Set your game to Windowed Fullscreen, then hit the red button on the panel. Nothing appears on your screen while you play.</span></div></li>
-        <li><span class="n">2</span><div><b>Confirm your agent</b><span>A bubble on the panel asks who you're playing. Confirm it, or tap one of your mains, so the review can talk about your abilities.</span></div></li>
-        <li><span class="n">3</span><div><b>Read your graded review</b><span>When the match ends it opens on its own: a grade out of 100, your repeated mistakes, what went well, and what you missed.</span></div></li>
+        <li><span class="n">1</span><div><b>Press Start before your match</b><span>Set your game to Windowed Fullscreen and press the red button. Nothing appears on screen while you play.</span></div></li>
+        <li><span class="n">2</span><div><b>Confirm your agent</b><span>When the panel asks who you are playing, confirm it, so the review can talk about your abilities.</span></div></li>
+        <li><span class="n">3</span><div><b>Read your graded review</b><span>It opens when the match ends: a grade out of 100, your repeated mistakes, what went well and what you missed.</span></div></li>
       </ol>
     </section>
 
@@ -56,7 +57,10 @@
     <section class="page" data-page="2" hidden>
       <div class="hero">
         <h1>After every match</h1>
-        <p class="sub">Your review opens on its own. This is the shape of it.</p>
+        <!-- The Matches note used to be a paragraph under the sample. With the
+             Advanced coaching switch on this page too it overflowed the card
+             by 74px, so it lives in this line now. -->
+        <p class="sub">Your review opens on its own, and Matches keeps every one.</p>
       </div>
       <!-- A REAL MATCH, as the grader scores it: the 13 to 11 Abyss match in
            scripts/fixtures, checked against Riot's record. A hand made sample
@@ -74,24 +78,32 @@
           <p class="obr-why">Died where nobody could trade: 20 of your 21 deaths went unanswered. Before you swing, check someone can see the same angle.</p>
         </div>
       </div>
-      <p class="tip-note">Every review is kept under Matches, where Occlara also tracks what keeps repeating across your games.</p>
-    </section>
-
-    <!-- ── 4. The two settings worth making now ───────────────────────── -->
-    <section class="page" data-page="3" hidden>
-      <div class="hero">
-        <h1>One last thing</h1>
-        <p class="sub">Your Riot ID makes the grade exact.</p>
-      </div>
-      <p class="lead">Riot's record of each match checks every death Occlara read off your screen, adds who killed you and when, and counts your trades and clutches. Use the account you play on.</p>
-      <div class="ob-riot">
-        <input id="ob-riot" class="input" type="text" placeholder="PlayerName#TAG" maxlength="40" autocomplete="off" spellcheck="false" />
-      </div>
-      <p class="lead">Advanced coaching lets your reviews draw on damage breakpoints, utility timings and reads across rounds. Newer players usually leave it off.</p>
+      <p class="lead small">Advanced coaching lets your reviews draw on damage breakpoints, utility timings and reads across rounds. Newer players usually leave it off.</p>
       <div class="seg" id="advanced">
         <button data-val="off" class="active">Off, fundamentals</button>
         <button data-val="on">On, advanced</button>
       </div>
+    </section>
+
+    <!-- ── 4. Grade your last matches ─────────────────────────────────── -->
+    <!-- Connect tests the Riot ID and main starts grading the account's recent
+         matches from Riot's record (backfill.js). The rows below follow it as
+         it works, and it carries on after the tour closes. -->
+    <section class="page" data-page="3" hidden>
+      <div class="hero">
+        <h1>Grade your last matches</h1>
+        <p class="sub">Connect your Riot ID and Occlara grades your recent matches from Riot's record.</p>
+      </div>
+      <div class="ob-riot">
+        <input id="ob-riot" class="input" type="text" placeholder="PlayerName#TAG" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Riot ID" />
+        <button id="ob-connect" class="btn btn-primary ob-connect" type="button">Connect</button>
+      </div>
+      <p id="ob-riot-status" class="ob-riot-status" aria-live="polite" hidden></p>
+      <div id="ob-bf" class="ob-bf" hidden>
+        <div id="ob-bf-line" class="ob-bf-line" aria-live="polite"></div>
+        <div id="ob-bf-list" class="ob-bf-list" role="list"></div>
+      </div>
+      <p class="lead small">Use the account you play Valorant on. Every match you record from now on is checked against Riot's record too: who killed you and when, your trades and your clutches.</p>
     </section>
 
     <!-- ── Footer nav ─────────────────────────────────────────────────── -->
@@ -104,6 +116,7 @@
 
   <script src="../shared/dropdown.js"></script>
   <script src="../shared/i18n-apply.js"></script>
+  <script src="../shared/grade-view.js"></script>
   <script src="onboarding.js"></script>
 </body>
 </html>

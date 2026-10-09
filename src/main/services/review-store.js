@@ -66,6 +66,9 @@ function metaOf(id, game, review, at) {
     // A review recording was stopped in the middle of: it never owns its Riot
     // link against a later recording of the same match.
     stoppedLive: !!r.stoppedLive,
+    // 'riot' when it was graded from Riot's record of a match the coach never
+    // watched, so the list can say so (backfill.js).
+    source: r.source || null,
   };
 }
 
@@ -135,6 +138,30 @@ class ReviewStore {
   frame(id, name) {
     if (!ID_RE.test(String(id || '')) || !FRAME_RE.test(String(name || ''))) return null;
     try { return fs.readFileSync(path.join(this.root, id, name)).toString('base64'); } catch { return null; }
+  }
+
+  /** Every kept frame of one review, { name: base64 }, to save it again whole. */
+  framesOf(id) {
+    const out = {};
+    if (!ID_RE.test(String(id || ''))) return out;
+    let names = [];
+    try { names = fs.readdirSync(path.join(this.root, id)); } catch { return out; }
+    for (const name of names) {
+      const b64 = FRAME_RE.test(name) ? this.frame(id, name) : null;
+      if (b64) out[name] = b64;
+    }
+    return out;
+  }
+
+  /**
+   * The ids that saving review `id` dated `at` would push out of the cap, the
+   * same sort save() makes. Replacing a review pushes nothing out.
+   */
+  pushedOutBy(id, at) {
+    const all = this.index().filter(Boolean);
+    if (all.some((r) => r.id === id)) return [];
+    const rows = [...all, { id, at: at || Date.now() }].sort((a, b) => b.at - a.at);
+    return rows.slice(MAX_REVIEWS).map((r) => r.id).filter((x) => x !== id);
   }
 
   remove(id, skipIndex = false) {

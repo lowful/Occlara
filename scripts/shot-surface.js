@@ -14,7 +14,14 @@
  * Dev tool, never shipped: electron-builder only packages src/ and assets/.
  *
  *   npx electron scripts/shot-surface.js panel settings stats
+ *   npx electron scripts/shot-surface.js onboarding@2 onboarding@3 settings
  *   npx electron scripts/shot-surface.js --all
+ *
+ * name@page shoots one page of a paged surface, counted from 0 as its
+ * data-page is, so onboarding@3 is the Riot ID page. It is written to
+ * name-page.png. NOT name:page: an argument shaped like onboarding:2,
+ * followed by any other argument, makes Electron exit before this script
+ * runs a line, with no output, from Git Bash and PowerShell alike.
  */
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
@@ -52,12 +59,21 @@ const SIZES = {
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const wanted = process.argv.includes('--all') ? Object.keys(SIZES) : (args.length ? args : ['panel']);
 
+// A page shot shows its window (below), and Windows stops painting a window
+// it calculates as covered by another, which would capture a frozen frame.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 app.disableHardwareAcceleration();
+// The loop below quits when it is done. Destroying a window that was shown
+// otherwise quits the app on the spot, and a page shot ended the run there.
+app.on('window-all-closed', () => {});
 
 app.whenReady().then(async () => {
   fs.mkdirSync(OUT, { recursive: true });
 
-  for (const name of wanted) {
+  for (const spec of wanted) {
+    const [name, pageArg] = String(spec).split('@');
+    const page = pageArg === undefined ? null : Number(pageArg);
+    if (page !== null && !(Number.isInteger(page) && page >= 0)) { console.log(`skip ${spec}: the page is a number from 0`); continue; }
     const file = path.join(ROOT, 'src', 'renderer', name, 'index.html');
     if (!fs.existsSync(file)) { console.log(`skip ${name}: no index.html`); continue; }
     const [w, h] = SIZES[name] || [520, 600];
@@ -68,11 +84,27 @@ app.whenReady().then(async () => {
       // A screenshot needs an opaque ground or the card renders black-on-black
       // and the whole point of looking is lost.
       backgroundColor: '#08090A',
+      // A PAGE IS REACHED AFTER LOAD, and a window that was never shown keeps
+      // its first frame: every page shot came back as page 0. So a page
+      // shot shows its window, inactive, fully transparent and ignoring the
+      // mouse, so nothing appears on the desktop or catches a click while it
+      // paints. capturePage reads the page, not the screen, so the opacity
+      // never reaches the picture.
+      ...(page !== null ? { opacity: 0, focusable: false, skipTaskbar: true } : {}),
       webPreferences: { contextIsolation: true, nodeIntegration: false },
     });
 
     try {
       if (!await loadWithRetry(win, file)) { console.log(`FAILED ${name}: could not load`); continue; }
+      if (page !== null) {
+        // The surface's own go(), the function its dots and Next call. There
+        // is no preload here, so a surface script stops at its first bridge
+        // call, but go() is a declaration and is defined all the same.
+        const moved = await win.webContents.executeJavaScript(`typeof go === 'function' ? (go(${page}), true) : false`);
+        if (!moved) { console.log(`skip ${spec}: ${name} has no pages`); continue; }
+        win.setIgnoreMouseEvents(true);
+        win.showInactive();
+      }
       // Let fonts settle and entrance animations finish, or every shot catches
       // the interface mid-fade and looks broken.
       //
@@ -86,11 +118,11 @@ app.whenReady().then(async () => {
       // far more than a second per surface.
       await new Promise((r) => setTimeout(r, 3000));
       const img = await win.capturePage();
-      const out = path.join(OUT, `${name}.png`);
+      const out = path.join(OUT, page === null ? `${name}.png` : `${name}-${page}.png`);
       fs.writeFileSync(out, img.toPNG());
-      console.log(`shot ${name} -> ${path.relative(ROOT, out)}`);
+      console.log(`shot ${spec} -> ${path.relative(ROOT, out)}`);
     } catch (e) {
-      console.log(`FAILED ${name}: ${e.message}`);
+      console.log(`FAILED ${spec}: ${e.message}`);
     } finally {
       win.destroy();
     }

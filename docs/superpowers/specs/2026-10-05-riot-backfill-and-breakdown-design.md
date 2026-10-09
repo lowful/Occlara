@@ -41,7 +41,8 @@ not graded on the standard curves.
 The list comes from a new server route `GET /api/coach/recent-matches`, which
 returns the same rows `/last-match` builds (`lastMatchRow`), newest first, from
 one stored-matches call (two when deathmatches crowd the first page), cached
-two minutes per Riot ID. When the route is missing (an old server), the client
+two minutes per Riot ID unless the second page failed. An account with no
+stored matches answers an empty list. When the route is missing (an old server), the client
 falls back to `/last-match`, newest plus `recent` (up to five).
 
 Each match's round record comes from the existing `/api/coach/match-rounds`.
@@ -49,19 +50,34 @@ Each match's round record comes from the existing `/api/coach/match-rounds`.
 
 ### Planning, before any round record is fetched
 
-For each listed match, in this order:
+Every listed match is planned, graded queue or not, before the list is cut to
+the graded queues and the ten. A saved recording CLAIMS the listed match that
+shares the most of its window, at least half of it, plus any match it covers
+half of (a player cannot play two at once), with ninety seconds of slack for
+the two clocks. A listed match runs from Riot's start for 100 seconds a
+round, never past the next listed match's start. Its window is
+`ledger.startedAt` to `ledger.endedAt`, or for a review saved before this
+release `at` minus its watched rounds plus two, times 100 seconds. Once a
+match's round record is fetched, its own `startedAt` and `lengthMs` replace
+the estimate and the match is decided again (`confirm()`), which is why a
+match left ambiguous by the plan is fetched too. Then, for each match:
 
 - **have**: a saved review already carries its `matchId`. Skipped.
-- **pending**: it fits a watched review whose link job is still running
+- **pending**: a recording whose link job is still running claims it
   (`reviewJobs`). Skipped, the job links it.
-- **upgrade**: it fits exactly one saved watched review that never linked, and
-  that review fits only this match. Fitting is `verifyCoachedMatch` with the
-  review's window (`ledger.startedAt` and `ledger.endedAt`, or for a review
-  saved before this release `at` minus its watched rounds plus two, times 100
-  seconds), its map, its confirmed agent and its score.
-- **ambiguous**: it fits several, or a review fits several matches. Skipped, so
-  a match is never in the library twice.
-- **new**: everything else.
+- **stamp**: exactly one recording claims it, it is verified (8.0.0 and 8.0.1
+  linked Riot's record without storing a matchId), it passes
+  `verifyCoachedMatch` (map, confirmed agent, score), and it claims nothing
+  else. Its matchId, Riot's queue and halftime are written into it. Counted as
+  already in the library.
+- **upgrade**: the same, for a recording that never linked.
+- **ambiguous**: claimed by several recordings, or by one that fails the
+  checks or claims another match. Fetched and decided again on Riot's own
+  start and length, and skipped if that cannot tell them apart either, so a
+  match is never in the library twice. A link whose round record never landed,
+  whose saved scoreline is not the listed row's kills, deaths and assists, is
+  ambiguous without a fetch: the listed account is not the one it linked.
+- **new**: claimed by no recording.
 
 ### Building
 
@@ -85,12 +101,17 @@ Oldest first, so each match is measured against the matches before it.
 
 - At least 3 seconds between upstream requests.
 - A 503 or a network failure on one match retries after 30 then 60 seconds,
-  then that match is marked failed and the run moves on. Three failed matches
-  in a row stop the run as unreachable.
+  then that match is marked failed and the run moves on. Three matches in a
+  row that Riot did not answer stop the run as unreachable; an answer that
+  will not change (the Riot ID is not in that match) fails only that match.
+- A review that does not reach the library is a failed match with no
+  baseline row.
+- A Riot ID change in Settings, or a logout, cancels the run. What it saved
+  stays.
 - Riot ID not found, licence refused and no matches each end the run with a
   plain sentence, never a silent stop.
-- At the end, if anything was graded, a panel notice: "Graded N of your recent
-  matches from Riot's record. They are in Matches."
+- At the end, if anything was graded and nothing is recording, a panel notice:
+  "Graded N recent matches from Riot's record. They are in Matches."
 
 ### Status, pushed on every change (`PUSH_BACKFILL`, also `BACKFILL_STATUS`)
 
@@ -212,7 +233,7 @@ and letter beside its colour, text built with textContent only.
 - `test:valorantreview` and `test:grade`: the new card fields and the Riot
   only review.
 - Boot checks: `check:matches` paints the breakdown from saved reviews and opens
-  a row; `check:onboardingriot` paints the Riot page, skips, and paints pushed
-  progress rows.
+  a row; `check:onboardingriot` connects through the real path against a faked server,
+  follows the real run on the Riot page and in Settings, and skips.
 - Screenshots of the Matches window, onboarding and Settings.
 - An independent adversarial review of the whole change before release.

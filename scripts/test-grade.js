@@ -333,5 +333,90 @@ ok(conceded({ dragonsAgainst: 3, baronsAgainst: 0 }) === 'The enemy took 3 drago
   `and a kind they took none of is left out (${conceded({ dragonsAgainst: 3, baronsAgainst: 0 })})`);
 ok(conceded({ dragonsAgainst: 1, baronsAgainst: 2 }) === 'The enemy took 1 dragon and 2 barons.', 'one dragon is a dragon');
 
+// ── A pattern's title is true of every match it counts ──────────────────────
+{
+  const mk = (i, place, agent) => ({
+    id: `valorant-${1758000000000 + i}-pat${i}x`, at: 1758000000000 + i, game: 'valorant',
+    review: { kind: 'valorant', insights: { strengths: [], missed: [], mistakes: [
+      { key: 'same-spot', title: `Dying at ${place}`, place, count: 3, weight: 1.5, rounds: [],
+        fix: `Change your position at ${place} each round, or play one step off where they expect you.` },
+      { key: 'same-killer', title: `${agent} kept winning`, agent, count: 3, weight: 1, rounds: [],
+        fix: `Track where their ${agent} plays, then fight them with a teammate or with utility, never alone.` },
+    ] } },
+  });
+  const differ = patterns.summarise([mk(3, 'B Main', 'Jett'), mk(2, 'A Site', 'Skye'), mk(1, 'A Site', 'Skye')]);
+  const spot = differ.mistakes.find((m) => m.key === 'same-spot');
+  ok(spot && spot.matches === 3 && spot.title === 'Dying at the same spot' && !/Main|Site/.test(spot.fix),
+    `a habit seen at different places is not named after the newest one (${spot && spot.title})`);
+  const killer = differ.mistakes.find((m) => m.key === 'same-killer');
+  ok(killer && killer.title === 'One enemy agent kept winning' && !/Jett|Skye/.test(killer.fix),
+    `nor one seen against different agents (${killer && killer.title})`);
+  const same = patterns.summarise([mk(3, 'A Site', 'Skye'), mk(2, 'A site', 'Skye'), mk(1, 'A Site', 'skye')]);
+  ok(same.mistakes.find((m) => m.key === 'same-spot').title === 'Dying at A Site'
+    && same.mistakes.find((m) => m.key === 'same-killer').title === 'Skye kept winning',
+    'and named when every match names the same place or agent');
+  // A Site on Bind and A Site on Haven are two places.
+  const onMap = (i, map) => { const r = mk(i, 'A Site', 'Skye'); r.review.game = { map }; return r; };
+  const maps = patterns.summarise([onMap(3, 'Bind'), onMap(2, 'Haven'), onMap(1, 'Bind')]);
+  ok(maps.mistakes.find((m) => m.key === 'same-spot').title === 'Dying at the same spot',
+    'the same place name on two maps is not named as one place');
+}
+
+// ── Rivals titles saved backwards before 8.0.3 are rebuilt once ─────────────
+{
+  const { repairRivalsTitles } = require('../src/main/services/review-repair');
+  const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-repair-'));
+  try {
+    const st = new ReviewStore(dir2);
+    const review = { kind: 'rivals', empty: false, game: { hero: 'Luna Snow', role: 'Strategist' }, scoreline: {},
+      grade: { score: 66, letter: 'C', provisional: false, categories: [] },
+      against: [{ id: 'deaths', label: 'Deaths', value: 11, baseline: 8, delta: 3, better: false, games: 5, scope: 'role' }] };
+    // As 8.0.2 saved it: more deaths than usual, titled "Deaths down".
+    review.insights = { mistakes: [{ key: 'vs:deaths', title: 'Deaths down 38%', detail: 'x', rounds: [], count: 1, weight: 3.8 }],
+      strengths: [], missed: [] };
+    const id = newId('rivals', 1758000000000);
+    st.save({ id, game: 'rivals', at: 1758000000000, review });
+    ok(st.list('rivals')[0].topMistake === 'Deaths down 38%', 'an 8.0.2 Rivals review reads its deaths backwards');
+    ok(repairRivalsTitles(st, insights) === 1, 'the repair rewrites it');
+    ok(st.list('rivals')[0].topMistake === 'Deaths up 38%' && st.get(id).review.insights.mistakes[0].title === 'Deaths up 38%',
+      'and the library row and the review now say the deaths went up');
+    ok(st.get(id).review.grade.score === 66 && st.get(id).at === 1758000000000, 'nothing else in it changes');
+    ok(repairRivalsTitles(st, insights) === 0, 'and a second run finds nothing to rewrite');
+  } finally {
+    fs.rmSync(dir2, { recursive: true, force: true });
+  }
+}
+
+// ── The weekly report's counts carry a title true of every match ────────────
+{
+  const now = 1758400000000;
+  const week = (i, pct) => ({ id: `rivals-${now - i * 3600000}-wk${i}x`, at: now - i * 3600000, game: 'rivals',
+    review: { kind: 'rivals', game: { hero: 'Luna Snow', role: 'Strategist' },
+      grade: { score: 70, letter: 'B', provisional: false, categories: [] },
+      insights: { mistakes: [], missed: [], strengths: [
+        { key: 'vs:healing', title: `Healing up ${pct}%`, detail: 'x', rounds: [], count: 1 },
+      ] } } });
+  const w = assembleReport({ riotId: '', stats: null, reviews: [week(1, 32), week(2, 16), week(3, 25)], patterns: null, now });
+  ok(w.doingWell.includes('Healing above your average, in 3 matches') && !w.doingWell.some((x) => /\d+%/.test(x)),
+    `a week's repeat carries no one match's percentage (${w.doingWell.join(' | ')})`);
+  const one = assembleReport({ riotId: '', stats: null, reviews: [week(1, 32)], patterns: null, now });
+  ok(one.doingWell.includes('Healing up 32%'), 'while one match keeps its own title');
+}
+
+// ── A Rivals comparison's up and down are the number's ──────────────────────
+{
+  const ins = insights.rivals({ empty: false, game: { hero: 'Hela', role: 'Duelist' }, scoreline: {}, against: [
+    { id: 'deaths', label: 'Deaths', value: 4, baseline: 8, delta: -4, better: true, games: 5, scope: 'role' },
+    { id: 'kills', label: 'Kills', value: 10, baseline: 20, delta: -10, better: false, games: 5, scope: 'role' },
+  ] });
+  ok(ins.strengths.some((s) => s.title === 'Deaths down 50%') && ins.mistakes.some((m) => m.title === 'Kills down 50%'),
+    `fewer deaths than usual reads "Deaths down", never "Deaths up" (${ins.strengths.map((s) => s.title).join(', ')})`);
+  const rv = (i) => ({ id: `rivals-${1758000000000 + i}-riv${i}x`, at: 1758000000000 + i, game: 'rivals',
+    review: { kind: 'rivals', insights: ins } });
+  const p = patterns.summarise([rv(2), rv(1)]);
+  ok(p.strengths.some((s) => s.title === 'Deaths below your average') && p.mistakes.some((m) => m.title === 'Kills below your average'),
+    'and a pattern of them carries the direction, never one match\'s percentage');
+}
+
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' grade and library checks passed'}`);
 process.exit(fails ? 1 : 0);

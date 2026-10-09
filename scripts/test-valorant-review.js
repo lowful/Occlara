@@ -20,6 +20,9 @@ const { RoundLedger } = require('../src/shared/valorant-rounds');
 const { MatchEndWatch, isFinalScore } = require('../src/shared/match-end');
 const review = require('../src/shared/valorant-review');
 const matchReview = require('../server/services/match-review');
+const verify = require('../src/shared/valorant-verify');
+const { metaOf } = require('../src/main/services/review-store');
+const { roleOf } = require('../src/shared/agent-roles');
 
 let fails = 0;
 let checks = 0;
@@ -660,6 +663,54 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(sp.endedBy === 'score' && sp.rounds.length === 7, `the 2 to 5 swiftplay ends on its score with 7 rounds (${sp.endedBy}, ${sp.rounds.length})`);
   const rv = review.build({ rounds: sp.rounds, context: sp.context, endedBy: sp.endedBy });
   ok(rv.game.result === 'Defeat' && rv.halftimeAfter === 4, 'a defeat, with halftime after round 4');
+}
+
+// ── 8.0.3: cards carry what the breakdown counts, a Riot only review, the ledger ──
+{
+  const played = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
+  const riotRec = load('riot-abyss-13-11.json');
+  const { rounds: vr } = verify.reconcile(played.rounds, riotRec);
+  const built = review.build({ rounds: vr, context: played.context, endedBy: 'score', ai: {}, role: 'Duelist',
+    history: [], riotMe: riotRec.me, queue: riotRec.queue });
+  const c6 = built.rounds.find((c) => c.n === 6);
+  ok(c6.sideKey === 'defending' && c6.verified === true && c6.watched === true,
+    'a card says its side, that Riot checked it, and that the coach watched it');
+  ok(c6.riot && c6.riot.killer === 'Skye' && c6.riot.traded === false && c6.riot.afterPlant === true,
+    "and carries Riot's facts for the round");
+  ok(built.rounds.filter((c) => c.riot && c.riot.firstKill).length === 8, 'eight first kills, as Riot has them');
+  ok(built.rounds.every((c) => c.spot === null || c.died), 'a death spot only on a round with a death');
+  ok(built.rounds.some((c) => c.spot), 'and the screen keeps its locations where Riot confirms the death');
+  ok(built.source === 'watched', 'a recorded review says so');
+
+  const tracker = { matchId: 'm', map: 'Abyss', agent: 'Jett', result: 'Victory', score: '13-11', kills: 31, deaths: 21,
+    assists: 4, kd: 1.48, acs: 382, adr: 243, headshotPct: 25 };
+  const only = review.build({ rounds: verify.reconcile([], riotRec).rounds,
+    context: { agent: 'Jett', map: 'Abyss', teamScore: 13, enemyScore: 11 }, endedBy: 'score', ai: {}, tracker,
+    role: 'Duelist', history: [], riotMe: riotRec.me, queue: 'unrated', riotIdSet: true, source: 'riot' });
+  ok(only.source === 'riot' && only.watched === null, 'a Riot only review claims no rounds watched');
+  ok(only.rounds.length === 24 && only.rounds.every((c) => !c.facts.includes('Not watched by the coach')),
+    'and does not print "Not watched" on every round');
+  ok(only.rounds.every((c) => c.watched === false && c.verified === true), 'every card is Riot checked and unwatched');
+  ok(only.refused.length === 1 && /did not watch/.test(only.refused[0]), 'one line says what the coach could not see');
+  ok(/Riot's record/.test(only.verification || ''), "the verification line says it was graded from Riot's record");
+  ok(only.grade && typeof only.grade.score === 'number', `and it is graded (${only.grade && only.grade.score})`);
+  ok(only.game.mode === 'Unrated' && only.halftimeAfter === 12, 'with the queue Riot names and its halftime');
+
+  const ledger = review.ledgerOf({ ...played, startedAt: 1000, endedAt: 2000 });
+  ok(ledger && ledger.rounds.length === played.rounds.length && ledger.startedAt === 1000 && ledger.endedAt === 2000
+    && ledger.endedBy === played.endedBy, 'the ledger keeps the window, how it ended, and every round');
+  ok(ledger.rounds.every((r) => Array.isArray(r.reads) && r.reads.every((x) => typeof x.text === 'string'
+    && typeof x.death === 'boolean')), 'with reads reconcile() can check');
+  const again = verify.reconcile(ledger.rounds, riotRec);
+  const live = verify.reconcile(played.rounds, riotRec);
+  ok(again.checks.watched === live.checks.watched && again.checks.agreed === live.checks.agreed
+    && again.checks.invented.join() === live.checks.invented.join(), 'and reconciles exactly as the live ledger does');
+  ok(review.ledgerOf(null) === null, 'no snapshot, no ledger');
+
+  ok(metaOf('valorant-1-abcd', 'valorant', { source: 'riot' }, 1).source === 'riot'
+    && metaOf('valorant-1-abcd', 'valorant', {}, 1).source === null, 'the library row keeps where a review came from');
+  ok(roleOf('Jett') === 'Duelist' && roleOf('jett') === 'Duelist' && roleOf('KAY/O') === 'Initiator' && roleOf('Nobody') === null,
+    'roles are read case insensitively from the generated agent data');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);

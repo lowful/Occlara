@@ -309,8 +309,11 @@ function rivals(review) {
     if (move < 0.15) continue;
     const pctMove = Math.round(move * 100);
     const scope = a.scope === 'hero' ? `your ${review.game.hero || 'hero'} average` : `your ${review.game.role || 'role'} average`;
+    // UP AND DOWN ARE THE NUMBER'S, never the verdict's. Taken from `better`,
+    // a player who died less than usual read "Deaths up 38%", because fewer
+    // deaths is the better way for that one.
     const entry = {
-      key: `vs:${a.id}`, title: `${a.label} ${a.better ? 'up' : 'down'} ${pctMove}%`,
+      key: `vs:${a.id}`, title: `${a.label} ${a.delta > 0 ? 'up' : 'down'} ${pctMove}%`,
       detail: `${a.label} ${fmt(a.value)} against ${scope} of ${fmt(a.baseline)}, over ${plural(a.games, 'match', 'matches')}.`,
       rounds: [], count: 1,
     };
@@ -369,4 +372,56 @@ function lol(review) {
   return out;
 }
 
-module.exports = { valorant, rivals, lol, roundList, WEIGHT };
+/**
+ * A REPEAT ACROSS MATCHES IS NOT ONE MATCH'S TITLE. Three entries are named
+ * from one match's specifics: "Dying at A Site", "Skye kept winning", and a
+ * Rivals comparison carrying that match's percentage ("Kills down 52%"). Counted
+ * across matches under the newest one's title, "Dying at B Main, in 3 of your
+ * last 3" was printed when only one of those deaths was at B Main. This is
+ * the title and fix a count across matches may carry: the newest specific
+ * one when every sighting names the same place or agent, otherwise one that
+ * is true of all of them. A Rivals comparison keeps only its direction.
+ *
+ * @param key        the insight key
+ * @param list       'mistakes' | 'strengths' | 'missed'
+ * @param newest     the newest sighting ({ title, fix })
+ * @param specifics  the distinct places or agents its sightings named (case folded)
+ */
+function repeatTitle(key, list, newest, specifics) {
+  const one = specifics && specifics.size <= 1;
+  if (key === 'same-spot' && !one) {
+    return { title: 'Dying at the same spot', fix: 'Change your position each round, or play one step off where they expect you.' };
+  }
+  if (key === 'same-killer' && !one) {
+    return { title: 'One enemy agent kept winning',
+      fix: 'Track where their strongest player plays, then fight them with a teammate or with utility, never alone.' };
+  }
+  if (String(key).startsWith('vs:')) {
+    // Lazily: the Rivals review loads its game data, and only Rivals needs it.
+    const { METRICS } = require('./rivals-review');
+    const id = String(key).slice(3);
+    const m = (METRICS || []).find((x) => x.id === id);
+    const label = m ? m.label : id.charAt(0).toUpperCase() + id.slice(1);
+    const good = list === 'strengths';
+    const higher = m && m.lowerIsBetter ? !good : good;
+    return { title: `${label} ${higher ? 'above' : 'below'} your average`, fix: newest.fix || null };
+  }
+  return { title: newest.title, fix: newest.fix || null };
+}
+
+/**
+ * The place or agent an entry is named after, case folded, or null. A place
+ * is a place on one map (A Site exists on nearly every map), so the map the
+ * match was played on is part of it.
+ */
+function specificOf(e, map) {
+  if (!e) return null;
+  if (e.key === 'same-spot') {
+    const place = String(e.place || e.title || '').trim().toLowerCase();
+    return place ? `${String(map || '').trim().toLowerCase()}:${place}` : null;
+  }
+  if (e.key === 'same-killer') return String(e.agent || e.title || '').trim().toLowerCase() || null;
+  return null;
+}
+
+module.exports = { valorant, rivals, lol, roundList, repeatTitle, specificOf, WEIGHT };

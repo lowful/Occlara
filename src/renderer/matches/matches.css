@@ -134,3 +134,128 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 @media (prefers-reduced-motion: reduce) {
   .m-row { animation: none; transition: none; }
 }
+
+/* ── The breakdown ───────────────────────────────────────────────────────────
+   A table of rows that open in place. Digits in Geist Mono so columns line up;
+   a grade always shows its number and letter beside its colour; a rate under
+   its floor is drawn muted as "3 of 7", never as a percentage. */
+.b-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.seg-mini { display: flex; gap: 2px; padding: 2px; border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--glass-border); flex: none; }
+.seg-mini button {
+  font: 600 11.5px var(--font); color: var(--text-dim);
+  padding: 4px 10px; border-radius: 6px; border: 0; background: transparent; cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.seg-mini button:hover { color: var(--text); }
+.seg-mini button[aria-selected="true"] { background: var(--text); color: var(--bg); }
+.seg-mini button:focus-visible, .b-chip:focus-visible, .bf-go:focus-visible {
+  outline: 2px solid var(--text); outline-offset: 2px;
+}
+/* INSIDE THE TABLE A RING DRAWN OUTSIDE IS CUT OFF by its rounded clip, so a
+   row's ring is drawn inset, and a header, which reads as text, is underlined
+   instead: a ring around it was cut at the top and ran over the sort arrow. */
+.b-row:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.b-sort:focus-visible {
+  outline: none; color: var(--text);
+  text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px;
+}
+
+.b-queues { display: flex; flex-wrap: wrap; gap: 6px; }
+.b-chip {
+  font: 600 11px var(--font); color: var(--text-dim);
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--glass-border); background: transparent; cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.b-chip small { font-family: var(--font-mono); color: var(--text-mute); margin-left: 5px; }
+.b-chip[aria-pressed="true"] { color: var(--text); border-color: rgba(255, 255, 255, 0.4); }
+
+/* auto-fill, not auto-fit: one call is a tile the width of three, never a
+   banner across the whole window. */
+.b-headline { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--space-2); }
+.b-call {
+  display: flex; flex-direction: column; gap: 3px; padding: var(--space-3);
+  background: rgba(0, 0, 0, 0.24); border: 1px solid var(--glass-border); border-radius: var(--r-md);
+}
+.b-call span { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-mute); }
+.b-call b { font-size: 15px; font-weight: 700; color: var(--text); }
+.b-call small { font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
+.b-note { font-size: 11.5px; color: var(--text-mute); line-height: 1.45; margin: 0; }
+
+.b-table { display: flex; flex-direction: column; border: 1px solid var(--glass-border); border-radius: var(--r-md); overflow: hidden; }
+.b-tr { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: var(--space-2); padding: 0 var(--space-3); }
+/* A HEADER WIDER THAN ITS COLUMN WRAPS onto a second line, bottom aligned with
+   the rest, because on one line "First death" ran into "Defence" at the
+   window's own 760 width. The sort arrow sits in the gap after the header
+   rather than inside it, so it never pushes a header past its column. */
+.b-th { background: rgba(0, 0, 0, 0.28); border-bottom: 1px solid var(--glass-border); align-items: end; }
+.b-th-cell { display: flex; justify-content: flex-end; min-width: 0; }
+.b-th-cell:first-child { justify-content: flex-start; }
+.b-sort {
+  position: relative;
+  font: 700 10px/1.3 var(--font); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-mute);
+  background: transparent; border: 0; padding: 9px 0; cursor: pointer; text-align: right;
+}
+.b-sort.left { text-align: left; }
+.b-sort:hover { color: var(--text-dim); }
+[aria-sort="ascending"] > .b-sort::after,
+[aria-sort="descending"] > .b-sort::after { position: absolute; left: 100%; bottom: 9px; margin-left: 2px; }
+[aria-sort="ascending"] > .b-sort::after { content: '\2191'; }
+[aria-sort="descending"] > .b-sort::after { content: '\2193'; }
+.b-row {
+  min-height: 42px; border-top: 1px solid var(--glass-border); cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+.b-th + .b-row { border-top: 0; }
+.b-row:hover { background: rgba(255, 255, 255, 0.03); }
+.b-row[aria-expanded="true"] { background: rgba(255, 255, 255, 0.05); }
+.b-td {
+  font: 500 12.5px/1.2 var(--font-mono); color: var(--text); text-align: right;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 10px 0; min-width: 0;
+}
+.b-td.raw { color: var(--text-mute); font-size: 11.5px; }
+.b-td.none { color: var(--text-mute); }
+.b-td small { display: block; font: 500 10px var(--font); color: var(--text-mute); }
+.b-name { font: 600 13px var(--font); text-align: left; display: flex; flex-direction: column; gap: 1px; }
+.b-name span { overflow: hidden; text-overflow: ellipsis; }
+.b-grade { display: inline-flex; align-items: center; gap: 6px; }
+.b-letter {
+  width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--glass-border);
+  display: inline-flex; align-items: center; justify-content: center; font: 800 11px var(--font);
+}
+.b-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
+.b-letter.mid  { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
+.b-letter.warn { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.45); }
+.b-letter.bad  { color: var(--red); border-color: rgba(var(--red-rgb), 0.45); }
+
+.b-detail {
+  display: grid; grid-template-columns: 128px 1fr; gap: 8px var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--glass-border); background: rgba(0, 0, 0, 0.18);
+  animation: rowIn var(--t-med) var(--ease) both;
+}
+.b-dt { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-mute); padding-top: 3px; }
+.b-dd { font-size: 12.5px; color: var(--text); line-height: 1.5; margin: 0; }
+.b-fix { display: block; color: var(--text-dim); margin-top: 3px; }
+.b-src { grid-column: 1 / -1; font-size: 11px; color: var(--text-mute); margin: 2px 0 0; }
+
+/* The grading line WRAPS rather than hiding when the window is narrow: it is
+   where a run says it could not find the account or reach Riot, and a
+   window at its minimum width still has to say that. */
+.l-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.l-head h3 { flex: none; }
+.bf { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); min-width: 0; flex: 1; }
+.bf-status { font-size: 11.5px; color: var(--text-mute); line-height: 1.4; text-align: right; min-width: 0; }
+.bf-go { font-size: 11.5px; padding: 6px 10px; border-radius: var(--r-sm); flex: none; }
+.bf-go:disabled, .bf-go:disabled:hover { cursor: default; color: var(--text-mute); background: transparent; }
+
+@media (max-width: 700px) {
+  .b-tr { grid-template-columns: var(--cols-narrow); }
+  .b-opt { display: none; }
+  .b-detail { grid-template-columns: 1fr; gap: 4px; }
+  /* Stacked, each label sits nearer its own line than the one above it. */
+  .b-dt { padding-top: 8px; }
+  .b-dt:first-child { padding-top: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .b-detail { animation: none; }
+}

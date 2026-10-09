@@ -67,8 +67,6 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 }
 .seg button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 .seg button.active { background: var(--red); color: #fff; box-shadow: var(--glow-red); }
-.tip-note { font-size: 11px; color: var(--text-mute); text-align: center; margin: 10px 0 14px; line-height: 1.4; }
-.tip-note kbd { font-size: 10px; }
 
 .keys {
   display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px;
@@ -101,7 +99,6 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 .page .hero { margin-bottom: 12px; }
 .page .steps { margin-bottom: 0; }
 .page .keys  { margin-bottom: 0; }
-.page .tip-note { margin-bottom: 0; }
 @keyframes pageIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 
 .lead {
@@ -154,7 +151,7 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 .page .style-grid .style-opt:nth-child(3) { animation-delay: 180ms; }
 .page .keys .k:nth-child(4),
 .page .style-grid .style-opt:nth-child(4) { animation-delay: 235ms; }
-.page .lead, .page .op-row, .page .seg, .page .tip-note {
+.page .lead, .page .op-row, .page .seg {
   animation: riseIn 380ms var(--ease-expo) both;
   animation-delay: 150ms;
 }
@@ -184,6 +181,30 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
   font-size: 10.5px;
   line-height: 1.45;
 }
+
+/* THE WELCOME PAGE HAS TO FIT. It is the first screen a player ever sees, and
+   at its old size the logo was cut off at the top of the card and the third
+   step ran under the footer: 135px over a 387px page, measured in the real
+   app. The mark is smaller, the language picker shares one row with its
+   label, and each step says the same thing in two lines.
+   npm run check:onboardingriot measures every page of the tour. */
+.page[data-page="0"] .hero { margin-bottom: 8px; }
+.page[data-page="0"] .mark { margin-bottom: 2px; }
+.ob-lang.ob-lang-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 190px);
+  align-items: center;
+  justify-content: center;
+  gap: 6px var(--space-3);
+  margin: 0 auto 8px;
+  max-width: none;
+}
+.ob-lang-row .ob-lang-note { grid-column: 1 / -1; text-align: center; }
+.page[data-page="0"] .steps { gap: 6px; }
+.page[data-page="0"] .steps li { padding: 8px 12px; }
+/* A block, not an inline run: inline, the line box added its own leading
+   under the title, five pixels a step that the page did not have. */
+.page[data-page="0"] .steps li > div > span { display: block; }
 
 /* The note under the shortcut list. Quieter than .lead, which is the section's
    main paragraph, and sized to match .k so the block reads as one group. */
@@ -252,3 +273,51 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 .obr-cats b { display: block; font-family: var(--font-mono); font-size: 14px; color: var(--text); letter-spacing: 0; margin-top: 2px; }
 .ob-riot { margin: 4px 0 14px; }
 .ob-riot .input { width: 100%; }
+
+/* The Riot ID page: the field and Connect side by side, a status line, and
+   the matches graded so far in a short scrolling list. */
+.ob-riot { display: flex; gap: var(--space-2); }
+.ob-riot .input { flex: 1; min-width: 0; }
+.ob-connect { flex: none; }
+.ob-riot-status { font-size: 12px; color: var(--text-dim); margin: 6px 0 0; }
+.ob-riot-status.ok { color: var(--good); }
+.ob-riot-status.err { color: var(--red); }
+/* THE LIST GIVES WAY. min-height: 0 lets this box shrink below its content,
+   so when a two line status and a two line summary arrive with the rows, the
+   scrolling list takes the squeeze instead of the centred page spilling out
+   of the card at both ends. */
+.ob-bf { display: flex; flex-direction: column; gap: 6px; margin-top: var(--space-2); min-height: 0; }
+.ob-bf-line { font-size: 11.5px; color: var(--text-mute); }
+.ob-bf-line.err { color: var(--red); }
+/* NO-DRAG, because the whole card is a drag handle, and a drag region on
+   Windows takes the mouse wheel and the scrollbar as well as the click: the
+   list would show its first rows and never scroll to the rest. */
+.ob-bf-list { -webkit-app-region: no-drag; display: flex; flex-direction: column; max-height: 132px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: var(--r-md); }
+.ob-bf-row { display: grid; grid-template-columns: 1fr auto auto; gap: var(--space-3); align-items: center; padding: 7px var(--space-3); border-top: 1px solid var(--glass-border); font-size: 12px; animation: obRowIn 200ms var(--ease) both; }
+.ob-bf-row:first-child { border-top: 0; }
+.ob-bf-row.settled { animation: none; }
+.ob-bf-name { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-bf-res { color: var(--text-mute); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.ob-bf-res.win { color: var(--text); }
+.ob-bf-res.loss { color: var(--red); }
+.ob-bf-grade { font-family: var(--font-mono); font-weight: 600; color: var(--text); min-width: 44px; text-align: right; }
+.ob-bf-grade.good { color: var(--good); }
+.ob-bf-grade.warn { color: var(--warn); }
+.ob-bf-grade.bad { color: var(--red); }
+.ob-bf-row.failed .ob-bf-name { color: var(--text-mute); }
+/* 11px, the size of the other notes in the tour: at 12px the Advanced
+   coaching line wrapped to three lines and the After every match page
+   overflowed its card. */
+.lead.small { font-size: 11px; line-height: 1.5; margin: var(--space-2) 0 0; }
+
+/* After every match carries the Advanced coaching switch as well as the
+   sample review, so the sample sits a little tighter than it used to. The
+   page is measured by npm run check:onboardingriot, which fails when any
+   block leaves the card. */
+.page[data-page="2"] .hero { margin-bottom: var(--space-2); }
+.page[data-page="2"] .ob-review { padding: var(--space-3) 14px; gap: 9px; }
+.page[data-page="2"] .obr-card { padding: 9px var(--space-3); }
+.page[data-page="2"] .lead.small { margin-top: var(--space-3); }
+.page[data-page="2"] .seg { margin-top: 7px; }
+@keyframes obRowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ob-bf-row { animation: none; } }

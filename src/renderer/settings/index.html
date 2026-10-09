@@ -53,6 +53,10 @@
           <button id="trk-connect" class="btn trk-btn" data-i18n="settings.connect">Connect</button>
         </div>
         <p id="trk-status" class="trk-status" hidden></p>
+        <!-- The grading Connect starts (backfill.js), followed as main pushes
+             it, and the library it fills once it has graded something. -->
+        <p id="bf-status" class="trk-status" aria-live="polite" hidden></p>
+        <button id="bf-open" class="btn btn-ghost bf-open" type="button" hidden>Open Matches</button>
       </section>
 
       <section>
