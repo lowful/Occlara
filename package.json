@@ -1,6 +1,6 @@
 {
   "name": "occlara",
-  "version": "8.1.0",
+  "version": "8.2.0",
   "description": "Occlara, a post-match AI coach for Valorant, Marvel Rivals and League of Legends. Reads the screen, never the game, shows nothing during a match, and grades every match after it.",
   "main": "src/main/index.js",
   "scripts": {
