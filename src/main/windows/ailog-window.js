@@ -11,7 +11,7 @@ const registry = require('./registry');
  * wrong. Larger than the other popups because it shows a screenshot.
  */
 /**
- * @param sessionId  open at this log session, or null for the newest.
+ * Opened at what the caller names (below), or at the newest session.
  *
  * Carried in the URL hash rather than pushed over IPC after load, because the
  * window may not exist yet and a message sent to a renderer that has not
@@ -19,16 +19,22 @@ const registry = require('./registry');
  * the renderer runs.
  */
 /**
- * @param sessionId a session folder name, OR the literal 'deaths' to open in
- *   death-review mode on the newest session. The match review card's eye button
- *   sends the latter, because the useful thing after a match is the deaths, not
- *   frame zero.
+ * @param target a session folder name, OR the literal 'deaths' to open in
+ *   death-review mode on the newest session, OR { scope } from the eye on a
+ *   review (8.2): one match of one session, { session, match, from, to } as
+ *   main found it, or { gone: true } when no kept session holds it. A scope
+ *   rides in the hash as JSON, told apart from a folder name by its brace.
+ *   With `at` beside it, from the eye on one death the coach looked at, the
+ *   match opens on the frame captured then rather than on its first death.
  */
-function open(sessionId) {
+function open(target) {
   const existing = registry.get('ailog');
   if (existing) {
-    // Already open: tell it to move, since the URL was read once at load.
-    if (sessionId) existing.webContents.send(C.AILOG_SHOW, sessionId);
+    // Already open: tell it to move, since the URL was read once at load. The
+    // eye on a review is often pressed with the log minimised, so it comes
+    // back up rather than taking focus where nobody can see it.
+    if (target) existing.webContents.send(C.AILOG_SHOW, target);
+    if (existing.isMinimized()) existing.restore();
     existing.focus();
     return existing;
   }
@@ -53,7 +59,7 @@ function open(sessionId) {
   });
 
   win.loadFile(path.join(__dirname, '../../renderer/ailog/index.html'),
-    sessionId ? { hash: encodeURIComponent(String(sessionId)) } : undefined);
+    target ? { hash: encodeURIComponent(typeof target === 'object' ? JSON.stringify(target) : String(target)) } : undefined);
   win.once('ready-to-show', () => win.show());
 
   registry.register('ailog', win);

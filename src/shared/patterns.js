@@ -15,7 +15,7 @@
  *
  * A PATTERN NEEDS TWO MATCHES. One match is already the review's job, and a
  * "habit" seen once is the same coincidence the per match floors exist to
- * stop. With fewer than two saved matches this returns the empty shape and the
+ * stop. With fewer than two recorded matches the lists are empty and the
  * library says it is still learning the player.
  *
  * The trend compares the newer half of the window with the older half:
@@ -23,19 +23,31 @@
  * falling mistake is progress and a falling strength is not, and "getting
  * better" never rests on the latest match alone happening to be clean.
  *
+ * THE GRADES COUNT EVERY MATCH, THE LISTS ONLY THE RECORDED ONES. A match
+ * graded from Riot's record alone has a grade like any other and nothing to
+ * count in a list (insights.countable): counted, its lists made Home's "most
+ * repeated mistake" mostly a quote from matches Occlara never saw. So the
+ * lists come from the last ten RECORDED matches, looked for among the last
+ * forty, and `recorded` says how many beside `matches`, the ones the grades
+ * are over.
+ *
  * Pure: the library hands it the saved reviews, newest first.
  */
 
-const { repeatTitle, specificOf } = require('./insights');
+const { repeatTitle, specificOf, countable } = require('./insights');
 
 const MIN_MATCHES = 2;
 const WINDOW = 10;
+// How many saved reviews the library hands over (index.js), so the last
+// WINDOW recorded ones are found behind the matches graded from Riot's record:
+// Connect grades ten of those in one run.
+const LOOK_BACK = 40;
 
 function tally(reviews, list) {
   const map = new Map();
   reviews.forEach((rv, i) => {
     const seen = new Set();
-    for (const e of ((rv.review.insights || {})[list] || [])) {
+    for (const e of countable(rv.review)[list]) {
       if (!e || !e.key || seen.has(e.key)) continue;
       seen.add(e.key);
       const t = map.get(e.key) || {
@@ -69,28 +81,31 @@ function tally(reviews, list) {
 }
 
 /**
- * @param saved  whole saved reviews ({ id, at, game, review }), newest first
+ * @param saved  whole saved reviews ({ id, at, game, review }), newest first:
+ *               up to LOOK_BACK of them, for the lists' last WINDOW recorded
+ * @returns matches    the last WINDOW matches, which the grades and categories are over
+ *          fromRiot   how many of those were graded from Riot's record alone
+ *          recorded   the recorded matches the lists are over, up to WINDOW
+ *          enough     whether the lists can speak: MIN_MATCHES recorded
  */
 function summarise(saved) {
-  const reviews = (saved || []).filter((s) => s && s.review).slice(0, WINDOW);
+  const all = (saved || []).filter((s) => s && s.review);
+  const reviews = all.slice(0, WINDOW);
+  const recorded = all.filter((s) => s.review.source !== 'riot').slice(0, WINDOW);
   const grades = reviews
     .filter((s) => s.review.grade && typeof s.review.grade.score === 'number')
     .map((s) => ({ id: s.id, at: s.at, score: s.review.grade.score, letter: s.review.grade.letter,
       provisional: !!s.review.grade.provisional }));
   const out = {
     matches: reviews.length,
-    enough: reviews.length >= MIN_MATCHES,
+    fromRiot: reviews.filter((s) => s.review.source === 'riot').length,
+    recorded: recorded.length,
+    enough: recorded.length >= MIN_MATCHES,
     mistakes: [], strengths: [], missed: [],
     grades,
     average: grades.length ? Math.round(grades.reduce((a, g) => a + g.score, 0) / grades.length) : null,
     categories: [],
   };
-  if (!out.enough) return out;
-
-  out.mistakes = tally(reviews, 'mistakes')
-    .sort((a, b) => b.share * b.weight * (b.total / b.matches) - a.share * a.weight * (a.total / a.matches));
-  out.strengths = tally(reviews, 'strengths').sort((a, b) => b.share - a.share || b.total - a.total);
-  out.missed = tally(reviews, 'missed').sort((a, b) => b.share - a.share || b.total - a.total);
 
   // Each grade category over the window, with its newest value beside the average.
   const cats = new Map();
@@ -107,7 +122,13 @@ function summarise(saved) {
     average: Math.round(c.scores.reduce((a, b) => a + b, 0) / c.scores.length),
     matches: c.scores.length,
   }));
+  if (!out.enough) return out;
+
+  out.mistakes = tally(recorded, 'mistakes')
+    .sort((a, b) => b.share * b.weight * (b.total / b.matches) - a.share * a.weight * (a.total / a.matches));
+  out.strengths = tally(recorded, 'strengths').sort((a, b) => b.share - a.share || b.total - a.total);
+  out.missed = tally(recorded, 'missed').sort((a, b) => b.share - a.share || b.total - a.total);
   return out;
 }
 
-module.exports = { summarise, MIN_MATCHES, WINDOW };
+module.exports = { summarise, MIN_MATCHES, WINDOW, LOOK_BACK };

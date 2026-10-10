@@ -108,12 +108,23 @@ function roleBaseline(history, role, key) {
   return { mean: pool.reduce((a, b) => a + b, 0) / pool.length, games: pool.length };
 }
 
+/*
+ * WHAT DECISIONS SAYS WHEN IT FLAGGED NOTHING. A recorded match had its
+ * ultimate read and the coach's look behind the count, so "no avoidable death"
+ * is what the count found. Graded from Riot's record alone it counted only the
+ * deaths with the team ahead in a lost round, and calling the rest not
+ * avoidable was a judgement nobody made, so it says what it counted.
+ */
+const NONE_AVOIDABLE = 'no avoidable death on record';
+const NONE_COUNTED = 'no death with your team ahead in a lost round';
+
 /**
  * @param input.rounds     reconciled rounds (valorant-verify) or ledger rows
  * @param input.scoreline  { kills, deaths, assists, acs } from Riot or the tracker, or null
  * @param input.role       the agent's role
  * @param input.history    valorantHistory rows
  * @param input.totalRounds the match's round count when known (from the score)
+ * @param input.riotOnly   graded from Riot's record alone, with no recording
  */
 function valorant(input) {
   const rows = Array.isArray(input.rounds) ? input.rounds : [];
@@ -249,7 +260,13 @@ function valorant(input) {
   // Three rounds at least, the floor the other categories keep, or a remake
   // two rounds long would grade on a share of two.
   const decisions = { key: 'decisions', label: 'Decisions', weight: 25, score: null, evidence: [] };
-  const looked = rows.filter((r) => r.died && r.forensics && r.forensics.cause && r.forensics.cause !== 'unclear');
+  // NOT A LOOK FROM THE SCREEN ALONE (8.2). Its frames were chosen by when the
+  // screen read the death, which can be late, and with it a review Riot never
+  // checked would speak in two categories: graded on its deaths and four of
+  // the coach's labels, which is the grade from the screen that one category
+  // is not a grade exists to refuse. It is shown, and counted in the lists.
+  const looked = rows.filter((r) => r.died && r.forensics && r.forensics.cause && r.forensics.cause !== 'unclear'
+    && r.forensics.source !== 'screen');
   if (total >= 3 && (hasFeed || looked.length)) {
     const flagged = new Set();
     const thrown = verified.filter((r) => r.died && r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies && r.result === 'lost');
@@ -270,10 +287,23 @@ function valorant(input) {
         : `${avoid.length} of the ${looked.length} deaths the coach looked at ${avoid.length === 1 ? 'was' : 'were'} avoidable`);
     }
     if (clutches) decisions.evidence.push(`won ${clutches} clutch${clutches === 1 ? '' : 'es'}`);
-    if (!decisions.evidence.length) decisions.evidence.push('no avoidable death on record');
+    if (!decisions.evidence.length) decisions.evidence.push(input.riotOnly ? NONE_COUNTED : NONE_AVOIDABLE);
   }
 
   return finish([survival, impact, teamplay, decisions], !isVerified, notes);
+}
+
+/**
+ * A Riot only grade saved before 8.2, in the words it is graded in now: its
+ * Decisions said "no avoidable death on record". Shown, never saved, and a
+ * grade with nothing to change comes back as it was.
+ */
+function riotWords(grade) {
+  if (!grade || !Array.isArray(grade.categories)) return grade;
+  const said = (c) => c && c.key === 'decisions' && Array.isArray(c.evidence) && c.evidence.includes(NONE_AVOIDABLE);
+  if (!grade.categories.some(said)) return grade;
+  return { ...grade, categories: grade.categories.map((c) => (said(c)
+    ? { ...c, evidence: c.evidence.map((e) => (e === NONE_AVOIDABLE ? NONE_COUNTED : e)) } : c)) };
 }
 
 // ── Marvel Rivals ───────────────────────────────────────────────────────────
@@ -392,4 +422,4 @@ function lol(review) {
   return finish(cats, false, notes);
 }
 
-module.exports = { valorant, rivals, lol, letter, curve, combine };
+module.exports = { valorant, rivals, lol, letter, curve, combine, riotWords, NONE_AVOIDABLE, NONE_COUNTED };

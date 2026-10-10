@@ -6,7 +6,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "charity utility"
     },
@@ -19,7 +18,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "dart height"
     },
@@ -32,7 +30,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "insta dart"
     },
@@ -45,7 +42,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "rotating with util"
     },
@@ -58,7 +54,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "dart timing"
     },
@@ -71,7 +66,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "anchoring"
     },
@@ -84,7 +78,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "ult range"
     },
@@ -97,7 +90,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "checkpoints"
     },
@@ -120,7 +112,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "checkpoints"
     },
@@ -143,7 +134,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "being a thorn"
     },
@@ -153,7 +143,6 @@
     "text": "The agent you picked does not decide whether you are allowed to flank or take space, that is a choice about the round, not about your role.",
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "role conventions"
     },
@@ -163,7 +152,6 @@
     "text": "Never stand still while holding an angle, small steps in and out beat a static crosshair because they have to find you again every time.",
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "movement"
     },
@@ -173,7 +161,6 @@
     "text": "Burst, move, burst, move, the kills come from being hard to hit as much as from the first bullet landing.",
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "movement"
     },
@@ -183,7 +170,6 @@
     "text": "You accelerate from a standstill in this game, so hugging the wall you are about to peek means you arrive slowly and get shot first.",
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "acceleration"
     },
@@ -193,7 +179,6 @@
     "text": "Step off the wall and build your speed before the corner, so the peek is fast instead of a slow lean into their crosshair.",
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "acceleration"
     },
@@ -203,7 +188,6 @@
     "text": "Do not walk straight out of a smoke in a straight line, angle the exit so they have to move their crosshair to find you.",
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "smoke exits"
     },
@@ -213,7 +197,6 @@
     "text": "Decide how you are taking an angle before you arrive at it, the way you pick the lane before the turn, hesitating at the corner is what gets you traded.",
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "planning the peek"
     },
@@ -223,7 +206,6 @@
     "text": "Scoping a rifle roots you in place, take the angle unscoped and keep moving unless the range genuinely demands it.",
     "weight": 1,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "scoping"
     },
@@ -236,7 +218,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "shotgun range",
       "numbers": "valorant-api.com damage table"
@@ -250,7 +231,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "shotgun range",
       "numbers": "valorant-api.com damage table"
@@ -266,7 +246,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "shotgun aim"
     },
@@ -279,7 +258,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "phantom falloff",
       "numbers": "valorant-api.com damage table"
@@ -293,7 +271,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "pre placed stars"
     },
@@ -306,7 +283,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "star combos"
     },
@@ -319,7 +295,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "building a pattern"
     },
@@ -332,7 +307,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "filling utility"
     },
@@ -354,7 +328,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "smoke depth"
     },
@@ -367,7 +340,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "gun in hand"
     },
@@ -389,7 +361,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "suppressing an op"
     },
@@ -399,7 +370,6 @@
     "text": "If one site keeps working for them they will keep going there, it really is not deeper than that, so start your round toward the site that has been winning.",
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "anti strat"
     },
@@ -409,7 +379,6 @@
     "text": "Do not rotate off a man advantage you already have information on into a site you know nothing about, the numbers and the info are both worth more than the surprise.",
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "rotating into the unknown"
     },
@@ -419,7 +388,6 @@
     "text": "The third time you see the same lurk in the same place it stops being a coincidence, say it out loud so the team can play around it.",
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "paint the picture"
     },
@@ -429,7 +397,6 @@
     "text": "Which side the enemy wall goes up on is the clearest read available, call it every round and watch whether they ever break the pattern.",
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "wall reads"
     },
@@ -440,7 +407,6 @@
     "phase": "buy",
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "have a plan"
     },
@@ -453,7 +419,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "role conventions"
     },
@@ -464,7 +429,6 @@
     "side": "attack",
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "spike carrying"
     },
@@ -474,7 +438,6 @@
     "text": "Vary where you start the round, playing the same opening position every time is the easiest thing in the world to prepare against.",
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "starting positions"
     },
@@ -484,7 +447,6 @@
     "text": "An ultimate you never press is worth nothing, spend it on a round you can still win rather than saving it for a perfect one that never arrives.",
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "ult economy"
     },
@@ -497,7 +459,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "tilt"
     },
@@ -507,7 +468,6 @@
     "text": "Keep the call simple enough that four other people can execute it, an overthought read nobody follows is worth less than an obvious one everybody does.",
     "weight": 2,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "simplicity"
     },
@@ -521,7 +481,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "spectre falloff",
       "numbers": "valorant-api.com damage table"
@@ -535,7 +494,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "stinger falloff",
       "numbers": "valorant-api.com damage table"
@@ -549,7 +507,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "ghost falloff",
       "numbers": "valorant-api.com damage table"
@@ -563,7 +520,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "sheriff falloff",
       "numbers": "valorant-api.com damage table"
@@ -577,7 +533,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "frenzy falloff",
       "numbers": "valorant-api.com damage table"
@@ -591,7 +546,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "classic falloff",
       "numbers": "valorant-api.com damage table"
@@ -605,7 +559,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "bandit falloff",
       "numbers": "valorant-api.com damage table"
@@ -619,7 +572,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "ares falloff",
       "numbers": "valorant-api.com damage table"
@@ -633,7 +585,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "odin falloff",
       "numbers": "valorant-api.com damage table"
@@ -647,7 +598,6 @@
     ],
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "vandal flat",
       "numbers": "valorant-api.com damage table"
@@ -661,7 +611,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "guardian flat",
       "numbers": "valorant-api.com damage table"
@@ -675,7 +624,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "marshal flat",
       "numbers": "valorant-api.com damage table"
@@ -689,7 +637,6 @@
     ],
     "weight": 2,
     "source": {
-      "coach": "Occlara",
       "kind": "computed",
       "topic": "outlaw flat",
       "numbers": "valorant-api.com damage table"
@@ -701,7 +648,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "default spread"
     }
@@ -712,7 +658,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "lurk value"
     }
@@ -723,7 +668,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "fakes"
     }
@@ -734,7 +678,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "man advantage"
     }
@@ -745,7 +688,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "util budget"
     }
@@ -757,7 +699,6 @@
     "tier": "advanced",
     "weight": 2,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "tempo"
     }
@@ -769,7 +710,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "post plant"
     }
@@ -780,7 +720,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "rotating into the unknown"
     }
@@ -791,7 +730,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "early aggression"
     }
@@ -802,7 +740,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "anchor or rotate"
     }
@@ -813,7 +750,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "giving ground"
     }
@@ -825,7 +761,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "retake shape"
     }
@@ -836,7 +771,6 @@
     "tier": "advanced",
     "weight": 2,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "saving"
     }
@@ -847,7 +781,6 @@
     "tier": "advanced",
     "weight": 2,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "flank watch"
     }
@@ -858,7 +791,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Bonkar (NRG)",
       "kind": "vod-review",
       "topic": "wall reads"
     }
@@ -869,7 +801,6 @@
     "tier": "advanced",
     "weight": 3,
     "source": {
-      "coach": "Occlara",
       "kind": "round-shape",
       "topic": "contest or retake"
     }

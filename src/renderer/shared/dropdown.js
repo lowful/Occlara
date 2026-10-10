@@ -32,7 +32,21 @@
 (function (root) {
 
   const OPEN_CLASS = 'dd-open';
+  // A list closes as it opened (8.2): dd-closing plays ddOut (dropdown.css)
+  // over --t-fast, and the list is hidden once that is over.
+  const CLOSING_CLASS = 'dd-closing';
   let openInstance = null;   // only one list open at a time, app-wide
+
+  const reducedMotion = () => {
+    try { return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch { return false; }
+  };
+  /** --t-fast in ms, read from theme.css so the timer and the fade agree. */
+  const closeMs = () => {
+    try {
+      const v = parseFloat(root.getComputedStyle(document.documentElement).getPropertyValue('--t-fast'));
+      return Number.isFinite(v) ? v : 140;
+    } catch { return 140; }
+  };
 
   function create(mount, opts) {
     const o = opts || {};
@@ -41,6 +55,10 @@
     let highlighted = -1;
     let typeahead = '';
     let typeaheadTimer = null;
+    // Open is the state, not list.hidden: a closing list is still on screen
+    // for its last few frames, and already closed for everything else.
+    let isOpen = false;
+    let closingTimer = null;
 
     mount.classList.add('dd');
     mount.replaceChildren();
@@ -172,9 +190,13 @@
     }
 
     function open() {
-      if (!options.length || list.hidden === false) return;
+      if (!options.length || isOpen) return;
       if (openInstance && openInstance !== api) openInstance.close();
+      // Opened again while it closes: the close is finished first, so the list
+      // opens from its start rather than from wherever the fade had reached.
+      if (closingTimer) finishClose();
       openInstance = api;
+      isOpen = true;
       buildList();
       list.hidden = false;
       mount.classList.add(OPEN_CLASS);
@@ -192,18 +214,30 @@
     }
 
     function close(refocus) {
-      if (list.hidden) return;
+      if (!isOpen) return;
+      isOpen = false;
       window.removeEventListener('scroll', place, true);
       window.removeEventListener('resize', place);
+      mount.classList.remove(OPEN_CLASS);
+      btn.setAttribute('aria-expanded', 'false');
+      if (openInstance === api) openInstance = null;
+      // Closed now for the keyboard, the screen reader and the next click; on
+      // screen a moment longer, fading, and taking no clicks (dropdown.css).
+      list.classList.add(CLOSING_CLASS);
+      if (reducedMotion()) finishClose();
+      else closingTimer = setTimeout(finishClose, closeMs());
+      if (refocus) btn.focus();
+    }
+
+    function finishClose() {
+      clearTimeout(closingTimer);
+      closingTimer = null;
+      list.classList.remove(CLOSING_CLASS);
       list.hidden = true;
       // Back into the mount so nothing accumulates on body, and so a mount that
       // is removed from the DOM takes its list with it.
       mount.appendChild(list);
-      mount.classList.remove(OPEN_CLASS);
       list.classList.remove('dd-up-list');
-      btn.setAttribute('aria-expanded', 'false');
-      if (openInstance === api) openInstance = null;
-      if (refocus) btn.focus();
     }
 
     function commit(i) {
@@ -215,10 +249,9 @@
       if (typeof o.onChange === 'function') o.onChange(value, opt);
     }
 
-    btn.addEventListener('click', () => { list.hidden ? open() : close(false); });
+    btn.addEventListener('click', () => { if (isOpen) close(false); else open(); });
 
     btn.addEventListener('keydown', (e) => {
-      const isOpen = !list.hidden;
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         if (!isOpen) { open(); return; }
@@ -253,13 +286,13 @@
         options = Array.isArray(next) ? next.slice() : [];
         if (!keepValue && !options.some((x) => x.value === value)) value = options.length ? options[0].value : null;
         paintButton();
-        if (!list.hidden) buildList();
+        if (isOpen) buildList();
         return api;
       },
       setValue(v) {
         value = v;
         paintButton();
-        if (!list.hidden) buildList();
+        if (isOpen) buildList();
         return api;
       },
       close: () => close(false),

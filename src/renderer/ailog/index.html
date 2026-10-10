@@ -19,6 +19,9 @@
       </div>
     </div>
     <div class="h-right no-drag">
+      <!-- Opened on one match from its review (8.2), the picker goes and this
+           opens the rest of that match's session, around the frame on screen. -->
+      <button id="whole" class="whole" type="button" title="The rest of the session this match was in" hidden>Whole session</button>
       <!-- Session picker. Only the frames of the chosen session are loaded, so
            switching costs one read rather than the viewer holding every session. -->
       <select id="session" class="session-pick" title="Choose a session" aria-label="Session"></select>

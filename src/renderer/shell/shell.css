@@ -9,6 +9,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 
 /* ── The sidebar ────────────────────────────────────────────────────────── */
 .side {
+  position: relative;
   flex: 0 0 232px; width: 232px; height: 100%;
   display: flex; flex-direction: column; gap: var(--space-4);
   padding: var(--space-4) var(--space-3);
@@ -20,24 +21,31 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .brand .mark { color: var(--text); }
 .brand .name { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
 
+/* The game picker: one equal square per game in one segmented control, each
+   our own mark (shared/game-marks.js) with the full name as its title and
+   accessible name. A game with no mark yet keeps its name as text. */
 .game-seg {
-  display: flex; gap: 2px; padding: 3px;
+  display: flex; align-self: flex-start; gap: 2px; padding: 3px;
   border: 1px solid var(--glass-border); border-radius: var(--r-md);
 }
 .game-seg button {
-  flex: 1 1 0; min-width: 0; min-height: 32px; padding: 0 var(--space-1);
+  flex: 0 0 auto; width: 36px; height: 36px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
   border: 0; border-radius: var(--r-sm);
   background: transparent; color: var(--text-dim);
   font: 600 12px var(--font); cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
   transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
+.game-seg button .game-mark { width: var(--icon-md); height: var(--icon-md); flex: none; }
+.game-seg button.named { width: auto; padding: 0 var(--space-2); }
 .game-seg button:hover:not(:disabled) { color: var(--text); }
 .game-seg button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
 .game-seg button:disabled { cursor: default; opacity: 0.55; }
 
 .nav { display: flex; flex-direction: column; gap: 2px; }
 .nav-item {
+  position: relative;
   display: flex; align-items: center; gap: var(--space-3);
   width: 100%; min-height: 44px; padding: 0 var(--space-3);
   border: 0; border-radius: 10px;
@@ -46,7 +54,26 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .nav-item:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, 0.04); }
-.nav-item[aria-current="page"] { background: rgba(255, 255, 255, 0.07); color: var(--text); font-weight: 600; }
+/* The current page is marked by .nav-marker below, not by a background of
+   its own: one marker sliding from the page left to the page shown. */
+.nav-item[aria-current="page"] { color: var(--text); font-weight: 600; }
+/* THE MARKER (8.2). One element for the whole sidebar, under the items (they
+   and the record card are positioned, so they paint over it, and it passes
+   behind the card on its way down to Settings), moved with a transform. It
+   slides from page to page; appearing, or following the layout as the game
+   picker comes and goes, it is put in place at once. */
+.nav-marker {
+  position: absolute; top: 0; left: 0;
+  width: 0; height: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--t-med) var(--ease-expo), height var(--t-med) var(--ease-expo),
+              opacity var(--t-fast) var(--ease);
+}
+.nav-marker.on { opacity: 1; }
+.nav-marker.still { transition: opacity var(--t-fast) var(--ease); }
 .nav-item svg { flex: none; }
 /* Sealed: still readable, plainly not a way anywhere. */
 .nav-item:disabled { cursor: default; color: var(--text-mute); background: transparent; }
@@ -56,6 +83,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 
 /* ── The record card: the panel's controls, in the sidebar ─────────────── */
 .rec {
+  position: relative;
   display: flex; flex-direction: column; gap: var(--space-3);
   padding: var(--space-3);
   border: 1px solid var(--glass-border); border-radius: var(--r-lg);
@@ -95,12 +123,14 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .rec-line { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
 .rec-line.system { color: var(--text); }
 
-/* The agent check, as the panel had it. */
+/* The agent check, as the panel had it. It rises in as it appears (riseIn,
+   ui.css); a hidden element animates from the start each time it shows. */
 .agent-bubble {
   padding: var(--space-3);
   background: rgba(var(--cyan-rgb), 0.06);
   border: 1px solid rgba(var(--cyan-rgb), 0.20);
   border-radius: var(--r-md);
+  animation: riseIn var(--t-med) var(--ease-expo) both;
 }
 .ab-row { display: flex; align-items: center; gap: var(--space-2); min-height: 30px; }
 .ab-q { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.35; }
@@ -165,11 +195,14 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .page-host { position: relative; flex: 1 1 auto; min-height: 0; background: var(--bg); }
 
 /* ── The Recording screen: what the window shows during a match ────────── */
+/* The pages go at once when the seal comes on (main-window.js); this screen
+   then rises in where they were. */
 .sealed {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: var(--space-5); padding: var(--space-8);
   text-align: center;
+  animation: riseIn var(--t-slow) var(--ease-expo) both;
 }
 .sealed-mark { color: var(--text); }
 .sealed-mark .pupil { fill: var(--red); }
@@ -185,8 +218,3 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   font-size: 13px; line-height: 1.5; color: var(--text-dim);
 }
 .sealed-facts b { flex: 0 0 92px; color: var(--text); font-weight: 600; }
-
-.sr-only {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-}

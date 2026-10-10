@@ -2,8 +2,9 @@
 
 /**
  * The grade and the three insight lists, drawn the same way everywhere they
- * appear: the review window, the match library and the weekly report. The
- * panel and Stats draw their own grade chips and take the colour from here.
+ * appear: the review window, the match library and the weekly report. A match
+ * graded from Riot's record alone has one list of facts in place of the three.
+ * The panel and Stats draw their own grade chips and take the colour from here.
  *
  * TEXT ONLY, never innerHTML. Detail lines carry agent names, callouts and the
  * coach's sentences about a frame, and none of that is ours to trust as markup.
@@ -125,10 +126,11 @@
     const head = el('div', 'gv-item-head');
     head.append(el('span', 'gv-dot'));
     head.append(el('b', 'gv-item-title', e.title));
-    if (e.judged) head.append(el('span', 'gv-badge', "coach's look"));
+    if (e.judged && kind !== 'fact') head.append(el('span', 'gv-badge', "coach's look"));
     li.append(head);
     if (e.detail) li.append(el('p', 'gv-item-detail', e.detail));
-    if (e.fix && e.fix !== e.detail) {
+    // A fact is never a mistake, so it never carries a fix.
+    if (e.fix && e.fix !== e.detail && kind !== 'fact') {
       const fix = el('p', 'gv-item-fix');
       fix.append(el('span', 'gv-fix-label', 'Fix'), document.createTextNode(e.fix));
       li.append(fix);
@@ -138,12 +140,38 @@
   }
 
   /**
+   * WHAT RIOT'S RECORD SHOWS, for a review graded from it alone: one neutral
+   * list in place of the three. Riot records what happened and never why, so
+   * each entry is a count with its rounds, under a title that claims nothing
+   * more (insights.js asFacts), with no fix and no verdict colour on its dot.
+   */
+  function factList(facts, opts) {
+    const o = opts || {};
+    const list = Array.isArray(facts) ? facts : [];
+    const wrap = el('div', 'gv-insights');
+    if (!list.length) {
+      wrap.append(el('p', 'gv-empty', o.factsEmpty || "Nothing in Riot's record of this match cleared the bar to be listed here."));
+      return wrap;
+    }
+    const block = el('section', 'gv-block gv-facts');
+    block.append(el('h3', null, o.factsTitle || "What Riot's record shows"));
+    const ul = el('ul', 'gv-list');
+    for (const e of list.slice(0, o.factsLimit || 12)) ul.append(item(e, 'fact', o.onRound));
+    block.append(ul);
+    wrap.append(block);
+    return wrap;
+  }
+
+  /**
    * The three lists. Each is left out when it has nothing, and the whole block
    * says so when all three are empty, because a blank section reads as broken.
+   * A review's insights that carry facts are a review graded from Riot's record
+   * alone, and are drawn as facts wherever they are drawn.
    */
   function insightLists(insights, opts) {
     const o = opts || {};
     const ins = insights || {};
+    if (Array.isArray(ins.facts)) return factList(ins.facts, o);
     const wrap = el('div', 'gv-insights');
     const blocks = [
       ['mistakes', o.mistakesTitle || 'Your repeated mistakes', 'bad'],
@@ -166,7 +194,7 @@
     return wrap;
   }
 
-  const api = { gradeCard, insightLists, roundChips, letterOf, tone, scoreTone, gradeTone, el };
+  const api = { gradeCard, insightLists, factList, roundChips, letterOf, tone, scoreTone, gradeTone, el };
   if (typeof window !== 'undefined') window.GradeView = api;
   // Node, for the test that holds the colour rule to grade.js. Nothing here
   // touches the DOM until a card is drawn, so requiring it is safe.

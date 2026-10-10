@@ -159,8 +159,25 @@ function matchSummary(m) {
   };
 }
 
+/*
+ * HOW LONG A REVIEW KEEPS TRYING TO LINK (index.js linkRiotRecord), the gap
+ * before each try after the first. Riot publishes a match a few minutes after
+ * it ends. A match recording was stopped in, or one the next match began
+ * over, may still have been being played, so its review tries for longer.
+ * Once the scoreboard links, Riot's round record can still fail on its own (a
+ * rate limit, a slow publish), so it gets tries of its own.
+ *
+ * The AI log holds the match's frames for the whole of it, the look at the
+ * deaths after it included (ai-log-store.js HOLD_MAX_MS), and
+ * test:valorantreview fails the day these outgrow that hold.
+ */
+const LINK_RETRY_MS = [90000, 240000, 480000];
+const LINK_RETRY_LONG_MS = [90000, 240000, 600000, 1200000];
+const RIOT_ROUNDS_RETRY_MS = [120000, 300000];
+
 module.exports = {
   verifyCoachedMatch, pickCoachedMatch, matchSummary, sameName,
   matchEndEstimate, roundsPlayed,
   MATCH_LINK_LEAD_MS, MATCH_LINK_TRAIL_MS, ROUND_MS,
+  LINK_RETRY_MS, LINK_RETRY_LONG_MS, RIOT_ROUNDS_RETRY_MS,
 };

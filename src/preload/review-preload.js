@@ -2,15 +2,19 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
+const { pageMotion } = require('./page-motion');
 
 /**
  * Bridge for the post-game review.
  *
  * Read only by design: this surface reports what a finished game contained and
- * has nothing to command. The one write is opening a lesson, which is a window
- * request rather than a change to anything.
+ * has nothing to command. Its writes are window requests rather than changes to
+ * anything: a lesson, the library, Ask Coach on this match, and the AI log on
+ * this match's frames.
  */
 contextBridge.exposeInMainWorld('occlara', {
+  // Moving between pages (shared/embed.js).
+  ...pageMotion(ipcRenderer),
   // The window can be opened by the push OR by hand later, so it can always ask
   // for the last review rather than depending on having caught the event.
   getReview: () => ipcRenderer.invoke(C.LOL_REVIEW_GET),
@@ -38,5 +42,10 @@ contextBridge.exposeInMainWorld('occlara', {
   // The library, and Ask Coach opened on this match.
   openMatches: () => ipcRenderer.send(C.OPEN_HISTORY),
   askAbout:    (id) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, { reviewId: id }),
+  // The eye: the review's id only, and main finds its frames in the AI log.
+  // The eye on one death the coach looked at adds when its frame was taken,
+  // so the log opens at that moment of the match (8.2).
+  openAiLog:   (id, at) => (typeof at === 'number' && Number.isFinite(at)
+    ? ipcRenderer.send(C.REVIEW_AILOG, id, at) : ipcRenderer.send(C.REVIEW_AILOG, id)),
   close:     () => window.close(),
 });

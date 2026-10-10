@@ -155,19 +155,25 @@ const AI = {
   //
   // THE READ MODEL WAS CHOSEN BY MEASUREMENT, npm run bench:read, 240 real
   // frames of the Abyss 13 to 11 scored against Riot's record of its 21 deaths
-  // (agreed / invented / missed), with two reads in flight:
+  // (agreed / invented / missed). The tier is the cadence auto holds at that
+  // p90 with up to four reads in flight: a tier holds while p90 stays under
+  // gap x 4 x 1.1 (adaptCadence in coaching-engine.js), so 1s under 4.4s and
+  // 2s under 8.8s.
   //
   //   deepseek/deepseek-v4.1-flash   19/0/2   labels 100%   p90 1.25s   1s tier, 0 errors
-  //   google/gemini-3.5-flash-lite   21/1/0   labels  98%   p90 2.01s   2s tier, 9x the price
-  //   openai/gpt-6-luna              19/1/2   labels 100%   p90 2.55s   2s tier
-  //   qwen/qwen3.7-flash (was live)  20/1/1   labels  99%   p90 5.70s   3s tier, 31 errors
-  //   qwen/qwen3.8-flash             19/1/2   labels 100%   p90 4.45s   3s tier
-  //   inclusionai/ling-3.0-flash-vl  15/0/6   labels 100%   p90 3.27s   2s tier
-  //   xiaomi/mimo-v2.6-flash         16/0/5   labels 100%   p90 4.88s   3s tier
+  //   google/gemini-3.5-flash-lite   21/1/0   labels  98%   p90 2.01s   1s tier, 9x the price
+  //   openai/gpt-6-luna              19/1/2   labels 100%   p90 2.55s   1s tier
+  //   qwen/qwen3.7-flash (was live)  20/1/1   labels  99%   p90 5.70s   2s tier, 31 errors
+  //   qwen/qwen3.8-flash             19/1/2   labels 100%   p90 4.45s   2s tier
+  //   inclusionai/ling-3.0-flash-vl  15/0/6   labels 100%   p90 3.27s   1s tier
+  //   xiaomi/mimo-v2.6-flash         16/0/5   labels 100%   p90 4.88s   2s tier
   //   z-ai/glm-5.3-flash             10/1/11                p90 6.25s   126 errors
   //
-  // DeepSeek is the only one that sustains a read every second, invents no
-  // death and reads every location label. Riot's record decides deaths in the
+  // DeepSeek was chosen before 8.2, when a fixed two in flight made it the only
+  // one that sustained a read every second. Now four models hold the 1s tier,
+  // and of those DeepSeek and Ling are the two that invent no death; DeepSeek
+  // agrees with four more of Riot's deaths, reads every location label and
+  // answers in under half Ling's time. Riot's record decides deaths in the
   // review anyway, so the screen's job is the round, the place and the moment,
   // and speed buys more of those. The default no longer falls through to
   // AI_VISION_MODEL on purpose: that one was set for the old tip prompt.
@@ -328,10 +334,10 @@ function creditsRetryIn() {
 // every call against a timer, and a race only stops WAITING: the request itself
 // ran on to completion, holding its socket and its frame (an 8 MB body for a
 // death look) for up to undici's five minutes. During a provider slowdown, with
-// two reads in flight per player and a 9 second race, those orphans piled up by
-// the dozen per player on a server that has died of memory before. Aborting
-// frees them. It does not save the money, which is why /read still counts a
-// read that timed out.
+// up to four reads in flight per player and a 9 second race, those orphans
+// pile up by the dozen per player, on a server that has died of memory
+// before. Aborting frees them. It does not save the money, which is why /read
+// still counts a read that timed out.
 async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinnedModel, abortMs }) {
   // Fail fast while the credits breaker is open: the provider would only 402
   // again, and every attempt costs a round trip and another identical log line.
@@ -2110,9 +2116,12 @@ const matchesCache = new Map();   // riotId(lower) -> { data, fetchedAt, lastMan
 const QUEUE_FALLBACK_MS = 60 * 60 * 1000;
 const queueCache = new Map();     // riotId|mode|queue -> { rows, at }
 
-// GET /api/coach/rank-history?username=Name%23TAG
+// GET /api/coach/rank-history?username=Name%23TAG[&refresh=1]
 // Competitive RR/elo movement for the rank journey graph, oldest to newest.
-const rankHistoryCache = new Map();   // riotId(lower) -> { at, data }
+// refresh=1 is Stats' Refresh, honoured at the same manual rate as /matches:
+// the rank tile shows the last game's RR beside a match list Refresh has just
+// fetched, and a cached history put the game before it there.
+const rankHistoryCache = new Map();   // riotId(lower) -> { at, data, lastManualRefresh }
 router.get('/rank-history', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
   if (!await admit(res, licenseKey)) return;
@@ -2121,7 +2130,10 @@ router.get('/rank-history', async (req, res) => {
   if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
   const key = username.toLowerCase();
   const hit = rankHistoryCache.get(key);
-  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return res.json(hit.data);
+  const now = Date.now();
+  const wantsRefresh = req.query.refresh === '1'
+    && (!hit || now - (hit.lastManualRefresh || 0) > MATCHES_REFRESH_MS);
+  if (hit && !wantsRefresh && now - hit.at < 5 * 60 * 1000) return res.json(hit.data);
   const [name, tag] = username.split('#').map((s) => s.trim());
   const enc = encodeURIComponent;
   try {
@@ -2136,7 +2148,8 @@ router.get('/rank-history', async (req, res) => {
       tier:   e.currenttierpatched || null,
     })).filter((p) => p.elo != null).reverse();
     const data = { points, current: points.length ? points[points.length - 1] : null };
-    cacheSet(rankHistoryCache, key, { at: Date.now(), data }, 500);
+    cacheSet(rankHistoryCache, key, { at: Date.now(), data,
+      lastManualRefresh: wantsRefresh ? now : (hit && hit.lastManualRefresh) || 0 }, 500);
     res.json(data);
   } catch (e) {
     console.error('[coach] rank-history error:', e.message);
@@ -2956,12 +2969,14 @@ router.post('/read', async (req, res) => {
   }
 });
 
-// POST /api/coach/death-forensics, JSON body: { agent, map, deaths: [{ n, side,
-// sec, killer, weapon, firstDeath, traded, alive, planted, afterPlant, spot,
-// frames: [jpeg base64, ...] }] }
+// POST /api/coach/death-forensics, JSON body: { agent, map, source?, deaths: [{
+// n, side, sec, killer, weapon, firstDeath, traded, alive, planted, afterPlant,
+// spot, frames: [jpeg base64, ...] }] }
 // One look at each of the most teachable deaths of a finished match: a cause
 // from a fixed list, what happened, and the better play. See
 // services/death-forensics.js for why the cause is a label and not a sentence.
+// `source: 'screen'` (8.2) is a review Riot's record never reached: its facts
+// are the screen's, and no killer may be named. No source is Riot's record.
 router.post('/death-forensics', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
   if (!await admit(res, licenseKey)) return;

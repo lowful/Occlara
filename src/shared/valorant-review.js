@@ -303,7 +303,7 @@ function roundFacts(r, opts) {
  * @param input.rounds     ledger.list()
  * @param input.context    the engine's match context at the end
  * @param input.endedBy    'score' | 'lobby' | 'stop'
- * @param input.ai         { summary, rounds: { [n]: why }, focus, study: [{text, coach}] }
+ * @param input.ai         { summary, rounds: { [n]: why }, focus, study: [{ text }] }
  * @param input.tracker    the verified tracker match, or null
  * @param input.role       the agent's role, for the history scope
  * @param input.history    past historyEntry() rows
@@ -374,6 +374,13 @@ function build(input) {
       cause: r.forensics.cause, what: r.forensics.what || null, better: r.forensics.better || null,
       // The kept frame names; the library stores the images beside the review.
       frames: Array.isArray(r.forensics.frames) ? r.forensics.frames.slice(0, 2) : [],
+      // How the moment was found (8.2): 'screen' when Riot's record never
+      // reached the review and the coach framed the death by when the screen
+      // read it, so the page says the timing is the coach's own read. 'riot'
+      // otherwise, which is every look saved before 8.2.
+      source: r.forensics.source === 'screen' ? 'screen' : 'riot',
+      // When the first frame it looked at was captured, for the eye at that moment.
+      at: typeof r.forensics.at === 'number' ? r.forensics.at : null,
     } : null,
   }));
 
@@ -440,6 +447,7 @@ function build(input) {
     adr: typeof riotMe.damage === 'number' && rounds.length ? Math.round(riotMe.damage / rounds.length) : null,
   } : null;
   const totalRounds = score ? score.split('-').reduce((a, b) => a + (Number(b) || 0), 0) : null;
+  const counted = insights.valorant(rounds, { role: input.role || null });
 
   // Riot's agent wins over the screen's, the same as every other fact it has.
   const game = {
@@ -475,14 +483,21 @@ function build(input) {
       : input.verification || null,
     patterns: patterns(rounds),
     // Repeated mistakes, what went well, what was missed. Counted, not written.
-    insights: insights.valorant(rounds, { role: input.role || null }),
+    // From Riot's record alone none of the three: Riot records what happened
+    // and never why, so the same counts are facts (insights.asFacts).
+    insights: riotOnly ? insights.asFacts(counted) : counted,
     grade: riotOnlyNote(grader.valorant({
       rounds, scoreline, role: input.role || null, history: input.history || [], totalRounds,
-      riotIdSet: input.riotIdSet, linkMissing: input.linkMissing,
+      riotIdSet: input.riotIdSet, linkMissing: input.linkMissing, riotOnly,
     }), riotOnly),
     summary: ai.summary || null,
     focus: ai.focus || null,
-    study: Array.isArray(ai.study) ? ai.study.slice(0, 3) : [],
+    // A study note is kept as its text alone. A server from before 8.2 sent
+    // the name of whoever a note was imported from with it, and the app never
+    // says where its knowledge comes from.
+    study: Array.isArray(ai.study)
+      ? ai.study.filter((n) => n && typeof n.text === 'string' && n.text).slice(0, 3).map((n) => ({ text: n.text }))
+      : [],
     rounds: cards,
     against: against(tracker, input.role || null, input.history || []),
     refused,
@@ -505,6 +520,26 @@ function riotOnlyNote(grade, riotOnly) {
       + "clutches. Your ultimate at each death and the coach's look at it need a recorded match.");
   }
   return grade;
+}
+
+/**
+ * A SAVED REVIEW IN THE WORDS ONE BUILT TODAY WOULD CARRY, for the window
+ * (present() in src/main/index.js serves every review through here). Nothing
+ * is written back: the library on disk stays as each version saved it.
+ *
+ *   graded from Riot's record alone  facts in place of the three lists, and
+ *       Decisions saying what it counted. Saved by 8.0.3 or 8.1, it kept fix
+ *       lines and titles claiming what Riot never records.
+ *   recorded                         its clutch line, "one against 1" until 8.2
+ *
+ * A review built today comes back with the same content.
+ */
+function served(review) {
+  if (!review || review.kind !== 'valorant') return review;
+  if (review.source === 'riot') {
+    return { ...review, insights: insights.asFacts(review.insights), grade: grader.riotWords(review.grade) };
+  }
+  return review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review;
 }
 
 /** A death's timing as the bucket roundFacts prints, or null. */
@@ -654,5 +689,5 @@ function against(tracker, role, history) {
   return out;
 }
 
-module.exports = { build, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
+module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
   queueLabel, queueHalves, withArticle, spans, BASELINE_GAMES, BASELINE_MIN };

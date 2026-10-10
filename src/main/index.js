@@ -35,7 +35,7 @@ const logger   = require('./logger');
 const store    = require('./services/store');
 const capture  = require('./services/capture');
 const CoachingEngine = require('./services/coaching-engine');
-const { verifyCoachedMatch, pickCoachedMatch } = require('./services/match-link');
+const { verifyCoachedMatch, pickCoachedMatch, LINK_RETRY_MS, LINK_RETRY_LONG_MS, RIOT_ROUNDS_RETRY_MS } = require('./services/match-link');
 const { normalize: normalizeLang } = require('../shared/i18n');
 const registry = require('./windows/registry');
 // THE ONE WINDOW (8.1): the shell and every page beside it, replacing the
@@ -94,7 +94,7 @@ const state = {
 let mainLaunched = false;
 let surfacesUp   = false;   // main window/tray built; gated behind onboarding on first run
 let sealTimer    = null;    // the one second check that seals the main window mid match
-let sealHeld     = false;   // recording stopped mid match: sealed until the player opens a page
+let sealHeld     = false;   // recording stopped mid match: sealed until the player opens a page or records again
 let appQuitting  = false;
 app.on('before-quit', () => { appQuitting = true; });
 
@@ -340,7 +340,8 @@ function withFrames(review) {
  * no telling when that match ends, and Home would paint its review, the
  * focus for the next match included, while it is still being played. So the
  * seal stays, with the sidebar open, until the player opens a page: their
- * own choice, as opening Matches was before 8.1.
+ * own choice, as opening Matches was before 8.1. Or until they record again,
+ * in any game, whose own match the seal then follows (controller.start()).
  */
 function syncSeal() {
   const live = !!state.isCoaching && matchInProgress();
@@ -391,13 +392,49 @@ function onMainWindow(kind) {
 }
 mainWindow.onWindowChange(onMainWindow);
 
+/**
+ * THE ONE WAY A REVIEW REACHES A WINDOW. Every review a renderer is handed,
+ * live or saved, any game, passes through here first: showReview's push, and
+ * the review page and Home asking for one (getReview, getLolReview). So what
+ * a page may be shown is decided once, here, and not in each surface or in
+ * each saved file.
+ *
+ * Returns a copy; the review main holds is never changed, because the repaint
+ * paths tell one version from the next by the object they hold.
+ *
+ * A study note is its text and nothing else. Reviews saved before 8.2 kept the
+ * name of whoever a note was imported from beside it, and the app never says
+ * where its knowledge comes from (check:attribution).
+ *
+ * A Valorant review is in today's words (valorant-review.js served()). One
+ * graded from Riot's record alone states facts, whenever it was saved: 8.0.3
+ * and 8.1 saved theirs with fix lines and titles that claim what Riot never
+ * records, and they are converted here rather than on disk.
+ *
+ * Its place in the AI log leaves as one word, 'kept', 'gone' or null, for the
+ * eye on its page (8.2): which session and which frames are main's to find
+ * (REVIEW_AILOG), never a page's.
+ */
+function present(review) {
+  if (!review || typeof review !== 'object') return review;
+  const { served } = require('../shared/valorant-review');
+  const out = { ...served(review) };
+  if (Array.isArray(review.study)) {
+    out.study = review.study.filter((n) => n && typeof n.text === 'string' && n.text).map((n) => ({ text: n.text }));
+  }
+  out.aiLog = aiLogStateOf(reviewLogEntry(review, review.at));
+  return out;
+}
+
 /** Paint a review in the review window, whichever game it is from. */
 function showReview(review) {
   if (!review) return;
+  // Held as main has it, so the repaint paths still recognise what is on
+  // screen; only the copy that leaves for the window is presented.
   lastReviewShown = review;
   const ch = review.kind === 'valorant' ? C.PUSH_VALORANT_REVIEW
     : review.kind === 'rivals' ? C.PUSH_RIVALS_REVIEW : C.PUSH_LOL_REVIEW;
-  registry.broadcast(ch, review);
+  registry.broadcast(ch, present(review));
 }
 
 // ── The Valorant post-match review ───────────────────────────────────────────
@@ -482,47 +519,61 @@ async function riotRoundsFor(lm) {
 
 /**
  * The coach's look at the deaths worth teaching: the frame before each one,
- * sent to the server with Riot's facts about it (death-forensics.js), and a
+ * sent to the server with the facts about it (death-forensics.js), and a
  * cause from a closed list back. Four deaths at most, one call each.
  *
- * Returns { byRound: { n: { cause, what, better, frames } }, frames: { name: b64 } }.
- * Empty, never an error, when there are no frames: the AI log was off, or the
- * deaths were in rounds the coach never saw.
+ * Riot's verified deaths by default, framed by Riot's second. With
+ * `opts.source` 'screen' (8.2), the deaths the screen saw in a review Riot's
+ * record never reached, framed by when the screen read each one, and the
+ * server is told so: it then claims no second and names no killer.
+ *
+ * Returns { byRound: { n: { cause, what, better, frames, source, at } }, frames: { name: b64 } },
+ * `at` being when the first frame looked at was captured. Empty, never an
+ * error, when there are no frames: the AI log was off, or the deaths were in
+ * rounds the coach never saw.
  */
-async function forensicsFor(rounds, snap) {
+async function forensicsFor(rounds, snap, opts) {
+  const source = opts && opts.source === 'screen' ? 'screen' : 'riot';
   const empty = { byRound: {}, frames: {} };
   const log = snap.log;
   if (!log || !log.dir || !log.records.length) return empty;
-  const picks = deathFrames.teachableDeaths(rounds, 4);
+  const looks = deathFrames.looksFor(log.records, rounds, { from: snap.startedAt, to: snap.endedAt }, source);
   const deaths = [];
   const kept = {};
-  for (const r of picks) {
-    const recs = deathFrames.framesFor(log.records, r, { from: snap.startedAt, to: snap.endedAt });
+  for (const look of looks) {
+    const r = look.round;
     const imgs = [];
     const names = [];
-    recs.forEach((rec, i) => {
+    look.frames.forEach((rec, i) => {
       try {
         const b64 = fs.readFileSync(path.join(log.dir, rec.frame)).toString('base64');
-        const name = `r${r.n}-${i === 0 ? 'before' : 'after'}.jpg`;
+        const name = look.names[i];
         imgs.push(b64);
         names.push(name);
         kept[name] = b64;
       } catch {}
     });
     if (!imgs.length) continue;
+    // A ledger row carries none of Riot's facts, so a look from the screen
+    // sends its round, side, spot and plant alone.
     deaths.push({
       n: r.n, side: r.side, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
       firstDeath: r.firstDeath, traded: r.traded, alive: r.aliveAtDeath,
       planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, frames: imgs, names,
-      gap: recs[0] && deathFrames.secondsIn(recs[0]) !== null && typeof r.deathSec === 'number'
-        ? Math.max(0, r.deathSec - deathFrames.secondsIn(recs[0])) : null,
+      gap: look.gap, at: look.at,
     });
   }
   if (!deaths.length) return empty;
   try {
     const body = {
-      agent: snap.context.agent, map: snap.context.map, language: snap.context.language || 'en',
-      deaths: deaths.map(({ names, ...d }) => d),
+      // From the screen, only an agent the player confirmed, the rule the
+      // engine keeps: one detected while spectating names a teammate, and the
+      // ability gate would then pass that teammate's kit as the player's.
+      // Riot's look is handed Riot's agent.
+      agent: source === 'screen' && !snap.context.agentConfirmed ? null : snap.context.agent,
+      map: snap.context.map, language: snap.context.language || 'en',
+      source,
+      deaths: deaths.map(({ names, at, ...d }) => d),
     };
     const { ok, data } = await api.post(API.DEATH_FORENSICS, body, store.get('licenseKey'), 60000);
     if (!ok || !data || !Array.isArray(data.deaths)) {
@@ -533,15 +584,57 @@ async function forensicsFor(rounds, snap) {
     for (const f of data.deaths) {
       const d = deaths.find((x) => x.n === f.n);
       if (!d || f.failed) continue;
-      out.byRound[f.n] = { cause: f.cause, what: f.what || null, better: f.better || null, frames: d.names };
+      out.byRound[f.n] = { cause: f.cause, what: f.what || null, better: f.better || null, frames: d.names,
+        source, at: typeof d.at === 'number' ? d.at : null };
       for (const name of d.names) out.frames[name] = kept[name];
     }
-    console.log(`[review] death forensics: ${Object.entries(out.byRound).map(([n, f]) => `R${n} ${f.cause}`).join(', ')}`);
+    console.log(`[review] death forensics${source === 'screen' ? ' from the screen' : ''}: `
+      + `${Object.entries(out.byRound).map(([n, f]) => `R${n} ${f.cause}`).join(', ')}`);
     return out;
   } catch (e) {
     console.log('[review] death forensics failed:', e.message);
     return empty;
   }
+}
+
+/**
+ * THE COACH'S LOOK WHEN RIOT'S RECORD IS NOT COMING (8.2). Frames reached a
+ * review only through Riot's verified deaths, so a review Riot's record never
+ * reached showed no picture, though the AI log kept the frames around every
+ * death the screen registered. Those deaths are looked at instead
+ * (forensicsFor with source 'screen'), and the review repaints with them,
+ * its frames saved beside it as Riot's looks are.
+ *
+ * ONCE A REVIEW, NEVER OVER RIOT'S. It runs right after the narrative when no
+ * Riot ID is set, since nothing will say when the player died, and otherwise
+ * when the link gives up without Riot's rounds (done() in linkRiotRecord), and
+ * always before the review's frames are let go, because it reads them off
+ * disk. A look from Riot's record that lands first, or while this one is out,
+ * is the one kept.
+ */
+function screenLook(job) {
+  if (!job.screenLook) {
+    job.screenLook = lookFromScreen(job).catch((e) => console.log('[review] the look from the screen failed:', e.message));
+  }
+  return job.screenLook;
+}
+
+async function lookFromScreen(job) {
+  if (job.cancelled || job.riotLooked) return;
+  const snap = job.snap;
+  const looked = await forensicsFor(snap.rounds, snap, { source: 'screen' });
+  // Riot's rounds landed while this look was out. Theirs is painted, and if it
+  // fails after all, the link's end looks again.
+  if (job.riotBusy) { job.screenLook = null; return; }
+  if (job.cancelled || job.riotLooked || !Object.keys(looked.byRound).length) return;
+  // On the ledger's own rows, so a version built after this one (a scoreboard
+  // linked late) still carries the looks. Riot's reconcile builds its rounds
+  // afresh and keeps none of them.
+  for (const r of snap.rounds) if (looked.byRound[r.n]) r.forensics = looked.byRound[r.n];
+  // Built as the version on screen was: its scoreboard if one linked, and the
+  // reason Riot's record is missing if the link gave up.
+  repaintReview(job, buildValorantReview(snap, job.tracker || null,
+    { history: job.history, linkMissing: job.linkMissing || false }).built, looked.frames);
 }
 
 /*
@@ -558,8 +651,15 @@ const reviewJobs = new Map();
  * The engine says the last end was wrong: the match is still being played.
  * Its review is taken back everywhere it went, the window included, and the
  * real end reviews the whole match.
+ *
+ * SEALED FIRST. The match is in progress again from the moment it resumed,
+ * and nothing else here seals: leaveReview's switch to Home ran unsealed,
+ * with the withdrawn review, of the very match being played, kept over Home
+ * as it went, and Home then on screen until the seal's next tick. Sealed
+ * first, every page goes at once and Home is only remembered for the end.
  */
 function withdrawReview(startedAt) {
+  syncSeal();
   const job = reviewJobs.get(startedAt);
   if (!job) return;
   reviewJobs.delete(startedAt);
@@ -581,8 +681,13 @@ function withdrawReview(startedAt) {
   console.log(`[review] withdrawn, the match was not over: ${job.id}`);
 }
 
+/**
+ * Every version of a review is the same match: its id, its end, and its place
+ * in the AI log, so the eye on it opens this match's frames whichever version
+ * the library ends up keeping.
+ */
 function stampReview(job, built) {
-  return Object.assign(built, { id: job.id, at: job.snap.endedAt || Date.now() });
+  return Object.assign(built, { id: job.id, at: job.snap.endedAt || Date.now(), aiLog: job.aiLog || null });
 }
 
 /**
@@ -595,8 +700,13 @@ function stampReview(job, built) {
 function repaintReview(job, built, frames, opts) {
   if (job.cancelled) return;
   stampReview(job, built);
+  // Every frame a look of this review was sent, so a version painted after a
+  // look still shows its pictures: a scoreboard that links after the look
+  // from the screen repaints without new frames of its own. A newer look's
+  // frame of the same round replaces the older one, as it does on disk.
+  if (frames) job.frames = { ...(job.frames || {}), ...frames };
   if (lastReviewShown === job.showing || (lastReviewShown && lastReviewShown.id === job.id)) {
-    showReview(frames ? { ...built, frameData: dataUrls(frames) } : built);
+    showReview(job.frames ? { ...built, frameData: dataUrls(job.frames) } : built);
   }
   job.showing = lastReviewShown && lastReviewShown.id === job.id ? lastReviewShown : built;
   if (!(opts && opts.transient)) saveReview(built, 'valorant', frames);
@@ -669,10 +779,16 @@ function onValorantMatchEnded(snap) {
     // when the tracker links, and every version built after that compared the
     // match with an average that included the match itself.
     history: (store.get('valorantHistory') || []).slice(),
-    // Held for as long as the Riot link may keep trying (released when it is
-    // done), so a match linked twenty minutes later still has its frames.
-    log: holdAiLogFrames(snap.startedAt, snap.endedAt, 40 * 60 * 1000),
+    // Held until the review has looked (released when the link is done, and
+    // after the look from the screen when Riot's rounds never came), so a
+    // match linked forty minutes later still has its frames.
+    log: holdAiLogFrames(snap.startedAt, snap.endedAt),
   };
+  // AND KEPT WITH THE REVIEW (8.2): the session folder, and the match's stamp
+  // and window, which every record of it carries. The eye on its row and its
+  // page opens these frames and no others, long after the hold is let go.
+  // Null when the log was off.
+  job.aiLog = job.log ? aiLogStore.placeOf(job.log.dir, snap.startedAt, snap.endedAt) : null;
   snap.log = job.log;
   reviewJobs.set(snap.startedAt, job);
 
@@ -699,6 +815,10 @@ function onValorantMatchEnded(snap) {
 /**
  * The narrative came back, or failed. Repaint with it, then link the match to
  * Riot's record, which is what grades it.
+ *
+ * With no Riot ID set, nothing is coming to say when the player died, so the
+ * coach looks at the deaths the screen saw now, while the review is the one on
+ * screen (screenLook), rather than after the link has spent its retries.
  */
 function onValorantMatchReview(reviewText, snap) {
   if (!snap) return;
@@ -709,6 +829,7 @@ function onValorantMatchReview(reviewText, snap) {
   job.snap = snap;
   if (!snap.ai) console.log('[review] no model narrative for this match');
   repaintReview(job, buildValorantReview(snap, null, { history: job.history }).built);
+  if (!(store.get('riotId') || '').includes('#')) screenLook(job);
   linkRiotRecord(job);
 }
 
@@ -727,9 +848,16 @@ function linkRiotRecord(job) {
     agent: c.agentConfirmed ? c.agent : null,
     score: { team: c.teamScore | 0, enemy: c.enemyScore | 0, final: snap.endedBy === 'score' },
   };
+  // THE LINK IS DONE: linked and looked at, given up, or withdrawn. When
+  // Riot's rounds never came (the scoreboard never linked, or its rounds kept
+  // failing), the coach looks at what the screen saw first (screenLook), and
+  // only then are the frames let go, because the look reads them off disk.
   const done = () => {
-    releaseAiLogFrames(job.log);
-    if (reviewJobs.get(snap.startedAt) === job) reviewJobs.delete(snap.startedAt);
+    const look = job.cancelled || job.riotLooked ? job.screenLook : screenLook(job);
+    Promise.resolve(look).then(() => {
+      releaseAiLogFrames(job.log);
+      if (reviewJobs.get(snap.startedAt) === job) reviewJobs.delete(snap.startedAt);
+    });
   };
   const lastTry = {};
   const find = () => fetchCoachedMatch(snap.startedAt, snap.endedAt, { ...mctx, exclude: linkedMatchIds(job) }, lastTry);
@@ -749,6 +877,12 @@ function linkRiotRecord(job) {
   const withRiot = async (lm) => {
     const riot = await riotRoundsFor(lm);
     if (!riot || job.cancelled) return false;
+    // A look from the screen still out when Riot's rounds land paints nothing
+    // over them (lookFromScreen), and none is taken once these are painted.
+    job.riotBusy = true;
+    try { return await riotLook(lm, riot); } finally { job.riotBusy = false; }
+  };
+  const riotLook = async (lm, riot) => {
     const verify = require('../shared/valorant-verify');
     const valorantReview = require('../shared/valorant-review');
     const { rounds, checks } = verify.reconcile(snap.rounds, riot);
@@ -782,11 +916,13 @@ function linkRiotRecord(job) {
     }
     const final = buildValorantReview({ ...vsnap, ai }, lm, extra).built;
     repaintReview(job, final, Object.keys(looked.frames).length ? looked.frames : null);
+    job.riotLooked = true;
     return true;
   };
 
   // Riot's round record can fail on its own (a rate limit, a slow publish)
-  // after the scoreboard has linked, so it gets retries of its own.
+  // after the scoreboard has linked, so it gets retries of its own
+  // (RIOT_ROUNDS_RETRY_MS in match-link.js).
   const riotThen = (lm, delays) => {
     withRiot(lm)
       .catch((e) => { console.log('[review] Riot check failed:', e.message); return false; })
@@ -798,6 +934,8 @@ function linkRiotRecord(job) {
 
   const withTracker = (lm) => {
     if (job.cancelled) return;
+    // Kept, so a look from the screen taken later builds on this scoreboard.
+    job.tracker = lm;
     const valorantReview = require('../shared/valorant-review');
     const next = buildValorantReview(snap, lm, { history: job.history });
     // ONE HISTORY ROW PER MATCH, whichever attempt found the tracker. Every
@@ -818,7 +956,7 @@ function linkRiotRecord(job) {
     if (lm.matchId) retireStopStubs(job, lm);
     // The totals are Riot's now; the rounds follow, and they are what fixes
     // the deaths, the timing and the coach's reads.
-    riotThen(lm, [120000, 300000]);
+    riotThen(lm, RIOT_ROUNDS_RETRY_MS);
   };
 
   (async () => {
@@ -836,7 +974,8 @@ function linkRiotRecord(job) {
     try { lm = await find(); } catch {}
     if (lm) { withTracker(lm); return; }
     // Riot publishes a few minutes after the match. A match stopped halfway
-    // may still be being played, so its review keeps trying for longer.
+    // may still be being played, so its review keeps trying for longer
+    // (match-link.js says how long, and the AI log holds its frames longer).
     const retry = (delays) => {
       if (job.cancelled) return;
       if (!delays.length) {
@@ -845,8 +984,9 @@ function linkRiotRecord(job) {
         if ((store.get('riotId') || '').includes('#')) {
           // Refused because another review holds it is not "not found".
           const taken = /already linked/.test(String(lastTry.why || ''));
+          job.linkMissing = taken ? 'taken' : true;
           repaintReview(job, buildValorantReview(snap, null,
-            { history: job.history, linkMissing: taken ? 'taken' : true }).built);
+            { history: job.history, linkMissing: job.linkMissing }).built);
         }
         done();
         return;
@@ -860,8 +1000,7 @@ function linkRiotRecord(job) {
         else retry(delays.slice(1));
       }, delays[0]);
     };
-    retry(snap.endedBy === 'stop' || snap.endedBy === 'next-match'
-      ? [90000, 240000, 600000, 1200000] : [90000, 240000, 480000]);
+    retry(snap.endedBy === 'stop' || snap.endedBy === 'next-match' ? LINK_RETRY_LONG_MS : LINK_RETRY_MS);
   })();
 }
 
@@ -874,7 +1013,9 @@ function chatReviewContext(id, game) {
   const newest = reviewStore.list(game || null)[0];
   const e = id ? reviewStore.get(id) : (newest && reviewStore.get(newest.id));
   if (!e) return null;
-  const r = e.review || {};
+  // As a window is shown it (present()), so a match graded from Riot's record
+  // alone gives the chat its facts, never a mistake Riot does not record.
+  const r = present(e.review) || {};
   const g = r.game || {};
   const lines = [];
   lines.push(`${e.game} match on ${new Date(e.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}: `
@@ -887,10 +1028,11 @@ function chatReviewContext(id, game) {
       + (gr.categories || []).filter((c) => c.score !== null).map((c) => `${c.label} ${c.score} (${c.evidence.join('; ')})`).join('. ') + '.');
   }
   const ins = r.insights || {};
-  const list = (xs) => (xs || []).slice(0, 3).map((x) => `${x.title}: ${x.detail}`).join(' ');
+  const list = (xs, n = 3) => (xs || []).slice(0, n).map((x) => `${x.title}: ${x.detail}`).join(' ');
   if ((ins.mistakes || []).length) lines.push(`Repeated mistakes: ${list(ins.mistakes)}`);
   if ((ins.strengths || []).length) lines.push(`Went well: ${list(ins.strengths)}`);
   if ((ins.missed || []).length) lines.push(`Missed: ${list(ins.missed)}`);
+  if ((ins.facts || []).length) lines.push(`What Riot's record shows: ${list(ins.facts, 6)}`);
   for (const card of (r.rounds || []).filter((c) => c.forensics && c.forensics.what).slice(0, 4)) {
     lines.push(`Round ${card.n} death, the coach looked at the frame: ${card.forensics.what}${card.forensics.better ? ' Better: ' + card.forensics.better : ''}`);
   }
@@ -935,6 +1077,17 @@ const controller = {
       pushNotice(`${g.label} is not reviewed yet. Switch to Valorant, Marvel Rivals or League of Legends in Settings to record a match.`);
       return;
     }
+
+    // RECORDING AGAIN, IN ANY GAME, the seal follows this recording's match
+    // (syncSeal) and no longer the one a stop left held. Cleared only in the
+    // Valorant path, a held seal outlived a switch to Rivals or League: the
+    // player pressed Start, every page and the review at the game's end stayed
+    // behind "Recording stopped", and only a Stop let them out. The seal is
+    // settled once each branch below is recording (syncSeal after its
+    // 'coaching' status), never here: not recording yet, settling it lifted the
+    // seal outright, and a Valorant engine counts as in a match from its start,
+    // so a Start pressed mid match showed Home until the next tick.
+    sealHeld = false;
 
     // A DIFFERENT GAME GETS A DIFFERENT ENGINE, never this one with a new
     // palette. The Rivals coach reads hero select and a scoreboard a handful of
@@ -1024,6 +1177,7 @@ const controller = {
       engine.start();
       pushNotice('Recording. Play your match: the scoreboard at the end is reviewed and graded automatically.', 'recording');
       setStatus('coaching');
+      syncSeal();
       return;
     }
 
@@ -1046,6 +1200,7 @@ const controller = {
       engine.start();
       pushNotice('Recording. Nothing appears during your game, and the graded review opens when it ends.', 'recording');
       setStatus('coaching');
+      syncSeal();
       return;
     }
 
@@ -1113,8 +1268,6 @@ const controller = {
     store.set('coachStartCount', (store.get('coachStartCount') || 0) + 1);
     state.agent      = { agent: null, confirmed: false, role: null };
     state.notice     = null;
-    // Recording again, the seal follows this recording's match (syncSeal).
-    sealHeld = false;
     engine.start();
     if (state.pendingAgent) {           // player typed their agent before starting
       engine.setAgent(state.pendingAgent);
@@ -1124,6 +1277,7 @@ const controller = {
     fetchTrackerStats(true).catch(() => {});
     startAiLog();   // fresh AI decision-log folder for this session
     setStatus('coaching');
+    syncSeal();
     console.log('[coach] started');
   },
   stop() {
@@ -1171,23 +1325,56 @@ const controller = {
   },
   getState() { return buildState(); },
 
-  /** The match library: saved reviews, newest first, one game or all. */
-  listReviews(game) { return reviewStore.list(game || null); },
+  /**
+   * The match library: saved reviews, newest first, one game or all. Each row
+   * says whether the AI log still holds its match, for the eye on it, and
+   * nothing about where: that is found again when the eye is pressed.
+   */
+  listReviews(game) {
+    return reviewStore.list(game || null).map((row) => ({ ...row, aiLog: aiLogStateOf(rowLogEntry(row)) }));
+  },
   getReview(id) {
     const e = reviewStore.get(id);
-    return e ? withFrames(e.review) : null;
+    return e ? present(withFrames(e.review)) : null;
   },
   /** Open the review window on one saved review. */
   openReviewById(id) {
-    const r = this.getReview(id);
-    if (!r) return;
-    showReview(r);
+    const e = reviewStore.get(id);
+    if (!e) return;
+    // As saved: showReview presents what it sends, and holds the review as main has it.
+    showReview(withFrames(e.review));
     openPage('review');
   },
-  /** What keeps happening across the last matches of one game. */
+  /**
+   * The eye on a library row and on the review page (8.2): the AI log, on that
+   * match's frames. The page names the review and nothing else, and which
+   * session and which frames are decided here, from the review. A match the
+   * log no longer holds opens on a window that says so, never on another
+   * session in its place. Mid match it does nothing, as Ctrl+Shift+E does:
+   * nothing opens over a match in progress, and its page is sealed anyway.
+   *
+   * AT ONE MOMENT OF IT (8.2), from the eye on a death the coach looked at:
+   * `at`, when the frame it looked at was captured, opens the log on that
+   * frame. Only a time inside the match's own window counts, and anything
+   * else opens the match on its first death as before.
+   */
+  openReviewAiLog(id, at) {
+    if (matchInProgress()) return;
+    const e = reviewStore.get(id);
+    const scope = e ? aiLogScopeOf(reviewLogEntry(e.review, e.at)) : null;
+    if (scope === null) return;   // nothing was recorded, so no eye was offered
+    const moment = scope && typeof at === 'number' && Number.isFinite(at)
+      && at >= scope.from && at <= scope.to + 5000 ? at : null;
+    aiLogWindow.open(moment === null ? { scope: scope || { gone: true } } : { scope, at: moment });
+  },
+  /**
+   * What keeps happening across the last matches of one game. The lists are
+   * the last ten RECORDED matches' (patterns.js), so more are read than ten,
+   * to find them behind the matches graded from Riot's record.
+   */
   getPatterns(game) {
     const g = game || gameRegistry.get(store.get('game')).id;
-    return { game: g, ...patternsOf.summarise(reviewStore.recent(g, patternsOf.WINDOW)) };
+    return { game: g, ...patternsOf.summarise(reviewStore.recent(g, patternsOf.LOOK_BACK)) };
   },
   /** By map and agent (hero, champion), counted from every saved review of one game. */
   getBreakdown(game, opts) {
@@ -1227,7 +1414,9 @@ const controller = {
   },
   /** A page of the main window, by its id in src/shared/shell-nav.js. */
   showPage(id) { openPage(id); },
-  getShell() { syncSeal(); return mainWindow.current(); },
+  /** A page painted itself armed, and may be let in (main-window.js). */
+  pageReady(id, sender) { mainWindow.pageReady(id, sender); },
+  getShell() { syncSeal(); return mainWindow.shellState(); },
   openSettings()  { openPage('settings'); },
   openHistory()   { openPage('matches'); },
   openWeekly()    { weeklyWindow.open(); },
@@ -1265,7 +1454,7 @@ const controller = {
       const e = top && reviewStore.get(top.id);
       if (e) lastReviewShown = withFrames(e.review);
     }
-    return lastReviewShown;
+    return present(lastReviewShown);
   },
 
   /**
@@ -1394,19 +1583,35 @@ const controller = {
    * an id the viewer opens at the newest, which is what every other entry
    * point wants.
    */
-  openAiLog(sessionId) { aiLogWindow.open(sessionId || null); },
-  getAiLog(id) {
+  // A session folder name, or nothing. One match of a session is opened from
+  // its review alone (openReviewAiLog), with the scope main found for it.
+  openAiLog(sessionId) { aiLogWindow.open(typeof sessionId === 'string' && sessionId ? sessionId : null); },
+  getAiLog(id, scope) {
+    // ONE MATCH, from a review's eye: strict, so the session or the match gone
+    // is { gone: true }, never another session in its place, and the live
+    // session stays sealed as it does for a whole read. `keeps` is for the
+    // window to say how many sessions the log keeps when it has to say they
+    // are gone.
+    if (scope && typeof scope === 'object') {
+      const keeps = AI_LOG_KEEP_SESSIONS;
+      if (liveLogSealed() && id && String(id) === aiLogLiveId()) {
+        return { records: [], sessions: [], scoped: true, sealed: true, keeps };
+      }
+      return { ...aiLogStore.read(aiLogRoot(), id, aiLogLiveId(), scope), keeps };
+    }
     // SEALED MID MATCH with live tips closed. The log shows every tip the coach
     // wrote, frame by frame, as it writes them, so an open log window on a
     // second monitor was the live tip feed by another name. The session in
     // progress reopens the moment the match ends.
-    if (liveLogSealed() && (!id || id === aiLogLiveId())) {
-      const past = aiLogSessions().filter((x) => !x.live);
-      if (!past.length) return { records: [], sessions: [], sealed: true };
-      const log = readAiLog(past[0].id);
-      return { ...log, sessions: past, sealed: true };
-    }
-    return readAiLog(id);
+    //
+    // DECIDED ON THE SESSION SERVED (8.2), never on the id asked for. This
+    // checked the id, and an id pruned at Start while the window was open
+    // passed it and was then served the newest folder, which is the match in
+    // progress. A session the log no longer keeps is now gone, never another
+    // in its place, and while sealed the live session is in no list handed
+    // back (aiLogStore.serve).
+    const log = aiLogStore.serve(aiLogRoot(), id, aiLogLiveId(), liveLogSealed());
+    return log.gone ? { ...log, keeps: AI_LOG_KEEP_SESSIONS } : log;
   },
   getAiLogSessions() {
     const list = aiLogSessions();
@@ -1417,7 +1622,7 @@ const controller = {
    *  Lazy and best effort: the viewer opens on the screen-read deaths straight
    *  away, and this arrives afterwards to confirm or correct them, so the log
    *  still works offline and without a Riot ID configured. */
-  async confirmAiLogDeaths(id) { return confirmDeaths(id); },
+  async confirmAiLogDeaths(id, scope) { return confirmDeaths(id, scope); },
 
   /** "Why did I die here?" against one frame of the AI log. The screenshot goes
    *  with the question so the coach looks at the moment instead of reasoning
@@ -1435,11 +1640,19 @@ const controller = {
     // browsable, reading the newest here would answer a question about frame 12
     // of Tuesday's game using frame 12 of tonight's, with a confident answer and
     // nothing to indicate it looked at the wrong picture.
-    if (liveLogSealed() && (!p.session || p.session === aiLogLiveId())) {
+    //
+    // And it must still be KEPT, which is checked before the seal (8.2): the
+    // seal used to check the session named, and one pruned at Start since it
+    // was opened passed it and was read as the newest folder, so a frame of the
+    // match in progress went to the coach and the answer was shown mid match.
+    //
+    // The index is into what the viewer has on screen: one match's frames when
+    // it was opened from a review, so those are what is read here too.
+    const asked = aiLogStore.askAbout(aiLogRoot(), p.session, p.scope, aiLogLiveId(), liveLogSealed());
+    if (asked.refused === 'sealed') {
       return { error: 'This match is still being played. Ask about it once it ends.' };
     }
-    const log = readAiLog(p.session);
-    const recs = Array.isArray(log.records) ? log.records : [];
+    const recs = asked.records;
     const i = Math.max(0, Math.min(recs.length - 1, Number(p.index) || 0));
     const target = recs[i];
     if (!target) return { error: 'That frame is no longer in the log.' };
@@ -1548,7 +1761,10 @@ const controller = {
       return rankHistCache.data;
     }
     try {
-      const { ok, data } = await api.get('/api/coach/rank-history?username=' + encodeURIComponent(riotId), store.get('licenseKey'), 15000);
+      // Forced (Stats' Refresh), the server's own cache is asked to step aside
+      // too, at the manual rate it allows /matches.
+      const { ok, data } = await api.get('/api/coach/rank-history?username=' + encodeURIComponent(riotId)
+        + (force ? '&refresh=1' : ''), store.get('licenseKey'), 15000);
       if (ok && data && !data.error) {
         rankHistCache = { at: Date.now(), riotId, data };
         return data;
@@ -1599,7 +1815,9 @@ const controller = {
     const matchesP = this.getMatches(false, m);
     const [stats, matches] = await Promise.all([statsP, matchesP]);
     const categories = computeCategoryTrends([], stats, prevStats);
-    const graded = reviewStore.list(g.id).filter((r) => r.grade).slice(0, 15);
+    // Without where a match's frames are in the AI log, which stays in main
+    // (REVIEW_AILOG): Stats opens a graded match's review, never its log.
+    const graded = reviewStore.list(g.id).filter((r) => r.grade).slice(0, 15).map(({ aiLog, ...r }) => r);
 
     const rank = {
       value: (stats && stats.rank) || null,
@@ -1707,12 +1925,14 @@ const controller = {
           : null,
       })),
       // The last graded matches from the library, and what keeps repeating.
+      // A match graded from Riot's record alone has a grade and no strength or
+      // weakness to name (insights.countable).
       recentSessions: midMatch ? [] : reviewStore.recent(gameId, 3).map((e) => ({
         date: new Date(e.at).toLocaleDateString([], { month: 'short', day: 'numeric' }),
         map: e.review.game && e.review.game.map, overall: e.review.grade && e.review.grade.score,
         scores: Object.fromEntries(((e.review.grade && e.review.grade.categories) || []).map((c) => [c.key, c.score])),
-        strengths: ((e.review.insights && e.review.insights.strengths) || []).slice(0, 2).map((x) => x.title).join('. '),
-        weaknesses: ((e.review.insights && e.review.insights.mistakes) || []).slice(0, 2).map((x) => x.title).join('. '),
+        strengths: insightsOf.countable(e.review).strengths.slice(0, 2).map((x) => x.title).join('. '),
+        weaknesses: insightsOf.countable(e.review).mistakes.slice(0, 2).map((x) => x.title).join('. '),
       })),
       matchReview: midMatch ? null : chatReviewContext(state.chatReviewId, gameId),
       // The playbook is Valorant's: its notes would ground a League answer in
@@ -2134,6 +2354,9 @@ function buildWeeklyReport() {
   const game     = gameRegistry.get(store.get('game')).id;
   const base = snapshot && snapshot.stats && (!snapshot.riotId || snapshot.riotId === riotId)
     ? snapshot.stats : null;
+  // Read once for both: the fortnight is the newest of them, and the patterns
+  // look further back, for the last ten recorded matches (patterns.js).
+  const recent = reviewStore.recent(game, patternsOf.LOOK_BACK);
 
   return assembleReport({
     riotId,
@@ -2144,8 +2367,8 @@ function buildWeeklyReport() {
     snapshotAt: snapshot ? snapshot.at : null,
     // The last fortnight of graded matches, so this week can be compared with
     // the one before it.
-    reviews: reviewStore.recent(game, 40).filter((e) => e.at >= Date.now() - 14 * 24 * 60 * 60 * 1000),
-    patterns: patternsOf.summarise(reviewStore.recent(game, patternsOf.WINDOW)),
+    reviews: recent.filter((e) => e.at >= Date.now() - 14 * 24 * 60 * 60 * 1000),
+    patterns: patternsOf.summarise(recent),
   });
 }
 
@@ -2256,6 +2479,7 @@ function startAiLog() {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     aiLogDir = path.join(root, 'session-' + stamp);
     fs.mkdirSync(aiLogDir, { recursive: true });
+    aiLogDirsCache = null;   // the session before this one is finished now
     aiLogRecords = [];
     aiLogWarned = false;
     aiLogSeq = 0;
@@ -2360,12 +2584,19 @@ function flushAiLog(force) {
  * A finished match's frames, for its review, held whole until the review has
  * looked. Riot publishes the match minutes later, and thinning in the meantime
  * would delete the very frames the death forensics needs.
+ *
+ * UNTIL IT IS RELEASED (releaseAiLogFrames, when the link is done), however
+ * long the link takes, and an hour at most (aiLogStore.HOLD_MAX_MS) for a
+ * release that never comes. A fixed forty minutes ran out under a match
+ * stopped halfway, whose link can still be trying, and its look from the
+ * screen still to come, past that.
  */
-function holdAiLogFrames(from, to, forMs) {
+function holdAiLogFrames(from, to) {
   if (!aiLogDir) return null;
-  const hold = { from: from - 5000, to: to + 5000, until: Date.now() + (forMs || 8 * 60 * 1000) };
+  const hold = { from: from - 5000, to: to + 5000, until: Date.now() + aiLogStore.HOLD_MAX_MS };
   aiLogHolds.push(hold);
   flushAiLog(true);
+  aiLogDirsCache = null;   // its index is on disk, so the review's eye finds the session
   return {
     dir: aiLogDir, hold,
     records: aiLogRecords.filter((r) => r.at >= hold.from && r.at <= hold.to).map((r) => ({ ...r })),
@@ -2381,13 +2612,61 @@ function pruneAiLog() {
   // The live folder is named so no prune can remove the session in progress,
   // whichever order the caller happens to run in.
   aiLogStore.prune(aiLogRoot(), AI_LOG_KEEP_SESSIONS, aiLogLiveId());
+  aiLogDirsCache = null;
+}
+
+/*
+ * WHICH FRAMES OF THE LOG ARE A REVIEW'S (8.2), for the eye on its library row
+ * and its page. Read once and kept, never per row per paint: the kept session
+ * folders change only when a session starts or is pruned (both above, and both
+ * drop the list), and the matches a finished session holds never change. The
+ * list also lives thirty seconds at most, for a folder deleted by hand.
+ */
+const AI_LOG_DIRS_MS = 30 * 1000;
+let aiLogDirsCache = null;           // { at, ids }: the kept session folders
+const aiLogSpansCache = new Map();   // a finished session's id -> the matches it holds
+
+function keptAiLogDirs() {
+  if (!aiLogDirsCache || Date.now() - aiLogDirsCache.at > AI_LOG_DIRS_MS) {
+    aiLogDirsCache = { at: Date.now(), ids: aiLogStore.dirs(aiLogRoot()) };
+  }
+  return aiLogDirsCache.ids;
+}
+
+/** The finished sessions and the matches each holds, for a review saved before 8.2. */
+function finishedAiLogSpans() {
+  const live = aiLogLiveId();
+  const ids = keptAiLogDirs().filter((id) => id !== live);
+  for (const id of aiLogSpansCache.keys()) if (!ids.includes(id)) aiLogSpansCache.delete(id);
+  return ids.map((id) => {
+    if (!aiLogSpansCache.has(id)) aiLogSpansCache.set(id, aiLogStore.matchesIn(aiLogRoot(), id));
+    return { id, spans: aiLogSpansCache.get(id) };
+  });
+}
+
+/** What scopeFor() reads of a library row, and of a whole review. */
+function rowLogEntry(row) {
+  const r = row || {};
+  return { valorant: r.game === 'valorant', source: r.source, at: r.at, aiLog: r.aiLog };
+}
+function reviewLogEntry(review, at) {
+  const r = review || {};
+  return { valorant: r.kind === 'valorant', source: r.source, at, aiLog: r.aiLog };
+}
+
+/** A review's frames in the log: its scope, false once gone, null with none to keep. */
+function aiLogScopeOf(entry) {
+  return aiLogStore.scopeFor(entry, keptAiLogDirs, finishedAiLogSpans);
+}
+
+/** The same, as the one word a page is handed: 'kept', 'gone' or null. */
+function aiLogStateOf(entry) {
+  const scope = aiLogScopeOf(entry);
+  return scope === null ? null : scope ? 'kept' : 'gone';
 }
 
 /** Metadata for the session picker: every kept session, and no frames. */
 function aiLogSessions() { return aiLogStore.sessions(aiLogRoot(), aiLogLiveId()); }
-
-/** One session with its frames, for the viewer. Newest unless asked otherwise. */
-function readAiLog(id) { return aiLogStore.read(aiLogRoot(), id, aiLogLiveId()); }
 
 /**
  * Check a logged session's deaths against Riot's record of the match.
@@ -2413,10 +2692,22 @@ const DEATH_CHECK_RETRY_MS = 3 * 60 * 1000;   // how long a failure is remembere
 const deathChecks = makeCheckCache(DEATH_CHECK_RETRY_MS);
 const deathCheckRemember = (key, rec) => deathChecks.remember(key, rec);
 
-async function confirmDeaths(id) {
-  const chosen = aiLogStore.dirs(aiLogRoot()).includes(String(id)) ? String(id) : (aiLogStore.dirs(aiLogRoot())[0] || null);
+async function confirmDeaths(id, scope) {
+  // ONE MATCH of a session (a review's eye) is checked as it was read: that
+  // session or nothing, and its own frames, whose deaths are the ones on
+  // screen and line up with one Riot match. Cached apart from the session.
+  //
+  // AND A WHOLE SESSION IS THE ONE NAMED (8.2), as it is read: one the log no
+  // longer keeps is unavailable, never the newest folder in its place, whose
+  // deaths, the match in progress among them, would be summed up under this
+  // one's marks. The session being written is not checked mid match either,
+  // decided on the session checked (aiLogStore.served), as every read is.
+  const scoped = !!scope && typeof scope === 'object';
+  const chosen = scoped && !id ? null
+    : aiLogStore.served(aiLogStore.dirs(aiLogRoot()), id, aiLogLiveId(), liveLogSealed()).id;
   if (!chosen) return { status: 'unavailable' };
-  const cached = deathChecks.get(chosen);
+  const key = scoped ? `${chosen}|${Number(scope.match)}` : chosen;
+  const cached = deathChecks.get(key);
   if (cached) return cached;
 
   const riotId = (store.get('riotId') || '').trim();
@@ -2424,7 +2715,7 @@ async function confirmDeaths(id) {
   if (!riotId.includes('#') || !licenseKey) return { status: 'unavailable', why: 'no Riot ID set' };
 
   try {
-    const log = aiLogStore.read(aiLogRoot(), chosen);
+    const log = aiLogStore.read(aiLogRoot(), chosen, null, scoped ? scope : undefined);
     const recs = log.records || [];
     if (!recs.length) return { status: 'unavailable' };
     const detected = aiLogTimeline.deaths(recs);
@@ -2456,21 +2747,21 @@ async function confirmDeaths(id) {
     if (!hit) {
       // Short lived on purpose: a match that has only just ended is not in the
       // tracker yet, and this is exactly the session a player opens first.
-      return deathCheckRemember(chosen, { status: 'unavailable', why: 'no tracker match lines up with this session' });
+      return deathCheckRemember(key, { status: 'unavailable', why: 'no tracker match lines up with this session' });
     }
 
     const { ok, data } = await api.get(
       `/api/coach/match-deaths?matchId=${encodeURIComponent(hit.id)}&username=${encodeURIComponent(riotId)}`,
       licenseKey, 30000);
     if (!ok || !data || data.error) {
-      return deathCheckRemember(chosen, { status: 'unavailable', why: (data && data.error) || 'tracker did not answer' });
+      return deathCheckRemember(key, { status: 'unavailable', why: (data && data.error) || 'tracker did not answer' });
     }
 
     const rec = reconcileDeaths(detected, data, recs);
     rec.summary = summariseDeaths(rec);
     rec.match = { map: hit.map, score: hit.score, agent: hit.agent, result: hit.result };
-    console.log(`[ai-log] death check for ${chosen}: ${rec.summary}`);
-    return deathCheckRemember(chosen, rec);
+    console.log(`[ai-log] death check for ${key}: ${rec.summary}`);
+    return deathCheckRemember(key, rec);
   } catch (e) {
     console.error('[ai-log] death check failed:', e.message);
     return { status: 'unavailable', why: 'the check could not run' };

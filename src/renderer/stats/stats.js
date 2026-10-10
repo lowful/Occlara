@@ -134,6 +134,44 @@ function rankTier(rankValue) {
 }
 
 const rankNotesEl = document.getElementById('rank-notes');
+const rankReveal = document.getElementById('rank-reveal');
+
+/*
+ * THE RANK NOTES OPEN BY HEIGHT IN PLACE (8.2): #rank-reveal grows its one row
+ * from nothing to the notes' height (.reveal, ui.css) and back, and is hidden
+ * once closed, so a closed one is nothing at all to a screen reader. rankOpen
+ * is the state: hidden only comes some time after the close.
+ */
+/** --t-med in ms, read from theme.css so the timer and the reveal agree. */
+function revealMs() {
+  try {
+    const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--t-med'));
+    return Number.isFinite(v) ? v : 220;
+  } catch { return 220; }
+}
+let rankOpen = false;
+let rankCloseTimer = null;
+function openRankNotes() {
+  clearTimeout(rankCloseTimer);
+  rankOpen = true;
+  rankReveal.hidden = false;
+  void rankReveal.offsetHeight;   // at 0fr first, or there is nothing to grow from
+  rankReveal.classList.add('open');
+  markRankCard();
+}
+function closeRankNotes(now) {
+  rankOpen = false;
+  rankReveal.classList.remove('open');
+  markRankCard();
+  clearTimeout(rankCloseTimer);
+  if (now) { rankReveal.hidden = true; return; }
+  rankCloseTimer = setTimeout(() => { if (!rankOpen) rankReveal.hidden = true; }, revealMs());
+}
+/** The rank tile's chevron turns over while its notes are open. */
+function markRankCard() {
+  const tile = cardsEl && cardsEl.querySelector('.card.clickable');
+  if (tile) tile.classList.toggle('notes-open', rankOpen);
+}
 
 // ── Rank journey graph: competitive RR movement, drawn as an SVG line ────────
 async function renderRankGraph(host, opts) {
@@ -143,9 +181,10 @@ async function renderRankGraph(host, opts) {
   wrap.className = 'rank-graph';
   wrap.innerHTML = '<div class="rg-loading">Loading your rank journey...</div>';
   host.prepend(wrap);
-  let res = null;
-  try { res = await window.occlara.rankHistory(!!(opts && opts.force)); } catch {}
-  let points = (res && !res.error && Array.isArray(res.points)) ? res.points : [];
+  // Through the tile's shared read (rrPoints), so a Refresh with the notes
+  // open asks for the history once, not twice at once on the one stats key.
+  let points = [];
+  try { points = (await rrPoints(!!(opts && opts.force))).slice(); } catch {}
   // Placements and act resets make elo leap by hundreds and fake absurd RR
   // gains (+1535 from "Unrated" to Diamond). Keep only rated games, then cut
   // at the newest discontinuity so the graph covers one honest stretch, and
@@ -191,7 +230,7 @@ async function renderRankGraph(host, opts) {
 }
 
 function toggleRankNotes(rankValue) {
-  if (!rankNotesEl.hidden) { rankNotesEl.hidden = true; return; }
+  if (rankOpen) { closeRankNotes(); return; }
   const tier = rankTier(rankValue);
   rankNotesEl.innerHTML = '';
   renderRankGraph(rankNotesEl);   // graph on top, insights below
@@ -216,12 +255,43 @@ function toggleRankNotes(rankValue) {
     }
     rankNotesEl.append(title, body, label, ul);
   }
-  rankNotesEl.hidden = false;
+  openRankNotes();
+}
+
+/*
+ * THE RANK TILE SAYS WHAT THE LAST RATED GAME DID, IN RR. Its arrow was a trend
+ * between two tracker snapshots, and with no older snapshot to compare it was a
+ * flat dash beside every rank, which reads as "no change" when it means "not
+ * known". The rank history (the points the rank journey draws, cached in main
+ * for five minutes) has the real number: its newest rated point, elo above zero
+ * with a change of 60 or less, because placements and act resets move the elo
+ * by hundreds. Not known, the tile shows nothing at all.
+ */
+function rankDelta(points) {
+  const list = Array.isArray(points) ? points : [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const p = list[i];
+    if (p && p.elo > 0 && Number.isFinite(p.change) && Math.abs(p.change) <= 60) return p.change;
+  }
+  return null;
+}
+
+async function paintRankDelta(el) {
+  const change = rankDelta(await rrPoints());
+  if (change === null) return;
+  el.textContent = `${change > 0 ? '+' : ''}${change} RR`;
+  el.classList.add(change > 0 ? 'gain' : change < 0 ? 'loss' : 'even');
+  el.title = 'RR from your last rated game';
 }
 
 function renderCards(d) {
   cardsEl.innerHTML = '';
   const rankCard = card('Rank', d.rank?.value, d.rank?.direction, true);
+  // Empty until the rank history answers, never the trend's dash.
+  const rr = rankCard.querySelector('.arrow');
+  rr.className = 'arrow rr';
+  rr.textContent = '';
+  paintRankDelta(rr);
   rankCard.classList.add('clickable');
   const chev = document.createElement('span');
   chev.className = 'rank-chev';
@@ -229,6 +299,10 @@ function renderCards(d) {
   rankCard.querySelector('.label').append(' ', chev);
   rankCard.title = 'What holds players back at this rank';
   rankCard.addEventListener('click', () => toggleRankNotes(d.rank && d.rank.value));
+  // Built again by the mode toggle, Refresh and a Riot ID switch, any of which
+  // can come while the notes stay open under it, so the chevron is read off
+  // rankOpen here too, not only as the notes open and close (markRankCard).
+  rankCard.classList.toggle('notes-open', rankOpen);
   const c = d.categories || {};
   cardsEl.append(
     card('Impact',      c.impact?.avg,      c.impact?.direction),
@@ -279,6 +353,22 @@ function statTile(label, value, gradeClass) {
   v.textContent = value == null ? '·' : value;
   tile.append(l, v);
   return tile;
+}
+
+/*
+ * A ROW'S DROP DOWN OPENS BY HEIGHT IN PLACE (8.2), as the rank notes do: the
+ * detail sits in a .reveal under the row's top line, and .open on the row
+ * grows it from nothing (stats.css). Closed, what is in it is out of reach as
+ * well as out of sight.
+ */
+function dropDown(detail) {
+  const reveal = document.createElement('div');
+  reveal.className = 'reveal';
+  const clip = document.createElement('div');
+  clip.className = 'reveal-clip';
+  clip.append(detail);
+  reveal.append(clip);
+  return reveal;
 }
 
 function matchRow(m) {
@@ -411,7 +501,7 @@ function matchRow(m) {
   detail.append(tiles);
   if (teamEl) detail.append(teamEl);
   detail.append(share);
-  row.append(top, detail);
+  row.append(top, dropDown(detail));
   row.addEventListener('click', () => row.classList.toggle('open'));
   return row;
 }
@@ -456,9 +546,15 @@ refreshBtn.addEventListener('click', async () => {
     if (!(res && res.refreshBlockedFor)) refreshBlockedUntil = Date.now() + 3 * 60 * 1000;
     if (seq === matchSeq && (!res.mode || res.mode === matchMode)) renderMatches(res);
   } catch {}
+  // RR moved? The rank history is read again FORCED, because main keeps it
+  // five minutes: a Refresh just after Riot published a game showed the game
+  // before it on the tile as "RR from your last rated game", beside a match
+  // list that already had the new one. Started before the dashboard, so the
+  // tile it repaints, and every scorecard after it, reads this one.
+  rrPoints(true);
   refreshDashboardForMode(matchMode, true);   // agents + overview stay fresh too
-  rrPointsCache = null;                       // RR moved? scorecards see it fresh
-  if (!rankNotesEl.hidden) renderRankGraph(rankNotesEl, { force: true });
+  // Not forced again: rrPoints(true) above is the read, and the graph shares it.
+  if (rankOpen) renderRankGraph(rankNotesEl);
   tickRefresh();
 });
 
@@ -574,7 +670,7 @@ function sessionRow(s, i, settled) {
   ask.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.askAboutSession({ reviewId: s.id }); });
   actions.append(open, ask);
   detail.append(actions);
-  row.append(top, detail);
+  row.append(top, dropDown(detail));
   row.addEventListener('click', () => row.classList.toggle('open'));
   return row;
 }
@@ -610,14 +706,29 @@ function mvpForSession(s) {
 }
 
 // Competitive RR change for a match, from the rank history points (nearest
-// game within 45 minutes). Cached per window; Refresh clears it.
+// game within 45 minutes). Cached per window as the read itself, so whoever
+// asks while it is out shares it and an older read landing late never
+// replaces a newer one. Refresh starts a forced one, past main's own five
+// minute cache, and the rank tile repainted after it reads that.
+//
+// SHARED FOR A MOMENT, NOT FOR THE PAGE'S LIFE. The page is kept between
+// visits, and main drops its own cache when a recording stops so the match
+// just played shows at once; a read held here for good left it out of the
+// rank graph until a Refresh. So a read is shared for RR_SHARE_MS, which
+// covers one paint's tile and match rows, and main is asked again after.
+const RR_SHARE_MS = 30 * 1000;
 let rrPointsCache = null;
-async function rrPoints(force) {
-  if (rrPointsCache && !force) return rrPointsCache;
-  try {
-    const r = await window.occlara.rankHistory(force);
-    rrPointsCache = (r && !r.error && Array.isArray(r.points)) ? r.points : [];
-  } catch { rrPointsCache = []; }
+let rrPointsAt = 0;
+function rrPoints(force) {
+  const now = performance.now();
+  if (rrPointsCache && !force && now - rrPointsAt < RR_SHARE_MS) return rrPointsCache;
+  rrPointsAt = now;
+  rrPointsCache = (async () => {
+    try {
+      const r = await window.occlara.rankHistory(!!force);
+      return (r && !r.error && Array.isArray(r.points)) ? r.points : [];
+    } catch { return []; }
+  })();
   return rrPointsCache;
 }
 async function rrChangeForMatch(m) {
@@ -1020,7 +1131,6 @@ if (window.occlara.onReviews) {
 
 document.getElementById('weekly').addEventListener('click', () => window.occlara.openWeekly());
 document.getElementById('ailog').addEventListener('click', () => window.occlara.openAiLog());
-document.getElementById('askcoach').addEventListener('click', () => window.occlara.openChat());
 // A page of the main window has no window of its own to close.
 document.getElementById('close').addEventListener('click', () => {
   if (!(window.occlaraEmbedded && window.occlaraEmbedded())) window.close();
@@ -1042,7 +1152,7 @@ window.occlara.onState((s) => {
   matchMode = 'competitive';
   for (const b of modeSeg.querySelectorAll('button')) b.classList.toggle('active', b.dataset.mode === 'competitive');
   load();
-  if (!rankNotesEl.hidden) renderRankGraph(rankNotesEl, { force: true });
+  if (rankOpen) renderRankGraph(rankNotesEl, { force: true });
 });
 
 // Follow a game switch made in Settings while this window is open. Main has
@@ -1057,7 +1167,7 @@ window.occlara.onGame(() => {
   rrPointsCache = null;
   matchMode = 'competitive';
   for (const b of modeSeg.querySelectorAll('button')) b.classList.toggle('active', b.dataset.mode === 'competitive');
-  rankNotesEl.hidden = true;
+  closeRankNotes(true);
   load();
 });
 

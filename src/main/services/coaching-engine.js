@@ -5,9 +5,19 @@ const api = require('./api-client');
 const agentData = require('./agent-data');
 const { API, TIMING, CAPTURE_TIERS } = require('../../shared/config');
 
-// Reads allowed in flight at once. Two doubles the capture rate over one at a
-// time without letting a slow model build a queue of stale frames.
-const MAX_IN_FLIGHT = 2;
+// Reads allowed in flight at once: two until the read's latency is measured,
+// then as many as its p90 needs to keep the gap (inFlightLimit), never past
+// four. At a fixed two, a read a second held only while p90 stayed under 2.2
+// seconds, and auto ran at two seconds falling to three on real sessions. Four
+// covers a slow model without letting it build a queue of stale frames.
+const MIN_IN_FLIGHT = 2;
+const MAX_IN_FLIGHT = 4;
+// How long a read is waited for. The server gives up on one at 9 seconds
+// (READ_TIMEOUT_MS in server/routes/coach.js), so a read still out at 12 will
+// never be answered, and replies are applied in capture order: at the 30
+// seconds every other call gets, one hung read held every reply behind it
+// that long.
+const READ_TIMEOUT_MS = 12000;
 const spectate = require('../../shared/spectate-tells');
 const { RoundLedger, clockSeconds, isBuyPhase, BUY_MAX_LEFT } = require('../../shared/valorant-rounds');
 const { MatchEndWatch, isFinalScore } = require('../../shared/match-end');
@@ -46,6 +56,8 @@ class CoachingEngine extends EventEmitter {
     this.latencies = [];
     this.readErrors = 0;
     this.lastSendAt = 0;
+    this.rateLimitedAt = 0;   // the server's read limiter last answered 429
+    this.captureTimes = [];   // the capture helper's time per frame, for the log
     this.lastNote = null;
     // Experimental settings, read live from the store so a settings flip
     // applies to the very next capture: { proPlaybook: 'off'|'on'|'hybrid' }.
@@ -130,6 +142,8 @@ class CoachingEngine extends EventEmitter {
     this.latencies = [];
     this.readErrors = 0;
     this.lastSendAt = 0;
+    this.rateLimitedAt = 0;
+    this.captureTimes = [];
     this.warnedFailure = false;
     this.warnedCapture = false;
     this.failStreak = 0;
@@ -171,7 +185,7 @@ class CoachingEngine extends EventEmitter {
     this.armAgentDetection();
 
     // A short heartbeat decides when the next read goes out; the gap and the
-    // two-in-flight ceiling live in tick(), so the cadence can change mid match.
+    // in-flight limit live in tick(), so the cadence can change mid match.
     this.loopTimer = setInterval(() => this.tick(), 200);
     this.emit('cadence', this.gapMs);
 
@@ -450,29 +464,52 @@ class CoachingEngine extends EventEmitter {
    * each frame's only job is to report the HUD (POST /api/coach/read), and the
    * review writes the coaching once the match is over.
    *
-   * TWO READS IN FLIGHT, PROCESSED IN CAPTURE ORDER. A read takes one to five
-   * seconds depending on the model, so one at a time capped the capture rate at
-   * the model's latency. Two at once doubles it. Replies can come back out of
-   * order, and the round ledger, the death edge and the scoreboard continuity
-   * guard all assume time runs forwards, so replies wait in `pending` until
-   * every earlier one has been applied.
+   * UP TO FOUR READS IN FLIGHT, PROCESSED IN CAPTURE ORDER. A read takes one to
+   * five seconds depending on the model, so one at a time capped the capture
+   * rate at the model's latency, and two capped a read a second at a p90 of 2.2
+   * seconds. How many may be out follows the measured latency (inFlightLimit).
+   * Replies can come back out of order, and the round ledger, the death edge
+   * and the scoreboard continuity guard all assume time runs forwards, so
+   * replies wait in `pending` until every earlier one has been applied.
+   *
+   * What that costs is the context a read carries (readContext), the state as
+   * of the last APPLIED reply: with four out it is four reads old, the same four
+   * seconds two out at a two second gap gave, and older while a slow reply holds
+   * the order, which is the other reason a read gives up at 12 seconds. The
+   * prompt gives it as context only, the current frame deciding every field,
+   * and every guard judges a reply against the state it lands on, never the one
+   * it was sent with. bench:read -- --lag 4 measures the read on it.
    *
    * THE GAP ADAPTS, "the fastest the pipeline can sustain" rather than a fixed
    * number: tiers from CAPTURE_TIERS, stepping slower when p90 latency exceeds
-   * what two in flight can cover or reads keep failing, and faster again when
-   * there is clear headroom. A manual speed in Settings pins it.
+   * what four in flight can cover, when three reads fail in a row, or when the
+   * server answers 429 (which also stops sending for ten seconds), and faster
+   * again when there is clear headroom. A manual speed in Settings pins it.
    */
   tick() {
     if (!this.isRunning || this.paused || this.isCapturing) return;
     if (this.aiCreditsOutAt && Date.now() - this.aiCreditsOutAt < AI_CREDITS_BACKOFF_MS) return;
-    if (this.inFlight >= MAX_IN_FLIGHT) return;
+    if (this.rateLimitedAt && Date.now() - this.rateLimitedAt < RATE_LIMIT_PAUSE_MS) return;
+    if (this.inFlight >= this.inFlightLimit()) return;
     if (Date.now() - this.lastSendAt < this.gapMs) return;
     this.sendRead();
   }
 
+  /**
+   * How many reads may be out at once: enough for the measured p90 to cover
+   * the gap with one to spare, at least two and at most four. Two before any
+   * latency is measured, which is where a fixed limit always stood.
+   */
+  inFlightLimit() {
+    if (!this.latencies.length) return MIN_IN_FLIGHT;
+    const need = Math.ceil(quantile(this.latencies, 0.9) / this.gapMs) + 1;
+    return Math.min(MAX_IN_FLIGHT, Math.max(MIN_IN_FLIGHT, need));
+  }
+
   async sendRead() {
     const seq = this.seq++;
-    this.lastSendAt = Date.now();
+    const sentAt = Date.now();
+    this.lastSendAt = sentAt;
     this.inFlight++;
     let result = { failed: true };
     try {
@@ -483,15 +520,24 @@ class CoachingEngine extends EventEmitter {
       finally { this.isCapturing = false; }
       if (this.shouldAbort) return;
       if (!shot) { this.onCaptureFailed(); return; }
+      this.noteCapture(Date.now() - sentAt);
       // A notice says what is wrong NOW. Once capture or the server works
       // again, the line on the panel goes, rather than warning all session.
       if (this.warnedCapture) this.emit('notice', { kind: 'capture', text: null });
       this.warnedCapture = false;
 
       const at = Date.now();
-      const data = await this.callServer(API.READ, { image: shot, context: this.readContext() });
+      const { data, status } = await this.callServer(API.READ, { image: shot, context: this.readContext() },
+        { timeoutMs: READ_TIMEOUT_MS });
       if (this.shouldAbort) return;
-      if (!data) { this.onReadFailed(); this.noteLatency(null); return; }
+      if (!data) {
+        this.onReadFailed();
+        // A 429 has a rule of its own. Counted as failed reads too, three
+        // refused together stepped the cadence down twice for one refusal.
+        if (status === 429) this.onRateLimited();
+        else this.noteLatency(null);
+        return;
+      }
       if (this.warnedFailure) this.emit('notice', { kind: 'read-failed', text: null });
       this.warnedFailure = false;
       this.failStreak = 0;
@@ -582,7 +628,8 @@ class CoachingEngine extends EventEmitter {
     this.adaptCadence();
   }
 
-  adaptCadence() {
+  /** `limited`: the server's read limiter just refused a read (onRateLimited). */
+  adaptCadence(limited = false) {
     if (this.captureSpeed !== 'auto') return;
     const tiers = CAPTURE_TIERS;
     const i = Math.max(0, tiers.indexOf(this.gapMs));
@@ -594,14 +641,47 @@ class CoachingEngine extends EventEmitter {
       this.readErrors = 0;
       this.emit('cadence', this.gapMs);
     };
+    if (limited && i < tiers.length - 1) { setTier(i + 1, 'the server is limiting reads'); return; }
     if (this.readErrors >= 3 && i < tiers.length - 1) { setTier(i + 1, 'reads failing'); return; }
     if (this.latencies.length < 12) return;
-    const sorted = this.latencies.slice().sort((a, b) => a - b);
-    const p90 = sorted[Math.floor(sorted.length * 0.9)];
-    // With two in flight a read may take up to twice the gap before a third
-    // would be needed. Past that, reads pile up and the frames go stale.
+    const p90 = quantile(this.latencies, 0.9);
+    // With four in flight a read may take four gaps before a fifth would be
+    // needed. Past that, reads pile up and the frames go stale.
     if (p90 > this.gapMs * MAX_IN_FLIGHT * 1.1 && i < tiers.length - 1) setTier(i + 1, `p90 ${p90}ms`);
     else if (i > 0 && p90 < tiers[i - 1] * MAX_IN_FLIGHT * 0.7) setTier(i - 1, `p90 ${p90}ms`);
+  }
+
+  /**
+   * The server's read limiter answered 429. Sending stops for ten seconds and
+   * the cadence steps down once. The reads that were out beside the refused one
+   * were sent before it said so, so their refusals extend the pause without
+   * stepping again.
+   */
+  onRateLimited() {
+    const now = Date.now();
+    const fresh = now - this.rateLimitedAt >= RATE_LIMIT_PAUSE_MS;
+    this.rateLimitedAt = now;
+    if (!fresh) return;
+    console.log(`[engine] the server is limiting reads, sending none for ${RATE_LIMIT_PAUSE_MS / 1000}s`);
+    this.adaptCadence(true);
+  }
+
+  /**
+   * The capture helper's time for one frame, logged as a p50 and a p90 every
+   * CAPTURE_LOG_EVERY frames. The helper is launched once per frame and tick()
+   * waits for a capture to finish, so a capture near the gap sets the cadence
+   * by itself, whatever the server does. Past about 700ms, a steady read a
+   * second needs a capture source that stays running, not one launched per
+   * frame.
+   */
+  noteCapture(ms) {
+    this.captureTimes.push(ms);
+    if (this.captureTimes.length < CAPTURE_LOG_EVERY) return;
+    const t = this.captureTimes;
+    this.captureTimes = [];
+    console.log(`[engine] capture p50 ${quantile(t, 0.5)}ms, p90 ${quantile(t, 0.9)}ms over the last ${t.length} frames;`
+      + ` reading every ${this.gapMs}ms, up to ${this.inFlightLimit()} in flight`
+      + (this.latencies.length ? `, read p90 ${quantile(this.latencies, 0.9)}ms` : ''));
   }
 
   /** Pin a speed from Settings, or hand it back to 'auto'. */
@@ -629,6 +709,7 @@ class CoachingEngine extends EventEmitter {
     if (!this.licenseKey) text = 'No licence picked up, so the coach cannot read your match.';
     else if (this.lastServerStatus === 401 || this.lastServerStatus === 403) text = 'Your licence is not active. Re-activate it in Settings.';
     else if (this.lastServerStatus === 402) text = 'The coach AI is out of credits, so this match is not being read.';
+    else if (this.lastServerStatus === 429) text = 'The coach server is limiting reads, so this match is read less often for now.';
     else if (this.lastServerStatus >= 500) text = 'The coach server is having trouble. Reading resumes when it is back.';
     else text = 'Cannot reach the coach server right now. Reading resumes when it is back.';
     this.emit('notice', { kind: 'read-failed', text });
@@ -656,7 +737,7 @@ class CoachingEngine extends EventEmitter {
     finally { this.isCapturing = false; }
     if (!shot || this.shouldAbort || !this.isRunning) return;
     try {
-      const data = await this.callServer(API.DETECT_AGENT, { image: shot });
+      const { data } = await this.callServer(API.DETECT_AGENT, { image: shot });
       // Stopped, or an agent set by hand, while the call was out.
       if (this.shouldAbort || !this.isRunning || this.matchContext.agent) return;
       // Normalise whatever the server returns ("reyna", "KAY/O", "Jett ") to a
@@ -709,15 +790,22 @@ class CoachingEngine extends EventEmitter {
     return { ok: true, ...this.agentInfo() };
   }
 
+  /**
+   * One call to the server: `data` when it answered, null when it did not, and
+   * this call's own `status` either way (0 when it was never reached). The
+   * status travels with the call because with up to four reads out,
+   * `lastServerStatus` is whichever of them answered last.
+   */
   async callServer(path, body, opts = {}) {
     try {
       const headers = opts.forced ? { 'X-Forced': 'true' } : undefined;
-      // 30s: accuracy-first mode runs a reasoning model on live tips, which can
-      // take 15 to 25s. This sits past the server's own 24/26s AI timeout plus
-      // network, so a slow reasoning reply is waited out instead of aborted and
-      // wrongly read as a failure. The loop is single-in-flight, so a genuinely
-      // hung request stalls at most one cycle.
-      const { ok, status, data } = await api.post(path, body, this.licenseKey, 30000, headers);
+      // 30s unless the caller says otherwise. Agent detection runs past the
+      // server's own 22 second race plus the network, so a slow answer is
+      // waited out rather than read as a failure. The read passes its own 12
+      // (READ_TIMEOUT_MS): it is one of up to four out at once and they are
+      // applied in order, so a read the server has abandoned must not hold
+      // the ones behind it for 30.
+      const { ok, status, data } = await api.post(path, body, this.licenseKey, opts.timeoutMs || 30000, headers);
       this.lastServerStatus = status;
       if (!ok) {
         // 402 = the AI account is out of credits. Not transient, so record it
@@ -728,14 +816,14 @@ class CoachingEngine extends EventEmitter {
         } else {
           console.error('[engine] server', path, 'status', status);
         }
-        return null;
+        return { data: null, status };
       }
       this.aiCreditsOutAt = 0;   // a success proves credits are back
-      return data;
+      return { data, status };
     } catch (e) {
       this.lastServerStatus = 0; // network/unreachable
       console.error('[engine] server', path, 'error:', e.message);
-      return null;
+      return { data: null, status: 0 };
     }
   }
 
@@ -1797,6 +1885,12 @@ function halfOfRound(rn, mode) {
   return null;
 }
 
+/** A quantile of a list of milliseconds, taken the way the cadence always took its p90. */
+function quantile(list, q) {
+  const sorted = list.slice().sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))];
+}
+
 // Tidy a raw enemy-spot token into a readable callout, e.g. "a_main" → "A Main".
 function prettySpot(spot) {
   return String(spot).replace(/[_-]+/g, ' ').trim().replace(/\b\w/g, (c) => c.toUpperCase());
@@ -1825,6 +1919,15 @@ const SWAP_READS = 4;
 // credits. Long enough that an outage costs almost nothing, short enough that
 // topping up resumes coaching on its own without a restart.
 const AI_CREDITS_BACKOFF_MS = 3 * 60 * 1000;
+
+// How long sending stops after the server's read limiter answers 429. The
+// limiter counts reads a minute per licence, and the cadence steps down once
+// as well, so what resumes asks less of it.
+const RATE_LIMIT_PAUSE_MS = 10000;
+
+// How many captures one line of the capture log sums up: a minute at a read a
+// second, enough for a p90 that means something.
+const CAPTURE_LOG_EVERY = 60;
 
 // How long a pre-round team plan stays trustworthy once the round is live. A
 // round is 1:40, so a plan from the buy phase describes the opening push; past

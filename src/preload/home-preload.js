@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const GAMES = require('../shared/games');
 const { homeModel } = require('../shared/home-model');
+const { pageMotion } = require('./page-motion');
 
 /**
  * Bridge for Home, the main window's first page: the last match, the focus
@@ -19,6 +20,8 @@ function subscribe(channel, cb) {
 }
 
 contextBridge.exposeInMainWorld('occlara', {
+  // Moving between pages (shared/embed.js).
+  ...pageMotion(ipcRenderer),
   getState:   () => ipcRenderer.invoke(C.STATE_GET),
   getConfig:  () => ipcRenderer.invoke(C.CONFIG_GET),
   /** Everything Home shows for one game, from the library. */

@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
 const GAMES = require('../shared/games');
+const { pageMotion } = require('./page-motion');
 
 /**
  * Settings bridge, read/write config + license info, plus live state.
@@ -15,6 +16,8 @@ function subscribe(channel, cb) {
 }
 
 contextBridge.exposeInMainWorld('occlara', {
+  // Moving between pages (shared/embed.js).
+  ...pageMotion(ipcRenderer),
   // i18n: the catalogue is required here (preloads have Node) and handed to the
   // renderer as a plain translator, so no surface needs Node access to be
   // translated. Read at call time, so a language change repaints correctly.

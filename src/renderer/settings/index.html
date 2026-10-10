@@ -35,7 +35,7 @@
 
       <section>
         <h3 data-i18n="settings.tipFrequency" id="capture-title">Capture speed</h3>
-        <p class="hint">How often Occlara reads your screen during a match. Faster reads catch more of every fight, so the review has more to go on. Auto picks the fastest the connection and the AI can keep up with, and steps down on its own if replies start to lag. No effect on game FPS.</p>
+        <p class="hint">How often Occlara reads your screen during a match. Faster reads catch more of every fight, so the review has more to go on. Auto starts at one read a second and keeps it while the AI keeps up, even when a reply takes a few seconds, and steps down on its own only if replies lag further or keep failing. The capture runs in its own process, outside the game.</p>
         <div class="seg" id="capturespeed">
           <button data-val="auto">Auto</button>
           <button data-val="1000">1s</button>
@@ -63,7 +63,7 @@
 
       <section>
         <h3>Advanced coaching</h3>
-        <p class="hint">Lets your review draw on the deeper material: damage breakpoints, utility timings and reads across rounds, built from VOD reviews by Bonkar, head coach of NRG. Fundamentals always stay in, and they take over when a match shows you dying on repeat.</p>
+        <p class="hint">Lets your review draw on the deeper material: damage breakpoints, utility timings and reads across rounds. Fundamentals always stay in, and they take over when a match shows you dying on repeat.</p>
         <div class="seg" id="advanced">
           <button data-val="on">On</button>
           <button data-val="off">Off</button>

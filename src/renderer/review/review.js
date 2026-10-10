@@ -292,7 +292,8 @@ function paintValorant(r) {
   const SAID = { spot: 'same-spot', early: 'early', killer: 'same-killer', firstkill: 'first-kill',
     firstdeath: 'first-death', ult: 'ult-held', postplant: 'postplant', retake: 'retake' };
   const ins = r.insights || {};
-  const shown = new Set([...(ins.mistakes || []), ...(ins.strengths || []), ...(ins.missed || [])].map((e) => e.key));
+  const shown = new Set([...(ins.mistakes || []), ...(ins.strengths || []), ...(ins.missed || []), ...(ins.facts || [])]
+    .map((e) => e.key));
   const pats = (Array.isArray(r.patterns) ? r.patterns : []).filter((p) => !shown.has(SAID[p.key]));
   $('v-patterns-wrap').hidden = !pats.length;
   const pHost = $('v-patterns');
@@ -331,16 +332,11 @@ function paintValorant(r) {
   $('v-study-wrap').hidden = !study.length;
   const sHost = $('v-study');
   sHost.replaceChildren();
+  // A note is its text alone: the review never says where its knowledge comes
+  // from, and main hands it nothing else (present() in src/main/index.js).
   for (const n of study) {
     const card = el('div', 'v-study-card');
     card.append(el('p', 'v-study-text', n.text));
-    // Only the imported notes come from VOD reviews. Occlara's own are computed
-    // from the damage table or written from round shapes, and calling those
-    // "VOD reviews" would put words in a coach's mouth.
-    if (n.coach) {
-      card.append(el('div', 'v-study-src', n.coach === 'Occlara'
-        ? "From Occlara's playbook" : `From ${n.coach} VOD reviews`));
-    }
     sHost.append(card);
   }
 
@@ -349,6 +345,8 @@ function paintValorant(r) {
   const list = $('v-refused');
   list.replaceChildren();
   for (const line of refused) list.append(el('li', 'r-refused-item', line));
+
+  paintLooks(r);
 }
 
 /** One cell per round, halftime as a gap, the side named over each half. */
@@ -402,7 +400,9 @@ function paintRoundCards(r) {
     if (c.side) head.append(el('span', 'v-side', c.side));
     card.append(head);
     if (c.facts.length) card.append(el('div', 'v-facts', c.facts.join('  ·  ')));
-    if (c.forensics) card.append(forensicsBlock(c.forensics, r.frameData || {}));
+    // The cause alone, and the way down to the moment, which is shown whole
+    // at the bottom of the review (paintLooks).
+    if (c.forensics) card.append(lookLink(c));
     if (c.why) {
       const why = el('div', 'v-why-wrap');
       why.append(el('div', 'v-reads-label', 'Why it went this way'));
@@ -423,20 +423,64 @@ function paintRoundCards(r) {
  * The coach's look at one death: the frame before it (and after, when there is
  * one), the cause as a label, what it saw and the better play. The label is the
  * part that gets counted across rounds and matches, so it is shown as a chip,
- * and the sentences are marked as the coach's read of a picture.
+ * on the round's card and at its moment, and the sentences, at the moment
+ * alone, are marked as the coach's read of a picture.
  */
 const CAUSE_TITLE = {
   'dry-peek': 'Dry peek', 'isolated': 'Caught alone', 'repeek': 'Repeek', 'crossfire': 'Crossfire',
   'rotating': 'Caught rotating', 'overextend': 'Overextended', 'exposed': 'Exposed on the spike',
   'lost-duel': 'Lost the duel', 'unclear': 'Frame unclear',
 };
-function forensicsBlock(f, frames) {
-  const wrap = el('div', 'v-look');
-  const head = el('div', 'v-look-head');
-  head.append(el('span', 'v-reads-label', "The coach's look at this death"));
-  head.append(el('span', 'v-cause ' + (f.cause === 'lost-duel' || f.cause === 'unclear' ? 'neutral' : 'bad'),
-    CAUSE_TITLE[f.cause] || f.cause));
-  wrap.append(head);
+function causeChip(f) {
+  return el('span', 'v-cause ' + (f.cause === 'lost-duel' || f.cause === 'unclear' ? 'neutral' : 'bad'),
+    CAUSE_TITLE[f.cause] || f.cause);
+}
+
+/** On a round's card: the look's cause, and a link down to its moment. */
+function lookLink(c) {
+  const row = el('div', 'v-look-link');
+  row.append(el('span', 'v-reads-label', "The coach's look"), causeChip(c.forensics));
+  const link = el('button', 'v-moment-link', 'See where you died');
+  link.type = 'button';
+  link.addEventListener('click', () => goMoment(c.n));
+  row.append(link);
+  return row;
+}
+
+// A look Riot's record never timed (8.2): the coach found the moment by when
+// the screen read the death, which can come a few seconds after it.
+const SCREEN_TIMING = "When this happened is the coach's own read of the screen, not Riot's record of the match.";
+
+/**
+ * WHERE YOU DIED, AND HOW (8.2): every death the coach looked at, at the
+ * bottom of the review, its frames across the column, then the round's facts,
+ * the cause, what the coach saw and the better play. A review checked against
+ * Riot's record and one Riot's record never reached are painted alike, and the
+ * second says its timing is the coach's own read. An unclear frame keeps its
+ * picture and says nothing about it, as the server already makes sure.
+ */
+function paintLooks(r) {
+  const host = $('v-looks');
+  host.replaceChildren();
+  const frames = r.frameData || {};
+  const looked = (Array.isArray(r.rounds) ? r.rounds : []).filter((c) => c.forensics);
+  $('v-looks-wrap').hidden = !looked.length;
+  for (const c of looked) host.append(moment(r, c, frames));
+}
+
+function moment(r, c, frames) {
+  const f = c.forensics;
+  const box = el('article', 'v-moment');
+  box.id = `moment-${c.n}`;
+  const head = el('div', 'v-moment-head');
+  head.append(el('span', 'v-rn', `Round ${c.n}`));
+  if (c.side) head.append(el('span', 'v-side', c.side));
+  // The AI log at that moment, while it still holds the match: the eye in the
+  // header opens the match on its first death, this one at the frame looked at.
+  const eye = r.id && r.aiLog === 'kept' && typeof f.at === 'number' && window.LogEye
+    ? window.LogEye.button('kept', () => window.occlara.openAiLog(r.id, f.at), window.LogEye.MOMENT) : null;
+  if (eye) head.append(eye);
+  box.append(head);
   const shots = (f.frames || []).filter((n) => frames[n]);
   if (shots.length) {
     const strip = el('div', 'v-shots' + (shots.length > 1 ? ' two' : ''));
@@ -446,35 +490,87 @@ function forensicsBlock(f, frames) {
       img.src = frames[n];
       img.alt = n.includes('after') ? 'Just after the death' : 'Just before the death';
       img.loading = 'lazy';
-      img.addEventListener('click', () => fig.classList.toggle('zoom'));
+      img.addEventListener('click', () => zoomShot(strip, fig));
       fig.append(img, el('figcaption', null, n.includes('after') ? 'Just after' : 'Just before'));
       strip.append(fig);
     });
-    wrap.append(strip);
+    box.append(strip);
   }
-  if (f.what) wrap.append(el('p', 'v-look-what', f.what));
-  if (f.better) {
-    const b = el('p', 'v-look-better');
-    b.append(el('span', 'gv-fix-label', 'Better'), document.createTextNode(f.better));
-    wrap.append(b);
+  if (c.facts.length) box.append(el('div', 'v-facts', c.facts.join('  ·  ')));
+  const cause = el('div', 'v-moment-cause');
+  cause.append(causeChip(f));
+  box.append(cause);
+  if (f.cause !== 'unclear') {
+    if (f.what) box.append(el('p', 'v-look-what', f.what));
+    if (f.better) {
+      const b = el('p', 'v-look-better');
+      b.append(el('span', 'gv-fix-label', 'Better'), document.createTextNode(f.better));
+      box.append(b);
+    }
   }
-  return wrap;
+  if (f.source === 'screen') box.append(el('p', 'v-moment-src', SCREEN_TIMING));
+  return box;
 }
 
-/** Jump to one round's card and flash it. */
-function goRound(n) {
-  const card = document.getElementById(`round-${n}`);
+/*
+ * A FRAME ZOOMS BY SCALING (8.2), in and out. Zoomed, a frame takes the whole
+ * row and its neighbour drops under it, which is a jump in layout, so each
+ * frame of the strip is measured, the zoom is applied, and each is drawn back
+ * where it was and let go: the CSS transition on .v-shot img (review.css)
+ * carries it from there to where it now is.
+ */
+function zoomShot(strip, fig) {
+  const imgs = [...strip.querySelectorAll('.v-shot img')];
+  const before = imgs.map((i) => i.getBoundingClientRect());
+  fig.classList.toggle('zoom');
+  imgs.forEach((img, k) => {
+    const a = before[k];
+    const b = img.getBoundingClientRect();
+    if (!a.width || !b.width) return;
+    img.style.transition = 'none';
+    img.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px) scale(${a.width / b.width})`;
+  });
+  void strip.offsetWidth;   // drawn where it was before it is let go
+  for (const img of imgs) {
+    img.style.transition = '';
+    img.style.transform = '';
+  }
+}
+
+/**
+ * Bring one card into view, flash it, and hand it the keyboard. Scrolled to
+ * and nothing more, focus stayed on the control that jumped, so the next Tab
+ * went on from there, back up the page, and a screen reader read on from the
+ * round card: since 8.2 the look itself is at the bottom of the review, and
+ * its eye was reachable only by tabbing through every card above it. A card
+ * takes focus without joining the tab order (tabindex -1), and without a
+ * scroll of its own, which would cut the smooth one short.
+ */
+function flashTo(card) {
   if (!card) return;
   card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (!card.hasAttribute('tabindex')) card.tabIndex = -1;
+  card.focus({ preventScroll: true });
   card.classList.remove('flash');
   void card.offsetWidth;
   card.classList.add('flash');
 }
 
+/** Jump to one round's card. */
+function goRound(n) { flashTo(document.getElementById(`round-${n}`)); }
+
+/** Jump to one death's moment, at the bottom of the review. */
+function goMoment(n) { flashTo(document.getElementById(`moment-${n}`)); }
+
 /**
  * The grade and the three lists, for every game, placed under whichever
  * game's header is showing. Hidden when the review carries neither, which is
  * a review saved before grades existed.
+ *
+ * A REVIEW GRADED FROM RIOT'S RECORD ALONE HAS NO LISTS. Riot records what
+ * happened and never why, so main hands it facts in their place, whenever it
+ * was saved (present() in src/main/index.js), and GradeView draws them as one
+ * neutral list, "What Riot's record shows", with no fix on any of them.
  */
 function paintCommon(r, anchor) {
   const common = $('common');
@@ -510,7 +606,20 @@ function resetSections() {
   }
 }
 
+/**
+ * The eye beside "Ask about this match": the AI log on this match's frames,
+ * by the rule its row in Matches follows (shared/log-eye.js), from the one
+ * word main sends with the review. Gone with the review it belonged to.
+ */
+function paintEye(r) {
+  const host = $('eye-host');
+  const eye = r && r.id && window.LogEye ? window.LogEye.button(r.aiLog, () => window.occlara.openAiLog(r.id)) : null;
+  host.replaceChildren(...(eye ? [eye] : []));
+  host.hidden = !eye;
+}
+
 function paint(r) {
+  paintEye(r);
   if (!r) {
     $('common').hidden = true;
     $('empty').hidden = false;

@@ -11,9 +11,15 @@
  * Growing the playbook needs NO code changes:
  *   - add entries to PLAYBOOK below, or
  *   - drop extra entries into server/data/playbook.json (same shape), which is
- *     merged at startup. That file is where knowledge extracted from coaching
- *     videos and pro VODs lands (transcribe, extract rules with an LLM, tag,
- *     append). The coach is smarter on the very next request.
+ *     merged at startup. That file holds the notes imported from pro VOD
+ *     reviews (transcribe, extract rules with an LLM, tag, append) beside
+ *     Occlara's own, computed from the damage table or written from round
+ *     shapes. The coach is smarter on the very next request.
+ *
+ * AN IMPORTED NOTE SAYS WHAT IT IS ABOUT, NEVER WHO IT CAME FROM. Its source
+ * carries a kind and a topic, the topic being what the review's study list
+ * picks by, and no name: the app never says where its knowledge comes from,
+ * and check:playbook and check:attribution fail a build that does.
  *
  * Note shape (every tag optional; untagged notes apply everywhere):
  *   {
@@ -442,7 +448,8 @@ const PLAYBOOK = [
   { agents: ['Harbor'], text: 'High tide is a moving wall, drag it across the site to cover the whole entry instead of dropping it in one spot.', weight: 2 },
 ];
 
-// Optional growth file: knowledge extracted from videos and VODs merges here.
+// Optional growth file: the notes imported from pro VOD reviews, and Occlara's
+// own, merge here.
 let EXTRA = [];
 try {
   const p = path.join(__dirname, '..', 'data', 'playbook.json');

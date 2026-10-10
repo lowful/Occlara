@@ -1,5 +1,7 @@
 html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg-2); }
-body { display: flex; flex-direction: column; }
+/* The window eases in as it opens (8.2): it is shown on its first frame, so
+   the whole of this plays on screen. The body moves; html's ground stays. */
+body { display: flex; flex-direction: column; animation: sheetIn var(--t-slow) var(--ease-expo) both; }
 
 header {
   display: flex; align-items: center; justify-content: space-between;
@@ -22,6 +24,19 @@ header {
 .session-pick:hover { border-color: rgba(var(--cyan-rgb), 0.4); }
 .session-pick:disabled { opacity: 0.5; cursor: default; }
 .session-pick option { background: var(--bg-2); color: var(--text); }
+
+/* "Whole session", in a log opened on one match from its review: the same
+   size as the picker it stands in for, quieter, since it widens what is shown
+   rather than doing anything. */
+.whole {
+  padding: 6px 10px;
+  font-family: var(--font); font-size: 11px; font-weight: 600; color: var(--text-dim);
+  background: transparent; border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.whole:hover { color: var(--text); border-color: rgba(var(--cyan-rgb), 0.4); }
+.whole:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 
 .empty { flex: 1; display: grid; place-items: center; text-align: center; padding: 40px; color: var(--text-dim); font-size: 13px; line-height: 1.6; }
 

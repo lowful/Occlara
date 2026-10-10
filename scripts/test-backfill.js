@@ -4,7 +4,8 @@
  * Grading recent matches from Riot's record, against a fake server and a real
  * review store in a temp folder: the order, the baselines, never twice, the
  * old server, the pacing, the wait while a match is played, retries, cancel,
- * and what the status says.
+ * and what the status says. And what a run files states facts, never a
+ * mistake, with a row saved by an older version read back the same way.
  *
  * The clock is fake: sleep() moves it, so the three second gaps and the half
  * minute retries are measured without being waited for.
@@ -18,6 +19,9 @@ const path = require('path');
 const { replay, load } = require('./fixtures/replay-match');
 const valorantReview = require('../src/shared/valorant-review');
 const verify = require('../src/shared/valorant-verify');
+const riotReview = require('../src/shared/riot-review');
+const insights = require('../src/shared/insights');
+const patterns = require('../src/shared/patterns');
 const { ReviewStore, newId, MAX_REVIEWS } = require('../src/main/services/review-store');
 const { Backfill, plan, windowOf, queueOk, summary, GAP_MS } = require('../src/main/services/backfill');
 
@@ -158,7 +162,44 @@ function watched(store, startedAt, over = {}) {
     ok(gaps.length > 0 && gaps.every((g) => g >= GAP_MS), `requests at least three seconds apart (${Math.min(...gaps)} ms)`);
     ok(h.statuses.some((x) => x.state === 'listing') && h.statuses.some((x) => x.state === 'grading'),
       'the status is pushed as it changes');
+    // FACTS, NEVER A MISTAKE. Riot records what happened and never why: each
+    // review a run files keeps its counts as facts with no fix, its library
+    // row names no top mistake, and the patterns count none of it.
+    const whole = h.store.recent('valorant', 10).map((e) => e.review);
+    ok(whole.length === 3 && whole.every((r) => !r.insights.mistakes.length && !r.insights.strengths.length
+      && !r.insights.missed.length && r.insights.facts.length && r.insights.facts.every((x) => !('fix' in x))),
+    'each states facts, with no mistake, strength, miss or fix line');
+    ok(list.every((m) => m.topMistake === null), 'and no library row names a top mistake');
+    const p = patterns.summarise(h.store.recent('valorant', patterns.LOOK_BACK));
+    ok(p.matches === 3 && p.grades.length === 3 && p.recorded === 0 && !p.enough && !p.mistakes.length && !p.strengths.length,
+      `the patterns grade all three and count nothing from them (${p.grades.length} graded, ${p.recorded} recorded)`);
     h.done();
+  }
+
+  // ── A row saved by 8.0.3 or 8.1, read back ──────────────────────────────
+  {
+    const dir = path.join(os.tmpdir(), `occlara-backfill-rows-${process.pid}`);
+    fs.rmSync(dir, { recursive: true, force: true });
+    try {
+      const store = new ReviewStore(dir);
+      // As those versions saved a match graded from Riot's record: three lists,
+      // the first mistake written into the index as the row's top one.
+      const old = riotReview.fromRiot({ row: row('o', 1), riot: riotFor(row('o', 1)), history: [] }).review;
+      old.insights = insights.valorant(verify.reconcile([], RIOT).rounds, { role: 'Duelist' });
+      old.id = newId('valorant', old.at);
+      store.save({ id: old.id, game: 'valorant', at: old.at, review: old });
+      const rec = watched(store, T0 + 3 * HOUR);
+      const onDisk = (id) => JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')).find((r) => r.id === id);
+      ok(onDisk(old.id).topMistake === old.insights.mistakes[0].title && onDisk(rec.id).topMistake,
+        `the index holds the old row's top mistake as it was saved (${onDisk(old.id).topMistake})`);
+      const rows = store.list('valorant');
+      ok(rows.find((r) => r.id === old.id).topMistake === null && rows.find((r) => r.id === rec.id).topMistake === onDisk(rec.id).topMistake,
+        "read back, the row from Riot's record names none, and the recorded one keeps its own");
+      ok(onDisk(old.id).topMistake === old.insights.mistakes[0].title && store.list().find((r) => r.id === old.id).topMistake === null,
+        'from the whole library too, and nothing on disk was rewritten');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   }
 
   // ── Only the queues the grade is built for ──────────────────────────────

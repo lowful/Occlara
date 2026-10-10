@@ -16,16 +16,20 @@ contextBridge.exposeInMainWorld('occlara', {
   },
 
   // getLog(id) loads one session WITH its frames, so it is the expensive call.
-  // sessions() is metadata only and is what the picker is built from.
-  getLog:   (id) => ipcRenderer.invoke(C.AILOG_GET, id),
+  // sessions() is metadata only and is what the picker is built from. With a
+  // scope (the eye on a review, 8.2) it is that one match's frames, or
+  // { gone: true }, and never another session in their place. A session the
+  // log no longer keeps is { gone: true } without one too (8.2).
+  getLog:   (id, scope) => ipcRenderer.invoke(C.AILOG_GET, id, scope || null),
   sessions: () => ipcRenderer.invoke(C.AILOG_SESSIONS),
   // Checks the log's deaths against Riot. Called after the session is on screen,
-  // never before, so the viewer stays instant and works with no network.
-  confirm:  (id) => ipcRenderer.invoke(C.AILOG_CONFIRM, id),
+  // never before, so the viewer stays instant and works with no network. One
+  // match is checked on its own frames.
+  confirm:  (id, scope) => ipcRenderer.invoke(C.AILOG_CONFIRM, id, scope || null),
   ask:      (payload) => ipcRenderer.invoke(C.AILOG_ASK, payload),
-  // Jump an already open window to another session, for a second link from
-  // Tip History while this one is on screen.
-  onShow:   (cb) => ipcRenderer.on(C.AILOG_SHOW, (_e, id) => cb(id)),
+  // Jump an already open window to another session, or to one match of one
+  // when a review's eye is pressed while this one is on screen.
+  onShow:   (cb) => ipcRenderer.on(C.AILOG_SHOW, (_e, target) => cb(target)),
   // Only the keyboard hint's counter needs this, but it goes through the same
   // config channels every other surface uses rather than a private store, so
   // "have they seen it" lives with the rest of the preferences.

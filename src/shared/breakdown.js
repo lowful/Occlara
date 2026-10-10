@@ -36,7 +36,7 @@
 
 const { roleOf } = require('./agent-roles');
 const { letter } = require('./grade');
-const { repeatTitle } = require('./insights');
+const { repeatTitle, countable } = require('./insights');
 
 const FLOOR = {
   winMatches: 3,      // a match win rate
@@ -113,6 +113,24 @@ function gradeOf(entries) {
 }
 
 /**
+ * K/D/A as a scoreboard prints it: the kills, deaths and assists of an
+ * average match, rounded whole. ONLY OVER THE MATCHES WHOSE LINE HAS ALL
+ * THREE, so the three numbers are always of the same matches and n says how
+ * many: a line with no assists counted as none would pull the average down
+ * for a number nobody read. value is those matches' K/D, every kill over every
+ * death as the K/D column counts it, and it is what the column sorts on.
+ */
+function kdaOf(lines) {
+  let k = 0; let d = 0; let a = 0; let n = 0;
+  for (const s of lines) {
+    if (!s || num(s.kills) === null || num(s.deaths) === null || num(s.assists) === null) continue;
+    k += s.kills; d += s.deaths; a += s.assists; n++;
+  }
+  if (!n) return { value: null, kills: null, deaths: null, assists: null, n: 0 };
+  return { value: round2(k / Math.max(1, d)), kills: Math.round(k / n), deaths: Math.round(d / n), assists: Math.round(a / n), n };
+}
+
+/**
  * What one insight is counted as across a row's matches, and its title there.
  *
  * A KEY THAT NAMES ONE MATCH'S SPECIFICS REPEATS ONLY WITH THEM. 'same-spot'
@@ -138,10 +156,17 @@ function countedAs(x, list, map) {
   return { id: key, title: x.title };
 }
 
-/** Whatever repeats in the row's matches, once a match, past its floor. */
+/**
+ * Whatever repeats in the row's RECORDED matches, once a match, past its floor,
+ * and out of how many. A match graded from Riot's record alone has nothing to
+ * count (insights.countable), so it is not in the share either: "in 2 of 5"
+ * over three matches that could never have shown it read as a habit those
+ * three did not have.
+ */
 function repeated(entries, list) {
+  const pool = entries.filter((e) => !e.riotOnly);
   const tally = new Map();
-  for (const e of entries) {
+  for (const e of pool) {
     const seen = new Set();
     for (const x of ((e.insights || {})[list] || [])) {
       if (!x || !x.key) continue;
@@ -157,12 +182,12 @@ function repeated(entries, list) {
     }
   }
   const best = [...tally.values()]
-    .filter((t) => t.matches >= FLOOR.repeatMatches && t.matches >= entries.length * FLOOR.repeatShare)
+    .filter((t) => t.matches >= FLOOR.repeatMatches && t.matches >= pool.length * FLOOR.repeatShare)
     .sort((a, b) => b.matches - a.matches || b.weight - a.weight || b.total - a.total)[0];
   if (!best) return null;
   return list === 'mistakes'
-    ? { key: best.key, title: best.title, fix: best.fix, matches: best.matches, of: entries.length }
-    : { key: best.key, title: best.title, matches: best.matches, of: entries.length };
+    ? { key: best.key, title: best.title, fix: best.fix, matches: best.matches, of: pool.length }
+    : { key: best.key, title: best.title, matches: best.matches, of: pool.length };
 }
 
 /** The other dimension inside a row: the agents on a map, the maps of an agent. */
@@ -324,7 +349,7 @@ function valorantEntry(s) {
   return {
     id: s.id, at: s.at,
     map: g.map || null, agent: g.agent || null, mode: g.mode || null, result: g.result || null,
-    grade: r.grade || null, scoreline: r.scoreline || null, insights: r.insights || {},
+    grade: r.grade || null, scoreline: r.scoreline || null, insights: countable(r),
     totalRounds: roundsIn(g.score),
     riotOnly: r.source === 'riot',
     halftime: typeof r.halftimeAfter === 'number' ? r.halftimeAfter : null,
@@ -399,7 +424,10 @@ function roundStats(entries) {
   };
 }
 
-/** The scoreboard: K/D as total kills over total deaths, the rest weighted by rounds. */
+/**
+ * The scoreboard: K/D as total kills over total deaths, K/D/A as an average
+ * match (kdaOf), the rest weighted by rounds.
+ */
 function scoreStats(entries) {
   let kills = 0; let deaths = 0; let kdN = 0;
   const w = { acs: [0, 0, 0], adr: [0, 0, 0], hs: [0, 0, 0] };
@@ -416,6 +444,7 @@ function scoreStats(entries) {
   const avg = (k) => ({ value: w[k][2] ? Math.round(w[k][0] / w[k][1]) : null, n: w[k][2] });
   return {
     kd: { value: kdN ? round2(kills / Math.max(1, deaths)) : null, kills, deaths, n: kdN },
+    kda: kdaOf(entries.map((e) => e.scoreline)),
     acs: avg('acs'), adr: avg('adr'), hs: avg('hs'),
   };
 }
@@ -508,7 +537,7 @@ function rivalsEntry(s) {
   const g = r.game || {};
   return {
     id: s.id, at: s.at, map: g.map || null, hero: g.hero || null, role: g.role || null, mode: g.mode || null,
-    result: g.result || null, grade: r.grade || null, scoreline: r.scoreline || {}, insights: r.insights || {},
+    result: g.result || null, grade: r.grade || null, scoreline: r.scoreline || {}, insights: countable(r),
   };
 }
 
@@ -537,6 +566,7 @@ function rivalsRow(dim, label, es, rest) {
     record, winRate: rate(record.won, record.known, FLOOR.winMatches), grade: gradeOf(es),
     stats: {
       kd: { value: kdN ? round2(kills / Math.max(1, deaths)) : null, kills, deaths, n: kdN },
+      kda: kdaOf(es.map((e) => e.scoreline)),
       damage: avgOf(es, 'damage'),
       // Duty and accuracy only on a hero: averaged across heroes they compare
       // a projectile hero's accuracy with a hitscan one's, and healing with
@@ -579,7 +609,7 @@ function lolEntry(s) {
     id: s.id, at: s.at, champion: g.champion || null, role: g.role || null, mode: g.mode || null,
     minutes: num(g.durationSec) ? g.durationSec / 60 : null,
     support: /support|utility/i.test(g.role || ''),
-    result: null, grade: r.grade || null, scoreline: r.scoreline || {}, insights: r.insights || {},
+    result: null, grade: r.grade || null, scoreline: r.scoreline || {}, insights: countable(r),
   };
 }
 

@@ -20,6 +20,10 @@
         <h2>Match review</h2>
       </div>
       <div class="h-actions">
+        <!-- The eye: this match's AI log, opened on its frames, under the rule
+             its row in Matches follows (shared/log-eye.js). Absent where
+             nothing was recorded, disabled once the log no longer holds it. -->
+        <span id="eye-host" class="eye-host no-drag" hidden></span>
         <button id="ask" class="btn btn-ghost sm no-drag" hidden>Ask about this match</button>
         <button id="matches" class="btn btn-ghost sm no-drag">All matches</button>
       </div>
@@ -79,7 +83,7 @@
 
         <section class="block" id="v-rounds-wrap">
           <h3>Round by round</h3>
-          <p class="hint">Facts come from Riot's record when the match links, and from the screen otherwise. Where the coach looked at the moment before a death, the frame is shown with what it saw.</p>
+          <p class="hint">Facts come from Riot's record when the match links, and from the screen otherwise. Where the coach looked at a death, its card names the cause, and the frames and what the coach saw in them are at the bottom of this review.</p>
           <div id="v-rounds" class="v-rounds"></div>
         </section>
 
@@ -97,6 +101,17 @@
         <section class="block" id="v-refused-wrap">
           <h3>What this review cannot tell you</h3>
           <ul id="v-refused" class="r-refused"></ul>
+        </section>
+
+        <!-- WHERE YOU DIED, AND HOW (8.2). Last, and for every review: each
+             death the coach looked at, the frames across the column and what
+             it saw in them, whether Riot's record timed the death or the
+             screen did. A round card above keeps only the cause, and a link
+             down to here. -->
+        <section class="block" id="v-looks-wrap" hidden>
+          <h3>Where you died, and how</h3>
+          <p class="hint">The frames the coach looked at around the deaths worth reviewing, and what it saw in them. Click a frame to see it larger.</p>
+          <div id="v-looks" class="v-looks"></div>
         </section>
 
         <p class="v-foot">Read silently. Nothing was shown on your screen while you played.</p>
@@ -180,6 +195,7 @@
 
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/grade-view.js"></script>
+  <script src="../shared/log-eye.js"></script>
   <script src="review.js"></script>
 </body>
 </html>

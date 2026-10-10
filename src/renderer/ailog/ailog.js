@@ -9,14 +9,21 @@
  * picker, but only one is ever loaded. Frames are the expensive part, running
  * several megabytes a session before base64 inflates them, so the picker is
  * built from metadata alone and a switch pays for exactly one session.
+ *
+ * ONE MATCH (8.2). The eye on a review opens the log on that match alone, in
+ * death review mode: its frames and nothing else, no picker, and "Whole
+ * session" for the rest. Main finds the frames from the review; when they are
+ * gone the window says so, and never shows another session in their place.
+ * "Whole session" is as strict: that session, or the reason it is not here.
  */
 const $ = (id) => document.getElementById(id);
 let records = [];
 let idx = 0;
 let sessionId = null;   // which session is loaded; rides along with every question
+let scope = null;       // one match of that session, from a review's eye: { session, match, from, to } or { gone }
 let segments = [];      // confirmed map stretches, from the main process
 let deaths = [];        // every death found in the frames
-let deathMode = false;  // opened from the match review card's eye button
+let deathMode = false;  // opened on the deaths, from a review's eye
 let deathAt = -1;       // which death is on screen, an index into `deaths`
 
 /*
@@ -230,8 +237,10 @@ function paintDeathNav() {
   const here = deaths.findIndex((d) => d.at === idx);
   if (here !== -1) deathAt = here;
   const n = deathAt >= 0 ? deathAt + 1 : 0;
+  // "1 deaths" was what a match with one death read on any frame but its
+  // death, which is where the eye on a death a review looked at opens it.
   document.getElementById('death-pos').textContent =
-    here === -1 ? `${deaths.length} deaths` : `Death ${n} of ${deaths.length}`;
+    here === -1 ? `${deaths.length} death${deaths.length === 1 ? '' : 's'}` : `Death ${n} of ${deaths.length}`;
 
   // The round and the killer of THIS death, and, in a log from the tip era,
   // whether the coach said anything about it, which was the reason to look at
@@ -317,9 +326,11 @@ const askInput = $('ask-input');
 const askSend = $('ask-send');
 // Keyed by session AND frame, not frame alone. Frame numbers restart in every
 // session, so an index-only key would show Tuesday's answer under tonight's
-// twelfth frame, which reads as the coach contradicting itself.
-let conversations = {};          // "session:index" -> [{ role, content }]
-const convKey = (i) => `${sessionId}:${i}`;
+// twelfth frame, which reads as the coach contradicting itself. And by the
+// frame's file rather than its place on the scrubber, which is not the same in
+// one match as in its whole session (8.2).
+let conversations = {};          // "session:frame" -> [{ role, content }]
+const convKey = (i) => `${sessionId}:${(records[i] && records[i].frame) || i}`;
 
 function paintConversation() {
   askLog.textContent = '';
@@ -335,6 +346,7 @@ async function ask(question) {
   const at = idx;                                   // the frame this is about
   const key = convKey(at);
   const from = sessionId;                           // and the session it belongs to
+  const within = scope;                             // and the one match on screen, if that is all
   conversations[key] = conversations[key] || [];
   conversations[key].push({ role: 'user', content: q });
   askInput.value = '';
@@ -347,6 +359,9 @@ async function ask(question) {
   try {
     const res = await window.occlara.ask({
       session: from,        // or main would answer from the newest session's frames
+      // The index counts this match's frames when only they are on screen,
+      // so main reads the same ones, or it would answer about another frame.
+      scope: within && !within.gone ? within : null,
       index: at,
       question: q,
       // Only this frame's history, so the coach is never answering about a
@@ -361,7 +376,7 @@ async function ask(question) {
     conversations[key].push({ role: 'error', content: 'Could not reach the coach.' });
   } finally {
     askSend.disabled = false;
-    if (at === idx && from === sessionId) paintConversation();
+    if (key === convKey(idx)) paintConversation();
   }
 }
 
@@ -457,17 +472,60 @@ function paintPicker(sessions) {
   picker.hidden = sessions.length < 2;
 }
 
-function loadSession(id) {
+let loads = 0;   // the latest load, so an earlier one landing late paints nothing
+
+// Said in place of a session being recorded while a match is played.
+const SEALED_TEXT = "A match is being played, so this session's AI log stays closed until it ends.";
+
+/**
+ * Paint what one read brought back: a whole session, or one match of one. They
+ * differ in three places. One match hides the picker, since there is nothing to
+ * pick, and offers "Whole session" in its place; it opens on its own first
+ * death, or its first frame when nobody died; and when its frames are gone, or
+ * its session is still being recorded mid match, it says so and shows nothing.
+ *
+ * @param opts.only   the one session this read may paint ("Whole session"). Any
+ *                    other reply says why instead: main serves the newest
+ *                    finished session, marked sealed, in place of one being
+ *                    recorded while a match is played, and nothing for one the
+ *                    log no longer keeps (8.2)
+ * @param opts.frame  open on the frame with this file name, only when the
+ *                    session served is opts.only: frame names are a counter of
+ *                    each session's own, so the same name in another session
+ *                    is another moment
+ * @param opts.at     or on the frame captured nearest this time: the moment a
+ *                    review's look at one death was taken from (8.2)
+ */
+function load(fetchLog, opts) {
+  const o = opts || {};
+  const only = typeof o.only === 'string' ? o.only : null;
+  const mine = ++loads;
   picker.disabled = true;
   $('subtitle').textContent = 'Loading frames...';
-  return window.occlara.getLog(id).then((log) => {
+  return Promise.resolve().then(fetchLog).then((log) => {
+    if (mine !== loads) return;
+    picker.disabled = false;
+    if (scope && (!log || log.gone)) { paintClosed(goneText(log)); return; }
+    if (scope && log.sealed) { paintClosed(SEALED_TEXT); return; }
+    // WHOLE SESSION IS STRICT (8.2), as one match is: the session this match
+    // was in, never another's frames under its name. Pressed mid match on the
+    // session being recorded, main answers with the newest finished one,
+    // sealed; on one pruned since the window opened, with nothing.
+    if (only !== null && (!log || log.sealed || log.session !== only)) {
+      paintClosed(log && log.sealed ? SEALED_TEXT : goneText(log));
+      return;
+    }
+    // A session picked that the log no longer keeps, pruned at a Start since
+    // the picker was painted: said so, with the picker to choose another, and
+    // never another session in its place (8.2).
+    if (log && log.gone) { paintGone(log); return; }
     records = (log && Array.isArray(log.records)) ? log.records : [];
     segments = (log && Array.isArray(log.segments)) ? log.segments : [];
     deaths = (log && Array.isArray(log.deaths)) ? log.deaths : [];
     sessionId = (log && log.session) || null;
     tipEra = recordedTips(records);
-    paintPicker((log && log.sessions) || []);
-    picker.disabled = false;
+    paintPicker(scope ? [] : (log && log.sessions) || []);
+    $('whole').hidden = !scope;
 
     if (!records.length) {
       $('main').hidden = true;
@@ -480,24 +538,34 @@ function loadSession(id) {
     $('main').hidden = false;
     $('slider').max = String(records.length - 1);
     const which = (log.sessions || []).find((s) => s.id === sessionId);
-    const when = which ? sessionWhen(which.at).toLowerCase() : 'your latest session';
+    const when = scope ? sessionWhen(records[0].at).toLowerCase()
+      : which ? sessionWhen(which.at).toLowerCase() : 'your latest session';
     // In a tip era log, deaths and reviews are counted separately, because the
     // gap between them said how many times you died without the coach telling
     // you anything. Since 8.0 that gap is every death by design, so a session
     // recorded then counts its deaths and nothing else.
     const seen = deaths.filter((d) => d.reviewed).length;
     const died = `${deaths.length} death${deaths.length === 1 ? '' : 's'}`;
-    $('subtitle').textContent = !deaths.length ? `${records.length} frames from ${when}`
-      : tipEra ? `${records.length} frames from ${when}, ${died}, ${seen} reviewed`
-        : `${records.length} frames from ${when}, ${died}`;
+    $('subtitle').textContent = scope ? `${records.length} frames of this match, ${when}${deaths.length ? `, ${died}` : ''}`
+      : !deaths.length ? `${records.length} frames from ${when}`
+        : tipEra ? `${records.length} frames from ${when}, ${died}, ${seen} reviewed`
+          : `${records.length} frames from ${when}, ${died}`;
     buildMarks();
     paintDeathNav();
+    const back = o.frame && only !== null && sessionId === only ? records.findIndex((r) => r.frame === o.frame) : -1;
+    const near = back === -1 ? nearest(o.at) : -1;
+    if (back !== -1) go(back);
+    // A moment the review looked at opens on its frame, with the death it led
+    // to as the one the stepper and the run up follow.
+    else if (near !== -1) { deathAt = deaths.findIndex((d) => d.at >= near); go(near); }
     // Death review mode opens on the FIRST death, because a review reads
-    // forwards. Otherwise the newest frame, which is usually what you want.
-    if (deathMode && deaths.length) { deathAt = 0; go(deaths[0].at); }
-    else go(records.length - 1);
-    confirmDeaths(sessionId);
+    // forwards, and one match with no death on its first frame. Otherwise the
+    // newest frame, which is usually what you want.
+    else if (deathMode && deaths.length) { deathAt = 0; go(deaths[0].at); }
+    else go(scope ? 0 : records.length - 1);
+    confirmDeaths(sessionId, scope);
   }).catch((err) => {
+    if (mine !== loads) return;
     picker.disabled = false;
     $('main').hidden = true;
     $('empty').hidden = false;
@@ -506,7 +574,92 @@ function loadSession(id) {
   });
 }
 
+/** A whole session, by its folder name, or the newest. */
+function loadSession(id, opts) {
+  scope = null;
+  return load(() => window.occlara.getLog(id), opts);
+}
+
+/**
+ * THE REST OF THE SESSION one match was in, and that session alone (8.2): what
+ * "Whole session" opens, around the frame that was on screen. It used to be an
+ * ordinary read, which painted whatever came back, so mid match it showed the
+ * newest finished session as this one, on that session's frame of the same
+ * file name, and on a session pruned since it opened, the match being played.
+ */
+function loadWhole(id, frame) {
+  scope = null;
+  return load(() => window.occlara.getLog(id), { only: String(id || ''), frame });
+}
+
+/**
+ * One match of one session, as a review's eye names it, in death review mode.
+ * Main reads it strictly, so a scope it could not find comes back gone. `at`
+ * is the moment the eye on one of its deaths named, or null.
+ */
+function loadMatch(s, at) {
+  scope = s || { gone: true };
+  deathMode = true;
+  return load(() => window.occlara.getLog(scope.session || null, scope), { at });
+}
+
+/** The frame captured nearest `t`, or -1 when no time was asked for. */
+function nearest(t) {
+  if (typeof t !== 'number' || !Number.isFinite(t)) return -1;
+  let best = -1;
+  records.forEach((r, i) => {
+    if (typeof r.at !== 'number') return;
+    if (best === -1 || Math.abs(r.at - t) < Math.abs(records[best].at - t)) best = i;
+  });
+  return best;
+}
+
+// Said plainly: a match the log no longer holds is not a fault. The log is
+// kept small on purpose, and the review kept the frames that mattered.
+function keptText(log) {
+  return log && Number(log.keeps) > 0 ? `your last ${log.keeps} recording sessions` : 'only your most recent recording sessions';
+}
+function goneText(log) {
+  return `The AI log no longer has this match. It keeps ${keptText(log)}, and the review keeps the frames the coach looked at.`;
+}
+
+/**
+ * A session the picker named that the log no longer keeps (8.2): the reason,
+ * and the picker with what it does keep, none of them chosen, since none is on
+ * screen, so that choosing any one of them is a change.
+ */
+function paintGone(log) {
+  paintClosed(`The AI log no longer has that session. It keeps ${keptText(log)}.`);
+  const left = (log && Array.isArray(log.sessions)) ? log.sessions : [];
+  paintPicker(left);
+  picker.value = '';
+  picker.hidden = !left.length;
+}
+
+/** Nothing to show, for one match or one session, and the reason in its place. */
+function paintClosed(text) {
+  records = [];
+  segments = [];
+  deaths = [];
+  idx = 0;
+  deathAt = -1;
+  sessionId = null;
+  picker.hidden = true;
+  $('whole').hidden = true;
+  $('main').hidden = true;
+  $('empty').hidden = false;
+  $('empty').textContent = text;
+  $('subtitle').textContent = 'what the coach saw and said';
+}
+
 picker.addEventListener('change', () => loadSession(picker.value));
+
+// THE REST OF THE SESSION this match was in, around the frame on screen rather
+// than at the session's newest one, and that session alone (loadWhole).
+$('whole').addEventListener('click', () => {
+  const here = records[idx];
+  loadWhole(sessionId, here && here.frame);
+});
 
 /**
  * Ask Riot whether the deaths on this timeline are the real ones.
@@ -515,13 +668,16 @@ picker.addEventListener('change', () => loadSession(picker.value));
  * still works with no network and no Riot ID. A session that cannot be checked
  * simply shows nothing extra, because the screen-read deaths are still the best
  * answer available and an error banner would suggest otherwise.
+ *
+ * One match is checked on its own frames (forScope), whose deaths are the ones
+ * on screen: paired against the whole session's, they would be numbered wrong.
  */
-function confirmDeaths(forSession) {
+function confirmDeaths(forSession, forScope) {
   const box = $('confirm');
   box.hidden = true;
   if (!window.occlara.confirm) return;
-  window.occlara.confirm(forSession).then((rec) => {
-    if (!rec || forSession !== sessionId) return;          // switched away meanwhile
+  window.occlara.confirm(forSession, forScope).then((rec) => {
+    if (!rec || forSession !== sessionId || forScope !== scope) return;   // switched away meanwhile
     if (rec.status === 'unavailable' || !rec.summary) return;
     box.hidden = false;
     box.className = 'confirm ' + rec.status;
@@ -552,8 +708,10 @@ function confirmDeaths(forSession) {
  * first line of this file runs, which is why it is used rather than a message:
  * a message sent while the window is still loading is simply lost.
  *
- * An unknown id falls back to the newest inside ai-log-store's read(), so a
- * session pruned between the click and the open still shows something.
+ * An id the log no longer keeps, pruned between the click and the open, opens
+ * on a line that says so, with the picker to choose another (paintGone), and
+ * never on another session in its place: the newest folder is the session
+ * being recorded (8.2).
  */
 /**
  * Death review mode, asked for by the match review card's eye button.
@@ -569,22 +727,65 @@ function requestedMode() {
   } catch { return ''; }
 }
 
+// Only ever a session folder name, never a path. Anything else is ignored
+// rather than joined onto one.
+const SESSION_RE = /^session-[\w.-]+$/;
+
 function requestedSession() {
   try {
     const raw = decodeURIComponent(String(location.hash || '').replace(/^#/, '')).trim();
-    // Only ever a session folder name, never a path. Anything else is ignored
-    // rather than joined onto one.
-    return /^session-[\w.-]+$/.test(raw) ? raw : undefined;
+    return SESSION_RE.test(raw) ? raw : undefined;
   } catch { return undefined; }
 }
 
+/**
+ * One match of one session, from a review's eye (8.2): the scope main found,
+ * { session, match, from, to }, or { gone: true } when no kept session holds
+ * it. Checked here the way a session id is, a folder name and three numbers,
+ * and anything else is a match that cannot be shown.
+ */
+function scopeOf(s) {
+  if (!s || typeof s !== 'object') return null;
+  if (s.gone) return { gone: true };
+  const n = (v) => typeof v === 'number' && Number.isFinite(v);
+  return SESSION_RE.test(String(s.session || '')) && n(s.match) && n(s.from) && n(s.to)
+    ? { session: s.session, match: s.match, from: s.from, to: s.to } : null;
+}
+
+/** When the frame a moment's eye named was captured, or null: a number and nothing else. */
+function atOf(v) { return typeof v === 'number' && Number.isFinite(v) ? v : null; }
+
+/**
+ * The match a review's eye opened this window on: JSON in the same hash, told
+ * apart by its brace, as { scope, at }. One that cannot be read is a match
+ * that cannot be shown, never the newest session in its place.
+ */
+function requestedMatch() {
+  let raw = '';
+  try { raw = decodeURIComponent(String(location.hash || '').replace(/^#/, '')).trim(); } catch { return null; }
+  if (raw.charAt(0) !== '{') return null;
+  try {
+    const t = JSON.parse(raw) || {};
+    return { scope: scopeOf(t.scope) || { gone: true }, at: atOf(t.at) };
+  } catch { return { scope: { gone: true }, at: null }; }
+}
+
+const opened = requestedMatch();
 deathMode = requestedMode() === 'deaths';
-loadSession(requestedSession());
+if (opened) loadMatch(opened.scope, opened.at);
+else loadSession(requestedSession());
 
 document.getElementById('death-prev').addEventListener('click', () => stepDeath(-1));
 document.getElementById('death-next').addEventListener('click', () => stepDeath(1));
 
-// An already open window is told to move, since the hash was read once above.
-if (window.occlara.onShow) window.occlara.onShow((id) => loadSession(id));
+// An already open window is told to move, since the hash was read once above:
+// to a session, or to one match of one when a review's eye is pressed, at
+// the moment of one of its deaths when that eye was a death's.
+if (window.occlara.onShow) {
+  window.occlara.onShow((target) => {
+    if (target && typeof target === 'object') loadMatch(scopeOf(target.scope), atOf(target.at));
+    else loadSession(target);
+  });
+}
 
 console.log('[ailog] ready');

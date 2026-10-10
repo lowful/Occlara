@@ -107,7 +107,46 @@ function paintNav() {
   $('sealed-facts').hidden = !!shell.held;
   $('w-max').title = shell.maximized ? 'Restore' : 'Maximize';
   $('w-max').setAttribute('aria-label', $('w-max').title);
+  placeMarker();
 }
+
+/*
+ * THE CURRENT PAGE'S MARKER (8.2): one element under the items, moved to the
+ * current one, so going from Stats to Home slides it up the sidebar instead of
+ * one item's background going out as another's comes on. It slides only when
+ * the page changes; appearing (the seal lifting) or following the layout (the
+ * window resized, the game picker shown, the record card growing or
+ * shrinking) it is put there at once. With no page marked, mid match, it
+ * fades out.
+ */
+const marker = $('nav-marker');
+let markerOn = null;
+function placeMarker() {
+  const b = [...navButtons.values()].find((x) => x.getAttribute('aria-current') === 'page');
+  const top = b ? b.offsetTop : NaN;
+  if (!b || b.hidden || !Number.isFinite(top)) {
+    marker.classList.remove('on');
+    markerOn = null;
+    return;
+  }
+  const id = b.dataset.page;
+  const slide = markerOn !== null && markerOn !== id;
+  marker.classList.toggle('still', !slide);
+  marker.style.width = `${b.offsetWidth}px`;
+  marker.style.height = `${b.offsetHeight}px`;
+  marker.style.transform = `translate(${b.offsetLeft}px, ${top}px)`;
+  marker.classList.add('on');
+  markerOn = id;
+}
+window.addEventListener('resize', placeMarker);
+// THE RECORD CARD CHANGES HEIGHT on its own: a notice on its line, the agent
+// check opening, its quick picks, its locked in row, and none 1.6 seconds
+// later. Once the sidebar overflows (at the window's minimum height, or with
+// the agent check up at the default one) nothing above Settings gives way,
+// so Settings, below the card, moves with it, and the marker left where it
+// had been painted over the account line. So the marker follows the card,
+// whatever changed it, after layout and before the frame is painted.
+new ResizeObserver(() => placeMarker()).observe(recEl);
 
 // ── The game ───────────────────────────────────────────────────────────────
 function paintGames() {
@@ -115,12 +154,17 @@ function paintGames() {
   const games = window.occlara.games(!!(cfg && cfg.devGames === true));
   host.hidden = games.length < 2;
   host.replaceChildren();
-  if (games.length < 2) return;
+  if (games.length < 2) { placeMarker(); return; }
   for (const g of games) {
     const b = document.createElement('button');
     b.type = 'button';
-    // Short labels fit three across: the full name is the tooltip.
-    b.textContent = g.id === 'rivals' ? 'Rivals' : g.id === 'lol' ? 'League' : g.label;
+    // Our own mark for each game (shared/game-marks.js), never its logo, and
+    // the full name beside it as the tooltip and the accessible name. A game
+    // with no mark keeps its name as text.
+    const mark = window.GameMarks ? window.GameMarks.svg(g.id) : '';
+    if (mark) b.innerHTML = mark;
+    else { b.textContent = g.label; b.classList.add('named'); }
+    b.setAttribute('aria-label', g.label);
     b.title = isCoaching ? 'Stop recording to switch game' : g.label;
     b.setAttribute('aria-pressed', String(g.id === gameId));
     // Switching game stops a running session (index.js onConfigChanged), so
@@ -132,6 +176,8 @@ function paintGames() {
     });
     host.append(b);
   }
+  // The picker sits above the pages: shown or gone, they move.
+  placeMarker();
 }
 
 function paintAccount() {
@@ -348,6 +394,9 @@ function applyState(s) {
   }
   $('learn').hidden = gameId !== 'lol';
   render();
+  // Measured once the line is written: a notice arriving or clearing changes
+  // the record card's height, and Settings below it moves with it.
+  placeMarker();
   soundCue();
   if (!isCoaching) { sessionActive = false; agentAnswered = false; hideAgentUI(); }
   if (gameChanged || wasCoaching !== isCoaching) { paintGames(); paintAccount(); }
@@ -396,6 +445,8 @@ document.querySelector('.top').addEventListener('dblclick', (e) => {
   paintGames();
   paintAccount();
   paintNav();
+  // Geist arriving can move the items by a pixel or two.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeMarker).catch(() => {});
   if (window.initI18n) {
     const use = (t) => { if (typeof t === 'function') { tr = t; render(); } };
     window.initI18n(use).then(use).catch(() => {});
