@@ -1,0 +1,98 @@
+/* Home, the main window's first page. The same ground, cards and type as
+   every other page; the grade card is the shared one (grade-view.css). */
+
+html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
+
+.home {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-6) max(var(--space-8), calc((100% - 1040px) / 2)) var(--space-10);
+  display: flex; flex-direction: column; gap: var(--space-6);
+}
+
+.h-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3); }
+.h-titles { display: flex; flex-direction: column; gap: var(--space-1); }
+.h-game { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-mute); }
+.h-head h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.hint { font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+
+.rows { display: flex; flex-direction: column; gap: var(--space-4); }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: stretch; }
+.col { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+
+.card {
+  min-width: 0;
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  background: var(--bg-2);
+}
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-mute); }
+
+.empty h2 { font-size: 17px; font-weight: 700; }
+.empty .btn { align-self: flex-start; }
+
+/* The last match: its result and score, then the shared grade card. */
+.last { flex: 2 1 520px; gap: var(--space-4); }
+.last-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4); }
+.last-facts { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.result { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.result.win { color: var(--good); }
+.result.loss { color: var(--bad); }
+.score { font-size: 52px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.meta { font-size: 14px; color: var(--text-dim); }
+.last-foot {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--glass-border);
+}
+.checked { display: flex; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--text-dim); }
+.checked::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
+.checked.unchecked::before { background: var(--text-mute); }
+
+.focus-text { font-size: 16px; font-weight: 600; line-height: 1.5; }
+
+.top-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: 15px; }
+.top-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+.trend { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-mute); }
+.trend.rising { color: var(--bad); }
+.fix { font-size: 13px; line-height: 1.5; }
+.fix-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-mute); }
+#top .btn, #recent .btn { align-self: flex-start; }
+
+/* The grade over the last matches: a bar each, its number above it, and the
+   number is always beside the colour. */
+#trend { flex: 1 1 300px; }
+.bars { display: flex; align-items: flex-end; gap: var(--space-3); height: 150px; }
+.bar-col { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; height: 100%; min-width: 0; }
+.bar-num { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+.bar { width: 100%; max-width: 36px; border-radius: 6px; background: var(--text-mute); }
+.bar.good { background: var(--good); }
+.bar.mid { background: var(--text); }
+.bar.warn { background: var(--warn); }
+.bar.bad { background: var(--red); }
+.bar-map { font-size: 11px; color: var(--text-mute); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The recent matches, a row each, opening its review. */
+.recent { flex: 2 1 520px; gap: var(--space-1); }
+.recent-list { display: flex; flex-direction: column; }
+.r-row {
+  display: flex; align-items: center; gap: var(--space-3);
+  min-height: 52px; padding: 0 var(--space-2);
+  border: 0; border-top: 1px solid var(--glass-border);
+  background: transparent; color: var(--text); text-align: left;
+  font: inherit; cursor: pointer;
+  border-radius: 0;
+  transition: background var(--t-fast) var(--ease);
+}
+.r-row:hover { background: rgba(255, 255, 255, 0.03); }
+.r-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.r-title { font-size: 14px; font-weight: 600; }
+.r-res { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-left: var(--space-2); }
+.r-res.win { color: var(--good); }
+.r-res.loss { color: var(--bad); }
+.r-meta { font-size: 12px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.r-score { font-family: var(--font-mono); font-size: 18px; font-weight: 500; }
+.r-row .gv-letter { width: 30px; height: 30px; font-size: 14px; }

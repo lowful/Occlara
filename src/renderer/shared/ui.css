@@ -387,3 +387,48 @@ input:focus-visible, select:focus-visible {
   background: rgba(255, 255, 255, 0.02);
 }
 .about-note .hint { margin: 0; }
+
+/* ── A surface as a page of the main window ────────────────────────────────
+   Since 8.1 the library, the review, Settings, Stats and Ask Coach are pages
+   of one window (src/main/windows/main-window.js), each in a view of its own.
+   embed.js marks the page html.embedded, and the window chrome each surface
+   draws for itself goes: the transparent gutter and the glass card (the shell
+   owns the window's edge), the close button (the sidebar is how you leave a
+   page) and the drag region (the shell's top strip moves the window). The
+   page fills its view on the ground colour, and its header becomes the page
+   title the mockups set, larger and without the logo the sidebar already
+   carries. */
+html.embedded, html.embedded body { background: var(--bg); }
+html.embedded .sheet.glass {
+  margin: 0;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html.embedded .drag { -webkit-app-region: no-drag; }
+html.embedded .sheet > header {
+  padding: var(--space-6) var(--space-8) var(--space-4);
+  border-bottom: 0;
+}
+html.embedded .sheet > header .h-brand img { display: none; }
+html.embedded .sheet > header .h-brand h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+html.embedded .sheet > header #close { display: none; }
+/* The page's title and content share one column, centred up to the width the
+   mockups set, so a maximised window does not stretch a line of text across a
+   whole monitor. */
+html.embedded .sheet > header,
+html.embedded .sheet > .body {
+  padding-left: max(var(--space-8), calc((100% - 1040px) / 2));
+  padding-right: max(var(--space-8), calc((100% - 1040px) / 2));
+}
+/* What sits below the scrolling body (Ask Coach's composer, Settings' footer)
+   keeps the same column. */
+html.embedded .sheet > .composer,
+html.embedded .sheet > footer {
+  padding-left: max(var(--space-8), calc((100% - 1040px) / 2));
+  padding-right: max(var(--space-8), calc((100% - 1040px) / 2));
+}

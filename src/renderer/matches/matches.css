@@ -259,3 +259,19 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 @media (prefers-reduced-motion: reduce) {
   .b-detail { animation: none; }
 }
+
+/* ── One surface, three pages (8.1) ────────────────────────────────────────
+   As a page of the main window the library shows one section, named by its
+   query (embed.js): Matches, Patterns or Breakdown. The game is the one the
+   sidebar coaches, so the game tabs go, and the section's own heading goes
+   where it would repeat the page title above it. */
+html.embedded .tabs { display: none; }
+html[data-section="list"] #patterns,
+html[data-section="list"] #breakdown,
+html[data-section="patterns"] #breakdown,
+html[data-section="patterns"] #every,
+html[data-section="breakdown"] #patterns,
+html[data-section="breakdown"] #every { display: none !important; }
+html[data-section="list"] #every .l-head h3,
+html[data-section="patterns"] #patterns .p-head h3,
+html[data-section="breakdown"] #breakdown .b-head h3 { display: none; }

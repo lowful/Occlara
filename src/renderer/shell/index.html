@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Occlara</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="shell.css" />
+</head>
+<body>
+  <!-- THE ONE WINDOW (8.1). This document is the sidebar, the top strip and
+       the Recording screen; every page beside it is a view of its own that
+       src/main/windows/main-window.js lays over #page-host. Nothing here says
+       anything about a match being played. -->
+  <div class="app">
+    <aside class="side" aria-label="Occlara">
+      <div class="brand drag">
+        <img class="mark" src="../../../assets/logo-mark.svg" alt="" width="22" height="22" />
+        <span class="name">Occlara</span>
+      </div>
+
+      <div id="gamepick" class="game-seg" role="group" aria-label="Game" hidden></div>
+
+      <nav id="nav" class="nav" aria-label="Pages"></nav>
+      <button id="learn" class="nav-item" type="button" hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 015.5 4H10a2 2 0 012 2v13a1.5 1.5 0 00-1.5-1.5H4z"/><path d="M20 5.5A1.5 1.5 0 0018.5 4H14a2 2 0 00-2 2v13a1.5 1.5 0 011.5-1.5H20z"/></svg>
+        <span>Learn</span>
+      </button>
+      <p id="sealed-note" class="sealed-note" hidden>Sealed until the match ends, so nothing on this screen can change how you play it.</p>
+
+      <div class="spacer"></div>
+
+      <section id="rec" class="rec" aria-label="Recording">
+        <div class="rec-state"><span id="dot" class="dot"></span><span id="status-text">Ready</span></div>
+
+        <!-- Agent check: once when Valorant recording starts, then gone. -->
+        <div id="agent-bubble" class="agent-bubble" hidden>
+          <div class="ab-row" id="ab-detect">
+            <span class="ab-spin" aria-hidden="true"></span>
+            <span class="ab-q">Reading your agent...</span>
+          </div>
+          <div class="ab-row" id="ab-ask" hidden>
+            <span class="ab-q">Playing <b id="ab-name">your agent</b>?</span>
+            <div class="ab-btns">
+              <button id="ab-yes" class="ab-btn ok" type="button" title="Yes, that's right" aria-label="Yes"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 7"/></svg></button>
+              <button id="ab-no" class="ab-btn no" type="button" title="No, let me pick" aria-label="No"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+            </div>
+          </div>
+          <form class="ab-row" id="ab-form" hidden>
+            <label class="sr-only" for="ab-input">Your agent</label>
+            <input id="ab-input" class="ab-input" type="text" placeholder="Type your agent" maxlength="16" autocomplete="off" spellcheck="false" />
+            <button id="ab-go" class="ab-btn ok" type="submit" title="Set agent">Set</button>
+          </form>
+          <div class="ab-row" id="ab-done" hidden>
+            <span class="ab-q"><b id="ab-done-name"></b> locked in</span>
+          </div>
+          <div id="ab-quick" class="ab-quick" hidden>
+            <span class="ab-quick-label">Your mains:</span>
+            <div id="ab-quick-btns" class="ab-quick-btns"></div>
+          </div>
+        </div>
+
+        <div class="rec-controls">
+          <button id="toggle" class="btn btn-primary toggle" type="button">
+            <span class="t-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg></span><span class="t-label">Start</span>
+          </button>
+          <button id="pause" class="icon-btn lg" type="button" title="Pause or resume (Ctrl+Shift+P)" aria-label="Pause or resume" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 5v14"/><path d="M15 5v14"/></svg>
+          </button>
+        </div>
+        <!-- One line: what Occlara is doing, or the one thing that is wrong.
+             Never anything about the match being played. -->
+        <p id="line" class="rec-line" aria-live="polite">Press Start before your match. The review opens when it ends.</p>
+      </section>
+
+      <div class="foot">
+        <button id="nav-settings" class="nav-item" type="button" data-page="settings">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
+          <span data-i18n="common.settings">Settings</span>
+        </button>
+        <button id="account" class="account" type="button" hidden></button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <div class="top drag">
+        <div class="win-controls no-drag">
+          <button id="w-min" class="win-btn" type="button" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg></button>
+          <button id="w-max" class="win-btn" type="button" title="Maximize" aria-label="Maximize"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
+          <button id="w-close" class="win-btn close" type="button" title="Close (Occlara keeps running in the tray)" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+        </div>
+      </div>
+      <div id="page-host" class="page-host">
+        <!-- While a match is in progress no page shows: only this. Held (a stop
+             in the middle of a match), it says so and the sidebar stays open. -->
+        <section id="sealed" class="sealed" aria-label="Recording" hidden>
+          <svg class="sealed-mark" viewBox="0 0 64 64" width="88" height="88" fill="none" role="img" aria-label="Occlara">
+            <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="130.690 20.106" transform="rotate(-54 32 32)"/>
+            <circle class="pupil" cx="32" cy="32" r="6"/>
+          </svg>
+          <h1 id="sealed-title">Recording</h1>
+          <p id="sealed-sub" class="sealed-sub">Occlara shows nothing until the match ends. The review opens here the moment it does.</p>
+          <ul id="sealed-facts" class="sealed-facts">
+            <li id="sealed-capture-row"><b>Capture</b><span id="sealed-capture">Auto, as fast as the connection keeps up</span></li>
+            <li><b>Game</b><span id="sealed-game">Read the way OBS reads it: the display only, never memory or files</span></li>
+            <li><b>Afterwards</b><span id="sealed-after">Checked against Riot's record once it is published, 90 seconds to four minutes after the end</span></li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="../shared/i18n-apply.js"></script>
+  <script src="../shared/sfx.js"></script>
+  <script src="shell.js"></script>
+</body>
+</html>

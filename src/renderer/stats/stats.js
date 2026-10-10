@@ -1021,7 +1021,10 @@ if (window.occlara.onReviews) {
 document.getElementById('weekly').addEventListener('click', () => window.occlara.openWeekly());
 document.getElementById('ailog').addEventListener('click', () => window.occlara.openAiLog());
 document.getElementById('askcoach').addEventListener('click', () => window.occlara.openChat());
-document.getElementById('close').addEventListener('click', () => window.close());
+// A page of the main window has no window of its own to close.
+document.getElementById('close').addEventListener('click', () => {
+  if (!(window.occlaraEmbedded && window.occlaraEmbedded())) window.close();
+});
 
 // Follow a Riot ID switch made in Settings while this window is open: the
 // tracker caches are already cleared in main, so wipe the local match/RR

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Occlara Home</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../shared/grade-view.css" />
+  <link rel="stylesheet" href="home.css" />
+</head>
+<body>
+  <!-- HOME, the main window's first page (8.1). The last match and its grade,
+       the focus the review set for the next one, the most repeated mistake,
+       the grade over the last five matches and the recent matches: all read
+       from the library by src/shared/home-model.js, nothing invented. -->
+  <main class="home">
+    <header class="h-head">
+      <div class="h-titles">
+        <span id="h-game" class="h-game">Valorant</span>
+        <h1>Home</h1>
+      </div>
+      <p class="hint">Press Start before your match. The review opens here when it ends.</p>
+    </header>
+
+    <section id="empty" class="card empty" hidden>
+      <h2>No reviewed matches yet</h2>
+      <p class="hint">Press Start in the sidebar before your next match. When it ends, its graded review opens here and is kept under Matches.</p>
+      <p class="hint" id="empty-riot" hidden>Add your Riot ID in Settings and your last ten matches are graded from Riot's record straight away.</p>
+      <button id="empty-settings" class="btn btn-ghost" type="button" hidden>Open Settings</button>
+    </section>
+
+    <div id="content" class="rows" hidden>
+      <div class="row">
+        <section id="last" class="card last" aria-label="Last match"></section>
+        <div class="col">
+          <section id="focus" class="card" aria-label="Your next match" hidden>
+            <span class="label">Your next match</span>
+            <p id="focus-text" class="focus-text"></p>
+          </section>
+          <section id="top" class="card" aria-label="Most repeated mistake" hidden>
+            <span class="label">Most repeated mistake</span>
+            <div class="top-head"><span class="dot" aria-hidden="true"></span><b id="top-title"></b><span id="top-trend" class="trend"></span></div>
+            <p id="top-detail" class="hint"></p>
+            <p class="fix"><span class="fix-label">Fix</span> <span id="top-fix"></span></p>
+            <button id="top-more" class="btn btn-ghost sm" type="button">All your patterns</button>
+          </section>
+        </div>
+      </div>
+      <div class="row">
+        <section id="trend" class="card" aria-label="Grade over the last matches" hidden>
+          <div class="card-head">
+            <span class="label">Grade, last <span id="trend-n"></span> matches</span>
+            <span class="hint" id="trend-avg"></span>
+          </div>
+          <div id="trend-bars" class="bars" role="img"></div>
+        </section>
+        <section id="recent" class="card recent" aria-label="Recent matches">
+          <div class="card-head">
+            <span class="label">Recent matches</span>
+            <button id="recent-all" class="btn btn-ghost sm" type="button">All matches</button>
+          </div>
+          <div id="recent-list" class="recent-list" role="list"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="../shared/grade-view.js"></script>
+  <script src="home.js"></script>
+</body>
+</html>

@@ -441,7 +441,20 @@ function paintBreakdown(b) {
 function drawBreakdown(b) {
   lastBreakdown = b;
   const host = $('breakdown');
-  if (!b || !Array.isArray(b.dims) || !b.dims.length) { host.hidden = true; return; }
+  if (!b || !Array.isArray(b.dims) || !b.dims.length) {
+    // ON ITS OWN PAGE (8.1) the breakdown says it has nothing yet, rather than
+    // leaving a blank page under its title.
+    const own = document.documentElement.dataset.section === 'breakdown';
+    host.hidden = !own;
+    if (own) {
+      for (const id of ['b-dims', 'b-queues', 'b-headline', 'b-note']) $(id).hidden = true;
+      $('b-table').replaceChildren();
+      $('b-sub').textContent = '';
+      $('b-empty').textContent = 'Nothing to break down yet. Every saved review of this game is counted here, by map and by agent.';
+      $('b-empty').hidden = false;
+    }
+    return;
+  }
   host.hidden = false;
   const dims = b.dims;
   let dim = bstate.dim[b.game];
@@ -641,8 +654,20 @@ async function load() {
   await loadBreakdown();
 }
 
-$('close').addEventListener('click', () => window.occlara.close());
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.occlara.close(); });
+// A page of the main window has no window of its own to close: the sidebar is
+// how a player leaves it.
+const closeWindow = () => { if (!(window.occlaraEmbedded && window.occlaraEmbedded())) window.occlara.close(); };
+$('close').addEventListener('click', closeWindow);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeWindow(); });
+
+// ONE SURFACE, THREE PAGES (8.1). As a page of the main window the library
+// shows one section, named by its query, and is titled for it.
+const SECTION_TITLES = { list: 'Matches', patterns: 'Patterns', breakdown: 'Breakdown' };
+{
+  const title = SECTION_TITLES[document.documentElement.dataset.section];
+  const h = document.querySelector('.sheet > header .h-brand h2');
+  if (title && h) { h.textContent = title; document.title = `Occlara ${title}`; }
+}
 
 (async () => {
   const state = await window.occlara.getState().catch(() => null);

@@ -13,7 +13,7 @@
  *
  * Dev tool, never shipped: electron-builder only packages src/ and assets/.
  *
- *   npx electron scripts/shot-surface.js panel settings stats
+ *   npx electron scripts/shot-surface.js shell settings stats
  *   npx electron scripts/shot-surface.js onboarding@2 onboarding@3 settings
  *   npx electron scripts/shot-surface.js --all
  *
@@ -48,16 +48,19 @@ const OUT = path.join(ROOT, 'dist-surface-shots');
 // 480x528. A screenshot tool that invents defects is worse than none, so keep
 // this table in sync with the window modules.
 //
-// panel height is its initial 200 plus room for the content it auto-resizes to.
+// The shell is the main window's own document and home its first page beside
+// the 232px sidebar (main-window.js). For the window as a player sees it, with
+// saved reviews in it, OCCLARA_SHOTS=1 npm run check:mainwindow writes
+// dist-surface-shots/main-<page>.png.
 const SIZES = {
-  panel: [420, 268], settings: [520, 620], stats: [560, 720], history: [440, 560],
+  shell: [1200, 780], home: [968, 740], settings: [520, 620], stats: [560, 720], history: [440, 560],
   ailog: [900, 640], chat: [420, 600], weekly: [520, 680], onboarding: [480, 528],
   activation: [424, 524], dock: [84, 84], overlay: [520, 400], splash: [360, 340],
   learn: [560, 720],
 };
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-const wanted = process.argv.includes('--all') ? Object.keys(SIZES) : (args.length ? args : ['panel']);
+const wanted = process.argv.includes('--all') ? Object.keys(SIZES) : (args.length ? args : ['shell']);
 
 // A page shot shows its window (below), and Windows stops painting a window
 // it calculates as covered by another, which would capture a frozen frame.

@@ -107,6 +107,9 @@ async function checkSeed() {
 window.addEventListener('focus', () => { checkSeed(); });
 checkSeed();
 
-document.getElementById('close').addEventListener('click', () => window.close());
+// A page of the main window has no window of its own to close.
+document.getElementById('close').addEventListener('click', () => {
+  if (!(window.occlaraEmbedded && window.occlaraEmbedded())) window.close();
+});
 inputEl.focus();
 console.log('[chat] ready');

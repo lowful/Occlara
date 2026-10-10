@@ -29,12 +29,16 @@ is stricter still (see below). The second half of that sentence is the product.
 
 What still counts as "reaching the screen", and is sealed mid match:
 
+- The main window shows no page at all mid match, only a Recording screen, and
+  its sidebar's pages are locked (`syncSeal`, below under The UI), because an
+  open page on a second monitor is the same live feed. A stop in the middle of
+  a match holds that seal until the player opens a page.
 - The AI log seals the live session (`liveLogSealed`), because an open log on a
   second monitor is a live feed of the match by another name. Frame chat refuses
   it, and Ask Coach gets no match memory and no review context mid match.
 - Ctrl+Shift+E opens the last review, and does nothing while a match is in
   progress (`matchInProgress()`).
-- The panel's status line carries notices only (a licence ending, capture
+- The sidebar's status line carries notices only (a licence ending, capture
   blocked, the server down), never anything about the match.
 
 ### How the match becomes a review
@@ -55,8 +59,9 @@ src/shared/patterns.js                what repeats across the last ten matches o
 src/shared/breakdown.js               the library by map and agent (hero, champion), counted
 src/shared/riot-review.js             a review from Riot's record alone, or a recording linked late
 src/main/services/backfill.js         Connect grades the last ten matches from Riot's record
-src/renderer/review/                  one window for every game, branched on review.kind
-src/renderer/matches/                 the library, "Your patterns" and the breakdown
+src/renderer/review/                  one page for every game, branched on review.kind
+src/renderer/matches/                 the library, "Your patterns" and the breakdown pages
+src/renderer/home/                    the last match, its focus and the top repeated mistake
 ```
 
 **The read is facts only.** `POST /api/coach/read` (`server/services/read-prompt.js`)
@@ -111,12 +116,12 @@ are one moment read twice. A swiftplay final needs the menu, twice, because 5 to
 3 is an ordinary standard score and swiftplay is the weakest fact the engine
 has. Or on most of a minute of menus after three rounds. 13 to 12 is
 deliberately not final: unrated ends there and competitive does not. Too early
-is the expensive direction, because it opens a window over a round in progress.
+is the expensive direction, because it opens a review over a round in progress.
 
 **And if it was not the end, the match resumes.** Play that carries on from the
 ended score (a buy phase at it, or a higher score), read twice within five
 minutes on the same map, puts the match back with every frame read since, and
-the review it opened is withdrawn from the window and the library. A real
+the review it opened is withdrawn from the review page and the library. A real
 session ended a competitive match at 3 to 5 in round 9, ignored the rest as the
 end screen, and stopping at 12 to 7 reviewed nothing. A new match the watch
 never saw the last one end (a remake, an unrated 13-12 with no menus read)
@@ -130,7 +135,7 @@ says so, a spawn is never a death spot, and every insight and pattern must clear
 its stated floor. The review is SAVED the moment the match ends, before the
 narrative call (`match-ended`), because a quit or a Stop then Start in that
 minute lost it or pointed its death frames at the next session's empty log. The
-window opens at once and repaints when Riot publishes the scoreboard, 90 seconds
+review page opens at once and repaints when Riot publishes the scoreboard, 90 seconds
 to four minutes later, and every version is saved to the same review id, except
 the corrected numbers shown while the summary is rewritten. It never opens over
 a match in progress: one already under way, or the one recording was stopped in
@@ -357,7 +362,7 @@ save. Counted, never written, and every number carries its sample:
 
 ```
 src/main/          Electron main process (Node). Windows, services, IPC handlers.
-src/main/windows/  One file per surface, plus registry.js
+src/main/windows/  main-window.js (the one window and its pages), one file per separate window, registry.js
 src/main/services/ coaching-engine.js reads the game; review-store.js keeps reviews
 src/preload/       One preload per surface, contextBridge only
 src/renderer/      The UI. Vanilla HTML + CSS + JS, no framework, no build step
@@ -381,23 +386,82 @@ npm run release        build and publish a Windows installer
 
 ## The UI
 
-Eleven renderer surfaces, each a plain folder with `index.html`, a `.css` and
-usually a `.js`:
+Every surface is a plain folder with `index.html`, a `.css` and usually a `.js`.
+
+**One window since 8.1** (`src/main/windows/main-window.js`): frameless, in the
+taskbar, never on top, so it sits behind the game like any app. Its own
+document is the shell, and each page is a surface in a WebContentsView of its
+own, laid beside the sidebar and KEPT once opened, so the library keeps its
+scroll, Ask Coach its conversation and Stats what it fetched. A page view is
+registered under the page's id, so a push reaches it the way it reached its old
+window.
 
 ```
-panel/       the main control window: Start / Stop, status, last grade
-dock/        the compact always-on-top mark, click through
+shell/       the window's document: the sidebar (game, pages, Start / Stop,
+             status, account), the window's buttons and the Recording screen
+home/        the last match and its grade, the next match's focus, the most
+             repeated mistake, the grade trend, recent matches
+matches/     three pages from one surface, ?section=list, patterns or breakdown
 review/      the post-match review, every game, branched on review.kind
-matches/     the library: every review, and "Your patterns" across them
-onboarding/  multi-page first-run flow. The app is gated behind completing it
-settings/    all preferences, version string at the bottom
 stats/       rank, win rate, tracker matches, graded matches
-ailog/       the AI log: every frame read and what was parsed from it
 chat/        Ask Coach, opened plainly or on one match's review
+settings/    all preferences, version string at the bottom
+```
+
+The pages and their order are `src/shared/shell-nav.js`. A page is loaded with
+`?embed=1`, `shared/embed.js` marks it (`html.embedded`) and `ui.css` drops the
+card chrome, the close button and the drag region it had as a window and
+centres its column. The layout sizes, a 232px sidebar and a 40px top strip,
+are in both `main-window.js` and `shell.css`: change them together.
+
+**The seal.** While a match is in progress no page is visible, whatever asks
+for one. `syncSeal()` in `src/main/index.js` sets it from `isCoaching &&
+matchInProgress()` on a one second tick and before every `openPage()`; the
+navigation then answers `shown: null`, the shell paints the Recording screen
+and locks every page in the sidebar, Settings included. A page asked for
+meanwhile, the review of the match that just ended above all, is remembered
+and shows when the seal lifts. Open pages through `openPage()`, never
+`mainWindow.show()` directly, which would skip the seal for up to the tick. A
+window made again keeps the seal, because made mid match it showed the page
+asked for until the next tick.
+
+**A stop in the middle of a match HOLDS the seal** (`sealHeld`, set from the
+engine's `stoppedLive`). Not recording, nothing can tell when that match ends,
+and Home would paint its review and the focus for the next match while it is
+still being played. Held, the screen says recording stopped and the sidebar
+stays open: any page the player opens lifts it, their own choice, as opening
+Matches was before 8.1. Start clears it.
+
+**Closing hides the window.** Its X, Alt+F4 and the taskbar's Close put it out
+of sight like Ctrl+Shift+M, with the dock mark in the corner, and Occlara keeps
+running in the tray: a review still being checked against Riot's record,
+minutes after the match, would lose that check to a quit. The tray and
+Settings quit, and `before-quit` is what lets the window close for real, an
+update's restart included. A match that resumes after its review opened
+minimises the window if it is in front, as the review window used to close.
+
+A WebContentsView's page is NOT closed with the window it is laid on, and
+once closed its `webContents` reads undefined rather than destroyed, so
+`main-window.js` closes them on `closed` and reads them through `alive()`.
+
+Separate windows, because they are not pages:
+
+```
+dock/        the compact always-on-top mark, click through
+onboarding/  multi-page first-run flow. The app is gated behind completing it
+ailog/       the AI log: every frame read and what was parsed from it
 weekly/      weekly report popup: grades, categories, recurring mistakes
 learn/       League lessons
 activation/  license key entry
+splash/      the launch animation
 ```
+
+The panel and the review, matches, settings, stats and chat windows were
+retired in 8.1. `npm run check:mainwindow` boots the app with saved reviews and
+asserts the sidebar, Home, the page bounds, the seal hiding every page, the
+review showing when it lifts and a recent match opening its review.
+`npm run test:shellnav` and `npm run test:homemodel` cover the navigation and
+Home offline.
 
 ### Rules for UI work
 
@@ -469,7 +533,9 @@ Renderers have no Node access. Everything crosses through a preload via
 `PATTERNS_GET`, `BREAKDOWN_GET`, and `PUSH_REVIEWS` fires whenever a review is
 saved or improved. Grading from Riot's record is `BACKFILL_START` and
 `BACKFILL_STATUS`, and `PUSH_BACKFILL` carries its status on every change to
-onboarding, Settings and Matches.
+onboarding, Settings and Matches. The main window is `SHELL_NAV` (go to a
+page), `SHELL_WINDOW` (minimise, maximise, close) and `SHELL_GET`, and
+`PUSH_SHELL` carries its navigation state, sealed or not, on every change.
 
 ## The live read's STATE line
 
@@ -637,7 +703,7 @@ next match opens its review naming the last match's hero.
 What the hero read bought is `src/shared/rivals-abilities.js`: no sentence may
 name an ability the player's hero does not have. The Rivals engine still writes
 draft and scoreboard lines internally, and none of them reach the screen during
-a match; only its system notices reach the panel. It permits one whose OWNER is named in the same sentence,
+a match; only its system notices reach the sidebar. It permits one whose OWNER is named in the same sentence,
 because "The Thing has Yancy Street Charge, which turns your dash off" is the
 counter table's best output.
 
@@ -722,7 +788,7 @@ npm run sync:rivals          roster, health and abilities from the game's own si
 npm run sync:rivalsbalance   the official balance post: version, date, what changed
 npm run check:rivalsknowledge every hero and ability named is one the game has
 npm run check:rivalsreview    boots the app, paints a Rivals review, then a League
-                              one into the same window
+                              one into the same review page
 npm run check:clientboot      src/ never requires from server/, which is not shipped
 ```
 
@@ -908,19 +974,22 @@ nothing in `src/` hard-codes an installer filename. Verify that before assuming
 any other name here is safe to move: the test is whether something outside this
 repo has the string baked in.
 
-**The logo is an aperture, and it exists in four places.** `assets/logo-mark.svg`
-is the source; `splash/index.html` and `dock/index.html` inline their own copies
-so they can animate and inherit `currentColor`; `scripts/generate-icon.js` draws
-it mathematically for the `.ico` and `.png`. Change one and change all of them.
+**The logo is an aperture, and it exists in five places.** `assets/logo-mark.svg`
+is the source; `splash/index.html`, `dock/index.html` and the Recording screen in
+`shell/index.html` (a thinner stroke at 88px) inline their own copies so they
+can animate and inherit `currentColor`; `scripts/generate-icon.js` draws it
+mathematically for the `.ico` and `.png`. Change one and change all of them.
 The SVG carries an explicit `color="#FFFFFF"` because an external SVG loaded
 through an `<img>` tag is its own document, so `currentColor` resolves to black
 there and the mark renders invisible on the dark ground.
 
 **Look at UI changes, do not only compile them.**
-`npx electron scripts/shot-surface.js panel settings` writes real screenshots to
-`dist-surface-shots/`. A dropped colour declaration, an unshipped font weight and
-a stretched logo all pass every automated check in this repo and are obvious in a
-picture.
+`npx electron scripts/shot-surface.js shell settings` writes real screenshots to
+`dist-surface-shots/`, one surface on its own, and `OCCLARA_SHOTS=1 npm run
+check:mainwindow` writes `main-<page>.png`, every page in the window beside the
+sidebar with saved reviews in it. A dropped colour declaration, an unshipped
+font weight and a stretched logo all pass every automated check in this repo
+and are obvious in a picture.
 
 ## Releases
 

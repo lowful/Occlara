@@ -163,3 +163,7 @@ footer .full { width: 100%; height: 40px; }
 .upd { font-size: 10.5px; color: var(--text-mute); }
 .upd.ok  { color: var(--good); }
 .upd.new { color: var(--cyan); }
+
+/* As a page of the main window (8.1) the sidebar picks the game, so the
+   header's own picker would be a second control for the same setting. */
+html.embedded #gamepick { display: none !important; }
