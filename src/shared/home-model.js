@@ -7,14 +7,46 @@
  *
  * NOTHING IS INVENTED HERE. Every figure is one the library already holds,
  * and an empty library gives empty fields rather than zeros: a new player's
- * Home says there is nothing yet, not that they graded 0. The pattern and the
- * average need two matches, the rule patterns.js keeps.
+ * Home says there is nothing yet, not that they graded 0. The most repeated
+ * mistake needs two recorded matches and the average two graded ones, the
+ * rules patterns.js keeps.
  *
  * Pure: home.js hands it the index rows, the patterns and the newest review.
+ * The library's header counts its record here too (winLoss), from the same
+ * index rows.
  */
 
 const TREND = 5;
 const RECENT = 5;
+
+// The result tests the library's rows colour by (matches.js row()), so the
+// header never counts a match the row below it does not paint as won or lost.
+// Rivals results are read off the screen, in whatever case it printed them.
+const WON = /vict|win/i;
+const LOST = /defeat|loss/i;
+const DRAWN = /draw|\btie\b/i;
+
+/**
+ * The matches won and lost in one game's library, for the header beside the
+ * Matches title. A draw is counted on its own, and a match with no result is
+ * unknown, never a loss: League reviews carry no result at all, and a match
+ * whose recording was stopped part way claims none.
+ *
+ * @param rows  the library index of one game (reviewStore.list(game))
+ * @returns {{ wins: number, losses: number, draws: number, unknown: number }}
+ */
+function winLoss(rows) {
+  const out = { wins: 0, losses: 0, draws: 0, unknown: 0 };
+  for (const r of Array.isArray(rows) ? rows : []) {
+    if (!r) continue;
+    const result = String(r.result || '');
+    if (WON.test(result)) out.wins++;
+    else if (LOST.test(result)) out.losses++;
+    else if (DRAWN.test(result)) out.draws++;
+    else out.unknown++;
+  }
+  return out;
+}
 
 function rowOf(r) {
   return {
@@ -42,10 +74,12 @@ function homeModel({ rows, patterns, review }) {
       : [],
   } : null;
 
+  // Out of the RECORDED matches the patterns counted it in: a match graded
+  // from Riot's record alone has no mistakes to repeat (patterns.js).
   const first = Array.isArray(p.mistakes) && p.mistakes[0] ? p.mistakes[0] : null;
   const top = first ? {
     title: first.title,
-    detail: `In ${first.matches} of your last ${p.matches} matches.`,
+    detail: `In ${first.matches} of your last ${p.recorded} recorded matches.`,
     fix: first.fix || null,
     trend: first.trend || null,
   } : null;
@@ -66,4 +100,4 @@ function homeModel({ rows, patterns, review }) {
   };
 }
 
-module.exports = { homeModel, TREND, RECENT };
+module.exports = { homeModel, winLoss, TREND, RECENT };

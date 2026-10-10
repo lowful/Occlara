@@ -93,6 +93,13 @@ ok(rounds.every((r) => r.feedKnown === true), "every round of the real record ca
   const dec = g0.categories.find((c) => c.key === 'decisions');
   ok(dec.score >= 90 && dec.evidence.join() === 'no avoidable death on record',
     `no deaths: Decisions scores the top of its curve rather than going unmeasured (${dec.score})`);
+  // Graded from Riot's record alone, the same count is not a judgement on
+  // every death: it counted the deaths with the team ahead in a lost round.
+  const g0r = grade.valorant({ rounds: none, scoreline: { kills: 14, deaths: 0, assists: 3, acs: 300 }, role: 'Duelist',
+    history: [], riotOnly: true });
+  const decR = g0r.categories.find((c) => c.key === 'decisions');
+  ok(decR.score === dec.score && decR.evidence.join() === 'no death with your team ahead in a lost round',
+    `and from Riot's record alone it says what it counted, at the same score (${decR.evidence.join()})`);
   ok(!g0.provisional && g0.categories.every((c) => c.score !== null) && g0.score !== null,
     `and a complete Riot record is not provisional (${g0.score} ${g0.letter})`);
 
@@ -360,6 +367,88 @@ ok(conceded({ dragonsAgainst: 1, baronsAgainst: 2 }) === 'The enemy took 1 drago
   const maps = patterns.summarise([onMap(3, 'Bind'), onMap(2, 'Haven'), onMap(1, 'Bind')]);
   ok(maps.mistakes.find((m) => m.key === 'same-spot').title === 'Dying at the same spot',
     'the same place name on two maps is not named as one place');
+}
+
+// ── A pattern quotes its latest match in today's words ──────────────────────
+// 8.2 changed the clutch line: "Round 4, one against 1." read as a one against
+// one whatever the number. Matches quotes a pattern's latest sighting under it
+// ("Latest match: ..."), and the library hands the patterns the reviews as
+// they were saved, so one saved by 8.0.x or 8.1 still says it the old way.
+{
+  const mk = (i, detail) => ({
+    id: `valorant-${1758000000000 + i}-clu${i}x`, at: 1758000000000 + i, game: 'valorant',
+    review: { kind: 'valorant', insights: { mistakes: [], missed: [], strengths: [
+      { key: 'clutch', title: 'Won as the last one standing', detail, rounds: [4], count: 1 },
+    ] } },
+  });
+  const saved = [mk(2, 'Round 4, one against 1.'), mk(1, 'Round 9, one against 3. Round 12, one against 1.')];
+  const clutch = patterns.summarise(saved).strengths.find((s) => s.key === 'clutch');
+  const said = clutch ? clutch.examples.map((x) => x.detail) : [];
+  ok(clutch && said[0] === 'Round 4, alone against one.' && said[1] === 'Round 9, alone against 3. Round 12, alone against one.',
+    `a pattern saved in the 8.1 words quotes its latest match in today's (${said[0]})`);
+  ok(insights.countable(saved[0].review).strengths[0].detail === 'Round 4, alone against one.'
+    && saved[0].review.insights.strengths[0].detail === 'Round 4, one against 1.',
+    'as does every count across matches, and the saved review is left as it was');
+}
+
+// ── The lists count recorded matches, the grades every match ───────────────
+// A match graded from Riot's record alone has a grade and nothing to count in
+// a list: counted, its lists made Home's "most repeated mistake" mostly a
+// quote from matches Occlara never saw. On the real match, built from Riot's
+// record alone today, and as 8.0.3 saved one, with its three lists.
+{
+  const riotRows = verify.reconcile([], riot).rounds;
+  const fresh = review.build({ rounds: riotRows, context: { agent: 'Jett', map: 'Abyss', teamScore: 13, enemyScore: 11 },
+    endedBy: 'score', ai: {}, role: 'Duelist', history: [], riotMe: riot.me, riotIdSet: true, source: 'riot' });
+  const old = { ...JSON.parse(JSON.stringify(fresh)), insights: insights.valorant(riotRows, { role: 'Duelist' }) };
+  ok(old.insights.mistakes.some((m) => m.key === 'same-killer') && old.insights.strengths.some((s) => s.key === 'first-kill'),
+    'the 8.0.3 shape still holds a repeated mistake and a strength to be counted');
+  const base = 1758000000000;
+  let n = 0;
+  const entry = (rv, score) => {
+    n++;
+    const at = base - n * 3600000;
+    return { id: `valorant-${at}-mix${String(n).padStart(3, '0')}`, at, game: 'valorant',
+      review: { ...rv, grade: { ...rv.grade, score, letter: grade.letter(score) } } };
+  };
+  // Newest first: Riot only matches in among three recorded ones.
+  const mixed = [entry(fresh, 90), entry(old, 88), entry(built, 70), entry(old, 86), entry(built, 72), entry(built, 74)];
+  const p = patterns.summarise(mixed);
+  const alone = patterns.summarise(mixed.filter((s) => s.review.source !== 'riot'));
+  ok(p.matches === 6 && p.fromRiot === 3 && p.recorded === 3 && p.enough,
+    `six matches, three of them from Riot's record, three recorded (${p.matches}, ${p.fromRiot}, ${p.recorded})`);
+  ok(['mistakes', 'strengths', 'missed'].every((l) => JSON.stringify(p[l]) === JSON.stringify(alone[l])),
+    'the lists are exactly the three recorded matches\' lists, as if the others were not there');
+  const skye = p.mistakes.find((m) => m.key === 'same-killer');
+  ok(skye && skye.matches === 3 && skye.share === 1 && skye.examples.every((x) => mixed.find((s) => s.id === x.id).review.source !== 'riot'),
+    `Skye repeats in 3 of the 3 recorded matches, quoted from them alone (${skye && skye.matches} of ${p.recorded})`);
+  ok(p.grades.length === 6 && p.average === Math.round((90 + 88 + 70 + 86 + 72 + 74) / 6),
+    `while the grades are every match's (${p.grades.map((x) => x.score).join(', ')}, average ${p.average})`);
+  ok(p.categories.length && p.categories.every((c) => c.matches === 6), 'and so are the categories');
+
+  // Ten Riot only matches in front: the grades are theirs, and the lists the
+  // recorded ones behind them, which a window of ten alone never reached.
+  const deep = Array.from({ length: 10 }, () => entry(old, 80)).concat([entry(built, 70), entry(built, 71)]);
+  const q = patterns.summarise(deep);
+  ok(q.matches === 10 && q.fromRiot === 10 && q.grades.every((x) => x.score === 80),
+    'with ten Riot only matches newest, the grades are those ten');
+  ok(q.recorded === 2 && q.enough && q.mistakes.length && q.mistakes.every((m) => m.matches === 2 && m.share === 1),
+    `and the lists the two recorded behind them (${q.recorded} recorded, ${q.mistakes.map((m) => m.key).join(', ')})`);
+  ok(patterns.LOOK_BACK >= 40 && patterns.LOOK_BACK > patterns.WINDOW, `the library hands over ${patterns.LOOK_BACK} to find them`);
+
+  // From Riot's record alone: grades and categories, and nothing to repeat.
+  const r = patterns.summarise(mixed.filter((s) => s.review.source === 'riot'));
+  ok(r.matches === 3 && r.recorded === 0 && !r.enough && !r.mistakes.length && !r.strengths.length && !r.missed.length
+    && r.grades.length === 3 && r.categories.length, 'only Riot only matches: graded and averaged, and no pattern at all');
+
+  // The weekly report counts what went well and what to fix over recorded matches only.
+  const now = base + 3600000;
+  const w = assembleReport({ riotId: 'x#y', stats: null, reviews: mixed, patterns: null, now });
+  ok(w.sessions === 6 && w.doingWell.includes('Opened rounds, in 3 matches'),
+    `the week counts six graded matches and a strength in the three recorded (${w.doingWell.join(' | ')})`);
+  const wr = assembleReport({ riotId: 'x#y', stats: null, reviews: mixed.filter((s) => s.review.source === 'riot'), patterns: null, now });
+  ok(wr.hasData && wr.sessions === 3 && !wr.doingWell.length && !wr.toImprove.length && !wr.habits.length,
+    'a week of Riot only matches has its grades, and nothing to praise or fix');
 }
 
 // ── Rivals titles saved backwards before 8.0.3 are rebuilt once ─────────────

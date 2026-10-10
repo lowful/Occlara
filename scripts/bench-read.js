@@ -14,18 +14,31 @@
  *               fingerprints the map from these, so an invented one is costly)
  *   final       did it read the final score
  *   parse       did a STATE line come back
- *   p50 / p90   latency, which decides how often the game can be read: with two
- *               requests in flight the sustainable gap is about p90 / 2
+ *   p50 / p90   latency, which decides how often the game can be read: with up
+ *               to four requests in flight, auto holds a tier while p90 stays
+ *               under four gaps and a tenth (adaptCadence in coaching-engine.js)
  *
  * The default session is the 240 frame Abyss match whose Riot record is in
- * scripts/fixtures/riot-abyss-13-11.json. Frames come from the AI log on disk.
+ * scripts/fixtures/riot-abyss-13-11.json. Frames come from the session on
+ * disk: its copy in userData/bench first, then the AI log, which keeps only
+ * the five newest recording sessions and deletes the rest at every Start,
+ * this one included once five are newer (benchSession in profile-path.js).
+ * Keep it copied to %APPDATA%\Occlara\bench\session-2026-09-22T04-24-07-240Z.
  *
  * COSTS REAL MONEY, a little: every frame is one call per model. Models run in
  * parallel, frames in order within a model, because each read carries the
- * previous one's context exactly as the client does.
+ * context of the reads before it, as the client's does.
  *
  *   node scripts/bench-read.js qwen/qwen3.7-flash deepseek/deepseek-v4.1-flash
  *   node scripts/bench-read.js --frames 60 <models...>     first 60 frames only
+ *   node scripts/bench-read.js --lag 4 <models...>         context four reads old
+ *
+ * --lag N SENDS EACH FRAME WITH THE CONTEXT OF N READS EARLIER, as the client
+ * does with N reads in flight: the replies to the reads just before it have
+ * not landed when it goes. The default, 1, is the previous read's context,
+ * which is what every number beside readModel in coach.js was measured on.
+ * Frames still go one at a time, so the read limiter sees the same rate.
+ * npm run verify:ai -- --lag 4 gates the read the way four in flight send it.
  *
  * A MODEL OTHER THAN 'live' NEEDS THE ADMIN PASSWORD. The server honours
  * benchModel only beside X-Admin-Password, because any licence could otherwise
@@ -37,7 +50,8 @@
 const fs = require('fs');
 const path = require('path');
 const { RoundLedger } = require('../src/shared/valorant-rounds');
-const { profileDir, configPath } = require('./profile-path');
+const { CAPTURE_TIERS } = require('../src/shared/config');
+const { profileDir, configPath, benchSession } = require('./profile-path');
 
 const SERVER = process.env.OCCLARA_SERVER || 'https://ghostcoach-production.up.railway.app';
 const ROOT = profileDir(process.env.APPDATA || '');
@@ -45,6 +59,7 @@ const args = process.argv.slice(2);
 const flag = (name, d) => { const i = args.indexOf('--' + name); return i >= 0 ? args[i + 1] : d; };
 const SESSION = flag('session', 'session-2026-09-22T04-24-07-240Z');
 const LIMIT = Number(flag('frames', 0)) || Infinity;
+const LAG = Math.max(1, Math.floor(Number(flag('lag', 1))) || 1);
 // 'live' is whatever the server runs with no override, which is what a player
 // gets: npm run verify:ai measures that and fails below the gate.
 const MODELS = args.filter((a) => (a.includes('/') || a === 'live') && !a.startsWith('--'));
@@ -73,7 +88,16 @@ if (BENCHING && !ADMIN) {
   process.exit(1);
 }
 
-const dir = path.join(ROOT, 'ai-log', SESSION);
+// The session's copy in userData/bench first, then the AI log, which keeps
+// only the five newest sessions and prunes the rest at the next Start.
+const { dir, looked } = benchSession(ROOT, SESSION);
+if (!dir) {
+  console.log(`No recorded session ${SESSION} to read. Looked for its log.json in:\n`
+    + looked.map((d) => `  ${d}\n`).join('')
+    + `The AI log keeps only the five newest sessions, so copy the session's folder, log.json and frames,\n`
+    + `to the first of those, which nothing prunes.`);
+  process.exit(1);
+}
 const cfg = JSON.parse(fs.readFileSync(configPath(ROOT), 'utf8'));
 const log = JSON.parse(fs.readFileSync(path.join(dir, 'log.json'), 'utf8'));
 const frames = log.records.filter((r) => r.frame && fs.existsSync(path.join(dir, r.frame))).slice(0, LIMIT);
@@ -113,11 +137,16 @@ async function run(model) {
   let prevAlive = true;
   let lastDeath = -1e9;
   let finalRead = false;
+  // The context each frame found, every read before it applied: frame i is
+  // sent with the one after read i - LAG, and nothing before the first.
+  const found = [];
   for (const f of frames) {
     r.n++;
+    found.push(ctx);
+    const sent = found[found.length - LAG] || {};
     const image = fs.readFileSync(path.join(dir, f.frame)).toString('base64');
     let j;
-    try { j = await read(model, image, ctx); } catch (e) { j = { err: e.message, ms: 0 }; }
+    try { j = await read(model, image, sent); } catch (e) { j = { err: e.message, ms: 0 }; }
     if (j.err) { r.errs++; r.firstErr = r.firstErr || j.err; continue; }
     if (j.ignored) {
       r.errs = frames.length;
@@ -182,8 +211,10 @@ const q = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s.le
     const d = r.deaths || { riotDeaths: 0, agreed: 0, invented: [], missed: [] };
     const agreed = d.agreed;
     const p90 = q(r.ms, 0.9);
-    // Two requests in flight: a new read can start every p90 / 2.
-    const gap = p90 ? (p90 / 2 <= 1000 ? '1s' : p90 / 2 <= 2000 ? '2s' : p90 / 2 <= 3000 ? '3s' : '5s') : '-';
+    // The tier auto holds at this p90: up to four requests in flight, and a
+    // step down only past four gaps and a tenth.
+    const held = CAPTURE_TIERS.find((t) => p90 <= t * 4 * 1.1) || CAPTURE_TIERS[CAPTURE_TIERS.length - 1];
+    const gap = p90 ? `${held / 1000}s` : '-';
     console.log(`${r.model.padEnd(36)} ${String(pct(r.parsed, r.n - r.lobby - r.errs)).padStart(3)}%   `
       + `${String(agreed).padStart(2)}/${String(d.invented.length).padStart(2)}/${String(d.missed.length).padEnd(2)}             `
       + `${String(pct(r.labelsOk, r.labels)).padStart(3)}%       ${String(pct(r.hp, r.n)).padStart(3)}%  `
@@ -191,11 +222,13 @@ const q = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s.le
       + (r.errs ? `   ${r.errs} err (${r.firstErr})` : ''));
   }
   console.log('\ndeaths is the number that matters: agreed with Riot / invented / missed, out of Riot\'s real deaths.');
-  console.log('gap is the fastest read cadence the model sustains with two requests in flight.');
+  console.log('gap is the read cadence auto holds at that p90, with up to four requests in flight.');
+  if (LAG > 1) console.log(`each frame was sent with the context of ${LAG} reads earlier (--lag ${LAG}).`);
 
   // THE GATE, for npm run verify:ai. Every model or prompt change runs this
   // before it ships: the read must parse, must not invent deaths Riot does
-  // not have, must read real labels, and must keep up with at least the 3s tier.
+  // not have, must read real labels, and must answer within six seconds at
+  // p90. That was the 3s tier with two in flight; with four it holds 2s.
   if (GATE) {
     const bad = [];
     for (const r of results) {
@@ -206,7 +239,7 @@ const q = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s.le
       if (labels < 95) bad.push(`${r.model}: ${labels}% of location labels exist on the map, gate 95%`);
       if (d.invented.length > 1) bad.push(`${r.model}: invented ${d.invented.length} deaths Riot does not have, gate 1`);
       if (d.agreed < d.riotDeaths * 0.8) bad.push(`${r.model}: agreed with ${d.agreed} of Riot's ${d.riotDeaths} deaths, gate 80%`);
-      if (q(r.ms, 0.9) > 6000) bad.push(`${r.model}: p90 ${q(r.ms, 0.9)}ms is too slow for even the 3s tier`);
+      if (q(r.ms, 0.9) > 6000) bad.push(`${r.model}: p90 ${q(r.ms, 0.9)}ms, gate 6000ms`);
       if (r.errs > r.n * 0.05) bad.push(`${r.model}: ${r.errs} failed reads of ${r.n}`);
     }
     console.log(bad.length ? `\nGATE FAILED\n${bad.map((b) => '  ' + b).join('\n')}` : '\nGATE PASSED');

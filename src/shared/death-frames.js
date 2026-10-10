@@ -36,6 +36,12 @@
  * clock to match, took it as its own: the look was of the end of round N, and
  * its cause was counted against round N + 1.
  *
+ * AND A REVIEW RIOT'S RECORD NEVER REACHED LOOKS TOO (8.2). It has no death
+ * second at all, so every one of its deaths takes the path a post plant death
+ * takes above: the frame the screen registered the death on, and the one
+ * before it. Which deaths, and why fewer things rank them, is
+ * teachableScreenDeaths below.
+ *
  * Pure, so the tests run it against a real logged session.
  */
 
@@ -90,12 +96,12 @@ function ownDeaths(inMatch, n) {
   return borrowed ? died.filter((r) => r !== borrowed) : died;
 }
 
-/** Up to `limit` verified deaths, most teachable first. */
-function teachableDeaths(rounds, limit = 4) {
-  const deaths = (rounds || []).filter((r) => r.verified && r.died);
-  const score = (r) => (r.result === 'lost' ? 3 : 0) + (r.firstDeath ? 3 : 0)
-    + (r.traded === false ? 2 : 0) + (r.early ? 1 : 0)
-    + (r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies ? 3 : 0);
+/**
+ * The `limit` best of `deaths` by `score`: the best of each third of the match
+ * first, then the best of the rest, in round order. A death that scores
+ * nothing is never chosen.
+ */
+function spread(deaths, score, limit) {
   const ranked = deaths.map((r) => ({ r, s: score(r) })).sort((a, b) => b.s - a.s || a.r.n - b.r.n);
   const last = Math.max(1, ...deaths.map((r) => r.n));
   const third = (n) => Math.min(2, Math.floor(((n - 1) / last) * 3));
@@ -109,6 +115,31 @@ function teachableDeaths(rounds, limit = 4) {
     if (!out.includes(x.r) && x.s > 0) out.push(x.r);
   }
   return out.sort((a, b) => a.n - b.n);
+}
+
+/** Up to `limit` verified deaths, most teachable first. */
+function teachableDeaths(rounds, limit = 4) {
+  const deaths = (rounds || []).filter((r) => r.verified && r.died);
+  const score = (r) => (r.result === 'lost' ? 3 : 0) + (r.firstDeath ? 3 : 0)
+    + (r.traded === false ? 2 : 0) + (r.early ? 1 : 0)
+    + (r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies ? 3 : 0);
+  return spread(deaths, score, limit);
+}
+
+/**
+ * Up to `limit` deaths the screen saw and Riot never checked, most teachable
+ * first (8.2), spread across the match the same way.
+ *
+ * The screen knows less about each one than Riot does: no first death, no
+ * trade, nobody's numbers standing. So two things rank it, a lost round and a
+ * death early in the round (the ledger's own early, read off the round
+ * clock), and every death starts from one, so a match whose only deaths came
+ * in rounds that were won still has a moment to show.
+ */
+function teachableScreenDeaths(rows, limit = 4) {
+  const deaths = (rows || []).filter((r) => r && r.died && !r.verified);
+  const score = (r) => 1 + (r.result === 'lost' ? 3 : 0) + (r.early ? 1 : 0);
+  return spread(deaths, score, limit);
 }
 
 /** Seconds into the round a logged frame was taken, from its clock, or null. */
@@ -190,4 +221,51 @@ function framesFor(records, death, window = {}) {
   return usable(at) ? [at] : [];
 }
 
-module.exports = { teachableDeaths, framesFor, secondsIn, BEFORE_MS, AFTER_MS };
+/** One look: the death, its frames, the names they are kept under, and when the first was taken. */
+function lookAt(r, recs) {
+  const t = recs[0] ? secondsIn(recs[0]) : null;
+  return {
+    round: r,
+    frames: recs,
+    // r6-before.jpg, r6-after.jpg: beside the review in the library, and on
+    // its round's card, so these are the names every saved review carries.
+    names: recs.map((_, i) => `r${r.n}-${i === 0 ? 'before' : 'after'}.jpg`),
+    // Seconds between the first frame and Riot's death second, when both are known.
+    gap: typeof r.deathSec === 'number' && t !== null ? Math.max(0, r.deathSec - t) : null,
+    // When the first frame was captured, so the review's eye can open the AI
+    // log at that moment.
+    at: recs[0] && typeof recs[0].at === 'number' ? recs[0].at : null,
+  };
+}
+
+/**
+ * The deaths a review looks at, each with the frames sent for it: up to
+ * `limit` looks, in round order, none without a frame.
+ *
+ *   'riot'    the verified deaths (teachableDeaths), framed by Riot's second
+ *   'screen'  a review Riot's record never reached (8.2): the deaths the
+ *             screen saw (teachableScreenDeaths), framed by the frame that
+ *             registered each one and the one before it. A death whose
+ *             registering frame is all there is, with nothing before it in its
+ *             round, is never chosen: that frame shows the player already dead,
+ *             and the look is sent as the moment before the death. The next
+ *             most teachable death takes its place.
+ *
+ * @param window  { from, to } wall clock bounds of the match, as framesFor
+ * @returns [{ round, frames: [record...], names, gap, at }]
+ */
+function looksFor(records, rounds, window, source, limit = 4) {
+  if (source !== 'screen') {
+    return teachableDeaths(rounds, limit).map((r) => lookAt(r, framesFor(records, r, window)))
+      .filter((x) => x.frames.length);
+  }
+  const framed = new Map();
+  for (const r of rounds || []) {
+    if (!r || !r.died || r.verified) continue;
+    const recs = framesFor(records, r, window);
+    if (recs.length && !recs[0].died) framed.set(r, recs);
+  }
+  return teachableScreenDeaths([...framed.keys()], limit).map((r) => lookAt(r, framed.get(r)));
+}
+
+module.exports = { teachableDeaths, teachableScreenDeaths, framesFor, looksFor, secondsIn, BEFORE_MS, AFTER_MS };

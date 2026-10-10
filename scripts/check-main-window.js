@@ -12,6 +12,19 @@
  * window made again mid match keeps the seal while the pages of the one that
  * went are closed with it.
  *
+ * Moving between pages (8.2), on the real views: the sidebar's one marker on
+ * the current page; each switch arming the new page while the page on screen
+ * is still up and over it, the old one hidden only after the new one's
+ * PAGE_READY, forward down the sidebar and back up it; a page that never
+ * answers let in at READY_MS; sealing mid switch hiding every page in the same
+ * call, with nothing coming back on the switch's timer; the page asked for
+ * while sealed staged off the page area's edge until it is ready, then placed;
+ * a page staged with the window minimised let in by its own ready once
+ * restored, never by its timer before it could paint; and a page loading
+ * again refusing its old document's ready and let in on its new one's.
+ * OCCLARA_SHOTS=1 pictures each page after its switch, to see that none is
+ * left invisible or offset.
+ *
  * Everything else about the pages is the surfaces' own checks (check:matches,
  * check:rivalsreview, check:lolreview, check:gameswitch, check:onboardingriot);
  * this is the window around them.
@@ -41,7 +54,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: one window: the sidebar lists the pages, Home paints the last match, pages show beside the sidebar, the seal hides them all mid match and holds after a stop until a page is opened, a recent match opens its review, closing hides the window, and a window made again keeps the seal');
+  console.log('PASS: one window: the sidebar lists the pages, Home paints the last match, pages show beside the sidebar and move in only once painted out of sight, forward and back, minimised or loaded again, the seal hides them all at once mid match and holds after a stop until a page is opened, a recent match opens its review, closing hides the window, and a window made again keeps the seal');
   process.exit(0);
 }
 
@@ -177,11 +190,26 @@ setTimeout(async () => {
     if (String(gradeNum) !== String(built.grade.score)) return report(false, `Home's grade reads ${gradeNum}, the review ${built.grade.score}`);
     if (recent !== 2) return report(false, `Home lists ${recent} recent matches`);
     if (!/^Enter second/.test(focus)) return report(false, 'Home has no focus for the next match');
+    // The window's first page came in (8.2): staged, armed as it loaded, then
+    // placed and let in, its cards arriving one after another as it did.
+    const settled = (page) => () => { const m = mainWindow.motionState(); return m.onScreen === page && !m.coming && !m.staged; };
+    const homeIn = await until(settled('home'), 4000);
+    const homeState = await until(() => hjs(`(() => {
+      const r = document.documentElement;
+      return r.classList.contains('page-armed') ? null
+        : { leaving: r.classList.contains('page-leaving'), cards: document.querySelectorAll('.home .card.card-in').length };
+    })()`), 4000);
+    lines.push(`home came in: placed=${!!homeIn} ${JSON.stringify(homeState)}`);
+    if (!homeIn || !homeState || homeState.leaving) return report(false, 'Home, the first page, never came in');
+    if (homeState.cards < 3) return report(false, `only ${homeState.cards} of Home's cards arrived one after another`);
     await shot('home', mainWindow, win);
 
     // 3. A page from the sidebar shows beside it, at the sidebar's edge.
     await sjs("document.querySelector('#nav .nav-item[data-page=\"matches\"]').click(); true");
     await until(() => mainWindow.current().shown === 'matches', 4000);
+    // The page is let in once it has painted itself armed, so it is the one
+    // showing a moment after the sidebar says so, not at once.
+    await until(settled('matches'), 4000);
     const views = mainWindow.pageViews();
     const mv = views.get('matches');
     const hv = views.get('home');
@@ -193,7 +221,234 @@ setTimeout(async () => {
       || b.height !== h - mainWindow.TOP_H) return report(false, `the page sits at ${JSON.stringify(b)}`);
     const current = await until(() => sjs("(document.querySelector('.nav-item[aria-current=\"page\"]') || {}).dataset.page"), 3000);
     if (current !== 'matches') return report(false, `the sidebar marks ${current} as the page`);
+    // ONE MARKER, moved to the current page (8.2), not a background per item.
+    const markerAt = () => sjs(`(() => {
+      const m = document.getElementById('nav-marker');
+      const b = document.querySelector('.nav-item[aria-current="page"]');
+      const t = new DOMMatrix(getComputedStyle(m).transform);
+      return { on: m.classList.contains('on'), y: Math.round(t.m42), top: b ? b.offsetTop : -1, page: b ? b.dataset.page : null,
+        markers: document.querySelectorAll('.nav-marker').length,
+        itemBg: b ? getComputedStyle(b).backgroundColor : '', hover: !!(b && b.matches(':hover')) };
+    })()`);
+    await wait(400);
+    const mk = await markerAt();
+    lines.push(`marker: ${JSON.stringify(mk)}`);
+    if (mk.markers !== 1 || !mk.on || mk.page !== 'matches' || mk.y !== mk.top) return report(false, `the sidebar's one marker is not on Matches: ${JSON.stringify(mk)}`);
+    // Under the pointer an item has its hover ground; anywhere else none.
+    if (!mk.hover && mk.itemBg !== 'rgba(0, 0, 0, 0)') return report(false, `the current item paints a background of its own, ${mk.itemBg}, beside the marker`);
     await shot('matches', mainWindow, win);
+
+    // 3b. MOVING BETWEEN PAGES (8.2), carried out on real views. Every PUSH_PAGE
+    // a page is sent, every page shown and hidden and every PAGE_READY as it
+    // arrives go in one log in the order they happened. A switch must arm the
+    // new page while the page on screen is still up and over it, and take the
+    // old one away only once the new one is ready.
+    const { ipcMain } = require('electron');
+    const CH = require(path.join(REPO, 'src/shared/channels'));
+    const { READY_MS } = require(path.join(REPO, 'src/shared/shell-nav'));
+    const motionLog = [];
+    const watched = new WeakSet();
+    const watchViews = () => {
+      for (const [id, v] of mainWindow.pageViews()) {
+        if (watched.has(v)) continue;
+        watched.add(v);
+        const setVisible = v.setVisible.bind(v);
+        v.setVisible = (on) => { motionLog.push({ ev: on ? 'show' : 'hide', id, at: Date.now() }); return setVisible(on); };
+        const send = v.webContents.send.bind(v.webContents);
+        v.webContents.send = (ch, msg, ...rest) => {
+          if (ch === CH.PUSH_PAGE) motionLog.push({ ev: msg.phase, id, dir: msg.dir, at: Date.now() });
+          return send(ch, msg, ...rest);
+        };
+      }
+    };
+    // Ahead of main's own listener, so what this sees is the moment before
+    // main acts on it: which page is on its way, whether the page it replaces
+    // is still showing, and whether it is over the new one.
+    // Never throws: a listener that threw would keep main's from running.
+    const onReady = (_e, id) => {
+      const snap = { id };
+      try {
+        const m = mainWindow.motionState();
+        const c = m.coming;
+        const vs = mainWindow.pageViews();
+        const kids = win.contentView.children;
+        Object.assign(snap, { to: c && c.to, staged: m.staged });
+        if (c && c.from) {
+          snap.fromShown = vs.get(c.from).getVisible();
+          snap.under = kids.indexOf(vs.get(c.to)) < kids.indexOf(vs.get(c.from));
+        }
+        if (c && c.to && vs.get(c.to)) snap.x = vs.get(c.to).getBounds().x;
+      } catch (e) {
+        snap.error = e.message;
+      }
+      motionLog.push({ ev: 'ready', id, at: Date.now(), snap });
+    };
+    ipcMain.prependListener(CH.PAGE_READY, onReady);
+    const pjsOf = (id) => (s) => mainWindow.pageViews().get(id).webContents.executeJavaScript(s);
+    const classes = (id) => pjsOf(id)("({ armed: document.documentElement.classList.contains('page-armed'), leaving: document.documentElement.classList.contains('page-leaving'), dir: document.documentElement.dataset.pageDir || 'none' })");
+    const at = (log, ev, id) => log.findIndex((x) => x.ev === ev && x.id === id);
+    /** One switch from the sidebar: its log, retried when the timer won the race, which says nothing. */
+    const switchTo = async (to, from) => {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        if (mainWindow.motionState().onScreen !== from) {
+          mainWindow.show(from);
+          await until(settled(from), 3000);
+          await wait(300);
+        }
+        watchViews();
+        motionLog.length = 0;
+        await sjs(`document.querySelector('.nav-item[data-page="${to}"]').click(); true`);
+        const done = await until(settled(to), 3000);
+        await wait(400);   // the page's entrance through
+        const log = motionLog.slice();
+        const iArm = at(log, 'arm', to);
+        const iReady = at(log, 'ready', to);
+        const iHide = at(log, 'hide', from);
+        const iEnter = at(log, 'enter', to);
+        const r = { done: !!done, attempt, order: log.map((x) => `${x.ev} ${x.id}${x.dir ? ' ' + x.dir : ''}`).join(' > '),
+          arm: log[iArm], ready: log[iReady], iArm, iReady, iHide, iEnter, page: await classes(to) };
+        if (iReady !== -1 && iReady < iHide) return r;
+        lines.push(`  ${from} to ${to}, try ${attempt}: the timer let it in first (${r.order}), again`);
+      }
+      return null;
+    };
+    const checkSwitch = (r, from, to, dir) => {
+      if (!r) return `${from} to ${to}: in three tries the page never answered before the timer`;
+      lines.push(`${from} to ${to}: ${r.order} | page ${JSON.stringify(r.page)}`);
+      if (!r.done) return `${from} to ${to}: the switch never settled`;
+      if (r.iArm === -1 || r.arm.dir !== dir) return `${from} to ${to}: the page was armed ${r.arm ? r.arm.dir : 'never'}, not ${dir}`;
+      if (!(r.iArm < r.iReady && r.iReady < r.iHide && r.iHide < r.iEnter)) return `${from} to ${to}: out of order, ${r.order}`;
+      const s = r.ready.snap;
+      if (!s.fromShown || !s.under || s.to !== to) return `${from} to ${to}: at its ready the page was not under the one on screen: ${JSON.stringify(s)}`;
+      if (r.page.armed || r.page.leaving || r.page.dir !== dir) return `${from} to ${to}: the page came in as ${JSON.stringify(r.page)}`;
+      return null;
+    };
+    let bad = checkSwitch(await switchTo('home', 'matches'), 'matches', 'home', 'back');
+    if (bad) return report(false, bad);
+    bad = checkSwitch(await switchTo('matches', 'home'), 'home', 'matches', 'forward');
+    if (bad) return report(false, bad);
+    const mk2 = await markerAt();
+    if (!mk2.on || mk2.page !== 'matches' || mk2.y !== mk2.top) return report(false, `after the switches the marker is off its page: ${JSON.stringify(mk2)}`);
+
+    // A page that never answers is let in all the same, at READY_MS.
+    const mainReady = ipcMain.listeners(CH.PAGE_READY).filter((l) => l !== onReady);
+    for (const l of mainReady) ipcMain.removeListener(CH.PAGE_READY, l);
+    motionLog.length = 0;
+    const t0 = Date.now();
+    await sjs("document.querySelector('.nav-item[data-page=\"home\"]').click(); true");
+    const silentIn = await until(settled('home'), 3000);
+    const tookMs = Date.now() - t0;
+    for (const l of mainReady) ipcMain.on(CH.PAGE_READY, l);
+    await wait(400);
+    const silent = motionLog.map((x) => `${x.ev} ${x.id}`).join(' > ');
+    const silentPage = await classes('home');
+    lines.push(`a page that never answers: in after ${tookMs}ms (${silent}) page ${JSON.stringify(silentPage)}`);
+    if (!silentIn || at(motionLog, 'hide', 'matches') === -1 || at(motionLog, 'enter', 'home') === -1) return report(false, 'a page whose ready never reached main was never let in');
+    if (tookMs < READY_MS - 20 || tookMs > READY_MS + 1500) return report(false, `a page that never answered came in after ${tookMs}ms, not at ${READY_MS}`);
+    if (silentPage.armed) return report(false, 'a page let in by the timer stayed armed, invisible');
+    // Back to Matches for the seal below.
+    mainWindow.show('matches');
+    await until(settled('matches'), 3000);
+
+    // Sealing mid switch hides every page in the same call, and the switch's
+    // timer brings nothing back. Unsealed, the page asked for is staged off
+    // the page area's edge until it has painted itself armed, then placed.
+    let unsealed = null;
+    for (let attempt = 1; attempt <= 3 && !unsealed; attempt++) {
+      mainWindow.show(attempt % 2 ? 'home' : 'patterns');
+      const want = mainWindow.current().page;
+      mainWindow.setSealed(true);
+      const sealedNow = [...mainWindow.pageViews().values()].filter((v) => v.getVisible()).length;
+      const sealedState = mainWindow.motionState();
+      await wait(READY_MS * 3);
+      const sealedLater = [...mainWindow.pageViews().values()].filter((v) => v.getVisible()).length;
+      lines.push(`sealed mid switch to ${want}: shown at once=${sealedNow} after its timer=${sealedLater} state=${JSON.stringify(sealedState)}`);
+      if (sealedNow || sealedState.onScreen || sealedState.coming) return report(false, 'sealing mid switch left a page showing for even a moment');
+      if (sealedLater) return report(false, 'a page came back after the seal, when its switch\'s timer ran');
+      motionLog.length = 0;
+      watchViews();
+      mainWindow.setSealed(false);
+      const stagedIn = await until(settled(want), 3000);
+      const stagedReady = motionLog.find((x) => x.ev === 'ready' && x.id === want);
+      const [cw] = win.getContentSize();
+      const placedAt = mainWindow.pageViews().get(want).getBounds();
+      lines.push(`unsealed: ${motionLog.map((x) => `${x.ev} ${x.id}`).join(' > ')} at its ready ${JSON.stringify(stagedReady && stagedReady.snap)} placed at x=${placedAt.x}`);
+      if (!stagedIn) return report(false, 'unsealed, the page asked for never came in');
+      if (placedAt.x !== mainWindow.SIDEBAR_W) return report(false, `unsealed, the page was left at x=${placedAt.x}`);
+      // Its ready came in before the timer (it did not on a busy machine: again).
+      if (stagedReady && motionLog.indexOf(stagedReady) < at(motionLog, 'enter', want)) unsealed = { snap: stagedReady.snap, cw };
+    }
+    if (!unsealed) return report(false, 'in three tries the page unsealed never answered before the timer');
+    if (unsealed.snap.staged !== unsealed.snap.to || unsealed.snap.x !== unsealed.cw - mainWindow.STAGE_PX) {
+      return report(false, `unsealed, the page was not staged off the edge until it was ready: ${JSON.stringify(unsealed.snap)}`);
+    }
+
+    // Minimised, nobody can see the window and its pages paint nothing, so a
+    // page staged as the seal lifts is not let in by its timer: only its own
+    // ready lets it in, and once restored it comes in.
+    const evs = (log, t0) => log.map((x) => `${x.ev} ${x.id} +${x.at - t0}ms`).join(' > ');
+    mainWindow.show('matches');
+    await until(settled('matches'), 3000);
+    win.minimize();
+    if (!await until(() => win.isMinimized(), 3000)) return report(false, 'the window would not minimise');
+    mainWindow.setSealed(true);
+    watchViews();
+    motionLog.length = 0;
+    const tMin = Date.now();
+    mainWindow.setSealed(false);
+    await wait(READY_MS * 4);
+    const whileMin = mainWindow.motionState();
+    const minLog = evs(motionLog, tMin);
+    win.restore();
+    const restoredIn = await until(settled('matches'), 4000);
+    await wait(300);
+    const iMinReady = at(motionLog, 'ready', 'matches');
+    const iMinEnter = at(motionLog, 'enter', 'matches');
+    lines.push(`minimised, unsealed: after ${READY_MS * 4}ms on its way=${whileMin.coming && whileMin.coming.to} staged=${whileMin.staged} (${minLog}) | restored: ${evs(motionLog, tMin)}`);
+    if (!restoredIn) return report(false, 'restored, the page staged while the window was minimised never came in');
+    if (iMinEnter === -1 || iMinReady === -1 || iMinEnter < iMinReady) {
+      return report(false, 'minimised, a staged page was let in by its timer before it had painted');
+    }
+
+    // A page loading again, as Ask about this match loads Ask Coach: a ready
+    // from the document it replaces (sent here at once, before the new one
+    // can have committed) changes nothing, and the new document's own ready
+    // lets it in, not LOAD_MS. Retried when the new document was slower to
+    // answer than the timer, which says nothing.
+    let reloaded = null;
+    for (let attempt = 1; attempt <= 3 && !reloaded; attempt++) {
+      mainWindow.show('coach');
+      await until(settled('coach'), 3000);
+      mainWindow.show('matches');
+      await until(settled('matches'), 3000);
+      await wait(300);
+      watchViews();
+      motionLog.length = 0;
+      const coachWc = mainWindow.pageViews().get('coach').webContents;
+      const tReload = Date.now();
+      mainWindow.show('coach', { reload: true });
+      const staleTaken = mainWindow.pageReady('coach', coachWc);
+      const atStale = mainWindow.motionState();
+      const inAgain = await until(settled('coach'), 3000);
+      await wait(300);
+      const log = motionLog.slice();
+      lines.push(`loaded again, try ${attempt}: the old document's ready taken=${staleTaken} on its way=${atStale.coming && atStale.coming.to} on screen=${atStale.onScreen} loading=${atStale.reloading.join(',')} | ${evs(log, tReload)}`);
+      if (staleTaken || !atStale.coming || atStale.coming.to !== 'coach' || atStale.onScreen !== 'matches' || !atStale.reloading.includes('coach')) {
+        return report(false, 'a ready from the document a reload replaces let the page in');
+      }
+      if (!inAgain) return report(false, 'loaded again, Ask Coach never came in');
+      const iReady = at(log, 'ready', 'coach');
+      const iEnter = at(log, 'enter', 'coach');
+      if (iReady === -1 || iEnter < iReady) continue;
+      reloaded = { gap: log[iEnter].at - log[iReady].at };
+    }
+    if (!reloaded) return report(false, 'in three tries the page loaded again never answered before LOAD_MS');
+    if (reloaded.gap > 100) {
+      return report(false, `loaded again, Ask Coach came in ${reloaded.gap}ms after its new document's ready: the commit never ended the wait, LOAD_MS did`);
+    }
+    ipcMain.removeListener(CH.PAGE_READY, onReady);
+    mainWindow.show('matches');
+    await until(settled('matches'), 3000);
 
     // 4. The seal.
     mainWindow.setSealed(true);
@@ -221,7 +476,10 @@ setTimeout(async () => {
     await wait(300);
     await hjs("document.querySelector('#recent-list .r-row').click(); true");
     await until(() => mainWindow.current().shown === 'review', 4000);
-    const review = surfaces.find('/review/');
+    // Waited for, like every other page here: the review's view was only made
+    // when the seal lifted a moment ago, and a view has no URL to find it by
+    // until its page commits, which failed this step on two runs in three.
+    const review = await until(() => surfaces.find('/review/'), 5000);
     const painted = review && await until(() => review.webContents.executeJavaScript("!document.getElementById('vreview').hidden"), 5000);
     lines.push(`home row: shown=${mainWindow.current().shown} review painted=${!!painted}`);
     if (mainWindow.current().shown !== 'review' || !painted) return report(false, 'a recent match on Home did not open its review');
@@ -262,6 +520,14 @@ setTimeout(async () => {
     lines.push(`X: window alive=${!win.isDestroyed()} visible=${win.isVisible()} corner mark=${markShown()}`);
     if (win.isDestroyed() || win.isVisible()) return report(false, 'the X did not hide the window, or closed it');
     if (!await until(markShown, 3000)) return report(false, 'hidden, the corner mark did not show');
+    // The mark sits over Valorant's kill feed while the game is played, so it
+    // is kept out of every capture, Occlara's own included (dock-window.js).
+    // Electron reports content protection on Windows and macOS only.
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      const protectedMark = registry.get('dock').isContentProtected();
+      lines.push(`corner mark kept out of capture=${protectedMark}`);
+      if (!protectedMark) return report(false, 'the corner mark is not protected from capture, so it is in every frame read');
+    }
     mainWindow.toggleHidden();
     await until(() => win.isVisible(), 3000);
     if (!win.isVisible() || markShown()) return report(false, 'Ctrl+Shift+M did not bring the window back and drop the mark');

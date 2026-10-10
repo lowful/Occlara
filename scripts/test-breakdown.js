@@ -6,8 +6,11 @@
  * old saved cards read back from their fact lines, the recorded sessions as
  * the real engine read them, and the other two games. And the claims a row
  * makes: the second pistol from Riot's own sides, a death spot only when it
- * leads, a repeat only of the same place, agent or direction, a hero's duty
- * from its labelled role, and League one mode at a time, the most played first.
+ * leads, a repeat only of the same place, agent or direction and only out of
+ * the recorded matches (one graded from Riot's record alone repeats nothing),
+ * a hero's duty from its labelled role, K/D/A an average match over only the
+ * lines that read assists, and League one mode at a time, the most played
+ * first.
  *
  * Run: npm run test:breakdown
  */
@@ -19,6 +22,7 @@ const verify = require('../src/shared/valorant-verify');
 const review = require('../src/shared/valorant-review');
 const riotReview = require('../src/shared/riot-review');
 const breakdown = require('../src/shared/breakdown');
+const insights = require('../src/shared/insights');
 
 // The engine reads the recorded sessions below, with the network replaced as
 // test-session-replay.js replaces it: nothing here is sent anywhere.
@@ -122,6 +126,8 @@ const abyss = one.rows.map[0];
     'alive at the end of 3 rounds, 1 of 21 deaths traded');
   ok(s.kd.value === 1.48 && s.kd.kills === 31 && s.kd.deaths === 21 && s.acs.value === 382 && s.adr.value === 243
     && s.hs.value === 25, 'the scoreboard is the scoreline, K/D as kills over deaths');
+  ok(same(s.kda, { value: 1.48, kills: 31, deaths: 21, assists: 4, n: 1 }),
+    `K/D/A is the scoreline's 31/21/4, with the K/D it sorts on (${JSON.stringify(s.kda)})`);
   ok(s.checked === 1 && s.rounds === 24 && one.checked === 1, 'one match checked against Riot, 24 rounds');
   // ONE PLACE HOWEVER THE SCREEN CASED IT. The real match reads "A site" once
   // (round 6) beside five "A Site", and the review's own spot pattern and
@@ -173,6 +179,23 @@ const abyss = one.rows.map[0];
   const odd = JSON.parse(JSON.stringify(only));
   Object.assign(odd.rounds.find((c) => c.died), { spot: 'A Site', watched: true });
   ok(breakdown.build('valorant', [saved(odd)]).rows.map[0].spots.placed === 0, 'whatever one of its cards claims');
+
+  // AND IT REPEATS NOTHING. Riot records what happened and never why, so a
+  // match graded from it alone is no sighting of a habit, nor one of the
+  // matches a repeat is out of. As 8.0.3 saved one, it still holds the three
+  // lists, the same ones the recorded match counts.
+  const old = { ...JSON.parse(JSON.stringify(only)), insights: insights.valorant(verify.reconcile([], riot).rounds, { role: 'Duelist' }) };
+  ok(old.insights.mistakes.some((m) => m.key === 'same-killer') && watched.insights.mistakes.some((m) => m.key === 'same-killer'),
+    'the 8.0.3 shape and the recorded match both hold Skye as a mistake');
+  const three = breakdown.build('valorant', newestFirst([saved(old), saved(only), saved(old)])).rows.map[0];
+  ok(three.matches === 3 && three.stats.checked === 3 && three.mistake === null && three.strength === null,
+    `three matches from Riot's record alone count their rounds and repeat nothing (${three.mistake && three.mistake.title})`);
+  const mixed = breakdown.build('valorant', newestFirst([saved(old), saved(watched), saved(old), saved(watched), saved(old)])).rows.map[0];
+  ok(mixed.matches === 5 && mixed.mistake && mixed.mistake.matches === 2 && mixed.mistake.of === 2
+    && mixed.strength && mixed.strength.of === 2,
+    `among five, a repeat is in 2 of the 2 recorded matches, never 5 of 5 (${mixed.mistake && `${mixed.mistake.matches} of ${mixed.mistake.of}`})`);
+  const agent = breakdown.build('valorant', newestFirst([saved(old), saved(watched), saved(old)])).rows.agent[0];
+  ok(agent.matches === 3 && agent.mistake === null, 'and one recorded match among three repeats nothing on its agent row either');
 }
 
 // ── Overtime is never a pistol round ────────────────────────────────────────
@@ -274,8 +297,9 @@ const abyss = one.rows.map[0];
   ok(read >= 15 && b.rows.map.every((r) => r.stats.checked === 0 && r.stats.rounds === 0
     && ROUND_KEYS.every((k) => r.stats[k].n === 0 && r.stats[k].pct === null)),
   `no round number from rounds Riot never checked, though the screen read a side and a result on ${read} of Split's`);
-  ok(b.rows.map.every((r) => r.stats.kd.n === 0 && r.stats.kd.value === null && r.stats.acs.value === null),
-    'and no scoreboard number without a scoreboard');
+  ok(b.rows.map.every((r) => r.stats.kd.n === 0 && r.stats.kd.value === null && r.stats.acs.value === null
+    && r.stats.kda.n === 0 && r.stats.kda.value === null && r.stats.kda.kills === null),
+  'and no scoreboard number without a scoreboard, K/D/A included');
   ok(b.queues.map((q) => q.label).sort().join() === 'Standard,Swiftplay', "the screen's own mode names are the queues");
   ok(b.unknown.agent === 2 && b.rows.agent.length === 0, 'no agent was confirmed, so there is no agent row');
   const sp = b.rows.map.find((r) => r.label === 'Split').spots;
@@ -429,6 +453,33 @@ const abyss = one.rows.map[0];
     'K/D is every kill over every death');
 }
 
+// ── K/D/A: an average match, over the matches with all three ───────────────
+{
+  // The real match three times on Lotus, two of them with no assists on the
+  // line: one with the field gone, one with it null. Both count for K/D, which
+  // needs kills and deaths alone, and stay out of K/D/A, where averaging them
+  // in as no assists would print the real 4 as 1.
+  const gone = saved(watched, { map: 'Lotus' });
+  delete gone.review.scoreline.assists;
+  const empty = saved(watched, { map: 'Lotus' });
+  empty.review.scoreline.assists = null;
+  const lotus = breakdown.build('valorant', newestFirst([saved(watched, { map: 'Lotus' }), gone, empty])).rows.map[0];
+  ok(lotus.matches === 3 && lotus.stats.kd.n === 3 && lotus.stats.kd.value === 1.48,
+    `a match with no assists still counts for K/D (${JSON.stringify(lotus.stats.kd)})`);
+  ok(same(lotus.stats.kda, { value: 1.48, kills: 31, deaths: 21, assists: 4, n: 1 }),
+    `and stays out of K/D/A, whose n counts only the match with all three (${JSON.stringify(lotus.stats.kda)})`);
+
+  // Two different lines: 31/21/4 and 20/15/7 are 25.5, 18 and 5.5 a match,
+  // printed whole as 26/18/6, and the K/D it sorts on is every kill over
+  // every death, 51 over 36.
+  const other = saved(watched, { map: 'Sunset' });
+  other.review.scoreline = { ...other.review.scoreline, kills: 20, deaths: 15, assists: 7 };
+  const sunset = breakdown.build('valorant', newestFirst([saved(watched, { map: 'Sunset' }), other])).rows.map[0];
+  ok(same(sunset.stats.kda, { value: 1.42, kills: 26, deaths: 18, assists: 6, n: 2 }),
+    `K/D/A is an average match rounded whole, its K/D the totals' (${JSON.stringify(sunset.stats.kda)})`);
+  ok(sunset.stats.kda.value === sunset.stats.kd.value, 'and its K/D is the K/D column\'s over the same matches');
+}
+
 // ── Marvel Rivals ───────────────────────────────────────────────────────────
 {
   const rv = (hero, role, map, result, sl, score) => ({ id: `rivals-${T0 + (++seq) * HOUR}-r${seq}`, game: 'rivals', at: T0 + seq * HOUR,
@@ -446,9 +497,23 @@ const abyss = one.rows.map[0];
   ok(luna.sub === 'Strategist' && luna.stats.kd.value === 1.33 && luna.stats.duty.label === 'Healing'
     && luna.stats.duty.value === 16000 && luna.stats.accuracy.value === 42, 'a Strategist is read on healing and her own accuracy');
   ok(same(luna.record, { won: 1, lost: 1, drawn: 0, known: 2 }), 'VICTORY and DEFEAT read as a 1-1 record');
+  ok(same(luna.stats.kda, { value: 1.33, kills: 8, deaths: 6, assists: 19, n: 2 }),
+    `her K/D/A is an average match, 10/5/20 and 6/7/18 as 8/6/19 (${JSON.stringify(luna.stats.kda)})`);
   const tokyo = b.rows.map.find((r) => r.label === 'Tokyo 2099');
   ok(tokyo.matches === 2 && tokyo.stats.accuracy === null && tokyo.stats.duty === null,
     'a map row never averages accuracy or duty across heroes');
+  // Luna's 10/5/20 and Hela's 30/8/5 are 20, 6.5 and 12.5 a match, and 40
+  // kills over 13 deaths.
+  ok(same(tokyo.stats.kda, { value: 3.08, kills: 20, deaths: 7, assists: 13, n: 2 }),
+    `K/D/A is on a map row too, across its heroes, as K/D is (${JSON.stringify(tokyo.stats.kda)})`);
+  // A scoreboard read with no assists stays out of K/D/A, and in K/D.
+  const blind = JSON.parse(JSON.stringify(list.find((s) => s.review.game.hero === 'Luna Snow')));
+  blind.at = T0 + (++seq) * HOUR;
+  blind.id = `rivals-${blind.at}-r${seq}`;
+  blind.review.scoreline.assists = null;
+  const lunaThree = breakdown.build('rivals', newestFirst([...list, blind])).rows.hero.find((r) => r.label === 'Luna Snow');
+  ok(lunaThree.matches === 3 && lunaThree.stats.kd.n === 3 && same(lunaThree.stats.kda, luna.stats.kda),
+    `a Rivals line with no assists read counts for K/D and not K/D/A (${JSON.stringify(lunaThree.stats.kda)})`);
 }
 {
   // Deadpool is three roles. Two matches as a Strategist and one as a

@@ -77,9 +77,10 @@ function paintCats(cats) {
 function asItem(p, total) {
   return {
     title: p.title,
-    // How often across matches, then the latest sighting in its own words,
-    // labelled, so its round numbers are not read as belonging to every match.
-    detail: `In ${p.matches} of your last ${total} matches.`
+    // How often across the RECORDED matches (patterns.js), then the latest
+    // sighting in its own words, labelled, so its round numbers are not read
+    // as belonging to every match.
+    detail: `In ${p.matches} of your last ${total} recorded matches.`
       + (p.examples[0] && p.examples[0].detail ? ` Latest match: ${p.examples[0].detail}` : ''),
     fix: p.fix || null,
     judged: p.judged,
@@ -95,17 +96,23 @@ function paintPatterns(p) {
   paintCats(p.categories || []);
   const host = $('p-lists');
   host.replaceChildren();
+  // THE GRADES ARE OVER EVERY MATCH, THE PATTERNS OVER THE RECORDED ONES. A
+  // match graded from Riot's record alone has a grade and nothing to repeat,
+  // since Riot records what happened and never why (patterns.js).
   if (!p.enough) {
-    $('p-sub').textContent = p.matches
-      ? 'One match reviewed. After the next one, this shows what repeats.'
-      : 'Play two matches and this shows what keeps happening across them.';
+    $('p-sub').textContent = !p.matches ? 'Play two matches and this shows what keeps happening across them.'
+      : p.recorded ? 'One match recorded. After the next one, this shows what repeats.'
+        : "Your matches so far are graded from Riot's record, which says what happened and not why. "
+          + 'Record two and this shows what repeats.';
     return;
   }
-  $('p-sub').textContent = `Across your last ${p.matches} matches. A pattern needs two of them to count.`;
+  $('p-sub').textContent = p.fromRiot
+    ? `Grades across your last ${p.matches} matches, patterns across the last ${p.recorded} you recorded. A pattern needs two of them to count.`
+    : `Across your last ${p.matches} matches. A pattern needs two of them to count.`;
   const view = window.GradeView.insightLists({
-    mistakes: p.mistakes.map((x) => asItem(x, p.matches)),
-    strengths: p.strengths.map((x) => asItem(x, p.matches)),
-    missed: p.missed.map((x) => asItem(x, p.matches)),
+    mistakes: p.mistakes.map((x) => asItem(x, p.recorded)),
+    strengths: p.strengths.map((x) => asItem(x, p.recorded)),
+    missed: p.missed.map((x) => asItem(x, p.recorded)),
   }, {
     mistakesTitle: 'Your most serious repeated mistakes',
     strengthsTitle: 'What you keep doing well',
@@ -142,8 +149,20 @@ function paintPatterns(p) {
 const DOT = '  ·  ';
 const bstate = { dim: {}, queue: {}, sort: {}, open: null };
 let lastBreakdown = null;
+let bOpened = null;      // { id, row, holder } the row open now (toggleRow)
+/** --t-med in ms, read from theme.css so the timer and the reveal (ui.css) agree. */
+function revealMs() {
+  try {
+    const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--t-med'));
+    return Number.isFinite(v) ? v : 220;
+  } catch { return 220; }
+}
 
 const col = (key, title, kind, o = {}) => ({ key, title, kind, ...o });
+// K/D/A NEEDS ITS EIGHT CHARACTERS. "22/17/11" is 60px of Geist Mono, and at
+// the main window's narrowest (960 wide) the map cut's columns measured 58px,
+// where the assists were cut to an ellipsis. Its track never goes under this.
+const KDA_MIN = 64;
 const COLS = {
   valorant: {
     map: [
@@ -152,12 +171,12 @@ const COLS = {
       col('stats.attack', 'Attack', 'rate', { unit: 'attack rounds won', opt: true }),
       col('stats.defence', 'Defence', 'rate', { unit: 'defence rounds won', opt: true }),
       col('stats.firstDeath', 'First death', 'rate', { unit: 'rounds', opt: true }),
-      col('stats.kd', 'K/D', 'kd', { opt: true }),
+      col('stats.kda', 'K/D/A', 'kda', { opt: true, min: KDA_MIN }),
     ],
     agent: [
       col('label', 'Agent', 'label'), col('matches', 'Matches', 'int'), col('record', 'Record', 'record'),
       col('winRate', 'Win %', 'rate', { unit: 'matches won' }), col('grade', 'Grade', 'grade'),
-      col('stats.kd', 'K/D', 'kd', { opt: true }), col('stats.acs', 'ACS', 'avg', { opt: true }),
+      col('stats.kda', 'K/D/A', 'kda', { opt: true, min: KDA_MIN }), col('stats.acs', 'ACS', 'avg', { opt: true }),
       col('stats.firstKill', 'First kill', 'rate', { unit: 'rounds', opt: true }),
       col('stats.firstDeath', 'First death', 'rate', { unit: 'rounds', opt: true }),
     ],
@@ -166,12 +185,12 @@ const COLS = {
     map: [
       col('label', 'Map', 'label'), col('matches', 'Matches', 'int'), col('record', 'Record', 'record'),
       col('winRate', 'Win %', 'rate', { unit: 'matches won' }), col('grade', 'Grade', 'grade'),
-      col('stats.kd', 'K/D', 'kd', { opt: true }), col('stats.damage', 'Damage', 'avg', { opt: true }),
+      col('stats.kda', 'K/D/A', 'kda', { opt: true, min: KDA_MIN }), col('stats.damage', 'Damage', 'avg', { opt: true }),
     ],
     hero: [
       col('label', 'Hero', 'label'), col('matches', 'Matches', 'int'), col('record', 'Record', 'record'),
       col('winRate', 'Win %', 'rate', { unit: 'matches won' }), col('grade', 'Grade', 'grade'),
-      col('stats.kd', 'K/D', 'kd', { opt: true }), col('stats.damage', 'Damage', 'avg', { opt: true }),
+      col('stats.kda', 'K/D/A', 'kda', { opt: true, min: KDA_MIN }), col('stats.damage', 'Damage', 'avg', { opt: true }),
       col('stats.duty', 'Role duty', 'duty', { opt: true }), col('stats.accuracy', 'Accuracy', 'pctavg', { opt: true }),
     ],
   },
@@ -190,6 +209,17 @@ const matchesWord = (n, lol) => `${n} ${lol ? (n === 1 ? 'game' : 'games') : (n 
 const signed = (n) => (n > 0 ? `+${n}` : String(n));
 const recordText = (r) => `${r.won}-${r.lost}${r.drawn ? `-${r.drawn}` : ''}`;
 const rateText = (r) => (r.pct !== null ? `${r.pct}% (${r.count} of ${r.n})` : `${r.count} of ${r.n}`);
+const kdaText = (v) => `${v.kills}/${v.deaths}/${v.assists}`;
+
+/**
+ * "K/D/A 18/14/5" for a line of averages, or null. It is over only the
+ * matches whose line had assists, so where that is fewer than the line's own
+ * sample it says its own.
+ */
+function kdaLine(v, sample) {
+  if (!v || v.value === null || v.value === undefined) return null;
+  return `K/D/A ${kdaText(v)}` + (v.n < sample ? ` (${matchesWord(v.n, false)})` : '');
+}
 
 function none(td) { td.textContent = '--'; td.classList.add('none'); return td; }
 
@@ -237,6 +267,13 @@ function cell(c, row) {
       if (!v || v.value === null || v.value === undefined) return none(td);
       td.textContent = v.value.toFixed(2);
       td.title = v.kills !== undefined ? `${v.kills} kills, ${v.deaths} deaths, ${over(v.n)}` : over(v.n);
+      return td;
+    case 'kda':
+      // An average match, as a scoreboard prints it. The K/D it sorts on, and
+      // how many matches it is over, are on hover.
+      if (!v || v.value === null || v.value === undefined) return none(td);
+      td.textContent = kdaText(v);
+      td.title = `K/D ${v.value.toFixed(2)} ${over(v.n)}`;
       return td;
     case 'duty':
       if (!v || v.value === null || v.value === undefined) return none(td);
@@ -316,12 +353,14 @@ function detailLines(gameId, dim, row, dims) {
     if (s.firstKill && s.firstKill.n) out.push(['Openings', `First kill ${rateText(s.firstKill)}${DOT}First death ${rateText(s.firstDeath)}`]);
     if (s.traded && s.traded.n) out.push(['Trades', `${s.traded.count} of ${s.traded.n} deaths traded by a teammate${s.traded.pct !== null ? ` (${s.traded.pct}%)` : ''}`]);
     if (s.survived && s.survived.n) out.push(['Survival', `Alive at the end of ${s.survived.count} of ${s.survived.n} rounds${s.survived.pct !== null ? ` (${s.survived.pct}%)` : ''}`]);
+    const sample = Math.max((s.kd && s.kd.n) || 0, (s.acs && s.acs.n) || 0);
     const board = [s.acs && s.acs.value !== null ? `ACS ${s.acs.value}` : null, s.adr && s.adr.value !== null ? `ADR ${s.adr.value}` : null,
-      s.kd && s.kd.value !== null ? `K/D ${s.kd.value.toFixed(2)}` : null, s.hs && s.hs.value !== null ? `Headshot ${s.hs.value}%` : null].filter(Boolean);
-    if (board.length) out.push(['Scoreboard', board.join(DOT) + DOT + matchesWord(Math.max((s.kd && s.kd.n) || 0, (s.acs && s.acs.n) || 0), false)]);
+      kdaLine(s.kda, sample), s.kd && s.kd.value !== null ? `K/D ${s.kd.value.toFixed(2)}` : null,
+      s.hs && s.hs.value !== null ? `Headshot ${s.hs.value}%` : null].filter(Boolean);
+    if (board.length) out.push(['Scoreboard', board.join(DOT) + DOT + matchesWord(sample, false)]);
   }
   if (gameId === 'rivals') {
-    const line = [s.kd && s.kd.value !== null ? `K/D ${s.kd.value.toFixed(2)}` : null,
+    const line = [kdaLine(s.kda, row.matches), s.kd && s.kd.value !== null ? `K/D ${s.kd.value.toFixed(2)}` : null,
       s.damage && s.damage.value !== null ? `Damage ${s.damage.value.toLocaleString('en-US')}` : null,
       s.duty ? `${s.duty.label} ${s.duty.value.toLocaleString('en-US')}` : null,
       s.accuracy && s.accuracy.value !== null ? `Accuracy ${s.accuracy.value}%` : null].filter(Boolean);
@@ -345,8 +384,10 @@ function detailLines(gameId, dim, row, dims) {
       out.push(['Where you die', row.spots.top.map((t) => `${t.spot} ${t.deaths}`).join(DOT) + `${DOT}of ${row.spots.placed} placed`]);
     }
   }
-  if (row.mistake) out.push(['Repeated here', `${row.mistake.title}, in ${row.mistake.matches} of ${row.mistake.of} matches.`, row.mistake.fix]);
-  if (row.strength) out.push(['Goes well', `${row.strength.title}, in ${row.strength.matches} of ${row.strength.of} matches.`]);
+  // Out of the row's recorded matches: one graded from Riot's record alone
+  // repeats nothing (breakdown.js repeated()).
+  if (row.mistake) out.push(['Repeated here', `${row.mistake.title}, in ${row.mistake.matches} of ${row.mistake.of} recorded matches.`, row.mistake.fix]);
+  if (row.strength) out.push(['Goes well', `${row.strength.title}, in ${row.strength.matches} of ${row.strength.of} recorded matches.`]);
   if (row.vsRest) {
     const text = vsText(row.vsRest, dim);
     if (text) out.push([`Against your other ${d.many}`, text]);
@@ -356,14 +397,17 @@ function detailLines(gameId, dim, row, dims) {
 
 function detail(b, dim, row) {
   // A row of its own with one cell across every column, so the table stays a
-  // table to a screen reader: a region between two rows is not one.
-  const holder = el('div', 'b-detail-row');
+  // table to a screen reader: a region between two rows is not one. The row
+  // opens by height (.reveal, ui.css), its cell the clip and the box in it.
+  const holder = el('div', 'b-detail-row reveal');
   holder.setAttribute('role', 'row');
+  const cellEl = el('div', 'b-detail-cell reveal-clip');
+  cellEl.setAttribute('role', 'cell');
+  cellEl.setAttribute('aria-colspan', String(((COLS[b.game] || {})[dim] || []).length || 1));
+  cellEl.setAttribute('aria-label', `${row.label} in detail`);
   const box = el('div', 'b-detail');
-  box.setAttribute('role', 'cell');
-  box.setAttribute('aria-colspan', String(((COLS[b.game] || {})[dim] || []).length || 1));
-  box.setAttribute('aria-label', `${row.label} in detail`);
-  holder.append(box);
+  cellEl.append(box);
+  holder.append(cellEl);
   for (const [label, text, fix] of detailLines(b.game, dim, row, b.dims)) {
     box.append(el('div', 'b-dt', label));
     const dd = el('p', 'b-dd', text);
@@ -427,6 +471,8 @@ function emptyLine(b, dim) {
  * found again by its data-focus key and given it back. Without this, Enter on
  * a row opened it and dropped focus to the top of the page, so a keyboard
  * player could open one row and then had to tab back down to reach the next.
+ * A row opens in place since 8.2 (toggleRow) and repaints nothing; a sort, a
+ * cut or a queue still does.
  */
 function paintBreakdown(b) {
   const host = $('breakdown');
@@ -513,7 +559,7 @@ function drawBreakdown(b) {
   if (!rows.length) return;
 
   const cols = (COLS[b.game] || {})[dim] || [];
-  const track = (c, narrow) => (c.kind === 'label' ? `minmax(${narrow ? 96 : 112}px, 1.6fr)` : 'minmax(46px, 1fr)');
+  const track = (c, narrow) => (c.kind === 'label' ? `minmax(${narrow ? 96 : 112}px, 1.6fr)` : `minmax(${c.min || 46}px, 1fr)`);
   table.style.setProperty('--cols', cols.map((c) => track(c, false)).join(' '));
   table.style.setProperty('--cols-narrow', cols.filter((c) => !c.opt).map((c) => track(c, true)).join(' '));
   const sortKey = `${b.game}:${dim}`;
@@ -540,6 +586,7 @@ function drawBreakdown(b) {
 
   const sc = cols.find((c) => c.key === s.key) || cols[1];
   const sorted = rows.slice().sort((x, y) => compareRows(sc, s.dir, x, y));
+  bOpened = null;
   for (const row of sorted) {
     const id = `${sortKey}:${row.key}`;
     const open = bstate.open === id;
@@ -549,14 +596,48 @@ function drawBreakdown(b) {
     r.setAttribute('tabindex', '0');
     r.setAttribute('aria-expanded', String(open));
     for (const c of cols) r.append(cell(c, row));
-    const toggle = () => { bstate.open = open ? null : id; paintBreakdown(lastBreakdown); };
+    const toggle = () => toggleRow(r, id, () => detail(b, dim, row));
     r.addEventListener('click', toggle);
     r.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
     });
     table.append(r);
-    if (open) table.append(detail(b, dim, row));
+    // Drawn open, as it was before this repaint: no motion.
+    if (open) {
+      const holder = detail(b, dim, row);
+      holder.classList.add('open');
+      table.append(holder);
+      bOpened = { id, row: r, holder };
+    }
   }
+}
+
+/*
+ * A ROW OPENS IN PLACE (8.2). Opening one used to repaint the whole section,
+ * so the table was built again and the detail just appeared. Now the detail
+ * row is put after its row and grows from nothing to its height (.reveal,
+ * ui.css), the one open before closes the same way and is taken out once
+ * closed, and the rows, and the keyboard's place on them, stay as they are.
+ */
+function collapseRow(open) {
+  open.row.setAttribute('aria-expanded', 'false');
+  const h = open.holder;
+  h.classList.remove('open');
+  clearTimeout(h.closing);
+  h.closing = setTimeout(() => h.remove(), revealMs());
+}
+function toggleRow(r, id, make) {
+  const was = bOpened;
+  if (was) collapseRow(was);
+  bOpened = null;
+  if (was && was.id === id) { bstate.open = null; return; }
+  bstate.open = id;
+  r.setAttribute('aria-expanded', 'true');
+  const holder = make();
+  r.after(holder);
+  void holder.offsetHeight;   // at 0fr first, or there is nothing to grow from
+  holder.classList.add('open');
+  bOpened = { id, row: r, holder };
 }
 
 async function loadBreakdown() {
@@ -601,10 +682,22 @@ $('bf-go').addEventListener('click', async () => {
   paintBf();
 });
 
-function row(m) {
+/**
+ * One match: a card holding two buttons side by side, the row, which opens its
+ * review, and the eye, which opens the AI log on its frames where main says it
+ * is still kept (shared/log-eye.js). Siblings, never one inside the other,
+ * which is what the "Ask" this row used to carry was: clicked, it was the
+ * row's click too, and a screen reader read it into the row's name. Asking
+ * the coach about a match is on its review page.
+ *
+ * @param gutter  the list has eyes, so a row without one keeps its room and
+ *   the grades still line up down the list
+ */
+function row(m, gutter) {
+  const item = el('div', 'm-item');
+  item.setAttribute('role', 'listitem');
   const b = el('button', 'm-row');
   b.type = 'button';
-  b.setAttribute('role', 'listitem');
   const main = el('div', 'm-main');
   const top = el('div', 'm-top');
   top.append(el('span', 'm-title', m.title || 'Unknown'));
@@ -618,20 +711,43 @@ function row(m) {
     .filter(Boolean).join('  ·  ')));
   if (m.topMistake) main.append(el('div', 'm-top-mistake', `Top mistake: ${m.topMistake}`));
 
-  const side = el('div', 'm-side');
-  const ask = el('span', 'btn btn-ghost m-ask', 'Ask');
-  ask.title = 'Ask Coach about this match';
-  ask.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.askAbout(m.id); });
-  side.append(ask);
   const grade = el('div', 'm-grade');
   const g = m.grade;
   grade.append(el('span', 'm-score', g ? g.score : '--'));
   grade.append(el('span', 'm-letter ' + (g ? gradeTone(g) : 'none'), g ? g.letter : '?'));
   if (g && g.provisional) grade.title = 'Provisional: some of the record was missing';
-  side.append(grade);
-  b.append(main, side);
+  b.append(main, grade);
   b.addEventListener('click', () => window.occlara.openReview(m.id));
-  return b;
+  item.append(b);
+  const eye = window.LogEye.button(m.aiLog, () => window.occlara.openAiLog(m.id));
+  if (eye) item.append(eye);
+  else if (gutter) {
+    const gap = el('span', 'm-eye-gap');
+    gap.setAttribute('aria-hidden', 'true');
+    item.append(gap);
+  }
+  return item;
+}
+
+/**
+ * WON AND LOST BESIDE THE TITLE, "2:1", on the list page alone: the Patterns
+ * and Breakdown pages are titled for what they count, and a record above
+ * them would read as theirs. The preload counts it (home-model.js winLoss)
+ * by the result tests row() colours by. Hidden when no match has a result,
+ * as no League review does, rather than reading 0:0 as a record.
+ */
+function paintWinLoss(rows) {
+  const box = $('wl');
+  const wl = document.documentElement.dataset.section === 'list' ? window.occlara.winLoss(rows) : null;
+  box.hidden = !wl || wl.wins + wl.losses + wl.draws === 0;
+  if (box.hidden) return;
+  const say = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const record = `${say(wl.wins, 'win', 'wins')}, ${say(wl.losses, 'loss', 'losses')}`;
+  box.querySelector('.wl-w').textContent = String(wl.wins);
+  box.querySelector('.wl-l').textContent = String(wl.losses);
+  box.querySelector('.wl-sr').textContent = record;
+  box.title = `${record}${wl.draws ? `, ${say(wl.draws, 'draw', 'draws')}` : ''}.`
+    + (wl.unknown ? ` ${say(wl.unknown, 'match', 'matches')} with no result ${wl.unknown === 1 ? 'is' : 'are'} not counted.` : '');
 }
 
 async function load() {
@@ -643,12 +759,14 @@ async function load() {
   const rows = Array.isArray(list) ? list : [];
   const host = $('list');
   host.replaceChildren();
+  const eyes = rows.some((m) => m.aiLog === 'kept' || m.aiLog === 'gone');
   rows.forEach((m, i) => {
-    const r = row(m);
+    const r = row(m, eyes);
     r.style.animationDelay = Math.min(i * 40, 360) + 'ms';
     host.append(r);
   });
   $('empty').hidden = rows.length > 0;
+  paintWinLoss(rows);
   paintPatterns(patterns || { matches: 0, enough: false, grades: [], categories: [], average: null });
   paintBf();
   await loadBreakdown();

@@ -60,9 +60,9 @@ function registerIpc(deps) {
   safeHandle(C.LEARN_PROGRESS, async (_e, p) => controller.setLearnProgress(p));
   safeHandle(C.LEARN_PROFILE, async (_e, p) => controller.setLearnProfile(p));
   safeHandle(C.LOL_REVIEW_GET, async () => controller.getLolReview());
-  safeHandle(C.AILOG_GET, async (_e, id) => controller.getAiLog(id));
+  safeHandle(C.AILOG_GET, async (_e, id, scope) => controller.getAiLog(id, scope));
   safeHandle(C.AILOG_SESSIONS, async () => controller.getAiLogSessions());
-  safeHandle(C.AILOG_CONFIRM, async (_e, id) => controller.confirmAiLogDeaths(id));
+  safeHandle(C.AILOG_CONFIRM, async (_e, id, scope) => controller.confirmAiLogDeaths(id, scope));
   safeHandle(C.AILOG_ASK, async (_e, payload) => controller.askAboutFrame(payload));
   safeHandle(C.APP_VERSION, async () => updater.getStatus());
   safeHandle(C.APP_UPDATE_CHECK, async () => updater.checkNow());
@@ -75,6 +75,8 @@ function registerIpc(deps) {
   // The one window (8.1): a page by its id, and the top strip's buttons.
   ipcMain.on(C.SHELL_NAV,      (_e, page) => guard('nav', () => controller.showPage(String(page || ''))));
   ipcMain.on(C.SHELL_WINDOW,   (_e, action) => guard('window', () => controller.windowAction(String(action || ''))));
+  // A page painted itself armed (8.2), checked against the view that sent it.
+  ipcMain.on(C.PAGE_READY,     (e, page) => guard('pageReady', () => controller.pageReady(String(page || ''), e.sender)));
   ipcMain.on(C.OPEN_SETTINGS,  () => guard('settings', () => controller.openSettings()));
   ipcMain.on(C.OPEN_HISTORY,   () => guard('history',  () => controller.openHistory()));
   ipcMain.on(C.OPEN_CHAT,      () => guard('chat',     () => controller.openChat()));
@@ -85,6 +87,7 @@ function registerIpc(deps) {
   ipcMain.on(C.OPEN_AILOG,     (_e, sessionId) => guard('ailog', () => controller.openAiLog(sessionId)));
   ipcMain.on(C.OPEN_CHAT_SEEDED, (_e, seed) => guard('chatSeeded', () => controller.openChatSeeded(seed)));
   ipcMain.on(C.REVIEW_OPEN,    (_e, id) => guard('reviewOpen', () => controller.openReviewById(id)));
+  ipcMain.on(C.REVIEW_AILOG,   (_e, id, at) => guard('reviewAiLog', () => controller.openReviewAiLog(id, at)));
   ipcMain.on(C.OPEN_PURCHASE,  () => guard('purchase', () => shell.openExternal(PURCHASE_URL)));
   ipcMain.on(C.LICENSE_LOGOUT, () => guard('logout',   () => controller.logout()));
   ipcMain.on(C.ONBOARDING_DONE,() => guard('onboarding', () => controller.finishOnboarding()));

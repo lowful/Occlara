@@ -29,7 +29,7 @@
  * GENTLE ON THE ONE KEY. Every player shares one HenrikDev key, so requests
  * are three seconds apart, a failure that will pass is retried twice, and
  * three matches in a row that Riot did not answer end the run. It waits while
- * a match is being played: the reader's two reads in flight need the
+ * a match is being played: the reader's reads in flight (up to four) need the
  * bandwidth more than a match from last week does, and nothing new reaches a
  * window mid match.
  *

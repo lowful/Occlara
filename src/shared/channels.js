@@ -37,10 +37,10 @@ const CHANNELS = {
   LEARN_PROFILE:    'learn:profile',
   // () the last League review, so the window can paint if it opens late
   LOL_REVIEW_GET:   'lol:review',
-  AILOG_GET:        'ailog:get',         // (sessionId?) → one AI decision-log session, newest by default { session, sessions, records: [{frameData, state, aiTip, shown}] }
+  AILOG_GET:        'ailog:get',         // (sessionId?, scope?) → one AI decision-log session, newest by default { session, sessions, records: [{frameData, state, aiTip, shown}] }; with a scope, that one match's frames or { gone: true }, as is a session no longer kept
   AILOG_SESSIONS:   'ailog:sessions',    // () → [{ id, at, frames, deaths, maps, mins, live }] metadata only, no frames
-  AILOG_CONFIRM:    'ailog:confirm',     // (sessionId) → { status, detected, expected, summary, pairs } check the log's deaths against Riot
-  AILOG_ASK:        'ailog:ask',         // ({ session, index, question, history }) → { reply } ask the coach about one logged frame
+  AILOG_CONFIRM:    'ailog:confirm',     // (sessionId, scope?) → { status, detected, expected, summary, pairs } check the log's deaths against Riot
+  AILOG_ASK:        'ailog:ask',         // ({ session, scope?, index, question, history }) → { reply } ask the coach about one logged frame
   APP_VERSION:      'app:version',       // () → { current, state, version } running version + update status
   APP_UPDATE_CHECK: 'app:updateCheck',   // () → same shape, after forcing a fresh feed check
 
@@ -58,9 +58,14 @@ const CHANNELS = {
   OPEN_LEARN:      'window:openLearn',   // the League learning surface
   OPEN_REVIEW:     'window:openReview',  // the last post-match review, any game
   // The match library: every saved review, for every game.
-  REVIEWS_LIST:    'reviews:list',       // (game?) -> [{ id, at, game, title, result, score, grade }]
+  REVIEWS_LIST:    'reviews:list',       // (game?) -> [{ id, at, game, title, result, score, grade, aiLog: 'kept' | 'gone' | null }]
   REVIEW_GET:      'reviews:get',        // (id) -> the saved review
   REVIEW_OPEN:     'reviews:open',       // (id) open the review window on one saved review
+  // The eye on a library row and on the review page (8.2): the AI log, opened
+  // on that review's match. The page names the review and nothing else; main
+  // finds the session and the frames from it. The eye on one death the coach
+  // looked at adds when its frame was captured, to open the log at it.
+  REVIEW_AILOG:    'reviews:ailog',      // (id, at?) open the AI log on one saved review's match, at the frame captured at `at`
   PATTERNS_GET:    'reviews:patterns',   // (game) -> repeated mistakes, strengths, misses, grade trend
   // The breakdown in Matches: by map and agent (hero, champion), counted from
   // the saved reviews of one game (src/shared/breakdown.js).
@@ -69,13 +74,16 @@ const CHANNELS = {
   // (src/main/services/backfill.js).
   BACKFILL_START:  'backfill:start',     // () -> the run's status
   BACKFILL_STATUS: 'backfill:status',    // () -> the run's status
-  AILOG_SHOW:      'ailog:show',         // (sessionId) jump an OPEN log window to one session
+  AILOG_SHOW:      'ailog:show',         // (sessionId | { scope, at? }) jump an OPEN log window to one session, or to one match of one, at one frame of it
   // The one window (8.1, src/main/windows/main-window.js): the sidebar asks
   // for a page by its id in src/shared/shell-nav.js, and the top strip's
   // buttons move the window.
   SHELL_NAV:       'shell:nav',          // (pageId) show that page
   SHELL_WINDOW:    'shell:window',       // ('minimize' | 'maximize' | 'close')
   SHELL_GET:       'shell:get',          // () -> { page, shown, sealed, maximized }
+  // A page has painted itself armed (8.2): main-window.js may now hide the
+  // page on screen and let this one in (PUSH_PAGE).
+  PAGE_READY:      'page:ready',         // (pageId) from that page's own view only
   OPEN_CHAT_SEEDED:'window:openChatSeeded', // (sessionSeed) open Ask Coach preloaded with a session's context
   OPEN_PURCHASE:   'window:openPurchase',
   LICENSE_LOGOUT:  'license:logout',      // clear license + return to activation screen
@@ -114,6 +122,10 @@ const CHANNELS = {
   PUSH_VALORANT_REVIEW: 'push:valorantReview',
   // The main window's page and seal, to the shell: { page, shown, sealed, maximized }.
   PUSH_SHELL:        'push:shell',
+  // Moving between pages (8.2, src/shared/shell-nav.js createMotion), to one
+  // page: { phase: 'arm', dir } paint yourself invisible and say PAGE_READY,
+  // { phase: 'enter', dir } come in, { phase: 'leave' } another page is coming.
+  PUSH_PAGE:         'push:page',
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -129,6 +141,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_RIVALS_REVIEW,
   CHANNELS.PUSH_VALORANT_REVIEW,
   CHANNELS.PUSH_SHELL,
+  CHANNELS.PUSH_PAGE,
 ];
 
 module.exports = CHANNELS;

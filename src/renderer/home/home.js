@@ -89,7 +89,32 @@ function paintRecent(recent) {
   }
 }
 
-async function load() {
+/*
+ * THE CARDS ARRIVE ONE AFTER ANOTHER (8.2), the first time Home is painted and
+ * on a change of game, never when a review saved in the meantime repaints it.
+ * Run once the page is on screen (embed.js), or they would play out while it
+ * is still out of sight, waiting to come in.
+ */
+function arrive() {
+  const run = () => {
+    const cards = [...document.querySelectorAll('.home .card')].filter((c) => !c.hidden && !c.closest('[hidden]'));
+    for (const c of cards) c.classList.remove('card-in');
+    void document.body.offsetWidth;   // taken off and put back, so it plays again
+    cards.forEach((c, i) => {
+      c.style.setProperty('--i', String(i));
+      c.classList.add('card-in');
+    });
+  };
+  if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(run); else run();
+}
+
+/** @param opts.arrive  the cards come in one after another once painted */
+async function load(opts) {
+  await paint();
+  if (opts && opts.arrive) arrive();
+}
+
+async function paint() {
   const [model, cfg] = await Promise.all([
     window.occlara.getHome(game).catch(() => null),
     window.occlara.getConfig().catch(() => null),
@@ -131,10 +156,11 @@ $('empty-settings').addEventListener('click', () => window.occlara.go('settings'
 (async () => {
   const state = await window.occlara.getState().catch(() => null);
   game = (state && state.gameId) || 'valorant';
-  await load();
+  await load({ arrive: true });
   // A review saved or improved (Riot's record landing after the match, a match
-  // graded from it) repaints Home, and so does a change of game.
+  // graded from it) repaints Home, and so does a change of game, whose cards
+  // arrive again.
   window.occlara.onReviews(() => load());
-  window.occlara.onGame((g) => { if (g && g.id) { game = g.id; load(); } });
+  window.occlara.onGame((g) => { if (g && g.id) { game = g.id; load({ arrive: true }); } });
   console.log('[home] ready');
 })();

@@ -16,6 +16,9 @@
        anything about a match being played. -->
   <div class="app">
     <aside class="side" aria-label="Occlara">
+      <!-- The current page's marker, one for the whole sidebar, moved to the
+           current item by shell.js placeMarker() so it slides between pages. -->
+      <span id="nav-marker" class="nav-marker" aria-hidden="true"></span>
       <div class="brand drag">
         <img class="mark" src="../../../assets/logo-mark.svg" alt="" width="22" height="22" />
         <span class="name">Occlara</span>
@@ -114,6 +117,7 @@
 
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/sfx.js"></script>
+  <script src="../shared/game-marks.js"></script>
   <script src="shell.js"></script>
 </body>
 </html>

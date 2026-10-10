@@ -25,9 +25,6 @@
         <button id="ailog" class="icon-btn no-drag" title="AI log: what the coach saw and said" aria-label="AI log">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
-        <button id="askcoach" class="icon-btn no-drag" title="Ask Coach" aria-label="Ask Coach">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </button>
         <button id="close" class="icon-btn no-drag" title="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
       </div>
     </header>
@@ -45,7 +42,10 @@
       <section id="sec-overview">
         <h3>Overview</h3>
         <div class="cards" id="cards"></div>
-        <div id="rank-notes" class="rank-notes" hidden></div>
+        <!-- The rank tile's notes open under it by height (.reveal, ui.css). -->
+        <div id="rank-reveal" class="reveal" hidden>
+          <div class="reveal-clip"><div id="rank-notes" class="rank-notes"></div></div>
+        </div>
       </section>
 
       <section id="sec-agents">

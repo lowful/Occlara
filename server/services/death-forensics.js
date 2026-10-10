@@ -26,6 +26,19 @@
  * map's callouts, no ability the player's agent does not have, and no killer
  * other than the one Riot names. A sentence that fails is dropped, never
  * repaired, and a death whose sentences all fail keeps only its label.
+ *
+ * FROM THE SCREEN ALONE (8.2), `source: 'screen'`. A review Riot's record never
+ * reached sends the deaths the screen saw, framed by the frame the screen
+ * registered each one on and the one before it. Then the facts are the
+ * screen's, the round, the side, where it placed the death, a plant, and the
+ * prompt says they were read off the screen and may be incomplete, never that
+ * they are Riot's and exact. Riot's facts arriving beside that source are
+ * dropped rather than stated as the screen's. The screen never knows who
+ * killed the player, so no killer may be named at all: the killer gate drops
+ * every sentence that names an agent as one, and in any language but English,
+ * where its kill words cannot tell, every sentence naming an agent other than
+ * the player's own. A body with no source is Riot's, which is every client
+ * from before 8.2, and one with no language is English.
  */
 
 const { promptName } = require('./languages');
@@ -52,6 +65,9 @@ const AVOIDABLE = new Set(['dry-peek', 'isolated', 'repeek', 'crossfire', 'rotat
 
 const clip = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
 const lower = (s) => String(s || '').toLowerCase();
+// Whether the sentences are asked for in another language than English, the
+// one test the prompt and the killer gate both read, so they cannot drift.
+const otherLanguage = (input) => !!(input && input.language && input.language !== 'en');
 
 function calloutsOf(map) {
   const geo = (DATA.mapGeometry || {})[lower(map)];
@@ -102,14 +118,53 @@ function foreignAbility(text, agent) {
   return null;
 }
 
-/** A sentence naming an agent as the killer who is not the one Riot recorded. */
-function wrongKiller(text, killer) {
-  if (!killer) return null;
+// A sentence about who won the fight. With Riot's killer on record, naming
+// any other agent in one is the claim the gate drops.
+const KILL_WORDS = /\b(kill|killed|shot|dropped|died to|traded|won the duel|lost the duel|beat you)\b/i;
+// From the screen alone there is no killer on record at all, so every way of
+// saying who did it is a claim, the killer and the one who took you out
+// included.
+const SCREEN_KILL_WORDS = /\b(kill|kills|killed|killer|killing|shot|dropped|died to|fell to|traded|won the duel|lost the duel|beat you|took you out|picked you off|eliminated)\b/i;
+
+/**
+ * A sentence naming an agent as the killer who is not the one Riot recorded.
+ * From the screen alone (`source` 'screen'), a sentence naming any agent as
+ * the killer, since the screen never records one.
+ *
+ * THE KILL WORDS ARE ENGLISH, and a look is written in the player's language
+ * (buildPrompt): "Una Sova te mato" and "Der Sova hat dich erschossen"
+ * matched none of them and kept a killer the screen never saw. A list of how
+ * nine languages say it would have holes, so from the screen, in any language
+ * but English, a sentence naming any agent other than the player's own is
+ * taken as naming the killer. `opts` is the request, for its language and the
+ * player's agent. A teammate's smoke goes with it, which is the safe
+ * direction: a sentence is lost, never a killer made up. In English the words
+ * decide, so "Your Omen smoke faded" still stands.
+ */
+function wrongKiller(text, killer, source, opts) {
+  const screen = source === 'screen';
+  if (!killer && !screen) return null;
   const t = String(text || '');
-  if (!/\b(kill|killed|shot|dropped|died to|traded|won the duel|lost the duel|beat you)\b/i.test(t)) return null;
+  const said = (screen ? SCREEN_KILL_WORDS : KILL_WORDS).test(t);
+  // Outside English with no kill word read, the one agent a sentence may
+  // still name is the player's own. Null when the words decide.
+  const own = screen && !said && otherLanguage(opts) ? lower(opts.agent) : null;
+  if (!said && own === null) return null;
   for (const a of AGENTS) {
-    if (lower(a) === lower(killer)) continue;
-    if (new RegExp(`\\b${a.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}\\b`, 'i').test(t)) return a;
+    if (!screen && lower(a) === lower(killer)) continue;
+    if (own !== null && lower(a) === own) continue;
+    const name = a.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+    // With a kill word read, the name in any case is the claim. Without one
+    // (outside English) the name alone decides, so it has to be the name as
+    // the game prints it, capital and all: "plus sage" is French for wiser,
+    // and dropping it took the better play with it. It may carry a case
+    // ending, as Polish "Jetta" and German "Jetts" do. Its edges are cased
+    // letters only: Japanese and Korean write the name straight against a
+    // particle ("Sovaに", "Sova에게"), and kana, kanji and hangul are letters.
+    const re = said
+      ? new RegExp(`\\b${name}\\b`, 'i')
+      : new RegExp(`(^|[^\\p{LC}\\p{N}])${name}\\p{Ll}{0,3}(?![\\p{LC}\\p{N}])`, 'u');
+    if (re.test(t)) return a;
   }
   return null;
 }
@@ -118,6 +173,8 @@ function wrongKiller(text, killer) {
 function buildPrompt(input, death) {
   const callouts = calloutsOf(input.map);
   const kit = kitOf(input.agent);
+  // Read off the screen, and framed by when the screen read the death (8.2).
+  const screen = input.source === 'screen';
   const facts = [];
   facts.push(`Round ${death.n}, ${death.side === 'attacking' ? 'on attack' : death.side === 'defending' ? 'on defence' : 'side unknown'}.`);
   if (typeof death.sec === 'number') facts.push(`Died ${death.sec} seconds after the barriers dropped.`);
@@ -126,20 +183,41 @@ function buildPrompt(input, death) {
   if (death.alive) facts.push(`Standing when it happened: ${death.alive.mates} of their team, player included, against ${death.alive.enemies}.`);
   if (death.traded === true) facts.push('A teammate killed the killer within five seconds (the death was traded).');
   if (death.traded === false) facts.push('Nobody on the team killed the killer within five seconds (not traded).');
-  if (death.planted) facts.push(death.afterPlant ? 'The spike was already planted.' : 'The spike was planted later in the round.');
+  // The screen sees a plant and not when the death came against it, so a look
+  // from the screen alone says only that there was one.
+  if (death.planted) {
+    facts.push(screen ? 'The screen saw the spike planted in this round.'
+      : death.afterPlant ? 'The spike was already planted.' : 'The spike was planted later in the round.');
+  }
   if (death.spot) facts.push(`The screen placed the death at ${death.spot}.`);
   if (typeof death.gap === 'number') {
     facts.push(death.gap <= 1 ? 'The first frame was taken in the second the player died.'
       : `The first frame was taken about ${death.gap} seconds before the player died.`);
   }
 
-  const frames = death.frames.length > 1
-    ? 'Two frames from the player\'s own screen: the FIRST is the last one before the death, the SECOND is just after it.'
-    : 'One frame from the player\'s own screen, the last one before the death.';
+  const frames = screen
+    ? (death.frames.length > 1
+      ? 'Two frames from the player\'s own screen: the FIRST is the last one before the screen read the player as dead, the SECOND is the first one where it did.'
+      : 'One frame from the player\'s own screen, the last one before the screen read the player as dead.')
+    : death.frames.length > 1
+      ? 'Two frames from the player\'s own screen: the FIRST is the last one before the death, the SECOND is just after it.'
+      : 'One frame from the player\'s own screen, the last one before the death.';
+  const header = screen
+    ? "FACTS READ OFF THE SCREEN during the match. Riot's record of it was not available, so they may be incomplete:"
+    : "FACTS FROM RIOT'S RECORD, exact, do not contradict them:";
+  const killerRule = screen
+    ? 'Name no killer: the screen does not record who killed the player, so never say which agent did.'
+    : 'Name no killer other than the one in the facts.';
+  // The spectator trap: the instant a player dies, the HUD becomes a
+  // teammate's, alive and fighting, and the screen can take a few seconds to
+  // read the death. So the frame before it may already be that teammate's.
+  const late = screen
+    ? '- The screen can read a death a few seconds late, and once the player is dead Valorant shows a teammate\'s view. If the first frame already shows the player dead or watching a teammate, the cause is unclear.\n'
+    : '';
 
   return `You are reviewing one death of a Valorant player after the match, as their coach. ${frames}
 
-FACTS FROM RIOT'S RECORD, exact, do not contradict them:
+${header}
 ${facts.join('\n')}
 
 Player's agent: ${input.agent || 'unknown'}. Their abilities: ${kit.length ? kit.join(', ') : 'unknown, so name no abilities'}.
@@ -151,14 +229,14 @@ ${Object.entries(CAUSES).map(([k, v]) => `${k}: ${v}`).join('\n')}
 Rules:
 - Describe only what is visible in the frame and stated in the facts. If the frame does not show the moment (a menu, a death screen only, a blur), the cause is unclear.
 - If the first frame shows no enemy and no fight, and was taken several seconds before the death, you cannot see what happened next: the cause is unclear unless the position itself is the mistake (alone far from every teammate on the minimap, standing in the open on the spike).
-- Where the player is: read the location name printed above the minimap in the top left. Do not guess a place from the scenery.
+${late}- Where the player is: read the location name printed above the minimap in the top left. Do not guess a place from the scenery.
 - Ignore any text boxes or cards drawn over the game by other apps. Judge from the game itself.
 - Weapons and health are in the bottom HUD. Do not call a pistol a knife or an Operator a rifle.
 - A fair fight from a sound position is lost-duel. Do not invent a positioning error to have something to say.
-- Speak to the player as "you". Name no ability they do not have and no callout that is not in the list. Name no killer other than the one in the facts.
+- Speak to the player as "you". Name no ability they do not have and no callout that is not in the list. ${killerRule}
 - No dashes. Plain sentences, each ending with a period.
 
-${input.language && input.language !== 'en' ? `Write "what" and "better" in ${promptName(input.language)}. Keep "cause" as the English label from the list, and keep callouts and agent names exactly as the game prints them.\n\n` : ''}Reply with JSON only, no other text:
+${otherLanguage(input) ? `Write "what" and "better" in ${promptName(input.language)}. Keep "cause" as the English label from the list, and keep callouts and agent names exactly as the game prints them.\n\n` : ''}Reply with JSON only, no other text:
 {"cause": "<one label from the list>", "what": "<one sentence, what happened>", "better": "<one sentence, the play that keeps you alive>"}`;
 }
 
@@ -176,7 +254,7 @@ function parse(text, input, death) {
     let s = clip(j[field], 240).replace(/[\u2013\u2014]/g, ',').replace(/\s+-\s+/g, ', ');
     if (!s) continue;
     if (!/[.!?]$/.test(s)) s += '.';
-    const bad = wrongMap(s, input.map) || foreignAbility(s, input.agent) || wrongKiller(s, death.killer);
+    const bad = wrongMap(s, input.map) || foreignAbility(s, input.agent) || wrongKiller(s, death.killer, input.source, input);
     if (bad) { out.dropped.push({ field, why: bad }); continue; }
     out[field] = s;
   }
@@ -191,28 +269,39 @@ function parse(text, input, death) {
   return out;
 }
 
-/** The request body, checked: at most four deaths, at most two frames each. */
+/**
+ * The request body, checked: at most four deaths, at most two frames each.
+ *
+ * `source` is 'screen' only when the client says so (8.2), and 'riot'
+ * otherwise, which is what every client before 8.2 sent its deaths as. From
+ * the screen a death keeps what the screen can read, its round, its side,
+ * its spot and a plant, and nothing only Riot records: no second, killer,
+ * weapon, first death, trade, numbers standing or timing against the plant.
+ */
 function normalise(body) {
   const b = body || {};
+  const screen = b.source === 'screen';
+  const riot = (v) => (screen ? null : v);
   const deaths = (Array.isArray(b.deaths) ? b.deaths : []).slice(0, 12).map((d) => ({
     n: Number(d && d.n) || 0,
     side: d && d.side === 'attacking' ? 'attacking' : d && d.side === 'defending' ? 'defending' : null,
-    sec: typeof (d && d.sec) === 'number' ? Math.round(d.sec) : null,
-    killer: clip(d && d.killer, 24) || null,
-    weapon: clip(d && d.weapon, 24) || null,
-    firstDeath: !!(d && d.firstDeath),
-    traded: d && typeof d.traded === 'boolean' ? d.traded : null,
-    alive: d && d.alive && typeof d.alive.mates === 'number' && typeof d.alive.enemies === 'number'
-      ? { mates: d.alive.mates, enemies: d.alive.enemies } : null,
+    sec: riot(typeof (d && d.sec) === 'number' ? Math.round(d.sec) : null),
+    killer: riot(clip(d && d.killer, 24) || null),
+    weapon: riot(clip(d && d.weapon, 24) || null),
+    firstDeath: !screen && !!(d && d.firstDeath),
+    traded: riot(d && typeof d.traded === 'boolean' ? d.traded : null),
+    alive: riot(d && d.alive && typeof d.alive.mates === 'number' && typeof d.alive.enemies === 'number'
+      ? { mates: d.alive.mates, enemies: d.alive.enemies } : null),
     planted: !!(d && d.planted),
-    afterPlant: !!(d && d.afterPlant),
+    afterPlant: !screen && !!(d && d.afterPlant),
     spot: clip(d && d.spot, 32) || null,
-    gap: d && typeof d.gap === 'number' && d.gap >= 0 && d.gap <= 15 ? Math.round(d.gap) : null,
+    gap: riot(d && typeof d.gap === 'number' && d.gap >= 0 && d.gap <= 15 ? Math.round(d.gap) : null),
     frames: (Array.isArray(d && d.frames) ? d.frames : [])
       .filter((f) => typeof f === 'string' && f.length > 1000 && f.length < 1500000).slice(0, 2),
   })).filter((d) => d.n > 0 && d.frames.length).slice(0, 4);
   return { agent: clip(b.agent, 24) || null, map: clip(b.map, 24) || null,
-    language: typeof b.language === 'string' ? clip(b.language, 8) : 'en', deaths };
+    language: typeof b.language === 'string' ? clip(b.language, 8) : 'en',
+    source: screen ? 'screen' : 'riot', deaths };
 }
 
 module.exports = { CAUSES, AVOIDABLE, buildPrompt, parse, normalise, wrongMap, foreignAbility, wrongKiller, calloutsOf };

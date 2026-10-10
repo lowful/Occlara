@@ -41,8 +41,8 @@
   transition: transform var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .dd-btn:hover .dd-chev { color: var(--text-dim); }
-/* The chevron turning over is the whole open/close affordance, so it is the one
-   piece of motion here. */
+/* The chevron turns over as the list opens, and back as it closes, with the
+   list's own motion below. */
 .dd-open .dd-chev { transform: rotate(180deg); color: var(--text); }
 
 .dd-list {
@@ -69,12 +69,21 @@
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
   box-shadow: var(--lift);
-  animation: ddIn 140ms var(--ease-expo) both;
+  animation: ddIn var(--t-fast) var(--ease-expo) both;
 }
 /* Flipped by place() when there is more room above than below. The class goes
-   on the LIST, not the mount, because while open the list hangs off body. */
-.dd-list.dd-up-list { transform-origin: bottom; }
+   on the LIST, not the mount, because while open the list hangs off body. It
+   comes out of the trigger either way: down from it, or up from it. */
+.dd-list.dd-up-list { transform-origin: bottom; animation-name: ddInUp; }
 @keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes ddInUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+/* And goes back into it as it closes (8.2): dropdown.js keeps the list on
+   screen for this, --t-fast, then hides it. Closed already, so it takes no
+   click while it fades. */
+.dd-list.dd-closing { animation: ddOut var(--t-fast) var(--ease) both; pointer-events: none; }
+.dd-list.dd-up-list.dd-closing { animation-name: ddOutUp; }
+@keyframes ddOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-4px); } }
+@keyframes ddOutUp { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(4px); } }
 
 .dd-opt {
   display: flex; align-items: center; gap: var(--space-2);

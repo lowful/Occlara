@@ -37,4 +37,20 @@ function configPath(dir) {
   ]);
 }
 
-module.exports = { profileDir, configPath };
+/**
+ * The recorded session a bench reads (bench:read, so verify:ai, and
+ * bench:forensics), and every folder it was looked for in: a copy kept in
+ * userData/bench first, then the AI log itself.
+ *
+ * THE AI LOG KEEPS ONLY THE FIVE NEWEST SESSIONS, and the app prunes the rest
+ * at every Start (AI_LOG_KEEP_SESSIONS in src/main/index.js), so the real
+ * match verify:ai is gated on goes the moment a player has recorded five
+ * since. Nothing ever prunes bench/. A folder counts only with its log.json in
+ * it; `dir` is null when no folder has one, and `looked` is what to name then.
+ */
+function benchSession(root, session) {
+  const looked = [path.join(root, 'bench', session), path.join(root, 'ai-log', session)];
+  return { dir: looked.find((d) => fs.existsSync(path.join(d, 'log.json'))) || null, looked };
+}
+
+module.exports = { profileDir, configPath, benchSession };

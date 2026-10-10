@@ -35,7 +35,12 @@ What still counts as "reaching the screen", and is sealed mid match:
   a match holds that seal until the player opens a page.
 - The AI log seals the live session (`liveLogSealed`), because an open log on a
   second monitor is a live feed of the match by another name. Frame chat refuses
-  it, and Ask Coach gets no match memory and no review context mid match.
+  it, and Ask Coach gets no match memory and no review context mid match. A
+  review's eye (below) does nothing mid match, and its read of one match is
+  sealed the same way when that match is in the live session. The seal is
+  decided on the session a read would serve, never the id asked for, and an id
+  the log no longer keeps is gone, never replaced by the newest folder, which
+  mid match is the session being recorded.
 - Ctrl+Shift+E opens the last review, and does nothing while a match is in
   progress (`matchInProgress()`).
 - The sidebar's status line carries notices only (a licence ending, capture
@@ -67,18 +72,31 @@ src/renderer/home/                    the last match, its focus and the top repe
 **The read is facts only.** `POST /api/coach/read` (`server/services/read-prompt.js`)
 returns `LOBBY` or one STATE line, the same shape `mapState()` has always parsed,
 plus a `note`: one factual observation of what the player is doing. No tip is
-written anywhere. The engine keeps **two reads in flight** and applies them in
-capture order (`seq`, `pending`, `drain`), because the ledger, the death edge
-and scoreboard continuity all assume time runs forwards.
+written anywhere. The engine keeps **up to four reads in flight** (two until a
+latency is measured, then `inFlightLimit()`: p90 over the gap rounded up, plus
+one) and applies them in capture order (`seq`, `pending`, `drain`), because the
+ledger, the death edge and scoreboard continuity all assume time runs forwards.
+So a read's context is the last APPLIED reply's, four reads old with four out,
+and `bench:read -- --lag 4` measures the read on exactly that. A read gives up
+at 12 seconds (the server at 9), because one hung read holds every reply behind
+it.
 
 **The cadence is measured, not chosen.** `captureSpeed` is `auto` or a pinned
 tier from `CAPTURE_TIERS` (1, 2, 3, 5 seconds). Auto starts at 1s and steps
-down when p90 latency exceeds what two in flight can cover, or reads keep
-failing, and back up with headroom (`adaptCadence`). The read model was chosen
-by `npm run bench:read`, scored against Riot's record of the real Abyss match;
-the numbers are in `server/routes/coach.js` beside `readModel`. DeepSeek V4.1
-Flash is the only one that sustained a read a second, invented no death and
-read every label.
+down only when p90 latency passes four gaps and a tenth, after three failed
+reads in a row, or on a 429 (which also stops sending for ten seconds), and
+back up when p90 falls under 70% of what four in flight cover at the faster
+tier (`adaptCadence`). At a fixed two in flight it ran at 2s falling to 3s on
+real sessions. `npm run test:cadence` drives the real engine on a fake clock.
+The capture helper's p50 and p90 go to the log every 60 frames: past about
+700ms, the per frame launch alone is too slow for a steady 1s. The read model
+was chosen by `npm run bench:read`, scored against Riot's record of the real
+Abyss match; the numbers are in `server/routes/coach.js` beside `readModel`,
+their tier the one auto holds at each p90 with up to four in flight. DeepSeek
+V4.1 Flash was chosen when two in flight made it the only one that sustained
+a read a second, invented no death and read every label; of the four that
+hold 1s now, it and Ling 3.0 invent no death, and DeepSeek agrees with more
+of Riot's deaths at under half the latency.
 
 **The score lags the round in both directions**, measured on a real 24 round
 match in `scripts/fixtures/`: a buy phase starts while the score still reads the
@@ -220,11 +238,113 @@ the two in step), what happened, and the better play.
   The model was chosen by `npm run bench:forensics`: GPT 6 Luna said "unclear"
   when the frame did not show the fight, where the others invented a peek.
 
+**A review Riot's record never reached looks too** (8.2). Before, frames
+reached a review only through Riot's verified deaths, so a screen only review
+showed no picture though the AI log kept its death frames. `screenLook(job)`
+in `src/main/index.js` runs the look from the screen once a review: right
+after the narrative when no Riot ID is set, else in `linkRiotRecord`'s `done()`
+when Riot's rounds never came (the scoreboard never linked, or its rounds kept
+failing), always before the frames are released, and never over Riot's look,
+which wins whether it lands first or while the screen's is out.
+
+- **Which deaths** (`death-frames.js teachableScreenDeaths`): the screen knows
+  no first death and no trade, so a lost round scores 3 and an early death 1
+  over a base of 1 that lets a won round be chosen, spread by thirds as Riot's
+  are. `looksFor(records, rounds, window, 'screen')` frames each one by
+  `framesFor`'s no clock path, the frame that registered the death and the one
+  before it, and passes over a death whose registering frame is all its round
+  has: that frame shows the player already dead. On the real Abyss ledger that
+  is rounds 2, 14, 19 and 22, round 14 in place of round 13.
+- **What the server is told** (`source: 'screen'`, which survives `normalise`;
+  no source is Riot's, every client before 8.2): the facts were read off the
+  screen and may be incomplete, never "Riot's record, exact"; Riot's facts
+  arriving beside it are dropped; the frames are framed by when the screen read
+  the death, which can be late (if the first frame shows the player dead or
+  watching a teammate, unclear); and no killer may be named at all. `parse`
+  drops every sentence naming an agent as the killer, in any of its wordings,
+  since `wrongKiller` had nothing to check without Riot's killer. Its kill
+  words are English, and the look is written in the player's language, so in
+  any other language it drops every sentence naming an agent but the player's
+  own: "Una Sova te mató" matched none of them. The agent goes
+  only once the player confirmed it, the engine's rule, so the ability gate
+  never passes a spectated teammate's kit as the player's.
+- **It reaches the lists, never the grade.** A cause from the screen is counted
+  like any other (`cause:` keys, judged), but Decisions skips it (`grade.js`):
+  its frames were chosen by the screen's own timing, and with it a review Riot
+  never checked spoke in Survival and Decisions, half the weight: four avoidable
+  labels graded the real 31 kill Jett at 58 from the screen alone
+  (`test:valorantreview`).
+- **Where you died, and how** is the last section of every review
+  (`review.js paintLooks`): per look, the round and side, the frames across the
+  card (Just before and Just after, click to zoom), the round's facts, the cause
+  chip, what happened, the better play, and for a screen look "When this
+  happened is the coach's own read of the screen, not Riot's record of the
+  match." Unclear keeps its frame and no sentence. A round card keeps the chip
+  and "See where you died", a link down. Each look keeps `source` and `at`, when
+  its first frame was captured, and the eye on its moment sends
+  `REVIEW_AILOG(id, at)`: main takes a time inside the match's window only, and
+  the AI log opens on the frame nearest it.
+
 The frames the review looked at are saved beside it in the library, so the
-moment survives the AI log rolling past it. The AI log keeps every frame of the
-last three minutes, every frame around a registered death, one frame per ten
-seconds of the rest, and holds a finished match's frames whole until its review
-has looked (`holdAiLogFrames`).
+moment survives the AI log rolling past it, and a version painted after a look
+still shows them (`job.frames`). The AI log keeps every frame of the last three
+minutes, every frame around a registered death, one frame per ten seconds of the
+rest, and holds a finished match's frames whole until its review has looked
+(`holdAiLogFrames`): until released, an hour at most (`HOLD_MAX_MS`), because a
+match stopped halfway retries the link for 35 minutes (`match-link.js`) and
+then Riot's rounds and the look after that. `test:valorantreview` fails the day
+the retries outgrow the hold. `test:forensics` holds the screen prompt and the
+killer gate, `test:valorantreview` the picker on the real ledger, `test:surfaces`
+the section and the eye at a moment, and `check:matches` paints a kept frame
+there (`.v-moment img`) and opens the AI log at it.
+
+### The eye opens that match's AI log
+
+Since 8.2 a Matches row and the review's header carry an eye (the Stats
+header's, `shared/log-eye.js`) that opens the AI log on that match alone. It
+sits BESIDE the row's button, never inside it, where the "Ask" the row used to
+carry sat: clicked, that was the row's click too.
+
+- **A review keeps its place in the log**, `aiLog { session, match, from, to }`:
+  the session folder, the match's stamp (`matchStartedAt`, which every record
+  carries as `match`) and its window, set at match end from `job.log`
+  (`aiLogStore.placeOf`), on every version by `stampReview()`, through a late
+  link by `upgradeWatched()`, and into its library row (`metaOf`). Null when
+  the log was off. A review saved before 8.2 has no field and is found when
+  asked, by when its match ended (`ai-log-store.js locate`): the newest match
+  stamped before that end whose last frame came within five minutes of it,
+  among the finished sessions only.
+- **Main resolves the scope, never a page.** `REVIEW_AILOG(id)` names the
+  review; `REVIEWS_LIST` rows and a presented review say only `aiLog: 'kept'`,
+  `'gone'` or null (`scopeFor`). Null is no eye: Riot's record alone, Rivals
+  and League record nothing, and a match recorded with the AI log off has no
+  log to open. Gone is a disabled eye with its reason. The kept
+  folder list is cached in main and dropped when a session starts, is pruned
+  or a match ends; each finished session's matches are read once.
+- **That read is STRICT** (`read()` with a scope): only the match's frames, a
+  record being one when it was captured after the match began and carries its
+  stamp or was captured before it ended, and `{ gone: true }` once they are no
+  longer kept: never another match under this one's name.
+- **No read puts another session in place of one asked for** (`served`,
+  `serve`, `askAbout` in `ai-log-store.js`), and THE SEAL IS DECIDED ON THE
+  SESSION A READ WOULD SERVE, never the id asked for. Before, an id the log no
+  longer kept fell back to the newest folder, which mid match is the session
+  being recorded: an old match's eye, then Start (which prunes the oldest
+  session), then "Whole session", showed the match in progress. Now a session
+  that is gone reads as gone, a question about it is refused, and while sealed
+  the session being recorded is in no reply and no list. "Whole session" asks
+  for exactly its session and paints the closed or gone state for any other
+  answer.
+- The log opens in death review mode on the match's first death (its first
+  frame when nobody died), with no picker and "Whole session" for the rest
+  around the frame on screen. Gone, it says the log keeps the last 5 recording
+  sessions and the review keeps the frames the coach looked at. Frame chat and
+  Riot's death check read the same match, and a frame's conversation is keyed
+  by its file, since its place differs between the match and the session.
+- `npm run test:ailog` holds the strict read, `locate` and `scopeFor`;
+  `test:surfaces` the row, the header and the log's scoped mode;
+  `check:matches` clicks row eyes through to the real window, for a review
+  that kept its place and one found by its end, and finds the header's.
 
 ### The grade, and the lists under it
 
@@ -253,7 +373,8 @@ Decisions.
 `src/shared/insights.js` makes the three lists from the same facts, each entry
 with a floor, a stable `key` (the library counts by it, so renaming one orphans
 every saved review that used it) and, for mistakes, a one line `fix`.
-`patterns.js` counts those keys across the last ten saved reviews of a game;
+`patterns.js` counts those keys across the last ten recorded reviews of a game
+(one graded from Riot's record alone has a grade and no list to count, below);
 **a pattern needs two matches**, and its trend compares the newer half of the
 window with the older half ('rising', 'falling', 'steady').
 
@@ -261,7 +382,7 @@ window with the older half ('rising', 'falling', 'steady').
 frame picker, the store, the patterns and the weekly report. `npm run
 check:matches` boots the app with saved reviews, reads the library back from the
 DOM, paints the breakdown, and clicks a row through to its review and its kept
-frame.
+frame, and its eye through to the AI log on that match.
 
 ### Matches graded from Riot's record
 
@@ -289,9 +410,11 @@ server falls back to `/last-match`.
   is not built for, named for what it was; one a recording is still linking is
   left to it; one a recording watched but never linked is upgraded IN PLACE
   (the `ledger` an unverified review now keeps, or for an older one its cards
-  read back); and one claimed by a recording that fails the link's checks, or
-  by two, is left alone. A duplicate is a match counted twice in every pattern
-  and twice in the role baseline.
+  read back), keeping the coach's looks from the screen, read back from its
+  cards because the ledger has none, on the deaths Riot confirms and only
+  those (`upgradeWatched`, `test:riotreview`); and one claimed by a recording
+  that fails the link's checks, or by two, is left alone. A duplicate is a
+  match counted twice in every pattern and twice in the role baseline.
 - **Riot's own start and length decide** (`confirm()`). Real matches run 83 to
   103 seconds a round, so the estimate is minutes out either way: a recording
   of only the last round of a slow match fell outside its own match, which was
@@ -318,6 +441,27 @@ server falls back to `/last-match`.
 - **A Riot only review claims nothing the screen saw** (`source: 'riot'`): no
   death location, no ult read, no look at a death, no model call, and both the
   review and its grade's notes say so.
+- **And it states facts, never a mistake** (8.2). Riot records what happened
+  and never why, so a Riot only review keeps no mistakes, strengths or misses:
+  its counts are one neutral list, "What Riot's record shows"
+  (`insights.asFacts`, drawn by `grade-view.js factList`), each entry its key
+  and counted detail under a title by key ("Deaths not traded within five
+  seconds", never "Died where nobody could trade"), with no fix, and its
+  Decisions evidence says what it counted. None of it is counted across
+  matches (`insights.countable`): the patterns, Home's most repeated mistake,
+  the breakdown's repeats and the weekly report count recorded matches only,
+  the lists from the last ten recorded (`getPatterns` hands over
+  `patterns.LOOK_BACK`, 40, to find them), while grades and categories count
+  every match. What they count is in today's words too (`countable` passes
+  the lists through `inTodaysWords`), so a pattern quoting an 8.1 review's
+  clutch line says "alone against one". A review saved before 8.2 is
+  converted when served (`present()` through `valorant-review.js served()`),
+  never on disk, and the `topMistake` its library row was given is cleaned on
+  read (`review-store.js list()`). No key was renamed. `test:riotreview`
+  holds a fresh review and an 8.0.3 one to the same facts; `test:grade`,
+  `test:homemodel`, `test:backfill`, `test:breakdown` and `test:surfaces`
+  hold the counting and the copy, and `check:matches` boots the app on an
+  8.0.3 one and reads its row and its review back.
 - Oldest first, each against the history from before it, one baseline row per
   match. Three seconds between requests on the one HenrikDev key, two retries
   on a failure that passes, and three matches Riot did not answer in a row end
@@ -335,6 +479,8 @@ save. Counted, never written, and every number carries its sample:
   round late often enough to fake a side win rate), death locations only from
   recorded rounds, the scoreboard only from matches that have one. K/D is total
   kills over total deaths; ACS, ADR and headshot % are weighted by rounds.
+  K/D/A (Valorant and Rivals) is an average match's kills, deaths and assists,
+  over only the matches whose line read all three, and it sorts on their K/D.
   Pistol rounds are round 1 and the first round Riot's sides change, never
   overtime; the review's own halftime is used only when no side is known,
   because an 8.0.0 or 8.0.1 review carries the screen's guess at it.
@@ -401,7 +547,8 @@ shell/       the window's document: the sidebar (game, pages, Start / Stop,
              status, account), the window's buttons and the Recording screen
 home/        the last match and its grade, the next match's focus, the most
              repeated mistake, the grade trend, recent matches
-matches/     three pages from one surface, ?section=list, patterns or breakdown
+matches/     three pages from one surface, ?section=list, patterns or breakdown;
+             the list carries its wins and losses beside the title (winLoss)
 review/      the post-match review, every game, branched on review.kind
 stats/       rank, win rate, tracker matches, graded matches
 chat/        Ask Coach, opened plainly or on one match's review
@@ -430,7 +577,13 @@ engine's `stoppedLive`). Not recording, nothing can tell when that match ends,
 and Home would paint its review and the focus for the next match while it is
 still being played. Held, the screen says recording stopped and the sidebar
 stays open: any page the player opens lifts it, their own choice, as opening
-Matches was before 8.1. Start clears it.
+Matches was before 8.1. Start clears it in every game, before the Rivals and
+League branches, and the seal then follows that recording's match: cleared in
+the Valorant path alone, a held seal kept every page and the League or Rivals
+review behind "Recording stopped" until a Stop. A review withdrawn because its
+match resumed seals first (`withdrawReview`), so its switch to Home never runs
+unsealed. `npm run check:seal` boots the app with stand-in engines and holds
+both.
 
 **Closing hides the window.** Its X, Alt+F4 and the taskbar's Close put it out
 of sight like Ctrl+Shift+M, with the dock mark in the corner, and Occlara keeps
@@ -444,12 +597,75 @@ A WebContentsView's page is NOT closed with the window it is laid on, and
 once closed its `webContents` reads undefined rather than destroyed, so
 `main-window.js` closes them on `closed` and reads them through `alive()`.
 
+**Moving between pages (8.2)** is `shell-nav.js createMotion`, carried out on
+the views by `main-window.js`, with the page's half in `shared/embed.js` and
+the CSS in `ui.css`. A hidden view keeps its last painted frame, so a page
+shown and only then told what to look like flashes what it showed last, the
+previous match's review above all. So the page on its way is shown out of
+sight first: UNDER the page on screen (re-adding that one with
+`addChildView` raises it), or, with none on screen (the seal lifting, the
+window's first page), staged at full size with one pixel of it inside the
+window's right edge. It is told to ARM (`PUSH_PAGE`): `html.page-armed`,
+opacity 0 and 12px toward the side it comes from (`direction()`: down the
+sidebar is forward, the review deeper than every page), with no transition.
+Two animation frames later it says `PAGE_READY` by its id, and only then is
+the page on screen hidden (or the staged one placed) and the new one told to
+ENTER, 220ms on `--ease-expo`. A page that never answers is let in after 150ms
+(`READY_MS`), one loading again after up to 1.2s (`LOAD_MS`), and a page loads
+armed and lets itself in after 1.2s with no word from main (`page-disarm`), so
+none can stay invisible. A STAGED page is let in by its timer only while the
+window can be seen (`canSee()`: shown, not minimised and focused, because
+Electron cannot say whether the game covers it), and its wait starts again on
+the window's show, restore and focus: at a match's end the game is in front,
+the review's view can paint nothing, and its timer placed it over the frame it
+last painted, the previous match's review. A page loading again takes no
+ready until its new document commits (`reloading`, cleared on `did-navigate`),
+because the document it replaces can still answer an old arm. Sealing still
+hides every page in the call, mid switch included. Three Chromium facts it
+rests on, measured on Electron 41:
+
+- **A view under an opaque one is occluded and paints nothing**, not one
+  animation frame, so it could never arm there. For the switch the page on
+  screen is made see-through behind its own document (`CLEAR`; the document
+  still paints the ground, so nothing on screen changes) and opaque again once
+  it is hidden or stays.
+- **A view wholly outside the window is hidden too**, while one with a pixel
+  inside it paints, which is what the stage is.
+- **Minimised, the window's content measures 0 by 0**, a view laid out then
+  is given that, and no `resize` comes on the way back, so the views are laid
+  out again on `restore`: a page staged while minimised stayed 0 by 0 and
+  never painted.
+
+Make the outgoing view opaque during a switch, or move the stage wholly out of
+the window, and every switch falls to the timer and the stale frame is back.
+Asked for reduced motion it is a plain cut: still painted out of sight first,
+but as it is. `npm run test:shellnav` holds the order of a switch, and
+`main-window.js` itself on stand-in views (the window's state, its events, a
+reload's old ready refused), and `check:mainwindow` the same on real views,
+the seal, a page that never answers, a minimised window and a page loading
+again included.
+
+Everything else that opens moves too, on the tokens and transform, opacity or
+a grid row only: the sidebar's marker is ONE element slid to the current page
+(`placeMarker()`), never an item's own background, and it follows the record
+card's height (a `ResizeObserver`), because once the sidebar overflows
+Settings, below the card, moves with it; a dropdown closes as it
+opened (`dd-closing`, then hidden); Stats' rank notes, its match rows and a
+breakdown row open by height in place (`.reveal`, one grid row from 0fr to
+1fr), the breakdown no longer rebuilding its table to open a row; the review's
+frame zoom scales from
+where the frame was (`zoomShot`); Home's cards arrive one after another on its
+first paint and on a change of game, once it is on screen (`occlaraOnShown`);
+the Recording screen and the agent bubble rise in; the AI log and the weekly
+report ease in. `npm run test:surfaces` pins each.
+
 Separate windows, because they are not pages:
 
 ```
 dock/        the compact always-on-top mark, click through
 onboarding/  multi-page first-run flow. The app is gated behind completing it
-ailog/       the AI log: every frame read and what was parsed from it
+ailog/       the AI log: every frame read and what was parsed from it, or
+             one match's alone, opened from its review's eye
 weekly/      weekly report popup: grades, categories, recurring mistakes
 learn/       League lessons
 activation/  license key entry
@@ -458,8 +674,9 @@ splash/      the launch animation
 
 The panel and the review, matches, settings, stats and chat windows were
 retired in 8.1. `npm run check:mainwindow` boots the app with saved reviews and
-asserts the sidebar, Home, the page bounds, the seal hiding every page, the
-review showing when it lifts and a recent match opening its review.
+asserts the sidebar, Home, the page bounds, the order of a switch between
+pages, the seal hiding every page, the review showing when it lifts and a
+recent match opening its review.
 `npm run test:shellnav` and `npm run test:homemodel` cover the navigation and
 Home offline.
 
@@ -492,10 +709,14 @@ appears, so the three cannot drift. They build DOM with textContent only,
 because detail lines carry the model's sentences.
 
 **Geist is bundled locally** in `assets/fonts` so the app renders offline, with
-Geist Mono for columns of digits. It ships weights 400, 500, 600, 700 and 800
-only. Do not reference a weight outside that set or a webfont URL: the renderer
-CSP forbids the URL, and a missing weight silently falls back to Segoe UI, which
-changes the shape of the whole interface without erroring.
+Geist Mono for columns of digits. Geist ships weights 400, 500, 600, 700 and
+800 only, and Geist Mono 400 and 500 only. Do not reference a weight outside
+that set or a webfont URL: the renderer CSP forbids the URL, and a missing
+weight silently falls back to Segoe UI, which changes the shape of the whole
+interface without erroring. A Mono weight above 500 is the known exception: the
+browser draws the 500 thickened, a synthetic bold, which is what the Mono 600
+numbers (the grade, round numbers, scores) and the Matches record at 800 are. A
+real heavier Mono means bundling its file with an `@font-face` in `theme.css`.
 
 Settled decisions that keep getting reintroduced by accident:
 
@@ -530,12 +751,17 @@ silently stopped receiving events with no error. Add the constant to
 
 Renderers have no Node access. Everything crosses through a preload via
 `contextBridge`. The library is `REVIEWS_LIST`, `REVIEW_GET`, `REVIEW_OPEN`,
-`PATTERNS_GET`, `BREAKDOWN_GET`, and `PUSH_REVIEWS` fires whenever a review is
-saved or improved. Grading from Riot's record is `BACKFILL_START` and
+`REVIEW_AILOG` (the eye: the AI log on that review's match, or at one moment
+of it from the eye on a death the coach looked at), `PATTERNS_GET`,
+`BREAKDOWN_GET`, and `PUSH_REVIEWS` fires whenever a review is saved or
+improved. Grading from Riot's record is `BACKFILL_START` and
 `BACKFILL_STATUS`, and `PUSH_BACKFILL` carries its status on every change to
 onboarding, Settings and Matches. The main window is `SHELL_NAV` (go to a
 page), `SHELL_WINDOW` (minimise, maximise, close) and `SHELL_GET`, and
 `PUSH_SHELL` carries its navigation state, sealed or not, on every change.
+Moving between pages is `PUSH_PAGE` to one page (arm, enter, leave) and
+`PAGE_READY` back from it, taken from that page's own view only; every page
+preload exposes the two through `src/preload/page-motion.js`.
 
 ## The live read's STATE line
 
@@ -556,8 +782,18 @@ the client backs off for three minutes.
 **`npm run verify:ai` is the gate for any read prompt or model change.** It
 runs the live read over the 240 real frames and fails on parse under 95%,
 labels under 95%, more than one invented death, under 80% of Riot's deaths
-agreed, or a p90 too slow for the 3s tier. It spends real money, so it is a
-manual pre-flight, never CI.
+agreed, or a p90 over six seconds. With up to four reads in flight a tier holds
+while p90 stays under its gap x 4 x 1.1, so the 1s tier holds while p90 stays
+under 4.4 seconds, and the table it prints gives the tier each model holds. Run
+it as `npm run verify:ai -- --lag 4` as well, before a release and for any
+change that ages the read's context (more in flight, a longer read timeout):
+with four reads in flight each frame goes with the context of four reads
+earlier. The session is read from `userData/bench/<session>` first and
+from the AI log only after it, because the AI log keeps the five newest
+sessions and prunes the rest at every Start; keep the fixture copied to
+`%APPDATA%\Occlara\bench\session-2026-09-22T04-24-07-240Z` (bench:forensics
+reads it the same way, and `test:benchsession` holds the order). It spends
+real money, so it is a manual pre-flight, never CI.
 
 ## Do not simplify the guards
 
@@ -664,6 +900,17 @@ under a different permission in a paid product. They are also ornate gold
 gradients that would fight `--bg`. `rankMark()` in `learn.js` draws a shield
 with one to five pips in `--tier-1` through `--tier-5`; the pip COUNT carries the
 tier as well as the colour does.
+
+**The game marks are ours too.** The sidebar's game picker is three icon
+buttons, and the icons are never the games' logos: Riot's IP policy says a
+project "may not use any of our logos or trademarks" without a written licence,
+and Marvel's marks are as protected. `src/renderer/shared/game-marks.js` draws
+three stroke icons on the shell's 24 unit grid (stroke 1.75, round ends,
+`currentColor`): Valorant a reticle, Marvel Rivals a hexagon with a four point
+spark, League a square map with two edge lanes, its diagonal and two corner
+bases. No V, no crest, no letter, nothing shaped like a real mark. Each button
+carries the game's full name as its title and accessible name, because a symbol
+alone is a guess; `test:surfaces` holds both.
 
 ## Marvel Rivals reads TEXT, never art
 
@@ -830,15 +1077,27 @@ npm run check:learnrole    a support never sees the CS lesson
 
 `server/services/knowledge.js` holds the playbook: tagged notes scored against
 a situation by `retrieve()`, which returns **only eight**. The review draws on
-it twice: `study()` picks the sourced notes worth reading before the next match,
-and the round lines are written with the retrieved notes in the prompt.
+it twice: `study()` picks the imported notes worth reading before the next
+match, by the topic a pattern points to, and the round lines are written with
+the retrieved notes in the prompt.
 
 **New knowledge goes in `server/data/playbook.json`**, the growth hook the
 module has always documented. It merges at startup, `check:playbook` covers it
 automatically through `knowledge.all()`, and extra fields such as `source` pass
-through untouched. The 40 notes there are from Bonkar (Malkolm Rench, NRG head
-coach, VCT Champions 2025) VOD reviews, and **imported notes must carry
-`source.coach`** or the checker fails them.
+through untouched. Its 69 notes are 42 imported from pro VOD reviews and 27 of
+Occlara's own, computed from the damage table or written from round shapes, and
+**an imported note must carry `source.topic`**, which is what `study()` picks
+by, or the checker fails it.
+
+**The app never says where a note came from.** A source holds its kind and its
+topic, never a name: `check:playbook` fails a note with a `coach` key, the
+study card is the note's text alone, the review prompt tells the model never to
+name a source, and `present()` in `src/main/index.js` cuts every study note to
+its text on every review a window is handed, the ones saved before 8.2
+included. `npm run check:attribution` reads every tracked file, and every file
+git would add, for the names of the coach and team the notes were taken from,
+built from character codes so the checker never contains them. Git history and
+the website repo still carry them.
 
 **Tagging decides whether a note exists at all.** Scoring is `agents +4`,
 `weapons +4`, `maps +3`, `situations +2` each, `side/phase/roles +2`, and only
@@ -867,10 +1126,13 @@ than aggression. What would actually work is recorded in the file.
 
 `advancedTips` in config, off by default, surfaced in Settings as Advanced
 coaching. It now shapes the notes the REVIEW draws on (`match-review.js` passes
-`context.advancedTips` to `retrieve()`). A note carries `tier: 'core' |
-'advanced'`, core being the default so the 357 hand written ones are untouched.
-With the toggle on the mix goes from 34% to 75% advanced, measured across 12
-real logged contexts plus 5 synthetic.
+`context.advancedTips` to `retrieve()`), and the study list keeps the same
+reserve at its scale: off, `study()` lists core notes only; on, two of three are
+advanced with a core note always among them, and a match lost in a run of
+rounds (the `streak` pattern) gives core two of three. A note carries `tier:
+'core' | 'advanced'`, core being the default so the 357 hand written ones are
+untouched. With the toggle on the mix `retrieve()` serves goes from 34% to 75%
+advanced, measured across 12 real logged contexts plus 5 synthetic.
 
 **A floor of core notes always survives, and on a deathstreak core takes the
 majority back.** That is the design, not a hedge: advanced advice assumes the

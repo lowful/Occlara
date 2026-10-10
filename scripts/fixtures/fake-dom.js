@@ -20,7 +20,14 @@
  *
  * WHAT IS NOT: layout. getBoundingClientRect answers a fixed box and nothing is
  * measured, so a CSS change is still checked by looking at it
- * (scripts/shot-surface.js), never here.
+ * (scripts/shot-surface.js), never here. So nothing resizes by itself either:
+ * a ResizeObserver hears of a change only when a test says an element changed
+ * size (surface.resized(el)), the way the browser tells it after layout.
+ *
+ * FOCUS IS KEPT, as far as a test can see it: focus() lands only where the
+ * browser lets it (a control that is not disabled, a link, anything with a
+ * tabindex, in the page and not hidden), document.activeElement says where
+ * it is, and nextTab(doc) says where the next Tab goes from there.
  */
 const fs = require('fs');
 const path = require('path');
@@ -131,6 +138,7 @@ class Element {
 
   get children() { return this.childNodes.filter((c) => c.nodeType === 1); }
   get firstChild() { return this.childNodes[0] || null; }
+  get lastChild() { return this.childNodes[this.childNodes.length - 1] || null; }
   get textContent() { return this.childNodes.map((c) => c.textContent).join(''); }
   set textContent(v) {
     for (const c of this.childNodes) c.parentNode = null;
@@ -198,8 +206,15 @@ class Element {
     return !e.defaultPrevented;
   }
   click() { this.dispatchEvent(makeEvent('click')); }
-  focus() {}
-  blur() {}
+  // A tabindex is the attribute, as in the browser; without one, a control or
+  // a link is in the tab order (0) and anything else is not (-1).
+  get tabIndex() {
+    const t = parseInt(this._attrs.get('tabindex'), 10);
+    return Number.isNaN(t) ? (naturallyFocusable(this) ? 0 : -1) : t;
+  }
+  set tabIndex(v) { this._attrs.set('tabindex', String(v)); }
+  focus() { if (focusable(this)) this.ownerDocument._active = this; }
+  blur() { if (this.ownerDocument._active === this) this.ownerDocument._active = null; }
   scrollIntoView() {}
   getBoundingClientRect() { return { x: 0, y: 0, top: 0, left: 0, width: 100, height: 100, right: 100, bottom: 100 }; }
 
@@ -207,6 +222,38 @@ class Element {
   closest(sel) { for (let x = this; x && x.nodeType === 1; x = x.parentNode) if (x.matches(sel)) return x; return null; }
   querySelectorAll(sel) { return queryAll(this, sel); }
   querySelector(sel) { return queryAll(this, sel)[0] || null; }
+}
+
+// ── Focus: where it can land, and where Tab goes next ──────────────────────
+const CONTROLS = new Set(['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA']);
+
+/** A control or a link, which takes focus with no tabindex of its own. */
+function naturallyFocusable(el) {
+  if (CONTROLS.has(el.tagName)) return el.getAttribute('type') !== 'hidden';
+  return (el.tagName === 'A' || el.tagName === 'AREA') && el.hasAttribute('href');
+}
+
+/**
+ * Whether focus() lands on `el`: in the page, nothing around it hidden, not a
+ * disabled control, and focusable by nature or by a tabindex. A card with no
+ * tabindex is not, so a focus() on it does nothing, as in the browser.
+ */
+function focusable(el) {
+  if (!el || el.nodeType !== 1 || !el.ownerDocument.documentElement.contains(el)) return false;
+  for (let x = el; x && x.nodeType === 1; x = x.parentNode) if (x.hidden) return false;
+  if (CONTROLS.has(el.tagName) && el.disabled) return false;
+  return el.hasAttribute('tabindex') || naturallyFocusable(el);
+}
+
+/**
+ * Where the next Tab goes from what has focus: the first element after it, in
+ * the page's order, that focus can land on with a tabindex of 0 or more. The
+ * app gives no positive tabindex, so the page's order is the tab order.
+ */
+function nextTab(doc) {
+  const all = doc.querySelectorAll('*');
+  const from = all.indexOf(doc.activeElement);
+  return all.slice(from + 1).find((n) => n.tabIndex >= 0 && focusable(n)) || null;
 }
 
 function makeEvent(type, extra) {
@@ -352,6 +399,12 @@ class Document {
     this.childNodes = [root];
     this.head = this.documentElement.querySelector('head');
     this.body = this.documentElement.querySelector('body') || this.documentElement;
+    this._active = null;
+  }
+  /** What has focus: the body until something takes it, and again once that leaves the page. */
+  get activeElement() {
+    const a = this._active;
+    return a && this.documentElement.contains(a) ? a : this.body;
   }
   getElementById(id) { return this.documentElement.querySelector(`#${id}`) || (this.documentElement.id === id ? this.documentElement : null); }
   querySelector(sel) { return this.documentElement.matches(sel) ? this.documentElement : this.documentElement.querySelector(sel); }
@@ -392,6 +445,24 @@ function makeClock() {
     },
   };
   return clock;
+}
+
+// ── Sizes: observers a test tells when an element changed size ─────────────
+function makeResizeObservers() {
+  const all = new Set();
+  class ResizeObserver {
+    constructor(cb) { this._cb = cb; this._targets = new Set(); all.add(this); }
+    observe(el) { this._targets.add(el); }
+    unobserve(el) { this._targets.delete(el); }
+    disconnect() { this._targets.clear(); }
+  }
+  /** `el` changed size: every observer watching it is told, as after a layout. */
+  const resized = (el) => {
+    for (const ro of all) {
+      if (ro._targets.has(el)) ro._cb([{ target: el, contentRect: el.getBoundingClientRect() }], ro);
+    }
+  };
+  return { ResizeObserver, resized };
 }
 
 // ── The preload, with electron stood in for ─────────────────────────────────
@@ -452,6 +523,7 @@ function loadSurface(name, opts) {
   const dir = path.join(RENDERER, name);
   const doc = new Document(fs.readFileSync(path.join(dir, 'index.html'), 'utf8'));
   const clock = makeClock();
+  const sizes = makeResizeObservers();
   const bridge = o.preload === false ? null : loadPreload(name, o.handlers || {});
   const logs = [];
 
@@ -470,6 +542,7 @@ function loadSurface(name, opts) {
     innerHeight: 800,
     localStorage: { _m: {}, getItem(k) { return k in this._m ? this._m[k] : null; }, setItem(k, v) { this._m[k] = String(v); }, removeItem(k) { delete this._m[k]; } },
     Image: class { constructor() { this.complete = true; this.naturalWidth = 0; } },
+    ResizeObserver: sizes.ResizeObserver,
     fetch: () => Promise.reject(new Error('no network in a test')),
     queueMicrotask: (fn) => Promise.resolve().then(fn),
     URLSearchParams,
@@ -499,10 +572,11 @@ function loadSurface(name, opts) {
     scripts,
     $: (id) => doc.getElementById(id),
     fire: (el, type, extra) => el.dispatchEvent(makeEvent(type, extra)),
+    resized: sizes.resized,
   };
 }
 
 /** Let every pending promise in every context settle. */
 const settle = async (n = 6) => { for (let i = 0; i < n; i++) await new Promise((r) => setImmediate(r)); };
 
-module.exports = { loadSurface, loadPreload, parseInto, Document, Element, settle, makeEvent };
+module.exports = { loadSurface, loadPreload, parseInto, Document, Element, settle, makeEvent, nextTab };

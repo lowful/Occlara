@@ -154,14 +154,28 @@ function weakSide(rounds) {
   return a < d ? 'attack' : 'defense';
 }
 
+// retrieve() counts its reserve out of the eight notes it serves
+// (knowledge.ADVANCED_SLOTS, knowledge.STREAK_CORE_SLOTS).
+const RESERVE_OF = 8;
+
 /**
- * The sourced notes worth reading before the next match.
+ * The notes worth reading before the next match.
  *
- * Only notes carrying source.coach, so everything listed can be attributed to a
- * named coach. Weapon notes are left out because the gun changes round to round
- * and a review cannot know which one to study. The agent, role and map filters
- * are the same exclusions retrieve() applies, so a Sova note never reaches a
- * Jett.
+ * Only the imported notes, the ones carrying a source.topic, because the topic
+ * is what a pattern sends the player to (PATTERN_TOPICS). Weapon notes are left
+ * out because the gun changes round to round and a review cannot know which one
+ * to study. The agent, role and map filters are the same exclusions retrieve()
+ * applies, so a Sova note never reaches a Jett.
+ *
+ * A NOTE GOES OUT AS ITS TEXT AND NOTHING ELSE. Where it came from is never
+ * said, on the study card or anywhere else in the app (check:attribution).
+ *
+ * ADVANCED COACHING SHAPES THIS LIST as it shapes retrieve()'s. Off, it is core
+ * notes only: a player who never asked for damage breakpoints is not handed one
+ * as homework. On, it is retrieve()'s reserve at study's scale: advanced notes
+ * get the share of the slots they get there, six of eight, rounded down so a
+ * core note always survives, and a match lost in a run of rounds (the streak
+ * pattern) gives core the majority back, as a death streak does there.
  */
 function study(input, limit = 3) {
   const { context, patterns, rounds } = input;
@@ -169,35 +183,55 @@ function study(input, limit = 3) {
   const wanted = new Set();
   for (const p of patterns) for (const t of PATTERN_TOPICS[p.key] || []) wanted.add(t);
   const weak = weakSide(rounds);
+  const advancedOn = context.advancedTips === true;
 
   const scored = [];
   for (const note of knowledge.all()) {
     const src = note.source;
-    if (!src || !src.coach) continue;
+    if (!src || typeof src.topic !== 'string' || !src.topic) continue;
     if (note.weapons) continue;
     if (note.agents && (!s.agent || !note.agents.some((a) => a.toLowerCase() === s.agent.toLowerCase()))) continue;
     if (note.roles && (!s.role || !note.roles.includes(s.role))) continue;
     if (note.maps && (!s.map || !note.maps.some((m) => m.toLowerCase() === s.map))) continue;
+    const advanced = note.tier === 'advanced';
+    if (advanced && !advancedOn) continue;
     let score = note.weight || 1;
     if (note.agents) score += 4;
     if (note.maps) score += 3;
     if (note.roles) score += 2;
-    if (src.topic && wanted.has(src.topic)) score += 5;
+    if (wanted.has(src.topic)) score += 5;
     if (note.side && weak && note.side === weak) score += 2;
     if (note.side && weak && note.side !== weak) score -= 2;
-    scored.push({ text: note.text, coach: src.coach, topic: src.topic || null, score });
+    scored.push({ text: note.text, topic: src.topic, advanced, score });
   }
   scored.sort((a, b) => b.score - a.score);
+
   // One per topic, so three notes are three different things to work on.
   const out = [];
   const topics = new Set();
-  for (const n of scored) {
-    if (out.length >= limit) break;
-    if (n.topic && topics.has(n.topic)) continue;
-    topics.add(n.topic);
-    out.push({ text: n.text, coach: n.coach });
+  const take = (pool, upTo) => {
+    for (const n of pool) {
+      if (out.length >= upTo) return;
+      if (topics.has(n.topic)) continue;
+      topics.add(n.topic);
+      out.push(n);
+    }
+  };
+  if (!advancedOn) {
+    take(scored, limit);
+  } else {
+    const streak = patterns.some((p) => p.key === 'streak');
+    const share = streak ? RESERVE_OF - knowledge.STREAK_CORE_SLOTS : knowledge.ADVANCED_SLOTS;
+    const advWant = Math.max(0, Math.min(limit - 1, Math.floor((limit * share) / RESERVE_OF)));
+    const adv = scored.filter((n) => n.advanced);
+    take(adv, advWant);
+    take(scored.filter((n) => !n.advanced), limit);
+    // Short on core notes for this player: topped back up from advanced
+    // rather than listing fewer, as retrieve() does.
+    take(adv, limit);
   }
-  return out;
+  out.sort((a, b) => b.score - a.score);
+  return out.map((n) => ({ text: n.text }));
 }
 
 function roundLine(r) {
@@ -285,8 +319,11 @@ function promptRounds(input, withKnowledge) {
     for (const t of knowledge.retrieve({ agent: context.agent, map: context.map }, 6,
       { advanced: context.advancedTips })) add(t);
     if (notes.length) {
-      knowledgeBlock = '\n\nCOACHING KNOWLEDGE (from pro VOD reviews and verified habits). Use one to explain WHY a '
-        + 'round went wrong only when that round\'s facts actually match it, and never quote it word for word:\n'
+      // Never where it comes from: the review speaks these notes in its own
+      // voice and names no coach, player, team or video behind them.
+      knowledgeBlock = '\n\nCOACHING KNOWLEDGE (verified habits). Use one to explain WHY a round went wrong '
+        + 'only when that round\'s facts actually match it. Never quote it word for word, and never say where '
+        + 'it comes from: no coach, player, team or video is ever named as its source:\n'
         + notes.slice(0, 8).map((t) => '- ' + t).join('\n');
     }
   }

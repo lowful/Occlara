@@ -18,6 +18,14 @@
       <div class="h-brand">
         <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
         <h2>Matches</h2>
+        <!-- WON AND LOST, "2:1", beside the title on the list page alone
+             (matches.js paintWinLoss). The digits are for the eye and the
+             sentence is for a screen reader; the tooltip adds the draws and
+             the matches with no result. -->
+        <div id="wl" class="wl" hidden>
+          <b class="wl-w" aria-hidden="true"></b><span class="wl-sep" aria-hidden="true">:</span><b class="wl-l" aria-hidden="true"></b>
+          <span class="wl-sr sr-only"></span>
+        </div>
       </div>
       <nav id="tabs" class="tabs no-drag" role="tablist" aria-label="Game"></nav>
       <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
@@ -77,6 +85,7 @@
 
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/grade-view.js"></script>
+  <script src="../shared/log-eye.js"></script>
   <script src="matches.js"></script>
 </body>
 </html>

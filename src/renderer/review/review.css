@@ -282,12 +282,11 @@ header {
   border-radius: var(--r-md);
 }
 .v-study-text { font-size: 13px; line-height: 1.55; color: var(--text); margin: 0; }
-.v-study-src { font-size: 11px; color: var(--text-mute); margin-top: 6px; }
 
 .v-foot { font-size: 11px; color: var(--text-mute); text-align: center; margin: 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  .v-cell, .v-round.flash { transition: none; animation: none; }
+  .v-cell, .v-round.flash, .v-moment.flash { transition: none; animation: none; }
 }
 
 /* Riot's record was applied. Quiet, because it is a reassurance, not news. */
@@ -304,19 +303,45 @@ header {
 /* ── Every game: the grade, the lists, the header actions ───────────────── */
 .h-actions { display: flex; align-items: center; gap: var(--space-1); }
 .btn.sm { padding: 6px 10px; font-size: 12px; border-radius: var(--r-sm); }
+/* The eye stands as tall as the small buttons beside it. */
+.eye-host { display: flex; }
+.eye-host[hidden] { display: none; }
+.eye-host .log-eye { width: 28px; height: 28px; border-radius: var(--r-sm); }
 .common { display: flex; flex-direction: column; gap: var(--space-6); }
 .common[hidden] { display: none; }
 #insights-host:empty { display: none; }
 
 /* ── The coach's look at a death ────────────────────────────────────────── */
-.v-look {
+/* On a round's card, the cause alone and a link down to the moment. */
+.v-look-link { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: 2px; }
+.v-moment-link {
+  margin-left: auto; padding: 0;
+  background: none; border: 0;
+  font: inherit; font-size: 11.5px; color: var(--text-dim);
+  text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease);
+}
+.v-moment-link:hover { color: var(--text); }
+.v-moment-link:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 2px; }
+
+/* Where you died, and how (8.2): every moment the coach looked at, last on
+   the page, its frames across the card. A card of its own, the round card's
+   shape, so the link down from a round lands on something that flashes. */
+.v-looks { display: flex; flex-direction: column; gap: var(--space-3); }
+.v-moment {
   display: flex; flex-direction: column; gap: var(--space-2);
-  margin-top: 4px; padding: var(--space-3);
-  background: var(--bg-2);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(0, 0, 0, 0.24);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
+  scroll-margin: var(--space-8);
 }
-.v-look-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.v-moment.flash { animation: vflash 1.2s var(--ease); }
+.v-moment-head { display: flex; align-items: center; gap: var(--space-2); min-height: 28px; }
+.v-moment-head .log-eye { margin-left: auto; width: 28px; height: 28px; border-radius: var(--r-sm); }
+.v-moment-cause { display: flex; }
+.v-moment-src { font-size: 11px; line-height: 1.45; color: var(--text-mute); margin: 0; }
 .v-cause {
   font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
   padding: 2px 8px; border-radius: 999px;
@@ -326,10 +351,14 @@ header {
 .v-shots { display: grid; grid-template-columns: 1fr; gap: var(--space-2); }
 .v-shots.two { grid-template-columns: 1fr 1fr; }
 .v-shot { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+/* A zoom scales from where the frame was to where it is (zoomShot in
+   review.js), out and back. */
 .v-shot img {
   width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
   border-radius: var(--r-sm); border: 1px solid var(--glass-border);
   cursor: zoom-in; background: #000;
+  transform-origin: 0 0;
+  transition: transform var(--t-med) var(--ease-expo);
 }
 .v-shot.zoom { grid-column: 1 / -1; }
 .v-shot.zoom img { object-fit: contain; cursor: zoom-out; }

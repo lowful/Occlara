@@ -191,8 +191,10 @@ h3 {
 }
 .actions .btn { flex: 1; font-size: 12.5px; padding: 9px 12px; }
 
-/* The window settles in rather than snapping on. */
-.sheet { animation: sheetIn 420ms var(--ease-expo) both; }
+/* The window settles in rather than snapping on. It is shown on its first
+   frame (weekly-window.js, ready-to-show), so the whole of this plays on
+   screen. */
+.sheet { animation: sheetIn var(--t-slow) var(--ease-expo) both; }
 
 /* Recurring mistakes. The fix is styled as prominently as the mistake, because
    naming a habit without saying what to do about it is the failure mode of

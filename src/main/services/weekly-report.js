@@ -12,7 +12,7 @@
  * directly.
  */
 
-const { repeatTitle, specificOf } = require('../../shared/insights');
+const { repeatTitle, specificOf, countable } = require('../../shared/insights');
 
 // Rank ladder for trend arrows: "Gold 2" -> a comparable number. Unknown -> null.
 const RANK_LADDER = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'ascendant', 'immortal', 'radiant'];
@@ -133,12 +133,14 @@ function assembleReport(input) {
   // that showed up most this week.
   // A count across matches carries a title true of all of them
   // (insights.repeatTitle): "Healing up 32%, in 3 matches" pinned one match's
-  // figure on three, and "Dying at B Main" one match's place.
+  // figure on three, and "Dying at B Main" one match's place. A match graded
+  // from Riot's record alone counts in the grades above and in no list here
+  // (insights.countable): Riot records what happened, never what to fix.
   const count = (list) => {
     const m = new Map();
     for (const e of week) {
       const map = e.review.game && e.review.game.map;
-      for (const x of ((e.review.insights || {})[list] || [])) {
+      for (const x of countable(e.review)[list]) {
         const t = m.get(x.key) || { key: x.key, title: x.title, fix: x.fix || null, n: 0, specifics: new Set() };
         t.n++;
         t.specifics.add(specificOf(x, map));

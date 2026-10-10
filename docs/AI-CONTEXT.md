@@ -502,9 +502,13 @@ the main repo's single release, id **296500148**, tag **`Release`**, publishing
 the same bytes under **two** names: `Occlara-Setup.exe` for every new link and
 `GhostCoach.2.0.Setup.exe`, which must never be removed.
 
-**Run `npm run verify:ai` after ANY prompt or model change.** It grades the coach
-against real frames and has thresholds for tip return, STATE parsing, guard
-inputs, survivor rate and accuracy.
+**Run `npm run verify:ai` after ANY read prompt or model change.** It runs the
+live read over the 240 real frames of the Abyss session (kept in
+`userData/bench/`, out of the AI log's pruning) and fails on parse or labels
+under 95%, more than one invented death, under 80% of Riot's deaths agreed, or a
+p90 past its gate. With up to four reads in flight, a change that ages the
+read's context is checked with `npm run verify:ai -- --lag 4`. CLAUDE.md has the
+details.
 
 ---
 

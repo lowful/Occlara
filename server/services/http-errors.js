@@ -7,11 +7,11 @@
  * Everything used to arrive here as a 500. body-parser hands over a malformed
  * JSON body ('entity.parse.failed') and a body the client stopped sending
  * halfway ('request.aborted', which happens whenever the app quits or the
- * network drops with two reads in flight), both already carrying status 400,
- * and the CORS callback handed over a plain Error. All three were answered
- * "Internal server error", logged as "[server] Error" and pushed into the admin
- * view's Recent errors, so the panel built to diagnose crashes filled up with
- * other people's mistakes.
+ * network drops with up to four reads in flight), both already carrying
+ * status 400, and the CORS callback handed over a plain Error. All three were
+ * answered "Internal server error", logged as "[server] Error" and pushed into
+ * the admin view's Recent errors, so the panel built to diagnose crashes filled
+ * up with other people's mistakes.
  *
  * A 4xx is now answered with its own status and kept out of presence.errors.
  * Only what is left, the server's own failures, is a 500.

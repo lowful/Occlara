@@ -18,7 +18,8 @@
  *   - every tag VALUE is one retrieve() can actually match (see below)
  *   - weight is 1 to 3
  *   - no duplicate note text
- *   - every note merged from server/data/playbook.json carries a source
+ *   - every note merged from server/data/playbook.json carries a source.topic,
+ *     and none carries a coach key
  *
  * Run: npm run check:playbook
  */
@@ -133,7 +134,7 @@ if (!notes) {
  * The merged file is read directly rather than through knowledge.all(), which
  * concatenates the two corpora and cannot say which note came from where. The
  * source requirement applies only to imported knowledge: the hand written 357
- * predate it and are attributed in the module docblock instead.
+ * predate it and carry no source at all.
  */
 let imported = [];
 const IMPORT_PATH = path.join(__dirname, '..', 'server', 'data', 'playbook.json');
@@ -148,24 +149,30 @@ try {
 }
 
 /*
- * ATTRIBUTION IS CHECKED ON THE IMPORTED ARRAY DIRECTLY, and getting here took
+ * THE SOURCE IS CHECKED ON THE IMPORTED ARRAY DIRECTLY, and getting here took
  * two wrong turns worth recording.
  *
  * First attempt matched by TEXT against the merged corpus. A planted duplicate
- * of an existing hand written note then flagged THE ORIGINAL as unattributed,
- * because the original's text was in the set and the original has no source.
- * Right number of problems, wrong reason, wrong note.
+ * of an existing hand written note then flagged THE ORIGINAL as having no
+ * source, because the original's text was in the set and the original has
+ * none. Right number of problems, wrong reason, wrong note.
  *
  * Second attempt matched by object IDENTITY. That silently checked nothing at
  * all: knowledge.js runs its own JSON.parse of the same file, so its objects
- * are different objects, every reference test failed, and the unattributed note
- * in the control simply stopped being reported. A check that quietly stops
- * checking is the worst of the three.
+ * are different objects, every reference test failed, and the note with no
+ * source in the control simply stopped being reported. A check that quietly
+ * stops checking is the worst of the three.
  *
  * So the imported array is validated on its own terms. Those notes still get
- * every other check through the merged corpus below; only attribution is scoped
- * to them, because the hand written 357 predate the requirement and are
- * attributed in the knowledge.js docblock instead.
+ * every other check through the merged corpus below; only the source is scoped
+ * to them, because the hand written 357 predate the requirement.
+ *
+ * WHAT A SOURCE HOLDS. A topic, because study() in match-review.js picks the
+ * notes a review lists by it, so a note without one can never be studied, and
+ * the kind of material it came from. NEVER WHO: the app does not say where its
+ * knowledge comes from, and a coach key was how one name reached every
+ * review's study card. check:attribution holds the rest of the repo to the
+ * same rule.
  */
 for (const note of imported) {
   if (!note || typeof note !== 'object') {
@@ -173,15 +180,22 @@ for (const note of imported) {
     continue;
   }
   const src = note.source;
-  if (!src || typeof src !== 'object' || !src.coach) {
-    fail(note, 'imported from playbook.json with no source.coach, so the claim is unattributable');
+  if (!src || typeof src !== 'object' || typeof src.topic !== 'string' || !src.topic.trim()) {
+    fail(note, 'imported from playbook.json with no source.topic, so study() can never list it');
+  }
+  if (Object.prototype.hasOwnProperty.call(note, 'coach')
+      || (src && typeof src === 'object' && Object.prototype.hasOwnProperty.call(src, 'coach'))) {
+    fail(note, 'carries a coach key, and the app never says where a note came from');
   }
 }
+
+const DASHES = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']');
 
 for (const note of notes) {
   const text = String(note.text || '');
 
-  if (/[–—]/.test(text)) fail(note, 'contains an em or en dash');
+  // Built from char codes: CLAUDE.md keeps the characters themselves out of the repo.
+  if (DASHES.test(text)) fail(note, 'contains an em or en dash');
   if (/[‘’“”]/.test(text)) fail(note, 'contains a curly quote');
   if (!text.trim()) fail(note, 'empty text');
 
@@ -418,7 +432,7 @@ console.log(`checked ${notes.length} playbook notes`
   + (imported.length ? ` (${imported.length} imported from server/data/playbook.json)` : ''));
 
 if (!problems.length) {
-  console.log('PASS: tags, weights, attribution, and every agent, map, ability and callout check out');
+  console.log('PASS: tags, weights, sources, and every agent, map, ability and callout check out');
   process.exit(0);
 }
 console.log(`\nFAIL: ${problems.length} problem(s)`);

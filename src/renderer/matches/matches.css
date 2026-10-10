@@ -18,6 +18,19 @@ header {
 .h-brand { display: flex; align-items: center; gap: var(--space-2); flex: none; }
 .h-brand h2 { font-size: 13px; font-weight: 700; letter-spacing: -0.1px; }
 
+/* WON AND LOST beside the title (matches.js paintWinLoss), in Geist Mono at
+   the title's own size: 13px here, 24px as a page (below, after ui.css).
+   Wins in --good, losses in --red, the colon between them dim. Each colour
+   sits on its number, so the colour is never the only signal. */
+.wl {
+  display: inline-flex; align-items: baseline; margin-left: var(--space-2);
+  font-family: var(--font-mono); font-size: 13px; font-weight: 800; line-height: 1;
+}
+.wl b { font-weight: inherit; }
+.wl-w { color: var(--good); }
+.wl-l { color: var(--red); }
+.wl-sep { color: var(--text-mute); }
+
 .tabs { display: flex; gap: 2px; margin-left: auto; padding: 2px; border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--glass-border); }
 .tab {
   font: 600 12px var(--font); color: var(--text-dim);
@@ -90,19 +103,31 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 .p-trendword.better { color: var(--good); }
 .p-trendword.steady { color: var(--text-mute); }
 
-/* The match rows. */
+/* The match rows. The card is the item, holding two buttons side by side:
+   the row, which opens the review, and the eye at its end, which opens the
+   match's AI log (matches.js row()). The card answers the pointer as one. */
 .list { display: flex; flex-direction: column; gap: var(--space-2); }
-.m-row {
-  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--space-3);
-  width: 100%; text-align: left;
-  padding: var(--space-3) var(--space-4);
+.m-item {
+  display: flex; align-items: center;
   background: rgba(0, 0, 0, 0.24); border: 1px solid var(--glass-border); border-radius: var(--r-md);
-  color: var(--text); font: inherit; cursor: pointer;
   transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
   animation: rowIn 220ms var(--ease) both;
 }
-.m-row:hover { border-color: rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.03); transform: translateY(-1px); }
+.m-item:hover { border-color: rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.03); transform: translateY(-1px); }
+.m-row {
+  flex: 1; min-width: 0;
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--space-3);
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  background: transparent; border: 0; border-radius: var(--r-md);
+  color: var(--text); font: inherit; cursor: pointer;
+}
 .m-row:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+/* A row with no eye, in a list where others have one, keeps the eye's room
+   (its 30px in ui.css), so the grades line up down the list. */
+.m-item .log-eye,
+.m-eye-gap { margin-right: var(--space-3); }
+.m-eye-gap { flex: none; width: 30px; }
 @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .m-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .m-top { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
@@ -112,8 +137,6 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 .m-res.loss { color: var(--red); }
 .m-meta { font-size: 11.5px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-top-mistake { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m-side { display: flex; align-items: center; gap: var(--space-3); }
-.m-ask { font-size: 11.5px; padding: 6px 10px; border-radius: var(--r-sm); }
 .m-grade { display: flex; align-items: center; gap: 8px; }
 .m-score { font-family: var(--font-mono); font-size: 18px; font-weight: 600; color: var(--text); min-width: 26px; text-align: right; }
 .m-letter {
@@ -129,10 +152,9 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 
 @media (max-width: 620px) {
   .p-cats { grid-template-columns: repeat(2, 1fr); }
-  .m-ask { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .m-row { animation: none; transition: none; }
+  .m-item { animation: none; transition: none; }
 }
 
 /* ── The breakdown ───────────────────────────────────────────────────────────
@@ -227,11 +249,13 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 .b-letter.warn { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.45); }
 .b-letter.bad  { color: var(--red); border-color: rgba(var(--red-rgb), 0.45); }
 
+/* An open row's detail grows from its row by height and closes back into it
+   (.reveal, ui.css; toggleRow in matches.js): the row is the reveal, its cell
+   the clip, and this the box in it. */
 .b-detail {
   display: grid; grid-template-columns: 128px 1fr; gap: 8px var(--space-3);
   padding: var(--space-3) var(--space-4) var(--space-4);
   border-top: 1px solid var(--glass-border); background: rgba(0, 0, 0, 0.18);
-  animation: rowIn var(--t-med) var(--ease) both;
 }
 .b-dt { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-mute); padding-top: 3px; }
 .b-dd { font-size: 12.5px; color: var(--text); line-height: 1.5; margin: 0; }
@@ -256,9 +280,6 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
   .b-dt { padding-top: 8px; }
   .b-dt:first-child { padding-top: 0; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .b-detail { animation: none; }
-}
 
 /* ── One surface, three pages (8.1) ────────────────────────────────────────
    As a page of the main window the library shows one section, named by its
@@ -275,3 +296,7 @@ html[data-section="breakdown"] #every { display: none !important; }
 html[data-section="list"] #every .l-head h3,
 html[data-section="patterns"] #patterns .p-head h3,
 html[data-section="breakdown"] #breakdown .b-head h3 { display: none; }
+/* The record beside the page title is the title's 24px (ui.css), on its
+   baseline. */
+html.embedded .sheet > header .h-brand { align-items: baseline; }
+html.embedded .sheet > header .wl { font-size: 24px; }

@@ -9,11 +9,15 @@
  *   fromRiot        a match the coach never watched. Every round is Riot's, so
  *                   the review has deaths, killers, trades, clutches and plants,
  *                   and nothing only the screen could have: no death location,
- *                   no ultimate read, no look at a death. It says so.
+ *                   no ultimate read, no look at a death. It says so. And it
+ *                   states facts: Riot records what happened and never why, so
+ *                   its counts are one neutral list, never a mistake with a fix
+ *                   (insights.asFacts), and none of it is counted across matches.
  *   upgradeWatched  a match the coach DID watch, saved before it could link (no
  *                   Riot ID yet, or the link gave up). The same reconcile the
  *                   end of a match runs, over the ledger the review kept, so it
- *                   keeps its locations and reads where Riot agrees.
+ *                   keeps its locations, reads and the coach's looks where
+ *                   Riot agrees.
  *
  * NO MODEL IS CALLED. A summary written now would have no frames behind it,
  * and an old one was written from facts Riot has just corrected, so it is
@@ -209,6 +213,20 @@ function upgradeWatched({ saved, row, riot, history, account }) {
       }
     }
   }
+  // THE COACH'S LOOKS FROM THE SCREEN (8.2) STAY where Riot confirms the death
+  // the screen filed. A recording Riot's record never reached was looked at
+  // from the screen (screenLook in index.js), and its looks are on its cards,
+  // never in its ledger, so they are read back from the cards, which covers
+  // every review 8.2 has already saved. Rebuilt by reconcile() alone, every
+  // card came back without one: the "Where you died, and how" section went,
+  // its causes left every pattern, and its frames stayed on disk with no card
+  // pointing at them. Nothing here can look again, since no model is called
+  // and the AI log has often rolled past the match. A look at a death Riot
+  // says never happened (the real Abyss round 17) was a look at a moment that
+  // did not happen, and goes, as the screen's death spot does.
+  const looks = new Map((Array.isArray(old.rounds) ? old.rounds : [])
+    .filter((c) => c && c.forensics && c.forensics.cause).map((c) => [c.n, c.forensics]));
+  for (const r of rounds) if (r.died && r.screenDied && looks.has(r.n)) r.forensics = looks.get(r.n);
   const lc = (old.ledger && old.ledger.context) || {};
   const g = old.game || {};
   const tracker = trackerOf(row, riot);
@@ -251,6 +269,10 @@ function upgradeWatched({ saved, row, riot, history, account }) {
     narrativePending: false,
     thin: false,
   });
+  // Where the recording's frames are in the AI log, as the review it upgrades
+  // kept it (8.2), so the eye on its row still opens them. One saved before
+  // 8.2 kept none and is looked up by its end, so none is made up for it here.
+  if (old.aiLog !== undefined) review.aiLog = old.aiLog;
   return { review, role, tracker };
 }
 

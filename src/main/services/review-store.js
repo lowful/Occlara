@@ -69,7 +69,23 @@ function metaOf(id, game, review, at) {
     // 'riot' when it was graded from Riot's record of a match the coach never
     // watched, so the list can say so (backfill.js).
     source: r.source || null,
+    // Where its frames are in the AI log (8.2, index.js), so the list can say
+    // whether they are still kept without opening the review. Null when the
+    // log was off; left out for a review saved before 8.2, which kept none
+    // and is looked up by when its match ended (ai-log-store.js scopeFor).
+    ...(r.aiLog !== undefined ? { aiLog: r.aiLog || null } : {}),
   };
+}
+
+/**
+ * A row as the list hands it out. A review graded from Riot's record alone has
+ * no mistakes (insights.countable), but 8.0.3 and 8.1 wrote the first of the
+ * list it then had into the index as its top one, and a row is only written
+ * again when its own review is saved again. So it is cleaned on the way out,
+ * for the library and Stats alike, and never rewritten on disk.
+ */
+function listed(row) {
+  return row && row.source === 'riot' && row.topMistake ? { ...row, topMistake: null } : row;
 }
 
 class ReviewStore {
@@ -118,7 +134,7 @@ class ReviewStore {
 
   /** The list, newest first, optionally one game's. */
   list(game) {
-    const rows = this.index();
+    const rows = this.index().map(listed);
     return game ? rows.filter((r) => r.game === game) : rows;
   }
 

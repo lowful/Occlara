@@ -32,6 +32,13 @@ function ensure() {
 
   win.setIgnoreMouseEvents(true);            // fully click-through
   win.setAlwaysOnTop(true, 'screen-saver');
+  // OUT OF EVERY CAPTURE, OURS INCLUDED. The mark sits top right, over
+  // Valorant's kill feed, and Occlara's own GDI capture read it into every
+  // frame taken while the main window was hidden, which is exactly when a
+  // match is played. On Windows 10 2004 and later this takes the window out
+  // of capture altogether rather than painting it black; older builds paint
+  // it black, over the pixels the mark already covered.
+  win.setContentProtection(true);
   win.loadFile(path.join(__dirname, '../../renderer/dock/index.html'));
   registry.register('dock', win);
   return win;

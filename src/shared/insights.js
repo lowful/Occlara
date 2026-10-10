@@ -20,6 +20,11 @@
  * Entries carry a stable `key`, because the match library counts them across
  * matches (patterns.js). Renaming a key orphans every saved review that used it.
  *
+ * A MATCH GRADED FROM RIOT'S RECORD ALONE HAS NONE OF THE THREE. Riot records
+ * what happened and never why, so the same counts are one neutral list of
+ * facts there (asFacts), and nothing of it is counted across matches
+ * (countable).
+ *
  * Pure, no Electron, so the tests build them from the real fixtures.
  */
 
@@ -27,6 +32,8 @@ const { CAUSES, isAvoidable } = require('./death-causes');
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
 const times = (n) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
+/** The last one standing, against how many: "alone against one", "alone against 3". */
+const alone = (vs) => `alone against ${Number(vs) === 1 ? 'one' : vs}`;
 
 /** "round 4", "rounds 2 and 9", "rounds 2, 5, 9 and 3 more". */
 function roundList(ns) {
@@ -213,7 +220,9 @@ function valorant(rounds, opts = {}) {
   if (clutchWon.length >= 1) {
     push(out.strengths, {
       key: 'clutch', title: 'Won as the last one standing',
-      detail: clutchWon.map((r) => `Round ${r.n}, one against ${r.clutch.vs}`).join('. ') + '.',
+      // "Round 4, one against 1." read as a one against one whatever the
+      // number, so it says the player was alone, and against how many.
+      detail: clutchWon.map((r) => `Round ${r.n}, ${alone(r.clutch.vs)}`).join('. ') + '.',
       rounds: clutchWon.map((r) => r.n),
     });
   }
@@ -424,4 +433,118 @@ function specificOf(e, map) {
   return null;
 }
 
-module.exports = { valorant, rivals, lol, roundList, repeatTitle, specificOf, WEIGHT };
+// ── Riot's record alone ─────────────────────────────────────────────────────
+
+/**
+ * WHAT RIOT'S RECORD SHOWS, in the order it is read: every key a match graded
+ * from Riot's record alone can count, under a title that says what was counted
+ * and claims nothing Riot does not record. "Died where nobody could trade"
+ * was the title of the deaths no teammate answered within five seconds, and
+ * "Gave back the advantage" of the deaths with the team ahead in a round that
+ * was lost: Riot saw the count, never the reason. The key stays, because the
+ * library counts by it; only the title is the fact's.
+ *
+ * A KEY WITH NO TITLE HERE IS NO FACT, and asFacts leaves it out. A death spot
+ * and the ultimate are the screen's, the coach's look at a death is a
+ * judgement, and a new insight reaches a Riot only review once it has a title
+ * true of its count.
+ */
+const FACTS = [
+  ['first-kill', 'Kills in the first fight'],
+  ['first-death', 'First to die in the round'],
+  ['multi-kill', 'Rounds with three or more kills'],
+  ['trades', 'Kills that traded a teammate'],
+  ['untraded', 'Deaths not traded within five seconds'],
+  ['early', 'Deaths in the first 30 seconds'],
+  ['lost-advantage', 'Died with your team ahead, round lost'],
+  ['same-killer', (e) => (e.agent ? `Deaths to ${e.agent}` : 'Deaths to one agent')],
+  ['clutch', 'Rounds won as the last one standing'],
+  ['one-v-one', 'Rounds lost one against one'],
+  ['postplant', 'Attack rounds after the plant'],
+  ['postplant-lost', 'Attack rounds after the plant'],
+  ['retake', 'Defence rounds after their plant'],
+  ['survived', 'Rounds survived'],
+];
+const FACT_TITLE = new Map(FACTS);
+const FACT_ORDER = FACTS.map(([key]) => key);
+
+/**
+ * THE CLUTCH LINE AS IT WAS WRITTEN BEFORE 8.2, "Round 4, one against 1.",
+ * which read as a one against one whatever the number. A saved review keeps
+ * it, so it is put in today's words wherever one is shown.
+ */
+const CLUTCH_RE = /\bone against (\d+)/;
+const clutchWords = (text) => String(text).replace(new RegExp(CLUTCH_RE.source, 'g'), (_m, n) => alone(n));
+// "Won only 1 of 4" is a miss's verdict on a number, and the fact is the number.
+const ONLY_RE = /\bWon only (\d+)/;
+
+/**
+ * One entry as a fact: its key, its counted detail and its rounds, under the
+ * title by key, and no fix, because a fact is not a mistake. Null for an entry
+ * that is no fact.
+ */
+function factsView(e) {
+  if (!e || !e.key || e.judged) return null;
+  const title = FACT_TITLE.get(String(e.key));
+  if (!title) return null;
+  let detail = String(e.detail || '');
+  if (e.key === 'clutch') detail = clutchWords(detail);
+  if (e.key === 'postplant-lost') detail = detail.replace(ONLY_RE, 'Won $1');
+  const rounds = Array.isArray(e.rounds) ? e.rounds.slice() : [];
+  return {
+    key: e.key, title: typeof title === 'function' ? title(e) : title, detail, rounds,
+    count: typeof e.count === 'number' ? e.count : rounds.length,
+    ...(e.agent ? { agent: e.agent } : {}),
+  };
+}
+
+/**
+ * A Riot only review's insights: three empty lists, and its facts in the order
+ * FACTS reads them. Made from a fresh count's three lists, from the lists a
+ * review saved before 8.2 kept, or from facts already made, and the same facts
+ * come out every way (test:riotreview holds them equal on the real match).
+ */
+function asFacts(ins) {
+  const i = ins || {};
+  const from = Array.isArray(i.facts) ? i.facts : [...(i.mistakes || []), ...(i.strengths || []), ...(i.missed || [])];
+  const facts = [];
+  for (const e of from) {
+    const f = factsView(e);
+    // One fact a key: 'lost-advantage' is a mistake from two rounds and a miss
+    // from one, never both.
+    if (f && !facts.some((x) => x.key === f.key)) facts.push(f);
+  }
+  facts.sort((a, b) => FACT_ORDER.indexOf(a.key) - FACT_ORDER.indexOf(b.key));
+  return { mistakes: [], strengths: [], missed: [], facts };
+}
+
+/**
+ * The lists a review gives when matches are counted together: the patterns,
+ * the breakdown's repeats and the weekly report. A REVIEW GRADED FROM RIOT'S
+ * RECORD ALONE GIVES NONE. Its counts are facts about one match, not habits,
+ * and counted as habits they made Home's "most repeated mistake" mostly a
+ * quote from matches Occlara never saw. One saved before 8.2 still holds three
+ * lists, and gives none of them either.
+ *
+ * IN TODAY'S WORDS, like a review shown whole (valorant-review.js served()).
+ * The patterns quote the latest match's line ("Latest match: ..."), and
+ * straight from the file a review saved before 8.2 said "Round 4, one against
+ * 1." there, the wording 8.2 changed because it read as a one against one.
+ */
+function countable(review) {
+  const r = review || {};
+  const ins = r.source === 'riot' ? {} : (r.insights || {});
+  return inTodaysWords({ mistakes: ins.mistakes || [], strengths: ins.strengths || [], missed: ins.missed || [] });
+}
+
+/** A recorded review's three lists in today's words: its clutch line. Nothing else changes. */
+function inTodaysWords(ins) {
+  if (!ins || typeof ins !== 'object') return ins;
+  const fix = (list) => (Array.isArray(list)
+    ? list.map((e) => (e && e.key === 'clutch' && CLUTCH_RE.test(String(e.detail || '')) ? { ...e, detail: clutchWords(e.detail) } : e))
+    : list);
+  return { ...ins, mistakes: fix(ins.mistakes), strengths: fix(ins.strengths), missed: fix(ins.missed) };
+}
+
+module.exports = { valorant, rivals, lol, roundList, repeatTitle, specificOf, WEIGHT,
+  factsView, asFacts, countable, inTodaysWords, CLUTCH_RE, ONLY_RE };

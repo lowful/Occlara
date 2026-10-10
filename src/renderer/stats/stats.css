@@ -60,6 +60,11 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .arrow.up   { color: var(--good); }
 .arrow.down { color: #ff8a95; }
 .arrow.flat { color: var(--text-mute); }
+/* The rank tile's RR from the last rated game (paintRankDelta in stats.js). */
+.arrow.rr { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.arrow.rr.gain { color: var(--good); }
+.arrow.rr.loss { color: var(--red); }
+.arrow.rr.even { color: var(--text-mute); }
 
 /* ── Top Agents: portrait tiles in the same glass card language ── */
 .agent-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -96,11 +101,12 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 /* rank card expands into per-rank insights */
 .card.clickable { cursor: pointer; transition: border-color var(--t-fast) var(--ease); }
 .card.clickable:hover { border-color: rgba(var(--cyan-rgb),0.35); }
-.rank-chev { font-size: 8px; color: var(--text-mute); }
+.rank-chev { display: inline-block; font-size: 8px; color: var(--text-mute); transition: transform var(--t-fast) var(--ease); }
+.card.notes-open .rank-chev { transform: rotate(180deg); }
+/* Opened and closed by height in place (#rank-reveal, .reveal in ui.css). */
 .rank-notes {
   margin-top: 10px; padding: 12px 14px;
   background: rgba(0,0,0,0.22); border: 1px solid var(--glass-border); border-radius: 12px;
-  animation: rowIn 200ms var(--ease) both;
 }
 .rank-notes h4 { font-size: 12px; font-weight: 800; color: var(--cyan); margin-bottom: 5px; }
 .rank-notes p  { font-size: 12px; line-height: 1.5; color: var(--text); margin-bottom: 9px; }
@@ -145,8 +151,13 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .expandable { cursor: pointer; }
 .expandable .chev { font-size: 10px; color: var(--text-mute); transition: transform var(--t-fast) var(--ease); }
 .expandable.open .chev { transform: rotate(90deg); }
-.expandable .detail { display: none; margin-top: 9px; border-top: 1px solid var(--glass-border); padding-top: 9px; }
-.expandable.open .detail { display: block; }
+/* The drop down opens by height in place (dropDown in stats.js, .reveal in
+   ui.css). Closed, once the close is through, what is in it is out of reach of
+   the keyboard and a screen reader as well as out of sight. */
+.expandable .detail { margin-top: 9px; border-top: 1px solid var(--glass-border); padding-top: 9px; }
+.expandable.open > .reveal { grid-template-rows: 1fr; }
+.expandable > .reveal > .reveal-clip { visibility: hidden; transition: visibility 0s linear var(--t-med); }
+.expandable.open > .reveal > .reveal-clip { visibility: visible; transition-delay: 0s; }
 
 /* tracker-style stat tiles inside an expanded match: 4x2 symmetric grid,
    values graded green / yellow / red */

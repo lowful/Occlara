@@ -28,6 +28,12 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   border-radius: var(--r-lg);
   background: var(--bg-2);
 }
+/* The cards arrive one after another (home.js arrive), 40ms apart and the
+   riseIn every list shares (ui.css). */
+.card.card-in {
+  animation: riseIn var(--t-slow) var(--ease-expo) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-mute); }
 

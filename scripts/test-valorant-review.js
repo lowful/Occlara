@@ -2,7 +2,9 @@
 
 /**
  * The Valorant post-match review: the round ledger, the match-end watch, the
- * computed review, and the server half that parses the model's reply.
+ * computed review, and the server half that parses the model's reply. And the
+ * deaths a review Riot's record never reached is looked at by (8.2), with the
+ * frames of the real match each look is sent, and how long they are held.
  *
  * THE TWO MATCHES BELOW ARE REAL, from the AI decision log, trimmed to the
  * model's STATE reads with no frames and no player names. The 24 round Abyss
@@ -299,6 +301,9 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const prompt = matchReview.buildPrompt(input);
   ok(/R13 attack, lost\. died at A Lobby/.test(prompt), 'round 13 reaches the prompt as the ledger has it');
   ok(!/[\u2013\u2014]/.test(prompt), 'the prompt carries no dash for the model to copy');
+  ok(/COACHING KNOWLEDGE/.test(prompt) && /never say where it comes from/i.test(prompt),
+    'the knowledge comes with the rule that the review never says where it comes from');
+  ok(!/\bVOD\b/i.test(prompt) && /\bVOD\b/i.test('from pro VOD reviews'), 'and the prompt names no VOD review behind it');
 }
 
 // ── The server parses the reply, and refuses rounds it was never sent ───────
@@ -330,14 +335,40 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     'and "one teammate" later in the sentence is left alone');
 }
 
-// ── Study notes are sourced and fit the player ──────────────────────────────
+// ── Study notes fit the player, follow Advanced coaching, and name no source ─
+// A note is its text and nothing else: the app never says where its knowledge
+// comes from. Off, Advanced coaching lists core notes only; on, it keeps
+// retrieve()'s reserve at study's scale, a core note always among the three and
+// the majority on a run of lost rounds.
 {
+  const knowledge = require('../server/services/knowledge');
+  const tierOf = (text) => { const n = knowledge.all().find((x) => x.text === text); return n ? n.tier || 'core' : null; };
+  const textOnly = (notes) => notes.every((n) => JSON.stringify(Object.keys(n)) === '["text"]');
+  const cores = (notes) => notes.filter((n) => tierOf(n.text) === 'core').length;
   const base = { rounds: [], patterns: [{ key: 'early', text: 'x' }], context: { agent: 'Jett', map: 'Abyss' } };
-  const notes = matchReview.study(matchReview.normalise(base), 3);
-  ok(notes.length === 3 && notes.every((n) => n.coach), `three notes, every one attributed (${notes.map((n) => n.coach).join(', ')})`);
-  ok(!notes.some((n) => /recon bolt|stars|Astra/i.test(n.text)), "a Jett never gets a Sova or Astra note");
-  ok(!notes.some((n) => /^Your (rifle|pistol|SMG|shotgun|sniper|machine gun)/.test(n.text)), 'no weapon note, the gun changes every round');
-  ok(notes.some((n) => /checkpoint|piece of space/i.test(n.text)), 'early deaths send a duelist to the checkpoint notes');
+  const withAdvanced = (b) => ({ ...b, context: { ...b.context, advancedTips: true } });
+  const off = matchReview.study(matchReview.normalise(base), 3);
+  const on = matchReview.study(matchReview.normalise(withAdvanced(base)), 3);
+  ok(off.length === 3 && on.length === 3 && textOnly(off) && textOnly(on),
+    `three notes either way, each its text and nothing else (${JSON.stringify(on[0])})`);
+  ok(cores(off) === 3, `Advanced coaching off, every note is core (${off.map((n) => tierOf(n.text)).join(', ')})`);
+  ok(cores(on) === 1, `on, advanced takes two of the three and a core note survives (${on.map((n) => tierOf(n.text)).join(', ')})`);
+  const all = off.concat(on);
+  ok(!all.some((n) => /recon bolt|stars|Astra/i.test(n.text)), "a Jett never gets a Sova or Astra note");
+  ok(!all.some((n) => /^Your (rifle|pistol|SMG|shotgun|sniper|machine gun)/.test(n.text)), 'no weapon note, the gun changes every round');
+  ok(on.some((n) => /checkpoint|piece of space/i.test(n.text)), 'early deaths send a duelist to the checkpoint notes');
+  ok(!off.some((n) => /checkpoint|piece of space/i.test(n.text)) && off.some((n) => /angle|peek/i.test(n.text)),
+    'which are advanced, so with it off they go to the core notes on taking an angle');
+  const streak = matchReview.study(matchReview.normalise(withAdvanced({ ...base, patterns: [{ key: 'streak', text: 'x' }] })), 3);
+  ok(cores(streak) === 2 && streak.some((n) => /letting the scor/i.test(n.text)),
+    `a run of lost rounds gives core the majority back, as a death streak does in retrieve() (${streak.map((n) => tierOf(n.text)).join(', ')})`);
+  const four = matchReview.study(matchReview.normalise(withAdvanced(base)), 4);
+  ok(four.length === 4 && cores(four) === 1, 'four notes for the prompt keep the same reserve, one core');
+  // What a server from before 8.2 sends: the review keeps the text alone.
+  const built = review.build({ rounds: [], context: {}, endedBy: 'stop',
+    ai: { study: [{ text: 'Wait for the team.', coach: 'Someone (Team)' }, null, { coach: 'Someone' }] } });
+  ok(JSON.stringify(built.study) === '[{"text":"Wait for the team."}]',
+    `a note that arrives with a source is kept as its text alone (${JSON.stringify(built.study)})`);
 }
 
 // ── A fresh ledger with a jump in the score ─────────────────────────────────
@@ -709,8 +740,97 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
 
   ok(metaOf('valorant-1-abcd', 'valorant', { source: 'riot' }, 1).source === 'riot'
     && metaOf('valorant-1-abcd', 'valorant', {}, 1).source === null, 'the library row keeps where a review came from');
+  // Where its frames are in the AI log (8.2), so the list can say whether the
+  // eye has anything to open. A review saved before kept none, and its row
+  // must not claim it had the log off.
+  const place = { session: 'session-2026-10-01T18-00-00-000Z', match: 1000, from: 1000, to: 2000 };
+  const rowOf = (r) => metaOf('valorant-1-abcd', 'valorant', r, 1);
+  ok(JSON.stringify(rowOf({ aiLog: place }).aiLog) === JSON.stringify(place) && rowOf({ aiLog: null }).aiLog === null
+    && !('aiLog' in rowOf({})), 'and where its frames are in the AI log: null with the log off, no field before 8.2');
   ok(roleOf('Jett') === 'Duelist' && roleOf('jett') === 'Duelist' && roleOf('KAY/O') === 'Initiator' && roleOf('Nobody') === null,
     'roles are read case insensitively from the generated agent data');
+}
+
+// ── 8.2: where you died, and how, in a review Riot's record never reached ───
+// The coach looks at the deaths the screen saw (death-frames.js looksFor), on
+// the real Abyss ledger as it stands before any Riot check: the most teachable
+// four, spread across the match, each framed by the frame the screen
+// registered the death on and the one before it, named as the library keeps
+// them. Checked by hand against the logged frames.
+{
+  const deathFrames = require('../src/shared/death-frames');
+  const looks = deathFrames.looksFor(abyss.records, abyss.rounds, {}, 'screen');
+  const ns = looks.map((l) => l.round.n);
+  ok(ns.join() === '2,14,19,22', `four of the screen's deaths are looked at, in round order (${ns})`);
+  ok(looks.every((l) => l.round.died && !l.round.verified), 'every one a death the screen saw, and none Riot checked');
+  const third = (n) => Math.min(2, Math.floor(((n - 1) / 24) * 3));
+  ok(new Set(ns.map(third)).size === 3, 'one from each third of the match, as Riot\'s looks are spread');
+  ok(looks.filter((l) => l.round.result === 'lost').length === 4 && looks.filter((l) => l.round.early).length === 3,
+    'lost rounds first, and early deaths among them');
+  ok(looks.every((l) => l.frames.length === 2 && l.frames[0].round === l.round.n && !l.frames[0].died && l.frames[1].died),
+    'each framed by the frame before the death and the one the screen registered it on');
+  ok(looks.every((l) => l.names.join() === `r${l.round.n}-before.jpg,r${l.round.n}-after.jpg`),
+    `named as the library keeps them (${looks.map((l) => l.names.join('+')).join(', ')})`);
+  ok(looks.map((l) => l.frames.map((f) => f.frame).join('+')).join() === [
+    'frame-0011.jpg+frame-0012.jpg', 'frame-0142.jpg+frame-0143.jpg', 'frame-0193.jpg+frame-0194.jpg', 'frame-0220.jpg+frame-0221.jpg'].join(),
+  `and they are these frames of the real match (${looks.map((l) => l.frames.map((f) => f.frame).join('+'))})`);
+  ok(looks.every((l) => l.at === l.frames[0].at && l.gap === null), 'each with when its first frame was captured, and no second Riot never gave');
+  // Round 13 is as teachable as round 14, and the frame that registered its
+  // death is all the log has of it: the look would be sent the player already
+  // dead as the moment before, so round 14 is looked at in its place.
+  ok(deathFrames.teachableScreenDeaths(abyss.rounds).map((r) => r.n).includes(13)
+    && deathFrames.framesFor(abyss.records, byN.get(13), {}).length === 1 && !ns.includes(13),
+  'a death with no frame before the one that registered it is passed over for the next');
+  const won = abyss.rounds.filter((r) => r.result === 'won');
+  ok(deathFrames.teachableScreenDeaths(won).length === 4, 'deaths in rounds that were won can still be chosen');
+  ok(deathFrames.looksFor(abyss.records, abyss.rounds, {}, 'riot').length === 0, 'and a look from Riot\'s record takes none of them');
+  // A look from Riot's record is unchanged: its verified deaths, by Riot's second.
+  const riotRounds = verify.reconcile(abyss.rounds, load('riot-abyss-13-11.json')).rounds;
+  const riotLooks = deathFrames.looksFor(abyss.records, riotRounds, {}, 'riot');
+  ok(riotLooks.map((l) => l.round.n).join() === deathFrames.teachableDeaths(riotRounds).map((r) => r.n).join()
+    && riotLooks.every((l) => typeof l.gap === 'number' && l.names[0] === `r${l.round.n}-before.jpg`),
+  `Riot's looks are still its teachable deaths, framed by its second (${riotLooks.map((l) => `R${l.round.n} ${l.gap}s`)})`);
+
+  // The review built with them: each card says how its moment was found, and
+  // when, for the eye at that moment.
+  const rows = abyss.rounds.map((r) => ({ ...r }));
+  for (const l of looks) {
+    rows.find((r) => r.n === l.round.n).forensics = { cause: 'isolated', what: 'You held the site alone.', better: 'Hold closer to your team.',
+      frames: l.names, source: 'screen', at: l.at };
+  }
+  const rv = review.build({ rounds: rows, context: abyss.context, endedBy: 'score', ai: {} });
+  const c14 = rv.rounds.find((c) => c.n === 14);
+  ok(c14.forensics && c14.forensics.source === 'screen' && c14.forensics.at === looks[1].at
+    && c14.forensics.frames.join() === 'r14-before.jpg,r14-after.jpg', `the card carries the look's source, moment and frames (${JSON.stringify(c14.forensics)})`);
+  // A LOOK FROM THE SCREEN NEVER REACHES THE GRADE. With it, this match would
+  // speak in Survival and Decisions, half the weight, and be graded from the
+  // screen alone. The same looks counted as Riot's would do exactly that.
+  const dec = (g) => g.categories.find((c) => c.key === 'decisions');
+  ok(rv.grade.score === null && dec(rv.grade).score === null, `the grade stays ungraded from the screen alone (${rv.grade.score})`);
+  const asRiot = review.build({ rounds: rows.map((r) => (r.forensics ? { ...r, forensics: { ...r.forensics, source: 'riot' } } : r)),
+    context: abyss.context, endedBy: 'score', ai: {} });
+  ok(asRiot.grade.score !== null && dec(asRiot.grade).score !== null,
+    `which is the look keeping out of it: the same looks as Riot's would grade it (${asRiot.grade.score})`);
+  ok(rv.insights.mistakes.some((e) => e.key === 'cause:isolated' && e.judged && e.count === 4),
+    'while the cause is counted in the lists, as the coach\'s judgement');
+  // A look saved before 8.2 carries neither, and is Riot's: no other kind existed.
+  const old = review.build({ rounds: [{ ...rows[1], forensics: { cause: 'dry-peek', what: 'x.', better: 'y.', frames: ['r2-before.jpg'] } }],
+    context: abyss.context, endedBy: 'score', ai: {} });
+  ok(old.rounds[0].forensics.source === 'riot' && old.rounds[0].forensics.at === null, 'a look saved before 8.2 reads as Riot\'s, with no moment');
+
+  // THE FRAMES ARE HELD FOR THE WHOLE LINK, the look after it included. The
+  // longest is a match recording was stopped in: every try at the scoreboard,
+  // then every try at Riot's rounds with its look and summary, then the look
+  // from the screen, each request at its timeout, after the narrative.
+  const link = require('../src/main/services/match-link');
+  const { HOLD_MAX_MS } = require('../src/main/services/ai-log-store');
+  const sum = (xs) => xs.reduce((a, b) => a + b, 0);
+  const NARRATIVE = 60000; const STATS = 15000; const SCOREBOARD = 30000; const ROUNDS = 30000; const LOOK = 60000; const SUMMARY = 60000;
+  const longest = NARRATIVE + STATS + sum(link.LINK_RETRY_LONG_MS) + (link.LINK_RETRY_LONG_MS.length + 1) * SCOREBOARD
+    + sum(link.RIOT_ROUNDS_RETRY_MS) + (link.RIOT_ROUNDS_RETRY_MS.length + 1) * ROUNDS + LOOK + SUMMARY + LOOK;
+  ok(HOLD_MAX_MS > longest && link.LINK_RETRY_LONG_MS.length >= link.LINK_RETRY_MS.length && sum(link.LINK_RETRY_LONG_MS) > sum(link.LINK_RETRY_MS),
+    `the AI log holds a match's frames longer than its longest link (${Math.round(longest / 60000)} of ${HOLD_MAX_MS / 60000} minutes)`);
+  ok(longest > 40 * 60000, 'which the forty minutes it used to hold them for did not cover');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);

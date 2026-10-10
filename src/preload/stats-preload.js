@@ -3,12 +3,16 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
+const { pageMotion } = require('./page-motion');
 
 /**
  * Stats dashboard bridge: read the assembled dashboard, refresh tracker
- * matches (rate limited), and hand a session's context to Ask Coach.
+ * matches (rate limited), and hand a session's context to Ask Coach. Ask Coach
+ * itself is a page in the sidebar, so the header has no button for it.
  */
 contextBridge.exposeInMainWorld('occlara', {
+  // Moving between pages (shared/embed.js).
+  ...pageMotion(ipcRenderer),
   // i18n: the catalogue is required here (preloads have Node) and handed to the
   // renderer as a plain translator, so no surface needs Node access to be
   // translated. Read at call time, so a language change repaints correctly.
@@ -22,7 +26,6 @@ contextBridge.exposeInMainWorld('occlara', {
   refreshMatches:  (mode) => ipcRenderer.invoke(C.STATS_REFRESH, mode),
   matchesFor:      (mode) => ipcRenderer.invoke(C.STATS_MATCHES, mode),
   rankHistory:     (force) => ipcRenderer.invoke(C.STATS_RANK_HISTORY, force),
-  openChat:        () => ipcRenderer.send(C.OPEN_CHAT),
   openWeekly:      () => ipcRenderer.send(C.OPEN_WEEKLY),
   openAiLog:       (sessionId) => ipcRenderer.send(C.OPEN_AILOG, sessionId || null),
   askAboutSession: (seed) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, seed),
