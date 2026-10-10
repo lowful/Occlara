@@ -45,7 +45,8 @@ if (!process.versions.electron) {
   process.exit(0);
 }
 
-const { app, BrowserWindow } = require('electron');
+const { app } = require('electron');
+const surfaces = require('./fixtures/surfaces');
 const { replay, load } = require('./fixtures/replay-match');
 const verify = require(path.join(REPO, 'src/shared/valorant-verify'));
 const valorantReview = require(path.join(REPO, 'src/shared/valorant-review'));
@@ -132,12 +133,14 @@ app.disableHardwareAcceleration();
 app.on('window-all-closed', () => { /* the run below decides when we exit */ });
 
 setTimeout(async () => {
-  const matchesWindow = require(path.join(REPO, 'src/main/windows/matches-window'));
+  // Since 8.1 the library is three pages of the main window, each a view.
+  const mainWindow = require(path.join(REPO, 'src/main/windows/main-window'));
   try {
-    matchesWindow.open();
+    mainWindow.create();
+    mainWindow.show('matches');
     await new Promise((r) => setTimeout(r, 3200));
-    const win = BrowserWindow.getAllWindows().find((w) => (w.webContents.getURL() || '').includes('/matches/'));
-    if (!win) return report(false, 'the matches window never opened');
+    const win = surfaces.find('section=list');
+    if (!win) return report(false, 'the Matches page never opened');
     const errs = [];
     win.webContents.on('console-message', (e, lvl, msg) => { if (lvl >= 2) errs.push(msg); });
     const js = (s) => win.webContents.executeJavaScript(s);
@@ -150,6 +153,37 @@ setTimeout(async () => {
     if (rows !== 4) return report(false, `listed ${rows} matches, expected 4`);
     if (String(grade) !== String(built.grade.score)) return report(false, `the row shows grade ${grade}, the review says ${built.grade.score}`);
     if (!pats) return report(false, 'three matches painted no patterns');
+
+    // ONE SURFACE, THREE PAGES: each shows its own section, titled for it, and
+    // none of them the window chrome of the old library window.
+    const displayed = (js2, id) => js2(`getComputedStyle(document.getElementById('${id}')).display !== 'none'`);
+    const pageOf = async (section, title, visible, hiddenIds) => {
+      if (section !== 'list') { mainWindow.show(section); await new Promise((r) => setTimeout(r, 2500)); }
+      const w = surfaces.find(`section=${section}`);
+      if (!w) return `the ${title} page never opened`;
+      const pjs = (s) => w.webContents.executeJavaScript(s);
+      const h2 = await pjs("document.querySelector('.sheet > header h2').textContent");
+      const embedded = await pjs("document.documentElement.classList.contains('embedded')");
+      const closeShown = await pjs("getComputedStyle(document.getElementById('close')).display !== 'none'");
+      const own = await displayed(pjs, visible);
+      const others = [];
+      for (const id of hiddenIds) if (await displayed(pjs, id)) others.push(id);
+      lines.push(`${section} page: title=${h2} embedded=${embedded} close=${closeShown} own=${own} others=${others.join(',') || 'none'}`);
+      if (h2 !== title) return `the ${section} page is titled ${h2}`;
+      if (!embedded || closeShown) return `the ${section} page still draws its old window chrome`;
+      if (!own || others.length) return `the ${section} page shows ${others.join(', ') || 'nothing of its own'}`;
+      return null;
+    };
+    for (const [section, title, visible, hiddenIds] of [
+      ['list', 'Matches', 'every', ['patterns', 'breakdown']],
+      ['patterns', 'Patterns', 'patterns', ['every', 'breakdown']],
+      ['breakdown', 'Breakdown', 'breakdown', ['every', 'patterns']],
+    ]) {
+      const why = await pageOf(section, title, visible, hiddenIds);
+      if (why) return report(false, why);
+    }
+    mainWindow.show('matches');
+    await new Promise((r) => setTimeout(r, 400));
 
     // The breakdown: two maps, two agents, a row that opens in place.
     const bShown = await js("!document.getElementById('breakdown').hidden");
@@ -283,8 +317,9 @@ setTimeout(async () => {
     // Click the newest row: it must open the review window on that match.
     await js("document.querySelector('#list .m-row').click(); true");
     await new Promise((r) => setTimeout(r, 3500));
-    const rwin = BrowserWindow.getAllWindows().find((w) => (w.webContents.getURL() || '').includes('/review/'));
-    if (!rwin) return report(false, 'clicking a row did not open the review window');
+    const rwin = surfaces.find('/review/');
+    if (!rwin) return report(false, 'clicking a row did not open the review page');
+    if (mainWindow.current().shown !== 'review') return report(false, `the page showing is ${mainWindow.current().shown}, not the review`);
     const rjs = (s) => rwin.webContents.executeJavaScript(s);
     const shown = await rjs("!document.getElementById('vreview').hidden");
     const letter = await rjs("(document.querySelector('.gv-letter') || {}).textContent || ''");

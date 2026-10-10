@@ -35,6 +35,7 @@ function registerIpc(deps) {
   });
 
   safeHandle(C.STATE_GET, async () => controller.getState());
+  safeHandle(C.SHELL_GET, async () => controller.getShell());
 
   safeHandle(C.AGENT_SET, async (_e, name) => controller.setAgent(name));
 
@@ -71,8 +72,9 @@ function registerIpc(deps) {
   ipcMain.on(C.COACH_STOP,     () => guard('stop',     () => controller.stop()));
   ipcMain.on(C.COACH_PAUSE,    () => guard('pause',    () => controller.pauseResume()));
   ipcMain.on(C.AGENT_CONFIRM,  () => guard('agentConfirm', () => controller.confirmAgent()));
-  ipcMain.on(C.PANEL_RESIZE,   (_e, h) => guard('panelResize', () => controller.resizePanel(h)));
-  ipcMain.on(C.PANEL_MINIMIZE, () => guard('minimize', () => controller.toggleMinimizePanel()));
+  // The one window (8.1): a page by its id, and the top strip's buttons.
+  ipcMain.on(C.SHELL_NAV,      (_e, page) => guard('nav', () => controller.showPage(String(page || ''))));
+  ipcMain.on(C.SHELL_WINDOW,   (_e, action) => guard('window', () => controller.windowAction(String(action || ''))));
   ipcMain.on(C.OPEN_SETTINGS,  () => guard('settings', () => controller.openSettings()));
   ipcMain.on(C.OPEN_HISTORY,   () => guard('history',  () => controller.openHistory()));
   ipcMain.on(C.OPEN_CHAT,      () => guard('chat',     () => controller.openChat()));

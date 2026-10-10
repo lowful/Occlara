@@ -482,7 +482,10 @@ function formatExpiry(value) {
 document.getElementById('purchase').addEventListener('click', () => window.occlara.openPurchase());
 document.getElementById('logout').addEventListener('click', () => window.occlara.logout());
 document.getElementById('quit').addEventListener('click', () => window.occlara.quit());
-document.getElementById('close').addEventListener('click', () => window.close());
+// A page of the main window has no window of its own to close.
+document.getElementById('close').addEventListener('click', () => {
+  if (!(window.occlaraEmbedded && window.occlaraEmbedded())) window.close();
+});
 
 // Support email: click to copy to clipboard (falls back to selecting the text).
 // The address is READ FROM THE MARKUP rather than repeated here. It used to be

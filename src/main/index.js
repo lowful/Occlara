@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, globalShortcut } = require('electron');
+const { app, globalShortcut, screen } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -38,19 +38,16 @@ const CoachingEngine = require('./services/coaching-engine');
 const { verifyCoachedMatch, pickCoachedMatch } = require('./services/match-link');
 const { normalize: normalizeLang } = require('../shared/i18n');
 const registry = require('./windows/registry');
-const panelWindow      = require('./windows/panel-window');
-const settingsWindow   = require('./windows/settings-window');
+// THE ONE WINDOW (8.1): the shell and every page beside it, replacing the
+// panel and the review, library, Settings, Stats and Ask Coach windows.
+const mainWindow       = require('./windows/main-window');
 const weeklyWindow     = require('./windows/weekly-window');
 const learnWindow      = require('./windows/learn-window');
-const reviewWindow     = require('./windows/review-window');
-const matchesWindow    = require('./windows/matches-window');
 const { LolRecorder }  = require('./services/lol-recorder');
 const aiLogWindow      = require('./windows/ailog-window');
-const statsWindow      = require('./windows/stats-window');
 const dockWindow       = require('./windows/dock-window');
 const activationWindow = require('./windows/activation-window');
 const onboardingWindow = require('./windows/onboarding-window');
-const chatWindow       = require('./windows/chat-window');
 const splashWindow     = require('./windows/splash-window');
 const api              = require('./services/api-client');
 const aiLogStore       = require('./services/ai-log-store');
@@ -95,7 +92,11 @@ const state = {
 };
 
 let mainLaunched = false;
-let surfacesUp   = false;   // overlay/panel/tray built; gated behind onboarding on first run
+let surfacesUp   = false;   // main window/tray built; gated behind onboarding on first run
+let sealTimer    = null;    // the one second check that seals the main window mid match
+let sealHeld     = false;   // recording stopped mid match: sealed until the player opens a page
+let appQuitting  = false;
+app.on('before-quit', () => { appQuitting = true; });
 
 // The player's 4 most-played agent names, for the one-tap agent-select bubble.
 // Four is what the bubble's width actually fits on one row.
@@ -136,40 +137,10 @@ function buildState() {
   };
 }
 
-// ── Minimize hint ────────────────────────────────────────────────────────────
-// New players leave the panel sitting on screen while they play, where it can
-// swallow a click mid-aim. One small bubble points at the shortcut.
-//
-// While they are still learning the app (first 10 sessions) it appears shortly
-// after the agent is locked in, which is the natural pause before the match.
-// After that they know the shortcut, so it only reappears if the panel has
-// genuinely been left up for over a minute WITH tips flowing, i.e. they are
-// actually mid-match and have forgotten.
-const NUDGE_LEARNING_SESSIONS = 10;
-const NUDGE_LATE_AFTER_MS     = 60 * 1000;
-
-function nudgeMinimize() {
-  if (state.nudgedThisSession) return;
-  if (panelWindow.isMinimized()) return;         // already minimized, nothing to teach
-  state.nudgedThisSession = true;
-  registry.broadcast(C.PUSH_NUDGE, { kind: 'minimize' });
-  console.log('[nudge] minimize hint shown');
-}
-
-/** Called once the player has settled their agent. */
-function maybeNudgeAfterAgent() {
-  if ((store.get('coachStartCount') || 0) > NUDGE_LEARNING_SESSIONS) return;
-  setTimeout(() => { if (state.isCoaching) nudgeMinimize(); }, 2600);
-}
-
-/** Experienced players: only if the panel is still up well into a live match. */
-function maybeNudgeLate() {
-  if (!state.isCoaching || state.nudgedThisSession) return;
-  if ((store.get('coachStartCount') || 0) <= NUDGE_LEARNING_SESSIONS) return;
-  const running = state.sessionStartedAt ? Date.now() - state.sessionStartedAt : 0;
-  const reading = !!(engine && engine.analyzedFrames > 10);
-  if (running >= NUDGE_LATE_AFTER_MS && reading) nudgeMinimize();
-}
+// The minimize hint is gone with the panel (8.1). It existed because an
+// always-on-top panel left on screen could swallow a click mid aim; the main
+// window sits behind the game like any other app, so there is nothing to tuck
+// away.
 
 /**
  * Is a Valorant match being played right now, as opposed to the session merely
@@ -270,7 +241,7 @@ const backfill = new Backfill({
     // Open from Matches, it stayed painted, and Ctrl+Shift+E opened it again.
     if (lastReviewShown && lastReviewShown.id === id) {
       lastReviewShown = null;
-      reviewWindow.close();
+      leaveReview();
     }
     if (state.lastGrade && state.lastGrade.id === id) {
       const top = reviewStore.list().find((r) => r.grade);
@@ -357,6 +328,68 @@ function withFrames(review) {
   }
   return { ...review, frameData };
 }
+
+/**
+ * THE SEAL FOLLOWS THE MATCH. While one is in progress the main window shows
+ * no page at all, only the Recording screen (main-window.js): an open page on
+ * a second monitor would otherwise be the live feed the policy forbids.
+ * Checked on a one second tick and before every page is opened, so the review
+ * of the match that just ended never waits behind a seal for a tick.
+ *
+ * A STOP IN THE MIDDLE OF A MATCH HOLDS IT (sealHeld). Not recording, there is
+ * no telling when that match ends, and Home would paint its review, the
+ * focus for the next match included, while it is still being played. So the
+ * seal stays, with the sidebar open, until the player opens a page: their
+ * own choice, as opening Matches was before 8.1.
+ */
+function syncSeal() {
+  const live = !!state.isCoaching && matchInProgress();
+  mainWindow.setSealed(live || sealHeld, { held: !live && sealHeld });
+}
+
+/**
+ * Open a page of the main window, the seal settled first. Every page opened
+ * while not recording is the player's own choice (a review opening by itself
+ * needs a recording that saw the match end), so it lifts a held seal.
+ */
+function openPage(id, opts) {
+  if (!state.isCoaching) sealHeld = false;
+  syncSeal();
+  return mainWindow.show(id, opts);
+}
+
+/**
+ * A review taken out of the library leaves the page that showed it.
+ * @param opts.outOfTheWay  withdrawn because its match carries on: the window
+ *   that came forward for it gets out of the game's way, as the review window
+ *   used to close
+ */
+function leaveReview(opts) {
+  const w = mainWindow.get();
+  if (!w || mainWindow.current().page !== 'review') return;
+  mainWindow.show('home', { reveal: false });
+  if (opts && opts.outOfTheWay && w.isFocused() && !w.isMinimized()) w.minimize();
+}
+
+/**
+ * Out of sight (Ctrl+Shift+M, its X, Alt+F4), the main window leaves a small
+ * click-through mark in the corner of the screen to say Occlara is still
+ * running; it never catches the cursor. Back by any path (a page opened, the
+ * tray, a second launch) the mark goes. The tray's Show or Hide follows both.
+ */
+function onMainWindow(kind) {
+  if (appQuitting) return;
+  if (kind === 'hide') {
+    const wa = screen.getPrimaryDisplay().workArea;
+    dockWindow.showAt({ x: wa.x + wa.width - dockWindow.SIZE - 16, y: wa.y + 16 });
+  } else if (kind === 'show') {
+    dockWindow.hide();
+  }
+  if (surfacesUp) {
+    try { tray.update(state.isCoaching, trayActions); } catch (e) { console.warn('[tray] update:', e.message); }
+  }
+}
+mainWindow.onWindowChange(onMainWindow);
 
 /** Paint a review in the review window, whichever game it is from. */
 function showReview(review) {
@@ -536,7 +569,7 @@ function withdrawReview(startedAt) {
   reviewStore.remove(job.id);
   if (lastReviewShown && lastReviewShown.id === job.id) {
     lastReviewShown = null;
-    reviewWindow.close();
+    leaveReview({ outOfTheWay: true });
   }
   if (state.lastGrade && state.lastGrade.id === job.id) {
     const top = reviewStore.list().find((r) => r.grade);
@@ -651,8 +684,14 @@ function onValorantMatchEnded(snap) {
   job.showing = first;
   if (!live) showReview(first);
   saveReview(first, 'valorant');
-  if (!live) reviewWindow.open();
-  else if (snap.stoppedLive) pushNotice('Recording stopped in the middle of a match. Its review is saved in Matches.', 'review');
+  if (!live) openPage('review');
+  else if (snap.stoppedLive) {
+    // That match is most likely still being played: the window stays sealed
+    // until the player opens a page (syncSeal).
+    sealHeld = true;
+    syncSeal();
+    pushNotice('Recording stopped in the middle of a match. Its review is saved in Matches.', 'review');
+  }
   console.log(`[review] valorant review ready: ${snap.rounds.length} rounds, ended by ${snap.endedBy}`
     + (live ? ', saved but not shown, a match is in progress' : ''));
 }
@@ -973,7 +1012,7 @@ const controller = {
         } catch (e) { console.error('[rivals] grade failed:', e.message); }
         showReview(r);
         if (!r.empty) saveReview(r, 'rivals');
-        reviewWindow.open();
+        openPage('review');
         console.log(`[rivals] review ready: ${r.game.hero || 'hero unread'}, `
           + `${r.scoreline.kills}/${r.scoreline.deaths}/${r.scoreline.assists}`);
       });
@@ -1059,12 +1098,9 @@ const controller = {
     engine.on('match-review', (reviewText, snap) => onValorantMatchReview(reviewText, snap));
     engine.on('match-resumed', (r) => withdrawReview(r && r.startedAt));
     engine.on('agent', (info) => {
-      const wasConfirmed = !!(state.agent && state.agent.confirmed);
       state.agent = info || { agent: null, confirmed: false, role: null };
       registry.broadcast(C.PUSH_AGENT, state.agent);
       registry.broadcast(C.PUSH_STATE, buildState());
-      // Agent just settled: the quiet moment before the match starts.
-      if (!wasConfirmed && state.agent.confirmed) maybeNudgeAfterAgent();
     });
     // The server rejected our license key (401/403), confirm with an immediate
     // re-validation so a genuinely ended subscription locks fast (and a transient
@@ -1074,10 +1110,11 @@ const controller = {
     state.isCoaching = true;
     state.isPaused   = false;
     state.sessionStartedAt = Date.now();   // drives the 5-minute grading gate
-    state.nudgedThisSession = false;       // the minimize hint is once per session
     store.set('coachStartCount', (store.get('coachStartCount') || 0) + 1);
     state.agent      = { agent: null, confirmed: false, role: null };
     state.notice     = null;
+    // Recording again, the seal follows this recording's match (syncSeal).
+    sealHeld = false;
     engine.start();
     if (state.pendingAgent) {           // player typed their agent before starting
       engine.setAgent(state.pendingAgent);
@@ -1121,7 +1158,6 @@ const controller = {
     // state.isPaused + status pushes are driven by the engine 'status' event.
   },
   confirmAgent() { if (engine) engine.confirmAgent(); },
-  resizePanel(h) { if (typeof h === 'number') panelWindow.setContentHeight(h); },
   setAgent(name) {
     if (engine) return engine.setAgent(name);
     // Not coaching yet: remember the choice and apply it when the engine starts,
@@ -1146,7 +1182,7 @@ const controller = {
     const r = this.getReview(id);
     if (!r) return;
     showReview(r);
-    reviewWindow.open();
+    openPage('review');
   },
   /** What keeps happening across the last matches of one game. */
   getPatterns(game) {
@@ -1174,21 +1210,26 @@ const controller = {
   getBackfillStatus() { return backfill.getStatus(); },
 
   toggleMinimizePanel() {
-    // Minimized shows the small floating mark (icon only, click-through,
-    // no status dot); Ctrl+Shift+M or the tray restores the panel.
-    if (!panelWindow.isMinimized()) {
-      const anchor = panelWindow.getDockAnchor(dockWindow.SIZE); // capture before hiding
-      panelWindow.setMinimized(true);
-      dockWindow.showAt(anchor);
-    } else {
-      dockWindow.hide();
-      panelWindow.setMinimized(false);
-    }
-    tray.update(state.isCoaching, trayActions);
-    return panelWindow.isMinimized();
+    // Ctrl+Shift+M and the tray: the main window out of sight, or back, the
+    // corner mark and the tray following it (onMainWindow). Back mid match,
+    // it comes up without taking the keyboard from the game.
+    return mainWindow.toggleHidden({ focus: !matchInProgress() });
   },
-  openSettings()  { settingsWindow.open(); },
-  openHistory()   { matchesWindow.open(); },
+  /**
+   * The top strip's buttons. Its X hides the window and Occlara keeps running
+   * in the tray (main-window.js), so the review that just opened keeps being
+   * checked against Riot's record. The tray and Settings quit.
+   */
+  windowAction(action) {
+    if (action === 'minimize') mainWindow.minimize();
+    else if (action === 'maximize') mainWindow.toggleMaximize();
+    else if (action === 'close') mainWindow.hide();
+  },
+  /** A page of the main window, by its id in src/shared/shell-nav.js. */
+  showPage(id) { openPage(id); },
+  getShell() { syncSeal(); return mainWindow.current(); },
+  openSettings()  { openPage('settings'); },
+  openHistory()   { openPage('matches'); },
   openWeekly()    { weeklyWindow.open(); },
   openLearn()     { learnWindow.open(); },
   /**
@@ -1203,7 +1244,11 @@ const controller = {
       const e = top && reviewStore.get(top.id);
       if (e) lastReviewShown = withFrames(e.review);
     }
-    reviewWindow.open();
+    // The review page is kept between visits, so it is painted again: a review
+    // withdrawn or taken back since would otherwise come back from the old
+    // paint. With none left it loads again, onto its empty state.
+    if (lastReviewShown) showReview(lastReviewShown);
+    openPage('review', { reload: !lastReviewShown });
   },
   /** The last graded League game, so a review window opened later still paints. */
   // WHICHEVER REVIEW ARRIVED LAST, not specifically the League one.
@@ -1447,8 +1492,8 @@ const controller = {
     return report;
   },
   // Opened plainly, the chat talks about the newest reviewed match.
-  openChat()      { state.chatReviewId = null; chatWindow.open(); },
-  openStats()     { statsWindow.open(); },
+  openChat()      { state.chatReviewId = null; openPage('coach'); },
+  openStats()     { openPage('stats'); },
 
   /** "Ask Coach about this" from the stats dashboard: stash the session's
    *  context, then open chat; the chat window collects the seed via CHAT_SEED
@@ -1464,7 +1509,9 @@ const controller = {
         state.chatSeed = { reviewId: seed.reviewId,
           title: [g.map, g.agent || g.hero || g.champion, g.score].filter(Boolean).join(' ') || 'last' };
       }
-      chatWindow.open();
+      // The Ask Coach page is kept between visits, so it is loaded again to
+      // take this seed (CHAT_SEED) and open on this match.
+      openPage('coach', { reload: true });
       return;
     }
     if (seed && typeof seed === 'object') {
@@ -1482,7 +1529,7 @@ const controller = {
         weaknesses: String(seed.weaknesses || '').slice(0, 400),
       };
     }
-    chatWindow.open();
+    openPage('coach', { reload: !!state.chatSeed });
   },
   takeChatSeed() {
     const s = state.chatSeed || null;
@@ -1992,7 +2039,7 @@ function finishLolGame(record) {
     lastLolReview = built;
     showReview(built);
     saveReview(built, 'lol');
-    reviewWindow.open();
+    openPage('review');
     console.log(`[lol] review ready: ${built.scoreline.kills}/${built.scoreline.deaths}/${built.scoreline.assists}`);
   } catch (e) {
     // A failed grade must never lose the game that was recorded, so the raw
@@ -2491,10 +2538,13 @@ function teardownSession() {
   try { hotkeys.unregister(); } catch (e) {}
   try { tray.destroy(); } catch (e) {}
   try { capture.disposeWorker(); } catch (e) {}
-  for (const name of ['dock', 'matches', 'review', 'settings', 'panel', 'stats', 'weekly', 'ailog', 'chat']) {
+  // The main window takes its page views with it (main-window.js).
+  for (const name of ['dock', 'main', 'weekly', 'ailog', 'learn']) {
     const w = registry.get(name);
     if (w && !w.isDestroyed()) w.destroy();
   }
+  if (sealTimer) { clearInterval(sealTimer); sealTimer = null; }
+  sealHeld = false;
   state.isCoaching = false;
   state.isPaused   = false;
   state.status     = 'idle';
@@ -2552,7 +2602,7 @@ const trayActions = {
   start:          () => controller.start(),
   stop:           () => controller.stop(),
   toggleMinimize: () => controller.toggleMinimizePanel(),
-  isMinimized:    () => panelWindow.isMinimized(),
+  isMinimized:    () => mainWindow.isHidden(),
   openSettings:   () => controller.openSettings(),
   openHistory:    () => controller.openHistory(),
   openReview:     () => controller.openReview(),
@@ -2630,16 +2680,16 @@ function openAppWithSplash() {
   // Re-running the tour from Settings leaves every surface already up and the
   // panel loaded long ago, so did-finish-load would never fire again and the
   // loader would sit there until its own hard timeout. There is no startup
-  // cost left to cover either. Just make sure the panel is showing.
-  if (surfacesUp) { panelWindow.reveal(); return; }
+  // cost left to cover either. Just make sure the main window is showing.
+  if (surfacesUp) { mainWindow.reveal(); return; }
 
   splashWindow.open();
-  splashWindow.onTimeout(() => panelWindow.reveal());   // never strand a hidden panel
+  splashWindow.onTimeout(() => mainWindow.reveal());   // never strand a hidden window
   createAppSurfaces({ deferShow: true });
 
-  const panel = panelWindow.get();
-  const handOver = () => splashWindow.close(() => panelWindow.reveal());
-  if (panel) panel.webContents.once('did-finish-load', handOver);
+  const main = mainWindow.get();
+  const handOver = () => splashWindow.close(() => mainWindow.reveal());
+  if (main) main.webContents.once('did-finish-load', handOver);
   else handOver();
 }
 
@@ -2664,19 +2714,21 @@ function createAppSurfaces(opts) {
     if (top && !state.lastGrade) state.lastGrade = { ...top.grade, game: top.game, id: top.id };
   } catch {}
 
-  // deferShow keeps the panel hidden until the launch animation finishes.
-  panelWindow.create({ deferShow: !!(opts && opts.deferShow) });
+  // deferShow keeps the main window hidden until the launch animation finishes.
+  mainWindow.create({ deferShow: !!(opts && opts.deferShow) });
   tray.create(trayActions);
   hotkeys.register(hotkeyActions);
   updater.init();   // background update checks + in-app restart prompt
 
-  // Send an initial state snapshot once the panel has loaded.
-  const panel = panelWindow.get();
-  if (panel) {
-    panel.webContents.once('did-finish-load', () => {
+  // Send an initial state snapshot once the shell has loaded.
+  const main = mainWindow.get();
+  if (main) {
+    main.webContents.once('did-finish-load', () => {
       setTimeout(() => registry.broadcast(C.PUSH_STATE, buildState()), 200);
     });
   }
+  // The seal follows the match (syncSeal()), checked once a second.
+  if (!sealTimer) sealTimer = setInterval(() => { try { syncSeal(); } catch {} }, 1000);
   startLicenseWatch(); // detect expiry / revocation mid-session and keep Settings fresh
 
   // Stay connected to the tracker across restarts: refresh the saved profile in
@@ -2738,8 +2790,15 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    const win = registry.get('panel') || registry.get('activation');
-    if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+    // Opened again from the Start menu or a shortcut: the window comes back
+    // from wherever it went, hidden by its X, by Ctrl+Shift+M or minimised.
+    if (surfacesUp) { mainWindow.reveal(); return; }
+    const win = registry.get('activation') || registry.get('onboarding');
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      if (!win.isVisible()) win.show();
+      win.focus();
+    }
   });
 
   app.whenReady().then(() => {
@@ -2755,7 +2814,7 @@ if (!app.requestSingleInstanceLock()) {
         console.log('[dev] auto-launch (license bypassed) for self-test');
         launchMainApp();
         controller.start();
-        if (process.env.OCCLARA_DEV_OPEN_SETTINGS === '1') settingsWindow.open();
+        if (process.env.OCCLARA_DEV_OPEN_SETTINGS === '1') openPage('settings');
         if (process.env.OCCLARA_DEV_OPEN_WEEKLY === '1') {
           console.log('[dev] weekly report:', JSON.stringify(buildWeeklyReport()).slice(0, 600));
           weeklyWindow.open();

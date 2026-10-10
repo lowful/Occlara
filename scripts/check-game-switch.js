@@ -50,7 +50,7 @@ if (!process.versions.electron) {
 }
 
 // Child.
-const { app, ipcMain, BrowserWindow } = require('electron');
+const { app, ipcMain } = require('electron');
 const C = require(path.join(REPO, 'src/shared/channels'));
 
 const lines = [];
@@ -89,8 +89,9 @@ setTimeout(async () => {
     // 2. Open stats and confirm it is showing the dashboard, not the blank.
     ipcMain.emit(C.OPEN_STATS, { sender: null });
     await new Promise((r) => setTimeout(r, 2600));
-    const win = BrowserWindow.getAllWindows().find((w) => (w.webContents.getURL() || '').indexOf('/stats/') !== -1);
-    if (!win) return report(false, 'the stats window never opened');
+    // Since 8.1 Stats is a page of the main window, in a view of its own.
+    const win = require('./fixtures/surfaces').find('/stats/');
+    if (!win) return report(false, 'the Stats page never opened');
     const js = (s) => win.webContents.executeJavaScript(s);
 
     // 3. Watch for the edge triggered push.

@@ -2,17 +2,29 @@
 
 /**
  * Central registry of live BrowserWindows + a single broadcast helper so engine
- * events fan out to overlay/panel/settings without per-call window lookups.
+ * events fan out to every surface without per-call window lookups.
  * Window modules register/unregister themselves on create/closed.
+ *
+ * Since 8.1 it also holds the main window's PAGE VIEWS (main-window.js): a
+ * WebContentsView has webContents like a window does, so a push reaches the
+ * library, the review and Settings by the same names it always used, whether
+ * they live in a window or a view. A view has no 'closed' event; it is
+ * forgotten when its contents are destroyed.
  */
-const windows = new Map(); // name → BrowserWindow
+const windows = new Map(); // name → BrowserWindow or WebContentsView
 
-function register(name, win) {
-  windows.set(name, win);
-  forwardConsole(name, win);
-  win.on('closed', () => {
-    if (windows.get(name) === win) windows.delete(name);
-  });
+function isDead(target) {
+  if (!target) return true;
+  if (typeof target.isDestroyed === 'function') return target.isDestroyed();
+  return !target.webContents || target.webContents.isDestroyed();
+}
+
+function register(name, target) {
+  windows.set(name, target);
+  forwardConsole(name, target);
+  const forget = () => { if (windows.get(name) === target) windows.delete(name); };
+  if (typeof target.isDestroyed === 'function' && typeof target.on === 'function') target.on('closed', forget);
+  else target.webContents.on('destroyed', forget);
 }
 
 /**
@@ -38,19 +50,19 @@ function forwardConsole(name, win) {
 
 function get(name) {
   const w = windows.get(name);
-  return w && !w.isDestroyed() ? w : null;
+  return w && !isDead(w) ? w : null;
 }
 
-/** Send to a single window if it exists. */
+/** Send to a single window or view if it exists. */
 function sendTo(name, channel, data) {
   const w = get(name);
   if (w) w.webContents.send(channel, data);
 }
 
-/** Send to every live window (used for engine push events). */
+/** Send to every live window and view (used for engine push events). */
 function broadcast(channel, data) {
   for (const [, w] of windows) {
-    if (w && !w.isDestroyed()) w.webContents.send(channel, data);
+    if (w && !isDead(w)) w.webContents.send(channel, data);
   }
 }
 

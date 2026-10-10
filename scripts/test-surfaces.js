@@ -12,6 +12,8 @@
  *     getConfig, so initI18n threw inside its own try and stayed English
  *   - with the licence ended, the panel's status line kept "Press Start" and
  *     never showed why
+ *   (the panel's controls are the shell's sidebar since 8.1, and these cases
+ *   run against the shell)
  *   - Settings promised a sound on start and stop, and nothing had played one
  *     since the overlay was removed
  *   - one grade was three colours: red in its library row, yellow in the trend
@@ -102,14 +104,17 @@ const BASE = {
   sounds: true, notice: null, lastGrade: null, cadence: null, captureSpeed: 'auto', topAgents: [],
 };
 
-async function openPanel(cfg, state, opts) {
+async function openShell(cfg, state, opts) {
   const audio = fakeAudio();
-  const p = loadSurface('panel', {
-    handlers: { [C.STATE_GET]: () => ({ ...BASE, ...(state || {}) }), [C.CONFIG_GET]: () => ({ ...cfg }) },
+  const p = loadSurface('shell', {
+    handlers: {
+      [C.STATE_GET]: () => ({ ...BASE, ...(state || {}) }), [C.CONFIG_GET]: () => ({ ...cfg }),
+      [C.SHELL_GET]: () => ({ page: 'home', shown: 'home', sealed: false, maximized: false }),
+    },
     preload: opts && opts.preload,
     window: { AudioContext: audio.AudioContext },
   });
-  // Every sound the panel asks for, while the real shared/sfx.js still plays it.
+  // Every sound the shell asks for, while the real shared/sfx.js still plays it.
   p.sfx = [];
   p.audio = audio.stats;
   const sfx = p.window.occlaraSfx;
@@ -118,7 +123,7 @@ async function openPanel(cfg, state, opts) {
     sfx.play = (kind, volume) => { p.sfx.push(kind); return real(kind, volume); };
   }
   await settle();
-  p.line = () => p.$('last-tip').querySelector('.lt-text').textContent;
+  p.line = () => p.$('line').textContent;
   p.label = () => p.$('toggle').querySelector('.t-label').textContent;
   return p;
 }
@@ -172,24 +177,24 @@ async function openPanel(cfg, state, opts) {
     ok(!copies.length, 'no surface colours a grade with its own letter table', copies.join(', '));
   });
 
-  await section('the panel follows the language setting:', async () => {
-    const de = await openPanel({ language: 'de' });
+  await section('the record controls follow the language setting:', async () => {
+    const de = await openShell({ language: 'de' });
     ok(de.label() === I18N.t('de', 'panel.start') && de.label() === 'Starten', 'Start reads Starten in German', `read "${de.label()}"`);
     ok(de.$('status-text').textContent === I18N.t('de', 'panel.idle'), 'the status word is German too',
       `read "${de.$('status-text').textContent}"`);
     ok(de.line() === I18N.t('de', 'panel.noTips'), 'and so is the hint line');
-    ok(de.$('stats').title === I18N.t('de', 'panel.stats'), 'and the tooltips the markup marks for translation');
+    ok(de.$('nav-settings').textContent.includes(I18N.t('de', 'common.settings')), 'and the labels the markup marks for translation');
     de.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
     ok(de.label() === 'Stoppen' && de.$('status-text').textContent === I18N.t('de', 'panel.coaching'),
       'recording, the button and the status are German');
 
-    // The bug, reproduced: the same panel on the bridge as it was, without getConfig.
-    const before = await openPanel({ language: 'de' }, null, {
+    // The bug, reproduced: the same controls on the bridge as the panel had it, without getConfig.
+    const before = await openShell({ language: 'de' }, null, {
       preload: (api) => { const bare = { ...api }; delete bare.getConfig; return bare; },
     });
     ok(before.label() === 'Start', 'without getConfig on the bridge it stays English, which is what players got');
 
-    const en = await openPanel({ language: 'en' });
+    const en = await openShell({ language: 'en' });
     ok(en.label() === 'Start' && en.$('status-text').textContent === 'Ready',
       'English keeps the panel\'s own words, Start and Ready', `read "${en.$('status-text').textContent}"`);
     let channel = null;
@@ -201,24 +206,24 @@ async function openPanel(cfg, state, opts) {
   });
 
   await section('with the licence ended, the status line says why:', async () => {
-    const p = await openPanel({ language: 'en' });
+    const p = await openShell({ language: 'en' });
     const notice = 'Your license has expired. Renew at occlara.app.';
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: false, notice: { text: notice, at: 1 } });
-    ok(p.line() === notice && p.$('last-tip').classList.contains('system'),
-      'the notice main pushed is on the line, with the system dot', `read "${p.line()}"`);
+    ok(p.line() === notice && p.$('line').classList.contains('system'),
+      'the notice main pushed is on the line, marked as a system notice', `read "${p.line()}"`);
     ok(p.$('toggle').disabled && p.$('status-text').textContent === 'Subscription ended', 'beside a locked Start');
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: false, notice: null });
     ok(/Renew in Settings/.test(p.line()) && !/Press Start/.test(p.line()),
       'with no notice it still says to renew, never Press Start', `read "${p.line()}"`);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: true, notice: null });
-    ok(p.line() === I18N.t('en', 'panel.noTips') && !p.$('last-tip').classList.contains('system') && !p.$('toggle').disabled,
+    ok(p.line() === I18N.t('en', 'panel.noTips') && !p.$('line').classList.contains('system') && !p.$('toggle').disabled,
       'renewed, the line is the Press Start hint again');
   });
 
   await section('the start and stop sounds, on real transitions only:', async () => {
-    const p = await openPanel({ language: 'en' });
-    ok(p.window.occlaraSfx && p.scripts.some((s) => /sfx\.js$/.test(s)), 'the panel loads shared/sfx.js');
-    ok(!p.sfx.length, 'opening the panel plays nothing: its first state is what is already true');
+    const p = await openShell({ language: 'en' });
+    ok(p.window.occlaraSfx && p.scripts.some((s) => /sfx\.js$/.test(s)), 'the shell loads shared/sfx.js');
+    ok(!p.sfx.length, 'opening the window plays nothing: its first state is what is already true');
 
     // A Valorant start is a status and then the state push setStatus sends after it.
     p.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
@@ -252,23 +257,35 @@ async function openPanel(cfg, state, opts) {
   });
 
   await section('the agent bubble asks only a Valorant session:', async () => {
-    const r = await openPanel({ language: 'en' }, { gameId: 'rivals' });
+    const r = await openShell({ language: 'en' }, { gameId: 'rivals' });
     r.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
     ok(r.$('agent-bubble').hidden, 'a Rivals start never opens "Reading your agent", which nothing would answer');
-    const l = await openPanel({ language: 'en' }, { gameId: 'lol' });
+    const l = await openShell({ language: 'en' }, { gameId: 'lol' });
     l.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
     ok(l.$('agent-bubble').hidden, 'nor a League one');
-    const v = await openPanel({ language: 'en' }, { gameId: 'valorant' });
+    const v = await openShell({ language: 'en' }, { gameId: 'valorant' });
     v.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
     ok(!v.$('agent-bubble').hidden && !v.$('ab-detect').hidden, 'a Valorant start still asks for the agent');
   });
 
-  await section('the panel\'s last grade:', async () => {
-    const p = await openPanel({ language: 'en' }, { lastGrade: { score: 58, letter: 'D', id: 'x' } });
-    const letter = p.$('grade').querySelector('.g-letter');
-    ok(letter && toneOf(letter) === toneFor(58) && letter.textContent === 'D' && /58/.test(p.$('grade').textContent),
-      'the letter takes the shared colour, with the number beside it');
-    ok(p.scripts.some((s) => /grade-view\.js$/.test(s)), 'from shared/grade-view.js rather than a copy');
+  await section('Home\'s grades:', async () => {
+    const at = Date.UTC(2026, 9, 1, 20);
+    const rows = [58, 82].map((score, i) => ({ id: `h${i}`, at: at - i * 3600000, title: 'Jett', map: 'Abyss',
+      result: 'Victory', score: '13-11', grade: { score, letter: grade.letter(score) } }));
+    const h = loadSurface('home', {
+      handlers: {
+        [C.STATE_GET]: () => ({ ...BASE }), [C.CONFIG_GET]: () => ({ language: 'en' }),
+        [C.REVIEWS_LIST]: () => rows,
+        [C.PATTERNS_GET]: () => ({ matches: 2, enough: true, mistakes: [], strengths: [], missed: [],
+          grades: rows.map((r) => ({ id: r.id, at: r.at, score: r.grade.score, letter: r.grade.letter })), average: 70, categories: [] }),
+        [C.REVIEW_GET]: (id) => ({ id, kind: 'valorant', grade: { score: 58, letter: 'D', categories: [] } }),
+      },
+    });
+    await settle();
+    const letters = h.$('recent-list').querySelectorAll('.gv-letter');
+    ok(letters.length === 2 && toneOf(letters[0]) === toneFor(58) && letters[0].textContent === 'D'
+      && toneOf(letters[1]) === toneFor(82), 'each recent match takes the shared colour, with its letter beside it');
+    ok(h.scripts.some((x) => /grade-view\.js$/.test(x)), 'from shared/grade-view.js rather than a copy');
   });
 
   await section('the match library:', async () => {

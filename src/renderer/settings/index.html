@@ -5,6 +5,8 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
   <title>Occlara Settings</title>
+  <!-- Before the body: a page of the main window never paints its old window chrome. -->
+  <script src="../shared/embed.js"></script>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="../shared/dropdown.css" />
@@ -112,14 +114,14 @@
         <h3>Hotkeys</h3>
         <div class="kv"><span>Open your last review</span><kbd>Ctrl+Shift+E</kbd></div>
         <div class="kv"><span>Open Matches</span><kbd>Ctrl+Shift+H</kbd></div>
-        <div class="kv"><span>Minimize panel</span><kbd>Ctrl+Shift+M</kbd></div>
+        <div class="kv"><span>Hide or show Occlara</span><kbd>Ctrl+Shift+M</kbd></div>
         <div class="kv"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
         <div class="kv"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
       </section>
 
       <!-- ADVANCED. The frame log is the raw material of every review, and the
            viewer for it is a debugging tool, so it lives down here rather than
-           on the panel. -->
+           in the sidebar. -->
       <section>
         <h3>AI log</h3>
         <p class="hint">Keeps the frames Occlara reads and what it parsed from each, for your last few sessions. The review goes back to these to look at the moment before a death, so with this off the review has no frames to show. Sealed while a match is in progress.</p>

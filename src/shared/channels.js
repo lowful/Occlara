@@ -49,8 +49,6 @@ const CHANNELS = {
   COACH_STOP:      'coach:stop',
   COACH_PAUSE:     'coach:pauseResume',
   AGENT_CONFIRM:   'agent:confirm',      // player tapped ✓ on the detected agent
-  PANEL_RESIZE:    'panel:resize',       // (height) → fit the window to panel content
-  PANEL_MINIMIZE:  'panel:minimize',     // hide the interactive panel (anti-aim-interference)
   OPEN_SETTINGS:   'window:openSettings',
   OPEN_HISTORY:    'window:openHistory',
   OPEN_CHAT:       'window:openChat',    // the Ask Coach chat window
@@ -72,6 +70,12 @@ const CHANNELS = {
   BACKFILL_START:  'backfill:start',     // () -> the run's status
   BACKFILL_STATUS: 'backfill:status',    // () -> the run's status
   AILOG_SHOW:      'ailog:show',         // (sessionId) jump an OPEN log window to one session
+  // The one window (8.1, src/main/windows/main-window.js): the sidebar asks
+  // for a page by its id in src/shared/shell-nav.js, and the top strip's
+  // buttons move the window.
+  SHELL_NAV:       'shell:nav',          // (pageId) show that page
+  SHELL_WINDOW:    'shell:window',       // ('minimize' | 'maximize' | 'close')
+  SHELL_GET:       'shell:get',          // () -> { page, shown, sealed, maximized }
   OPEN_CHAT_SEEDED:'window:openChatSeeded', // (sessionSeed) open Ask Coach preloaded with a session's context
   OPEN_PURCHASE:   'window:openPurchase',
   LICENSE_LOGOUT:  'license:logout',      // clear license + return to activation screen
@@ -82,7 +86,6 @@ const CHANNELS = {
   PUSH_STATUS:       'push:status',       // { status: 'coaching'|'paused'|'stopped'|'idle' }
   PUSH_STATE:        'push:state',        // full state snapshot (panel + settings)
   PUSH_AGENT:        'push:agent',        // { agent, confirmed, role }, drives the confirm bubble
-  PUSH_NUDGE:        'push:nudge',        // { kind: 'minimize' } one-off coaching hint on the panel
   // EDGE TRIGGERED, not a state snapshot: fired only when the selected game
   // actually changed. PUSH_STATE already carries gameId, but it fires on every
   // config write and every status tick, so a surface that wanted to reload on a
@@ -109,6 +112,8 @@ const CHANNELS = {
   // the reason the Rivals one has its own: a different shape, and the review
   // window branches on review.kind rather than sniffing for fields.
   PUSH_VALORANT_REVIEW: 'push:valorantReview',
+  // The main window's page and seal, to the shell: { page, shown, sealed, maximized }.
+  PUSH_SHELL:        'push:shell',
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -117,13 +122,13 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_STATUS,
   CHANNELS.PUSH_STATE,
   CHANNELS.PUSH_AGENT,
-  CHANNELS.PUSH_NUDGE,
   CHANNELS.PUSH_GAME,
   CHANNELS.PUSH_REVIEWS,
   CHANNELS.PUSH_BACKFILL,
   CHANNELS.PUSH_LOL_REVIEW,
   CHANNELS.PUSH_RIVALS_REVIEW,
   CHANNELS.PUSH_VALORANT_REVIEW,
+  CHANNELS.PUSH_SHELL,
 ];
 
 module.exports = CHANNELS;

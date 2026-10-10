@@ -51,7 +51,7 @@ if (!process.versions.electron) {
   process.exit(0);
 }
 
-const { app, BrowserWindow } = require('electron');
+const { app } = require('electron');
 const C = require(path.join(REPO, 'src/shared/channels'));
 const rivals = require(path.join(REPO, 'src/shared/rivals-review'));
 const lol = require(path.join(REPO, 'src/shared/lol-review'));
@@ -98,7 +98,9 @@ const LOL_RECORD = {
 
 setTimeout(async () => {
   const registry = require(path.join(REPO, 'src/main/windows/registry'));
-  const reviewWindow = require(path.join(REPO, 'src/main/windows/review-window'));
+  // Since 8.1 the review is a page of the main window, in a view of its own.
+  const mainWindow = require(path.join(REPO, 'src/main/windows/main-window'));
+  const surfaces = require('./fixtures/surfaces');
 
   try {
     // Enough same-role history that the personal baseline actually renders.
@@ -116,10 +118,11 @@ setTimeout(async () => {
       + built.scoreline.deaths + '/' + built.scoreline.assists
       + ', refusals=' + built.refused.length);
 
-    reviewWindow.open();
+    mainWindow.create();
+    mainWindow.show('review');
     await new Promise((r) => setTimeout(r, 2800));
-    const win = BrowserWindow.getAllWindows().find((w) => (w.webContents.getURL() || '').indexOf('/review/') !== -1);
-    if (!win) return report(false, 'the review window never opened');
+    const win = surfaces.find('/review/');
+    if (!win) return report(false, 'the review page never opened');
 
     const errs = [];
     win.webContents.on('console-message', (e, lvl, msg) => { if (lvl >= 2) errs.push(msg); });

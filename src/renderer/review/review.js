@@ -575,10 +575,13 @@ function paint(r) {
 }
 
 let current = null;
-$('close').addEventListener('click', () => window.occlara.close());
+// A page of the main window has no window of its own to close: the sidebar
+// and All matches are how a player leaves it.
+const closeWindow = () => { if (!(window.occlaraEmbedded && window.occlaraEmbedded())) window.occlara.close(); };
+$('close').addEventListener('click', closeWindow);
 $('matches').addEventListener('click', () => window.occlara.openMatches());
 $('ask').addEventListener('click', () => { if (current && current.id) window.occlara.askAbout(current.id); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.occlara.close(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeWindow(); });
 
 // Both paths, because the window can be opened by the push OR by hand later.
 window.occlara.onReview(paint);

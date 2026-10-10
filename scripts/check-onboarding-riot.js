@@ -258,12 +258,15 @@ const LEVELS = { debug: 0, verbose: 0, info: 1, warning: 2, error: 3 };
 
 setTimeout(async () => {
   const onboardingWindow = require(path.join(REPO, 'src/main/windows/onboarding-window'));
-  const settingsWindow = require(path.join(REPO, 'src/main/windows/settings-window'));
+  // Since 8.1 Settings is a page of the main window, in a view of its own.
+  const mainWindow = require(path.join(REPO, 'src/main/windows/main-window'));
+  const surfaces = require('./fixtures/surfaces');
   const registry = require(path.join(REPO, 'src/main/windows/registry'));
   const C = require(path.join(REPO, 'src/shared/channels'));
   const { ReviewStore } = require(path.join(REPO, 'src/main/services/review-store'));
+  // A window first (the tour), else a page view of the main window (Settings).
   const find = (part) => BrowserWindow.getAllWindows()
-    .find((w) => !w.isDestroyed() && (w.webContents.getURL() || '').includes(part));
+    .find((w) => !w.isDestroyed() && (w.webContents.getURL() || '').includes(part)) || surfaces.find(part);
   const errs = [];
   // Electron 35 moved the level and the text onto the event; read either.
   const watch = (w, label) => w.webContents.on('console-message', (e, lvl, msg) => {
@@ -495,9 +498,9 @@ setTimeout(async () => {
     lines.push(`first graded: line="${first.line}" rows=${JSON.stringify(first.rows.map((r) => r.name + '|' + r.grade))}`);
 
     // Settings, opened while the run works, follows the same run.
-    settingsWindow.open();
+    mainWindow.show('settings');
     const sw = await until(() => find('/settings/'), 5000);
-    if (!sw) return report(false, 'the Settings window never opened');
+    if (!sw) return report(false, 'the Settings page never opened');
     watch(sw, 'settings');
     const sjs = (s) => sw.webContents.executeJavaScript(s);
     const settings = () => sjs(SET);
