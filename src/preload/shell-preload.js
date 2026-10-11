@@ -9,7 +9,7 @@ const { PAGES } = require('../shared/shell-nav');
 /**
  * Bridge for the shell, the main window's own document (8.1): the sidebar,
  * the top strip and the Recording screen. It carries what the panel used to:
- * Start, Stop and Pause, the agent check, the status line and the sounds,
+ * Start, Stop and Pause, the agent check, the notice line and the sounds,
  * plus the pages, the game and the window's own buttons.
  */
 function subscribe(channel, cb) {

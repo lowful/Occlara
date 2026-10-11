@@ -21,7 +21,8 @@
  *
  * After the plant the clock is replaced by the spike, so a post-plant death has
  * no clock to match. Those use the frames around the moment the screen
- * registered the death, when it did.
+ * registered the death, when it did, and say nothing of Riot's second against
+ * them (lookAt's gap): the clock on those frames is not the round's.
  *
  * WITH ONE EXCEPTION TO THE AGREEMENT. A death registered on the round end
  * banner, which already prints the next score, is filed back into the round
@@ -224,14 +225,26 @@ function framesFor(records, death, window = {}) {
 /** One look: the death, its frames, the names they are kept under, and when the first was taken. */
 function lookAt(r, recs) {
   const t = recs[0] ? secondsIn(recs[0]) : null;
+  // Seconds from the first frame to Riot's death second, TRUSTED ONLY WHERE
+  // THE ROUND CLOCK COULD HAVE PICKED THAT FRAME: no plant, and the death at
+  // most BEFORE_MS after it, framesFor's own rule. A frame the other path
+  // picked carries a clock that is not the round's: after the plant it is the
+  // spike's, and at a read a second the model reads the buy timer as the round
+  // clock. On the real Split match round 15's first frame was a buy phase
+  // frame read as "active 0:18", 82 s into a round Riot has the death 2 s into:
+  // clamped to 0, its clip was cut wholly inside the buy phase, 16 s before
+  // the death, and the server was told the frame was taken in the second the
+  // player died. Its round 1, a post plant death, gave 25 s, a moment 21 s
+  // past the frame that registered the death. Untrusted, the gap is null and
+  // the death is that registering frame's (shared/clips.js momentOf).
+  const d = typeof r.deathSec === 'number' && t !== null ? r.deathSec - t : null;
   return {
     round: r,
     frames: recs,
     // r6-before.jpg, r6-after.jpg: beside the review in the library, and on
     // its round's card, so these are the names every saved review carries.
     names: recs.map((_, i) => `r${r.n}-${i === 0 ? 'before' : 'after'}.jpg`),
-    // Seconds between the first frame and Riot's death second, when both are known.
-    gap: typeof r.deathSec === 'number' && t !== null ? Math.max(0, r.deathSec - t) : null,
+    gap: d !== null && !r.afterPlant && d >= 0 && d <= BEFORE_MS / 1000 ? d : null,
     // When the first frame was captured, so the review's eye can open the AI
     // log at that moment.
     at: recs[0] && typeof recs[0].at === 'number' ? recs[0].at : null,

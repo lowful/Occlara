@@ -20,6 +20,7 @@
 
 const insights = require('./insights');
 const grader = require('./grade');
+const { CLIP_RE } = require('./clips');
 
 const BASELINE_GAMES = 10;
 const BASELINE_MIN = 3;
@@ -398,6 +399,10 @@ function build(input) {
       source: r.forensics.source === 'screen' ? 'screen' : 'riot',
       // When the first frame it looked at was captured, for the eye at that moment.
       at: typeof r.forensics.at === 'number' ? r.forensics.at : null,
+      // The clip of it kept beside the review (8.3, src/shared/clips.js): its
+      // name and nothing else, never a path. Played from the library, or null
+      // when the match was not recorded.
+      clip: typeof r.forensics.clip === 'string' && CLIP_RE.test(r.forensics.clip) ? r.forensics.clip : null,
     } : null,
   }));
 

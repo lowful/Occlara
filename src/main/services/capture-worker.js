@@ -89,11 +89,14 @@ function capture(quality) {
   return HELPER_EXE ? captureViaHelper(prof) : captureViaPowershell(prof);
 }
 
+// Each answer carries the id it was asked with: the read and the recorder's
+// once a minute comparison can both be out, and each must get its own frame.
 parentPort.on('message', async (msg) => {
+  const id = msg && msg.id;
   try {
     const data = await capture(msg && msg.quality);
-    parentPort.postMessage({ success: true, data });
+    parentPort.postMessage({ id, success: true, data });
   } catch (e) {
-    parentPort.postMessage({ success: false, error: e.message });
+    parentPort.postMessage({ id, success: false, error: e.message });
   }
 });

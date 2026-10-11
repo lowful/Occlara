@@ -61,6 +61,32 @@ function paintObjectives(o) {
   }
 }
 
+/**
+ * YOUR DEATHS, a League game's (8.3): each by the game's clock, the clip of it
+ * from the recording on this PC where the game was recorded, and the one fact
+ * the record gives about it (lol-review.js deathList). Hidden when the player
+ * did not die, or the review was saved before there was a list.
+ */
+function paintLolDeaths(r) {
+  const host = $('r-deaths');
+  releaseClips(host);
+  host.replaceChildren();
+  const list = Array.isArray(r.deathList) ? r.deathList : [];
+  $('r-deaths-wrap').hidden = !list.length;
+  for (const d of list) {
+    const box = el('article', 'v-moment l-death');
+    box.id = `death-${d.n}`;
+    const head = el('div', 'v-moment-head');
+    head.append(el('span', 'v-rn', `Death ${d.n}`));
+    if (d.at) head.append(el('span', 'v-side', d.at));
+    box.append(head);
+    if (d.clipUrl) box.append(clipPlayer(d, null));
+    else if (d.clipGone) box.append(el('p', 'v-clip-gone', clipGoneText(d.clipGone, 'Its facts stay.')));
+    if (d.fact) box.append(el('p', 'v-look-what', d.fact));
+    host.append(box);
+  }
+}
+
 function paintMoments(list) {
   const wrap = $('r-moments-wrap');
   if (!list || !list.length) { wrap.hidden = true; return; }
@@ -212,7 +238,9 @@ function paintRivals(r) {
 
   // Every League-only section, off. r-skills-wrap is NOT among them any more:
   // Rivals fills it with its own comparison.
-  for (const id of ['r-moments-wrap', 'r-next-wrap']) $(id).hidden = true;
+  for (const id of ['r-moments-wrap', 'r-next-wrap', 'r-deaths-wrap']) $(id).hidden = true;
+  releaseClips($('r-deaths'));
+  $('r-deaths').replaceChildren();
   document.querySelector('#r-obj').closest('.block').hidden = true;
 }
 
@@ -461,12 +489,115 @@ const SCREEN_TIMING = "When this happened is the coach's own read of the screen,
  */
 function paintLooks(r) {
   const host = $('v-looks');
+  releaseClips(host);
   host.replaceChildren();
   const frames = r.frameData || {};
   const looked = (Array.isArray(r.rounds) ? r.rounds : []).filter((c) => c.forensics);
   $('v-looks-wrap').hidden = !looked.length;
   for (const c of looked) host.append(moment(r, c, frames));
 }
+
+/*
+ * THE CLIP OF A MOMENT (8.3): the seconds around the death, from the match's
+ * own recording, played from occlara-clip:// (main serves it by range,
+ * clip-scheme.js). Muted, inline and looping, the frame the coach looked at
+ * as its picture until it plays. A click plays or pauses it; out of view, or
+ * with the page hidden, it pauses, so a review of six never decodes a clip
+ * nobody is watching. The frames stay under it: they are what the coach
+ * looked at, and what the moment shows once its clip is gone.
+ */
+const CLIP_GONE = {
+  space: 'Its clip was cleared to keep your clips under the space set in Settings.',
+  cleared: 'Its clip was cleared in Settings.',
+};
+/** Why a moment's clip is gone, and what it still has: its frames and facts, or its facts. */
+const clipGoneText = (why, stays) => `${CLIP_GONE[why] || CLIP_GONE.cleared} ${stays}`;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+let clipWatch = null;
+
+/** Out of view, a clip pauses (IntersectionObserver), where the page has one. */
+function watchClip(v) {
+  if (typeof IntersectionObserver !== 'function') return;
+  if (!clipWatch) {
+    clipWatch = new IntersectionObserver((entries) => {
+      for (const e of entries) if (!e.isIntersecting && e.target.paused === false) e.target.pause();
+    }, { threshold: 0 });
+  }
+  clipWatch.observe(v);
+}
+
+/** Every clip in `host` stopped and let go, so a repaint leaves no decoder running behind it. */
+function releaseClips(host) {
+  for (const v of host.querySelectorAll('video')) {
+    if (clipWatch) clipWatch.unobserve(v);
+    if (typeof v.pause === 'function') v.pause();
+    v.removeAttribute('src');
+    if (typeof v.load === 'function') v.load();
+  }
+}
+
+/** A play or a pause mark, drawn on the 24 unit grid the app's icons use. */
+function clipMark(kind) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', `v-clip-mark ${kind}`);
+  const p = document.createElementNS(SVG_NS, 'path');
+  p.setAttribute('d', kind === 'play' ? 'M8 5.5v13l10.5-6.5z' : 'M7.5 5.5h3v13h-3zM13.5 5.5h3v13h-3z');
+  p.setAttribute('fill', 'currentColor');
+  svg.append(p);
+  return svg;
+}
+
+function clipPlayer(f, poster) {
+  const fig = el('figure', 'v-clip');
+  const v = document.createElement('video');
+  v.className = 'v-clip-video';
+  // The attributes are what a reader of the markup sees; muted is set as the
+  // property too, since the attribute alone only sets where muted starts.
+  v.muted = true;
+  for (const a of ['muted', 'loop', 'playsinline']) v.setAttribute(a, '');
+  // NOTHING LOADS UNTIL IT IS PLAYED: the poster is the frame, and a review of
+  // six clips open between matches, with the next match being recorded, sets
+  // up no decoder at all. Measured, a clip loading its metadata took about
+  // 40% of a core in the GPU process for a second, a 640x360 one playing
+  // about 8%, and one paused nothing.
+  v.setAttribute('preload', 'none');
+  if (poster) v.setAttribute('poster', poster);
+  v.setAttribute('src', f.clipUrl);
+  const btn = el('button', 'v-clip-play');
+  btn.type = 'button';
+  btn.append(clipMark('play'), clipMark('pause'));
+  const sync = () => {
+    const playing = v.paused === false;
+    fig.classList.toggle('playing', playing);
+    const label = playing ? 'Pause the clip' : 'Play the clip';
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+  };
+  const toggle = () => {
+    if (v.paused === false) { v.pause(); return; }
+    const started = typeof v.play === 'function' ? v.play() : null;
+    if (started && typeof started.catch === 'function') started.catch(() => sync());
+  };
+  v.addEventListener('click', toggle);
+  btn.addEventListener('click', toggle);
+  v.addEventListener('play', sync);
+  v.addEventListener('pause', sync);
+  sync();
+  // The mark sits over the picture, so the two share a frame of their own.
+  const frame = el('div', 'v-clip-frame');
+  frame.append(v, btn);
+  fig.append(frame, el('figcaption', null, 'From your recording: the seconds before the death, and just after'));
+  watchClip(v);
+  return fig;
+}
+
+// A page hidden (another page, the seal) pauses every clip on it.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) return;
+  for (const v of document.querySelectorAll('video')) if (v.paused === false) v.pause();
+});
 
 function moment(r, c, frames) {
   const f = c.forensics;
@@ -481,6 +612,13 @@ function moment(r, c, frames) {
     ? window.LogEye.button('kept', () => window.occlara.openAiLog(r.id, f.at), window.LogEye.MOMENT) : null;
   if (eye) head.append(eye);
   box.append(head);
+  // The clip first, the frames under it, half as wide (has-clip), since the
+  // clip already shows the moment across the card; or, where the clip was
+  // cleared, why, and the frames as they always were.
+  if (f.clipUrl) {
+    box.classList.add('has-clip');
+    box.append(clipPlayer(f, frames[(f.frames || [])[0]] || null));
+  } else if (f.clipGone) box.append(el('p', 'v-clip-gone', clipGoneText(f.clipGone, 'The frames and facts stay.')));
   const shots = (f.frames || []).filter((n) => frames[n]);
   if (shots.length) {
     const strip = el('div', 'v-shots' + (shots.length > 1 ? ' two' : ''));
@@ -595,7 +733,7 @@ function paintCommon(r, anchor) {
 
 /** Show every block, so neither game's review inherits the other's hidden flags. */
 function resetSections() {
-  for (const id of ['r-moments-wrap', 'r-skills-wrap', 'r-next-wrap',
+  for (const id of ['r-moments-wrap', 'r-skills-wrap', 'r-next-wrap', 'r-deaths-wrap',
     'r-arch-wrap', 'r-refused-wrap', 'r-patch-wrap']) {
     const n = $(id);
     if (n) n.hidden = false;
@@ -621,6 +759,8 @@ function paintEye(r) {
 function paint(r) {
   paintEye(r);
   if (!r) {
+    releaseClips($('v-looks'));
+    releaseClips($('r-deaths'));
     $('common').hidden = true;
     $('empty').hidden = false;
     $('review').hidden = true;
@@ -633,12 +773,15 @@ function paint(r) {
   // Valorant has its own container, so the League and Rivals one is simply
   // hidden rather than having each of its sections turned off one by one.
   if (r.kind === 'valorant') {
+    // The other container's clips stop with it, hidden or not.
+    releaseClips($('r-deaths'));
     $('review').hidden = true;
     $('vreview').hidden = false;
     paintValorant(r);
     paintCommon(r, $('v-stats-note'));
     return;
   }
+  releaseClips($('v-looks'));
   $('vreview').hidden = true;
   $('review').hidden = false;
 
@@ -670,6 +813,7 @@ function paint(r) {
   paintCommon(r, $('r-scores'));
   $('r-death-head').textContent = (r.deaths || {}).headline || '';
   $('r-death-detail').textContent = (r.deaths || {}).detail || '';
+  paintLolDeaths(r);
   paintMoments(r.moments);
   paintObjectives(r.objectives || {});
   paintSkills(r);

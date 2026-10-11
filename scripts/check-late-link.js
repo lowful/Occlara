@@ -173,7 +173,9 @@ if (!AGAIN[STEP]) {
     : { riotConnected: 'Me#EUW' };
   fs.mkdirSync(ud, { recursive: true });
   fs.writeFileSync(CONFIG, JSON.stringify({
-    game: 'valorant', onboardingCompleted: true, language: 'en', aiLog: false,
+    // Recording Off: a check never records the desktop, and with it on only
+    // the hardware gate refusing stood between this one's sessions and it.
+    game: 'valorant', onboardingCompleted: true, language: 'en', aiLog: false, recordingMode: 'off',
     licenseKey: 'CHECK-LATE-LINK', licenseStatus: 'active', licensePlan: 'lifetime', licenseExpiry: '',
     riotId: 'Me#EUW', ...connection,
     // Seen this week, so no weekly report opens over the check.

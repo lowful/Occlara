@@ -3,6 +3,7 @@
 const { ipcMain, shell } = require('electron');
 const C = require('../../shared/channels');
 const { PURCHASE_URL } = require('../../shared/config');
+const { capGB } = require('../../shared/clips');
 const store = require('../services/store');
 const updater = require('../updater');
 
@@ -49,6 +50,8 @@ function registerIpc(deps) {
   safeHandle(C.BREAKDOWN_GET, async (_e, game, opts) => controller.getBreakdown(game, opts));
   safeHandle(C.BACKFILL_START, async () => controller.startBackfill());
   safeHandle(C.BACKFILL_STATUS, async () => controller.getBackfillStatus());
+  safeHandle(C.CLIPS_USAGE, async () => controller.clipsUsage());
+  safeHandle(C.CLIPS_CLEAR, async () => controller.clearClips());
 
   safeHandle(C.STATS_DASHBOARD, async (_e, mode, force) => controller.getStatsDashboard(mode, force));
   safeHandle(C.STATS_REFRESH, async (_e, mode) => controller.getMatches(true, mode));
@@ -132,6 +135,15 @@ function snapshotConfig() {
     // silently never applied, which is what check:config now exists to catch.
     game:            store.get('game'),
     devGames:        store.get('devGames'),
+    // The match recorder (8.3): Auto or Off and the size, which Settings
+    // writes, and why Auto is off if it turned itself off, and how the last
+    // session went, which only main writes.
+    recordingMode:    store.get('recordingMode') === 'off' ? 'off' : 'auto',
+    recordingRes:     String(store.get('recordingRes')) === '1080' ? '1080' : '720',
+    recordingAutoOff: store.get('recordingAutoOff') || null,
+    recordingLast:    store.get('recordingLast') || null,
+    // The cap on the clips kept beside the reviews, in GB (5, 10, 20, 50).
+    clipCapGB:        capGB(store.get('clipCapGB')),
   };
 }
 

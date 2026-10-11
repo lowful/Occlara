@@ -58,6 +58,7 @@ function open(target) {
     },
   });
 
+  win.setContentProtection(protectedNow);
   win.loadFile(path.join(__dirname, '../../renderer/ailog/index.html'),
     target ? { hash: encodeURIComponent(typeof target === 'object' ? JSON.stringify(target) : String(target)) } : undefined);
   win.once('ready-to-show', () => win.show());
@@ -68,4 +69,18 @@ function open(target) {
 
 function get() { return registry.get('ailog'); }
 
-module.exports = { open, get };
+/**
+ * OUT OF THE RECORDING WHILE ONE IS MADE (8.3). The log shows frames of the
+ * player's own screen, and open over the game between rounds it would be in
+ * the video, frames inside frames. Content protection takes the window out of
+ * every capture on Windows 10 2004 and later. Off again once recording stops,
+ * so the log can be screenshotted for a bug report.
+ */
+let protectedNow = false;
+function setProtected(on) {
+  protectedNow = !!on;
+  const w = get();
+  if (w) w.setContentProtection(protectedNow);
+}
+
+module.exports = { open, get, setProtected };

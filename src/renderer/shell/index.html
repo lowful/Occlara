@@ -35,10 +35,11 @@
 
       <div class="spacer"></div>
 
-      <!-- The record card (8.2.1): the buttons and the line under them, with no
-           status word over them. What state it is in is the button's word
-           (Start, Stop, Subscription ended), the pause button's icon, the
-           card's live colour while recording, and the line. -->
+      <!-- The record card (8.3): its two buttons and nothing under them, the
+           player's ask. What state it is in is the button's word (Start, Stop,
+           Subscription ended), the pause button's icon and the card's live
+           colour while recording; what the line under them said when there
+           was something to say is the top strip's notice line now. -->
       <section id="rec" class="rec" aria-label="Recording">
         <!-- Agent check: once when Valorant recording starts, then gone. -->
         <div id="agent-bubble" class="agent-bubble" hidden>
@@ -75,9 +76,6 @@
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 5v14"/><path d="M15 5v14"/></svg>
           </button>
         </div>
-        <!-- One line: what Occlara is doing, or the one thing that is wrong.
-             Never anything about the match being played. -->
-        <p id="line" class="rec-line" aria-live="polite">Press Start before your match. The review opens when it ends.</p>
       </section>
 
       <div class="foot">
@@ -91,6 +89,14 @@
 
     <div class="main">
       <div class="top drag">
+        <!-- THE NOTICE LINE (8.3): one line, left of the window's buttons, and
+             only when there is something to say: the licence ending, paused,
+             or a notice from main. Never anything about the match being
+             played. Out of the drag region, the text only, so its title (the
+             whole of a line cut short) can show. Never hidden, only empty,
+             which takes no width: a live region shown and filled in the same
+             moment is not always read out, so it is there from the start. -->
+        <p id="notice" class="top-notice no-drag" aria-live="polite"></p>
         <div class="win-controls no-drag">
           <button id="w-min" class="win-btn" type="button" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg></button>
           <button id="w-max" class="win-btn" type="button" title="Maximize" aria-label="Maximize"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>

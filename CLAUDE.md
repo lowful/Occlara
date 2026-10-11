@@ -43,8 +43,17 @@ What still counts as "reaching the screen", and is sealed mid match:
   mid match is the session being recorded.
 - Ctrl+Shift+E opens the last review, and does nothing while a match is in
   progress (`matchInProgress()`).
-- The sidebar's status line carries notices only (a licence ending, capture
-  blocked, the server down), never anything about the match.
+- The window's notice line, in the top strip and shown only when there is
+  one, carries notices only (a licence ending, capture blocked, the server
+  down) and the paused line, never anything about the match.
+- The update's restart question waits while the player is playing
+  (`updater.js`, `busy` from index.js: a session running, a stop mid match
+  holding the seal, or a review still being built, `reviewBeingBuilt`, for
+  the hour its match is held at most). It came up whenever the download
+  landed, over the game mid round and in agent select, and "Restart now" quit
+  the recording and the review being checked with it. It is asked again
+  every 30 seconds until then, and names the newest version downloaded
+  meanwhile, the one a restart installs (`test:updater`).
 
 ### How the match becomes a review
 
@@ -59,7 +68,7 @@ src/shared/valorant-review.js         the computed review, which carries the two
 src/shared/insights.js                repeated mistakes, strengths, misses: counted, per game
 src/shared/grade.js                   0 to 100, a letter, four categories with evidence, per game
 server/services/match-review.js       the model's half: summary, a why per round, focus
-src/main/services/review-store.js     every review saved, userData/reviews
+src/main/services/review-store.js     every review saved, userData/reviews, with its frames and clips
 src/shared/patterns.js                what repeats across the last ten matches of a game
 src/shared/breakdown.js               the library by map and agent (hero, champion), counted
 src/shared/riot-review.js             a review from Riot's record alone, or a recording linked late
@@ -277,8 +286,10 @@ which wins whether it lands first or while the screen's is out.
   labels graded the real 31 kill Jett at 58 from the screen alone
   (`test:valorantreview`).
 - **Where you died, and how** is the last section of every review
-  (`review.js paintLooks`): per look, the round and side, the frames across the
-  card (Just before and Just after, click to zoom), the round's facts, the cause
+  (`review.js paintLooks`): per look, the round and side, the clip of it from
+  the match's recording when there is one (8.3, below), the frames across the
+  card (Just before and Just after, click to zoom; half as wide under a clip),
+  the round's facts, the cause
   chip, what happened, the better play, and for a screen look "When this
   happened is the coach's own read of the screen, not Riot's record of the
   match." Unclear keeps its frame and no sentence. A round card keeps the chip
@@ -289,14 +300,20 @@ which wins whether it lands first or while the screen's is out.
 
 The frames the review looked at are saved beside it in the library, so the
 moment survives the AI log rolling past it, and a version painted after a look
-still shows them (`job.frames`). The AI log keeps every frame of the last three
-minutes, every frame around a registered death, one frame per ten seconds of the
-rest, and holds a finished match's frames whole until its review has looked
-(`holdAiLogFrames`): until released, an hour at most (`HOLD_MAX_MS`), because a
-match stopped halfway retries the link for 35 minutes (`match-link.js`) and
-then Riot's rounds and the look after that. `test:valorantreview` fails the day
-the retries outgrow the hold. `test:forensics` holds the screen prompt and the
-killer gate, `test:valorantreview` the picker on the real ledger, `test:surfaces`
+still shows them (`job.frames`). Since 8.3 so is a clip of each moment from the
+match's recording, cut as the look lands and played above its frames, under a
+cap (below, "The match is recorded on the PC"). The AI log keeps every frame
+of the last three minutes, every frame around a registered death, one frame
+per ten seconds of the rest, and holds a finished match's frames whole until
+its review has looked (`holdAiLogFrames`): until released, an hour at most
+(`HOLD_MAX_MS`), because a match stopped halfway retries the link for 35
+minutes (`match-link.js`) and then Riot's rounds and the look after that.
+`test:valorantreview` fails the day
+the retries outgrow the hold. `test:forensics` holds the screen prompt, the
+killer gate, and a Riot look framed the screen's way saying nothing of when
+its first frame was taken (the real Split round 15, a buy phase frame read as
+the round clock, had been told "in the second the player died"),
+`test:valorantreview` the picker on the real ledger, `test:surfaces`
 the section and the eye at a moment, and `check:matches` paints a kept frame
 there (`.v-moment img`) and opens the AI log at it.
 
@@ -609,6 +626,300 @@ save. Counted, never written, and every number carries its sample:
   its direction (`insights.repeatTitle`, used by the patterns too). Otherwise
   the title is one that is true of every match it counts.
 
+## The match is recorded on the PC
+
+```
+src/main/services/recorder.js        pages, holds, the sweep, the disk guard, health, the fallback, the counts
+src/main/windows/recorder-window.js  a window nobody sees, the primary display's source, the CPU sample
+src/renderer/recorder/               the page: the gate, MediaRecorder, the read's frame, health each second
+src/main/services/capture.js         the read's frame: from the stream while it serves one, else the GDI helper
+src/shared/webm.js                   the chunks read as they come, whole Clusters out, clips cut by them
+src/shared/clips.js                  a clip's name, its seconds, when a look's death was, the cap's choices
+src/main/services/review-clips.js    the clips of a review's moments cut, and shown or said to be gone
+src/main/services/clip-scheme.js     occlara-clip://, a review's clips served by range and nothing else
+```
+
+Since 8.3 the match is recorded on the player's own PC while it is played, so
+its review can play back the moments it looked at. Display capture as OBS's
+Display Capture takes it: desktopCapturer's source for the primary display
+(matched on `display_id`) opened with getUserMedia, never the game's memory or
+files, never a hook into it. The page is a window that is never shown, and its
+one voice is a notice on the window's notice line about capture. Valorant
+sessions and League sessions record, the two whose reviews have deaths to
+clip; a Rivals review is one end of match scoreboard and records nothing. The
+player does nothing: recording is on by default (On, stored 'auto'), measures
+its own cost on every PC, turns itself off where the PC cannot afford it, and
+the coach keeps reading once a second either way.
+
+**What is never recorded or kept**: audio (the capture asks for none), any
+display but the primary one, the screen outside a session (Start to Stop),
+Occlara's own windows while a match is played (the main window sealed, the AI
+log, the corner mark: "Out of the recording", below), and any recording past
+its review's work: the recording is deleted once nothing holds it, and only
+the clips of the moments the review looked at stay beside it, under the cap.
+No recording and no clip ever leaves the PC. The frames the coach reads go to
+the server as they always have, one a read, and the counts below say how the
+PC coped, never what was on it.
+
+- **Auto by default, and it turns itself off.** `recordingMode` 'auto' or
+  'off', `recordingRes` '720' or '1080'. Judged only while a match is in
+  progress, the recorder gives up for the session ('busy') when for 20 s
+  straight the capture delivers under 12 frames a second while the picture
+  changes (or stops delivering), a chunk is over 4 s late, the page's process
+  is over 60% of ONE core, or the PC is over 95% (`HEALTH`, first guesses to be
+  tuned from the counts below). The reads go back to the GDI helper at the same
+  cadence, one notice says so, and two busy sessions within 7 days turn Auto
+  off (`recordingStrikes`, `recordingAutoOff`), which Settings says, with Try
+  again (On chosen again forgets them). Paused, nothing is recorded either.
+  A League game is a match in progress here too, and as its screen is never
+  read, its notices end "The review is still built from the game's own
+  record." (`deps.still`). A Valorant match is judged only once a read has
+  landed and the last one was not a menu (`recorder.js valorantInMatch`), not
+  on the seal's `matchInProgress()` alone, which holds through the menus after
+  a match left in round 1 or 2 and through a session whose reads all fail: a
+  loading screen's CPU gave up as busy there and took a strike. The fps rule
+  is fed by the page's own account (`src/renderer/recorder/health.js`, a file
+  test:recorder runs): a second with no new frame carries the last "picture
+  changed" verdict, since said "not changing" there every second after a
+  frame was a good one, and a capture slowed to a frame every 1.5 or 5 s, or
+  one a second at random, never gave up; now each does within 30 s.
+- **H.264 on the GPU, or nothing.** The page asks `VideoEncoder.isConfigSupported`
+  with prefer-hardware first, before the screen is opened ('no-hw-encoder'):
+  in the spike it told the GPU's encoder apart (yes for H.264, no for VP9, which
+  then took a whole core in software). MediaRecorder, Matroska first, 3 Mbps at
+  720p and 6 at 1080p (more for a recording bigger than its box, in proportion
+  to its pixels, twice the box's at most: `bitrateFor`), a keyframe and a chunk
+  every second, asked for 60 fps because asked for 30 with the whole screen
+  moving it delivered 21. The level is by macroblocks (`codecFor`): 3.1 up to
+  3600 (1280x720), 4.0 past it.
+- **Never cropped, and never fewer rows than the read.** The display's own
+  shape (`fitSize`): asked a box of another shape, this Chromium hands back
+  exactly the box (a 1280x600 ask on a 1920x1080 display came back 1280x600).
+  The scale is the larger of filling the box and COVERING the read's frame
+  (the capture profile's size, `deps.readSize`), never above the display and
+  never past H.264 level 4.0's 8160 macroblocks: fitted to the box alone a
+  3440x1440 display recorded 1280x536 and the read, stretched to 1280x720,
+  drew the score digits and the minimap's labels from a quarter fewer rows
+  than GDI. Now 3440x1440 at 720p is 1720x720, 1920x1200 is 1280x800 and
+  5120x1440 is 2560x720 at either setting. A recording the level brought under
+  the read's frame records on and leaves the read on GDI (`coversRead`), and a
+  frame asked bigger than the track is GDI's too. A display smaller than the
+  read's frame (1024x768) is recorded whole, and that covers it (`covers` with
+  the display): it is every pixel the GDI helper reads, stretched up the same
+  way, where measured against the frame alone it left every read of the
+  session on the helper's launch a frame. The log says whether the
+  track kept the shape.
+- **The read's frame** comes from a clone of the track through a
+  MediaStreamTrackProcessor, the newest VideoFrame kept and every other closed,
+  drawn STRETCHED to the capture profile's size (1280x720, JPEG 0.7) as
+  `OcclaraCapture.cs` does, and only once a comparison with one GDI frame says
+  the stream sees the game. Compared at the start and once a minute: the stream
+  black (mean under 4 of 255) twice, 5 s apart, while GDI is not stops recording
+  for the session ('black', "Recording needs Windowed Fullscreen in this game");
+  both black twice puts up "Capture is black". A read the stream cannot serve
+  (no frame for 2 s, a page that did not answer) is taken by the helper; three
+  unanswered in a row, or a page whose renderer went away, and it is broken
+  ('error'). The page reports each second how many VideoFrames it holds open
+  (`framesOpen`, the newest and for a moment a clone): a frame never closed is
+  a capture buffer never given back, and a screen capture has only a few.
+  A recording is of the display that was primary when it opened, Chromium's
+  source being tied to that monitor, while GDI reads whichever is primary at
+  each frame: when screen's events say another display is primary now (the
+  game moved, a laptop docked), the read is off the stream at once and the
+  recording starts again on the new primary (`displaysChanged`), or the read
+  and the clips were of Discord on the old one. The GDI helper is DPI aware
+  (`SetProcessDPIAware`, native/OcclaraCapture.cs, rebuilt): unaware, at 125%
+  it copied only the top left 1536x864 of a 1920x1080 screen, and the read
+  changed framing whenever it fell back to GDI.
+- **What is kept.** One minute pages beside one `init.mkv` under
+  `userData/recording/rec-<stamp>/`, whole Clusters only, so the init segment
+  and the pages joined are the recording byte for byte. A page two minutes old
+  goes, unless the match in progress began before it ended (`keepSince`) or a
+  hold covers it: a finished match is held (`holdRecording`) from its start to
+  five minutes past its end, the time a match ended too early can still resume
+  in, until its review's work is done (`releaseMatchHolds`, beside its AI log
+  frames), an hour at most. `cutClip(from, to, at)` cuts a clip out of the
+  pages by wall clock, from the recording that holds `at` (the death) when a
+  session has more than one: the first that overlapped was taken before, and
+  a death just after a pause came out as the seconds before the pause. And
+  from none that does not hold it, to within a second of either end, the
+  moment's own estimate: a recording that stopped 2 s before the death still
+  overlapped its window, and gave the 10 s before its end as the death's clip.
+  The page's wall clock maps onto the recording's timeline from the newest
+  frame each chunk carries, within a few ms on the fixture. A Valorant match in
+  progress is kept from its start once a read has landed, menus or not (one
+  menu read mid round must not cost it its pages), ninety minutes back at most
+  (`valorantKeepSince`): before, a session whose reads failed from Start kept
+  every page, about 1.3 GB an hour, with no ledger to clip. Nothing recorded
+  stays in memory: a Cluster's bytes go to its page and are dropped, and the
+  reader keeps no list of what it closed (`webm.js keepClusters`); kept, ten
+  minutes held 225 MB in the main process. Everything a run left is swept at
+  launch; everything goes at every quit, at a logout and when Windows ends
+  its session (`shutdown()`, synchronous: from cleanupAndQuit, from
+  before-quit for a quit that is not the tray's, an update's Restart now,
+  which skips cleanupAndQuit, and from the main window's 'session-end'
+  through `mainWindow.onSessionEnd`, since no before-quit comes then and the
+  process can be ended next), and at an uninstall
+  (`build/uninstaller.nsh`, which kills the app first), with the AI log's
+  frames of the screen from five sessions, which the app prunes only at
+  a Start and which had stayed after an uninstall for good. A logout ends the
+  recording before it clears the licence key, so its counts go with it. Off chosen by hand
+  takes every recording and hold with it (`discard`), so no clip is cut after
+  it; Auto turning itself off (`strike()`) is not that, and its match keeps
+  its clips. Nothing starts under 8 GB free or goes on under 4 GB. A League
+  game in progress is kept from when its recorder first saw it (`liveSince`).
+- **Out of the recording.** The main window while sealed (`main-window.js
+  protect()`), the AI log while recording (`ailog-window.js setProtected`,
+  from 'running', which is false once after every true, a quit or a logout
+  included: a logout used to leave every AI log out of captures for the rest
+  of the run), the dock mark always, by content protection, which Windows
+  reports only once a window is on screen. Between matches the main window is
+  in it, as it is on the player's own screen.
+- **The clip of each moment** (`index.js clipLooks`, `review-clips.js`). When a
+  Valorant review's look lands (the screen's, `screenLook`, or Riot's, in
+  `withRiot`), each looked at death is cut out of the recording while the
+  match's hold still keeps it, from 11 s before the death to 4 s after
+  (`clips.js windowOf`), six a review at most, and kept beside the review as
+  `r<n>-clip.mkv` (`review-store.js saveClip`, written by path, never through
+  the review's JSON as frames are), its name on the card (`forensics.clip`).
+  Then the hold is let go with the AI log's (`releaseMatchHolds`). When the
+  death was is the look's own frames' (`clips.js momentOf`): Riot's look is
+  its frame plus Riot's seconds past it (`gap`; on the real Abyss match the
+  four deaths came 1 to 5 s after their frames, so a fixed two seconds was
+  wrong), the screen's is the frame that registered the death, and a frame
+  alone is two seconds before it. The gap only where the round clock picked
+  the frame (`death-frames.js lookAt`: no plant, the death at most 10 s on);
+  a Riot look framed the screen's way is the screen's. Its first frame's
+  clock is not the round's: on the real Split match round 15's was a buy
+  phase frame read as the round clock, and its clip was cut wholly inside the
+  buy phase, 16 s before the death (`test:clips` replays that session through
+  the real reader). After the plant a frame's clock is one read before it: on
+  the real Abyss session rounds 6 and 16 read 10 and 8 s before Riot's second
+  on frames that came after the death. One look's clips at a time, and only
+  while that look is the one kept: Riot's wins, its clips replace the
+  screen's, and a clip an earlier look cut of a round this one did not choose
+  goes (`keepClips`), as does one of a look a late link drops, a death Riot
+  says never happened, when the backfill upgrades the review in place (its
+  save in index.js). A match not recorded (Off, given up, no encoder, a death
+  before the recording began) has none, and its moments show their frames.
+  Nor is anything cut once the player chose Off, whatever the recorder still
+  holds (`clips.js cutsClips`, asked before every look's clips and every
+  League game's: the guard beside `discard`), and a look that lands then
+  takes an earlier look's clips with it, its cards naming none; Auto turning
+  itself off is not that choice.
+- **League's deaths, clipped** (`index.js clipLolDeaths`). The League recorder
+  notes the game's clock against the wall clock on every poll
+  (`lol-recorder.js timeline`, `wallAt`: the last poll at or before a moment,
+  carried on a second a second, so a pause is crossed), and at the game's end
+  each `ChampionKill` of the player is found in the recording by wall time and
+  cut the same way, six at most spread from the first to the last
+  (`pickSpread`), as `d<k>-clip.mkv`, six seconds after the review opens, so
+  the last fight's four seconds are on disk. The review's "Your deaths"
+  (`lol-review.js deathList`) lists every death by the game's clock with the
+  one fact the record gives (an ally died in the 20 s before, none within
+  20 s, or one in the 20 s after: `analyseDeaths`'s arithmetic), and the clip.
+- **Playback** (`clip-scheme.js`). `occlara-clip://review/<id>/<name>`,
+  privileged before the app is ready (standard, secure, stream) and handled
+  with hand written Range and 206, 416 past the end, a Range it does not read
+  ignored for the whole clip, `video/x-matroska` (canPlayType refuses H.264 in
+  video/webm), no caching, and a 404 with no body for anything but a file
+  named as a clip (`CLIP_RE`) in a review's own folder (`clipFile`). The review
+  page's CSP adds `media-src 'self' occlara-clip:`. In "Where you died, and
+  how" the clip plays above the frames, which halve: muted, inline, looping,
+  the frame the coach looked at as its poster, nothing loaded until it is
+  played (preload none: measured, a clip loading its metadata took about 40%
+  of a core in the GPU process for a second, a 640x360 one playing about 8%,
+  one paused nothing), a click plays or pauses it, and out of view or with
+  the page hidden it pauses.
+  Whether a clip is there is asked of the disk each time a review is shown
+  (`present()`, `presentClips`).
+- **The cap** (`clipCapGB`, 5, 10, 20 or 50 GB, 10 by default). After every
+  clip kept, at launch, and when the cap is lowered, the clips past it go a
+  review at a time, the oldest first and a folder no review owns before any
+  (`capClips`). A review that lost its clips keeps its frames, facts and grade
+  and says "Its clip was cleared to keep your clips under the space set in
+  Settings" (`clipsCleared` on the saved review, carried by every later
+  version of one still being improved); Clear clips in Settings takes every
+  clip and says it was cleared in Settings. A clip missing for no reason given
+  (a review restored without it) is left out and its frames show.
+- **Settings**: "Record match video", On or Off (the player asked for a
+  setting that toggles it; On is the stored 'auto', never renamed), 720p or
+  1080p, a hint per game (`REC_HINT`: Valorant's recorded while its screen is
+  read, League's while its own record is, never saying its screen is read,
+  Rivals' not recorded yet, with no status line there, since "your last
+  session" would be another game's), and one status line: "Recording now at
+  720p, about 30 fps" (`liveView`: the track's own height when it gives one,
+  so a 1280x1024 display at 1080p says 1024p, else the setting; the median of
+  the last ten seconds whose picture changed, to the nearest five), or why it
+  is not, this session's reason before the last session's: no hardware video
+  encoder, the PC busy (two sessions in a week turned it off, with Try again,
+  which sets it back On), not enough disk, Windowed Fullscreen needed, an
+  error; in League it says the review is still built from the game's record,
+  never that the screen is read, and so do Capture speed and Performance,
+  which say there that they do nothing in League (and League's recording
+  covers the standard frame whatever Performance says, `readSize`); in Rivals
+  Capture speed says it does nothing either, its engine looking on its own
+  8 second timer (`PROBE_MS`), and Performance what it does. The line is written only
+  when it changes, a polite live region.
+  Under it what the clips take against the cap, the cap, and Clear clips,
+  which asks on the first press and clears on a second within four seconds
+  (`CLIPS_USAGE`, `CLIPS_CLEAR`, read again on every `PUSH_REVIEWS`).
+- **Counts for the developer**: one block a session to
+  `POST /api/coach/session-report` (`reportBlock`): version, the game
+  (valorant or lol), mode, res, the outcome from a closed list (recorded, off,
+  no-hw-encoder, busy, disk, black, error), minutes recorded, fps p50 (in a
+  match, picture changing), the recorder's CPU p50 and the PC's p90, whether
+  the gate passed. Nothing else; `server/services/telemetry.js` keeps only
+  those words or 'other' (a block from before the game counts its game as
+  'other'), clamps every number, splits the summary by game, and counts the
+  tip era's reports as before. A session ends with its block however it ends,
+  Stop, quit, logout or Windows ending its session (`shutdown()` used to send
+  none, and Settings kept the session before's reason), and the newest block
+  is kept (`recordingReportPending`, `{ at, n, block }`) until the server
+  takes it. As the process ends (a quit, an update's restart, Windows ending
+  its session, each calling `shutdown({ exiting: true })`, which marks the
+  'report'; a logout is not that, the app goes on) it is only kept, never
+  posted: posted into the exit it could reach the server and lose its answer,
+  and the next launch sent it again, the session counted twice. The next
+  launch sends what one left, once (`sendPendingReport`, at launch with the
+  key kept, or in `launchMainApp` once one is activated).
+- **The dev switches work unpackaged only**: `OCCLARA_FAKE_CAPTURE=1` records
+  frames the page draws (written to a track generator: a canvas's own
+  captureStream stalled in a second recorder page with the main window open)
+  and makes every GDI frame flat grey, so no check touches the screen; `=black`
+  draws black. `OCCLARA_DEV_RECORDER_MIN_FPS`, `_BUSY_MS` and `_PAGE_MS` force
+  the busy rule and shorten pages.
+
+`npm run test:recorder` holds every rule above on a fake clock and fake files
+with the real fixture, the Valorant rules on the real reader replaying the
+real Split match, the page's account through the real rules, and ten minutes
+of 3 Mbps Clusters held to under 30 MB of memory; `npm run check:recorder`
+boots the app and runs the real page on generated frames: paged, served, the
+gate (H.264 yes, VP9 no on this PC), no frame held open, stopped cleanly with
+every chunk the page said it handed over on disk, held at a match's end, not
+judged before a read lands, busy back to GDI with its notice, black stopped,
+the displays' events reaching the recorder, Windows ending its session and an
+update's restart deleting everything in the call, a quit leaving nothing, none
+of the three posting its counts into the exit, and counts one kept sent at the
+next launch.
+`npm run test:clips` holds the names, the seconds, the moments on the real
+Abyss match, and on the real Split and Abyss sessions through the real reader
+(`scripts/fixtures/replay-session.js`), the cut and only from a recording
+that holds the moment, Off, the store, the cap, a late link's clips and the
+scheme's ranges offline; `npm run check:clips` boots the app: a death
+recorded live is clipped beside its review before the hold goes, the page
+plays it, nothing is clipped once Off is chosen and an earlier look's clip
+goes, a clip of the canvas fixture plays, pauses and seeks to its frame
+through occlara-clip, Clear clips takes them, a League death is clipped by
+the game's own clock, and a late link through the real backfill keeps only
+the clips its cards name. The
+generated frames hold the GPU process at 50 to 80% of a core on their own
+(the spike measured the whole app at about 21% of one capturing the real
+screen in full motion), and with a clip seeked in the review page the
+recorder page froze for 4 to 19 s in 10 of 12 runs, and in none of 4 without
+one, so the check stops recording before any clip plays. Watching a clip
+between matches while recording is the game test's to measure.
+
 ## Layout
 
 ```
@@ -649,7 +960,8 @@ window.
 
 ```
 shell/       the window's document: the sidebar (game, pages, the record card,
-             account), the window's buttons and the Recording screen
+             account), the window's buttons, the notice line beside them and
+             the Recording screen
 home/        the last match and its grade, the next match's focus, Valorant's
              rank, the most repeated mistake, the grade trend, recent matches
 matches/     three pages from one surface, ?section=list, patterns or breakdown;
@@ -675,7 +987,8 @@ meanwhile, the review of the match that just ended above all, is remembered
 and shows when the seal lifts. Open pages through `openPage()`, never
 `mainWindow.show()` directly, which would skip the seal for up to the tick. A
 window made again keeps the seal, because made mid match it showed the page
-asked for until the next tick.
+asked for until the next tick. Sealed, the window is out of every capture
+(content protection), so the match's recording never has Occlara in it.
 
 **A stop in the middle of a match HOLDS the seal** (`sealHeld`, set from the
 engine's `stoppedLive`). Not recording, nothing can tell when that match ends,
@@ -746,9 +1059,10 @@ the window, and every switch falls to the timer and the stale frame is back.
 Asked for reduced motion it is a plain cut: still painted out of sight first,
 but as it is. `npm run test:shellnav` holds the order of a switch, and
 `main-window.js` itself on stand-in views (the window's state, its events, a
-reload's old ready refused), and `check:mainwindow` the same on real views,
+reload's old ready refused, the shell's strip kept at TOP_H with its notice
+line on one line), and `check:mainwindow` the same on real views,
 the seal, a page that never answers, a minimised window and a page loading
-again included.
+again included, and measures the record card and the notice line.
 
 Everything else that opens moves too, on the tokens and transform, opacity or
 a grid row only: the sidebar's marker is ONE element slid to the current page
@@ -775,6 +1089,7 @@ weekly/      weekly report popup: grades, categories, recurring mistakes
 learn/       League lessons
 activation/  license key entry
 splash/      the launch animation
+recorder/    the match recorder's page, in a window that is never shown (8.3)
 ```
 
 The panel and the review, matches, settings, stats and chat windows were
@@ -844,17 +1159,27 @@ library or the rank history, nothing invented (`src/shared/home-model.js`):
 `test:surfaces` holds Home's and Stats' answers to the same history equal,
 and `check:mainwindow` measures the trend on the real layout.
 
-**The record card has no status word** (8.2.1): the dot and "Ready",
-"Recording", "Paused" over the buttons are gone, and the card is balanced on
-them, Start filling the width beside the square pause button, both 48px, the
-line centred under them, one padding all round. The state is still on the
-card: the button's word (Start, Stop, "Subscription ended"), the pause
-button's icon, the live colour while recording, and the line, which now says
-"Paused" itself, since the word that said it is gone: in the player's
-language (`panel.pausedLine`, the word's keys went with it), and never under
-the "Recording..." notice a Rivals or League session keeps up (kind
-'recording'), which said recording over a paused card. A notice of something
-wrong still takes the line.
+**The record card is its two buttons** (8.2.1, 8.3): the dot and "Ready",
+"Recording", "Paused" over the buttons went in 8.2.1, and the line under them
+in 8.3, the player's ask ("remove any text under it just leave it with the
+two buttons"). Start fills the width beside the square pause button, both
+48px, one padding all round; the agent check still opens above them in a
+Valorant session. The state is the button's word (Start, Stop, "Subscription
+ended"), the pause button's icon and the live colour while recording. What
+the line said when there was something to say is **the notice line** in the
+top strip, left of the window's buttons (`shell.js noticeLine`), empty
+otherwise, never hidden, because a live region shown and filled in the same
+moment is not always read out: the licence ending always (the notice or the default sentence),
+then a notice from main except the "Recording..." a Rivals or League session
+keeps up (kind 'recording', which the button and the live card already say),
+then paused in the player's language (`panel.pausedLine`), which takes the
+place of a notice about the reading ('read-failed', 'capture', and the
+recorder's 'recorder', whose last words are that the coach still reads your
+screen every second) until the resume puts it back. No "Press Start", no
+"Reading your game" (`panel.noTips` went). One line, cut with an
+ellipsis and whole in its title, never more than 70% of the strip, the text
+out of the drag region and nothing else, so the strip still drags the window;
+written only when it changes, as a polite live region.
 
 ### Rules for UI work
 
@@ -937,7 +1262,15 @@ page), `SHELL_WINDOW` (minimise, maximise, close) and `SHELL_GET`, and
 `PUSH_SHELL` carries its navigation state, sealed or not, on every change.
 Moving between pages is `PUSH_PAGE` to one page (arm, enter, leave) and
 `PAGE_READY` back from it, taken from that page's own view only; every page
-preload exposes the two through `src/preload/page-motion.js`.
+preload exposes the two through `src/preload/page-motion.js`. The match
+recorder's page hears `PUSH_RECORDER` (start, stop, grab, compare) and answers
+on `RECORDER_CHUNK`, `RECORDER_STATUS` and `RECORDER_REPLY`, each checked
+against its own window's sender. Settings reads what the clips beside the
+reviews take with `CLIPS_USAGE` and clears them with `CLIPS_CLEAR`; the
+recording's status line comes with the state (`recording`, pushed when the
+recorder starts, stops or its rounded frame rate moves). A clip itself never
+crosses IPC: the review page plays it from `occlara-clip://`, which main
+serves (`clip-scheme.js`).
 
 ## The live read's STATE line
 
@@ -1041,13 +1374,17 @@ the broad clauses have teeth.
 So the pipeline is:
 
 ```
-src/main/services/lol-recorder.js   polls 127.0.0.1:2999, emits NOTHING to the player
+src/main/services/lol-recorder.js   polls 127.0.0.1:2999, emits NOTHING to the player, notes the game's clock
 src/shared/lol-review.js            turns the record into a review, deterministically
 src/renderer/review/                the post-game surface, opens only when a game ends
 ```
 
 `finishLolGame()` in `src/main/index.js` grades, appends to `lolHistory` capped
-at `BASELINE_GAMES`, and fires `PUSH_LOL_REVIEW`.
+at `BASELINE_GAMES`, and fires `PUSH_LOL_REVIEW`. Since 8.3 the game is also
+recorded on the PC, as a Valorant match is (display capture alone; the
+session's screen is never read, and the recording shows nothing), and its
+review's "Your deaths" plays the clip of each death, found in the recording by
+the game's own clock (`clipLolDeaths`, "The match is recorded on the PC").
 
 Three things about it that look like details and are not:
 
@@ -1136,7 +1473,7 @@ next match opens its review naming the last match's hero.
 What the hero read bought is `src/shared/rivals-abilities.js`: no sentence may
 name an ability the player's hero does not have. The Rivals engine still writes
 draft and scoreboard lines internally, and none of them reach the screen during
-a match; only its system notices reach the sidebar. It permits one whose OWNER is named in the same sentence,
+a match; only its system notices reach the window's notice line. It permits one whose OWNER is named in the same sentence,
 because "The Thing has Yancy Street Charge, which turns your dash off" is the
 counter table's best output.
 

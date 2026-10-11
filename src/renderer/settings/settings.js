@@ -56,6 +56,194 @@ const soundsSeg   = wireBoolSeg('sounds', 'sounds');
 const captureSeg  = document.getElementById('capturequality');
 wireSeg(captureSeg, 'captureQuality');
 
+/*
+ * RECORD MATCH VIDEO (8.3): On or Off, the words the player asked for, stored
+ * as 'auto' and 'off', the values the setting shipped with (On is Auto: it
+ * turns itself off on a PC that cannot afford it); and 720p or 1080p. Under
+ * them ONE STATUS LINE: recording now, at what size and about how many frames
+ * a second, or why it is not, this session's reason before the last session's
+ * (no hardware encoder, the PC busy, not enough disk, a game the capture read
+ * black). Where it turned itself off, two busy sessions in a week, it says so
+ * with a way to try again (On chosen again is the try: main forgets the busy
+ * sessions). Off chosen by hand says nothing: the player knows. Painted from
+ * the config at load and from every state push, because main starts and stops
+ * recording, and turns it off, while this page is open.
+ */
+const recSeg = document.getElementById('recording');
+const recResSeg = document.getElementById('recordingres');
+const recHint = document.getElementById('rec-hint');
+const recNote = document.getElementById('rec-note');
+const recRetry = document.getElementById('rec-retry');
+wireSeg(recSeg, 'recordingMode');
+wireSeg(recResSeg, 'recordingRes');
+// What goes on without the recording: the coach's read of the screen, or, in
+// League, whose screen is never read, the review built from the game's record.
+let recGame = 'valorant';
+const still = () => (recGame === 'lol' ? "Your review is still built from the game's own record." : 'The coach still reads your screen.');
+/*
+ * WHAT ON AND OFF DO, TRUE IN EACH GAME, which is why it is written per game.
+ * A Valorant match is recorded while its screen is read, and a League game
+ * while its own record is (Settings never says League's screen is read). A
+ * Rivals match is not recorded at all yet, since its session never starts the
+ * recorder, so it says so, and the status line under it is not shown there:
+ * "your last session" would be another game's.
+ */
+const REC_HINT = {
+  valorant: 'On records each match on this PC at about 30 frames a second while the coach reads your screen; if your PC cannot keep up while you play, recording stops for that session and the coach keeps reading. Off records nothing, and the coach still reads your screen at the speed set above. The video stays on this PC: once a review is built, a short clip of each moment it looked at is kept beside it and the rest is deleted.',
+  lol: "On records each game on this PC at about 30 frames a second; if your PC cannot keep up while you play, recording stops for that session. Off records nothing. Either way your review is built from the game's own record. The video stays on this PC: once a review is built, short clips of up to six of your deaths, spread across the game, are kept beside it and the rest is deleted.",
+  rivals: 'Marvel Rivals matches are not recorded yet: their review is graded from the end of match scoreboard, as it always was. On and Off are for Valorant and League of Legends.',
+};
+// Capture speed and Performance are about reading the screen, and say what
+// they do in each game. Capture speed is the Valorant engine's alone: the
+// Rivals engine looks on its own timer (rivals-engine.js PROBE_MS) and
+// League's session never reads the screen. Performance sizes every frame
+// read, Rivals' too, and in League nothing (index.js readSize).
+const OWN_RECORD = "its review is built from the game's own record";
+const READ_HINTS = [
+  { el: document.getElementById('capture-hint'), lol: `In League of Legends this does nothing: ${OWN_RECORD}. It sets how often a Valorant match is read.`,
+    rivals: 'In Marvel Rivals this does nothing: the coach looks for hero select and the end of match scoreboard on its own, every 8 seconds. It sets how often a Valorant match is read.' },
+  { el: document.getElementById('perf-hint'), lol: `In League of Legends this does nothing: ${OWN_RECORD}. It is for Valorant and Marvel Rivals.` },
+].filter((h) => h.el).map((h) => ({ ...h, own: h.el.textContent }));
+function paintRecHint() {
+  recHint.textContent = REC_HINT[recGame] || REC_HINT.valorant;
+  for (const h of READ_HINTS) h.el.textContent = h[recGame] || h.own;
+}
+// Before anything asks main: the hint is the page's own words.
+paintRecHint();
+const REC_NOTE = {
+  autoOff: () => `Recording turned itself off: your PC was busy in two sessions this week. ${still()}`,
+  noEncoder: () => `This PC has no hardware video encoder Occlara can record with, so matches are not recorded. ${still()}`,
+};
+// Why a session did not record, by its outcome (recorder.js OUTCOMES).
+const REC_WHY = {
+  busy: (when) => `Recording stopped in ${when}: your PC was busy. It tries again next session, and turns itself off after two busy sessions in a week.`,
+  disk: (when) => `Not enough free disk to record in ${when}: recording needs 8 GB free on this drive. ${still()}`,
+  black: (when) => `Recording needs Windowed Fullscreen: the game read black to it in ${when}. ${still()}`,
+  error: (when) => `Recording stopped on an error in ${when}. It tries again next session.`,
+};
+/**
+ * The size it records at: the rows of the track itself where main gives them
+ * (liveView's height), since a display that is not 16:9 records another
+ * number of rows than the setting names (a 1280x1024 display at 1080p records
+ * 1024, and says 1024p); the setting where main does not give them.
+ */
+function recordingRows(live) {
+  const h = live && live.height;
+  if (Number.isFinite(h) && h > 0) return String(Math.round(h));
+  return String(live && live.res) === '1080' ? '1080' : '720';
+}
+/** The status line's words, and whether Try again goes under them; null to say nothing. */
+function recordingLine(r) {
+  const off = r.mode === 'off';
+  if (r.live) {
+    const fps = typeof r.live.fps === 'number' && r.live.fps > 0 ? `, about ${r.live.fps} fps` : '';
+    return { text: `Recording now at ${recordingRows(r.live)}p${fps}.`, live: true };
+  }
+  if (off) return r.autoOff ? { text: REC_NOTE.autoOff(), retry: true } : null;
+  const now = r.session && r.session.outcome;
+  const outcome = now || (r.last && r.last.outcome);
+  const when = now ? 'this session' : 'your last session';
+  if (outcome === 'no-hw-encoder') return { text: REC_NOTE.noEncoder() };
+  const say = Object.prototype.hasOwnProperty.call(REC_WHY, outcome) ? REC_WHY[outcome] : null;
+  return say ? { text: say(when) } : null;
+}
+function paintRecording(r) {
+  if (!r) return;
+  const off = r.mode === 'off';
+  markSeg(recSeg, off ? 'off' : 'auto');
+  markSeg(recResSeg, String(r.res) === '1080' ? '1080' : '720');
+  paintRecHint();
+  const line = recGame === 'rivals' ? null : recordingLine(r);
+  // Written only when it changes: it is a live region, and the state is
+  // pushed on every config write and status tick.
+  const text = line ? line.text : '';
+  if (recNote.textContent !== text) recNote.textContent = text;
+  recNote.classList.toggle('live', !!(line && line.live));
+  recNote.hidden = !line;
+  recRetry.hidden = !(line && line.retry);
+}
+// The state's view is the config's and what only main knows besides (live,
+// this session), so once one has painted, the config read at load, which may
+// answer after it, does not paint over it.
+let recordingFromState = false;
+function paintRecordingState(r, game) {
+  recordingFromState = true;
+  if (game) recGame = game;
+  paintRecording(r);
+}
+recRetry.addEventListener('click', async () => {
+  markSeg(recSeg, 'auto');
+  recNote.hidden = true;
+  recRetry.hidden = true;
+  await window.occlara.setConfig({ recordingMode: 'auto' }).catch(() => {});
+});
+
+/*
+ * THE CLIPS (8.3): what the clips kept beside the reviews take together,
+ * against the cap, the cap itself (5, 10, 20 or 50 GB), and Clear clips. Read
+ * from main at load, after the cap or Clear changes it, and after any review
+ * is saved, since saving one is when its clips are kept and the cap applied.
+ */
+const clipUsage = document.getElementById('clip-usage');
+const clipCapSeg = document.getElementById('clipcap');
+const clipClear = document.getElementById('clip-clear');
+const MB = 1024 * 1024;
+/** 340 MB, 1.2 GB: what a clip total reads as. */
+function sizeText(bytes) {
+  const b = Number(bytes) || 0;
+  if (b >= 1024 * MB) return `${(Math.round((b / (1024 * MB)) * 10) / 10).toLocaleString('en-US')} GB`;
+  return b < MB ? 'less than 1 MB' : `${Math.round(b / MB)} MB`;
+}
+function paintClips(u) {
+  if (!u || typeof u !== 'object' || u.ok === false) return;
+  const cap = Number(u.capGB) || 10;
+  markSeg(clipCapSeg, String(cap));
+  const n = Number(u.clips) || 0;
+  clipUsage.textContent = n
+    ? `Clips kept beside your reviews: ${sizeText(u.bytes)} of ${cap} GB, ${n} clip${n === 1 ? '' : 's'} from ${u.reviews} review${u.reviews === 1 ? '' : 's'}.`
+    : `No clips kept yet. They take up to ${cap} GB together.`;
+  clipClear.disabled = !n;
+}
+let clipsTimer = null;
+function readClips() {
+  clearTimeout(clipsTimer);
+  clipsTimer = setTimeout(() => {
+    window.occlara.getClipsUsage().then(paintClips).catch(() => {});
+  }, 200);
+}
+clipCapSeg.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  markSeg(clipCapSeg, btn.dataset.val);
+  await window.occlara.setConfig({ clipCapGB: Number(btn.dataset.val) }).catch(() => {});
+  readClips();
+});
+// TWO PRESSES. Every clip of every review goes and none comes back, so the
+// first press only asks, for four seconds, and the second clears.
+const CLEAR_LABEL = clipClear.textContent;
+const CLEAR_ASK = 'Press again to clear every clip';
+let clearArmed = null;
+function disarmClear() {
+  clearTimeout(clearArmed);
+  clearArmed = null;
+  clipClear.textContent = CLEAR_LABEL;
+  clipClear.classList.remove('armed');
+}
+clipClear.addEventListener('click', async () => {
+  if (!clearArmed) {
+    clipClear.textContent = CLEAR_ASK;
+    clipClear.classList.add('armed');
+    clearArmed = setTimeout(disarmClear, 4000);
+    return;
+  }
+  disarmClear();
+  clipClear.disabled = true;
+  const u = await window.occlara.clearClips().catch(() => null);
+  if (u) paintClips(u);
+  else readClips();
+});
+window.occlara.onReviews(() => readClips());
+
 /**
  * Game picker, built from the shared registry rather than hand-written markup.
  *
@@ -439,6 +627,11 @@ async function load() {
       syncLangSave();   // nothing to apply yet, so Save starts dead
       markSeg(speedSeg, String(cfg.captureSpeed || 'auto'));
       markSeg(captureSeg, cfg.captureQuality || 'standard');
+      if (!recordingFromState) {
+        if (cfg.game) recGame = cfg.game;
+        paintRecording({ mode: cfg.recordingMode, res: cfg.recordingRes, autoOff: cfg.recordingAutoOff, last: cfg.recordingLast });
+      }
+      markSeg(clipCapSeg, String(cfg.clipCapGB || 10));
       buildGamePicker(cfg.game || 'valorant', cfg.devGames === true);
       // OFF is the default here, so the test is for an explicit true.
       markSeg(advancedSeg, cfg.advancedTips === true ? 'on' : 'off');
@@ -468,8 +661,16 @@ async function load() {
   }
 }
 
-window.occlara.getState().then(paintCadence).catch(() => {});
+window.occlara.getState().then((s) => {
+  paintCadence(s);
+  // Recording now, as the page opens: the config alone cannot say it is.
+  if (s && s.recording) paintRecordingState(s.recording, s.gameId);
+}).catch(() => {});
 window.occlara.onState(paintCadence);
+// Recording starts and stops, and Auto can turn itself off (a second busy
+// session), while this page is open.
+window.occlara.onState((s) => { if (s && s.recording) paintRecordingState(s.recording, s.gameId); });
+readClips();
 
 // Keep the license block consistent: on every pushed state, on window focus, and
 // on a slow poll (so an expiry/renewal shows without reopening Settings).

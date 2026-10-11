@@ -74,6 +74,10 @@ const CHANNELS = {
   // (src/main/services/backfill.js).
   BACKFILL_START:  'backfill:start',     // () -> the run's status
   BACKFILL_STATUS: 'backfill:status',    // () -> the run's status
+  // The clips kept beside the reviews (8.3, src/main/services/review-clips.js),
+  // for Settings: what they take against the cap, and Clear clips.
+  CLIPS_USAGE:     'clips:usage',        // () -> { bytes, clips, reviews, capGB }
+  CLIPS_CLEAR:     'clips:clear',        // () -> the same, once every clip is gone
   AILOG_SHOW:      'ailog:show',         // (sessionId | { scope, at? }) jump an OPEN log window to one session, or to one match of one, at one frame of it
   // The one window (8.1, src/main/windows/main-window.js): the sidebar asks
   // for a page by its id in src/shared/shell-nav.js, and the top strip's
@@ -126,6 +130,22 @@ const CHANNELS = {
   // page: { phase: 'arm', dir } paint yourself invisible and say PAGE_READY,
   // { phase: 'enter', dir } come in, { phase: 'leave' } another page is coming.
   PUSH_PAGE:         'push:page',
+
+  // ── the match recorder (8.3, src/main/services/recorder.js) ───────────────
+  // Between main and the recorder's hidden page (src/renderer/recorder) and
+  // nothing else. The page records the screen and shows nothing on it.
+  // main -> page: { type: 'start', ... } | { type: 'stop' } | { type: 'grab',
+  // id, width, height, quality } | { type: 'compare', id, gdi } | { type:
+  // 'gate', id, codec, width, height, bitrate } (the hardware gate's answer)
+  PUSH_RECORDER:     'push:recorder',
+  // page -> main: { seq, wall, data } one MediaRecorder chunk, in order, with
+  // the page's wall clock when it was handed over
+  RECORDER_CHUNK:    'recorder:chunk',
+  // page -> main: { type: 'ready' | 'started' | 'health' | 'stopped' | 'error', ... }
+  RECORDER_STATUS:   'recorder:status',
+  // page -> main: { id, ok, ... } the answer to a grab (a JPEG for the read),
+  // a compare (the stream's brightness against a GDI frame's) or a gate
+  RECORDER_REPLY:    'recorder:reply',
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -142,6 +162,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_VALORANT_REVIEW,
   CHANNELS.PUSH_SHELL,
   CHANNELS.PUSH_PAGE,
+  CHANNELS.PUSH_RECORDER,
 ];
 
 module.exports = CHANNELS;

@@ -90,6 +90,7 @@ let held = false;          // the seal is the one a stop mid match left
 let quitting = false;      // the app is quitting: closing the window closes it
 let maximizeOnShow = false;
 let onChange = null;       // index.js: the corner mark and the tray follow the window
+let onEnd = null;          // index.js: what must be done before Windows ends its session
 let staged = null;         // the page shown out of sight at the page area's edge
 const reloading = new Set();   // pages loading again, until their new document commits
 
@@ -201,6 +202,8 @@ function create(opts) {
     },
   });
   win = self;
+  // Made again while sealed, it is out of the recording from its first frame.
+  protect(nav.state().sealed);
   self.loadFile(path.join(__dirname, '../../renderer/shell/index.html'));
   self.once('ready-to-show', () => { if (!deferShow && win === self) bringUp(true); });
 
@@ -219,7 +222,13 @@ function create(opts) {
     e.preventDefault();
     self.hide();
   });
-  self.on('session-end', () => { quitting = true; });
+  // Windows is shutting down, restarting or logging off: no before-quit comes,
+  // and the process can be ended as soon as this returns, so what must not be
+  // left behind (the match recording, index.js) goes now, synchronously.
+  self.on('session-end', () => {
+    quitting = true;
+    if (onEnd) { try { onEnd(); } catch (e) { console.warn('[main-window] session end hook:', e.message); } }
+  });
   self.on('show', () => changed('show'));
   self.on('hide', () => changed('hide'));
   self.on('minimize', () => changed('minimize'));
@@ -433,10 +442,26 @@ function show(id, opts) {
 /** @param opts.held  the seal a stop mid match left: the sidebar stays open */
 function setSealed(on, opts) {
   const h = !!on && !!(opts && opts.held);
+  protect(!!on);
   if (nav.state().sealed === !!on && held === h) return;
   held = h;
   nav.seal(!!on);
   apply();
+}
+
+/**
+ * OUT OF THE RECORDING WHILE SEALED (8.3). A match is recorded off the screen
+ * as it is shown, and the window it is sealed behind would be in the video
+ * wherever it stood over the game. Content protection takes a window out of
+ * every capture on Windows 10 2004 and later (the stream's and GDI's alike),
+ * as the corner mark has been since 8.2. Only while sealed: a review open
+ * between matches is the player's to screenshot or stream.
+ */
+function protect(on) {
+  const w = get();
+  if (!w || w.__occlaraProtected === on) return;
+  w.setContentProtection(on);
+  w.__occlaraProtected = on;
 }
 
 function current() { return nav.state(); }
@@ -496,6 +521,9 @@ function toggleHidden(opts) {
 /** The corner mark and the tray follow the window: fn('show' | 'hide' | 'minimize' | 'restore'). */
 function onWindowChange(fn) { onChange = typeof fn === 'function' ? fn : null; }
 
+/** fn() runs, synchronously, when Windows ends its session (shutdown, restart, logoff). */
+function onSessionEnd(fn) { onEnd = typeof fn === 'function' ? fn : null; }
+
 /** The page views by id, for the boot checks. */
 function pageViews() { return new Map(views); }
 
@@ -504,5 +532,5 @@ function motionState() { return { ...motion.state(), staged, reloading: [...relo
 
 module.exports = {
   create, get, reveal, show, setSealed, current, shellState, minimize, hide, toggleMaximize, isHidden, toggleHidden,
-  onWindowChange, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, STAGE_PX,
+  onWindowChange, onSessionEnd, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, STAGE_PX,
 };

@@ -276,6 +276,9 @@ function upgradeWatched({ saved, row, riot, history, account }) {
   // kept it (8.2), so the eye on its row still opens them. One saved before
   // 8.2 kept none and is looked up by its end, so none is made up for it here.
   if (old.aiLog !== undefined) review.aiLog = old.aiLog;
+  // Its clips (8.3) are named on the looks kept above; and if the cap or
+  // Settings took them, the review goes on saying so (review-store.js).
+  if (old.clipsCleared) review.clipsCleared = old.clipsCleared;
   return { review, role, tracker };
 }
 

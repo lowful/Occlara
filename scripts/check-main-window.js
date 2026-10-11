@@ -10,7 +10,10 @@
  * match holds keeps the sidebar open and lifts on a page opened, the X and
  * Alt+F4 hide the window and leave the corner mark rather than quit, and a
  * window made again mid match keeps the seal while the pages of the one that
- * went are closed with it.
+ * went are closed with it. And the record card is its two buttons (8.3), with
+ * the notice line in the top strip instead: empty with nothing to say, one
+ * line in the strip when there is a notice, cut and whole in its title when
+ * it is long, out of the drag region the strip around it still is.
  *
  * Moving between pages (8.2), on the real views: the sidebar's one marker on
  * the current page; each switch arming the new page while the page on screen
@@ -54,7 +57,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: one window: the sidebar lists the pages, Home paints the last match, pages show beside the sidebar and move in only once painted out of sight, forward and back, minimised or loaded again, the seal hides them all at once mid match and holds after a stop until a page is opened, a recent match opens its review, closing hides the window, and a window made again keeps the seal');
+  console.log('PASS: one window: the sidebar lists the pages and its record card is its two buttons, a notice is one line in the top strip and empty, never hidden, with none, Home paints the last match, pages show beside the sidebar and move in only once painted out of sight, forward and back, minimised or loaded again, the seal hides them all at once mid match and holds after a stop until a page is opened, a recent match opens its review, closing hides the window, and a window made again keeps the seal');
   process.exit(0);
 }
 
@@ -207,6 +210,20 @@ setTimeout(async () => {
     }
     if (!foot.rank) return report(false, 'Home shows a rank card with no Riot ID');
     if (statusRow) return report(false, 'the record card still has its status row');
+    // THE RECORD CARD IS ITS TWO BUTTONS (8.3), measured on the real layout:
+    // no line of text under them, and the card's one padding the same above
+    // them as below.
+    const card = await sjs(`(() => {
+      const rec = document.getElementById('rec');
+      const r = rec.getBoundingClientRect();
+      const b = rec.querySelector('.rec-controls').getBoundingClientRect();
+      const texts = [...rec.querySelectorAll('p')].filter((p) => getComputedStyle(p).display !== 'none' && p.getBoundingClientRect().height > 0);
+      return { line: !!document.getElementById('line'), texts: texts.length, buttons: rec.querySelectorAll('.rec-controls button').length,
+        height: Math.round(r.height), controls: Math.round(b.height), above: Math.round(b.top - r.top), below: Math.round(r.bottom - b.bottom) };
+    })()`);
+    lines.push(`record card: ${JSON.stringify(card)}`);
+    if (card.line || card.texts || card.buttons !== 2) return report(false, `the record card is not its two buttons alone: ${JSON.stringify(card)}`);
+    if (card.controls !== 48 || card.above !== card.below) return report(false, `the record card is not balanced on its buttons: ${JSON.stringify(card)}`);
     // THE GRADE TREND FILLS ITS CARD (8.2.1), measured on the real layout: with
     // Recent matches beside it made tall, the trend card stretches with the row
     // and its bars stand on the card's foot, rather than stopping at a fixed
@@ -488,6 +505,55 @@ setTimeout(async () => {
     ipcMain.removeListener(CH.PAGE_READY, onReady);
     mainWindow.show('matches');
     await until(settled('matches'), 3000);
+
+    // 3c. THE NOTICE LINE (8.3), on the real layout. Empty with nothing to
+    // say, never hidden, its live region in place; a notice pushed as main pushes one is on one line inside the 40px
+    // strip, left of the window's buttons, cut with an ellipsis when long and
+    // whole in its title, the text out of the drag region and the strip
+    // around it still in it; and empty again once it clears.
+    const noticeAt = () => sjs(`(() => {
+      const n = document.getElementById('notice');
+      const top = document.querySelector('.top');
+      const t = top.getBoundingClientRect();
+      const r = n.getBoundingClientRect();
+      const ctl = document.querySelector('.win-controls').getBoundingClientRect();
+      const cs = getComputedStyle(n);
+      const region = (el) => getComputedStyle(el).getPropertyValue('-webkit-app-region') || getComputedStyle(el).webkitAppRegion || '';
+      return { hidden: n.hidden, shown: cs.display !== 'none' && r.width > 0, text: n.textContent, title: n.title,
+        cut: n.scrollWidth > n.clientWidth, lines: Math.round(r.height / parseFloat(cs.lineHeight)),
+        inStrip: r.top >= t.top && r.bottom <= t.bottom, leftOfButtons: r.right <= ctl.left,
+        strip: Math.round(t.height), width: Math.round(r.width), stripWidth: Math.round(t.width),
+        weight: cs.fontWeight, font: cs.fontFamily.split(',')[0], region: { strip: region(top), notice: region(n) } };
+    })()`);
+    const quiet = await noticeAt();
+    lines.push(`notice line at rest: ${JSON.stringify(quiet)}`);
+    if (quiet.hidden || quiet.shown || quiet.text) return report(false, `with nothing to say, the notice line shows, or is hidden where its live region should wait empty: ${JSON.stringify(quiet)}`);
+    const stateNow = await sjs('window.occlara.getState()');
+    const BUSY = 'Recording stopped for this session: your PC was busy. The coach still reads your screen every second.';
+    const BLOCKED = 'Windows blocked screen capture. Add Occlara to your antivirus exclusions (Windows Security, Virus and threat protection, Exclusions), then start again.';
+    shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: { text: BUSY, at: Date.now(), kind: 'recorder' } });
+    const busy = await until(async () => { const n = await noticeAt(); return n.shown ? n : null; }, 3000);
+    lines.push(`notice line, recording stopped for the session: ${JSON.stringify(busy)}`);
+    if (!busy || busy.text !== BUSY || busy.title !== BUSY || busy.lines !== 1 || !busy.inStrip || !busy.leftOfButtons || busy.strip !== mainWindow.TOP_H) {
+      return report(false, `a notice is not one line in the strip, left of the window's buttons: ${JSON.stringify(busy)}`);
+    }
+    if (busy.region.strip !== 'drag' || busy.region.notice !== 'no-drag') return report(false, `the strip is ${busy.region.strip} and its notice ${busy.region.notice}, not drag around a no-drag text`);
+    if (!['400', '500', '600', '700', '800'].includes(String(busy.weight)) || !/Geist/.test(busy.font)) {
+      return report(false, `the notice line is drawn in ${busy.font} ${busy.weight}, not a Geist weight that ships`);
+    }
+    if (busy.cut) return report(false, `at the default width the busy notice is cut (${busy.width} of ${busy.stripWidth}px), where shell.css says it is whole`);
+    await shot('notice', mainWindow, win);
+    shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: { text: BLOCKED, at: Date.now(), kind: 'capture' } });
+    const long = await until(async () => { const n = await noticeAt(); return n.text === BLOCKED ? n : null; }, 3000);
+    lines.push(`notice line, capture blocked: ${JSON.stringify(long)}`);
+    if (!long || !long.cut || long.lines !== 1 || long.title !== BLOCKED || !long.inStrip || long.width > Math.round(long.stripWidth * 0.7) + 1) {
+      return report(false, `a long notice is not cut on one line, whole in its title, within 70% of the strip: ${JSON.stringify(long)}`);
+    }
+    await shot('notice-long', mainWindow, win);
+    shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: null });
+    const cleared = await until(async () => { const n = await noticeAt(); return !n.text ? n : null; }, 3000);
+    lines.push(`notice line cleared: ${JSON.stringify(cleared)}`);
+    if (!cleared || cleared.hidden || cleared.shown || cleared.text || cleared.title) return report(false, `a notice cleared stays on the line: ${JSON.stringify(cleared)}`);
 
     // 4. The seal.
     mainWindow.setSealed(true);

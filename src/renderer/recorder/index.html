@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- The strictest page in the app: its own script and nothing else. It loads
+       no style, no image, no font, makes no request and starts no worker. The
+       screen it records is opened through getUserMedia, which no CSP governs. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; base-uri 'none'; form-action 'none'" />
+  <title>Occlara recorder</title>
+</head>
+<body>
+  <!-- Nothing to show: this page is a window that is never shown
+       (src/main/windows/recorder-window.js). health.js is its once a second
+       account of the capture, a file of its own so test:recorder runs it. -->
+  <script src="health.js"></script>
+  <script src="recorder.js"></script>
+</body>
+</html>

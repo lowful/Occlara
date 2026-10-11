@@ -66,10 +66,10 @@ const STRINGS = {
     'panel.stop': 'Stop',
     'panel.pause': 'Pause',
     'panel.resume': 'Resume',
-    // The record card's line while recording is paused (shell.js renderLine).
-    // It says what the status word "Paused" over the buttons said until 8.2.1.
+    // The top strip's notice line while recording is paused (shell.js
+    // noticeLine). It says what the status word "Paused" over the record
+    // card's buttons said until 8.2.1, and the line under them until 8.3.
     'panel.pausedLine': 'Paused. Nothing is read until you resume.',
-    'panel.noTips': 'Press Start before your match. The review opens when it ends.',
     'panel.tips': 'tips',
     'panel.stats': 'Stats',
     'panel.history': 'Matches',
@@ -119,7 +119,6 @@ const STRINGS = {
     'panel.pause': 'Pause',
     'panel.resume': 'Fortsetzen',
     'panel.pausedLine': 'Pausiert. Bis du fortsetzt, wird nichts gelesen.',
-    'panel.noTips': 'Drücke vor dem Match auf Starten. Das Review öffnet sich danach.',
     'panel.tips': 'Tipps',
     'panel.stats': 'Statistiken',
     'panel.history': 'Matches',
@@ -168,7 +167,6 @@ const STRINGS = {
     'panel.pause': 'Pausar',
     'panel.resume': 'Reanudar',
     'panel.pausedLine': 'En pausa. No se lee nada hasta que reanudes.',
-    'panel.noTips': 'Pulsa Iniciar antes de la partida. La revisión se abre al terminar.',
     'panel.tips': 'consejos',
     'panel.stats': 'Estadísticas',
     'panel.history': 'Partidas',
@@ -217,7 +215,6 @@ const STRINGS = {
     'panel.pause': 'Pausar',
     'panel.resume': 'Retomar',
     'panel.pausedLine': 'Pausado. Nada é lido até você retomar.',
-    'panel.noTips': 'Aperte Iniciar antes da partida. A análise abre quando ela acabar.',
     'panel.tips': 'dicas',
     'panel.stats': 'Estatísticas',
     'panel.history': 'Partidas',
@@ -266,7 +263,6 @@ const STRINGS = {
     'panel.pause': 'Pause',
     'panel.resume': 'Reprendre',
     'panel.pausedLine': 'En pause. Rien n\'est lu tant que tu ne reprends pas.',
-    'panel.noTips': 'Appuie sur Démarrer avant ton match. L\'analyse s\'ouvre à la fin.',
     'panel.tips': 'conseils',
     'panel.stats': 'Statistiques',
     'panel.history': 'Matchs',

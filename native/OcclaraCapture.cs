@@ -20,12 +20,27 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 static class OcclaraCapture
 {
+    [DllImport("user32.dll")]
+    static extern bool SetProcessDPIAware();
+
     static int Main(string[] args)
     {
+        // DPI aware before anything measures the screen. Unaware, Windows
+        // hands this process the screen scaled: at 125% on a 1920x1080 display
+        // PrimaryScreen.Bounds is 1536x864, and CopyFromScreen copies only that
+        // top left part of the physical screen, cutting off the right (the
+        // kill feed) and the foot (health, ammo, abilities), while the
+        // recorder's stream (8.3) sees the whole display, so the read changed
+        // framing whenever it fell back here. Aware, Bounds is the physical
+        // size and both frame the same picture. Missing (before Windows Vista)
+        // it is the old behaviour, not a failure.
+        try { SetProcessDPIAware(); } catch (Exception) { }
+
         try
         {
             int w = args.Length > 0 ? int.Parse(args[0]) : 854;

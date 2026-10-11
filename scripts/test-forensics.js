@@ -14,6 +14,10 @@
  * read off the screen and may be incomplete, and no killer survives in it,
  * in English or in the player's own language.
  *
+ * And a look from Riot's record the round clock could not frame (8.3), on
+ * the real Split session through the real reader, says nothing of when its
+ * first frame was taken.
+ *
  * Run: npm run test:forensics
  */
 
@@ -205,6 +209,31 @@ const riotEs = df.normalise({ agent: 'Jett', map: 'Abyss', language: 'es',
   deaths: [{ n: 2, side: 'defending', sec: 14, killer: 'Viper', weapon: 'Marshal', frames: [frame] }] });
 ok(look(riotEs, 'Viper te mató con la Marshal mientras sostenías solo.', 'Juega cerca de tu equipo.').what
   === 'Viper te mató con la Marshal mientras sostenías solo.', "while a look from Riot's record may still name Riot's killer in Spanish");
+
+// ── A look from Riot's record framed the screen's way (8.3) ────────────────
+// A verified death with no clocked frame before it is framed by the frame the
+// screen registered it on and the one before (death-frames.js framesFor), and
+// that first frame's clock says nothing of how long before the death it was
+// taken: after the plant it is the spike's, and on the real Split match the
+// frame before round 15's death was a buy phase frame the model read as the
+// round clock, 82 s in by it where Riot has the death 2 s in. Clamped to 0,
+// the prompt told the model it was taken in the second the player died. The
+// session replayed through the real reader, the deaths as index.js sends them.
+{
+  const deathFrames = require('../src/shared/death-frames');
+  const { replaySession } = require('./fixtures/replay-session');
+  const split = replaySession('valorant-session-split-competitive.json', require('./fixtures/riot-split-13-7.json'));
+  const looks = deathFrames.looksFor(split.records, split.rounds, split.window, 'riot');
+  const body = df.normalise({ agent: 'Jett', map: 'Split', deaths: looks.map(({ round: r, frames: recs, gap }) => ({
+    n: r.n, side: r.side, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon, firstDeath: r.firstDeath, traded: r.traded,
+    alive: r.aliveAtDeath, planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, gap, frames: recs.map(() => frame) })) });
+  const promptOf = (n) => { const d = body.deaths.find((x) => x.n === n); return d ? df.buildPrompt(body, d) : ''; };
+  ok(body.deaths.map((d) => d.n).join() === '3,7,8,15', `the real Split match's looks reach the server (${body.deaths.map((d) => d.n)})`);
+  ok(/Killed by/.test(promptOf(15)) && !/The first frame was taken/.test(promptOf(15)),
+    "round 15, framed by the frame that registered the death, says nothing of when its first frame was taken, never that it was the second the player died");
+  ok(/The first frame was taken/.test(promptOf(7)) && /The first frame was taken about 3 seconds before the player died\./.test(promptOf(7)),
+    'while one the round clock framed still says how long before the death it was (round 7, 3 s)');
+}
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' forensics checks passed'}`);
 process.exit(fails ? 1 : 0);

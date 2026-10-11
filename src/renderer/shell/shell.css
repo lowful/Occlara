@@ -92,10 +92,11 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .spacer { flex: 1 1 auto; }
 
 /* ── The record card: the panel's controls, in the sidebar ─────────────── */
-/* BALANCED ON ITS BUTTONS (8.2.1). The "Ready" over them is gone: Start fills
-   the width beside the square pause button, the two the same height, the line
-   centred under them, and the same padding on every side. The state is the
-   button's word, the pause button's icon, the live colour and the line. */
+/* TWO BUTTONS AND NOTHING ELSE (8.3). The "Ready" over them went in 8.2.1 and
+   the line under them in 8.3, both at the player's ask: Start fills the width
+   beside the square pause button, the two the same height, and the card's one
+   padding is the same on every side of them. The state is the button's word,
+   the pause button's icon and the live colour; a notice is the top strip's. */
 .rec {
   position: relative;
   display: flex; flex-direction: column; gap: var(--space-3);
@@ -125,8 +126,6 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .icon-btn.lg { flex: none; width: 48px; height: 48px; border: 1px solid var(--glass-border); background: var(--glass-fill-2); }
 .icon-btn.lg svg { width: var(--icon-lg); height: var(--icon-lg); }
 .icon-btn[disabled] { opacity: 0.3; cursor: default; pointer-events: none; }
-.rec-line { font-size: 12px; line-height: 1.5; color: var(--text-dim); text-align: center; text-wrap: balance; }
-.rec-line.system { color: var(--text); }
 
 /* The agent check, as the panel had it. It rises in as it appears (riseIn,
    ui.css); a hidden element animates from the start each time it shows. */
@@ -189,6 +188,26 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 /* ── The top strip and the page host ───────────────────────────────────── */
 .main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .top { flex: 0 0 40px; height: 40px; display: flex; align-items: center; justify-content: flex-end; padding: 0 var(--space-1); background: var(--bg); }
+/* THE NOTICE LINE (8.3): what the record card's line said when it had
+   something to say, left of the window's buttons, and nothing otherwise. ONE
+   LINE, cut with an ellipsis and whole in its title: wrapped, its second line
+   would fall below the strip, under the page main-window.js lays at TOP_H.
+   Never more than 70% of the strip, so beside the longest notice the strip
+   still drags the window; only the text is out of the drag region, because a
+   drag region keeps the pointer from the page and its title would never show.
+   Measured at the default width (check:mainwindow): 666px of a 952px strip,
+   the busy notice whole at 577px, capture blocked cut at 661px. */
+.top-notice {
+  flex: 0 1 auto; min-width: 0; max-width: 70%;
+  margin-right: var(--space-3);
+  font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* A notice from main, the licence ending above all, reads in full white, as
+   it did on the card's line; paused, the card's own state, stays dim. */
+.top-notice.system { color: var(--text); }
+/* Empty, it is there for the live region and takes nothing of the strip. */
+.top-notice:empty { margin: 0; }
 .win-controls { display: flex; gap: 2px; }
 .win-btn {
   width: 40px; height: 32px; display: inline-flex; align-items: center; justify-content: center;

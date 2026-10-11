@@ -156,6 +156,25 @@ const STORE_DEFAULTS = {
   weeklySnapshot:   null,        // { at, riotId, stats } captured at the start of the week
   weeklyReportWeek: '',          // "2026-W30", the last week whose report was shown
   aiLog:            true,         // save each read frame + STATE for the AI log, and for the review's key moments
+  // The match recorded on this PC (8.3, src/main/services/recorder.js). 'auto'
+  // records and measures what it costs while a match is played, and stops for
+  // the session when the PC cannot afford it; 'off' never records. 720p is
+  // the default and 1080p a choice: the display's own shape fitted to either.
+  recordingMode:    'auto',       // auto | off
+  recordingRes:     '720',        // 720 | 1080
+  // When the sessions given up as busy were, the last week's. Two turn Auto
+  // off, and recordingAutoOff says so to Settings, which offers to try again.
+  recordingStrikes: [],
+  recordingAutoOff: null,         // { at, reason: 'busy', sessions } while Auto is off by itself
+  recordingLast:    null,         // { outcome, at } of the last session, for Settings
+  // The newest session's counts until the server has them ({ at, n, block },
+  // index.js): a quit ends a session with app.quit() right after, so its post
+  // can lose the race, and the next launch sends what is kept here, once.
+  recordingReportPending: null,
+  // What the clips kept beside the reviews may take together, in GB: 5, 10,
+  // 20 or 50 (src/shared/clips.js CAPS_GB). Past it the oldest reviews lose
+  // their clips first and keep their frames and facts.
+  clipCapGB:        10,
   // How many times the log window has shown its keyboard hint. It appears for
   // the first few opens and then stops, the same way coachStartCount drives the
   // minimize nudge: a shortcut nobody is told about is a shortcut nobody uses,

@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <!-- media-src: the clips of the moments the coach looked at (8.3), played
+       from occlara-clip://, the scheme main serves them by (clip-scheme.js). -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; media-src 'self' occlara-clip:;" />
   <title>Occlara Review</title>
   <!-- Before the body: a page of the main window never paints its old window chrome. -->
   <script src="../shared/embed.js"></script>
@@ -110,7 +112,7 @@
              down to here. -->
         <section class="block" id="v-looks-wrap" hidden>
           <h3>Where you died, and how</h3>
-          <p class="hint">The frames the coach looked at around the deaths worth reviewing, and what it saw in them. Click a frame to see it larger.</p>
+          <p class="hint">The deaths worth reviewing: the clip of each from your recording when the match was recorded, the frames the coach looked at, and what it saw in them. Click a clip to play or pause it, and a frame to see it larger.</p>
           <div id="v-looks" class="v-looks"></div>
         </section>
 
@@ -139,6 +141,16 @@
           <h3 id="r-verdict-head">How you died</h3>
           <p id="r-death-head" class="r-head"></p>
           <p id="r-death-detail" class="r-detail"></p>
+        </section>
+
+        <!-- LEAGUE (8.3): every death of the game, by its clock, and the one
+             fact the record gives about it; the clip of up to six of them,
+             spread across the game (clips.js pickSpread), from the recording
+             on this PC, where the game was recorded. -->
+        <section class="block" id="r-deaths-wrap" hidden>
+          <h3>Your deaths</h3>
+          <p class="hint">Every death of the game, by the game's clock. Where the game was recorded on this PC, up to six of them, spread across the game, have a clip, from 11 seconds before the death to 4 after it. Click a clip to play or pause it.</p>
+          <div id="r-deaths" class="v-looks"></div>
         </section>
 
         <section class="block" id="r-moments-wrap" hidden>
