@@ -190,6 +190,45 @@ setTimeout(async () => {
     if (String(gradeNum) !== String(built.grade.score)) return report(false, `Home's grade reads ${gradeNum}, the review ${built.grade.score}`);
     if (recent !== 2) return report(false, `Home lists ${recent} recent matches`);
     if (!/^Enter second/.test(focus)) return report(false, 'Home has no focus for the next match');
+    // 8.2.1: the last match ends on the eye's View match and Open review and
+    // nothing else (these matches were saved with no AI log kept, so the eye
+    // is there, disabled); no Riot ID, so no rank card; and the record card
+    // has no status word over its buttons.
+    const foot = await hjs(`(() => {
+      const f = document.querySelector('#last .last-foot');
+      const eye = f && f.querySelector('.log-eye');
+      return f ? { text: f.textContent, buttons: f.querySelectorAll('button').length, eye: !!eye, eyeOff: !!(eye && eye.disabled),
+        rank: document.getElementById('rank').hidden } : null;
+    })()`);
+    const statusRow = await sjs("!!document.getElementById('status-text') || !!document.querySelector('#rec .rec-state')");
+    lines.push(`home foot: ${JSON.stringify(foot)} | record card status row=${statusRow}`);
+    if (!foot || foot.text !== 'View matchOpen review' || foot.buttons !== 2 || !foot.eye || !foot.eyeOff) {
+      return report(false, `Home's last match ends on ${JSON.stringify(foot)}, not the eye's View match and Open review alone`);
+    }
+    if (!foot.rank) return report(false, 'Home shows a rank card with no Riot ID');
+    if (statusRow) return report(false, 'the record card still has its status row');
+    // THE GRADE TREND FILLS ITS CARD (8.2.1), measured on the real layout: with
+    // Recent matches beside it made tall, the trend card stretches with the row
+    // and its bars stand on the card's foot, rather than stopping at a fixed
+    // height over a band of empty card. The tallest bar is its grade of the
+    // whole track.
+    const fill = await hjs(`(async () => {
+      const recentCard = document.getElementById('recent');
+      recentCard.style.minHeight = '440px';
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const trend = document.getElementById('trend');
+      const card = trend.getBoundingClientRect();
+      const labels = Math.max(...[...trend.querySelectorAll('.bar-map')].map((m) => m.getBoundingClientRect().bottom));
+      const pad = parseFloat(getComputedStyle(trend).paddingBottom) + parseFloat(getComputedStyle(trend).borderBottomWidth);
+      const track = trend.querySelector('.bar-track').getBoundingClientRect().height;
+      const bar = Math.max(...[...trend.querySelectorAll('.bar')].map((b) => b.getBoundingClientRect().height));
+      recentCard.style.minHeight = '';
+      return { card: Math.round(card.height), under: Math.round(card.bottom - labels - pad), track: Math.round(track), bar: Math.round(bar) };
+    })()`);
+    lines.push(`home trend beside a tall Recent matches: ${JSON.stringify(fill)} for a grade of ${built.grade.score}`);
+    if (fill.card < 430 || fill.under > 3 || Math.abs(fill.bar - Math.round((built.grade.score / 100) * fill.track)) > 2) {
+      return report(false, `the grade trend does not fill its card: ${JSON.stringify(fill)}`);
+    }
     // The window's first page came in (8.2): staged, armed as it loaded, then
     // placed and let in, its cards arriving one after another as it did.
     const settled = (page) => () => { const m = mainWindow.motionState(); return m.onScreen === page && !m.coming && !m.staged; };

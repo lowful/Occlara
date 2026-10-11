@@ -139,8 +139,10 @@ function valorant(input) {
   if (!isVerified && !sl) {
     notes.push(input.linkMissing === 'taken'
       ? "A full grade needs Riot's record of the match, and it is on another review of this match in your library."
+      : input.linkMissing === 'later'
+      ? "A full grade needs Riot's record of the match, which was not found yet: the match may have gone on after the coach ended it. It grades itself when a later check finds it."
       : input.linkMissing
-      ? "A full grade needs Riot's record of the match, and it was not found. A match played on another account than the Riot ID in Settings never links."
+      ? "A full grade needs Riot's record of the match, and it was not found yet. It is checked again at a later launch with your Riot ID connected; a match played on another account than the Riot ID in Settings never links."
       : input.riotIdSet
         ? "A full grade needs Riot's record of the match. It grades itself once Riot publishes it, a few minutes after the match."
         : "A full grade needs Riot's record of the match. Add your Riot ID in Settings and it grades itself a few minutes after the match.");

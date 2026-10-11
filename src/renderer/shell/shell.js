@@ -15,8 +15,8 @@ const $ = (id) => document.getElementById(id);
 
 let tr = (k) => ({
   'panel.start': 'Start', 'panel.stop': 'Stop',
-  'panel.coaching': 'Recording', 'panel.paused': 'Paused',
   'panel.noTips': 'Press Start before your match. The review opens when it ends.',
+  'panel.pausedLine': 'Paused. Nothing is read until you resume.',
 }[k] || k);
 
 const ICO = {
@@ -158,10 +158,10 @@ function paintGames() {
   for (const g of games) {
     const b = document.createElement('button');
     b.type = 'button';
-    // Our own mark for each game (shared/game-marks.js), never its logo, and
-    // the full name beside it as the tooltip and the accessible name. A game
-    // with no mark keeps its name as text.
-    const mark = window.GameMarks ? window.GameMarks.svg(g.id) : '';
+    // Each game's own logo (shared/game-logos.js, the player's decision of
+    // 2026-10-10), and the full name beside it as the tooltip and the
+    // accessible name. A game with no logo keeps its name as text.
+    const mark = window.GameLogos ? window.GameLogos.svg(g.id) : '';
     if (mark) b.innerHTML = mark;
     else { b.textContent = g.label; b.classList.add('named'); }
     b.setAttribute('aria-label', g.label);
@@ -199,13 +199,6 @@ function readConfig(fallback) {
 }
 
 // ── The record controls ────────────────────────────────────────────────────
-function statusLabel(status) {
-  if (status === 'coaching') return tr('panel.coaching');
-  if (status === 'paused') return tr('panel.paused');
-  const word = tr('panel.idle');
-  return word === 'panel.idle' ? 'Ready' : word;
-}
-
 // What the Recording screen says, per game: how it is read and what happens
 // after. League is recorded from the game's own local data, not the screen.
 const SEALED_FACTS = {
@@ -223,39 +216,49 @@ function paintSealedFacts() {
   $('sealed-after').textContent = f.after;
 }
 
+/*
+ * THE LINE UNDER THE BUTTONS says what the card is doing, now that no status
+ * word sits over them (8.2.1): ready, reading the game, or paused, which it
+ * had said only in that word, and so says in the player's language, as the
+ * word did (panel.pausedLine). A notice, when there is one, takes its place,
+ * except the "Recording..." a Rivals or League session puts up for its whole
+ * length (kind 'recording'): paused, that one said recording over a card that
+ * is not, and nothing on it said paused.
+ */
 function renderLine() {
   paintSealedFacts();
-  lineEl.classList.toggle('system', !!notice);
-  if (notice && notice.text) { lineEl.textContent = notice.text; return; }
+  // Paused, nothing is read, so a notice about the reading (the session's own
+  // 'recording' line, a read that failed, capture that was blocked) is out of
+  // date and the paused line says what is true. A licence notice still wins.
+  const stale = isPaused && ['recording', 'read-failed', 'capture'].includes(notice && notice.kind);
+  const shown = notice && notice.text && !stale ? notice : null;
+  lineEl.classList.toggle('system', !!shown);
+  if (shown) { lineEl.textContent = shown.text; return; }
   const every = cadence ? (cadence < 1000 ? `${cadence}ms` : `${Math.round(cadence / 100) / 10}s`) : null;
-  lineEl.textContent = isCoaching
-    ? `Reading your game${every ? ' every ' + every : ''}${captureSpeed === 'auto' ? '' : ' (pinned)'}. Your review opens when the match ends.`
-    : tr('panel.noTips');
+  lineEl.textContent = !isCoaching ? tr('panel.noTips')
+    : isPaused ? tr('panel.pausedLine')
+      : `Reading your game${every ? ' every ' + every : ''}${captureSpeed === 'auto' ? '' : ' (pinned)'}. Your review opens when the match ends.`;
   $('sealed-capture').textContent = every
     ? `Reading your game every ${every}${captureSpeed === 'auto' ? ', as fast as the connection keeps up' : ', pinned in Settings'}`
     : 'Auto, as fast as the connection keeps up';
 }
 
 function render() {
+  // With no status word over the buttons, the button says the licence ended.
+  toggleBtn.classList.toggle('ended', !licenseActive);
   if (!licenseActive) {
-    $('dot').className = 'dot stopped';
-    $('status-text').textContent = 'Subscription ended';
-    $('status-text').classList.add('ended');
     toggleBtn.disabled = true;
     toggleBtn.classList.remove('active');
     toggleLbl.textContent = 'Subscription ended';
     toggleIco.innerHTML = '';
     pauseBtn.disabled = true;
+    pauseBtn.innerHTML = ICO.pause;
     lineEl.classList.add('system');
     lineEl.textContent = (notice && notice.text) || 'Your subscription has ended. Renew in Settings to keep getting reviews.';
     recEl.classList.remove('live');
     return;
   }
-  $('status-text').classList.remove('ended');
   toggleBtn.disabled = false;
-  const status = isCoaching ? (isPaused ? 'paused' : 'coaching') : 'idle';
-  $('dot').className = `dot ${status}`;
-  $('status-text').textContent = statusLabel(status);
   toggleLbl.textContent = tr(isCoaching ? 'panel.stop' : 'panel.start');
   toggleIco.innerHTML = isCoaching ? ICO.stop : ICO.play;
   toggleBtn.classList.toggle('active', isCoaching);

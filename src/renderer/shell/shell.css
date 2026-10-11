@@ -22,8 +22,9 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .brand .name { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
 
 /* The game picker: one equal square per game in one segmented control, each
-   our own mark (shared/game-marks.js) with the full name as its title and
-   accessible name. A game with no mark yet keeps its name as text. */
+   the game's own logo (shared/game-logos.js) in currentColor, with the full
+   name as its title and accessible name. A game with no logo keeps its name
+   as text. */
 .game-seg {
   display: flex; align-self: flex-start; gap: 2px; padding: 3px;
   border: 1px solid var(--glass-border); border-radius: var(--r-md);
@@ -37,9 +38,18 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   white-space: nowrap;
   transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
-.game-seg button .game-mark { width: var(--icon-md); height: var(--icon-md); flex: none; }
+.game-seg button .game-logo { width: var(--icon-md); height: var(--icon-md); flex: none; }
+/* Marvel Rivals' emblem is about half as tall as it is wide, so at the others'
+   size it read as half their size, its brackets slivers: a size up it sits in
+   the square as large as they do, and it still clears the button's edges. */
+.game-seg button .game-logo[data-game="rivals"] {
+  width: calc(var(--icon-md) + var(--space-1)); height: calc(var(--icon-md) + var(--space-1));
+}
 .game-seg button.named { width: auto; padding: 0 var(--space-2); }
-.game-seg button:hover:not(:disabled) { color: var(--text); }
+/* Hover brightens the games not picked, never the one that is: this rule
+   outranks the pressed one below, and over the pressed button's --text ground
+   it turned the logo, drawn in currentColor, white on white. */
+.game-seg button:hover:not(:disabled):not([aria-pressed="true"]) { color: var(--text); }
 .game-seg button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
 .game-seg button:disabled { cursor: default; opacity: 0.55; }
 
@@ -82,6 +92,10 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .spacer { flex: 1 1 auto; }
 
 /* ── The record card: the panel's controls, in the sidebar ─────────────── */
+/* BALANCED ON ITS BUTTONS (8.2.1). The "Ready" over them is gone: Start fills
+   the width beside the square pause button, the two the same height, the line
+   centred under them, and the same padding on every side. The state is the
+   button's word, the pause button's icon, the live colour and the line. */
 .rec {
   position: relative;
   display: flex; flex-direction: column; gap: var(--space-3);
@@ -90,37 +104,28 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   background: var(--bg);
 }
 .rec.live { border-color: rgba(var(--red-rgb), 0.35); background: rgba(var(--red-rgb), 0.05); }
-.rec-state { display: flex; align-items: center; gap: var(--space-2); font-size: 13px; font-weight: 600; }
-#status-text.ended { color: var(--red); }
-.dot { position: relative; }
-.rec.live .dot { background: var(--red); box-shadow: none; animation: none; }
-.rec.live .dot::after {
-  content: ''; position: absolute; inset: -4px;
-  border-radius: 50%; border: 1px solid var(--red);
-  animation: ping 2.4s var(--ease) infinite;
-}
-@keyframes ping {
-  0%   { transform: scale(0.7); opacity: 0.7; }
-  70%  { transform: scale(1.5); opacity: 0; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-.rec-controls { display: flex; gap: var(--space-2); }
+.rec-controls { display: flex; align-items: stretch; gap: var(--space-2); }
 /* THE START BUTTON STAYS RED (CLAUDE.md): the one control a player must find
    without looking. 19px bold keeps white on the red at large-text contrast. */
 .toggle {
-  flex: 1; height: 48px; font-size: 19px; font-weight: 700; letter-spacing: -0.2px;
+  flex: 1 1 auto; min-width: 0; height: 48px; padding: 0 var(--space-3);
+  font-size: 19px; font-weight: 700; letter-spacing: -0.2px; white-space: nowrap;
   display: flex; align-items: center; justify-content: center; gap: var(--space-2);
 }
+/* The licence ended: the button is where that is said now, in two lines at a
+   size that fits beside the pause button, with no icon before it. */
+.toggle.ended { font-size: 14px; line-height: 1.2; letter-spacing: 0; white-space: normal; text-align: center; }
+.toggle .t-ico:empty { display: none; }
 .toggle .t-ico { display: inline-flex; align-items: center; }
 .toggle .t-ico svg { width: var(--icon-md); height: var(--icon-md); }
 .toggle.active { background: rgba(255, 255, 255, 0.07); border: 1px solid var(--glass-border); color: var(--text); }
 .toggle.active:hover { box-shadow: none; filter: none; background: rgba(255, 255, 255, 0.11); }
 .toggle.active .t-ico { color: var(--red); }
 .toggle:disabled { opacity: 0.55; cursor: default; filter: grayscale(0.35); }
-.icon-btn.lg { width: 48px; height: 48px; border: 1px solid var(--glass-border); background: var(--glass-fill-2); }
+.icon-btn.lg { flex: none; width: 48px; height: 48px; border: 1px solid var(--glass-border); background: var(--glass-fill-2); }
 .icon-btn.lg svg { width: var(--icon-lg); height: var(--icon-lg); }
 .icon-btn[disabled] { opacity: 0.3; cursor: default; pointer-events: none; }
-.rec-line { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+.rec-line { font-size: 12px; line-height: 1.5; color: var(--text-dim); text-align: center; text-wrap: balance; }
 .rec-line.system { color: var(--text); }
 
 /* The agent check, as the panel had it. It rises in as it appears (riseIn,

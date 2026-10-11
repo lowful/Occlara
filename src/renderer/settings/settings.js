@@ -448,13 +448,17 @@ async function load() {
       markSeg(soundsSeg, cfg.sounds === false ? 'off' : 'on');
       if (typeof cfg.riotId === 'string') riotEl.value = cfg.riotId;
       // Already connected from a previous session? Show it, no reconnect
-      // needed: the profile saved for the Riot ID in config.
+      // needed: the profile saved for the Riot ID in config. Connected means
+      // Connect was pressed for it (riotConnected), as the sidebar and the
+      // launch's check against Riot's record read it: a profile alone is one
+      // the launch's own refresh saves for any ranked ID typed here.
       const id = String(cfg.riotId || '').trim();
       const s = cfg.playerStats;
-      if (id.includes('#') && s && s.rank && sameId(s._riotId, id) && !checking) showTrk(true, profileLine(s), id);
+      const connected = sameId(cfg.riotConnected, id);
+      if (id.includes('#') && connected && s && s.rank && sameId(s._riotId, id) && !checking) showTrk(true, profileLine(s), id);
       // Shown to exist with no profile kept (no ranked one, or one that
       // could not be loaded when its matches were graded).
-      else if (id.includes('#') && sameId(cfg.riotConnected, id) && !checking) showTrk(true, 'Connected.', id);
+      else if (id.includes('#') && connected && !checking) showTrk(true, 'Connected.', id);
       // The field was filled after the run's status may have arrived for it.
       else syncRiot();
     }

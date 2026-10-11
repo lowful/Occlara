@@ -3,14 +3,17 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const GAMES = require('../shared/games');
-const { homeModel } = require('../shared/home-model');
+const { homeModel, rankModel, rrForRows, rrWaiting } = require('../shared/home-model');
 const { pageMotion } = require('./page-motion');
 
 /**
  * Bridge for Home, the main window's first page: the last match, the focus
  * for the next one, the most repeated mistake, the grade trend and the recent
- * matches, all read from the library. The figures are put together by
+ * matches, all read from the library, and Valorant's rank from the history
+ * main keeps for Stats. The figures are put together by
  * src/shared/home-model.js, here in the preload, so the page only paints.
+ * The only writes are window requests: a review, the AI log on the last
+ * match's frames, a page.
  */
 function subscribe(channel, cb) {
   if (!C.PUSH_LIST.includes(channel)) return () => {};
@@ -36,8 +39,27 @@ contextBridge.exposeInMainWorld('occlara', {
     const review = newest ? { ...newest, id: newest.id || list[0].id } : null;
     return homeModel({ rows: list, patterns, review });
   },
+  /**
+   * The rank card and the RR of each rated match in the library, by id, from
+   * the rank history main keeps for Stats (STATS_RANK_HISTORY, cached there).
+   * Home asks once it is painted, so this never holds its first paint back.
+   * `waiting` is the newest rated match when Riot has not put its game in the
+   * history yet, so Home asks again later (home-model.js rrWaiting).
+   * Valorant's alone, and null for any other game.
+   */
+  async getRank(game) {
+    if (game !== 'valorant') return null;
+    const [history, rows] = await Promise.all([
+      ipcRenderer.invoke(C.STATS_RANK_HISTORY, false),
+      ipcRenderer.invoke(C.REVIEWS_LIST, 'valorant'),
+    ]);
+    const rr = rrForRows(rows, history);
+    return { card: rankModel(history), rr, waiting: rrWaiting(rows, rr, Date.now()) };
+  },
   games:      () => GAMES.list(true).map((g) => ({ id: g.id, label: g.label })),
   openReview: (id) => ipcRenderer.send(C.REVIEW_OPEN, id),
+  // The eye on the last match: the review's id only, and main finds its frames.
+  openAiLog:  (id) => ipcRenderer.send(C.REVIEW_AILOG, id),
   go:         (page) => ipcRenderer.send(C.SHELL_NAV, page),
   onReviews:  (cb) => subscribe(C.PUSH_REVIEWS, cb),
   onGame:     (cb) => subscribe(C.PUSH_GAME, cb),

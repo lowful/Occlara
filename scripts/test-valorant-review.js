@@ -618,6 +618,49 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     && review.spans([7]) === 'round 7', 'round runs read as a person would write them');
 }
 
+// ── 8.2.1: the watch ended it too soon, said only where it did ──────────────
+// The real Split match: the screen's 8 rounds, ended at 3 to 5 on a wrong
+// swiftplay lock, with Riot's record of all 20 laid over them. Riot stood at
+// 3 to 5 after round 8, so a recording STOPPED there reads like one the watch
+// ended there, and only the second may say the coach thought the match was
+// over: the first was the player pressing Stop, and nearly every review
+// stopped mid match and checked by Riot would say it otherwise.
+{
+  const riotReview = require('../src/shared/riot-review');
+  const SPLIT = load('riot-split-13-7.json');
+  const SAVED = load('valorant-review-split-801.json');
+  const { rows: eight } = riotReview.ledgerRows(SAVED.review);
+  const ctx = { map: 'Split', agent: 'Jett', agentConfirmed: true, teamScore: 3, enemyScore: 5, gameMode: 'swiftplay' };
+  const laid = (endedBy) => review.build({ rounds: verify.reconcile(eight, SPLIT).rounds, context: ctx, endedBy, ai: {},
+    riotMe: SPLIT.me, queue: SPLIT.queue });
+  const over = (rv) => rv.refused.some((l) => /thought the match was over/.test(l));
+  const asStop = laid('stop');
+  const asScore = laid('score');
+  ok(eight.length === 8 && asStop.verified && asStop.rounds.length === 20 && !over(asStop)
+    && asStop.refused.some((l) => l.startsWith("Coaching was stopped before the match ended. Riot's record fills in rounds 9 to 20")),
+  `stopped at 3 to 5, where Riot stood after round 8, it says recording stopped, never that the coach thought `
+    + `the match was over (${asStop.refused.join(' | ')})`);
+  ok(over(asScore) && asScore.refused.some((l) => l.startsWith('The coach thought the match was over at 3 to 5, and it went on.')),
+    'and ended there by the watch, on its score, it says the coach thought the match was over');
+
+  // GIVEN UP ON BEFORE RIOT HAD THE MATCH. One the watch ended on a score
+  // only swiftplay ends on may have gone on, and Riot publishes a match once
+  // it is over, so the link that gave up on it (match-link.js mayGoOn) says
+  // so, never that the match was played on another account.
+  const gaveUp = review.build({ rounds: eight, context: ctx, endedBy: 'score', ai: {}, riotIdSet: true, linkMissing: 'later' });
+  const lost = review.build({ rounds: eight, context: ctx, endedBy: 'score', ai: {}, riotIdSet: true, linkMissing: true });
+  const LATER = "Riot's record of this match was not found yet. The coach ended it at 3 to 5, a score only Swiftplay ends on, "
+    + "so the match may have gone on after that. It is checked against Riot's record again at a later launch "
+    + 'with your Riot ID connected, or now with Grade my recent matches in Matches.';
+  const anotherAccount = (lines) => lines.some((l) => /another account/.test(l));
+  ok(gaveUp.refused.includes(LATER) && !anotherAccount(gaveUp.refused) && !anotherAccount(gaveUp.grade.notes)
+    && gaveUp.grade.notes.some((n) => /may have gone on after the coach ended it/.test(n)),
+  `a link given up on an end that may have gone on says it may have, and that it is checked again (${gaveUp.refused.join(' | ')})`);
+  ok(anotherAccount(lost.refused) && anotherAccount(lost.grade.notes), 'while any other link given up on says what it always did');
+  const dashed = (t) => [0x2013, 0x2014].some((c) => String(t).includes(String.fromCharCode(c)));
+  ok(![...gaveUp.refused, ...gaveUp.grade.notes].some(dashed), 'and no line of it carries a dash');
+}
+
 // ── a or an ─────────────────────────────────────────────────────────────────
 {
   const a = review.withArticle;
@@ -831,6 +874,19 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(HOLD_MAX_MS > longest && link.LINK_RETRY_LONG_MS.length >= link.LINK_RETRY_MS.length && sum(link.LINK_RETRY_LONG_MS) > sum(link.LINK_RETRY_MS),
     `the AI log holds a match's frames longer than its longest link (${Math.round(longest / 60000)} of ${HOLD_MAX_MS / 60000} minutes)`);
   ok(longest > 40 * 60000, 'which the forty minutes it used to hold them for did not cover');
+  // A SCORE END MAY ASK FOR MORE ON EVERY TRY (8.2.1): with nothing verified,
+  // the round records of the listed matches that could be one the watch ended
+  // early (match-link.js linkEarly), EARLY_ASKS_PER_TRY at most, each at its
+  // timeout. And one on a score only swiftplay ends on tries for as long as a
+  // stop (linkRetries), since the match may have gone on: asking for all five
+  // listed matches' records on each of those tries outlasted the hold.
+  const swift = link.linkRetries('score', { team: 3, enemy: 5, final: true });
+  const scoreEnd = NARRATIVE + STATS + sum(swift)
+    + (swift.length + 1) * (SCOREBOARD + link.EARLY_ASKS_PER_TRY * ROUNDS)
+    + sum(link.RIOT_ROUNDS_RETRY_MS) + (link.RIOT_ROUNDS_RETRY_MS.length + 1) * ROUNDS + LOOK + SUMMARY + LOOK;
+  ok(swift === link.LINK_RETRY_LONG_MS && HOLD_MAX_MS > scoreEnd,
+    `and a score end that may have gone on, asking for every early end's record it may on every try, still fits it `
+    + `(${Math.round(scoreEnd / 60000)} minutes)`);
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);

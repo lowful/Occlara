@@ -230,6 +230,23 @@ function patterns(rounds) {
   return out;
 }
 
+/**
+ * Whether the watch ended the match early: Riot's rounds go on past the score
+ * the screen ended on, and stood at exactly that score after that many rounds.
+ * The link's half of the same rule is match-link.js endedEarly(); this one
+ * reads the rounds Riot's record has already been laid over, so a final score
+ * misread by one digit (13-10 for 13-11) is never taken for an early end:
+ * Riot stood at 12-11 after round 23, never at 13-10.
+ */
+function endedTooSoon(rounds, team, enemy) {
+  if (typeof team !== 'number' || typeof enemy !== 'number') return false;
+  const n = team + enemy;
+  if (!(n > 0) || rounds.length <= n) return false;
+  const first = rounds.slice().sort((a, b) => a.n - b.n).slice(0, n);
+  if (first.some((r, i) => r.n !== i + 1 || !r.verified || (r.result !== 'won' && r.result !== 'lost'))) return false;
+  return first.filter((r) => r.result === 'won').length === team;
+}
+
 /** "rounds 2, 5 and 9", or the first eight and a count, so a line stays readable. */
 function listRounds(rows) {
   const ns = rows.map((r) => r.n);
@@ -419,16 +436,32 @@ function build(input) {
   if (!riotOnly && isVerified && unseen.length) {
     const lastSeen = seen.reduce((a, r) => Math.max(a, r.n), 0);
     const stoppedEarly = input.endedBy === 'stop' && unseen.some((n) => n > lastSeen);
+    // THE WATCH ENDED IT TOO SOON (8.2.1), said where Riot's record shows it.
+    // The review a player saw first said "Defeat 3-5", and the one Riot's
+    // record corrected says "Victory 13-7": without a word between them that
+    // reads as the coach changing its mind about the same match.
+    const overTooSoon = input.endedBy === 'score' && endedTooSoon(rounds, team, enemy);
     refused.push(`${stoppedEarly ? 'Coaching was stopped before the match ended. ' : ''}`
+      + `${overTooSoon ? `The coach thought the match was over at ${team} to ${enemy}, and it went on. ` : ''}`
       + `Riot's record fills in ${spans(unseen)}, which the coach did not watch, `
       + `so ${unseen.length === 1 ? 'that round has' : 'those rounds have'} no location or coach's read.`);
   }
   if (!riotOnly && !tracker && !isVerified) {
+    // 'later' (8.2.1): the watch ended the match on a score only swiftplay
+    // ends on, and the link gave up before Riot's record of it was out. That
+    // match may well have gone on, so it is not called another account's.
     refused.push(input.linkMissing === 'taken'
       ? "Riot's record of this match is already on another review in your library, so it is not repeated here."
+      : input.linkMissing === 'later'
+      ? "Riot's record of this match was not found yet. The coach ended it "
+        + `${team !== null && enemy !== null ? `at ${team} to ${enemy}, ` : 'on '}a score only Swiftplay ends on, `
+        + "so the match may have gone on after that. It is checked against Riot's record again at a later launch "
+        + 'with your Riot ID connected, or now with Grade my recent matches in Matches.'
+      // Not found within the live link's tries is not never: a launch with the
+      // Riot ID connected checks unlinked recordings again (the late link).
       : input.linkMissing
-      ? "Riot's record of this match was not found, so there is no scoreboard. "
-        + 'A match played on another account than the Riot ID in Settings never links.'
+      ? "Riot's record of this match was not found, so there is no scoreboard yet. It is checked again at a "
+        + 'later launch with your Riot ID connected. A match played on another account than the Riot ID in Settings never links.'
       : input.riotIdSet
         ? 'The scoreboard comes from Riot once the match is published, and fills in here a few minutes after the match.'
         : 'The scoreboard comes from Riot once the match is published. '
@@ -464,6 +497,12 @@ function build(input) {
     // Recorded and reviewed, or graded from Riot's record after the fact.
     source: riotOnly ? 'riot' : 'watched',
     at: Date.now(),
+    // When Riot says the match started, once its record is linked (8.2.1): the
+    // rank history dates a game by it, and Home places the match there by it
+    // (home-model.js startOf). The review's `at` is when the watch ended the
+    // match or Stop was pressed, which for a match ended early or stopped is
+    // long before Riot's end. Null from the screen alone.
+    matchStartedAt: tracker && Number.isFinite(tracker.startedAt) && tracker.startedAt > 0 ? tracker.startedAt : null,
     endedBy: input.endedBy || 'stop',
     game,
     scoreline,
@@ -690,4 +729,4 @@ function against(tracker, role, history) {
 }
 
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
-  queueLabel, queueHalves, withArticle, spans, BASELINE_GAMES, BASELINE_MIN };
+  queueLabel, queueHalves, withArticle, spans, endedTooSoon, BASELINE_GAMES, BASELINE_MIN };

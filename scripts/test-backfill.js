@@ -23,7 +23,8 @@ const riotReview = require('../src/shared/riot-review');
 const insights = require('../src/shared/insights');
 const patterns = require('../src/shared/patterns');
 const { ReviewStore, newId, MAX_REVIEWS } = require('../src/main/services/review-store');
-const { Backfill, plan, windowOf, queueOk, summary, GAP_MS } = require('../src/main/services/backfill');
+const { Backfill, plan, windowOf, queueOk, summary, lateWanted, GAP_MS, LATE_EVERY_MS, LATE_RECENT_MS, LATE_AGAIN_MS } =
+  require('../src/main/services/backfill');
 
 let fails = 0;
 let checks = 0;
@@ -57,7 +58,8 @@ function harness(opts = {}) {
   const answers = opts.answers || {};
   const h = {
     store, calls: [], statuses: [], notices: [], history: opts.history || [],
-    clock: T0 + 100 * HOUR, slept: 0, active: new Set(), inMatchNow: false, savedInMatch: 0,
+    clock: opts.clock || T0 + 100 * HOUR, slept: 0, active: new Set(), inMatchNow: false, savedInMatch: 0,
+    lateAt: opts.lateAt || 0,
   };
   const inMatch = opts.inMatch || (() => false);
   h.bf = new Backfill({
@@ -105,6 +107,8 @@ function harness(opts = {}) {
       if (opts.historyFails && opts.historyFails(rows, h)) throw new Error('the config could not be written');
       h.history = rows;
     } },
+    // As index.js keeps it across launches: when the last late link started.
+    lateAt: { get: () => h.lateAt, set: (at) => { h.lateAt = at; } },
     inMatch: () => { h.inMatchNow = !!inMatch(h); return h.inMatchNow; },
     onStatus: (s) => h.statuses.push(s),
     notice: (t) => h.notices.push(t),
@@ -1159,6 +1163,446 @@ function watched(store, startedAt, over = {}) {
     ok(s.old === 1 && s.graded === 1 && s.items.find((x) => x.matchId === 'a').status === 'old'
       && /older than anything your library keeps/.test(s.message) && h.history.length === 1,
       `a match older than the full library keeps is not saved, and says so (${s.message})`);
+    h.done();
+  }
+
+  // ── A match the watch ended early (8.2.1) ────────────────────────────────
+  // The player's own Split match: 8.0.1 locked swiftplay wrongly, ended it at
+  // 3 to 5 in round 9 and saved "Defeat 3-5, Swiftplay", with no ledger. Riot
+  // has it Competitive, Victory 13 to 7 over 20 rounds, and at 3 to 5 after
+  // round 8. The link's checks refused it for its score, and every run left
+  // the recording and the match alone, the review the screen's for good.
+  const SPLIT = load('riot-split-13-7.json');
+  const SAVED = load('valorant-review-split-801.json');
+  const splitRow = (over = {}) => ({ matchId: 'split-1', map: 'Split', agent: 'Jett', mode: 'Competitive', result: 'Victory',
+    score: '13-7', kills: 17, deaths: 16, assists: 8, kd: 1.06, acs: 279, adr: 181, headshotPct: 22,
+    startedAt: SPLIT.startedAt, ...over });
+  /** Riot's record of the Split match for its row; every other match is the harness's. */
+  const splitServer = async (p) => (p.startsWith('/api/coach/match-rounds') && idOf(p) === 'split-1'
+    ? { ok: true, status: 200, data: { ...JSON.parse(JSON.stringify(SPLIT)), matchId: 'split-1' } } : null);
+  /** The 8.0.1 review as the library saved it, with `game` over its game and `extra` over the rest. */
+  const keepSplit = (store, game = {}, extra = {}) => {
+    const e = JSON.parse(JSON.stringify(SAVED));
+    Object.assign(e.review.game, game);
+    Object.assign(e.review, extra);
+    store.save({ id: e.id, game: e.game, at: e.at, review: e.review });
+    return e;
+  };
+  {
+    const h = harness({ rows: [splitRow()] });
+    keepSplit(h.store);
+    const lib = h.store.list('valorant').map((meta) => ({ meta, review: h.store.get(meta.id).review }));
+    const steps = plan([splitRow()], lib, new Set());
+    ok(steps.length === 1 && steps[0].action === 'ambiguous' && !steps[0].held,
+      `planned before Riot's record is in, it is left for the record to decide, never graded as new (${steps[0].action})`);
+    h.done();
+  }
+  {
+    const h = harness({ rows: [splitRow()], get: splitServer });
+    const e = keepSplit(h.store);
+    const s = await h.run();
+    const up = h.store.get(e.id).review;
+    ok(s.upgraded === 1 && s.graded === 0 && s.ambiguous === 0 && h.store.list('valorant').length === 1,
+      `the recording is upgraded in place, never filed again beside it (${s.upgraded} upgraded, ${s.graded} graded, `
+      + `${s.ambiguous} left alone, ${h.store.list('valorant').length} in the library)`);
+    ok(up.id === e.id && up.at === e.at && up.verified && up.matchId === 'split-1' && up.lateLinked && up.source === 'watched',
+      "it keeps its id and its place, and is linked and checked against Riot's record");
+    const seen = up.rounds.filter((c) => c.watched).map((c) => c.n);
+    ok(up.rounds.length === 20 && seen.join() === '1,2,3,4,5,6,7,8' && up.watched.rounds === 8,
+      `all 20 of Riot's rounds, the 8 the coach watched still its own (${seen.join()})`);
+    ok(up.rounds.filter((c) => !c.watched).every((c) => c.n > 8 && c.facts.includes('Not watched by the coach')),
+      'and the 12 after them marked as not watched');
+    ok(up.game.result === 'Victory' && up.game.score === '13-7' && up.game.mode === 'Competitive' && up.halftimeAfter === 12,
+      `result, score, queue and halftime are Riot's (${up.game.mode}, ${up.game.result} ${up.game.score}, half ${up.halftimeAfter})`);
+    ok(typeof up.grade.score === 'number' && !up.grade.provisional && up.grade.categories.every((c) => typeof c.score === 'number'),
+      `and it is graded, every category measured (${up.grade.score} ${up.grade.letter})`);
+    ok(up.summary === null && up.focus === null && up.refused.some((l) => /taken down/.test(l))
+      && up.refused.some((l) => l.startsWith('The coach thought the match was over at 3 to 5, and it went on.')),
+      'the read written from the 3-5 is taken down, and the review says the coach ended the match too soon');
+    ok(up.rounds.find((c) => c.n === 3).spot === 'B Back' && !up.rounds.find((c) => c.n === 2).died
+      && up.rounds.slice(0, 8).every((c) => c.side === 'Attack'),
+      "what the screen saw stays where Riot agrees, and Riot's sides replace the swiftplay swap");
+    ok(h.history.length === 1 && h.history[0].matchId === 'split-1' && h.history[0].acs === 279,
+      "with one baseline row, from Riot's numbers");
+    ok(s.items.length === 1 && s.items[0].status === 'upgraded' && s.items[0].result === 'Victory' && /Graded 1 recent match/.test(s.message),
+      `and the run says so (${s.message})`);
+    h.done();
+  }
+  for (const score of ['5-3', '2-5']) {
+    // Riot's record stood at 3-5 after round 8 and 3-4 after round 7: never at either.
+    const h = harness({ rows: [splitRow()], get: splitServer });
+    const e = keepSplit(h.store, { score, result: score === '5-3' ? 'Victory' : 'Defeat' });
+    const s = await h.run();
+    const r = h.store.get(e.id).review;
+    ok(!r.verified && !r.matchId && s.ambiguous === 1 && s.upgraded === 0 && s.graded === 0
+      && h.store.list('valorant').length === 1 && h.rounds().join() === 'split-1',
+      `a recording that ended at ${score}, a score Riot's record never stood at, is still refused, and its match is not filed beside it`);
+    h.done();
+  }
+  {
+    const h = harness({ rows: [splitRow()], get: splitServer });
+    const e = keepSplit(h.store, { map: 'Bind' });
+    const s = await h.run();
+    ok(!h.store.get(e.id).review.verified && s.ambiguous === 1 && s.upgraded === 0 && h.store.list('valorant').length === 1,
+      'a recording on another map is refused');
+    h.done();
+  }
+  {
+    // Saved with a ledger (8.0.3 onward), its recording opened in the menus
+    // four minutes before Riot's start: the start is not held to Riot's span.
+    const withLedger = (store, agent) => {
+      const e = JSON.parse(JSON.stringify(SAVED));
+      e.review.ledger = { startedAt: SPLIT.startedAt - 4 * 60000, endedAt: e.at, endedBy: 'score',
+        context: { agent, agentConfirmed: true, map: 'Split', teamScore: 3, enemyScore: 5, gameMode: 'swiftplay' },
+        rounds: riotReview.ledgerRows(e.review).rows };
+      store.save({ id: e.id, game: e.game, at: e.at, review: e.review });
+      return e;
+    };
+    const h = harness({ rows: [splitRow()], get: splitServer });
+    const mine = withLedger(h.store, 'Jett');
+    const s = await h.run();
+    const up = h.store.get(mine.id).review;
+    ok(s.upgraded === 1 && up.verified && up.game.mode === 'Competitive' && up.halftimeAfter === 12 && !up.ledger,
+      `one with a ledger, opened before the match, on a confirmed Jett, is upgraded too, the swiftplay lock replaced (${up.game.mode})`);
+    h.done();
+    const h2 = harness({ rows: [splitRow()], get: splitServer });
+    const theirs = withLedger(h2.store, 'Sova');
+    const s2 = await h2.run();
+    ok(!h2.store.get(theirs.id).review.verified && s2.ambiguous === 1 && h2.store.list('valorant').length === 1,
+      'and one on a confirmed agent Riot says the player was not is refused');
+    h2.done();
+  }
+  {
+    // OPENED LONG BEFORE THE MATCH. Start pressed twenty or twenty five
+    // minutes before Riot's start (the menus, a queue, a warm-up), and the
+    // match ended early at 3 to 5: the recording shares under half of its own
+    // window with the match and covers under half of the match, so neither
+    // share rule claimed it. A full run filed Riot's match again beside it,
+    // and the late link, built to repair it, left the match as nobody's. On
+    // the real Split record lasting 2,040 seconds (102 a round, inside the 83
+    // to 103 measured), and on a 24 round record that stood at 3 to 5 after
+    // round 8 as well, which the plan placed as nobody's before anything was
+    // fetched, so the late link never even asked for it.
+    const longer = (() => {
+      const r = JSON.parse(JSON.stringify(SPLIT));
+      const after8 = 'WLWLWLWLWLWLWWWW';   // rounds 9 to 24: 10 won and 6 lost, the last won, 13 to 11
+      const per = r.perRound.slice(0, 8);
+      for (let n = 9; n <= 24; n++) per.push({ ...r.perRound[8 + ((n - 9) % 12)], n, won: after8[n - 9] === 'W' });
+      return { ...r, perRound: per, rounds: 24, score: '13-11', lengthMs: 24 * 102000 };
+    })();
+    const opened = (store, leadMs) => {
+      const e = JSON.parse(JSON.stringify(SAVED));
+      e.review.ledger = { startedAt: SPLIT.startedAt - leadMs, endedAt: e.at, endedBy: 'score',
+        context: { agent: 'Jett', agentConfirmed: true, map: 'Split', teamScore: 3, enemyScore: 5, gameMode: 'swiftplay' },
+        rounds: riotReview.ledgerRows(e.review).rows };
+      store.save({ id: e.id, game: e.game, at: e.at, review: e.review });
+      return e;
+    };
+    ok(longer.perRound.length === 24 && longer.perRound.filter((r) => r.won).length === 13
+      && longer.perRound.slice(0, 8).filter((r) => r.won).length === 3
+      && longer.perRound.slice(0, 23).filter((r) => r.won).length === 12,
+    'the 24 round record stands at 3 to 5 after round 8 and is won 13 to 11 in round 24');
+    for (const [what, rec, over] of [['the Split record at 2,040 seconds', { ...SPLIT, lengthMs: 2040000 }, {}],
+      ['a 24 round record', longer, { score: '13-11' }]]) {
+      const serve = async (p) => (p.startsWith('/api/coach/match-rounds') && idOf(p) === 'split-1'
+        ? { ok: true, status: 200, data: { ...JSON.parse(JSON.stringify(rec)), matchId: 'split-1' } } : null);
+      for (const lead of [20, 25]) {
+        for (const late of [false, true]) {
+          const h = harness({ rows: [splitRow(over)], get: serve, clock: SAVED.at + 6 * 24 * HOUR });
+          const e = opened(h.store, lead * 60000);
+          const lib = h.store.list('valorant').map((meta) => ({ meta, review: h.store.get(meta.id).review }));
+          const planned = plan([splitRow(over)], lib, new Set())[0].action;
+          if (late) h.bf.late('Me#EUW');
+          else h.bf.start('Me#EUW');
+          await h.bf.promise;
+          const s = h.bf.getStatus();
+          const up = h.store.get(e.id).review;
+          ok(planned === 'ambiguous' && s.upgraded === 1 && s.graded === 0 && h.store.list('valorant').length === 1
+            && up.verified && up.matchId === 'split-1' && up.game.score === rec.score && h.rounds().join() === 'split-1',
+          `${what}, recorded from ${lead} minutes before it: ${late ? 'the late link' : 'a full run'} upgrades the `
+            + `recording in place and never files the match beside it (planned ${planned}, ${s.upgraded} upgraded, `
+            + `${s.graded} graded, ${h.store.list('valorant').length} in the library, ${up.game.result} ${up.game.score})`);
+          h.done();
+        }
+      }
+    }
+  }
+  {
+    // AN ASK IS NONE OF THE RECORDING'S CLAIMS. A swiftplay match on Bind,
+    // recorded to its 5 to 3 end on a PC clock two minutes fast, and the next
+    // match on Bind a minute after it: the recording's end lies inside the
+    // next match's span, where it may have ended that one early, so the next
+    // match's record is asked for. Counted as a claim of the recording's, the
+    // recording held two matches, and its own was left alone.
+    const swAt = T0 + 400 * HOUR;
+    const swLen = 45000 + 8 * 90000;
+    const sw = row('sw', 0, { map: 'Bind', mode: 'Swiftplay', score: '5-3', startedAt: swAt });
+    const next = row('next', 0, { map: 'Bind', startedAt: swAt + swLen + 60000 });
+    const h = harness({ rows: [next, sw], get: async (p) => {
+      if (!p.startsWith('/api/coach/match-rounds')) return null;
+      const r = idOf(p) === 'sw' ? sw : next;
+      return { ok: true, status: 200, data: { ...riotFor(r), startedAt: r.startedAt, lengthMs: r === sw ? swLen : 24 * 95000 } };
+    } });
+    const snap = { ...played, rounds: played.rounds.slice(0, 8), startedAt: swAt, endedAt: swAt + swLen + 20000 + 120000,
+      endedBy: 'score', context: { ...played.context, map: 'Bind', agent: 'Jett', agentConfirmed: true, teamScore: 5, enemyScore: 3 } };
+    const built = valorantReview.build({ rounds: snap.rounds, context: snap.context, endedBy: 'score', ai: {}, role: 'Duelist', history: [] });
+    built.ledger = valorantReview.ledgerOf(snap);
+    built.id = newId('valorant', snap.endedAt);
+    built.at = snap.endedAt;
+    h.store.save({ id: built.id, game: 'valorant', at: built.at, review: built });
+    const lib = h.store.list('valorant').map((meta) => ({ meta, review: h.store.get(meta.id).review }));
+    const planned = plan([next, sw], lib, new Set()).map((x) => x.action).join();
+    const s = await h.run();
+    const mine = h.store.get(built.id).review;
+    ok(planned === 'ambiguous,upgrade' && mine.verified && mine.matchId === 'sw' && s.upgraded === 1 && s.graded === 1
+      && h.store.list('valorant').length === 2,
+    `a recording that may have ended the next match early only asks for its record, and keeps its own match `
+      + `(planned ${planned}, ${s.upgraded} upgraded, ${s.graded} graded, its own match ${mine.matchId})`);
+    h.done();
+  }
+
+  // ── The late link at launch (8.2.1) ──────────────────────────────────────
+  // A recording whose link gave up stayed the screen's until the player
+  // pressed Connect again. At launch, with a Riot ID connected, the app checks
+  // its recent unverified recordings by itself: never mid match, once in six
+  // hours, filing nothing new (backfill.js late()).
+  {
+    const NOW = SAVED.at + 6 * 24 * HOUR;   // six days on, as the player's own case
+    // A match after it that nobody recorded, which only Connect grades.
+    const other = row('other', 0, { map: 'Bind', startedAt: SPLIT.startedAt + 3 * HOUR });
+    const h = harness({ rows: [other, splitRow()], get: splitServer, clock: NOW });
+    const e = keepSplit(h.store);
+    const st = h.bf.late('Me#EUW');
+    await h.bf.promise;
+    const s = h.bf.getStatus();
+    const up = h.store.get(e.id).review;
+    ok(st && st.state === 'listing' && st.late && h.lateAt === NOW,
+      'with an unverified recording from last week it starts by itself, and keeps when it started');
+    ok(s.state === 'done' && s.upgraded === 1 && up.verified && up.game.result === 'Victory' && up.game.score === '13-7',
+      `and the match the watch ended early is checked against Riot's record (${up.game.result} ${up.game.score})`);
+    ok(h.store.list('valorant').length === 1 && !h.rounds().includes('other') && s.graded === 0,
+      `a match nobody recorded is neither fetched nor filed (asked for ${h.rounds().join()})`);
+    ok(s.message === "Checked 1 recent match against Riot's record."
+      && JSON.stringify(h.notices) === JSON.stringify(["Checked 1 recent match against Riot's record. It is in Matches."]),
+      `and the status line says so as a notice (${s.message} | ${h.notices.join(' | ')})`);
+    h.done();
+  }
+  {
+    // Once in six hours, however often the app is opened. The recording's
+    // match is not listed (another account played it), so it stays unverified
+    // and the late link stays wanted.
+    const h = harness({ rows: [row('other', 0, { map: 'Bind', startedAt: SPLIT.startedAt + 3 * HOUR })], clock: SAVED.at + 2 * HOUR });
+    keepSplit(h.store);
+    const lists = () => h.calls.filter((c) => c.path.startsWith('/api/coach/recent-matches')).length;
+    const first = h.bf.late('Me#EUW');
+    await h.bf.promise;
+    const quiet = h.bf.getStatus();
+    ok(first && lists() === 1 && !h.rounds().length && !h.notices.length
+      && quiet.message === "Your recent recordings were checked against Riot's record, and none of them changed.",
+      `a late link that changes nothing leaves no notice (${quiet.message})`);
+    h.clock += LATE_EVERY_MS - 60000;
+    const soon = h.bf.late('Me#EUW');
+    ok(soon === null && lists() === 1, 'opened again within six hours, it does not run, and asks for nothing');
+    h.clock += 60000;
+    const sixOn = h.clock;
+    const later = h.bf.late('Me#EUW');
+    await h.bf.promise;
+    ok(later && lists() === 2 && h.lateAt === sixOn, 'six hours on, it runs again');
+    const back = new Backfill({ ...h.bf.deps });
+    ok(back.late('Me#EUW') === null && lists() === 2, 'and a fresh launch reads when the last one started');
+    h.clock = h.lateAt - HOUR;
+    const reset = h.bf.late('Me#EUW');
+    await h.bf.promise;
+    ok(reset && lists() === 3, 'a clock set back since the last one runs it, rather than waiting out how far ahead it was');
+    h.done();
+  }
+  {
+    // Never during a match, and a launch mid match does not count as one: the
+    // launch's try (atLaunch(), on the timer index.js keeps) tries again a
+    // minute later, and each minute after, until the match is over. It used
+    // to be the session's only try, so an app opened mid match left today's
+    // early end for the next launch, days away for an app left in the tray.
+    let matchOn = true;
+    const h = harness({ rows: [splitRow()], get: splitServer, clock: SAVED.at + HOUR, inMatch: () => matchOn });
+    const e = keepSplit(h.store);
+    ok(h.bf.late('Me#EUW') === null && !h.calls.length && h.lateAt === 0,
+      'while a match is being played it does not start, asks for nothing, and is still due');
+    const armed = [];
+    const arm = (again, ms) => armed.push({ again, ms });
+    // The try armed n-th, as the timer would run it, or 'unarmed'.
+    const tryArmed = (n) => (armed[n] ? armed[n].again() : 'unarmed');
+    ok(h.bf.atLaunch(() => 'Me#EUW', arm) === null && armed.length === 1 && armed[0].ms === LATE_AGAIN_MS
+      && !h.calls.length && h.lateAt === 0,
+    `the launch's try mid match asks for nothing and tries again in a minute (${armed.map((a) => a.ms).join()})`);
+    ok(tryArmed(0) === null && armed.length === 2 && armed[1].ms === LATE_AGAIN_MS && !h.calls.length,
+      'and again a minute after that, while the match goes on');
+    matchOn = false;
+    const st = tryArmed(1);
+    await h.bf.promise;
+    ok(st && st.late && armed.length === 2 && h.lateAt > 0 && h.store.get(e.id).review.verified,
+      'and the try after the match is over runs it, and tries no more');
+    matchOn = true;
+    ok(h.bf.atLaunch(() => null, arm) === null && armed.length === 2,
+      'a launch with no Riot ID connected neither starts it nor tries again');
+    h.done();
+  }
+  {
+    // Nothing to check: no recording, one Riot has checked, one older than
+    // the thirty days, one stamped to a queue the grade is not built for.
+    const h = harness({ rows: [splitRow()], get: splitServer, clock: SAVED.at + HOUR });
+    ok(h.bf.late('Me#EUW') === null && !h.calls.length, 'with no recording in the library it does not start');
+    keepSplit(h.store, {}, { verified: true, matchId: 'split-1' });
+    ok(h.bf.late('Me#EUW') === null && !h.calls.length, "nor with a recording Riot's record is laid over already");
+    h.done();
+    const old = harness({ rows: [splitRow()], get: splitServer, clock: SAVED.at + LATE_RECENT_MS + HOUR });
+    keepSplit(old.store);
+    ok(old.bf.late('Me#EUW') === null && !old.calls.length, 'nor with one older than thirty days');
+    old.done();
+    const spike = harness({ rows: [], clock: SAVED.at + HOUR });
+    keepSplit(spike.store, { mode: 'Spike Rush' }, { matchId: 'sr-1' });
+    ok(spike.bf.late('Me#EUW') === null && !spike.calls.length, 'nor with one linked to a Spike Rush match, which is as linked as it gets');
+    spike.done();
+    const metaAt = (over) => ({ id: 'x', game: 'valorant', at: SAVED.at, verified: false, matchId: null, source: null, mode: 'Swiftplay', ...over });
+    ok(lateWanted([metaAt()], SAVED.at) && !lateWanted([metaAt({ source: 'riot' })], SAVED.at)
+      && !lateWanted([metaAt({ verified: true })], SAVED.at) && lateWanted([metaAt({ matchId: 'm', mode: 'Competitive' })], SAVED.at),
+      'a recording linked to its scoreboard whose round record never landed is wanted, one from Riot\'s record alone is not');
+  }
+  {
+    // Only the Riot ID in Settings, and never over a run already going.
+    const h = harness({ rows: [splitRow()], get: splitServer, clock: SAVED.at + HOUR, account: () => 'Other#EUW' });
+    keepSplit(h.store);
+    ok(h.bf.late('Me#EUW') === null && !h.calls.length && h.bf.late('') === null, 'a Riot ID that is not the one in Settings starts nothing');
+    h.done();
+    const h2 = harness({ rows: [splitRow()], get: splitServer, clock: SAVED.at + HOUR });
+    keepSplit(h2.store);
+    h2.bf.start('Me#EUW');
+    ok(h2.bf.late('Me#EUW') === null && h2.lateAt === 0, 'and a Connect already grading is left to it');
+    await h2.bf.promise;
+    h2.done();
+  }
+  {
+    // A Connect pressed while the late link runs grades everything: the late
+    // link lets go, keeping what it did, and the full run files the match
+    // nobody recorded too.
+    let took = null;
+    const other = row('other', 0, { map: 'Bind', startedAt: SPLIT.startedAt + 3 * HOUR });
+    const h = harness({ rows: [other, splitRow()], get: splitServer, clock: SAVED.at + 6 * 24 * HOUR,
+      onSleep: (ms, hh) => {
+        if (took || ms !== GAP_MS || !hh.bf.getStatus().late) return;
+        took = hh.bf.start('Me#EUW');
+      } });
+    const e = keepSplit(h.store);
+    h.bf.late('Me#EUW');
+    const lateRun = h.bf.promise;
+    await lateRun;
+    await h.bf.promise;
+    const s = h.bf.getStatus();
+    ok(took && !took.late && took.state === 'listing' && s.state === 'done' && !s.late
+      && s.upgraded === 1 && s.graded === 1 && h.store.list('valorant').length === 2 && h.store.get(e.id).review.verified,
+      `a Connect during the late link is a full run, not taken for it (${s.upgraded} upgraded, ${s.graded} graded)`);
+    h.done();
+  }
+  {
+    // AND WHAT THE LATE LINK DID IS THE FULL RUN'S TO TAKE BACK. Settings held
+    // a duo partner's ID, connected: the late link checked the player's Split
+    // recording against that player's record, the player pressed Connect while
+    // it ran, and corrected the ID while the full run fetched. The full run
+    // took back its own work only, and the recording kept the partner's Sova
+    // and numbers, with their baseline row.
+    let acct = 'Pal#EUW';
+    let took = null;
+    let gaps = 0;
+    const pal = splitRow({ agent: 'Sova', kills: 9, deaths: 14, assists: 12, kd: 0.64, acs: 160, adr: 110, headshotPct: 18 });
+    // A second recording, its map locked wrong, so the late link has a second
+    // match to fetch, and a match after both that only the full run fetches.
+    const ascAt = SAVED.at + 2 * HOUR;
+    const bind = splitRow({ matchId: 'bind-x', map: 'Bind', agent: 'Sova', startedAt: ascAt - 15 * 60000 });
+    const fresh = splitRow({ matchId: 'abyss-n', map: 'Abyss', agent: 'Sova', startedAt: SAVED.at + 5 * HOUR });
+    const h = harness({ rows: [fresh, bind, pal], clock: SAVED.at + 2 * 24 * HOUR, account: () => acct,
+      onSleep: (ms, hh) => {
+        if (took || ms !== GAP_MS || !hh.bf.getStatus().late) return;
+        if (++gaps === 2) took = hh.bf.start('Pal#EUW');
+      },
+      get: async (p) => {
+        if (!p.startsWith('/api/coach/match-rounds')) return null;
+        const id = idOf(p);
+        // Corrected while the full run fetches the second recording's match.
+        if (id === 'bind-x') acct = 'Me#EUW';
+        const r = { ...JSON.parse(JSON.stringify(SPLIT)), matchId: id };
+        if (id === 'split-1') r.me = { ...r.me, agent: 'Sova', kills: 9, deaths: 14, assists: 12 };
+        else Object.assign(r, { map: id === 'bind-x' ? 'Bind' : 'Abyss', me: { ...r.me, agent: 'Sova' },
+          startedAt: id === 'bind-x' ? bind.startedAt : fresh.startedAt });
+        return { ok: true, status: 200, data: r };
+      } });
+    const e = keepSplit(h.store);
+    const before = JSON.stringify(h.store.get(e.id).review);
+    const asc = JSON.parse(JSON.stringify(SAVED));
+    asc.id = newId('valorant', ascAt);
+    Object.assign(asc.review, { id: asc.id, at: ascAt });
+    asc.review.game.map = 'Ascent';
+    h.store.save({ id: asc.id, game: asc.game, at: ascAt, review: asc.review });
+    h.bf.late('Pal#EUW');
+    const lateRun = h.bf.promise;
+    await lateRun;
+    await h.bf.promise;
+    const r = h.store.get(e.id).review;
+    ok(took && took.state === 'listing' && JSON.stringify(r) === before && !h.history.length
+      && h.bf.getStatus().state === 'idle' && h.store.list('valorant').length === 2,
+    `a Riot ID corrected after a Connect took over the late link takes back what the late link checked too `
+      + `(${r.game.agent}, verified ${!!r.verified}, ${h.history.length} baseline rows)`);
+    h.done();
+  }
+  {
+    // The plan held a match back for a recording on the estimate of its end,
+    // and Riot's own length then puts the match over before the recording
+    // began: no recording claims it, so a full run grades it as new and a late
+    // link, which files nothing new, leaves it.
+    const fast = row('fast', 0, { startedAt: T0 + 300 * HOUR });
+    const serve = async (p) => (p.startsWith('/api/coach/match-rounds') && idOf(p) === 'fast'
+      ? { ok: true, status: 200, data: { ...riotFor(fast), startedAt: fast.startedAt, lengthMs: 1500000 } } : null);
+    const recordAfter = (store) => {
+      const snap = { ...played, rounds: played.rounds.slice(0, 8), startedAt: fast.startedAt + 1700000,
+        endedAt: fast.startedAt + 2300000, endedBy: 'score',
+        context: { ...played.context, map: 'Abyss', agent: 'Jett', agentConfirmed: true, teamScore: 5, enemyScore: 3 } };
+      const built = valorantReview.build({ rounds: snap.rounds, context: snap.context, endedBy: 'score', ai: {},
+        role: 'Duelist', history: [] });
+      built.ledger = valorantReview.ledgerOf(snap);
+      built.id = newId('valorant', snap.endedAt);
+      built.at = snap.endedAt;
+      store.save({ id: built.id, game: 'valorant', at: built.at, review: built });
+    };
+    const lateRun = harness({ rows: [fast], get: serve, clock: fast.startedAt + 2 * HOUR });
+    recordAfter(lateRun.store);
+    const lib = lateRun.store.list('valorant').map((meta) => ({ meta, review: lateRun.store.get(meta.id).review }));
+    const held = plan([fast], lib, new Set())[0].action;
+    lateRun.bf.late('Me#EUW');
+    await lateRun.bf.promise;
+    const ls = lateRun.bf.getStatus();
+    ok(held === 'ambiguous' && lateRun.rounds().join() === 'fast' && ls.graded === 0 && ls.skipped === 1
+      && lateRun.store.list('valorant').length === 1 && ls.items[0].status === 'skipped',
+      `a match Riot's own length frees from a recording is left by the late link (${held}, ${ls.skipped} skipped)`);
+    lateRun.done();
+    const full = harness({ rows: [fast], get: serve });
+    recordAfter(full.store);
+    const fs2 = await full.run();
+    ok(fs2.graded === 1 && full.store.list('valorant').length === 2, 'and graded as new by a full run, which files it');
+    full.done();
+  }
+  {
+    // The Riot ID changed while the late link fetched: it stops before saving,
+    // as every run does, and the recording is as it was.
+    let acct = 'Me#EUW';
+    const h = harness({ rows: [splitRow()], clock: SAVED.at + HOUR, account: () => acct,
+      get: async (p) => {
+        if (p.startsWith('/api/coach/match-rounds')) acct = 'Typo#EUW';
+        return splitServer(p);
+      } });
+    const e = keepSplit(h.store);
+    const before = JSON.stringify(h.store.get(e.id).review);
+    h.bf.late('Me#EUW');
+    await h.bf.promise;
+    ok(JSON.stringify(h.store.get(e.id).review) === before && h.bf.getStatus().state === 'idle' && !h.history.length,
+      'a Riot ID changed while it ran stops it, and the recording is left as it was');
     h.done();
   }
 

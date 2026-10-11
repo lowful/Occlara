@@ -35,9 +35,11 @@
 
       <div class="spacer"></div>
 
+      <!-- The record card (8.2.1): the buttons and the line under them, with no
+           status word over them. What state it is in is the button's word
+           (Start, Stop, Subscription ended), the pause button's icon, the
+           card's live colour while recording, and the line. -->
       <section id="rec" class="rec" aria-label="Recording">
-        <div class="rec-state"><span id="dot" class="dot"></span><span id="status-text">Ready</span></div>
-
         <!-- Agent check: once when Valorant recording starts, then gone. -->
         <div id="agent-bubble" class="agent-bubble" hidden>
           <div class="ab-row" id="ab-detect">
@@ -117,7 +119,7 @@
 
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/sfx.js"></script>
-  <script src="../shared/game-marks.js"></script>
+  <script src="../shared/game-logos.js"></script>
   <script src="shell.js"></script>
 </body>
 </html>

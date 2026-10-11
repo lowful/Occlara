@@ -16,7 +16,9 @@
   <!-- HOME, the main window's first page (8.1). The last match and its grade,
        the focus the review set for the next one, the most repeated mistake,
        the grade over the last five matches and the recent matches: all read
-       from the library by src/shared/home-model.js, nothing invented. -->
+       from the library by src/shared/home-model.js, nothing invented. And
+       Valorant's rank (8.2.1), from the rank history Stats reads, filled in
+       once the rest is painted. -->
   <main class="home">
     <header class="h-head">
       <div class="h-titles">
@@ -36,10 +38,23 @@
     <div id="content" class="rows" hidden>
       <div class="row">
         <section id="last" class="card last" aria-label="Last match"></section>
-        <div class="col">
+        <div id="side" class="col">
           <section id="focus" class="card" aria-label="Your next match" hidden>
             <span class="label">Your next match</span>
             <p id="focus-text" class="focus-text"></p>
+          </section>
+          <section id="rank" class="card rank" aria-label="Rank" hidden>
+            <div class="card-head">
+              <span class="label">Rank</span>
+              <button id="rank-more" class="btn btn-ghost" type="button">Rank journey</button>
+            </div>
+            <div class="rank-body">
+              <div class="rank-now">
+                <b id="rank-tier" class="rank-tier"></b>
+                <span id="rank-rr" class="rank-rr" title="RR from your last rated game"></span>
+              </div>
+              <div id="rank-line" class="rank-line" role="img" hidden></div>
+            </div>
           </section>
           <section id="top" class="card" aria-label="Most repeated mistake" hidden>
             <span class="label">Most repeated mistake</span>
@@ -51,13 +66,17 @@
         </div>
       </div>
       <div class="row">
-        <section id="trend" class="card" aria-label="Grade over the last matches" hidden>
-          <div class="card-head">
-            <span class="label">Grade, last <span id="trend-n"></span> matches</span>
-            <span class="hint" id="trend-avg"></span>
-          </div>
-          <div id="trend-bars" class="bars" role="img"></div>
-        </section>
+        <!-- The grade trend, and the rank above it when the column beside the
+             last match is full (home.js placeRank). -->
+        <div id="lower" class="col">
+          <section id="trend" class="card" aria-label="Grade over the last matches" hidden>
+            <div class="card-head">
+              <span class="label">Grade, last <span id="trend-n"></span> matches</span>
+              <span class="hint" id="trend-avg"></span>
+            </div>
+            <div id="trend-bars" class="bars" role="img"></div>
+          </section>
+        </div>
         <section id="recent" class="card recent" aria-label="Recent matches">
           <div class="card-head">
             <span class="label">Recent matches</span>
@@ -70,6 +89,7 @@
   </main>
 
   <script src="../shared/grade-view.js"></script>
+  <script src="../shared/log-eye.js"></script>
   <script src="home.js"></script>
 </body>
 </html>

@@ -1,0 +1,260 @@
+{
+ "note": "A real 8.0.1 review, as the library saved it: a competitive Split match the watch ended at 3 to 5 in round 9 after locking swiftplay wrongly (the session is valorant-session-split-competitive.json). No ledger, endedBy score, unverified. Riot has the match going on to 13 to 7 (riot-split-13-7.json). Study notes kept as their text alone.",
+ "id": "valorant-1791156085077-nut54a",
+ "game": "valorant",
+ "at": 1791156085077,
+ "review": {
+  "kind": "valorant",
+  "at": 1791156085077,
+  "endedBy": "score",
+  "game": {
+   "agent": "Jett",
+   "map": "Split",
+   "mode": "Swiftplay",
+   "result": "Defeat",
+   "score": "3-5"
+  },
+  "scoreline": null,
+  "watched": {
+   "rounds": 8,
+   "deaths": 7,
+   "decided": 8,
+   "survival": 13
+  },
+  "halftimeAfter": 4,
+  "verified": false,
+  "verification": null,
+  "patterns": [
+   {
+    "key": "spot",
+    "text": "2 of your 7 deaths were at B Back, in rounds 2, 3."
+   },
+   {
+    "key": "streak",
+    "text": "You lost 3 rounds in a row, rounds 6 to 8."
+   },
+   {
+    "key": "sides",
+    "text": "Attack was your stronger side: won 3 of 5 on attack and 0 of 3 on defence."
+   },
+   {
+    "key": "postplant",
+    "text": "On attack, won 1 of 2 rounds once the spike was down."
+   }
+  ],
+  "insights": {
+   "mistakes": [],
+   "strengths": [],
+   "missed": []
+  },
+  "grade": {
+   "score": null,
+   "letter": null,
+   "provisional": true,
+   "categories": [
+    {
+     "key": "survival",
+     "label": "Survival",
+     "weight": 25,
+     "score": 61,
+     "evidence": [
+      "7 deaths in 8 rounds"
+     ]
+    },
+    {
+     "key": "impact",
+     "label": "Impact",
+     "weight": 30,
+     "score": null,
+     "evidence": []
+    },
+    {
+     "key": "teamplay",
+     "label": "Teamplay",
+     "weight": 20,
+     "score": null,
+     "evidence": []
+    },
+    {
+     "key": "decisions",
+     "label": "Decisions",
+     "weight": 25,
+     "score": null,
+     "evidence": []
+    }
+   ],
+   "notes": [
+    "A full grade needs Riot's record of the match. Add your Riot ID in Settings and it grades itself a few minutes after the match."
+   ]
+  },
+  "summary": "You lost the match five to three. Holding B Back alone in rounds 2 and 3 led to repeated deaths. On attack you won by entering checkpoints and surviving behind cover before your team arrived.",
+  "focus": "Enter sites in checkpoints and wait for your team to catch up before taking the next piece of space to avoid dying alone.",
+  "study": [
+   {
+    "text": "Giving ground is not losing the site, falling back to a crossfire you can trade from beats dying alone at the choke."
+   },
+   {
+    "text": "Entry in checkpoints, take one piece of space, survive behind cover, then wait for the team to reach you before you take the next."
+   },
+   {
+    "text": "Decide how you are taking an angle before you arrive at it, the way you pick the lane before the turn, hesitating at the corner is what gets you traded."
+   }
+  ],
+  "rounds": [
+   {
+    "n": 1,
+    "side": "Attack",
+    "result": "won",
+    "died": false,
+    "early": false,
+    "planted": false,
+    "facts": [],
+    "reads": [
+     "holding Attacker Side Spawn during buy phase with Classic out",
+     "holding mid alley at buy phase",
+     "standing in B Lobby with scoreboard open during buy phase"
+    ],
+    "why": "Standing with the scoreboard open wastes time. Keep your crosshair ready while checking information to react faster when enemies appear.",
+    "forensics": null
+   },
+   {
+    "n": 2,
+    "side": "Attack",
+    "result": "won",
+    "died": true,
+    "early": false,
+    "planted": true,
+    "facts": [
+     "Died at B Back",
+     "Spike planted"
+    ],
+    "reads": [
+     "ally planting on B while player holds in B Main",
+     "holding B Back looking toward B Main",
+     "holding B Back with pistol out"
+    ],
+    "why": "Dying at B Back after planting shows poor positioning. Stay near the planter for protection instead of holding a lone angle that invites trades.",
+    "forensics": null
+   },
+   {
+    "n": 3,
+    "side": "Attack",
+    "result": "lost",
+    "died": true,
+    "early": false,
+    "planted": false,
+    "facts": [
+     "Died at B Back"
+    ],
+    "reads": [
+     "holding B Main during buy phase",
+     "player dead and respawned, combat report open during buy phase",
+     "standing in attacker side spawn during buy phase"
+    ],
+    "why": "Respawning and opening combat reports delays your rotation. Close menus immediately to move toward the site where the fight is happening.",
+    "forensics": null
+   },
+   {
+    "n": 4,
+    "side": "Attack",
+    "result": "lost",
+    "died": true,
+    "early": false,
+    "planted": true,
+    "facts": [
+     "Died at A Tower",
+     "Spike planted at B"
+    ],
+    "reads": [
+     "holding B site alone with no trade, enemy spotted in B",
+     "holding B main with Spectre, enemy spotted in B",
+     "holding B main alone behind a smoke with the spike carrier"
+    ],
+    "why": "Holding B Main alone behind smoke leaves you exposed. Give ground to a crossfire position where teammates can trade kills if you fall.",
+    "forensics": null
+   },
+   {
+    "n": 5,
+    "side": "Attack",
+    "result": "won",
+    "died": true,
+    "early": true,
+    "planted": false,
+    "facts": [
+     "Died at B Site, early in the round"
+    ],
+    "reads": [
+     "player in B Garage holding angle",
+     "holding B Garage alone, spike carried",
+     "player standing on B Site during buy phase looking at the sky"
+    ],
+    "why": "Holding B Garage with the spike carrier isolates you. Move with your team to secure the site together rather than waiting alone on a ledge.",
+    "forensics": null
+   },
+   {
+    "n": 6,
+    "side": "Defence",
+    "result": "lost",
+    "died": true,
+    "early": false,
+    "planted": true,
+    "facts": [
+     "Died at A Main",
+     "Spike planted at A site"
+    ],
+    "reads": [
+     "player at A Main with an ally smoke orb on the ground",
+     "holding A Main during buy phase",
+     "capturing orb at A Main"
+    ],
+    "why": "Being at A Main with an ally smoke orb creates confusion. Coordinate utility usage so you do not block your own angles or waste time capturing orbs.",
+    "forensics": null
+   },
+   {
+    "n": 7,
+    "side": "Defence",
+    "result": "lost",
+    "died": true,
+    "early": false,
+    "planted": false,
+    "facts": [
+     "Died"
+    ],
+    "reads": [
+     "player standing at attacker side spawn during buy phase",
+     "player dead in attacker spawn with the scoreboard and combat report open",
+     "player walking toward A main during buy phase"
+    ],
+    "why": "Walking toward A Main during buy phase is too slow. Decide your angle early and move decisively to avoid being caught out of position.",
+    "forensics": null
+   },
+   {
+    "n": 8,
+    "side": "Defence",
+    "result": "lost",
+    "died": true,
+    "early": false,
+    "planted": false,
+    "facts": [
+     "Died at B Site, mid round"
+    ],
+    "reads": [
+     "holding B Lobby alone at the barrier",
+     "player alone in B Garage holding knife during buy phase",
+     "holding B Garage with a teammate, B main choke watched"
+    ],
+    "why": "Holding B Lobby alone at the barrier is risky. Wait for teammates to reach the choke point before taking the angle to ensure trades are possible.",
+    "forensics": null
+   }
+  ],
+  "against": [],
+  "refused": [
+   "Kills, damage and who won each fight are not printed on the HUD in a way the coach can read, so a round card says what was seen, not how the duel went.",
+   "The scoreboard comes from Riot once the match is published. Add your Riot ID in Settings, and it fills in here a few minutes after the match."
+  ],
+  "aiUnavailable": false,
+  "narrativePending": false,
+  "thin": false,
+  "id": "valorant-1791156085077-nut54a"
+ }
+}

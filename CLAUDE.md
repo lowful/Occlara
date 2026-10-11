@@ -63,10 +63,10 @@ src/main/services/review-store.js     every review saved, userData/reviews
 src/shared/patterns.js                what repeats across the last ten matches of a game
 src/shared/breakdown.js               the library by map and agent (hero, champion), counted
 src/shared/riot-review.js             a review from Riot's record alone, or a recording linked late
-src/main/services/backfill.js         Connect grades the last ten matches from Riot's record
+src/main/services/backfill.js         Connect grades the last ten matches from Riot's record; the late link at launch
 src/renderer/review/                  one page for every game, branched on review.kind
 src/renderer/matches/                 the library, "Your patterns" and the breakdown pages
-src/renderer/home/                    the last match, its focus and the top repeated mistake
+src/renderer/home/                    the last match, its focus, the rank and the top repeated mistake
 ```
 
 **The read is facts only.** `POST /api/coach/read` (`server/services/read-prompt.js`)
@@ -145,7 +145,9 @@ end screen, and stopping at 12 to 7 reviewed nothing. A new match the watch
 never saw the last one end (a remake, an unrated 13-12 with no menus read)
 closes the last one into the library, never opened over the new one.
 `npm run test:sessionreplay` replays that session and two others through the
-real engine, deaths checked against Riot's record.
+real engine, deaths checked against Riot's record. A match ended early that
+never resumed, that 8.0.1 review among them, is Riot's record's to put right
+("Ended early by the watch", under "Matches graded from Riot's record").
 
 **What the review may claim.** No "survived" line unless Riot says so, no death
 timing to the second without Riot, no result unless a score end or Riot's record
@@ -399,7 +401,8 @@ server falls back to `/last-match`.
   play two at once; the seam between back to back matches is not a claim. A
   best share that is mostly clock slack decides nothing, so a short stop at a
   seam claims both neighbours and both are left alone, and a recording whose
-  own link is still running (a stop retries for over half an hour) holds back
+  own link is still running (a stop, or a score end that may have gone on,
+  retries for over half an hour) holds back
   every match near it. A listed match's span is Riot's start to 100 seconds a
   round, never past the next listed match's start. One in the library and checked is skipped; one
   linked but never checked against Riot's rounds is checked in place, unless
@@ -424,7 +427,108 @@ server falls back to `/last-match`.
   on real pacing (Riot's start at the load or at agent select, the PC clock up
   to two minutes off, the app left running between matches) through the whole
   run, and the plan alone on the stamps and links it decides by itself; the
-  clock allowance (90 seconds) was set on them.
+  clock allowance (90 seconds, `CLOCK_SLACK_MS` in `match-link.js`) was set
+  on them.
+- **Ended early by the watch** (8.2.1, `match-link.js endedEarly`). A
+  recording whose last score is one Riot's round record passes through is that
+  match, and the watch ended it too soon. The player's own case, the fixtures
+  `valorant-review-split-801.json` and `riot-split-13-7.json`: 8.0.1 locked
+  swiftplay on a competitive Split match, ended it at 3 to 5 in round 9 (a
+  swiftplay final) and saved "Defeat 3-5, Swiftplay"; Riot has it Competitive,
+  Victory 13 to 7 over 20 rounds, and at exactly 3 to 5 after round 8. Every
+  link check refused it for its score (a match seen ending after 8 rounds is
+  not a 20 round one), every run left the recording and the match alone, and
+  Home said "From what the screen read" for good. So the score the watch ended
+  on may disagree with Riot's final, and the mode with Riot's queue, only when:
+  the map is the same on both sides (never merely unknown on one); the agent is
+  Riot's when the recording's was confirmed (one never confirmed agrees with
+  anything); the moment the watch ended the match lies inside Riot's own span,
+  its start to start plus length with the clock allowance, because that is
+  what an early end is; and the screen's last score, team against enemy, is
+  Riot's score after round team + enemy, with more rounds after it, and the
+  end comes at least that many rounds into Riot's match (55 s a round at the
+  least, `MIN_ROUND_MS`): without it a recording that ended its own match at
+  5 to 4, unlisted, was upgraded as the NEXT match on the same map, begun a
+  minute later and at 5 to 4 after round 9, and the seam between back to back
+  matches is not a claim. The
+  recording's START is deliberately not held to Riot's span: it is when Start
+  was pressed or the match before ended, minutes before Riot's start in the
+  normal order of a session, and a review with no ledger has only an estimate
+  of it, which on fast rounds lands minutes early; the end is exact, and the
+  claims already weigh the whole window. Everything else stays refused: a
+  deathmatch, a match over before the recording or begun after it, fewer
+  rounds than were watched, another account, a match another review holds.
+  In the backfill the plan sees such a recording as 'ambiguous' and fetches
+  its match, and `confirm()` decides again on the record (`claimsOf` takes the
+  rule once `real` holds it). AN EARLY END MAKES THE CLAIM ITSELF: it shares
+  little of its match, and its recording often opened long before Riot's
+  start, so a recording opened twenty minutes before failed both share rules
+  and a full run filed its match again beside it, the late link leaving it as
+  nobody's. Once the record is in, an unverified recording it confirms claims
+  the match, held to the one claimant rules; before, one that may have ended
+  it (`mayHaveEnded`: a score only swiftplay ends on, the same map, the end
+  inside the match's span, refused for its score alone) only asks for the
+  record, and the ask is none of the recording's claims, because a recording
+  that ended its own match on a clock ahead of Riot's lies inside the next
+  match's span too. The upgrade is the usual one IN PLACE, all of Riot's
+  rounds, the watched ones keeping what the screen saw and the rest "Not
+  watched by the coach", the old read taken down, result, score, queue,
+  halftime and grade from Riot's record. The review says why its result
+  changed: "The coach thought the match was over at 3 to 5, and it went on."
+  (`valorant-review.js endedTooSoon`, from the rounds Riot's record is laid
+  over, so a final read one digit short is never taken for one). The live link
+  takes the same rule (`linkEarly`): when nothing verifies, the round records
+  of the listed matches that pass every check but the score's, on the screen's
+  map and with an estimated span that could hold the end, are asked for, two
+  at most a try (`EARLY_ASKS_PER_TRY`), a record that refused is not asked for
+  again, and the one that passes is laid over the review without a second
+  request. Riot publishes a match only once it is over, and the real Split
+  match's record was out nearly twenty minutes after the watch's end, past a
+  score end's last try, so a score end on a score only swiftplay ends on
+  (`mayGoOn`) tries for as long as a stop (`linkRetries`, `LINK_RETRY_LONG_MS`;
+  `test:valorantreview` holds the AI log's hold to it), and when even that
+  gives up, its review says the match may have gone on and is checked again
+  later, never that it was played on another account (`linkMissing: 'later'`).
+- **The late link at launch** (8.2.1, `backfill.js late()`). A recording whose
+  link gave up stayed the screen's until the player pressed Connect or "Grade
+  my recent matches" again, and a match ended early is one whose Riot record
+  is published only once the rest of it has been played, which can be after
+  even the live link's longer tries, or after the app was closed. So a little
+  after launch, with a Riot ID connected, the app runs this same machinery by
+  itself: the plan, the claims and the early end, three seconds between
+  requests, the stop and take back on a Riot ID change, the wait while a match
+  is played. CONNECTED IS `riotConnected` ALONE (`connectedRiotId()`), which a
+  Connect or a run that listed its matches writes. A profile is no proof:
+  every launch refreshes the profile of whatever ID Settings holds, a duo
+  partner's typed in to look at their rank included, and taken as proof it ran
+  the late link for an account nobody connected, filling the player's
+  recordings with that player's agent and numbers. An install from before
+  riotConnected (8.0.2 and older) kept its connection as the profile alone, so
+  that profile counts once, read at load before any refresh can write one
+  (`keepOldConnection`, `riotConnectedKept`), and only on an install that
+  never ran 8.0.3, the version that brought Connect (`rivalsTitlesRepaired`,
+  written at its first launch, says it did): after it a typed ID with a
+  profile from an earlier launch was never connected. Settings says
+  "Connected" by the same rule. Never during a match: a launch
+  whose try lands mid match tries again each minute until the match is over
+  (`atLaunch()`), where it used to be the session's only try. At most once in
+  six hours (`lateLinkAt` in the config, from the run's start, across
+  launches; a clock set back runs it), and only when a recording from the last
+  thirty days has no Riot record laid over it. It files nothing new: a match
+  nobody recorded stays Connect's, and a Connect pressed while it runs takes
+  over as a full run, taking over what it did too, so a Riot ID corrected
+  during the full run takes back the late link's upgrades and baseline rows as
+  well. Its lines say "Checking" and "Checked", and a run that changed
+  something says so as a notice, "Checked 1 recent match against Riot's
+  record. It is in Matches." `npm run check:latelink` boots the app on the
+  player's own 8.0.1 review through the real launch and the real link, server
+  faked: upgraded at launch, Home showing Victory 13 : 7, a second launch
+  within six hours asking for nothing, a Riot ID typed and never connected
+  asking for nothing though the launch saved its profile, a launch mid match
+  checking it once the match is over, and the live link taking the same match
+  on one record on the real timeline (Riot lists it only once it is over and
+  published, the link's waits cut by `OCCLARA_DEV_LINK_SCALE`), beside a match
+  Riot never lists whose review says it may have gone on.
 - **Only the account in Settings.** `start()` refuses any other, and a run
   stops itself before listing and before every save once Settings holds
   another ID for more than a few seconds, and TAKES BACK what it did: the
@@ -467,7 +571,8 @@ server falls back to `/last-match`.
   on a failure that passes, and three matches Riot did not answer in a row end
   the run. It waits while a match is in progress, and a Riot ID change or a
   logout cancels it.
-- `npm run test:riotreview`, `npm run test:backfill`, `npm run check:onboardingriot`.
+- `npm run test:riotreview`, `npm run test:backfill`, `npm run test:matchlink`,
+  `npm run check:onboardingriot`, `npm run check:latelink`.
 
 ### The breakdown
 
@@ -543,10 +648,10 @@ registered under the page's id, so a push reaches it the way it reached its old
 window.
 
 ```
-shell/       the window's document: the sidebar (game, pages, Start / Stop,
-             status, account), the window's buttons and the Recording screen
-home/        the last match and its grade, the next match's focus, the most
-             repeated mistake, the grade trend, recent matches
+shell/       the window's document: the sidebar (game, pages, the record card,
+             account), the window's buttons and the Recording screen
+home/        the last match and its grade, the next match's focus, Valorant's
+             rank, the most repeated mistake, the grade trend, recent matches
 matches/     three pages from one surface, ?section=list, patterns or breakdown;
              the list carries its wins and losses beside the title (winLoss)
 review/      the post-match review, every game, branched on review.kind
@@ -679,6 +784,77 @@ pages, the seal hiding every page, the review showing when it lifts and a
 recent match opening its review.
 `npm run test:shellnav` and `npm run test:homemodel` cover the navigation and
 Home offline.
+
+**Home (8.2.1), as the player asked for it.** Every card is read from the
+library or the rank history, nothing invented (`src/shared/home-model.js`):
+
+- **The last match ends on two buttons and no words**: the eye's "View match"
+  (`log-eye.js labelled()`, the eye the Matches rows draw, by the same
+  `aiLog` rule: 'kept' opens the match's AI log over `REVIEW_AILOG`, 'gone' is
+  disabled with its reason, null is no eye) and Open review. The line saying
+  where the grade came from ("From what the screen read") is gone; the review
+  says it.
+- **The rank**, Valorant's with a Riot ID and a rated game: the newest rated
+  point's tier, the last game's RR (+24 in `--good`, -15 in `--red`, 0 dim)
+  and the rank journey as a line, by Stats' own rules (`rankModel`: rated
+  points only, cut at the newest jump over 300, a game's RR 60 or less), with
+  Rank journey opening Stats. It is asked for through `STATS_RANK_HISTORY`
+  only once Home is painted, so a slow history never holds Home back, and
+  Home listens for a change of game, a saved review and the Riot ID from
+  before its first paint: the first load waits for the rank, and a game
+  picked during that wait was never heard. A paint or a rank answer overtaken
+  by a newer one paints nothing (`paintAsk`, `rankAsk`). It sits
+  under the next match's focus and grows to fill what the last match leaves
+  of that column; with the focus and the most repeated mistake both there,
+  that column is already the taller, so the rank stands above the grade trend
+  instead (`placeRank`). A column with no card shown goes, and the card
+  beside it takes the row.
+- **A Competitive row in Recent matches shows its RR** beside its grade
+  (`rrForRows`): the nearest rank history point within 45 minutes of the
+  match's START, Stats' rule, because the history dates a game by its start
+  and a row by its end, and measured from the end a match played straight
+  after another took the next game's RR. The start is Riot's own, which a
+  linked review keeps (`matchStartedAt`, set by `valorant-review.js build()`
+  from the tracker match and carried on the library row), and only without
+  it put back from the row's end at 100 seconds a round: a row's end is when
+  the watch ended the match or Stop was pressed, so put back from there a
+  match ended early or stopped landed 20 to 30 minutes early and took the
+  game before's RR. A row on Riot's own start is placed EXACTLY, within five
+  minutes (`RR_EXACT_MS`), since the history dates its game by that same
+  start: given 45 minutes, a row whose game was not published yet took the
+  game before it, a 10 to 13 loss shown as +21, and was never asked for again.
+  One point is one game, given to the row it is nearest of all, so a match
+  whose own game Riot has not published yet shows nothing rather than its
+  neighbour's. Only Riot's "Competitive" is rated; a screen's "Standard" is
+  not.
+- **The RR is read again once Riot has published the game.** The history
+  read as a match ends lacks it, and main and the server each keep it five
+  minutes, so every save after the end read it back and Home showed the
+  match with no RR, or the game before's in the rank card, until the next
+  match. A review first linking (`withTracker`) marks main's history stale
+  (`services/rank-history.js published()`), and the next read goes past both
+  caches (`refresh=1`, once). A read still out from before never puts its
+  older answer over a newer read's (`seq`). And Home asks again six minutes on
+  for the newest Competitive match still without its RR, twice at most after
+  a paint, only for one that ended within the hour (`rrWaiting`).
+- **The grade trend fills its card**: its bars stand on the card's foot
+  whatever height Recent matches gives the row, each its grade of the whole
+  track, the number positioned off the bar rather than stacked over it.
+
+`test:surfaces` holds Home's and Stats' answers to the same history equal,
+and `check:mainwindow` measures the trend on the real layout.
+
+**The record card has no status word** (8.2.1): the dot and "Ready",
+"Recording", "Paused" over the buttons are gone, and the card is balanced on
+them, Start filling the width beside the square pause button, both 48px, the
+line centred under them, one padding all round. The state is still on the
+card: the button's word (Start, Stop, "Subscription ended"), the pause
+button's icon, the live colour while recording, and the line, which now says
+"Paused" itself, since the word that said it is gone: in the player's
+language (`panel.pausedLine`, the word's keys went with it), and never under
+the "Recording..." notice a Rivals or League session keeps up (kind
+'recording'), which said recording over a paused card. A notice of something
+wrong still takes the line.
 
 ### Rules for UI work
 
@@ -901,16 +1077,26 @@ gradients that would fight `--bg`. `rankMark()` in `learn.js` draws a shield
 with one to five pips in `--tier-1` through `--tier-5`; the pip COUNT carries the
 tier as well as the colour does.
 
-**The game marks are ours too.** The sidebar's game picker is three icon
-buttons, and the icons are never the games' logos: Riot's IP policy says a
-project "may not use any of our logos or trademarks" without a written licence,
-and Marvel's marks are as protected. `src/renderer/shared/game-marks.js` draws
-three stroke icons on the shell's 24 unit grid (stroke 1.75, round ends,
-`currentColor`): Valorant a reticle, Marvel Rivals a hexagon with a four point
-spark, League a square map with two edge lanes, its diagonal and two corner
-bases. No V, no crest, no letter, nothing shaped like a real mark. Each button
-carries the game's full name as its title and accessible name, because a symbol
-alone is a guess; `test:surfaces` holds both.
+**The game picker shows the games' own logos: the player's decision of
+2026-10-10.** Until 8.2.1 its three buttons carried icons Occlara drew (a
+reticle, a hexagon with a spark, a square map), because Riot's IP policy says
+a project "may not use any of our logos or trademarks" without a written
+licence and Marvel's marks are as protected. The player was told that, with
+Riot's policy text and Marvel's terms, and chose the logos. The sources are
+`assets/games/valorant.svg`, `rivals.svg` and `lol.svg`, each one filled
+path on a 24 unit box: Valorant's and League's the monochrome paths Simple
+Icons publishes, Marvel Rivals' TRACED from the game site's icon (a bolt like
+an R between two slanted brackets), since no vector of it is published, and
+point symmetric as the emblem is. `src/renderer/shared/game-logos.js` draws the
+same paths inline so they take `currentColor` and keep the picker's colours,
+and `test:surfaces` fails if a path there ever differs from its file. The
+Rivals emblem is half as tall as it is wide, so it is drawn a size up
+(`shell.css`). Each button still carries the game's full name as its title and
+accessible name, because a symbol alone is a guess, and the recording lock.
+Hover lights the games not picked and never the picked one: the hover rule
+outranked the pressed one, and its `--text` over the pressed button's `--text`
+ground drew that logo white on white (`test:surfaces` cascades the rules).
+Rank marks stay ours (above): that decision was about the picker alone.
 
 ## Marvel Rivals reads TEXT, never art
 

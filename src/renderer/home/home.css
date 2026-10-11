@@ -18,6 +18,11 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 
 .rows { display: flex; flex-direction: column; gap: var(--space-4); }
 .row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: stretch; }
+/* A column of cards. Beside the last match (#side): the next match's focus,
+   the rank, the most repeated mistake; under it (#lower): the rank when that
+   column is full (home.js placeRank), and the grade trend. A column with none
+   of its cards shown is hidden (closeUp), and the card beside it takes the
+   row. */
 .col { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: var(--space-4); }
 
 .card {
@@ -35,12 +40,18 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+/* A way on from a card's head (All matches, Rank journey) keeps its padding to
+   be pressed, and gives it back in margin, so the head is as tall as its
+   label and the word lines up with the card's edge. */
+.card-head .btn-ghost { padding: 8px 12px; margin: -8px -12px -8px 0; }
 .label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-mute); }
 
 .empty h2 { font-size: 17px; font-weight: 700; }
 .empty .btn { align-self: flex-start; }
 
-/* The last match: its result and score, then the shared grade card. */
+/* The last match: its result and score, then the shared grade card, and the
+   foot with its two buttons, the eye's View match and Open review, at the
+   card's bottom however tall the column beside it makes the row. */
 .last { flex: 2 1 520px; gap: var(--space-4); }
 .last-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4); }
 .last-facts { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
@@ -50,13 +61,11 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .score { font-size: 52px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .meta { font-size: 14px; color: var(--text-dim); }
 .last-foot {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3);
+  margin-top: auto;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2);
   padding-top: var(--space-3);
   border-top: 1px solid var(--glass-border);
 }
-.checked { display: flex; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--text-dim); }
-.checked::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
-.checked.unchecked::before { background: var(--text-mute); }
 
 .focus-text { font-size: 16px; font-weight: 600; line-height: 1.5; }
 
@@ -66,20 +75,62 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .trend.rising { color: var(--bad); }
 .fix { font-size: 13px; line-height: 1.5; }
 .fix-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-mute); }
-#top .btn, #recent .btn { align-self: flex-start; }
+#top .btn { align-self: flex-start; }
 
-/* The grade over the last matches: a bar each, its number above it, and the
-   number is always beside the colour. */
-#trend { flex: 1 1 300px; }
-.bars { display: flex; align-items: flex-end; gap: var(--space-3); height: 150px; }
-.bar-col { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; height: 100%; min-width: 0; }
-.bar-num { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
-.bar { width: 100%; max-width: 36px; border-radius: 6px; background: var(--text-mute); }
+/* The rank (home.js paintRank), under the next match's focus or above the
+   grade trend (placeRank): the rank the newest rated game left with the last
+   game's RR under it, and the journey as a line beside them, the newest game
+   the dot at its end. A gain is --good, a loss --red, no change dim, and the
+   sign is always printed beside the colour. */
+.rank { gap: var(--space-3); }
+/* Beside the last match it fills what that card leaves of the column, and
+   the line grows with it; above the grade trend it keeps its own height. */
+#side .rank { flex: 1 1 auto; }
+.rank-body { flex: 1 1 auto; display: flex; align-items: stretch; gap: var(--space-4); }
+.rank-now { flex: none; align-self: center; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rank-tier { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; white-space: nowrap; }
+.rank-rr, .r-rr { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text-mute); white-space: nowrap; }
+.rank-rr.gain, .r-rr.gain { color: var(--good); }
+.rank-rr.loss, .r-rr.loss { color: var(--red); }
+.rank-rr.even, .r-rr.even { color: var(--text-mute); }
+/* The line is laid over its box rather than in it: in the flow, its own
+   shape (100 by 40) set the box's height from its width. */
+.rank-line { position: relative; flex: 1 1 auto; min-width: 0; min-height: 40px; }
+.rank-line svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; overflow: visible; }
+.rank-line path { fill: none; stroke: var(--text-dim); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rank-dot {
+  position: absolute; right: 0;
+  width: 8px; height: 8px; margin: -4px -4px 0 0;
+  border-radius: 50%; background: var(--text);
+}
+
+/* The grade over the last matches (home.js paintTrend). It FILLS ITS CARD:
+   Recent matches beside it sets the row's height, and the bars' area grows to
+   the card's foot rather than leaving a band of empty card under a fixed
+   height. Each bar is its grade as a share of its track's whole height; the
+   number is positioned off the bar's top, never stacked over it in the same
+   column, which took its own height out of the bar's, and the track's top
+   margin is the room the number needs over a 100. The number is always
+   beside the colour. Its column (#lower) is the row's third; the card fills
+   what the rank above it leaves. */
+#trend { flex: 1 1 auto; }
+.bars { flex: 1 1 auto; min-height: 120px; display: flex; gap: var(--space-3); }
+.bar-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.bar-track { position: relative; flex: 1 1 auto; width: 100%; margin-top: 18px; }
+.bar {
+  position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto;
+  width: 100%; max-width: 36px; height: var(--h, 0%);
+  border-radius: 6px; background: var(--text-mute);
+}
 .bar.good { background: var(--good); }
 .bar.mid { background: var(--text); }
 .bar.warn { background: var(--warn); }
 .bar.bad { background: var(--red); }
-.bar-map { font-size: 11px; color: var(--text-mute); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-num {
+  position: absolute; left: 0; right: 0; bottom: calc(var(--h, 0%) + 6px);
+  text-align: center; font-family: var(--font-mono); font-size: 12px; line-height: 12px; color: var(--text-dim);
+}
+.bar-map { flex: none; font-size: 11px; color: var(--text-mute); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The recent matches, a row each, opening its review. */
 .recent { flex: 2 1 520px; gap: var(--space-1); }
@@ -100,5 +151,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .r-res.win { color: var(--good); }
 .r-res.loss { color: var(--bad); }
 .r-meta { font-size: 12px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A rated match's RR beside its grade, coloured as the rank card's is. */
+.r-rr { flex: none; }
 .r-score { font-family: var(--font-mono); font-size: 18px; font-weight: 500; }
 .r-row .gv-letter { width: 30px; height: 30px; font-size: 14px; }

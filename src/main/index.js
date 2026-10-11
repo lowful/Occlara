@@ -35,7 +35,7 @@ const logger   = require('./logger');
 const store    = require('./services/store');
 const capture  = require('./services/capture');
 const CoachingEngine = require('./services/coaching-engine');
-const { verifyCoachedMatch, pickCoachedMatch, LINK_RETRY_MS, LINK_RETRY_LONG_MS, RIOT_ROUNDS_RETRY_MS } = require('./services/match-link');
+const { verifyCoachedMatch, pickCoachedMatch, linkEarly, mayGoOn, linkRetries, RIOT_ROUNDS_RETRY_MS } = require('./services/match-link');
 const { normalize: normalizeLang } = require('../shared/i18n');
 const registry = require('./windows/registry');
 // THE ONE WINDOW (8.1): the shell and every page beside it, replacing the
@@ -70,6 +70,7 @@ const insightsOf  = require('../shared/insights');
 const patternsOf  = require('../shared/patterns');
 const breakdownOf = require('../shared/breakdown');
 const { Backfill } = require('./services/backfill');
+const { RankHistory } = require('./services/rank-history');
 const deathFrames = require('../shared/death-frames');
 
 // Every post-match review, for every game. See services/review-store.js.
@@ -292,6 +293,12 @@ const backfill = new Backfill({
   history: {
     get: () => store.get('valorantHistory') || [],
     set: (rows) => store.set('valorantHistory', rows),
+  },
+  // When the last late link started, kept across launches, so it runs once
+  // in six hours however often the app is opened (backfill.js late()).
+  lateAt: {
+    get: () => store.get('lateLinkAt') || 0,
+    set: (at) => store.set('lateLinkAt', at),
   },
   inMatch: () => matchInProgress(),
   onStatus: (s) => {
@@ -833,6 +840,14 @@ function onValorantMatchReview(reviewText, snap) {
   linkRiotRecord(job);
 }
 
+// A boot check (check:latelink) shortens every wait between a review's link
+// tries by this factor, so a match Riot lists only once it is over and
+// published runs on its real timeline in seconds. Never above 1.
+const LINK_DELAY_SCALE = (() => {
+  const s = Number(process.env.OCCLARA_DEV_LINK_SCALE);
+  return s > 0 && s < 1 ? s : 1;
+})();
+
 /**
  * THE MATCH THIS SESSION WATCHED, verified, then Riot's round record laid over
  * it. Retried on its own clock until Riot has published, and said plainly in
@@ -875,7 +890,12 @@ function linkRiotRecord(job) {
    * teaching, then the model writes the summary again from all of it.
    */
   const withRiot = async (lm) => {
-    const riot = await riotRoundsFor(lm);
+    // A match linked as ended early came with its round record already
+    // (fetchCoachedMatch), and is not asked for twice. Used once: a retry
+    // after a failed look asks again.
+    const kept = lastTry.riot && lastTry.riot.matchId === lm.matchId ? lastTry.riot.record : null;
+    lastTry.riot = null;
+    const riot = kept || await riotRoundsFor(lm);
     if (!riot || job.cancelled) return false;
     // A look from the screen still out when Riot's rounds land paints nothing
     // over them (lookFromScreen), and none is taken once these are painted.
@@ -928,7 +948,8 @@ function linkRiotRecord(job) {
       .catch((e) => { console.log('[review] Riot check failed:', e.message); return false; })
       .then((ok) => {
         if (ok || job.cancelled || !delays.length) { done(); return; }
-        job.timer = setTimeout(() => { job.timer = null; if (!job.cancelled) riotThen(lm, delays.slice(1)); }, delays[0]);
+        job.timer = setTimeout(() => { job.timer = null; if (!job.cancelled) riotThen(lm, delays.slice(1)); },
+          delays[0] * LINK_DELAY_SCALE);
       });
   };
 
@@ -948,6 +969,14 @@ function linkRiotRecord(job) {
         const past = store.get('valorantHistory') || [];
         store.set('valorantHistory', [...past, row].slice(-valorantReview.BASELINE_GAMES));
       }
+    }
+    // RIOT HAS PUBLISHED THIS MATCH, so the rank history read as it ended,
+    // without its game, is not read back: the read the save below sets off
+    // (Home's, on PUSH_REVIEWS) goes past main's cache and the server's
+    // (rank-history.js), and the saves after it read that one.
+    if (lm.matchId && !job.rankRead) {
+      job.rankRead = true;
+      rankHistory.published();
     }
     // Only repainted if nothing newer has been shown since. The retry can
     // land minutes later, by which time the next match may have its own
@@ -973,18 +1002,22 @@ function linkRiotRecord(job) {
     let lm = null;
     try { lm = await find(); } catch {}
     if (lm) { withTracker(lm); return; }
-    // Riot publishes a few minutes after the match. A match stopped halfway
-    // may still be being played, so its review keeps trying for longer
-    // (match-link.js says how long, and the AI log holds its frames longer).
+    // Riot publishes a few minutes after the match. A match stopped halfway,
+    // or one the watch ended on a score only swiftplay ends on, may still be
+    // being played, so its review keeps trying for longer (match-link.js
+    // linkRetries says how long, and the AI log holds its frames longer).
     const retry = (delays) => {
       if (job.cancelled) return;
       if (!delays.length) {
         // Nothing linked. Said in the review, rather than leaving it promising
         // a grade that is not coming.
         if ((store.get('riotId') || '').includes('#')) {
-          // Refused because another review holds it is not "not found".
+          // Refused because another review holds it is not "not found", and
+          // nor is a match the watch may have ended early (mayGoOn): Riot
+          // publishes a match once it is over, and a later launch's late link
+          // checks it again (backfill.js late()).
           const taken = /already linked/.test(String(lastTry.why || ''));
-          job.linkMissing = taken ? 'taken' : true;
+          job.linkMissing = taken ? 'taken' : mayGoOn(mctx.score) ? 'later' : true;
           repaintReview(job, buildValorantReview(snap, null,
             { history: job.history, linkMissing: job.linkMissing }).built);
         }
@@ -998,9 +1031,9 @@ function linkRiotRecord(job) {
         try { found = await find(); } catch {}
         if (found) withTracker(found);
         else retry(delays.slice(1));
-      }, delays[0]);
+      }, delays[0] * LINK_DELAY_SCALE);
     };
-    retry(snap.endedBy === 'stop' || snap.endedBy === 'next-match' ? LINK_RETRY_LONG_MS : LINK_RETRY_MS);
+    retry(linkRetries(snap.endedBy, mctx.score));
   })();
 }
 
@@ -1291,7 +1324,7 @@ const controller = {
     // The match just played should show in stats right away, not after a cache
     // window. The grade is written by the post-match review, per match.
     matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
-    rankHistCache = { at: 0, riotId: '', data: null };
+    rankHistory.clear();
     // The session's notices end with it ("Recording...", a server that was
     // down). A licence notice stays, it is still true. Cleared before the engine
     // stops, because stopping can leave a notice of its own about the review.
@@ -1753,26 +1786,14 @@ const controller = {
   /** The assembled extended-stats dashboard: category trends from the local
    *  performance log, rank/win-rate from the tracker profile, and the recent
    *  match list (server-cached 15 min, client-cached alongside). */
-  /** Competitive RR journey for the rank drop-down graph, cached 5 minutes. */
-  async getRankHistory(force) {
-    const riotId = (store.get('riotId') || '').trim();
-    if (!riotId.includes('#')) return { error: 'no-riot-id' };
-    if (!force && rankHistCache.data && rankHistCache.riotId === riotId && Date.now() - rankHistCache.at < 5 * 60 * 1000) {
-      return rankHistCache.data;
-    }
-    try {
-      // Forced (Stats' Refresh), the server's own cache is asked to step aside
-      // too, at the manual rate it allows /matches.
-      const { ok, data } = await api.get('/api/coach/rank-history?username=' + encodeURIComponent(riotId)
-        + (force ? '&refresh=1' : ''), store.get('licenseKey'), 15000);
-      if (ok && data && !data.error) {
-        rankHistCache = { at: Date.now(), riotId, data };
-        return data;
-      }
-      return (rankHistCache.riotId === riotId && rankHistCache.data) || data || { error: 'unavailable' };
-    } catch {
-      return (rankHistCache.riotId === riotId && rankHistCache.data) || { error: 'unavailable' };
-    }
+  /**
+   * Competitive RR journey for the rank drop-down graph and Home, cached 5
+   * minutes (services/rank-history.js). Forced (Stats' Refresh), or after a
+   * review linked, the server's own cache is asked to step aside too, at the
+   * manual rate it allows /matches.
+   */
+  getRankHistory(force) {
+    return rankHistory.read(store.get('riotId'), force);
   },
 
   async getStatsDashboard(mode, force) {
@@ -2025,7 +2046,7 @@ const controller = {
       matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
       statsCache = { at: 0, riotId: '', data: null, lastError: null };
       unratedStatsCache = { at: 0, riotId: '', data: null };
-      rankHistCache = { at: 0, riotId: '', data: null };
+      rankHistory.clear();
       console.log('[stats] riot id changed, tracker caches cleared');
       // A grading run for another account stops by itself: it checks the
       // Riot ID in Settings before listing and before every save, and gives
@@ -2038,8 +2059,8 @@ const controller = {
     // live session, every tracker cache, and the meaning of every open window.
     //
     // Order matters here. stop() archives and grades the session AND clears
-    // matchesClient and rankHistCache itself, so it has to run BEFORE the purge
-    // below, or the purge is immediately undone by a stop that follows it.
+    // matchesClient and the rank history itself, so it has to run BEFORE the
+    // purge below, or the purge is immediately undone by a stop that follows it.
     const game = gameRegistry.get(store.get('game')).id;
     if (game !== lastGame) {
       const from = lastGame;
@@ -2059,7 +2080,7 @@ const controller = {
       matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
       statsCache = { at: 0, riotId: '', data: null, lastError: null };
       unratedStatsCache = { at: 0, riotId: '', data: null };
-      rankHistCache = { at: 0, riotId: '', data: null };
+      rankHistory.clear();
 
       // The Learn surface is League only. The panel button hides on a switch
       // away, but an ALREADY OPEN window just sat there, which is the gate
@@ -2110,10 +2131,41 @@ function forgetRiotId(riotId) {
   } catch {}
 })();
 
+/*
+ * CONNECTED BEFORE riotConnected WAS KEPT (8.2.1, once). Up to 8.0.2 a
+ * Connect kept the profile it loaded and nothing else, so an install from
+ * then carries its connection as a profile saved for the Riot ID in Settings.
+ * The late link trusts riotConnected alone (connectedRiotId()), so that
+ * profile is taken for it here, at load, before this launch's own refresh can
+ * write one, and on the first launch that reads it only: after that, a
+ * profile is one a launch's refresh saved for whatever ID was typed, and
+ * proves nothing.
+ */
+(function keepOldConnection() {
+  try {
+    if (store.get('riotConnectedKept')) return;
+    store.set('riotConnectedKept', true);
+    // Only an install that never ran 8.0.3, the version that brought Connect:
+    // before it a typed Riot ID WAS the connection, and after it one typed and
+    // never connected is not. rivalsTitlesRepaired is written at the first
+    // launch of 8.0.3 or later, and this runs at module load, before this
+    // launch's surfaces could write it.
+    if (store.get('rivalsTitlesRepaired')) return;
+    const id = (store.get('riotId') || '').trim();
+    const saved = store.get('playerStats');
+    if (id.includes('#') && !store.get('riotConnected') && saved
+        && String(saved._riotId || '').trim().toLowerCase() === id.toLowerCase()) {
+      store.set('riotConnected', id);
+      console.log('[stats] the Riot ID connected before 8.0.3 is kept as connected');
+    }
+  } catch {}
+})();
+
 // Unrated/swiftplay aggregates live in their own cache; the competitive cache
 // below stays the persisted profile the coach and chat run on.
 let unratedStatsCache = { at: 0, riotId: '', data: null };
-let rankHistCache = { at: 0, riotId: '', data: null };
+// The rank history for Stats and Home, and a link making it stale (rank-history.js).
+const rankHistory = new RankHistory({ get: (p, timeoutMs) => api.get(p, store.get('licenseKey'), timeoutMs) });
 
 async function fetchUnratedStats(force) {
   const riotId = (store.get('riotId') || '').trim();
@@ -2198,19 +2250,41 @@ async function fetchLastMatch() {
  * Map and agent are only checked when WE know them; an unknown on our side is
  * not evidence against the match. But whatever we do know must not contradict.
  */
-/** The coached match, or null when it cannot be confirmed as ours. */
+/**
+ * The coached match, or null when it cannot be confirmed as ours.
+ *
+ * ENDED EARLY BY THE WATCH (8.2.1). A match the watch ended on a score it
+ * could not continue from, which Riot's record has going on, is refused by
+ * every check above for its score. When none of the matches verifies, the
+ * ones that pass every check but that one have their round records asked
+ * for, and one whose record stood at the screen's last score after that many
+ * rounds is the match (match-link.js linkEarly, endedEarly). Its record is
+ * handed back in `out.riot`, so the link lays it over the review without a
+ * second request, and a record that refused is remembered in `out.refused`
+ * for the link's later tries.
+ */
 async function fetchCoachedMatch(startedAt, endedAt, mctx, out) {
   const lm = await fetchLastMatch();
   if (!lm) return null;
   // The newest match and the few before it, each verified (pickCoachedMatch).
   const { match: m, why, tried } = pickCoachedMatch(lm, startedAt, endedAt, mctx);
   if (out) out.why = why;
-  if (!m) {
-    console.log(`[match-link] not linking any of the last ${tried} matches to this session: ${why}`);
-    return null;
+  if (m) {
+    console.log(`[match-link] linked: ${m.map} ${m.agent} ${m.result} ${m.score} (${m.kills}/${m.deaths}/${m.assists}, ACS ${m.acs})`);
+    return m;
   }
-  console.log(`[match-link] linked: ${m.map} ${m.agent} ${m.result} ${m.score} (${m.kills}/${m.deaths}/${m.assists}, ACS ${m.acs})`);
-  return m;
+  const refused = out ? (out.refused = out.refused || new Set()) : new Set();
+  const early = await linkEarly(lm, startedAt, endedAt, mctx, riotRoundsFor, refused);
+  if (early) {
+    const e = early.match;
+    const s = (mctx && mctx.score) || {};
+    if (out) { out.why = null; out.riot = { matchId: e.matchId, record: early.riot }; }
+    console.log(`[match-link] linked a match the watch ended early at ${s.team}-${s.enemy}: `
+      + `${e.map} ${e.agent} ${e.result} ${e.score} (${e.kills}/${e.deaths}/${e.assists}, ACS ${e.acs})`);
+    return e;
+  }
+  console.log(`[match-link] not linking any of the last ${tried} matches to this session: ${why}`);
+  return null;
 }
 
 // ── Session performance log (extended stats dashboard) ──────────────────────
@@ -2824,8 +2898,10 @@ function revalidateNow() {
 // the app, so we can return to the activation window.
 function teardownSession() {
   try { if (engine) { engine.stop(); engine = null; } } catch (e) {}
-  // Logged out: no grading carries on under a licence that is gone.
+  // Logged out: no grading carries on under a licence that is gone, and no
+  // late link starts after it.
   try { backfill.cancel(); } catch (e) {}
+  if (lateLinkTimer) { clearTimeout(lateLinkTimer); lateLinkTimer = null; }
   try { hotkeys.unregister(); } catch (e) {}
   try { tray.destroy(); } catch (e) {}
   try { capture.disposeWorker(); } catch (e) {}
@@ -3027,9 +3103,59 @@ function createAppSurfaces(opts) {
   if ((store.get('riotId') || '').trim()) {
     fetchTrackerStats(true).catch(() => {});
   }
+  // THE LATE LINK (8.2.1): the recent recordings Riot's record never reached
+  // are checked against it by themselves, a little after launch, out of the
+  // launch's way. backfill.js late() and atLaunch() say when it runs.
+  if (!lateLinkTimer) lateLinkTimer = setTimeout(lateLinkAtLaunch, LATE_LINK_DELAY_MS);
 
   maybeShowWeeklyReport();
   console.log('[main] app surfaces created');
+}
+
+// A boot check sets OCCLARA_DEV_LATE_LINK_MS so it does not sit out the wait,
+// nor the minute between tries while a match is being played.
+const LATE_LINK_DEV_MS = Number(process.env.OCCLARA_DEV_LATE_LINK_MS) || 0;
+const LATE_LINK_DELAY_MS = LATE_LINK_DEV_MS || 20000;
+let lateLinkTimer = null;
+
+/**
+ * The Riot ID in Settings when Riot has shown it is the player's: a Connect,
+ * or a run that listed its matches, proved it (riotConnected). One typed and
+ * never connected is not, so a typo never sends a request by itself, and one
+ * Riot says does not exist loses it (forgetRiotId).
+ *
+ * A PROFILE IS NO PROOF. Every launch refreshes the profile of whatever ID
+ * Settings holds (createAppSurfaces), a duo partner's typed in to look at
+ * their rank included, so a ranked one read as connected twenty seconds into
+ * the next launch, and the late link filled the player's recordings with that
+ * player's agent and numbers. An install from before riotConnected kept its
+ * connection as the profile alone, and that profile counted once, read at
+ * load before any refresh could write one (keepOldConnection).
+ */
+function connectedRiotId() {
+  const id = (store.get('riotId') || '').trim();
+  if (!id.includes('#')) return null;
+  return String(store.get('riotConnected') || '').trim().toLowerCase() === id.toLowerCase() ? id : null;
+}
+
+/**
+ * The late link, if it is due: once in six hours, and never mid match, where
+ * it tries again each minute until the match is over (backfill.js late(),
+ * atLaunch()). `again` is that next try.
+ */
+function lateLinkAtLaunch(again) {
+  lateLinkTimer = null;
+  try {
+    const run = typeof again === 'function' ? again() : backfill.atLaunch(connectedRiotId, armLateLink);
+    if (run) console.log("[backfill] checking the recent recordings against Riot's record");
+  } catch (e) {
+    console.warn('[backfill] the late link did not start:', e.message);
+  }
+}
+
+/** The late link's next try, kept in lateLinkTimer so a logout clears it (teardownSession). */
+function armLateLink(again, ms) {
+  lateLinkTimer = setTimeout(() => lateLinkAtLaunch(again), LATE_LINK_DEV_MS || ms);
 }
 
 /**
