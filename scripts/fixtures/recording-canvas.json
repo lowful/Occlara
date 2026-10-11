@@ -1,0 +1,109 @@
+{
+  "what": "A recording of a generated 640x360 canvas, never a screen, written by Chromium's own MediaRecorder for test:webm and check:webmplay.",
+  "made": "node scripts/fixtures/make-recording-fixture.js --seconds 14",
+  "electron": "41.3.0",
+  "chromium": "146.0.7680.188",
+  "asked": {
+    "mimeType": "video/webm;codecs=h264",
+    "width": 640,
+    "height": 360,
+    "fps": 30,
+    "videoBitsPerSecond": 200000,
+    "videoKeyFrameIntervalDuration": 1000,
+    "timesliceMs": 1000,
+    "seconds": 14
+  },
+  "recorder": {
+    "mimeTypeAtStart": "video/webm;codecs=h264",
+    "mimeTypeAfterStop": "video/x-matroska;codecs=avc1"
+  },
+  "read": {
+    "docType": "matroska",
+    "codec": "V_MPEG4/ISO/AVC",
+    "clusters": 14,
+    "frames": 407,
+    "lastFrameMs": 13996,
+    "drawn": 425
+  },
+  "code": {
+    "means": "milliseconds since the recorder started, in binary, most significant bit first, white for a 1",
+    "x": 0,
+    "bits": 16,
+    "size": 40,
+    "y": 300
+  },
+  "bytes": 216409,
+  "sha256": "625dc6cd2ee95e25863230ab165312aa1cfdc7184082c545c8a06a55d3afcf2f",
+  "chunks": [
+    {
+      "size": 15442,
+      "atMs": 1028,
+      "timecode": 0
+    },
+    {
+      "size": 20227,
+      "atMs": 2055,
+      "timecode": 1027
+    },
+    {
+      "size": 14355,
+      "atMs": 3077,
+      "timecode": 2050
+    },
+    {
+      "size": 15818,
+      "atMs": 4087,
+      "timecode": 3060
+    },
+    {
+      "size": 15140,
+      "atMs": 5090,
+      "timecode": 4062
+    },
+    {
+      "size": 12885,
+      "atMs": 6091,
+      "timecode": 5064
+    },
+    {
+      "size": 13088,
+      "atMs": 7094,
+      "timecode": 6067
+    },
+    {
+      "size": 17252,
+      "atMs": 8095,
+      "timecode": 7067
+    },
+    {
+      "size": 18405,
+      "atMs": 9155,
+      "timecode": 8127
+    },
+    {
+      "size": 17206,
+      "atMs": 10183,
+      "timecode": 9155
+    },
+    {
+      "size": 15253,
+      "atMs": 11193,
+      "timecode": 10166
+    },
+    {
+      "size": 15388,
+      "atMs": 12218,
+      "timecode": 11190
+    },
+    {
+      "size": 13755,
+      "atMs": 13241,
+      "timecode": 12214
+    },
+    {
+      "size": 12195,
+      "atMs": 14001,
+      "timecode": 12973
+    }
+  ]
+}

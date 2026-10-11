@@ -57,6 +57,12 @@ contextBridge.exposeInMainWorld('occlara', {
   getBackfill:  () => ipcRenderer.invoke(C.BACKFILL_STATUS),
   onBackfill:   (cb) => subscribe(C.PUSH_BACKFILL, cb),
   openMatches:  () => ipcRenderer.send(C.OPEN_HISTORY),
+  // The clips kept beside the reviews (8.3): what they take against the cap,
+  // Clear clips, and a review saved meanwhile (its clips just kept, the cap
+  // just applied), after which the line is read again.
+  getClipsUsage: () => ipcRenderer.invoke(C.CLIPS_USAGE),
+  clearClips:    () => ipcRenderer.invoke(C.CLIPS_CLEAR),
+  onReviews:     (cb) => subscribe(C.PUSH_REVIEWS, cb),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),
   onStatus: (cb) => subscribe(C.PUSH_STATUS, cb),
 });

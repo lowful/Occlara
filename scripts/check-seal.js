@@ -138,8 +138,12 @@ Module._load = function patched(request, parent, isMain) {
 const ud = path.join(os.tmpdir(), 'occlara-check-seal');
 fs.rmSync(ud, { recursive: true, force: true });
 fs.mkdirSync(ud, { recursive: true });
+// Recording Off: the sessions below are Valorant sessions (stand in readers,
+// the real recorder), and with recording on only the hardware gate refusing
+// (this check runs with no GPU acceleration) stood between them and the
+// desktop. A check never records it.
 fs.writeFileSync(path.join(ud, 'occlara-config.json'), JSON.stringify({
-  game: 'valorant', onboardingCompleted: true, licenseKey: '', language: 'en',
+  game: 'valorant', onboardingCompleted: true, licenseKey: '', language: 'en', recordingMode: 'off',
 }, null, 2));
 process.env.OCCLARA_DEV_USERDATA = ud;
 

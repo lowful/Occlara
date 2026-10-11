@@ -123,7 +123,10 @@ async function openShell(cfg, state, opts) {
     sfx.play = (kind, volume) => { p.sfx.push(kind); return real(kind, volume); };
   }
   await settle();
-  p.line = () => p.$('line').textContent;
+  // The notice line in the top strip (8.3): its words while it shows, null
+  // while it is empty, which is whenever there is nothing to say. It is never
+  // hidden, so its live region is there from the start.
+  p.notice = () => (p.$('notice').hidden || !p.$('notice').textContent ? null : p.$('notice').textContent);
   p.label = () => p.$('toggle').querySelector('.t-label').textContent;
   return p;
 }
@@ -200,15 +203,16 @@ async function openShell(cfg, state, opts) {
   await section('the record controls follow the language setting:', async () => {
     const de = await openShell({ language: 'de' });
     ok(de.label() === I18N.t('de', 'panel.start') && de.label() === 'Starten', 'Start reads Starten in German', `read "${de.label()}"`);
-    ok(de.line() === I18N.t('de', 'panel.noTips'), 'and so is the hint line');
+    ok(de.notice() === null, 'with nothing to say, the notice line says nothing in any language', `read "${de.notice()}"`);
     ok(de.$('nav-settings').textContent.includes(I18N.t('de', 'common.settings')), 'and the labels the markup marks for translation');
     de.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
     ok(de.label() === 'Stoppen', 'recording, the button is German', `read "${de.label()}"`);
-    // Paused, the line is what says so since the status word went (8.2.1),
-    // and it says it in German, as "Pausiert" did.
+    // Paused, the notice line is what says so (8.3; the card's line from
+    // 8.2.1, the status word before it), and it says it in German, as
+    // "Pausiert" did.
     de.bridge.emit(C.PUSH_STATUS, { status: 'paused' });
-    ok(de.line() === I18N.t('de', 'panel.pausedLine') && de.line() === 'Pausiert. Bis du fortsetzt, wird nichts gelesen.',
-      'paused, the line says so in German', `read "${de.line()}"`);
+    ok(de.notice() === I18N.t('de', 'panel.pausedLine') && de.notice() === 'Pausiert. Bis du fortsetzt, wird nichts gelesen.',
+      'paused, the notice line says so in German', `read "${de.notice()}"`);
     const uiLangs = I18N.LANGUAGES.filter((l) => I18N.hasUi(l.code) && l.code !== 'en');
     const untranslated = uiLangs.filter((l) => I18N.t(l.code, 'panel.pausedLine') === I18N.t('en', 'panel.pausedLine')).map((l) => l.code);
     ok(uiLangs.length >= 4 && !untranslated.length && I18N.t('en', 'panel.pausedLine') === 'Paused. Nothing is read until you resume.',
@@ -221,8 +225,8 @@ async function openShell(cfg, state, opts) {
     ok(before.label() === 'Start', 'without getConfig on the bridge it stays English, which is what players got');
 
     const en = await openShell({ language: 'en' });
-    ok(en.label() === 'Start' && en.line() === I18N.t('en', 'panel.noTips'),
-      'English keeps the panel\'s own words, Start and its hint', `read "${en.label()}" and "${en.line()}"`);
+    ok(en.label() === 'Start' && en.notice() === null,
+      'English keeps the panel\'s own word, Start, with nothing said beside it', `read "${en.label()}" and "${en.notice()}"`);
     let channel = null;
     if (typeof en.bridge.api.getConfig === 'function') {
       await en.bridge.api.getConfig();
@@ -231,73 +235,136 @@ async function openShell(cfg, state, opts) {
     ok(channel === C.CONFIG_GET, 'getConfig goes over CONFIG_GET, the channel Settings reads');
   });
 
-  await section('with the licence ended, the status line says why:', async () => {
+  await section('with the licence ended, the notice line says why:', async () => {
     const p = await openShell({ language: 'en' });
     const notice = 'Your license has expired. Renew at occlara.app.';
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: false, notice: { text: notice, at: 1 } });
-    ok(p.line() === notice && p.$('line').classList.contains('system'),
-      'the notice main pushed is on the line, marked as a system notice', `read "${p.line()}"`);
+    ok(p.notice() === notice && p.$('notice').classList.contains('system') && p.$('notice').title === notice,
+      'the notice main pushed is on the notice line, marked as a system notice, whole in its title', `read "${p.notice()}"`);
     ok(p.$('toggle').disabled && p.label() === 'Subscription ended' && p.$('toggle').classList.contains('ended'),
       'beside a locked button that says so itself', `read "${p.label()}"`);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: false, notice: null });
-    ok(/Renew in Settings/.test(p.line()) && !/Press Start/.test(p.line()),
-      'with no notice it still says to renew, never Press Start', `read "${p.line()}"`);
+    ok(/Renew in Settings/.test(p.notice() || '') && !/Press Start/.test(p.notice() || ''),
+      'with no notice it still says to renew, never Press Start', `read "${p.notice()}"`);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: true, notice: null });
-    ok(p.line() === I18N.t('en', 'panel.noTips') && !p.$('line').classList.contains('system') && !p.$('toggle').disabled
+    ok(p.notice() === null && !p.$('notice').hasAttribute('title') && !p.$('toggle').disabled
       && p.label() === 'Start' && !p.$('toggle').classList.contains('ended'),
-      'renewed, the button is Start and the line is the Press Start hint again');
+      'renewed, the button is Start and the notice line is empty again, with no Press Start hint in its place', `read "${p.notice()}"`);
   });
 
-  // THE RECORD CARD HAS NO STATUS WORD (8.2.1). "Ready", "Recording" and
-  // "Paused" sat over the buttons with a dot; the player asked for them gone
-  // and the card balanced. What state it is in is still on the card: the
-  // button's word, the pause button's icon, the live colour and the line.
-  await section('the record card: its buttons and its line, and no status word over them:', async () => {
+  // THE RECORD CARD IS ITS TWO BUTTONS (8.3). "Ready", "Recording" and
+  // "Paused" over them went in 8.2.1, and the line under them in 8.3, both at
+  // the player's ask ("remove any text under it just leave it with the two
+  // buttons"). What state it is in is the button's word, the pause button's
+  // icon and the live colour; what the line said when there was something to
+  // say is the notice line in the window's top strip, hidden otherwise.
+  await section('the record card is its two buttons, and the top strip\'s notice line says only what they cannot:', async () => {
     const html = fs.readFileSync(path.join(RENDERER, 'shell', 'index.html'), 'utf8');
+    const js = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.js'), 'utf8');
     const p = await openShell({ language: 'en' });
     const rec = p.$('rec');
+    const note = p.$('notice');
+    const top = p.document.querySelector('.top');
     ok(!p.$('status-text') && !p.$('dot') && !rec.querySelector('.rec-state') && !/\bReady\b/.test(rec.textContent)
       && !/id="status-text"|id="dot"|rec-state/.test(html), 'no status row: no dot, no Ready, in the markup or on the card');
-    ok(rec.children.map((c) => c.id || c.className).join() === 'agent-bubble,rec-controls,line',
-      'the card holds the agent check, the two buttons and the line, in that order', rec.children.map((c) => c.id || c.className).join());
+    ok(rec.children.map((c) => c.id || c.className).join() === 'agent-bubble,rec-controls' && !p.$('line') && !rec.querySelector('p')
+      && rec.querySelector('.rec-controls').children.map((c) => c.id).join() === 'toggle,pause',
+    'the card holds the agent check and the two buttons, and no line of text', rec.children.map((c) => c.id || c.className).join());
+    ok(note && top.children.map((c) => c.id || c.className).join() === 'notice,win-controls no-drag' && top.classList.contains('drag')
+      && note.classList.contains('no-drag') && note.getAttribute('aria-live') === 'polite',
+    'the notice line is in the top strip, left of the window\'s buttons, a polite live region, out of the drag region the strip still is',
+    top.children.map((c) => c.id || c.className).join());
     const pauseIcon = () => (p.$('pause').querySelector('path') || { getAttribute: () => '' }).getAttribute('d');
-    ok(p.label() === 'Start' && p.$('pause').disabled && !rec.classList.contains('live') && p.line() === I18N.t('en', 'panel.noTips'),
-      'ready: Start, the pause button off, the card at rest, the hint on the line');
+    ok(p.label() === 'Start' && p.$('pause').disabled && !rec.classList.contains('live') && !note.hidden && !note.textContent && !note.hasAttribute('title'),
+      'ready: Start, the pause button off, the card at rest, and the notice line empty with nothing to say (never hidden, so its live region is there when a notice comes): no Press Start', `read "${note.textContent}"`);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching', cadence: 1000, sounds: false });
-    ok(p.label() === 'Stop' && !p.$('pause').disabled && rec.classList.contains('live') && /^Reading your game every 1s\./.test(p.line())
-      && pauseIcon() === 'M9 5v14', 'recording: Stop, the pause icon, the live card, and the line says it is reading', `read "${p.line()}"`);
+    ok(p.label() === 'Stop' && !p.$('pause').disabled && rec.classList.contains('live') && pauseIcon() === 'M9 5v14' && p.notice() === null,
+      'recording: Stop, the pause icon and the live card say it, and the notice line says nothing, no "Reading your game"', `read "${p.notice()}"`);
+    ok(p.$('sealed-capture').textContent === 'Reading your game every 1s, as fast as the connection keeps up',
+      'while the Recording screen\'s capture row still says how often the game is read', p.$('sealed-capture').textContent);
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching', cadence: 2000, captureSpeed: 2000, sounds: false });
+    ok(p.$('sealed-capture').textContent === 'Reading your game every 2s, pinned in Settings' && p.notice() === null,
+      'and follows the cadence as it moves, with the notice line still silent', p.$('sealed-capture').textContent);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, isPaused: true, status: 'paused', cadence: 1000, sounds: false });
-    ok(p.label() === 'Stop' && !rec.classList.contains('live') && p.line() === 'Paused. Nothing is read until you resume.'
-      && /^M8 5\.2/.test(pauseIcon()), 'paused: the play icon, the card at rest, and the line, which said "Reading" before, says paused',
-    `read "${p.line()}", icon ${pauseIcon()}`);
+    ok(p.label() === 'Stop' && !rec.classList.contains('live') && p.notice() === 'Paused. Nothing is read until you resume.'
+      && !note.classList.contains('system') && note.title === p.notice() && /^M8 5\.2/.test(pauseIcon()),
+    'paused: the play icon, the card at rest, and the notice line says paused, dim, whole in its title', `read "${p.notice()}", icon ${pauseIcon()}`);
     ok(/^M8 5\.2/.test('M8 5.2v13.6') && !/^M8 5\.2/.test('M9 5v14'), 'the play icon detector matches the play path and not the pause one');
     // A Rivals or League session puts "Recording..." up as a notice for its
-    // whole length (kind 'recording'). Paused, it said recording over a card
-    // that was not, with nothing on it saying paused: the paused line takes
-    // its place, while a notice of something wrong still takes the line.
+    // whole length (kind 'recording'): Stop and the live card already say
+    // it, so it is never shown, and paused the paused line is.
+    const PAUSED = I18N.t('en', 'panel.pausedLine');
     const REC = { text: 'Recording. Play your match: the scoreboard at the end is reviewed and graded automatically.', at: 1, kind: 'recording' };
     const DOWN = { text: 'Cannot reach the coach server right now. Reading resumes when it is back.', at: 2, kind: 'read-failed' };
-    const live = (paused, notice) => ({ ...BASE, gameId: 'rivals', isCoaching: true, isPaused: paused, status: paused ? 'paused' : 'coaching', sounds: false, notice });
+    const live = (paused, notice, game) => ({ ...BASE, gameId: game || 'rivals', isCoaching: true, isPaused: paused,
+      status: paused ? 'paused' : 'coaching', sounds: false, notice });
     const rv = await openShell({ language: 'en' }, { gameId: 'rivals' });
     rv.bridge.emit(C.PUSH_STATE, live(false, REC));
-    ok(rv.line() === REC.text && rv.$('line').classList.contains('system'), 'a Rivals session says it is recording, as its notice', `read "${rv.line()}"`);
+    ok(rv.notice() === null, 'the "Recording..." a Rivals session keeps up is not shown: the button and the live card say it', `read "${rv.notice()}"`);
     rv.bridge.emit(C.PUSH_STATE, live(true, REC));
-    ok(rv.line() === I18N.t('en', 'panel.pausedLine') && !rv.$('line').classList.contains('system'),
-      'paused, the line says paused rather than recording, and is no notice', `read "${rv.line()}"`);
+    ok(rv.notice() === PAUSED && !rv.$('notice').classList.contains('system'),
+      'paused, the notice line says paused, and is no notice', `read "${rv.notice()}"`);
     rv.bridge.emit(C.PUSH_STATE, live(false, REC));
-    ok(rv.line() === REC.text, 'resumed, the recording notice is back');
+    ok(rv.notice() === null, 'resumed, it says nothing again', `read "${rv.notice()}"`);
     // Paused, nothing is read, so a notice about the reading is out of date:
     // the paused line says what is true. A notice that is not about the
     // reading (the licence ending) still takes the line.
     rv.bridge.emit(C.PUSH_STATE, live(false, DOWN));
-    ok(rv.line() === DOWN.text && rv.$('line').classList.contains('system'), 'recording, a notice of something wrong takes the line');
+    ok(rv.notice() === DOWN.text && rv.$('notice').classList.contains('system'), 'recording, a notice of something wrong is shown, as a notice');
     rv.bridge.emit(C.PUSH_STATE, live(true, DOWN));
-    ok(rv.line() === I18N.t('en', 'panel.pausedLine'), 'paused, a read that failed before the pause no longer holds the line', `read "${rv.line()}"`);
+    ok(rv.notice() === PAUSED, 'paused, a read that failed before the pause no longer holds the line', `read "${rv.notice()}"`);
     const LICENCE = { text: 'Your subscription has ended. Renew in Settings to start coaching.', at: 3 };
     rv.bridge.emit(C.PUSH_STATE, live(true, LICENCE));
-    ok(rv.line() === LICENCE.text && rv.$('line').classList.contains('system'), 'while a notice that is not about the reading still does, paused or not');
+    ok(rv.notice() === LICENCE.text && rv.$('notice').classList.contains('system'), 'while a notice that is not about the reading still is, paused or not');
+    // Capture blocked: shown whole in its title however long, and paused,
+    // the paused line over it.
+    const BLOCKED = { text: 'Windows blocked screen capture. Add Occlara to your antivirus exclusions (Windows Security, Virus and threat protection, Exclusions), then start again.', at: 4, kind: 'capture' };
+    const va = await openShell({ language: 'en' });
+    va.bridge.emit(C.PUSH_STATE, live(false, BLOCKED, 'valorant'));
+    ok(va.notice() === BLOCKED.text && va.$('notice').title === BLOCKED.text && va.$('notice').classList.contains('system'),
+      'capture blocked is shown, as a notice, the whole of it in its title', `read "${va.notice()}"`);
+    // The text is a hole in the strip's drag region, so its title can show,
+    // and no part of the strip's caption: a double click on it maximises
+    // nothing, while one on the strip around it still does.
+    const maximised = () => va.bridge.sent.filter(([ch, a]) => ch === C.SHELL_WINDOW && a === 'maximize').length;
+    va.fire(va.$('notice'), 'dblclick');
+    ok(maximised() === 0, 'a double click on the notice line maximises nothing');
+    va.fire(va.document.querySelector('.top'), 'dblclick');
+    ok(maximised() === 1, 'one on the strip around it still maximises the window');
+    va.bridge.emit(C.PUSH_STATE, live(true, BLOCKED, 'valorant'));
+    ok(va.notice() === PAUSED && va.$('notice').title === PAUSED, 'paused, the paused line is shown over a capture notice', `read "${va.notice()}"`);
+    // Recording stopped for the session, and between matches a review saved
+    // in Matches or checked against Riot's record: all said.
+    const BUSY = { text: 'Recording stopped for this session: your PC was busy. The coach still reads your screen every second.', at: 5, kind: 'recorder' };
+    va.bridge.emit(C.PUSH_STATE, live(false, BUSY, 'valorant'));
+    ok(va.notice() === BUSY.text, 'recording stopped for the session is shown', `read "${va.notice()}"`);
+    // Its last words are that the coach still reads the screen every second,
+    // untrue while paused: the paused line takes its place, and the resume
+    // puts it back, true again.
+    va.bridge.emit(C.PUSH_STATE, live(true, BUSY, 'valorant'));
+    ok(va.notice() === PAUSED, 'paused, the paused line over recording stopped for the session, which says the screen is still read', `read "${va.notice()}"`);
+    va.bridge.emit(C.PUSH_STATE, live(false, BUSY, 'valorant'));
+    ok(va.notice() === BUSY.text, 'and resumed, recording stopped for the session is said again', `read "${va.notice()}"`);
+    // Mid match the server down puts its notice up while Auto steps the reads
+    // down: the Recording screen's capture row follows the cadence with the
+    // notice up too. The card's line returned before the row whenever a notice
+    // took it, so the row kept saying every 1s.
+    va.bridge.emit(C.PUSH_STATE, { ...live(false, DOWN, 'valorant'), cadence: 3000 });
+    ok(va.notice() === DOWN.text && va.$('sealed-capture').textContent === 'Reading your game every 3s, as fast as the connection keeps up',
+      'with a notice up, the Recording screen\'s capture row still follows the cadence', va.$('sealed-capture').textContent);
+    const CHECKED = { text: "Checked 1 recent match against Riot's record. It is in Matches.", at: 6, kind: 'review' };
+    va.bridge.emit(C.PUSH_STATE, { ...BASE, notice: CHECKED });
+    ok(va.notice() === CHECKED.text && va.$('notice').classList.contains('system'), 'a review notice between matches is shown', `read "${va.notice()}"`);
+    // Written once: the state comes on every config write and status tick,
+    // and a live region given the same words again reads them out again.
+    const written = va.$('notice').firstChild;
+    va.bridge.emit(C.PUSH_STATE, { ...BASE, notice: { ...CHECKED } });
+    ok(va.$('notice').firstChild === written && va.notice() === CHECKED.text, 'the same notice pushed again is not written again');
+    va.bridge.emit(C.PUSH_STATE, { ...BASE, notice: null });
+    ok(va.notice() === null && !va.$('notice').textContent && !va.$('notice').hasAttribute('title') && !va.$('notice').classList.contains('system'),
+      'cleared, the line is hidden again, with no words or title left on it');
     // Balanced: Start fills the width beside the square pause button, both
-    // 48px tall, the line centred, one padding all round.
+    // 48px tall, one padding all round; and the notice line is one line.
     const css = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8');
     const rule = (sel) => {
       const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -308,9 +375,23 @@ async function openShell(cfg, state, opts) {
     ok(prop(rule('.toggle'), 'flex') === '1 1 auto' && prop(rule('.toggle'), 'height') === '48px'
       && prop(rule('.icon-btn.lg'), 'width') === '48px' && prop(rule('.icon-btn.lg'), 'height') === '48px'
       && prop(rule('.icon-btn.lg'), 'flex') === 'none', 'Start fills the width beside a 48px square pause button, the two the same height');
-    ok(prop(rule('.rec-line'), 'text-align') === 'center' && prop(rule('.rec'), 'padding') === 'var(--space-3)',
-      'the line is centred under them, with one padding on every side');
+    ok(prop(rule('.rec'), 'padding') === 'var(--space-3)' && !rule('.rec-line') && !/rec-line/.test(css + html + js),
+      'with one padding on every side of them, and the line\'s styles gone with it');
     ok(!rule('.rec-state') && !rule('#status-text.ended') && !/\.dot\b/.test(css), 'and the status row\'s styles went with it');
+    const tn = rule('.top-notice');
+    const widest = prop(tn, 'max-width');
+    ok(prop(tn, 'white-space') === 'nowrap' && prop(tn, 'overflow') === 'hidden' && prop(tn, 'text-overflow') === 'ellipsis'
+      && prop(tn, 'min-width') === '0' && prop(tn, 'flex') === '0 1 auto' && /^\d+%$/.test(widest) && parseInt(widest, 10) < 100,
+    'the notice line is one line, cut with an ellipsis rather than wrapped, and never the whole strip, so the strip still drags', tn);
+    ok([400, 500, 600, 700, 800].includes(Number(prop(tn, 'font-weight'))) && /^var\(--[\w-]+\)$/.test(prop(tn, 'color'))
+      && /^var\(--[\w-]+\)$/.test(prop(rule('.top-notice.system'), 'color')) && prop(rule('.top'), 'height') === '40px',
+    'in a Geist weight that ships and the theme\'s colours, in a strip still 40px tall');
+    // Read as code, comments out: they may say what went.
+    const code = (src) => src.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const OLD_LINES = /panel\.noTips|Press Start|Your review opens when the match ends|\(pinned\)/;
+    ok(OLD_LINES.test(code("tr('panel.noTips')")) && OLD_LINES.test(code("x + ' (pinned)'")) && !OLD_LINES.test(code('a(); // Press Start\n/* Press Start */')),
+      'the old line detector finds the old line in code and passes over a comment');
+    ok(!OLD_LINES.test(code(html) + code(js)), 'the Press Start and the Reading your game lines are gone from the shell');
   });
 
   await section('the start and stop sounds, on real transitions only:', async () => {
@@ -1692,6 +1773,398 @@ async function openShell(cfg, state, opts) {
     ok(connected.shown && /Gold 2/.test(connected.text), 'connected, it is, with its rank', JSON.stringify(connected));
   });
 
+  // RECORD MATCH VIDEO (8.3): On or Off, as the player asked for a setting
+  // that toggles recording, stored as the 'auto' and 'off' it shipped with.
+  // Turned off by itself it says so, with a way to try again, and main can
+  // turn it off while the page is open (a second busy session), which a
+  // state push paints. What On and Off do is said per game, true in each.
+  await section('Settings, record match video:', async () => {
+    const autoOff = { at: Date.UTC(2026, 9, 10), reason: 'busy', sessions: 2 };
+    const open = async (cfg) => {
+      const se = loadSurface('settings', {
+        handlers: {
+          [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', devGames: false, ...cfg }),
+          [C.CONFIG_SET]: () => ({ ok: true }),
+          [C.LICENSE_GET]: () => ({}), [C.STATE_GET]: () => ({}),
+          [C.APP_VERSION]: () => ({ current: '8.3.0', state: 'current' }),
+        },
+      });
+      await settle();
+      return se;
+    };
+    const active = (se, id) => { const b = se.document.querySelector(`#${id} button.active`); return b ? b.dataset.val : null; };
+    const lastSet = (se) => (se.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).pop() || [])[1] || null;
+    const plain = await open({ recordingMode: 'auto', recordingRes: '720' });
+    const sec = plain.$('recording').parentNode;
+    const buttons = plain.document.querySelectorAll('#recording button').map((b) => `${b.dataset.val}:${b.textContent}`);
+    ok(sec.querySelector('h3').textContent === 'Record match video' && same(buttons, ['auto:On', 'off:Off']),
+      'the section is Record match video, On and Off, On stored as the auto it shipped as', buttons.join(', '));
+    ok(!/\bAuto\b/.test(sec.textContent), 'and nothing in it names Auto any more', sec.textContent);
+    ok(active(plain, 'recording') === 'auto' && active(plain, 'recordingres') === '720' && plain.$('rec-note').hidden && plain.$('rec-retry').hidden,
+      'On and 720p, and nothing to say');
+    plain.$('recording').querySelector('button[data-val="off"]').click();
+    await settle();
+    ok(lastSet(plain) && lastSet(plain).recordingMode === 'off' && active(plain, 'recording') === 'off', 'Off is saved as off', JSON.stringify(lastSet(plain)));
+    plain.$('recording').querySelector('button[data-val="auto"]').click();
+    await settle();
+    ok(lastSet(plain) && lastSet(plain).recordingMode === 'auto' && active(plain, 'recording') === 'auto', 'and On as auto, the value it always had', JSON.stringify(lastSet(plain)));
+    plain.$('recordingres').querySelector('button[data-val="1080"]').click();
+    await settle();
+    ok(lastSet(plain) && lastSet(plain).recordingRes === '1080' && active(plain, 'recordingres') === '1080', '1080p is a choice', JSON.stringify(lastSet(plain)));
+    const off = await open({ recordingMode: 'off', recordingRes: '720', recordingAutoOff: autoOff });
+    const note = off.$('rec-note').textContent;
+    ok(active(off, 'recording') === 'off' && !off.$('rec-note').hidden
+      && note === 'Recording turned itself off: your PC was busy in two sessions this week. The coach still reads your screen.' && !DASHES.test(note),
+    'turned off by itself: Off is marked, and the note says why, and that the screen is still read', note);
+    ok(!off.$('rec-retry').hidden && off.$('rec-retry').textContent === 'Try again', 'with Try again under it');
+    off.$('rec-retry').click();
+    await settle();
+    ok(lastSet(off) && lastSet(off).recordingMode === 'auto' && active(off, 'recording') === 'auto' && off.$('rec-note').hidden && off.$('rec-retry').hidden,
+      'Try again sets it back On (main forgets the busy sessions), and the note goes', JSON.stringify(lastSet(off)));
+    const hand = await open({ recordingMode: 'off' });
+    ok(hand.$('rec-note').hidden && hand.$('rec-retry').hidden, 'Off chosen by hand: no note, nothing to try again');
+    hand.bridge.emit(C.PUSH_STATE, { recording: { mode: 'off', res: '720', autoOff, last: null } });
+    ok(!hand.$('rec-note').hidden && !hand.$('rec-retry').hidden && active(hand, 'recording') === 'off',
+      'a state push while the page is open (turned off by itself mid session) paints the note and Try again');
+    const noenc = await open({ recordingMode: 'auto', recordingLast: { outcome: 'no-hw-encoder', at: 1 } });
+    const why = noenc.$('rec-note').textContent;
+    ok(!noenc.$('rec-note').hidden && /no hardware video encoder/.test(why) && noenc.$('rec-retry').hidden && !DASHES.test(why),
+      'a PC with no hardware encoder is told so, and offered nothing to retry', why);
+
+    // WHAT ON AND OFF DO, per game. Valorant is recorded while its screen is
+    // read; League while its own record is, and Settings never says League's
+    // screen is read; Rivals is not recorded at all yet (its session never
+    // starts the recorder), and its status line is not shown, since "your
+    // last session" there would be another game's.
+    const hint = (se) => se.$('rec-hint').textContent;
+    const val = hint(plain);
+    ok(val === 'On records each match on this PC at about 30 frames a second while the coach reads your screen; if your PC cannot keep up while you play, '
+      + 'recording stops for that session and the coach keeps reading. Off records nothing, and the coach still reads your screen at the speed set above. '
+      + 'The video stays on this PC: once a review is built, a short clip of each moment it looked at is kept beside it and the rest is deleted.',
+    'Valorant: what On and Off do, and that the coach reads the screen either way', val);
+    const lol = await open({ game: 'lol', recordingMode: 'off', recordingAutoOff: autoOff });
+    const lolHint = hint(lol);
+    const lolNote = lol.$('rec-note').textContent;
+    const SCREEN_READ = /reads? (?:your |the )?screen|screen is read|read(?:s|ing)? your game/i;
+    ok(SCREEN_READ.test(val) && SCREEN_READ.test('the coach reads the screen') && !SCREEN_READ.test("the review is built from the game's own record"),
+      'the screen read detector finds the Valorant hint and passes over the League sentence');
+    ok(/^On records each game on this PC/.test(lolHint) && /Off records nothing/.test(lolHint) && /built from the game's own record/.test(lolHint)
+      && /up to six of your deaths/.test(lolHint) && !SCREEN_READ.test(lolHint) && !/screen/i.test(lolHint),
+    'League: what On and Off do, its review built from the game\'s own record either way, and no word of a screen', lolHint);
+    ok(!lol.$('rec-note').hidden && !SCREEN_READ.test(lolNote) && /Your review is still built from the game's own record\.$/.test(lolNote)
+      && !lol.$('rec-retry').hidden, 'and its note, turned off by itself, says the same', lolNote);
+    // Capture speed and Performance are about reading the screen: in League
+    // they say they do nothing there, and in the other games what they did.
+    const readHints = (se) => [se.$('capture-hint').textContent, se.$('perf-hint').textContent];
+    const valRead = readHints(plain);
+    const lolRead = readHints(lol);
+    ok(lolRead.every((t) => /^In League of Legends this does nothing: its review is built from the game's own record\./.test(t) && !/screen/i.test(t) && !DASHES.test(t))
+      && /It sets how often a Valorant match is read\.$/.test(lolRead[0]) && /It is for Valorant and Marvel Rivals\.$/.test(lolRead[1])
+      && /^How often Occlara reads your screen/.test(valRead[0]) && /^Screenshots are read at 720p/.test(valRead[1]),
+    'League: Capture speed and Performance say they do nothing there, never that its screen is read, and Capture speed that it is Valorant\'s; Valorant keeps what they do', lolRead.join(' | '));
+    const riv = await open({ game: 'rivals', recordingMode: 'auto', recordingLast: { outcome: 'busy', at: 1 } });
+    ok(/^Marvel Rivals matches are not recorded yet/.test(hint(riv)) && /Valorant and League of Legends/.test(hint(riv)),
+      'Rivals: its matches are not recorded yet, and On and Off are the other games\'', hint(riv));
+    ok(riv.$('rec-note').hidden && riv.$('rec-retry').hidden, 'with no status line: "your last session" there would be another game\'s');
+    riv.bridge.emit(C.PUSH_STATE, { gameId: 'rivals', recording: { mode: 'off', res: '720', autoOff, last: null } });
+    ok(riv.$('rec-note').hidden && riv.$('rec-retry').hidden, 'nor once a push says recording turned itself off');
+    riv.bridge.emit(C.PUSH_STATE, { gameId: 'valorant', recording: { mode: 'auto', res: '720', autoOff: null, last: { outcome: 'busy', at: 1 } } });
+    ok(hint(riv) === val && !riv.$('rec-note').hidden && /your PC was busy/.test(riv.$('rec-note').textContent),
+      'the game switched to Valorant while the page is open: its hint, and its status line back');
+    riv.bridge.emit(C.PUSH_STATE, { gameId: 'lol', recording: { mode: 'auto', res: '720', autoOff: null, last: null } });
+    ok(hint(riv) === lolHint, 'and to League, League\'s');
+    ok(readHints(riv).every((t) => /^In League of Legends this does nothing/.test(t)), 'and its Capture speed and Performance say so too', readHints(riv).join(' | '));
+    riv.bridge.emit(C.PUSH_STATE, { gameId: 'rivals', recording: { mode: 'auto', res: '720', autoOff: null, last: null } });
+    // Capture speed is the Valorant engine's alone: Rivals looks on its own
+    // timer (rivals-engine.js PROBE_MS). Performance sizes every Rivals frame.
+    const rivRead = readHints(riv);
+    const probe = /const PROBE_MS = (\d+);/.exec(fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'services', 'rivals-engine.js'), 'utf8'));
+    ok(probe && rivRead[0].includes(`on its own, every ${Number(probe[1]) / 1000} seconds.`)
+      && /^In Marvel Rivals this does nothing: the coach looks for hero select and the end of match scoreboard on its own/.test(rivRead[0])
+      && /It sets how often a Valorant match is read\.$/.test(rivRead[0]) && rivRead[1] === valRead[1] && !DASHES.test(rivRead[0]),
+    'and back to Rivals: Capture speed says it does nothing there, the engine looking on its own timer, and Performance what it does', rivRead.join(' | '));
+    ok([val, lolHint, hint(await open({ game: 'rivals' }))].every((t) => t && !DASHES.test(t)), 'with no dash in any of them');
+    // The page's own words before main has answered anything (the
+    // screenshot tool runs it with no bridge to answer at all).
+    const never = () => new Promise(() => {});
+    const waiting = loadSurface('settings', {
+      handlers: Object.fromEntries([C.CONFIG_GET, C.STATE_GET, C.LICENSE_GET, C.APP_VERSION, C.BACKFILL_STATUS, C.CLIPS_USAGE].map((ch) => [ch, never])),
+    });
+    await settle();
+    ok(hint(waiting) === val, 'with main yet to answer, the hint already says what On and Off do, Valorant\'s until the game is known', hint(waiting));
+  });
+
+  // ONE STATUS LINE AND THE CLIPS (8.3): recording now, at what size and about
+  // how many frames a second, or why it is not, this session's reason before
+  // the last one's; and under it what the clips kept beside the reviews take
+  // against the cap, the cap, and Clear clips, all through the real preload.
+  await section('Settings, the recording\'s status line and the clips:', async () => {
+    const MB = 1024 * 1024;
+    const GBYTES = 1024 * MB;
+    let usage = { bytes: 0, clips: 0, reviews: 0, capGB: 10 };
+    const open = async (cfg, state) => {
+      const se = loadSurface('settings', {
+        handlers: {
+          [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', devGames: false, recordingMode: 'auto', recordingRes: '720', clipCapGB: 10, ...(cfg || {}) }),
+          [C.CONFIG_SET]: () => ({ ok: true }),
+          [C.LICENSE_GET]: () => ({}), [C.STATE_GET]: () => ({ ...(state || {}) }),
+          [C.APP_VERSION]: () => ({ current: '8.3.0', state: 'current' }),
+          [C.CLIPS_USAGE]: () => ({ ...usage }),
+          [C.CLIPS_CLEAR]: () => { usage = { bytes: 0, clips: 0, reviews: 0, capGB: usage.capGB }; return { ...usage }; },
+        },
+      });
+      await settle();
+      se.clock.advance(250);
+      await settle();
+      return se;
+    };
+    const view = (over) => ({ mode: 'auto', res: '720', autoOff: null, last: null, recording: false, live: null, session: null, ...(over || {}) });
+    const note = (se) => (se.$('rec-note').hidden ? null : se.$('rec-note').textContent);
+    const live = await open({}, { recording: view({ recording: true, live: { res: '720', width: 1280, height: 720, fps: 30 }, session: { outcome: null } }) });
+    ok(note(live) === 'Recording now at 720p, about 30 fps.' && live.$('rec-note').classList.contains('live') && live.$('rec-retry').hidden,
+      'recording now: the size and about how many frames a second, from the state as the page opens', note(live));
+    const writtenOnce = live.$('rec-note').firstChild;
+    live.bridge.emit(C.PUSH_STATE, { recording: view({ recording: true, live: { res: '720', width: 1280, height: 720, fps: 30 }, session: { outcome: null } }) });
+    ok(writtenOnce && live.$('rec-note').firstChild === writtenOnce && note(live) === 'Recording now at 720p, about 30 fps.',
+      'the same line pushed again is not written again: it is a live region, and the state comes on every tick');
+    // THE TRACK'S OWN ROWS, not the setting's, where main gives them: a
+    // display that is not 16:9 records another number of rows than the
+    // setting names. Without them (a main that never sends them) the setting.
+    const rowsOf = (lv) => {
+      live.bridge.emit(C.PUSH_STATE, { recording: view({ res: lv.res, recording: true, live: lv, session: { outcome: null } }) });
+      return note(live);
+    };
+    ok(rowsOf({ res: '1080', width: 1280, height: 1024, fps: 30 }) === 'Recording now at 1024p, about 30 fps.',
+      'a 1280x1024 display at 1080p records 1024 rows, and says 1024p', note(live));
+    ok(rowsOf({ res: '1080', width: 1366, height: 768, fps: 30 }) === 'Recording now at 768p, about 30 fps.',
+      'a 1366x768 laptop at 1080p, 768p', note(live));
+    ok(rowsOf({ res: '1080', width: null, height: null, fps: 30 }) === 'Recording now at 1080p, about 30 fps.'
+      && rowsOf({ res: '720', fps: 30 }) === 'Recording now at 720p, about 30 fps.'
+      && rowsOf({ res: '1080', height: '1024', fps: 30 }) === 'Recording now at 1080p, about 30 fps.',
+    'with no height given, or one that is no number, the setting\'s', note(live));
+    live.bridge.emit(C.PUSH_STATE, { recording: view({ res: '1080', recording: true, live: { res: '1080', width: 1920, height: 1080, fps: null }, session: { outcome: null } }) });
+    ok(note(live) === 'Recording now at 1080p.', 'a still screen has no frame rate to give, so none is said', note(live));
+    live.bridge.emit(C.PUSH_STATE, { recording: view({ session: { outcome: 'busy' }, last: { outcome: 'recorded', at: 1 } }) });
+    ok(/^Recording stopped in this session: your PC was busy\./.test(note(live) || '') && !live.$('rec-note').classList.contains('live'),
+      'given up mid session: this session\'s reason, before the last session\'s', note(live));
+    const lastOf = async (outcome) => note(await open({ recordingLast: { outcome, at: 1 } }));
+    const disk = await lastOf('disk');
+    const black = await lastOf('black');
+    const busy = await lastOf('busy');
+    const err = await lastOf('error');
+    ok(/^Not enough free disk to record in your last session: recording needs 8 GB free on this drive\./.test(disk || ''), 'not enough disk', disk);
+    ok(/^Recording needs Windowed Fullscreen: the game read black to it in your last session\./.test(black || ''), 'Windowed Fullscreen needed', black);
+    ok(/^Recording stopped in your last session: your PC was busy\. It tries again next session/.test(busy || ''), 'one busy session, and it tries again', busy);
+    ok(/^Recording stopped on an error in your last session\./.test(err || ''), 'an error', err);
+    ok(note(await open({ recordingLast: { outcome: 'recorded', at: 1 } })) === null && note(await open({ recordingMode: 'off', recordingLast: { outcome: 'busy', at: 1 } })) === null,
+      'a last session that recorded, or Off chosen by hand, says nothing');
+    // League's screen is never read: what goes on is its review, from the game's record.
+    const lolBlack = note(await open({ game: 'lol', recordingLast: { outcome: 'black', at: 1 } }));
+    const lolState = await open({ game: 'valorant' }, { gameId: 'lol', recording: view({ last: { outcome: 'disk', at: 1 } }) });
+    ok(/the game read black to it in your last session\. Your review is still built from the game's own record\.$/.test(lolBlack || '')
+      && /Your review is still built from the game's own record\.$/.test(note(lolState) || '') && /The coach still reads your screen\.$/.test(black || ''),
+    'with League chosen, the line says the review is still built from the game\'s record, never that the screen is read', `${lolBlack} | ${note(lolState)}`);
+    ok([disk, black, busy, err, note(live)].every((t) => t && !DASHES.test(t)), 'with no dash in any of it');
+
+    // The clips: 1.2 GB of 10 GB kept, then the cap, then Clear clips.
+    usage = { bytes: Math.round(1.24 * GBYTES), clips: 7, reviews: 2, capGB: 10 };
+    const se = await open({ clipCapGB: 10 });
+    const active = (id) => { const b = se.document.querySelector(`#${id} button.active`); return b ? b.dataset.val : null; };
+    ok(se.$('clip-usage').textContent === 'Clips kept beside your reviews: 1.2 GB of 10 GB, 7 clips from 2 reviews.' && active('clipcap') === '10' && !se.$('clip-clear').disabled,
+      'what the clips take against the cap, read from main, the cap marked, Clear clips ready', se.$('clip-usage').textContent);
+    ok(same(se.document.querySelectorAll('#clipcap button').map((b) => b.dataset.val), ['5', '10', '20', '50']), 'the cap is 5, 10, 20 or 50 GB');
+    usage = { ...usage, bytes: 380 * MB, clips: 3, reviews: 1, capGB: 5 };
+    se.$('clipcap').querySelector('button[data-val="5"]').click();
+    await settle();
+    se.clock.advance(250);
+    await settle();
+    const set = se.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).pop();
+    ok(set && set[1].clipCapGB === 5 && typeof set[1].clipCapGB === 'number' && active('clipcap') === '5', 'a cap chosen is saved as its number', JSON.stringify(set && set[1]));
+    ok(se.$('clip-usage').textContent === 'Clips kept beside your reviews: 380 MB of 5 GB, 3 clips from 1 review.',
+      'and the line read again, since a lower cap clears the oldest at once', se.$('clip-usage').textContent);
+    usage = { ...usage, bytes: 420 * MB, clips: 4 };
+    se.bridge.emit(C.PUSH_REVIEWS, { id: 'valorant-1759341600000-abcd01', game: 'valorant' });
+    se.clock.advance(250);
+    await settle();
+    ok(/^Clips kept beside your reviews: 420 MB of 5 GB, 4 clips/.test(se.$('clip-usage').textContent), 'a review saved meanwhile, its clips just kept, reads it again', se.$('clip-usage').textContent);
+    const cleared = () => se.bridge.invoked.filter(([ch]) => ch === C.CLIPS_CLEAR).length;
+    se.$('clip-clear').click();
+    await settle();
+    ok(!cleared() && se.$('clip-clear').textContent === 'Press again to clear every clip' && se.$('clip-clear').classList.contains('armed'),
+      'one press of Clear clips only asks, since nothing it clears comes back', se.$('clip-clear').textContent);
+    se.clock.advance(4100);
+    ok(!cleared() && se.$('clip-clear').textContent === 'Clear clips' && !se.$('clip-clear').classList.contains('armed'), 'and four seconds on, it has stopped asking');
+    se.$('clip-clear').click();
+    se.$('clip-clear').click();
+    await settle();
+    ok(cleared() === 1 && se.$('clip-usage').textContent === 'No clips kept yet. They take up to 5 GB together.' && se.$('clip-clear').disabled
+      && se.$('clip-clear').textContent === 'Clear clips',
+    'pressed twice, it asks main to clear them, and the line says none are kept', se.$('clip-usage').textContent);
+    usage = { bytes: 300 * 1024, clips: 1, reviews: 1, capGB: 5 };
+    se.bridge.emit(C.PUSH_REVIEWS, { id: 'valorant-1759341600000-abcd02', game: 'valorant' });
+    se.clock.advance(250);
+    await settle();
+    ok(se.$('clip-usage').textContent === 'Clips kept beside your reviews: less than 1 MB of 5 GB, 1 clip from 1 review.',
+      'a total under a megabyte is said to be, never rounded up to one', se.$('clip-usage').textContent);
+    ok(!DASHES.test(se.$('clip-usage').textContent + se.document.querySelector('.rec-cap-hint').textContent), 'no dash in the clips\' words');
+    const b = loadPreload('settings', {});
+    ok(b.api && typeof b.api.getClipsUsage === 'function' && typeof b.api.clearClips === 'function' && typeof b.api.onReviews === 'function',
+      'the settings bridge reads the clips, clears them, and hears a review saved');
+    await b.api.getClipsUsage();
+    await b.api.clearClips();
+    b.api.onReviews(() => {});
+    ok(same(b.invoked.map(([ch]) => ch), [C.CLIPS_USAGE, C.CLIPS_CLEAR]) && b.listening(C.PUSH_REVIEWS) === 1
+      && C.CLIPS_USAGE === 'clips:usage' && C.CLIPS_CLEAR === 'clips:clear', 'over CLIPS_USAGE, CLIPS_CLEAR and PUSH_REVIEWS', JSON.stringify(b.invoked));
+  });
+
+  // THE CLIP OF A MOMENT (8.3): played from occlara-clip in "Where you died,
+  // and how", above the frames, muted, inline and looping, the frame the coach
+  // looked at as its picture; a click plays and pauses it, and it pauses out
+  // of view or with the page hidden. A clip the cap or Settings took is said
+  // to be gone, and the frames stay.
+  await section('the review plays the clip of each moment:', async () => {
+    const AT = Date.UTC(2026, 9, 1, 18, 4, 0);
+    const ID = 'valorant-1759341600000-clip01';
+    const card = (n, forensics) => ({ n, side: 'Defence', result: 'lost', died: true, facts: ['Died at A Site'], reads: [], why: null, forensics });
+    const look = (n, extra) => ({ cause: 'dry-peek', what: 'You swung wide.', better: 'Wait for the flash.',
+      frames: [`r${n}-before.jpg`, `r${n}-after.jpg`], source: 'riot', at: AT, clip: `r${n}-clip.mkv`, ...(extra || {}) });
+    const base = {
+      id: ID, kind: 'valorant', source: 'watched', aiLog: null,
+      game: { map: 'Abyss', agent: 'Jett', result: 'Defeat', score: '11-13' },
+      rounds: [
+        card(2, look(2, { clipUrl: `occlara-clip://review/${ID}/r2-clip.mkv` })),
+        card(9, look(9, { clipGone: 'space' })),
+        card(14, look(14, { clipGone: 'cleared' })),
+        card(19, look(19, { clip: null })),
+      ],
+      frameData: { 'r2-before.jpg': 'data:image/jpeg;base64,AAA2b', 'r2-after.jpg': 'data:image/jpeg;base64,AAA2a',
+        'r9-before.jpg': 'data:image/jpeg;base64,AAA9b', 'r14-before.jpg': 'data:image/jpeg;base64,AAA14b', 'r19-before.jpg': 'data:image/jpeg;base64,AAA19b' },
+    };
+    // The browser's half of a <video> and an IntersectionObserver, which the
+    // fake DOM has neither of: play() and pause() fire what the page listens
+    // to, and the observer is told by hand when a clip leaves the view.
+    const observers = [];
+    class FakeIO {
+      constructor(cb, opts) { this.cb = cb; this.opts = opts; this.seen = new Set(); observers.push(this); }
+      observe(el) { this.seen.add(el); }
+      unobserve(el) { this.seen.delete(el); }
+      disconnect() { this.seen.clear(); }
+    }
+    const media = (v) => {
+      v.paused = true;
+      v.calls = [];
+      v.play = () => { v.calls.push('play'); v.paused = false; v.dispatchEvent({ type: 'play' }); return Promise.resolve(); };
+      v.pause = () => { v.calls.push('pause'); if (!v.paused) { v.paused = true; v.dispatchEvent({ type: 'pause' }); } };
+      v.load = () => { v.calls.push('load'); };
+      return v;
+    };
+    const open = async (r) => {
+      const v = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => r }, window: { IntersectionObserver: FakeIO } });
+      const make = v.document.createElement.bind(v.document);
+      v.document.createElement = (tag) => { const e = make(tag); return String(tag).toLowerCase() === 'video' ? media(e) : e; };
+      await settle();
+      return v;
+    };
+    const v = await open(base);
+    const m = (n) => v.$(`moment-${n}`);
+    const kids = (n) => m(n).children.map((c) => c.className.split(' ')[0]);
+    ok(same(kids(2), ['v-moment-head', 'v-clip', 'v-shots', 'v-facts', 'v-moment-cause', 'v-look-what', 'v-look-better']),
+      'a moment with its clip: the clip under its heading, the frames still under it', kids(2).join(' | '));
+    const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
+    ok(m(2).classList.contains('has-clip') && !m(9).classList.contains('has-clip') && !m(19).classList.contains('has-clip')
+      && /\.v-moment\.has-clip \.v-shots \{ grid-template-columns: 1fr 1fr; \}/.test(rcss),
+    'and the frames under a clip are half as wide; a moment with no clip keeps them across the card');
+    const vid = m(2).querySelector('.v-clip .v-clip-frame video.v-clip-video');
+    ok(vid && vid.getAttribute('src') === `occlara-clip://review/${ID}/r2-clip.mkv`, 'a <video> playing it from occlara-clip', vid && vid.getAttribute('src'));
+    ok(vid && vid.muted === true && ['muted', 'loop', 'playsinline'].every((a) => vid.hasAttribute(a)) && vid.getAttribute('preload') === 'none',
+      'muted, looping, inline, and nothing loaded until it is played');
+    ok(vid && vid.getAttribute('poster') === base.frameData['r2-before.jpg'], 'the frame the coach looked at as its picture until it plays');
+    ok(vid && vid.calls.length === 0, 'and it does not play by itself');
+    const btn = m(2).querySelector('.v-clip-play');
+    ok(btn && btn.tagName === 'BUTTON' && btn.getAttribute('aria-label') === 'Play the clip' && btn.querySelectorAll('svg').length === 2,
+      'a button over it says play, for the keyboard as well as the mouse');
+    btn.click();
+    ok(same(vid.calls, ['play']) && m(2).querySelector('.v-clip').classList.contains('playing') && btn.getAttribute('aria-label') === 'Pause the clip',
+      'pressed, it plays, and says pause', JSON.stringify(vid.calls));
+    vid.click();
+    ok(same(vid.calls, ['play', 'pause']) && !m(2).querySelector('.v-clip').classList.contains('playing') && btn.getAttribute('aria-label') === 'Play the clip',
+      'a click on the picture pauses it again', JSON.stringify(vid.calls));
+    const io = observers[0];
+    ok(io && io.seen.has(vid), 'it is watched for leaving the view');
+    vid.play();
+    io.cb([{ target: vid, isIntersecting: false }], io);
+    ok(vid.paused === true && vid.calls[vid.calls.length - 1] === 'pause', 'scrolled out of view while playing, it pauses');
+    vid.play();
+    io.cb([{ target: vid, isIntersecting: true }], io);
+    ok(vid.paused === false, 'and coming into view does not stop one playing');
+    v.document.hidden = true;
+    for (const fn of v.document._listeners.visibilitychange || []) fn({ type: 'visibilitychange' });
+    ok(vid.paused === true, 'the page hidden (another page, the seal) pauses it');
+    v.document.hidden = false;
+    const gone = (n) => m(n).querySelector('.v-clip-gone');
+    ok(!m(9).querySelector('video') && gone(9) && gone(9).textContent === 'Its clip was cleared to keep your clips under the space set in Settings. The frames and facts stay.'
+      && m(9).querySelectorAll('.v-shot img').length === 1, 'a clip the cap took: no player, said so, and its frame kept');
+    ok(!m(14).querySelector('video') && gone(14) && gone(14).textContent === 'Its clip was cleared in Settings. The frames and facts stay.', 'one cleared from Settings says that');
+    ok(!m(19).querySelector('video') && !gone(19) && same(kids(19), ['v-moment-head', 'v-shots', 'v-facts', 'v-moment-cause', 'v-look-what', 'v-look-better']),
+      'a match that was not recorded: its frames as they have always been, and nothing said');
+    ok(!DASHES.test(v.$('v-looks-wrap').textContent), 'no dash in the section');
+    // A repaint lets the old player go: stopped, its source taken off, loaded empty.
+    vid.calls.length = 0;
+    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...base, rounds: [base.rounds[3]] });
+    await settle();
+    ok(same(vid.calls, ['pause', 'load']) && !vid.hasAttribute('src') && !io.seen.has(vid) && !v.document.querySelectorAll('#v-looks video').length,
+      'a repaint stops the clip it replaces, takes its source off and lets it go', JSON.stringify(vid.calls));
+    const csp = (v.document.querySelector('meta[http-equiv="Content-Security-Policy"]') || { getAttribute: () => '' }).getAttribute('content');
+    ok(/(^|;)\s*media-src 'self' occlara-clip:;/.test(csp) && /default-src 'self'/.test(csp), 'the page may play media from itself and occlara-clip, and nothing else', csp);
+
+    // LEAGUE (8.3): "Your deaths", each by the game's clock with its one fact,
+    // and the clip of it where the game was recorded.
+    const LID = 'lol-1759341600000-deaths1';
+    const lol = {
+      id: LID, kind: 'lol', game: { champion: 'Ahri', role: 'Middle', mode: 'CLASSIC', duration: '31:04' },
+      scoreline: { kills: 4, deaths: 3, assists: 6, cs: 210, csAt10: 70, ward: 14 },
+      deaths: { headline: 'You died 3 times.', detail: 'No single pattern.' },
+      deathList: [
+        { n: 1, atSec: 210, at: '3:30', fact: 'An ally had died in the 20 seconds before it.', clip: 'd1-clip.mkv', clipUrl: `occlara-clip://review/${LID}/d1-clip.mkv` },
+        { n: 2, atSec: 600, at: '10:00', fact: 'No ally died within 20 seconds of it.', clip: 'd2-clip.mkv', clipGone: 'space' },
+        { n: 3, atSec: 900, at: '15:00', fact: 'An ally died in the 20 seconds after it.' },
+      ],
+      moments: [], objectives: { dragonsFor: 1, dragonsAgainst: 2, baronsFor: 0, baronsAgainst: 1, turretsFor: 3, turretsAgainst: 5 },
+      scored: [], unmeasured: [], next: null, gamesRecorded: 0,
+    };
+    const l = await open(lol);
+    const ld = (n) => l.$(`death-${n}`);
+    ok(!l.$('r-deaths-wrap').hidden && l.$('r-deaths-wrap').querySelector('h3').textContent === 'Your deaths'
+      && same(l.document.querySelectorAll('#r-deaths .l-death').map((d) => d.id), ['death-1', 'death-2', 'death-3']),
+    'a League review lists every death, under "Your deaths"');
+    // Six at most are clipped, spread across the game (clips.js pickSpread),
+    // and the hint says so: the rest show no clip, and it said nothing of why.
+    const deathsHint = l.$('r-deaths-wrap').querySelector('.hint').textContent;
+    const clipsLib = require('../src/shared/clips');
+    ok(clipsLib.MAX_CLIPS === 6 && /up to six of them, spread across the game, have a clip/.test(deathsHint)
+      && /from 11 seconds before the death to 4 after it/.test(deathsHint) && clipsLib.BEFORE_MS === 11000 && clipsLib.AFTER_MS === 4000
+      && !DASHES.test(deathsHint), 'its hint says up to six deaths, spread across the game, have a clip, and over which seconds', deathsHint);
+    ok(ld(1).querySelector('.v-moment-head .v-rn').textContent === 'Death 1' && ld(1).querySelector('.v-moment-head .v-side').textContent === '3:30',
+      'each by its number and the game\'s clock');
+    const lv = ld(1).querySelector('video.v-clip-video');
+    ok(lv && lv.getAttribute('src') === `occlara-clip://review/${LID}/d1-clip.mkv` && lv.muted === true && lv.hasAttribute('loop') && lv.getAttribute('preload') === 'none'
+      && !lv.hasAttribute('poster'), 'a recorded death plays its clip, as a Valorant moment does, with no frame to show before it plays');
+    ok(ld(1).querySelector('.v-look-what').textContent === 'An ally had died in the 20 seconds before it.', 'and says the one fact the record gives');
+    ok(!ld(2).querySelector('video') && ld(2).querySelector('.v-clip-gone').textContent === 'Its clip was cleared to keep your clips under the space set in Settings. Its facts stay.',
+      'a death whose clip the cap took says so');
+    ok(!ld(3).querySelector('video') && !ld(3).querySelector('.v-clip-gone') && ld(3).querySelector('.v-look-what'), 'one never recorded has its fact alone');
+    ld(1).querySelector('.v-clip-play').click();
+    ok(lv.paused === false, 'and its clip plays on a click');
+    l.bridge.emit(C.PUSH_RIVALS_REVIEW, { id: 'rivals-1759341600000-riv001', kind: 'rivals', game: { hero: 'Luna Snow', role: 'Strategist' },
+      scoreline: { kills: 3, deaths: 2, assists: 9, damage: 9000, healing: 20000, blocked: 0, accuracy: 40 } });
+    await settle();
+    ok(l.$('r-deaths-wrap').hidden && !l.document.querySelectorAll('#r-deaths .l-death').length && lv.paused === true && !lv.hasAttribute('src'),
+      'a Rivals review painted after it hides the list, and its playing clip is stopped and let go');
+    l.bridge.emit(C.PUSH_LOL_REVIEW, { ...lol, deathList: [] });
+    await settle();
+    ok(l.$('r-deaths-wrap').hidden, 'a League game with no death has no such list');
+  });
+
   await section('the AI log describes deaths, and only a tip era log counts reviews:', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-surfaces-'));
     try {
@@ -2134,9 +2607,10 @@ async function openShell(cfg, state, opts) {
       'unsealed on the review, it appears on Matches, put there rather than slid');
     // THE RECORD CARD CHANGES HEIGHT on its own, and with the sidebar
     // overflowing (the window's minimum height) Settings, below it, moves
-    // with it. Layout again: Settings under a card as tall as what it shows.
+    // with it. Layout again: Settings under a card as tall as what it shows,
+    // which since 8.3 is the agent check and the two buttons, and no line.
     const settingsAt = () => 520 + (p.$('agent-bubble').hidden ? 0 : 48 + (p.$('ab-quick').hidden ? 0 : 36))
-      + Math.ceil(p.line().length / 30) * 18;
+      + (p.$('rec').querySelector('p') ? 18 : 0);
     Object.defineProperty(p.$('nav-settings'), 'offsetTop', { get: settingsAt, configurable: true });
     const onSettings = () => marker.style.transform === `translate(12px, ${settingsAt()}px)`;
     const where = () => `marker ${marker.style.transform}, Settings at ${settingsAt()}`;
@@ -2145,10 +2619,10 @@ async function openShell(cfg, state, opts) {
     const blocked = 'Capture is blocked: Windows will not let Occlara read the screen. Set the game to Windowed Fullscreen and press Start again.';
     const before = settingsAt();
     p.bridge.emit(C.PUSH_STATE, { ...BASE, notice: { text: blocked, at: 1 } });
-    ok(p.line() === blocked && settingsAt() !== before && onSettings(),
-      'a notice makes the card taller, and the marker, measured once the line is written, follows Settings down', where());
+    ok(p.notice() === blocked && settingsAt() === before && onSettings(),
+      'a notice is the top strip\'s (8.3): the card stays as it was, and so do Settings and the marker on it', where());
     p.bridge.emit(C.PUSH_STATE, { ...BASE, notice: null });
-    ok(settingsAt() === before && onSettings(), 'and back up when it clears', where());
+    ok(p.notice() === null && settingsAt() === before && onSettings(), 'and stay when it clears', where());
     // Recording Valorant: the agent check opens in the card with the player's
     // mains, is answered, and closes itself 1.6 seconds later, and nothing but
     // the card's own size says so.

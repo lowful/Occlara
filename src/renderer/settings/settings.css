@@ -119,6 +119,32 @@ input[type="range"]::-webkit-slider-thumb {
 .lang-select { flex: 1; min-width: 0; }
 .trk-status { margin-top: 9px; font-size: 12px; line-height: 1.45; border-radius: 9px; padding: 8px 11px; }
 .trk-status.ok  { color: var(--good); background: rgba(var(--good-rgb),0.10); border: 1px solid rgba(var(--good-rgb),0.3); }
+/* Record match video: the size under On and Off, and one status line under
+   both, recording now or why it is not. Recording now carries a dot in
+   --good beside its words, never the colour alone. */
+.rec-res { margin-top: var(--space-2); }
+.rec-note {
+  margin-top: 9px; font-size: 12px; line-height: 1.45; border-radius: 9px; padding: 8px 11px;
+  color: var(--text-dim); background: rgba(0,0,0,0.18); border: 1px solid var(--glass-border);
+}
+.rec-note.live { display: flex; align-items: baseline; gap: 8px; color: var(--text); }
+.rec-note.live::before {
+  content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--good); transform: translateY(-1px);
+}
+.rec-note[hidden] { display: none; }
+.rec-retry { margin-top: var(--space-2); }
+/* The clips kept beside the reviews: what they take, the cap, Clear clips. */
+.rec-clips {
+  margin-top: var(--space-4); padding-top: var(--space-3);
+  border-top: 1px solid var(--glass-border);
+}
+.rec-usage { font-size: 12.5px; line-height: 1.45; color: var(--text); margin-bottom: var(--space-1); }
+.rec-cap-hint { margin-bottom: var(--space-2); }
+.rec-clear { margin-top: var(--space-2); width: 100%; }
+.rec-clear:disabled { opacity: 0.4; pointer-events: none; }
+/* Asked once, it says what the second press does, in the danger colour. */
+.rec-clear.armed { color: var(--bad); border-color: rgba(var(--red-rgb),0.35); background: rgba(var(--red-rgb),0.10); }
 .trk-status.err { color: var(--bad); background: rgba(var(--red-rgb),0.10);  border: 1px solid rgba(var(--red-rgb),0.28); }
 
 .license { background: rgba(0,0,0,0.18); border: 1px solid var(--glass-border); border-radius: 12px; padding: 14px 16px; }

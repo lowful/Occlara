@@ -51,6 +51,9 @@ const MARK_15 = 900;
 /** After this many consecutive failures following a live game, the game is over. */
 const GONE_STRIKES = 3;
 
+/** The game clock against the wall clock, one point a poll: two hours of them. */
+const TIMELINE_MAX = 3600;
+
 const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
 const str = (v) => (typeof v === 'string' ? v : '');
 const arr = (v) => (Array.isArray(v) ? v : []);
@@ -131,6 +134,12 @@ class LolRecorder extends EventEmitter {
     this.lastGameTime = 0;
     this.mapName = '';
     this.gameMode = '';
+    // THE GAME'S CLOCK ON THE WALL CLOCK (8.3): every poll's gameTime beside
+    // when it was read, so a death the game stamps in game seconds is found in
+    // the match recorded on this PC, which counts in wall time (wallAt). And
+    // when the game was first seen, from which its recording is kept.
+    this.timeline = [];
+    this.liveSince = null;
   }
 
   start() {
@@ -172,6 +181,7 @@ class LolRecorder extends EventEmitter {
       // Do not start recording off a stale endpoint from a previous game.
       if (!players.length) return;
       this.live = true;
+      this.liveSince = Date.now();
       this.mapName = str(stats.mapName);
       this.gameMode = str(stats.gameMode);
       this.identify(active, players);
@@ -179,6 +189,7 @@ class LolRecorder extends EventEmitter {
       this.emit('status', { running: true, watching: true, recording: true, game: 'lol' });
     }
 
+    this.notePoll(gameTime, Date.now());
     this.lastGameTime = gameTime;
     this.collectEvents(all);
 
@@ -217,6 +228,16 @@ class LolRecorder extends EventEmitter {
       .filter((p) => str(p.team) === team && key(p) !== this.me)
       .map(key)
       .filter(Boolean);
+  }
+
+  /** One poll's game clock, read at `wall` (ms). A clock that went backwards is not this game's. */
+  notePoll(gameTime, wall) {
+    const t = num(gameTime);
+    if (t === null || !Number.isFinite(wall)) return;
+    const last = this.timeline[this.timeline.length - 1];
+    if (last && t < last.t) return;
+    this.timeline.push({ t, wall });
+    if (this.timeline.length > TIMELINE_MAX) this.timeline.shift();
   }
 
   mePlayer(players) {
@@ -303,6 +324,10 @@ class LolRecorder extends EventEmitter {
       at10: this.at10,
       at15: this.at15,
       events: this.events,
+      // When the game was first seen, and its clock on the wall clock, for the
+      // clips of its deaths (8.3); neither is kept in the review.
+      startedAt: this.liveSince,
+      timeline: this.timeline.slice(),
       // Kept so a first real game can be inspected when a field name turns out
       // to be wrong for the current patch.
       recordedWith: { poll: POLL_MS, endpoint: `https://${HOST}:${PORT}` },
@@ -310,4 +335,22 @@ class LolRecorder extends EventEmitter {
   }
 }
 
-module.exports = { LolRecorder, probe, POLL_MS, MARK_10, MARK_15 };
+/**
+ * The wall time (ms) a moment of the game's own clock (seconds, as its events
+ * are stamped) happened at, from the timeline the polls kept: the last poll at
+ * or before it, carried on at one second a second. A pause holds the game
+ * clock while the wall clock runs, and the last poll before the moment is the
+ * one after any pause before it. A moment before the first poll (recording
+ * started mid game) is carried back from the first. Null with no timeline.
+ */
+function wallAt(timeline, gameTime) {
+  const t = num(gameTime);
+  const pts = arr(timeline).filter((p) => p && num(p.t) !== null && Number.isFinite(p.wall));
+  if (t === null || !pts.length) return null;
+  let at = null;
+  for (const p of pts) { if (p.t <= t) at = p; else break; }
+  const from = at || pts[0];
+  return from.wall + (t - from.t) * 1000;
+}
+
+module.exports = { LolRecorder, probe, wallAt, POLL_MS, MARK_10, MARK_15, TIMELINE_MAX };

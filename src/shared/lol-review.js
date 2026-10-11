@@ -74,6 +74,41 @@ function deathStory(fights, deaths) {
 }
 
 /**
+ * EVERY DEATH OF THE PLAYER, in order (8.3): when it was by the game's clock,
+ * and the one fact the record gives about it, by the arithmetic deathStory
+ * counts with (lol-grader.js analyseDeaths): an ally had died in the window
+ * before it, none died within the window of it either way, or one died in the
+ * window after it. Nothing about where it was or why, which the record cannot
+ * show. Main adds the clip of each, from the recording on this PC, when the
+ * game was recorded (index.js clipLolDeaths); the page plays it beside its
+ * line.
+ */
+function deathList(events, me, allies) {
+  const self = str(me);
+  if (!self) return [];
+  const mine = new Set(arr(allies).map(str).filter(Boolean));
+  const W = grader.FIGHT_WINDOW_S;
+  const kills = arr(events)
+    .filter((e) => e && typeof e === 'object' && str(e.EventName) === 'ChampionKill')
+    .map((e) => ({ t: num(e.EventTime), victim: str(e.VictimName) }))
+    .filter((k) => k.t !== null && k.victim)
+    .sort((a, b) => a.t - b.t);
+  const allyDeaths = kills.filter((k) => k.victim !== self && mine.has(k.victim));
+  return kills.filter((k) => k.victim === self).map((d, i) => {
+    const before = allyDeaths.some((a) => a.t <= d.t && d.t - a.t <= W);
+    const after = allyDeaths.some((a) => a.t > d.t && a.t - d.t <= W);
+    return {
+      n: i + 1,
+      atSec: d.t,
+      at: clock(d.t),
+      fact: before ? `An ally had died in the ${W} seconds before it.`
+        : after ? `An ally died in the ${W} seconds after it.`
+          : `No ally died within ${W} seconds of it.`,
+    };
+  });
+}
+
+/**
  * The moments worth scrubbing to.
  *
  * Timestamps only. The review says WHEN and what the record shows, never what
@@ -158,6 +193,9 @@ function buildReview(record, history) {
       level: num(final.level),
     },
     deaths: deathStory(fights, deaths !== null ? deaths : fights.deaths),
+    // Each death on its own, by the game's clock, for "Your deaths" and the
+    // clips of them (8.3).
+    deathList: deathList(r.events, r.me, r.allies),
     fights,
     moments: moments(graded.marks),
     objectives: objectives(r.events, r.me, r.allies),
@@ -176,4 +214,4 @@ function buildReview(record, history) {
   };
 }
 
-module.exports = { buildReview, deathStory, objectives, clock };
+module.exports = { buildReview, deathStory, deathList, objectives, clock };

@@ -4,18 +4,17 @@
  * The shell: the main window's sidebar, top strip and Recording screen (8.1).
  *
  * It carries what the panel window used to, ported with the same rules: Start,
- * Stop and Pause, the agent check once a Valorant recording starts, the one
- * status line (a notice when something is wrong, never anything about the
- * match), the start and stop sounds, and the licence ending. Plus what the one
- * window adds: the pages, the game, and the seal, which during a match shows
- * the Recording screen and no page at all.
+ * Stop and Pause, the agent check once a Valorant recording starts, one line
+ * of notices (since 8.3 in the top strip, and only when there is one: never
+ * anything about the match), the start and stop sounds, and the licence
+ * ending. Plus what the one window adds: the pages, the game, and the seal,
+ * which during a match shows the Recording screen and no page at all.
  */
 
 const $ = (id) => document.getElementById(id);
 
 let tr = (k) => ({
   'panel.start': 'Start', 'panel.stop': 'Stop',
-  'panel.noTips': 'Press Start before your match. The review opens when it ends.',
   'panel.pausedLine': 'Paused. Nothing is read until you resume.',
 }[k] || k);
 
@@ -42,7 +41,7 @@ const toggleIco = toggleBtn.querySelector('.t-ico');
 const toggleLbl = toggleBtn.querySelector('.t-label');
 const pauseBtn = $('pause');
 const recEl = $('rec');
-const lineEl = $('line');
+const noticeEl = $('notice');
 
 let isCoaching = false;
 let isPaused = false;
@@ -139,13 +138,14 @@ function placeMarker() {
   markerOn = id;
 }
 window.addEventListener('resize', placeMarker);
-// THE RECORD CARD CHANGES HEIGHT on its own: a notice on its line, the agent
-// check opening, its quick picks, its locked in row, and none 1.6 seconds
-// later. Once the sidebar overflows (at the window's minimum height, or with
-// the agent check up at the default one) nothing above Settings gives way,
-// so Settings, below the card, moves with it, and the marker left where it
-// had been painted over the account line. So the marker follows the card,
-// whatever changed it, after layout and before the frame is painted.
+// THE RECORD CARD CHANGES HEIGHT on its own: the agent check opening, its
+// quick picks, its locked in row, and none 1.6 seconds later. (A notice no
+// longer does: since 8.3 it is the top strip's, outside the sidebar.) Once the
+// sidebar overflows (at the window's minimum height, or with the agent check
+// up at the default one) nothing above Settings gives way, so Settings, below
+// the card, moves with it, and the marker left where it had been painted over
+// the account line. So the marker follows the card, whatever changed it,
+// after layout and before the frame is painted.
 new ResizeObserver(() => placeMarker()).observe(recEl);
 
 // ── The game ───────────────────────────────────────────────────────────────
@@ -214,33 +214,53 @@ function paintSealedFacts() {
   $('sealed-capture-row').hidden = !f.capture;
   $('sealed-game').textContent = f.game;
   $('sealed-after').textContent = f.after;
-}
-
-/*
- * THE LINE UNDER THE BUTTONS says what the card is doing, now that no status
- * word sits over them (8.2.1): ready, reading the game, or paused, which it
- * had said only in that word, and so says in the player's language, as the
- * word did (panel.pausedLine). A notice, when there is one, takes its place,
- * except the "Recording..." a Rivals or League session puts up for its whole
- * length (kind 'recording'): paused, that one said recording over a card that
- * is not, and nothing on it said paused.
- */
-function renderLine() {
-  paintSealedFacts();
-  // Paused, nothing is read, so a notice about the reading (the session's own
-  // 'recording' line, a read that failed, capture that was blocked) is out of
-  // date and the paused line says what is true. A licence notice still wins.
-  const stale = isPaused && ['recording', 'read-failed', 'capture'].includes(notice && notice.kind);
-  const shown = notice && notice.text && !stale ? notice : null;
-  lineEl.classList.toggle('system', !!shown);
-  if (shown) { lineEl.textContent = shown.text; return; }
   const every = cadence ? (cadence < 1000 ? `${cadence}ms` : `${Math.round(cadence / 100) / 10}s`) : null;
-  lineEl.textContent = !isCoaching ? tr('panel.noTips')
-    : isPaused ? tr('panel.pausedLine')
-      : `Reading your game${every ? ' every ' + every : ''}${captureSpeed === 'auto' ? '' : ' (pinned)'}. Your review opens when the match ends.`;
   $('sealed-capture').textContent = every
     ? `Reading your game every ${every}${captureSpeed === 'auto' ? ', as fast as the connection keeps up' : ', pinned in Settings'}`
     : 'Auto, as fast as the connection keeps up';
+}
+
+/*
+ * THE NOTICE LINE (8.3), in the top strip. The player asked for the text under
+ * the record card's buttons gone, so the card says what it is doing by its
+ * button, its pause icon and its live colour, and this line says only what
+ * they cannot, and nothing at all otherwise: no "Press Start", no "Reading
+ * your game every 1s". In order:
+ *   - the licence ending, the notice main sent or the sentence below, since
+ *     it is why Start is locked;
+ *   - a notice from main (capture blocked, the server down, recording stopped
+ *     for the session, a review saved in Matches), but never the
+ *     "Recording..." a Rivals or League session keeps up for its whole length
+ *     (kind 'recording'): Stop and the live card already say it;
+ *   - paused, in the player's language (panel.pausedLine), which only the
+ *     pause button's icon says otherwise. Paused, nothing is read, so a notice
+ *     about the reading (a read that failed, capture that was blocked, and
+ *     the recorder's, recording stopped for the session, whose last words are
+ *     that the coach still reads your screen every second) is out of date and
+ *     the paused line says what is true, until the resume puts it back; any
+ *     other still wins.
+ * Never anything about the match being played.
+ */
+const ENDED_LINE = 'Your subscription has ended. Renew in Settings to keep getting reviews.';
+const ABOUT_READING = ['recording', 'read-failed', 'capture', 'recorder'];
+function noticeLine() {
+  if (!licenseActive) return { text: (notice && notice.text) || ENDED_LINE, system: true };
+  const kind = notice && notice.kind;
+  const stale = isPaused && ABOUT_READING.includes(kind);
+  if (notice && notice.text && kind !== 'recording' && !stale) return { text: notice.text, system: true };
+  if (isCoaching && isPaused) return { text: tr('panel.pausedLine'), system: false };
+  return null;
+}
+function paintNotice() {
+  const line = noticeLine();
+  // Never hidden, only emptied (index.html): the live region stays in place.
+  noticeEl.classList.toggle('system', !!(line && line.system));
+  // Written only when it changes: the state is pushed on every config write
+  // and status tick, and a live region read the same notice out each time.
+  const text = line ? line.text : '';
+  if (noticeEl.textContent !== text) noticeEl.textContent = text;
+  if (line) noticeEl.title = text;
+  else noticeEl.removeAttribute('title');
 }
 
 function render() {
@@ -253,19 +273,18 @@ function render() {
     toggleIco.innerHTML = '';
     pauseBtn.disabled = true;
     pauseBtn.innerHTML = ICO.pause;
-    lineEl.classList.add('system');
-    lineEl.textContent = (notice && notice.text) || 'Your subscription has ended. Renew in Settings to keep getting reviews.';
     recEl.classList.remove('live');
-    return;
+  } else {
+    toggleBtn.disabled = false;
+    toggleLbl.textContent = tr(isCoaching ? 'panel.stop' : 'panel.start');
+    toggleIco.innerHTML = isCoaching ? ICO.stop : ICO.play;
+    toggleBtn.classList.toggle('active', isCoaching);
+    recEl.classList.toggle('live', isCoaching && !isPaused);
+    pauseBtn.disabled = !isCoaching;
+    pauseBtn.innerHTML = isPaused ? ICO.play : ICO.pause;
   }
-  toggleBtn.disabled = false;
-  toggleLbl.textContent = tr(isCoaching ? 'panel.stop' : 'panel.start');
-  toggleIco.innerHTML = isCoaching ? ICO.stop : ICO.play;
-  toggleBtn.classList.toggle('active', isCoaching);
-  recEl.classList.toggle('live', isCoaching && !isPaused);
-  pauseBtn.disabled = !isCoaching;
-  pauseBtn.innerHTML = isPaused ? ICO.play : ICO.pause;
-  renderLine();
+  paintSealedFacts();
+  paintNotice();
 }
 
 toggleBtn.addEventListener('click', () => {
@@ -397,8 +416,10 @@ function applyState(s) {
   }
   $('learn').hidden = gameId !== 'lol';
   render();
-  // Measured once the line is written: a notice arriving or clearing changes
-  // the record card's height, and Settings below it moves with it.
+  // Measured once the state is painted, as the card's ResizeObserver measures
+  // it again after layout: the state's quick picks can open the agent check
+  // taller, and Settings below the card moves with it. (A notice no longer
+  // can: it is the top strip's.)
   placeMarker();
   soundCue();
   if (!isCoaching) { sessionActive = false; agentAnswered = false; hideAgentUI(); }
@@ -432,8 +453,10 @@ window.occlara.onGame(async () => { cfg = await readConfig(cfg); paintGames(); p
 $('w-min').addEventListener('click', () => window.occlara.windowAction('minimize'));
 $('w-max').addEventListener('click', () => window.occlara.windowAction('maximize'));
 $('w-close').addEventListener('click', () => window.occlara.windowAction('close'));
+// The notice line is a hole in the strip's drag region, and no part of the
+// strip's caption either: a double click on its text maximises nothing.
 document.querySelector('.top').addEventListener('dblclick', (e) => {
-  if (!e.target.closest('.win-controls')) window.occlara.windowAction('maximize');
+  if (!e.target.closest('.win-controls, .top-notice')) window.occlara.windowAction('maximize');
 });
 
 // ── Boot ───────────────────────────────────────────────────────────────────

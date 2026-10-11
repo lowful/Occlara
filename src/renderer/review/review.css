@@ -365,3 +365,40 @@ header {
 .v-shot figcaption { font-size: 10.5px; color: var(--text-mute); }
 .v-look-what { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); margin: 0; }
 .v-look-better { font-size: 12.5px; line-height: 1.5; color: var(--text); margin: 0; }
+
+/* The clip of a moment (8.3): the recording's own seconds around the death,
+   across the card above its frames, the frame the coach looked at as its
+   picture until it plays. The mark in the middle says play while it is
+   paused, and pause while it plays, shown then only on hover or focus so it
+   never sits over the fight. */
+.v-clip { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.v-clip-frame { position: relative; }
+.v-clip-video {
+  display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain;
+  border-radius: var(--r-sm); border: 1px solid var(--glass-border);
+  background: #000; cursor: pointer;
+}
+.v-clip-play {
+  position: absolute; left: 50%; top: 50%;
+  width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.55); color: var(--text);
+  cursor: pointer;
+  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.v-clip-play:hover { transform: scale(1.06); }
+.v-clip-play:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.v-clip-mark { width: 18px; height: 18px; }
+.v-clip-mark.pause { display: none; }
+.v-clip.playing .v-clip-mark.play { display: none; }
+.v-clip.playing .v-clip-mark.pause { display: block; }
+.v-clip.playing .v-clip-play { opacity: 0; }
+.v-clip.playing .v-clip-frame:hover .v-clip-play,
+.v-clip.playing .v-clip-play:focus-visible { opacity: 1; }
+.v-clip figcaption { font-size: 10.5px; color: var(--text-mute); }
+/* Under a clip the frames are half as wide: the clip already shows the moment
+   across the card. A frame zoomed still takes the whole row. */
+.v-moment.has-clip .v-shots { grid-template-columns: 1fr 1fr; }
+/* A clip the cap or Settings took: said where it was, quietly. */
+.v-clip-gone { font-size: 11px; line-height: 1.45; color: var(--text-mute); margin: 0; }

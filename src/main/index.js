@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, globalShortcut, screen } = require('electron');
+const { app, globalShortcut, screen, protocol } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -34,6 +34,8 @@ app.setPath('userData', process.env.OCCLARA_DEV_USERDATA || profileMigration.mig
 const logger   = require('./logger');
 const store    = require('./services/store');
 const capture  = require('./services/capture');
+const { Recorder, valorantInMatch, valorantKeepSince } = require('./services/recorder');
+const recorderWindow = require('./windows/recorder-window');
 const CoachingEngine = require('./services/coaching-engine');
 const { verifyCoachedMatch, pickCoachedMatch, linkEarly, mayGoOn, linkRetries, RIOT_ROUNDS_RETRY_MS } = require('./services/match-link');
 const { normalize: normalizeLang } = require('../shared/i18n');
@@ -59,7 +61,7 @@ const hotkeys  = require('./hotkeys');
 const registerIpc = require('./ipc/register-ipc');
 const licenseService = require('./services/license-service');
 const agentData = require('./services/agent-data');
-const { API } = require('../shared/config');
+const { API, CAPTURE } = require('../shared/config');
 const gameRegistry = require('../shared/games');
 const { assembleReport, weekKey, rankIndex, trendDirection } = require('./services/weekly-report');
 const updater  = require('./updater');
@@ -72,9 +74,23 @@ const breakdownOf = require('../shared/breakdown');
 const { Backfill } = require('./services/backfill');
 const { RankHistory } = require('./services/rank-history');
 const deathFrames = require('../shared/death-frames');
+const clips = require('../shared/clips');
+const clipScheme = require('./services/clip-scheme');
+const reviewClips = require('./services/review-clips');
 
 // Every post-match review, for every game. See services/review-store.js.
 const reviewStore = new ReviewStore(path.join(app.getPath('userData'), 'reviews'));
+
+// THE CLIPS OF A REVIEW'S MOMENTS (8.3) play in its page's <video> through
+// occlara-clip://, served by main alone (services/clip-scheme.js says why, and
+// what it refuses). Privileged here, before the app is ready, as Chromium
+// requires: without it the scheme is opaque and a <video> cannot stream from
+// it. It is handled once the app is ready (below, beside the sweep).
+try {
+  protocol.registerSchemesAsPrivileged([clipScheme.PRIVILEGED]);
+} catch (e) {
+  console.warn('[clips] the clip scheme could not be registered:', e.message);
+}
 // The breakdown reads every saved review of a game, so it is kept until the
 // next save or removal rather than read from disk on every repaint.
 const breakdownCache = new Map();
@@ -85,7 +101,7 @@ const state = {
   isPaused:   false,
   status:     'idle',   // idle | coaching | paused | stopped
   agent:      { agent: null, confirmed: false, role: null }, // detected/confirmed agent
-  notice:     null,     // one status line for the panel, never about the match
+  notice:     null,     // the window's one notice line, never about the match
   cadence:    null,     // the current gap between reads, in ms
   lastGrade:  null,     // { score, letter, game } of the latest reviewed match
   licenseActive: true,  // false once the subscription ends (locks coaching)
@@ -98,6 +114,155 @@ let sealTimer    = null;    // the one second check that seals the main window m
 let sealHeld     = false;   // recording stopped mid match: sealed until the player opens a page or records again
 let appQuitting  = false;
 app.on('before-quit', () => { appQuitting = true; });
+
+// ── The match recorded on this PC (8.3) ──────────────────────────────────────
+// services/recorder.js says what it does and why; this is only what it is
+// wired to. It records Valorant's sessions and League's, whose reviews have
+// deaths to clip (clipLooks, clipLolDeaths); a Rivals review is one end of
+// match scoreboard, with no moment to show.
+//
+// THE DEV SWITCHES WORK UNPACKAGED ONLY, so no installed build can be talked
+// into recording a canvas instead of the screen, or into giving up early:
+//   OCCLARA_FAKE_CAPTURE=1      record a generated canvas, and make every GDI
+//                               frame a flat grey one: nothing touches the screen
+//                               (=black draws the canvas black)
+//   OCCLARA_DEV_RECORDER_MIN_FPS, OCCLARA_DEV_RECORDER_BUSY_MS
+//                               the busy rule's frame floor and how long it holds
+//   OCCLARA_DEV_RECORDER_PAGE_MS a page's length
+const RECORDER_DEV = !app.isPackaged;
+const devNumber = (name) => {
+  const n = Number(RECORDER_DEV ? process.env[name] : NaN);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+};
+// Read at each recording's start, so one check can draw black for a session.
+const fakeCapture = () => {
+  const v = RECORDER_DEV ? process.env.OCCLARA_FAKE_CAPTURE : '';
+  return v ? (v === 'black' ? 'black' : 'canvas') : null;
+};
+if (fakeCapture()) capture.setFake(true);
+// A match the watch ended can resume within five minutes (match-end.js
+// RESUME), and its recording is held until then too, or a resumed match would
+// lose what was played after the false end.
+const RECORDING_RESUME_MS = 5 * 60 * 1000;
+const recorder = new Recorder({
+  root: path.join(app.getPath('userData'), 'recording'),
+  prefs: store,
+  page: () => recorderWindow.open(),
+  source: () => recorderWindow.primarySource(),
+  gdi: () => capture.captureGdi('standard'),
+  capture,
+  metrics: recorderWindow.createMetrics(),
+  // A Valorant match or a League game in progress: what the PC is judged in.
+  // Not matchInProgress() alone for Valorant, the seal's cautious test, which
+  // holds through the menus after a match left before round 3 and through a
+  // session whose reads all fail (recorder.js valorantInMatch says why).
+  inMatch: () => {
+    if (engine instanceof CoachingEngine) return valorantInMatch(engine, matchInProgress());
+    return engine instanceof LolRecorder && matchInProgress();
+  },
+  // The match in progress is kept from its start: its hold is only placed once
+  // it ends (onValorantMatchEnded, clipLolDeaths). A Valorant one once a read
+  // has landed, and ninety minutes back at most (valorantKeepSince).
+  keepSince: () => {
+    if (engine instanceof CoachingEngine) return valorantKeepSince(engine, matchInProgress(), Date.now());
+    if (engine instanceof LolRecorder && engine.live) return engine.liveSince;
+    return null;
+  },
+  // The read's frame, the capture profile in use, which the recording covers.
+  // League's screen is never read, so its recording covers the standard frame
+  // whatever Performance says (null: recorder.js READ_SIZE), as Settings says.
+  readSize: () => {
+    if (engine instanceof LolRecorder) return null;
+    const p = CAPTURE.profiles[store.get('captureQuality') === 'performance' ? 'performance' : 'standard'];
+    return { width: p.targetW, height: p.targetH };
+  },
+  cadence: () => state.cadence || 1000,
+  // League's screen is not read: its review is built from the game's own record.
+  still: () => (engine instanceof LolRecorder ? "The review is still built from the game's own record." : null),
+  limits: () => ({ minFps: devNumber('OCCLARA_DEV_RECORDER_MIN_FPS'), sustainMs: devNumber('OCCLARA_DEV_RECORDER_BUSY_MS') }),
+  pageMs: () => devNumber('OCCLARA_DEV_RECORDER_PAGE_MS'),
+  fake: fakeCapture,
+  // The app's own version, as api-client.js reads it: run any way but as the
+  // app (a check), app.getVersion() is Electron's.
+  version: (() => { try { return require('../../package.json').version; } catch { return app.getVersion(); } })(),
+  log: (...a) => console.log(...a),
+});
+// Its only voice: the window's notice line, about capture, never the match.
+recorder.on('notice', (n) => {
+  if (!n) return;
+  if (n.text) pushNotice(n.text, n.kind);
+  else if (state.notice && state.notice.kind === n.kind) pushNotice(null);
+});
+// Out of the recording while one is made: the AI log (the main window is out
+// of it while sealed, main-window.js, and the corner mark always is). And
+// Settings' status line follows it, from the state.
+recorder.on('running', (on) => {
+  aiLogWindow.setProtected(on);
+  registry.broadcast(C.PUSH_STATE, buildState());
+});
+// Auto turned itself off: Settings says so, from the state.
+recorder.on('prefs', () => registry.broadcast(C.PUSH_STATE, buildState()));
+// The recording's frame rate moved past its rounding (Settings' "about 30
+// fps"), or this session stopped recording and Settings gives the reason.
+recorder.on('view', () => registry.broadcast(C.PUSH_STATE, buildState()));
+// WINDOWS ENDING ITS SESSION (a shutdown, a restart, a logoff) emits no
+// before-quit, and Occlara sits in the tray with no login item, so the
+// recording stayed on disk until the player opened the app again by hand.
+// The main window hears it ('session-end') and the recording ends at once,
+// deleted before the handler returns, since Windows can end the process next.
+mainWindow.onSessionEnd(() => recorder.shutdown({ exiting: true }));
+// AND EVERY QUIT, not the tray's alone: an update's "Restart now" (updater.js
+// quitAndInstall) quits without cleanupAndQuit, so its session ended with no
+// counts, Settings kept the session before's reason, and the recording waited
+// for the next launch's sweep. before-quit comes first in every quit; after
+// cleanupAndQuit's own shutdown it finds nothing to end.
+app.on('before-quit', () => {
+  try { recorder.shutdown({ exiting: true }); } catch (e) { console.warn('[recorder] shutdown at quit:', e.message); }
+});
+// COUNTS FOR THE DEVELOPER, one block a session (recorder.js reportBlock): how
+// PCs cope, never what was on them. Never in the way of anything: it waits
+// for nothing, and a block is posted once, and once more at the next launch
+// only if that post was not taken, never in a loop.
+//
+// KEPT BEFORE IT IS SENT. A session ended by Quit, a logout or Windows ending
+// its session ends in recorder.shutdown() with app.quit() straight after, and
+// the post raced the exit: those sessions, the usual way a tray app ends, were
+// missing from the counts the recorder's thresholds are tuned from. So the
+// newest block is kept (recordingReportPending, one at most) until the server
+// takes it, and the next launch sends the one a quit left (sendPendingReport).
+//
+// AND AS THE APP GOES, ONLY KEPT. A block handed out as the process ends (a
+// quit, Windows ending its session: shutdown's `exiting`; not a logout, after
+// which the app goes on) is not posted then: raced with the exit, the post
+// can reach the server and lose its answer, and the next launch sent the
+// same session again, counted twice. The next launch posts it, once.
+let reportSeq = 0;
+recorder.on('report', (block, how) => {
+  if (!block) return;
+  const kept = { at: Date.now(), n: ++reportSeq, block };
+  store.set('recordingReportPending', kept);
+  if (!(how && how.exiting)) sendReport(kept);
+});
+
+/** One kept block to the server; taken, it is let go, unless a newer one has replaced it. */
+function sendReport(kept) {
+  const key = store.get('licenseKey');
+  if (!key || !kept || !kept.block) return;
+  api.post('/api/coach/session-report', kept.block, key, 8000).then((r) => {
+    const now = store.get('recordingReportPending');
+    if (r && r.ok && now && now.at === kept.at && now.n === kept.n) store.set('recordingReportPending', null);
+  }).catch(() => {});
+}
+
+let pendingReportSent = false;
+/** At launch, once the licence key is known: the block a quit left, sent once. */
+function sendPendingReport() {
+  if (pendingReportSent || !store.get('licenseKey')) return;
+  const kept = store.get('recordingReportPending');
+  if (!kept || typeof kept !== 'object' || !kept.block) return;
+  pendingReportSent = true;
+  sendReport(kept);
+}
 
 // The player's 4 most-played agent names, for the one-tap agent-select bubble.
 // Four is what the bubble's width actually fits on one row.
@@ -119,7 +284,7 @@ function buildState() {
     // gameId is what the panel gates its Learn entry on, so it has to be true.
     game:       gameRegistry.get(store.get('game')).label,
     gameId:     gameRegistry.get(store.get('game')).id,
-    // One line for the panel's status: a licence ending, capture blocked, the
+    // The window's notice line: a licence ending, capture blocked, the
     // server unreachable. Nothing the coach thinks about the match, ever.
     notice:     state.notice,
     // How often the game is being read right now, and how it was chosen.
@@ -135,6 +300,10 @@ function buildState() {
     licensePlan:     store.get('licensePlan'),
     licenseStatus:   store.get('licenseStatus'),
     licenseExpiry:   store.get('licenseExpiry'),
+    // The match recorder's setting, why Auto is off if it turned itself off,
+    // and whether a recording is being made: Settings paints from it. About
+    // the capture only, never the match.
+    recording:       recorder.view(),
   };
 }
 
@@ -174,7 +343,7 @@ function liveLogSealed() {
 }
 
 /**
- * One line on the panel's status: a licence ending, capture blocked, the server
+ * The window's notice line: a licence ending, capture blocked, the server
  * unreachable. There is no tip stream any more; Occlara says nothing about the
  * match until the review.
  */
@@ -285,6 +454,16 @@ const backfill = new Backfill({
     const back = reviewStore.get(review.id);
     if (!back || back.review.matchId !== review.matchId || !!back.review.verified !== !!review.verified) {
       throw new Error('the review was not saved');
+    }
+    // A RECORDING UPGRADED IN PLACE KEEPS THE CLIPS ITS CARDS NAME (8.3). The
+    // upgrade drops a look at a death Riot says never happened (riot-review.js
+    // upgradeWatched: the real Abyss round 17), and its clip stayed on disk,
+    // played by nothing, counted in Settings and against the cap until the cap
+    // or Clear clips took it. None is still being cut: a review whose work is
+    // going on is never upgraded (activeIds). Saved by now, so a clip that will
+    // not go is no failed save.
+    if (review.lateLinked) {
+      try { reviewStore.keepClips(review.id, reviewClips.namedClips(review)); } catch (e) { console.log('[clips] keepClips:', e.message); }
     }
     // A recording upgraded with Riot's record while its window is open
     // repaints there, rather than staying on the version Riot just corrected.
@@ -421,6 +600,11 @@ mainWindow.onWindowChange(onMainWindow);
  * Its place in the AI log leaves as one word, 'kept', 'gone' or null, for the
  * eye on its page (8.2): which session and which frames are main's to find
  * (REVIEW_AILOG), never a page's.
+ *
+ * And its clips (8.3): each one a card names is played from occlara-clip
+ * while it is on disk (clipUrl), and said to be cleared, for space or from
+ * Settings, once it is not (clipGone). Asked of the disk each time, because
+ * the cap takes the oldest reviews' clips whenever a new one is kept.
  */
 function present(review) {
   if (!review || typeof review !== 'object') return review;
@@ -430,7 +614,11 @@ function present(review) {
     out.study = review.study.filter((n) => n && typeof n.text === 'string' && n.text).map((n) => ({ text: n.text }));
   }
   out.aiLog = aiLogStateOf(reviewLogEntry(review, review.at));
-  return out;
+  if (!review.id) return out;
+  return reviewClips.presentClips(out, {
+    has: (name) => reviewStore.hasClip(review.id, name),
+    url: (name) => clipScheme.urlFor(review.id, name),
+  });
 }
 
 /** Paint a review in the review window, whichever game it is from. */
@@ -534,10 +722,11 @@ async function riotRoundsFor(lm) {
  * record never reached, framed by when the screen read each one, and the
  * server is told so: it then claims no second and names no killer.
  *
- * Returns { byRound: { n: { cause, what, better, frames, source, at } }, frames: { name: b64 } },
- * `at` being when the first frame looked at was captured. Empty, never an
- * error, when there are no frames: the AI log was off, or the deaths were in
- * rounds the coach never saw.
+ * Returns { byRound: { n: { cause, what, better, frames, source, at, moment } }, frames: { name: b64 } },
+ * `at` being when the first frame looked at was captured and `moment` when
+ * the death was, for its clip (clipLooks). Empty, never an error, when there
+ * are no frames: the AI log was off, or the deaths were in rounds the coach
+ * never saw.
  */
 async function forensicsFor(rounds, snap, opts) {
   const source = opts && opts.source === 'screen' ? 'screen' : 'riot';
@@ -568,6 +757,9 @@ async function forensicsFor(rounds, snap, opts) {
       firstDeath: r.firstDeath, traded: r.traded, alive: r.aliveAtDeath,
       planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, frames: imgs, names,
       gap: look.gap, at: look.at,
+      // When the death itself was, on the wall clock, for its clip (8.3,
+      // shared/clips.js momentOf): kept here, never sent.
+      moment: clips.momentOf(look),
     });
   }
   if (!deaths.length) return empty;
@@ -580,7 +772,7 @@ async function forensicsFor(rounds, snap, opts) {
       agent: source === 'screen' && !snap.context.agentConfirmed ? null : snap.context.agent,
       map: snap.context.map, language: snap.context.language || 'en',
       source,
-      deaths: deaths.map(({ names, at, ...d }) => d),
+      deaths: deaths.map(({ names, at, moment, ...d }) => d),
     };
     const { ok, data } = await api.post(API.DEATH_FORENSICS, body, store.get('licenseKey'), 60000);
     if (!ok || !data || !Array.isArray(data.deaths)) {
@@ -592,7 +784,7 @@ async function forensicsFor(rounds, snap, opts) {
       const d = deaths.find((x) => x.n === f.n);
       if (!d || f.failed) continue;
       out.byRound[f.n] = { cause: f.cause, what: f.what || null, better: f.better || null, frames: d.names,
-        source, at: typeof d.at === 'number' ? d.at : null };
+        source, at: typeof d.at === 'number' ? d.at : null, moment: typeof d.moment === 'number' ? d.moment : null };
       for (const name of d.names) out.frames[name] = kept[name];
     }
     console.log(`[review] death forensics${source === 'screen' ? ' from the screen' : ''}: `
@@ -634,6 +826,11 @@ async function lookFromScreen(job) {
   // fails after all, the link's end looks again.
   if (job.riotBusy) { job.screenLook = null; return; }
   if (job.cancelled || job.riotLooked || !Object.keys(looked.byRound).length) return;
+  // The clip of each moment, out of the match's recording while it is held.
+  // Never over Riot's look, which is the one kept whenever it lands.
+  await clipLooks(job, looked, () => job.cancelled || job.riotBusy || job.riotLooked);
+  if (job.riotBusy) { job.screenLook = null; return; }
+  if (job.cancelled || job.riotLooked) return;
   // On the ledger's own rows, so a version built after this one (a scoreboard
   // linked late) still carries the looks. Riot's reconcile builds its rounds
   // afresh and keeps none of them.
@@ -642,6 +839,109 @@ async function lookFromScreen(job) {
   // reason Riot's record is missing if the link gave up.
   repaintReview(job, buildValorantReview(snap, job.tracker || null,
     { history: job.history, linkMissing: job.linkMissing || false }).built, looked.frames);
+}
+
+/**
+ * THE CLIPS OF A LOOK'S MOMENTS (8.3): cut out of the match's recording while
+ * its hold still keeps the pages (releaseMatchHolds comes after every look),
+ * kept beside the review (review-store.js saveClip), and named on the look
+ * (`clip`), which its card then plays. 11 seconds before each death to 4
+ * after it (shared/clips.js), six a review at most, then the cap.
+ *
+ * A match the recorder did not record (Off, given up as busy, a PC with no
+ * hardware encoder, a death before the recording began) has no clip, and its
+ * moments show their frames as they always have.
+ *
+ * NOR ONCE THE PLAYER CHOSE OFF, whatever the recorder still holds of a match
+ * already played (shared/clips.js cutsClips): recorder.js lets its recordings
+ * go when it is told of Off, and this holds where it was not. Riot's look
+ * landing minutes after Off cut its clips out of the match's held recording
+ * and kept them beside the review.
+ *
+ * ONE LOOK'S CLIPS AT A TIME, a review's later look after its earlier one,
+ * and only while that look is still the one the review will keep (`stale`):
+ * the screen's look and Riot's could otherwise both be cutting, the screen's
+ * finishing last, and the review keeping Riot's cards with the screen's clips
+ * in place of theirs. The last look's are the ones kept, and a clip an earlier
+ * look cut of a round this one did not choose goes (keepClips).
+ */
+function clipLooks(job, looked, stale) {
+  const run = () => cutLookClips(job, looked, stale);
+  job.clipping = (job.clipping || Promise.resolve()).then(run, run);
+  return job.clipping;
+}
+
+async function cutLookClips(job, looked, stale) {
+  if (stale()) return;
+  // Off: nothing is cut. The look is still the review's last, so its cards
+  // name no clip, and an earlier look's clips go, as they do when the
+  // recording holds none of this one's moments.
+  const off = () => !clips.cutsClips(store);
+  if (off()) {
+    try { reviewStore.keepClips(job.id, []); } catch (e) { console.log('[clips] keepClips:', e.message); }
+    console.log(`[clips] ${job.id}: Off was chosen, no clip cut`);
+    return;
+  }
+  const looks = Object.entries((looked && looked.byRound) || {})
+    .map(([n, f]) => ({ key: Number(n), name: clips.roundClip(n), moment: f && f.moment }))
+    .filter((l) => l.name && Number.isFinite(l.moment))
+    .sort((a, b) => a.key - b.key);
+  let r = { kept: [], tried: 0, missed: 0 };
+  if (looks.length) {
+    try {
+      r = await reviewClips.cutClips({
+        looks, max: clips.MAX_CLIPS,
+        cut: (from, to, at) => recorder.cutClip(from, to, at),
+        save: (name, bytes) => !stale() && reviewStore.saveClip(job.id, name, bytes) > 0,
+        // Off chosen while they are cut: the ones kept stay named, no more.
+        stopped: () => stale() || off(),
+      });
+    } catch (e) {
+      console.log('[clips] the clips could not be cut:', e.message);
+      return;
+    }
+  }
+  if (stale()) return;
+  for (const k of r.kept) if (looked.byRound[k.key]) looked.byRound[k.key].clip = k.name;
+  try { reviewStore.keepClips(job.id, r.kept.map((k) => k.name)); } catch (e) { console.log('[clips] keepClips:', e.message); }
+  if (looks.length) {
+    console.log(`[clips] ${job.id}: ${r.kept.length} of ${looks.length} moments clipped`
+      + `${r.missed ? `, ${r.missed} not in the recording` : ''} (${Math.round(r.kept.reduce((n, k) => n + k.bytes, 0) / 1024)} KB)`);
+  }
+  if (r.kept.length) applyClipCap();
+}
+
+/**
+ * THE CAP ON EVERY CLIP TOGETHER (Settings: 5, 10, 20 or 50 GB, 10 by
+ * default). Past it the oldest reviews lose their clips first and keep their
+ * frames and facts, and each says its clip was cleared for space
+ * (review-store.js capClips).
+ */
+let clipCapSeen = clips.capGB(store.get('clipCapGB'));
+function applyClipCap() {
+  let ids = [];
+  try { ids = reviewStore.capClips(clips.capGB(store.get('clipCapGB')) * clips.GB); } catch (e) {
+    console.warn('[clips] the cap could not be applied:', e.message);
+    return;
+  }
+  if (ids.length) clipsCleared(ids, 'space');
+}
+
+/**
+ * Reviews whose clips were taken (the cap, or Clear clips in Settings). A
+ * review still being improved says so on every version it saves from now
+ * (stampReview), or its next save would forget why its clip is gone; and the
+ * one open on its page repaints, rather than keep a player on a deleted file.
+ */
+function clipsCleared(ids, reason) {
+  const gone = new Set(ids);
+  const at = Date.now();
+  for (const job of reviewJobs.values()) if (gone.has(job.id)) job.clipsCleared = { reason, at };
+  if (lastReviewShown && gone.has(lastReviewShown.id)) {
+    const e = reviewStore.get(lastReviewShown.id);
+    if (e) showReview(withFrames(e.review));
+  }
+  console.log(`[clips] cleared ${reason === 'space' ? 'for space' : 'from Settings'}: ${ids.length} review${ids.length === 1 ? '' : 's'}`);
 }
 
 /*
@@ -653,6 +953,21 @@ async function lookFromScreen(job) {
  * no longer cancels the Riot link of the one before.
  */
 const reviewJobs = new Map();
+
+/**
+ * A review still being built, for the update's question (updater.js busy):
+ * a job is in reviewJobs until its link is done, and is counted for the hour
+ * its match's frames and recording are held at most (aiLogStore.HOLD_MAX_MS),
+ * so a job a throw never let go cannot keep the question back for good.
+ */
+function reviewBeingBuilt(now) {
+  const t = Number.isFinite(now) ? now : Date.now();
+  for (const job of reviewJobs.values()) {
+    const end = job && job.snap && Number.isFinite(job.snap.endedAt) ? job.snap.endedAt : null;
+    if (end !== null && t - end < aiLogStore.HOLD_MAX_MS) return true;
+  }
+  return false;
+}
 
 /**
  * The engine says the last end was wrong: the match is still being played.
@@ -672,7 +987,7 @@ function withdrawReview(startedAt) {
   reviewJobs.delete(startedAt);
   job.cancelled = true;
   clearTimeout(job.timer);
-  releaseAiLogFrames(job.log);
+  releaseMatchHolds(job);
   reviewStore.remove(job.id);
   if (lastReviewShown && lastReviewShown.id === job.id) {
     lastReviewShown = null;
@@ -694,7 +1009,10 @@ function withdrawReview(startedAt) {
  * the library ends up keeping.
  */
 function stampReview(job, built) {
-  return Object.assign(built, { id: job.id, at: job.snap.endedAt || Date.now(), aiLog: job.aiLog || null });
+  return Object.assign(built, { id: job.id, at: job.snap.endedAt || Date.now(), aiLog: job.aiLog || null },
+    // Its clips taken while it was still being improved (clipsCleared): every
+    // later version says why, as the saved one the cap or Settings marked did.
+    job.clipsCleared ? { clipsCleared: job.clipsCleared } : {});
 }
 
 /**
@@ -744,7 +1062,7 @@ function retireStopStubs(job, lm) {
     if (!verifyFor(o.startedAt, o.endedAt, o.context && o.context.map)) continue;
     other.cancelled = true;
     clearTimeout(other.timer);
-    releaseAiLogFrames(other.log);
+    releaseMatchHolds(other);
     reviewJobs.delete(key);
     reviewStore.remove(other.id);
     console.log(`[review] ${other.id} was the start of this match, recorded before a stop: folded into ${job.id}`);
@@ -775,7 +1093,7 @@ function onValorantMatchEnded(snap) {
   if (prior) {
     prior.cancelled = true;
     clearTimeout(prior.timer);
-    releaseAiLogFrames(prior.log);
+    releaseMatchHolds(prior);
     reviewStore.remove(prior.id);
     breakdownCache.clear();
   }
@@ -790,6 +1108,10 @@ function onValorantMatchEnded(snap) {
     // after the look from the screen when Riot's rounds never came), so a
     // match linked forty minutes later still has its frames.
     log: holdAiLogFrames(snap.startedAt, snap.endedAt),
+    // And its recording, held the same way (8.3), for the clips cut from the
+    // moments the review looks at, and through the minutes a match the watch
+    // ended too early can still resume in. An hour at most, as the frames.
+    recording: holdRecording(snap.startedAt - 5000, (snap.endedAt || Date.now()) + RECORDING_RESUME_MS),
   };
   // AND KEPT WITH THE REVIEW (8.2): the session folder, and the match's stamp
   // and window, which every record of it carries. The eye on its row and its
@@ -870,7 +1192,7 @@ function linkRiotRecord(job) {
   const done = () => {
     const look = job.cancelled || job.riotLooked ? job.screenLook : screenLook(job);
     Promise.resolve(look).then(() => {
-      releaseAiLogFrames(job.log);
+      releaseMatchHolds(job);
       if (reviewJobs.get(snap.startedAt) === job) reviewJobs.delete(snap.startedAt);
     });
   };
@@ -915,6 +1237,10 @@ function linkRiotRecord(job) {
       null, { transient: true });
 
     const looked = await forensicsFor(rounds, { ...snap, context });
+    if (job.cancelled) return false;
+    // The clip of each moment, while the match's recording is held. Riot's
+    // look is the one kept, so its clips are, and the screen's go.
+    await clipLooks(job, looked, () => job.cancelled);
     if (job.cancelled) return false;
     for (const r of rounds) if (looked.byRound[r.n]) r.forensics = looked.byRound[r.n];
 
@@ -1231,6 +1557,10 @@ const controller = {
       state.isCoaching = true;
       state.isPaused = false;
       engine.start();
+      // The game recorded on this PC too (8.3), if Settings says Auto, for the
+      // clips of its deaths in the review. Nothing reads the screen here; the
+      // recording is display capture alone, and shows nothing.
+      recorder.startSession('lol');
       pushNotice('Recording. Nothing appears during your game, and the graded review opens when it ends.', 'recording');
       setStatus('coaching');
       syncSeal();
@@ -1281,6 +1611,9 @@ const controller = {
     engine.on('status', (status) => {
       state.isPaused = status === 'paused';
       setStatus(status);
+      // Paused, nothing is read, and nothing is recorded either.
+      if (status === 'paused') recorder.pause();
+      else if (status === 'coaching') recorder.resume();
     });
     engine.on('match-ended', (snap) => onValorantMatchEnded(snap));
     engine.on('match-review', (reviewText, snap) => onValorantMatchReview(reviewText, snap));
@@ -1309,6 +1642,10 @@ const controller = {
     // A fresh tracker profile for the stats view and the review's baseline.
     fetchTrackerStats(true).catch(() => {});
     startAiLog();   // fresh AI decision-log folder for this session
+    // The match recorded on this PC, if Settings says Auto (recorder.js). The
+    // reads stay on the GDI helper until its stream has been shown to see
+    // the game, and go back to it the moment recording stops.
+    recorder.startSession('valorant');
     setStatus('coaching');
     syncSeal();
     console.log('[coach] started');
@@ -1329,7 +1666,10 @@ const controller = {
     // down). A licence notice stays, it is still true. Cleared before the engine
     // stops, because stopping can leave a notice of its own about the review.
     if (state.licenseActive) state.notice = null;
+    // The engine first: a match stopped halfway is held as it ends (its
+    // 'match-ended'), then the recording stops with its last chunks written.
     if (engine) { engine.stop(); engine = null; }
+    recorder.stopSession();
     flushAiLog(true);
     state.agent = { agent: null, confirmed: false, role: null };
     registry.broadcast(C.PUSH_AGENT, state.agent); // hide the panel bubble/chip
@@ -1418,6 +1758,20 @@ const controller = {
       breakdownCache.set(key, breakdownOf.build(g, reviewStore.recent(g, MAX_REVIEWS), { queue }));
     }
     return breakdownCache.get(key);
+  },
+  /**
+   * Settings' line under Record match video (8.3): what the clips kept beside
+   * the reviews take together, against the cap, counted off the disk.
+   */
+  clipsUsage() {
+    const u = reviewStore.clipUsage();
+    return { bytes: u.bytes, clips: u.clips, reviews: u.reviews, capGB: clips.capGB(store.get('clipCapGB')) };
+  },
+  /** Clear clips, in Settings: every clip goes, every review keeps its frames and facts and says so. */
+  clearClips() {
+    const ids = reviewStore.clearClips('cleared');
+    if (ids.length) clipsCleared(ids, 'cleared');
+    return this.clipsUsage();
   },
   /** The Matches button: grade the recent matches of the Riot ID in Settings. */
   startBackfill() {
@@ -2037,6 +2391,12 @@ const controller = {
   },
   onConfigChanged() {
     if (engine && engine.setCaptureSpeed) engine.setCaptureSpeed(store.get('captureSpeed') || 'auto');
+    // Record match video turned Off, or On again (Settings' "Try again" after
+    // it turned itself off): applied to the session in progress at once.
+    recorder.prefsChanged();
+    // The cap on clips lowered: the oldest go now, not at the next save.
+    const capNow = clips.capGB(store.get('clipCapGB'));
+    if (capNow !== clipCapSeen) { clipCapSeen = capNow; applyClipCap(); }
     // Riot ID changed (new account connected): every tracker-derived cache is
     // now the WRONG player's data, drop it all immediately. Fresh data flows
     // back in on Connect, session start, or the next dashboard open.
@@ -2335,11 +2695,64 @@ function finishLolGame(record) {
     saveReview(built, 'lol');
     openPage('review');
     console.log(`[lol] review ready: ${built.scoreline.kills}/${built.scoreline.deaths}/${built.scoreline.assists}`);
+    clipLolDeaths(built, record).catch((e) => console.log('[clips] the League deaths could not be clipped:', e.message));
   } catch (e) {
     // A failed grade must never lose the game that was recorded, so the raw
     // record is kept for inspection rather than dropped on the floor.
     console.error('[lol] review failed:', e.message);
     lastLolRaw = record;
+  }
+}
+
+/**
+ * A LEAGUE GAME'S DEATHS, CLIPPED (8.3), once its review is on screen. The
+ * game stamps each death by its own clock, and the recorder noted that clock
+ * against the wall clock on every poll (lol-recorder.js timeline), so a death
+ * at 14:32 of game time is found in the recording by wall time (wallAt) and
+ * cut 11 s before to 4 s after, as a Valorant look's moment is. Six at most,
+ * spread across the game when it had more (pickSpread). Nothing else holds a
+ * League game's recording, so it is held here, from the game's start, while
+ * they are cut. A game not recorded has no clips, and "Your deaths" lists its
+ * deaths as before. Nor does a game that ends after the player chose Off, or
+ * one still waiting for its clips when they do (shared/clips.js cutsClips, as
+ * in cutLookClips).
+ */
+const LOL_CLIP_SETTLE_MS = 6000;
+async function clipLolDeaths(built, record) {
+  const { wallAt } = require('./services/lol-recorder');
+  const off = () => !clips.cutsClips(store);
+  const deaths = Array.isArray(built.deathList) ? built.deathList : [];
+  const timeline = record && Array.isArray(record.timeline) ? record.timeline : [];
+  if (!deaths.length || !timeline.length || off()) return;
+  const looks = clips.pickSpread(deaths, clips.MAX_CLIPS)
+    .map((d) => ({ key: d.n, name: clips.deathClip(d.n), moment: wallAt(timeline, d.atSec) }))
+    .filter((l) => l.name && Number.isFinite(l.moment));
+  if (!looks.length) return;
+  const from = Number.isFinite(record.startedAt) ? record.startedAt : Math.min(...looks.map((l) => l.moment)) - clips.BEFORE_MS;
+  const hold = holdRecording(from - 5000, Date.now() + 1000, 10 * 60 * 1000);
+  try {
+    // A death in the last fight of the game ends its clip's four seconds
+    // after the game's end, and the recording writes a second at a time:
+    // a few seconds more, and those are on disk too.
+    await new Promise((resolve) => setTimeout(resolve, LOL_CLIP_SETTLE_MS));
+    if (off()) return;
+    const r = await reviewClips.cutClips({
+      looks, max: clips.MAX_CLIPS,
+      cut: (a, b, at) => recorder.cutClip(a, b, at),
+      save: (name, bytes) => reviewStore.saveClip(built.id, name, bytes) > 0,
+      stopped: off,
+    });
+    console.log(`[clips] ${built.id}: ${r.kept.length} of ${looks.length} deaths clipped${r.missed ? `, ${r.missed} not in the recording` : ''}`);
+    if (!r.kept.length) return;
+    for (const k of r.kept) {
+      const d = deaths.find((x) => x.n === k.key);
+      if (d) d.clip = k.name;
+    }
+    saveReview(built, 'lol');
+    if (lastReviewShown && lastReviewShown.id === built.id) showReview(built);
+    applyClipCap();
+  } finally {
+    releaseRecording(hold);
   }
 }
 let lastLolReview = null;
@@ -2681,6 +3094,28 @@ function releaseAiLogFrames(log) {
   aiLogHolds = aiLogHolds.filter((h) => h !== log.hold);
 }
 
+/**
+ * A finished match's recording, held as its AI log frames are (8.3): pages
+ * older than two minutes go unless a hold covers them, and a review looks at
+ * its deaths minutes after the match, once Riot has published it. Until
+ * released (releaseRecording, when the review's work is done), and `forMs` at
+ * most, an hour by default (recorder.js HOLD_MAX_MS).
+ */
+function holdRecording(from, to, forMs) { return recorder.hold(from, to, forMs); }
+function releaseRecording(hold) { recorder.release(hold); }
+
+/**
+ * A review's work is done (or withdrawn): its AI log frames and its recording
+ * are let go together. The clips of the moments it looked at are cut before
+ * this, as each look lands (clipLooks), since the recording's pages go once
+ * nothing holds them.
+ */
+function releaseMatchHolds(job) {
+  if (!job) return;
+  releaseAiLogFrames(job.log);
+  releaseRecording(job.recording);
+}
+
 /** Keep only the most recent session folders. */
 function pruneAiLog() {
   // The live folder is named so no prune can remove the session in progress,
@@ -2898,6 +3333,10 @@ function revalidateNow() {
 // the app, so we can return to the activation window.
 function teardownSession() {
   try { if (engine) { engine.stop(); engine = null; } } catch (e) {}
+  // Logged out: the recording stops, nothing of the screen stays on disk, the
+  // session's counts are kept for the server, and the AI log, made again at
+  // the next sign in, is back in captures ('running' false).
+  try { recorder.shutdown(); } catch (e) {}
   // Logged out: no grading carries on under a licence that is gone, and no
   // late link starts after it.
   try { backfill.cancel(); } catch (e) {}
@@ -2923,6 +3362,11 @@ function teardownSession() {
 // activation window. Stays logged out until a new key is activated.
 function logoutToActivation(reason) {
   stopLicenseWatch();
+  // The recording ends while the licence key is still there, so its session's
+  // counts go with it: ended after the clear, the post found no key and the
+  // block waited for the next launch, and a session ended before then took
+  // its place unsent. teardownSession's own shutdown finds nothing left.
+  try { recorder.shutdown(); } catch (e) {}
   licenseService.clear();
   teardownSession();
   mainLaunched = false;
@@ -2995,6 +3439,8 @@ const hotkeyActions = {
 function launchMainApp() {
   if (mainLaunched) return;
   mainLaunched = true;
+  // A key just activated: the recorder's counts a quit left, if launch had none.
+  sendPendingReport();
 
   if (!store.get('onboardingCompleted')) {
     const tour = onboardingWindow.create();
@@ -3085,7 +3531,10 @@ function createAppSurfaces(opts) {
   mainWindow.create({ deferShow: !!(opts && opts.deferShow) });
   tray.create(trayActions);
   hotkeys.register(hotkeyActions);
-  updater.init();   // background update checks + in-app restart prompt
+  // Background update checks, and the restart question, never asked while the
+  // player is playing: a session running, a stop mid match holding the seal,
+  // or a review still being built (updater.js).
+  updater.init({ busy: () => !!state.isCoaching || sealHeld || reviewBeingBuilt() });
 
   // Send an initial state snapshot once the shell has loaded.
   const main = mainWindow.get();
@@ -3189,6 +3638,11 @@ function cleanupAndQuit() {
 
     if (engine) { engine.stop(); engine = null; }
     flushAiLog(true);
+    // Quitting: no review job outlives the process, so neither does the
+    // recording of the screen (and a quit that never gets here is swept at the
+    // next launch). The session's counts are kept, not posted into the exit
+    // (`exiting`), and the next launch sends them.
+    recorder.shutdown({ exiting: true });
     capture.disposeWorker();
     hotkeys.unregister();
     globalShortcut.unregisterAll();
@@ -3221,6 +3675,29 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     logger.init(app);
     console.log('[main] Ready. Debug log:', logger.getLogPath());
+    // Whatever recording a run before this one left (a crash, a kill) is a
+    // picture of somebody's screen that no review is waiting for any more.
+    try { recorder.sweep(); } catch (e) { console.warn('[recorder] sweep failed:', e.message); }
+    // The recorder's counts a quit left unsent, once, with the key kept from
+    // the last run (launchMainApp sends it instead once a key is activated).
+    sendPendingReport();
+    // THE PRIMARY DISPLAY, FOLLOWED. A recording is of the display that was
+    // primary when it opened and the GDI helper reads whichever is primary
+    // now, so when another display becomes the primary one (the game moved to
+    // it, a laptop docked) the recording starts again on it
+    // (recorder.js displaysChanged), and the read never serves the old one.
+    const followPrimary = () => {
+      try { recorder.displaysChanged(screen.getPrimaryDisplay().id); } catch (e) { console.warn('[recorder] display change:', e.message); }
+    };
+    for (const ev of ['display-added', 'display-removed', 'display-metrics-changed']) screen.on(ev, followPrimary);
+    // The clips a review's page plays (8.3): served from the reviews' own
+    // folders and nowhere else (clip-scheme.js, review-store.js clipFile).
+    try {
+      protocol.handle(clipScheme.SCHEME, clipScheme.createHandler({ fileOf: (id, name) => reviewStore.clipFile(id, name) }));
+    } catch (e) { console.warn('[clips] the clip scheme could not be handled:', e.message); }
+    // And the cap on them, once at launch too: a run that quit between keeping
+    // a clip and applying the cap left the clips past it.
+    applyClipCap();
 
     registerIpc({ controller, license });
 

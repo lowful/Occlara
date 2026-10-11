@@ -189,6 +189,59 @@ function rec() {
   ok('the review never invents an item recommendation', text.indexOf('you should have built') === -1);
 }
 
+// ── Every death, by the game's clock, and the game's clock on the wall's (8.3)
+{
+  const { wallAt } = require('../src/main/services/lol-recorder');
+  const events = [
+    { EventID: 1, EventName: 'ChampionKill', EventTime: 200, KillerName: FOE, VictimName: A1 },
+    { EventID: 2, EventName: 'ChampionKill', EventTime: 210, KillerName: FOE, VictimName: ME },   // ally 10 s before
+    { EventID: 3, EventName: 'ChampionKill', EventTime: 600, KillerName: FOE, VictimName: ME },   // nobody near
+    { EventID: 4, EventName: 'ChampionKill', EventTime: 900, KillerName: FOE, VictimName: ME },   // ally 15 s after
+    { EventID: 5, EventName: 'ChampionKill', EventTime: 915, KillerName: FOE, VictimName: A2 },
+    { EventID: 6, EventName: 'ChampionKill', EventTime: 400, KillerName: ME, VictimName: FOE },   // a kill, not a death
+  ];
+  const list = review.deathList(events, ME, [A1, A2]);
+  ok('each of the player\'s deaths, in order, numbered from 1, by the game\'s clock',
+    list.length === 3 && list.map((d) => d.n).join() === '1,2,3' && list.map((d) => d.at).join() === '3:30,10:00,15:00'
+    && list.map((d) => d.atSec).join() === '210,600,900');
+  ok('an ally dead in the 20 seconds before it', list[0].fact === 'An ally had died in the 20 seconds before it.');
+  ok('no ally within 20 seconds of it', list[1].fact === 'No ally died within 20 seconds of it.');
+  ok('an ally dead in the 20 seconds after it', list[2].fact === 'An ally died in the 20 seconds after it.');
+  // The two banned dashes, built from their code points so this file carries neither.
+  const DASH = new RegExp('[' + String.fromCharCode(0x2013) + String.fromCharCode(0x2014) + ']');
+  ok('with no dash in any of them', list.every((d) => !DASH.test(d.fact)) && DASH.test(String.fromCharCode(0x2014)) && DASH.test(String.fromCharCode(0x2013)) && !DASH.test('a-b'));
+  ok('the same counts deathStory tells the player', (() => {
+    const g = require('../src/shared/lol-grader').analyseDeaths(events, ME, [A1, A2]);
+    return g.joinedLost === list.filter((d) => /before/.test(d.fact)).length && g.caughtAlone === list.filter((d) => /^No ally/.test(d.fact)).length;
+  })());
+  ok('a record with no player has no deaths to list', review.deathList(events, '', [A1]).length === 0);
+  ok('and the review carries the list', review.buildReview({ me: ME, allies: [A1, A2], events, final: { kills: 1, deaths: 3, assists: 0 } }, []).deathList.length === 3);
+
+  // The recorder notes the game's clock at each poll, never backwards.
+  const r = rec();
+  r.notePoll(10, 1000000);
+  r.notePoll(12, 1002000);
+  r.notePoll(11, 1004000);
+  r.notePoll(14, 1004000);
+  ok('each poll\'s game clock beside its wall time, and a clock gone backwards left out',
+    r.timeline.length === 3 && r.timeline.map((p) => p.t).join() === '10,12,14');
+  r.live = true;
+  r.liveSince = 999000;
+  r.me = ME;
+  const recd = r.toRecord();
+  ok('the record carries when the game was first seen and its timeline', recd.startedAt === 999000 && recd.timeline.length === 3 && recd.timeline !== r.timeline);
+
+  // A death by the game's clock, on the wall clock.
+  const tl = [{ t: 100, wall: 5000000 }, { t: 102, wall: 5002000 }, { t: 104, wall: 5004000 },
+    // A pause at 104: the game's clock holds while the wall's runs on.
+    { t: 104, wall: 5010000 }, { t: 106, wall: 5012000 }];
+  ok('a moment between polls: the last poll before it, a second a second', wallAt(tl, 101.5) === 5001500 && wallAt(tl, 102) === 5002000);
+  ok('after a pause: carried on from the poll the game resumed at', wallAt(tl, 105) === 5011000);
+  ok('before the first poll (recorded from mid game): carried back from it', wallAt(tl, 90) === 4990000);
+  ok('past the last poll: carried on from it', wallAt(tl, 110) === 5016000);
+  ok('nothing to place it by is null', wallAt([], 100) === null && wallAt(tl, null) === null && wallAt(tl, 'x') === null);
+}
+
 // ── A malformed record must not throw ───────────────────────────────────────
 {
   assert.doesNotThrow(() => review.buildReview(null, null), 'a null record');

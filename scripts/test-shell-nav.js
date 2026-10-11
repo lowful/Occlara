@@ -8,8 +8,9 @@
  * page views as well as windows. Then main-window.js itself on stand-in views:
  * the window's own state deciding whether it can be seen, its show, restore
  * and focus starting a staged page's wait again, and a page loading again
- * ignoring the ready of the document it replaces. check:mainwindow carries the
- * same switch out on real views.
+ * ignoring the ready of the document it replaces; and the shell drawn to the
+ * sizes the pages are laid at, its notice line (8.3) one line in the top
+ * strip. check:mainwindow carries the same switch out on real views.
  *
  * Run: npm run test:shellnav
  */
@@ -406,6 +407,8 @@ function rig() {
     restore() { this.minimized = false; this.emit('restore'); }
     maximize() {}
     unmaximize() {}
+    // Out of every capture or not (8.3), and how often Windows was asked.
+    setContentProtection(on) { this.protected = !!on; this.protectAsks = (this.protectAsks || 0) + 1; }
   }
   const electron = { app: { on() {} }, BrowserWindow: Win, WebContentsView: View, screen: { getAllDisplays: () => [] } };
   const clock = { now: 0, seq: 0, timers: new Map() };
@@ -443,6 +446,18 @@ function rig() {
     tick(READY_MS - 1);
     ok(waiting('home'), 'shown and focused, its wait starts again');
     ok(readyFrom('home') && settled('home'), 'and its ready, its view painting at last, places it');
+
+    // OUT OF THE RECORDING WHILE SEALED (8.3): the match is recorded off the
+    // screen, and the window sealed over it would be in the video.
+    ok(w.protected === false, 'unsealed, the window is in captures: a review can be screenshotted or streamed');
+    mw.setSealed(true);
+    ok(w.protected === true, 'sealed, it is out of every capture, the match\'s recording included');
+    const asks = w.protectAsks;
+    mw.setSealed(true);
+    mw.setSealed(true, { held: true });
+    ok(w.protectAsks === asks && w.protected === true, 'the seal checked again each second asks Windows nothing more, held or not');
+    mw.setSealed(false);
+    ok(w.protected === false, 'unsealed, back in captures');
 
     // A match: sealed. Its end, with the game in front: shown, but the focus
     // a background app asks for is refused.
@@ -520,6 +535,38 @@ function rig() {
     w.emit('closed');
     mw.show('review');
     ok(wins.length === 2 && !mw.motionState().reloading.length, 'the window gone and made again, no page is left marked loading');
+    // Made again mid match, it keeps the seal, and is out of captures from
+    // before its first frame.
+    mw.setSealed(true);
+    const again = wins[wins.length - 1];
+    again.dead = true;
+    again.emit('closed');
+    mw.show('review');
+    const third = wins[wins.length - 1];
+    ok(wins.length === 3 && mw.current().sealed && third.protected === true && third.protectAsks === 1,
+      'made again while sealed, the new window is out of captures from its creation');
+
+    // THE SHELL IS DRAWN TO THE SIZES ITS PAGES ARE LAID BESIDE (change them
+    // together, CLAUDE.md). A page is laid at x = SIDEBAR_W and y = TOP_H over
+    // the shell's own document, so its top strip is TOP_H tall, and the notice
+    // line in that strip (8.3, the record card's line until then) one line,
+    // cut rather than wrapped: wrapped, its second line would be under the page.
+    const shellDir = path.join(__dirname, '..', 'src', 'renderer', 'shell');
+    const css = fs.readFileSync(path.join(shellDir, 'shell.css'), 'utf8');
+    const markup = fs.readFileSync(path.join(shellDir, 'index.html'), 'utf8');
+    const rule = (sel) => {
+      const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return (css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
+    };
+    const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
+    ok(prop(rule('.side'), 'width') === `${mw.SIDEBAR_W}px` && prop(rule('.top'), 'height') === `${mw.TOP_H}px`
+      && prop(rule('.top'), 'flex') === `0 0 ${mw.TOP_H}px`,
+    `the shell's sidebar is SIDEBAR_W (${mw.SIDEBAR_W}px) wide and its top strip TOP_H (${mw.TOP_H}px) tall, where the pages are laid`);
+    const strip = (markup.match(/<div class="top drag">([\s\S]*?)<div class="win-controls/) || [])[1] || '';
+    ok(/<p id="notice" class="top-notice no-drag" aria-live="polite"><\/p>/.test(strip)
+      && prop(rule('.top-notice'), 'white-space') === 'nowrap' && prop(rule('.top-notice'), 'text-overflow') === 'ellipsis'
+      && !/id="line"|rec-line/.test(markup + css),
+    'and the notice line is in that strip, before the window\'s buttons, empty and never hidden until it has something to say, and one line when it does');
   } finally {
     Object.assign(global, real);
   }

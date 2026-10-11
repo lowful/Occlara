@@ -280,9 +280,10 @@ const strip = (rv) => {
 {
   const snap = { ...played, startedAt: T0 - 60000, endedAt: T0 + 24 * riotReview.ROUND_MS + 60000 };
   const LOOKS = { 2: 'isolated', 14: 'isolated', 17: 'isolated', 19: 'dry-peek' };
+  // With the clip of each (8.3), cut from the match's recording.
   const look = (n) => ({ cause: LOOKS[n], what: `You held the site alone in round ${n}, far from your team.`,
     better: 'Hold the angle with a teammate close enough to trade you.',
-    frames: [`r${n}-before.jpg`, `r${n}-after.jpg`], source: 'screen', at: snap.startedAt + n * 100000 });
+    frames: [`r${n}-before.jpg`, `r${n}-after.jpg`], source: 'screen', at: snap.startedAt + n * 100000, clip: `r${n}-clip.mkv` });
   // As the look from the screen leaves them: on the ledger's own rows, so the
   // review built from them carries the looks on its cards.
   const rows = played.rounds.map((r) => (LOOKS[r.n] ? { ...r, forensics: look(r.n) } : r));
@@ -310,6 +311,16 @@ const strip = (rv) => {
     && JSON.stringify(c.forensics.frames) === JSON.stringify([`r${c.n}-before.jpg`, `r${c.n}-after.jpg`])
     && c.forensics.what === look(c.n).what && c.forensics.better === look(c.n).better && c.forensics.at === look(c.n).at),
     'each still from the screen, with its cause, its sentences, its moment and the names of its frames kept beside the review');
+  ok(kept.every((c) => c.forensics.clip === `r${c.n}-clip.mkv`), 'and the name of its clip (8.3), so its card still plays it');
+  // Its clips cleared for space before the check: the review says so still.
+  const cleared = (() => {
+    const rv = valorantReview.build({ rounds: rows, context: played.context, endedBy: 'score', ai: {}, role: 'Duelist', history: [] });
+    rv.ledger = valorantReview.ledgerOf({ ...snap, rounds: rows });
+    Object.assign(rv, { id: 'valorant-1758391200000-clear1', at: snap.endedAt, clipsCleared: { reason: 'space', at: T0 } });
+    return riotReview.upgradeWatched({ saved: { id: rv.id, at: rv.at, review: rv }, row: ROW, riot, history: [], account: 'Me#EUW' }).review;
+  })();
+  ok(cleared.clipsCleared && cleared.clipsCleared.reason === 'space' && !('clipsCleared' in up),
+    'a review whose clips the cap took says so after the check too, and one that kept them says nothing');
   ok(!up.rounds.find((c) => c.n === 17).forensics && !up.rounds.find((c) => c.n === 17).died,
     'and the look at round 17, a death Riot says never happened, goes with it');
   ok(causeRounds(up, 'cause:isolated') === '[2,14]' && causeRounds(up, 'cause:dry-peek') === '[19]',

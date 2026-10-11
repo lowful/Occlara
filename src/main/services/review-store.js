@@ -11,6 +11,10 @@
  *   <root>/index.json          one small row per review, newest first, for the list
  *   <root>/<id>.json           the whole review, exactly as the window paints it
  *   <root>/<id>/<name>.jpg     the frames the review looked at, when it looked
+ *   <root>/<id>/r<n>-clip.mkv  a clip of each moment it looked at, cut from the
+ *                              match's recording (8.3, shared/clips.js), under
+ *                              a cap on what every clip takes together; a
+ *                              League game's are d<k>-clip.mkv, by death
  *
  * A REVIEW IS SAVED MORE THAN ONCE. The Valorant review opens at once from the
  * screen, again when the scoreboard links, and again when Riot's round record
@@ -22,6 +26,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { CLIP_RE } = require('../../shared/clips');
 
 const MAX_REVIEWS = 300;          // about a season of daily play
 const ID_RE = /^[a-z]+-\d{10,}-[a-z0-9]{4,}$/;
@@ -191,6 +196,172 @@ class ReviewStore {
     if (!skipIndex) writeJson(path.join(this.root, 'index.json'), this.index().filter((r) => r.id !== id));
     return true;
   }
+
+  // ── Clips (8.3) ────────────────────────────────────────────────────────────
+  // A clip of each moment a review looked at, cut from its match's recording
+  // (review-clips.js). Kept in the review's folder beside its frames, so it
+  // goes with the review whichever way the review goes (remove() above, or
+  // pushed out of the library by save()). Never read whole into a review: the
+  // page plays it by range through occlara-clip (clip-scheme.js), and this is
+  // where that scheme's path comes from.
+
+  /**
+   * Where one clip of one review is kept, or null when the id is not a
+   * review's or the name not a clip's (shared/clips.js CLIP_RE): that review's
+   * own folder under the root, and nowhere else.
+   */
+  clipFile(id, name) {
+    if (!ID_RE.test(String(id || '')) || !CLIP_RE.test(String(name || ''))) return null;
+    return path.join(this.root, id, name);
+  }
+
+  /**
+   * Keep one clip beside a review, WRITTEN BY PATH: the bytes go to the file
+   * and nowhere else, never into the review's JSON or through base64 as its
+   * frames do, a clip being a few MB. Through a temp file, so a page playing
+   * the last one under that name never reads half of the next. Returns the
+   * bytes kept, 0 when nothing was.
+   */
+  saveClip(id, name, bytes) {
+    const file = this.clipFile(id, name);
+    if (!file || !bytes || !bytes.length) return 0;
+    const dir = path.dirname(file);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const tmp = `${file}.tmp`;
+    try {
+      fs.writeFileSync(tmp, bytes);
+      fs.renameSync(tmp, file);
+    } catch (e) {
+      try { fs.rmSync(tmp, { force: true }); } catch {}
+      throw e;
+    }
+    return bytes.length;
+  }
+
+  /** Whether that clip is on disk. */
+  hasClip(id, name) {
+    const file = this.clipFile(id, name);
+    if (!file) return false;
+    try { return fs.statSync(file).isFile(); } catch { return false; }
+  }
+
+  /** One review's clips on disk: [{ name, bytes }], by name. */
+  clipsOf(id) {
+    if (!ID_RE.test(String(id || ''))) return [];
+    let names = [];
+    try { names = fs.readdirSync(path.join(this.root, id)); } catch { return []; }
+    const out = [];
+    for (const name of names.filter((n) => CLIP_RE.test(n)).sort()) {
+      try {
+        const st = fs.statSync(path.join(this.root, id, name));
+        if (st.isFile()) out.push({ name, bytes: st.size });
+      } catch {}
+    }
+    return out;
+  }
+
+  /**
+   * A review's clips are the last look's: any other clip in its folder (one an
+   * earlier look cut, of a round this one did not choose) goes. Returns how
+   * many went.
+   */
+  keepClips(id, names) {
+    const keep = new Set(names || []);
+    let gone = 0;
+    for (const c of this.clipsOf(id)) {
+      if (keep.has(c.name)) continue;
+      try { fs.rmSync(path.join(this.root, id, c.name), { force: true }); gone += 1; } catch {}
+    }
+    return gone;
+  }
+
+  /**
+   * Every clip kept, review by review, oldest first: { bytes, clips, reviews,
+   * byReview: [{ id, at, bytes, clips }] }. A folder of clips whose review is
+   * gone from the library (written as it went) sorts before every review.
+   */
+  clipUsage() {
+    const at = new Map(this.index().filter(Boolean).map((r) => [r.id, r.at]));
+    let dirs = [];
+    try { dirs = fs.readdirSync(this.root, { withFileTypes: true }); } catch { dirs = []; }
+    const byReview = [];
+    for (const d of dirs) {
+      if (!d.isDirectory() || !ID_RE.test(d.name)) continue;
+      const list = this.clipsOf(d.name);
+      if (!list.length) continue;
+      byReview.push({
+        id: d.name, at: at.has(d.name) ? at.get(d.name) : -Infinity, owned: at.has(d.name),
+        bytes: list.reduce((n, c) => n + c.bytes, 0), clips: list.length,
+      });
+    }
+    byReview.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return {
+      bytes: byReview.reduce((n, r) => n + r.bytes, 0),
+      clips: byReview.reduce((n, r) => n + r.clips, 0),
+      reviews: byReview.length,
+      byReview,
+    };
+  }
+
+  /**
+   * THE CAP. Past `capBytes` together, the clips go a review at a time, the
+   * oldest review first (a folder no review owns before any), until what is
+   * left fits. A review that lost its clips keeps its frames, its facts and
+   * its grade, and is told why (clipsCleared, 'space'), which its page says.
+   * Returns the ids cleared, oldest first.
+   */
+  capClips(capBytes) {
+    const cap = Number(capBytes);
+    if (!Number.isFinite(cap) || cap < 0) return [];
+    const u = this.clipUsage();
+    let total = u.bytes;
+    const cleared = [];
+    for (const r of u.byReview) {
+      if (total <= cap) break;
+      this.dropClips(r, 'space');
+      total -= r.bytes;
+      cleared.push(r.id);
+    }
+    return cleared;
+  }
+
+  /** Every clip, gone (Clear clips in Settings), each review told so. Returns the ids cleared. */
+  clearClips(reason) {
+    const why = reason === 'space' ? 'space' : 'cleared';
+    const cleared = [];
+    for (const r of this.clipUsage().byReview) {
+      this.dropClips(r, why);
+      cleared.push(r.id);
+    }
+    return cleared;
+  }
+
+  /** One review's clips deleted, and the review told why; a folder no review owns, deleted whole. */
+  dropClips(r, why) {
+    if (!r.owned) {
+      try { fs.rmSync(path.join(this.root, r.id), { recursive: true, force: true }); } catch {}
+      return;
+    }
+    for (const c of this.clipsOf(r.id)) {
+      try { fs.rmSync(path.join(this.root, r.id, c.name), { force: true }); } catch {}
+    }
+    this.markClipsCleared(r.id, why);
+  }
+
+  /**
+   * Say on the saved review that its clips were cleared, and why: 'space'
+   * (the cap) or 'cleared' (Settings). Only the review's own file is written:
+   * the library's row carries nothing about clips.
+   */
+  markClipsCleared(id, reason) {
+    if (!ID_RE.test(String(id || ''))) return false;
+    const file = path.join(this.root, `${id}.json`);
+    const e = readJson(file, null);
+    if (!e || !e.review) return false;
+    e.review.clipsCleared = { reason: reason === 'space' ? 'space' : 'cleared', at: Date.now() };
+    writeJson(file, e);
+    return true;
+  }
 }
 
-module.exports = { ReviewStore, newId, metaOf, MAX_REVIEWS };
+module.exports = { ReviewStore, newId, metaOf, MAX_REVIEWS, ID_RE, FRAME_RE, CLIP_RE };

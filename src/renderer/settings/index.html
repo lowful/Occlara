@@ -35,7 +35,7 @@
 
       <section>
         <h3 data-i18n="settings.tipFrequency" id="capture-title">Capture speed</h3>
-        <p class="hint">How often Occlara reads your screen during a match. Faster reads catch more of every fight, so the review has more to go on. Auto starts at one read a second and keeps it while the AI keeps up, even when a reply takes a few seconds, and steps down on its own only if replies lag further or keep failing. The capture runs in its own process, outside the game.</p>
+        <p class="hint" id="capture-hint">How often Occlara reads your screen during a match. Faster reads catch more of every fight, so the review has more to go on. Auto starts at one read a second and keeps it while the AI keeps up, even when a reply takes a few seconds, and steps down on its own only if replies lag further or keep failing. The capture runs in its own process, outside the game.</p>
         <div class="seg" id="capturespeed">
           <button data-val="auto">Auto</button>
           <button data-val="1000">1s</button>
@@ -44,6 +44,40 @@
           <button data-val="5000">5s</button>
         </div>
         <p class="hint live-cadence" id="cadence-now" hidden></p>
+      </section>
+
+      <!-- The match recorded on this PC (8.3, src/main/services/recorder.js).
+           On or Off, the player's words for it; On is the stored 'auto' it
+           shipped as, the default, which turns itself off on a PC that cannot
+           afford it. The hint is written per game (settings.js REC_HINT),
+           since each game records, or does not, in its own way. The status
+           line says it is recording, or why it is not, with a way to try
+           again where it turned itself off. Under it, the clips kept beside
+           the reviews against their cap, and Clear clips. -->
+      <section>
+        <h3>Record match video</h3>
+        <p class="hint" id="rec-hint"></p>
+        <div class="seg" id="recording">
+          <button data-val="auto">On</button>
+          <button data-val="off">Off</button>
+        </div>
+        <div class="seg rec-res" id="recordingres">
+          <button data-val="720">720p</button>
+          <button data-val="1080">1080p</button>
+        </div>
+        <p class="rec-note" id="rec-note" aria-live="polite" hidden></p>
+        <button id="rec-retry" class="btn rec-retry" type="button" hidden>Try again</button>
+        <div class="rec-clips">
+          <p class="rec-usage" id="clip-usage" aria-live="polite">Clips kept beside your reviews</p>
+          <p class="hint rec-cap-hint">Space the clips may take together. Past it, the oldest reviews lose their clips first and keep their frames and facts.</p>
+          <div class="seg rec-cap" id="clipcap">
+            <button data-val="5">5 GB</button>
+            <button data-val="10">10 GB</button>
+            <button data-val="20">20 GB</button>
+            <button data-val="50">50 GB</button>
+          </div>
+          <button id="clip-clear" class="btn btn-ghost rec-clear" type="button" disabled>Clear clips</button>
+        </div>
       </section>
 
       <section>
@@ -72,7 +106,7 @@
 
       <section>
         <h3 data-i18n="settings.performance">Performance</h3>
-        <p class="hint">Screenshots are read at 720p so health, the round timer, the score and the location label are legible. Performance sends smaller frames for an older PC or a slow connection, and the reads get less reliable.</p>
+        <p class="hint" id="perf-hint">Screenshots are read at 720p so health, the round timer, the score and the location label are legible. Performance sends smaller frames for an older PC or a slow connection, and the reads get less reliable.</p>
         <div class="seg" id="capturequality">
           <button data-val="standard">Quality</button>
           <button data-val="performance">Performance</button>
