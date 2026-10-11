@@ -63,6 +63,10 @@ function metaOf(id, game, review, at) {
     // The Riot match it is linked to, so the match link never gives the same
     // match to a second review.
     matchId: r.matchId || null,
+    // And when Riot says that match started, so Home places it in the rank
+    // history by its own start (home-model.js startOf) rather than one put
+    // back from `at`, which is when the watch ended it or Stop was pressed.
+    matchStartedAt: Number.isFinite(r.matchStartedAt) && r.matchStartedAt > 0 ? r.matchStartedAt : null,
     // A review recording was stopped in the middle of: it never owns its Riot
     // link against a later recording of the same match.
     stoppedLive: !!r.stoppedLive,

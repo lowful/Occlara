@@ -200,13 +200,19 @@ async function openShell(cfg, state, opts) {
   await section('the record controls follow the language setting:', async () => {
     const de = await openShell({ language: 'de' });
     ok(de.label() === I18N.t('de', 'panel.start') && de.label() === 'Starten', 'Start reads Starten in German', `read "${de.label()}"`);
-    ok(de.$('status-text').textContent === I18N.t('de', 'panel.idle'), 'the status word is German too',
-      `read "${de.$('status-text').textContent}"`);
     ok(de.line() === I18N.t('de', 'panel.noTips'), 'and so is the hint line');
     ok(de.$('nav-settings').textContent.includes(I18N.t('de', 'common.settings')), 'and the labels the markup marks for translation');
     de.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
-    ok(de.label() === 'Stoppen' && de.$('status-text').textContent === I18N.t('de', 'panel.coaching'),
-      'recording, the button and the status are German');
+    ok(de.label() === 'Stoppen', 'recording, the button is German', `read "${de.label()}"`);
+    // Paused, the line is what says so since the status word went (8.2.1),
+    // and it says it in German, as "Pausiert" did.
+    de.bridge.emit(C.PUSH_STATUS, { status: 'paused' });
+    ok(de.line() === I18N.t('de', 'panel.pausedLine') && de.line() === 'Pausiert. Bis du fortsetzt, wird nichts gelesen.',
+      'paused, the line says so in German', `read "${de.line()}"`);
+    const uiLangs = I18N.LANGUAGES.filter((l) => I18N.hasUi(l.code) && l.code !== 'en');
+    const untranslated = uiLangs.filter((l) => I18N.t(l.code, 'panel.pausedLine') === I18N.t('en', 'panel.pausedLine')).map((l) => l.code);
+    ok(uiLangs.length >= 4 && !untranslated.length && I18N.t('en', 'panel.pausedLine') === 'Paused. Nothing is read until you resume.',
+      'and the paused line is written in every language the interface has', `English in ${untranslated.join(', ')}`);
 
     // The bug, reproduced: the same controls on the bridge as the panel had it, without getConfig.
     const before = await openShell({ language: 'de' }, null, {
@@ -215,8 +221,8 @@ async function openShell(cfg, state, opts) {
     ok(before.label() === 'Start', 'without getConfig on the bridge it stays English, which is what players got');
 
     const en = await openShell({ language: 'en' });
-    ok(en.label() === 'Start' && en.$('status-text').textContent === 'Ready',
-      'English keeps the panel\'s own words, Start and Ready', `read "${en.$('status-text').textContent}"`);
+    ok(en.label() === 'Start' && en.line() === I18N.t('en', 'panel.noTips'),
+      'English keeps the panel\'s own words, Start and its hint', `read "${en.label()}" and "${en.line()}"`);
     let channel = null;
     if (typeof en.bridge.api.getConfig === 'function') {
       await en.bridge.api.getConfig();
@@ -231,13 +237,80 @@ async function openShell(cfg, state, opts) {
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: false, notice: { text: notice, at: 1 } });
     ok(p.line() === notice && p.$('line').classList.contains('system'),
       'the notice main pushed is on the line, marked as a system notice', `read "${p.line()}"`);
-    ok(p.$('toggle').disabled && p.$('status-text').textContent === 'Subscription ended', 'beside a locked Start');
+    ok(p.$('toggle').disabled && p.label() === 'Subscription ended' && p.$('toggle').classList.contains('ended'),
+      'beside a locked button that says so itself', `read "${p.label()}"`);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: false, notice: null });
     ok(/Renew in Settings/.test(p.line()) && !/Press Start/.test(p.line()),
       'with no notice it still says to renew, never Press Start', `read "${p.line()}"`);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: true, notice: null });
-    ok(p.line() === I18N.t('en', 'panel.noTips') && !p.$('line').classList.contains('system') && !p.$('toggle').disabled,
-      'renewed, the line is the Press Start hint again');
+    ok(p.line() === I18N.t('en', 'panel.noTips') && !p.$('line').classList.contains('system') && !p.$('toggle').disabled
+      && p.label() === 'Start' && !p.$('toggle').classList.contains('ended'),
+      'renewed, the button is Start and the line is the Press Start hint again');
+  });
+
+  // THE RECORD CARD HAS NO STATUS WORD (8.2.1). "Ready", "Recording" and
+  // "Paused" sat over the buttons with a dot; the player asked for them gone
+  // and the card balanced. What state it is in is still on the card: the
+  // button's word, the pause button's icon, the live colour and the line.
+  await section('the record card: its buttons and its line, and no status word over them:', async () => {
+    const html = fs.readFileSync(path.join(RENDERER, 'shell', 'index.html'), 'utf8');
+    const p = await openShell({ language: 'en' });
+    const rec = p.$('rec');
+    ok(!p.$('status-text') && !p.$('dot') && !rec.querySelector('.rec-state') && !/\bReady\b/.test(rec.textContent)
+      && !/id="status-text"|id="dot"|rec-state/.test(html), 'no status row: no dot, no Ready, in the markup or on the card');
+    ok(rec.children.map((c) => c.id || c.className).join() === 'agent-bubble,rec-controls,line',
+      'the card holds the agent check, the two buttons and the line, in that order', rec.children.map((c) => c.id || c.className).join());
+    const pauseIcon = () => (p.$('pause').querySelector('path') || { getAttribute: () => '' }).getAttribute('d');
+    ok(p.label() === 'Start' && p.$('pause').disabled && !rec.classList.contains('live') && p.line() === I18N.t('en', 'panel.noTips'),
+      'ready: Start, the pause button off, the card at rest, the hint on the line');
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching', cadence: 1000, sounds: false });
+    ok(p.label() === 'Stop' && !p.$('pause').disabled && rec.classList.contains('live') && /^Reading your game every 1s\./.test(p.line())
+      && pauseIcon() === 'M9 5v14', 'recording: Stop, the pause icon, the live card, and the line says it is reading', `read "${p.line()}"`);
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, isPaused: true, status: 'paused', cadence: 1000, sounds: false });
+    ok(p.label() === 'Stop' && !rec.classList.contains('live') && p.line() === 'Paused. Nothing is read until you resume.'
+      && /^M8 5\.2/.test(pauseIcon()), 'paused: the play icon, the card at rest, and the line, which said "Reading" before, says paused',
+    `read "${p.line()}", icon ${pauseIcon()}`);
+    ok(/^M8 5\.2/.test('M8 5.2v13.6') && !/^M8 5\.2/.test('M9 5v14'), 'the play icon detector matches the play path and not the pause one');
+    // A Rivals or League session puts "Recording..." up as a notice for its
+    // whole length (kind 'recording'). Paused, it said recording over a card
+    // that was not, with nothing on it saying paused: the paused line takes
+    // its place, while a notice of something wrong still takes the line.
+    const REC = { text: 'Recording. Play your match: the scoreboard at the end is reviewed and graded automatically.', at: 1, kind: 'recording' };
+    const DOWN = { text: 'Cannot reach the coach server right now. Reading resumes when it is back.', at: 2, kind: 'read-failed' };
+    const live = (paused, notice) => ({ ...BASE, gameId: 'rivals', isCoaching: true, isPaused: paused, status: paused ? 'paused' : 'coaching', sounds: false, notice });
+    const rv = await openShell({ language: 'en' }, { gameId: 'rivals' });
+    rv.bridge.emit(C.PUSH_STATE, live(false, REC));
+    ok(rv.line() === REC.text && rv.$('line').classList.contains('system'), 'a Rivals session says it is recording, as its notice', `read "${rv.line()}"`);
+    rv.bridge.emit(C.PUSH_STATE, live(true, REC));
+    ok(rv.line() === I18N.t('en', 'panel.pausedLine') && !rv.$('line').classList.contains('system'),
+      'paused, the line says paused rather than recording, and is no notice', `read "${rv.line()}"`);
+    rv.bridge.emit(C.PUSH_STATE, live(false, REC));
+    ok(rv.line() === REC.text, 'resumed, the recording notice is back');
+    // Paused, nothing is read, so a notice about the reading is out of date:
+    // the paused line says what is true. A notice that is not about the
+    // reading (the licence ending) still takes the line.
+    rv.bridge.emit(C.PUSH_STATE, live(false, DOWN));
+    ok(rv.line() === DOWN.text && rv.$('line').classList.contains('system'), 'recording, a notice of something wrong takes the line');
+    rv.bridge.emit(C.PUSH_STATE, live(true, DOWN));
+    ok(rv.line() === I18N.t('en', 'panel.pausedLine'), 'paused, a read that failed before the pause no longer holds the line', `read "${rv.line()}"`);
+    const LICENCE = { text: 'Your subscription has ended. Renew in Settings to start coaching.', at: 3 };
+    rv.bridge.emit(C.PUSH_STATE, live(true, LICENCE));
+    ok(rv.line() === LICENCE.text && rv.$('line').classList.contains('system'), 'while a notice that is not about the reading still does, paused or not');
+    // Balanced: Start fills the width beside the square pause button, both
+    // 48px tall, the line centred, one padding all round.
+    const css = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8');
+    const rule = (sel) => {
+      const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return (css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
+    };
+    const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
+    ok(prop(rule('.nav'), 'display') === 'flex', 'the rule reader finds a known rule');
+    ok(prop(rule('.toggle'), 'flex') === '1 1 auto' && prop(rule('.toggle'), 'height') === '48px'
+      && prop(rule('.icon-btn.lg'), 'width') === '48px' && prop(rule('.icon-btn.lg'), 'height') === '48px'
+      && prop(rule('.icon-btn.lg'), 'flex') === 'none', 'Start fills the width beside a 48px square pause button, the two the same height');
+    ok(prop(rule('.rec-line'), 'text-align') === 'center' && prop(rule('.rec'), 'padding') === 'var(--space-3)',
+      'the line is centred under them, with one padding on every side');
+    ok(!rule('.rec-state') && !rule('#status-text.ended') && !/\.dot\b/.test(css), 'and the status row\'s styles went with it');
   });
 
   await section('the start and stop sounds, on real transitions only:', async () => {
@@ -288,9 +361,11 @@ async function openShell(cfg, state, opts) {
     ok(!v.$('agent-bubble').hidden && !v.$('ab-detect').hidden, 'a Valorant start still asks for the agent');
   });
 
-  // Our own marks, never a game's logo: Riot's IP policy forbids its logos
-  // without a written licence, and Marvel's are as protected.
-  await section('the game picker draws our own marks, each named in full:', async () => {
+  // THE GAMES' OWN LOGOS (8.2.1), the player's decision of 2026-10-10 after
+  // reading Riot's policy and Marvel's terms: they replaced the marks Occlara
+  // drew. Each is drawn inline in currentColor, so the picker's colours hold,
+  // and each is held to its source file in assets/games.
+  await section('the game picker shows each game\'s own logo, named in full:', async () => {
     const NAMES = ['Valorant', 'Marvel Rivals', 'League of Legends'];
     const p = await openShell({ language: 'en' }, { gameId: 'rivals' });
     const buttons = () => p.$('gamepick').querySelectorAll('button');
@@ -298,27 +373,113 @@ async function openShell(cfg, state, opts) {
     ok(same(buttons().map((b) => b.getAttribute('aria-label')), NAMES) && buttons().every((b) => b.title === b.getAttribute('aria-label')),
       'each named in full, as its accessible name and its tooltip', buttons().map((b) => `${b.getAttribute('aria-label')}/${b.title}`).join(', '));
     ok(same(buttons().map((b) => b.getAttribute('aria-pressed')), ['false', 'true', 'false']), 'the game in use, and only it, is pressed');
-    ok(buttons().every((b) => b.querySelectorAll('svg').length === 1 && !b.textContent.trim()), 'each is a mark with no text in it');
-    ok(p.scripts.some((x) => /game-marks\.js$/.test(x)), 'drawn by shared/game-marks.js');
+    ok(buttons().every((b) => b.querySelectorAll('svg').length === 1 && !b.textContent.trim()), 'each is a logo with no text in it');
+    ok(p.scripts.some((x) => /game-logos\.js$/.test(x)) && !p.scripts.some((x) => /game-marks\.js$/.test(x)),
+      'drawn by shared/game-logos.js, the marks Occlara drew gone');
     p.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
     ok(buttons().every((b) => b.disabled && b.title === 'Stop recording to switch game')
       && same(buttons().map((b) => b.getAttribute('aria-label')), NAMES),
-      'recording, every mark is locked with the tooltip saying why, and keeps its name');
+      'recording, every logo is locked with the tooltip saying why, and keeps its name');
 
-    // Each mark on the shell's 24 unit grid, stroke 1.75 with round ends, in
-    // currentColor, and never a letter.
-    const marks = require('../src/renderer/shared/game-marks');
-    ok(same(marks.ids(), ['valorant', 'rivals', 'lol']) && marks.svg('nope') === '', 'a mark for each game, none for anything else');
-    for (const id of marks.ids()) {
-      const markup = marks.svg(id);
+    const logos = require('../src/renderer/shared/game-logos');
+    ok(same(logos.ids(), ['valorant', 'rivals', 'lol']) && logos.svg('nope') === '' && logos.path('nope') === null,
+      'a logo for each game, none for anything else');
+    /** Every point a path's commands end on, in absolute units: the box it draws in. */
+    const pathPoints = (d) => {
+      const toks = String(d).match(/[a-zA-Z]|-?(?:\d*\.\d+|\d+)(?:e-?\d+)?/g) || [];
+      const ARGS = { m: 2, l: 2, h: 1, v: 1, c: 6, s: 4, q: 4, t: 2, a: 7 };
+      const out = [];
+      let i = 0, cmd = null, x = 0, y = 0, sx = 0, sy = 0;
+      while (i < toks.length) {
+        if (/^[a-zA-Z]$/.test(toks[i])) cmd = toks[i++];
+        const lc = String(cmd).toLowerCase();
+        const rel = cmd === lc;
+        if (lc === 'z') { x = sx; y = sy; continue; }
+        if (!(lc in ARGS)) throw new Error(`unread path command ${cmd}`);
+        const a = Array.from({ length: ARGS[lc] }, () => Number(toks[i++]));
+        if (lc === 'h') x = rel ? x + a[0] : a[0];
+        else if (lc === 'v') y = rel ? y + a[0] : a[0];
+        else { x = rel ? x + a[a.length - 2] : a[a.length - 2]; y = rel ? y + a[a.length - 1] : a[a.length - 1]; }
+        if (lc === 'm') { sx = x; sy = y; cmd = rel ? 'l' : 'L'; }
+        out.push([x, y]);
+      }
+      return out;
+    };
+    ok(same(pathPoints('M.077 2.166c-.077.038-.074.132-.076.205z').map((q) => q.map((n) => Math.round(n * 1000) / 1000)), [[0.077, 2.166], [0.001, 2.371]])
+      && same(pathPoints('M1 2H5v3L0 0Z'), [[1, 2], [5, 2], [5, 5], [0, 0]]), 'the path reader reads joined, relative and absolute numbers');
+    for (const id of logos.ids()) {
+      const markup = logos.svg(id);
       const svgEl = new Document(markup).querySelector('svg');
-      const attrs = ['viewBox', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'fill']
-        .map((a) => svgEl && svgEl.getAttribute(a)).join('|');
-      ok(attrs === '0 0 24 24|currentColor|1.75|round|round|none' && !/<text|#[0-9a-f]{3}|rgb/i.test(markup),
-        `${id}: 24 unit grid, stroke 1.75, round ends, currentColor, no text`, attrs);
+      const attrs = ['viewBox', 'fill', 'stroke', 'aria-hidden'].map((a) => svgEl && svgEl.getAttribute(a)).join('|');
+      ok(attrs === '0 0 24 24|currentColor||true' && svgEl.querySelectorAll('path').length === 1 && !/<text|#[0-9a-f]{3}|rgb/i.test(markup),
+        `${id}: one filled path on a 24 unit box, in currentColor, with no text and no colour of its own`, attrs);
+      const file = fs.readFileSync(path.join(ROOT, 'assets', 'games', `${id}.svg`), 'utf8');
+      const fileD = (file.match(/<path[^>]*\sd="([^"]+)"/) || [])[1];
+      ok(fileD && fileD === logos.path(id) && svgEl.querySelector('path').getAttribute('d') === fileD,
+        `${id}: the very path of its source, assets/games/${id}.svg`);
+      const pts = pathPoints(fileD);
+      const out = pts.filter(([px, py]) => px < -0.01 || px > 24.01 || py < -0.01 || py > 24.01);
+      ok(pts.length > 4 && !out.length, `${id}: inside its 24 unit box, so nothing of it is clipped`, JSON.stringify(out.slice(0, 3)));
     }
-    ok(/<text|#[0-9a-f]{3}|rgb/i.test('<text>V</text>') && /<text|#[0-9a-f]{3}|rgb/i.test('fill="#FF4655"'),
-      'the no text, no colour detector matches a letter and a hard coded colour');
+    ok(/<path[^>]*\sd="([^"]+)"/.test('<path fill="currentColor" d="M0 0Z"/>') && /<text|#[0-9a-f]{3}|rgb/i.test('<text>V</text>')
+      && /<text|#[0-9a-f]{3}|rgb/i.test('fill="#FF4655"'), 'the path and no colour detectors match what they look for');
+    // The Rivals emblem has no published vector and was traced; it is point
+    // symmetric, as the emblem is: every point has its twin across the centre.
+    const riv = pathPoints(logos.path('rivals'));
+    const lonely = riv.filter(([px, py]) => !riv.some(([qx, qy]) => Math.abs(qx - (24 - px)) < 0.005 && Math.abs(qy - (24 - py)) < 0.005));
+    ok(riv.length === 20 && !lonely.length, 'the traced Rivals emblem is point symmetric about its centre', `${riv.length} points, ${JSON.stringify(lonely)}`);
+    // The emblem is half as tall as it is wide, and is drawn a size up.
+    const css = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8');
+    ok(/\.game-seg button \.game-logo \{ width: var\(--icon-md\); height: var\(--icon-md\);/.test(css)
+      && /\.game-logo\[data-game="rivals"\] \{\s*width: calc\(var\(--icon-md\) \+ var\(--space-1\)\)/.test(css)
+      && /data-game="rivals"/.test(logos.svg('rivals')), 'the logos are the icon size, the Rivals emblem a size up, on the tokens');
+
+    // THE PICKED GAME'S LOGO STAYS ON ITS GROUND UNDER THE POINTER. A logo is
+    // drawn in currentColor, and the hover rule outranked the pressed one, so
+    // over the pressed button's --text ground it set --text: white on white.
+    // Every rule on a picker button itself is cascaded here, by specificity
+    // and then source order, for a button picked or not, hovered or not.
+    const cascade = (text) => {
+      const rules = [];
+      for (const m of text.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?:^|\n)([^{}\n]+)\{([^}]*)\}/g)) {
+        for (const sel of m[1].split(',').map((x) => x.trim())) {
+          // The button itself only: a rule on the logo inside it has a space.
+          if (sel.startsWith('.game-seg button') && !/\s/.test(sel.slice(16))) rules.push({ rest: sel.slice(16), body: m[2] });
+        }
+      }
+      const partsOf = (rest) => rest.match(/:not\([^)]*\)|:[a-z-]+|\[[^\]]*\]|\.[\w-]+/g) || [];
+      const holds = (part, st) => {
+        if (part.startsWith(':not(')) return !holds(part.slice(5, -1), st);
+        if (part === ':hover') return st.hover;
+        if (part === ':disabled') return false;
+        if (part === '[aria-pressed="true"]') return st.pressed;
+        if (part === '.named') return false;
+        throw new Error(`unread picker selector part ${part}`);
+      };
+      const declared = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
+      // Past ".game-seg button", which every rule shares, each part weighs one
+      // class, a :not() its argument's: the specificity is the count.
+      return (st, name) => {
+        let best = null;
+        rules.forEach((r, i) => {
+          const parts = partsOf(r.rest);
+          const v = declared(r.body, name);
+          if (!v || parts.join('') !== r.rest || !parts.every((p) => holds(p, st))) return;
+          if (!best || parts.length >= best.w) best = { w: parts.length, v, i };
+        });
+        return best ? best.v : '';
+      };
+    };
+    const seg = cascade(css);
+    const PICKED = { pressed: true, hover: false };
+    const PICKED_HOVER = { pressed: true, hover: true };
+    ok(seg(PICKED, 'color') === 'var(--bg)' && seg(PICKED, 'background') === 'var(--text)'
+      && seg({ pressed: false, hover: false }, 'color') === 'var(--text-dim)', 'the cascade reads the picker: the picked game dark on white, the others dim');
+    ok(seg(PICKED_HOVER, 'color') === seg(PICKED, 'color') && seg(PICKED_HOVER, 'color') !== seg(PICKED_HOVER, 'background'),
+      'hovered, the picked game\'s logo keeps its colour on its ground', `${seg(PICKED_HOVER, 'color')} on ${seg(PICKED_HOVER, 'background')}`);
+    ok(seg({ pressed: false, hover: true }, 'color') === 'var(--text)', 'while hovering a game not picked still lights it');
+    const was = cascade(css.replace(':hover:not(:disabled):not([aria-pressed="true"])', ':hover:not(:disabled)'));
+    ok(was(PICKED_HOVER, 'color') === was(PICKED_HOVER, 'background'), 'the cascade catches the rule as 8.2.0 wrote it, white on white');
   });
 
   await section('Home\'s grades:', async () => {
@@ -1122,6 +1283,365 @@ async function openShell(cfg, state, opts) {
     ok(!turned(), 'and a repaint while they are closed leaves it closed');
   });
 
+  // ── Home (8.2.1) ─────────────────────────────────────────────────────────
+  // A library of five Valorant matches, newest first as main lists them,
+  // three of them Competitive, the newest with its AI log still kept; and a
+  // rank history whose three newest games are those three, each dated when
+  // its match started, as the rank history dates a game.
+  const HOME_AT = Date.UTC(2026, 9, 1, 20);
+  const MIN = 60000;
+  const homeRow = (id, minsAgo, map, mode, score, gr, extra) => ({ id, game: 'valorant', at: HOME_AT - minsAgo * MIN, title: 'Jett',
+    map, mode, result: 'Victory', score, verified: true, source: 'watched', aiLog: null, grade: { score: gr, letter: grade.letter(gr) },
+    ...(extra || {}) });
+  const HOME_ROWS = [
+    homeRow('valorant-1759348800000-homea', 0, 'Ascent', 'Competitive', '13-9', 83, { aiLog: 'kept' }),
+    homeRow('valorant-1759344300000-homeb', 75, 'Bind', 'Competitive', '10-13', 64, { result: 'Defeat', aiLog: 'gone' }),
+    homeRow('valorant-1759338000000-homec', 180, 'Haven', 'Unrated', '13-7', 74),
+    homeRow('valorant-1759330800000-homed', 300, 'Lotus', 'Competitive', '13-11', 97, { source: 'riot' }),
+    homeRow('valorant-1759320000000-homee', 480, 'Split', 'Swiftplay', '3-5', 58, { result: 'Defeat' }),
+  ];
+  const homeStart = (r) => r.at - r.score.split('-').map(Number).reduce((x, y) => x + y) * 100000;
+  const ELOS = [1712, 1735, 1719, 1748, 1771, 1755, 1782, 1798, 1815, 1836, 1820, 1844];
+  const HOME_HISTORY = { points: ELOS.map((elo, i) => ({
+    date: i < 9 ? HOME_AT - (11 - i) * 24 * 60 * MIN : homeStart(HOME_ROWS[[3, 1, 0][i - 9]]) + 2 * MIN,
+    elo, change: i ? elo - ELOS[i - 1] : 18, tier: elo >= 1800 ? 'Diamond 1' : 'Platinum 3' })) };
+  const MISTAKE = { key: 'untraded', title: 'Died where nobody could trade', matches: 4, fix: 'Check someone can see the same angle.', trend: 'steady' };
+  /**
+   * Home on that library, main stood in for; `h.cfg` is the config main would
+   * read back. `opts.list(game)` answers the library in place of `rows`.
+   */
+  async function openHome(o) {
+    const opts = o || {};
+    const rows = opts.rows || HOME_ROWS;
+    const cfg = { language: 'en', riotId: opts.riotId === undefined ? 'Me#EUW' : opts.riotId };
+    const h = loadSurface('home', {
+      handlers: {
+        [C.STATE_GET]: () => ({ ...BASE, gameId: opts.game || 'valorant', riotId: cfg.riotId }),
+        [C.CONFIG_GET]: () => ({ ...cfg }),
+        [C.REVIEWS_LIST]: opts.list || (() => rows),
+        [C.PATTERNS_GET]: () => ({ matches: rows.length, recorded: rows.length, enough: true, mistakes: opts.mistakes || [],
+          strengths: [], missed: [], grades: rows.map((r) => ({ id: r.id, at: r.at, score: r.grade.score, letter: r.grade.letter })),
+          average: 75, categories: [] }),
+        [C.REVIEW_GET]: (id) => ({ id, kind: 'valorant', focus: opts.focus === undefined ? 'Enter second, and trade.' : opts.focus,
+          grade: { score: rows[0].grade.score, letter: rows[0].grade.letter, categories: [] } }),
+        [C.STATS_RANK_HISTORY]: opts.history || (() => HOME_HISTORY),
+      },
+    });
+    h.cfg = cfg;
+    await settle();
+    return h;
+  }
+  const homeCss = fs.readFileSync(path.join(RENDERER, 'home', 'home.css'), 'utf8');
+  const homeRule = (sel) => {
+    const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return (homeCss.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
+  };
+  const cssProp = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
+
+  // "There's no point of it saying 'from what the screen read'": the foot of
+  // the last match is the eye, View match, and Open review, and nothing else.
+  await section('Home\'s last match ends on two buttons, the eye\'s View match and Open review, and nothing else:', async () => {
+    const h = await openHome();
+    const foot = h.document.querySelector('#last .last-foot');
+    const btns = foot ? foot.children : [];
+    const eye = btns[0];
+    ok(btns.length === 2 && btns.every((b) => b.tagName === 'BUTTON') && foot.textContent === 'View matchOpen review',
+      'the foot holds View match and Open review, and no other word', foot && foot.textContent);
+    ok(!/screen read|Riot's record|Graded from/i.test(h.$('last').textContent) && !h.document.querySelector('#last .checked'),
+      'the line saying where the grade came from is gone', h.$('last').textContent);
+    ok(eye && eye.classList.contains('log-eye') && !eye.disabled && eye.getAttribute('aria-label') === null && eye.title === LogEye.NAME
+      && eyeShape(eye.querySelector('svg')) === eyeShape(statsEye) && eye.querySelector('svg').getAttribute('aria-hidden') === 'true',
+    'View match is the eye the Matches rows draw, named by its word, its tooltip what it opens');
+    if (eye) eye.click();
+    ok(same(h.bridge.sent.filter((s) => s[0] === C.REVIEW_AILOG), [[C.REVIEW_AILOG, HOME_ROWS[0].id]]),
+      'pressed, it sends the match\'s review id alone over REVIEW_AILOG, as its row in Matches does', JSON.stringify(h.bridge.sent));
+    if (btns[1]) btns[1].click();
+    ok(same(h.bridge.sent.filter((s) => s[0] === C.REVIEW_OPEN), [[C.REVIEW_OPEN, HOME_ROWS[0].id]]), 'and Open review opens its review');
+    // The rule every eye keeps: disabled, with its reason, once the log no
+    // longer holds the match, and none where nothing was recorded.
+    const gone = await openHome({ rows: HOME_ROWS.slice(1) });
+    const gEye = gone.document.querySelector('#last .log-eye');
+    ok(gEye && gEye.disabled && gEye.title === LogEye.GONE && gEye.textContent === 'View match',
+      'the log no longer holding the match, the eye stays, disabled, its tooltip saying why');
+    if (gEye) gEye.click();
+    ok(!gone.bridge.sent.some((s) => s[0] === C.REVIEW_AILOG), 'and pressed, it sends nothing');
+    const riot = await openHome({ rows: HOME_ROWS.slice(3) });
+    const rFoot = riot.document.querySelector('#last .last-foot');
+    ok(!riot.document.querySelector('#last .log-eye') && rFoot && rFoot.children.length === 1 && rFoot.textContent === 'Open review',
+      'a match graded from Riot\'s record alone has no eye, only Open review');
+    ok(h.scripts.some((x) => /log-eye\.js$/.test(x)) && typeof h.bridge.api.openAiLog === 'function',
+      'the eye is shared/log-eye.js\'s, over a bridge that opens the AI log');
+    const pageEye = h.window.LogEye;
+    ok(pageEye.labelled(null, () => {}, 'View match') === null && pageEye.labelled('kept', null, 'View match').classList.contains('labelled'),
+      'labelled() follows button(): no word from main, no eye');
+  });
+
+  // "Bring the bars lower so it's balanced and there's no dead space."
+  await section('Home\'s grade trend fills its card, each bar its grade of the whole height:', async () => {
+    const h = await openHome();
+    const tracks = h.document.querySelectorAll('#trend-bars .bar-track');
+    const read = tracks.map((t) => ({ h: t.style.getPropertyValue('--h'), num: (t.querySelector('.bar-num') || {}).textContent, bar: t.querySelector('.bar') }));
+    ok(tracks.length === 5 && same(read.map((r) => r.num), ['58', '97', '74', '64', '83']) && read.every((r) => r.bar && r.h === `${r.num}%`),
+      'a track per match, oldest first, its --h the grade as a share of the whole', JSON.stringify(read.map((r) => r.h)));
+    ok(read.every((r) => toneOf(r.bar) === toneFor(Number(r.num))), 'each bar its letter\'s colour, the number beside it');
+    ok(cssProp(homeRule('.hint'), 'font-size') === '13px', 'the rule reader finds a known rule');
+    ok(cssProp(homeRule('.bars'), 'flex') === '1 1 auto' && !cssProp(homeRule('.bars'), 'height') && cssProp(homeRule('#trend'), 'flex') === '1 1 auto'
+      && cssProp(homeRule('.bar-track'), 'flex') === '1 1 auto', 'the bars\' area grows to the card\'s foot, with no fixed height to stop short of it');
+    ok(cssProp(homeRule('.bar'), 'position') === 'absolute' && cssProp(homeRule('.bar'), 'height') === 'var(--h, 0%)'
+      && cssProp(homeRule('.bar-num'), 'position') === 'absolute' && /^calc\(var\(--h, 0%\)/.test(cssProp(homeRule('.bar-num'), 'bottom')),
+    'the bar and its number both read --h, the number off the bar\'s top rather than stacked in its column');
+  });
+
+  // "Show the player's rank journey and their most recent RR loss and gain."
+  await section('Home\'s rank: the rank, the last game\'s RR and the journey, and each rated match\'s RR:', async () => {
+    const h = await openHome();
+    ok(!h.$('rank').hidden && h.$('rank-tier').textContent === 'Diamond 1', 'the rank the newest rated game left', h.$('rank-tier').textContent);
+    const rrEl = h.$('rank-rr');
+    ok(!rrEl.hidden && rrEl.textContent === '+24 RR' && rrEl.classList.contains('gain'), 'the last game\'s RR, a gain in its colour', rrEl.textContent);
+    const line = h.$('rank-line');
+    const d = (line.querySelector('path') || { getAttribute: () => '' }).getAttribute('d') || '';
+    ok(!line.hidden && (d.match(/[ML]/g) || []).length === 12 && line.querySelector('.rank-dot')
+      && line.getAttribute('aria-label') === 'Rank journey over your last 12 rated games, from Platinum 3 to Diamond 1',
+    'the journey as a line through its twelve games, the newest a dot, and said in words', line.getAttribute('aria-label'));
+    const rowRR = (x) => x.document.querySelectorAll('#recent-list .r-row').map((b) => {
+      const s = b.querySelector('.r-rr');
+      return !s || s.hidden ? '' : `${s.textContent}:${['gain', 'loss', 'even'].find((t) => s.classList.contains(t)) || ''}`;
+    });
+    ok(same(rowRR(h), ['+24 RR:gain', '-16 RR:loss', '', '+21 RR:gain', '']),
+      'each Competitive match shows the RR its own game moved; Unrated and Swiftplay none', JSON.stringify(rowRR(h)));
+    h.$('rank-more').click();
+    ok(same(h.bridge.sent.filter((s) => s[0] === C.SHELL_NAV), [[C.SHELL_NAV, 'stats']]), 'Rank journey opens Stats, where the journey is drawn');
+    ok(h.bridge.invoked.filter((x) => x[0] === C.STATS_RANK_HISTORY).every((x) => x[1] === false),
+      'read from the history main keeps, never forced past its cache');
+    // Where it sits: under the focus, in the room the last match leaves; with
+    // the most repeated mistake there too, above the grade trend.
+    const side = h.$('side');
+    ok(h.$('rank').parentNode === side && side.children.indexOf(h.$('rank')) === side.children.indexOf(h.$('focus')) + 1,
+      'it sits under the next match\'s focus');
+    const full = await openHome({ mistakes: [MISTAKE] });
+    ok(!full.$('top').hidden && full.$('rank').parentNode === full.$('lower') && full.$('lower').children[0] === full.$('rank')
+      && !full.$('rank').hidden, 'with the focus and the most repeated mistake beside the last match, it stands above the grade trend');
+    const noFocus = await openHome({ mistakes: [MISTAKE], focus: null });
+    ok(noFocus.$('focus').hidden && !noFocus.$('top').hidden && noFocus.$('rank').parentNode === noFocus.$('side')
+      && !noFocus.$('rank').hidden, 'with the mistake but no focus (a match graded from Riot\'s record alone), the column has the room, and it stays there');
+    ok(cssProp(homeRule('#side .rank'), 'flex') === '1 1 auto' && cssProp(homeRule('.rank-line'), 'min-height') === '40px'
+      && cssProp(homeRule('.rank-line svg'), 'position') === 'absolute',
+    'beside the last match it fills what is left of the column, its line growing with it');
+
+    // Painted first, filled in after: a slow rank history never holds Home back.
+    let answer = null;
+    const slow = await openHome({ history: () => new Promise((r) => { answer = r; }) });
+    ok(!slow.$('content').hidden && slow.document.querySelector('#last .score') && slow.document.querySelectorAll('#recent-list .r-row').length === 5
+      && slow.$('rank').hidden && rowRR(slow).every((x) => x === ''), 'with the rank history not answering yet, Home is painted all the same');
+    answer(HOME_HISTORY);
+    await settle();
+    ok(!slow.$('rank').hidden && same(rowRR(slow), rowRR(h)), 'and the rank and the RR are filled in when it answers');
+    ok(slow.$('rank').classList.contains('card-in') && slow.$('rank').style.getPropertyValue('--i') === '0',
+      'the rank card, shown after the others arrived, rises in by itself');
+    // A review saved meanwhile repaints Home, and the RR does not blink out
+    // while the rank is asked again.
+    let calls = 0;
+    let release = null;
+    const re = await openHome({ history: () => (++calls === 1 ? HOME_HISTORY : new Promise((r) => { release = r; })) });
+    re.bridge.emit(C.PUSH_REVIEWS, { id: HOME_ROWS[0].id, game: 'valorant' });
+    await settle();
+    ok(calls === 2 && same(rowRR(re), rowRR(h)) && !re.$('rank').hidden,
+      'a repaint keeps the rank and each match\'s RR while the rank is asked again', `asked ${calls} times, ${JSON.stringify(rowRR(re))}`);
+    if (release) release(HOME_HISTORY);
+    await settle();
+  });
+
+  await section('Home has a rank only for Valorant, with a Riot ID and a rated game, and the column closes up:', async () => {
+    const asked = (x) => x.bridge.invoked.some((c) => c[0] === C.STATS_RANK_HISTORY);
+    const noId = await openHome({ riotId: '' });
+    ok(noId.$('rank').hidden && !asked(noId) && !noId.$('side').hidden, 'no Riot ID: no rank card, nothing asked, and the focus keeps its column');
+    const none = await openHome({ history: () => ({ points: [] }), focus: null });
+    ok(none.$('rank').hidden && none.$('side').hidden && !none.$('last').hidden,
+      'no rated game: no rank card, and with no focus either the column goes and the last match takes the row');
+    const error = await openHome({ history: () => ({ error: 'no-riot-id' }) });
+    ok(error.$('rank').hidden && error.document.querySelectorAll('#recent-list .r-rr').every((s) => s.hidden), 'a history that did not answer: none');
+    const rivals = await openHome({ game: 'rivals' });
+    ok(rivals.$('rank').hidden && !asked(rivals), 'Marvel Rivals: no rank card, and nothing asked');
+    const emptyLib = await openHome({ rows: [] });
+    ok(emptyLib.$('content').hidden && !emptyLib.$('empty').hidden && !asked(emptyLib),
+      'no match in the library yet: Home asks for no rank it would not show');
+    // A change of game takes the rank away before the cards arrive again: it
+    // keeps the place it rose in by itself with (--i 0), and takes none in
+    // the new arrival, which a card still shown as it began would.
+    const h = await openHome();
+    ok(!h.$('rank').hidden && h.$('rank').style.getPropertyValue('--i') === '0', 'the setup: the rank rose in by itself, after the others');
+    h.bridge.emit(C.PUSH_GAME, { id: 'rivals', label: 'Marvel Rivals' });
+    await settle();
+    ok(h.$('rank').hidden && h.document.querySelectorAll('#recent-list .r-rr').every((s) => s.hidden) && h.$('rank').style.getPropertyValue('--i') === '0',
+      'switched to Marvel Rivals, the rank and the RR are gone before the cards arrive, and the rank takes no place among them',
+      `--i ${h.$('rank').style.getPropertyValue('--i')}`);
+    // A Riot ID taken out in Settings takes its rank with it; a state push
+    // that does not change the Riot ID repaints nothing.
+    const s = await openHome();
+    const lists = () => s.bridge.invoked.filter((c) => c[0] === C.REVIEWS_LIST).length;
+    const before = lists();
+    s.bridge.emit(C.PUSH_STATE, { ...BASE, riotId: 'Me#EUW' });
+    await settle();
+    ok(lists() === before, 'a state push with the same Riot ID repaints nothing');
+    s.cfg.riotId = '';
+    s.bridge.emit(C.PUSH_STATE, { ...BASE, riotId: '' });
+    await settle();
+    ok(s.$('rank').hidden && s.document.querySelectorAll('#recent-list .r-rr').every((x) => x.hidden) && lists() > before,
+      'the Riot ID taken out in Settings, Home paints again, with no rank');
+  });
+
+  // LISTENING FROM THE START (8.2.1). The first load waits for the rank, a
+  // network read, and Home set up its listeners only after it: a game picked
+  // in the sidebar meanwhile was never heard (PUSH_GAME comes once, on the
+  // change), and Home stayed on Valorant for the session. And an answer that
+  // lands after a change of game, a rank or a library read, paints nothing.
+  await section('Home follows a change of game made while it is still reading:', async () => {
+    const named = (x) => x.$('h-game').textContent;
+    const listed = (x, g) => x.bridge.invoked.filter((c) => c[0] === C.REVIEWS_LIST && c[1] === g).length;
+    const noRank = (x) => x.$('rank').hidden && x.document.querySelectorAll('#recent-list .r-rr').every((r) => r.hidden);
+    // The first rank answer held, as a slow history holds it.
+    let first = null;
+    const h = await openHome({ history: () => new Promise((r) => { if (!first) first = r; }) });
+    ok(first && !h.$('content').hidden && named(h) === 'Valorant', 'the setup: Valorant painted, its first rank answer still out');
+    ok(h.bridge.listening(C.PUSH_GAME) === 1 && h.bridge.listening(C.PUSH_REVIEWS) === 1 && h.bridge.listening(C.PUSH_STATE) === 1,
+      'and Home already listening for a change of game, a review saved and the Riot ID',
+      `game ${h.bridge.listening(C.PUSH_GAME)}, reviews ${h.bridge.listening(C.PUSH_REVIEWS)}, state ${h.bridge.listening(C.PUSH_STATE)}`);
+    h.bridge.emit(C.PUSH_GAME, { id: 'rivals', label: 'Marvel Rivals' });
+    await settle();
+    ok(named(h) === 'Marvel Rivals' && listed(h, 'rivals') === 1 && noRank(h),
+      'Marvel Rivals picked meanwhile: Home follows, its name, its library, and no rank', `named "${named(h)}", asked for rivals ${listed(h, 'rivals')} times`);
+    const valorantReads = listed(h, 'valorant');
+    first(HOME_HISTORY);
+    await settle();
+    ok(noRank(h) && named(h) === 'Marvel Rivals', 'and the Valorant rank answer landing after it paints nothing there');
+    h.bridge.emit(C.PUSH_REVIEWS, { id: 'rivals-1759348800000-abcd', game: 'rivals' });
+    await settle();
+    ok(listed(h, 'rivals') === 2 && listed(h, 'valorant') === valorantReads && named(h) === 'Marvel Rivals',
+      'a review saved after it paints Marvel Rivals again, never Valorant', `rivals ${listed(h, 'rivals')}, valorant ${listed(h, 'valorant') - valorantReads} more`);
+
+    // A rank answer held across the change, asked for by a repaint (a review
+    // saved) rather than the first paint, paints nothing on the other game.
+    let calls = 0;
+    let late = null;
+    const s = await openHome({ history: () => (++calls === 1 ? HOME_HISTORY : new Promise((r) => { late = r; })) });
+    ok(!s.$('rank').hidden, 'the setup: Valorant\'s rank is shown');
+    s.bridge.emit(C.PUSH_REVIEWS, { id: HOME_ROWS[0].id, game: 'valorant' });
+    await settle();
+    ok(calls === 2 && typeof late === 'function', 'a review saved asks for the rank again, and that answer is held');
+    s.bridge.emit(C.PUSH_GAME, { id: 'rivals', label: 'Marvel Rivals' });
+    await settle();
+    ok(noRank(s) && named(s) === 'Marvel Rivals', 'switched to Marvel Rivals: no rank');
+    if (late) late(HOME_HISTORY);
+    await settle();
+    ok(noRank(s) && named(s) === 'Marvel Rivals', 'and the Valorant answer released after it stays off Marvel Rivals\' Home: no rank card, no RR');
+
+    // The library read for Valorant held until Marvel Rivals' is painted:
+    // landing after it, it paints nothing, or Valorant's matches would stand
+    // under Marvel Rivals' name.
+    let release = null;
+    const p = await openHome({ list: (g) => (g === 'rivals' ? []
+      : release ? HOME_ROWS : new Promise((r) => { release = () => r(HOME_ROWS); })) });
+    ok(typeof release === 'function' && p.$('content').hidden, 'the setup: Valorant\'s library read is still out');
+    p.bridge.emit(C.PUSH_GAME, { id: 'rivals', label: 'Marvel Rivals' });
+    await settle();
+    ok(named(p) === 'Marvel Rivals' && !p.$('empty').hidden && p.$('content').hidden, 'Marvel Rivals, with nothing in its library, is painted meanwhile');
+    if (release) release();
+    await settle();
+    ok(named(p) === 'Marvel Rivals' && !p.$('empty').hidden && p.$('content').hidden && !p.document.querySelector('#recent-list .r-row'),
+      'and the Valorant read landing after it paints nothing: no Valorant match under Marvel Rivals\' name');
+    // The first paint overtaken by a review saved meanwhile: the cards it was
+    // to bring in arrive with the paint that lands instead.
+    let hold = null;
+    const q = await openHome({ list: () => (hold ? HOME_ROWS : new Promise((r) => { hold = () => r(HOME_ROWS); })) });
+    q.bridge.emit(C.PUSH_REVIEWS, { id: HOME_ROWS[0].id, game: 'valorant' });
+    await settle();
+    if (hold) hold();
+    await settle();
+    const came = ['last', 'focus', 'trend', 'recent'].filter((id) => q.$(id).classList.contains('card-in'));
+    ok(!q.$('content').hidden && came.length === 4,
+      'the first paint overtaken by a review saved meanwhile, its cards arrive with the paint that lands', `arrived: ${came.join(', ')}`);
+  });
+
+  // ASKED AGAIN FOR A GAME RIOT HAD NOT PUBLISHED (8.2.1). Riot puts a game in
+  // the rank history minutes after the match, and main and the server each
+  // keep the history five minutes, so the reads a review's saves make as the
+  // match ends come back without it, and Home showed the newest match with no
+  // RR until the next one. It asks again six minutes on, twice at most after
+  // a paint, and only for a match that ended within the hour.
+  await section('Home asks again for the RR of a match Riot had not put in the rank history yet:', async () => {
+    const AGAIN = 6 * 60 * 1000;
+    const now = Date.now();
+    const rowRR = (x) => x.document.querySelectorAll('#recent-list .r-row').map((b) => {
+      const sp = b.querySelector('.r-rr');
+      return !sp || sp.hidden ? '' : sp.textContent;
+    });
+    const ROWS = [
+      { ...homeRow('valorant-1760000000000-newa', 0, 'Ascent', 'Competitive', '13-9', 83), at: now - 3 * MIN },
+      { ...homeRow('valorant-1759990000000-oldb', 0, 'Bind', 'Competitive', '10-13', 64, { result: 'Defeat' }), at: now - 75 * MIN },
+    ];
+    const B_GAME = { date: homeStart(ROWS[1]) + 2 * MIN, elo: 1800, change: -16, tier: 'Diamond 1' };
+    const A_GAME = { date: homeStart(ROWS[0]) + 2 * MIN, elo: 1824, change: 24, tier: 'Diamond 1' };
+    let reads = 0;
+    let out = false;
+    const h = await openHome({ rows: ROWS, history: () => { reads++; return { points: out ? [B_GAME, A_GAME] : [B_GAME] }; } });
+    ok(reads === 1 && same(rowRR(h), ['', '-16 RR']) && h.$('rank-rr').textContent === '-16 RR',
+      'the setup: the newest Competitive match has no RR, its game not in the history yet, and the rank card says the game before\'s', JSON.stringify(rowRR(h)));
+    h.clock.advance(AGAIN - 1000);
+    await settle();
+    ok(reads === 1, 'not asked again inside the minutes both caches would answer from');
+    out = true;
+    h.clock.advance(1000);
+    await settle();
+    ok(reads === 2 && same(rowRR(h), ['+24 RR', '-16 RR']) && h.$('rank-rr').textContent === '+24 RR',
+      'six minutes on it is asked again, and the RR Riot published meanwhile is on the match and in the rank card', `${reads} reads, ${JSON.stringify(rowRR(h))}`);
+    h.clock.advance(60 * MIN);
+    await settle();
+    ok(reads === 2, 'and with it shown, nothing more is asked');
+
+    // Never published: asked twice more, then left, until a paint sets it going again.
+    let n = 0;
+    const never = await openHome({ rows: ROWS, history: () => { n++; return { points: [B_GAME] }; } });
+    for (let i = 0; i < 4; i++) { never.clock.advance(AGAIN); await settle(); }
+    ok(n === 3, 'a game that never comes is asked for twice more, then no more', `${n} reads`);
+    never.bridge.emit(C.PUSH_REVIEWS, { id: ROWS[0].id, game: 'valorant' });
+    await settle();
+    never.clock.advance(AGAIN);
+    await settle();
+    ok(n === 5, 'a review saved paints Home again, and the asking starts over', `${n} reads`);
+
+    // A match that ended hours ago is not waited on: its game is not coming.
+    let m = 0;
+    const old = await openHome({ rows: ROWS.map((r) => ({ ...r, at: r.at - 3 * 60 * MIN })), history: () => { m++; return { points: [] }; } });
+    old.clock.advance(AGAIN);
+    await settle();
+    ok(m === 1 && rowRR(old)[0] === '', 'the newest Competitive match ended hours ago: not asked again', `${m} reads`);
+  });
+
+  // Home reads the rank history main keeps for Stats, by Stats' rules, so the
+  // two pages can never disagree about the same game.
+  await section('Home and Stats read one rank history the same way:', async () => {
+    const pt = (elo, change, tier) => ({ date: Date.UTC(2026, 9, 1), elo, change, tier: tier || 'Gold 2' });
+    for (const [what, history] of [['a gain', { points: [pt(1180, -21), pt(1218, 18)] }], ['a loss', { points: [pt(1218, 18), pt(1203, -15)] }],
+      ['a placement jump and an unrated point', { points: [pt(1203, -15), pt(1500, 297, 'Gold 3'), pt(0, 0, 'Unrated')] }],
+      ['no change', { points: [pt(1203, 0)] }]]) {
+      const st = statsWithRank(() => history);
+      await repainted(st);
+      const h = await openHome({ history: () => history });
+      const tile = rankTileOf(st).querySelector('.arrow').textContent;
+      ok(tile && h.$('rank-rr').textContent === tile, `${what}: Home says ${h.$('rank-rr').textContent || 'nothing'}, the Stats tile ${tile || 'nothing'}`);
+    }
+    // And the journey is the stretch the Stats graph draws, cut at the jump.
+    const reset = { points: [pt(420, 20, 'Iron 3'), pt(445, 25, 'Iron 3'), pt(1200, 755, 'Gold 1'), pt(1221, 21, 'Gold 1'), pt(1250, 29)] };
+    const st = statsWithRank(() => reset);
+    await repainted(st);
+    rankTileOf(st).click();
+    await repainted(st);
+    const graph = (st.document.querySelector('.rg-title') || {}).textContent || '';
+    const h = await openHome({ history: () => reset });
+    ok(/last 3 comp games/.test(graph) && /last 3 rated games, from Gold 1 to Gold 2/.test(h.$('rank-line').getAttribute('aria-label') || ''),
+      'after an act reset both draw the three games since it', `Stats "${graph}", Home "${h.$('rank-line').getAttribute('aria-label')}"`);
+  });
+
   await section('Settings, the game picker:', async () => {
     const se = loadSurface('settings', {
       handlers: {
@@ -1146,6 +1666,30 @@ async function openShell(cfg, state, opts) {
     }
     const v = row('valorant');
     ok(v && !v.title && !v.querySelector('.dd-opt-tag'), 'Valorant carries no label');
+  });
+
+  // CONNECTED MEANS CONNECT WAS PRESSED (riotConnected), as the sidebar and the
+  // launch's check against Riot's record read it. A profile alone is one the
+  // launch's own refresh saves for any ranked ID typed into Settings, a duo
+  // partner's included, and Settings said "Connected" with their rank.
+  await section('Settings, a typed Riot ID with a profile is not shown as connected:', async () => {
+    const profile = { rank: 'Gold 2', peakRank: 'Platinum 1', kd: 1.12, winRate: 52, _riotId: 'Pal#EUW' };
+    const open = async (extra) => {
+      const se = loadSurface('settings', {
+        handlers: {
+          [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', devGames: false, riotId: 'Pal#EUW', playerStats: profile, ...extra }),
+          [C.LICENSE_GET]: () => ({}), [C.STATE_GET]: () => ({}),
+          [C.APP_VERSION]: () => ({ current: '8.2.1', state: 'current' }),
+        },
+      });
+      await settle();
+      const el = se.document.querySelector('.trk-status');
+      return { shown: !!el && !el.hidden && /\bok\b/.test(el.className), text: el ? el.textContent : '' };
+    };
+    const typed = await open({});
+    ok(!typed.shown, 'typed and never connected, its profile is not shown as a connection', JSON.stringify(typed));
+    const connected = await open({ riotConnected: 'Pal#EUW' });
+    ok(connected.shown && /Gold 2/.test(connected.text), 'connected, it is, with its rank', JSON.stringify(connected));
   });
 
   await section('the AI log describes deaths, and only a tip era log counts reviews:', async () => {

@@ -1,0 +1,1269 @@
+{
+ "note": "Riot record of the competitive Split match in valorant-review-split-801.json, from /api/coach/match-rounds (HenrikDev v4), fetched 10 Oct 2026. Competitive, Victory 13 to 7 over 20 rounds, Jett 17/16/8. After round 8 it stood at 3 to 5, the score the watch ended it on. Agents and weapons only, no player names and no match id; the feed carries sides and times, never who.",
+ "map": "Split",
+ "queue": "competitive",
+ "rounds": 20,
+ "me": {
+  "agent": "Jett",
+  "kills": 17,
+  "deaths": 16,
+  "assists": 8,
+  "score": 5574,
+  "damage": 3612,
+  "headshots": 14,
+  "bodyshots": 45,
+  "legshots": 5
+ },
+ "score": "13-7",
+ "result": "Victory",
+ "startedAt": 1791155155749,
+ "lengthMs": 2033807,
+ "perRound": [
+  {
+   "n": 1,
+   "won": true,
+   "side": "attacking",
+   "kills": 1,
+   "died": true,
+   "deathMs": 33126,
+   "killerAgent": "Skye",
+   "weapon": "Ghost",
+   "firstDeath": false,
+   "firstKill": true,
+   "planted": true,
+   "plantMs": 20661,
+   "afterPlant": true,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 5,
+    "enemies": 4
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 32529,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 33126,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 36682,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 37523,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 37905,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 39646,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 41010,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 48624,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 53877,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 2,
+   "won": true,
+   "side": "attacking",
+   "kills": 3,
+   "died": false,
+   "deathMs": null,
+   "killerAgent": null,
+   "weapon": null,
+   "firstDeath": false,
+   "firstKill": true,
+   "planted": true,
+   "plantMs": 27849,
+   "afterPlant": false,
+   "traded": null,
+   "trades": 0,
+   "aliveAtDeath": null,
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 11805,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 27249,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 27773,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 29539,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 35240,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 3,
+   "won": false,
+   "side": "attacking",
+   "kills": 0,
+   "died": true,
+   "deathMs": 19265,
+   "killerAgent": "Clove",
+   "weapon": "Phantom",
+   "firstDeath": false,
+   "firstKill": false,
+   "planted": true,
+   "plantMs": 73085,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 5,
+    "enemies": 4
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 17497,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 19265,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 71406,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 72524,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 73806,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 78502,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 85896,
+     "by": "enemy",
+     "on": "mate"
+    }
+   ]
+  },
+  {
+   "n": 4,
+   "won": false,
+   "side": "attacking",
+   "kills": 0,
+   "died": true,
+   "deathMs": 16981,
+   "killerAgent": "Reyna",
+   "weapon": "Vandal",
+   "firstDeath": false,
+   "firstKill": false,
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 3,
+    "enemies": 5
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 15810,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 16217,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 16981,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 23574,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 24013,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 25494,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 26333,
+     "by": "enemy",
+     "on": "mate"
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "won": true,
+   "side": "attacking",
+   "kills": 0,
+   "died": true,
+   "deathMs": 11571,
+   "killerAgent": "Phoenix",
+   "weapon": "Phantom",
+   "firstDeath": true,
+   "firstKill": false,
+   "planted": true,
+   "plantMs": 98331,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 5,
+    "enemies": 5
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 11571,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 15485,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 21849,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 34991,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 37593,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 80289,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 84380,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 92331,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 121216,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 6,
+   "won": false,
+   "side": "attacking",
+   "kills": 0,
+   "died": true,
+   "deathMs": 6727,
+   "killerAgent": "Phoenix",
+   "weapon": "Phantom",
+   "firstDeath": false,
+   "firstKill": false,
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 4,
+    "enemies": 5
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 2693,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 6727,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 29665,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 32773,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 34130,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 38059,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 39158,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 54273,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 54545,
+     "by": "enemy",
+     "on": "mate"
+    }
+   ]
+  },
+  {
+   "n": 7,
+   "won": false,
+   "side": "attacking",
+   "kills": 0,
+   "died": true,
+   "deathMs": 35120,
+   "killerAgent": "Reyna",
+   "weapon": "Vandal",
+   "firstDeath": true,
+   "firstKill": false,
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 5,
+    "enemies": 5
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 35120,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 37230,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 37618,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 37694,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 41245,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 42559,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 49826,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 50522,
+     "by": "enemy",
+     "on": "mate"
+    }
+   ]
+  },
+  {
+   "n": 8,
+   "won": false,
+   "side": "attacking",
+   "kills": 1,
+   "died": true,
+   "deathMs": 59020,
+   "killerAgent": "Skye",
+   "weapon": "Phantom",
+   "firstDeath": false,
+   "firstKill": true,
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 4,
+    "enemies": 4
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 36360,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 39025,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 59020,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 64284,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 66814,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 80950,
+     "by": "enemy",
+     "on": "mate"
+    }
+   ]
+  },
+  {
+   "n": 9,
+   "won": true,
+   "side": "attacking",
+   "kills": 2,
+   "died": true,
+   "deathMs": 84428,
+   "killerAgent": "Reyna",
+   "weapon": "Vandal",
+   "firstDeath": false,
+   "firstKill": true,
+   "planted": true,
+   "plantMs": 74976,
+   "afterPlant": true,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 5,
+    "enemies": 1
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 25961,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 28673,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 62743,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 74129,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 84428,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 86327,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 97130,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 10,
+   "won": false,
+   "side": "attacking",
+   "kills": 0,
+   "died": true,
+   "deathMs": 34214,
+   "killerAgent": "Reyna",
+   "weapon": "Vandal",
+   "firstDeath": false,
+   "firstKill": false,
+   "planted": true,
+   "plantMs": 93083,
+   "afterPlant": false,
+   "traded": true,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 4,
+    "enemies": 5
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 28241,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 34214,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 37127,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 39116,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 48117,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 48235,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 57001,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 57165,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 57944,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 101454,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 115341,
+     "by": "mate",
+     "on": "mate"
+    }
+   ]
+  },
+  {
+   "n": 11,
+   "won": true,
+   "side": "attacking",
+   "kills": 1,
+   "died": true,
+   "deathMs": 35278,
+   "killerAgent": "Phoenix",
+   "weapon": "Phantom",
+   "firstDeath": false,
+   "firstKill": true,
+   "planted": true,
+   "plantMs": 54537,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 5,
+    "enemies": 4
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 23324,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 35278,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 35521,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 51686,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 70773,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 73292,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 74876,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 12,
+   "won": true,
+   "side": "attacking",
+   "kills": 0,
+   "died": true,
+   "deathMs": 31605,
+   "killerAgent": "Sage",
+   "weapon": "Phantom",
+   "firstDeath": false,
+   "firstKill": false,
+   "planted": true,
+   "plantMs": 76229,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 1,
+    "enemies": 2
+   },
+   "clutch": {
+    "vs": 3,
+    "won": true
+   },
+   "feed": [
+    {
+     "ms": 4565,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 11570,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 18639,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 27365,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 27950,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 29308,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 29411,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 31605,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 43059,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 101077,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 13,
+   "won": true,
+   "side": "defending",
+   "kills": 2,
+   "died": false,
+   "deathMs": null,
+   "killerAgent": null,
+   "weapon": null,
+   "firstDeath": false,
+   "firstKill": true,
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false,
+   "traded": null,
+   "trades": 0,
+   "aliveAtDeath": null,
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 3351,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 10074,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 12895,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 15608,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 19952,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 21076,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 21853,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 22027,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 14,
+   "won": true,
+   "side": "defending",
+   "kills": 2,
+   "died": false,
+   "deathMs": null,
+   "killerAgent": null,
+   "weapon": null,
+   "firstDeath": false,
+   "firstKill": false,
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false,
+   "traded": null,
+   "trades": 1,
+   "aliveAtDeath": null,
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 20947,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 25656,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 26865,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 28717,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 37079,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 37192,
+     "by": "me",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 15,
+   "won": false,
+   "side": "defending",
+   "kills": 0,
+   "died": true,
+   "deathMs": 2130,
+   "killerAgent": "Sage",
+   "weapon": "Phantom",
+   "firstDeath": true,
+   "firstKill": false,
+   "planted": true,
+   "plantMs": 28094,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 5,
+    "enemies": 5
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 2130,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 6931,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 15675,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 17835,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 19293,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 33176,
+     "by": "enemy",
+     "on": "mate"
+    }
+   ]
+  },
+  {
+   "n": 16,
+   "won": true,
+   "side": "defending",
+   "kills": 1,
+   "died": true,
+   "deathMs": 46585,
+   "killerAgent": "Phoenix",
+   "weapon": "Phantom",
+   "firstDeath": false,
+   "firstKill": true,
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 5,
+    "enemies": 3
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 7884,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 38217,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 46585,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 51993,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 52855,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 53926,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 54624,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 56261,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 56611,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 17,
+   "won": true,
+   "side": "defending",
+   "kills": 0,
+   "died": true,
+   "deathMs": 8552,
+   "killerAgent": "Sage",
+   "weapon": "Sheriff",
+   "firstDeath": true,
+   "firstKill": false,
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 5,
+    "enemies": 5
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 8552,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 14389,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 29495,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 32395,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 35720,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 50921,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 52539,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 63449,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 18,
+   "won": true,
+   "side": "defending",
+   "kills": 0,
+   "died": false,
+   "deathMs": null,
+   "killerAgent": null,
+   "weapon": null,
+   "firstDeath": false,
+   "firstKill": false,
+   "planted": true,
+   "plantMs": 27157,
+   "afterPlant": false,
+   "traded": null,
+   "trades": 0,
+   "aliveAtDeath": null,
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 20837,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 22745,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 31945,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 34024,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 36600,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 41312,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 19,
+   "won": true,
+   "side": "defending",
+   "kills": 0,
+   "died": true,
+   "deathMs": 50410,
+   "killerAgent": "Reyna",
+   "weapon": "Guardian",
+   "firstDeath": false,
+   "firstKill": false,
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false,
+   "traded": false,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 3,
+    "enemies": 1
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 11396,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 12581,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 32027,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 39090,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 40560,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 48346,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 50410,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 53507,
+     "by": "enemy",
+     "on": "mate"
+    },
+    {
+     "ms": 58999,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 62145,
+     "by": "mate",
+     "on": "enemy"
+    },
+    {
+     "ms": 63455,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  },
+  {
+   "n": 20,
+   "won": true,
+   "side": "defending",
+   "kills": 4,
+   "died": true,
+   "deathMs": 16496,
+   "killerAgent": "Sage",
+   "weapon": "Bulldog",
+   "firstDeath": false,
+   "firstKill": true,
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false,
+   "traded": true,
+   "trades": 0,
+   "aliveAtDeath": {
+    "mates": 5,
+    "enemies": 1
+   },
+   "clutch": null,
+   "feed": [
+    {
+     "ms": 10281,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 11822,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 12572,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 16151,
+     "by": "me",
+     "on": "enemy"
+    },
+    {
+     "ms": 16496,
+     "by": "enemy",
+     "on": "me"
+    },
+    {
+     "ms": 20007,
+     "by": "mate",
+     "on": "enemy"
+    }
+   ]
+  }
+ ]
+}

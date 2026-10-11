@@ -13,6 +13,7 @@
     "check:dom": "node scripts/check-dom-ids.js",
     "check:gameswitch": "node scripts/check-game-switch.js",
     "check:i18n": "node scripts/check-i18n.js",
+    "check:latelink": "node scripts/check-late-link.js",
     "check:learnrole": "node scripts/check-learn-role.js",
     "check:lolreview": "node scripts/check-lol-review-window.js",
     "check:mainwindow": "node scripts/check-main-window.js",

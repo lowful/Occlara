@@ -92,9 +92,20 @@ setTimeout(async () => {
 
     mainWindow.create();
     mainWindow.show('review');
-    await new Promise((r) => setTimeout(r, 2800));
-    const win = surfaces.find('/review/');
+    // Polled, not slept: under the whole suite on a busy machine the page took
+    // longer than the 2.8 s this used to sleep, and the check failed while the
+    // page was fine. Its document loaded, so its listeners are in place before
+    // the push below.
+    let win = null;
+    for (let t = 0; t < 150; t++) {
+      win = surfaces.find('/review/');
+      if (win && !win.webContents.isLoading()
+        && await win.webContents.executeJavaScript('document.readyState').catch(() => '') === 'complete') break;
+      win = null;
+      await new Promise((r) => setTimeout(r, 100));
+    }
     if (!win) return report(false, 'the review page never opened');
+    await new Promise((r) => setTimeout(r, 400));
 
     const errs = [];
     win.webContents.on('console-message', (e, lvl, msg) => { if (lvl >= 2) errs.push(msg); });

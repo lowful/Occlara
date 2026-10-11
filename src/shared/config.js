@@ -111,6 +111,10 @@ const STORE_DEFAULTS = {
   // for the same reason rivalsHistory is role scoped: a controller's ACS and a
   // duelist's are different quantities.
   valorantHistory: [],
+  // When the last late link started (ms): the check at launch of the recent
+  // recordings Riot's record never reached, at most once in six hours
+  // (src/main/services/backfill.js late()).
+  lateLinkAt:      0,
   // Rank band 1 to 5, NOT one of eight ranks. The underlying data does not
   // support eight-way granularity, and unset means the default band rather
   // than a guess.

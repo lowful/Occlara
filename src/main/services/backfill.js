@@ -37,7 +37,7 @@
  * dependency injected, so test-backfill.js drives it against a fake server.
  */
 
-const { verifyCoachedMatch, matchEndEstimate, ROUND_MS } = require('./match-link');
+const { verifyCoachedMatch, endedEarly, mayGoOn, sameName, matchEndEstimate, ROUND_MS, CLOCK_SLACK_MS } = require('./match-link');
 const { newId } = require('./review-store');
 const riotReview = require('../../shared/riot-review');
 const valorantReview = require('../../shared/valorant-review');
@@ -51,13 +51,17 @@ const MAX_FAILS_IN_A_ROW = 3;
 // before it stops, so a player in the middle of retyping it is not taken for
 // a player who changed it.
 const SETTLE_MS = 5000;
-// A minute and a half for the PC clock against Riot's, on every share of
-// time. Measured on the real pacing timelines in test-backfill.js: with one
-// minute, a recording of only the last round on a clock two minutes fast was
-// filed twice; with two, a short recording just after a match was held to it.
-// Cutting the menus and queues out of a recording's window by its rounds was
-// tried too and changed no timeline, so a window is taken whole.
-const CLOCK_SLACK_MS = 90 * 1000;
+// The late link at launch (late()): at most once in six hours, and only for a
+// recording saved in the last thirty days. Older than that it is most likely
+// behind the ten matches Riot's list holds, and one that can never link (a
+// match played on another account) stops costing a request.
+const LATE_EVERY_MS = 6 * 3600 * 1000;
+const LATE_RECENT_MS = 30 * 24 * 3600 * 1000;
+// A launch's late link that found a match being played tries again this much
+// later, until the match is over (atLaunch()).
+const LATE_AGAIN_MS = 60 * 1000;
+// The clock allowance on every share of time is the match link's
+// (CLOCK_SLACK_MS), because an early end is placed in Riot's span by it too.
 // The queues the grade's curves were set against. The others have no rounds,
 // or are played on rules the curves know nothing about.
 const QUEUES = new Set(['competitive', 'unrated', 'swiftplay', 'premier']);
@@ -72,7 +76,7 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const passing = (status) => status === 0 || status === 408 || status === 429 || status >= 500;
 
 function idle() {
-  return { state: 'idle', account: null, found: 0, have: 0, skipped: 0, pending: 0, ambiguous: 0, old: 0,
+  return { state: 'idle', account: null, late: false, found: 0, have: 0, skipped: 0, pending: 0, ambiguous: 0, old: 0,
     total: 0, done: 0, graded: 0, upgraded: 0, failed: 0, items: [], error: null, message: null };
 }
 
@@ -154,10 +158,30 @@ function openOf(library) {
  * recording's too, and both are left alone.
  *
  * `near` is every match within two slacks of a recording's best share. A
- * recording whose own link is still running holds all of those back (a stop
- * keeps trying for over half an hour, so its match can be listed meanwhile),
+ * recording whose own link is still running holds all of those back (a stop,
+ * or a score end that may have gone on, keeps trying for over half an hour,
+ * so its match can be listed meanwhile),
  * because filed now, the match would be in the library twice once the link
  * lands, or refused by it.
+ *
+ * ENDED EARLY BY THE WATCH. Once Riot's round record of a match is in (`real`
+ * holds it, from confirm()), a recording the link's checks refuse only for its
+ * score fits after all when its last score is one that record passes through
+ * (match-link.js endedEarly): the real Split match 8.0.1 ended at 3 to 5 in
+ * round 9, which Riot has going on to 13 to 7.
+ *
+ * AND AN EARLY END MAKES THE CLAIM ITSELF. It shares little of its match, and
+ * its recording often opened long before Riot's start (Start in the menus, a
+ * queue, a warm-up), so neither share rule above held for one opened twenty
+ * minutes before: a full run filed its match again beside it, and the late
+ * link, the run built to repair it, left the match as nobody's. An unverified
+ * recording whose early end the record confirms claims the match with that,
+ * held to the one claimant rules like any other. Before the record is in, one
+ * that may have ended the match early (mayHaveEnded) only asks for it: the
+ * match is 'ambiguous', so it is fetched and confirm() decides on the record,
+ * and the ask is none of the recording's claims (`claimed`), because a
+ * recording that ended its own match on a PC clock ahead of Riot's lies inside
+ * the next match's span too, and counted there it left its own match alone.
  */
 function claimsOf(rows, open, real) {
   const spans = spansOf(rows, real);
@@ -176,15 +200,39 @@ function claimsOf(rows, open, real) {
       const len = spans[i].end - spans[i].start;
       const top = s === best || (shaky && s > best - 2 * CLOCK_SLACK_MS);
       const own = top && best >= seen / 2;
-      if (!own && !(len > 0 && s >= len / 2)) return;
       // The link's own checks, against Riot's real end when it is known.
       const lm = spans[i].real ? { ...row, startedAt: spans[i].start, endedAt: spans[i].end } : row;
-      const fits = verifyCoachedMatch(lm, w.startedAt, w.endedAt, w.mctx).ok;
+      const rec = real ? real.get(row.matchId) : null;
+      const early = !!(rec && rec.riot && endedEarly(lm, rec.riot, w.startedAt, w.endedAt, w.mctx).ok);
+      if (!own && !(len > 0 && s >= len / 2) && !(early && !verified)) {
+        if (!verified && !rec && mayHaveEnded(row, spans[i], w)) {
+          claims.set(i, [...(claims.get(i) || []), { id, verified, fits: false }]);
+        }
+        return;
+      }
+      const fits = verifyCoachedMatch(lm, w.startedAt, w.endedAt, w.mctx).ok || early;
       claims.set(i, [...(claims.get(i) || []), { id, verified, fits }]);
       claimed.set(id, [...(claimed.get(id) || []), i]);
     });
   }
   return { claims, claimed, near };
+}
+
+/**
+ * Whether a recording may be one the watch ended early in this listed match,
+ * asked before the match's round record is in: the watch ended it on a score
+ * a standard match goes on from (match-link.js mayGoOn), on the match's own
+ * map, at a moment inside the span the match is placed in (spansOf), and the
+ * link's checks refuse the match for that score alone. A recording verified
+ * already ended on its match's own final, and is never asked about.
+ */
+function mayHaveEnded(row, span, w) {
+  const m = w.mctx || {};
+  if (!mayGoOn(m.score) || !m.map || !row.map || !sameName(row.map, m.map)) return false;
+  if (!(w.endedAt > span.start && w.endedAt < span.end)) return false;
+  const loose = { ...m, score: { ...m.score, final: false } };
+  return verifyCoachedMatch(row, w.startedAt, w.endedAt, loose).ok
+    && !verifyCoachedMatch(row, w.startedAt, w.endedAt, m).ok;
 }
 
 /** A listed match no review holds, from the recordings that claim it or lie near it. */
@@ -219,7 +267,10 @@ function sameLine(line, row) {
  * that match; otherwise the match is left alone. Before this, a recording
  * whose map lock was wrong failed the checks, its match was graded again as a
  * new review, and one match became a pattern. A linked match still takes
- * part, so a recording inside one is never handed a neighbour.
+ * part, so a recording inside one is never handed a neighbour. One the checks
+ * refuse only for the score the watch ended it on is 'ambiguous' here and
+ * fetched like the others left alone: only Riot's round record can say the
+ * watch ended it early, and confirm() decides again with it.
  *
  * A recording 8.0.0 or 8.0.1 linked to Riot is verified and has no matchId,
  * because those versions never stored one. It is the match already, so the
@@ -279,6 +330,42 @@ function whyNot(res) {
   return { error: 'unreachable', message: "Riot's record could not be reached. Try again in a few minutes from Matches." };
 }
 
+/**
+ * The closing line of a late link, from its counts. It files nothing new, so
+ * it says what it checked, and the waits and the matches left alone as a full
+ * run does.
+ */
+function lateSummary(s, stopped) {
+  const n = s.upgraded;
+  const parts = [];
+  if (n) parts.push(`Checked ${plural(n, 'recent match', 'recent matches')} against Riot's record.`);
+  else if (stopped) parts.push("Riot's record could not be reached, so your recordings were not checked.");
+  else if (s.failed) parts.push("Your recent recordings could not be checked against Riot's record.");
+  else parts.push("Your recent recordings were checked against Riot's record, and none of them changed.");
+  if (s.failed && n) parts.push(`${plural(s.failed, 'match', 'matches')} could not be fetched.`);
+  if (s.pending) {
+    parts.push(`${plural(s.pending, 'match waits', 'matches wait')} for a recording that is still being linked.`);
+  }
+  if (s.ambiguous) {
+    parts.push(`${plural(s.ambiguous, 'match', 'matches')} could not be told apart from a recording, `
+      + `so ${s.ambiguous === 1 ? 'it was' : 'they were'} left alone.`);
+  }
+  if (stopped && n) parts.push('Riot stopped answering, so the rest can be checked later from Matches.');
+  return parts.join(' ');
+}
+
+/**
+ * Whether the late link has anything to do: a recorded Valorant match from
+ * the last thirty days that Riot's record has not been laid over. One linked
+ * to a queue the grade is not built for (Spike Rush and the like, stamped by
+ * a run) is as linked as it gets, and is not asked about again.
+ */
+function lateWanted(metas, now) {
+  return (Array.isArray(metas) ? metas : []).some((m) => m && m.source !== 'riot' && !m.verified
+    && typeof m.at === 'number' && now - m.at <= LATE_RECENT_MS
+    && !(m.matchId && !queueOk(m.mode)));
+}
+
 /** The closing line of a run, from its counts. */
 function summary(s, stopped) {
   const n = s.graded + s.upgraded;
@@ -326,19 +413,46 @@ class Backfill {
    * Grade an account's recent matches, or report the run already doing it.
    * An account that is not the one in Settings is refused: a Connect that
    * answered late, for an ID the player has since corrected, must not start.
+   *
+   * @param opts.late  the late link (late()): the recordings are checked
+   *   against Riot's record and nothing new is filed
    */
-  start(account) {
+  start(account, opts) {
+    const late = !!(opts && opts.late);
     const acct = String(account || '').trim();
     if (!acct.includes('#')) return this.getStatus();
     if (this.deps.account && !sameAccount(this.deps.account(), acct)) return this.getStatus();
-    if (this.running && sameAccount(this.running.account, acct)) return this.getStatus();
+    let handed = null;
+    if (this.running && sameAccount(this.running.account, acct)) {
+      // A CONNECT DURING A LATE LINK GRADES EVERYTHING. Taken for the run
+      // already going, a Connect or "Grade my recent matches" pressed in the
+      // seconds after launch never graded the matches nobody recorded, which
+      // a late link leaves alone. It lets go, keeping what it checked (the
+      // account is the same one), and the full run plans from there.
+      if (late || !this.running.late) return this.getStatus();
+      handed = this.running;
+      handed.cancelled = true;
+      this.running = null;
+    }
     // Settings holds another account now, so the run for the old one is not
     // wanted, and what it filed so far is taken back (takeBack()).
     if (this.running) { this.takeBack(this.running); this.running.cancelled = true; }
-    const run = { account: acct, cancelled: false, resume: null, saved: [], changed: [], pruned: [], evicted: [],
+    const run = { account: acct, late, cancelled: false, resume: null, saved: [], changed: [], pruned: [], evicted: [],
       rowsAdded: new Set(), rows: [], open: [], real: new Map() };
+    // AND WHAT IT DID IS THE FULL RUN'S TO TAKE BACK. Left with the late run,
+    // a Riot ID corrected during the full run took back the full run's work
+    // alone, and the recordings the late link had checked against that other
+    // account kept its agent and numbers, and its baseline rows stayed. A late
+    // link files nothing new, so its saved and evicted lists are empty, and
+    // they are moved all the same.
+    if (handed) {
+      for (const key of ['saved', 'changed', 'pruned', 'evicted']) run[key].push(...handed[key].splice(0));
+      for (const m of handed.rowsAdded) run.rowsAdded.add(m);
+      handed.rowsAdded = new Set();
+    }
     this.running = run;
-    this.status = { ...idle(), state: 'listing', account: acct, message: "Finding your recent matches in Riot's record." };
+    this.status = { ...idle(), state: 'listing', account: acct, late,
+      message: late ? "Checking your recent recordings against Riot's record." : "Finding your recent matches in Riot's record." };
     run.resume = { state: 'listing', message: this.status.message };
     this.emit();
     this.promise = this.work(run)
@@ -349,6 +463,69 @@ class Backfill {
       })
       .finally(() => { if (this.running === run) this.running = null; });
     return this.getStatus();
+  }
+
+  /**
+   * THE LATE LINK AT LAUNCH (8.2.1). A recording whose link gave up (Riot
+   * published after its last try, the app was closed first, or the watch ended
+   * the match early and Riot's record of it came only once the rest of the
+   * match had been played, after the last try) stayed
+   * "from what the screen read" until the player pressed Connect or "Grade my
+   * recent matches" again, which nobody does twice. So at launch, with a Riot
+   * ID connected, the app checks its recent unverified recordings by itself,
+   * with this very run: the same plan, the same claims and the early end, the
+   * same three seconds between requests, the same stop and take back when the
+   * Riot ID in Settings changes, the same wait while a match is played. It
+   * only files nothing new: a match nobody recorded is Connect's to grade,
+   * never a library growing behind the player's back.
+   *
+   * Not due, it returns null and asks for nothing: a run already going, a
+   * match being played (atLaunch() then tries again after it), one late link
+   * in the last six hours (counted from its start, kept by the app across
+   * launches in `lateAt`), or no recording from the last thirty days that
+   * Riot's record has not been laid over.
+   *
+   * @returns the run's status, or null when it was not started
+   */
+  late(account) {
+    const d = this.deps;
+    const acct = String(account || '').trim();
+    if (!acct.includes('#') || this.running) return null;
+    if (d.account && !sameAccount(d.account(), acct)) return null;
+    if (d.inMatch()) return null;
+    const now = d.now();
+    const last = Number(d.lateAt ? d.lateAt.get() : 0) || 0;
+    // A clock set back since the last one runs it, rather than waiting out
+    // however far ahead that clock was.
+    if (last && now >= last && now - last < LATE_EVERY_MS) return null;
+    if (!lateWanted(this.metas(), now)) return null;
+    if (d.lateAt) d.lateAt.set(now);
+    return this.start(acct, { late: true });
+  }
+
+  /**
+   * THE LATE LINK'S TRY AT LAUNCH, armed by index.js a little after launch.
+   * MID MATCH IT TRIES AGAIN A MINUTE LATER, and each minute after that until
+   * the match is over. late() starts nothing mid match and keeps no lateAt for
+   * it, and the launch's one try was the session's only one: an app opened mid
+   * match (a restart after a crash or an update, Start pressed before the
+   * timer, a League or Rivals game being recorded) left the recordings it was
+   * opened to repair, the match the watch just ended early included, for the
+   * next launch, which for an app left in the tray can be days away.
+   *
+   * @param accountOf  () => the connected Riot ID, or null, read at every try
+   * @param arm        (again, ms) => void, calling again() in ms: index.js
+   *                   keeps the timer, so a logout clears it
+   * @returns late()'s status, or null when nothing started
+   */
+  atLaunch(accountOf, arm) {
+    const id = accountOf();
+    if (!id) return null;
+    if (this.deps.inMatch()) {
+      arm(() => this.atLaunch(accountOf, arm), LATE_AGAIN_MS);
+      return null;
+    }
+    return this.late(id);
   }
 
   /** Stop at the next safe point. What is saved stays saved. */
@@ -638,7 +815,15 @@ class Backfill {
     const end = riotReview.endOf(step.row, riot);
     const i = run.rows.findIndex((r) => r.matchId === step.row.matchId);
     if (!start || !(end > start) || i < 0) return step;
-    run.real.set(step.row.matchId, { start, end });
+    // And what an early end is decided on (match-link.js endedEarly), kept
+    // with the run as those few fields rather than the whole record: who won
+    // each round, the map, the agent, the start and the length.
+    run.real.set(step.row.matchId, { start, end, riot: {
+      map: (riot && riot.map) || null,
+      me: { agent: (riot && riot.me && riot.me.agent) || null },
+      startedAt: riot && riot.startedAt, lengthMs: riot && riot.lengthMs,
+      perRound: (Array.isArray(riot && riot.perRound) ? riot.perRound : []).map((r) => ({ n: r && r.n, won: r && r.won })),
+    } });
     const metas = new Map(this.metas().filter(Boolean).map((m) => [m.id, m]));
     const open = run.open.filter((o) => {
       const m = metas.get(o.id);
@@ -691,16 +876,27 @@ class Backfill {
       else if (graded) stampFailed++;
     }
     const steps = planned.filter((s) => queueOk(s.row.mode)).slice(0, MAX_MATCHES);
+    // A late link says what it checked, a full run what it graded.
+    const closing = (stopped) => (run.late ? lateSummary(this.status, stopped) : summary(this.status, stopped));
+    const doing = run.late ? (n) => `Checking ${plural(n, 'match', 'matches')} against Riot's record.`
+      : (n) => `Grading ${plural(n, 'match', 'matches')} from Riot's record.`;
+    const doingOne = run.late ? (i, n) => `Checking match ${i} of ${n} against Riot's record.`
+      : (i, n) => `Grading match ${i} of ${n} from Riot's record.`;
     if (!steps.length) {
-      this.update(run, { state: 'done', found: 0, message: 'No recent Competitive, Unrated, Swiftplay or Premier '
+      this.update(run, { state: 'done', found: 0, message: run.late ? lateSummary(this.status, false)
+        : 'No recent Competitive, Unrated, Swiftplay or Premier '
         + 'matches on this account yet. Your next recorded match is graded when it ends.' });
       return;
     }
     const count = (action) => steps.filter((s) => s.action === action).length;
     // A match the plan could not tell apart from a recording is fetched too:
-    // Riot's own start and length may tell them apart (confirm()). One whose
-    // link saved another line than its row is not, the record cannot help.
-    const todo = steps.filter((s) => s.action === 'new' || s.action === 'upgrade' || (s.action === 'ambiguous' && !s.held))
+    // Riot's own start and length may tell them apart (confirm()), and its
+    // round record whether the watch ended the match early. One whose link
+    // saved another line than its row is not, the record cannot help. A late
+    // link files nothing new, so a match no recording claims is not its to
+    // fetch.
+    const todo = steps.filter((s) => (s.action === 'new' && !run.late) || s.action === 'upgrade'
+      || (s.action === 'ambiguous' && !s.held))
       .sort((a, b) => (a.row.startedAt || 0) - (b.row.startedAt || 0));
     const pending = count('pending');
     const ambiguous = steps.filter((s) => s.action === 'ambiguous' && s.held).length;
@@ -714,15 +910,15 @@ class Backfill {
       items: todo.map((s) => itemOf(s.row, 'pending')).reverse(),
     });
     if (!todo.length) {
-      this.update(run, { message: summary(this.status, false) });
+      this.update(run, { message: closing(false) });
       return;
     }
-    this.update(run, { message: `Grading ${plural(todo.length, 'match', 'matches')} from Riot's record.` });
+    this.update(run, { message: doing(todo.length) });
 
     let failsInRow = 0;
     for (const step of todo) {
       if (run.cancelled) return;
-      this.update(run, { message: `Grading match ${this.status.done + 1} of ${todo.length} from Riot's record.` });
+      this.update(run, { message: doingOne(this.status.done + 1, todo.length) });
       const got = await this.rounds(run, step.row);
       if (run.cancelled) return;
       await this.clear(run);
@@ -748,6 +944,13 @@ class Backfill {
             skipped: this.status.skipped + 1 });
           continue;
         }
+        // No recording claims it after all, on Riot's own start and length: a
+        // match nobody recorded, which a late link never files.
+        if (run.late && now.action === 'new') {
+          if (item) item.status = 'skipped';
+          this.update(run, { done: this.status.done + 1, skipped: this.status.skipped + 1 });
+          continue;
+        }
         try { built = this.build(now, got.riot, run.account); } catch (e) { d.log('[backfill] could not build', step.row.matchId, e.message); }
       }
       if (built === false) {
@@ -762,7 +965,7 @@ class Backfill {
         if (item) item.status = 'failed';
         this.update(run, { done: this.status.done + 1, failed: this.status.failed + 1 });
         if (failsInRow >= MAX_FAILS_IN_A_ROW) {
-          this.update(run, { state: 'error', error: 'unreachable', message: summary(this.status, true) });
+          this.update(run, { state: 'error', error: 'unreachable', message: closing(true) });
           return;
         }
         continue;
@@ -835,11 +1038,13 @@ class Backfill {
       });
     }
     if (run.cancelled) return;
-    this.update(run, { state: 'done', message: summary(this.status, false) });
+    this.update(run, { state: 'done', message: closing(false) });
     const n = this.status.graded + this.status.upgraded;
-    if (n) d.notice(`Graded ${plural(n, 'recent match', 'recent matches')} from Riot's record. ${n === 1 ? 'It is' : 'They are'} in Matches.`);
+    const where = `${n === 1 ? 'It is' : 'They are'} in Matches.`;
+    if (n && run.late) d.notice(`Checked ${plural(n, 'recent match', 'recent matches')} against Riot's record. ${where}`);
+    else if (n) d.notice(`Graded ${plural(n, 'recent match', 'recent matches')} from Riot's record. ${where}`);
   }
 }
 
-module.exports = { Backfill, plan, windowOf, spansOf, claimsOf, sameLine, queueOk, passing, summary, MAX_MATCHES,
-  GAP_MS, RETRY_MS, QUEUES, SETTLE_MS };
+module.exports = { Backfill, plan, windowOf, spansOf, claimsOf, sameLine, queueOk, passing, summary, lateSummary,
+  lateWanted, MAX_MATCHES, GAP_MS, RETRY_MS, QUEUES, SETTLE_MS, LATE_EVERY_MS, LATE_RECENT_MS, LATE_AGAIN_MS };

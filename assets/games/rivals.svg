@@ -1,0 +1,22 @@
+<!--
+  Marvel Rivals' emblem, the game's own mark, in the sidebar's game picker
+  since 8.2.1: the player's decision of 2026-10-10, made after reading
+  Marvel's terms (CLAUDE.md, "The game picker shows the games' own logos").
+
+  No vector of it is published, so this is TRACED from the game site's icon
+  (marvelrivals.com, its 256 pixel image): a lightning bolt shaped like an R,
+  yellow, between two slanted white brackets, on navy. Here all three are one
+  colour on a 24 unit box. The emblem is point symmetric about its centre,
+  and so is the trace: every point (x, y) has its twin at (24 - x, 24 - y).
+  The bolt's edges were fitted to the icon's half way contour, and the thin
+  arms of the brackets, which the icon blurs, to where their brightness says
+  the arms end. It is 24 wide and about 12 tall, as the emblem is.
+
+  THIS FILE IS THE SOURCE. src/renderer/shared/game-logos.js draws the same
+  path inline, so it takes currentColor from the button it is in, and
+  npm run test:surfaces fails if the two paths ever differ.
+
+  color="#FFFFFF" is for an <img>: an SVG loaded that way is its own
+  document, and currentColor there would be black on the dark ground.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" color="#FFFFFF" role="img" aria-label="Marvel Rivals"><path fill="currentColor" d="M2.44 5.86H12.35L18.76 12.75H10.78L21.56 18.14H11.65L5.24 11.25H13.22ZM1.92 8.29L6.84 9.91H3.6L2.58 14.38H6.03L0 16.23ZM22.08 15.71L17.16 14.09H20.4L21.42 9.62H17.97L24 7.77Z"/></svg>

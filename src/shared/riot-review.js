@@ -17,7 +17,10 @@
  *                   Riot ID yet, or the link gave up). The same reconcile the
  *                   end of a match runs, over the ledger the review kept, so it
  *                   keeps its locations, reads and the coach's looks where
- *                   Riot agrees.
+ *                   Riot agrees. A match the watch ended early (match-link.js
+ *                   endedEarly) is one of these too: Riot's record brings the
+ *                   rounds after the screen's end, marked as not watched, and
+ *                   the result, score, queue and grade are Riot's.
  *
  * NO MODEL IS CALLED. A summary written now would have no frames behind it,
  * and an old one was written from facts Riot has just corrected, so it is

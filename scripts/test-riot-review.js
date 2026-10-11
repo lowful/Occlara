@@ -318,5 +318,79 @@ const strip = (rv) => {
     `and the grade is the one it gets with no look at all, since a look from the screen is never graded (${up.grade.score})`);
 }
 
+// ── A match the watch ended early, checked against Riot's record (8.2.1) ──
+// The player's own Split match, saved by 8.0.1 as "Defeat 3-5, Swiftplay"
+// after a wrong swiftplay lock ended it in round 9, with no ledger. Riot has
+// it Competitive, Victory 13 to 7 over 20 rounds, at 3 to 5 after round 8.
+{
+  const SPLIT = load('riot-split-13-7.json');
+  const SAVED = load('valorant-review-split-801.json');
+  const SROW = { matchId: 'split-1', map: 'Split', agent: 'Jett', mode: 'Competitive', result: 'Victory', score: '13-7',
+    kills: 17, deaths: 16, assists: 8, kd: 1.06, acs: 279, adr: 181, headshotPct: 22, startedAt: SPLIT.startedAt };
+  const old = SAVED.review;
+  ok(old.game.result === 'Defeat' && old.game.score === '3-5' && old.game.mode === 'Swiftplay' && old.halftimeAfter === 4
+    && old.rounds.length === 8 && !old.ledger && !old.verified,
+    'as 8.0.1 saved it: Defeat 3-5, Swiftplay, halftime after round 4, 8 rounds, no ledger, never checked');
+  const { review: up, tracker } = riotReview.upgradeWatched({ saved: { id: SAVED.id, at: SAVED.at, review: old },
+    row: SROW, riot: SPLIT, history: [], account: 'Me#EUW' });
+  ok(up.id === SAVED.id && up.at === SAVED.at && up.verified && up.matchId === 'split-1' && up.lateLinked,
+    'checked now, it keeps its id and its place in the library');
+  ok(up.rounds.length === 20 && up.watched.rounds === 8
+    && up.rounds.every((c) => c.watched === (c.n <= 8) && c.verified && !!c.riot),
+    `with all 20 of Riot's rounds, the first 8 the ones the coach watched (${up.watched.rounds} watched)`);
+  ok(up.rounds.filter((c) => c.n > 8).every((c) => c.facts.includes('Not watched by the coach') && c.spot === null && !c.reads.length),
+    'and the 12 after the watch called it over marked as not watched, with nothing from the screen in them');
+  ok(up.game.result === 'Victory' && up.game.score === '13-7' && up.game.mode === 'Competitive' && up.game.agent === 'Jett'
+    && up.halftimeAfter === 12, `result, score, queue and halftime are Riot's (${up.game.mode}, ${up.game.result} ${up.game.score})`);
+  ok(typeof up.grade.score === 'number' && !up.grade.provisional && up.scoreline.kills === 17 && tracker.acs === 279,
+    `and the grade is Riot's numbers' (${up.grade.score} ${up.grade.letter}, ${up.scoreline.kills}/${up.scoreline.deaths}/${up.scoreline.assists})`);
+  // Riot attacked rounds 1 to 12; the screen's swiftplay swap had 6 to 8 on defence.
+  ok(old.rounds.filter((c) => c.side === 'Defence').map((c) => c.n).join() === '6,7,8'
+    && up.rounds.filter((c) => c.n <= 12).every((c) => c.side === 'Attack'),
+    "Riot's sides replace the screen's swap after round 4");
+  ok(up.rounds.find((c) => c.n === 3).spot === 'B Back' && up.rounds.find((c) => c.n === 4).spot === 'A Tower'
+    && !up.rounds.find((c) => c.n === 2).died && up.rounds.find((c) => c.n === 2).spot === null,
+    "the screen's death spots stay where Riot confirms the death, and go where Riot says the player lived");
+  const SAID = "The coach thought the match was over at 3 to 5, and it went on. Riot's record fills in rounds 9 to 20, "
+    + "which the coach did not watch, so those rounds have no location or coach's read.";
+  ok(up.refused.includes(SAID), `the review says the coach ended it too soon (${up.refused.join(' | ')})`);
+  ok(up.summary === null && up.focus === null && up.refused.some((l) => /taken down/.test(l)),
+    'and the read written from the 3-5 is taken down, saying so');
+  const sides = (rv) => (rv.patterns.find((p) => p.key === 'sides') || {}).text;
+  ok(sides(old) === 'Attack was your stronger side: won 3 of 5 on attack and 0 of 3 on defence.'
+    && sides(up) === 'Defence was your stronger side: won 6 of 12 on attack and 7 of 8 on defence.',
+    `its patterns are counted over Riot's sides (${sides(up)})`);
+  const dashed = (t) => [0x2013, 0x2014].some((c) => String(t).includes(String.fromCharCode(c)));
+  ok(dashed(`a ${String.fromCharCode(0x2014)} b`) && !up.refused.some(dashed) && !dashed(up.verification),
+    'and no line it adds carries a dash');
+
+  // The live link builds the same match from the screen's own rounds once
+  // Riot's record lands (riotLook in index.js): the same line, the same queue.
+  const { rows } = riotReview.ledgerRows(old);
+  const live = valorantReview.build({ rounds: verify.reconcile(rows, SPLIT).rounds,
+    context: { map: 'Split', agent: 'Jett', agentConfirmed: true, teamScore: 3, enemyScore: 5, gameMode: 'swiftplay' },
+    endedBy: 'score', ai: {}, tracker: SROW, role: 'Duelist', history: [], riotMe: SPLIT.me, queue: SPLIT.queue });
+  ok(live.refused.includes(SAID) && live.game.mode === 'Competitive' && live.halftimeAfter === 12 && live.game.result === 'Victory',
+    'built by the live link, it says the same and is the same match');
+
+  // Said only where Riot's record shows it.
+  const merged = verify.reconcile(rows, SPLIT).rounds;
+  const early = valorantReview.endedTooSoon;
+  ok(early(merged, 3, 5) && early(merged, 4, 5) && !early(merged, 5, 3) && !early(merged, 13, 7) && !early(merged, null, 5),
+    "an early end is the screen's last score at the round Riot stood at it, and never Riot's final");
+  ok(!early(rows, 3, 5) && !early(merged.map((r) => ({ ...r, verified: false })), 3, 5),
+    'and needs Riot: rounds Riot has not been laid over prove nothing about where Riot stood');
+  const abyss = verify.reconcile(played.rounds, riot).rounds;
+  ok(!early(abyss, 13, 11) && !early(abyss, 13, 10),
+    'a match seen to its real end is not one, nor a final read one digit short (Riot stood at 12-11 after round 23, never 13-10)');
+  const whole = riotReview.upgradeWatched({ saved: { id: 'valorant-1758391200000-whole1', at: T0 + 2400000,
+    review: (() => {
+      const b = valorantReview.build({ rounds: played.rounds, context: played.context, endedBy: 'score', ai: {}, role: 'Duelist', history: [] });
+      b.ledger = valorantReview.ledgerOf({ ...played, startedAt: T0 - 60000, endedAt: T0 + 2400000, endedBy: 'score' });
+      return b;
+    })() }, row: ROW, riot, history: [] }).review;
+  ok(!whole.refused.some((l) => /thought the match was over/.test(l)), 'and the Abyss match the watch saw end says nothing of the kind');
+}
+
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' riot review checks passed'}`);
 process.exit(fails ? 1 : 0);

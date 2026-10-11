@@ -2,8 +2,9 @@
 
 /**
  * The eye that opens one match's AI log (8.2), drawn the same on its row in
- * Matches and in its review's header, from the one word main hands both pages
- * (the `aiLog` of a REVIEWS_LIST row, and of a review as present() sends it):
+ * Matches, in its review's header and on Home's last match (labelled(), with
+ * "View match" beside it), from the one word main hands every page (the
+ * `aiLog` of a REVIEWS_LIST row, and of a review as present() sends it):
  *
  *   'kept'   the log still holds the match: the eye opens it on its frames
  *   'gone'   it no longer does: the eye stays, disabled, and its tooltip says why
@@ -65,7 +66,27 @@
     return b;
   }
 
-  const api = { button, NAME, MOMENT, GONE };
+  /**
+   * THE EYE WITH A WORD BESIDE IT (8.2.1), where it stands on its own rather
+   * than at the end of a row: Home's last match, "View match". The same eye,
+   * the same three states and the same tooltip as button(); the word is its
+   * name, because a name that does not hold the word printed on the button is
+   * not the button's to a screen reader or to speech control.
+   *
+   * @param text  the word, "View match"
+   */
+  function labelled(state, onOpen, text) {
+    const b = button(state, onOpen);
+    if (!b) return null;
+    b.className = 'btn btn-ghost log-eye labelled';
+    b.removeAttribute('aria-label');
+    const word = document.createElement('span');
+    word.textContent = String(text || '');
+    b.append(word);
+    return b;
+  }
+
+  const api = { button, labelled, NAME, MOMENT, GONE };
   if (typeof window !== 'undefined') window.LogEye = api;
   // Node, for the test that holds both pages to the same eye.
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
