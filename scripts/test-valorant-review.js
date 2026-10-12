@@ -938,6 +938,30 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(named.summary === 'You lost 2 to 5. Your most repeated mistake was dying where nobody could trade, 4 of your 5 '
     + 'deaths, in rounds 2, 3, 6 and 7.',
   `the counted mistake with its own count stays, one the review never counted goes, and any other count (${named.summary})`);
+
+  // THE LIVE MODEL'S WORDS FOR THIS MATCH on the first 8.3.1 server: round 1
+  // "No one traded the death" where Riot has it traded, every line the fact
+  // line again, and "Riot lost 2 to 5".
+  const live = matchReview.parse('SUMMARY: Riot lost 2 to 5 because you died in untradeable positions early in multiple '
+    + 'rounds. You opened rounds with first kills twice.\n'
+    + 'R1: You died at Mid Bottom after twenty six seconds from KAY/O\'s Sheriff while two teammates stood against three '
+    + 'enemies. No one traded the death.\n'
+    + 'R2: You died after twenty seven seconds from KAY/O\'s Sheriff while four teammates stood against three enemies.\n'
+    + 'R3: Up four against three, hold the space you have and let them come to you instead of taking the next duel.\n'
+    + 'R6: You were traded by a teammate, so keep swinging.', input);
+  ok(!(1 in live.rounds) && live.dropped.some((d) => d.n === 1 && d.said === 'not traded'),
+    'a line saying round 1 was not traded, where Riot traded it, goes');
+  ok(!(2 in live.rounds) && live.dropped.some((d) => d.n === 2 && d.said === 'the facts again'),
+    'a line that only says the round\'s facts again (killer, weapon, seconds, numbers) goes');
+  ok(live.rounds[3] && /hold the space you have/.test(live.rounds[3]), 'a lesson with one fact in it stays');
+  ok(!(6 in live.rounds) && live.dropped.some((d) => d.n === 6 && d.said === 'traded'),
+    'and one saying a death nobody traded was traded goes too');
+  ok(live.summary === 'You opened rounds with first kills twice.',
+    `and a summary sentence naming Riot as the one who lost goes (${live.summary})`);
+  ok(/one sentence, at most 30 words, on what to do differently next time/.test(prompt)
+    && /never restate them/.test(prompt) && /starting with You won or You lost/.test(prompt)
+    && /Being traded means a teammate killed your killer within five seconds, which is good/.test(prompt),
+  'the model is asked for one lesson a round, never the facts again, the summary from the player\'s own result');
 }
 
 // ── The round after the last one ────────────────────────────────────────────
