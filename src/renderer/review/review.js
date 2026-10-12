@@ -66,6 +66,10 @@ function paintObjectives(o) {
  * from the recording on this PC where the game was recorded, and the one fact
  * the record gives about it (lol-review.js deathList). Hidden when the player
  * did not die, or the review was saved before there was a list.
+ *
+ * Drawn as a Valorant review draws its rounds (8.3.1): one list, a death with
+ * its clip a row with the clip beside its fact, and one with nothing but its
+ * fact a single line.
  */
 function paintLolDeaths(r) {
   const host = $('r-deaths');
@@ -74,15 +78,26 @@ function paintLolDeaths(r) {
   const list = Array.isArray(r.deathList) ? r.deathList : [];
   $('r-deaths-wrap').hidden = !list.length;
   for (const d of list) {
-    const box = el('article', 'v-moment l-death');
+    const box = el('article', 'v-round l-death' + (d.clipUrl ? '' : ' quiet'));
     box.id = `death-${d.n}`;
-    const head = el('div', 'v-moment-head');
+    const head = el('div', 'v-round-head');
     head.append(el('span', 'v-rn', `Death ${d.n}`));
     if (d.at) head.append(el('span', 'v-side', d.at));
     box.append(head);
-    if (d.clipUrl) box.append(clipPlayer(d, null));
-    else if (d.clipGone) box.append(el('p', 'v-clip-gone', clipGoneText(d.clipGone, 'Its facts stay.')));
-    if (d.fact) box.append(el('p', 'v-look-what', d.fact));
+    const fact = d.fact ? el('p', 'v-look-what', d.fact) : null;
+    if (d.clipUrl) {
+      const moment = el('div', 'v-moment');
+      const side = el('div', 'v-media');
+      side.append(clipPlayer(d, null));
+      const advice = el('div', 'v-advice');
+      if (fact) advice.append(fact);
+      moment.append(side, advice);
+      box.append(moment);
+    } else {
+      // Nothing to watch: its fact on its line, and where its clip went under it.
+      if (fact) head.append(fact);
+      if (d.clipGone) box.append(el('p', 'v-clip-gone', clipGoneText(d.clipGone, 'Its facts stay.')));
+    }
     host.append(box);
   }
 }
@@ -147,9 +162,9 @@ function paintSkills(r) {
 function paintRivals(r) {
   const g = r.game || {};
   $('r-champ').textContent = g.hero || 'Your match';
-  // A middot, not two spaces. The League line gets away with spaces because its
-  // parts are short words; a Rivals line carries "Tokyo 2099: Shin-Shibuya" and
-  // the screenshot read as one run-on string. Not a dash, which this repo bans.
+  // A middot, not two spaces: a Rivals line carries "Tokyo 2099: Shin-Shibuya"
+  // and the screenshot read as one run-on string. League's line has taken it
+  // too (8.3.1), so the three reviews agree. Not a dash, which this repo bans.
   $('r-meta').textContent = [
     g.role, g.mode, g.map,
     g.result ? g.result[0].toUpperCase() + g.result.slice(1) : null,
@@ -249,11 +264,21 @@ function paintRivals(r) {
  *
  * Paints what valorant-review.js computed and adds nothing of its own, for the
  * reason the League painter gives: a renderer that does arithmetic is a second
- * place for the numbers to disagree. The one thing it decides is layout.
+ * place for the numbers to disagree. What it decides is layout, and what is
+ * not said twice.
  *
- * Every section that has nothing to say is HIDDEN rather than shown empty,
- * except the scoreboard, which says it is waiting for Riot, because an empty
- * scoreboard with no explanation reads as a broken one.
+ * ONE SCREEN, THEN THE ROUNDS (8.3.1). The player's own latest review, seven
+ * rounds with four looks, painted 8,096px: every looked at death's facts line
+ * twice (on its round's card, and again at its moment at the bottom of the
+ * page), three raw reads under every card, the four scoreboard numbers twice,
+ * and two sections both headed "Round by round". Each of those is now said
+ * once, where it belongs.
+ *
+ * Every section that has nothing to say is HIDDEN rather than shown empty. A
+ * review with no scoreboard yet has no scoreboard at all, not four empty boxes
+ * under a note saying why: the grade's note under it says the full grade waits
+ * for Riot's record, and "What this review cannot tell you" says where the
+ * scoreboard comes from, so that note was the page saying it a third time.
  */
 function paintValorant(r) {
   const g = r.game || {};
@@ -279,28 +304,7 @@ function paintValorant(r) {
   ver.hidden = !r.verification;
   ver.textContent = r.verification || '';
 
-  // Riot's scoreboard, or an honest wait for it.
-  const stats = $('v-stats');
-  stats.replaceChildren();
-  const s = r.scoreline;
-  const note = $('v-stats-note');
-  if (s) {
-    const kda = [s.kills, s.deaths, s.assists].every((v) => v !== null && v !== undefined)
-      ? `${s.kills}/${s.deaths}/${s.assists}` : null;
-    stats.append(stat('K / D / A', kda));
-    stats.append(stat('ACS', s.acs));
-    stats.append(stat('ADR', s.adr));
-    stats.append(stat('Headshot', typeof s.headshotPct === 'number' ? s.headshotPct + '%' : null));
-    stats.hidden = false;
-    note.hidden = true;
-  } else {
-    stats.hidden = true;
-    note.hidden = false;
-    note.textContent = 'Kills, ACS and damage come from Riot once the match is published, usually a few '
-      + 'minutes after it ends. This fills in on its own if your Riot ID is set in Settings.';
-  }
-
-  paintStrip(r);
+  paintStats(r);
 
   // The coach's read. Missing when the model was unreachable or the match was
   // too short to narrate, and each case says which.
@@ -308,73 +312,156 @@ function paintValorant(r) {
   $('v-summary-wrap').hidden = !summary && !r.focus && !r.aiUnavailable && !r.thin && !r.narrativePending;
   $('v-summary').textContent = summary
     || (r.narrativePending ? "Rewriting the coach's read with Riot's record of the match. This takes a few seconds."
-      : r.thin ? 'Too little of this match was seen to write a read of it. The rounds below are what the coach recorded.'
+      : r.thin ? 'Too little of this match was seen to write a read of it.'
       : r.aiUnavailable ? 'The coach could not be reached to write this part. Everything else on this page was computed from the match.'
         : '');
+  // A focus with no read above it: no empty line between the heading and it.
+  $('v-summary').hidden = !$('v-summary').textContent;
   $('v-focus-wrap').hidden = !r.focus;
   $('v-focus').textContent = r.focus || '';
 
-  // The patterns the insight lists above already say are left out here, so a
-  // fact is never shown twice on one page; what remains (the sides, a losing
-  // streak, the retakes) is context the lists do not carry.
-  const SAID = { spot: 'same-spot', early: 'early', killer: 'same-killer', firstkill: 'first-kill',
-    firstdeath: 'first-death', ult: 'ult-held', postplant: 'postplant', retake: 'retake' };
-  const ins = r.insights || {};
-  const shown = new Set([...(ins.mistakes || []), ...(ins.strengths || []), ...(ins.missed || []), ...(ins.facts || [])]
-    .map((e) => e.key));
-  const pats = (Array.isArray(r.patterns) ? r.patterns : []).filter((p) => !shown.has(SAID[p.key]));
-  $('v-patterns-wrap').hidden = !pats.length;
-  const pHost = $('v-patterns');
-  pHost.replaceChildren();
-  for (const p of pats) {
-    const row = el('div', 'v-pattern');
-    row.append(el('span', 'v-pattern-dot ' + (p.key || '')));
-    row.append(el('span', 'v-pattern-text', p.text));
-    pHost.append(row);
-  }
-
-  paintRoundCards(r);
-
-  // Against the player's own average, the Rivals rendering reused.
-  const against = Array.isArray(r.against) ? r.against : [];
-  $('v-against-wrap').hidden = !against.length;
-  const aHost = $('v-against');
-  aHost.replaceChildren();
-  if (against.length) {
-    $('v-against-note').textContent = `Compared against your last ${against[0].games} verified matches in the same role.`;
-    for (const a of against) {
-      const dir = a.better === null ? '' : (a.better ? ' pass' : ' fail');
-      const row = el('div', 'skill-row' + dir);
-      row.append(el('span', 'skill-dot'));
-      const body = el('div', 'skill-body');
-      body.append(el('div', 'skill-metric', a.label));
-      const sign = a.delta > 0 ? '+' : '';
-      body.append(el('div', 'skill-num',
-        `${a.value}  (average ${a.baseline}${a.delta === 0 ? '' : ', ' + sign + a.delta})`));
-      row.append(body);
-      aHost.append(row);
-    }
-  }
-
-  const study = Array.isArray(r.study) ? r.study : [];
-  $('v-study-wrap').hidden = !study.length;
-  const sHost = $('v-study');
-  sHost.replaceChildren();
-  // A note is its text alone: the review never says where its knowledge comes
-  // from, and main hands it nothing else (present() in src/main/index.js).
-  for (const n of study) {
-    const card = el('div', 'v-study-card');
-    card.append(el('p', 'v-study-text', n.text));
-    sHost.append(card);
-  }
+  paintStrip(r);
+  paintPatterns(r);
+  paintRounds(r);
+  paintStudy(r);
 
   const refused = Array.isArray(r.refused) ? r.refused : [];
   $('v-refused-wrap').hidden = !refused.length;
   const list = $('v-refused');
   list.replaceChildren();
   for (const line of refused) list.append(el('li', 'r-refused-item', line));
+}
 
-  paintLooks(r);
+/*
+ * AGAINST YOUR OWN AVERAGE, under the number it is about (8.3.1). It was a
+ * section of its own further down: four rows repeating the scoreboard's four
+ * numbers, each with the average beside it. Each row is matched to its number
+ * by the label against() in valorant-review.js gives it, and test:surfaces
+ * builds the rows with that function, so a renamed label fails there rather
+ * than dropping its comparison here without a word.
+ */
+const AGAINST_OF = { 'K/D': 'kd', ACS: 'acs', 'Damage per round': 'adr', 'Headshot %': 'headshot' };
+
+/** "+22", "-11", or "average", coloured by better or worse, never by colour alone: the sign says it. */
+function versus(a, name) {
+  if (!a || typeof a.delta !== 'number') return null;
+  const by = a.delta === 0 ? 'average' : `${a.delta > 0 ? '+' : ''}${a.delta}`;
+  const line = el('div', 'v-stat-vs ' + (a.better === null || a.better === undefined ? 'even' : a.better ? 'good' : 'bad'),
+    name ? `${name} ${by}` : by);
+  line.title = `Your average${name ? ` ${name}` : ''}: ${a.baseline}`;
+  return line;
+}
+
+/** One of Riot's numbers, its label, and how it compares, inside the result's card. */
+function vStat(label, value, a, name) {
+  const box = el('div', 'v-stat');
+  box.append(el('div', 'v-stat-value', value === null || value === undefined ? '--' : value));
+  box.append(el('div', 'v-stat-label', label));
+  const vs = versus(a, name);
+  if (vs) box.append(vs);
+  return box;
+}
+
+/** Riot's scoreboard beside the result, once the match has linked; nothing before. */
+function paintStats(r) {
+  const s = r.scoreline;
+  const host = $('v-stats');
+  host.replaceChildren();
+  $('v-stats-wrap').hidden = !s;
+  const note = $('v-against-note');
+  note.hidden = true;
+  note.textContent = '';
+  if (!s) return;
+  const vs = {};
+  const against = Array.isArray(r.against) ? r.against : [];
+  for (const a of against) if (a && AGAINST_OF[a.label]) vs[AGAINST_OF[a.label]] = a;
+  const kda = [s.kills, s.deaths, s.assists].every((v) => v !== null && v !== undefined)
+    ? `${s.kills}/${s.deaths}/${s.assists}` : null;
+  host.append(
+    vStat('K / D / A', kda, vs.kd, 'K/D'),
+    vStat('ACS', s.acs, vs.acs),
+    vStat('ADR', s.adr, vs.adr),
+    vStat('Headshot', typeof s.headshotPct === 'number' ? s.headshotPct + '%' : null, vs.headshot),
+  );
+  // What the comparison is over, once: every number carries its sample.
+  const over = Object.values(vs)[0];
+  if (over && over.games) {
+    note.hidden = false;
+    note.textContent = `Against your average over your last ${over.games} verified matches in the same role.`;
+  }
+}
+
+/*
+ * WHAT THE NUMBERS SAY ABOUT THE ROUNDS, under the strip they describe, and
+ * only what the lists above have not said. A pattern is left out where an
+ * entry of the lists carries the same count: on the player's latest review,
+ * "On attack, won 1 of 3 rounds once the spike was down" sat under "Post
+ * plants that slipped: Won only 1 of 3 attack rounds with the spike down",
+ * because only the strength of that name was mapped, never the miss.
+ */
+const SAID = {
+  spot: ['same-spot'], early: ['early'], killer: ['same-killer'], firstkill: ['first-kill'],
+  firstdeath: ['first-death'], ult: ['ult-held'], postplant: ['postplant', 'postplant-lost'], retake: ['retake'],
+};
+
+function paintPatterns(r) {
+  const ins = r.insights || {};
+  const shown = new Set([...(ins.mistakes || []), ...(ins.strengths || []), ...(ins.missed || []), ...(ins.facts || [])]
+    .map((e) => e && e.key));
+  const pats = (Array.isArray(r.patterns) ? r.patterns : [])
+    .filter((p) => p && p.text && !(SAID[p.key] || []).some((k) => shown.has(k)));
+  const host = $('v-patterns');
+  host.replaceChildren();
+  host.hidden = !pats.length;
+  for (const p of pats) {
+    const row = el('li', 'v-pattern');
+    row.append(el('span', 'v-pattern-dot ' + (p.key || '')), el('span', 'v-pattern-text', p.text));
+    host.append(row);
+  }
+}
+
+/*
+ * A STUDY NOTE THE FOCUS ALREADY SAYS IS NOT SAID AGAIN. The model writes the
+ * focus with the study notes in its prompt (match-review.js promptRounds), so
+ * the focus can be one of them in other words. A note counts as said when it
+ * shares at least three of its words with the focus, and half the words of the
+ * shorter of the two. On the player's own two reviews with both, no note comes
+ * near: four words shared at most, where half the shorter was six, so this
+ * takes only a note the focus repeats.
+ */
+const COMMON_WORDS = new Set(('the and for you your with that this then they them their are was were but not '
+  + 'all any can its it\'s from into onto out off one two than when where what which who how why get got '
+  + 'has have had did does just only very too also each every before after while until again more most '
+  + 'less own same such there here been being will would could should').split(' '));
+
+/** The words that say what a sentence is about, cut to a rough stem so "trade" meets "trading". */
+function wordsOf(text) {
+  const out = new Set();
+  for (const w of String(text || '').toLowerCase().match(/[a-z']+/g) || []) {
+    if (w.length < 3 || COMMON_WORDS.has(w)) continue;
+    out.add(w.replace(/(?:ing|ed|es|e|s)$/, ''));
+  }
+  return out;
+}
+
+function restates(note, focus) {
+  const a = wordsOf(note);
+  const b = wordsOf(focus);
+  if (!a.size || !b.size) return false;
+  let shared = 0;
+  for (const w of a) if (b.has(w)) shared++;
+  return shared >= 3 && shared * 2 >= Math.min(a.size, b.size);
+}
+
+function paintStudy(r) {
+  // A note is its text alone: the review never says where its knowledge comes
+  // from, and main hands it nothing else (present() in src/main/index.js).
+  const study = (Array.isArray(r.study) ? r.study : [])
+    .filter((n) => n && typeof n.text === 'string' && n.text && !restates(n.text, r.focus));
+  $('v-study-wrap').hidden = !study.length;
+  const host = $('v-study');
+  host.replaceChildren();
+  for (const n of study) host.append(el('li', 'v-study-note', n.text));
 }
 
 /** One cell per round, halftime as a gap, the side named over each half. */
@@ -412,47 +499,80 @@ function paintStrip(r) {
   flush();
 }
 
-/** A card for every round the coach has something to say about. */
-function paintRoundCards(r) {
+/**
+ * EVERY ROUND, ONCE (8.3.1). A round the coach has something to say about is
+ * a row: its facts, then its look where the coach took one (the clip, the
+ * frames, the cause, what it saw and the better play), or else its why. Any
+ * other round is one line, its facts beside its number. A death the coach
+ * looked at was a card here with a link down to a section of its own at the
+ * bottom of the page, where its facts were said again: a player read a round,
+ * scrolled to the bottom for its death, and back up for the next round.
+ *
+ * The coach's notes as it read each frame are not shown: they were three a
+ * round of raw reads ("in spawn during buy phase holding Ghost"), what the
+ * review is built from rather than what it says.
+ */
+function paintRounds(r) {
   const host = $('v-rounds');
+  releaseClips(host);
   host.replaceChildren();
-  const cards = (Array.isArray(r.rounds) ? r.rounds : [])
-    .filter((c) => c.facts.length || c.reads.length || c.why || c.forensics);
-  $('v-rounds-wrap').hidden = !cards.length;
-  for (const c of cards) {
-    const card = el('article', 'v-round' + (c.why ? ' has-why' : ''));
-    card.id = `round-${c.n}`;
-    const head = el('div', 'v-round-head');
-    head.append(el('span', 'v-rn', `R${c.n}`));
-    if (c.result) head.append(el('span', 'v-chip ' + c.result, c.result === 'won' ? 'Won' : 'Lost'));
-    if (c.side) head.append(el('span', 'v-side', c.side));
-    card.append(head);
-    if (c.facts.length) card.append(el('div', 'v-facts', c.facts.join('  ·  ')));
-    // The cause alone, and the way down to the moment, which is shown whole
-    // at the bottom of the review (paintLooks).
-    if (c.forensics) card.append(lookLink(c));
-    if (c.why) {
-      const why = el('div', 'v-why-wrap');
-      why.append(el('div', 'v-reads-label', 'Why it went this way'));
-      why.append(el('p', 'v-why', c.why));
-      card.append(why);
-    }
-    if (c.reads.length) {
-      const reads = el('div', 'v-reads');
-      reads.append(el('div', 'v-reads-label', 'What the coach saw at the time'));
-      for (const t of c.reads) reads.append(el('p', 'v-read', t));
-      card.append(reads);
-    }
-    host.append(card);
+  const rounds = Array.isArray(r.rounds) ? r.rounds : [];
+  $('v-rounds-wrap').hidden = !rounds.length;
+  const frames = r.frameData || {};
+  for (const c of rounds) host.append(roundRow(r, c, frames));
+}
+
+function roundRow(r, c, frames) {
+  const f = c.forensics || null;
+  // What the look says, when it says anything: an unclear frame says nothing
+  // (the server makes sure), and then the round's why is the advice it has.
+  // A LOOK THAT SPEAKS TAKES THE WHY'S PLACE FOR RIOT'S LOOK ONLY: it is sent
+  // to the narrative that writes the why (valorant-review.js requestBody sends
+  // its cause and what it saw), so the two are one account of the death. The
+  // screen's look lands after the lines are written (screenLook in
+  // src/main/index.js, once the narrative is in) and nothing writes them
+  // again, so its round keeps the why written without it: the look first,
+  // then the why, each a block of its own under its own label (look()).
+  const speaks = !!(f && f.cause !== 'unclear' && (f.what || f.better));
+  const why = c.why && !(speaks && f.source !== 'screen') ? c.why : null;
+  const facts = (Array.isArray(c.facts) ? c.facts : []).join('  ·  ');
+  const row = el('article', 'v-round' + (f || why ? '' : ' quiet'));
+  row.id = `round-${c.n}`;
+  const head = el('div', 'v-round-head');
+  head.append(el('span', 'v-rn', `R${c.n}`));
+  if (c.result) head.append(el('span', 'v-chip ' + c.result, c.result === 'won' ? 'Won' : 'Lost'));
+  if (c.side) head.append(el('span', 'v-side', c.side));
+  row.append(head);
+  if (!f && !why) {
+    if (facts) head.append(el('span', 'v-facts', facts));
+    return row;
   }
+  // The AI log at the moment the coach looked at, while it still holds the
+  // match: the eye in the page's header opens the match on its first death.
+  const eye = f && r.id && r.aiLog === 'kept' && typeof f.at === 'number' && window.LogEye
+    ? window.LogEye.button('kept', () => window.occlara.openAiLog(r.id, f.at), window.LogEye.MOMENT) : null;
+  if (eye) head.append(eye);
+  if (facts) row.append(el('div', 'v-facts', facts));
+  row.append(f ? look(c, frames, why) : whyLine(why));
+  return row;
 }
 
 /**
- * The coach's look at one death: the frame before it (and after, when there is
- * one), the cause as a label, what it saw and the better play. The label is the
- * part that gets counted across rounds and matches, so it is shown as a chip,
- * on the round's card and at its moment, and the sentences, at the moment
- * alone, are marked as the coach's read of a picture.
+ * The round's why, marked as the coach's read: the model writes two kinds of
+ * sentence in a review, the summary and this, and both say whose they are.
+ * `apart` under a look that said something too (a screen look's), so the two
+ * accounts read as two.
+ */
+function whyLine(why, apart) {
+  const p = el('p', 'v-why-line' + (apart ? ' apart' : ''));
+  p.append(el('span', 'gv-fix-label', "Coach's read"), el('span', 'v-why', why));
+  return p;
+}
+
+/**
+ * The coach's look at one death. The label is the part that gets counted
+ * across rounds and matches, so it is a chip, marked as the coach's look; the
+ * sentences after it are its read of a picture.
  */
 const CAUSE_TITLE = {
   'dry-peek': 'Dry peek', 'isolated': 'Caught alone', 'repeek': 'Repeek', 'crossfire': 'Crossfire',
@@ -464,37 +584,136 @@ function causeChip(f) {
     CAUSE_TITLE[f.cause] || f.cause);
 }
 
-/** On a round's card: the look's cause, and a link down to its moment. */
-function lookLink(c) {
-  const row = el('div', 'v-look-link');
-  row.append(el('span', 'v-reads-label', "The coach's look"), causeChip(c.forensics));
-  const link = el('button', 'v-moment-link', 'See where you died');
-  link.type = 'button';
-  link.addEventListener('click', () => goMoment(c.n));
-  row.append(link);
-  return row;
-}
-
 // A look Riot's record never timed (8.2): the coach found the moment by when
 // the screen read the death, which can come a few seconds after it.
-const SCREEN_TIMING = "When this happened is the coach's own read of the screen, not Riot's record of the match.";
+const SCREEN_TIMING = "Timed from the coach's read of the screen, not Riot's record.";
+// The frame a look from the screen took at that read (frameLabel).
+const READ_AS_DEAD = 'Read as dead';
+
+/*
+ * THE FRAMES OF A LOOK, each with its label. Since 8.3.1 a look can be up to
+ * five frames in time order, from the match's recording, with their seconds
+ * against the death beside them (frameAt, written by the death look); a look
+ * from before is the frames the coach read, named for before and after it.
+ *
+ * TO THE TENTH, never rounded to a whole second it was not taken at: the look
+ * takes its stills at half seconds as well as whole ones (shared/clips.js
+ * LOOK_AT, 1.5 s before for the approach, 4.5 s before the screen's moment),
+ * and rounded, those read "2 s before" and "5 s before".
+ *
+ * EVERY STILL BEFORE THE DEATH BY ITS OWN TENTH, the last second's too:
+ * Riot's look takes two in it, 0.7 and 0.3 s before (LOOK_AT), and both read
+ * "Just before", two frames under one name. The one after the death is "Just
+ * after" within a second of it, and by its seconds past that.
+ *
+ * A LOOK FROM THE SCREEN COUNTS FROM ITS READ OF THE DEATH (`screen`), never
+ * from the death: the screen read the player's Sunset deaths 0.7 to 2.7 s
+ * after they happened, so its stills of 1 s before and 0 s were named "Just
+ * before" and "At the death" on frames that can show the player already dead.
+ * Each is named by its seconds against the read, the read's own frame "Read
+ * as dead", as the server is told (death-forensics.js framesLines).
+ */
+function frameLabel(s, screen) {
+  if (typeof s.at === 'number' && Number.isFinite(s.at)) {
+    const secs = Math.round(Math.abs(s.at) * 10) / 10;
+    if (screen) return secs === 0 ? READ_AS_DEAD : `${secs} s ${s.at < 0 ? 'before' : 'after'}`;
+    if (secs === 0) return 'At the death';
+    if (s.at < 0) return `${secs} s before`;
+    return secs <= 1 ? 'Just after' : `${secs} s after`;
+  }
+  return /after/.test(String(s.name)) ? 'Just after' : 'Just before';
+}
+
+/** The look's frames the review still has, in its order, each with its seconds when the look gave them. */
+function shotsOf(f, frames) {
+  const names = Array.isArray(f.frames) ? f.frames : [];
+  const at = Array.isArray(f.frameAt) && f.frameAt.length === names.length ? f.frameAt : null;
+  return names.map((name, i) => ({ name, src: frames[name], at: at ? at[i] : null })).filter((s) => s.src);
+}
+
+/** The clip's picture until it plays: the frame nearest the death from before it, else the first. */
+function posterOf(shots) {
+  const before = shots.filter((s) => typeof s.at === 'number' && s.at < 0);
+  const s = before.length ? before[before.length - 1] : shots[0];
+  return s ? s.src : null;
+}
 
 /**
- * WHERE YOU DIED, AND HOW (8.2): every death the coach looked at, at the
- * bottom of the review, its frames across the column, then the round's facts,
- * the cause, what the coach saw and the better play. A review checked against
- * Riot's record and one Riot's record never reached are painted alike, and the
- * second says its timing is the coach's own read. An unclear frame keeps its
- * picture and says nothing about it, as the server already makes sure.
+ * A strip of frames, each zoomed by a click. Under a clip they are a
+ * filmstrip, four to the row at least, since the clip's picture until it
+ * plays is already one of them: at half the width, the two read frames under
+ * the player's own round 2 clip made its row 538px tall beside 102px of
+ * words, and four to the row it is 466. Without a clip they are all the
+ * moment has to show, the two read frames two a row and the recording's five
+ * stills, their clip gone (the cap, Clear clips), three: two a row stacked
+ * them three frames tall, 520px beside four lines of words.
  */
-function paintLooks(r) {
-  const host = $('v-looks');
-  releaseClips(host);
-  host.replaceChildren();
-  const frames = r.frameData || {};
-  const looked = (Array.isArray(r.rounds) ? r.rounds : []).filter((c) => c.forensics);
-  $('v-looks-wrap').hidden = !looked.length;
-  for (const c of looked) host.append(moment(r, c, frames));
+function shotStrip(shots, underClip, screen) {
+  const strip = el('div', 'v-shots');
+  strip.style.setProperty('--n', String(underClip ? Math.max(4, shots.length) : Math.min(3, shots.length)));
+  for (const s of shots) {
+    const label = frameLabel(s, screen);
+    const fig = el('figure', 'v-shot');
+    const img = document.createElement('img');
+    img.src = s.src;
+    // Against the read for a look from the screen whose frames carry their
+    // seconds, against the death otherwise.
+    const timedRead = screen && typeof s.at === 'number' && Number.isFinite(s.at);
+    img.alt = timedRead ? (label === READ_AS_DEAD ? 'The frame the screen read the death on' : `${label} the screen read the death`)
+      : label === 'At the death' ? label : `${label} the death`;
+    img.loading = 'lazy';
+    img.addEventListener('click', () => zoomShot(strip, fig));
+    fig.append(img, el('figcaption', null, label));
+    strip.append(fig);
+  }
+  return strip;
+}
+
+/**
+ * A death the coach looked at, inside its round: what there is to watch on
+ * one side (the clip from the recording, the frames under it) and what the
+ * coach made of it on the other. A review checked against Riot's record and
+ * one Riot's record never reached are painted alike, and the second says its
+ * timing is the coach's own read.
+ */
+function look(c, frames, why) {
+  const f = c.forensics;
+  const box = el('div', 'v-moment');
+  box.id = `moment-${c.n}`;
+  const shots = shotsOf(f, frames);
+  const media = el('div', 'v-media');
+  if (f.clipUrl) {
+    box.classList.add('has-clip');
+    media.append(clipPlayer(f, posterOf(shots)));
+  }
+  const gone = !f.clipUrl && f.clipGone ? el('p', 'v-clip-gone', clipGoneText(f.clipGone, 'The frames and facts stay.')) : null;
+  // Where a cleared clip was, above the frames that stay, or with the words
+  // when no frame stayed either.
+  if (gone && shots.length) media.append(gone);
+  if (shots.length) media.append(shotStrip(shots, !!f.clipUrl, f.source === 'screen'));
+  const advice = el('div', 'v-advice');
+  const tag = el('div', 'v-look-tag');
+  tag.append(el('span', 'gv-fix-label', "Coach's look"), causeChip(f));
+  advice.append(tag);
+  const said = f.cause !== 'unclear' && !!(f.what || f.better);
+  if (said) {
+    if (f.what) advice.append(el('p', 'v-look-what', f.what));
+    if (f.better) {
+      const b = el('p', 'v-look-better');
+      b.append(el('span', 'gv-fix-label', 'Better'), document.createTextNode(f.better));
+      advice.append(b);
+    }
+  }
+  // The timing is the look's, so it closes the look's block, and the why
+  // (the advice of an unclear look, or the line a screen look landed after:
+  // roundRow) comes under it.
+  if (f.source === 'screen') advice.append(el('p', 'v-moment-src', SCREEN_TIMING));
+  if (why) advice.append(whyLine(why, said));
+  if (gone && !shots.length) advice.append(gone);
+  if (media.children.length) box.append(media);
+  else box.classList.add('no-media');
+  box.append(advice);
+  return box;
 }
 
 /*
@@ -586,9 +805,11 @@ function clipPlayer(f, poster) {
   v.addEventListener('pause', sync);
   sync();
   // The mark sits over the picture, so the two share a frame of their own.
+  // No caption: the clip sits in its own death's row, and saying what it is
+  // under it was a line on every death saying what the row already said.
   const frame = el('div', 'v-clip-frame');
   frame.append(v, btn);
-  fig.append(frame, el('figcaption', null, 'From your recording: the seconds before the death, and just after'));
+  fig.append(frame);
   watchClip(v);
   return fig;
 }
@@ -598,57 +819,6 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) return;
   for (const v of document.querySelectorAll('video')) if (v.paused === false) v.pause();
 });
-
-function moment(r, c, frames) {
-  const f = c.forensics;
-  const box = el('article', 'v-moment');
-  box.id = `moment-${c.n}`;
-  const head = el('div', 'v-moment-head');
-  head.append(el('span', 'v-rn', `Round ${c.n}`));
-  if (c.side) head.append(el('span', 'v-side', c.side));
-  // The AI log at that moment, while it still holds the match: the eye in the
-  // header opens the match on its first death, this one at the frame looked at.
-  const eye = r.id && r.aiLog === 'kept' && typeof f.at === 'number' && window.LogEye
-    ? window.LogEye.button('kept', () => window.occlara.openAiLog(r.id, f.at), window.LogEye.MOMENT) : null;
-  if (eye) head.append(eye);
-  box.append(head);
-  // The clip first, the frames under it, half as wide (has-clip), since the
-  // clip already shows the moment across the card; or, where the clip was
-  // cleared, why, and the frames as they always were.
-  if (f.clipUrl) {
-    box.classList.add('has-clip');
-    box.append(clipPlayer(f, frames[(f.frames || [])[0]] || null));
-  } else if (f.clipGone) box.append(el('p', 'v-clip-gone', clipGoneText(f.clipGone, 'The frames and facts stay.')));
-  const shots = (f.frames || []).filter((n) => frames[n]);
-  if (shots.length) {
-    const strip = el('div', 'v-shots' + (shots.length > 1 ? ' two' : ''));
-    shots.forEach((n) => {
-      const fig = el('figure', 'v-shot');
-      const img = document.createElement('img');
-      img.src = frames[n];
-      img.alt = n.includes('after') ? 'Just after the death' : 'Just before the death';
-      img.loading = 'lazy';
-      img.addEventListener('click', () => zoomShot(strip, fig));
-      fig.append(img, el('figcaption', null, n.includes('after') ? 'Just after' : 'Just before'));
-      strip.append(fig);
-    });
-    box.append(strip);
-  }
-  if (c.facts.length) box.append(el('div', 'v-facts', c.facts.join('  ·  ')));
-  const cause = el('div', 'v-moment-cause');
-  cause.append(causeChip(f));
-  box.append(cause);
-  if (f.cause !== 'unclear') {
-    if (f.what) box.append(el('p', 'v-look-what', f.what));
-    if (f.better) {
-      const b = el('p', 'v-look-better');
-      b.append(el('span', 'gv-fix-label', 'Better'), document.createTextNode(f.better));
-      box.append(b);
-    }
-  }
-  if (f.source === 'screen') box.append(el('p', 'v-moment-src', SCREEN_TIMING));
-  return box;
-}
 
 /*
  * A FRAME ZOOMS BY SCALING (8.2), in and out. Zoomed, a frame takes the whole
@@ -676,17 +846,18 @@ function zoomShot(strip, fig) {
 }
 
 /**
- * Bring one card into view, flash it, and hand it the keyboard. Scrolled to
- * and nothing more, focus stayed on the control that jumped, so the next Tab
- * went on from there, back up the page, and a screen reader read on from the
- * round card: since 8.2 the look itself is at the bottom of the review, and
- * its eye was reachable only by tabbing through every card above it. A card
- * takes focus without joining the tab order (tabindex -1), and without a
- * scroll of its own, which would cut the smooth one short.
+ * Bring one round into view, flash it, and hand it the keyboard. Scrolled to
+ * and nothing more, focus stayed on the control that jumped (a round in the
+ * strip, a round chip in the lists), so the next Tab went on from there, back
+ * up the page, and a screen reader read on from it rather than from the round.
+ * A row takes focus without joining the tab order (tabindex -1), and without a
+ * scroll of its own, which would cut the smooth one short. Asked for reduced
+ * motion, the scroll is a jump.
  */
 function flashTo(card) {
   if (!card) return;
-  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  card.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
   if (!card.hasAttribute('tabindex')) card.tabIndex = -1;
   card.focus({ preventScroll: true });
   card.classList.remove('flash');
@@ -694,36 +865,72 @@ function flashTo(card) {
   card.classList.add('flash');
 }
 
-/** Jump to one round's card. */
+/** Jump to one round's row. */
 function goRound(n) { flashTo(document.getElementById(`round-${n}`)); }
 
-/** Jump to one death's moment, at the bottom of the review. */
-function goMoment(n) { flashTo(document.getElementById(`moment-${n}`)); }
+/*
+ * SAID IN ITS ROUND, NOT TWICE (8.3.1). Each death the coach looked at is a
+ * miss of its own under "What you missed" (insights.js): "Round 6:" and what
+ * the look saw, its better play as the fix. That round's row says the same
+ * two sentences beside its clip, so here the entry is its title and its round
+ * chip, which jumps to the row. Only where the row does say both: a look that
+ * speaks, in a round on this page, whose sentences are the entry's. The
+ * library and Home draw the entry whole, with no rounds to jump to, and the
+ * lists are counted across matches by key, so nothing in them changes.
+ */
+function saidInRound(r) {
+  const looks = new Map();
+  for (const c of Array.isArray(r.rounds) ? r.rounds : []) {
+    const f = c && c.forensics;
+    if (f && f.cause !== 'unclear' && (f.what || f.better)) looks.set(c.n, f);
+  }
+  return (e) => {
+    const f = e && e.judged && Array.isArray(e.rounds) && e.rounds.length === 1 ? looks.get(e.rounds[0]) : null;
+    if (!f) return false;
+    const detail = String(e.detail || '');
+    return (!e.fix || e.fix === f.better) && [f.what, f.better].some((s) => !!s && detail.endsWith(s));
+  };
+}
 
 /**
  * The grade and the three lists, for every game, placed under whichever
  * game's header is showing. Hidden when the review carries neither, which is
  * a review saved before grades existed.
  *
+ * A VALORANT REVIEW TAKES THE TWO APART (8.3.1): the grade under the result,
+ * the lists under the coach's read, so the score, the grade and the read are
+ * the first screen and the repeated mistakes come straight after. League and
+ * Rivals keep them together under their scores.
+ *
  * A REVIEW GRADED FROM RIOT'S RECORD ALONE HAS NO LISTS. Riot records what
  * happened and never why, so main hands it facts in their place, whenever it
  * was saved (present() in src/main/index.js), and GradeView draws them as one
  * neutral list, "What Riot's record shows", with no fix on any of them.
+ *
+ * @param at.grade  what the grade goes after
+ * @param at.lists  what the lists go after, when not straight after the grade
  */
-function paintCommon(r, anchor) {
+function paintCommon(r, at) {
   const common = $('common');
-  const has = !!(r.grade || r.insights);
-  common.hidden = !has;
-  if (!has) return;
-  if (anchor && anchor.parentNode) anchor.after(common);
   const gHost = $('grade-host');
-  gHost.replaceChildren();
-  if (r.grade) gHost.append(window.GradeView.gradeCard(r.grade));
   const iHost = $('insights-host');
+  gHost.replaceChildren();
   iHost.replaceChildren();
+  if (at.lists) {
+    if (at.grade && at.grade.parentNode) at.grade.after(gHost);
+    if (at.lists.parentNode) at.lists.after(iHost);
+  } else {
+    common.append(gHost, iHost);
+    if (at.grade && at.grade.parentNode) at.grade.after(common);
+  }
+  common.hidden = !!at.lists || !(r.grade || r.insights);
+  gHost.hidden = !r.grade;
+  iHost.hidden = !r.insights;
+  if (r.grade) gHost.append(window.GradeView.gradeCard(r.grade));
   if (r.insights) {
     iHost.append(window.GradeView.insightLists(r.insights, {
       onRound: r.kind === 'valorant' ? goRound : false,
+      saidInRound: r.kind === 'valorant' ? saidInRound(r) : null,
       empty: r.kind === 'valorant' && !r.verified
         ? 'Most of what this section counts comes from Riot\'s record of the match. It fills in once the match links.'
         : undefined,
@@ -759,9 +966,9 @@ function paintEye(r) {
 function paint(r) {
   paintEye(r);
   if (!r) {
-    releaseClips($('v-looks'));
+    releaseClips($('v-rounds'));
     releaseClips($('r-deaths'));
-    $('common').hidden = true;
+    for (const id of ['common', 'grade-host', 'insights-host']) $(id).hidden = true;
     $('empty').hidden = false;
     $('review').hidden = true;
     $('vreview').hidden = true;
@@ -778,10 +985,10 @@ function paint(r) {
     $('review').hidden = true;
     $('vreview').hidden = false;
     paintValorant(r);
-    paintCommon(r, $('v-stats-note'));
+    paintCommon(r, { grade: $('v-hero'), lists: $('v-summary-wrap') });
     return;
   }
-  releaseClips($('v-looks'));
+  releaseClips($('v-rounds'));
   $('vreview').hidden = true;
   $('review').hidden = false;
 
@@ -795,12 +1002,13 @@ function paint(r) {
 
   // Branch on what the review SAYS it is, not on which fields it happens to
   // carry. A League review with no lesson attached is still a League review.
-  if (r.kind === 'rivals') { paintRivals(r); paintCommon(r, $('r-scores')); return; }
+  if (r.kind === 'rivals') { paintRivals(r); paintCommon(r, { grade: $('r-scores') }); return; }
 
   const g = r.game || {};
   $('r-champ').textContent = g.champion || 'Your game';
+  // The middot the Valorant and Rivals lines carry, so the three agree.
   const bits = [g.role, g.mode, g.duration].filter(Boolean);
-  $('r-meta').textContent = bits.join('  ');
+  $('r-meta').textContent = bits.join('  ·  ');
 
   // The two Rivals-only sections, which the reset above just turned back on.
   $('r-arch-wrap').hidden = true;
@@ -810,7 +1018,7 @@ function paint(r) {
   $('r-verdict-head').textContent = 'How you died';
 
   paintScores(r.scoreline || {});
-  paintCommon(r, $('r-scores'));
+  paintCommon(r, { grade: $('r-scores') });
   $('r-death-head').textContent = (r.deaths || {}).headline || '';
   $('r-death-detail').textContent = (r.deaths || {}).detail || '';
   paintLolDeaths(r);

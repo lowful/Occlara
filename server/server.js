@@ -152,7 +152,9 @@ app.post('/api/coach/summary/round', express.raw({ type: 'image/jpeg', limit: '5
 // The death look carries up to eight frames (four deaths, two each) at 720p,
 // about 1.5 MB of base64 on a busy match, which sat right at the global 2 MB
 // limit: an over limit body is answered 413 before the route runs, so the
-// review simply had no death look and nothing said why.
+// review simply had no death look and nothing said why. Since 8.3.1 a death
+// from the recording sends five stills, twenty a match: the real Sunset
+// match's came to 1.6 MB, 2.1 MB of base64.
 app.use('/api/coach/death-forensics', express.json({ limit: '8mb' }));
 // Global (2mb so /api/coach/analyze and /read can carry a base64 JPEG).
 app.use(express.json({ limit: '2mb' }));

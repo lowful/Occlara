@@ -33,8 +33,10 @@ const forensics = require('./death-forensics');
 const { promptName } = require('./languages');
 
 // "a Vandal", "an Outlaw". The prompt's own grammar is what the model copies,
-// and "with a Outlaw" came back in its sentences.
+// and "with a Outlaw" came back in its sentences. So is "1 assist", which the
+// prompt printed as "1 assists".
 const withArticle = (w) => `${/^[aeiou]/i.test(String(w)) ? 'an' : 'a'} ${w}`;
+const counts = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /*
  * C, BY A SMALL MARGIN, AND THE MARGIN IS GROUNDING.
@@ -76,6 +78,27 @@ const PATTERN_TOPICS = {
 
 const clip = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
 
+/*
+ * A READ ABOUT THE BUY PHASE, A MENU OR THE SPECTATOR CAMERA IS NOT PLAY, and
+ * never reaches the prompt. The client now keeps a round's reads from play
+ * alone (src/shared/valorant-rounds.js, NOT_PLAY, which this mirrors by hand
+ * because check:server forbids reaching into src/; test:valorantreview holds
+ * the two equal). A client from before that sends the first three notes of
+ * each round, which at a read a second are its buy phase: the player's Sunset
+ * swiftplay sent "standing in A Lobby during buy phase" and "player holding
+ * Classic in spawn during buy phase" as what happened in round 1, and the
+ * summary's repeated mistake was standing in spawn during the buy phase.
+ */
+const NOT_PLAY = /\b(buy|buying|bought|barriers?|menus?|overlay|scoreboard|combat report|death recap|damage (?:taken|dealt)|(?:big|full|large) map|map (?:is )?open|surrender|vote|kill ?cam|death ?cam|killed by|dead|died|death|spectat\w*|switch player|team ace|banner|eliminated|round (?:won|lost|over)|match point|before swap|victory|defeat)\b/i;
+
+const listOf = (v, n) => (Array.isArray(v) ? v : []).slice(0, n).map((e) => ({
+  key: clip(e && e.key, 30),
+  title: clip(e && e.title, 80),
+  detail: clip(e && e.detail, 220),
+  rounds: (Array.isArray(e && e.rounds) ? e.rounds : []).filter((x) => Number.isInteger(x) && x > 0 && x <= 40).slice(0, 12),
+  count: e && Number.isInteger(e.count) && e.count >= 0 && e.count <= 40 ? e.count : null,
+})).filter((e) => e.title);
+
 /** The request body, bounded and typed, whatever a client sent. */
 function normalise(body) {
   const b = body || {};
@@ -89,7 +112,8 @@ function normalise(body) {
     planted: !!(r && r.planted),
     plantSpot: r && r.plantSpot ? clip(r.plantSpot, 40) : null,
     ultReady: !!(r && r.ultReady),
-    reads: (Array.isArray(r && r.reads) ? r.reads : []).slice(0, 3).map((t) => clip(t, 220)).filter(Boolean),
+    reads: (Array.isArray(r && r.reads) ? r.reads : []).slice(0, 3).map((t) => clip(t, 220))
+      .filter((t) => t && !NOT_PLAY.test(t)),
     // Riot's record, when the client could link the match. Exact facts.
     verified: !!(r && r.verified),
     sec: r && Number.isFinite(r.sec) && r.sec >= 0 && r.sec < 300 ? Math.round(r.sec) : null,
@@ -117,6 +141,13 @@ function normalise(body) {
   return {
     rounds,
     patterns,
+    // What the review counted (insights.js on the client), most serious first:
+    // the summary's repeated mistake is the first of these, never one the model
+    // finds for itself. Null from a client from before 8.3.1, which counts the
+    // same lists on its own page and sends neither: "none cleared the bar"
+    // would be a falsehood told to the model as true (promptRounds).
+    mistakes: Array.isArray(b.mistakes) ? listOf(b.mistakes, 4) : null,
+    strengths: Array.isArray(b.strengths) ? listOf(b.strengths, 4) : null,
     tips: (Array.isArray(b.tips) ? b.tips : []).slice(0, 30).map((t) => clip(t, 220)),
     notes: (Array.isArray(b.notes) ? b.notes : []).slice(0, 20).map((t) => clip(t, 90)),
     context: {
@@ -142,15 +173,24 @@ function normalise(body) {
   };
 }
 
-/** The side the player won less on, when both sides have three decided rounds. */
+/**
+ * The side the player won less on, when both sides have three decided rounds
+ * AND THE GAP IS TWO ROUNDS, the rule the review's sides pattern names a
+ * stronger side by (valorant-review.js patterns, mirrored here since the
+ * server reaches into no src/ file; test:valorantreview holds the two equal).
+ * On any gap at all, the player's Sunset swiftplay, 1 of 4 on attack against
+ * 1 of 3 on defence, had its study notes leaning to attack under a pattern
+ * saying neither side was clearly stronger.
+ */
 function weakSide(rounds) {
-  const rate = (side) => {
-    const d = rounds.filter((r) => r.side === side && r.result);
-    return d.length >= 3 ? d.filter((r) => r.result === 'won').length / d.length : null;
-  };
-  const a = rate('attacking');
-  const d = rate('defending');
-  if (a === null || d === null || a === d) return null;
+  const decided = (side) => rounds.filter((r) => r.side === side && r.result);
+  const atk = decided('attacking');
+  const def = decided('defending');
+  if (atk.length < 3 || def.length < 3) return null;
+  const a = atk.filter((r) => r.result === 'won').length / atk.length;
+  const d = def.filter((r) => r.result === 'won').length / def.length;
+  // The rates' gap over a side of average length, in rounds.
+  if ((Math.abs(a - d) * (atk.length + def.length)) / 2 < 2) return null;
   return a < d ? 'attack' : 'defense';
 }
 
@@ -263,13 +303,17 @@ function roundLine(r) {
   }
   if (r.planted) facts.push(`spike planted${r.plantSpot ? ' at ' + r.plantSpot : ''}`);
   let line = `${bits.join(' ')}${facts.length ? '. ' + facts.join('; ') : ''}.`;
-  if (r.reads.length) line += ` Coach read: ${r.reads.map((t) => `"${t}"`).join(' ')}`;
+  // The last of what the screen showed the player doing in play, before the
+  // death where there was one. Only play reaches here (normalise).
+  if (r.reads.length) line += ` Seen in play: ${r.reads.map((t) => `"${t}"`).join(' ')}`;
   return line;
 }
 
-const GROUNDING = 'GROUNDING RULES. The ledger was built by watching the screen every ten seconds or so, '
-  + 'so a round with no death listed may simply not have been seen, never call it clean. '
-  + 'A coach read is what the coach SAID at the time, not proof of what the player did. '
+const GROUNDING = 'GROUNDING RULES. The ledger was built by reading the screen about once a second, and a death '
+  + 'can still be missed, so never call a round clean unless it says survived the round. '
+  + 'What was seen in play is what the screen showed the player doing, not proof of why a round went the way it did. '
+  + 'Nothing done in the buy phase is a mistake: every player waits in spawn with a pistol and opens the buy menu, '
+  + 'the scoreboard or the combat report then, so never mention the buy phase, the spawn, a menu or the scoreboard. '
   + 'Damage, utility usage and economy are not in the ledger, so never state them. How many players were '
   + 'standing is known only where a round states it, so call a situation a man advantage or a clutch only there. '
   + 'Kills may be stated only where the ledger gives a kill count for that round. '
@@ -277,8 +321,8 @@ const GROUNDING = 'GROUNDING RULES. The ledger was built by watching the screen 
   + 'Never do arithmetic on the score, use it exactly as given. '
   + 'Quote a pattern\'s numbers exactly or not at all, and never merge two patterns into one number. '
   + 'Speak to the player as you, never as the player. '
-  + 'In the SUMMARY write no counts or fractions such as 6 of 12, the computed patterns show every number '
-  + 'beside it. The final score and round numbers are fine. '
+  + 'In the SUMMARY write no counts or fractions such as 6 of 12 except the first counted mistake\'s own count, '
+  + 'exactly as given; the computed patterns show every other number beside it. The final score and round numbers are fine. '
   + 'Write round numbers as digits and never list more than four of them in one sentence. '
   + 'Only name places that appear in the ledger. Do not use dashes. No markdown, no lists, no bold.';
 
@@ -302,8 +346,9 @@ function promptRounds(input, withKnowledge) {
   const who = [context.agent ? `playing ${context.agent}` : 'agent unread', context.map ? `on ${context.map}` : 'map unread'].join(' ');
   const score = final.team !== null && final.enemy !== null
     ? `${final.verified ? 'Riot\'s final score was' : 'The score the coach last read was'} ${final.team} to ${final.enemy}${final.result ? `, a ${final.result.toLowerCase()}` : ''}.`
-      + (final.scoreline ? ` Riot's scoreboard for the player: ${final.scoreline.kills} kills, `
-        + `${final.scoreline.deaths} deaths, ${final.scoreline.assists === null ? 'unknown' : final.scoreline.assists} assists`
+      + (final.scoreline ? ` Riot's scoreboard for the player: ${counts(final.scoreline.kills, 'kill')}, `
+        + `${counts(final.scoreline.deaths, 'death')}, ${final.scoreline.assists === null ? 'unknown assists'
+          : counts(final.scoreline.assists, 'assist')}`
         + `${final.scoreline.acs !== null ? `, combat score ${final.scoreline.acs} a round` : ''}`
         + `${final.scoreline.mvp === 'match' ? ', match MVP' : final.scoreline.mvp === 'team' ? ', team MVP' : ''}. `
         + 'Weigh the deaths against this: a player who dies first but wins the fights around it is paying for '
@@ -331,26 +376,45 @@ function promptRounds(input, withKnowledge) {
   const verified = rounds.some((r) => r.verified);
   const ledgerNote = verified
     ? 'ROUND LEDGER, checked against Riot\'s record of the match. Deaths, the seconds, the killer, kills, '
-      + 'first deaths and round results are Riot\'s and exact. Death locations and coach reads come from the '
-      + 'screen. A coach read that named a different killer than Riot was removed:'
+      + 'first deaths and round results are Riot\'s and exact. Death locations and what was seen in play come from the '
+      + 'screen. A read that named a different killer than Riot was removed:'
     : 'ROUND LEDGER:';
+  const counted = (list) => list.map((e) => `- ${e.title}${e.rounds.length ? ` (${roundsText(e.rounds)})` : ''}: ${e.detail}`).join('\n');
+  // A client from before 8.3.1 sends no counted lists (normalise), so it gets
+  // no block, never one saying nothing was counted.
+  const block = (head, list) => (list
+    ? `\n\n${head}\n${list.length ? counted(list) : '- none cleared the bar in this match'}` : '');
+  const picks = teachable(rounds);
   return `You are reviewing one finished Valorant match for the player, ${who}. ${score}\n\n`
     + `${ledgerNote}\n${rounds.map(roundLine).join('\n')}\n\n`
     + `COMPUTED PATTERNS (arithmetic over the ledger, these are true):\n`
     + (patterns.length ? patterns.map((p) => '- ' + p.text).join('\n') : '- none cleared the bar in this match')
+    + block('COUNTED MISTAKES (counted from the rounds above, most serious first, these are true):', input.mistakes)
+    + block('COUNTED STRENGTHS (counted the same way, these are true):', input.strengths)
     + knowledgeBlock
     + '\n\nWrite exactly this, each label at the start of its own line:\n'
     + 'SUMMARY: three sentences on one line, under 70 words. First, whether the match was won or lost if the score '
-    + 'says so, and what decided it for the player, drawn from the patterns. Second, the most repeated mistake, '
-    + 'naming up to four rounds it happened in. Third, what went right if the ledger shows it, otherwise the habit '
-    + 'the coach kept pushing.\n'
-    + `Then one round line for each of these rounds, in this order: ${teachable(rounds).map((n) => 'R' + n).join(', ')}.\n`
-    + 'R<number>: at most two sentences and 45 words. The coach read already says WHAT happened, so your line must '
-    + 'add what the read does not: the principle behind the mistake, or what to do differently next time, in your '
-    + 'own words. If you would only be repeating the read, leave that round out.\n'
-    + 'FOCUS: one concrete habit for the next match, tied to the pattern it fixes, that a player can actually do.\n\n'
+    + 'says so, and what decided it for the player, drawn from the counted mistakes, the strengths and the patterns. '
+    + 'Second, the first counted mistake in your own words, with its count exactly as given and up to four of its '
+    + 'rounds; if no mistake was counted, what cost the most rounds by the round facts, never called a repeated '
+    + 'mistake. Third, what went right, from the counted strengths if there are any, otherwise from the round facts.\n'
+    + (picks.length
+      ? `Then one round line for each of these rounds, in this order: ${picks.map((n) => 'R' + n).join(', ')}.\n`
+        + 'R<number>: at most two sentences and 45 words, explaining that round\'s death from its facts: where, how long '
+        + 'into the round, the killer and the weapon, how many were standing on each side, whether it was traded, and the '
+        + 'plant. What was seen in play is the last the screen showed of the player before it; use it only where it agrees '
+        + 'with the facts. If the facts give you nothing to add, leave that round out.\n'
+      : 'Write no round lines: no round was lost to a death.\n')
+    + 'FOCUS: one concrete habit for the next match that fixes the first counted mistake, something a player can do '
+    + 'in a round.\n\n'
     + GROUNDING
     + languageRule(context.language);
+}
+
+/** "rounds 2, 3, 6 and 7", "round 4". */
+function roundsText(ns) {
+  if (ns.length === 1) return `round ${ns[0]}`;
+  return `rounds ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
 }
 
 /**
@@ -377,18 +441,30 @@ function buildPrompt(input) {
  * must be rounds the ledger actually sent.
  */
 /**
+ * A round worth a line at all: one the player died in and did not win, or one
+ * the coach looked at. A line explains a death. On the player's Sunset
+ * swiftplay every round had a read, so every round got a line, and the four
+ * kill round won on attack was told "Opening menus in spawn delays your
+ * movement": a won round with no death has nothing to explain.
+ */
+function lineWorthy(r) {
+  return (r.died || !!r.cause) && r.result !== 'won';
+}
+
+/**
  * The rounds worth a line, chosen HERE rather than by the model.
  *
  * Asked to "choose the rounds that teach the most, in round order", the model
  * took the first ten: on the real 24 round Abyss match it explained rounds 2 to
- * 11 and never reached the second half. So the choice is arithmetic. A lost
- * round outranks a won one, a first death or an early death outranks a late
- * one, and a round the coach said something about outranks a silent one. Ties
- * go to spreading the picks across the match.
+ * 11 and never reached the second half. So the choice is arithmetic, among
+ * the rounds worth a line (lineWorthy). A lost round outranks one with no
+ * result read, a first death or an early death outranks a late one, and a
+ * round with play seen before the death outranks a silent one. Ties go to
+ * spreading the picks across the match.
  */
 function teachable(rounds, limit = MAX_ROUND_LINES) {
   const scored = rounds
-    .filter((r) => r.died || r.reads.length)
+    .filter(lineWorthy)
     .map((r) => ({
       n: r.n,
       score: (r.result === 'lost' ? 3 : 0) + (r.firstDeath ? 3 : 0) + (r.died ? 2 : 0)
@@ -445,9 +521,69 @@ function splitSentences(text) {
   return String(text || '').match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
 }
 
+/*
+ * NOTHING IN THE BUY PHASE IS A MISTAKE, and code says so. Everyone stands in
+ * spawn holding a pistol, with the buy menu, the scoreboard or the combat
+ * report open, until the barriers drop. The player's Sunset swiftplay was
+ * reviewed from buy phase reads, and the model wrote, over a match lost on
+ * untraded deaths: "Standing idle in spawn during buy phase was the
+ * repeated mistake occurring in rounds 1, 2, 3 and 4", "Holding
+ * a pistol in spawn prevents you from reacting quickly to enemy pushes" over
+ * a Vandal fight in mid, "Opening menus in spawn delays your movement" over
+ * the four kill round, and the focus "Move to your first piece of cover
+ * immediately upon round start to avoid standing still in spawn". The prompt
+ * now says never to; a round line, a summary sentence or a focus sentence
+ * that still names the buy phase, the spawn, a menu, the scoreboard or the
+ * barriers is dropped. Its words are English, as the killer gate's are.
+ */
+const BUY_BLAME = /\b(buy|buys|buying|bought|spawn|spawns|menu|menus|scoreboard|interface|interfaces|overlay|overlays|combat report|barrier|barriers)\b/i;
+
+// A summary sentence that names a repeated mistake.
+const MISTAKE_WORDS = /\b(mistake|mistakes|repeated|repeating)\b/i;
+
+/** "4 of your 5" and "four of five", as "4/5", every one in the text. */
+function countPairs(text) {
+  const num = (w) => {
+    const parts = String(w).toLowerCase().split(/\s+/);
+    const one = (p) => (/^\d+$/.test(p) ? Number(p) : NUMBER_WORDS[p]);
+    return parts.length === 2 ? (one(parts[0]) || 0) + (one(parts[1]) || 0) : one(parts[0]);
+  };
+  const out = [];
+  const re = new RegExp(COUNT_PHRASE.source, 'gi');
+  let m;
+  while ((m = re.exec(String(text || ''))) !== null) out.push(`${num(m[1])}/${num(m[2])}`);
+  return out;
+}
+
+/** The round numbers a sentence names after "round" or "rounds", a run of them, "1 to 3" included. */
+function namedRounds(text) {
+  const out = [];
+  let run = false;
+  let range = false;
+  for (const w of String(roundDigits(text) || '').split(/\s+/)) {
+    const bare = w.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (bare === 'round' || bare === 'rounds') { run = true; range = false; continue; }
+    if (!run) continue;
+    if (/^\d+$/.test(bare)) {
+      const n = Number(bare);
+      const from = range && out.length ? out[out.length - 1] + 1 : n;
+      for (let k = from; k <= n; k++) out.push(k);
+      range = false;
+      if (/[.;:!?]$/.test(w)) run = false;
+      continue;
+    }
+    if (bare === 'and' || bare === 'or') continue;
+    if (bare === 'to' || bare === 'through') { range = true; continue; }
+    run = false;
+  }
+  return out;
+}
+
 function parse(text, input) {
-  const out = { summary: null, rounds: {}, focus: null, dropped: [] };
-  const valid = new Set(input.rounds.map((r) => r.n));
+  const out = { summary: null, rounds: {}, focus: null, dropped: [], blamed: [] };
+  // Only a round worth a line can have one (lineWorthy): a won round with no
+  // death is never explained, whatever the model writes.
+  const valid = new Set(input.rounds.filter(lineWorthy).map((r) => r.n));
   let current = null;
   // LABELS ARE SPLIT ONTO THEIR OWN LINES FIRST. The first live bench got every
   // reply back as ONE line, because textInfer's sanitize() collapses newlines,
@@ -486,10 +622,44 @@ function parse(text, input) {
   // rounds after spike plant" on the real Abyss match, merging 6 of 12 on
   // attack with 6 of 10 after the plant. The computed patterns sit directly
   // above the summary in the window, so a count here adds nothing and risks a
-  // wrong one. A sentence carrying one is dropped.
+  // wrong one. A sentence carrying one is dropped, unless it is a counted
+  // mistake's own ("4 of your 5 deaths went unanswered"), which the summary
+  // is asked to quote.
+  //
+  // AND A REPEATED MISTAKE IS ONE THE REVIEW COUNTED. A sentence calling
+  // something the repeated mistake must name its rounds, and they must all be
+  // one counted mistake's: "rounds 1, 2, 3 and 4" were no counted mistake's
+  // rounds on that Sunset match. With no mistake counted there is none to name.
   if (out.summary) {
-    const kept = splitSentences(out.summary).map((s) => s.trim()).filter((s) => s && !COUNT_PHRASE.test(s));
+    const allowed = new Set((input.mistakes || []).flatMap((m) => countPairs(m.detail)));
+    const counted = (input.mistakes || []).filter((m) => m.rounds.length);
+    const kept = splitSentences(out.summary).map((s) => s.trim()).filter((s) => {
+      if (!s) return false;
+      if (countPairs(s).some((p) => !allowed.has(p))) return false;
+      const blame = BUY_BLAME.exec(s);
+      if (blame) { out.blamed.push({ n: null, said: blame[0] }); return false; }
+      if (MISTAKE_WORDS.test(s)) {
+        const ns = namedRounds(s);
+        if (!ns.length || !counted.some((m) => ns.every((n) => m.rounds.includes(n)))) return false;
+      }
+      return true;
+    });
     out.summary = kept.join(' ').trim() || null;
+  }
+
+  // NO LINE BLAMES THE BUY PHASE (BUY_BLAME): a round line that does is built
+  // on a frame from before the round began, and goes whole.
+  for (const [n, why] of Object.entries(out.rounds)) {
+    const blame = BUY_BLAME.exec(why);
+    if (blame) {
+      delete out.rounds[n];
+      out.blamed.push({ n: Number(n), said: blame[0] });
+    }
+  }
+  if (out.focus) {
+    const kept = splitSentences(out.focus).map((s) => s.trim()).filter((s) => s && !BUY_BLAME.test(s));
+    if (kept.length < splitSentences(out.focus).filter((s) => s.trim()).length) out.blamed.push({ n: null, said: 'focus' });
+    out.focus = kept.join(' ').trim() || null;
   }
 
   // THE KILLER GATE. In a round Riot verified, a line naming any other agent
@@ -580,5 +750,5 @@ function roundDigits(text) {
   return words.join('');
 }
 
-module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, teachable, namesKiller,
-  DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS };
+module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, teachable, lineWorthy,
+  namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS };

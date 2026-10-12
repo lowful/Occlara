@@ -15,6 +15,7 @@ const patchCtx  = require('../services/patch-context');
 const telemetry = require('../services/telemetry');
 const { isAdmin } = require('../services/admin-auth');
 const crypto    = require('crypto');
+const { AsyncLocalStorage } = require('async_hooks');
 const router = express.Router();
 
 // ─── Cost tracking (in-memory, resets on server restart) ──────────────────────
@@ -90,6 +91,101 @@ function trackCall(key, units = 1) {           // units: frame-memory calls send
   e.callsMonth++;
   e.costToday  += cost;
   e.costMonth  += cost;
+}
+
+// ─── What the model calls cost, as the provider bills them (8.3.1) ──────────
+/**
+ * REAL COST, BY ROUTE, BY DAY AND MONTH, IN ALL AND BY LICENCE.
+ *
+ * trackCall's figure above is a flat price per call, priced for a model this
+ * server no longer calls, so /api/admin/costs could not say what a match
+ * costs or which feature spends it, which is what a change of price turns on.
+ * OpenRouter says what each call cost when it is asked (usage: { include:
+ * true } in the request, `usage.cost` in the reply: the credits it charged,
+ * in dollars), so every model call asks, and its cost is booked against the
+ * route it served (COST_ROUTES) and the licence that made it. A call that
+ * comes back with no cost (another provider, the legacy Gemini path, a call
+ * aborted at its deadline, which is billed all the same) books the flat price
+ * per image instead, counted apart as estimated, so the two are never added
+ * up as one kind of number by mistake. A call the provider refused (an error
+ * status) is not billed and books nothing.
+ *
+ * WHICH ROUTE AND LICENCE travel with the request (costScope): the router
+ * below sets them for every coach route, and another game's provider layer
+ * (layerFor) for its own, so a model call made deep in a prompt helper is
+ * booked without being told. In memory like the rest of this file, so a
+ * restart clears it; the admin view says since when.
+ */
+const costScope = new AsyncLocalStorage();
+const COST_ROUTES = ['read', 'forensics', 'review', 'chat', 'rivals', 'other'];
+const ROUTE_OF_PATH = { '/read': 'read', '/death-forensics': 'forensics', '/match-review': 'review', '/chat': 'chat', '/frame-chat': 'chat' };
+const COSTS_SINCE = new Date().toISOString();
+const costBuckets = () => Object.fromEntries(COST_ROUTES.map((r) => [r, { calls: 0, priced: 0, real: 0, estimated: 0 }]));
+const costPeriods = () => ({ day: '', month: '', today: costBuckets(), monthly: costBuckets() });
+const costLedger = { all: costPeriods(), keys: new Map() };
+
+router.use((req, res, next) => {
+  const pathName = req.path || String(req.url || '').split('?')[0];
+  const key = String((req.headers && req.headers['x-license-key']) || '').trim().toUpperCase() || null;
+  costScope.run({ route: ROUTE_OF_PATH[pathName] || 'other', key }, next);
+});
+
+/** What the provider said a call cost, in dollars, or null when it said nothing. */
+function costOf(data) {
+  const c = data && data.usage && data.usage.cost;
+  return typeof c === 'number' && Number.isFinite(c) && c >= 0 ? c : null;
+}
+
+/**
+ * One model call booked: `cost` what the provider charged (costOf), or null,
+ * which books the flat price for the images it carried. The route and the
+ * licence are the request's (costScope), 'other' and none outside one.
+ */
+function bookCost(cost, images) {
+  const scope = costScope.getStore() || {};
+  const route = COST_ROUTES.includes(scope.route) ? scope.route : 'other';
+  const priced = cost !== null && cost !== undefined;
+  const amount = priced ? cost : COST_PER_CALL * Math.max(1, images || 0);
+  const today = new Date().toISOString().slice(0, 10);
+  const month = today.slice(0, 7);
+  const periods = [costLedger.all];
+  if (typeof scope.key === 'string' && scope.key) {
+    if (!costLedger.keys.has(scope.key)) cacheSet(costLedger.keys, scope.key, costPeriods(), 5000);
+    periods.push(costLedger.keys.get(scope.key));
+  }
+  for (const p of periods) {
+    if (p.day !== today) { p.day = today; p.today = costBuckets(); }
+    if (p.month !== month) { p.month = month; p.monthly = costBuckets(); }
+    for (const b of [p.today[route], p.monthly[route]]) {
+      b.calls += 1;
+      if (priced) { b.priced += 1; b.real += amount; } else b.estimated += amount;
+    }
+  }
+}
+
+/** One period's buckets as the admin view shows them: each route, and the sum. */
+function costView(buckets) {
+  const r6 = (x) => Math.round(x * 1e6) / 1e6;
+  const routes = {};
+  const sum = { calls: 0, priced: 0, real: 0, estimated: 0 };
+  for (const route of COST_ROUTES) {
+    const b = buckets[route];
+    routes[route] = { calls: b.calls, priced: b.priced, real: r6(b.real), estimated: r6(b.estimated), cost: r6(b.real + b.estimated) };
+    for (const k of Object.keys(sum)) sum[k] += b[k];
+  }
+  return { calls: sum.calls, priced: sum.priced, real: r6(sum.real), estimated: r6(sum.estimated), cost: r6(sum.real + sum.estimated), routes };
+}
+
+/** The ledger for /api/admin/costs: today and this month, in all and for one licence. */
+function costReport(key) {
+  const today = new Date().toISOString().slice(0, 10);
+  const month = today.slice(0, 7);
+  const p = key ? costLedger.keys.get(key) : costLedger.all;
+  const empty = costBuckets();
+  return {
+    today: costView(p && p.day === today ? p.today : empty),
+    month: costView(p && p.month === month ? p.monthly : empty),
+  };
 }
 
 /**
@@ -286,6 +382,14 @@ const SPECTATE_TELL = /\bspectat(e|es|ing|or)\b|\bswitch player\b|\bkill ?cam\b|
 // failure it was written to prevent, arriving from the other direction.
 const SPECTATE_FALSE_FRIEND = /\bspectat(?:e|es|ing|or)\s+(?:the\s+)?(?:score\s?board|mini\s?map)\b/i;
 
+// THE SPECTATOR COUNTER IS ON A LIVING PLAYER'S HUD, mirrored the same way.
+// "SPECTATORS 1" at the top right counts who is watching the player: on a real
+// Sunset swiftplay the model wrote it as "Spectating 1 top right" on a round
+// won banner, and a death registered in a round Riot has the player surviving.
+// Taken for a spectator tell here, it drops a health number the player's own
+// HUD printed beside it.
+const SPECTATOR_COUNT = /\bspectators\b|\bspectat(?:e|es|ing|or)\s*:?\s*\d{1,2}(?![\w/])|\b\d{1,2}\s+spectators?\b|\bspectators?\s+(?:count|counter|number|icon)\b/i;
+
 // A RATE LIMIT IS NOT AN EMPTY WALLET, and it says so in words that overlap.
 // Rate-limit bodies routinely mention "quota", which the wording test above
 // treats as a money problem, so a burst of requests could trip the breaker, shut
@@ -387,25 +491,45 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
   const budget = (maxTokens || 100) + headroom;
   const signal = abortMs > 0 ? AbortSignal.timeout(abortMs) : undefined;
 
-  const send = (maxT, thinkOn) => fetch(`${AI.baseUrl}/chat/completions`, {
-    method: 'POST',
-    signal,
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${AI.apiKey}`,
-      'HTTP-Referer':  'https://occlara.app', // OpenRouter attribution (ignored elsewhere)
-      'X-Title':       'Occlara',
-    },
-    body: JSON.stringify({
-      model,
-      messages:    [{ role: 'user', content }],
-      max_tokens:  maxT,
-      temperature: temperature == null ? 0.7 : temperature,
-      // OpenRouter's unified switch. Hybrid reasoners answer directly instead of
-      // thinking first; providers that do not support it ignore the field.
-      reasoning:   thinkOn ? undefined : { enabled: false },
-    }),
-  });
+  // EVERY CALL IS BOOKED AT WHAT IT COST (8.3.1, bookCost): OpenRouter is asked
+  // for its usage, and a reply that says nothing of it, or a call aborted at
+  // its deadline (billed all the same, its reply never read), books the flat
+  // price. A reply with an error status is not billed and books nothing.
+  const usage = asksUsage(AI.baseUrl) ? { usage: { include: true } } : {};
+  const send = async (maxT, thinkOn) => {
+    try {
+      return await fetch(`${AI.baseUrl}/chat/completions`, {
+        method: 'POST',
+        signal,
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${AI.apiKey}`,
+          'HTTP-Referer':  'https://occlara.app', // OpenRouter attribution (ignored elsewhere)
+          'X-Title':       'Occlara',
+        },
+        body: JSON.stringify({
+          model,
+          messages:    [{ role: 'user', content }],
+          max_tokens:  maxT,
+          temperature: temperature == null ? 0.7 : temperature,
+          // OpenRouter's unified switch. Hybrid reasoners answer directly instead of
+          // thinking first; providers that do not support it ignore the field.
+          reasoning:   thinkOn ? undefined : { enabled: false },
+          ...usage,
+        }),
+      });
+    } catch (e) {
+      if (wasAborted(e)) bookCost(null, images.length);
+      throw e;
+    }
+  };
+  // A reply that came back whole: its JSON, and its cost booked.
+  const read = async (r) => {
+    let body = null;
+    try { body = await r.json(); } catch (e) { bookCost(null, images.length); throw e; }
+    bookCost(costOf(body), images.length);
+    return body;
+  };
 
   let resp = await send(budget, isThinking);
 
@@ -440,7 +564,7 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
     throw err;
   }
   clearCreditsFlag();   // a successful call proves credits are available again
-  let data = await resp.json();
+  let data = await read(resp);
   let raw = answerOf(data);
 
   // ALWAYS-ON REASONERS: the switch above is a request, not a guarantee. Some
@@ -454,11 +578,21 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
     console.warn(`[coach] ${model} reasoned past its answer budget, retrying with headroom`);
     const retry = await send(budget + (images.length ? 700 : 2200), true);
     if (retry.ok) {
-      data = await retry.json();
+      data = await read(retry);
       raw = answerOf(data);
     }
   }
   return stripThinking(raw);
+}
+
+/** Whether the provider at this base URL is OpenRouter, which answers usage: { include: true } with each call's cost. */
+function asksUsage(baseUrl) {
+  return /^https?:\/\/(?:[a-z0-9-]+\.)*openrouter\.ai(?:[:/]|$)/i.test(String(baseUrl || ''));
+}
+
+/** A fetch that stopped at its deadline (AbortSignal.timeout) or was aborted. */
+function wasAborted(e) {
+  return !!e && (e.name === 'TimeoutError' || e.name === 'AbortError');
 }
 
 /** The assistant's actual answer, independent of provider quirks. */
@@ -566,7 +700,12 @@ const READ_TIMEOUT_MS = 9000;
 // Unified entry points the routes call: dispatch to the configured provider.
 // opts.abortMs: cancel the upstream request after that long (see chatCall).
 async function visionInfer(imageB64, prompt, maxTokens, jsonMode, model, opts) {
-  if (AI.provider === 'gemini') return geminiCall(imageB64, prompt, maxTokens, jsonMode);
+  // The legacy Gemini path says nothing of what a call cost: the flat price.
+  if (AI.provider === 'gemini') {
+    const out = await geminiCall(imageB64, prompt, maxTokens, jsonMode);
+    bookCost(null, Array.isArray(imageB64) ? imageB64.length : 1);
+    return out;
+  }
   const text = await chatCall({ imageB64, prompt, maxTokens, temperature: 0.7, model,
     abortMs: opts && opts.abortMs });
   return jsonMode ? text : sanitize(text);
@@ -606,7 +745,11 @@ function textModelNow() {
 }
 
 async function textInfer(prompt, maxTokens, opts) {
-  if (AI.provider === 'gemini') return geminiTextCall(prompt, maxTokens);
+  if (AI.provider === 'gemini') {
+    const out = await geminiTextCall(prompt, maxTokens);
+    bookCost(null, 0);
+    return out;
+  }
   const { json = false, timeoutMs = 0, model: pinned = null } = opts || {};
   const finish = (t) => (json ? String(t || '') : sanitize(t));
   const run = (model) => {
@@ -1401,7 +1544,7 @@ function mapState(s) {
   // DROPPED rather than reassigned, because it belongs to somebody else and a
   // teammate's health passed off as the player's is worse than no reading.
   if (out.aliveTell && SPECTATE_TELL.test(out.aliveTell)
-      && !(SPECTATE_FALSE_FRIEND.test(out.aliveTell)
+      && !((SPECTATE_FALSE_FRIEND.test(out.aliveTell) || SPECTATOR_COUNT.test(out.aliveTell))
            && !/\bswitch player\b|\bkill ?cam\b|\bcombat report\b|\bkilled by\b|\bteam eliminated\b/i.test(out.aliveTell))) {
     if (out.playerAlive !== false || out.playerHp != null) {
       console.log(`[coach] spectator tell beats the health number: "${out.aliveTell}"`
@@ -3584,26 +3727,51 @@ module.exports.telemetry  = telemetry;
  *   sanitize                 dash removal, a hard rule in this product's copy
  * A second game re-implementing these would re-learn every one of them the
  * expensive way.
+ *
+ * HANDED OUT PER GAME (8.3.1, layerFor), so what its model calls cost is
+ * booked under that game's name (bookCost): its routes are not this router's,
+ * and the route a call served travels with the request. And under the licence
+ * that made the call, which a game's routes never pass to the call itself:
+ * they count the call (trackCall) with the licence and make it in the same
+ * breath, so the layer keeps the licence counted last and hands it to the next
+ * call. Rivals counts each read on the line before it, with no await between.
+ * A game's call made without counting one is booked with no licence.
  */
-module.exports.ai = {
-  visionInfer,
-  textInfer,
-  sanitize,
-  validateKey,
-  // The licence answer in three parts ('valid', 'invalid', 'unavailable'), so
-  // another game's routes can answer an outage with 503 rather than 403.
-  checkLicence: checkKey,
-  trackCall,
-  creditsLookExhausted,
-  creditsRetryIn,
-  // Which model a caller gets when it explicitly wants the deeper image read.
-  // Exposed so /api/rivals/identify can ask for it by name: that route reads
-  // twelve small character portraits off one scoreboard, which is a harder
-  // visual task than reading a HUD, and it measured at 17 to 42% precision on
-  // the live vision model. Setting AI_VISION_MODEL_DEEP in Railway now changes
-  // that one call without touching the coaching loop or needing a deploy.
-  deepVisionModel: () => AI.visionDeep,
-};
+function layerFor(route) {
+  let counted = null;
+  const scoped = (fn) => (...args) => {
+    const key = counted;
+    counted = null;
+    return costScope.run({ route, key }, () => fn(...args));
+  };
+  return {
+    visionInfer: scoped(visionInfer),
+    textInfer: scoped(textInfer),
+    sanitize,
+    validateKey,
+    // The licence answer in three parts ('valid', 'invalid', 'unavailable'), so
+    // another game's routes can answer an outage with 503 rather than 403.
+    checkLicence: checkKey,
+    trackCall: (key, units) => {
+      counted = String(key || '').trim().toUpperCase() || null;
+      trackCall(key, units);
+    },
+    creditsLookExhausted,
+    creditsRetryIn,
+    // Which model a caller gets when it explicitly wants the deeper image read.
+    // Exposed so /api/rivals/identify can ask for it by name: that route reads
+    // twelve small character portraits off one scoreboard, which is a harder
+    // visual task than reading a HUD, and it measured at 17 to 42% precision on
+    // the live vision model. Setting AI_VISION_MODEL_DEEP in Railway now changes
+    // that one call without touching the coaching loop or needing a deploy.
+    deepVisionModel: () => AI.visionDeep,
+  };
+}
+module.exports.ai = layerFor('rivals');
+module.exports.layerFor = layerFor;
+// What the model calls cost, for /api/admin/costs (admin.js) and the tests.
+module.exports.costs = { report: costReport, keys: () => [...costLedger.keys.keys()], since: COSTS_SINCE, routes: COST_ROUTES,
+  perCall: COST_PER_CALL, asksUsage, asking: () => asksUsage(AI.baseUrl), bookCost };
 module.exports.liveModels = () => ({
   provider:    AI.provider,
   // What 8.0 clients actually use: the live read, the look at a death, and the

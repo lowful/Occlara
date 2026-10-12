@@ -210,29 +210,104 @@ const riotEs = df.normalise({ agent: 'Jett', map: 'Abyss', language: 'es',
 ok(look(riotEs, 'Viper te mató con la Marshal mientras sostenías solo.', 'Juega cerca de tu equipo.').what
   === 'Viper te mató con la Marshal mientras sostenías solo.', "while a look from Riot's record may still name Riot's killer in Spanish");
 
-// ── A look from Riot's record framed the screen's way (8.3) ────────────────
-// A verified death with no clocked frame before it is framed by the frame the
-// screen registered it on and the one before (death-frames.js framesFor), and
-// that first frame's clock says nothing of how long before the death it was
-// taken: after the plant it is the spike's, and on the real Split match the
-// frame before round 15's death was a buy phase frame the model read as the
-// round clock, 82 s in by it where Riot has the death 2 s in. Clamped to 0,
-// the prompt told the model it was taken in the second the player died. The
-// session replayed through the real reader, the deaths as index.js sends them.
+// ── A look from Riot's record timed by its round's clock (8.3.1) ───────────
+// Riot's death on the wall clock, from its round's barriers dropping and
+// Riot's milliseconds (death-frames.js deathMoment), so each frame is sent
+// with its own seconds from the death. On the real Split match the frame
+// before round 15's death is a buy phase frame the model read as the round
+// clock, 82 s in by it where Riot has the death 2 s in, and the prompt once
+// told the model it was taken in the second the player died; then said
+// nothing of when. The session replayed through the real reader, the deaths
+// as index.js sends them (askForensics, look-stills.js sendOrder).
 {
   const deathFrames = require('../src/shared/death-frames');
+  const lookStills = require('../src/main/services/look-stills');
   const { replaySession } = require('./fixtures/replay-session');
-  const split = replaySession('valorant-session-split-competitive.json', require('./fixtures/riot-split-13-7.json'));
-  const looks = deathFrames.looksFor(split.records, split.rounds, split.window, 'riot');
-  const body = df.normalise({ agent: 'Jett', map: 'Split', deaths: looks.map(({ round: r, frames: recs, gap }) => ({
-    n: r.n, side: r.side, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon, firstDeath: r.firstDeath, traded: r.traded,
-    alive: r.aliveAtDeath, planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, gap, frames: recs.map(() => frame) })) });
+  const SPLIT_RIOT = require('./fixtures/riot-split-13-7.json');
+  const split = replaySession('valorant-session-split-competitive.json', SPLIT_RIOT);
+  const looks = deathFrames.looksFor(split.records, deathFrames.withRiotTimes(split.rounds, SPLIT_RIOT), split.window, 'riot');
+  const body = df.normalise({ agent: 'Jett', map: 'Split', deaths: looks.map(({ round: r, frames: recs, gap, frameAt }) => {
+    const order = lookStills.sendOrder(frameAt);
+    return {
+      n: r.n, side: r.side, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon, firstDeath: r.firstDeath, traded: r.traded,
+      alive: r.aliveAtDeath, planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, gap,
+      frames: order.map((i) => frame + i), frameAt: order.map((i) => frameAt[i]), framesFrom: 'reads',
+    };
+  }) });
   const promptOf = (n) => { const d = body.deaths.find((x) => x.n === n); return d ? df.buildPrompt(body, d) : ''; };
-  ok(body.deaths.map((d) => d.n).join() === '3,7,8,15', `the real Split match's looks reach the server (${body.deaths.map((d) => d.n)})`);
-  ok(/Killed by/.test(promptOf(15)) && !/The first frame was taken/.test(promptOf(15)),
-    "round 15, framed by the frame that registered the death, says nothing of when its first frame was taken, never that it was the second the player died");
-  ok(/The first frame was taken/.test(promptOf(7)) && /The first frame was taken about 3 seconds before the player died\./.test(promptOf(7)),
-    'while one the round clock framed still says how long before the death it was (round 7, 3 s)');
+  ok(body.deaths.map((d) => d.n).join() === '3,7,8,15' && body.deaths.every((d) => d.frameAt && d.framesFrom === 'reads'),
+    `the real Split match's looks reach the server, each frame with its seconds from the death (${body.deaths.map((d) => `R${d.n} ${(d.frameAt || ['untimed']).join(' / ')}`).join('; ')})`);
+  ok(/Frame 1: 2\.3 s before the death\.\nFrame 2: 0\.7 s after the death\./.test(promptOf(15)) && /Killed by/.test(promptOf(15))
+    && !/The first frame was taken/.test(promptOf(15)) && !/in the second the player died/.test(promptOf(15)),
+  "round 15's prompt says when each of its frames was taken against Riot's death second, the buy phase's last 2.3 s before it, never that it was the second the player died");
+  ok(/2 frames from the player's own screen, in time order:/.test(promptOf(7)) && /Frame 1: 1\.2 s before the death\./.test(promptOf(7))
+    && !/The first frame was taken about/.test(promptOf(7)) && /Riot's death second/.test(promptOf(7)),
+  "and round 7's, by its round clock 1.2 s before the death, with no second count of it beside");
+}
+
+// ── A look from the player's own recording (8.3.1) ─────────────────────────
+// Up to five stills of the clip around each death, their seconds from it
+// (frameAt), from the recording (framesFrom): the client sends the last
+// before the death and the first after it ahead of the rest, so a server from
+// before 8.3.1 keeps those two; this one puts them back in time order.
+{
+  const lookStills = require('../src/main/services/look-stills');
+  const AT = [-3, -1.5, -0.7, -0.3, 0.7];
+  const order = lookStills.sendOrder(AT);
+  const sent = (extra) => df.normalise({ agent: 'Jett', map: 'Sunset', deaths: [{ n: 6, side: 'defending', sec: 20, killer: 'KAY/O', weapon: 'Sheriff',
+    traded: false, alive: { mates: 4, enemies: 3 }, spot: 'Mid Courtyard', gap: 1,
+    frames: order.map((i) => frame + i), frameAt: order.map((i) => AT[i]), framesFrom: 'recording', ...(extra || {}) }] });
+  const rec = sent();
+  const d6 = rec.deaths[0];
+  ok(df.MAX_FRAMES === 2 && df.MAX_TIMED_FRAMES === 5 && df.MAX_FRAME_AT === 15, 'two frames a death untimed, five timed, each within 15 s of the death');
+  ok(d6.frames.length === 5 && d6.frames.map((f) => f.slice(-1)).join('') === '01234' && String(d6.frameAt) === AT.join() && d6.framesFrom === 'recording',
+    `five timed frames are kept, put back in time order (sent ${order.join(', ')}, read ${String(d6.frameAt)})`);
+  const p6 = df.buildPrompt(rec, d6);
+  ok(/5 frames from the player's own screen recording, in time order:\nFrame 1: 3 s before the death\.\nFrame 2: 1\.5 s before the death\.\nFrame 3: 0\.7 s before the death\.\nFrame 4: 0\.3 s before the death\.\nFrame 5: 0\.7 s after the death\./.test(p6),
+    'its prompt says they are from the player\'s own screen recording, each at its seconds from the death');
+  ok(/The seconds are from Riot's death second, the moment its record has the player dying/.test(p6),
+    "and that the seconds are from Riot's death second");
+  ok(/A frame after it shows Valorant's death screen: KILLED BY and the combat report/.test(p6) && /If no frame before the death shows an enemy or the fight/.test(p6)
+    && /what the frames show:/.test(p6) && /visible in the frames and stated/.test(p6) && !/The first frame was taken/.test(p6),
+  'what to read in the frames before the death and the one after it, and no count of the first frame\'s seconds beside them');
+  ok(/The screen placed the death at Mid Courtyard\. If the frames print another place above the minimap, that is where it was\./.test(p6),
+    "the screen's spot, the last place it read, gives way to the place the frames print (on the real Sunset match round 6's spot was a round earlier's)");
+  ok(/FACTS FROM RIOT'S RECORD, exact/.test(p6) && /Killed by KAY\/O with a Sheriff\./.test(p6) && Object.keys(df.CAUSES).every((c) => p6.includes(c + ':'))
+    && /Name no killer other than the one in the facts\./.test(p6) && /map|Callouts that exist/.test(p6) && !DASH.test(p6),
+  "with Riot's facts, every cause, the killer and map rules kept, and no dash");
+  const seven = df.normalise({ deaths: [{ n: 2, frames: [-6, -4, -3, -2, -1, 1, 3].map((s) => frame + s), frameAt: [-6, -4, -3, -2, -1, 1, 3], framesFrom: 'recording' }] }).deaths[0];
+  ok(seven.frames.length === 5 && String(seven.frameAt) === '-3,-2,-1,1,3' && seven.frames.map((f) => f.slice(5000)).join() === '-3,-2,-1,1,3',
+    `more than five: the five nearest the death are kept, each with its own frame (${String(seven.frameAt)})`);
+  const loose = [
+    ['a time missing', { frameAt: AT.slice(0, 4) }],
+    ['a time past a clip\'s length', { frameAt: [-3, -1.5, -0.7, -0.3, 22] }],
+    ['a time that is not a number', { frameAt: [-3, -1.5, '-0.7', -0.3, 0.7] }],
+  ].map(([why, extra]) => [why, sent(extra).deaths[0]]);
+  ok(loose.every(([, d]) => d.frames.length === 2 && d.frameAt === null && d.framesFrom === null),
+    `timed in a way that does not add up (${loose.map(([w]) => w).join(', ')}), a death keeps two frames, untimed, as from a client before`);
+  const fromScreen = df.normalise({ agent: 'Jett', map: 'Sunset', source: 'screen', deaths: [{ n: 6, side: 'defending', spot: 'Mid Courtyard',
+    frames: [-4.5, -3, -2, -1, 0].map((s) => frame + s), frameAt: [-4.5, -3, -2, -1, 0], framesFrom: 'recording' }] });
+  const ps = df.buildPrompt(fromScreen, fromScreen.deaths[0]);
+  ok(String(fromScreen.deaths[0].frameAt) === '-4.5,-3,-2,-1,0'
+    && /Frame 1: 4\.5 s before the screen read the player as dead\./.test(ps) && /Frame 5: the moment the screen read the player as dead\./.test(ps)
+    && /The screen can read a death a few seconds late, so the death itself came at or before the moment it did/.test(ps)
+    && /FACTS READ OFF THE SCREEN/.test(ps) && /Name no killer: the screen does not record who killed the player/.test(ps) && !/Riot's death second/.test(ps),
+  'from the screen alone, its seconds are from the moment the screen read the death, which comes at or after it, and no killer may be named');
+  const old = sent({ frameAt: undefined, framesFrom: undefined }).deaths[0];
+  ok(old.frames.length === 2 && old.frameAt === null && /Two frames from the player's own screen: the FIRST is the last one before the death, the SECOND is just after it\./.test(df.buildPrompt(rec, old))
+    && /The first frame was taken in the second the player died\./.test(df.buildPrompt(rec, old)),
+  'and a body from a client before 8.3.1, no frameAt, gets its two frames and the words it always did');
+  ok(order.slice(0, 2).map((i) => AT[i]).join() === '-0.3,0.7', 'the two such a server keeps are the last before the death and the first after it');
+  // From the screen the last still is its read of the death, and the frame on
+  // screen then is a frame early as often as not (check:clips took -0.03 s).
+  // A server from before keeps the first two sent, untimed, and calls them the
+  // last before the screen read the player as dead and the first where it did.
+  const SCREEN_AT = [-4.51, -3.03, -2.01, -1.02, -0.03];
+  const sOrder = lookStills.sendOrder(SCREEN_AT);
+  const before831 = df.normalise({ source: 'screen', deaths: [{ n: 6, side: 'defending', frames: sOrder.map((i) => frame + i) }] }).deaths[0];
+  ok(before831.frames.map((f) => SCREEN_AT[Number(f.slice(frame.length))]).join() === '-1.02,-0.03'
+    && /the FIRST is the last one before the screen read the player as dead, the SECOND is the first one where it did/.test(df.buildPrompt({ source: 'screen' }, before831)),
+  `with nothing after the moment, the two it keeps are the last before the screen's read and the read's own (sent ${sOrder.map((i) => SCREEN_AT[i]).join(', ')})`);
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' forensics checks passed'}`);

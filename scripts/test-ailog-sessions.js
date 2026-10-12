@@ -436,6 +436,93 @@ ok(confirmSrc.includes('aiLogStore.served(aiLogStore.dirs(aiLogRoot()), id, aiLo
   'its death check picks its session through served()');
 ok(!mainSrc.includes('readAiLog('), 'and main keeps no reader of its own that could forgive an id');
 
+// ── What the log keeps as it is written (index.js recordAiFrame, 8.3.1) ─────
+// Main's own keep rules, run in a sandbox with their files in memory, fed a
+// read a second as the engine feeds them: { at, image, state, round, died }.
+// The ten seconds either side of a round change are kept with the death
+// windows: on the player's Sunset swiftplay a buy read seven seconds before
+// round 4's buy phase ended began round 5, and the play read that let it was
+// thinned to one in ten seconds, out of the log.
+{
+  const vm = require('vm');
+  const keepSrc = between(mainSrc, '\nconst AI_LOG_RECENT', '\nfunction releaseAiLogFrames(');
+  ok(keepSrc.includes('function recordAiFrame(') && keepSrc.includes('function thinAiLog(') && keepSrc.includes('function holdAiLogFrames('),
+    'the log\'s keep rules are found in main');
+  const logOf = () => {
+    const files = new Map();
+    const clock = { now: 0 };
+    const box = vm.createContext({
+      path, Buffer, JSON, Math, console: { log() {}, error() {}, warn() {} }, Date: { now: () => clock.now },
+      setTimeout: () => 0, clearTimeout() {}, aiLogDirsCache: null, store: { get: () => true }, aiLogStore: store,
+      app: { getPath: () => path.join(os.tmpdir(), 'occlara-keep'), getVersion: () => '8.3.1' },
+      fs: { writeFileSync: (f, b) => files.set(f, b), unlinkSync: (f) => files.delete(f), existsSync: () => true, mkdirSync() {} },
+    });
+    const api = vm.runInContext(`${keepSrc}\n;({ record: recordAiFrame, hold: holdAiLogFrames, records: () => aiLogRecords,`
+      + ' open: (d) => { aiLogDir = d; aiLogRecords = []; aiLogSeq = 0; aiLogKeepUntil = 0; aiLogTurnUntil = 0; } })', box);
+    api.open(path.join(os.tmpdir(), 'occlara-keep', 'session-keep'));
+    const T = Date.UTC(2026, 9, 12, 3, 14, 47);
+    api.read = (t, round, extra) => { clock.now = T + t * 1000; api.record({ at: clock.now, image: 'AA==', state: { phase: 'active' }, round, died: false, match: T, ...(extra || {}) }); };
+    api.kept = () => new Set(api.records().map((r) => Math.round((r.at - T) / 1000)));
+    api.files = files;
+    return api;
+  };
+  // Six hundred reads, the round moving at 100, 200, 300 and 400 s, and back
+  // once at 251 s for a step the ledger took back (valorant-rounds.js lastStep).
+  const turns = [100, 200, 300, 400];
+  const roundAt = (t) => 1 + turns.filter((c) => t >= c).length + (t >= 250 && t < 251 ? 1 : 0);
+  const a = logOf();
+  for (let t = 0; t < 600; t++) a.read(t, roundAt(t));
+  const kept = a.kept();
+  const near = (c) => Array.from({ length: 21 }, (_v, k) => c - 10 + k);
+  const lost = [...turns, 250, 251].flatMap((c) => near(c).filter((t) => !kept.has(t)));
+  ok(!lost.length, `every read within 10 s either side of a round change is kept, a step taken back included (${lost.length ? `lost ${lost.join(', ')}` : `${turns.length + 2} changes, all kept`})`);
+  const away = (t) => t < 600 - 180 && ![...turns, 250, 251].some((c) => Math.abs(t - c) <= 10);
+  const far = [...kept].filter(away);
+  const awayN = Array.from({ length: 600 }, (_v, t) => t).filter(away).length;
+  ok(far.length >= awayN / 12 && far.length <= awayN / 8 && a.files.size === a.records().length + 1,
+    `and away from them the log still keeps one read in ten seconds, every other frame gone from disk (${far.length} of ${awayN})`);
+
+  // THE CAP LOSES A ROUND CHANGE'S FRAMES BEFORE ANY DEATH'S. A match whose
+  // review still waits for Riot is held whole, its frames every one inside a
+  // death's window, and the live match after it has a death at 60 s and the
+  // round moving at 120 and 200 s: over the cap, the live round changes go
+  // first, the live death window stays whole.
+  const b = logOf();
+  for (let t = 0; t < 1250; t++) b.read(t, 5, { died: t % 30 === 10 });
+  b.hold(b.records()[0].at, b.records()[b.records().length - 1].at);
+  const L = 1310;
+  const liveRound = (t) => 5 + (t >= 120 ? 1 : 0) + (t >= 200 ? 1 : 0);
+  // 401, so the last of them is a tenth frame, which the log thins on.
+  for (let t = 0; t <= 400; t++) b.read(L + t, liveRound(t), { died: t === 60 });
+  const live = [...b.kept()].filter((t) => t >= L).map((t) => t - L);
+  const deathWindow = Array.from({ length: 41 }, (_v, k) => 25 + k);
+  const roundWindows = [...near(120), ...near(200)];
+  const keptOf = (ts) => ts.filter((t) => live.includes(t)).length;
+  ok(b.records().length <= 1500 && keptOf(deathWindow) === deathWindow.length && keptOf(roundWindows) < roundWindows.length,
+    `over the cap with a match held, the live death's window is kept whole and its round changes' frames go first (death ${keptOf(deathWindow)} of 41, rounds ${keptOf(roundWindows)} of 42, ${b.records().length} frames)`);
+
+  // AND A MATCH HELD FOR ITS REVIEW GIVES UP ITS OTHER FRAMES BEFORE THEM.
+  // Two matches back to back, as most are played, a round every 100 s and a
+  // death 50 s into each: the first held once it ends, kept as the log kept
+  // it while it was played. Ranked with any other frame, the live match's
+  // round changes were the first frames the cap took.
+  const c = logOf();
+  const roundOf = (t) => 1 + Math.floor(t / 100);
+  for (let t = 0; t < 1250; t++) c.read(t, roundOf(t), { died: t % 100 === 50 });
+  c.hold(c.records()[0].at, c.records()[c.records().length - 1].at);
+  const heldAtEnd = c.records().length;
+  for (let t = 0; t <= 1000; t++) c.read(L + t, roundOf(t), { died: t % 100 === 50 });
+  const liveC = [...c.kept()].filter((t) => t >= L).map((t) => t - L);
+  const heldC = [...c.kept()].filter((t) => t < L);
+  const windowOf = (d) => Array.from({ length: 41 }, (_v, k) => d - 35 + k);
+  const lostTurns = [100, 200, 300, 400, 500, 600, 700, 800].flatMap((x) => near(x).filter((t) => !liveC.includes(t)));
+  const lostDeaths = [50, 150, 250, 350, 450, 550, 650, 750, 850, 950].flatMap((d) => windowOf(d).filter((t) => !liveC.includes(t)))
+    .concat([50, 150, 250, 350, 450, 550, 650, 750, 850, 950, 1050, 1150].flatMap((d) => windowOf(d).filter((t) => !heldC.includes(t))));
+  ok(c.records().length <= 1500 && heldC.length < heldAtEnd && !lostTurns.length && !lostDeaths.length,
+    `and over the cap a match held for its review gives up its other frames before the live round changes (${heldAtEnd - heldC.length} of its ${heldAtEnd} gone, `
+      + `round change frames lost ${lostTurns.length}, death window frames lost ${lostDeaths.length}, ${c.records().length} frames)`);
+}
+
 // ── Missing root ────────────────────────────────────────────────────────────
 ok(store.sessions(path.join(root, 'nope')).length === 0, 'a missing log folder lists nothing');
 ok(store.read(path.join(root, 'nope')).records.length === 0, 'a missing log folder reads nothing');

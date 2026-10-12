@@ -19,7 +19,7 @@
       <div class="hero">
         <img class="mark" src="../../../assets/logo-mark.svg" alt="" width="36" height="36" />
         <h1>You're in.</h1>
-        <p class="sub">Four quick things, then you're playing.</p>
+        <p class="sub">Five quick things, then you're playing.</p>
       </div>
       <!-- Language first, before anything else is read, so the rest of the tour
            and every review arrive in the player's own language. One row with
@@ -85,11 +85,50 @@
       </div>
     </section>
 
-    <!-- ── 4. Grade your last matches ─────────────────────────────────── -->
+    <!-- ── 4. How Occlara watches ─────────────────────────────────────── -->
+    <!-- Record gameplay or Frames only: the recorder's On and Off
+         (recordingMode 'auto' and 'off', Settings' Record match video) and
+         its size. The PC check behind the choice runs as the page opens: main
+         says what Node can tell of this PC (pc-check.js), the page asks the
+         GPU's encoder itself as the recorder's gate does, and pc-rules.js
+         recommends. Every word holds in each game: Valorant and League are
+         recorded and Marvel Rivals is not yet, and League's screen is never
+         read (its review is built from the game's own record), so the one
+         sentence about the screen names Valorant. -->
+    <section class="page" data-page="3" id="ob-watch" hidden>
+      <div class="hero">
+        <h1>How Occlara watches</h1>
+        <p class="sub">Pick one. You can change it in Settings.</p>
+      </div>
+      <div class="ob-pc" id="ob-pc">
+        <p class="ob-pc-line checking" id="ob-pc-line" aria-live="polite">Checking this PC</p>
+        <dl class="ob-pc-facts" id="ob-pc-facts" hidden></dl>
+      </div>
+      <div class="ob-opts" role="radiogroup" aria-label="How Occlara watches">
+        <div class="ob-opt has-res">
+          <button type="button" class="ob-opt-main" id="ob-rec" role="radio" aria-checked="true">
+            <span class="ob-opt-title">Record gameplay <span class="ob-tag" id="ob-rec-tag" hidden>Recommended</span></span>
+            <span class="ob-opt-text">Valorant and League are recorded at about 30 fps, so your review can show clips of your deaths. The video stays on this PC.</span>
+          </button>
+          <div class="ob-res" id="ob-res" role="radiogroup" aria-label="Recording quality">
+            <button type="button" data-res="720" role="radio" aria-checked="true" class="active">720p</button>
+            <button type="button" data-res="1080" role="radio" aria-checked="false">1080p</button>
+          </div>
+        </div>
+        <div class="ob-opt">
+          <button type="button" class="ob-opt-main" id="ob-frames" role="radio" aria-checked="false">
+            <span class="ob-opt-title">Frames only <span class="ob-tag" id="ob-frames-tag" hidden>Recommended</span></span>
+            <span class="ob-opt-text">Nothing is recorded, so your review has no clips. In Valorant the coach reads your screen either way.</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 5. Grade your last matches ─────────────────────────────────── -->
     <!-- Connect tests the Riot ID and main starts grading the account's recent
          matches from Riot's record (backfill.js). The rows below follow it as
          it works, and it carries on after the tour closes. -->
-    <section class="page" data-page="3" hidden>
+    <section class="page" data-page="4" hidden>
       <div class="hero">
         <h1>Grade your last matches</h1>
         <p class="sub">Connect your Riot ID and Occlara grades your recent matches from Riot's record.</p>
@@ -117,6 +156,8 @@
   <script src="../shared/dropdown.js"></script>
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/grade-view.js"></script>
+  <!-- How Occlara watches: its rules, a file of their own so test:pccheck runs them. -->
+  <script src="pc-rules.js"></script>
   <script src="onboarding.js"></script>
 </body>
 </html>

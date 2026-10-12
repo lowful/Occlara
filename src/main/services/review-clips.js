@@ -7,10 +7,11 @@
  *
  * CUT WHILE THE RECORDING IS HELD. The recording of a finished match is held
  * until its review's work is done (index.js releaseMatchHolds), and its pages
- * go soon after. So a clip is cut the moment a look has its answer, and never
- * later: a review that looks again (Riot's record landing after the screen's
- * look) cuts its own, under the same names where the rounds are the same, and
- * the last look's are the ones kept (review-store.js keepClips).
+ * go soon after. So a clip is cut as a look is taken, before it is sent, since
+ * 8.3.1 the look's stills coming from it (look-stills.js), and never later: a
+ * review that looks again (Riot's record landing after the screen's look)
+ * cuts its own, under the same names where the rounds are the same, and the
+ * last look's are the ones kept (review-store.js keepClips).
  *
  * ONE AT A TIME, with main let go between them: a clip is a few MB read off
  * the recording's pages and written beside the review, and six of them in one
@@ -29,13 +30,14 @@ const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
  *
  *   looks    [{ key, name, moment }]: what the clip is of (a round number, a
  *            death), the name it is kept under, and when the death was (ms)
- *   cut      (from, to, at) => { bytes } | null   recorder.cutClip
+ *   cut      (from, to, at) => { bytes, startWall } | null   recorder.cutClip
  *   save     (name, bytes) => true once kept       review-store.js saveClip
  *   stopped  () => true when the review was withdrawn meanwhile
  *
- * Resolves with { kept: [{ key, name, bytes, from, to }], tried, missed }:
- * missed is how many moments the recording did not hold (paused, given up,
- * started after it, or off).
+ * Resolves with { kept: [{ key, name, bytes, from, to, startWall }], tried,
+ * missed }: missed is how many moments the recording did not hold (paused,
+ * given up, started after it, or off), and startWall where each clip's own 0
+ * is on the wall clock, for the stills the look takes from it (8.3.1).
  */
 async function cutClips(opts) {
   const o = opts || {};
@@ -56,7 +58,10 @@ async function cutClips(opts) {
     if (typeof o.stopped === 'function' && o.stopped()) break;
     let saved = false;
     try { saved = !!o.save(look.name, bytes); } catch { saved = false; }
-    if (saved) out.kept.push({ key: look.key, name: look.name, bytes: bytes.length, from: w.from, to: w.to });
+    if (saved) {
+      out.kept.push({ key: look.key, name: look.name, bytes: bytes.length, from: w.from, to: w.to,
+        startWall: Number.isFinite(got.startWall) ? got.startWall : null });
+    }
     await turn();
   }
   return out;

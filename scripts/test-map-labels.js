@@ -89,6 +89,67 @@ check('  clean labels still lock on a thin sample',
 check('  the same contested set locks once evidence accumulates',
   mapFromLabels(['Attacker Side Spawn', 'A Tower', 'Garage', 'B Long', 'B Window', 'Hookah']).map === 'Bind');
 
+// THE LOCK MUST FIT THE LABELS. On the player's Sunset swiftplay the model's
+// Haven won the lock on the first two buy phase reads, the game printed B
+// Lobby, B Main and Mid Bottom, none of them on Haven, and Haven went back to
+// the model as context for three minutes. Two agreeing reads still acquire a
+// lock; a lock two reads of the labels contradict is released, and a model
+// read the labels rule out is refused.
+console.log('\nthe map lock answers to the printed labels:');
+const CoachingEngine = require(path.join(__dirname, '..', 'src', 'main', 'services', 'coaching-engine.js'));
+const quiet = (fn) => { const log = console.log; console.log = () => {}; try { return fn(); } finally { console.log = log; } };
+function lockedOn(map) {
+  const e = new CoachingEngine({});
+  quiet(() => { e.applyMapRead(map); e.applyMapRead(map); });
+  return e;
+}
+{
+  const e = lockedOn('Haven');
+  check('  two agreeing reads still acquire a lock', e.matchContext.map === 'Haven');
+  quiet(() => e.applyLocationLabel('B Lobby'));
+  check('  one label the locked map has not got is not enough', e.matchContext.map === 'Haven');
+  quiet(() => e.applyLocationLabel('B Lobby'));
+  check('  a second releases the lock', e.matchContext.map === null, `still ${e.matchContext.map}`);
+  quiet(() => { e.applyMapRead('Haven'); e.applyMapRead('Haven'); });
+  check('  and a map the labels rule out is refused, not even pending', e.matchContext.map === null && !e.pendingMap,
+    `map ${e.matchContext.map}, pending ${e.pendingMap}`);
+  quiet(() => { e.applyMapRead('Sunset'); e.applyMapRead('Sunset'); });
+  check('  while one they leave locks on two agreeing reads', e.matchContext.map === 'Sunset');
+}
+{
+  const e = lockedOn('Haven');
+  quiet(() => { for (let i = 0; i < 4; i++) e.applyLocationLabel('A Site'); });
+  check('  a label every map has proves nothing', e.matchContext.map === 'Haven');
+  quiet(() => { e.applyLocationLabel('B Lobby'); e.applyLocationLabel('Mid Courtyard'); e.applyLocationLabel('B Main'); });
+  check('  and one only some maps have, the locked one among them, clears the doubt', e.matchContext.map === 'Haven',
+    `became ${e.matchContext.map}`);
+}
+{
+  const e = lockedOn('Ascent');
+  quiet(() => { e.applyLocationLabel('B Lobby'); e.applyMapRead('Sunset'); e.applyMapRead('Sunset'); });
+  check('  two agreeing contradictions inside what the labels leave still correct it', e.matchContext.map === 'Sunset');
+}
+{
+  const e = new CoachingEngine({});
+  quiet(() => { e.applyLocationLabel('B Market'); e.applyLocationLabel('Mid Top'); });
+  quiet(() => { e.applyLocationLabel('A Long'); e.applyLocationLabel('A Long'); });
+  check('  a map the labels named outright is never released', e.mapConfirmedByLabels && e.matchContext.map === 'Sunset',
+    `map ${e.matchContext.map}`);
+}
+{
+  // A MAP THE GAME DATA DOES NOT KNOW, one released after the last sync, has
+  // no labels in the index, so every label it prints would read as one it
+  // lacks. The labels can say nothing about it, as the server's labelFitsMap
+  // has no opinion on it either.
+  const e = lockedOn('Tundra');
+  quiet(() => { e.applyLocationLabel('B Lobby'); e.applyLocationLabel('B Main'); });
+  check('  a map the game data does not know keeps its lock whatever is printed', e.matchContext.map === 'Tundra',
+    `became ${e.matchContext.map}`);
+  const f = new CoachingEngine({});
+  quiet(() => { f.applyLocationLabel('B Lobby'); f.applyMapRead('Tundra'); f.applyMapRead('Tundra'); });
+  check('  and locks on two agreeing reads, never refused', f.matchContext.map === 'Tundra', `map ${f.matchContext.map}`);
+}
+
 function mapsOf(label) {
   return mapFromLabels([label]).candidates.length;
 }

@@ -35,6 +35,15 @@ router.get('/coaching', (req, res) => {
 // GET /api/admin/costs
 // Protected by ADMIN_PASSWORD env var, sent as the X-Admin-Password header
 // Returns cost tracking data from the coach module
+//
+// WHAT THE MODEL CALLS COST (8.3.1). `spend` is the provider's own figure for
+// every call, today and this month, by route (read, forensics, review, chat,
+// rivals, other): `real` what OpenRouter said each call cost, `estimated` the
+// flat price for the calls it said nothing about (another provider, a call
+// aborted at its deadline), `cost` the two together, `priced` how many calls
+// carried a cost of their own. `global` is the calls as the routes count them
+// and the flat estimate beside them, as before; `topUsers` carries each
+// licence's spend too. All of it since the process started (`since`).
 router.get('/costs', (req, res) => {
   if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -46,14 +55,19 @@ router.get('/costs', (req, res) => {
     return res.status(500).json({ error: 'Cost data unavailable' });
   }
 
-  const { costStore, globalStats } = coachModule;
+  const { costStore, globalStats, costs } = coachModule;
+  const spend = costs.report(null);
 
   // Top 10 by calls today. Each user is the same 8 character hash the live
   // view shows, so a row here can be matched to a person there, and no part of
   // a licence key leaves the server: this used to print its first 8 characters.
   const byKey = [];
   for (const [key, stats] of costStore.entries()) {
-    byKey.push({ user: hashOf(String(key).trim().toUpperCase()), callsToday: stats.callsToday, callsMonth: stats.callsMonth, costToday: +stats.costToday.toFixed(4), costMonth: +stats.costMonth.toFixed(4) });
+    const own = costs.report(String(key).trim().toUpperCase());
+    byKey.push({ user: hashOf(String(key).trim().toUpperCase()), callsToday: stats.callsToday, callsMonth: stats.callsMonth,
+      costToday: own.today.cost, costMonth: own.month.cost,
+      estCostToday: +stats.costToday.toFixed(4), estCostMonth: +stats.costMonth.toFixed(4),
+      spendToday: own.today, spendMonth: own.month });
   }
   byKey.sort((a, b) => b.callsToday - a.callsToday);
 
@@ -61,12 +75,15 @@ router.get('/costs', (req, res) => {
     global: {
       callsToday:  globalStats.callsToday,
       callsMonth:  globalStats.callsMonth,
-      costToday:   +globalStats.costToday.toFixed(4),
-      costMonth:   +globalStats.costMonth.toFixed(4),
+      costToday:   spend.today.cost,
+      costMonth:   spend.month.cost,
       estCostToday:  '$' + globalStats.costToday.toFixed(4),
       estCostMonth:  '$' + globalStats.costMonth.toFixed(4),
     },
+    spend: { today: spend.today, month: spend.month, routes: costs.routes, flatPerCall: costs.perCall,
+      asksProvider: costs.asking() },
     topUsers: byKey.slice(0, 10),
+    since: costs.since,
     asOf: new Date().toISOString(),
   });
 });

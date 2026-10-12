@@ -171,6 +171,45 @@ ok(insFed.mistakes.some((e) => e.key === 'lost-advantage'), 'two rounds thrown f
 ok(!insFed.missed.some((e) => e.key === 'cause:dry-peek'), 'a repeated cause is not listed again as a single miss');
 ok(insights.valorant(rounds.slice(0, 2)).mistakes.length === 0, 'two rounds are too few to call anything a pattern');
 
+// ── Strengths a short match earned ──────────────────────────────────────────
+// The player's 7 round Sunset swiftplay won its scoreboard, beat their own
+// Duelist average, had a four kill round and opened two rounds, and came back
+// with no strength at all: every floor was a count sized for 24 rounds. The
+// match below is that shape with other numbers.
+{
+  const R = (n, o) => ({ n, side: n <= 4 ? 'attacking' : 'defending', result: 'lost', died: true, deathSpot: null,
+    early: false, planted: false, verified: true, kills: 1, firstKill: false, firstDeath: false, traded: false, trades: 0,
+    afterPlant: false, reads: [], ...o });
+  const seven = [R(1), R(2, { kills: 2 }), R(3), R(4, { result: 'won', died: false, kills: 4, firstKill: true, trades: 1 }),
+    R(5, { result: 'won', died: false }), R(6, { kills: 1, firstKill: true, trades: 1 }), R(7, { kills: 0 })];
+  const scoreline = { kills: 9, deaths: 5, assists: 2, acs: 300 };
+  const vs = [{ label: 'ACS', value: 300, baseline: 270, delta: 30, better: true, games: 5 }];
+  const got = insights.valorant(seven, { role: 'Duelist', scoreline, against: vs });
+  const s = (k) => got.strengths.find((e) => e.key === k);
+  ok(s('first-kill') && s('first-kill').count === 2, `two opening kills in seven rounds open rounds (${got.strengths.map((e) => e.key)})`);
+  ok(s('multi-kill') && s('multi-kill').detail === '4 kills in round 4.', `one four kill round is a multi kill round (${s('multi-kill') && s('multi-kill').detail})`);
+  ok(s('trades') && s('trades').count === 2, 'and two trades in seven rounds traded your teammates');
+  ok(s('scoreline') && s('scoreline').detail === '9 kills against 5 deaths, and 300 combat score a round against your '
+    + 'Duelist average of 270, over 5 matches.' && s('scoreline').count === 1,
+  `and the scoreboard is one (${s('scoreline') && s('scoreline').detail})`);
+  const flat = insights.valorant(seven, { role: 'Duelist', scoreline: { kills: 7, deaths: 5, acs: 280 },
+    against: [{ label: 'ACS', value: 280, baseline: 270, delta: 10, better: true, games: 5 }] });
+  ok(!flat.strengths.some((e) => e.key === 'scoreline'), 'a K/D of 1.4, or a combat score a few points over the average, is not');
+  const acsOnly = insights.valorant(seven, { role: 'Duelist', scoreline: { kills: 6, deaths: 5, acs: 300 }, against: vs });
+  ok(acsOnly.strengths.some((e) => e.key === 'scoreline' && e.detail === '300 combat score a round against your Duelist '
+    + 'average of 270, over 5 matches.'), 'a combat score a tenth over the average is, on its own');
+  // Not cheaper for a long match: two opening kills in 24 rounds is under it.
+  const long = Array.from({ length: 24 }, (_, i) => R(i + 1, { firstKill: i === 3 || i === 9 }));
+  ok(!insights.valorant(long, { role: 'Duelist' }).strengths.some((e) => e.key === 'first-kill'),
+    'and two opening kills in 24 rounds still are not');
+  // The review hands its scoreboard and the player's own average to the lists.
+  const shown = review.build({ rounds: seven, context: { map: 'Sunset', teamScore: 2, enemyScore: 5 }, endedBy: 'score', ai: {},
+    tracker: { result: 'Defeat', score: '2-5', kills: 9, deaths: 5, assists: 2, acs: 300, adr: 180, kd: 1.8, headshotPct: 20 },
+    role: 'Duelist', history: [250, 270, 290].map((acs) => ({ role: 'Duelist', acs })) });
+  ok(shown.insights.strengths.some((e) => e.key === 'scoreline' && /against your Duelist average of 270, over 3 matches\.$/.test(e.detail)),
+    `the built review says so (${shown.insights.strengths.map((e) => e.key)})`);
+}
+
 // The review carries both.
 const built = review.build({ rounds, context: abyss.context, endedBy: 'score', ai: {}, tracker: null, role: 'Duelist',
   history: [], riotMe: { kills: 31, deaths: 21, assists: 4, score: 9168 } });

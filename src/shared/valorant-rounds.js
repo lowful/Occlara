@@ -24,6 +24,13 @@
  * Pure module, no Electron, so the tests replay real logged sessions through it.
  */
 
+let DATA = {};
+try {
+  DATA = require('./valorant-data.generated.json');
+} catch {
+  DATA = {};
+}
+
 const MAX_READS_PER_ROUND = 3;
 const MAX_LOCS_PER_ROUND = 4;
 // The round timer starts at 1:40 once the barriers drop. A death with this much
@@ -34,6 +41,16 @@ const EARLY_DEATH_LEFT = 70;
 const MID_ROUND_LEFT = 15;
 // The longest buy phase is a pistol round's 45 seconds; every other one is 30.
 const BUY_MAX_LEFT = 45;
+const BUY_SECONDS = 30;
+// Two buy timers that put the start of their buy phase this close together are
+// one buy phase read twice.
+const BUY_AGREE_MS = 2000;
+// A buy phase whose clock says it began this long after the last frame that
+// could only be play needs no second read to be believed.
+const BUY_CLEAR_MS = 3000;
+// The ultimate read ready while alive, on reads this far apart at least,
+// before a death can be said to have held it (see the ultimate, below).
+const ULT_HELD_MS = 6000;
 
 /** "1:05" -> 65, anything unreadable -> null. */
 function clockSeconds(clock) {
@@ -73,6 +90,98 @@ function deathSpotOf(v) {
   return s && !SPAWN.test(s) ? s : null;
 }
 
+/*
+ * WHAT A READ OF THE PLAYER'S OWN PLAY IS NOT.
+ *
+ * A round card's reads, and the round lines the model writes from them, are
+ * meant to say what the player was doing when the round turned. On the
+ * player's own Sunset swiftplay (8.3.0, a read a second) every read on every
+ * card was the BUY PHASE: the ledger kept the first three notes of a round,
+ * and at a read a second the first thirty are the buy phase. So the cards said
+ * "standing in A Lobby during buy phase" and "player holding Classic in spawn
+ * during buy phase", and the review was written from them: "Standing idle in
+ * spawn during buy phase was the repeated mistake", and "Opening menus in
+ * spawn delays your movement" over the four kill round. Everyone stands in
+ * spawn with a pistol in the buy phase; it is never what decided a round.
+ *
+ * The frame's own state decides most of it: a read is kept from a frame in
+ * play, with the player alive (observe, below). This is what the state cannot
+ * tell. The model wrote "during buy phase" on frames it read as active with
+ * the round clock running (8 of them in that match, at 1:36 down to 1:15),
+ * and the combat report, the scoreboard, a surrender vote and the spectator
+ * camera on frames whose alive flag the engine still held, the death screen
+ * the second after a death included ("dead, combat report open while spike is
+ * planted on A").
+ */
+const NOT_PLAY = /\b(buy|buying|bought|barriers?|menus?|overlay|scoreboard|combat report|death recap|damage (?:taken|dealt)|(?:big|full|large) map|map (?:is )?open|surrender|vote|kill ?cam|death ?cam|killed by|dead|died|death|spectat\w*|switch player|team ace|banner|eliminated|round (?:won|lost|over)|match point|before swap|victory|defeat)\b/i;
+
+/** The words that make a note something other than the player's own play, or null. */
+function notPlay(text) {
+  const m = NOT_PLAY.exec(String(text || ''));
+  return m ? m[0] : null;
+}
+
+/*
+ * NO READ NAMES A PERSON. The model copies the name tags it sees: "teammate
+ * Siyho ahead", "player watching Slycho walk through B Site", "teammate Jax
+ * runs up the steps" are three of that match's reads, and the review is saved,
+ * shown, and sent to the review model. The game's own names are fine: an
+ * agent, a weapon, a callout, an ability, and the words its HUD prints. So a
+ * capitalised word none of those lists know is a name, and so is any word
+ * straight after "teammate" or "ally" that is not one of them or plain words.
+ */
+const PLAIN_WORDS = `a an the and or but of by for to in on at into onto from with without within near nearby
+  next behind beside inside outside under over above below across around past through toward towards ahead
+  close far back front side left right center centre middle upper lower top bottom corner is are was were be
+  been has have had who that which while still only just also already then now there here not no one two three
+  four five six seven eight nine ten first second third last own player players player's you your we our they
+  their them he she his her it its teammate teammates ally allies enemy enemies team mate mates
+  holding holds held standing stands crouching crouched moving moves running runs walking walks peeking peeks
+  aiming aims firing fires shooting shoots looking looks checking checks rotating rotates pushing pushes
+  entering enters retaking retakes waiting waits hiding jumping using uses reloading reloads scoped scoping
+  watching watches covering covers trading trades fighting fights planting plants defusing defuses lurking
+  clearing clears swinging swings jiggling falling dropping following follows going goes coming comes
+  grouped stacked stacking clustered spread spotted pinged calling marked visible alive alone together low
+  high full empty half fast slow quick quickly slowly up down out off open closed opened
+  hp health shield armor armour number numbers icon icons bar ult ultimate orbs orb ready charging charged
+  signature ability abilities dash smoke smokes flash flashes wall walls utility util spike planted plant
+  defuse defuser carried carrier carrying dropped knife gun weapon weapons pistol rifle sniper sidearm primary
+  secondary op minimap map round rounds clock timer kill kills killed assist assists trade traded shot shots
+  hit hits damage frag frags fight fights duel duels angle angles corner corners crosshair scope view camera
+  screen hud prompt card name names live ace won lost kayo heaven hell default box boxes crate crates pit logs
+  lane steps cover`;
+
+const NAMED = (() => {
+  const out = new Set();
+  const add = (s) => {
+    for (const w of String(s || '').toLowerCase().split(/[^a-z0-9'/]+/)) if (w) out.add(w.replace(/'s$/, ''));
+  };
+  add(PLAIN_WORDS);
+  for (const [agent, a] of Object.entries(DATA.agents || {})) {
+    add(agent);
+    for (const ability of (a && a.abilities) || []) add(ability);
+  }
+  for (const w of Object.keys(DATA.weapons || {})) add(w);
+  for (const m of DATA.maps || []) add(m);
+  for (const w of Object.keys(DATA.mapCallouts || {})) add(w);
+  for (const g of Object.values(DATA.mapGeometry || {})) for (const c of (g && g.callouts) || []) add(c && c.n);
+  return out;
+})();
+const PERSON_BEFORE = new Set(['teammate', 'teammates', 'ally', 'allies']);
+
+/** The word in a note that is a person's name, or null. */
+function namesSomeone(text) {
+  const toks = String(text || '').split(/[^A-Za-z0-9'/]+/).filter(Boolean);
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    const w = t.toLowerCase().replace(/'s$/, '');
+    if (NAMED.has(w) || /^\d+$/.test(w)) continue;
+    if (/[A-Z]/.test(t)) return t;
+    if (i > 0 && PERSON_BEFORE.has(toks[i - 1].toLowerCase())) return t;
+  }
+  return null;
+}
+
 /** Two reads of the same moment, reworded. Word overlap, no regex. */
 function sameRead(a, b) {
   const words = (t) => new Set(String(t).toLowerCase().split(/[^a-z0-9']+/).filter((w) => w.length > 2));
@@ -105,12 +214,17 @@ class RoundLedger {
         deathSpot: null,
         deathClock: null,     // seconds left on the round timer at death, when read
         deathPhase: null,
-        ultAtDeath: null,     // the last ult read while alive, before the death
-        ultSeen: null,        // 'ready' once a ready read landed this round
+        afterPlant: false,    // a plant was seen in this round before the death
+        ultAtDeath: null,     // the ultimate as it stood while alive, at the death
+        ultSeen: null,        // 'ready' once a ready read was confirmed this round
+        ult: null,            // 'ready' | 'charging' | null, as it stands while alive
+        ultRun: null,         // { n, from } ready reads in a row while alive, unconfirmed
         planted: false,
         plantSpot: null,
         locs: [],             // distinct locations, in the order first seen
-        reads: [],            // the coach's reads for this round, deduplicated
+        reads: [],            // the old live tips shown this round, deduplicated
+        notes: [],            // what the coach saw the player do in play, the latest last
+        notesAtDeath: null,   // those notes as they stood at the death
         bought: false,        // a buy phase frame landed in this round
         played: false,        // an active or post-plant frame landed in this round
         frames: 0,
@@ -199,6 +313,16 @@ class RoundLedger {
     // the buy phase misread. At a read a second both happened every few rounds,
     // and each one advanced the ledger a round that had not started.
     const at = typeof f.at === 'number' ? f.at : null;
+    // THE CLOCK THIS FRAME READ, which is not always the clock it carries: the
+    // engine holds the last clock it read when a read has none, so a post plant
+    // frame with no timer on it arrives with the "0:39" a misread put there
+    // three frames before. A clock that has not moved in a second and a half
+    // was not read now. It still dates a death (the last clock before it is
+    // the best there is); it no longer starts or extends a buy phase.
+    const clockText = String(f.clock || '').trim();
+    if (clockText && (!this.clockSeen || this.clockSeen.text !== clockText)) this.clockSeen = { text: clockText, at };
+    const clockRead = clockText && at !== null && this.clockSeen && this.clockSeen.at !== null
+      && at - this.clockSeen.at >= 1500 ? null : clockLeft;
     // And a "buy" read whose clock carries on the round clock seen a moment
     // ago is that round still counting down: at 0:30, two seconds after an
     // active 0:32, it moved the ledger to round 10 in the middle of round 9.
@@ -225,16 +349,41 @@ class RoundLedger {
         && (clockLeft === null || clockLeft <= BUY_MAX_LEFT)) {
       phase = 'buy';
     }
-    if (phase === 'buy' && at !== null && clockLeft !== null && clockLeft <= BUY_MAX_LEFT) {
-      this.buyEndsAt = at + clockLeft * 1000;
+    // A buy read once play has been seen is the next round's buy phase only
+    // when it can be one (buyVerdict); otherwise it is play misread, and it
+    // neither advances a round nor starts a buy timer.
+    let advance = false;
+    if (phase === 'buy' && this.since.played) {
+      const verdict = this.buyVerdict(at, clockRead, clockText);
+      if (verdict === 'new') advance = true;
+      else if (verdict === 'misread') {
+        phase = null;
+        // And the number it read is no round clock, so a death on the frames
+        // that still carry it keeps no timing: on a real swiftplay a "buy 0:29"
+        // read during a post plant was carried for nine seconds onto the frame
+        // that registered the death, which then read 71 seconds into a round
+        // Riot has the death 51 seconds into.
+        if (clockRead !== null && this.clockSeen) this.clockSeen.misread = true;
+      }
     }
-    if (at !== null && clockLeft !== null
-        && ((phase === 'active' && (clockLeft > BUY_MAX_LEFT || carriesOn(clockLeft))) || phase === 'postplant')) {
-      this.lastPlayClock = { at, left: clockLeft, phase };
+    if (phase === 'buy' && at !== null && clockRead !== null && clockRead <= BUY_MAX_LEFT) {
+      this.buyEndsAt = at + clockRead * 1000;
     }
-    if (phase === 'buy' && this.since.played && this.offset < 1) {
+    // The chain is anchored on a clock read on the frame: a post plant frame
+    // carrying the "0:39" a misread left anchored it there, and the real buy
+    // timer seven seconds later then "carried on" that clock and was taken for
+    // the round still being played.
+    const anchored = at !== null && clockRead !== null
+      && ((phase === 'active' && (clockRead > BUY_MAX_LEFT || carriesOn(clockRead))) || phase === 'postplant');
+    if (anchored) this.lastPlayClock = { at, left: clockRead, phase };
+    // The last frame that can only be play: the round timer read on it, or
+    // the spike down, with or without a clock (Valorant prints no spike timer,
+    // so most post plant frames carry none). A buy phase begins after it.
+    if (at !== null && (anchored || phase === 'postplant')) this.lastPlayAt = at;
+    if (advance && this.offset < 1) {
       this.offset++;
       this.since = { bought: false, played: false, frames: 0 };
+      this.buyCandidate = null;
     }
     const n = this.base + this.offset;
     const r = this.entry(n);
@@ -275,11 +424,33 @@ class RoundLedger {
       home.planted = true;
       home.plantSpot = home.plantSpot || cleanSpot(f.spikeSpot);
     }
-    // The ult icon belongs to the spectated teammate once the player is dead,
-    // so only a read taken while alive and before the death counts.
-    if (!r.died && f.alive !== false && (f.ult === 'ready' || f.ult === 'charging')) {
-      r.ultAtDeath = f.ult;
-      if (f.ult === 'ready') r.ultSeen = 'ready';
+    // THE ULTIMATE, as it stood while the player was alive. The icon belongs
+    // to the spectated teammate once the player is dead, so only a read taken
+    // alive counts, and a READY needs two of them. The engine keeps the last
+    // ult it read when a read leaves the field empty, so one misread carries:
+    // on the player's Sunset match one frame read "ready" with 3 of 8 pips lit,
+    // the frame after it was empty, and the false death two frames later was
+    // filed as "died holding your ultimate" in the review, its patterns, the
+    // missed list and the grade's Decisions. With the frame's own read (ultRead,
+    // when the engine sends it) two ready reads in a row while alive confirm
+    // it. With only the held value, ready over ULT_HELD_MS does: in round 5 of
+    // that match, its ultimate at 3 of 8 pips, two misread "ready" reads were
+    // held alive for 5.1 and 3 seconds, the first until a "charging" read, the
+    // second until the round ended.
+    const alive = f.alive !== false && phase !== 'dead';
+    const exact = Object.prototype.hasOwnProperty.call(f, 'ultRead');
+    const own = exact ? f.ultRead : f.ult;
+    if (alive && own === 'charging') {
+      r.ult = 'charging';
+      r.ultRun = null;
+    } else if (alive && own === 'ready') {
+      const run = r.ultRun || (r.ultRun = { n: 0, from: at });
+      run.n++;
+      const span = at !== null && run.from !== null ? at - run.from : null;
+      if (run.n >= 2 && (exact || span === null || span >= ULT_HELD_MS)) {
+        r.ult = 'ready';
+        r.ultSeen = 'ready';
+      }
     }
 
     if (f.died) {
@@ -289,6 +460,15 @@ class RoundLedger {
       const target = endOfLast ? prev : r;
       // One death per round. The engine already debounces a flapping read, and
       // a second registration in the same round is a misread, not a second life.
+      //
+      // NOT THE LATER ONE EITHER, though the player was read alive between
+      // them. Taking the later one was tried, for the player's Sunset match,
+      // where a "Spectating 1" counter registered a death at 100 health and the
+      // round's real death was refused for it, and measured: there the round
+      // boundary was the fault (buyVerdict), and on the real Abyss session
+      // round 23 the reads between were the spectator camera, alive at 1:09 and
+      // 1:00 after a death Riot has 12 seconds in, so the later registration
+      // moved the death 36 seconds late and to the teammate's spot.
       if (!target.died) {
         target.died = true;
         target.deathSpot = deathSpotOf(f.deathSpot) || deathSpotOf(loc);
@@ -298,24 +478,47 @@ class RoundLedger {
         // keeps no timing at all. The review turns what survives into a coarse
         // bucket, because a frame every ten seconds cannot place a death to
         // the second and a review that pretends to is lying about precision.
-        const timed = !endOfLast && this.since.played
+        const misread = !!(this.clockSeen && this.clockSeen.misread && this.clockSeen.text === clockText);
+        const timed = !endOfLast && this.since.played && !misread
           && clockLeft !== null && clockLeft >= 5 && clockLeft < ROUND_SECONDS;
         target.deathClock = timed ? clockLeft : null;
         target.deathPhase = endOfLast ? null : (phase || null);
+        target.ultAtDeath = target.ult;
+        target.afterPlant = target.planted;
+        target.notesAtDeath = target.notes.slice();
         this.lastDeathRound = target.n;
       }
     }
 
-    // A death review is ABOUT the round the player died in, and it usually
-    // lands in the next buy phase, so it is filed where the death was.
+    // What counts as play for what the coach saw: a frame mid round, the
+    // player alive, and not the round end banner, an active frame with under
+    // fifteen seconds on the clock.
+    const play = midRound && alive && !(phase === 'active' && clockLeft !== null && clockLeft < MID_ROUND_LEFT);
+
     // WHAT THE COACH SAW this frame, a fact about the player ("holding A Main
     // alone"). Live tips used to fill these lines; the reader writes no tips.
-    if (f.note) {
+    //
+    // ONLY PLAY, AND THE LAST OF IT. A note is kept from a frame in play with
+    // the player alive (above), and never one that is about the buy phase, a
+    // menu, the scoreboard, the combat report, the spectator camera or a
+    // banner (notPlay), or that names a person (namesSomeone). And the round
+    // keeps the LAST three, frozen at the death, because what the player was
+    // doing when the round turned is what explains it: the first three of a
+    // round read a second are its buy phase. Replayed, that Sunset match's
+    // round 6 reads "holding Mid Courtyard, enemy spotted mid", "holding Mid
+    // Courtyard alone with knife out" and "player holding Mid Courtyard with
+    // low HP", the last a tenth of a second before the death, where its card
+    // had three reads of round 5's post plant.
+    if (f.note && play) {
       const text = String(f.note).trim();
-      if (text && !r.reads.some((x) => sameRead(x.text, text)) && r.reads.length < MAX_READS_PER_ROUND) {
-        r.reads.push({ text, death: false, seen: true });
+      if (text && !notPlay(text) && !namesSomeone(text)) {
+        r.notes = r.notes.filter((x) => !sameRead(x.text, text));
+        r.notes.push({ text, death: false, seen: true });
+        if (r.notes.length > MAX_READS_PER_ROUND) r.notes.shift();
       }
     }
+    // A death review is ABOUT the round the player died in, and it usually
+    // lands in the next buy phase, so it is filed where the death was.
     const t = f.tip;
     if (t && t.text && t.source === 'ai') {
       const home = t.death && this.lastDeathRound && this.rounds.get(this.lastDeathRound)
@@ -325,6 +528,65 @@ class RoundLedger {
         home.reads.push({ text, death: !!t.death });
       }
     }
+  }
+
+  /**
+   * A "buy" read once play has been seen since the last boundary: the next
+   * round's buy phase ('new'), the buy phase already counting down read again
+   * ('running'), or play misread as a buy phase ('misread').
+   *
+   * MEASURED ON THE PLAYER'S SUNSET SWIFTPLAY, where the ledger ran a round
+   * ahead twice and filed round 4 and half of round 5 under the wrong numbers:
+   *
+   *   running  in round 4's buy phase a play read inside the buy timer set
+   *            "played", and the next buy read, "0:07", advanced the round,
+   *            though its clock carried on the "0:17" read ten seconds before
+   *            it: both ran out at the same second.
+   *   misread  in round 5's post plant a frame read "buy 0:39" off the ammo
+   *            counter, "13 | 39", a second after a post plant read, and
+   *            advanced the round. Its spike, its death and its reads went to
+   *            round 6, and round 6's real death was refused for it.
+   *
+   * So a buy phase never begins inside a buy timer already accepted, and a new
+   * one needs a clock that puts its start AFTER the last frame that could only
+   * be play (lastPlayAt): a buy timer of 0:39 read at t began at t - 6 s (45 s
+   * buy phases run past 0:30, 30 s ones never do). A start more than
+   * BUY_CLEAR_MS after that frame is believed at once; one closer than that
+   * needs a second read that agrees on it within BUY_AGREE_MS, the two
+   * agreeing reads every other jump here needs, because a misread buy timer
+   * lands on any number and the post plant's last read can be a second
+   * before it. In that post plant four misread timers in a row put their
+   * starts 3 to 14 seconds BEFORE the last post plant read, and the fifth
+   * 0.08 seconds after it, alone. A buy read with no clock never begins one:
+   * in that match ten of the twelve were frames in play, the last of them 18
+   * seconds after the last post plant read, and the read after each of the
+   * two real ones had its timer.
+   *
+   * THE SECOND READ IS ANOTHER SECOND OF THE TIMER, never the first read again
+   * (`text`, the clock as the frame carries it). A buy timer runs, so a read
+   * that confirms one shows a later second. The same clock is one read: the
+   * engine's held copy of it on a frame whose read left the timer empty (in
+   * that post plant the frame after the first "buy 0:39" read buy with no
+   * timer, and arrived carrying 0:39), or one still number misread twice, an
+   * ammo counter that has not moved. Taken for two, a misread followed by its
+   * copy a second later began round 6 in round 5's post plant again.
+   */
+  buyVerdict(at, left, text) {
+    if (at === null) return 'new';
+    if (this.buyEndsAt && at < this.buyEndsAt + 1000) return 'running';
+    if (left === null) return 'misread';
+    const start = at - ((left > BUY_SECONDS ? BUY_MAX_LEFT : BUY_SECONDS) - left) * 1000;
+    const last = typeof this.lastPlayAt === 'number' ? this.lastPlayAt : -Infinity;
+    if (start <= last) {
+      this.buyCandidate = null;
+      return 'misread';
+    }
+    if (start - last >= BUY_CLEAR_MS) return 'new';
+    const c = this.buyCandidate;
+    if (c && c.text === text) return 'misread';
+    if (c && Math.abs(c.start - start) <= BUY_AGREE_MS) return 'new';
+    this.buyCandidate = { start, text };
+    return 'misread';
   }
 
   /**
@@ -353,8 +615,13 @@ class RoundLedger {
         into.deathClock = e.deathClock;
         into.deathPhase = e.deathPhase;
         into.ultAtDeath = e.ultAtDeath;
+        into.afterPlant = e.afterPlant || into.planted;
+        // What the coach saw before that death: this round's play, then the
+        // folded round's up to it, the latest three.
+        into.notesAtDeath = [...into.notes, ...(e.notesAtDeath || [])].slice(-MAX_READS_PER_ROUND);
       }
       if (e.ultSeen) into.ultSeen = e.ultSeen;
+      if (e.ult) { into.ult = e.ult; into.ultRun = e.ultRun; }
       if (e.planted && !into.planted) { into.planted = true; into.plantSpot = e.plantSpot; }
       for (const l of e.locs) {
         if (into.locs.length < MAX_LOCS_PER_ROUND && !into.locs.some((x) => x.toLowerCase() === l.toLowerCase())) into.locs.push(l);
@@ -362,6 +629,11 @@ class RoundLedger {
       for (const r of e.reads) {
         if (into.reads.length < MAX_READS_PER_ROUND && !into.reads.some((x) => sameRead(x.text, r.text))) into.reads.push(r);
       }
+      for (const x of e.notes) {
+        into.notes = into.notes.filter((y) => !sameRead(y.text, x.text));
+        into.notes.push(x);
+      }
+      into.notes = into.notes.slice(-MAX_READS_PER_ROUND);
       into.bought = into.bought || e.bought;
       into.played = into.played || e.played;
       this.rounds.delete(n);
@@ -401,11 +673,19 @@ class RoundLedger {
         const side = entries.length ? entries[0][0] : null;
         const early = r.died && r.deathClock !== null && r.deathPhase !== 'postplant'
           && !r.planted && r.deathClock >= EARLY_DEATH_LEFT;
+        // The old live tips first, which only a match from the tip era has,
+        // then what the coach saw in play: up to the death in a round the
+        // player died in, to the end of the round otherwise.
+        const seen = r.died ? (r.notesAtDeath || []) : r.notes;
         return {
           n: r.n, side, result: r.result, died: r.died, deathSpot: r.deathSpot,
           deathClock: r.deathClock, early, ultAtDeath: r.died ? r.ultAtDeath : null,
+          // Whether a plant was seen before the death, the screen's half of
+          // Riot's afterPlant: a round the player died in before the spike went
+          // down is not a post plant or a retake they played.
+          afterPlant: r.died ? !!r.afterPlant : false,
           ultSeen: r.ultSeen, planted: r.planted, plantSpot: r.plantSpot,
-          locs: r.locs.slice(), reads: r.reads.slice(), frames: r.frames,
+          locs: r.locs.slice(), reads: [...r.reads, ...seen].slice(0, MAX_READS_PER_ROUND), frames: r.frames,
         };
       });
   }
@@ -416,4 +696,5 @@ class RoundLedger {
   current() { return this.base ? this.base + this.offset : null; }
 }
 
-module.exports = { RoundLedger, clockSeconds, isBuyPhase, EARLY_DEATH_LEFT, ROUND_SECONDS, BUY_MAX_LEFT, MID_ROUND_LEFT };
+module.exports = { RoundLedger, clockSeconds, isBuyPhase, notPlay, namesSomeone, NOT_PLAY,
+  EARLY_DEATH_LEFT, ROUND_SECONDS, BUY_MAX_LEFT, MID_ROUND_LEFT };

@@ -17,7 +17,7 @@ function create() {
 
   const win = new BrowserWindow({
     width:  480,
-    // Sized to the TALLEST of the four tour pages, not the sum of them. This
+    // Sized to the TALLEST of the five tour pages, not the sum of them. This
     // was 940 back when the tour was one long scroll of five numbered steps;
     // after it was split into pages that left most of the card empty. Pages
     // centre their content, so a snug height keeps every page balanced.

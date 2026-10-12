@@ -15,7 +15,16 @@
  * itself, and passed with every one of those broken.
  *
  * In order:
- *   - the tour pages fit their card; the Riot ID page before a Connect
+ *   - the tour pages fit their card
+ *   - How Occlara watches (8.3.1): the PC check on this PC as it is, its
+ *     facts the ones main reads and its line the one the rules give for what
+ *     the GPU's encoder answers here, saved through the real store; then PCs
+ *     stood in for (main's facts by pc-check.js's gather, the GPU's answers
+ *     by a VideoEncoder laid over the page's, since this check runs with
+ *     hardware acceleration off and the encoder then refuses everything): a
+ *     PC that records at 1080p, both choices clicked, a modest PC, a full
+ *     drive, and the tour shown again to a player who chose Off
+ *   - the Riot ID page before a Connect
  *   - a Riot ID edited while it was being checked: its error, not connected,
  *     and nothing graded
  *   - a profile that could not be loaded right now: connected, worded
@@ -66,7 +75,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: Connect grades through the real app, the Riot ID page and Settings follow the run, and the tour fits its card');
+  console.log('PASS: How Occlara watches checks this PC and saves its choice, Connect grades through the real app, the Riot ID page and Settings follow the run, and the tour fits its card');
   process.exit(0);
 }
 
@@ -233,10 +242,13 @@ const FITS = (n) => `(() => {
 /**
  * A picture of one window, when OCCLARA_ONBOARDING_SHOTS names a folder,
  * scrolled to the section holding the element `focus` names when it scrolls.
+ * Settings is a page of the main window since 8.1, handed in as its
+ * { webContents } (fixtures/surfaces.js), which has no isDestroyed of its
+ * own: asked of it, the pictures stopped the check at the first Settings one.
  */
 const SHOTS = process.env.OCCLARA_ONBOARDING_SHOTS || '';
 async function shot(win, name, focus) {
-  if (!SHOTS || !win || win.isDestroyed()) return;
+  if (!SHOTS || !win || !win.webContents || win.webContents.isDestroyed()) return;
   try {
     // The windows are transparent; the app's own ground keeps the card legible.
     await win.webContents.executeJavaScript(`(() => {
@@ -309,10 +321,197 @@ setTimeout(async () => {
     if (over2) return report(false, `the After every match page overflows its card: ${over2}`);
     if (!red2) return report(false, 'Next lost its red on a page with nothing else to press');
 
-    // ── The Riot ID page, before anything connects ─────────────────────────
+    // ── How Occlara watches: the PC check, both choices, what they save ─────
+    // Through the real preload, the real PC_CHECK handler and the real store.
+    const pcCheck = require(path.join(REPO, 'src/main/services/pc-check'));
+    const pcRules = require(path.join(REPO, 'src/renderer/onboarding/pc-rules'));
+    const store = require(path.join(REPO, 'src/main/services/store'));
+    const GB = 1024 * 1024 * 1024;
+    const WATCH = `(() => {
+      const $ = (id) => document.getElementById(id);
+      const line = $('ob-pc-line');
+      const sizes = [...document.querySelectorAll('#ob-res button')];
+      return {
+        checking: line.classList.contains('checking'),
+        line: line.textContent,
+        facts: [...document.querySelectorAll('#ob-pc-facts dd')].map((d) => d.textContent),
+        rec: $('ob-rec').getAttribute('aria-checked') === 'true',
+        frames: $('ob-frames').getAttribute('aria-checked') === 'true',
+        recOff: $('ob-rec').disabled,
+        res: sizes.filter((b) => b.classList.contains('active')).map((b) => b.dataset.res).join(),
+        open: sizes.filter((b) => !b.disabled).map((b) => b.dataset.res).join(),
+        recTag: !$('ob-rec-tag').hidden,
+        framesTag: !$('ob-frames-tag').hidden,
+      };
+    })()`;
+    // What the store holds for the recorder: mode and size.
+    const recSaved = () => `${store.get('recordingMode')} ${store.get('recordingRes')}`;
+    const watched = () => until(async () => { const s = await js(WATCH); return s.checking ? null : s; }, 15000);
+    const click = (sel) => js(`document.querySelector(${JSON.stringify(sel)}).click(); true`).then(() => wait(300));
+
+    // This PC as it is. The check's userData is fresh: the store's defaults.
+    const facts = await pcCheck.gather();
     await js('go(3); true');
+    const here = await watched();
+    if (!here) return report(false, 'the PC check never finished on the How Occlara watches page');
+    // The GPU's answers to the very asks main gave the page, asked in it again.
+    const encoder = await js(`Promise.all(${JSON.stringify(facts.asks)}.map((a) => VideoEncoder.isConfigSupported({
+      codec: a.codec, width: a.width, height: a.height, bitrate: a.bitrate, framerate: 30, hardwareAcceleration: 'prefer-hardware',
+    }).then((s) => [a.res, !!(s && s.supported)], () => [a.res, false]))).then((x) => Object.fromEntries(x))`);
+    const want = pcRules.recommend({ ...facts, encoder });
+    const wantFacts = pcRules.factRows({ ...facts, encoder }).map((r) => r.v);
+    const wantSaved = want.recordable ? `${want.mode} ${want.res}` : 'off 720';
+    lines.push(`this PC: "${here.line}" facts=${JSON.stringify(here.facts)} encoder=${JSON.stringify(encoder)} `
+      + `record=${here.rec} frames=${here.frames} res=${here.res} saved="${recSaved()}"`);
+    await shot(win, 'onboarding-watch-0-this-pc');
+    if (here.line !== want.why) return report(false, `this PC's line is "${here.line}", the rules give "${want.why}"`);
+    // The free space can move between two reads: every fact but it exactly, and it to within a GB.
+    const freeGb = (s) => parseFloat(String(s));
+    if (JSON.stringify(here.facts.slice(0, 5)) !== JSON.stringify(wantFacts.slice(0, 5))
+      || Math.abs(freeGb(here.facts[5]) - freeGb(wantFacts[5])) > 1) {
+      return report(false, `the page lists ${JSON.stringify(here.facts)}, main read ${JSON.stringify(wantFacts)}`);
+    }
+    if (here.rec !== (wantSaved.startsWith('auto')) || here.frames === here.rec || recSaved() !== wantSaved) {
+      return report(false, `this PC: the page shows record=${here.rec}, the store holds "${recSaved()}", the rules want "${wantSaved}"`);
+    }
+    const over3 = await js(FITS(3));
+    lines.push(`how Occlara watches fits=${!over3}${over3 ? ` (${over3})` : ''}`);
+    if (over3) return report(false, `the How Occlara watches page overflows its card: ${over3}`);
+
+    // PCs stood in for: the tour loaded again, main telling it `f`, the GPU
+    // answering `yes` to each ask, and the store holding `mode` and `res`.
+    const realGather = pcCheck.gather;
+    const STAND = { ok: true, gpu: 'NVIDIA GeForce RTX 4070 Laptop GPU', cpu: 'Check CPU', threads: 16, ramBytes: 31.84 * GB,
+      display: { width: 1920, height: 1080 }, freeBytes: 200 * GB, drive: 'C:', asks: pcCheck.asks({ width: 1920, height: 1080 }) };
+    const standIn = async (f, yes, mode, res) => {
+      pcCheck.gather = async () => JSON.parse(JSON.stringify(f));
+      store.set('recordingMode', mode);
+      store.set('recordingRes', res);
+      const loaded = new Promise((r) => win.webContents.once('did-finish-load', r));
+      win.webContents.reload();
+      await loaded;
+      await until(() => js("document.getElementById('dots').children.length === 5"), 10000);
+      await js(`window.asked = []; window.VideoEncoder = { isConfigSupported: async (c) => { window.asked.push(c); return { supported: ${yes}, config: c }; } }; true`);
+      await js('go(3); true');
+      return watched();
+    };
+    try {
+      const big = await standIn(STAND, true, 'auto', '720');
+      const asked = await js('window.asked');
+      lines.push(`records at 1080p: "${big && big.line}" record=${big && big.rec} res=${big && big.res} tagged=${big && big.recTag} saved="${recSaved()}" asked=${JSON.stringify(asked)}`);
+      await shot(win, 'onboarding-watch-1-records-1080p');
+      if (!big || !big.rec || big.res !== '1080' || !big.recTag || recSaved() !== 'auto 1080') {
+        return report(false, 'a PC that records at 1080p, on a first run, did not pre select and save Record at 1080p');
+      }
+      const wantAsked = STAND.asks.map((a) => ({ codec: a.codec, width: a.width, height: a.height, bitrate: a.bitrate, framerate: 30, hardwareAcceleration: 'prefer-hardware' }));
+      if (JSON.stringify(asked) !== JSON.stringify(wantAsked)) return report(false, `the page asked the encoder ${JSON.stringify(asked)}`);
+      await click('#ob-frames');
+      const framesSaved = recSaved();
+      await click('#ob-res [data-res="1080"]');
+      const sizeSaved = recSaved();
+      await click('#ob-res [data-res="720"]');
+      lines.push(`clicked: Frames only saved "${framesSaved}", 1080p saved "${sizeSaved}", 720p saved "${recSaved()}"`);
+      if (framesSaved !== 'off 1080' || sizeSaved !== 'auto 1080' || recSaved() !== 'auto 720') {
+        return report(false, 'a choice clicked on the page did not reach the store as it was made');
+      }
+
+      const modest = await standIn({ ...STAND, ramBytes: 3.8 * GB, threads: 2 }, true, 'auto', '720');
+      lines.push(`a modest PC: "${modest && modest.line}" frames=${modest && modest.frames} tagged=${modest && modest.framesTag} record open=${modest && !modest.recOff} saved="${recSaved()}"`);
+      // The longest line the page has, two short facts named: the page still fits.
+      const overModest = await js(FITS(3));
+      await shot(win, 'onboarding-watch-2-modest');
+      if (overModest) return report(false, `the How Occlara watches page overflows its card with its longest line: ${overModest}`);
+      if (!modest || !modest.frames || !modest.framesTag || modest.recOff || recSaved() !== 'off 720') {
+        return report(false, 'a modest PC did not pre select and save Frames only with Record still open');
+      }
+
+      const fullDrive = await standIn({ ...STAND, freeBytes: 5.26 * GB }, true, 'auto', '1080');
+      await click('#ob-rec');
+      const fullAfter = await js(WATCH);
+      lines.push(`a full drive: "${fullDrive && fullDrive.line}" record disabled=${fullDrive && fullDrive.recOff} sizes open="${fullDrive && fullDrive.open}" saved="${recSaved()}" after a click record=${fullAfter.rec}`);
+      await shot(win, 'onboarding-watch-3-full-drive');
+      if (!fullDrive || !fullDrive.recOff || fullDrive.open !== '' || !fullAfter.frames || recSaved() !== 'off 1080' || !/5\.2 GB/.test(fullDrive.line)) {
+        return report(false, 'under 8 GB free, Record could be chosen, or Frames only was not saved');
+      }
+
+      const chose = await standIn(STAND, true, 'off', '720');
+      lines.push(`shown again after choosing Off: frames=${chose && chose.frames} record tagged=${chose && chose.recTag} saved="${recSaved()}"`);
+      await shot(win, 'onboarding-watch-4-chose-off');
+      if (!chose || !chose.frames || !chose.recTag || recSaved() !== 'off 720') {
+        return report(false, 'the tour shown again reset the Off the player had chosen');
+      }
+
+      // A saved 1080p the GPU refuses never records: the recorder's gate asks
+      // the same question before every recording. It was kept, shown picked
+      // and disabled at once; it is shown unavailable with its reason, and
+      // the recommended 720p picked and saved in its place.
+      const refused = await standIn(STAND, 'c.width < 1900', 'auto', '1080');
+      const refusedTitle = await js("document.querySelector('#ob-res [data-res=\"1080\"]').title");
+      lines.push(`a saved 1080p the GPU refuses: "${refused && refused.line}" res=${refused && refused.res} open="${refused && refused.open}" 1080p says "${refusedTitle}" saved="${recSaved()}"`);
+      await shot(win, 'onboarding-watch-5-saved-1080p-refused');
+      if (!refused || !refused.rec || refused.res !== '720' || refused.open !== '720' || recSaved() !== 'auto 720'
+        || refusedTitle !== 'Its encoder does not take 1080p.' || refused.line !== 'This PC can record at 720p. Its encoder does not take 1080p.') {
+        return report(false, 'a saved 1080p the GPU refuses was not shown unavailable with its reason, Record at 720p saved in its place');
+      }
+      // On a modest PC the line did not say it, so the reason is added: the
+      // longest line the page can have now, two short facts and the reason.
+      const refusedModest = await standIn({ ...STAND, ramBytes: 3.8 * GB, threads: 2 }, 'c.width < 1900', 'auto', '1080');
+      const overRefused = await js(FITS(3));
+      lines.push(`a modest PC whose GPU refuses a saved 1080p: "${refusedModest && refusedModest.line}" record=${refusedModest && refusedModest.rec} res=${refusedModest && refusedModest.res} saved="${recSaved()}" fits=${!overRefused}`);
+      await shot(win, 'onboarding-watch-5b-modest-refused');
+      if (overRefused) return report(false, `the How Occlara watches page overflows its card with its longest line: ${overRefused}`);
+      if (!refusedModest || !refusedModest.rec || refusedModest.res !== '720' || recSaved() !== 'auto 720'
+        || !/keep up\. Its encoder does not take 1080p\.$/.test(refusedModest.line)) {
+        return report(false, 'on a modest PC a saved 1080p the GPU refuses was not put right with its reason said');
+      }
+
+      // THE KEYS, as a player presses them: sendInputEvent is trusted input,
+      // so the browser's own click on Enter is in play, which a dispatched
+      // KeyboardEvent never shows. The choices are radios: an arrow moves
+      // between them and turns no page; Enter picks one and stays, and on
+      // Frames only, the page's last control, picks and goes on.
+      const keyed = await standIn(STAND, true, 'auto', '720');
+      if (!keyed || recSaved() !== 'auto 1080') return report(false, 'the keyboard walk did not start from Record at 1080p');
+      await js("window.keysSeen = 0; window.addEventListener('keydown', () => { window.keysSeen++; }, true); window.recClicks = 0; document.getElementById('ob-rec').addEventListener('click', () => { window.recClicks++; }); true");
+      const press = async (sel, code) => {
+        await js(`document.querySelector(${JSON.stringify(sel)}).focus(); true`);
+        win.focus();
+        win.webContents.focus();
+        win.webContents.sendInputEvent({ type: 'keyDown', keyCode: code });
+        if (code === 'Return') win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' });
+        win.webContents.sendInputEvent({ type: 'keyUp', keyCode: code });
+        await wait(400);
+        return js(`(() => ({ page: [...document.querySelectorAll('.page')].findIndex((p) => !p.hidden), on: document.activeElement && document.activeElement.id,
+          rec: document.getElementById('ob-rec').getAttribute('aria-checked') === 'true', frames: document.getElementById('ob-frames').getAttribute('aria-checked') === 'true',
+          recClicks: window.recClicks, keys: window.keysSeen }))()`);
+      };
+      // Each key judged as it lands: an Enter that turned the page put the
+      // next one on the last page, where Enter ends the tour.
+      const down = await press('#ob-rec', 'Down');
+      lines.push(`keys: an arrow on Record ${JSON.stringify(down)} saved="${recSaved()}"`);
+      if (!down.keys) return report(false, 'the keys sent never reached the page');
+      if (down.page !== 3 || down.on !== 'ob-frames' || !down.frames || recSaved() !== 'off 1080') {
+        return report(false, `an arrow on Record did not move to Frames only and pick it on the same page (${JSON.stringify(down)}, "${recSaved()}")`);
+      }
+      const enterRec = await press('#ob-rec', 'Return');
+      lines.push(`keys: Enter on Record ${JSON.stringify(enterRec)} saved="${recSaved()}"`);
+      await shot(win, 'onboarding-watch-6-enter-on-record');
+      if (enterRec.page !== 3 || !enterRec.rec || enterRec.recClicks !== 1 || recSaved() !== 'auto 1080') {
+        return report(false, `Enter on Record did not pick it once and stay on the page (${JSON.stringify(enterRec)}, "${recSaved()}")`);
+      }
+      const enterFrames = await press('#ob-frames', 'Return');
+      lines.push(`keys: Enter on Frames only ${JSON.stringify(enterFrames)} saved="${recSaved()}"`);
+      if (enterFrames.page !== 4 || recSaved() !== 'off 1080') {
+        return report(false, `Enter on Frames only, the page's last control, did not pick it and go on (${JSON.stringify(enterFrames)}, "${recSaved()}")`);
+      }
+    } finally {
+      pcCheck.gather = realGather;
+    }
+
+    // ── The Riot ID page, before anything connects ─────────────────────────
+    await js('go(4); true');
     await wait(300);
-    const shown = await js("!document.querySelector('.page[data-page=\"3\"]').hidden");
+    const shown = await js("!document.querySelector('.page[data-page=\"4\"]').hidden");
     const parts = await js("!!document.getElementById('ob-riot') && !!document.getElementById('ob-connect')");
     const adv = await js("!!document.querySelector('.page[data-page=\"2\"] #advanced')");
     const fresh = await page();
@@ -438,10 +637,10 @@ setTimeout(async () => {
       items: full,
     }));
     await wait(600);
-    const over3 = await js(FITS(3));
-    lines.push(`riot id page with a two line status, a two line summary and a full list fits=${!over3}${over3 ? ` (${over3})` : ''}`);
+    const over4 = await js(FITS(4));
+    lines.push(`riot id page with a two line status, a two line summary and a full list fits=${!over4}${over4 ? ` (${over4})` : ''}`);
     await shot(win, 'onboarding-3-fullest');
-    if (over3) return report(false, `the Riot ID page overflows its card with rows in it: ${over3}`);
+    if (over4) return report(false, `the Riot ID page overflows its card with rows in it: ${over4}`);
 
     // ── A Riot ID edited away from the one that connected ──────────────────
     // The line, the rows and Let's go were all about Busy#EUW. With another ID
@@ -562,7 +761,7 @@ setTimeout(async () => {
     const ajs = (s) => again.webContents.executeJavaScript(s);
     await until(() => ajs("document.getElementById('ob-riot').value === 'Me#EUW' && document.getElementById('dots').children.length > 0"), 8000);
     await wait(400);
-    await ajs('go(3); true');
+    await ajs('go(4); true');
     await wait(400);
     const rerun = await ajs(PAGE);
     lines.push(`tour again: field="${rerun.field}" status="${rerun.status}" next="${rerun.next}" reds=${JSON.stringify(rerun.reds)} rows=${rerun.rows.length}`);
@@ -590,7 +789,6 @@ setTimeout(async () => {
     // Main remembers the last Riot ID shown to exist (riotConnected): the Me
     // run listed its matches, so it is Me#EUW now. One shown to exist with no
     // profile kept is connected from the start too.
-    const store = require(path.join(REPO, 'src/main/services/store'));
     const remembered = store.get('riotConnected');
     lines.push(`remembered as connected: ${remembered}`);
     if (String(remembered || '').toLowerCase() !== 'me#euw') return report(false, `main did not remember the Riot ID its run proved (${remembered})`);
@@ -602,7 +800,7 @@ setTimeout(async () => {
     const tjs = (s) => third.webContents.executeJavaScript(s);
     await until(() => tjs("document.getElementById('ob-riot').value === 'Busy#EUW' && document.getElementById('dots').children.length > 0"), 8000);
     await wait(400);
-    await tjs('go(3); true');
+    await tjs('go(4); true');
     await wait(400);
     const plain = await tjs(PAGE);
     lines.push(`tour again, no ranked profile: status="${plain.status}" next="${plain.next}"`);

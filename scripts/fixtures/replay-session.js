@@ -31,8 +31,13 @@ function engineClass() {
     }
     return realLoad(request, parent, isMain);
   };
+  // A FRESH copy, whoever loaded the engine first. Cached by an earlier require
+  // (ai-log-timeline.js loads it), the engine kept the real network client and
+  // a replay posted its match's review to the live server.
+  const file = require.resolve(path.join(REPO, 'src', 'main', 'services', 'coaching-engine.js'));
+  delete require.cache[file];
   try {
-    return require(path.join(REPO, 'src', 'main', 'services', 'coaching-engine.js'));
+    return require(file);
   } finally {
     Module._load = realLoad;
   }

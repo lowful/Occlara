@@ -148,6 +148,52 @@ const FRAMES = [
   }
 }
 
+// ── The spectator counter, from the player's Sunset swiftplay ───────────────
+{
+  // "SPECTATORS 1" at the top right counts who is watching the PLAYER, so it
+  // is on a living player's HUD. The round 4 banner read as the first tell
+  // below, the player at 99 health (the teammate's name taken out), the frame
+  // after it as the second, and a death registered in a round Riot has the
+  // player surviving. As the server keeps them: cut at 60 characters.
+  const COUNTER = [
+    'Spectating 1 top right and teammate shown, no own HP',
+    'SPECTATORS 1 top right, teammate Phoenix centered with own w',
+  ];
+  for (const t of COUNTER) {
+    ok(`the counter "${t.slice(0, 34)}" is no spectator screen`,
+      spectate.readHudOwner({ tell: t, phase: 'dead' }).spectating === false);
+    ok(`and is the counter alone ("${t.slice(0, 20)}")`, spectate.countsSpectators(t) === true);
+  }
+  ok('the death screen beside the counter still wins',
+    spectate.readHudOwner({ tell: 'SPECTATORS 1 top right and KILLED BY Jett' }).spectating === true);
+  ok('a teammate whose name ends in a number is spectated, not counted',
+    spectate.readHudOwner({ tell: 'Spectating Rook7 with Vandal' }).spectating === true
+    && !spectate.countsSpectators('Spectating Rook7 with Vandal'));
+  ok("a teammate's health is no counter either",
+    spectate.readHudOwner({ tell: 'spectating with 100 HP bottom center' }).spectating === true);
+
+  // The server's copy decides it the same way on the same tells: SPECTATE_TELL,
+  // less its two false friends unless the death screen is beside them.
+  const fs = require('fs');
+  const src = fs.readFileSync(require('path').join(__dirname, '..', 'server/routes/coach.js'), 'utf8').split(/\r?\n/);
+  const regexOn = (line) => (line ? eval(line.slice(line.indexOf('/'), line.lastIndexOf('/i') + 2)) : null);  // eslint-disable-line no-eval
+  const declared = (name) => regexOn(src.find((l) => l.indexOf(`const ${name} =`) === 0));
+  const tellRe = declared('SPECTATE_TELL');
+  const friendRe = declared('SPECTATE_FALSE_FRIEND');
+  const countRe = declared('SPECTATOR_COUNT');
+  const ruleAt = src.findIndex((l) => /SPECTATOR_COUNT\.test\(out\.aliveTell\)/.test(l));
+  const strongRe = ruleAt >= 0 ? regexOn(src[ruleAt + 1]) : null;
+  ok('the server declares the counter and its spectator rule weighs it', !!countRe && !!strongRe);
+  const serverSays = (t) => !!(tellRe && tellRe.test(t)
+    && !((friendRe.test(t) || (countRe && countRe.test(t))) && !(strongRe && strongRe.test(t))));
+  const TELLS = [...COUNTER, 'SPECTATORS 1 top right and KILLED BY Jett', 'Spectating Rook7 with Vandal',
+    'Spectating teammate with SWITCH PLAYER bottom left', 'own HP 100 and Ghost bottom right',
+    'own HP 100 and knife bottom center, spectating scoreboard'];
+  for (const t of TELLS) {
+    ok(`server and client agree on "${t.slice(0, 34)}"`, serverSays(t) === spectate.tellSaysSpectating(t));
+  }
+}
+
 // ── Nothing throws on junk ──────────────────────────────────────────────────
 {
   assert.doesNotThrow(() => spectate.readHudOwner(null), 'null frame');

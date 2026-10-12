@@ -1006,8 +1006,8 @@ class Recorder extends EventEmitter {
 
   /**
    * A clip of [fromWall, toWall] cut out of the pages on disk (webm.cutClip),
-   * from the recording that covers it: { bytes, mime }, or null when no page
-   * kept holds it.
+   * from the recording that covers it: { bytes, mime, startWall }, startWall
+   * the wall clock of the clip's 0, or null when no page kept holds it.
    *
    * WHICH RECORDING, when a session holds more than one (a pause, a stop and
    * start between them): the one `at` falls in, the moment the clip is of (a
@@ -1058,7 +1058,12 @@ class Recorder extends EventEmitter {
       });
       if (bytes) {
         const head = webm.parseInit(g.init);
-        return { bytes, mime: head ? head.mime : 'video/x-matroska' };
+        // Where the clip's own 0 is on the wall clock (8.3.1): the look takes
+        // its stills at seconds from the death, and the clip opens on the
+        // keyframe at or before its first second, up to a second early. The
+        // same plan cutClip cut by.
+        const plan = webm.planClip(clusters, fromWall - z, toWall - z);
+        return { bytes, mime: head ? head.mime : 'video/x-matroska', startWall: plan ? z + plan.start : null };
       }
     }
     return null;

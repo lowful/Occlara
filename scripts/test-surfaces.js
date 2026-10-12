@@ -1052,31 +1052,53 @@ async function openShell(cfg, state, opts) {
     ok(v.bridge.api.openAiLog && typeof v.bridge.api.askAbout === 'function', 'the review\'s bridge opens the AI log and still asks about a match');
   });
 
-  // WHERE YOU DIED, AND HOW (8.2): every death the coach looked at, last on the
-  // review page, whether Riot's record timed it or the screen did. A round
-  // card keeps the cause and a link down; the eye on a moment opens the AI log
-  // at the frame the coach looked at.
-  await section('the review ends with where you died, and how:', async () => {
+  // EVERY ROUND, ONCE (8.3.1): one list of rounds, and a death the coach looked
+  // at inside its own round, where it was a section of its own at the bottom of
+  // the page ("Where you died, and how") with the round's facts said again. A
+  // look is its clip, its frames (up to five from the recording with their
+  // seconds against the death, or the two the coach read), the cause, what
+  // happened and the better play; a round with no look carries its why; a round
+  // with nothing to say is one line; and the coach's raw notes are never shown.
+  await section('the review is one list of rounds, each death the coach looked at inside its own:', async () => {
+    const clipsAt = require('../src/shared/clips');
     const AT = Date.UTC(2026, 9, 1, 18, 4, 0);
-    const card = (n, side, facts, forensics) => ({ n, side, result: 'lost', died: true, facts, reads: [], why: null, forensics });
+    const READS = ['in spawn during buy phase holding Ghost', 'standing in attacker spawn with combat report open', 'buy menu open'];
+    const row = (n, result, side, facts, extra) => ({ n, side, result, died: result === 'lost', facts, reads: READS.slice(), why: null, forensics: null, ...(extra || {}) });
     const base = {
       id: 'valorant-1759341600000-look01', kind: 'valorant', source: 'watched', aiLog: 'kept',
       game: { map: 'Abyss', agent: 'Jett', result: 'Defeat', score: '11-13' },
+      summary: 'You lost 11 to 13.', focus: 'Enter second: let a teammate take first contact, then trade.',
+      grade: { score: 64, letter: 'C', provisional: false, categories: [], notes: [] },
+      insights: { mistakes: [{ key: 'untraded', title: 'Died where nobody could trade', detail: '3 of your 4 deaths went unanswered.',
+        fix: 'Check someone can see the same angle.', rounds: [14, 19], weight: 2, count: 3 }], strengths: [], missed: [] },
       rounds: [
-        card(2, 'Defence', ['Died at A Site, 15s in, to Viper with a Marshal', 'First death of the round'],
-          { cause: 'dry-peek', what: 'You swung wide into mid with nothing thrown.', better: 'Wait for the flash.',
-            frames: ['r2-before.jpg', 'r2-after.jpg'], source: 'riot', at: AT }),
-        { ...card(5, 'Defence', ['Died at Mid Bend'], null), result: 'won' },
-        card(14, 'Attack', ['Died at A Site', 'Spike planted'],
-          { cause: 'isolated', what: 'You held the site alone.', better: 'Hold closer to your team.',
-            frames: ['r14-before.jpg', 'r14-after.jpg'], source: 'screen', at: AT + 600000 }),
-        card(19, 'Attack', ['Died at Mid Bottom, early in the round'],
-          { cause: 'unclear', what: null, better: null, frames: ['r19-before.jpg'], source: 'screen', at: AT + 900000 }),
+        row(1, 'won', 'Defence', ['Survived', '2 kills']),
+        // A look from the recording (8.3.1): four frames in time order, their
+        // seconds against the death, and the clip. Its why is the look's own
+        // cause in a sentence, and the look says it better.
+        row(2, 'lost', 'Defence', ['Died at A Site, 15s in, to Viper with a Marshal', 'First death of the round'], {
+          why: 'An early dry peek gave them the round.',
+          forensics: { cause: 'dry-peek', what: 'You swung wide into mid with nothing thrown.', better: 'Wait for the flash.',
+            frames: ['r2-f1.jpg', 'r2-f2.jpg', 'r2-f3.jpg', 'r2-f4.jpg'], frameAt: [-3, -1, 0.5, 2], framesFrom: 'recording',
+            source: 'riot', at: AT, clip: 'r2-clip.mkv', clipUrl: 'occlara-clip://review/valorant-1759341600000-look01/r2-clip.mkv' } }),
+        row(5, 'won', 'Defence', ['Died at Mid Bend', 'Traded by a teammate'], { why: 'Holding back for the trade won this one.' }),
+        // Today's look: the two frames the coach read, before and after, no clip.
+        row(9, 'lost', 'Defence', ['Died at B Main, 30s in, to Skye with a Phantom'], {
+          forensics: { cause: 'isolated', what: 'You held B Main alone.', better: 'Hold closer to your team.',
+            frames: ['r9-before.jpg', 'r9-after.jpg'], source: 'riot', at: AT + 300000 } }),
+        row(14, 'lost', 'Attack', ['Died at A Site', 'Spike planted'], {
+          forensics: { cause: 'crossfire', what: 'You walked into two angles at once.', better: 'Clear one angle at a time.',
+            frames: ['r14-before.jpg'], source: 'screen', at: AT + 600000 } }),
+        row(19, 'lost', 'Attack', ['Died at Mid Bottom, early in the round'], {
+          why: 'Caught early before any plant, the round went four against five.',
+          forensics: { cause: 'unclear', what: null, better: null, frames: ['r19-before.jpg', 'r19-after.jpg'], source: 'riot', at: AT + 900000 } }),
       ],
       frameData: {
-        'r2-before.jpg': 'data:image/jpeg;base64,AAA2b', 'r2-after.jpg': 'data:image/jpeg;base64,AAA2a',
-        'r14-before.jpg': 'data:image/jpeg;base64,AAA14b', 'r14-after.jpg': 'data:image/jpeg;base64,AAA14a',
-        'r19-before.jpg': 'data:image/jpeg;base64,AAA19b',
+        'r2-f1.jpg': 'data:image/jpeg;base64,AAA2f1', 'r2-f2.jpg': 'data:image/jpeg;base64,AAA2f2',
+        'r2-f3.jpg': 'data:image/jpeg;base64,AAA2f3', 'r2-f4.jpg': 'data:image/jpeg;base64,AAA2f4',
+        'r9-before.jpg': 'data:image/jpeg;base64,AAA9b', 'r9-after.jpg': 'data:image/jpeg;base64,AAA9a',
+        'r14-before.jpg': 'data:image/jpeg;base64,AAA14b',
+        'r19-before.jpg': 'data:image/jpeg;base64,AAA19b', 'r19-after.jpg': 'data:image/jpeg;base64,AAA19a',
       },
     };
     const open = async (r) => {
@@ -1085,92 +1107,329 @@ async function openShell(cfg, state, opts) {
       return v;
     };
     const v = await open(base);
-    const wrap = v.$('v-looks-wrap');
-    const moments = v.document.querySelectorAll('#v-looks .v-moment');
-    ok(!wrap.hidden && wrap.querySelector('h3').textContent === 'Where you died, and how', 'the section is shown, under its heading');
-    const kids = v.$('vreview').children;
-    ok(kids[kids.length - 1].classList.contains('v-foot') && kids[kids.length - 2] === wrap,
-      'last on the review, with only the footer under it');
-    ok(same(moments.map((m) => m.id), ['moment-2', 'moment-14', 'moment-19']), 'one entry per death the coach looked at, in round order',
-      moments.map((m) => m.id).join());
-    const [m2, m14, m19] = moments;
-    const head = (m) => m.querySelector('.v-moment-head');
-    ok(head(m2).querySelector('.v-rn').textContent === 'Round 2' && head(m2).querySelector('.v-side').textContent === 'Defence',
-      'each names its round and side');
-    ok(same(m14.children.map((c) => c.className.split(' ')[0]),
-      ['v-moment-head', 'v-shots', 'v-facts', 'v-moment-cause', 'v-look-what', 'v-look-better', 'v-moment-src']),
-    'then its frames, the round\'s facts, the cause, what happened, the better play and where its timing came from',
-    m14.children.map((c) => c.className).join(' | '));
+    const classes = (n) => n.children.map((c) => c.className.split(' ')[0]);
+    const vText = v.$('vreview').textContent;
+    ok(!v.$('v-looks-wrap') && !v.document.querySelectorAll('.v-moment-link').length
+      && !v.document.querySelectorAll('h3').some((h) => h.textContent === 'Where you died, and how'),
+    'no section of its own at the bottom for the deaths, and no link down to one');
+    ok(v.document.querySelectorAll('#vreview h3').filter((h) => h.textContent === 'Round by round').length === 1
+      && v.$('v-rounds-wrap').querySelector('#v-strip') && v.$('v-rounds-wrap').querySelector('#v-rounds'),
+    'one "Round by round", the strip on top of the list it leads to');
+    const rows = v.document.querySelectorAll('#v-rounds .v-round');
+    ok(same(rows.map((r) => r.id), ['round-1', 'round-2', 'round-5', 'round-9', 'round-14', 'round-19']), 'a row for every round, in order',
+      rows.map((r) => r.id).join());
+    ok(!v.document.querySelectorAll('.v-read').length && !READS.some((t) => vText.includes(t)) && !/What the coach saw at the time/.test(vText),
+      'and the coach\'s raw notes are not shown anywhere');
+    const rc = (n) => v.$(`round-${n}`);
+    ok(rc(1).classList.contains('quiet') && rc(1).children.length === 1 && same(classes(rc(1).children[0]), ['v-rn', 'v-chip', 'v-side', 'v-facts'])
+      && rc(1).querySelector('.v-facts').textContent === 'Survived  ·  2 kills',
+    'a round with nothing to say is one line: its number, the result, the side and its facts', classes(rc(1).children[0]).join(' | '));
+    ok(rows.filter((r) => r !== rc(1)).every((r) => !r.classList.contains('quiet')), 'and only that one');
+    // The look from the recording, inside its round.
+    ok(same(classes(rc(2)), ['v-round-head', 'v-facts', 'v-moment']) && rc(2).querySelector('.v-facts').textContent === base.rounds[1].facts.join('  ·  '),
+      'a death the coach looked at is its round\'s row: the round, its facts once, then the look', classes(rc(2)).join(' | '));
+    const m2 = v.$('moment-2');
+    ok(m2 && m2.parentNode === rc(2) && same(classes(m2), ['v-media', 'v-advice']) && same(classes(m2.children[0]), ['v-clip', 'v-shots']),
+      'the clip and its frames on one side, what the coach made of them on the other', m2 && classes(m2).join(' | '));
+    const caps = (m) => m.querySelectorAll('.v-shot figcaption').map((f) => f.textContent);
     const imgs = (m) => m.querySelectorAll('.v-shot img');
-    ok(same(imgs(m2).map((i) => i.src), [base.frameData['r2-before.jpg'], base.frameData['r2-after.jpg']])
-      && same(m2.querySelectorAll('figcaption').map((f) => f.textContent), ['Just before', 'Just after'])
-      && m2.querySelector('.v-shots').classList.contains('two'), 'its frames are just before and just after, across the card');
-    ok(imgs(m19).length === 1 && !m19.querySelector('.v-shots').classList.contains('two'), 'and a frame on its own takes the whole width');
+    ok(same(caps(m2), ['3 s before', '1 s before', 'Just after', '2 s after'])
+      && same(imgs(m2).map((i) => i.src), ['f1', 'f2', 'f3', 'f4'].map((k) => base.frameData[`r2-${k}.jpg`]))
+      && same(imgs(m2).map((i) => i.alt), ['3 s before the death', '1 s before the death', 'Just after the death', '2 s after the death']),
+    'four frames from the recording, in time order, each named by its seconds against the death', caps(m2).join(' | '));
+    ok(m2.querySelector('.v-shots').style['--n'] === '4' && m2.querySelector('video').getAttribute('poster') === base.frameData['r2-f2.jpg'],
+      'a filmstrip under the clip, the clip\'s picture the frame nearest the death from before it',
+      `${m2.querySelector('.v-shots').style['--n']} ${m2.querySelector('video').getAttribute('poster')}`);
+    // The look takes stills at half seconds too (shared/clips.js LOOK_AT), and
+    // each is named by the second it was taken at: rounded to whole seconds,
+    // the 1.5 s still read "2 s before" and the 4.5 s one "5 s before".
+    const halves = await open({ ...base, rounds: [{ ...base.rounds[1], forensics: { ...base.rounds[1].forensics, frameAt: [-4.5, -1.5, -0.3, 0.7] } }] });
+    ok(same(caps(halves.$('moment-2')), ['4.5 s before', '1.5 s before', '0.3 s before', 'Just after'])
+      && imgs(halves.$('moment-2'))[1].alt === '1.5 s before the death',
+    'a still taken at a half second is named by it, never by the second rounded up', caps(halves.$('moment-2')).join(' | '));
+    // Riot's look takes five stills (clips.js LOOK_AT), two of them in the
+    // last second before the death, and both read "Just before": two frames,
+    // one name. Each before the death is named by its own tenth.
+    const riotStills = clipsAt.LOOK_AT.riot;
+    const five = await open({ ...base, rounds: [{ ...base.rounds[1], forensics: { ...base.rounds[1].forensics,
+      frames: riotStills.map((_s, k) => `r2-f${k + 1}.jpg`), frameAt: riotStills } }],
+    frameData: { ...base.frameData, 'r2-f5.jpg': 'data:image/jpeg;base64,AAA2f5' } });
+    const fiveCaps = caps(five.$('moment-2'));
+    ok(same(riotStills, [-3, -1.5, -0.7, -0.3, 0.7]) && same(fiveCaps, ['3 s before', '1.5 s before', '0.7 s before', '0.3 s before', 'Just after'])
+      && new Set(fiveCaps).size === 5 && imgs(five.$('moment-2'))[2].alt === '0.7 s before the death',
+    'Riot\'s five stills each have a name of their own: every one before the death by its tenth, and Just after the one after it', fiveCaps.join(' | '));
+    const advice = (m) => m.querySelector('.v-advice');
+    ok(same(classes(advice(m2)), ['v-look-tag', 'v-look-what', 'v-look-better'])
+      && advice(m2).querySelector('.v-look-tag').textContent === "Coach's lookDry peek" && advice(m2).querySelector('.v-cause').classList.contains('bad')
+      && advice(m2).querySelector('.v-look-what').textContent === 'You swung wide into mid with nothing thrown.'
+      && advice(m2).querySelector('.v-look-better').textContent === 'BetterWait for the flash.',
+    'the cause, marked as the coach\'s look, what happened and the better play', classes(advice(m2)).join(' | '));
+    ok(!rc(2).querySelector('.v-why'), 'and Riot\'s look that speaks takes its round\'s why\'s place, the why being written from that look');
+    // The screen's look lands after the narrative wrote the round's why
+    // (screenLook in src/main/index.js), so that why was written without it:
+    // both are shown, the look's block first, then the why's, set apart.
+    const SCREEN_WHY = 'Two angles at once on the ramp, with the round still yours to take.';
+    const screenWhy = await open({ ...base, rounds: [{ ...base.rounds[4], why: SCREEN_WHY }, base.rounds[5]] });
+    const a14 = advice(screenWhy.$('moment-14'));
+    ok(same(classes(a14), ['v-look-tag', 'v-look-what', 'v-look-better', 'v-moment-src', 'v-why-line'])
+      && a14.querySelector('.v-why-line').classList.contains('apart') && a14.querySelector('.v-why-line').textContent === "Coach's read" + SCREEN_WHY
+      && a14.querySelector('.v-look-better').textContent === 'BetterClear one angle at a time.',
+    'a look from the screen keeps the why written before it: its own lines and its timing first, then the why, a block of its own', classes(a14).join(' | '));
+    const a19 = advice(screenWhy.$('moment-19'));
+    ok(same(classes(a19), ['v-look-tag', 'v-why-line']) && !a19.querySelector('.v-why-line').classList.contains('apart')
+      && /\.v-why-line\.apart \{ padding-top: var\(--space-2\); border-top: 1px solid var\(--glass-border\); \}/.test(fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8')),
+    'while an unclear look\'s why, the only advice it has, sits under its chip with nothing between', classes(a19).join(' | '));
+    // Today's two read frames.
+    const m9 = v.$('moment-9');
+    ok(same(caps(m9), ['Just before', 'Just after']) && m9.querySelector('.v-shots').style['--n'] === '2' && !m9.querySelector('video')
+      && same(classes(m9.children[0]), ['v-shots']), 'the two frames the coach read, just before and just after, two a row with no clip');
+    // A look from the screen, and one whose frame was unclear.
+    const src = (n) => rc(n).querySelector('.v-moment-src');
+    ok(src(14) && src(14).textContent === "Timed from the coach's read of the screen, not Riot's record." && !src(2) && !src(9) && !src(19),
+      'a look from the screen says, shorter, that its timing is the coach\'s own read, and one Riot timed says nothing of the kind');
+    ok(imgs(v.$('moment-14')).length === 1 && v.$('moment-14').querySelector('.v-shots').style['--n'] === '1', 'a frame on its own takes the whole side');
+    // A look from the screen with stills from its clip (8.3.1): their seconds
+    // count from the screen's READ of the death, which on the player's Sunset
+    // match came 0.7 to 2.7 s after the death itself, so the frame it read the
+    // death on is no "At the death", nor the one a second before it "Just
+    // before" the death: each is named against the read, as the server is told.
+    const recNames = [1, 2, 3, 4, 5].map((k) => `r14-rec${k}-before.jpg`);
+    const screenRec = await open({ ...base, rounds: [{ ...base.rounds[4], forensics: { ...base.rounds[4].forensics,
+      frames: recNames, frameAt: [-4.5, -3, -2, -1.01, -0.03], framesFrom: 'recording' } }],
+    frameData: Object.fromEntries(recNames.map((n, k) => [n, `data:image/jpeg;base64,AAA14r${k}`])) });
+    const m14r = screenRec.$('moment-14');
+    ok(same(caps(m14r), ['4.5 s before', '3 s before', '2 s before', '1 s before', 'Read as dead'])
+      && imgs(m14r).every((i) => /the screen read the death/.test(i.alt) && !/^(At|Just)/.test(i.alt)),
+    'a look from the screen names its stills against its read of the death, and none of them the death',
+    `${caps(m14r).join(' | ')} / ${imgs(m14r).map((i) => i.alt).join(' | ')}`);
+    const m19 = v.$('moment-19');
+    ok(m19.querySelector('.v-cause').textContent === 'Frame unclear' && m19.querySelector('.v-cause').classList.contains('neutral')
+      && !m19.querySelector('.v-look-what') && !m19.querySelector('.v-look-better') && imgs(m19).length === 2,
+    'an unclear frame keeps its pictures and says nothing about them');
+    ok(m19.querySelector('.v-why-line') && m19.querySelector('.v-why').textContent === base.rounds[5].why
+      && m19.querySelector('.v-why-line').textContent === "Coach's read" + base.rounds[5].why,
+    'so its round\'s why is the advice it gives, marked as the coach\'s read');
+    ok(same(classes(rc(5)), ['v-round-head', 'v-facts', 'v-why-line']) && rc(5).querySelector('.v-why').textContent === base.rounds[2].why
+      && !rc(5).querySelector('.log-eye'), 'a round with no look carries its why, and no eye');
     const fig = imgs(m2)[0].parentNode;
     imgs(m2)[0].click();
     const zoomed = fig.classList.contains('zoom');
     imgs(m2)[0].click();
     ok(zoomed && !fig.classList.contains('zoom'), 'a click zooms a frame, and another puts it back');
-    ok(m2.querySelector('.v-facts').textContent === base.rounds[0].facts.join('  ·  '), 'the facts line is the round\'s own');
-    ok(m2.querySelector('.v-moment-cause .v-cause').textContent === 'Dry peek' && m2.querySelector('.v-cause').classList.contains('bad')
-      && m2.querySelector('.v-look-what').textContent === 'You swung wide into mid with nothing thrown.'
-      && m2.querySelector('.v-look-better').textContent === 'BetterWait for the flash.', 'with the cause chip, what happened and the better play');
-    const src = (m) => m.querySelector('.v-moment-src');
-    ok(!src(m2) && src(m14) && src(m14).textContent === "When this happened is the coach's own read of the screen, not Riot's record of the match.",
-      'a look from the screen says its timing is the coach\'s own read, and one Riot timed says nothing of the kind');
-    ok(!DASHES.test(src(m14).textContent + wrap.textContent), 'with no dash anywhere in the section');
-    ok(imgs(m19).length === 1 && m19.querySelector('.v-cause').textContent === 'Frame unclear' && m19.querySelector('.v-cause').classList.contains('neutral')
-      && !m19.querySelector('.v-look-what') && !m19.querySelector('.v-look-better'), 'an unclear frame keeps its picture and says nothing about it');
-    const eyeOf = (m) => head(m).querySelector('.log-eye');
-    ok(moments.every((m) => eyeOf(m) && !eyeOf(m).disabled && eyeOf(m).getAttribute('aria-label') === LogEye.MOMENT && eyeOf(m).title === LogEye.MOMENT)
-      && LogEye.MOMENT !== LogEye.NAME, 'each moment has the eye, named for the moment it opens');
-    eyeOf(m14).click();
+    // The eye at the moment, in the round's own line.
+    const eyeOf = (n) => rc(n).querySelector('.v-round-head .log-eye');
+    ok([2, 9, 14, 19].every((n) => eyeOf(n) && !eyeOf(n).disabled && eyeOf(n).getAttribute('aria-label') === LogEye.MOMENT)
+      && !eyeOf(1) && LogEye.MOMENT !== LogEye.NAME, 'each round with a look has the eye at its moment, in its own line');
+    eyeOf(14).click();
     const toLog = () => v.bridge.sent.filter((s) => s[0] === C.REVIEW_AILOG);
     ok(same(toLog(), [[C.REVIEW_AILOG, base.id, AT + 600000]]), 'pressed, it sends the review and when the frame it looked at was captured',
       JSON.stringify(toLog()));
     v.$('eye-host').querySelector('.log-eye').click();
     ok(same(toLog()[1], [C.REVIEW_AILOG, base.id]), 'while the header\'s eye still sends the review alone', JSON.stringify(toLog()));
-    const rc = (n) => v.document.getElementById(`round-${n}`);
-    ok(!rc(2).querySelectorAll('img').length && !rc(14).querySelectorAll('img').length && !rc(2).querySelector('.v-look-what'),
-      'a round card shows no frame and no sentence of the look any more');
-    ok(rc(2).querySelector('.v-look-link .v-cause').textContent === 'Dry peek'
-      && rc(14).querySelector('.v-look-link .v-moment-link').textContent === 'See where you died', 'it keeps the cause chip, and a link down to the moment');
-    ok(!rc(5).querySelector('.v-look-link'), 'and a round with no look has neither');
-    // A keyboard player on the link presses Enter, which is its click. The
-    // look is at the bottom of the page now, so focus has to go with the
-    // scroll, or the next Tab carries on down the round cards from the link.
+    // The round strip and a mistake's round chip both land on the round's row.
     const id = (n) => (n ? n.id || n.className : 'nothing');
-    const link14 = rc(14).querySelector('.v-moment-link');
-    link14.focus();
-    ok(v.document.activeElement === link14 && nextTab(v.document) !== eyeOf(m14),
-      'from the link, Tab goes on down the round cards, not to the moment', `next Tab: ${id(nextTab(v.document))}`);
     let asked = null;
-    const focusOf = m14.focus;
-    m14.focus = function (o) { asked = o || {}; return focusOf.call(this, o); };
-    link14.click();
-    ok(m14.classList.contains('flash') && !m2.classList.contains('flash'), 'the link brings that moment into view and flashes it');
-    ok(v.document.activeElement === m14 && m14.tabIndex === -1 && !!asked && asked.preventScroll === true,
-      'and hands it the focus, out of the tab order, with no scroll of its own over the smooth one',
-      `focus on ${id(v.document.activeElement)}, tabindex ${m14.tabIndex}, asked ${JSON.stringify(asked)}`);
-    ok(nextTab(v.document) === eyeOf(m14), 'so the next Tab is that moment\'s own eye', `next Tab: ${id(nextTab(v.document))}`);
-    // The round strip jumps the same way, to the round's card.
+    const row14 = rc(14);
+    const focusOf = row14.focus;
+    row14.focus = function (o) { asked = o || {}; return focusOf.call(this, o); };
     const cell14 = v.document.querySelectorAll('#v-strip .v-cell').find((c) => c.querySelector('.v-cell-n').textContent === '14');
     cell14.focus();
     cell14.click();
-    ok(v.document.activeElement === rc(14) && nextTab(v.document) === link14,
-      'and a round in the strip hands its card the focus, so Tab reaches the link down to the moment',
-      `focus on ${id(v.document.activeElement)}, next Tab: ${id(nextTab(v.document))}`);
+    ok(row14.classList.contains('flash') && v.document.activeElement === row14 && row14.tabIndex === -1 && !!asked && asked.preventScroll === true,
+      'a round in the strip brings its row into view, flashes it and hands it the focus, out of the tab order',
+      `focus on ${id(v.document.activeElement)}, tabindex ${row14.tabIndex}, asked ${JSON.stringify(asked)}`);
+    ok(nextTab(v.document) === eyeOf(14), 'so the next Tab is that death\'s own eye', `next Tab: ${id(nextTab(v.document))}`);
+    const chip19 = v.document.querySelectorAll('#insights-host .gv-rchip').find((c) => c.textContent === 'R19');
+    chip19.click();
+    ok(v.document.activeElement === rc(19) && rc(19).classList.contains('flash'), 'and a mistake\'s round chip lands on its round, look and all');
+    // SAID ONCE (8.3.1): each death the coach looked at is a miss of its own,
+    // "Round 2:" and what the look saw, the better play its fix, as
+    // insights.js writes it, and its round's row says both again. On this
+    // page that entry is its title and its round chip; every other entry, and
+    // the same list drawn anywhere else, is as it was.
+    const lookMiss = (n, f, title) => ({ key: `cause:${f.cause}`, title, detail: `Round ${n}: ${f.what || f.better}`, fix: f.better, rounds: [n], judged: true });
+    const looksOf = (n) => base.rounds.find((c) => c.n === n).forensics;
+    const missed = [
+      lookMiss(2, looksOf(2), 'Dry peeks'), lookMiss(9, looksOf(9), 'Caught alone'), lookMiss(14, looksOf(14), 'Walked into crossfires'),
+      { key: 'lost-advantage', title: 'An advantage given back', detail: 'Round 2: 4 against 3 when you died, and the round was lost.', rounds: [2] },
+      { ...lookMiss(9, looksOf(9), 'Caught alone'), detail: 'Round 9: You were somewhere else entirely.' },
+      { key: 'cause:isolated', title: 'Caught alone', detail: 'Round 19: You held mid alone.', fix: 'Stay where a teammate can trade you.', rounds: [19], judged: true },
+    ];
+    const listed = { ...base.insights, mistakes: [...base.insights.mistakes, { key: 'cause:dry-peek', title: 'Dry peeks', judged: true, rounds: [2, 9],
+      detail: 'The coach looked at the moment before 2 deaths and saw the same thing: peeked an angle with no utility or information first, rounds 2 and 9.',
+      fix: 'Throw your utility or wait for a teammate\'s before you take the angle.' }], missed };
+    const lv = await open({ ...base, insights: listed });
+    const block = (title) => lv.$('insights-host').querySelectorAll('.gv-block').find((b) => b.querySelector('h3').textContent === title);
+    const items = (title) => block(title).querySelectorAll('.gv-item');
+    const shape = (li) => [li.classList.contains('brief') ? 'brief' : 'whole', ...li.children.map((c) => c.className.split(' ')[0]),
+      ...li.querySelector('.gv-item-head').children.map((c) => c.className.split(' ')[0])].join(' ');
+    const misses = items('What you missed');
+    ok(misses.slice(0, 3).every((li) => shape(li) === 'brief gv-item-head gv-dot gv-item-title gv-rounds gv-badge')
+      && same(misses.slice(0, 3).map((li) => li.querySelector('.gv-rchip').textContent), ['R2', 'R9', 'R14'])
+      && !misses.slice(0, 3).some((li) => li.querySelector('.gv-item-detail') || li.querySelector('.gv-item-fix'))
+      && same(misses.slice(0, 3).map((li) => li.textContent), ["Dry peeksR2coach's look", "Caught aloneR9coach's look", "Walked into crossfiresR14coach's look"]),
+    'a death the coach looked at, listed under What you missed, is its title and its round chip here, its sentences in its round',
+    misses.map(shape).join(' / '));
+    misses[1].querySelector('.gv-rchip').click();
+    ok(lv.document.activeElement === lv.$('round-9') && lv.$('round-9').classList.contains('flash')
+      && lv.$('round-9').querySelector('.v-look-what').textContent === looksOf(9).what && lv.$('round-9').querySelector('.v-look-better').textContent === 'Better' + looksOf(9).better,
+    'and its chip lands on the round, where both of them are');
+    const WHOLE = 'whole gv-item-head gv-item-detail gv-item-fix gv-rounds gv-dot gv-item-title gv-badge';
+    ok(same(misses.slice(3).map(shape), ['whole gv-item-head gv-item-detail gv-rounds gv-dot gv-item-title', WHOLE, WHOLE])
+      && misses[4].querySelector('.gv-item-detail').textContent === 'Round 9: You were somewhere else entirely.'
+      && misses[5].querySelector('.gv-item-fix').textContent === 'FixStay where a teammate can trade you.',
+    'any other entry is whole: a miss that is no look\'s, one whose sentences its round does not say, and one for a round whose frame was unclear',
+    misses.slice(3).map(shape).join(' / '));
+    const repeated = items('Your repeated mistakes').find((li) => li.querySelector('.gv-item-title').textContent === 'Dry peeks');
+    ok(repeated && shape(repeated) === WHOLE,
+      'and so is a cause the coach saw twice, which is a count of looks, said nowhere else', repeated && shape(repeated));
+    const elsewhere = lv.window.GradeView.insightLists(listed, { onRound: false, saidInRound: () => true });
+    const elsewhereBrief = lv.window.GradeView.insightLists(listed, { onRound: () => {} });
+    ok(!elsewhere.querySelectorAll('.gv-item.brief').length && elsewhere.querySelectorAll('.gv-item-detail').length === 8
+      && !elsewhereBrief.querySelectorAll('.gv-item.brief').length && elsewhereBrief.querySelectorAll('.gv-item-detail').length === 8,
+    'the lists drawn with no round to jump to, or without the review\'s rule, keep every sentence: the library\'s and Home\'s are as they were');
+    // The order of the page: the score, the grade and the read, then the mistakes, then the rounds.
+    const order = v.$('vreview').children.filter((c) => !c.hidden).map((c) => c.id || c.className);
+    ok(same(order, ['v-hero', 'grade-host', 'v-summary-wrap', 'insights-host', 'v-rounds-wrap', 'v-foot']),
+      'the result, the grade and the coach\'s read first, then the repeated mistakes, then the rounds', order.join(' | '));
+    ok(!DASHES.test(vText), 'with no dash anywhere on the page');
     const gone = await open({ ...base, aiLog: 'gone' });
-    ok(!gone.document.querySelectorAll('#v-looks .log-eye').length && gone.document.querySelectorAll('#v-looks .v-moment img').length === 5,
-      'with the AI log gone, the moments keep their frames and lose their eyes');
+    ok(!gone.document.querySelectorAll('#v-rounds .log-eye').length && gone.document.querySelectorAll('#v-rounds .v-shot img').length === 9,
+      'with the AI log gone, the rounds keep their frames and lose their eyes');
     const older = await open({ ...base, rounds: base.rounds.map((c) => (c.forensics ? { ...c, forensics: { ...c.forensics, source: undefined, at: undefined } } : c)) });
-    ok(older.document.querySelectorAll('#v-looks .v-moment').length === 3 && !older.document.querySelectorAll('#v-looks .log-eye').length
+    ok(older.document.querySelectorAll('#v-rounds .v-moment').length === 4 && !older.document.querySelectorAll('#v-rounds .log-eye').length
       && !older.document.querySelectorAll('.v-moment-src').length, 'a review saved before 8.2 paints its looks as Riot\'s, with no eye at a moment it never kept');
-    const none = await open({ ...base, rounds: [base.rounds[1]] });
-    ok(none.$('v-looks-wrap').hidden && !none.document.querySelectorAll('.v-moment').length, 'a review with no look has no such section');
-    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...base, rounds: [base.rounds[1]] });
+    // A clip the cap took from a look whose frames were not kept either: said
+    // with the coach's words, where there is nothing to watch beside them.
+    const bare = await open({ ...base, rounds: [{ ...base.rounds[4], forensics: { ...base.rounds[4].forensics, frames: [], clip: 'r14-clip.mkv', clipGone: 'space' } }] });
+    const mb = bare.$('moment-14');
+    ok(mb.classList.contains('no-media') && same(classes(mb), ['v-advice']) && mb.querySelector('.v-advice .v-clip-gone')
+      && mb.querySelector('.v-clip-gone').textContent === 'Its clip was cleared to keep your clips under the space set in Settings. The frames and facts stay.',
+    'a look with neither its clip nor a frame left says where its clip went, beside nothing', classes(mb).join(' | '));
+    // Five stills from the recording, and the clip they came from gone (the
+    // cap, Clear clips): two a row, as the two read frames are, stacked them
+    // three frames tall beside four lines of words. Three a row at the most.
+    const stillNames = [1, 2, 3, 4].map((k) => `r2-rec${k}-before.jpg`).concat(['r2-rec5-after.jpg']);
+    const noClip = await open({ ...base, rounds: [{ ...base.rounds[1], forensics: { ...base.rounds[1].forensics, clip: 'r2-clip.mkv', clipUrl: null,
+      clipGone: 'cleared', frames: stillNames, frameAt: [-3, -1.5, -0.7, -0.3, 0.7] } }],
+    frameData: Object.fromEntries(stillNames.map((n, k) => [n, `data:image/jpeg;base64,AAA2s${k}`])) });
+    const mn = noClip.$('moment-2');
+    ok(mn.querySelector('.v-shots').style['--n'] === '3' && imgs(mn).length === 5 && !mn.querySelector('video') && mn.querySelector('.v-clip-gone')
+      && v.$('moment-9').querySelector('.v-shots').style['--n'] === '2' && v.$('moment-14').querySelector('.v-shots').style['--n'] === '1',
+    'five stills whose clip is gone are three a row, and the read frames two and one as before', mn.querySelector('.v-shots').style['--n']);
+    // Asked for reduced motion, a jump to a round is a jump, not a smooth scroll.
+    const jumps = [];
+    for (const reduce of [false, true]) {
+      const j = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => base },
+        window: { matchMedia: (q) => ({ matches: reduce && /prefers-reduced-motion: reduce/.test(q) }) } });
+      await settle();
+      j.$('round-14').scrollIntoView = (o) => jumps.push(o && o.behavior);
+      j.document.querySelectorAll('#v-strip .v-cell').find((c) => c.querySelector('.v-cell-n').textContent === '14').click();
+    }
+    const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
+    ok(same(jumps, ['smooth', 'auto']) && /@media \(prefers-reduced-motion: reduce\) \{\s*\.v-cell, \.v-round\.flash, \.v-shot img \{ transition: none; animation: none; \}/.test(rcss),
+      'asked for reduced motion, a jump to a round does not scroll smoothly, and the flash and the zoom do not move', JSON.stringify(jumps));
+    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...base, rounds: [] });
     await settle();
-    ok(v.$('v-looks-wrap').hidden && !v.document.querySelectorAll('.v-moment').length, 'and a version with none painted over one clears it');
+    ok(v.$('v-rounds-wrap').hidden && !v.document.querySelectorAll('.v-round').length && !v.document.querySelectorAll('#v-rounds video').length,
+      'and a version with no rounds painted over one clears the list, strip and all');
+  });
+
+  // THE RESULT CARRIES RIOT'S SCOREBOARD (8.3.1), and under each number how it
+  // compares with the player's own average, which was a section of its own
+  // repeating the same four numbers. Before the match links there is no
+  // scoreboard at all, and no note saying why: the grade's note and the
+  // refusals both say it.
+  await section('the result carries Riot\'s scoreboard, each number against the player\'s own average:', async () => {
+    const valorantReview = require('../src/shared/valorant-review');
+    const tracker = { result: 'Victory', score: '13-11', kills: 31, deaths: 21, assists: 4, acs: 382, adr: 243, headshotPct: 25, kd: 1.48, agent: 'Jett', map: 'Abyss' };
+    const history = [300, 310, 320, 330, 340].map((acs, i) => ({ at: i, agent: 'Jett', role: 'Duelist', map: 'Abyss', result: 'Victory', acs, adr: 190, kd: 1.2, headshotPct: 28 }));
+    const against = valorantReview.against(tracker, 'Duelist', history);
+    ok(same(against.map((a) => a.label), ['ACS', 'Damage per round', 'K/D', 'Headshot %']), 'the rows against() gives, by the labels the page matches them on',
+      against.map((a) => a.label).join());
+    const open = async (r) => {
+      const v = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => r } });
+      await settle();
+      return v;
+    };
+    const base = { id: 'valorant-1759341600000-hero01', kind: 'valorant', source: 'watched', aiLog: null, rounds: [],
+      game: { map: 'Abyss', agent: 'Jett', mode: 'Competitive', result: 'Victory', score: '13-11' },
+      scoreline: { kills: 31, deaths: 21, assists: 4, acs: 382, adr: 243, headshotPct: 25, kd: 1.48 }, against };
+    const v = await open(base);
+    const stats = v.document.querySelectorAll('#v-hero #v-stats .v-stat');
+    const part = (s, cls) => (s.querySelector(cls) || { textContent: null }).textContent;
+    ok(same(stats.map((s) => part(s, '.v-stat-label')), ['K / D / A', 'ACS', 'ADR', 'Headshot'])
+      && same(stats.map((s) => part(s, '.v-stat-value')), ['31/21/4', '382', '243', '25%']), 'Riot\'s four numbers, inside the result\'s card');
+    ok(same(stats.map((s) => part(s, '.v-stat-vs')), ['K/D +0.28', '+62', '+53', '-3'])
+      && same(stats.map((s) => toneOf(s.querySelector('.v-stat-vs')) || ['good', 'bad', 'even'].find((k) => s.querySelector('.v-stat-vs').classList.contains(k))),
+        ['good', 'good', 'good', 'bad'])
+      && stats[1].querySelector('.v-stat-vs').title === 'Your average: 320' && stats[0].querySelector('.v-stat-vs').title === 'Your average K/D: 1.2',
+    'under each, how it compares with the player\'s own average, the sign saying it as well as the colour',
+    stats.map((s) => part(s, '.v-stat-vs')).join(' | '));
+    ok(!v.$('v-against-note').hidden && v.$('v-against-note').textContent === 'Against your average over your last 5 verified matches in the same role.',
+      'and once, what the comparison is over', v.$('v-against-note').textContent);
+    ok(!v.$('v-against-wrap') && !v.$('v-against') && !v.document.querySelectorAll('#vreview .skill-row').length,
+      'with no section of its own saying the same four numbers again');
+    const level = await open({ ...base, against: [{ ...against[0], value: 320, delta: 0, better: null }] });
+    ok(same(level.document.querySelectorAll('#v-stats .v-stat-vs').map((x) => `${x.textContent}:${x.className}`), ['average:v-stat-vs even']),
+      'a number at the average says so, in no colour');
+    const first = await open({ ...base, against: [] });
+    ok(!first.document.querySelectorAll('#v-stats .v-stat-vs').length && first.$('v-against-note').hidden && first.document.querySelectorAll('#v-stats .v-stat').length === 4,
+      'with too few matches to compare, the four numbers alone');
+    // Before the match links: the review as the screen alone built it, with
+    // the refusal and the grade's note build() gives it.
+    const screenOnly = valorantReview.build({ rounds: [], context: { agent: 'Jett', map: 'Abyss' },
+      endedBy: 'score', ai: {}, role: 'Duelist', history: [], riotIdSet: true });
+    const s = await open({ ...screenOnly, id: 'valorant-1759341600000-hero02' });
+    const sText = s.$('vreview').textContent;
+    ok(s.$('v-stats-wrap').hidden && !s.document.querySelectorAll('.v-stat').length && !s.$('v-stats-note')
+      && !/Kills, ACS and damage come from Riot/.test(sText),
+    'before the match links there is no scoreboard, and no note under it saying why');
+    ok(/comes from Riot once the match is published/.test(sText), 'the refusal still says where the scoreboard comes from', sText.slice(0, 200));
+  });
+
+  // WHAT THE LISTS SAID IS NOT SAID AGAIN (8.3.1): a pattern under the strip
+  // that counts what an entry of the lists already counts, and a study note
+  // the focus already says.
+  await section('the review says what the lists and the focus said once:', async () => {
+    const open = async (r) => {
+      const v = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => r } });
+      await settle();
+      return v;
+    };
+    const base = { id: 'valorant-1759341600000-once01', kind: 'valorant', source: 'watched', aiLog: null,
+      game: { map: 'Sunset', agent: 'Jett', result: 'Defeat', score: '2-5' },
+      rounds: [{ n: 1, side: 'Attack', result: 'lost', died: true, facts: ['Died at Mid'], reads: [], why: null, forensics: null }],
+      patterns: [
+        { key: 'postplant', text: 'On attack, won 1 of 3 rounds once the spike was down.' },
+        { key: 'streak', text: 'You lost 3 rounds in a row, rounds 1 to 3.' },
+        { key: 'early', text: '4 of your 5 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 3, 6 and 7.' },
+      ],
+      insights: { mistakes: [{ key: 'early', title: 'Dying in the first 30 seconds', detail: '4 of your 5 deaths came in the first 30 seconds, before any plant.', rounds: [1] }],
+        strengths: [], missed: [{ key: 'postplant-lost', title: 'Post plants that slipped', detail: 'Won only 1 of 3 attack rounds with the spike down.', rounds: [1] }] },
+      focus: 'Enter second for a match: let a teammate or your utility take first contact, then trade.',
+      study: [
+        { text: 'Enter second: let a teammate or your utility take first contact, then trade the fight.' },
+        { text: 'Entry in checkpoints, take one piece of space, survive behind cover, then wait for the team to reach you before you take the next.' },
+      ],
+    };
+    const v = await open(base);
+    const pats = v.document.querySelectorAll('#v-patterns .v-pattern-text').map((p) => p.textContent);
+    ok(same(pats, ['You lost 3 rounds in a row, rounds 1 to 3.']) && v.$('v-patterns').parentNode === v.$('v-rounds-wrap'),
+      'under the strip, only what the lists do not count: not the post plants a miss already counts, nor the early deaths', pats.join(' | '));
+    const notes = v.document.querySelectorAll('#v-study .v-study-note').map((n) => n.textContent);
+    ok(same(notes, [base.study[1].text]), 'a study note the focus already says is not said again under it', notes.join(' | '));
+    const noFocus = await open({ ...base, focus: null });
+    ok(noFocus.document.querySelectorAll('#v-study .v-study-note').length === 2, 'and with no focus, every note');
+    const allSaid = await open({ ...base, study: [base.study[0]] });
+    ok(allSaid.$('v-study-wrap').hidden, 'a list with nothing left in it is not shown');
+    const none = await open({ ...base, patterns: [base.patterns[0], base.patterns[2]] });
+    ok(none.$('v-patterns').hidden && !none.document.querySelectorAll('#v-patterns li').length, 'and no pattern left is no lines at all');
+    // A focus with no read written above it: no empty line under the heading.
+    const read = await open({ ...base, summary: 'You lost 2 to 5.' });
+    ok(v.$('v-summary').hidden && !v.$('v-summary-wrap').hidden && !v.$('v-focus-wrap').hidden
+      && !read.$('v-summary').hidden && read.$('v-summary').textContent === 'You lost 2 to 5.',
+    'the coach\'s read with only a focus shows the focus under its heading, and no empty line for the read');
   });
 
   await section('Stats, graded matches:', async () => {
@@ -2017,11 +2276,11 @@ async function openShell(cfg, state, opts) {
       && C.CLIPS_USAGE === 'clips:usage' && C.CLIPS_CLEAR === 'clips:clear', 'over CLIPS_USAGE, CLIPS_CLEAR and PUSH_REVIEWS', JSON.stringify(b.invoked));
   });
 
-  // THE CLIP OF A MOMENT (8.3): played from occlara-clip in "Where you died,
-  // and how", above the frames, muted, inline and looping, the frame the coach
-  // looked at as its picture; a click plays and pauses it, and it pauses out
-  // of view or with the page hidden. A clip the cap or Settings took is said
-  // to be gone, and the frames stay.
+  // THE CLIP OF A MOMENT (8.3): played from occlara-clip in its death's own
+  // round (8.3.1), above the frames, muted, inline and looping, the frame the
+  // coach looked at as its picture; a click plays and pauses it, and it pauses
+  // out of view or with the page hidden. A clip the cap or Settings took is
+  // said to be gone, and the frames stay.
   await section('the review plays the clip of each moment:', async () => {
     const AT = Date.UTC(2026, 9, 1, 18, 4, 0);
     const ID = 'valorant-1759341600000-clip01';
@@ -2068,12 +2327,18 @@ async function openShell(cfg, state, opts) {
     const v = await open(base);
     const m = (n) => v.$(`moment-${n}`);
     const kids = (n) => m(n).children.map((c) => c.className.split(' ')[0]);
-    ok(same(kids(2), ['v-moment-head', 'v-clip', 'v-shots', 'v-facts', 'v-moment-cause', 'v-look-what', 'v-look-better']),
-      'a moment with its clip: the clip under its heading, the frames still under it', kids(2).join(' | '));
+    const side = (n) => m(n).children[0].children.map((c) => c.className.split(' ')[0]);
+    ok(same(kids(2), ['v-media', 'v-advice']) && same(side(2), ['v-clip', 'v-shots']) && m(2).parentNode === v.$('round-2'),
+      'a moment with its clip, in its round: the clip, the frames still under it, and the coach\'s words beside', `${kids(2).join(' | ')} / ${side(2).join(' | ')}`);
     const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
+    const across = (n) => m(n).querySelector('.v-shots').style['--n'];
     ok(m(2).classList.contains('has-clip') && !m(9).classList.contains('has-clip') && !m(19).classList.contains('has-clip')
-      && /\.v-moment\.has-clip \.v-shots \{ grid-template-columns: 1fr 1fr; \}/.test(rcss),
-    'and the frames under a clip are half as wide; a moment with no clip keeps them across the card');
+      && across(2) === '4' && across(9) === '1' && across(19) === '1'
+      && /\.v-shots \{ display: grid; grid-template-columns: repeat\(var\(--n, 1\), minmax\(0, 1fr\)\);/.test(rcss),
+    'the frames under a clip are a filmstrip four to the row; a moment with no clip keeps its frame across its side',
+    `${across(2)} ${across(9)} ${across(19)}`);
+    ok(!m(2).querySelector('.v-clip figcaption') && !/From your recording/.test(v.$('vreview').textContent),
+      'and no caption under the clip saying what its row already says');
     const vid = m(2).querySelector('.v-clip .v-clip-frame video.v-clip-video');
     ok(vid && vid.getAttribute('src') === `occlara-clip://review/${ID}/r2-clip.mkv`, 'a <video> playing it from occlara-clip', vid && vid.getAttribute('src'));
     ok(vid && vid.muted === true && ['muted', 'loop', 'playsinline'].every((a) => vid.hasAttribute(a)) && vid.getAttribute('preload') === 'none',
@@ -2105,14 +2370,15 @@ async function openShell(cfg, state, opts) {
     ok(!m(9).querySelector('video') && gone(9) && gone(9).textContent === 'Its clip was cleared to keep your clips under the space set in Settings. The frames and facts stay.'
       && m(9).querySelectorAll('.v-shot img').length === 1, 'a clip the cap took: no player, said so, and its frame kept');
     ok(!m(14).querySelector('video') && gone(14) && gone(14).textContent === 'Its clip was cleared in Settings. The frames and facts stay.', 'one cleared from Settings says that');
-    ok(!m(19).querySelector('video') && !gone(19) && same(kids(19), ['v-moment-head', 'v-shots', 'v-facts', 'v-moment-cause', 'v-look-what', 'v-look-better']),
-      'a match that was not recorded: its frames as they have always been, and nothing said');
-    ok(!DASHES.test(v.$('v-looks-wrap').textContent), 'no dash in the section');
+    ok(!m(19).querySelector('video') && !gone(19) && same(kids(19), ['v-media', 'v-advice']) && same(side(19), ['v-shots'])
+      && same(m(19).children[1].children.map((c) => c.className.split(' ')[0]), ['v-look-tag', 'v-look-what', 'v-look-better']),
+    'a match that was not recorded: its frames, the coach\'s words beside them, and nothing said');
+    ok(!DASHES.test(v.$('v-rounds').textContent), 'no dash in the rounds');
     // A repaint lets the old player go: stopped, its source taken off, loaded empty.
     vid.calls.length = 0;
     v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...base, rounds: [base.rounds[3]] });
     await settle();
-    ok(same(vid.calls, ['pause', 'load']) && !vid.hasAttribute('src') && !io.seen.has(vid) && !v.document.querySelectorAll('#v-looks video').length,
+    ok(same(vid.calls, ['pause', 'load']) && !vid.hasAttribute('src') && !io.seen.has(vid) && !v.document.querySelectorAll('#v-rounds video').length,
       'a repaint stops the clip it replaces, takes its source off and lets it go', JSON.stringify(vid.calls));
     const csp = (v.document.querySelector('meta[http-equiv="Content-Security-Policy"]') || { getAttribute: () => '' }).getAttribute('content');
     ok(/(^|;)\s*media-src 'self' occlara-clip:;/.test(csp) && /default-src 'self'/.test(csp), 'the page may play media from itself and occlara-clip, and nothing else', csp);
@@ -2141,11 +2407,22 @@ async function openShell(cfg, state, opts) {
     // and the hint says so: the rest show no clip, and it said nothing of why.
     const deathsHint = l.$('r-deaths-wrap').querySelector('.hint').textContent;
     const clipsLib = require('../src/shared/clips');
-    ok(clipsLib.MAX_CLIPS === 6 && /up to six of them, spread across the game, have a clip/.test(deathsHint)
+    ok(clipsLib.MAX_CLIPS === 6 && /up to six deaths, spread across the game, have a clip/.test(deathsHint)
       && /from 11 seconds before the death to 4 after it/.test(deathsHint) && clipsLib.BEFORE_MS === 11000 && clipsLib.AFTER_MS === 4000
       && !DASHES.test(deathsHint), 'its hint says up to six deaths, spread across the game, have a clip, and over which seconds', deathsHint);
-    ok(ld(1).querySelector('.v-moment-head .v-rn').textContent === 'Death 1' && ld(1).querySelector('.v-moment-head .v-side').textContent === '3:30',
+    ok(!/Click a clip|by the game's clock/.test(deathsHint), 'and nothing the rows themselves show: how to play a clip, or that each is by the clock', deathsHint);
+    ok(ld(1).querySelector('.v-round-head .v-rn').textContent === 'Death 1' && ld(1).querySelector('.v-round-head .v-side').textContent === '3:30',
       'each by its number and the game\'s clock');
+    ok(l.$('r-deaths').classList.contains('v-rounds') && same(ld(1).children.map((c) => c.className.split(' ')[0]), ['v-round-head', 'v-moment'])
+      && ld(3).classList.contains('quiet') && ld(3).children.length === 1 && ld(3).querySelector('.v-round-head .v-look-what'),
+    'drawn as a Valorant review draws its rounds: a death with its clip a row with the clip beside its fact, one with its fact alone a line');
+    ok(l.$('r-meta').textContent === 'Middle  ·  CLASSIC  ·  31:04', 'and its line about the game is in middots, as the Valorant and Rivals ones are',
+      l.$('r-meta').textContent);
+    // Rivals has five numbers to League's four, and in four columns its
+    // accuracy sat alone on a second row.
+    const scoreRule = (rcss.match(/(?:^|\n)\.scoreline \{([^}]*)\}/) || [])[1] || '';
+    ok(/grid-template-columns: repeat\(auto-fit, minmax\(110px, 1fr\)\);/.test(scoreRule),
+      'and the scores are one row however many a game has', scoreRule.trim());
     const lv = ld(1).querySelector('video.v-clip-video');
     ok(lv && lv.getAttribute('src') === `occlara-clip://review/${LID}/d1-clip.mkv` && lv.muted === true && lv.hasAttribute('loop') && lv.getAttribute('preload') === 'none'
       && !lv.hasAttribute('poster'), 'a recorded death plays its clip, as a Valorant moment does, with no frame to show before it plays');
@@ -2765,7 +3042,7 @@ async function openShell(cfg, state, opts) {
       frameData: { 'b.jpg': 'data:image/jpeg;base64,AAAb', 'a.jpg': 'data:image/jpeg;base64,AAAa' },
     }) } });
     await settle();
-    const strip = v.document.querySelector('#v-looks .v-shots');
+    const strip = v.document.querySelector('#v-rounds .v-shots');
     const [i0, i1] = strip.querySelectorAll('.v-shot img');
     const f0 = i0.parentNode;
     const box = (left, topPx, width) => ({ left, top: topPx, width, height: width * 9 / 16, x: left, y: topPx, right: left + width, bottom: topPx + width * 9 / 16 });
@@ -2819,6 +3096,372 @@ async function openShell(cfg, state, opts) {
       }
     }
     ok(seen >= 3, `found the surfaces that translate themselves (${seen})`);
+  });
+
+  // ── Onboarding: How Occlara watches (8.3.1) ────────────────────────────────
+  // Record gameplay or Frames only, with the PC check behind the choice: when
+  // the check runs, what the page pre selects and saves, and what it never
+  // overwrites. The rules themselves are test:pccheck's, the page in the real
+  // app check:onboardingriot's.
+  await section('onboarding, How Occlara watches:', async () => {
+    const rules = require('../src/renderer/onboarding/pc-rules');
+    const GB = 1024 * 1024 * 1024;
+    const ASKS = [
+      { res: '720', width: 1280, height: 720, codec: 'avc1.42E01F', bitrate: 3e6 },
+      { res: '1080', width: 1920, height: 1080, codec: 'avc1.42E028', bitrate: 6e6 },
+    ];
+    // The PC 8.3 was built on, as main's PC check answers for it.
+    const BIG = { ok: true, gpu: 'NVIDIA GeForce RTX 5060', cpu: 'Intel(R) Core(TM) i5-14400F', threads: 16, ramBytes: 31.84 * GB,
+      display: { width: 1920, height: 1080 }, freeBytes: 103.4 * GB, drive: 'C:', asks: ASKS };
+    /**
+     * The tour, open on its first page: `saved` laid over the store's
+     * defaults, `facts` main's answer (a function may throw), `encoder` the
+     * GPU's answer to each ask, `hold` keeping main's answer back until
+     * release().
+     */
+    async function tour(o) {
+      const opt = o || {};
+      const saved = { language: 'en', recordingMode: 'auto', recordingRes: '720', recordingAutoOff: null, ...(opt.saved || {}) };
+      const writes = [];
+      const asked = [];
+      let release = null;
+      const facts = opt.facts === undefined ? BIG : opt.facts;
+      const answer = () => (typeof facts === 'function' ? facts() : facts);
+      const p = loadSurface('onboarding', {
+        handlers: {
+          [C.CONFIG_GET]: () => ({ ...saved }),
+          [C.CONFIG_SET]: (patch) => { writes.push(patch); Object.assign(saved, patch); return { ok: true }; },
+          [C.BACKFILL_STATUS]: () => null,
+          [C.PC_CHECK]: () => (opt.hold ? new Promise((r) => { release = () => r(answer()); }) : answer()),
+        },
+        window: { VideoEncoder: { isConfigSupported: async (c) => { asked.push(c); return opt.encoder ? opt.encoder(c) : { supported: true }; } } },
+      });
+      await settle();
+      const buttons = () => p.$('ob-res').querySelectorAll('button');
+      return {
+        p, writes, asked,
+        open: async () => { p.window.go(3); await settle(20); },
+        release: async () => { release(); await settle(20); },
+        checks: () => p.bridge.invoked.filter((x) => x[0] === C.PC_CHECK).length,
+        size: (r) => p.$('ob-res').querySelector(`[data-res="${r}"]`),
+        view: () => ({
+          line: p.$('ob-pc-line').textContent,
+          rec: p.$('ob-rec').getAttribute('aria-checked') === 'true',
+          frames: p.$('ob-frames').getAttribute('aria-checked') === 'true',
+          recOff: p.$('ob-rec').disabled,
+          res: buttons().filter((b) => b.classList.contains('active')).map((b) => b.dataset.res).join(),
+          sizes: buttons().filter((b) => !b.disabled).map((b) => b.dataset.res).join(),
+          quiet: p.$('ob-res').classList.contains('quiet'),
+          recTag: !p.$('ob-rec-tag').hidden,
+          framesTag: !p.$('ob-frames-tag').hidden,
+          facts: p.document.querySelectorAll('#ob-pc-facts dd').map((d) => d.textContent),
+        }),
+      };
+    }
+    const wrote = (t) => JSON.stringify(t.writes);
+    const tours = [];
+
+    // A capable PC, first run: the store holds its defaults, which nobody chose.
+    const big = await tour();
+    tours.push(big);
+    ok(big.p.$('ob-rec').getAttribute('aria-checked') === 'true' && big.view().res === '720',
+      'before anything is read, the page shows the store\'s defaults: Record at 720p');
+    ok(big.checks() === 0, 'nothing is checked before its page opens');
+    await big.open();
+    let v = big.view();
+    ok(big.checks() === 1, 'the check runs as its page opens');
+    ok(v.rec && !v.frames && v.res === '1080' && v.recTag && !v.framesTag && v.line === 'This PC can record at 1080p.',
+      'a capable PC on a first run: Record at 1080p pre selected, and tagged Recommended', JSON.stringify(v));
+    ok(wrote(big) === '[{"recordingMode":"auto","recordingRes":"1080"}]', 'and saved at once, as recordingMode and recordingRes', wrote(big));
+    ok(same(v.facts, ['NVIDIA GeForce RTX 5060', '720p and 1080p', '16 threads', '32 GB', '1920x1080', '103 GB on C:']),
+      'what the check found is listed: GPU, encoder, threads, RAM, display, free space', JSON.stringify(v.facts));
+    ok(same(big.asked, ASKS.map((a) => ({ codec: a.codec, width: a.width, height: a.height, bitrate: a.bitrate, framerate: 30, hardwareAcceleration: 'prefer-hardware' }))),
+      'main\'s two asks are put to the encoder as they came, prefer-hardware at 30 fps', JSON.stringify(big.asked));
+    big.p.window.go(2);
+    await settle();
+    await big.open();
+    ok(big.checks() === 1 && big.asked.length === 2, 'once: back and forward again asks nothing more');
+
+    // Both choices save the moment they are made.
+    big.p.$('ob-frames').click();
+    await settle();
+    v = big.view();
+    ok(v.frames && !v.rec && v.quiet && big.writes[big.writes.length - 1].recordingMode === 'off',
+      'Frames only saves recordingMode off, and the size goes quiet', wrote(big));
+    big.size('720').click();
+    await settle();
+    v = big.view();
+    ok(v.rec && v.res === '720' && same(big.writes[big.writes.length - 1], { recordingMode: 'auto', recordingRes: '720' }),
+      'a size picks Record at that size', wrote(big));
+    const before = big.writes.length;
+    big.p.$('ob-rec').click();
+    await settle();
+    ok(big.writes.length === before, 'Record picked again while picked saves nothing new');
+    big.p.$('ob-frames').click();
+    big.p.$('ob-rec').click();
+    await settle();
+    ok(same(big.writes.slice(-2), [{ recordingMode: 'off', recordingRes: '720' }, { recordingMode: 'auto', recordingRes: '720' }]),
+      'Frames only, then Record: each saved as it is made', wrote(big));
+
+    // A modest PC: Frames only recommended, Record still a choice.
+    const modest = await tour({ facts: { ...BIG, ramBytes: 3.8 * GB } });
+    tours.push(modest);
+    await modest.open();
+    v = modest.view();
+    ok(v.frames && !v.rec && v.framesTag && !v.recTag && !v.recOff && wrote(modest) === '[{"recordingMode":"off","recordingRes":"720"}]',
+      'a modest PC on a first run: Frames only pre selected, tagged and saved, Record still open', JSON.stringify(v));
+    modest.p.$('ob-rec').click();
+    await settle();
+    ok(modest.view().rec && same(modest.writes[modest.writes.length - 1], { recordingMode: 'auto', recordingRes: '720' }),
+      'and Record can still be chosen there', wrote(modest));
+
+    // No encoder: Record cannot be chosen, and Frames only is saved over a Record the player chose.
+    const none = await tour({ saved: { recordingRes: '1080' }, encoder: () => ({ supported: false }) });
+    tours.push(none);
+    await none.open();
+    v = none.view();
+    ok(v.recOff && v.frames && !v.rec && v.sizes === '' && !v.recTag && !v.framesTag && /no hardware video encoder/.test(v.line),
+      'no hardware encoder: Record and both sizes disabled, Frames only shown, nothing tagged', JSON.stringify(v));
+    ok(wrote(none) === '[{"recordingMode":"off","recordingRes":"1080"}]',
+      'and Frames only saved over a Record at 1080p the player had chosen, which could never record here', wrote(none));
+    none.p.$('ob-rec').click();
+    none.size('720').click();
+    await settle();
+    ok(none.writes.length === 1 && none.view().frames, 'a disabled Record or size clicked saves nothing');
+
+    // Not enough space: the same, the line saying how much and where.
+    const disk = await tour({ facts: { ...BIG, freeBytes: 5.26 * GB } });
+    tours.push(disk);
+    await disk.open();
+    v = disk.view();
+    ok(v.recOff && v.frames && v.line === rules.recommend({ ...BIG, freeBytes: 5.26 * GB, encoder: { 720: true, 1080: true } }).why
+      && /5\.2 GB/.test(v.line) && wrote(disk) === '[{"recordingMode":"off","recordingRes":"720"}]',
+    'under 8 GB free: Record disabled, Frames only saved, and the line names the drive and the space', v.line);
+
+    // Shown again after a logout, the tour keeps what the player chose.
+    const rerun = await tour({ saved: { recordingMode: 'off' } });
+    tours.push(rerun);
+    await rerun.open();
+    v = rerun.view();
+    ok(v.frames && !v.rec && v.recTag && rerun.writes.length === 0,
+      'Off chosen in Settings, on a PC that could record at 1080p: still Off, Record tagged, nothing saved', JSON.stringify(v));
+    const kept1080 = await tour({ saved: { recordingRes: '1080' }, facts: { ...BIG, display: { width: 1600, height: 900 } } });
+    await kept1080.open();
+    v = kept1080.view();
+    ok(v.rec && v.res === '1080' && kept1080.writes.length === 0, '1080p chosen where the rules say 720p: still 1080p, nothing saved', JSON.stringify(v));
+    const autoOff = await tour({ saved: { recordingMode: 'off', recordingAutoOff: { at: 1, reason: 'busy', sessions: 2 } } });
+    await autoOff.open();
+    ok(autoOff.view().frames && autoOff.writes.length === 0, 'Off because recording turned itself off is not reset either');
+
+    // A pick made before the check lands is the player's, and stays.
+    const early = await tour({ hold: true });
+    early.p.window.go(3);
+    await settle(20);
+    ok(early.view().line === 'Checking this PC', 'while main answers, the line says it is checking');
+    early.p.$('ob-frames').click();
+    await settle();
+    await early.release();
+    v = early.view();
+    ok(v.frames && v.recTag && wrote(early) === '[{"recordingMode":"off","recordingRes":"720"}]',
+      'Frames only picked while checking: still Frames only once the check says 1080p, and nothing else saved', wrote(early));
+
+    // A check that fails, or an encoder that never answers, leaves the defaults alone.
+    for (const [what, facts] of [['main answering ok false', { ok: false, error: 'pc check failed' }],
+      ['main throwing', () => { throw new Error('main went away'); }]]) {
+      const failed = await tour({ facts });
+      tours.push(failed);
+      await failed.open();
+      v = failed.view();
+      ok(/could not be checked/.test(v.line) && v.rec && v.res === '720' && failed.writes.length === 0 && failed.asked.length === 0
+        && v.facts.every((f) => f === 'Not known' || f === 'Not checked'),
+      `${what}: "could not be checked", Record at 720p kept, nothing asked or saved`, JSON.stringify(v));
+    }
+    const hung = await tour({ encoder: () => new Promise(() => {}) });
+    hung.p.window.go(3);
+    await settle(20);
+    ok(hung.view().line === 'Checking this PC', 'an encoder slow to answer is waited for');
+    // Both asks wait at once: one after the other, a hung encoder held
+    // "Checking this PC" up for ten seconds.
+    hung.p.clock.advance(5000);
+    await settle(20);
+    v = hung.view();
+    ok(/could not be checked/.test(v.line) && v.rec && hung.writes.length === 0 && hung.asked.length === 2,
+      'and after five seconds both asks count as unanswered, not as a no: they wait at once, not one after the other', v.line);
+
+    // A size the encoder refused cannot be picked.
+    const no1080 = await tour({ encoder: (c) => ({ supported: c.width < 1900 }) });
+    tours.push(no1080);
+    await no1080.open();
+    v = no1080.view();
+    ok(v.sizes === '720' && v.res === '720' && v.line === 'This PC can record at 720p. Its encoder does not take 1080p.' && no1080.writes.length === 0,
+      'an encoder that refuses 1080p: 1080p disabled, Record at 720p, which was saved already', JSON.stringify(v));
+    no1080.size('1080').click();
+    await settle();
+    ok(no1080.writes.length === 0 && no1080.view().res === '720', 'and 1080p clicked saves nothing');
+    ok(no1080.size('1080').title === 'Its encoder does not take 1080p.' && no1080.size('720').title === ''
+      && no1080.size('1080').getAttribute('aria-checked') === 'false', 'the size it cannot pick says why on itself', no1080.size('1080').title);
+
+    // A SAVED 1080p THE ENCODER REFUSES never records (the recorder's gate
+    // asks the same question and records nothing on a no). It was kept, shown
+    // picked and disabled at once; now it is shown unavailable with its
+    // reason, and the recommended size is picked and saved in its place,
+    // beside the player's own Record or Frames only.
+    const refuses = (c) => ({ supported: c.width < 1900 });
+    const saved1080 = await tour({ saved: { recordingRes: '1080' }, encoder: refuses });
+    tours.push(saved1080);
+    await saved1080.open();
+    v = saved1080.view();
+    ok(v.rec && v.res === '720' && v.sizes === '720' && saved1080.size('1080').getAttribute('aria-checked') === 'false'
+      && saved1080.size('1080').title === 'Its encoder does not take 1080p.' && v.line === 'This PC can record at 720p. Its encoder does not take 1080p.'
+      && wrote(saved1080) === '[{"recordingMode":"auto","recordingRes":"720"}]',
+    'a saved 1080p the encoder refuses: shown unavailable, the line saying why, and Record at 720p picked and saved in its place', `${JSON.stringify(v)} ${wrote(saved1080)}`);
+    const modest1080 = await tour({ saved: { recordingRes: '1080' }, encoder: refuses, facts: { ...BIG, ramBytes: 3.8 * GB } });
+    tours.push(modest1080);
+    await modest1080.open();
+    v = modest1080.view();
+    ok(v.rec && v.res === '720' && v.framesTag && v.line === `${rules.recommend({ ...BIG, ramBytes: 3.8 * GB, encoder: { 720: true, 1080: false } }).why} Its encoder does not take 1080p.`
+      && wrote(modest1080) === '[{"recordingMode":"auto","recordingRes":"720"}]',
+    'on a modest PC too: the player\'s Record kept at 720p, Frames only still tagged, and the reason added to the line, which did not say it', `${v.line} ${wrote(modest1080)}`);
+    const off1080 = await tour({ saved: { recordingMode: 'off', recordingRes: '1080' }, encoder: refuses });
+    await off1080.open();
+    v = off1080.view();
+    ok(v.frames && !v.rec && v.res === '720' && wrote(off1080) === '[{"recordingMode":"off","recordingRes":"720"}]',
+      'and with Frames only chosen, Frames only stays, the size Record would take put right under it', `${JSON.stringify(v)} ${wrote(off1080)}`);
+    // The rules never recommend a size the encoder refused while the other records.
+    const odd = rules.recommend({ ...BIG, ramBytes: 3.8 * GB, encoder: { 720: false, 1080: true } });
+    ok(odd.mode === 'off' && odd.res === '1080' && odd.refused[720] === 'Its encoder does not take 720p.' && odd.refused[1080] === null
+      && rules.recommend({ ...BIG, encoder: { 720: true, 1080: false } }).short === rules.REFUSED('1080'),
+    'and the rules recommend no size the encoder refused: a modest PC whose encoder takes only 1080p is at 1080p', JSON.stringify(odd.refused));
+
+    // THE CHOICES ARE RADIOS, and the keys say so. A key goes where focus is,
+    // up through the page, then to the window, as the browser sends it, unless
+    // a control stopped it on the way.
+    const { makeEvent } = require('./fixtures/fake-dom');
+    const press = (t, el, key) => {
+      const e = makeEvent('keydown', { key, target: el });
+      el.dispatchEvent(e);
+      if (!e._stopped) for (const fn of t.p.window._listeners.keydown || []) fn.call(t.p.window, e);
+      return e;
+    };
+    const pageOf = (t) => t.p.document.querySelectorAll('.page').findIndex((pg) => !pg.hidden);
+    const last = (t) => t.writes[t.writes.length - 1];
+    const keys = await tour();
+    await keys.open();
+    const recCardEl = keys.p.$('ob-rec');
+    const framesCardEl = keys.p.$('ob-frames');
+    ok(recCardEl.tabIndex === 0 && framesCardEl.tabIndex === -1 && keys.size('1080').tabIndex === 0 && keys.size('720').tabIndex === -1,
+      'Tab comes into each group of choices on its picked one alone: Record, and its 1080p');
+    recCardEl.focus();
+    press(keys, recCardEl, 'ArrowDown');
+    await settle();
+    v = keys.view();
+    ok(pageOf(keys) === 3 && keys.p.document.activeElement === framesCardEl && v.frames && !v.rec && framesCardEl.tabIndex === 0 && recCardEl.tabIndex === -1
+      && same(last(keys), { recordingMode: 'off', recordingRes: '1080' }),
+    'an arrow on a choice moves to the next one and picks it, as a radio does, and turns no page', `page ${pageOf(keys)}, ${wrote(keys)}`);
+    press(keys, framesCardEl, 'ArrowRight');
+    await settle();
+    ok(pageOf(keys) === 3 && keys.p.document.activeElement === recCardEl && keys.view().rec && same(last(keys), { recordingMode: 'auto', recordingRes: '1080' }),
+      'and round again from the last one, by either arrow', `page ${pageOf(keys)}, ${wrote(keys)}`);
+    keys.size('1080').focus();
+    press(keys, keys.size('1080'), 'ArrowLeft');
+    await settle();
+    const leftTo = keys.p.document.activeElement;
+    const leftSaved = last(keys);
+    // and round again within its own two, never out to the cards
+    press(keys, keys.size('720'), 'ArrowLeft');
+    await settle();
+    ok(pageOf(keys) === 3 && leftTo === keys.size('720') && same(leftSaved, { recordingMode: 'auto', recordingRes: '720' })
+      && keys.p.document.activeElement === keys.size('1080') && keys.view().res === '1080' && keys.view().rec
+      && keys.size('1080').getAttribute('aria-checked') === 'true' && keys.size('720').getAttribute('aria-checked') === 'false'
+      && same(last(keys), { recordingMode: 'auto', recordingRes: '1080' }),
+    'the size is a group of its own: an arrow moves between 720p and 1080p and round again, Record at that size, and no page turns', wrote(keys));
+    const noneBefore = none.writes.length;
+    none.p.$('ob-frames').focus();
+    press(none, none.p.$('ob-frames'), 'ArrowUp');
+    await settle();
+    ok(pageOf(none) === 3 && none.view().frames && none.writes.length === noneBefore && none.p.document.activeElement === none.p.$('ob-frames'),
+      'a choice that cannot be made is passed over: with Record disabled an arrow stays on Frames only');
+    // ENTER ON A CHOICE PICKS IT AND STAYS; on the page's last control,
+    // Frames only, it picks and goes on, as Enter in a form's last field sends it.
+    framesCardEl.click();
+    await settle();
+    let recClicks = 0;
+    recCardEl.addEventListener('click', () => { recClicks++; });
+    recCardEl.focus();
+    const enterRec = press(keys, recCardEl, 'Enter');
+    await settle();
+    ok(pageOf(keys) === 3 && keys.view().rec && recClicks === 1 && enterRec.defaultPrevented && same(last(keys), { recordingMode: 'auto', recordingRes: '1080' }),
+      'Enter on Record picks it and stays on the page: its click made once, and the browser\'s own kept from following it', `page ${pageOf(keys)}, ${recClicks} clicks, ${wrote(keys)}`);
+    keys.size('720').focus();
+    press(keys, keys.size('720'), 'Enter');
+    await settle();
+    ok(pageOf(keys) === 3 && keys.view().res === '720' && same(last(keys), { recordingMode: 'auto', recordingRes: '720' }), 'Enter on a size picks it and stays');
+    framesCardEl.focus();
+    press(keys, framesCardEl, 'Enter');
+    await settle();
+    ok(pageOf(keys) === 4 && same(last(keys), { recordingMode: 'off', recordingRes: '720' }),
+      'Enter on Frames only, the page\'s last control, picks it and goes on', `page ${pageOf(keys)}, ${wrote(keys)}`);
+    // The footer and the rest of the tour: Enter on a button is that button.
+    keys.p.window.go(1);
+    keys.p.$('next').focus();
+    press(keys, keys.p.$('next'), 'Enter');
+    ok(pageOf(keys) === 2, 'Enter on Next is one page on, never two', `page ${pageOf(keys)}`);
+    keys.p.$('back').focus();
+    press(keys, keys.p.$('back'), 'Enter');
+    ok(pageOf(keys) === 1, 'Enter on Back one page back, where it went forward and back again', `page ${pageOf(keys)}`);
+    press(keys, keys.p.document.body, 'Enter');
+    ok(pageOf(keys) === 2, 'Enter with no control in hand is Next, as it was', `page ${pageOf(keys)}`);
+    press(keys, keys.p.document.body, 'ArrowRight');
+    const turned = pageOf(keys);
+    press(keys, keys.p.document.body, 'ArrowLeft');
+    ok(turned === 3 && pageOf(keys) === 2, 'and the arrows away from the choices still turn the pages', `${turned} then ${pageOf(keys)}`);
+    const [offTips, onTips] = keys.p.$('advanced').querySelectorAll('button');
+    offTips.focus();
+    press(keys, offTips, 'Enter');
+    await settle();
+    ok(pageOf(keys) === 2 && offTips.classList.contains('active') && same(last(keys), { advancedTips: false }),
+      'after every match, Enter on Off picks it and stays', wrote(keys));
+    onTips.focus();
+    press(keys, onTips, 'Enter');
+    await settle();
+    ok(pageOf(keys) === 3 && onTips.classList.contains('active') && same(last(keys), { advancedTips: true }),
+      'and on On, the page\'s last control, picks it and goes on', `page ${pageOf(keys)}, ${wrote(keys)}`);
+    // A key a control takes for itself is its own: the language list on the
+    // first page opens on Enter and closes on Escape, and neither turns the
+    // page or ends the tour. The Escape after it, the list closed, does.
+    keys.p.window.go(0);
+    const langBtn = keys.p.$('ob-language').querySelector('button');
+    const doneSent = () => keys.p.bridge.sent.filter((s) => s[0] === C.ONBOARDING_DONE).length;
+    langBtn.focus();
+    press(keys, langBtn, 'Enter');
+    const opened = langBtn.getAttribute('aria-expanded') === 'true' && pageOf(keys) === 0;
+    press(keys, langBtn, 'Escape');
+    const closedOnly = langBtn.getAttribute('aria-expanded') === 'false' && doneSent() === 0 && pageOf(keys) === 0;
+    press(keys, langBtn, 'Escape');
+    ok(opened && closedOnly && doneSent() === 1, 'the language list takes its own Enter and Escape, turning no page and ending no tour; Escape with it closed ends the tour',
+      `opened ${opened}, closed only ${closedOnly}, done sent ${doneSent()}`);
+
+    // THE WORDS ARE TRUE IN EVERY GAME. Valorant and League record, Marvel
+    // Rivals does not yet, and League's screen is never read: its review
+    // comes from the game's own record.
+    const copy = new Set();
+    for (const t of tours) {
+      for (const el of t.p.document.querySelectorAll('#ob-watch h1, #ob-watch .sub, #ob-pc-line, #ob-watch .ob-opt-title, #ob-watch .ob-opt-text, #ob-pc-facts dt, #ob-pc-facts dd')) {
+        for (const s of el.textContent.split(/(?<=[.!?])\s+/)) if (s.trim()) copy.add(s.trim());
+      }
+    }
+    const words = [...copy];
+    ok(words.length > 20, `the copy of the page in every state above (${words.length} sentences)`);
+    ok(!words.some((w) => DASHES.test(w)), 'no dash anywhere on the page', words.filter((w) => DASHES.test(w)).join(' | '));
+    const screen = words.filter((w) => /screen/i.test(w));
+    ok(screen.length >= 1 && screen.every((w) => /\bValorant\b/.test(w) && !/League/.test(w)),
+      'every sentence that says the screen is read says Valorant, and none says League', screen.join(' | '));
+    const recCard = big.p.$('ob-rec').textContent;
+    const framesCard = big.p.$('ob-frames').textContent;
+    ok(/Valorant and League are recorded at about 30 fps/.test(recCard) && /stays on this PC/.test(recCard),
+      'Record gameplay: Valorant and League, about 30 fps, and the video stays on this PC', recCard);
+    ok(/Nothing is recorded/.test(framesCard) && /no clips/.test(framesCard), 'Frames only: nothing is recorded, so no clips', framesCard);
+    ok(!words.some((w) => /Rivals/.test(w)), 'and nothing says Marvel Rivals is recorded');
   });
 
   console.log(fails ? `\nFAIL: ${fails} problem(s)` : '\nPASS: every surface does the right thing with what arrives');

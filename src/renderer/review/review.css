@@ -39,7 +39,9 @@ header {
 .r-champ { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
 .r-meta { font-size: 11.5px; color: var(--text-mute); letter-spacing: 0.02em; }
 
-.scoreline { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); }
+/* One row however many numbers a game has: Rivals has five, and in four
+   columns its accuracy sat alone on a second row. */
+.scoreline { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: var(--space-2); }
 .stat {
   padding: var(--space-3);
   background: rgba(0, 0, 0, 0.24);
@@ -148,13 +150,21 @@ header {
 
 #vreview { display: flex; flex-direction: column; gap: var(--space-6); }
 
+/* The result, with Riot's scoreboard beside it (8.3.1). The scoreboard was a
+   row of four boxes of its own under this card, and with the comparison
+   further down repeating its numbers, the grade and the coach's read did not
+   make the first screen. */
 .v-hero {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
   padding: var(--space-4);
   background: var(--bg-2);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
 }
+.v-hero-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
 .v-result {
   font-size: 11px; font-weight: 700; letter-spacing: 0.18em;
   color: var(--text-mute);
@@ -168,7 +178,37 @@ header {
 }
 .v-meta { font-size: 12px; color: var(--text-dim); letter-spacing: 0.01em; margin-top: 2px; }
 
-.v-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); }
+/* Riot's four numbers, each right aligned over its label, and under each how
+   it compares with the player's own average. No box round each one: they sit
+   inside the result's card, and a card in a card is a frame round nothing. */
+.v-stats-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
+.v-stats { display: flex; gap: var(--space-6); }
+.v-stat { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.v-stat-value {
+  font-family: var(--font-mono); font-size: 18px; font-weight: 600; line-height: 1.2;
+  color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.v-stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-mute); }
+.v-stat-vs {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--text-mute);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.v-stat-vs.good { color: var(--good); }
+.v-stat-vs.bad  { color: var(--red); }
+.v-against-note { font-size: 10.5px; line-height: 1.4; color: var(--text-mute); margin: 0; text-align: right; max-width: 380px; }
+
+/* Riot's record was applied. Quiet, because it is a reassurance, not news,
+   and across the card under the score and the scoreboard both. */
+.v-verified {
+  grid-column: 1 / -1;
+  margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--text-dim);
+  display: flex; gap: 6px; align-items: baseline;
+}
+.v-verified::before {
+  content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--good); transform: translateY(-1px);
+}
+.v-verified[hidden] { display: none; }
 
 /* The strip. Each half is its own row so halftime is a line break, not a
    number the player has to find. */
@@ -218,129 +258,87 @@ header {
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
 }
+.v-summary[hidden] + .v-focus { margin-top: 0; }
 .v-focus-label {
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-mute); margin-bottom: 4px;
 }
 .v-focus-text { font-size: 13.5px; font-weight: 600; line-height: 1.5; color: var(--text); margin: 0; }
 
-.v-patterns { display: flex; flex-direction: column; gap: var(--space-1); }
-.v-pattern {
-  display: flex; align-items: flex-start; gap: var(--space-3);
-  padding: var(--space-3);
-  background: rgba(0, 0, 0, 0.24);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-sm);
-}
-.v-pattern-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; background: var(--text-mute); }
+/* What the numbers say about the rounds, under the strip they describe:
+   plain lines, since the rows under them are the list. */
+.v-patterns { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.v-pattern { display: flex; align-items: baseline; gap: var(--space-2); font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+.v-pattern-dot { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--text-mute); transform: translateY(-2px); }
 .v-pattern-dot.spot, .v-pattern-dot.early, .v-pattern-dot.ult { background: var(--red); }
-.v-pattern-text { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
 
-.v-rounds { display: flex; flex-direction: column; gap: var(--space-2); }
-.v-round {
-  display: flex; flex-direction: column; gap: 6px;
-  padding: var(--space-3) var(--space-4);
+/* ── Every round, once (8.3.1) ──────────────────────────────────────────────
+   One card, a row a round, hairlines between. A round with nothing to say is
+   one line; one the coach looked at carries what there is to watch beside
+   what the coach made of it. A League game's deaths are drawn the same way. */
+.v-rounds {
+  container: rounds / inline-size;
+  display: flex; flex-direction: column;
+  margin-top: var(--space-2);
   background: rgba(0, 0, 0, 0.24);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
+  overflow: hidden;
+}
+.v-round {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   scroll-margin: var(--space-8);
 }
-.v-round.flash { animation: vflash 1.2s var(--ease); }
+.v-round + .v-round { border-top: 1px solid var(--glass-border); }
+.v-round.quiet { padding-top: var(--space-2); padding-bottom: var(--space-2); }
+/* A row handed the keyboard by a jump rings inside itself: the list clips
+   what is outside it. */
+.v-round:focus-visible { outline-offset: -2px; }
+.v-round.flash { animation: vflash calc(var(--t-slow) * 3) var(--ease); }
 @keyframes vflash {
-  0%   { border-color: rgba(255, 255, 255, 0.6); }
-  100% { border-color: var(--glass-border); }
+  0%   { background-color: rgba(255, 255, 255, 0.06); }
+  100% { background-color: transparent; }
 }
-.v-round-head { display: flex; align-items: center; gap: var(--space-2); }
-.v-rn { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--text); }
+.v-round-head { display: flex; align-items: center; gap: var(--space-2); min-height: 22px; }
+.v-round-head .log-eye { margin-left: auto; width: 28px; height: 28px; border-radius: var(--r-sm); }
+.v-rn { flex: none; min-width: 28px; font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--text); }
 .v-chip {
+  flex: none; min-width: 46px; text-align: center;
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
   padding: 2px 7px; border-radius: 999px;
 }
 .v-chip.won  { background: var(--text); color: var(--bg); }
 .v-chip.lost { border: 1px solid rgba(255, 255, 255, 0.22); color: var(--text-dim); }
-.v-side { font-size: 11px; color: var(--text-mute); }
-.v-facts { font-size: 12px; color: var(--text-dim); }
-.v-why-wrap { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
-.v-why { font-size: 13px; line-height: 1.55; color: var(--text); margin: 0; }
-.v-reads { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
-.v-reads-label {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--text-mute);
-}
-.v-read {
-  font-size: 12px; line-height: 1.5; color: var(--text-dim); margin: 0;
-  padding: 6px 10px;
-  background: var(--bg-2);
-  border-radius: var(--r-sm);
-}
+.v-side { flex: none; font-size: 11px; color: var(--text-mute); }
+.v-facts { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+/* A quiet round's facts, or a League death's one fact, beside its number, in
+   the same column down the list. */
+.v-round.quiet .v-round-head { align-items: baseline; }
+.v-round.quiet .v-side { min-width: 52px; }
+.v-round-head > .v-facts, .v-round-head > .v-look-what { flex: 1 1 0; min-width: 0; }
+/* The why reads as the lists' fix lines do: the same size, its label inline. */
+.v-why-line { font-size: 12.5px; line-height: 1.5; color: var(--text); margin: 0; }
+/* Under a screen look that said something too (review.js roundRow): the
+   look's block, then the why's, a hairline between, so two accounts of one
+   death never read as one. */
+.v-why-line.apart { padding-top: var(--space-2); border-top: 1px solid var(--glass-border); }
 
-.v-study { display: flex; flex-direction: column; gap: var(--space-2); }
-.v-study-card {
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-2);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-}
-.v-study-text { font-size: 13px; line-height: 1.55; color: var(--text); margin: 0; }
-
-.v-foot { font-size: 11px; color: var(--text-mute); text-align: center; margin: 0; }
-
-@media (prefers-reduced-motion: reduce) {
-  .v-cell, .v-round.flash, .v-moment.flash { transition: none; animation: none; }
-}
-
-/* Riot's record was applied. Quiet, because it is a reassurance, not news. */
-.v-verified {
-  margin: 8px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-dim);
-  display: flex; gap: 6px; align-items: baseline;
-}
-.v-verified::before {
-  content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%;
-  background: var(--good); transform: translateY(-1px);
-}
-.v-verified[hidden] { display: none; }
-
-/* ── Every game: the grade, the lists, the header actions ───────────────── */
-.h-actions { display: flex; align-items: center; gap: var(--space-1); }
-.btn.sm { padding: 6px 10px; font-size: 12px; border-radius: var(--r-sm); }
-/* The eye stands as tall as the small buttons beside it. */
-.eye-host { display: flex; }
-.eye-host[hidden] { display: none; }
-.eye-host .log-eye { width: 28px; height: 28px; border-radius: var(--r-sm); }
-.common { display: flex; flex-direction: column; gap: var(--space-6); }
-.common[hidden] { display: none; }
-#insights-host:empty { display: none; }
-
-/* ── The coach's look at a death ────────────────────────────────────────── */
-/* On a round's card, the cause alone and a link down to the moment. */
-.v-look-link { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: 2px; }
-.v-moment-link {
-  margin-left: auto; padding: 0;
-  background: none; border: 0;
-  font: inherit; font-size: 11.5px; color: var(--text-dim);
-  text-decoration: underline; text-underline-offset: 3px;
-  cursor: pointer;
-  transition: color var(--t-fast) var(--ease);
-}
-.v-moment-link:hover { color: var(--text); }
-.v-moment-link:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 2px; }
-
-/* Where you died, and how (8.2): every moment the coach looked at, last on
-   the page, its frames across the card. A card of its own, the round card's
-   shape, so the link down from a round lands on something that flashes. */
-.v-looks { display: flex; flex-direction: column; gap: var(--space-3); }
+/* A death the coach looked at: what there is to watch, three fifths, and
+   what the coach made of it beside. Narrower than 600px, one under the
+   other. */
 .v-moment {
-  display: flex; flex-direction: column; gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  background: rgba(0, 0, 0, 0.24);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-  scroll-margin: var(--space-8);
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-4);
+  align-items: start;
 }
-.v-moment.flash { animation: vflash 1.2s var(--ease); }
-.v-moment-head { display: flex; align-items: center; gap: var(--space-2); min-height: 28px; }
-.v-moment-head .log-eye { margin-left: auto; width: 28px; height: 28px; border-radius: var(--r-sm); }
-.v-moment-cause { display: flex; }
+.v-moment.no-media { grid-template-columns: minmax(0, 1fr); }
+@container rounds (max-width: 600px) {
+  .v-moment { grid-template-columns: minmax(0, 1fr); }
+}
+.v-media, .v-advice { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.v-look-tag { display: flex; align-items: center; flex-wrap: wrap; }
 .v-moment-src { font-size: 11px; line-height: 1.45; color: var(--text-mute); margin: 0; }
 .v-cause {
   font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
@@ -348,9 +346,10 @@ header {
   border: 1px solid var(--glass-border); color: var(--text-dim);
 }
 .v-cause.bad { color: var(--red); border-color: rgba(var(--red-rgb), 0.40); background: rgba(var(--red-rgb), 0.07); }
-.v-shots { display: grid; grid-template-columns: 1fr; gap: var(--space-2); }
-.v-shots.two { grid-template-columns: 1fr 1fr; }
-.v-shot { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+/* The frames: a filmstrip under a clip, four a row at least, and two a row
+   without one (--n, from review.js shotStrip). */
+.v-shots { display: grid; grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr)); gap: var(--space-2); }
+.v-shot { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 /* A zoom scales from where the frame was to where it is (zoomShot in
    review.js), out and back. */
 .v-shot img {
@@ -366,11 +365,41 @@ header {
 .v-look-what { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); margin: 0; }
 .v-look-better { font-size: 12.5px; line-height: 1.5; color: var(--text); margin: 0; }
 
+/* Before the next match: plain lines under their heading. */
+.v-study { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.v-study-note { position: relative; padding-left: var(--space-4); font-size: 13px; line-height: 1.55; color: var(--text); }
+.v-study-note::before {
+  content: ''; position: absolute; left: 2px; top: 0.62em;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--text-mute);
+}
+
+.v-foot { font-size: 11px; color: var(--text-mute); text-align: center; margin: 0; }
+
+@media (max-width: 620px) {
+  .v-hero { grid-template-columns: minmax(0, 1fr); }
+  .v-stats-wrap { align-items: flex-start; }
+  .v-against-note { text-align: left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v-cell, .v-round.flash, .v-shot img { transition: none; animation: none; }
+}
+
+/* ── Every game: the grade, the lists, the header actions ───────────────── */
+.h-actions { display: flex; align-items: center; gap: var(--space-1); }
+.btn.sm { padding: 6px 10px; font-size: 12px; border-radius: var(--r-sm); }
+/* The eye stands as tall as the small buttons beside it. */
+.eye-host { display: flex; }
+.eye-host[hidden] { display: none; }
+.eye-host .log-eye { width: 28px; height: 28px; border-radius: var(--r-sm); }
+.common { display: flex; flex-direction: column; gap: var(--space-6); }
+.common[hidden] { display: none; }
+#insights-host:empty { display: none; }
+
 /* The clip of a moment (8.3): the recording's own seconds around the death,
-   across the card above its frames, the frame the coach looked at as its
-   picture until it plays. The mark in the middle says play while it is
-   paused, and pause while it plays, shown then only on hover or focus so it
-   never sits over the fight. */
+   the frame the coach looked at as its picture until it plays. The mark in
+   the middle says play while it is paused, and pause while it plays, shown
+   then only on hover or focus so it never sits over the fight. */
 .v-clip { margin: 0; display: flex; flex-direction: column; gap: 4px; }
 .v-clip-frame { position: relative; }
 .v-clip-video {
@@ -396,9 +425,5 @@ header {
 .v-clip.playing .v-clip-play { opacity: 0; }
 .v-clip.playing .v-clip-frame:hover .v-clip-play,
 .v-clip.playing .v-clip-play:focus-visible { opacity: 1; }
-.v-clip figcaption { font-size: 10.5px; color: var(--text-mute); }
-/* Under a clip the frames are half as wide: the clip already shows the moment
-   across the card. A frame zoomed still takes the whole row. */
-.v-moment.has-clip .v-shots { grid-template-columns: 1fr 1fr; }
 /* A clip the cap or Settings took: said where it was, quietly. */
 .v-clip-gone { font-size: 11px; line-height: 1.45; color: var(--text-mute); margin: 0; }

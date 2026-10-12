@@ -32,6 +32,7 @@
  */
 const { __test } = require('./coaching-engine');
 const { clockSeconds, isBuyPhase, BUY_MAX_LEFT } = require('../../shared/valorant-rounds');
+const { countsSpectators } = require('../../shared/spectate-tells');
 
 // A map change with no score reset behind it needs this many consecutive frames
 // AND an agreeing label fingerprint before it counts. The longest run of pure
@@ -221,7 +222,10 @@ const SPECTATING_PROOF = /\bswitch player\b|\bkill ?cam\b|\bspectating own death
 function aliveVerdict(state) {
   const s = state || {};
   const tell = String(s.aliveTell || '');
-  const spectating = SPECTATING.test(tell)
+  // The SPECTATORS counter ("Spectating 1 top right") counts who is watching a
+  // LIVING player, as the engine reads it (spectate-tells.js countsSpectators):
+  // on the Sunset match it listed a death here that the review never had.
+  const spectating = SPECTATING.test(tell) && !countsSpectators(tell)
     && !(NOT_SPECTATING.test(tell) && !/\bswitch player\b|\bkill ?cam\b/i.test(tell));
   if (spectating) return 'dead';
   // Seeing your OWN loadout and health, with no spectator interface anywhere,

@@ -43,30 +43,66 @@ Module._load = realLoad;
 const realNow = Date.now;
 const realLog = console.log;
 
-/** Replay a fixture's reads through applyRead, on its own clock. */
-function replay(file, { menusAfter = 0 } = {}) {
+/**
+ * A read's latency as a live session has it, lognormal (sigma 0.5) about the
+ * median that gives `p90`, drawn from a seeded generator so a run is the same
+ * run every time.
+ */
+function latencies(seed, p90) {
+  let s = seed >>> 0;
+  const next = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  const median = p90 / Math.exp(1.2816 * 0.5);
+  return () => {
+    const u1 = Math.max(1e-9, next());
+    const u2 = next();
+    return median * Math.exp(0.5 * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)) * 1000;
+  };
+}
+
+/**
+ * Replay a fixture's reads through applyRead, on its own clock. With
+ * `latency` ({ seed, p90 }) each reply is applied once it is in and every one
+ * before it is, as drain() applies them: the clock then reads the second it was
+ * APPLIED, and `at` the second its frame was captured, as a live session has it.
+ */
+function replay(file, { menusAfter = 0, latency = null } = {}) {
   const frames = require(path.join(__dirname, 'fixtures', file)).frames;
   const t0 = Date.parse('2026-10-04T20:00:00Z');
   let clock = t0;
   Date.now = () => clock;
   const lines = [];
   console.log = (...a) => { lines.push(a.join(' ')); };
-  const e = new CoachingEngine({ licenseKey: 'TEST', captureFunction: async () => null, experiments: () => ({}) });
+  // What the AI log is handed for each frame: when it was captured, and whether
+  // the engine says a death registered on it.
+  const logged = [];
+  const e = new CoachingEngine({ licenseKey: 'TEST', captureFunction: async () => null, experiments: () => ({}),
+    diagnostics: (rec) => logged.push({ t: Math.round((rec.at - t0) / 100) / 10, died: !!rec.died }) });
   e.isRunning = true;
   const reviews = [];
   const resumed = [];
   e.on('match-review', (text, snap) => reviews.push({ snap, at: clock }));
   e.on('match-resumed', (r) => resumed.push(r));
   const modes = [];
+  // The round the ledger filed each frame under, by the frame's own second.
+  const filed = [];
+  // The second of each frame a death registered on, and the map held after each.
+  const deaths = [];
+  const maps = [];
   let registered = 0;
+  const lag = latency ? latencies(latency.seed, latency.p90) : null;
+  let applied = 0;
   try {
     for (const f of frames) {
-      clock = t0 + f.t * 1000;
+      const captured = t0 + f.t * 1000;
+      applied = lag ? Math.max(applied, captured + lag()) : captured;
+      clock = Math.round(applied);
       const { t, ...context } = f;
       const before = e.matchContext.gameMode;
       const deathBefore = e.lastDeathAt;
-      e.applyRead({ data: { context: { ...context } }, shot: null, at: clock });
-      if (e.lastDeathAt !== deathBefore) registered++;
+      e.applyRead({ data: { context: { ...context } }, shot: null, at: captured });
+      filed.push({ t, n: e.ledger.current() });
+      maps.push({ t, map: e.matchContext.map || null });
+      if (e.lastDeathAt !== deathBefore) { registered++; deaths.push(t); }
       if (e.matchContext.gameMode !== before) {
         modes.push({ t, mode: e.matchContext.gameMode, score: `${e.matchContext.teamScore}-${e.matchContext.enemyScore}` });
       }
@@ -79,8 +115,17 @@ function replay(file, { menusAfter = 0 } = {}) {
   } finally {
     console.log = realLog;
   }
-  return { e, reviews, resumed, modes, lines, registered, restore: () => { Date.now = realNow; } };
+  return { e, reviews, resumed, modes, lines, registered, deaths, maps, logged, filed, restore: () => { Date.now = realNow; } };
 }
+
+/** What the review is built from, a replay at a time: each round, its death and where. */
+const ledgerOf = (run) => run.e.ledger.list()
+  .map((r) => `${r.n}${r.died ? `D${r.deathClock === null ? '' : r.deathClock}${r.deathSpot || ''}` : ''}${r.ultAtDeath === 'ready' ? 'U' : ''}`).join(' ');
+
+/** The map the engine held from one second to another, each change once ('' for none). */
+const mapsBetween = (run, from, to) => run.maps.filter((m) => m.t >= from && m.t <= to).map((m) => m.map || '')
+  .filter((m, i, all) => i === 0 || m !== all[i - 1]);
+const shown = (maps) => maps.map((m) => m || 'unknown').join(' -> ');
 
 /**
  * The ledger's deaths against Riot's, over the rounds the ledger has, and the
@@ -124,6 +169,23 @@ function againstRiot(rounds, truth) {
     const early = rounds.filter((r) => r.n >= 5 && r.n <= 12);
     const attack = early.filter((r) => r.side === 'attacking').length;
     ok(attack >= 6, `rounds 5 to 12 read as the first half side, not flipped (${attack} of ${early.length} attacking)`);
+    // Riot's record of this match (riot-split-13-7.json): a death in 16 of its
+    // 20 rounds. Round 18's is the round before's COMBAT REPORT in its buy phase.
+    const splitTruth = {};
+    for (const r of require('./fixtures/riot-split-13-7.json').perRound) if (r.died) splitTruth[r.n] = r.deathMs / 1000;
+    const vs = againstRiot(rounds, splitTruth);
+    ok(vs.agree === 16 && vs.missed === 0 && vs.invented <= 1 && vs.close >= 13,
+      `deaths round by round against Riot (${JSON.stringify(vs)})`);
+    // THE FRAME'S OWN ULTIMATE READ. Round 16's alternated ready and charging,
+    // the last ready nine seconds before the death and two empty reads after
+    // it, and the one the context held made it "died holding your ultimate".
+    const r16 = rounds.find((r) => r.n === 16);
+    ok(r16 && r16.died && r16.ultAtDeath !== 'ready',
+      `round 16 does not die holding an ultimate it read ready once (${r16 && r16.ultAtDeath})`);
+    // The model read Haven at 41.3 s, after B Main and Mid Bottom were printed:
+    // a map the labels had already ruled out.
+    ok(!run.maps.some((m) => m.map === 'Haven'),
+      `Haven, which the printed labels had ruled out, is never locked (${shown(mapsBetween(run, 0, 60))})`);
     console.log = () => {};
     e.stop();
     console.log = realLog;
@@ -160,9 +222,73 @@ function againstRiot(rounds, truth) {
     // Riot's record of this match, from its verified review: died in rounds
     // 1, 2, 4, 6 and 8, at these seconds into the round.
     const vs = againstRiot(run.e.ledger.list(), { 1: 51, 2: 13, 4: 18, 6: 34, 8: 10 });
-    ok(vs.agree >= 4 && vs.invented <= 1 && vs.missed <= 1,
+    ok(vs.agree === 5 && vs.invented === 0 && vs.missed === 0,
       `the screen's deaths line up with Riot's, round by round (${JSON.stringify(vs)})`);
     ok(vs.timed >= 3 && vs.close === vs.timed, 'and every timed one is within ten seconds of Riot');
+    // A DEATH ON A WEAK TELL, judged by the read after it. Round 7's, at 676.2
+    // s, read "no own health number spectating teammate's view": the read after
+    // it was the player's own 50 health and knife, the HUD as it stood before.
+    const rounds = run.e.ledger.list();
+    const at = (t) => run.logged.find((x) => x.t === t);
+    ok(run.deaths.includes(676.2) && !rounds.find((r) => r.n === 7).died && at(676.2) && at(676.2).died === false,
+      'round 7 keeps no death: the read after it is the player\'s own HUD again, and the AI log has the frame as no death');
+    // Round 1's read "Spectating teammate with HP 61", and the read after it
+    // "own HP 61 and knife", the spectated teammate's HUD read as the player's:
+    // the player had 75 and a Bandit. Riot has the death.
+    ok(rounds.find((r) => r.n === 1).died && at(191.3) && at(191.3).died === true,
+      'round 1 keeps its death, though the read after it claims the HUD: a teammate\'s health and gun are not the player\'s');
+  }
+
+  // ── The Sunset swiftplay, read a second (8.3.0) ───────────────────────────
+  // Round 5 is a post plant, and at 436.8 s a frame read "buy 0:39" off the
+  // ammo counter a second after the last post plant read, then four more
+  // timers on any number. The ledger took the first for round 6's buy phase:
+  // the rest of round 5 went to round 6, its false death with it (a
+  // "Spectating 1" counter at 459.1 s), and round 6's real death was refused
+  // for it, so round 6 died at A Site with its ultimate ready. Round 6's buy
+  // phase begins at 467 s, its death came 20.8 s in by the clip.
+  {
+    const run = replay('valorant-session-sunset-swiftplay.json');
+    const post = run.filed.filter((x) => x.t >= 436.8 && x.t <= 461.1);
+    ok(post.length === 25 && post.every((x) => x.n === 5),
+      `round 5's post plant stays round 5 through the misread buy timers (${[...new Set(post.map((x) => x.n))].join(',')})`);
+    const six = run.filed.find((x) => x.n === 6);
+    ok(six && six.t >= 462, `round 6 begins after round 5 ends, not in its post plant (${six && six.t} s)`);
+    const rounds = run.e.ledger.list();
+    const r6 = rounds.find((r) => r.n === 6);
+    ok(r6 && r6.died && r6.deathClock !== null && r6.deathClock >= 70,
+      `round 6 keeps its own death, early in the round (${r6 && r6.deathClock} left)`);
+    ok(!rounds.some((r) => r.died && r.ultAtDeath === 'ready'),
+      `and no death holds an ultimate that one misread put there (${rounds.map((r) => r.ultAtDeath).join(',')})`);
+
+    // THE DEATHS, ON THE FRAMES THAT SHOW THEM. Each of the five reads "KILLED
+    // BY <agent> and COMBAT REPORT" first, which the death proof did not know:
+    // round 2's at 165.1 s, its alive flag unread, and round 6's at 519.0 s
+    // registered a read late. And two registered on the SPECTATORS 1 counter
+    // at the top right, a living player's HUD: the round 4 banner at 348.6 s,
+    // a "dead" phase nothing checked, and 459.1 s in round 5's post plant.
+    ok(run.deaths.join() === '70.9,165.1,253.3,459.1,519,615.4',
+      `each death registers on the first frame of its death screen (${run.deaths.join(', ')} s)`);
+    ok(!run.deaths.some((t) => t >= 348 && t <= 350),
+      'nothing registers on the spectator counter of the round 4 banner, read as dead on two frames running');
+    // 459.1 s read "Spectating teammate, own HP not shown" off the counter, and
+    // the read a second later was the player's own 100 health and Ghost.
+    const at459 = run.logged.find((x) => x.t === 459.1);
+    ok(!rounds.find((r) => r.n === 5).died && at459 && at459.died === false,
+      'round 5\'s weak tell death is withdrawn by the read after it, in the ledger and in the AI log');
+    ok(rounds.filter((r) => r.died).map((r) => r.n).join() === '1,2,3,6,7',
+      `the screen files a death in rounds 1, 2, 3, 6 and 7, those of the death screens (${rounds.filter((r) => r.died).map((r) => r.n)})`);
+
+    // THE MAP LOCK AGAINST THE PRINTED LABELS. Haven won the lock on the first
+    // two buy phase reads; the game then printed B Lobby, which Haven does not
+    // have, at 24.3 and 35.4 s, then B Main and Mid Bottom, and the model kept
+    // reading Haven for minutes.
+    ok(mapsBetween(run, 14.2, 35).join() === 'Haven' && mapsBetween(run, 35.4, 35.4).join() === '',
+      `Haven, locked at 14.2 s, is released by the second B Lobby read (${shown(mapsBetween(run, 0, 40))})`);
+    const after = mapsBetween(run, 35.4, 999);
+    ok(after.join() === ',Sunset',
+      `and no Haven read the labels rule out locks it again, until Sunset does (${shown(after)})`);
+    run.restore();
   }
 
   // ── The 24 round Abyss match, against Riot's record of it ─────────────────
@@ -176,7 +302,96 @@ function againstRiot(rounds, truth) {
     // frame and loses round 8 to a misread score; everything else agrees.
     ok(vs.agree >= 20 && vs.invented <= 1 && vs.missed <= 1, `deaths round by round against Riot (${JSON.stringify(vs)})`);
     ok(vs.timed >= 12 && vs.close >= 7, `with the death second for more of them (${vs.timed} timed, ${vs.close} within ten seconds)`);
+    // The round 10 buy phase's last frame read its kill feed as "killed by
+    // Skye", a dead read in a buy phase, and the next one a "dead" phase that
+    // proves nothing ("own HP 100 and Vandal bottom center with death"), three
+    // seconds into a round the player is read alive in at 19 health nine
+    // seconds later. Riot has the death fifteen seconds in, the screen's next.
+    ok(!run.deaths.includes(939.1) && run.deaths.includes(957.1),
+      `a dead read in the buy phase is no first read of two (deaths at ${run.deaths.filter((t) => t > 900 && t < 1000).join(', ')} s)`);
     run.restore();
+  }
+
+  // ── Read latency changes nothing ──────────────────────────────────────────
+  // Live, a reply is applied one to four seconds after its frame was captured,
+  // later behind a slow one, and every guard used to measure on when it was
+  // applied: the same session read differently from run to run. At a read p90
+  // of 2.7 seconds, the Sunset post plant was filed under round 6 again (seeds
+  // 14 and 67 of 100), the Abyss swiftplay lost round 1's death (14 of 100), and
+  // the Split and Abyss matches moved a death or its second (24 and 11 of 100).
+  // On the second each frame was captured, every run is the run with none.
+  {
+    const CASES = [
+      ['valorant-session-sunset-swiftplay.json', [14, 67]],
+      ['valorant-session-abyss-swiftplay.json', [16, 21]],
+      ['valorant-session-split-competitive.json', [6, 15]],
+      ['valorant-session-abyss-unrated.json', [17, 25]],
+    ];
+    for (const [file, seeds] of CASES) {
+      const base = replay(file);
+      const want = { ledger: ledgerOf(base), filed: base.filed.map((x) => x.n).join(), deaths: base.deaths.join() };
+      base.restore();
+      for (const seed of seeds) {
+        const run = replay(file, { latency: { seed, p90: 2.7 } });
+        const got = { ledger: ledgerOf(run), filed: run.filed.map((x) => x.n).join(), deaths: run.deaths.join() };
+        run.restore();
+        const differ = Object.keys(want).filter((k) => want[k] !== got[k]);
+        ok(!differ.length, `${file.replace(/^valorant-session-|\.json$/g, '')} at a read p90 of 2.7 s (seed ${seed}): `
+          + `the rounds, their deaths and where each frame is filed are the capture time replay's (${differ.join(', ') || 'same'})`);
+      }
+    }
+  }
+
+  // ── The ultimate the ledger is handed ─────────────────────────────────────
+  // The context keeps the last ultimate read when a read leaves it empty, so
+  // `ult` is one read carried; `ultRead` is the frame's own, the player's only.
+  {
+    const e = new CoachingEngine({ licenseKey: 'TEST', captureFunction: async () => null, experiments: () => ({}) });
+    e.isRunning = true;
+    const handed = [];
+    const observe = e.ledger.observe.bind(e.ledger);
+    e.ledger.observe = (f) => { handed.push(`${f.ult || '-'}/${f.ultRead === undefined ? 'none' : f.ultRead || '-'}`); return observe(f); };
+    const t0 = Date.parse('2026-10-04T20:00:00Z');
+    const read = (s, ctx) => {
+      Date.now = () => t0 + s * 1000;
+      console.log = () => {};
+      try {
+        e.applyRead({ data: { context: { phase: 'active', clock: '1:20', teamScore: 0, enemyScore: 0, playerAlive: true,
+          playerHp: 100, playerWeapon: 'Vandal', ...ctx } }, shot: null, at: t0 + s * 1000 });
+      } finally { console.log = realLog; }
+    };
+    read(1, { playerUlt: 'ready' });
+    read(2, {});
+    read(3, { playerUlt: 'charging' });
+    read(4, { phase: 'dead', playerAlive: false, playerHp: null, aliveTell: 'KILLED BY Neon and COMBAT REPORT shown', playerUlt: 'ready' });
+    Date.now = realNow;
+    ok(handed.join() === 'ready/ready,ready/-,charging/charging,charging/-',
+      `each frame hands the ledger its own ultimate read, none when it read none or the HUD is a teammate's (${handed.join(', ')})`);
+  }
+
+  // ── A death still on trial when recording stops ───────────────────────────
+  // No read is coming to judge it, so it stands, and the AI log gets its frame
+  // as a death: held for a verdict that never came, the frame the review's
+  // picker takes for the screen's look at it was never written.
+  {
+    const logged = [];
+    const e = new CoachingEngine({ licenseKey: 'TEST', captureFunction: async () => null, experiments: () => ({}),
+      diagnostics: (rec) => logged.push(rec) });
+    e.isRunning = true;
+    const t0 = Date.parse('2026-10-04T20:00:00Z');
+    console.log = () => {};
+    try {
+      Date.now = () => t0 + 1000;
+      e.applyRead({ data: { context: { phase: 'postplant', spike: 'planted', teamScore: 1, enemyScore: 3, playerAlive: true,
+        playerHp: 100, playerWeapon: 'Ghost' } }, shot: 'a', at: t0 + 1000 });
+      Date.now = () => t0 + 2000;
+      e.applyRead({ data: { context: { phase: 'postplant', teamScore: 1, enemyScore: 3, playerAlive: false,
+        aliveTell: 'Spectating teammate, own HP not shown' } }, shot: 'b', at: t0 + 2000 });
+      e.stop();
+      await new Promise((r) => setTimeout(r, 30));
+    } finally { console.log = realLog; Date.now = realNow; }
+    ok(logged.length === 2 && logged[1].died === true && e.ledger.list().some((r) => r.died),
+      `a death on trial when recording stops stands, and its frame is logged as one (${logged.map((r) => r.died).join(', ')})`);
   }
 
   console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' session replay checks passed'}`);

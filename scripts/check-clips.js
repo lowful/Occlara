@@ -21,6 +21,12 @@
  *     death to 4 s after, while the match's recording is still held, saves it
  *     beside the review as r2-clip.mkv and names it on the card, and the
  *     review on screen repaints with it, nothing of it loaded yet
+ *   and the look sees the recording (8.3.1): it is sent five stills of that
+ *     clip, decoded in the frames page, 1280x720, at the screen's seconds
+ *     before its read of the death, kept beside the review, never the grey
+ *     frames the AI log holds; each still the clip's own frame at its second
+ *     (a <video> seeked there, once nothing records), not one a second either
+ *     side; and with Off chosen, the look is sent the AI log's two frames
  *   Clear clips while that review is still being improved: its clip goes, the
  *     version saved after (the link giving up) still says it was cleared, the
  *     page says so with its frames kept, and the hold is let go once the
@@ -113,6 +119,7 @@ const { EventEmitter } = require('events');
 const { app, ipcMain, nativeImage, net } = require('electron');
 const C = require(path.join(REPO, 'src/shared/channels'));
 const webm = require(path.join(REPO, 'src/shared/webm'));
+const clipsModule = require(path.join(REPO, 'src/shared/clips'));
 const valorantReview = require(path.join(REPO, 'src/shared/valorant-review'));
 const recorderModule = require(path.join(REPO, 'src/main/services/recorder'));
 const { ReviewStore, newId } = require(path.join(REPO, 'src/main/services/review-store'));
@@ -169,10 +176,13 @@ class StandInValorant extends EventEmitter {
 // The account graded from Riot's record in step 5, and its one match, answered
 // only once that step begins: before it, every review's link finds nothing.
 let graded = null;
+// Every look sent, as the server would read it.
+const looksSent = [];
 const stubApi = {
   post: async (p, body) => {
     // The look at a death: one cause for each death it is sent.
     if (body && Array.isArray(body.deaths)) {
+      looksSent.push(body);
       return { ok: true, status: 200, data: { deaths: body.deaths.map((d) => ({ n: d.n, cause: 'isolated', what: 'You held the site alone.', better: 'Hold it with a teammate.' })) } };
     }
     return { ok: true, status: 200, data: {} };
@@ -215,6 +225,74 @@ const SEED_ID = newId('valorant', SEED_AT);
 const CLIP_MAX_S = 18.5;
 // How long after a League game's end its deaths are cut (index.js LOL_CLIP_SETTLE_MS).
 const LOL_SETTLE_MS = 6000;
+
+/**
+ * In a page, serialized into executeJavaScript: each still against the clip's
+ * own frame at its second, and the frames a second before and after it, drawn
+ * at the stills' size. The mean difference of each, of 255.
+ */
+async function stillsAgainstClip(job) {
+  const fromB64 = (s) => { const bin = atob(s); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; };
+  const W = 1280;
+  const H = 720;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const px = () => g.getImageData(0, 0, W, H).data;
+  const wait = (v, name, ms) => new Promise((resolve) => {
+    const t = setTimeout(() => { v.removeEventListener(name, on); resolve(false); }, ms);
+    const on = () => { clearTimeout(t); v.removeEventListener(name, on); resolve(true); };
+    v.addEventListener(name, on);
+  });
+  const v = document.createElement('video');
+  v.muted = true;
+  v.preload = 'auto';
+  document.body.appendChild(v);
+  const url = URL.createObjectURL(new Blob([fromB64(job.clip)], { type: 'video/x-matroska' }));
+  const loaded = wait(v, 'loadeddata', 8000);
+  v.src = url;
+  if (!(await loaded)) return { error: 'the clip did not load' };
+  // The canvas is cleared before each frame of the clip is drawn on it, so a
+  // video with no frame to draw compares as black, never as the still that
+  // was drawn there a moment before.
+  const frameAt = async (t) => {
+    const s = wait(v, 'seeked', 5000);
+    v.currentTime = Math.max(0, t);
+    await s;
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    g.drawImage(v, 0, 0, W, H);
+    return px();
+  };
+  const diff = (a, b) => {
+    let d = 0;
+    for (let i = 0; i < a.length; i += 4) d += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+    return Math.round((d / ((a.length / 4) * 3)) * 100) / 100;
+  };
+  // ONE SEEK FIRST, NOT MEASURED. The first seek after the clip loaded drew a
+  // frame of 92 against the still in one run of three, where the frames a
+  // second either side of it were 24.75 and 23.64 as in the runs it passed:
+  // the still was the clip's frame and the element had not presented it yet.
+  await frameAt(0.5);
+  const out = [];
+  for (const s of job.stills) {
+    const bmp = await createImageBitmap(new Blob([fromB64(s.jpeg)], { type: 'image/jpeg' }));
+    g.drawImage(bmp, 0, 0, W, H);
+    const still = px();
+    // Five ms into the frame: a still's second is its frame's own, to the
+    // hundredth. Seeked again once when it does not match, since a paused
+    // element in a page nobody sees presents a seek's frame when it pleases;
+    // a still that is another frame matches on neither.
+    let own = diff(still, await frameAt(s.t + 0.005));
+    if (own >= 4) own = diff(still, await frameAt(s.t + 0.005));
+    const early = diff(still, await frameAt(s.t - 1 + 0.005));
+    const late = diff(still, await frameAt(s.t + 1 + 0.005));
+    out.push({ at: s.at, own, early, late });
+  }
+  URL.revokeObjectURL(url);
+  return { out };
+}
 
 setTimeout(async () => {
   const registry = require(path.join(REPO, 'src/main/windows/registry'));
@@ -366,6 +444,34 @@ setTimeout(async () => {
       ok(len >= 14 && len <= CLIP_MAX_S, `the seconds asked for, 11 before the death to 4 after it: ${len.toFixed(2)} s, ${frames} frames (${Math.round(frames / Math.max(1, len))} a second)`);
     }
     ok(holdsAtEnd === 1 && heldAtClip === 1, `the match's recording was held from its end, and still was when its clip was cut (${holdsAtEnd}, then ${heldAtClip} hold)`);
+
+    // ── 1a. The look saw the recording (8.3.1) ─────────────────────────────
+    // The clip was cut before the look was sent, and the look sent stills of
+    // it, decoded in the frames page, at the screen's seconds before its read
+    // of the death, never the two grey frames the AI log holds.
+    const sentLive = looksSent.find((b) => b.source === 'screen' && b.deaths.some((d) => d.n === 2 && d.framesFrom === 'recording')) || null;
+    const d2 = sentLive && sentLive.deaths.find((d) => d.n === 2);
+    const asked = clipsModule.LOOK_AT.screen;
+    const inTime = d2 && Array.isArray(d2.frameAt) ? d2.frameAt.map((at, i) => ({ at, jpeg: d2.frames[i] })).sort((a, b) => a.at - b.at) : [];
+    const sizes = inTime.map((s) => nativeImage.createFromBuffer(Buffer.from(s.jpeg, 'base64')).getSize());
+    ok(d2 && inTime.length === 5 && inTime.every((s, k) => s.at <= asked[k] + 0.006 && asked[k] - s.at < 0.1)
+      && sizes.every((z) => z.width === 1280 && z.height === 720),
+    `the look was sent five stills of the clip from the recording, the frame on screen at each of ${asked.join(', ')} s from the screen's read of the death: ${inTime.map((s) => s.at).join(', ')} s, each 1280x720`);
+    ok(d2 && sentLive.deaths.length === 1 && d2.frames.length === 5 && !d2.frames.includes(grey),
+      'and not the grey frames the AI log holds of it');
+    const stillNames = inTime.map((s, k) => clipsModule.stillName(2, k + 1, s.at));
+    const keptStills = stillNames.map((n) => new ReviewStore(REVIEWS).frame(liveId, n));
+    ok(keptStills.every((b, k) => b && b === inTime[k].jpeg),
+      `each kept beside the review as the library keeps frames (${stillNames.join(', ')})`);
+    // What the stills are checked against, once nothing records any more: the
+    // clip itself and where its own 0 is on the wall clock.
+    const seg = rec.segments.find((g) => g.zero() !== null && g.clusters().length) || rec.seg;
+    const segZero = seg.zero();
+    const segPlan = webm.planClip(seg.clusters(), died - 11000 - segZero, died + 4000 - segZero);
+    const stillCheck = kept && segPlan ? {
+      clip: fs.readFileSync(clipFile).toString('base64'),
+      stills: inTime.map((s) => ({ t: (died + s.at * 1000 - (segZero + segPlan.start)) / 1000, at: s.at, jpeg: s.jpeg })),
+    } : null;
     const livePlayer = await until(async () => {
       const p = await playerOf('#moment-2');
       return p && p.src && p.src.includes(liveId) ? p : null;
@@ -374,6 +480,14 @@ setTimeout(async () => {
       `the review on screen repainted with the clip in its moment, its frame the poster (${livePlayer && livePlayer.src})`);
     // Nothing loaded until it is played, here while the next match is recorded.
     ok(livePlayer && livePlayer.preload === 'none' && livePlayer.readyState === 0, `and nothing of it loaded yet (preload ${livePlayer && livePlayer.preload}, readyState ${livePlayer && livePlayer.readyState})`);
+    // Its five stills under it, each labelled by its seconds from the screen's
+    // read of the death: the card keeps every frame the look was sent, with
+    // frameAt (valorant-review.js lookFrames), where it kept two.
+    const liveShots = await inPage(`(() => [...document.querySelectorAll('#moment-2 .v-shot')]
+      .map((s) => (s.querySelector('img') ? s.querySelector('figcaption').textContent : null)))()`);
+    ok(Array.isArray(liveShots) && liveShots.length === 5 && liveShots.every(Boolean) && liveShots[0] === '4.5 s before'
+      && liveShots.slice(1, 3).every((t) => / s before$/.test(t)),
+    `and the five stills it was sent under it, each labelled by its seconds (${liveShots && liveShots.join(', ')})`);
 
     // Cleared while that review is still being improved. A Riot ID given now
     // makes the link's last try save the review once more, saying Riot's
@@ -392,7 +506,7 @@ setTimeout(async () => {
       const g = m && !m.querySelector('video') && m.querySelector('.v-clip-gone');
       return g ? g.textContent + '|' + m.querySelectorAll('.v-shot img').length : null;
     })()`)) || null, 8000);
-    ok(goneLive === 'Its clip was cleared in Settings. The frames and facts stay.|2', `the page says so, its two frames kept (${goneLive})`);
+    ok(goneLive === 'Its clip was cleared in Settings. The frames and facts stay.|5', `the page says so, its five stills kept (${goneLive})`);
     ok(await until(() => (recorderModule.current().holds.length === 0 ? true : null), 20000),
       'and the hold is let go once the review\'s work is done');
     store.set('riotId', '');
@@ -429,9 +543,33 @@ setTimeout(async () => {
     const offLeft = offId ? new ReviewStore(REVIEWS).clipsOf(offId).map((c) => c.name) : null;
     ok(earlier > 0 && offLeft && !offLeft.length,
       `and a clip an earlier look kept goes with it, the cards of the look after Off naming none (${offLeft ? offLeft.join(', ') || 'none left' : 'no review'})`);
+    const sentOff = looksSent[looksSent.length - 1];
+    ok(sentOff && sentOff !== sentLive && sentOff.deaths.length === 1 && sentOff.deaths[0].frames.length === 2
+      && sentOff.deaths[0].frames.every((f) => f === grey) && !sentOff.deaths[0].frameAt && !sentOff.deaths[0].framesFrom,
+    'with no clip, the look is sent the two frames the AI log holds, as before');
     store.set('recordingMode', 'auto');
     send(C.COACH_STOP);
     ok(await until(() => !registry.get('recorder'), 12000), 'recording stopped before any clip plays');
+
+    // ── 1c. Each still is the clip's frame at its second ───────────────────
+    // Held against the clip itself, seeked in a <video> to the same second,
+    // with nothing recording any more: the still of 3 s before the read is the
+    // clip's frame there, and not the frame a second either side, where the
+    // generated picture has moved on (its colour turns 25 degrees a second,
+    // its ball crosses 333 pixels).
+    if (stillCheck) {
+      const { BrowserWindow } = require('electron');
+      const page = new BrowserWindow({ show: false, width: 640, height: 360, skipTaskbar: true, focusable: false,
+        webPreferences: { backgroundThrottling: false, contextIsolation: true, nodeIntegration: false, sandbox: true } });
+      await page.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent('<!doctype html><meta charset="utf-8"><body style="margin:0;background:#000"></body>'));
+      const got = await page.webContents.executeJavaScript('(' + String(stillsAgainstClip) + ')(' + JSON.stringify(stillCheck) + ')', true);
+      page.destroy();
+      const rows = (got && got.out) || [];
+      ok(rows.length === 5 && rows.every((r) => r.own < 4 && r.own * 3 < Math.min(r.early, r.late)),
+        `each still is the clip's frame at its own second, not one a second either side: ${rows.map((r) => `${r.at} s ${r.own} against ${r.early} and ${r.late}`).join('; ')}${got && got.error ? ` (${got.error})` : ''}`);
+    } else {
+      ok(false, 'the clip and its 0 on the wall clock were there to hold the stills against');
+    }
 
     // ── 2. A saved review, its clip cut from the canvas fixture ────────────
     const rounds = played.rounds.map((r) => ({ ...r }));
@@ -559,7 +697,8 @@ setTimeout(async () => {
     ok(['cleared', 'cleared', 'cleared'].every((w, i) => {
       const e = marked.get([liveId, SEED_ID, lolId][i]);
       return e && e.review.clipsCleared && e.review.clipsCleared.reason === w;
-    }) && marked.frame(SEED_ID, 'r2-before.jpg') && marked.frame(liveId, 'r2-before.jpg'),
+    // The live review's frames are the stills its look took from the recording.
+    }) && marked.frame(SEED_ID, 'r2-before.jpg') && marked.frame(liveId, 'r2-rec1-before.jpg'),
     'and each saved review says its clip was cleared, its frames kept');
 
     // ── 5. A late link drops a look Riot contradicts, and its clip with it ─
