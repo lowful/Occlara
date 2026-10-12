@@ -131,7 +131,7 @@ function polishText(rawText, source) {
 
   // grammar tidy: kill em/en dashes (never allowed), fix punctuation spacing,
   // collapse doubled words (genericiser residue)
-  t = t.replace(/\s*[—–]\s*/g, ', ')
+  t = t.replace(/\s*[\u2014\u2013]\s*/g, ', ')
        .replace(/\s+([.,!?;:])/g, '$1')
        .replace(/,\s*,/g, ',')
        .replace(/\b(a|an|the|to|your|and|or|of|on|in)\s+\1\b/gi, '$1')

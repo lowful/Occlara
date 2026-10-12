@@ -16,6 +16,16 @@
  * exercised end to end: 503 with retry and no valid field from the server, and
  * a client that keeps its stored status through it. Nothing touches a network.
  *
+ * A FAILED PAYMENT IS A GRACE, NOT AN END, held here too. The webhook marks a
+ * licence payment_failed on Stripe's first failed attempt at a renewal, while
+ * its expiry still runs two days past the period end and Stripe tries again,
+ * and every check refused it: within three minutes the app stopped the match
+ * being recorded. Now /activate, /validate and checkKey take a payment_failed
+ * licence until its expiry (valid, status payment_failed, its plan and expiry),
+ * the device lock as before; with no expiry or a past one it is not usable,
+ * and cancelled, expired, refunded and disputed never are. The app's own rule
+ * (license-service.js usable) is held equal to the server's.
+ *
  * Run: npm run test:licenceoutage
  */
 
@@ -165,6 +175,95 @@ const ACTIVE = { id: 'lic_1', license_key: KEY, plan: 'monthly', status: 'active
   ok(await checkKey(KEY) === 'invalid', 'an expired licence is invalid');
   ok(await checkKey('not-a-key') === 'invalid', 'a malformed key never reaches the database');
 
+  // ── A failed payment is a grace, not an end ─────────────────────────────
+  // The licence as invoice.payment_failed leaves it: the status marked, the
+  // expiry two days past the period end while Stripe tries the card again.
+  const GRACE = new Date(Date.now() + 2 * 864e5).toISOString();
+  const PAST = new Date(Date.now() - 60 * 1000).toISOString();
+  const holding = (over) => { recovered(); validKeys.clear(); db.rows = [{ ...ACTIVE, ...over }]; };
+  // As 8.3.2 and later send it (api-client.js): the grace is answered to an
+  // app that knows it (license.js knowsGrace).
+  const NEW_APP = { 'X-Occlara-Version': '8.3.2' };
+  const activate = (device, headers = NEW_APP) => call(licenseRouter, 'POST', '/activate', { headers, body: { key: KEY, device_id: device, device_name: 'PC' } });
+  const validate = (device, headers = NEW_APP) => call(licenseRouter, 'POST', '/validate', { headers, body: { key: KEY, device_id: device } });
+  holding({ status: 'payment_failed', expires_at: GRACE });
+  {
+    const r = await activate('dev-1');
+    ok(r.status === 200 && r.body.valid === true && r.body.status === 'payment_failed' && r.body.plan === 'monthly'
+      && r.body.expiresAt === GRACE,
+    `a failed payment inside its grace still activates, saying payment_failed with its plan and expiry (${r.status} ${JSON.stringify(r.body)})`);
+    const v = await validate('dev-1');
+    ok(v.status === 200 && v.body.valid === true && v.body.status === 'payment_failed' && v.body.plan === 'monthly'
+      && v.body.expiresAt === GRACE,
+    `and /validate answers it the same (${v.status} ${JSON.stringify(v.body)})`);
+    ok(await checkKey(KEY) === 'valid', 'and checkKey reads it valid, so the coach routes go on reading the match');
+  }
+  {
+    // An app from before the grace reads anything but 'active' as ended on
+    // its own minute check, so answered valid it stopped the session after
+    // every re-check and offered Start again between: it is refused, as ever.
+    const old = [];
+    for (const headers of [{ 'X-Occlara-Version': '8.3.1' }, { 'X-Occlara-Version': '8.2.9' }, {}, { 'X-Occlara-Version': 'unknown' }]) {
+      const r = await activate('dev-1', headers);
+      const v = await validate('dev-1', headers);
+      old.push(r.body.valid === false && r.body.status === 'payment_failed' && v.body.valid === false && v.body.status === 'payment_failed');
+    }
+    const newer = [];
+    for (const version of ['8.3.2', '8.3.10', '8.4.0', '9.0.0']) {
+      const r = await activate('dev-1', { 'X-Occlara-Version': version });
+      newer.push(r.body.valid === true && r.body.status === 'payment_failed');
+    }
+    ok(old.every(Boolean) && newer.every(Boolean),
+      `an app from before 8.3.2, or one that names no version, is refused in the grace as it always was; 8.3.2 and later are served (${old.join()} | ${newer.join()})`);
+    ok(licenseRouter.knowsGrace({ headers: { 'x-occlara-version': '8.3.2' } }) && !licenseRouter.knowsGrace({ headers: { 'x-occlara-version': '8.3.1' } })
+      && !licenseRouter.knowsGrace({}) && licenseRouter.knowsGrace({ headers: { 'x-occlara-version': '10.0.0' } }),
+    'by the version every request carries');
+  }
+  {
+    const r = await activate('dev-2');
+    const v = await validate('dev-2');
+    ok(r.body.valid === false && r.body.status === 'device_mismatch' && v.body.valid === false && v.body.status === 'device_mismatch',
+      `the device lock still holds in the grace: another PC is refused, on /activate and /validate (${r.body.status}, ${v.body.status})`);
+  }
+  holding({ status: 'payment_failed', expires_at: GRACE, device_id: null, device_name: null });
+  {
+    const r = await activate('dev-3');
+    ok(r.body.valid === true && db.rows[0].device_id === 'dev-3', 'and a first activation in the grace binds its PC, as an active one does');
+  }
+  for (const [what, over, said] of [
+    ['with no expiry', { status: 'payment_failed', expires_at: null }, 'payment_failed'],
+    ['whose expiry has passed', { status: 'payment_failed', expires_at: PAST }, 'expired'],
+  ]) {
+    holding(over);
+    const r = await activate('dev-1');
+    const v = await validate('dev-1');
+    ok(r.body.valid === false && r.body.status === said && v.body.valid === false && v.body.status === said
+      && await checkKey(KEY) === 'invalid',
+    `a failed payment ${what} is not usable: refused as ${said} on /activate and /validate, invalid to checkKey (${r.body.status}, ${v.body.status})`);
+  }
+  for (const status of ['cancelled', 'expired', 'refunded', 'disputed']) {
+    const answers = [];
+    for (const expires_at of [GRACE, null]) {
+      holding({ status, expires_at });
+      const r = await activate('dev-1');
+      const v = await validate('dev-1');
+      answers.push(r.body.valid === false && r.body.status === status && v.body.valid === false && v.body.status === status
+        && await checkKey(KEY) === 'invalid');
+    }
+    ok(answers.every(Boolean), `${/^[aeiou]/.test(status) ? 'an' : 'a'} ${status} licence is never usable, with a future expiry or none (${answers.join(', ')})`);
+  }
+  for (const [what, expires_at, valid, said] of [
+    ['to its expiry', GRACE, true, 'active'],
+    ['with no expiry (lifetime)', null, true, 'active'],
+    ['past its expiry', PAST, false, 'expired'],
+  ]) {
+    holding({ status: 'active', expires_at });
+    const r = await activate('dev-1');
+    ok(r.body.valid === valid && r.body.status === said && (await checkKey(KEY) === 'valid') === valid,
+      `an active licence ${what} is ${valid ? 'valid' : 'expired'}, as it always was (${r.body.status})`);
+  }
+  db.rows = [{ ...ACTIVE }];
+
   // ── a coach route answers 503 during an outage, 403 for a bad key ───────
   validKeys.clear();
   db.rows = [{ ...ACTIVE }];
@@ -299,6 +398,34 @@ const ACTIVE = { id: 'lic_1', license_key: KEY, plan: 'monthly', status: 'active
     const r = await licenseService.activate(KEY);
     ok(r.valid === false && r.error === 'Too many activation attempts. Try again in 1 hour.',
       `the activation limiter's own sentence is shown, not "try again in a minute" (${r.error})`);
+  }
+
+  // ── The app and the server keep one licence rule ─────────────────────────
+  // What the app holds (isLocallyValid, the offline grace) and what the server
+  // answers must agree, or the app locks a key the server serves, or works on
+  // one the server refuses.
+  {
+    const { usable } = licenseRouter;
+    const appUsable = typeof licenseService.usable === 'function' ? licenseService.usable : null;
+    ok(!!appUsable, 'the app exports the rule it keeps for the licence it holds (license-service.js usable)');
+    const differ = [];
+    for (const status of ['active', 'payment_failed', 'cancelled', 'expired', 'refunded', 'disputed', '']) {
+      for (const expiry of [GRACE, PAST, null, '']) {
+        if (!appUsable || !!appUsable(status, expiry) !== usable(status, expiry)) differ.push(`${status || '(none)'} ${expiry || '(no expiry)'}`);
+      }
+    }
+    ok(differ.length === 0, `and it is the server's rule, on every status and expiry (${differ.join('; ') || 'all agree'})`);
+  }
+  {
+    // The server's own answer to a key in its grace, through the real app.
+    seed('active');
+    db.rows = [{ ...ACTIVE, status: 'payment_failed', expires_at: GRACE, device_id: licenseService.computeDeviceId() }];
+    const served = await call(licenseRouter, 'POST', '/activate', { headers: { 'X-Occlara-Version': '8.3.2' }, body: { key: KEY, device_id: licenseService.computeDeviceId() } });
+    answer = { status: served.status, data: served.body };
+    const r = await licenseService.revalidate();
+    ok(served.body.valid === true && r.valid === true && store.get('licenseStatus') === 'payment_failed'
+      && store.get('licenseExpiry') === GRACE && licenseService.isLocallyValid(),
+    `and the server's answer to a key in its grace keeps the app working, its status kept for the warning (${store.get('licenseStatus')})`);
   }
 
   console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' licence outage checks passed'}`);

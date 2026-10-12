@@ -27,7 +27,10 @@
 
     <form id="form" autocomplete="off">
       <label class="lbl" for="key">License key</label>
-      <input id="key" class="input" type="text" placeholder="XXXX-XXXX-XXXX-XXXX"
+      <!-- The shape every key has (key.js PLACEHOLDER). It showed
+           XXXX-XXXX-XXXX-XXXX, and a key typed that way, with no GC-, was
+           refused. -->
+      <input id="key" class="input" type="text" placeholder="GC-XXXX-XXXX-XXXX-XXXX"
              spellcheck="false" maxlength="40" autocomplete="off" />
       <div id="error" class="error" hidden></div>
       <button id="activate" class="btn btn-primary full" type="submit">
@@ -41,6 +44,7 @@
   </main>
 
   <script src="../shared/i18n-apply.js"></script>
+  <script src="key.js"></script>
   <script src="activation.js"></script>
 </body>
 </html>

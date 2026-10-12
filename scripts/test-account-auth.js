@@ -61,7 +61,7 @@ const db = { rows: [], outage: false, updates: [] };
 function query() {
   const q = { filters: [], order: null, limit: null, patch: null };
   const match = () => {
-    let out = db.rows.filter((r) => q.filters.every(([c, v]) => r[c] === v));
+    let out = db.rows.filter((r) => q.filters.every(([c, v, op]) => (op === 'in' ? v.includes(r[c]) : op === 'neq' ? r[c] !== v : r[c] === v)));
     if (q.order) {
       const { col, asc } = q.order;
       out = out.slice().sort((a, b) => (a[col] < b[col] ? -1 : a[col] > b[col] ? 1 : 0) * (asc ? 1 : -1));
@@ -72,6 +72,10 @@ function query() {
     select: () => api,
     update: (p) => { q.patch = p; return api; },
     eq: (c, v) => { q.filters.push([c, v]); return api; },
+    // supabase-js's .in() and .neq(), which /cancel uses to move only a
+    // licence still on, and never a lifetime one.
+    in: (c, vs) => { q.filters.push([c, Array.from(vs), 'in']); return api; },
+    neq: (c, v) => { q.filters.push([c, v, 'neq']); return api; },
     order: (col, o) => { q.order = { col, asc: !(o && o.ascending === false) }; return api; },
     limit: (n) => { q.limit = n; return api; },
     abortSignal: () => api,
@@ -270,8 +274,10 @@ const reset = (rows) => { db.rows = rows.map((r) => ({ ...r })); db.updates = []
       'and it is the subscription that is still charging that gets cancelled');
     const m = db.rows.find((x) => x.id === 'm1');
     const l = db.rows.find((x) => x.id === 'l1');
-    ok(m.expires_at === new Date(PERIOD_END * 1000).toISOString() && m.status === 'active',
-      'the monthly keeps access to the end of the paid period');
+    // Plus the two day grace: the customer can still renew it in Stripe's
+    // portal, and that renewal is charged about an hour after the end.
+    ok(m.expires_at === new Date((PERIOD_END + 2 * 24 * 3600) * 1000).toISOString() && m.status === 'active',
+      'the monthly keeps access to the end of the paid period, plus the grace');
     ok(l.expires_at === null && l.status === 'active', 'and the lifetime licence is not touched');
   }
   reset([LIFETIME]);

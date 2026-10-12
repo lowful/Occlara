@@ -18,6 +18,6 @@ contextBridge.exposeInMainWorld('occlara', {
   },
 
   activate:     (key) => ipcRenderer.invoke(C.LICENSE_ACTIVATE, key),
-  openPurchase: () => ipcRenderer.send(C.OPEN_PURCHASE),
+  openPurchase: () => ipcRenderer.send(C.OPEN_PURCHASE, 'signup'),
   quit:         () => ipcRenderer.send(C.APP_QUIT),
 });

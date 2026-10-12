@@ -599,7 +599,7 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     val.startSession();
     data.recordingMode = 'auto';
     val.giveUp(val.session, 'black', {});
-    ok(vn[0] === 'Recording needs Windowed Fullscreen in this game. The coach still reads your screen every second.', 'and Valorant\'s as before', vn[0]);
+    ok(vn[0] === 'Recording needs Windowed Fullscreen in this game. The coach still reads your screen up to once a second.', 'and Valorant\'s as before', vn[0]);
   });
 
   await section('no clip is cut once the player chose Off:', () => {

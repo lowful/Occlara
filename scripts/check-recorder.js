@@ -66,10 +66,10 @@ const OUT = path.join(os.tmpdir(), 'occlara-recorder-check.json');
 // sent: the last one is sent by the quit, after the result file is written.
 const POSTS = path.join(os.tmpdir(), 'occlara-recorder-check-posts.jsonl');
 const INDEX = path.join(REPO, 'src', 'main', 'index.js');
-const BUSY_TEXT = 'Recording stopped for this session: your PC was busy. The coach still reads your screen every second.';
+const BUSY_TEXT = 'Recording stopped for this session: your PC was busy. The coach still reads your screen up to once a second.';
 // Longer than the recorder waits on a stop (STOP_TIMEOUT_MS, 10 s).
 const STOP_WAIT_MS = 14000;
-const BLACK_TEXT = 'Recording needs Windowed Fullscreen in this game. The coach still reads your screen every second.';
+const BLACK_TEXT = 'Recording needs Windowed Fullscreen in this game. The coach still reads your screen up to once a second.';
 
 if (!process.versions.electron) {
   const { spawnSync } = require('child_process');

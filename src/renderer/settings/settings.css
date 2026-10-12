@@ -190,6 +190,12 @@ footer .full { width: 100%; height: 40px; }
 .upd.ok  { color: var(--good); }
 .upd.new { color: var(--cyan); }
 
+/* The games' owners' notices under the version (8.3.2): Riot's in its own
+   words, then NetEase's and Marvel's, in the muted small type the update
+   state uses, set a little apart from the version line above them. */
+.wip-line.legal { font-size: 10.5px; line-height: 1.5; color: var(--text-mute); }
+.wip-line.ver + .wip-line.legal { margin-top: var(--space-2); }
+
 /* As a page of the main window (8.1) the sidebar picks the game, so the
    header's own picker would be a second control for the same setting. */
 html.embedded #gamepick { display: none !important; }

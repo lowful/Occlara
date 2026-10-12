@@ -21,6 +21,16 @@
  * as the resume: sealed, no page showing, Home remembered for the real end,
  * which opens the review of the whole match.
  *
+ * THE CORNER MARK NEVER COVERS A MATCH (8.3.2). Out of sight, the window
+ * leaves an always on top mark at the top right of the screen, over
+ * Valorant's kill feed, and the window is out of sight exactly while a match
+ * is played. Here the window is hidden and the mark follows the seal's own
+ * test: gone in the same tick the seal comes on, for a League game and a
+ * Valorant match in progress and for a stop mid match holding the seal, still
+ * gone when the window is brought up and hidden again mid match, back when the
+ * seal lifts with the window still out of sight, and never flashed up as a
+ * page opened over a held seal brings the window back.
+ *
  * The engines that would read the screen and call the server are stand-ins
  * that emit what the real ones emit, nothing more: no capture, no model, no
  * network, and no League client asked. The 1 second seal tick is not running
@@ -55,7 +65,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: a held seal is taken over by a League or a Rivals recording, which the seal then follows, and a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen');
+  console.log('PASS: a held seal is taken over by a League or a Rivals recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, and the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts');
   process.exit(0);
 }
 
@@ -305,6 +315,91 @@ setTimeout(async () => {
     }
     StandInValorant.startsInMatch = false;
     send(C.COACH_STOP);
+
+    // 4. The corner mark, with the window out of sight. Read in the same tick
+    // as the seal it follows (SHELL_GET settles the seal as the tick does).
+    const registry = require(path.join(REPO, 'src/main/windows/registry'));
+    const dock = require(path.join(REPO, 'src/main/windows/dock-window'));
+    const markShown = () => { const d = registry.get('dock'); return !!(d && d.isVisible()); };
+    // Every time the mark is put up, so one up for a moment is caught too.
+    let markUps = 0;
+    const realShowAt = dock.showAt;
+    dock.showAt = (...a) => { markUps++; return realShowAt(...a); };
+    const hideWin = async () => { mainWindow.hide(); return until(() => !win.isVisible(), 3000); };
+    const bringWin = async () => { mainWindow.toggleHidden({ focus: false }); return until(() => win.isVisible(), 3000); };
+    const idle = await invoke(C.SHELL_GET);
+    if (idle.sealed) return report(false, 'not recording, the window is still sealed');
+    if (!await hideWin()) return report(false, 'the window would not hide');
+    const atRest = await until(markShown, 3000);
+    lines.push(`mark: not recording, the window hidden: mark up=${!!atRest}`);
+    if (!atRest) return report(false, 'not recording, with the window hidden, the corner mark did not show');
+
+    // A League game: up while its client has no game on, gone the tick the
+    // game is, still gone with the window brought up and hidden again mid
+    // game, and back once the game is over.
+    await invoke(C.CONFIG_SET, { game: 'lol' });
+    send(C.COACH_START);
+    const lolRec = latest();
+    if (!(lolRec instanceof StandInLeague) || !(await invoke(C.STATE_GET)).isCoaching) return report(false, 'League did not start recording for the mark');
+    await invoke(C.SHELL_GET);
+    const lobbyMark = markShown();
+    lolRec.live = true;
+    const lolOn = await invoke(C.SHELL_GET);
+    const lolMark = markShown();
+    lines.push(`mark: recording League, no game on: mark up=${lobbyMark} | the game on: sealed=${lolOn.sealed} mark up=${lolMark} window shown=${win.isVisible()}`);
+    if (!lobbyMark) return report(false, 'recording League with no game on, the corner mark went');
+    if (!lolOn.sealed) return report(false, 'a League game in progress did not seal the window');
+    if (lolMark) return report(false, 'a League game in progress, the corner mark is still on top of the game');
+    if (!await bringWin()) return report(false, 'mid game, the window would not come back');
+    if (!await hideWin()) return report(false, 'mid game, the window would not hide again');
+    await wait(400);
+    await invoke(C.SHELL_GET);
+    const againMark = markShown();
+    lines.push(`mark: mid game, the window brought up and hidden again: mark up=${againMark}`);
+    if (againMark) return report(false, 'mid game, hiding the window again put the corner mark back over the game');
+    lolRec.live = false;
+    const lolOver = await invoke(C.SHELL_GET);
+    const lolBack = await until(markShown, 3000);
+    lines.push(`mark: the game over: sealed=${lolOver.sealed} mark back=${!!lolBack}`);
+    if (lolOver.sealed || !lolBack) return report(false, 'the League game over with the window hidden, the corner mark did not come back');
+    send(C.COACH_STOP);
+
+    // A Valorant match: gone the tick it begins; a stop mid match holds the
+    // seal, and the mark with it, until the player opens a page, which lifts
+    // the seal with no mark put up on the window's way back.
+    await invoke(C.CONFIG_SET, { game: 'valorant' });
+    send(C.COACH_START);
+    const valRec = latest();
+    if (!(valRec instanceof StandInValorant)) return report(false, 'Valorant did not start recording for the mark');
+    await invoke(C.SHELL_GET);
+    const menuMark = markShown();
+    valRec.inLobby = false;
+    const valOn = await invoke(C.SHELL_GET);
+    const valMark = markShown();
+    lines.push(`mark: recording Valorant in a menu: mark up=${menuMark} | the match on: sealed=${valOn.sealed} mark up=${valMark}`);
+    if (!menuMark) return report(false, 'recording Valorant in a menu, the corner mark went');
+    if (!valOn.sealed || valMark) return report(false, 'a Valorant match in progress, the corner mark is still over the kill feed');
+    valRec.stopWith = snapOf({ endedBy: 'stop', stoppedLive: true });
+    send(C.COACH_STOP);
+    await wait(400);
+    const heldNow = await invoke(C.SHELL_GET);
+    const heldMark = markShown();
+    lines.push(`mark: stopped mid match: sealed=${heldNow.sealed} held=${heldNow.held} mark up=${heldMark} window shown=${win.isVisible()}`);
+    if (!heldNow.sealed || !heldNow.held) return report(false, 'a stop mid match did not hold the seal');
+    if (heldMark || win.isVisible()) return report(false, 'a stop mid match, the seal held, put the corner mark back over the game');
+    const upsBefore = markUps;
+    send(C.SHELL_NAV, 'matches');
+    const pageUp = await until(() => win.isVisible() && mainWindow.current().shown === 'matches', 4000);
+    await wait(400);
+    lines.push(`mark: a page opened over the held seal: window shown=${!!pageUp} sealed=${mainWindow.current().sealed} mark up=${markShown()} put up meanwhile=${markUps - upsBefore}`);
+    if (!pageUp || mainWindow.current().sealed) return report(false, 'a page opened over the held seal did not lift it');
+    if (markShown() || markUps !== upsBefore) return report(false, 'a page opened over the held seal flashed the corner mark up on its way');
+    if (!await hideWin()) return report(false, 'the window would not hide once the seal lifted');
+    const liftedMark = await until(markShown, 3000);
+    lines.push(`mark: the seal lifted, the window hidden: mark up=${!!liftedMark}`);
+    if (!liftedMark) return report(false, 'the seal lifted with the window hidden, and the corner mark did not come back');
+    await bringWin();
+    dock.showAt = realShowAt;
     report(true, 'ok');
   } catch (e) {
     report(false, 'threw: ' + e.message);

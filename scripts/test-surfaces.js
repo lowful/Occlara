@@ -235,6 +235,183 @@ async function openShell(cfg, state, opts) {
     ok(channel === C.CONFIG_GET, 'getConfig goes over CONFIG_GET, the channel Settings reads');
   });
 
+  // A FAILED PAYMENT IS A GRACE, AND AN ENDED PLAN SAYS HOW BACK (8.3.2). The
+  // server keeps a payment_failed key usable until its expiry while Stripe
+  // tries the card again; refused here, a declined card stopped the match
+  // being recorded within three minutes. And a plan bought after the last
+  // one ended is a new key, which "Renew at occlara.app" never said to enter.
+  await section('a failed payment is a grace, and an ended plan says how to get back:', async () => {
+    const Module = require('module');
+    const file = path.join(ROOT, 'src', 'main', 'services', 'license-service.js');
+    const mem = {};
+    const stubs = {
+      './store': { get: (k) => mem[k], set: (k, v) => { mem[k] = v; } },
+      './api-client': { post: async () => ({ ok: false, status: 0, data: {} }) },
+    };
+    const realLoad = Module._load;
+    Module._load = function stand(request, parent, ...rest) {
+      if (parent && parent.filename === file && Object.prototype.hasOwnProperty.call(stubs, request)) return stubs[request];
+      return realLoad.call(this, request, parent, ...rest);
+    };
+    let L;
+    try { delete require.cache[file]; L = require(file); } finally { Module._load = realLoad; delete require.cache[file]; }
+    const soon = new Date(Date.now() + 3600e3).toISOString();
+    const gone = new Date(Date.now() - 60e3).toISOString();
+    ok(L.usable('payment_failed', soon) && !L.usable('payment_failed', gone) && !L.usable('payment_failed', '')
+      && L.usable('active', '') && L.usable('active', soon) && !L.usable('active', gone)
+      && !L.usable('cancelled', soon) && !L.usable('refunded', soon) && !L.usable('disputed', soon) && !L.usable('expired', soon),
+    'a failed payment works until its expiry and never without one; active as ever; cancelled, refunded, disputed and expired never');
+    Object.assign(mem, { licenseKey: 'GC-AAAA-BBBB-CCCC-DDDD', licenseStatus: 'payment_failed', licenseExpiry: soon });
+    ok(L.isLocallyValid(), 'a key in its payment grace is valid on this PC, so the minute check does not stop the match being recorded');
+    mem.licenseExpiry = gone;
+    ok(!L.isLocallyValid(), 'and not once its expiry has passed');
+    // A REFUSAL STAYS ONE THROUGH AN OUTAGE. A server that refuses a failed
+    // payment (any before 8.3.2) left it stored usable by the grace's rule,
+    // and the next re-check that could not reach a server, which answers with
+    // isLocallyValid, revived the key it had refused.
+    Object.assign(mem, { licenseStatus: 'active', licenseExpiry: soon, licenseRefused: false });
+    const api = stubs['./api-client'];
+    api.post = async () => ({ ok: true, status: 200, data: { valid: false, status: 'payment_failed', error: 'License status: payment_failed' } });
+    const no = await L.revalidate();
+    api.post = async () => { throw new Error('fetch failed'); };
+    const offline = await L.revalidate();
+    api.post = async () => ({ ok: false, status: 503, data: { error: 'licence-check-unavailable', retry: true } });
+    const outage = await L.revalidate();
+    const refusedHere = L.isLocallyValid();
+    api.post = async () => ({ ok: true, status: 200, data: { valid: true, plan: 'monthly', status: 'payment_failed', expiresAt: soon } });
+    const yes = await L.revalidate();
+    ok(no.valid === false && offline.valid === false && outage.valid === false && !refusedHere
+      && yes.valid === true && L.isLocallyValid() && mem.licenseStatus === 'payment_failed',
+    'a key the server refused as a failed payment stays refused offline and through an outage, until the server says yes',
+    JSON.stringify({ no, offline, outage, yes }));
+    api.post = async () => ({ ok: false, status: 0, data: {} });
+    const say = L.graceStep(false, true, 'payment_failed');
+    const again = L.graceStep(say.warned, true, 'payment_failed');
+    const paid = L.graceStep(again.warned, true, 'active');
+    const ended = L.graceStep(true, false, 'payment_failed');
+    ok(say.act === 'say' && say.warned && again.act === null && paid.act === 'clear' && !paid.warned
+      && ended.act === 'clear' && L.graceStep(false, true, 'active').act === null,
+    'the notice line says the grace once as it begins, never again over another notice, and is cleared once paid or ended',
+    JSON.stringify({ say, again, paid, ended }));
+    // A key made lifetime by hand answers expiresAt null: the old date kept on
+    // this PC ended it again each time it came round.
+    Object.assign(mem, { licenseKey: 'GC-AAAA-BBBB-CCCC-DDDD', licenseStatus: 'active', licenseExpiry: gone, licenseRefused: false });
+    stubs['./api-client'].post = async () => ({ ok: true, status: 200, data: { valid: true, status: 'active', plan: 'lifetime', expiresAt: null } });
+    const lifetime = await L.revalidate();
+    const lifetimeExpiry = mem.licenseExpiry;
+    stubs['./api-client'].post = async () => ({ ok: true, status: 200, data: { valid: true, status: 'active', plan: 'monthly' } });
+    mem.licenseExpiry = soon;
+    await L.revalidate();
+    ok(lifetime.valid && lifetimeExpiry === '' && mem.licenseExpiry === soon && L.isLocallyValid(),
+      'a key the server answers with no expiry keeps none on this PC, and an answer without the field keeps the date it had', mem.licenseExpiry);
+    mem.licenseExpiry = gone;
+    stubs['./api-client'].post = async () => ({ ok: true, status: 200, data: { valid: true, status: 'active', plan: 'lifetime', expires_at: null } });
+    await L.revalidate();
+    ok(mem.licenseExpiry === '' && L.isLocallyValid(), 'and the snake case field reads the same', JSON.stringify(mem.licenseExpiry));
+    const NEW_KEY = /Renew at occlara\.app\/account, then log out in Settings and enter your new key\./;
+    ok(NEW_KEY.test(L.endedMessage('expired')) && NEW_KEY.test(L.endedMessage('cancelled')) && NEW_KEY.test(L.endedMessage('anything else')),
+      'an ended plan says to renew, then log out in Settings and enter the new key', L.endedMessage('expired'));
+    ok(/Update your card at occlara\.app\/account/.test(L.endedMessage('payment_failed'))
+      && /enter the new key it gives you/.test(L.messageForStatus('expired')) && /refunded/.test(L.messageForStatus('refunded')),
+    'a failed payment says to update the card, and the licence window says which key to enter');
+    const idx = fs.readFileSync(path.join(ROOT, 'src', 'main', 'index.js'), 'utf8');
+    ok((idx.match(/notePaymentGrace\(\);/g) || []).length >= 3
+      && (idx.match(/pushNotice\(licenseService\.endedMessage\(state\.licenseReason\)\)/g) || []).length === 3,
+    'main says the grace at launch and on each re-check, and an ended plan, at Start, as it ends or for a new reason, in those words');
+    const set = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'settings', 'settings.js'), 'utf8');
+    ok(/RENEW_HERE = 'Renew with Manage subscription, then Log out and enter your new key\.'/.test(set)
+      && /payment_failed: 'Your last payment failed\. Update your card with Manage subscription/.test(set),
+    'and Settings says the same beside its own buttons');
+
+    // The licence's life in main, main's own code in a sandbox. A Log out
+    // keeps main's state, so the ended plan's line, "log out in Settings and
+    // enter your new key", was still the notice when the new key opened the
+    // window. And the grace is said once and taken down once paid.
+    const vm = require('vm');
+    const cut = (src, head, tail) => { const i = src.indexOf(head); const j = i < 0 ? -1 : src.indexOf(tail, i); return j < 0 ? '' : src.slice(i, j); };
+    const LIFE = cut(idx, '\nconst license = {', '\n// Tear down the running session');
+    const box = {
+      console: { log() {}, warn() {}, error() {} },
+      state: { licenseActive: true, licenseReason: '', notice: null, isCoaching: false },
+      store: { get: (k) => mem[k] },
+      C, registry: { broadcast() {} }, buildState: () => ({}),
+      controller: { stop() {} },
+      activationWindow: { close() {} }, launchMainApp() {},
+      licenseService: { ...L, activate: async () => ({ ok: true, valid: true, status: 'active' }), revalidate: async () => ({ valid: true }) },
+    };
+    box.pushNotice = (text, kind) => { box.state.notice = text ? { text: String(text), at: 1, kind: kind || null } : null; };
+    vm.createContext(box);
+    const life = LIFE ? vm.runInContext(`${LIFE}\n;({ license, enterLicenseEnded, notePaymentGrace })`, box) : null;
+    ok(!!life, 'main\'s licence code is found and runs in the sandbox');
+    if (life) {
+      mem.licenseStatus = 'expired';
+      life.enterLicenseEnded('expired');
+      const endedLine = box.state.notice && box.state.notice.text;
+      mem.licenseStatus = 'active';
+      await life.license.activate('GC-EEEE-FFFF-GGGG-HHHH');
+      ok(NEW_KEY.test(endedLine || '') && box.state.licenseActive === true && box.state.notice === null,
+        'a new key entered after a Log out opens on no notice from the plan that ended, which said to do just that',
+        JSON.stringify(box.state.notice));
+      mem.licenseStatus = 'payment_failed';
+      life.notePaymentGrace();
+      const said = box.state.notice;
+      life.notePaymentGrace();
+      const again = box.state.notice;
+      mem.licenseStatus = 'active';
+      life.notePaymentGrace();
+      ok(said && said.kind === 'payment' && /Update your card/.test(said.text) && again === said && box.state.notice === null,
+        'the grace is said once as it begins, not again, and taken down once paid', JSON.stringify({ said, now: box.state.notice }));
+      // Ended for one reason, then another: the line says the newer.
+      box.state.licenseActive = true;
+      box.state.licenseReason = '';
+      life.enterLicenseEnded('payment_failed');
+      const first = box.state.notice && box.state.notice.text;
+      life.enterLicenseEnded('cancelled');
+      const second = box.state.notice && box.state.notice.text;
+      life.enterLicenseEnded('cancelled');
+      ok(/Update your card/.test(first || '') && NEW_KEY.test(second || '') && box.state.notice.text === second,
+        'ended for a failed payment, then cancelled, the line says the cancelled plan\'s words, once', JSON.stringify({ first, second }));
+    }
+    // At launch, a stored key that ended is asked about beside the licence
+    // window: renewed while the app was closed, the window goes and the app
+    // opens; refused, it stays; with no key, nothing is asked.
+    const LAUNCH = cut(idx, '\nfunction launchWithLicence() {', '\n// Authoritative check');
+    const runLaunch = async ({ key, valid, renewed }) => {
+      const seen = { activation: 0, closed: 0, launched: 0, asked: 0 };
+      const local = { licenseKey: key, licenseStatus: 'expired' };
+      const lb = {
+        console: { log() {}, warn() {}, error() {} },
+        state: { licenseActive: true, licenseReason: '', notice: { text: 'old', kind: null } },
+        store: { get: (k) => local[k] }, mainLaunched: false,
+        showActivation: () => { seen.activation++; },
+        activationWindow: { close: () => { seen.closed++; } },
+        launchMainApp: () => { seen.launched++; },
+        notePaymentGrace() {}, enterLicenseEnded() {},
+        licenseService: {
+          isLocallyValid: () => (valid ? true : local.licenseStatus === 'active'),
+          revalidate: async () => { seen.asked++; if (renewed) local.licenseStatus = 'active'; return { valid: !!renewed }; },
+        },
+      };
+      vm.createContext(lb);
+      vm.runInContext(`${LAUNCH}\n;launchWithLicence();`, lb);
+      await new Promise((r) => setTimeout(r, 10));
+      return { ...seen, notice: lb.state.notice };
+    };
+    const renewedRun = LAUNCH ? await runLaunch({ key: 'GC-AAAA-BBBB-CCCC-DDDD', renewed: true }) : null;
+    const refusedRun = LAUNCH ? await runLaunch({ key: 'GC-AAAA-BBBB-CCCC-DDDD', renewed: false }) : null;
+    const noKeyRun = LAUNCH ? await runLaunch({ key: '', renewed: false }) : null;
+    const validRun = LAUNCH ? await runLaunch({ key: 'GC-AAAA-BBBB-CCCC-DDDD', valid: true }) : null;
+    ok(!!LAUNCH && renewedRun.activation === 1 && renewedRun.asked === 1 && renewedRun.closed === 1 && renewedRun.launched === 1
+      && renewedRun.notice === null
+      && refusedRun.activation === 1 && refusedRun.closed === 0 && refusedRun.launched === 0
+      && noKeyRun.asked === 0 && noKeyRun.activation === 1
+      && validRun.launched === 1 && validRun.activation === 0,
+    'at launch a stored key renewed while the app was closed opens the app from the licence window; refused it stays, with no key nothing is asked',
+    JSON.stringify({ renewedRun, refusedRun, noKeyRun, validRun }));
+    ok(/licenseService\.revalidate\(\)\s*\.then\(\(r\) => \{ if \(r\.valid === false\) enterLicenseEnded\(r\.status\); notePaymentGrace\(\); \}\)/.test(idx),
+      'and the launch\'s own re-check says or takes down the grace on its answer, not three minutes on');
+  });
+
   await section('with the licence ended, the notice line says why:', async () => {
     const p = await openShell({ language: 'en' });
     const notice = 'Your license has expired. Renew at occlara.app.';
@@ -244,8 +421,8 @@ async function openShell(cfg, state, opts) {
     ok(p.$('toggle').disabled && p.label() === 'Subscription ended' && p.$('toggle').classList.contains('ended'),
       'beside a locked button that says so itself', `read "${p.label()}"`);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: false, notice: null });
-    ok(/Renew in Settings/.test(p.notice() || '') && !/Press Start/.test(p.notice() || ''),
-      'with no notice it still says to renew, never Press Start', `read "${p.notice()}"`);
+    ok(/Open Settings to renew and enter your new key/.test(p.notice() || '') && !/Press Start/.test(p.notice() || ''),
+      'with no notice it still says to renew and enter the new key, never Press Start', `read "${p.notice()}"`);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, licenseActive: true, notice: null });
     ok(p.notice() === null && !p.$('notice').hasAttribute('title') && !p.$('toggle').disabled
       && p.label() === 'Start' && !p.$('toggle').classList.contains('ended'),
@@ -280,10 +457,12 @@ async function openShell(cfg, state, opts) {
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching', cadence: 1000, sounds: false });
     ok(p.label() === 'Stop' && !p.$('pause').disabled && rec.classList.contains('live') && pauseIcon() === 'M9 5v14' && p.notice() === null,
       'recording: Stop, the pause icon and the live card say it, and the notice line says nothing, no "Reading your game"', `read "${p.notice()}"`);
-    ok(p.$('sealed-capture').textContent === 'Reading your game every 1s, as fast as the connection keeps up',
-      'while the Recording screen\'s capture row still says how often the game is read', p.$('sealed-capture').textContent);
+    // The live round's gap (read-cadence.js reads menus, a confirmed buy
+    // phase and the time spent dead less often), as Settings' line says it.
+    ok(p.$('sealed-capture').textContent === 'Reading your game every 1s in a live round, as fast as the connection keeps up',
+      'while the Recording screen\'s capture row still says how often the game is read, in a live round', p.$('sealed-capture').textContent);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching', cadence: 2000, captureSpeed: 2000, sounds: false });
-    ok(p.$('sealed-capture').textContent === 'Reading your game every 2s, pinned in Settings' && p.notice() === null,
+    ok(p.$('sealed-capture').textContent === 'Reading your game every 2s in a live round, pinned in Settings' && p.notice() === null,
       'and follows the cadence as it moves, with the notice line still silent', p.$('sealed-capture').textContent);
     p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, isPaused: true, status: 'paused', cadence: 1000, sounds: false });
     ok(p.label() === 'Stop' && !rec.classList.contains('live') && p.notice() === 'Paused. Nothing is read until you resume.'
@@ -335,7 +514,7 @@ async function openShell(cfg, state, opts) {
     ok(va.notice() === PAUSED && va.$('notice').title === PAUSED, 'paused, the paused line is shown over a capture notice', `read "${va.notice()}"`);
     // Recording stopped for the session, and between matches a review saved
     // in Matches or checked against Riot's record: all said.
-    const BUSY = { text: 'Recording stopped for this session: your PC was busy. The coach still reads your screen every second.', at: 5, kind: 'recorder' };
+    const BUSY = { text: 'Recording stopped for this session: your PC was busy. The coach still reads your screen up to once a second.', at: 5, kind: 'recorder' };
     va.bridge.emit(C.PUSH_STATE, live(false, BUSY, 'valorant'));
     ok(va.notice() === BUSY.text, 'recording stopped for the session is shown', `read "${va.notice()}"`);
     // Its last words are that the coach still reads the screen every second,
@@ -350,7 +529,7 @@ async function openShell(cfg, state, opts) {
     // notice up too. The card's line returned before the row whenever a notice
     // took it, so the row kept saying every 1s.
     va.bridge.emit(C.PUSH_STATE, { ...live(false, DOWN, 'valorant'), cadence: 3000 });
-    ok(va.notice() === DOWN.text && va.$('sealed-capture').textContent === 'Reading your game every 3s, as fast as the connection keeps up',
+    ok(va.notice() === DOWN.text && va.$('sealed-capture').textContent === 'Reading your game every 3s in a live round, as fast as the connection keeps up',
       'with a notice up, the Recording screen\'s capture row still follows the cadence', va.$('sealed-capture').textContent);
     const CHECKED = { text: "Checked 1 recent match against Riot's record. It is in Matches.", at: 6, kind: 'review' };
     va.bridge.emit(C.PUSH_STATE, { ...BASE, notice: CHECKED });
@@ -2119,7 +2298,9 @@ async function openShell(cfg, state, opts) {
     const lolRead = readHints(lol);
     ok(lolRead.every((t) => /^In League of Legends this does nothing: its review is built from the game's own record\./.test(t) && !/screen/i.test(t) && !DASHES.test(t))
       && /It sets how often a Valorant match is read\.$/.test(lolRead[0]) && /It is for Valorant and Marvel Rivals\.$/.test(lolRead[1])
-      && /^How often Occlara reads your screen/.test(valRead[0]) && /^Screenshots are read at 720p/.test(valRead[1]),
+      // In a live round: the rest is read less often (read-cadence.js, 8.3.2).
+      && /^How often Occlara reads your screen in a live round\. Menus, buy phases and the time spent dead are read less often\./.test(valRead[0])
+      && /^Screenshots are read at 720p/.test(valRead[1]),
     'League: Capture speed and Performance say they do nothing there, never that its screen is read, and Capture speed that it is Valorant\'s; Valorant keeps what they do', lolRead.join(' | '));
     const riv = await open({ game: 'rivals', recordingMode: 'auto', recordingLast: { outcome: 'busy', at: 1 } });
     ok(/^Marvel Rivals matches are not recorded yet/.test(hint(riv)) && /Valorant and League of Legends/.test(hint(riv)),
@@ -2151,6 +2332,34 @@ async function openShell(cfg, state, opts) {
     });
     await settle();
     ok(hint(waiting) === val, 'with main yet to answer, the hint already says what On and Off do, Valorant\'s until the game is known', hint(waiting));
+  });
+
+  // THE CADENCE LINE SAYS WHICH GAP IT MEANS (8.3.2). The gap is the live
+  // round's, and menus, a confirmed buy phase and the time spent dead are read
+  // less often (read-cadence.js): "Reading every 1s right now", mostly seen
+  // between matches, was not true there.
+  await section('Settings, the cadence line:', async () => {
+    const se = loadSurface('settings', {
+      handlers: {
+        [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', captureSpeed: 'auto' }),
+        [C.CONFIG_SET]: () => ({ ok: true }),
+        [C.LICENSE_GET]: () => ({}), [C.STATE_GET]: () => ({}),
+        [C.APP_VERSION]: () => ({ current: '8.3.2', state: 'current' }),
+        [C.CLIPS_USAGE]: () => ({ bytes: 0, clips: 0, reviews: 0, capGB: 10 }),
+      },
+    });
+    await settle();
+    se.bridge.emit(C.PUSH_STATE, { isCoaching: true, cadence: 1000, captureSpeed: 'auto' });
+    const line = se.$('cadence-now').hidden ? null : se.$('cadence-now').textContent;
+    ok(line === 'Reading every 1s in a live round right now, chosen automatically. Menus, buy phases and the time spent dead are read less often.'
+      && !DASHES.test(line || ''),
+    'recording, it gives the live round\'s gap, and says the rest is read less often', line);
+    se.bridge.emit(C.PUSH_STATE, { isCoaching: false });
+    ok(se.$('cadence-now').hidden, 'and with no session there is no line');
+    se.bridge.emit(C.PUSH_STATE, { isCoaching: true, cadence: null });
+    const idxSrc = fs.readFileSync(path.join(ROOT, 'src', 'main', 'index.js'), 'utf8');
+    ok(se.$('cadence-now').hidden && /revalidateNow\(\);\s*return;\s*\}\s*(?:\/\/[^\n]*\n\s*)*state\.cadence = null;/.test(idxSrc),
+      'and a session starts with no gap until its engine says one, so a Rivals or League one after Valorant shows none');
   });
 
   // ONE STATUS LINE AND THE CLIPS (8.3): recording now, at what size and about
@@ -2743,6 +2952,207 @@ async function openShell(cfg, state, opts) {
     ok(/post-match/i.test(sub) && ['Valorant', 'Marvel Rivals', 'League of Legends'].every((g) => sub.includes(g)),
       'it sells post-match coaching for all three games', `read "${sub}"`);
     ok(!REAL_TIME.test(sub) && !DASHES.test(sub), 'with no real time claim and no dash');
+  });
+
+  // THE KEY IN THE SHAPE IT HAS (8.3.2). The box showed XXXX-XXXX-XXXX-XXXX,
+  // and a key typed that way, with no GC-, was refused as an invalid format,
+  // as was one pasted with spaces in it. A key is put in its one shape before
+  // it is sent (activation/key.js), held here against the server's own
+  // KEY_REGEX, read out of server/routes/license.js so the two cannot drift.
+  await section('the activation box sends a key in its one shape, however it was typed or pasted:', async () => {
+    const licSrc = fs.readFileSync(path.join(ROOT, 'server', 'routes', 'license.js'), 'utf8');
+    const lit = /const KEY_REGEX = \/(.+)\/;/.exec(licSrc);
+    const SERVER_KEY = lit ? new RegExp(lit[1]) : null;
+    ok(!!SERVER_KEY && SERVER_KEY.test('GC-AB12-CD34-EF56-GH78') && !SERVER_KEY.test('AB12-CD34-EF56-GH78') && !SERVER_KEY.test('gc-ab12-cd34-ef56-gh78'),
+      'the server\'s KEY_REGEX, read from its source, takes GC- and four groups of four and nothing else', lit ? lit[1] : 'not found');
+    const open = async () => {
+      const q = loadSurface('activation', { handlers: { [C.LICENSE_ACTIVATE]: () => ({ ok: true, valid: false, error: 'License key not found' }) } });
+      await settle();
+      return q;
+    };
+    const sentKeys = (q) => q.bridge.invoked.filter(([ch]) => ch === C.LICENSE_ACTIVATE).map(([, k]) => k);
+    const submit = async (q, typed) => {
+      q.$('key').value = typed;
+      q.fire(q.$('form'), 'submit');
+      await settle();
+      const keys = sentKeys(q);
+      return { sent: keys[keys.length - 1], shown: q.$('key').value, count: keys.length };
+    };
+    const p = await open();
+    const placeholder = p.$('key').getAttribute('placeholder');
+    ok(placeholder === 'GC-XXXX-XXXX-XXXX-XXXX' && !!SERVER_KEY && SERVER_KEY.test(placeholder.replace(/X/g, 'A')),
+      'the box shows the shape every key has, GC-XXXX-XXXX-XXXX-XXXX', placeholder);
+    const KEY = 'GC-AB12-CD34-EF56-GH78';
+    const fullWidth = (s) => [...s].map((c) => String.fromCharCode(c.charCodeAt(0) + 0xFEE0)).join('');
+    const forms = [
+      ['as it is', KEY],
+      ['in lower case', 'gc-ab12-cd34-ef56-gh78'],
+      ['without the GC- the old box left out', 'AB12-CD34-EF56-GH78'],
+      ['with spaces for its dashes', 'GC AB12 CD34 EF56 GH78'],
+      ['with spaces and a line break around it, from an email', '  gc-ab12-cd34-ef56-gh78 \n'],
+      ['with spaces and no GC-', 'ab12 cd34 ef56 gh78'],
+      ['with no dashes', 'GCAB12CD34EF56GH78'],
+      ['with no GC and no dashes', 'AB12CD34EF56GH78'],
+      ['spaced out around its dashes', 'GC - AB12 - CD34 - EF56 - GH78'],
+      ['in full width characters', fullWidth(KEY)],
+    ];
+    for (const [how, typed] of forms) {
+      const r = await submit(await open(), typed);
+      ok(r.sent === KEY && !!SERVER_KEY && SERVER_KEY.test(r.sent) && r.shown === KEY && r.count === 1,
+        `a key typed ${how} is sent as ${KEY}, which the server takes, and the box shows it`,
+        `typed ${JSON.stringify(typed)}, sent ${JSON.stringify(r.sent)}, box ${JSON.stringify(r.shown)}`);
+    }
+    // A key whose own sixteen start with GC, typed without the prefix, keeps them.
+    const gcBody = await submit(await open(), 'GCAB-CD34-EF56-GH78');
+    ok(gcBody.sent === 'GC-GCAB-CD34-EF56-GH78', 'a key whose own letters start with GC keeps them', JSON.stringify(gcBody.sent));
+    const part = await submit(await open(), ' gc-ab12-cd34 ');
+    ok(part.sent === 'GC-AB12-CD34', 'text that is not a whole key is sent as typed, trimmed and upper cased, for the server to say so', JSON.stringify(part.sent));
+    const empty = await open();
+    const none = await submit(empty, '   ');
+    ok(none.count === 0 && !empty.$('error').hidden && empty.$('error').textContent === 'Enter your license key.',
+      'an empty box sends nothing and asks for the key', empty.$('error').textContent);
+    // As it is typed and pasted, with the caret at the end.
+    const typing = await open();
+    const input = (value, extra) => {
+      const box = typing.$('key');
+      box.value = value;
+      box.selectionStart = value.length;
+      typing.fire(box, 'input', extra);
+      return box.value;
+    };
+    ok(input(' gc ab12-cd', { inputType: 'insertText' }) === 'GCAB12-CD', 'typed, it is upper cased and its spaces dropped, as before', typing.$('key').value);
+    ok(input('GCAB12CD34EF56GH', { inputType: 'insertText' }) === 'GCAB12CD34EF56GH',
+      'typed, sixteen characters with GC in front are not cut into a key two characters early', typing.$('key').value);
+    ok(input(' gc ab12 cd34 ef56 gh78 ', { inputType: 'insertFromPaste' }) === KEY,
+      'a whole key pasted is put in its shape at once, so the box shows what will be sent', typing.$('key').value);
+    ok(input('ab12 cd34', { inputType: 'insertFromPaste' }) === 'AB12CD34', 'part of a key pasted is only cleaned, as typing is', typing.$('key').value);
+    ok(input('gc', { inputType: 'insertCompositionText', isComposing: true }) === 'gc', 'an input method still composing is left alone', typing.$('key').value);
+    ok(p.scripts.indexOf('key.js') !== -1 && p.scripts.indexOf('key.js') < p.scripts.indexOf('activation.js'),
+      'key.js is loaded before activation.js', p.scripts.join(', '));
+    const rules = require('../src/renderer/activation/key');
+    ok(rules.PLACEHOLDER === placeholder && !!SERVER_KEY && rules.SHAPE.source === SERVER_KEY.source,
+      'key.js\'s shape is the server\'s, and its placeholder the box\'s', `${rules.SHAPE.source} | ${SERVER_KEY && SERVER_KEY.source}`);
+  });
+
+  // THE NOTICES THE GAMES' OWNERS ASK FOR (8.3.2), under the version line in
+  // Settings: Riot's in exactly its own words, which its policy asks for where
+  // players can readily see it, and NetEase's and Marvel's beside it.
+  await section('Settings, the games\' owners\' notices under the version:', async () => {
+    const RIOT = "Occlara isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.";
+    const NETEASE = 'Occlara is not affiliated with or endorsed by NetEase Games or Marvel.';
+    const se = loadSurface('settings', {
+      handlers: {
+        [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', devGames: false }),
+        [C.LICENSE_GET]: () => ({}), [C.STATE_GET]: () => ({}),
+        [C.APP_VERSION]: () => ({ current: '8.3.2', state: 'current' }),
+      },
+    });
+    await settle();
+    const riot = se.$('legal-riot');
+    const netease = se.$('legal-netease');
+    ok(!!riot && riot.textContent === RIOT, 'Riot\'s notice, word for word', riot ? riot.textContent : 'missing');
+    ok(!!netease && netease.textContent === NETEASE, 'and NetEase\'s and Marvel\'s', netease ? netease.textContent : 'missing');
+    const box = se.document.querySelector('section.wip');
+    const lines = box ? box.querySelectorAll('.wip-line') : [];
+    const iVer = lines.findIndex((l) => l.classList.contains('ver'));
+    ok(iVer !== -1 && lines[iVer + 1] === riot && lines[iVer + 2] === netease && lines.length === iVer + 3,
+      'under the version line, the last two lines of its box', lines.map((l) => l.className).join(' | '));
+    ok(se.$('version').textContent === 'Version 8.3.2', 'the version line above them still paints', se.$('version').textContent);
+    ok([riot, netease].every((el) => !!el && el.classList.contains('legal') && !el.hasAttribute('data-i18n') && !el.hidden),
+      'shown, and never translated: Riot asks for these words');
+    const css = fs.readFileSync(path.join(RENDERER, 'settings', 'settings.css'), 'utf8');
+    const rule = /\.wip-line\.legal\s*\{([^}]*)\}/.exec(css);
+    const lineRule = /\.wip-line\s*\{([^}]*)\}/.exec(css);
+    const px = (r) => { const m = r && /font-size:\s*([\d.]+)px/.exec(r[1]); return m ? Number(m[1]) : NaN; };
+    ok(!!rule && /color:\s*var\(--text-mute\)/.test(rule[1]) && px(rule) <= px(lineRule),
+      'in the theme\'s muted small type, no bigger than the lines above it', rule ? rule[1].trim() : 'no .wip-line.legal rule');
+    ok(!DASHES.test(RIOT + NETEASE), 'with no dash');
+  });
+
+  // MANAGE SUBSCRIPTION OPENS THE ACCOUNT PAGE (8.3.2). Settings and the
+  // licence window send OPEN_PURCHASE, and main's own handler
+  // (register-ipc.js, run here with electron stood in for) opens the URL with
+  // it, which was the home page.
+  await section('Manage subscription opens the account page:', async () => {
+    const se = loadSurface('settings', {
+      handlers: {
+        [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', devGames: false }),
+        [C.LICENSE_GET]: () => ({}), [C.STATE_GET]: () => ({}),
+        [C.APP_VERSION]: () => ({ current: '8.3.2', state: 'current' }),
+      },
+    });
+    await settle();
+    se.$('purchase').click();
+    const act = loadSurface('activation', { handlers: {} });
+    await settle();
+    act.$('purchase').click();
+    const asked = (q) => q.bridge.sent.filter(([ch]) => ch === C.OPEN_PURCHASE).length;
+    ok(se.$('purchase').textContent === 'Manage subscription' && asked(se) === 1 && asked(act) === 1,
+      'Settings\' Manage subscription and the licence window\'s Get one ask main for it, over OPEN_PURCHASE');
+    const Module = require('module');
+    const file = require.resolve('../src/main/ipc/register-ipc');
+    const on = {};
+    const opened = [];
+    const electron = {
+      ipcMain: { handle() {}, on: (ch, fn) => { on[ch] = fn; } },
+      shell: { openExternal: (url) => { opened.push(url); return Promise.resolve(); } },
+    };
+    const stubs = { '../services/store': { get: () => undefined, set() {} }, '../updater': {}, '../services/pc-check': {} };
+    const realLoad = Module._load;
+    Module._load = function stand(request, parent, ...rest) {
+      if (request === 'electron') return electron;
+      if (parent && parent.filename === file && Object.prototype.hasOwnProperty.call(stubs, request)) return stubs[request];
+      return realLoad.call(this, request, parent, ...rest);
+    };
+    try {
+      delete require.cache[file];
+      require(file)({ controller: {}, license: {} });
+    } finally {
+      Module._load = realLoad;
+      delete require.cache[file];
+    }
+    if (on[C.OPEN_PURCHASE]) on[C.OPEN_PURCHASE]({});
+    ok(opened.length === 1 && opened[0] === 'https://occlara.app/account',
+      'main opens the account page, https://occlara.app/account, never the home page', JSON.stringify(opened));
+    // The licence window's "Get one" is for somebody with no key, often no
+    // account: the account page would open on its Log in tab.
+    if (on[C.OPEN_PURCHASE]) { on[C.OPEN_PURCHASE]({}, 'signup'); on[C.OPEN_PURCHASE]({}, 'https://evil.example'); }
+    ok(opened[1] === 'https://occlara.app/signup' && opened[2] === 'https://occlara.app/account',
+      'asked for the sign up page it opens that, and anything else a page sends is the account page, never a URL it names',
+      JSON.stringify(opened.slice(1)));
+    const actPre = fs.readFileSync(path.join(ROOT, 'src', 'preload', 'activation-preload.js'), 'utf8');
+    const setPre = fs.readFileSync(path.join(ROOT, 'src', 'preload', 'settings-preload.js'), 'utf8');
+    ok(/openPurchase:\s*\(\)\s*=>\s*ipcRenderer\.send\(C\.OPEN_PURCHASE,\s*'signup'\)/.test(actPre)
+      && /openPurchase:\s*\(\)\s*=>\s*ipcRenderer\.send\(C\.OPEN_PURCHASE\)/.test(setPre),
+    'the licence window asks for the sign up page, Settings for the account page');
+  });
+
+  // ALL RIGHTS RESERVED (8.3.2). The repo is public, and package.json said
+  // MIT with no LICENSE beside it. And the installer, which ships assets/**,
+  // carried 58 agent pictures in assets/agents that nothing in the app has
+  // drawn since the tips went in 8.0: Riot's art, in a paid app, for nothing.
+  await section('the code is all rights reserved, and the installer ships no agent art:', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+    ok(pkg.license === 'UNLICENSED', 'package.json\'s license is UNLICENSED, not MIT', pkg.license);
+    const licFile = path.join(ROOT, 'LICENSE');
+    const lic = fs.existsSync(licFile) ? fs.readFileSync(licFile, 'utf8') : '';
+    ok(/^Copyright \(c\) 2026 lowful\. All rights reserved\./.test(lic) && /No license is granted to use,\s+copy, modify or distribute/.test(lic)
+      && /written permission/.test(lic) && !DASHES.test(lic),
+    'LICENSE says all rights reserved, and grants no use, copy, change or distribution without written permission', lic.split('\n')[0] || 'no LICENSE');
+    // Read alone, "no license is granted to use" took back from every paying
+    // customer the very license to install and use the app that the Terms of
+    // Service (section 4) grant them, so the LICENSE names that one exception.
+    ok(/license to install and use the Occlara app that the\s+Occlara Terms of Service \(https:\/\/occlara\.app\/terms\) grant to its customers/.test(lic),
+      'and names the one exception, the license the Terms of Service grant customers to install and use the app',
+      lic.replace(/\r?\n/g, ' ').slice(-160));
+    ok(!fs.existsSync(path.join(ROOT, 'assets', 'agents')),
+      'assets/agents is gone, and the installer ships no agent art');
+    // And nothing writes it back: sync:valorant downloaded the kill feed
+    // portraits on every run, and sync:busts the busts.
+    const sync = fs.readFileSync(path.join(ROOT, 'scripts', 'sync-valorant-data.js'), 'utf8');
+    ok(!/killfeedPortrait|'assets',\s*'agents'/.test(sync) && !pkg.scripts['sync:busts']
+      && !fs.existsSync(path.join(ROOT, 'scripts', 'sync-agent-busts.js')),
+    'and no sync script downloads agent art into assets again (sync:valorant fetches none, sync:busts is gone)');
   });
 
   // MOVING BETWEEN PAGES (8.2). A page of the main window arms before it is

@@ -3,8 +3,25 @@ const express  = require('express');
 const stripe   = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const supabase = require('../db/supabase');
 const { requireUser } = require('../services/account-auth');
+const { SUB_ENDED } = require('../services/billing');
 
 const router = express.Router();
+
+/*
+ * WHETHER THE SUBSCRIPTION RENEWS, for the dashboard. Not once Stripe has
+ * ended it (canceled, incomplete_expired: services/billing.js SUB_ENDED) or
+ * has no such subscription at all (`gone`, resource_missing); otherwise it
+ * renews unless set to cancel at its period end. Read off cancel_at_period_end
+ * alone, a subscription Stripe had ended read as renewing, which an expired
+ * key's account page then said. Null when there is nothing to ask about (no
+ * subscription, lifetime) or Stripe could not be asked just now.
+ */
+function renewsOf(subscription, gone) {
+  if (gone) return false;
+  if (!subscription) return null;
+  if (SUB_ENDED.has(subscription.stripe_status)) return false;
+  return !subscription.cancel_at_period_end;
+}
 
 // Both routes act on the SIGNED IN user: the caller sends its Supabase access
 // token as Authorization: Bearer, and a userId it names as well must be that
@@ -46,9 +63,12 @@ router.get('/dashboard', signedIn, async (req, res) => {
    *
    * Wrapped, and null on any failure. This is the difference between "cancelled"
    * and "renews on the 8th" in the dashboard's wording, which is worth having and
-   * is never worth failing the whole page over.
+   * is never worth failing the whole page over. One answer is not a failure:
+   * Stripe saying it has no such subscription, which is gone and never renews
+   * (renewsOf, above).
    */
   let subscription = null;
+  let gone = false;
   if (license && license.stripe_subscription_id) {
     try {
       const s = await stripe.subscriptions.retrieve(license.stripe_subscription_id);
@@ -59,7 +79,12 @@ router.get('/dashboard', signedIn, async (req, res) => {
           ? new Date(s.current_period_end * 1000).toISOString() : null,
       };
     } catch (e) {
-      console.warn('[account] could not read subscription:', e.message);
+      if (e && e.code === 'resource_missing') {
+        gone = true;
+        console.warn(`[account] subscription ${license.stripe_subscription_id} is not in Stripe, so it does not renew`);
+      } else {
+        console.warn('[account] could not read subscription:', e.message);
+      }
     }
   }
 
@@ -79,10 +104,11 @@ router.get('/dashboard', signedIn, async (req, res) => {
       device_activated:         !!license.device_name,
       deactivations_this_month: deactivationsThisMonth,
       deactivations_remaining:  Math.max(0, 3 - deactivationsThisMonth),
-      // Derived, so the site does not have to know the rule. False means it has
-      // been cancelled and expires_at is the last day of access. Null when there
-      // is no subscription to ask about, which includes lifetime.
-      renews: subscription ? !subscription.cancel_at_period_end : null,
+      // Derived, so the site does not have to know the rule. False means it
+      // will not renew: set to cancel at its period end, ended by Stripe, or
+      // not in Stripe at all. Null when there is no subscription to ask about,
+      // which includes lifetime, or Stripe could not be asked (renewsOf).
+      renews: renewsOf(subscription, gone),
     };
   }
 

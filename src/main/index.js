@@ -533,6 +533,7 @@ function withFrames(review) {
 function syncSeal() {
   const live = !!state.isCoaching && matchInProgress();
   mainWindow.setSealed(live || sealHeld, { held: !live && sealHeld });
+  placeMark(live || sealHeld);
 }
 
 /**
@@ -564,14 +565,49 @@ function leaveReview(opts) {
  * click-through mark in the corner of the screen to say Occlara is still
  * running; it never catches the cursor. Back by any path (a page opened, the
  * tray, a second launch) the mark goes. The tray's Show or Hide follows both.
+ *
+ * NEVER WHILE SEALED (8.3.2). The mark is always on top, at the top right of
+ * the screen, over Valorant's kill feed, and the window is out of sight
+ * exactly while a match is played, which onboarding tells players to do. It
+ * showed nothing, but it covered part of the kill feed, and "nothing on
+ * screen during a match" was not literally true. So it follows the seal's own
+ * test (syncSeal, live or held): gone in the same call as the seal comes on,
+ * a match in progress or a stop mid match holding it, and back once the seal
+ * lifts with the window still out of sight.
  */
-function onMainWindow(kind) {
-  if (appQuitting) return;
-  if (kind === 'hide') {
+let markFor = null;   // the main window the mark stands in for, while it is out of sight
+/**
+ * Never throws: the seal and every page opened run through here, and the
+ * mark is not worth a review that does not open.
+ */
+function placeMark(sealed) {
+  try {
+    const w = mainWindow.get();
+    if (appQuitting || sealed || !w || w !== markFor || w.isVisible()) { dockWindow.hide(); return; }
+    if (dockWindow.isShown()) return;
+    // Shown on the next turn, and only if it is still wanted then: a held
+    // seal lifts as a page opens (openPage), a moment before the window comes
+    // back, and shown at once the mark flashed up for that moment.
+    setImmediate(showMark);
+  } catch (e) {
+    console.warn('[dock] place:', e.message);
+  }
+}
+function showMark() {
+  try {
+    const w = mainWindow.get();
+    if (appQuitting || mainWindow.current().sealed || !w || w !== markFor || w.isVisible() || dockWindow.isShown()) return;
     const wa = screen.getPrimaryDisplay().workArea;
     dockWindow.showAt({ x: wa.x + wa.width - dockWindow.SIZE - 16, y: wa.y + 16 });
-  } else if (kind === 'show') {
-    dockWindow.hide();
+  } catch (e) {
+    console.warn('[dock] show:', e.message);
+  }
+}
+function onMainWindow(kind) {
+  if (appQuitting) return;
+  if (kind === 'hide' || kind === 'show') {
+    markFor = kind === 'hide' ? mainWindow.get() : null;
+    placeMark(mainWindow.current().sealed);
   }
   if (surfacesUp) {
     try { tray.update(state.isCoaching, trayActions); } catch (e) { console.warn('[tray] update:', e.message); }
@@ -1624,10 +1660,14 @@ const controller = {
     if (!state.licenseActive) {
       // Subscription ended: refuse to coach, remind the user, and re-check in
       // case they just renewed.
-      pushNotice('Your subscription has ended. Renew in Settings to start coaching.');
+      pushNotice(licenseService.endedMessage(state.licenseReason));
       revalidateNow();
       return;
     }
+    // The read's gap is the Valorant engine's, which says it as it starts: a
+    // Rivals or League session after a Valorant one showed the Valorant tier
+    // in Settings and on the Recording screen.
+    state.cadence = null;
 
     // REFUSE RATHER THAN COACH THE WRONG GAME.
     //
@@ -3521,6 +3561,10 @@ const license = {
     if (result.valid) {
       state.licenseActive = true;   // clear any prior "ended" lock
       state.licenseReason = '';
+      // And the line that explained it. A Log out keeps the state, so the
+      // new key's window opened saying "Your subscription has ended ... log
+      // out in Settings and enter your new key" over the key just entered.
+      state.notice = null;
       activationWindow.close();
       launchMainApp();
     }
@@ -3534,14 +3578,22 @@ const license = {
 // (no AI and no library tips) and surface the ended state in the panel + Settings
 // so they can renew. Coaching stays disabled until a re-validation says active.
 function enterLicenseEnded(reason) {
+  const before = state.licenseReason;
   state.licenseReason = reason || state.licenseReason || 'expired';
-  if (!state.licenseActive) { registry.broadcast(C.PUSH_STATE, buildState()); return; }
+  if (!state.licenseActive) {
+    // Ended already, for another reason now (a failed payment's grace run
+    // out, then the subscription cancelled): the line says the new one, or
+    // "Update your card" stayed up beside Settings' "enter your new key".
+    if (state.licenseReason !== before) pushNotice(licenseService.endedMessage(state.licenseReason));
+    else registry.broadcast(C.PUSH_STATE, buildState());
+    return;
+  }
   state.licenseActive = false;
   console.warn('[license] subscription ended:', state.licenseReason);
   if (state.isCoaching) controller.stop();   // kills the engine: no more tips at all
-  const msg = licenseService.messageForStatus(state.licenseReason) ||
-    'Your Occlara subscription has ended. Renew to keep coaching.';
-  pushNotice(msg);  // one notice explaining why tips stopped
+  // One notice saying why, and how back: a plan bought after this one ended
+  // is a new key, entered after a Log out (license-service.js endedMessage).
+  pushNotice(licenseService.endedMessage(state.licenseReason));
   registry.broadcast(C.PUSH_STATE, buildState());
 }
 
@@ -3554,12 +3606,59 @@ function exitLicenseEnded() {
   registry.broadcast(C.PUSH_STATE, buildState());
 }
 
+// A FAILED PAYMENT IN ITS GRACE (license-service.js usable): the key works
+// until its expiry while Stripe tries the card again. Said once as the grace
+// begins, on the notice line, and taken down once the payment goes through;
+// any other notice may take the line meanwhile, and is never pushed off it
+// again by this one.
+let paymentWarned = false;
+function notePaymentGrace() {
+  const step = licenseService.graceStep(paymentWarned, state.licenseActive, store.get('licenseStatus'));
+  paymentWarned = step.warned;
+  if (step.act === 'say') pushNotice(licenseService.endedMessage('payment_failed'), 'payment');
+  else if (step.act === 'clear' && state.notice && state.notice.kind === 'payment') pushNotice(null);
+}
+
+/**
+ * At launch. A key valid on this PC opens the app at once and is checked in
+ * the background, only a server's explicit no ending it. Any other opens the
+ * licence window, and a stored key that ended is asked about once beside it:
+ * a card updated in the portal while the app was closed renews that same key,
+ * which the window would otherwise have typed in again. If the server says
+ * yes, the window goes and the app opens, as a key entered would.
+ */
+function launchWithLicence() {
+  if (licenseService.isLocallyValid()) {
+    launchMainApp();
+    // The grace said or taken down on this answer too, not three minutes on.
+    licenseService.revalidate()
+      .then((r) => { if (r.valid === false) enterLicenseEnded(r.status); notePaymentGrace(); })
+      .catch((err) => console.warn('[license] revalidate failed:', err.message));
+    return;
+  }
+  showActivation();
+  if (!store.get('licenseKey')) return;
+  licenseService.revalidate()
+    .then((r) => {
+      if (!r || r.valid !== true || !licenseService.isLocallyValid() || mainLaunched) return;
+      console.log('[license] the stored key was renewed while the app was closed');
+      state.licenseActive = true;
+      state.licenseReason = '';
+      state.notice = null;
+      activationWindow.close();
+      launchMainApp();
+      notePaymentGrace();
+    })
+    .catch(() => {});
+}
+
 // Authoritative check: only the license endpoint decides active vs ended.
 function revalidateNow() {
   licenseService.revalidate()
     .then((r) => {
       if (r.valid === false) enterLicenseEnded(r.status);
       else if (r.valid)      exitLicenseEnded();
+      notePaymentGrace();
     })
     .catch(() => {});
 }
@@ -3633,6 +3732,7 @@ function startLicenseWatch() {
         .then((r) => {
           if (r.valid === false) enterLicenseEnded(r.status);
           else if (r.valid)      exitLicenseEnded();
+          notePaymentGrace();
           registry.broadcast(C.PUSH_STATE, buildState());
         })
         .catch(() => {});
@@ -3781,6 +3881,8 @@ function createAppSurfaces(opts) {
   // The seal follows the match (syncSeal()), checked once a second.
   if (!sealTimer) sealTimer = setInterval(() => { try { syncSeal(); } catch {} }, 1000);
   startLicenseWatch(); // detect expiry / revocation mid-session and keep Settings fresh
+  paymentWarned = false;
+  notePaymentGrace();  // a key launched in its payment grace says so once
 
   // Stay connected to the tracker across restarts: refresh the saved profile in
   // the background so live tips + chat have current stats without reconnecting.
@@ -3972,15 +4074,9 @@ if (!app.requestSingleInstanceLock()) {
 
     // Trust-cache, re-activate in background: if a locally-valid license is
     // cached, launch instantly and silently re-check; only sign out on an
-    // explicit valid:false. Otherwise show the activation window.
-    if (licenseService.isLocallyValid()) {
-      launchMainApp();
-      licenseService.revalidate()
-        .then((r) => { if (r.valid === false) enterLicenseEnded(r.status); })
-        .catch((err) => console.warn('[license] revalidate failed:', err.message));
-    } else {
-      showActivation();
-    }
+    // explicit valid:false. Otherwise the activation window, and a stored
+    // key that ended asked about once beside it (launchWithLicence).
+    launchWithLicence();
   });
 
   app.on('window-all-closed', () => {

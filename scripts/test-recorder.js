@@ -90,8 +90,8 @@ const SPEC = {
   diskStart: 8 * 1024 ** 3, diskStop: 4 * 1024 ** 3,
   sustainS: 20, minFps: 12, maxLagMs: 4000, maxRecorderCpu: 60, maxSystemCpu: 95,
   black: 4, strikesDays: 7,
-  busyText: 'Recording stopped for this session: your PC was busy. The coach still reads your screen every second.',
-  blackText: 'Recording needs Windowed Fullscreen in this game. The coach still reads your screen every second.',
+  busyText: 'Recording stopped for this session: your PC was busy. The coach still reads your screen up to once a second.',
+  blackText: 'Recording needs Windowed Fullscreen in this game. The coach still reads your screen up to once a second.',
   bothBlackText: 'Capture is black. Switch the game to Windowed Fullscreen.',
 };
 const GB = 1024 ** 3;
@@ -841,7 +841,7 @@ function readerAfter(frames, menus) {
     h.env.free = SPEC.diskStart - 1;
     await h.start();
     ok(!h.pages.length, 'one byte under 8 GB free: no page opened, nothing recorded');
-    ok(h.notices.length === 1 && /8 GB/.test(h.notices[0].text) && /still reads your screen every second/.test(h.notices[0].text)
+    ok(h.notices.length === 1 && /8 GB/.test(h.notices[0].text) && /still reads your screen up to once a second/.test(h.notices[0].text)
       && !DASHES.test(h.notices[0].text), 'one notice, saying 8 GB and that the reading goes on', h.notices.map((x) => x.text).join(' | '));
     ok((await h.stop()).outcome === 'disk', 'the session ends as disk');
     const h2 = harness();
@@ -1025,8 +1025,8 @@ function readerAfter(frames, menus) {
     await slow.start();
     await slow.run(5);
     await slow.run(25, () => ({ health: { fps: 1, changing: true } }));
-    ok(slow.notices[0] && /every 3 seconds\.$/.test(slow.notices[0].text), 'pinned at 3 s, the notice says every 3 seconds, which is true', slow.notices[0] && slow.notices[0].text);
-    ok(everyText(1000) === 'every second' && everyText(2000) === 'every 2 seconds', 'and every second at the default');
+    ok(slow.notices[0] && /up to once every 3 seconds\.$/.test(slow.notices[0].text), 'pinned at 3 s, the notice says up to once every 3 seconds, which is true', slow.notices[0] && slow.notices[0].text);
+    ok(everyText(1000) === 'up to once a second' && everyText(2000) === 'up to once every 2 seconds', 'and up to once a second at the default');
     const out = harness();
     await out.start();
     await out.run(5);
@@ -1426,11 +1426,11 @@ function readerAfter(frames, menus) {
   });
 
   await section('the words:', () => {
-    const all = [SPEC.busyText, SPEC.blackText, SPEC.bothBlackText, R.NOTICE.busy('every second'), R.NOTICE.black('every second'),
-      R.NOTICE.bothBlack(), R.NOTICE.diskStart('every second'), R.NOTICE.diskStop('every second')];
+    const all = [SPEC.busyText, SPEC.blackText, SPEC.bothBlackText, R.NOTICE.busy('up to once a second'), R.NOTICE.black('up to once a second'),
+      R.NOTICE.bothBlack(), R.NOTICE.diskStart('up to once a second'), R.NOTICE.diskStop('up to once a second')];
     ok(all.every((t) => !DASHES.test(t)) && DASHES.test(String.fromCharCode(0x2014)) && DASHES.test(String.fromCharCode(0x2013)) && !DASHES.test('a-b'),
       'no dash in any notice (the detector matches both dashes and not a hyphen)');
-    ok(R.NOTICE.busy('every second') === SPEC.busyText && R.NOTICE.black('every second') === SPEC.blackText && R.NOTICE.bothBlack() === SPEC.bothBlackText,
+    ok(R.NOTICE.busy('up to once a second') === SPEC.busyText && R.NOTICE.black('up to once a second') === SPEC.blackText && R.NOTICE.bothBlack() === SPEC.bothBlackText,
       'the notices are the spec\'s words');
   });
 

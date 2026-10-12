@@ -196,7 +196,7 @@ if (balance) {
 }
 
 // ── House style ─────────────────────────────────────────────────────────────
-const DASHES = /[—–]/;
+const DASHES = /[\u2014\u2013]/;
 for (const [label, text] of [
   ['fundamentals()', knowledge.fundamentals()],
   ['block()', knowledge.block()],

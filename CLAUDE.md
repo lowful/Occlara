@@ -33,6 +33,12 @@ What still counts as "reaching the screen", and is sealed mid match:
   its sidebar's pages are locked (`syncSeal`, below under The UI), because an
   open page on a second monitor is the same live feed. A stop in the middle of
   a match holds that seal until the player opens a page.
+- The corner mark, the always on top aperture the window leaves at the top
+  right of the screen while it is hidden, goes while the seal is on, live or
+  held, and comes back once it lifts with the window still hidden (8.3.2,
+  `placeMark` in index.js, `check:seal`). It showed nothing, but it sat over
+  Valorant's kill feed, and the window is hidden exactly while a match is
+  played.
 - The AI log seals the live session (`liveLogSealed`), because an open log on a
   second monitor is a live feed of the match by another name. Frame chat refuses
   it, and Ask Coach gets no match memory and no review context mid match. A
@@ -59,6 +65,7 @@ What still counts as "reaching the screen", and is sealed mid match:
 
 ```
 src/main/services/coaching-engine.js  the READER: capture, /api/coach/read, the STATE guards
+src/shared/read-cadence.js            how often each phase is read, the engine's gap a floor
 src/shared/valorant-rounds.js         the round ledger, fed the engine's GUARDED context
 src/shared/match-end.js               when the match is over
 src/shared/valorant-verify.js         Riot's record laid over the ledger
@@ -112,6 +119,96 @@ a read a second, invented no death and read every label; of the four that
 hold 1s now, it and Ling 3.0 invent no death, and DeepSeek agrees with more
 of Riot's deaths at under half the latency.
 
+**And the gap is a floor, phase by phase** (8.3.2, `src/shared/read-cadence.js`).
+The read is 97 to 99% of the AI bill, and it went out every gap from Start to
+Stop: on the Sunset swiftplay, read a second, 29% of the reads were the buy
+phase, 23% the player dead, 12% menus, agent select and loading, 8% a menu
+inside the match (the shop, the big map) and 3% the end screen. So `tick()`
+reads at the slower of the gap and the phase's own, decided on the last
+APPLIED read, never the one in flight, and at the gap again whenever that read
+was captured longer ago than the phase's gap and 4 s (a pause, an outage, a
+12 s hung read, a 429). The tiers, `inFlightLimit`, the `cadence` event (the
+tier, which Settings' line gives as the live round's gap, saying the rest is
+read less often, and the Recording screen's capture row as the gap "in a live
+round") and every guard are
+untouched, and a pinned speed stays the floor.
+
+- **Menus** out of a match: every 5 s after two LOBBY replies in a row, every
+  10 s once the run passes three minutes. Only the next match's first game
+  read needs them, and the seal and the ledger begin on it, so the seal can
+  come up to 5 s (10 s) later, inside round 1's 45 s buy phase, before
+  anything of the match has been read.
+- **A menu inside the match**: the shop, two LOBBY replies in the ledger's own
+  buy phase with its timer more than 5 s from running out, every 3 s, and the
+  gap from 5 s before the barriers drop to 15 s after. Any other (the big map,
+  Escape, an alt tab): ten replies at the gap first, then every 3 s, and every
+  5 s once the run reaches 45 s, the end screen, which the menu path ends by
+  time, not by reads.
+- **The buy phase sleeps on a timer two reads agree on**: two frames that each
+  set the ledger's buy end from the clock printed on them, the ends within
+  2 s, at least 1.8 s apart and showing different seconds (a still number
+  misread twice is one read, the ledger's rule). Then a read every 5 s, the
+  shop's included, until 4 s before the barriers drop. It wakes at once on a
+  post plant or a planted spike, the player held dead, an active read whose
+  clock is not that timer's (none, over 0:45, more than 3 s off), or a buy
+  timer more than 3 s off. The cost audit's rule, one read's timer, skipped
+  every clocked buy read after a LOBBY, so `buyUntil` was never set and the
+  Abyss swiftplay's round 2 combat report registered a death in every draw.
+  Sunset round 5's "buy 0:39" off the ammo counter is a misread to the ledger
+  and sets no buy end; without the 1.8 s, two misreads a second apart slept
+  through four seconds of a live round. And it sleeps only while the engine's
+  own combat report window (`buyUntil`) still reaches the end of the sleep: a
+  buy read with no clock cut that window to 2 s (since 8.3.2 only a window one
+  clocked read opened, or one the ledger's buy end does not agree with,
+  "Nobody dies in a buy phase" below), read every second
+  the clocked read after it puts it back, and asleep the read 5 s later was the
+  combat report, registered as the round's death in its buy phase, which took
+  the real death's place and emptied the round's notes. On 1,500 random buy
+  phases through the real engine (a buy read without its clock 6% and 15% of
+  the time, the combat report in 80% of them) reading everything registered
+  26 and 61 such deaths, the sleep without the check 16 to 30 and 42 to 55,
+  with it 12 to 20 and 26 to 47.
+- **Dead**: the gap for 5 s after the death (the frame after it is Riot's
+  look's) and while a weak tell's death is on trial, then every 3 s until a
+  buy read or an alive read. The gap instead at match point (a team on 12, on
+  4 in a swiftplay or a match of no known mode, or one round from any final),
+  while a score step or a final waits for its second read, and on a tell that
+  names neither the spectator screen nor the death screen. Without the 5 s and
+  the waiting step, a remake's second round and a swiftplay final's last lost
+  their results.
+- **Rounds 4 and 5 are read whole while the mode is unknown**, every phase, and
+  the buy phases of rounds 4 to 9 never sleep: round 5's buy phase tells the
+  mode, round 4's step takes two reads to put the ledger there, and the side
+  swap fallback counts four buy reads in rounds 5 to 8. The window opens on
+  the score a read printed before the guards hold a step for its second read
+  (round 4's buy phase began on the Sunset match with the context a round
+  behind), and a misread score never closes it.
+- **The live round**, the post plant and the banner alive: the gap.
+
+Through the real engine at a read a second, each session with the menus it had
+between Start and Stop, the cadence sends 37.1% fewer reads on the Sunset
+(760 to 478), 37.2% on the Abyss swiftplay and 35.2% on the Split (both read
+every 2 s, counted on a 1 s grid): an hour from $2.36 to $1.52 at DeepSeek's own
+price, $0.92 to $0.60 at OpenRouter's spread. Every death registers on the same
+frame, every round keeps its result and its reads, the mode locks on the same
+read and the four looks pick the same frames. What differs was measured and
+accepted: the wrong Haven lock not taken on the Sunset and taken 11 s later on
+the Abyss swiftplay (the right map on the same read), the Split's invented
+round 18 death (round 17's combat report) not registered (the buy window rule
+under "Nobody dies in a buy phase" now drops it reading everything too), a
+plant callout in
+other words for the same site, round 6's moment 0.1 to 0.2 s, and the menu
+path's end up to 5 s later. The only live reads left unread are buy phase
+frames the model called active (0:17 to 0:19). Known exposure: a Stop pressed
+on a round's banner while dead, outside match point, can leave that round
+without a result. The capture log's line every 60 frames ends with what the
+phase held back ("347 reads skipped by phase (idle 203, menus 144)").
+`npm run test:readpolicy` holds every rule at its boundary, the edge cases on
+the 200 ms heartbeat, and the four real sessions through the real engine at
+the cadence's own capture times (the fixtures' `thinned` counts put back the
+LOBBY replies the log never writes), the latency drawn per frame; each rule
+reverted fails it.
+
 **The score lags the round in both directions**, measured on a real 24 round
 match in `scripts/fixtures/`: a buy phase starts while the score still reads the
 old number, and the round end banner prints the next score while the player is
@@ -128,7 +225,23 @@ again as the buy phase starts, "KILLED BY Reyna" in its panel, and on a real
 competitive session 9 of 29 death registrations were that panel, each filed
 into the new round where the ledger's one death a round then refused the
 round's real death. While a buy timer is running a dead read is a living player
-buying, in the engine and in the AI log's death list.
+buying, in the engine and in the AI log's death list. A buy read with no clock
+never cuts short a window two clocked reads agree on (8.3.2, `buyWindow`: two
+different seconds of the timer, ending within two seconds of each other): on
+the real Split "buy 0:24" and "buy 0:18" held it to 1811 s, a "buy" read at
+1802.6 s cut it to two seconds, and round 17's combat report was round 18's
+death, a round Riot has the player alive. A window ONE clocked read opened is
+still cut, because that read can be a misread mid round: on the Abyss swiftplay
+"buy 0:29" was read with the round clock at a minute, and the "buy" read after
+it is what let round 1's real death register (`test:sessionreplay` holds both).
+Nor one the round ledger's own buy end does not agree with, within 3 s
+(`buyEndsAt`), because two misreads can agree by chance, and the ledger takes a
+buy timer read after play only when its clock can be one (`buyVerdict`), so a
+post plant's misreads set it nothing. The Sunset swiftplay's round 5 post plant
+read five "buy" timers in six seconds, 0:39, 0:13, 0:23, 0:19 and 0:39: had the
+last been 0:18, it and the 0:19 would have held the window over the rest of the
+post plant, a real death there read as the combat report (`test:sessionreplay`
+replays it with one there, `test:readpolicy` holds the rule).
 
 **The mode comes from printed numbers in round 5's buy phase.** Swiftplay swaps
 sides after round 4, so its round 5 is a pistol round: 800 credits and a 45
@@ -1211,7 +1324,8 @@ matches/     three pages from one surface, ?section=list, patterns or breakdown;
 review/      the post-match review, every game, branched on review.kind
 stats/       rank, win rate, tracker matches, graded matches
 chat/        Ask Coach, opened plainly or on one match's review
-settings/    all preferences, version string at the bottom
+settings/    all preferences, version string at the bottom, and under it Riot's
+             notice word for word and NetEase's and Marvel's (8.3.2)
 ```
 
 The pages and their order are `src/shared/shell-nav.js`. A page is loaded with
@@ -1418,11 +1532,45 @@ keeps up (kind 'recording', which the button and the live card already say),
 then paused in the player's language (`panel.pausedLine`), which takes the
 place of a notice about the reading ('read-failed', 'capture', and the
 recorder's 'recorder', whose last words are that the coach still reads your
-screen every second) until the resume puts it back. No "Press Start", no
+screen up to once a second, `recorder.js everyText`, "up to" since the phase
+cadence) until the resume puts it back. No "Press Start", no
 "Reading your game" (`panel.noTips` went). One line, cut with an
 ellipsis and whole in its title, never more than 70% of the strip, the text
 out of the drag region and nothing else, so the strip still drags the window;
 written only when it changes, as a polite live region.
+
+**An ended plan says how back, and a failed payment is a grace** (8.3.2,
+`license-service.js`). A plan bought after the last one ended is a NEW key,
+the site minting one per checkout, while the app goes on checking the key it
+holds: "Renew at occlara.app" left a player who had renewed locked out for
+good. So the running app's words (`endedMessage`, the notice line, Settings'
+`ENDED_MESSAGES`, the shell's `ENDED_LINE`) say to renew, then Log out in
+Settings and enter the new key, and the licence window's (`messageForStatus`)
+say which key to enter. The new key entered after that Log out opens the
+window on no notice from the plan that ended (`license.activate` in index.js
+clears it: a Log out keeps main's state, and the line still said to do what
+the player had just done). A `payment_failed` key is usable until its expiry
+(`usable`, the server's rule too), two days past the period end while Stripe
+tries the card again: refused, a declined renewal stopped the match being
+recorded within three minutes. A key the server refused stays refused on this
+PC until the server's next yes (`licenseRefused`, `isLocallyValid`): stored as
+'payment_failed' by a server that refused it (any before 8.3.2), that rule read
+it usable, so the next outage or offline re-check revived it until the next
+real answer ended it again, mid match. The grace is said once as it begins, on the
+notice line (kind 'payment', `graceStep`: never pushed again over another
+notice, cleared once paid or ended, decided at launch and on every re-check,
+the launch's own included), and in Settings beside Manage
+subscription. A licence that ends again for another reason (a grace run out,
+then cancelled) says the newer reason. At launch a stored key that ended is
+asked about once beside the licence window (`launchWithLicence`): a card
+updated in the portal while the app was closed renews that same key, and if
+the server says yes the window goes and the app opens. The server's expiry is
+taken whenever it sends the field, null included, so a key made lifetime by
+hand no longer ends again on the old date. A session starts with no cadence
+until its engine says one (`state.cadence`), so a Rivals or League session
+after a Valorant one shows no Valorant tier. The licence window's "Get one" opens the sign up page
+(`OPEN_PURCHASE` with 'signup', `SIGNUP_URL`), Settings' Manage subscription
+the account page, and a page names which, never a URL (`test:surfaces`).
 
 ### Rules for UI work
 
@@ -1529,8 +1677,10 @@ keep arriving, they just stop being informed by the previous one.
 The models are whatever Railway says where an env var is set, and the code
 default where it is not: `AI_READ_MODEL` (default deepseek/deepseek-v4.1-flash),
 `AI_FORENSICS_MODEL` (default openai/gpt-6-luna), `AI_REVIEW_MODEL` (falls back
-to `AI_TEXT_MODEL`). `AI_VISION_MODEL` now only serves the older `/analyze` route
-that installed clients before 8.0 still call. Every model call switches
+to `AI_TEXT_MODEL`). `AI_VISION_MODEL` serves agent detection, frame chat and
+the Rivals reads; the tip era routes it also served to installs before 8.0
+(`/analyze`, `/recap`, `/summary/*`, `/suggest-library-tip`) answer 410 with an
+"update Occlara" sentence, no licence checked and no model called. Every model call switches
 reasoning off and retries a 400 without the switch. There is a credits breaker:
 on a 402 the server reports it honestly rather than pretending to be down, and
 the client backs off for three minutes.
@@ -1596,6 +1746,11 @@ these away.
   (`lastStep`, never once a buy phase has confirmed it), and a lone digit is
   checked against the held other one rather than merged raw. Scores never move
   backwards, and a forward jump needs two agreeing reads before it is accepted.
+  A read with a round number and no scores is no evidence either way (8.3.2):
+  it neither takes the place of a step read once with its scores, nor clears
+  it, since the round number is the model's inference and printed nowhere. It
+  used to, so the step's second read was a first read again
+  (`test:scoreguards`).
 - **HP beats death.** A death is only registered when health is genuinely
   absent and the tell is unambiguous. The model kept announcing deaths that had
   not happened. The phase "dead" needs the same proof as the alive flag and
@@ -1988,25 +2143,200 @@ product forever.** Nothing fired, nothing logged, nothing expired.
 status and `expires_at: now`. Two independent reasons for the same answer, so
 the licence dies even if `validateKey` is ever relaxed about status.
 
+**And then every plan became a subscription, and none of it reached them.**
+The site sells weekly, monthly and yearly through its own create-checkout, all
+three `mode: subscription`. A subscription's Checkout Session has no payment
+intent, so the lookup by session never found a site licence; a Dispute has no
+customer, so a chargeback had nothing to go on; a refund left the subscription
+billing (a weekly refunded on day two was charged again on day seven); and the
+status written, 'refunded', is one the licences table's CHECK refused. So the
+charge is read again as the server's own API version renders it (stripe-node
+14 pins 2023-10-16, which still has `charge.invoice`; a basil event does not),
+and the licence is found in this order: **its invoice's subscription** (exact,
+since a subscription is one purchase), then the checkout session of its
+payment intent (the old one-time lifetime), then the customer.
+
+**A full refund or any dispute cancels the subscription, FIRST**, so billing
+stops even while the database refuses the revoke and Stripe retries it.
+
 **A PARTIAL refund must not revoke.** `charge.refunded` fires for both, and a
 goodwill partial refund is not a reason to take the product away. The amounts
-are compared as well as the flag.
+are compared as well as the flag. A goodwill refund must be partial, because a
+full one ends the purchase, its subscription included.
 
-**The customer is a FALLBACK and only when unambiguous.** Licences store
-`stripe_session_id` and `stripe_customer_id`, never the payment intent, so the
-charge is resolved through the checkout session that created it. When that
-fails, the customer is used only if they have exactly ONE active licence: a
-repeat buyer has several, and revoking all of them over one refund is a worse
-bug than the one this fixes. It logs loudly and refuses rather than guessing.
+**The customer is a FALLBACK and only when unambiguous.** When neither the
+subscription nor the session names a licence, the customer is used only if they
+have exactly ONE active licence: a repeat buyer has several, and revoking all of
+them over one refund is a worse bug than the one this fixes. It logs loudly and
+refuses rather than guessing. A dispute takes its customer from its charge.
 
-**THE STRIPE DASHBOARD MUST SUBSCRIBE TO BOTH EVENTS.** The handler cannot run
-on an event Stripe never sends, and the endpoint was created listing four. This
-is the one part of the fix that is not in this repo.
+**The reason is written where the table allows it.** 'refunded' and 'disputed'
+once the site's migration adds them to the status CHECK; until then the CHECK
+refuses them (23514) and 'cancelled' is written with the expiry now, so the
+same code works on either side of the migration. Nothing that follows undoes a
+revoke: `customer.subscription.deleted` keeps a 'refunded' or 'disputed' reason,
+and a payment never brings a revoked licence back (a renewal logs it for a human).
 
-`npm run test:refundrevoke` runs the real handler against a fake Stripe and a
-fake Supabase, covering the full refund, the partial, the chargeback, the
-fallback and its safety rail. Proved by disabling the handler and by making
-partial refunds revoke.
+### Renewals reach the licence, and a refused write says so
+
+**No renewal ever reached a licence, and the logs said they did.** The licences
+table's trigger (`prevent_license_privilege_escalation`) exempted the service
+role by `request.jwt.claim.role`, a setting PostgREST no longer sets, so it
+refused the webhook's every write to status and expires_at; nothing read the
+error, "renewed. New expiry" was logged either way, and every subscriber lost
+the app at the end of the first period while Stripe went on charging them.
+Three more things would each have done it alone: Stripe's API 2025-03-31.basil
+moved an Invoice's subscription to `parent.subscription_details.subscription`
+(events arrive in the endpoint's version, so both invoice handlers broke out
+silently), the expiry was the old one plus 7 or 30 days with no yearly at all,
+and a failed write answered 200, so Stripe never retried it.
+
+- **Every licence write in the webhook checks its error and throws**, the
+  handler answers 500, and Stripe retries the event for up to three days. A
+  write the database refuses is retried until it lands, never logged as done.
+  Errors are logged by code and message only: a CHECK violation's details are
+  the whole row, key and all.
+- **The expiry is Stripe's own period end plus two days** (`services/billing.js`,
+  shared by the webhook, `/api/payments/cancel` and the repair route below):
+  `invoice.paid` writes the paid invoice's latest line period end plus the
+  grace, status active, in either API version and for every plan. Stripe charges
+  a renewal about an hour after the period ends, up to three days when its own
+  deliveries fail, and the app stops the recording in progress the minute an
+  expiry passes. A subscription set to cancel at its period end gets the grace
+  too: the customer can renew it in Stripe's portal (the site's Manage
+  subscription) before then, which tells this server nothing, and that renewal
+  is charged about an hour after the end, so an exact end stopped the match
+  being recorded for that hour. Access stops when Stripe ends it:
+  `customer.subscription.deleted` sets the licence cancelled. A renewal never
+  moves an expiry earlier: an invoice that ends sooner (a one-off charge on the
+  subscription, a proration, an old event replayed) cannot cut a paid period.
+- **Stripe does not promise order.** `invoice.payment_failed` asks the invoice
+  how it stands now, so a failure delivered after the retry that paid cannot
+  lock out a paying customer, and it marks only an active licence. A renewal
+  brings back a merely cancelled licence only while Stripe still bills its
+  subscription (one cancelled on the site while its billing call failed).
+- **A failed payment is a grace, not an end.** `invoice.payment_failed` marks
+  the licence on Stripe's first failed attempt at a renewal, while its expiry
+  still runs two days past the period end and Stripe tries the card again, and
+  every licence check refused it: within three minutes of a declined card the
+  app stopped the match being recorded. Now a payment_failed licence is usable
+  until its expiry: `checkKey` (coach.js) answers valid, and
+  `/api/license/activate` and `/validate` answer `valid: true` with
+  `status: 'payment_failed'`, the plan and `expiresAt`, which the app warns on
+  and works through. The device lock holds as before. With no expiry, or a
+  past one (answered `expired`), it is not usable, and cancelled, expired,
+  refunded and disputed never are. One rule, `usable` in `routes/license.js`,
+  shared by checkKey and held equal to the app's own (`license-service.js
+  usable`) by `test:licenceoutage`. Only to an app that knows it
+  (`knowsGrace`, 8.3.2 and later by the `X-Occlara-Version` every request
+  carries): one before it read anything but 'active' as ended on its own
+  minute check, so answered valid it stopped the session after every three
+  minute re-check and offered Start again in between, and it is refused as it
+  always was. The refund's customer fallback counts a licence in its grace as
+  live, and the account dashboard's `renews` is false once Stripe has ended
+  the subscription (canceled, incomplete_expired, or no record of it).
+- **A lifetime licence that names a subscription** (one made lifetime by hand)
+  is never given an expiry, cancelled or marked payment_failed by that
+  subscription's renewals, failed payments or end. A full refund or a dispute
+  of its charge still revokes it, as it revokes anything that charge bought.
+- **`/api/payments/cancel` stops every subscription Stripe still bills**, not
+  the newest licence's: Stripe is asked about every subscription the user's
+  licences name, whatever their status, each is set to cancel at its period
+  end, and each licence still on runs to that end plus the grace (the end the
+  customer is told is Stripe's own). One whose payment is failing (past_due,
+  unpaid, incomplete, paused) is cancelled now and says `endedNow`: its period
+  was never paid, and set to cancel at its end Stripe went on retrying the
+  unpaid invoice, so a customer who cancelled to stop the retries could still
+  be charged. A Stripe failure is a 502 and a refused write a 500 that says
+  billing is stopped, never a 200.
+- **Only Occlara's own objects.** Every event of the Stripe account reaches the
+  endpoint, another product's included. A full refund or a dispute cancels a
+  subscription only when an Occlara checkout started it (its metadata names
+  one of Occlara's plans and a `user_id` or `userId`, asked of Stripe first so
+  billing stops while the licences table is down) or a licence names it, and a
+  checkout naming a user the licences table does not have (`user_id`
+  references auth.users: 23503, or 22P02 for an id that is no uuid) mints
+  nothing and answers 200: as a 500, Stripe retried each such sale for three
+  days, and an endpoint that keeps failing is one Stripe disables.
+
+**The repair: `POST /api/admin/licenses/sync-expiry`**, behind the admin
+password. Fixing the webhook moves a licence on at its next renewal; this moves
+every existing one now, by the same rule, reading each licence's subscription
+in Stripe. A DRY RUN BY DEFAULT: it writes nothing and lists every row it would
+change, before and after; `?apply=1` writes them, each write checked, and answers
+500 listing any that failed. One Stripe bills runs to its period end plus two
+days (the same when set to cancel). One whose card fails is payment_failed to
+the end of the period PAID for plus two days, which is where the unpaid period
+began (`billing.js failingExpiryFor`): Stripe moves the period on when it bills
+the renewal, paid or not, and since a failed payment is a grace the unpaid
+period's end was that period free, 32 days on a monthly plan and 367 on a
+yearly one, and an unpaid licence (Stripe done retrying) revived; an unpaid,
+incomplete or paused one is never moved later than it already runs.
+A site cancelled licence Stripe still bills is active again for the period paid,
+one Stripe ended is cancelled at the moment it ended, and a revoked licence
+whose subscription still bills, a lifetime one, or a subscription Stripe has no
+record of is listed and left as it is. Run it once the migration below is live.
+
+**What the webhook mints, and what it logs.** The site mints its own licences
+(create-license, at /success and from the account page), naming the buyer as
+`metadata.user_id`, so a site purchase is one quiet line here: "UNLINKED
+PURCHASE" is kept for a checkout neither checkout made, where it was logged for
+every site sale and hid the real orphans. Only the old Railway checkout's
+purchases (`client_reference_id` or `metadata.userId`) are minted here, the plan
+from the price's own interval (week, month, year) rather than STRIPE_PRICE_*,
+the key from `crypto.randomInt`. No licence key or email is printed anywhere.
+The old public `POST /api/payments/create-checkout` (no sign in, any userId, the
+old $20 and $100 prices) and `GET /api/payments/success` (a key for any session
+id) answer 410: neither the site nor the app calls them.
+
+**The frames go only to providers that keep nothing, and asking never takes
+the product down.** Every OpenRouter call (`chatCall` in coach.js) asks for
+`provider: { data_collection: 'deny' }`. A model with no provider that denies
+collection has every call refused, HTTP 404 "No endpoints found matching your
+data policy" (or the 503 OpenRouter's errors page lists for the same, "There
+is no available model provider that meets your routing requirements", the
+data policy being the only routing requirement sent), so that one refusal
+falls back per call: it is sent once more without the preference, booked as
+any call, and nothing else ever is (a 400, 401, 402, 403, 429, any other 5xx
+or a timeout is the call's own answer). The calls
+that fell back are counted per route since boot (read, forensics, review,
+chat, rivals, other), said in one log line a route an hour at most, and
+`GET /health` counts them as `dataPolicy: { mode, fellBack, refusedAgain,
+since }`: a route counting in `fellBack` sends its model's frames to providers
+that may keep them, each call after a refused round trip, until the model
+changes. They are counted by what happened to the retry: one OpenRouter
+refuses again ("No endpoints found" once more) went to no provider, so it is
+`refusedAgain`, never `fellBack`: an account wide privacy setting or a model
+with no live provider stops it, which `AI_DATA_COLLECTION=allow` does not
+change. One answered, cut off, or refused in other words may have reached a
+provider, so it is `fellBack`.
+`AI_DATA_COLLECTION=allow` sends no preference and retries nothing.
+`test:aiprivacy` holds it on a scripted provider, and boots the server for
+/health.
+
+**NOT IN THIS REPO, and none of it works without them:**
+- The site's SQL migration: the trigger's service role exemption read from
+  `request.jwt.claims`, and the plan and status CHECKs taking 'yearly',
+  'refunded' and 'disputed'. Until it is live every renewal and revoke answers
+  500 and Stripe keeps retrying, which is the intended, loud failure, so it
+  goes live BEFORE this server deploys: the old server is unharmed by it, and
+  Stripe retries an event for three days and disables an endpoint that keeps
+  failing.
+- The Stripe endpoint subscribed to `invoice.paid`, `invoice.payment_failed`,
+  `customer.subscription.deleted`, `charge.refunded`, `charge.dispute.created`
+  and `checkout.session.completed`. It was created listing four. Its API
+  version can be either shape; the code reads both.
+- The repair run once, dry first, then `?apply=1`.
+- STRIPE_PRICE_WEEKLY, MONTHLY and LIFETIME removed from Railway: nothing reads them.
+
+`npm run test:refundrevoke`, `test:renewals`, `test:billingroutes` and
+`test:checkoutplan` run the real handlers against `scripts/fixtures/fake-billing.js`:
+a licences table with exactly the live columns, the status and plan CHECKs as
+the migrations define them (before and after the site's), the trigger as it
+behaves live, and PostgREST's own errors; a Stripe that answers the server in
+2023-10-16 and sends events in 2023-10-16 or basil. The old fakes agreed to
+everything, which is how test:refundrevoke passed while every site refund left
+its key working. Each fix was proved by reverting it and watching its check fail.
 
 ## Conventions
 

@@ -17,7 +17,14 @@ const API = {
   DEATH_FORENSICS: '/api/coach/death-forensics',   // the frame before each teachable death
 };
 
-const PURCHASE_URL = 'https://occlara.app';
+// THE ACCOUNT PAGE, where a key is shown, renewed and its subscription managed
+// (8.3.2). Settings' Manage subscription opens it (OPEN_PURCHASE), and it was
+// the home page, so a subscriber looking for their plan landed on the
+// marketing page. The licence window's "Get one" opens the sign up page
+// instead (OPEN_PURCHASE with 'signup'): the account page sends anyone signed
+// out to its Log in tab, where a new buyer had to find "Create account".
+const PURCHASE_URL = 'https://occlara.app/account';
+const SIGNUP_URL = 'https://occlara.app/signup';
 
 // ── Brand ───────────────────────────────────────────────────────────────────
 const BRAND = {
@@ -75,6 +82,9 @@ const STORE_DEFAULTS = {
   licenseStatus: '',
   licenseExpiry: '',
   deviceId:      '',
+  // The server's last answer for this key was no: never valid on this PC
+  // until it says yes again (license-service.js isLocallyValid).
+  licenseRefused: false,
   // preferences
   // How often the game is read during a match: 'auto', or one of CAPTURE_TIERS
   // pinned. Faster means more of the match reaches the review.
@@ -187,6 +197,7 @@ module.exports = {
   SERVER_BASE_URL,
   API,
   PURCHASE_URL,
+  SIGNUP_URL,
   BRAND,
   CAPTURE,
   TIMING,
