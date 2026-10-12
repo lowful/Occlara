@@ -215,8 +215,10 @@ function paintSealedFacts() {
   $('sealed-game').textContent = f.game;
   $('sealed-after').textContent = f.after;
   const every = cadence ? (cadence < 1000 ? `${cadence}ms` : `${Math.round(cadence / 100) / 10}s`) : null;
+  // The gap is the live round's: menus, a confirmed buy phase and the time
+  // spent dead are read less often (read-cadence.js, 8.3.2), as Settings says.
   $('sealed-capture').textContent = every
-    ? `Reading your game every ${every}${captureSpeed === 'auto' ? ', as fast as the connection keeps up' : ', pinned in Settings'}`
+    ? `Reading your game every ${every} in a live round${captureSpeed === 'auto' ? ', as fast as the connection keeps up' : ', pinned in Settings'}`
     : 'Auto, as fast as the connection keeps up';
 }
 
@@ -236,12 +238,12 @@ function paintSealedFacts() {
  *     pause button's icon says otherwise. Paused, nothing is read, so a notice
  *     about the reading (a read that failed, capture that was blocked, and
  *     the recorder's, recording stopped for the session, whose last words are
- *     that the coach still reads your screen every second) is out of date and
+ *     that the coach still reads your screen up to once a second) is out of date and
  *     the paused line says what is true, until the resume puts it back; any
  *     other still wins.
  * Never anything about the match being played.
  */
-const ENDED_LINE = 'Your subscription has ended. Renew in Settings to keep getting reviews.';
+const ENDED_LINE = 'Your subscription has ended. Open Settings to renew and enter your new key.';
 const ABOUT_READING = ['recording', 'read-failed', 'capture', 'recorder'];
 function noticeLine() {
   if (!licenseActive) return { text: (notice && notice.text) || ENDED_LINE, system: true };

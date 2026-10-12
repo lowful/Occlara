@@ -1,29 +1,21 @@
 'use strict';
 
+const crypto = require('crypto');
+
+/*
+ * A licence key, from the operating system's random source (Math.random's next
+ * outputs can be worked out from earlier ones). Used by create-test-key.js.
+ *
+ * This file also held getExpiresAt and extendExpiresAt, copies of the webhook's
+ * that nothing required: no yearly plan, and the "old expiry plus 7 or 30 days"
+ * renewal that cut monthly subscribers short. They are gone so they cannot be
+ * picked up again. A licence's expiry follows Stripe's period
+ * (server/services/billing.js); routes/webhook.js mints the old checkout's keys.
+ */
 function generateLicenseKey() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const segment = () =>
-    Array.from({ length: 4 }, () =>
-      chars[Math.floor(Math.random() * chars.length)]
-    ).join('');
+  const segment = () => Array.from({ length: 4 }, () => chars[crypto.randomInt(chars.length)]).join('');
   return `GC-${segment()}-${segment()}-${segment()}-${segment()}`;
 }
 
-function getExpiresAt(plan) {
-  if (plan === 'lifetime') return null;
-  const date = new Date();
-  if (plan === 'weekly') date.setDate(date.getDate() + 7);
-  if (plan === 'monthly') date.setDate(date.getDate() + 30);
-  return date.toISOString();
-}
-
-function extendExpiresAt(currentExpires, plan) {
-  const base = currentExpires ? new Date(currentExpires) : new Date();
-  // If already expired, extend from now
-  const from = base < new Date() ? new Date() : base;
-  if (plan === 'weekly') from.setDate(from.getDate() + 7);
-  if (plan === 'monthly') from.setDate(from.getDate() + 30);
-  return from.toISOString();
-}
-
-module.exports = { generateLicenseKey, getExpiresAt, extendExpiresAt };
+module.exports = { generateLicenseKey };

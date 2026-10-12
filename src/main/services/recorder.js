@@ -363,10 +363,15 @@ function quantile(xs, q) {
 
 const round1 = (x) => (Number.isFinite(x) ? Math.round(x * 10) / 10 : null);
 
-/** "every second", or "every 3 seconds" when the read is slower than that. */
+/**
+ * "up to once a second", or "up to once every 3 seconds" when the read is
+ * pinned slower. UP TO since 8.3.2: the gap is the live round's, and menus, a
+ * buy phase two reads have confirmed and the time spent dead are read less
+ * often (read-cadence.js), so "every second" was no longer true of them.
+ */
 function everyText(ms) {
   const s = Math.round((Number(ms) || 1000) / 1000);
-  return s <= 1 ? 'every second' : `every ${s} seconds`;
+  return s <= 1 ? 'up to once a second' : `up to once every ${s} seconds`;
 }
 
 /**

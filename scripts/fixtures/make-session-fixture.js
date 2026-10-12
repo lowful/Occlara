@@ -12,6 +12,14 @@
  * The AI log keeps only gameplay frames, so menus between them are absent. A
  * test that needs the menus after a match adds them.
  *
+ * WHERE THE MENUS WERE (8.3.2). The log numbers every game read it is handed
+ * and thins the old ones, and it is never handed a LOBBY reply. So beside the
+ * frames goes `thinned`, one count a frame: the game reads numbered between it
+ * and the frame before it and thinned away since. A gap the cadence filled
+ * with more reads than that held LOBBY replies, and the read cadence's replay
+ * (test-read-policy.js) puts them back there. Counts only, no frame and no
+ * text.
+ *
  * Run: node scripts/fixtures/make-session-fixture.js <session folder> <out.json> "<note>"
  */
 
@@ -50,10 +58,22 @@ function scrub(text) {
 const KEEP = ['phase', 'teamScore', 'enemyScore', 'side', 'playerAlive', 'playerHp', 'clock', 'playerCredits',
   'playerWeapon', 'playerUlt', 'teammatesAlive', 'enemiesAlive', 'locLabel', 'playerSpot', 'map', 'spike', 'spikeSpot'];
 
-function build(dir) {
+function records(dir) {
   const L = JSON.parse(fs.readFileSync(path.join(dir, 'log.json'), 'utf8'));
   const recs = (Array.isArray(L) ? L : (L.records || [])).slice().sort((a, b) => a.at - b.at);
   if (!recs.length) throw new Error('no records');
+  return recs;
+}
+
+/** Per frame, the game reads the log thinned away between it and the one before (see the header). */
+function thinnedOf(dir) {
+  const recs = records(dir);
+  if (!recs.every((r) => Number.isInteger(r.i))) return null;
+  return recs.map((r, k) => Math.max(0, k ? r.i - recs[k - 1].i - 1 : r.i));
+}
+
+function build(dir) {
+  const recs = records(dir);
   const t0 = recs[0].at;
   return recs.map((r) => {
     const s = r.state || {};
@@ -74,8 +94,9 @@ if (require.main === module) {
     process.exit(1);
   }
   const frames = build(dir);
-  fs.writeFileSync(out, JSON.stringify({ note: note || '', frames }) + '\n');
+  const thinned = thinnedOf(dir);
+  fs.writeFileSync(out, JSON.stringify({ note: note || '', frames, ...(thinned ? { thinned } : {}) }) + '\n');
   console.log(`${frames.length} frames written to ${out}`);
 }
 
-module.exports = { build, scrub };
+module.exports = { build, scrub, thinnedOf };

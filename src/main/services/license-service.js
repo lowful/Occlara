@@ -57,15 +57,66 @@ function isTransient(resp) {
   return status >= 500 || status === 429 || !!(resp && resp.data && resp.data.retry === true);
 }
 
+/*
+ * WHAT A STATUS SAYS, IN THE LICENCE WINDOW AND IN THE RUNNING APP.
+ *
+ * A plan bought after the last one ended is a NEW key (the site mints one per
+ * checkout), while the app goes on checking the key it holds. So an ended
+ * subscription says, in the app, to log out in Settings and enter the new key:
+ * "Renew at occlara.app" alone left a player who had renewed locked out, the
+ * old key "ended" for good. In the licence window the player is entering a
+ * key, so there it says which key to enter.
+ */
 const STATUS_MESSAGES = {
-  expired:        'Your license has expired. Renew at occlara.app.',
-  cancelled:      'Your subscription was cancelled. Resubscribe at occlara.app.',
-  payment_failed: 'Payment failed. Update your payment method at occlara.app.',
+  expired:        'This key has expired. Buy a plan at occlara.app/account and enter the new key it gives you.',
+  cancelled:      'This key\'s subscription was cancelled. Buy a plan at occlara.app/account and enter the new key it gives you.',
+  payment_failed: 'The last payment for this key failed. Update your card at occlara.app/account.',
+  refunded:       'This key was refunded, so it no longer works.',
+  disputed:       'This key\'s payment is disputed, so it no longer works. Email support@occlara.app.',
   device_mismatch:'This key is active on another device. Deactivate it there first.',
   invalid:        'That license key is not valid.',
 };
 function messageForStatus(status) {
   return STATUS_MESSAGES[status] || null;
+}
+const RENEW = 'Renew at occlara.app/account, then log out in Settings and enter your new key.';
+const ENDED_NOTICES = {
+  expired:        `Your subscription has ended. ${RENEW}`,
+  cancelled:      `Your subscription was cancelled. ${RENEW}`,
+  payment_failed: 'Your last payment failed. Update your card at occlara.app/account to keep getting reviews.',
+  refunded:       'This key was refunded, so it no longer works. Log out in Settings to enter another key.',
+  disputed:       'This key\'s payment is disputed, so it no longer works. Email support@occlara.app.',
+  device_mismatch:'This key is active on another device. Deactivate it there first.',
+};
+/** The notice line's words for a licence that ended while the app ran. */
+function endedMessage(status) {
+  return ENDED_NOTICES[status] || `Your subscription has ended. ${RENEW}`;
+}
+
+/*
+ * A FAILED PAYMENT IS A GRACE, NOT AN END (8.3.2). The server marks a licence
+ * payment_failed on Stripe's first failed attempt at a renewal, and keeps it
+ * usable until its expiry, two days past the period end, while Stripe tries
+ * the card again. Refused here, it stopped the match being recorded within
+ * three minutes of a declined card. With no expiry it is not usable.
+ */
+function usable(status, expiry) {
+  if (expiry && !(new Date(expiry) > new Date())) return false;
+  if (status === 'active') return true;
+  return status === 'payment_failed' && !!expiry;
+}
+
+/**
+ * What the notice line does about a payment grace (index.js notePaymentGrace),
+ * from whether it was said already and the licence as it stands: 'say' it
+ * once as the grace begins, 'clear' it once paid or ended, else nothing, so
+ * another notice that takes the line meanwhile is never pushed off it again.
+ */
+function graceStep(warned, active, status) {
+  const failing = !!active && status === 'payment_failed';
+  if (failing && !warned) return { warned: true, act: 'say' };
+  if (!failing && warned) return { warned: false, act: 'clear' };
+  return { warned: !!warned, act: null };
 }
 
 function persist(licenseKey, n, deviceId) {
@@ -74,6 +125,7 @@ function persist(licenseKey, n, deviceId) {
   store.set('licensePlan',   n.plan     || '');
   store.set('licenseExpiry', n.expiresAt || '');
   store.set('deviceId',      deviceId);
+  store.set('licenseRefused', false);
 }
 
 function clear() {
@@ -81,6 +133,7 @@ function clear() {
   store.set('licenseStatus', '');
   store.set('licensePlan',   '');
   store.set('licenseExpiry', '');
+  store.set('licenseRefused', false);
 }
 
 function getCached() {
@@ -92,12 +145,22 @@ function getCached() {
   };
 }
 
-/** Fast, no-network local validity check used for instant startup. */
+/**
+ * Fast, no-network local validity check used for instant startup.
+ *
+ * AND NEVER ONE THE SERVER LAST REFUSED (`licenseRefused`). A refusal used to
+ * store a status this always took as ended, until the failed payment's grace
+ * made 'payment_failed' usable: a server that refuses one (any before 8.3.2,
+ * or the rule's own refusal of one with no expiry) left it stored usable, so
+ * the next outage or offline re-check, which answers with this, revived the
+ * key it had refused, and the answer after it stopped the match being
+ * recorded again. Only the server's next yes clears it.
+ */
 function isLocallyValid() {
   const key    = store.get('licenseKey');
   const status = store.get('licenseStatus');
   const expiry = store.get('licenseExpiry');
-  return !!key && status === 'active' && (!expiry || new Date(expiry) > new Date());
+  return !!key && !store.get('licenseRefused') && usable(status, expiry);
 }
 
 /**
@@ -118,7 +181,7 @@ async function activate(rawKey) {
     if (offlineGraceAllows(licenseKey, deviceId)) {
       console.warn('[license] Server unreachable, accepting cached license');
       return { ok: true, valid: true, plan: store.get('licensePlan'),
-               status: 'active', expiresAt: store.get('licenseExpiry') };
+               status: store.get('licenseStatus') || 'active', expiresAt: store.get('licenseExpiry') };
     }
     console.error('[license] activate network error:', err.message);
     return { ok: false, valid: false, error: 'Could not reach the server. Check your connection.' };
@@ -141,7 +204,7 @@ async function activate(rawKey) {
     if (offlineGraceAllows(licenseKey, deviceId)) {
       console.warn('[license] Licence server could not check, accepting cached license');
       return { ok: true, valid: true, plan: store.get('licensePlan'),
-               status: 'active', expiresAt: store.get('licenseExpiry') };
+               status: store.get('licenseStatus') || 'active', expiresAt: store.get('licenseExpiry') };
     }
     console.warn('[license] activate: licence server could not check (status', resp.status + ')');
     return { ok: false, valid: false,
@@ -158,7 +221,7 @@ async function activate(rawKey) {
 
 function offlineGraceAllows(licenseKey, deviceId) {
   return store.get('licenseKey') === licenseKey
-      && store.get('licenseStatus') === 'active'
+      && ['active', 'payment_failed'].includes(store.get('licenseStatus'))
       && store.get('deviceId') === deviceId
       && isLocallyValid();
 }
@@ -189,7 +252,12 @@ async function revalidate() {
   if (resp.ok && n.valid) {
     store.set('licenseStatus', n.status   || 'active');
     store.set('licensePlan',   n.plan     || store.get('licensePlan'));
-    store.set('licenseExpiry', n.expiresAt || store.get('licenseExpiry'));
+    // The server's expiry whenever it sends the field, null included: a key
+    // made lifetime by hand answers expiresAt null, and keeping the date it
+    // had ended it again on this PC each time that date came round.
+    const sent = !!resp.data && ('expiresAt' in resp.data || 'expires_at' in resp.data);
+    store.set('licenseExpiry', sent ? (n.expiresAt || '') : store.get('licenseExpiry'));
+    store.set('licenseRefused', false);
     return { valid: true };
   }
   if (isTransient(resp)) {
@@ -200,6 +268,7 @@ async function revalidate() {
     // Keep the key (so a later renewal can be detected) but flag the status so
     // isLocallyValid() fails and the session locks. Manual Log out clears it.
     store.set('licenseStatus', n.reason || 'expired');
+    store.set('licenseRefused', true);
     console.warn('[license] revalidate: server says invalid ->', n.reason || 'unknown');
     return { valid: false, status: n.reason || 'expired' };
   }
@@ -214,4 +283,7 @@ module.exports = {
   isLocallyValid,
   computeDeviceId,
   messageForStatus,
+  endedMessage,
+  usable,
+  graceStep,
 };

@@ -51,6 +51,51 @@ async function licenceByKey(cleanKey) {
   }
 }
 
+/*
+ * A FAILED PAYMENT IS A GRACE, NOT AN END.
+ *
+ * The webhook marks a licence payment_failed on Stripe's FIRST failed attempt
+ * at a renewal, while its expires_at still runs two days past the period end
+ * (services/billing.js) and Stripe goes on trying the card. Refused here, the
+ * app's three minute re-check ended the licence and stopped the match being
+ * recorded within minutes of a declined card. So a payment_failed licence is
+ * usable until its expiry, answered valid with its status, which the app warns
+ * on and works through; once that expiry passes it is expired, and with no
+ * expiry at all (nothing bounds it) it is not usable. Active is as it always
+ * was. Cancelled, expired, refunded, disputed and anything else never are.
+ *
+ * One rule, for /activate, /validate and the coach routes' checkKey
+ * (routes/coach.js), and the same one the app keeps for a licence it holds
+ * (src/main/services/license-service.js usable, which test:licenceoutage holds
+ * equal to this).
+ */
+function usable(status, expiresAt, now = Date.now()) {
+  const until = expiresAt ? new Date(expiresAt).getTime() : null;
+  if (until !== null && until < now) return false;   // past its expiry, whatever its status
+  if (status === 'active') return true;
+  return status === 'payment_failed' && until !== null && until > now;
+}
+
+/**
+ * Whether the app asking knows the grace: 8.3.2 and later, by the version
+ * every request carries (X-Occlara-Version). One before it stores the status
+ * it is answered, and its own minute check reads anything but 'active' as
+ * ended: answered valid with payment_failed it stopped the session within a
+ * minute of every three minute re-check and offered Start again in between,
+ * through the whole grace. So it is answered as it always was, refused, which
+ * it ends on once and stays.
+ */
+const GRACE_FROM = [8, 3, 2];
+function knowsGrace(req) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String((req && req.headers && req.headers['x-occlara-version']) || ''));
+  if (!m) return false;
+  for (let i = 0; i < GRACE_FROM.length; i++) {
+    const d = Number(m[i + 1]) - GRACE_FROM[i];
+    if (d !== 0) return d > 0;
+  }
+  return true;
+}
+
 // POST /api/license/activate
 // Body: { key, device_id, device_name }
 // First activation locks the license to device_id; same device can reactivate freely.
@@ -75,7 +120,11 @@ router.post('/activate', async (req, res) => {
   if (license.expires_at && new Date(license.expires_at) < new Date())
     return res.json({ valid: false, status: 'expired', error: 'License has expired' });
 
-  if (license.status !== 'active')
+  // Active, or a failed payment inside its grace (usable, above), which is
+  // answered valid with status payment_failed for the app to warn on, when
+  // the app knows the grace (knowsGrace).
+  if (!usable(license.status, license.expires_at)
+      || (license.status === 'payment_failed' && !knowsGrace(req)))
     return res.json({ valid: false, status: license.status, error: `License status: ${license.status}` });
 
   // Device lock check
@@ -92,7 +141,8 @@ router.post('/activate', async (req, res) => {
       .from('licenses')
       .update({ device_id, device_name: device_name || 'Unknown Device' })
       .eq('license_key', cleanKey);
-    console.log(`[license] Activated: ${cleanKey} on "${device_name}"`);
+    // The licence by its id, never its key: Railway's logs are not where keys belong.
+    console.log(`[license] Activated licence ${license.id} on "${device_name}"`);
   }
 
   res.json({
@@ -104,9 +154,21 @@ router.post('/activate', async (req, res) => {
 // POST /api/license/deactivate
 // Header: Authorization: Bearer <Supabase access token>. Body: { userId? },
 // which must be the token's own user when it is sent at all.
-// Clears device lock. Max 3 deactivations per calendar month.
+// Clears device lock. Max 3 deactivations per calendar month, where the table
+// can count them (below).
 // It acts on the SIGNED IN user, never on a userId the caller names: anyone
 // who knew an id could clear its lock and take the key for their own PC.
+//
+// IT WROTE COLUMNS THE TABLE DOES NOT HAVE, AND SAID IT WORKED. The live
+// licences table (the site's src/integrations/supabase/types.ts) has device_id
+// and device_name and no deactivation_count or last_deactivation_date, so
+// PostgREST refused the whole write (PGRST204), the device stayed locked, and
+// the route answered success because it never read the error. It now writes
+// the count only where the row it read carries those columns, which is the
+// table saying it has them, and any refused write is a 503, never a success.
+// Until the table has them, nothing counts deactivations, here or on the site,
+// which clears the device fields itself.
+const COUNTED = ['deactivation_count', 'last_deactivation_date'];
 router.post('/deactivate', signedIn, async (req, res) => {
   const userId = req.user.id;
 
@@ -125,23 +187,37 @@ router.post('/deactivate', signedIn, async (req, res) => {
   if (!license) return res.status(404).json({ error: 'No license found for this account' });
   if (!license.device_id) return res.status(400).json({ error: 'License is not activated on any device' });
 
+  const counts = COUNTED.every((c) => Object.prototype.hasOwnProperty.call(license, c));
   const thisMonth = new Date().toISOString().slice(0, 7);
-  const lastMonth = license.last_deactivation_date ? license.last_deactivation_date.slice(0, 7) : null;
+  const lastMonth = counts && license.last_deactivation_date ? String(license.last_deactivation_date).slice(0, 7) : null;
   const count = lastMonth === thisMonth ? (license.deactivation_count || 0) : 0;
 
-  if (count >= 3) return res.status(429).json({ error: 'Deactivation limit reached. Maximum 3 per month.' });
+  if (counts && count >= 3) return res.status(429).json({ error: 'Deactivation limit reached. Maximum 3 per month.' });
 
-  await supabase
+  const patch = { device_id: null, device_name: null };
+  if (counts) Object.assign(patch, { deactivation_count: count + 1, last_deactivation_date: new Date().toISOString() });
+
+  const { data: cleared, error: writeErr } = await supabase
     .from('licenses')
-    .update({
-      device_id: null, device_name: null,
-      deactivation_count: count + 1,
-      last_deactivation_date: new Date().toISOString(),
-    })
-    .eq('license_key', license.license_key);
+    .update(patch)
+    .eq('id', license.id)
+    .select('id');
+  if (writeErr || !cleared || !cleared.length) {
+    console.error('[license] deactivate write failed:',
+      writeErr ? `${writeErr.code || 'no code'} ${writeErr.message || ''}` : 'no row was changed');
+    return res.status(503).json({
+      error: 'The device could not be deactivated just now. Try again in a minute.',
+      code: 'deactivate-failed',
+      retry: true,
+    });
+  }
 
-  console.log(`[license] Deactivated: ${license.license_key} (this month: ${count + 1})`);
-  res.json({ success: true, deactivationsThisMonth: count + 1, deactivationsRemaining: 3 - (count + 1) });
+  console.log(`[license] Deactivated licence ${license.id}${counts ? ` (this month: ${count + 1})` : ''}`);
+  res.json({
+    success: true,
+    deactivationsThisMonth: counts ? count + 1 : null,
+    deactivationsRemaining: counts ? 3 - (count + 1) : null,
+  });
 });
 
 // POST /api/license/validate
@@ -165,7 +241,8 @@ router.post('/validate', async (req, res) => {
   if (license.expires_at && new Date(license.expires_at) < new Date())
     return res.json({ valid: false, status: 'expired', error: 'License has expired' });
 
-  if (license.status !== 'active')
+  if (!usable(license.status, license.expires_at)
+      || (license.status === 'payment_failed' && !knowsGrace(req)))
     return res.json({ valid: false, status: license.status, error: `License status: ${license.status}` });
 
   if (device_id && license.device_id && license.device_id !== device_id)
@@ -178,3 +255,6 @@ router.post('/validate', async (req, res) => {
 });
 
 module.exports = router;
+// The licence rule, for the coach routes' checkKey and the tests.
+module.exports.usable = usable;
+module.exports.knowsGrace = knowsGrace;

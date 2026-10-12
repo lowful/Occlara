@@ -303,8 +303,12 @@ const abyss = one.rows.map[0];
   ok(b.queues.map((q) => q.label).sort().join() === 'Standard,Swiftplay', "the screen's own mode names are the queues");
   ok(b.unknown.agent === 2 && b.rows.agent.length === 0, 'no agent was confirmed, so there is no agent row');
   const sp = b.rows.map.find((r) => r.label === 'Split').spots;
-  ok(sp.placed === 17 && sp.top.length === 3 && sp.top[0].spot === 'A Site' && sp.top[0].deaths === 4 && sp.callout === null,
-    `Split: A Site is 4 of the 17 placed deaths, under a quarter, so it is listed and never called out (${JSON.stringify(sp.top[0])})`);
+  // 16 placed since round 17's combat report in round 18's buy phase is no
+  // death (coaching-engine.js buyWindow): it was the 17th, and the quarter
+  // A Site fell under.
+  ok(sp.placed === 16 && sp.top.length === 3 && sp.top[0].spot === 'A Site' && sp.top[0].deaths === 4
+    && sp.callout && sp.callout.spot === 'A Site' && sp.callout.deaths === 4,
+    `Split: A Site is 4 of the 16 placed deaths, a quarter, so it is called out (${JSON.stringify(sp.callout)})`);
   // Five since the ledger keeps round 1's death in round 1, where it filed it
   // into round 2 and refused round 2's own: five places, one death each.
   const ab = b.rows.map.find((r) => r.label === 'Abyss').spots;

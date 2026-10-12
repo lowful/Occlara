@@ -6,6 +6,13 @@ const button   = document.getElementById('activate');
 const spinner  = button.querySelector('.spinner');
 const check    = button.querySelector('.check');
 const errorBox = document.getElementById('error');
+// A key in its one shape (key.js). Without that file, a key is still sent
+// trimmed and upper cased, as it always was, rather than the box doing nothing.
+const KEY = window.OcclaraKey || {
+  toKey: (v) => String(v || '').trim().toUpperCase(),
+  asTyped: (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9-]/g, ''),
+  SHAPE: null,
+};
 
 keyInput.focus();
 
@@ -43,7 +50,11 @@ function setState(stateName) {
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   clearError();
-  const key = keyInput.value.trim();
+  // Put in its one shape before it is sent, GC- and four groups of four, from
+  // however it was typed or pasted: lower case, without the GC-, with spaces.
+  // The box shows what was sent.
+  const key = KEY.toKey(keyInput.value);
+  if (key !== keyInput.value) keyInput.value = key;
   if (!key) { showError('Enter your license key.'); return; }
 
   setState('loading');
@@ -62,11 +73,18 @@ form.addEventListener('submit', async (e) => {
 });
 
 // Normalize key entry: uppercase and strip stray characters, without fighting
-// the caret (only rewrites when the cursor is at the end).
-keyInput.addEventListener('input', () => {
-  const caretAtEnd = keyInput.selectionStart === keyInput.value.length;
-  const normalized = keyInput.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-  if (caretAtEnd && normalized !== keyInput.value) keyInput.value = normalized;
+// the caret (only rewrites when the cursor is at the end) or an input method
+// still composing. A whole key pasted is put in its one shape at once, so the
+// box shows the key that will be sent.
+keyInput.addEventListener('input', (e) => {
+  if (e && e.isComposing) return;
+  if (keyInput.selectionStart !== keyInput.value.length) return;
+  if (e && e.inputType === 'insertFromPaste' && KEY.SHAPE) {
+    const whole = KEY.toKey(keyInput.value);
+    if (KEY.SHAPE.test(whole)) { keyInput.value = whole; return; }
+  }
+  const normalized = KEY.asTyped(keyInput.value);
+  if (normalized !== keyInput.value) keyInput.value = normalized;
 });
 
 document.getElementById('purchase').addEventListener('click', () => window.occlara.openPurchase());

@@ -496,7 +496,10 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
   // its deadline (billed all the same, its reply never read), books the flat
   // price. A reply with an error status is not billed and books nothing.
   const usage = asksUsage(AI.baseUrl) ? { usage: { include: true } } : {};
-  const send = async (maxT, thinkOn) => {
+  // The data policy every request of this call carries, until OpenRouter
+  // refuses it for want of a provider that takes it (send, below).
+  let policy = dataPolicy(AI.baseUrl);
+  const post = async (maxT, thinkOn) => {
     try {
       return await fetch(`${AI.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -516,12 +519,52 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
           // thinking first; providers that do not support it ignore the field.
           reasoning:   thinkOn ? undefined : { enabled: false },
           ...usage,
+          ...policy,
         }),
       });
     } catch (e) {
       if (wasAborted(e)) bookCost(null, images.length);
       throw e;
     }
+  };
+  // THE PRIVACY PREFERENCE NEVER TAKES THE PRODUCT DOWN (policyRefused): a
+  // request OpenRouter refuses because no provider of the model takes the data
+  // policy is sent once more without it, and the call's later retries go
+  // without it too. Nothing else drops it: every other refusal, and a timeout,
+  // is the call's own answer.
+  //
+  // COUNTED BY WHAT HAPPENED TO IT. Taken without the preference, or cut off on
+  // the way (a provider may have had it by then), it fell back (policyFellBack):
+  // its frame may have gone to a provider that keeps it. Refused again, a 404
+  // once more, no provider took it at all, so nothing fell back: what stops
+  // that model is not the preference (an account wide privacy setting, or no
+  // live provider at all) and AI_DATA_COLLECTION=allow would not change it, so
+  // it is counted apart (policyRefusedAgain), never as a frame sent off.
+  const send = async (maxT, thinkOn) => {
+    const r = await post(maxT, thinkOn);
+    if (!policy.provider || (r.status !== 404 && r.status !== 503)) return r;
+    const text = await r.text();
+    if (!policyRefused(r.status, text)) return answered(r, text);
+    policy = {};
+    let again;
+    try {
+      again = await post(maxT, thinkOn);
+    } catch (e) {
+      policyFellBack(model, text);
+      throw e;
+    }
+    if (again.status !== 404 && again.status !== 503) {
+      policyFellBack(model, text);
+      return again;
+    }
+    // Refused by OpenRouter's own routing ("No endpoints found", or no
+    // provider meeting the routing requirements): no provider took it. A 404
+    // or a 503 in any other words could be a provider's own, so it may.
+    const second = await again.text();
+    const said = refusalMessage(second);
+    if (NO_ENDPOINTS.test(said) || NO_ROUTE.test(said)) policyRefusedAgain(model, second);
+    else policyFellBack(model, text);
+    return answered(again, second);
   };
   // A reply that came back whole: its JSON, and its cost booked.
   const read = async (r) => {
@@ -588,6 +631,138 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
 /** Whether the provider at this base URL is OpenRouter, which answers usage: { include: true } with each call's cost. */
 function asksUsage(baseUrl) {
   return /^https?:\/\/(?:[a-z0-9-]+\.)*openrouter\.ai(?:[:/]|$)/i.test(String(baseUrl || ''));
+}
+
+/**
+ * NO PROVIDER THAT KEEPS OR TRAINS ON THE FRAMES.
+ *
+ * A read is a photograph of the player's whole main display once a second,
+ * with whatever else is on it: an audio mixer turned up in the 8.3.0 audit's
+ * frames, and Discord, tabs and stream chat can as easily. OpenRouter routes
+ * each call to one of a model's providers, and its data_collection preference
+ * defaults to "allow", which includes "providers which store user data
+ * non-transiently and may train on it". So every call to OpenRouter asks for
+ * 'deny': only providers that neither keep the request nor train on it.
+ *
+ * AND IT NEVER TAKES THE PRODUCT DOWN. A model none of whose providers deny
+ * collection has every call refused: HTTP 404, {"error":{"message":"No
+ * endpoints found matching your data policy ...","code":404}}, as integrators
+ * report it for data_collection deny and zdr (OpenRouter's routing docs give
+ * the same 404 for a request no allowed provider satisfies), and every read,
+ * look and review would fail with it. So that one refusal (policyRefused) is
+ * sent once more without the preference, per call, in chatCall; the retry is
+ * booked like any call, the refusal is billed nothing, and the calls that went
+ * without it are counted by route since boot (policyFellBack: one log line a
+ * route an hour at most), which /health shows as dataPolicy
+ * (dataPolicyReport). A call refused again without it (an account wide
+ * privacy setting, a model with no live provider) went to no provider, so it
+ * is counted apart as refusedAgain (policyRefusedAgain), never as fallen back:
+ * a frame sent off is what fellBack says. Nothing else is retried without it: a 400
+ * (whose own retry, without the reasoning switch, keeps the preference), 401,
+ * 402, 403, 429, any 5xx, OpenRouter's 503 "no available model provider that
+ * meets your routing requirements" included, and a timeout are the call's
+ * answer as they were.
+ *
+ * AI_DATA_COLLECTION=allow on Railway takes the preference off again, the
+ * request as it was before, without a deploy: nothing is sent, so nothing is
+ * refused or retried, and that is the switch to reach for when /health counts
+ * a model's calls going without it (each one waits out a refusal first) while
+ * the model is changed, never for refusedAgain, which it does not change.
+ * Read on every call. Other providers are sent nothing,
+ * as they know no such field.
+ */
+function dataPolicy(baseUrl) {
+  if (!asksUsage(baseUrl)) return {};
+  if (String(process.env.AI_DATA_COLLECTION || '').trim().toLowerCase() === 'allow') return {};
+  return { provider: { data_collection: 'deny' } };
+}
+
+/** The message of a refusal's body, {"error":{"message":...}} when it is JSON, else its text as it came. */
+function refusalMessage(text) {
+  const raw = String(text || '');
+  try {
+    const body = JSON.parse(raw);
+    if (body && body.error && typeof body.error.message === 'string') return body.error.message;
+  } catch (e) { /* not JSON */ }
+  return raw;
+}
+
+// A 404 saying no endpoints were found for the data policy: its own words,
+// the data_collection field, privacy, or the request's preferences, the only
+// routing preference this server sends. One naming anything else (tool use,
+// image input, parameters, a model with no endpoints at all) would be refused
+// without the preference just the same, and is the call's answer.
+const NO_ENDPOINTS = /\bno endpoints? (?:were )?found\b/i;
+const POLICY_WORDS = /\bdata[ _]?(?:policy|collection)\b|\bprivacy\b|\bpreferences?\b/i;
+// And OpenRouter's errors page lists a 503 for the same refusal in other
+// words, "There is no available model provider that meets your routing
+// requirements": the data policy is the only routing requirement this server
+// sends, so that one is the preference too. Every other 5xx is the call's.
+const NO_ROUTE = /\bno available model provider that meets your routing requirements\b/i;
+/** Whether OpenRouter refused a request for its data policy alone. */
+function policyRefused(status, text) {
+  const message = refusalMessage(text);
+  if (status === 503) return NO_ROUTE.test(message);
+  if (status !== 404) return false;
+  return NO_ENDPOINTS.test(message) && POLICY_WORDS.test(message);
+}
+
+/** A reply whose body was read already, handed on with it. */
+function answered(r, text) {
+  return { status: r.status, ok: r.ok, headers: r.headers, text: async () => text, json: async () => JSON.parse(text) };
+}
+
+// The calls sent again without the data policy, by the route each served
+// (costScope, as bookCost books them), in memory since this process started:
+// those a provider may have taken (fellBack), and those refused once more
+// (refusedAgain), which no provider took.
+const POLICY_SINCE = new Date().toISOString();
+const POLICY_LOG_MS = 60 * 60 * 1000;
+const policyFallbacks = Object.fromEntries(COST_ROUTES.map((r) => [r, 0]));
+const policyLoggedAt = Object.fromEntries(COST_ROUTES.map((r) => [r, 0]));
+const policyRefusals = Object.fromEntries(COST_ROUTES.map((r) => [r, 0]));
+const refusalLoggedAt = Object.fromEntries(COST_ROUTES.map((r) => [r, 0]));
+
+/** The route the call in hand serves (costScope), 'other' outside one. */
+function policyRoute() {
+  const scope = costScope.getStore() || {};
+  return COST_ROUTES.includes(scope.route) ? scope.route : 'other';
+}
+
+/** One call of `model` sent again without the data policy, which a provider may have taken: counted, and logged once a route an hour. */
+function policyFellBack(model, text) {
+  const route = policyRoute();
+  policyFallbacks[route] += 1;
+  if (Date.now() - policyLoggedAt[route] < POLICY_LOG_MS) return;
+  policyLoggedAt[route] = Date.now();
+  console.warn(`[coach] ${route}: no provider of ${model} takes data_collection deny, so its call went again without it `
+    + `(${policyFallbacks[route]} ${route} call(s) since ${POLICY_SINCE}, said once an hour). `
+    + `OpenRouter said: ${refusalMessage(text).slice(0, 160)}`);
+}
+
+/** One call of `model` refused again without the data policy, which no provider took: counted apart, and logged once a route an hour. */
+function policyRefusedAgain(model, text) {
+  const route = policyRoute();
+  policyRefusals[route] += 1;
+  if (Date.now() - refusalLoggedAt[route] < POLICY_LOG_MS) return;
+  refusalLoggedAt[route] = Date.now();
+  console.warn(`[coach] ${route}: ${model} was refused again without data_collection deny, so the preference is not what `
+    + 'stops it: an account wide privacy setting or a model with no live provider, which AI_DATA_COLLECTION=allow does not change '
+    + `(${policyRefusals[route]} ${route} call(s) since ${POLICY_SINCE}, said once an hour). `
+    + `OpenRouter said: ${refusalMessage(text).slice(0, 160)}`);
+}
+
+/**
+ * The data policy as /health shows it: `mode` what a call is sent with now
+ * ('deny' when it carries the preference, 'allow' when it carries none, as with
+ * AI_DATA_COLLECTION=allow or a provider that is not OpenRouter), `fellBack`
+ * the calls each route sent again without it that a provider may have taken,
+ * `refusedAgain` those refused once more without it, which no provider took,
+ * and `since` when counting began. Counts and a time: nothing in it is secret.
+ */
+function dataPolicyReport() {
+  const deny = AI.provider !== 'gemini' && !!dataPolicy(AI.baseUrl).provider;
+  return { mode: deny ? 'deny' : 'allow', fellBack: { ...policyFallbacks }, refusedAgain: { ...policyRefusals }, since: POLICY_SINCE };
 }
 
 /** A fetch that stopped at its deadline (AbortSignal.timeout) or was aborted. */
@@ -1641,7 +1816,14 @@ const KEY_REGEX = /^GC-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
  * key Supabase confirmed in the last half hour is still honoured through an
  * outage (stale if error): the player was paying a minute ago, and a database
  * blip is not a reason to stop reading their match.
+ *
+ * A FAILED PAYMENT IS A GRACE, NOT AN END: a licence marked payment_failed is
+ * valid until its expiry, two days past the period end while Stripe tries the
+ * card again, by the licence routes' own rule (routes/license.js usable).
+ * Refused here, the first declined renewal stopped the read of the match in
+ * progress within minutes.
  */
+const { usable: licenceUsable } = require('./license');
 const VALID_KEY_MS = 60 * 1000;
 const STALE_KEY_MS = 30 * 60 * 1000;
 const LICENCE_LOOKUP_MS = 5000;
@@ -1688,8 +1870,7 @@ async function checkKey(k) {
     }
     return 'unavailable';
   }
-  if (!data || data.status !== 'active'
-      || (data.expires_at && new Date(data.expires_at) < new Date())) {
+  if (!data || !licenceUsable(data.status, data.expires_at)) {
     validKeys.delete(k);
     return 'invalid';
   }
@@ -1771,261 +1952,31 @@ function resolveLocation(outCtx, context) {
   }
 }
 
-// POST /api/coach/analyze, JSON body: { image: base64, context: {...} }
-router.post('/analyze', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-
-  if (!licenseKey) return res.status(400).json({ error: 'X-License-Key header required' });
-  if (!await admit(res, licenseKey, { error: 'Invalid or expired license key' })) return;
-
-  const image   = req.body && req.body.image;
-  const context = (req.body && req.body.context) || {};
-  if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image data' });
-
-  // Frame memory (experimental): the client sends the previous gameplay frame
-  // so the coach can see what CHANGED, not just one frozen moment.
-  const prevImage = (typeof req.body.previousImage === 'string' && req.body.previousImage.length > 100)
-    ? req.body.previousImage : null;
-  const frameMemoryBlock = prevImage
-    ? '\n\nFRAME MEMORY: two screenshots are attached in order. The FIRST is the PREVIOUS frame from moments earlier; the SECOND is the CURRENT frame. Coach ONLY the current frame. Use the previous one to read what just changed: movement, a fight, damage taken, a rotation, or the spike state. If the player held the same angle in both frames too long, or repeeked the same spot, or has not moved since a kill, call that out, it is exactly the kind of mistake one frame cannot show.'
-    : '';
-
-  // Death forensics: the client attaches the last seconds of game audio only
-  // inside the death window. It becomes verified sound FACTS for explanation,
-  // never "right now" reactions, and an unclear clip simply adds nothing.
-  const audio = (typeof req.body.audio === 'string' && req.body.audio.length > 1000 && req.body.audio.length < 900000)
-    ? req.body.audio : null;
-  let audioBlock = '';
-  if (audio) {
-    try {
-      const events = await Promise.race([
-        geminiAudioEvents(audio),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('audio timeout')), 3500)),
-      ]);
-      const lines = String(events || '').split('\n').map((l) => l.trim()).filter((l) => l.length > 3).slice(0, 6);
-      if (lines.length) {
-        audioBlock = '\n\nGAME AUDIO from the seconds around the death (verified sound facts, in order):\n'
-          + lines.map((l) => '- ' + l).join('\n')
-          + '\nUse these to EXPLAIN what happened, especially the death, the sounds are usually the real story (their footsteps heard or not, an ult voice line before the peek, a reload in the open, a spray that went too long). Never use them for "right now" reactions.';
-      }
-    } catch (e) { console.warn('[coach] audio events skipped:', e.message); }
-  }
-
-  const isForced = req.headers['x-forced'] === 'true';
-  const prompt   = buildContextPrompt(context) + frameMemoryBlock + audioBlock + (isForced
-    ? '\n\nOVERRIDE: The player manually requested coaching. Always give a real tip, do not respond with SKIP.'
-    : '');
-
-  const t0 = Date.now();
-  try {
-    // One model for every frame (see AI.visionModel). The buy phase still gets a
-    // little more answer budget and time, because it reports the pre-round team
-    // read on top of the tip, but it is the SAME model as active play, so the
-    // map and side reads stay consistent across the phase boundary and the locks
-    // actually settle. Audio already spent up to 3.5s, so trim for that.
-    const buyPhase     = String(context.phase || '').toLowerCase() === 'buy';
-    const visionModel  = benchModel(req) || AI.visionModel;
-    const answerBudget = buyPhase ? 300 : 220;
-    const visionTimeout = (buyPhase ? (prevImage ? 17000 : 15000) : (prevImage ? 13000 : 11000)) - (audioBlock ? 2500 : 0);
-    const raw = await withTimeout(
-      visionInfer(prevImage ? [prevImage, image] : image, prompt, answerBudget, false, visionModel,
-        { abortMs: visionTimeout + 1000 }),
-      visionTimeout, 'Gemini timeout');
-    trackCall(licenseKey, (prevImage ? 2 : 1) + (audio ? 1 : 0));
-
-    let finalTip     = null;
-    let finalContext = {};
-    const rawStr = String(raw);
-    console.log('[coach] Raw Gemini text length:', rawStr.length);
-    console.log('[coach] Raw Gemini text:', rawStr.substring(0, 200));
-
-    // Strip code fences first
-    let cleaned = rawStr
-      .replace(/```(?:json)?\s*\n?/gi, '')
-      .replace(/```/g, '')
-      .trim();
-
-    // Pull the HUD state report out BEFORE tip parsing, so the trailing JSON
-    // never gets mistaken for the tip itself.
-    let hudState = {};
-    const stateMatch = cleaned.match(/STATE\s*:\s*(\{[\s\S]*\})/i);
-    if (stateMatch) {
-      try { hudState = mapState(JSON.parse(stateMatch[1])); }
-      catch { /* unreadable state report, tip still counts */ }
-      cleaned = cleaned.replace(/STATE\s*:\s*\{[\s\S]*$/i, '').trim();
-    }
-
-    // Try JSON first (in case Gemini still returns structured)
-    const firstBrace = cleaned.indexOf('{');
-    const lastBrace  = cleaned.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      const jsonStr = cleaned.substring(firstBrace, lastBrace + 1);
-      try {
-        const parsed = JSON.parse(jsonStr);
-        finalTip     = parsed.tip || null;
-        finalContext = parsed.context || {};
-        console.log('[coach] Parsed JSON successfully, tip:', finalTip);
-      } catch (e) {
-        const tipMatch = jsonStr.match(/"tip"\s*:\s*"((?:\\.|[^"\\])+)"/);
-        if (tipMatch) {
-          finalTip = tipMatch[1];
-          console.log('[coach] Regex-extracted tip:', finalTip);
-        }
-      }
-    }
-
-    // No JSON, treat the whole response as a plain-text tip
-    if (!finalTip) {
-      let plain = cleaned
-        .replace(/^here is the json requested:?\s*/i, '')
-        .replace(/^here is the tip:?\s*/i, '')
-        .replace(/^here'?s?\s+the\s+(json|tip|response):?\s*/i, '')
-        .replace(/^sure[,!]?\s*/i, '')
-        .replace(/^okay[,!]?\s*/i, '')
-        .trim()
-        .replace(/^["']|["']$/g, '');
-
-      if (plain.toUpperCase() === 'SKIP') {
-        finalTip = 'SKIP';
-        console.log('[coach] Plain SKIP response');
-      } else if (plain.toUpperCase() === 'LOBBY') {
-        finalTip = 'LOBBY';   // not live gameplay: client silences all tips
-        console.log('[coach] LOBBY response');
-      } else if (plain.length >= 10 && plain.length <= 220) {
-        finalTip = plain;
-        console.log('[coach] Using plain text as tip:', finalTip);
-      } else {
-        console.log('[coach] Plain text rejected - length', plain.length);
-      }
-    }
-
-    if (finalTip && typeof finalTip !== 'string') finalTip = String(finalTip);
-
-    let tip    = sanitize(finalTip || '');
-    // A "DEATH: " prefix marks a death review; the client renders those as a
-    // white skull card, so strip the marker into a flag.
-    let deathReview = false;
-    if (/^DEATH\s*[:,]\s*/i.test(tip)) { deathReview = true; tip = tip.replace(/^DEATH\s*[:,]\s*/i, ''); }
-    // HUD state report wins over anything the legacy JSON path produced.
-    let outCtx = { ...finalContext, ...hudState };
-
-    resolveLocation(outCtx, context);
-    delete outCtx.mmPos;   // raw coordinates are of no use to the client
-    console.log('[coach] FINAL TIP:', tip.slice(0, 100));
-
-    // Enforce complete sentence on the server before sending to client
-    if (tip && tip !== 'SKIP' && tip !== 'LOBBY' && tip !== 'VICTORY' && tip !== 'DEFEAT') {
-      const lastChar = tip.charAt(tip.length - 1);
-      if (lastChar !== '.' && lastChar !== '!' && lastChar !== '?') {
-        if (tip.length > 30) {
-          tip = tip + '.';
-        } else {
-          console.log('[coach] Discarded incomplete tip:', tip);
-          tip = 'SKIP';
-        }
-      }
-    }
-
-    console.log('[coach] ' + licenseKey.slice(0, 8) + '... agent=' + (outCtx.agent || '?') +
-      ' round=' + (outCtx.roundNumber || '?') + ' phase=' + (outCtx.phase || '?') +
-      ' -> "' + (tip || '').slice(0, 60) + '" (' + (Date.now() - t0) + 'ms)');
-    res.json({ tip: tip || '', death: deathReview, context: outCtx });
-  } catch (err) {
-    // Out of credits is a distinct, actionable state, not an outage. Report it
-    // as such so the player is told the truth ("AI credits ran out") instead of
-    // "temporarily down", which reads like a bug in the app.
-    if (err && (err.credits || err.status === 402)) {
-      return res.status(402).json({
-        tip: '', context: {}, error: 'ai-credits',
-        message: 'The coach AI is out of credits. Top up the OpenRouter account to resume AI tips.',
-        retryInSec: creditsRetryIn(),
-      });
-    }
-    console.error('[coach] analyze error:', err.message, err.stack && err.stack.split('\n')[1]);
-    // Surface the PROVIDER's status code. Without it a revoked key (401), a
-    // rate limit (429) and a genuine provider outage (5xx) are indistinguishable
-    // from each other and from a bug in our own code, both to the client and to
-    // anyone debugging from outside Railway. The status only, never the body,
-    // which can echo request content.
-    // A thrown analyze (AI provider rejected the request, a timeout, a parse
-    // failure) is a real outage, NOT "no tip this frame". Returning a 200 here
-    // made the client treat the empty body as a normal reply and sit silent,
-    // with no coaching and no warning. A 5xx makes the client surface the
-    // "coach's AI is temporarily down" notice and fall back to library tips.
-    res.status(503).json({
-      tip: '', context: {}, error: 'coach-unavailable',
-      upstream: (err && err.status) || null,
-      detail: (err && err.message) || null,
-    });
-  }
-});
-
-// POST /api/coach/summary/round, raw binary JPEG body
-router.post('/summary/round', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
-  if (!req.body || !req.body.length) return res.status(400).json({ error: 'No image data' });
-  try {
-    const text = await Promise.race([
-      visionInfer(req.body.toString('base64'), ROUND_SUMMARY_PROMPT, 400),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 24000)),
-    ]);
-    trackCall(licenseKey);
-    res.json(JSON.parse(text.replace(/```json|```/g, '').trim()));
-  } catch (err) {
-    console.error('[coach] round summary error:', err.message);
-    res.status(500).json({ error: 'Summary failed' });
-  }
-});
-
-// POST /api/coach/summary/match, JSON body: { tips: string[] }
-router.post('/summary/match', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
-  const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
-  if (tips.length < 3) return res.status(400).json({ error: 'Not enough tips' });
-
-  const sysPrompt = [
-    'You are summarizing a Valorant coaching session. Tips given: ' + tips.join('. '),
-    'Create a match performance summary as valid JSON only, no markdown:',
-    '{"match_result":"unknown","overall_rating":5,"strengths":["string"],"weaknesses":["string"],"most_common_mistake":"string","biggest_improvement_tip":"string","highlight_moments":["string"]}',
-    'overall_rating 1-10. match_result: victory, defeat, or unknown. No em-dashes. Under 15 words per item.',
-  ].join('\n');
-
-  try {
-    const text = await Promise.race([
-      textInfer(sysPrompt, 600),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 24000)),
-    ]);
-    trackCall(licenseKey);
-    res.json(JSON.parse(text.replace(/```json|```/g, '').trim()));
-  } catch (err) {
-    console.error('[coach] match summary error:', err.message);
-    res.status(500).json({ error: 'Summary failed' });
-  }
-});
-
-// POST /api/coach/recap, JSON body: { tips: string[] }
-router.post('/recap', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
-  const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 10) : [];
-  if (tips.length === 0) return res.status(400).json({ error: 'No tips provided' });
-
-  const prompt = `A Valorant round just ended. During this round, these coaching tips were given: ${tips.join('. ')}. Based on these tips, give a brief 2-sentence round recap. First sentence: one thing the player did well or tried to do. Second sentence: one thing to focus on next round. Keep each sentence under 15 words. Do not use dashes.`;
-
-  try {
-    const recap = await Promise.race([
-      textInfer(prompt, 100),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 22000)),
-    ]);
-    trackCall(licenseKey);
-    res.json({ recap: recap || '' });
-  } catch (err) {
-    console.error('[coach] recap error:', err.message);
-    res.status(500).json({ error: 'Recap failed' });
-  }
-});
+/*
+ * THE LIVE TIP ROUTES ARE RETIRED: /analyze, /summary/round, /summary/match,
+ * /recap and /suggest-library-tip answer 410 to every caller, and do nothing
+ * else. The last asked the model to "pick the BEST tip from this list to show
+ * the player right now", the old library tips chosen mid match.
+ *
+ * They served the tip era's prompts to installs older than 8.0, which still
+ * show a tip over the game while it is played: the exact use Riot's VALORANT
+ * policy lists as unapproved ("real-time data that would improve a player's
+ * performance immediately by altering player behavior"), and the one a player
+ * was banned a week for. No 8.x client calls any of them (src/ names /analyze
+ * once, as an unused constant), so retiring them costs a current player
+ * nothing, and the only thing an old install can still be told is to update.
+ * No licence is checked and no model is called, so an old install no longer
+ * spends anything either. A 7.x client reads the 410 as the server being
+ * unreachable and falls back to its own built in library lines; only an update
+ * removes those, which auto update offers it.
+ */
+const RETIRED = 'This version of Occlara is no longer supported. Update it at occlara.app.';
+const retired = (req, res) => res.status(410).json({ error: RETIRED });
+router.post('/analyze', retired);
+router.post('/summary/round', retired);
+router.post('/summary/match', retired);
+router.post('/recap', retired);
+router.post('/suggest-library-tip', retired);
 
 // ─── Player stats providers ───────────────────────────────────────────────────
 // Eight seconds, then the call is abandoned rather than awaited forever: fetch
@@ -3405,44 +3356,6 @@ If you cannot clearly see all 4 ability icons or are not 100% sure, respond with
   }
 });
 
-// POST /api/coach/suggest-library-tip, JSON body: { context, availableTips: string[] }
-router.post('/suggest-library-tip', async (req, res) => {
-  try {
-    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!await admit(res, licenseKey)) return;
-
-    const context       = (req.body && req.body.context) || {};
-    const availableTips = Array.isArray(req.body && req.body.availableTips) ? req.body.availableTips.slice(0, 30) : [];
-    if (availableTips.length === 0) return res.json({ tip: null });
-
-    const prompt = `You are a Valorant coach. Based on the current match state, pick the BEST tip from this list to show the player right now. Return ONLY the exact text of the chosen tip, nothing else.
-
-Match state:
-- Agent: ${context.agent || 'Unknown'}
-- Round: ${context.roundNumber || 'Unknown'}
-- Phase: ${context.phase || 'Unknown'}
-- Score: ${context.teamScore || 0} to ${context.enemyScore || 0}
-- Consecutive deaths: ${context.consecutiveDeaths || 0}
-- Consecutive wins: ${context.consecutiveWins || 0}
-
-Available tips:
-${availableTips.map((t, i) => `${i + 1}. ${t}`).join('\n')}
-
-Return only the exact tip text. No quotes, no formatting, no explanation.`;
-
-    const text = await Promise.race([
-      textInfer(prompt, 100),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 22000)),
-    ]);
-    trackCall(licenseKey);
-    const tip = String(text || '').trim().replace(/^["']|["']$/g, '');
-    res.json({ tip: tip || null });
-  } catch (e) {
-    console.error('[coach] suggest-library-tip error:', e.message);
-    res.json({ tip: null });
-  }
-});
-
 // Chat reply hygiene: strip markdown/code artifacts, then verify the reply is
 // an actual coaching answer (not a refusal, JSON blob, or empty fragment).
 function cleanChatReply(raw) {
@@ -3781,4 +3694,7 @@ module.exports.liveModels = () => ({
   reviewModel:    AI.reviewModel,
   visionModel: AI.visionModel,
   textModel:   AI.textModel,
+  // The data policy the calls carry, and the calls sent again without it
+  // (dataPolicyReport): /health spreads this whole object.
+  dataPolicy:  dataPolicyReport(),
 });

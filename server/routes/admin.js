@@ -6,6 +6,10 @@ const router  = express.Router();
 const { isAdmin } = require('../services/admin-auth');
 const { presence, hashOf } = require('../services/presence');
 const supabase = require('../db/supabase');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const {
+  LICENCE_ENDED, LICENCE_REVOKED, SUB_ENDED, expiryFor, failingExpiryFor, licenceStatusOf, dbError,
+} = require('../services/billing');
 
 /**
  * GET /api/admin/coaching
@@ -183,6 +187,158 @@ router.get('/live', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/licenses/sync-expiry[?apply=1]
+ *
+ * THE LICENCES THAT ALREADY EXIST, PUT RIGHT FROM STRIPE.
+ *
+ * Until the webhook was fixed no renewal ever reached a licence: the licences
+ * table's trigger refused the service role's writes and nothing read the
+ * error, so every subscriber still carries the expiry their key was minted
+ * with (now plus 7, 30 or 365 days) and loses the app at the end of the first
+ * period while Stripe goes on charging. Fixing the webhook moves a licence on
+ * at its next renewal; this moves every one now, by the same rule
+ * (services/billing.js): each licence with a subscription is read against that
+ * subscription in Stripe, and
+ *
+ *   one Stripe is billing runs to its period end plus two days, active, and
+ *     so does one set to cancel then, which the customer can still renew in
+ *     Stripe's portal (Stripe ending it cancels the licence at the end all the
+ *     same). One the site marked cancelled while Stripe went on billing it is
+ *     active again for the period it paid for, and says so.
+ *   one whose card is failing is payment_failed, to the end of the period
+ *     paid for plus two days, which is where the unpaid period began
+ *     (services/billing.js failingExpiryFor): never that unpaid period's end,
+ *     which a failed payment's grace would have made a free month, or year.
+ *   one Stripe has ended is cancelled, at the moment it ended at the latest. A
+ *     licence revoked for a refund or a chargeback keeps that reason.
+ *   one revoked for a refund or a chargeback whose subscription Stripe still
+ *     bills is left as it is and listed: that subscription needs stopping.
+ *   a lifetime licence is never given an expiry, whatever subscription it names.
+ *
+ * A DRY RUN BY DEFAULT: it reads Stripe and the table, writes nothing, and
+ * lists every row it would change, before and after. ?apply=1 writes them, each
+ * write checked, and answers 500 with the list when any failed. Behind the
+ * admin password, as every route here. No licence key or email is in the reply.
+ */
+const SYNC = { page: 500 };
+
+function sameInstant(a, b) {
+  if (!a || !b) return !a && !b;
+  return Math.abs(Date.parse(a) - Date.parse(b)) < 1000;
+}
+
+/** What a licence should be, given its subscription; `hold` leaves it as it is. */
+function syncTarget(row, sub) {
+  if (row.plan === 'lifetime') return { hold: true, note: 'a lifetime licence that names a subscription, left as it is' };
+  if (SUB_ENDED.has(sub.status)) {
+    const endedSec = Number(sub.ended_at || sub.canceled_at) || null;
+    let expires = row.expires_at || null;
+    if (endedSec && (!expires || Date.parse(expires) > endedSec * 1000)) expires = new Date(endedSec * 1000).toISOString();
+    return { status: LICENCE_ENDED.has(row.status) ? row.status : 'cancelled', expires_at: expires,
+      note: `Stripe ended the subscription (${sub.status})` };
+  }
+  if (LICENCE_REVOKED.has(row.status)) {
+    return { hold: true, note: `revoked (${row.status}) but Stripe still bills the subscription (${sub.status}): cancel it in Stripe` };
+  }
+  const status = licenceStatusOf(sub.status);
+  // A failing card's licence runs to the period PAID for plus the grace, never
+  // the one being collected: a failed payment is usable until its expiry now
+  // (routes/license.js usable), so the unpaid period's end was that period free.
+  const expires = status === 'payment_failed' ? failingExpiryFor(sub, row.expires_at) : expiryFor(sub);
+  if (!status || !expires) return { hold: true, note: `Stripe says ${sub.status} and gives no period, left as it is` };
+  const out = { status, expires_at: expires };
+  if (row.status === 'cancelled') out.note = 'cancelled on the account while Stripe still bills it, active again for the period paid';
+  if (sub.cancel_at_period_end) out.note = (out.note ? `${out.note}; ` : '') + 'set to cancel at its period end';
+  return out;
+}
+
+router.post('/licenses/sync-expiry', async (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await syncExpiry(req, res);
+  } catch (e) {
+    console.error('[admin] sync-expiry failed:', e.message);
+    if (!res.headersSent) res.status(500).json({ error: 'sync-expiry failed', detail: e.message });
+  }
+});
+
+async function syncExpiry(req, res) {
+  const apply = !!(req.query && (req.query.apply === '1' || req.query.apply === 'true'));
+
+  const rows = [];
+  for (let from = 0; ; from += SYNC.page) {
+    const { data, error } = await supabase
+      .from('licenses')
+      .select('id,plan,status,expires_at,stripe_subscription_id')
+      .not('stripe_subscription_id', 'is', null)
+      .order('id', { ascending: true })
+      .range(from, from + SYNC.page - 1);
+    if (error) {
+      console.error('[admin] sync-expiry could not read the licences:', dbError(error));
+      return res.status(503).json({ error: 'Could not read the licences just now.', retry: true });
+    }
+    rows.push(...(data || []));
+    if (!data || data.length < SYNC.page) break;
+  }
+
+  const subs = new Map();
+  const changes = [];
+  const held = [];
+  const errors = [];
+  let unchanged = 0;
+  for (const row of rows) {
+    const subId = row.stripe_subscription_id;
+    let sub = subs.get(subId);
+    if (!sub) {
+      try {
+        sub = await stripe.subscriptions.retrieve(subId);
+        subs.set(subId, sub);
+      } catch (e) {
+        errors.push({ id: row.id, subscription: subId, error: e.code === 'resource_missing' ? 'not in Stripe' : e.message });
+        continue;
+      }
+    }
+    const to = syncTarget(row, sub);
+    if (to.hold) { held.push({ id: row.id, plan: row.plan, subscription: subId, stripe: sub.status, note: to.note }); continue; }
+    if (to.status === row.status && sameInstant(to.expires_at, row.expires_at)) { unchanged++; continue; }
+    const change = {
+      id: row.id, plan: row.plan, subscription: subId, stripe: sub.status,
+      cancelAtPeriodEnd: !!sub.cancel_at_period_end,
+      from: { status: row.status, expires_at: row.expires_at },
+      to: { status: to.status, expires_at: to.expires_at },
+    };
+    if (to.note) change.note = to.note;
+    changes.push(change);
+  }
+
+  let applied = 0;
+  if (apply) {
+    for (const c of changes) {
+      const { data, error } = await supabase
+        .from('licenses')
+        .update({ status: c.to.status, expires_at: c.to.expires_at })
+        .eq('id', c.id)
+        .select('id');
+      if (error || !data || !data.length) {
+        c.applied = false;
+        errors.push({ id: c.id, subscription: c.subscription, error: error ? dbError(error) : 'no row was changed' });
+      } else {
+        c.applied = true;
+        applied++;
+      }
+    }
+  }
+
+  const failedWrites = changes.filter((c) => c.applied === false).length;
+  console.log(`[admin] sync-expiry ${apply ? 'applied' : 'dry run'}: ${rows.length} licence(s) with a subscription, `
+    + `${changes.length} to change, ${applied} written, ${held.length} held, ${errors.length} error(s)`);
+  return res.status(apply && failedWrites ? 500 : 200).json({
+    apply, checked: rows.length, subscriptions: subs.size,
+    changes, unchanged, held, errors, applied,
+  });
+}
+
 /* The page and its script. Served as two files because helmet's default
    policy allows scripts from this origin only, never inline ones. */
 router.page = () => `<!doctype html>
@@ -292,4 +448,4 @@ if (pw) start();
 `;
 
 module.exports = router;
-module.exports.__test = { resolveWho, who };
+module.exports.__test = { resolveWho, who, SYNC, syncTarget };

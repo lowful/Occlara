@@ -8,6 +8,12 @@ const registry = require('./registry');
  * Tiny, fully click-through badge, the aperture mark, shown where the panel was docked when
  * the user minimizes. It CANNOT be clicked (setIgnoreMouseEvents) so it never
  * catches the cursor mid-aim, restore is via hotkey (Ctrl+Shift+M) or tray.
+ *
+ * NEVER DURING A MATCH (8.3.2). It is always on top at the top right of the
+ * screen, over Valorant's kill feed, so index.js shows it only while the main
+ * window is out of sight AND the seal is off (placeMark, from the seal's own
+ * test in syncSeal): a match in progress, or a stop mid match holding the
+ * seal, takes it away, and the seal lifting brings it back.
  */
 // Window is larger than the 30x35 badge artwork so its drop-shadow + red glow
 // have transparent room and never clip at the window edge. Safe to oversize
@@ -55,7 +61,13 @@ function showAt(anchor) {
 
 function hide() {
   const win = registry.get('dock');
-  if (win) win.hide();
+  if (win && win.isVisible()) win.hide();
 }
 
-module.exports = { showAt, hide, SIZE };
+/** Whether the mark is on screen. */
+function isShown() {
+  const win = registry.get('dock');
+  return !!(win && win.isVisible());
+}
+
+module.exports = { showAt, hide, isShown, SIZE };

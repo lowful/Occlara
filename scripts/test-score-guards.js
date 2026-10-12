@@ -125,6 +125,42 @@ function playTo(e, team, enemy) {
     ok(score(e) === '6-3', `a step a buy phase has confirmed is never taken back (${score(e)})`);
   }
 
+  // ── A frame with no score is no evidence for a step either way ──────────
+  // A read with a round number and no scores took the place of a step read
+  // once with its scores, so the step's second read was a first read again.
+  {
+    const e = engine();
+    playTo(e, 3, 1);
+    read(e, 30, { phase: 'active', clock: '0:40', teamScore: 4, enemyScore: 1, playerAlive: true, playerHp: 100 });
+    read(e, 1, { phase: 'active', clock: '0:39', roundNumber: 6, playerAlive: true, playerHp: 100 });
+    read(e, 1, { phase: 'active', clock: '0:38', teamScore: 4, enemyScore: 1, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '4-1', `a round number alone between two reads of 4-1 does not break their agreement (${score(e)})`);
+  }
+  {
+    const e = engine();
+    playTo(e, 3, 1);
+    read(e, 30, { phase: 'active', clock: '0:40', teamScore: 4, enemyScore: 1, playerAlive: true, playerHp: 100 });
+    read(e, 1, { phase: 'active', clock: '0:39', roundNumber: 5, playerAlive: true, playerHp: 100 });
+    read(e, 1, { phase: 'active', clock: '0:38', teamScore: 4, enemyScore: 1, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '4-1', `nor does one that says the round before, which the model infers and prints nowhere (${score(e)})`);
+  }
+  {
+    const e = engine();
+    playTo(e, 3, 1);
+    read(e, 30, { phase: 'active', clock: '0:40', teamScore: 4, enemyScore: 1, playerAlive: true, playerHp: 100 });
+    read(e, 1, { phase: 'active', clock: '0:39', roundNumber: 14, playerAlive: true, playerHp: 100 });
+    read(e, 1, { phase: 'active', clock: '0:38', teamScore: 4, enemyScore: 1, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '4-1', `nor one naming a round no clock allows (${score(e)})`);
+  }
+  {
+    const e = engine();
+    playTo(e, 3, 1);
+    read(e, 30, { phase: 'active', clock: '0:40', teamScore: 4, enemyScore: 1, playerAlive: true, playerHp: 100 });
+    read(e, 1, { phase: 'active', clock: '0:39', teamScore: 3, enemyScore: 1, playerAlive: true, playerHp: 100 });
+    read(e, 1, { phase: 'active', clock: '0:38', teamScore: 4, enemyScore: 1, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '3-1', `while a read of the score before it still does (${score(e)})`);
+  }
+
   // ── A lone digit faces the same guard ───────────────────────────────────
   {
     const e = engine();

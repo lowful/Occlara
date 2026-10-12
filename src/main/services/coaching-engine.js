@@ -21,6 +21,7 @@ const READ_TIMEOUT_MS = 12000;
 const spectate = require('../../shared/spectate-tells');
 const { RoundLedger, clockSeconds, isBuyPhase, BUY_MAX_LEFT } = require('../../shared/valorant-rounds');
 const { MatchEndWatch, isFinalScore } = require('../../shared/match-end');
+const { ReadCadence } = require('../../shared/read-cadence');
 const valorantReview = require('../../shared/valorant-review');
 
 /**
@@ -58,6 +59,11 @@ class CoachingEngine extends EventEmitter {
     this.lastSendAt = 0;
     this.rateLimitedAt = 0;   // the server's read limiter last answered 429
     this.captureTimes = [];   // the capture helper's time per frame, for the log
+    // How far above the gap each phase reads (read-cadence.js), and the reads
+    // it held back since the last capture log line, by phase.
+    this.readCadence = new ReadCadence();
+    this.skipped = {};
+    this.skipMark = 0;
     this.lastNote = null;
     this.lastUltRead = null;  // this frame's own ultimate read, for the ledger's strict rule
     this.frameAt = 0;         // when the frame being applied was CAPTURED
@@ -147,6 +153,9 @@ class CoachingEngine extends EventEmitter {
     this.lastSendAt = 0;
     this.rateLimitedAt = 0;
     this.captureTimes = [];
+    this.readCadence.reset();
+    this.skipped = {};
+    this.skipMark = 0;
     this.warnedFailure = false;
     this.warnedCapture = false;
     this.failStreak = 0;
@@ -604,14 +613,76 @@ class CoachingEngine extends EventEmitter {
    * what four in flight can cover, when three reads fail in a row, or when the
    * server answers 429 (which also stops sending for ten seconds), and faster
    * again when there is clear headroom. A manual speed in Settings pins it.
+   *
+   * AND THE GAP IS A FLOOR (read-cadence.js, 8.3.2). Outside play a phase is
+   * read slower than it: menus every 5 s, a buy phase two reads have
+   * confirmed every 5 s until 4 s before its barriers drop, a dead player
+   * every 3 s from 5 s after the death. Each is decided on the state already
+   * applied, and is the gap again the moment that state is in doubt. The
+   * live round is read at the gap.
    */
   tick() {
     if (!this.isRunning || this.paused || this.isCapturing) return;
     if (this.aiCreditsOutAt && Date.now() - this.aiCreditsOutAt < AI_CREDITS_BACKOFF_MS) return;
     if (this.rateLimitedAt && Date.now() - this.rateLimitedAt < RATE_LIMIT_PAUSE_MS) return;
     if (this.inFlight >= this.inFlightLimit()) return;
-    if (Date.now() - this.lastSendAt < this.gapMs) return;
+    const now = Date.now();
+    if (now - this.lastSendAt < this.gapMs) return;
+    const phase = this.phaseGap(now);
+    if (now - this.lastSendAt < phase.ms) {
+      // A read the gap alone would have sent, counted once a gap for the log.
+      if (now - this.skipMark >= this.gapMs) {
+        this.skipMark = now;
+        this.skipped[phase.why] = (this.skipped[phase.why] || 0) + 1;
+      }
+      return;
+    }
     this.sendRead();
+  }
+
+  /** The gap this phase is read at, { ms, why }, never under the engine's own. */
+  phaseGap(now = Date.now()) {
+    try {
+      return this.readCadence.gap(this.cadenceState(), now, this.gapMs);
+    } catch (e) {
+      // A bug in the cadence must never cost the reader a read: the gap.
+      if (this.cadenceError !== e.message) console.log('[engine] read cadence error:', e.message);
+      this.cadenceError = e.message;
+      return { ms: this.gapMs, why: 'error' };
+    }
+  }
+
+  /**
+   * What the read cadence decides on, as the last APPLIED read left it: never
+   * the read in flight, whose frame is not known yet.
+   */
+  cadenceState() {
+    const c = this.matchContext;
+    const L = this.ledger;
+    const w = this.endWatch;
+    return {
+      reads: this.analyzedFrames,
+      inLobby: this.inLobby,
+      ended: !!(w && w.ended),
+      rounds: L ? L.size() : 0,
+      // The ledger's own buy phase since its last round boundary, and when its
+      // timer runs out.
+      bought: !!(L && L.since && L.since.bought),
+      buyEndsAt: L && Number.isFinite(L.buyEndsAt) ? L.buyEndsAt : null,
+      // Until when a dead read is the combat report of the round before
+      // (updateMatchContext, NOBODY DIES IN A BUY PHASE), 0 before any.
+      buyUntil: Number.isFinite(this.buyUntil) ? this.buyUntil : 0,
+      team: c.teamScore | 0,
+      enemy: c.enemyScore | 0,
+      mode: c.gameMode || null,
+      phase: c.phase || null,
+      clock: c.clock || null,
+      alive: c.playerAlive,
+      lastDeathAt: this.lastDeathAt || 0,
+      onTrial: !!this.onTrial,
+      // A score step or a final read once, waiting for its second read.
+      unsettled: !!(this.scoreboardChallenge || (w && w.pendingFinal) || this.finalCandidate),
+    };
   }
 
   /**
@@ -629,6 +700,7 @@ class CoachingEngine extends EventEmitter {
     const seq = this.seq++;
     const sentAt = Date.now();
     this.lastSendAt = sentAt;
+    this.skipMark = sentAt;
     this.inFlight++;
     let result = { failed: true };
     try {
@@ -692,6 +764,9 @@ class CoachingEngine extends EventEmitter {
     // session with the latency drawn again.
     const now = Number.isFinite(at) ? at : Date.now();
     this.frameAt = now;
+    // The score this read printed, before the guards take it (read-cadence.js).
+    const printed = data && !data.lobby && data.context
+      ? { team: data.context.teamScore, enemy: data.context.enemyScore } : {};
     const deathBefore = this.lastDeathAt;
     this.processRead(data, now);
     const died = this.lastDeathAt !== deathBefore;
@@ -711,6 +786,16 @@ class CoachingEngine extends EventEmitter {
       if (trial) trial.rec = rec;
       else this.writeDiagnostics(rec);
     }
+    // And the read cadence learns what this read said, on the state it left:
+    // its own phase, clock, tell and spike as the guards left them, and the
+    // score it printed before them.
+    try {
+      const c = this.inLobby ? null : ((data && data.context) || {});
+      this.readCadence.applied(this.cadenceState(), c ? {
+        at: now, lobby: false, phase: c.phase, clock: c.clock, aliveTell: c.aliveTell, spike: c.spike,
+        team: printed.team, enemy: printed.enemy,
+      } : { at: now, lobby: true });
+    } catch (e) { console.log('[engine] read cadence error:', e.message); }
   }
 
   writeDiagnostics(rec) {
@@ -820,7 +905,20 @@ class CoachingEngine extends EventEmitter {
     this.captureTimes = [];
     console.log(`[engine] capture p50 ${quantile(t, 0.5)}ms, p90 ${quantile(t, 0.9)}ms over the last ${t.length} frames;`
       + ` reading every ${this.gapMs}ms, up to ${this.inFlightLimit()} in flight`
-      + (this.latencies.length ? `, read p90 ${quantile(this.latencies, 0.9)}ms` : ''));
+      + (this.latencies.length ? `, read p90 ${quantile(this.latencies, 0.9)}ms` : '')
+      + `; ${this.skippedSince()}`);
+  }
+
+  /**
+   * The reads the phase held back since the last line, by phase (read-cadence.js),
+   * "23 reads skipped by phase (buy 15, dead 8)", and the count starts again.
+   */
+  skippedSince() {
+    const by = Object.entries(this.skipped || {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+    this.skipped = {};
+    const total = by.reduce((s, [, n]) => s + n, 0);
+    if (!total) return 'no read skipped by phase';
+    return `${total} read${total === 1 ? '' : 's'} skipped by phase (${by.map(([why, n]) => `${why} ${n}`).join(', ')})`;
   }
 
   /** Pin a speed from Settings, or hand it back to 'auto'. */
@@ -1378,6 +1476,11 @@ class CoachingEngine extends EventEmitter {
       // the round flaps, which is what drives the halftime side math back and
       // forth mid match.
       const backwards = jump < 0 || scoresFell;
+      // Whether this read carries both scores, and whether the step waiting
+      // for its second read did (a challenge's signature ends in its scores).
+      const scored = typeof updates.teamScore === 'number' && typeof updates.enemyScore === 'number';
+      const heldScored = typeof this.scoreboardChallenge === 'string'
+        && !this.scoreboardChallenge.endsWith('|undefined|undefined');
 
       // TIME IS THE CEILING, AND NO AMOUNT OF AGREEMENT BEATS IT.
       //
@@ -1440,10 +1543,18 @@ class CoachingEngine extends EventEmitter {
         // Never confirmable. Repeating an impossible claim does not make it true.
         console.log(`[engine] ignoring impossible scoreboard jump: round ${prevRound} -> ${updates.roundNumber}`
           + ` (+${jump}) after only ${Math.round(sinceScore / 1000)}s, at most +${roundsPossible} was possible`);
-        this.scoreboardChallenge = null;
+        if (scored || !heldScored) this.scoreboardChallenge = null;
         delete updates.roundNumber;
         delete updates.teamScore;
         delete updates.enemyScore;
+      } else if ((jump >= 1 || inconsistent) && !scored && heldScored) {
+        // A FRAME WITH NO SCORE IS NO EVIDENCE EITHER WAY, as for the rollback
+        // above: a round number alone is the model's inference. It used to
+        // take the place of a step read once with its scores
+        // ("5|undefined|undefined" over "5|3|1"), so the second read of the
+        // step was a first read again, and the sparser the reads the longer a
+        // real round went unaccepted.
+        delete updates.roundNumber;
       } else if (jump >= 1 || inconsistent) {
         // ONE ROUND FORWARD needs a second read too, like every other jump.
         // At a read a second that costs one frame, and it is the difference
@@ -1478,7 +1589,7 @@ class CoachingEngine extends EventEmitter {
           delete updates.teamScore;
           delete updates.enemyScore;
         }
-      } else {
+      } else if (scored || !heldScored) {
         this.scoreboardChallenge = null;   // a clean read clears any pending doubt
       }
       // Stamp the clock whenever a read SURVIVED the guard above. Anything the
@@ -1689,7 +1800,43 @@ class CoachingEngine extends EventEmitter {
       && Math.abs(rc.left - (now - rc.at) / 1000 - left) <= 3;
     if (updates.phase === 'buy' && carriesOn(clockLeft)) updates.phase = rc.phase;
     const buyRead = isBuyPhase(updates.phase, updates.clock);
-    if (buyRead) this.buyUntil = now + (clockLeft === null ? 0 : clockLeft * 1000) + 2000;
+    // A buy read with no clock knows only that the buy phase is still on, so
+    // it never cuts short a window two clocked reads agree on: two seconds of
+    // the timer read apart, saying it runs out within two seconds of each
+    // other. It did on the real Split: "buy 0:24" and "buy 0:18" six seconds
+    // apart held the window to the same second, a "buy" read nine seconds
+    // later cut it to two, and the combat report one second after that
+    // registered as round 18's death, a round Riot has the player alive. A
+    // window one clocked read opened is still cut, because that read can be a
+    // misread mid round: on the Abyss swiftplay "buy 0:29" was read with the
+    // round clock at a minute, and only the "buy" read after it closed the
+    // window over round 1's real death six seconds later.
+    if (buyRead) {
+      const until = now + (clockLeft === null ? 0 : clockLeft * 1000) + 2000;
+      const w = this.buyWindow;
+      const near = !!w && now < w.until && Math.abs(w.until - until) <= 2000;
+      if (clockLeft !== null) {
+        const clock = String(updates.clock);
+        this.buyWindow = { until, clock, confirmed: near && (w.confirmed || w.clock !== clock) };
+        this.buyUntil = until;
+      } else {
+        // And only while the round ledger's own buy phase ends there too
+        // (valorant-rounds.js buyEndsAt), because two misreads can agree by
+        // chance. The ledger takes a buy timer read after play only when its
+        // clock can be one (buyVerdict), so a post plant's misreads set it
+        // nothing. On the Sunset swiftplay round 5's post plant read five
+        // "buy" timers in six seconds, 0:39, 0:13, 0:23, 0:19 and 0:39: had
+        // the last been 0:18, it and the 0:19 would have held the window over
+        // the rest of the post plant, the buy reads with no clock after them
+        // cutting nothing, and a real death there read as the combat report
+        // (test:sessionreplay replays it with one).
+        const L = this.ledger;
+        const ledgerEnd = L && Number.isFinite(L.buyEndsAt) ? L.buyEndsAt : null;
+        const held = !!w && w.confirmed && now < w.until
+          && ledgerEnd !== null && Math.abs(ledgerEnd + 2000 - w.until) <= 3000;
+        this.buyUntil = held ? Math.max(w.until, until) : until;
+      }
+    }
     const inBuy = buyRead
       || (now < (this.buyUntil || 0) && (clockLeft === null || clockLeft <= BUY_MAX_LEFT));
     if (!inBuy && clockLeft !== null

@@ -38,7 +38,6 @@
     "publish:download": "node scripts/publish-download.js",
     "release": "node scripts/check-release-ready.js && electron-builder --win --publish always && node scripts/publish-download.js",
     "start": "electron .",
-    "sync:busts": "node scripts/sync-agent-busts.js",
     "sync:lol": "node scripts/sync-lol.js",
     "sync:patch": "node scripts/sync-patch-notes.js",
     "sync:rivals": "node scripts/sync-rivals-data.js",
@@ -75,6 +74,7 @@
     "test:pccheck": "node scripts/test-pc-check.js",
     "test:presence": "node scripts/test-presence.js",
     "test:sessionreplay": "node scripts/test-session-replay.js",
+    "test:readpolicy": "node scripts/test-read-policy.js",
     "test:scoreguards": "node scripts/test-score-guards.js",
     "test:reviewreplay": "node scripts/test-review-replay.js",
     "test:recorder": "node scripts/test-recorder.js",
@@ -91,6 +91,10 @@
     "test:reviewroute": "node scripts/test-review-route.js",
     "test:profilemigration": "node scripts/test-profile-migration.js",
     "test:refundrevoke": "node scripts/test-refund-revoke.js",
+    "test:renewals": "node scripts/test-renewals.js",
+    "test:billingroutes": "node scripts/test-billing-routes.js",
+    "test:aiprivacy": "node scripts/test-ai-privacy.js",
+    "test:tiproutes": "node scripts/test-tip-routes.js",
     "test:rivalsabilities": "node scripts/test-rivals-abilities.js",
     "test:rivalscomp": "node scripts/test-rivals-comp.js",
     "test:rivalsdraft": "node scripts/test-rivals-draft.js",
@@ -187,5 +191,5 @@
     "coach"
   ],
   "author": "Occlara",
-  "license": "MIT"
+  "license": "UNLICENSED"
 }

@@ -82,7 +82,7 @@ function scenario({ plan, capture = () => 100, speed = 'auto' }) {
         return new Promise((resolve) => this.later(300, () => resolve({ ok: true, status: 200, data })));
       }
       const n = this.reads.length;
-      const { ms, status = 200 } = plan(n);
+      const { ms, status = 200, data } = plan(n);
       this.reads.push({ n, at: clock, timeoutMs, status });
       this.out++;
       this.maxOut = Math.max(this.maxOut, this.out);
@@ -96,7 +96,7 @@ function scenario({ plan, capture = () => 100, speed = 'auto' }) {
           this.out--;
           this.answered.push(n);
           resolve(status === 200
-            ? { ok: true, status, data: { lobby: false, context: { ...READ } } }
+            ? { ok: true, status, data: data || { lobby: false, context: { ...READ } } }
             : { ok: false, status, data: { error: 'refused' } });
         });
       });
@@ -199,8 +199,25 @@ const inOrder = (list) => list.every((k, i) => i === 0 || k > list[i - 1]);
     const capLine = s.lines.find((l) => /\[engine\] capture p50/.test(l));
     ok(!!capLine && /capture p50 100ms, p90 400ms over the last 60 frames/.test(capLine),
       `the capture helper's time is logged as a p50 and a p90 (${capLine})`);
-    ok(!!capLine && /reading every 1000ms, up to 4 in flight, read p90 3000ms/.test(capLine),
-      'beside the cadence and the read latency it ran at');
+    ok(!!capLine && /reading every 1000ms, up to 4 in flight, read p90 3000ms; no read skipped by phase$/.test(capLine),
+      'beside the cadence and the read latency it ran at, and in a live round no read held back by phase');
+  }
+
+  // ── Menus are read every 5 s, then every 10 s, and the log says so ───────
+  // (read-cadence.js): the gap is a floor, and a phase reads slower than it.
+  {
+    const s = scenario({ plan: () => ({ ms: 500, data: { lobby: true, context: {} } }) });
+    await run(s, 20000);
+    const gaps = s.sends.slice(1).map((t, i) => t - s.sends[i]);
+    ok(gaps[0] === 1000 && gaps.slice(2).every((g) => g === 5000),
+      `menus out of a match: the gap until two LOBBY replies have landed, then every 5 s (${gaps.map((g) => g / 1000).join(', ')} s)`);
+    await run(s, 400000);
+    const late = s.sends.filter((t) => t > clock - 60000);
+    const lateGaps = late.slice(1).map((t, i) => t - late[i]);
+    ok(lateGaps.length && lateGaps.every((g) => g === 10000), `and every 10 s once the run reaches three minutes (${lateGaps.map((g) => g / 1000).join(', ')} s)`);
+    const line = s.lines.find((l) => /\[engine\] capture p50/.test(l));
+    ok(!!line && /; \d+ reads skipped by phase \(idle \d+, menus \d+\)$/.test(line),
+      `the capture line counts the reads the phase held back, by phase (${line})`);
   }
 
   // ── Held at 4.3 seconds, stepped down at 4.6, back up under 2.8 ──────────

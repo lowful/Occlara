@@ -1,19 +1,99 @@
 'use strict';
+const crypto   = require('crypto');
 const stripe   = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const supabase = require('../db/supabase');
+const {
+  DAY_MS, GRACE_MS, LICENCE_ENDED: ENDED, LICENCE_REVOKED: REVOKED, SUB_BILLING: BILLING, SUB_ENDED,
+  idOf, subscriptionOf, latestLineEnd, periodEndOf, withGrace, dbError,
+} = require('../services/billing');
 
+/*
+ * ── THE LICENCE FOLLOWS STRIPE, AND EVERY WRITE TO IT IS CHECKED ────────────
+ *
+ * Renewals never reached a licence, and the logs said they did. The licences
+ * table's trigger refused the service role's every write to status and
+ * expires_at, nothing here read the error, and "renewed. New expiry" was
+ * logged either way, so every subscriber lost the app at the end of the first
+ * period while Stripe went on charging them. Three more things would have done
+ * it on their own:
+ *
+ *   THE INVOICE'S SUBSCRIPTION MOVED. Stripe's API 2025-03-31.basil took
+ *   `subscription` off Invoice; it is parent.subscription_details.subscription
+ *   now. Events arrive in the webhook endpoint's own version, so an endpoint on
+ *   basil or newer made invoice.paid and invoice.payment_failed break out
+ *   silently. subscriptionOf() reads both shapes.
+ *
+ *   THE EXPIRY WAS COUNTED, NOT READ. A renewal added 7 or 30 days to the old
+ *   expiry and knew no yearly plan at all, while Stripe charges about an hour
+ *   after a period ends (up to three days when its deliveries fail) and months
+ *   run 28 to 31 days. The expiry is now Stripe's own period end, the latest
+ *   line of the paid invoice, plus GRACE, so a renewal charge that lands after
+ *   the period ends never reads as expired in between, whatever the plan.
+ *
+ *   A FAILED WRITE ANSWERED 200. Every licence write here now checks its error
+ *   and throws, the handler answers 500, and Stripe retries the event for up to
+ *   three days. A renewal refused by the database is retried until it lands,
+ *   rather than lost with a line in the log saying it worked.
+ *
+ * Errors are logged by code and message only, never their details: a CHECK
+ * violation's details are the whole failing row, licence key included.
+ */
+
+// The plans the licences table knows, once the site's migration adds yearly.
+const PLANS = new Set(['weekly', 'monthly', 'yearly', 'lifetime']);
+const PLAN_DAYS = { weekly: 7, monthly: 30, yearly: 365 };
+const INTERVAL_PLAN = { week: 'weekly', month: 'monthly', year: 'yearly' };
+
+// The reason a revoked licence carries, and what is written while the
+// licences table's status CHECK does not allow it yet.
+const REVOKED_FALLBACK = 'cancelled';
+
+/*
+ * EVERY EVENT OF THE STRIPE ACCOUNT ARRIVES HERE, another product's included,
+ * so two things are held to Occlara's own objects:
+ *
+ *   A REFUND OR A DISPUTE CANCELS ONLY OCCLARA'S SUBSCRIPTION (below,
+ *   occlaraSubscription): one an Occlara checkout started, or one a licence
+ *   names. Unguarded, a full refund of another product's subscription charge
+ *   cancelled that product's customer's subscription.
+ *
+ *   A CHECKOUT NAMING A USER THE LICENCES TABLE DOES NOT HAVE MINTS NOTHING.
+ *   A checkout that sets client_reference_id to its own app's user reads here
+ *   like the old Railway checkout's, and licences.user_id references
+ *   auth.users, so the insert is refused: 23503, or 22P02 for an id that is
+ *   not a uuid. Thrown as a failed write, it answered 500, Stripe retried each
+ *   such sale for three days, and an endpoint that keeps failing is one Stripe
+ *   disables, renewals and refunds with it.
+ */
+const FOREIGN_USER = new Set(['23503', '22P02']);
+
+/** A Checkout Session one of Occlara's checkouts made: the site's (user_id) or the old Railway one's (userId). */
+function occlaraCheckout(session) {
+  const meta = (session && session.metadata) || {};
+  return PLANS.has(meta.plan) && !!(meta.user_id || meta.userId);
+}
+
+/*
+ * Keys are the product's only lock, so they are drawn from the operating
+ * system's random source. Math.random is a seeded generator whose next
+ * outputs can be worked out from earlier ones.
+ */
+const KEY_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 function generateLicenseKey() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const seg = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const seg = () => Array.from({ length: 4 }, () => KEY_CHARS[crypto.randomInt(KEY_CHARS.length)]).join('');
   return `GC-${seg()}-${seg()}-${seg()}-${seg()}`;
 }
 
-function getExpiresAt(plan) {
+/**
+ * The expiry a licence minted HERE starts with: the plan's length plus GRACE,
+ * or none for lifetime. Only the old Railway checkout's purchases are minted
+ * here; the site mints its own (create-license), and from the first renewal on
+ * the expiry is Stripe's period end either way.
+ */
+function getExpiresAt(plan, now = Date.now()) {
   if (plan === 'lifetime') return null;
-  const d = new Date();
-  if (plan === 'weekly')  d.setDate(d.getDate() + 7);
-  if (plan === 'monthly') d.setDate(d.getDate() + 30);
-  return d.toISOString();
+  const days = PLAN_DAYS[plan] || PLAN_DAYS.monthly;
+  return new Date(now + days * DAY_MS + GRACE_MS).toISOString();
 }
 
 /*
@@ -27,10 +107,11 @@ function getExpiresAt(plan) {
  * MONTHLY licence. A lifetime buyer got 30 days and then lost the product they
  * had paid for once, with nothing logged beyond a plan name.
  *
- * session.mode settles it. payments.js maps lifetime to 'payment' and weekly and
- * monthly to 'subscription', so a one-time charge can only ever be lifetime.
- * Subscriptions still fall back to monthly, which is at worst generous for a
- * weekly buyer and never takes anything away.
+ * The price's own interval says it now (week, month, year), so the
+ * STRIPE_PRICE_* variables are no longer read and can go. Without one,
+ * session.mode settles it: a one-time charge can only ever be lifetime, and a
+ * subscription falls back to monthly, which is at worst generous for a weekly
+ * buyer and never takes anything away.
  */
 function planFromMode(session) {
   if (session && session.mode === 'payment') {
@@ -41,107 +122,301 @@ function planFromMode(session) {
   return 'monthly';
 }
 
-function extendExpiresAt(currentExpires, plan) {
-  const base = currentExpires ? new Date(currentExpires) : new Date();
-  const from = base < new Date() ? new Date() : base;
-  if (plan === 'weekly')  from.setDate(from.getDate() + 7);
-  if (plan === 'monthly') from.setDate(from.getDate() + 30);
-  return from.toISOString();
+async function planOfCheckout(session) {
+  const named = session.metadata && session.metadata.plan;
+  if (PLANS.has(named)) return named;
+  try {
+    const items = await stripe.checkout.sessions.listLineItems(session.id);
+    const price = items && items.data && items.data[0] && items.data[0].price;
+    const interval = price && price.recurring && price.recurring.interval;
+    if (session.mode === 'subscription' && INTERVAL_PLAN[interval]) return INTERVAL_PLAN[interval];
+  } catch (e) {
+    console.error(`[webhook] could not list the line items of ${session.id}:`, e.message);
+  }
+  return planFromMode(session);
 }
 
+// Stripe's objects are read in either API version by services/billing.js
+// (subscriptionOf, latestLineEnd, periodEndOf), shared with /cancel and the
+// admin repair route so the three cannot drift.
+
+/** A failed database call as an Error to throw: its code and message, never its details. */
+function dbFailure(what, error) {
+  console.error(`[webhook] could not ${what}: ${dbError(error)}`);
+  return Object.assign(new Error(`could not ${what}: ${dbError(error)}`), { code: error && error.code });
+}
+
+// ── Renewals ────────────────────────────────────────────────────────────────
+
+/**
+ * Every licence of a subscription runs to the period an invoice paid for.
+ *
+ * One that has ended stays ended unless it was merely cancelled and Stripe is
+ * still billing its subscription: one cancelled on the site while Stripe went
+ * on charging is brought back, because the customer has just paid for the
+ * period. A refund cancels the subscription, so a late delivery of the refunded
+ * invoice's own invoice.paid (Stripe does not promise order) finds it cancelled
+ * and changes nothing. One revoked for a refund or a chargeback is never
+ * brought back by a payment: that is a human's call, and it is logged as one.
+ *
+ * NEVER EARLIER THAN THE EXPIRY A LICENCE ALREADY HAS. An invoice whose lines
+ * end sooner (a one-off charge on the subscription, a proration, an old event
+ * replayed) does not shorten a period that was paid for: a too-short expiry
+ * locks out a paying customer, while one Stripe ends early is cut by its status
+ * (customer.subscription.deleted, invoice.payment_failed) all the same.
+ */
+async function renew(subId, endSec, invoiceId) {
+  const expiresAt = withGrace(endSec);
+  if (Date.parse(expiresAt) <= Date.now()) {
+    console.warn(`[webhook] invoice ${invoiceId} paid for a period that ended over two days ago, nothing renewed`);
+    return;
+  }
+  // A lifetime licence that names a subscription (one made lifetime by hand)
+  // is not billed by it, so a renewal never gives it an expiry.
+  const { data: rows, error } = await supabase
+    .from('licenses')
+    .select('id,status,expires_at')
+    .eq('stripe_subscription_id', subId)
+    .neq('plan', 'lifetime');
+  if (error) throw dbFailure(`read the licences of subscription ${subId}`, error);
+  if (!rows || !rows.length) {
+    // The site mints the licence when the buyer reaches /success, from the
+    // same period, so the first invoice of a subscription often lands here.
+    console.warn(`[webhook] no licence carries subscription ${subId} yet, nothing renewed (invoice ${invoiceId})`);
+    return;
+  }
+  let ids = rows.filter((r) => !ENDED.has(r.status)).map((r) => r.id);
+  const revoked = rows.filter((r) => REVOKED.has(r.status));
+  const cancelled = rows.filter((r) => r.status === 'cancelled');
+  if (revoked.length) {
+    console.error(`[webhook] invoice ${invoiceId} was paid on subscription ${subId}, whose licence was revoked `
+      + `(${revoked.map((r) => r.status).join(', ')}). Left revoked; stop the subscription in Stripe or refund this payment. Needs a human.`);
+  }
+  if (cancelled.length) {
+    const sub = await stripe.subscriptions.retrieve(subId);
+    if (BILLING.has(sub.status)) {
+      console.warn(`[webhook] subscription ${subId} is ${sub.status} and paid, so ${cancelled.length} cancelled licence(s) are active again`);
+      ids = ids.concat(cancelled.map((r) => r.id));
+    } else {
+      console.warn(`[webhook] subscription ${subId} is ${sub.status}: ${cancelled.length} cancelled licence(s) stay cancelled`);
+    }
+  }
+  for (const id of ids) {
+    const had = rows.find((r) => r.id === id).expires_at;
+    const until = had && Date.parse(had) > Date.parse(expiresAt) ? new Date(Date.parse(had)).toISOString() : expiresAt;
+    const { data: done, error: updErr } = await supabase
+      .from('licenses')
+      .update({ status: 'active', expires_at: until })
+      .eq('id', id)
+      .select('id');
+    if (updErr) throw dbFailure(`renew subscription ${subId}`, updErr);
+    if (!done || !done.length) throw new Error(`renewing subscription ${subId} changed no row for licence ${id}`);
+    console.log(`[webhook] subscription ${subId} renewed licence ${id} to ${until}`);
+  }
+}
+
+// ── Revoking a licence after a refund or a chargeback ──────────────────────
 
 /*
- * ── REVOKING A LICENCE AFTER A REFUND OR A CHARGEBACK ───────────────────────
+ * A REFUND OR A CHARGEBACK ENDS THE PURCHASE, the subscription included.
  *
- * This webhook handled four events and none of them was a refund, which left a
- * hole with no floor under it: a LIFETIME purchase writes expires_at null and
- * status active, has no subscription to cancel, and validateKey only asks for
- * status active and an unexpired date. So buy lifetime, refund it, and the
- * licence stays valid forever. Nothing fired, nothing logged, nothing expired.
+ * This webhook once handled four events and none of them was a refund: a
+ * LIFETIME purchase writes expires_at null and status active, has no
+ * subscription to cancel, and validateKey only asks for status active and an
+ * unexpired date, so a refunded lifetime stayed valid forever. That was fixed,
+ * and then every purchase moved to the site, where all three plans are
+ * subscriptions, and none of it reached them:
  *
- * Subscriptions leaked less because they expire on their own, but a refunded
- * month still bought a month of free coaching.
+ *   A subscription's Checkout Session has no payment intent, so the lookup by
+ *   session never found a site licence. A Dispute carries no customer, so a
+ *   chargeback had nothing to go on at all. And a refund did not cancel the
+ *   subscription: a weekly refunded on day two was charged again on day seven.
  *
- * FINDING THE LICENCE. Licences store stripe_session_id and stripe_customer_id,
- * never the payment intent, so the charge is resolved through the checkout
- * session that created it. The customer is a FALLBACK and only when it matches
- * exactly one licence: a customer who bought twice, or upgraded, has several,
- * and revoking all of them over one refund is a worse bug than the one this
- * fixes.
+ * FINDING THE LICENCE, in this order:
+ *   1. The charge as this server's own API version renders it (stripe-node 14
+ *      pins 2023-10-16, which still has charge.invoice; an event in basil does
+ *      not), its invoice, and that invoice's subscription: every licence on
+ *      that subscription. A subscription is one purchase, so this is exact.
+ *   2. The checkout session of the charge's payment intent, which is how a
+ *      one-time purchase (the old lifetime) is found.
+ *   3. The customer, as a FALLBACK and only when they hold exactly one active
+ *      licence: a customer who bought twice has several, and revoking all of
+ *      them over one refund is a worse bug than the one this fixes.
+ *
+ * THE SUBSCRIPTION IS CANCELLED FIRST, so billing stops even while the
+ * database refuses the revoke and Stripe retries it. A full refund or any
+ * dispute cancels it, when it is Occlara's (occlaraSubscription); a partial
+ * refund changes nothing at all.
  *
  * BOTH FIELDS ARE WRITTEN. status carries the reason, which support needs, and
  * expires_at is set to now so the licence dies even if validateKey is ever
- * relaxed about status. Two independent reasons for the same answer.
+ * relaxed about status. Two independent reasons for the same answer. The
+ * reason is 'refunded' or 'disputed' where the licences table allows it, and
+ * 'cancelled' where its status CHECK does not yet: the site's migration adds
+ * the two, and this works on either side of it.
  */
-async function revokeLicence({ paymentIntent, customer, reason, label }) {
-  const patch = { status: reason, expires_at: new Date().toISOString() };
-
-  // 1. The exact route: charge -> payment intent -> checkout session -> licence.
-  let sessionId = null;
-  if (paymentIntent) {
-    try {
-      const list = await stripe.checkout.sessions.list({ payment_intent: paymentIntent, limit: 1 });
-      sessionId = list && list.data && list.data[0] ? list.data[0].id : null;
-    } catch (e) {
-      console.error(`[webhook] ${label}: could not resolve a session from payment intent ${paymentIntent}:`, e.message);
-    }
-  }
-
-  if (sessionId) {
-    const { data, error } = await supabase
-      .from('licenses')
-      .update(patch)
-      .eq('stripe_session_id', sessionId)
-      .select();
-    if (error) {
-      console.error(`[webhook] ${label}: revoke by session failed:`, JSON.stringify(error));
-    } else if (data && data.length) {
-      console.log(`[webhook] ${label}: revoked ${data.length} licence(s) for session ${sessionId}`);
-      return true;
-    } else {
-      console.warn(`[webhook] ${label}: no licence carried session ${sessionId}, trying the customer`);
-    }
-  }
-
-  // 2. The fallback, and only when it is unambiguous.
-  if (!customer) {
-    console.error(`[webhook] ${label}: nothing to match on, licence NOT revoked. `
-      + `payment_intent=${paymentIntent} customer=${customer}`);
-    return false;
-  }
-
-  const { data: owned, error: lookupError } = await supabase
+async function revokeWhere(column, value, reason, label) {
+  const at = new Date().toISOString();
+  const pick = 'id,plan,status,stripe_subscription_id';
+  let { data, error } = await supabase
     .from('licenses')
-    .select('id,license_key,plan,status')
-    .eq('stripe_customer_id', customer);
-
-  if (lookupError) {
-    console.error(`[webhook] ${label}: customer lookup failed:`, JSON.stringify(lookupError));
-    return false;
+    .update({ status: reason, expires_at: at })
+    .eq(column, value)
+    .select(pick);
+  if (error && error.code === '23514') {
+    console.warn(`[webhook] ${label}: the licences table does not allow '${reason}' yet, writing '${REVOKED_FALLBACK}'`);
+    ({ data, error } = await supabase
+      .from('licenses')
+      .update({ status: REVOKED_FALLBACK, expires_at: at })
+      .eq(column, value)
+      .select(pick));
   }
-  const live = (owned || []).filter((l) => l.status === 'active');
+  if (error) throw dbFailure(`revoke the licences with ${column} ${value}`, error);
+  if (data && data.length) console.log(`[webhook] ${label}: revoked ${data.length} licence(s) by ${column} ${value}`);
+  return data || [];
+}
+
+async function revokeOnlyActive(customer, reason, label) {
+  const { data: owned, error } = await supabase
+    .from('licenses')
+    .select('id,status')
+    .eq('stripe_customer_id', customer);
+  if (error) throw dbFailure(`read the licences of customer ${customer}`, error);
+  // A failed payment's licence works through its grace (license.js usable),
+  // so it is one of the customer's live licences too.
+  const live = (owned || []).filter((l) => l.status === 'active' || l.status === 'payment_failed');
   if (live.length !== 1) {
     // Deliberately loud and deliberately inert. Revoking the wrong licence of a
     // repeat customer is worse than a refund that needs a human, so this asks
     // for one rather than guessing.
     console.error(`[webhook] ${label}: customer ${customer} has ${live.length} active licence(s), `
       + 'so this needs a human. NOT revoked.');
-    return false;
+    return [];
+  }
+  return revokeWhere('id', live[0].id, reason, label);
+}
+
+/**
+ * Whether a refunded or disputed charge's subscription is Occlara's to stop.
+ * The checkout that started it is asked first, from Stripe alone, so billing
+ * stops even while the licences table cannot be read (a site checkout always
+ * names its plan and its user, and so did the old Railway one); then whether a
+ * licence names it (one made by hand, or bought before the site named its
+ * plan). The site mints its licence at /success, so a refund that lands before
+ * the buyer got there still stops the billing.
+ */
+async function occlaraSubscription(subId, label) {
+  const list = await stripe.checkout.sessions.list({ subscription: subId, limit: 1 });
+  const started = list && list.data && list.data[0];
+  if (started && occlaraCheckout(started)) return true;
+  const { data, error } = await supabase
+    .from('licenses')
+    .select('id')
+    .eq('stripe_subscription_id', subId)
+    .limit(1);
+  if (error) throw dbFailure(`read the licences of subscription ${subId}`, error);
+  if (data && data.length) return true;
+  console.warn(`[webhook] ${label}: subscription ${subId} is not Occlara's (no Occlara checkout started it and no licence `
+    + 'names it), so it is left billing');
+  return false;
+}
+
+/** Stop a subscription billing, once, and never one Stripe already ended. */
+async function cancelSubscription(subId, label, done) {
+  if (!subId || done.has(subId)) return;
+  done.add(subId);
+  let sub;
+  try {
+    sub = await stripe.subscriptions.retrieve(subId);
+  } catch (e) {
+    if (e && e.code === 'resource_missing') {
+      console.warn(`[webhook] ${label}: subscription ${subId} is not in Stripe, nothing to cancel`);
+      return;
+    }
+    throw e;
+  }
+  if (SUB_ENDED.has(sub.status)) return;
+  await stripe.subscriptions.cancel(subId);
+  console.log(`[webhook] ${label}: subscription ${subId} cancelled, nothing more will be charged`);
+}
+
+async function revokeForCharge({ chargeId, customer, paymentIntent, reason, label }) {
+  let charge = null;
+  if (chargeId) charge = await stripe.charges.retrieve(chargeId, { expand: ['invoice'] });
+  const who = idOf(charge && charge.customer) || customer || null;
+  const pi = idOf(charge && charge.payment_intent) || paymentIntent || null;
+  let subId = null;
+  const inv = charge && charge.invoice;
+  if (inv) subId = subscriptionOf(typeof inv === 'string' ? await stripe.invoices.retrieve(inv) : inv);
+
+  const cancelled = new Set();
+  if (subId && await occlaraSubscription(subId, label)) await cancelSubscription(subId, label, cancelled);
+
+  let revoked = [];
+  if (subId) revoked = await revokeWhere('stripe_subscription_id', subId, reason, label);
+  if (!revoked.length && pi) {
+    const list = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
+    const sessionId = list && list.data && list.data[0] ? list.data[0].id : null;
+    if (sessionId) revoked = await revokeWhere('stripe_session_id', sessionId, reason, label);
+  }
+  if (!revoked.length && who) revoked = await revokeOnlyActive(who, reason, label);
+  for (const r of revoked) await cancelSubscription(r.stripe_subscription_id, label, cancelled);
+
+  if (!revoked.length) {
+    console.error(`[webhook] ${label} on charge ${chargeId}: no licence matched (subscription ${subId}, `
+      + `payment_intent ${pi}, customer ${who}), licence NOT revoked`);
+  }
+  return revoked.length > 0;
+}
+
+// ── The one licence this server still mints ────────────────────────────────
+
+/*
+ * THE OLD RAILWAY CHECKOUT'S PURCHASES, named by client_reference_id or
+ * metadata.userId. The site's checkout names its buyer as metadata.user_id and
+ * mints its own licence (create-license, at /success and from the account page),
+ * so a site purchase is one quiet line here, not an "UNLINKED PURCHASE": that
+ * line, logged for every site sale, hid the real orphans it was written to find.
+ */
+async function mintFromCheckout(session, userId) {
+  const plan = await planOfCheckout(session);
+
+  const { data: existing, error: lookupError } = await supabase
+    .from('licenses')
+    .select('id')
+    .eq('stripe_session_id', session.id);
+  if (lookupError) throw dbFailure(`look up a licence for checkout ${session.id}`, lookupError);
+  if (existing && existing.length) {
+    console.log(`[webhook] checkout ${session.id} already has its licence`);
+    return;
   }
 
-  const { error: updErr } = await supabase.from('licenses').update(patch).eq('id', live[0].id);
-  if (updErr) {
-    console.error(`[webhook] ${label}: revoke by customer failed:`, JSON.stringify(updErr));
-    return false;
+  const { error: insertError } = await supabase.from('licenses').insert({
+    user_id:                userId,
+    license_key:            generateLicenseKey(),
+    plan,
+    status:                 'active',
+    expires_at:             getExpiresAt(plan),
+    stripe_customer_id:     idOf(session.customer),
+    stripe_subscription_id: idOf(session.subscription),
+    stripe_session_id:      session.id,
+  });
+  if (insertError && insertError.code === '23505') {
+    console.log(`[webhook] checkout ${session.id} was minted meanwhile, nothing to add`);
+    return;
   }
-  console.log(`[webhook] ${label}: revoked ${live[0].license_key} (${live[0].plan}) via customer ${customer}`);
-  return true;
+  if (insertError && FOREIGN_USER.has(insertError.code)) {
+    // Not a buyer Occlara has: another app's checkout (FOREIGN_USER, above).
+    console.warn(`[webhook] checkout ${session.id} names a user Occlara does not have (${insertError.code}), `
+      + 'so it is no Occlara purchase: nothing minted');
+    return;
+  }
+  if (insertError) throw dbFailure(`mint the ${plan} licence of checkout ${session.id}`, insertError);
+  console.log(`[webhook] checkout ${session.id}: minted a ${plan} licence`);
 }
 
 // POST /api/payments/webhook
 async function webhookHandler(req, res) {
-  console.log('[webhook] Received webhook event');
-
   const sig = req.headers['stripe-signature'];
   if (!sig) {
     console.warn('[webhook] Missing stripe-signature header');
@@ -156,165 +431,97 @@ async function webhookHandler(req, res) {
     return res.status(400).json({ error: `Webhook signature verification failed: ${err.message}` });
   }
 
-  console.log(`[webhook] Processing event: ${event.type}`);
+  console.log(`[webhook] ${event.type} ${event.id || ''}`);
 
   try {
     switch (event.type) {
 
       case 'checkout.session.completed': {
         const session = event.data.object;
-
-        // Full session dump so we can see exactly what arrived
-        console.log('[webhook] checkout.session.completed fired');
-        console.log('[webhook] Session ID:', session.id);
-        console.log('[webhook] Mode:', session.mode);
-        console.log('[webhook] client_reference_id:', session.client_reference_id);
-        console.log('[webhook] customer:', session.customer);
-        console.log('[webhook] subscription:', session.subscription);
-        console.log('[webhook] customer_email:', session.customer_details?.email);
-        console.log('[webhook] metadata:', JSON.stringify(session.metadata));
-        console.log('[webhook] payment_status:', session.payment_status);
-
-        const userId = session.client_reference_id || session.metadata?.userId || null;
-        let plan = session.metadata?.plan || null;
-
-        console.log('[webhook] Resolved userId:', userId);
-        console.log('[webhook] Resolved plan from metadata:', plan);
-
-        // Fallback: determine plan from price ID if metadata.plan is missing
-        if (!plan) {
-          console.log('[webhook] Plan missing from metadata, looking up from line items...');
-          try {
-            const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
-            const priceId = lineItems.data[0]?.price?.id;
-            console.log('[webhook] Price ID from line items:', priceId);
-            if (priceId === process.env.STRIPE_PRICE_WEEKLY)   plan = 'weekly';
-            else if (priceId === process.env.STRIPE_PRICE_MONTHLY)  plan = 'monthly';
-            else if (priceId === process.env.STRIPE_PRICE_LIFETIME) plan = 'lifetime';
-            else plan = planFromMode(session);
-            console.log('[webhook] Determined plan from price ID:', plan);
-          } catch (e) {
-            console.error('[webhook] Failed to look up line items:', e.message);
-            plan = planFromMode(session);
-          }
-        }
-
+        const meta = session.metadata || {};
+        const userId = session.client_reference_id || meta.userId || null;
         if (!userId) {
-          // A PAID PURCHASE WITH NO LICENCE, and the one line support needs to
-          // put it right: who paid, for what, and the session to link by hand.
+          if (meta.user_id) {
+            console.log(`[webhook] checkout ${session.id}: a site purchase (${meta.plan || 'plan not named'}), the site mints its licence`);
+            break;
+          }
+          // A PAID PURCHASE WITH NO LICENCE: neither the site's checkout nor
+          // the old one made it. The buyer is on the session in Stripe.
           // Search Railway logs for "UNLINKED PURCHASE" to find every one.
-          console.error(`[webhook] UNLINKED PURCHASE: ${session.customer_details?.email || 'no email'} `
-            + `paid for ${plan} in session ${session.id}, customer ${session.customer}. `
-            + 'No licence was created. Create one by hand for this user.');
-          console.error('[webhook] CRITICAL: userId is null, cannot create license. Session:', session.id);
-          console.error('[webhook] client_reference_id was:', session.client_reference_id);
-          console.error('[webhook] metadata was:', JSON.stringify(session.metadata));
+          console.error(`[webhook] UNLINKED PURCHASE: checkout ${session.id}, customer ${idOf(session.customer) || 'none'}, `
+            + `mode ${session.mode}. No licence was created; find the buyer on the session in Stripe.`);
           break;
         }
-
-        // Idempotency, skip if license already exists for this session
-        console.log('[webhook] Checking for existing license for session:', session.id);
-        const { data: existing, error: lookupError } = await supabase
-          .from('licenses')
-          .select('id')
-          .eq('stripe_session_id', session.id)
-          .single();
-
-        if (lookupError && lookupError.code !== 'PGRST116') {
-          console.error('[webhook] Idempotency check error:', JSON.stringify(lookupError));
-        }
-
-        if (existing) {
-          console.log(`[webhook] License already exists for session ${session.id}, skipping`);
-          break;
-        }
-
-        const licenseKey = generateLicenseKey();
-        const expiresAt  = getExpiresAt(plan);
-
-        console.log('[webhook] Inserting license into Supabase...');
-        console.log('[webhook] License key:', licenseKey);
-        console.log('[webhook] User ID:', userId);
-        console.log('[webhook] Plan:', plan);
-        console.log('[webhook] Expires at:', expiresAt);
-
-        const { data: insertData, error: insertError } = await supabase.from('licenses').insert({
-          user_id:                userId,
-          license_key:            licenseKey,
-          plan,
-          status:                 'active',
-          expires_at:             expiresAt,
-          stripe_customer_id:     session.customer || null,
-          stripe_subscription_id: session.subscription || null,
-          stripe_session_id:      session.id,
-        }).select();
-
-        if (insertError) {
-          console.error('[webhook] SUPABASE INSERT FAILED:', JSON.stringify(insertError));
-          console.error('[webhook] Insert error code:', insertError.code);
-          console.error('[webhook] Insert error message:', insertError.message);
-          console.error('[webhook] Insert error details:', insertError.details);
-          break;
-        }
-
-        console.log(`[webhook] SUCCESS: License ${licenseKey} created for user ${userId} (${plan})`);
-        console.log('[webhook] Insert result:', JSON.stringify(insertData));
+        await mintFromCheckout(session, userId);
         break;
       }
 
       case 'invoice.paid': {
-        const invoice        = event.data.object;
-        const subscriptionId = invoice.subscription;
-        if (!subscriptionId) break;
-
-        const { data: license } = await supabase
-          .from('licenses')
-          .select('expires_at, plan')
-          .eq('stripe_subscription_id', subscriptionId)
-          .single();
-
-        if (!license) {
-          console.warn(`[webhook] No license found for subscription ${subscriptionId}`);
+        const invoice = event.data.object;
+        const subId = subscriptionOf(invoice);
+        if (!subId) {
+          console.log(`[webhook] invoice ${invoice.id} paid, not a subscription's, nothing to renew`);
           break;
         }
-
-        const newExpiry = extendExpiresAt(license.expires_at, license.plan);
-        await supabase
-          .from('licenses')
-          .update({ expires_at: newExpiry, status: 'active' })
-          .eq('stripe_subscription_id', subscriptionId);
-
-        console.log(`[webhook] Subscription ${subscriptionId} renewed. New expiry: ${newExpiry}`);
+        let end = latestLineEnd(invoice);
+        if (!end) end = periodEndOf(await stripe.subscriptions.retrieve(subId));
+        if (!end) throw new Error(`invoice ${invoice.id}: no period end on its lines or on subscription ${subId}`);
+        await renew(subId, end, invoice.id);
         break;
       }
 
+      /*
+       * A failed payment marks the licence, as it always did. Two things it
+       * no longer does: rewrite a licence that has ended (cancelled, refunded,
+       * disputed), and mark a customer who has since paid. Stripe does not
+       * promise events in order, so a failure retried late can arrive after
+       * the retry that succeeded, and it would have locked out a paying
+       * customer until the next renewal. The invoice is asked how it stands now.
+       */
       case 'invoice.payment_failed': {
-        const subscriptionId = event.data.object.subscription;
-        if (!subscriptionId) break;
-        await supabase
+        const invoice = event.data.object;
+        const subId = subscriptionOf(invoice);
+        if (!subId) break;
+        const now = await stripe.invoices.retrieve(invoice.id);
+        if (now && now.status === 'paid') {
+          console.log(`[webhook] invoice ${invoice.id} failed once and is paid now, licence left as it is`);
+          break;
+        }
+        const { data, error } = await supabase
           .from('licenses')
           .update({ status: 'payment_failed' })
-          .eq('stripe_subscription_id', subscriptionId);
-        console.log(`[webhook] Payment failed for subscription ${subscriptionId}`);
+          .eq('stripe_subscription_id', subId)
+          .eq('status', 'active')
+          .neq('plan', 'lifetime')
+          .select('id');
+        if (error) throw dbFailure(`mark subscription ${subId} payment_failed`, error);
+        console.log(`[webhook] payment failed for subscription ${subId}, ${data ? data.length : 0} licence(s) marked`);
         break;
       }
 
+      // Stripe ended the subscription. A licence revoked for a refund or a
+      // chargeback keeps that reason rather than becoming merely cancelled,
+      // and a lifetime licence that names it is not billed by it.
       case 'customer.subscription.deleted': {
-        const subscriptionId = event.data.object.id;
-        await supabase
+        const subId = event.data.object.id;
+        const { data, error } = await supabase
           .from('licenses')
           .update({ status: 'cancelled' })
-          .eq('stripe_subscription_id', subscriptionId);
-        console.log(`[webhook] Subscription ${subscriptionId} cancelled`);
+          .eq('stripe_subscription_id', subId)
+          .in('status', ['active', 'payment_failed', 'expired'])
+          .neq('plan', 'lifetime')
+          .select('id');
+        if (error) throw dbFailure(`cancel the licences of subscription ${subId}`, error);
+        console.log(`[webhook] subscription ${subId} ended, ${data ? data.length : 0} licence(s) cancelled`);
         break;
       }
 
       /*
        * A FULL refund revokes. A PARTIAL one must not: charge.refunded fires
-       * for both, and a goodwill partial refund on a lifetime purchase is not a
-       * reason to take the product away. Stripe sets `refunded` true only when
-       * the charge is fully refunded, and the amounts are compared as well
-       * because that flag is the one thing here worth double checking.
+       * for both, and a goodwill partial refund is not a reason to take the
+       * product away. Stripe sets `refunded` true only when the charge is
+       * fully refunded, and the amounts are compared as well because that
+       * flag is the one thing here worth double checking.
        */
       case 'charge.refunded': {
         const charge = event.data.object;
@@ -324,9 +531,10 @@ async function webhookHandler(req, res) {
             + `(${charge.amount_refunded} of ${charge.amount}), licence left alone`);
           break;
         }
-        await revokeLicence({
-          paymentIntent: charge.payment_intent,
-          customer: charge.customer,
+        await revokeForCharge({
+          chargeId: charge.id,
+          customer: idOf(charge.customer),
+          paymentIntent: idOf(charge.payment_intent),
           reason: 'refunded',
           label: 'refund',
         });
@@ -337,12 +545,13 @@ async function webhookHandler(req, res) {
        * A chargeback is a refund the customer took without asking, so it
        * revokes on the same terms. Waiting for the dispute to resolve would
        * mean serving a product to someone who has already taken the money back.
+       * A Dispute has no customer of its own: the charge it names has.
        */
       case 'charge.dispute.created': {
         const dispute = event.data.object;
-        await revokeLicence({
-          paymentIntent: dispute.payment_intent,
-          customer: dispute.customer || null,
+        await revokeForCharge({
+          chargeId: idOf(dispute.charge),
+          paymentIntent: idOf(dispute.payment_intent),
           reason: 'disputed',
           label: 'chargeback',
         });
@@ -355,9 +564,11 @@ async function webhookHandler(req, res) {
 
     res.json({ received: true });
   } catch (err) {
-    console.error('[webhook] Handler error:', err.message, err.stack);
+    console.error('[webhook] Handler error:', err.message);
     res.status(500).json({ error: 'Webhook handler failed' });
   }
 }
 
 module.exports = webhookHandler;
+// For the offline tests.
+module.exports.__test = { getExpiresAt, generateLicenseKey, planFromMode, PLAN_DAYS };

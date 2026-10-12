@@ -32,7 +32,11 @@ function paintCadence(s) {
   cadenceEl.hidden = !on;
   if (on) {
     const every = s.cadence < 1000 ? `${s.cadence}ms` : `${Math.round(s.cadence / 100) / 10}s`;
-    cadenceEl.textContent = `Reading every ${every} right now${s.captureSpeed === 'auto' ? ', chosen automatically' : ''}.`;
+    // The gap is the live round's: menus, a confirmed buy phase and the time
+    // spent dead are read less often (read-cadence.js, 8.3.2), and this line
+    // is mostly seen between matches, so it says which it means.
+    cadenceEl.textContent = `Reading every ${every} in a live round right now`
+      + `${s.captureSpeed === 'auto' ? ', chosen automatically' : ''}. Menus, buy phases and the time spent dead are read less often.`;
   }
 }
 
@@ -481,10 +485,17 @@ window.occlara.getBackfill().then(paintBackfill).catch(() => {});
 
 // Render the license block. Accepts either a getLicense() result or a state
 // snapshot (both carry licensePlan / licenseStatus / licenseExpiry).
+// A plan bought after the last one ended is a new key, so an ended one says
+// to log out and enter it (license-service.js, ENDED_NOTICES). A failed
+// payment is a grace: the key works until its expiry while the card is tried
+// again, and this says so beside it.
+const RENEW_HERE = 'Renew with Manage subscription, then Log out and enter your new key.';
 const ENDED_MESSAGES = {
-  expired:        'Your subscription has expired. Renew to keep getting reviews.',
-  cancelled:      'Your subscription was cancelled. Resubscribe to keep getting reviews.',
-  payment_failed: 'Your last payment failed. Update your payment method to keep getting reviews.',
+  expired:        `Your subscription has ended. ${RENEW_HERE}`,
+  cancelled:      `Your subscription was cancelled. ${RENEW_HERE}`,
+  payment_failed: 'Your last payment failed. Update your card with Manage subscription to keep getting reviews.',
+  refunded:       'This key was refunded, so it no longer works. Log out to enter another key.',
+  disputed:       'This key\'s payment is disputed, so it no longer works. Email support@occlara.app.',
   device_mismatch:'This key is active on another device.',
 };
 
@@ -503,7 +514,7 @@ function renderLicense(lic) {
   const ended = !!status && status !== 'active';
   const noticeEl = document.getElementById('lic-ended');
   if (noticeEl) {
-    noticeEl.textContent = ENDED_MESSAGES[status] || 'Your subscription has ended. Renew to keep getting reviews.';
+    noticeEl.textContent = ENDED_MESSAGES[status] || `Your subscription has ended. ${RENEW_HERE}`;
     noticeEl.hidden = !ended;
   }
 }

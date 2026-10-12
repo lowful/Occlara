@@ -2,7 +2,7 @@
 
 const { ipcMain, shell } = require('electron');
 const C = require('../../shared/channels');
-const { PURCHASE_URL } = require('../../shared/config');
+const { PURCHASE_URL, SIGNUP_URL } = require('../../shared/config');
 const { capGB } = require('../../shared/clips');
 const store = require('../services/store');
 const updater = require('../updater');
@@ -96,7 +96,10 @@ function registerIpc(deps) {
   ipcMain.on(C.OPEN_CHAT_SEEDED, (_e, seed) => guard('chatSeeded', () => controller.openChatSeeded(seed)));
   ipcMain.on(C.REVIEW_OPEN,    (_e, id) => guard('reviewOpen', () => controller.openReviewById(id)));
   ipcMain.on(C.REVIEW_AILOG,   (_e, id, at) => guard('reviewAiLog', () => controller.openReviewAiLog(id, at)));
-  ipcMain.on(C.OPEN_PURCHASE,  () => guard('purchase', () => shell.openExternal(PURCHASE_URL)));
+  // The account page, or the sign up page for the licence window's "Get one":
+  // a page names which, never a URL.
+  ipcMain.on(C.OPEN_PURCHASE,  (_e, which) => guard('purchase',
+    () => shell.openExternal(which === 'signup' ? SIGNUP_URL : PURCHASE_URL)));
   ipcMain.on(C.LICENSE_LOGOUT, () => guard('logout',   () => controller.logout()));
   ipcMain.on(C.ONBOARDING_DONE,() => guard('onboarding', () => controller.finishOnboarding()));
   ipcMain.on(C.APP_QUIT,       () => guard('quit',     () => controller.quit()));

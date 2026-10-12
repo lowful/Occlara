@@ -65,8 +65,10 @@ function latencies(seed, p90) {
  * before it is, as drain() applies them: the clock then reads the second it was
  * APPLIED, and `at` the second its frame was captured, as a live session has it.
  */
-function replay(file, { menusAfter = 0, latency = null } = {}) {
-  const frames = require(path.join(__dirname, 'fixtures', file)).frames;
+function replay(file, { menusAfter = 0, latency = null, cadence = true, edit = null } = {}) {
+  // `edit` reads the session otherwise: the frames copied, never the cached fixture changed.
+  const real = require(path.join(__dirname, 'fixtures', file)).frames;
+  const frames = edit ? real.map((f) => edit({ ...f })) : real;
   const t0 = Date.parse('2026-10-04T20:00:00Z');
   let clock = t0;
   Date.now = () => clock;
@@ -78,6 +80,8 @@ function replay(file, { menusAfter = 0, latency = null } = {}) {
   const e = new CoachingEngine({ licenseKey: 'TEST', captureFunction: async () => null, experiments: () => ({}),
     diagnostics: (rec) => logged.push({ t: Math.round((rec.at - t0) / 100) / 10, died: !!rec.died }) });
   e.isRunning = true;
+  // The read cadence switched off: it is told nothing and asks for nothing.
+  if (!cadence) e.readCadence = { reset() {}, applied() {}, gap: (s, now, base) => ({ ms: base, why: 'off' }) };
   const reviews = [];
   const resumed = [];
   e.on('match-review', (text, snap) => reviews.push({ snap, at: clock }));
@@ -170,12 +174,18 @@ function againstRiot(rounds, truth) {
     const attack = early.filter((r) => r.side === 'attacking').length;
     ok(attack >= 6, `rounds 5 to 12 read as the first half side, not flipped (${attack} of ${early.length} attacking)`);
     // Riot's record of this match (riot-split-13-7.json): a death in 16 of its
-    // 20 rounds. Round 18's is the round before's COMBAT REPORT in its buy phase.
+    // 20 rounds, and every one of them is the screen's too.
     const splitTruth = {};
     for (const r of require('./fixtures/riot-split-13-7.json').perRound) if (r.died) splitTruth[r.n] = r.deathMs / 1000;
     const vs = againstRiot(rounds, splitTruth);
-    ok(vs.agree === 16 && vs.missed === 0 && vs.invented <= 1 && vs.close >= 13,
+    ok(vs.agree === 16 && vs.missed === 0 && vs.invented === 0 && vs.close >= 13,
       `deaths round by round against Riot (${JSON.stringify(vs)})`);
+    // Round 18's buy phase: "buy 0:24" and "buy 0:18" agree the timer runs out
+    // at 1811 s, a "buy" read with no clock at 1802.6 s used to cut that window
+    // to two seconds, and round 17's COMBAT REPORT at 1805.6 s was round 18's
+    // death. Riot has the player alive in round 18.
+    const r18 = rounds.find((r) => r.n === 18);
+    ok(r18 && !r18.died, `round 18 keeps no death: a buy read with no clock does not cut short a window two clocked reads agree on (${r18 && r18.died})`);
     // THE FRAME'S OWN ULTIMATE READ. Round 16's alternated ready and charging,
     // the last ready nine seconds before the death and two empty reads after
     // it, and the one the context held made it "died holding your ultimate".
@@ -291,6 +301,33 @@ function againstRiot(rounds, truth) {
     run.restore();
   }
 
+  // ── Two misread timers that agree by chance hold no buy window ────────────
+  // Round 5's post plant read five "buy" timers in six seconds off anything,
+  // 0:39, 0:13, 0:23, 0:19 and 0:39 (436.8 to 441.9 s), and buy with no clock
+  // from 445 to 454 s. Had the last been 0:18, it and the 0:19 before it end
+  // within a second of each other: two clocked reads that agree, which a buy
+  // read with no clock no longer cuts (coaching-engine.js buyWindow). The
+  // round ledger took neither for a buy phase (buyVerdict), so the window is
+  // held only where its buy end agrees, and a real death later in that post
+  // plant is a death, not the combat report of the round before.
+  {
+    const dies = (f) => {
+      if (f.t === 441.9) f.clock = '0:18';
+      if (f.t >= 457.1 && f.t <= 461.1) {
+        delete f.playerHp;
+        delete f.playerWeapon;
+        Object.assign(f, { phase: 'dead', playerAlive: false, spike: 'planted',
+          aliveTell: f.t === 457.1 ? 'KILLED BY Jett and COMBAT REPORT no own health' : 'Spectating teammate with SWITCH PLAYER bottom left' });
+      }
+      return f;
+    };
+    const run = replay('valorant-session-sunset-swiftplay.json', { edit: dies });
+    const r5 = run.e.ledger.list().find((r) => r.n === 5);
+    ok(run.deaths.includes(457.1) && r5 && r5.died,
+      `two misread timers agreeing in a post plant keep no window over a real death there (deaths ${run.deaths.filter((t) => t > 430 && t < 470).join(', ') || 'none'} s)`);
+    run.restore();
+  }
+
   // ── The 24 round Abyss match, against Riot's record of it ─────────────────
   {
     const riot = require('./fixtures/riot-abyss-13-11.json');
@@ -339,6 +376,31 @@ function againstRiot(rounds, truth) {
         ok(!differ.length, `${file.replace(/^valorant-session-|\.json$/g, '')} at a read p90 of 2.7 s (seed ${seed}): `
           + `the rounds, their deaths and where each frame is filed are the capture time replay's (${differ.join(', ') || 'same'})`);
       }
+    }
+  }
+
+  // ── The read cadence only watches ─────────────────────────────────────────
+  // read-cadence.js is told every read the engine applies and decides only
+  // when the next one goes. Fed the four sessions, it must leave every round,
+  // death, filed frame, mode and map exactly as the engine without it has
+  // them, and have followed the reads to the last.
+  {
+    for (const file of ['valorant-session-sunset-swiftplay.json', 'valorant-session-abyss-swiftplay.json',
+      'valorant-session-split-competitive.json', 'valorant-session-abyss-unrated.json']) {
+      const on = replay(file);
+      const off = replay(file, { cadence: false });
+      const of = (r) => ({ ledger: ledgerOf(r), filed: r.filed.map((x) => x.n).join(), deaths: r.deaths.join(),
+        modes: JSON.stringify(r.modes), maps: r.maps.map((m) => m.map).join() });
+      const a = of(on);
+      const b = of(off);
+      const differ = Object.keys(a).filter((k) => a[k] !== b[k]);
+      const frames = require(path.join(__dirname, 'fixtures', file)).frames;
+      const last = Date.parse('2026-10-04T20:00:00Z') + frames[frames.length - 1].t * 1000;
+      on.restore();
+      off.restore();
+      ok(!differ.length && on.e.readCadence.appliedAt === last,
+        `${file.replace(/^valorant-session-|\.json$/g, '')}: the read cadence changes nothing the guards decide, `
+        + `and has followed every read to the last (${differ.join(', ') || 'same'})`);
     }
   }
 

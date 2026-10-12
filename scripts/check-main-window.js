@@ -529,7 +529,7 @@ setTimeout(async () => {
     lines.push(`notice line at rest: ${JSON.stringify(quiet)}`);
     if (quiet.hidden || quiet.shown || quiet.text) return report(false, `with nothing to say, the notice line shows, or is hidden where its live region should wait empty: ${JSON.stringify(quiet)}`);
     const stateNow = await sjs('window.occlara.getState()');
-    const BUSY = 'Recording stopped for this session: your PC was busy. The coach still reads your screen every second.';
+    const BUSY = 'Recording stopped for this session: your PC was busy. The coach still reads your screen up to once a second.';
     const BLOCKED = 'Windows blocked screen capture. Add Occlara to your antivirus exclusions (Windows Security, Virus and threat protection, Exclusions), then start again.';
     shell.webContents.send(CH.PUSH_STATE, { ...stateNow, notice: { text: BUSY, at: Date.now(), kind: 'recorder' } });
     const busy = await until(async () => { const n = await noticeAt(); return n.shown ? n : null; }, 3000);
@@ -622,9 +622,12 @@ setTimeout(async () => {
     const markShown = () => { const d = registry.get('dock'); return !!(d && d.isVisible()); };
     await sjs("document.getElementById('w-close').click(); true");
     await until(() => !win.isVisible(), 3000);
-    lines.push(`X: window alive=${!win.isDestroyed()} visible=${win.isVisible()} corner mark=${markShown()}`);
+    // Waited for: the mark goes up a turn after the window hides (index.js
+    // placeMark), never in the same moment.
+    const markUp = await until(markShown, 3000);
+    lines.push(`X: window alive=${!win.isDestroyed()} visible=${win.isVisible()} corner mark=${!!markUp}`);
     if (win.isDestroyed() || win.isVisible()) return report(false, 'the X did not hide the window, or closed it');
-    if (!await until(markShown, 3000)) return report(false, 'hidden, the corner mark did not show');
+    if (!markUp) return report(false, 'hidden, the corner mark did not show');
     // The mark sits over Valorant's kill feed while the game is played, so it
     // is kept out of every capture, Occlara's own included (dock-window.js).
     // Electron reports content protection on Windows and macOS only.

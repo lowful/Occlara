@@ -97,7 +97,7 @@ const ok = (cond, what) => { if (!cond) { fails++; console.log(`FAIL  ${what}`);
 
 // ── Nothing here may carry a dash, since the model copies its punctuation ───
 for (const [name, text] of [['fundamentals', k.fundamentals()], ['meta', k.metaBlock(k.META.capturedAt)], ['block', k.block()]]) {
-  ok(!/[—–]/.test(text), `the ${name} block has no em or en dashes`);
+  ok(!/[\u2014\u2013]/.test(text), `the ${name} block has no em or en dashes`);
 }
 
 // ── Determinism, because a prompt that changes per call is untestable ───────
