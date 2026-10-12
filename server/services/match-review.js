@@ -393,20 +393,22 @@ function promptRounds(input, withKnowledge) {
     + block('COUNTED STRENGTHS (counted the same way, these are true):', input.strengths)
     + knowledgeBlock
     + '\n\nWrite exactly this, each label at the start of its own line:\n'
-    + 'SUMMARY: three sentences on one line, under 70 words. First, whether the match was won or lost if the score '
-    + 'says so, and what decided it for the player, drawn from the counted mistakes, the strengths and the patterns. '
+    + 'SUMMARY: three sentences on one line, under 70 words. First, starting with You won or You lost and the score '
+    + 'if the score says so, what decided it for the player, drawn from the counted mistakes, the strengths and the patterns. '
     + 'Second, the first counted mistake in your own words, with its count exactly as given and up to four of its '
     + 'rounds; if no mistake was counted, what cost the most rounds by the round facts, never called a repeated '
     + 'mistake. Third, what went right, from the counted strengths if there are any, otherwise from the round facts.\n'
     + (picks.length
       ? `Then one round line for each of these rounds, in this order: ${picks.map((n) => 'R' + n).join(', ')}.\n`
-        + 'R<number>: at most two sentences and 45 words, explaining that round\'s death from its facts: where, how long '
-        + 'into the round, the killer and the weapon, how many were standing on each side, whether it was traded, and the '
-        + 'plant. What was seen in play is the last the screen showed of the player before it; use it only where it agrees '
-        + 'with the facts. If the facts give you nothing to add, leave that round out.\n'
+        + 'R<number>: one sentence, at most 30 words, on what to do differently next time in that round, with the one fact '
+        + 'that makes it the lesson (the numbers standing when you died, that nobody could trade you, the plant). The player '
+        + 'sees that round\'s facts right beside your line, so never restate them: no killer, weapon, seconds or place '
+        + 'unless the lesson needs that one. What was seen in play is the last the screen showed of the player before the '
+        + 'death; use it only where it agrees with the facts. If the facts give you no lesson, leave that round out.\n'
       : 'Write no round lines: no round was lost to a death.\n')
     + 'FOCUS: one concrete habit for the next match that fixes the first counted mistake, something a player can do '
-    + 'in a round.\n\n'
+    + 'in a round. Being traded means a teammate killed your killer within five seconds, which is good: never call it '
+    + 'the problem.\n\n'
     + GROUNDING
     + languageRule(context.language);
 }
@@ -675,7 +677,56 @@ function parse(text, input) {
       out.dropped.push({ n: r.n, said: named, riot: r.killer });
     }
   }
+
+  // THE TRADE GATE. Live on the player's Sunset match the review model wrote
+  // "No one traded the death" for round 1, which Riot's record has traded, on
+  // the card beside the fact that says so. A line that contradicts the round's
+  // trade, either way, is wrong where the player can see it is, and goes.
+  // AND A LINE THAT ONLY RESTATES THE FACTS goes too: asked to explain a death
+  // from its facts, the same model wrote every round as "You died at Mid Bottom
+  // after twenty six seconds from KAY/O's Sheriff while two teammates stood
+  // against three enemies", the fact line again in other words. Three of the
+  // round's own facts in one line is that.
+  for (const r of input.rounds) {
+    const why = out.rounds[r.n];
+    if (!why) continue;
+    const contradicts = (r.traded === true && NOT_TRADED.test(why)) || (r.traded === false && WAS_TRADED.test(why));
+    if (contradicts) {
+      delete out.rounds[r.n];
+      out.dropped.push({ n: r.n, said: r.traded ? 'not traded' : 'traded', riot: r.traded ? 'traded' : 'not traded' });
+      continue;
+    }
+    if (factsRestated(why, r) >= 3) {
+      delete out.rounds[r.n];
+      out.dropped.push({ n: r.n, said: 'the facts again', riot: null });
+    }
+  }
+  // "Riot lost 2 to 5", the record named as the one who played: the summary
+  // starts with the player's own result, and a sentence that does not is no
+  // sentence of theirs.
+  if (out.summary) {
+    const kept = splitSentences(out.summary).map((s) => s.trim()).filter((s) => s && !/^Riot\s+(?:won|lost)\b/i.test(s));
+    out.summary = kept.join(' ').trim() || null;
+  }
   return out;
+}
+
+// What a line says of a round's trade (TRADE GATE in parse). English, as the
+// killer gate's words are.
+const NOT_TRADED = /\b(?:no one|nobody|no teammate|no ally|not|never)\s+(?:was\s+|were\s+|got\s+|could\s+|did\s+)?(?:able to\s+)?trad(?:e|ed|ing)\b|\buntraded\b|\bunanswered\b|\bwithout (?:a |any )?trade\b/i;
+const WAS_TRADED = /\b(?:you were|you got|was|got|were) traded\b|\btraded by (?:a |your )?teammate\b/i;
+
+/** How many of the round's own facts a line names: the killer, the weapon, the place, the seconds, the numbers. */
+function factsRestated(why, r) {
+  const text = String(why || '');
+  const has = (word) => !!word && new RegExp(`(^|[^A-Za-z0-9])${String(word).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}($|[^A-Za-z0-9])`, 'i').test(text);
+  let n = 0;
+  if (has(r.killer)) n += 1;
+  if (has(r.weapon)) n += 1;
+  if (r.deathSpot && has(r.deathSpot)) n += 1;
+  if (/\b(?:\d+|[a-z]+(?:[ ][a-z]+)?)\s+seconds?\b/i.test(text) && /\bseconds?\b/i.test(text)) n += 1;
+  if (/\b(?:\d|one|two|three|four|five)\s+(?:teammates?\s+|allies\s+)?(?:stood\s+|standing\s+)?(?:against|versus|vs\.?)\s+(?:\d|one|two|three|four|five)\b/i.test(text)) n += 1;
+  return n;
 }
 
 const NUMBER_WORDS = {
