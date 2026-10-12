@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T22:28:37.143Z",
+  "generatedAt": "2026-10-12T23:34:15.936Z",
   "source": "https://www.marvelrivals.com/heroes/",
   "count": 54,
   "heroes": [
@@ -941,10 +941,10 @@
         "Vanguard"
       ],
       "health": {
-        "base": 850,
+        "base": 825,
         "shield": 0,
-        "total": 850,
-        "printed": "850"
+        "total": 825,
+        "printed": "825"
       },
       "speed": 6,
       "abilities": [
