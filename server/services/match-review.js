@@ -690,7 +690,11 @@ function parse(text, input) {
   for (const r of input.rounds) {
     const why = out.rounds[r.n];
     if (!why) continue;
-    const contradicts = (r.traded === true && NOT_TRADED.test(why)) || (r.traded === false && WAS_TRADED.test(why));
+    // And "hesitating at the corner gets you traded", from the same model after
+    // the prompt said what a trade is: being traded is your killer dying
+    // within five seconds, never the harm a line warns of.
+    const contradicts = (r.traded === true && NOT_TRADED.test(why)) || (r.traded === false && WAS_TRADED.test(why))
+      || TRADE_AS_HARM.test(why);
     if (contradicts) {
       delete out.rounds[r.n];
       out.dropped.push({ n: r.n, said: r.traded ? 'not traded' : 'traded', riot: r.traded ? 'traded' : 'not traded' });
@@ -715,6 +719,7 @@ function parse(text, input) {
 // killer gate's words are.
 const NOT_TRADED = /\b(?:no one|nobody|no teammate|no ally|not|never)\s+(?:was\s+|were\s+|got\s+|could\s+|did\s+)?(?:able to\s+)?trad(?:e|ed|ing)\b|\buntraded\b|\bunanswered\b|\bwithout (?:a |any )?trade\b/i;
 const WAS_TRADED = /\b(?:you were|you got|was|got|were) traded\b|\btraded by (?:a |your )?teammate\b/i;
+const TRADE_AS_HARM = /\bget(?:s|ting)? you traded\b|\b(?:leads? to|ends? in|means) (?:you )?(?:being|getting) traded\b/i;
 
 /** How many of the round's own facts a line names: the killer, the weapon, the place, the seconds, the numbers. */
 function factsRestated(why, r) {
