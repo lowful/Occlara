@@ -262,7 +262,16 @@ over a match lost on untraded deaths. So:
   line, a summary sentence or a focus sentence that blames the buy phase, the
   spawn or a menu (`BUY_BLAME`), a summary sentence calling something a
   repeated mistake whose rounds are no counted mistake's, and any "N of M" but
-  a counted mistake's own.
+  a counted mistake's own. A round line is ONE lesson: what to do differently,
+  with the one fact that makes it the lesson, because the card shows the facts
+  beside it. Live on the first 8.3.1 server the review model (Railway's
+  qwen3.7-flash) restated every fact line, wrote "No one traded the death" for
+  a round Riot has traded, and opened with "Riot lost 2 to 5"; so code drops a
+  line that contradicts its round's trade either way (`NOT_TRADED`,
+  `WAS_TRADED`) or calls being traded the harm (`TRADE_AS_HARM`: "hesitating
+  gets you traded"), one naming three of its own facts again (`factsRestated`:
+  the killer, the weapon, the place, the seconds, the numbers standing), and a
+  summary sentence naming Riot as the one who won or lost.
 - **A buy read once play has been seen begins a round only when it can**
   (`buyVerdict`): never inside a buy timer already running, never on a clock
   not read on that frame (the engine holds the last one, `clockRead`), and only
