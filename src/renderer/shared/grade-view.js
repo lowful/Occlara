@@ -121,13 +121,20 @@
     return wrap;
   }
 
-  function item(e, kind, onRound) {
-    const li = el('li', 'gv-item ' + kind);
+  /**
+   * One entry. `brief` (the review's saidInRound, below) is an entry whose
+   * sentences its round's row says on the same page: its title with its round
+   * chip beside it, one line, the chip jumping to the round.
+   */
+  function item(e, kind, onRound, brief) {
+    const li = el('li', 'gv-item ' + kind + (brief ? ' brief' : ''));
     const head = el('div', 'gv-item-head');
     head.append(el('span', 'gv-dot'));
     head.append(el('b', 'gv-item-title', e.title));
+    if (brief) head.append(roundChips(e.rounds, onRound));
     if (e.judged && kind !== 'fact') head.append(el('span', 'gv-badge', "coach's look"));
     li.append(head);
+    if (brief) return li;
     if (e.detail) li.append(el('p', 'gv-item-detail', e.detail));
     // A fact is never a mistake, so it never carries a fix.
     if (e.fix && e.fix !== e.detail && kind !== 'fact') {
@@ -167,11 +174,18 @@
    * says so when all three are empty, because a blank section reads as broken.
    * A review's insights that carry facts are a review graded from Riot's record
    * alone, and are drawn as facts wherever they are drawn.
+   *
+   * @param opts.saidInRound  (entry) => true when the page says the entry's
+   *   sentences in its round's own row: the review page passes it for a death
+   *   the coach looked at, so it is said once. Taken only with an onRound to
+   *   jump there; the library and Home pass neither.
    */
   function insightLists(insights, opts) {
     const o = opts || {};
     const ins = insights || {};
     if (Array.isArray(ins.facts)) return factList(ins.facts, o);
+    const brief = (e) => typeof o.onRound === 'function' && typeof o.saidInRound === 'function'
+      && Array.isArray(e.rounds) && e.rounds.length > 0 && !!o.saidInRound(e);
     const wrap = el('div', 'gv-insights');
     const blocks = [
       ['mistakes', o.mistakesTitle || 'Your repeated mistakes', 'bad'],
@@ -186,7 +200,7 @@
       const block = el('section', 'gv-block');
       block.append(el('h3', null, title));
       const ul = el('ul', 'gv-list');
-      for (const e of list.slice(0, o.limit || 6)) ul.append(item(e, kind, o.onRound));
+      for (const e of list.slice(0, o.limit || 6)) ul.append(item(e, kind, o.onRound, brief(e)));
       block.append(ul);
       wrap.append(block);
     }

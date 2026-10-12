@@ -78,6 +78,10 @@ const CHANNELS = {
   // for Settings: what they take against the cap, and Clear clips.
   CLIPS_USAGE:     'clips:usage',        // () -> { bytes, clips, reviews, capGB }
   CLIPS_CLEAR:     'clips:clear',        // () -> the same, once every clip is gone
+  // The PC check behind onboarding's Record gameplay or Frames only (8.3.1,
+  // src/main/services/pc-check.js): what Node can tell of this PC, and the
+  // recorder's two encoder asks for the page to put to WebCodecs itself.
+  PC_CHECK:        'pc:check',           // () -> { gpu, cpu, threads, ramBytes, display, freeBytes, drive, asks: [{ res, width, height, codec, bitrate }] }
   AILOG_SHOW:      'ailog:show',         // (sessionId | { scope, at? }) jump an OPEN log window to one session, or to one match of one, at one frame of it
   // The one window (8.1, src/main/windows/main-window.js): the sidebar asks
   // for a page by its id in src/shared/shell-nav.js, and the top strip's
@@ -146,6 +150,17 @@ const CHANNELS = {
   // page -> main: { id, ok, ... } the answer to a grab (a JPEG for the read),
   // a compare (the stream's brightness against a GDI frame's) or a gate
   RECORDER_REPLY:    'recorder:reply',
+
+  // ── the frames of a clip (8.3.1, src/main/windows/frames-window.js) ───────
+  // Between main and the frames page (src/renderer/frames), a window that is
+  // never shown, and nothing else: the stills the look at a death takes from
+  // a clip of the match's recording, decoded after the match.
+  // main -> page: { id, codec, width, height, chunks: [{ ts, key, data }],
+  // picks: [ts | null], outWidth, outHeight, quality }
+  PUSH_FRAMES:       'push:frames',
+  // page -> main: { type: 'ready' } once, then { id, ok, frames: [JPEG |
+  // null], accel, ms, error }
+  FRAMES_REPLY:      'frames:reply',
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -163,6 +178,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_SHELL,
   CHANNELS.PUSH_PAGE,
   CHANNELS.PUSH_RECORDER,
+  CHANNELS.PUSH_FRAMES,
 ];
 
 module.exports = CHANNELS;

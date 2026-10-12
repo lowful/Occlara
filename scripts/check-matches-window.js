@@ -23,9 +23,10 @@
  * REVIEW_AILOG and the strict read, for a review that kept its place in the
  * log and for one saved before, found by its end; disabled where the session
  * is gone, absent for Riot's record, and in the review's header too. And the
- * review's last section, "Where you died, and how" (8.2): the kept frame
- * painted there across the section and not on the round's card, and the eye
- * on that moment opening the AI log at the frame the coach looked at.
+ * review's one list of rounds (8.3.1): the kept frame painted in its own
+ * round's row, across its side of the row, with no section of its own at the
+ * bottom any more, every round listed and no raw read shown, and the eye on
+ * that moment opening the AI log at the frame the coach looked at.
  *
  * Results travel through a FILE, not stdout: an Electron main process on Windows
  * does not reliably flush a piped stdout.
@@ -52,7 +53,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: saved reviews are listed, patterns and the breakdown paint and sort for every game, the grading line follows the Riot ID, a row opens its review with its kept frame under Where you died, and how, its eyes open the AI log on that match alone and at the moment looked at, and a match graded from Riot\'s record alone states facts');
+  console.log('PASS: saved reviews are listed, patterns and the breakdown paint and sort for every game, the grading line follows the Riot ID, a row opens its review with its kept frame in its own round, its eyes open the AI log on that match alone and at the moment looked at, and a match graded from Riot\'s record alone states facts');
   process.exit(0);
 }
 
@@ -109,8 +110,8 @@ const { rounds } = verify.reconcile(played.rounds, load('riot-abyss-13-11.json')
 const now = Date.now();
 const NEWEST = now - 40 * 60000;               // the newest match, ending now
 // The coach's look at round 2, at a moment of the newest match: the second
-// frame the AI log keeps of it (below), which the eye on the moment opens at
-// in the review's "Where you died, and how" (8.2).
+// frame the AI log keeps of it (below), which the eye on the moment opens at,
+// in round 2's own row of the review (8.3.1).
 const LOOK_AT = NEWEST + 70000;
 rounds.find((r) => r.n === 2).forensics = { cause: 'dry-peek', what: 'You swung wide with nothing thrown.', better: 'Wait for the flash.',
   frames: ['r2-before.jpg'], source: 'riot', at: LOOK_AT };
@@ -517,18 +518,19 @@ setTimeout(async () => {
     const rjs = (s) => rwin.webContents.executeJavaScript(s);
     const shown = await rjs("!document.getElementById('vreview').hidden");
     const letter = await rjs("(document.querySelector('.gv-letter') || {}).textContent || ''");
-    // The kept frame is painted in "Where you died, and how" (8.2), the last
-    // section, and no longer on the round's card, which keeps a link down to it.
-    const img = await rjs("(document.querySelector('.v-moment img') || {}).src || ''");
+    // The kept frame is painted in round 2's own row (8.3.1), where it was a
+    // section of its own at the bottom of the review with a link down from
+    // the round. Every round has its row, and no raw read is shown.
+    const img = await rjs("(document.querySelector('#round-2 .v-moment img') || {}).src || ''");
     const look = await rjs(`(() => {
-      const wrap = document.getElementById('v-looks-wrap');
       const card = document.getElementById('round-2');
       const m = document.getElementById('moment-2');
-      return { shown: !wrap.hidden, last: wrap.nextElementSibling && wrap.nextElementSibling.classList.contains('v-foot'),
-        heading: wrap.querySelector('h3').textContent, cardImgs: card ? card.querySelectorAll('img').length : -1,
-        link: !!(card && card.querySelector('.v-moment-link')), eye: !!(m && m.querySelector('.v-moment-head .log-eye')),
+      const side = m && m.querySelector('.v-media');
+      return { inRound: !!(card && m && card.contains(m)), oldSection: !!document.getElementById('v-looks-wrap'),
+        link: !!document.querySelector('.v-moment-link'), eye: !!(card && card.querySelector('.v-round-head .log-eye')),
+        rows: document.querySelectorAll('#v-rounds .v-round').length, reads: document.querySelectorAll('.v-read').length,
         width: m ? Math.round(m.querySelector('.v-shot img').getBoundingClientRect().width) : 0,
-        column: Math.round(wrap.getBoundingClientRect().width) };
+        side: side ? Math.round(side.getBoundingClientRect().width) : 0 };
     })()`);
     const ask = await rjs("!document.getElementById('ask').hidden");
     // The same eye in the review's header, right before Ask about this match.
@@ -538,16 +540,18 @@ setTimeout(async () => {
       return e ? { shown: !host.hidden, disabled: e.disabled, next: host.nextElementSibling && host.nextElementSibling.id } : null;
     })()`);
     lines.push(`review shown=${shown} letter=${letter} frame=${img.slice(0, 30)} ask=${ask} eye=${JSON.stringify(reye)}`);
-    lines.push(`where you died: ${JSON.stringify(look)}`);
+    lines.push(`round 2's look: ${JSON.stringify(look)}`);
     if (!shown) return report(false, 'the review window opened empty');
     if (letter !== built.grade.letter) return report(false, `the review painted grade ${letter}, expected ${built.grade.letter}`);
-    if (!img.startsWith('data:image/jpeg;base64,')) return report(false, 'the kept frame did not reach "Where you died, and how"');
-    if (!look.shown || !look.last || look.heading !== 'Where you died, and how') {
-      return report(false, `the moments section is ${JSON.stringify(look)}, not the last one on the review`);
+    if (!img.startsWith('data:image/jpeg;base64,')) return report(false, 'the kept frame did not reach round 2\'s row');
+    if (!look.inRound || look.oldSection || look.link) {
+      return report(false, `round 2's look is ${JSON.stringify(look)}, not inside its round with no section at the bottom and no link down`);
     }
-    if (look.cardImgs !== 0 || !look.link) return report(false, `round 2's card still paints ${look.cardImgs} frame(s), or has no link down to its moment`);
-    // A frame on its own takes the whole width of the section, less the card's padding.
-    if (!look.width || look.width < look.column - 48) return report(false, `the kept frame is ${look.width}px wide in a ${look.column}px section`);
+    if (look.rows !== built.rounds.length || look.reads) {
+      return report(false, `the list has ${look.rows} rows for ${built.rounds.length} rounds, and shows ${look.reads} raw read(s)`);
+    }
+    // A frame on its own takes the whole width of its side of the row.
+    if (!look.width || look.width < look.side - 4) return report(false, `the kept frame is ${look.width}px wide on a ${look.side}px side`);
     if (!look.eye) return report(false, 'the moment has no eye, though the AI log still holds its match');
     if (!ask) return report(false, 'a saved review offers no Ask about this match');
     if (!reye || !reye.shown || reye.disabled || reye.next !== 'ask') {
@@ -555,7 +559,7 @@ setTimeout(async () => {
     }
     // The eye on the moment moves the open AI log to that match, on the frame
     // the coach looked at, through REVIEW_AILOG with its time and AILOG_SHOW.
-    await rjs("document.querySelector('#moment-2 .v-moment-head .log-eye').click(); true");
+    await rjs("document.querySelector('#round-2 .v-round-head .log-eye').click(); true");
     lv = await viewWhen((v) => v.frames === AILOG.newest && v.at === 1);
     lines.push(`ai log at the moment: ${JSON.stringify(lv)}`);
     if (lv.frames !== AILOG.newest || lv.at !== 1 || !lv.whole || lv.picker) {
@@ -568,7 +572,7 @@ setTimeout(async () => {
     const want = JSON.stringify([{ text: STUDY_TEXT }]);
     const sent = pushed.length ? JSON.stringify(pushed[pushed.length - 1].study) : null;
     const asked = await rjs("window.occlara.getReview().then((r) => JSON.stringify((r && r.study) || null))");
-    const study = await rjs("({ cards: document.querySelectorAll('#v-study .v-study-card').length, text: document.getElementById('v-study').textContent, shown: !document.getElementById('v-study-wrap').hidden })");
+    const study = await rjs("({ cards: document.querySelectorAll('#v-study .v-study-note').length, text: document.getElementById('v-study').textContent, shown: !document.getElementById('v-study-wrap').hidden })");
     lines.push(`study: pushed=${sent} asked=${asked} painted=${study.cards} "${study.text}"`);
     if (sent !== want) return report(false, `the review page was pushed the study notes ${sent}`);
     if (asked !== want) return report(false, `the review page, asking for the review, got the study notes ${asked}`);

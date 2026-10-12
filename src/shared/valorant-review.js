@@ -20,7 +20,15 @@
 
 const insights = require('./insights');
 const grader = require('./grade');
-const { CLIP_RE } = require('./clips');
+const { CLIP_RE, LOOK_AT } = require('./clips');
+const { roleOf } = require('./agent-roles');
+
+let DATA = {};
+try {
+  DATA = require('./valorant-data.generated.json');
+} catch {
+  DATA = {};
+}
 
 const BASELINE_GAMES = 10;
 const BASELINE_MIN = 3;
@@ -56,6 +64,80 @@ function spans(ns) {
 
 function sideLabel(side) {
   return side === 'attacking' ? 'Attack' : side === 'defending' ? 'Defence' : null;
+}
+
+/*
+ * A READ THAT NAMES A PLACE ON ANOTHER MAP IS NOT A READ OF THIS MATCH. The
+ * engine's map lock held Haven for the first three minutes of the player's
+ * Sunset swiftplay, the map went back to the model as context, and its notes
+ * named Haven's places: round 2's last two reads were "holding A Long alone
+ * with low HP" and "holding A Long with spike planted on A", on a map with no
+ * A Long. The review then sends them to the model as what happened, and its
+ * own rule is to name only places the ledger has. So a read naming a callout
+ * the game prints on some map but not on this one is left out: a site letter
+ * as printed ("A Long", never "a long angle") and the words after it, or a
+ * callout only some maps have ("Hookah").
+ */
+const CALLOUTS = (() => {
+  const byMap = new Map();
+  const all = new Set();
+  for (const [map, g] of Object.entries(DATA.mapGeometry || {})) {
+    const names = new Set(((g && g.callouts) || []).map((c) => String((c && c.n) || '').toLowerCase()).filter(Boolean));
+    byMap.set(map.toLowerCase(), names);
+    for (const n of names) all.add(n);
+  }
+  return { byMap, all: [...all].map((n) => n.split(' ')) };
+})();
+
+/** The callout a read names that does not exist on `map`, or null. */
+function foreignPlace(text, map) {
+  const own = CALLOUTS.byMap.get(String(map || '').trim().toLowerCase());
+  if (!own) return null;
+  const toks = String(text || '').split(/[^A-Za-z]+/).filter(Boolean);
+  const low = toks.map((t) => t.toLowerCase());
+  for (const words of CALLOUTS.all) {
+    const name = words.join(' ');
+    if (own.has(name)) continue;
+    for (let i = 0; i + words.length <= toks.length; i++) {
+      // A site letter only as the game prints it, capital, so "a long" is English.
+      if (words[0].length === 1 && toks[i] !== words[0].toUpperCase()) continue;
+      if (words.every((w, k) => low[i + k] === w)) return toks.slice(i, i + words.length).join(' ');
+    }
+  }
+  const m = String(map).trim().toLowerCase();
+  for (const [word, maps] of Object.entries(DATA.mapCallouts || {})) {
+    if (!maps.includes(m) && low.includes(word)) return word;
+  }
+  return null;
+}
+
+/** A round's reads as the review shows and sends them: none from another map. */
+function readsOf(r, map) {
+  return (Array.isArray(r && r.reads) ? r.reads : []).map((x) => (x && typeof x === 'object' ? x.text : x))
+    .filter((t) => typeof t === 'string' && t && !foreignPlace(t, map));
+}
+
+/*
+ * THE FRAMES A LOOK KEEPS ON ITS CARD (8.3.1): up to five, the stills it took
+ * from the match's recording (shared/clips.js LOOK_AT) or the read's own
+ * frames, in time order, with each one's seconds from the death (frameAt)
+ * where the look knew them, and where they came from (framesFrom). The page
+ * labels each frame by its seconds. Cut to two as before, a recorded look's
+ * card kept its stills of 3 and 1.5 s before the death, both labelled "Just
+ * before", and lost the fight and the death screen it was sent. A look from
+ * before keeps its two names and no seconds, and is labelled by its names.
+ */
+const LOOK_FRAMES = Math.max(LOOK_AT.riot.length, LOOK_AT.screen.length);
+function lookFrames(f) {
+  const all = Array.isArray(f && f.frames) ? f.frames : [];
+  const frames = all.slice(0, LOOK_FRAMES);
+  const at = Array.isArray(f.frameAt) && f.frameAt.length === all.length
+    && f.frameAt.every((x) => typeof x === 'number' && Number.isFinite(x)) ? f.frameAt.slice(0, frames.length) : null;
+  return {
+    frames,
+    ...(at ? { frameAt: at } : {}),
+    ...(f.framesFrom === 'recording' || f.framesFrom === 'reads' ? { framesFrom: f.framesFrom } : {}),
+  };
 }
 
 /*
@@ -199,10 +281,17 @@ function patterns(rounds) {
     // THE STRONGER HALF IS NAMED, not left to be inferred from two fractions.
     // Given "won 6 of 12 on attack and 7 of 12 on defence", the model wrote
     // that the player "secured the attack half", which is the opposite.
+    //
+    // AND ONLY ON A GAP OF TWO ROUNDS, the rates' gap over a side of average
+    // length. The player's Sunset swiftplay won one round on each side, 1 of 4
+    // against 1 of 3, and the review called defence the stronger side: one
+    // round either way is the same side, so it says the sides were close.
     const ar = aw / atk.length;
     const dr = dw / def.length;
+    const gap = (Math.abs(ar - dr) * (atk.length + def.length)) / 2;
     const lead = ar === dr ? 'Your attack and defence were level'
-      : ar > dr ? 'Attack was your stronger side' : 'Defence was your stronger side';
+      : gap < 2 ? 'Neither side was clearly stronger'
+        : ar > dr ? 'Attack was your stronger side' : 'Defence was your stronger side';
     out.push({
       key: 'sides',
       text: `${lead}: won ${aw} of ${atk.length} on attack and ${dw} of ${def.length} on defence.`,
@@ -211,12 +300,14 @@ function patterns(rounds) {
 
   // After the spike went down. On attack that is the post-plant, on defence it
   // is the retake, and those are different skills, so they are counted apart.
-  const postAtk = decided.filter((r) => r.planted && r.side === 'attacking');
+  // Only the rounds the player was alive in when it went down
+  // (insights.aliveAtPlant): a death before the plant is no post plant played.
+  const postAtk = decided.filter((r) => insights.aliveAtPlant(r) && r.side === 'attacking');
   if (postAtk.length >= 2) {
     const w = postAtk.filter((r) => r.result === 'won').length;
     out.push({ key: 'postplant', text: `On attack, won ${w} of ${postAtk.length} rounds once the spike was down.` });
   }
-  const retakes = decided.filter((r) => r.planted && r.side === 'defending');
+  const retakes = decided.filter((r) => insights.aliveAtPlant(r) && r.side === 'defending');
   if (retakes.length >= 2) {
     const w = retakes.filter((r) => r.result === 'won').length;
     out.push({ key: 'retake', text: `On defence, won ${w} of ${retakes.length} rounds after they planted.` });
@@ -352,6 +443,7 @@ function build(input) {
     score = `${team}-${enemy}`;
   }
 
+  const mapName = ctx.map || (tracker && tracker.map) || null;
   const cards = rounds.map((r) => ({
     n: r.n,
     side: sideLabel(r.side),
@@ -385,13 +477,14 @@ function build(input) {
       afterPlant: !!r.afterPlant,
     } : null,
     facts: roundFacts(r, { riotOnly }),
-    reads: r.reads.map((x) => x.text),
+    reads: readsOf(r, mapName),
     why: typeof whys[r.n] === 'string' && whys[r.n] ? whys[r.n] : null,
     // The coach's look at the frame before the death, when it took one.
     forensics: r.forensics && r.forensics.cause ? {
       cause: r.forensics.cause, what: r.forensics.what || null, better: r.forensics.better || null,
-      // The kept frame names; the library stores the images beside the review.
-      frames: Array.isArray(r.forensics.frames) ? r.forensics.frames.slice(0, 2) : [],
+      // The kept frame names, the library storing the images beside the
+      // review, with their seconds from the death (lookFrames).
+      ...lookFrames(r.forensics),
       // How the moment was found (8.2): 'screen' when Riot's record never
       // reached the review and the coach framed the death by when the screen
       // read it, so the page says the timing is the coach's own read. 'riot'
@@ -446,10 +539,13 @@ function build(input) {
     // record corrected says "Victory 13-7": without a word between them that
     // reads as the coach changing its mind about the same match.
     const overTooSoon = input.endedBy === 'score' && endedTooSoon(rounds, team, enemy);
+    // NOTHING SEEN ON SCREEN, never "no coach's read" (8.3.1): the page calls
+    // each round's why the coach's read, and the narrative Riot's record is
+    // sent writes one for a round lost to a death, watched or not.
     refused.push(`${stoppedEarly ? 'Coaching was stopped before the match ended. ' : ''}`
       + `${overTooSoon ? `The coach thought the match was over at ${team} to ${enemy}, and it went on. ` : ''}`
       + `Riot's record fills in ${spans(unseen)}, which the coach did not watch, `
-      + `so ${unseen.length === 1 ? 'that round has' : 'those rounds have'} no location or coach's read.`);
+      + `so ${unseen.length === 1 ? 'that round has' : 'those rounds have'} ${UNSEEN_HAS}`);
   }
   if (!riotOnly && !tracker && !isVerified) {
     // 'later' (8.2.1): the watch ended the match on a score only swiftplay
@@ -485,12 +581,15 @@ function build(input) {
     adr: typeof riotMe.damage === 'number' && rounds.length ? Math.round(riotMe.damage / rounds.length) : null,
   } : null;
   const totalRounds = score ? score.split('-').reduce((a, b) => a + (Number(b) || 0), 0) : null;
-  const counted = insights.valorant(rounds, { role: input.role || null });
+  const vs = against(tracker, input.role || null, input.history || []);
+  // The scoreboard and the player's own average reach the strengths, so a
+  // match won on its scoreline says so (insights.js, 'scoreline').
+  const counted = insights.valorant(rounds, { role: input.role || null, scoreline, against: vs });
 
   // Riot's agent wins over the screen's, the same as every other fact it has.
   const game = {
     agent: (tracker && tracker.agent) || ctx.agent || null,
-    map: ctx.map || (tracker && tracker.map) || null,
+    map: mapName,
     mode: queueLabel(input.queue)
       || (ctx.gameMode === 'swiftplay' ? 'Swiftplay' : ctx.gameMode === 'standard' ? 'Standard' : null),
     result,
@@ -543,7 +642,7 @@ function build(input) {
       ? ai.study.filter((n) => n && typeof n.text === 'string' && n.text).slice(0, 3).map((n) => ({ text: n.text }))
       : [],
     rounds: cards,
-    against: against(tracker, input.role || null, input.history || []),
+    against: vs,
     refused,
   };
 }
@@ -583,7 +682,29 @@ function served(review) {
   if (review.source === 'riot') {
     return { ...review, insights: insights.asFacts(review.insights), grade: grader.riotWords(review.grade) };
   }
-  return review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review;
+  const out = review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review;
+  return aboutNotesInTodaysWords(out);
+}
+
+/*
+ * WHAT A REVIEW SAVED BEFORE 8.3.1 SAYS ABOUT THE COACH'S NOTES, in today's
+ * words. Its cards showed the notes, and two of its sentences are about them:
+ * "Riot contradicts one of the coach's reads, so it is hidden" and "those
+ * rounds have no location or coach's read". The page shows no note now and
+ * calls the summary and each round's why the coach's read (review.js), so the
+ * first read as a summary or a round line taken down, and the second sat over
+ * rounds the narrative had written a line for. Shown, never on disk.
+ */
+const UNSEEN_HAS = 'no death location and nothing seen on screen.';
+const UNSEEN_HAD = "no location or coach's read.";
+const HIDDEN_READS = / Riot contradicts (?:one|\d+) of the coach's reads, so (?:it is|they are) hidden\./;
+
+function aboutNotesInTodaysWords(review) {
+  const v = typeof review.verification === 'string' ? review.verification.replace(HIDDEN_READS, '') : review.verification;
+  const said = Array.isArray(review.refused) ? review.refused : null;
+  const refused = said && said.map((t) => (typeof t === 'string' && t.endsWith(UNSEEN_HAD) ? t.slice(0, -UNSEEN_HAD.length) + UNSEEN_HAS : t));
+  const changed = v !== review.verification || (said && refused.some((t, i) => t !== said[i]));
+  return changed ? { ...review, verification: v, ...(said ? { refused } : {}) } : review;
 }
 
 /** A death's timing as the bucket roundFacts prints, or null. */
@@ -603,14 +724,35 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
   const ctx = context || {};
   const team = typeof ctx.teamScore === 'number' ? ctx.teamScore : null;
   const enemy = typeof ctx.enemyScore === 'number' ? ctx.enemyScore : null;
+  const map = ctx.map || (riot && riot.map) || null;
+  /*
+   * THE COUNTED LISTS GO WITH THE ROUNDS, so the summary names the mistake the
+   * review counted. Asked for "the most repeated mistake" with only the round
+   * lines in front of it, the model found one in the reads: on the player's
+   * Sunset swiftplay it wrote "Standing idle in spawn during buy phase was the
+   * repeated mistake occurring in rounds 1, 2, 3 and 4", where the review had
+   * counted deaths nobody traded, in other rounds. The same
+   * counts the review shows, from the same rounds, the agent's role deciding
+   * the floors as it does there; the fix lines stay here, the review shows them.
+   */
+  const s = riot && riot.scoreline;
+  const counted = insights.valorant(rounds, {
+    role: roleOf((riot && riot.agent) || ctx.agent),
+    scoreline: s && typeof s.kills === 'number' && typeof s.deaths === 'number' ? s : null,
+  });
+  const listed = (list) => list.slice(0, 4).map((e) => ({
+    key: e.key, title: e.title, detail: e.detail, rounds: (e.rounds || []).slice(0, 12), count: e.count,
+  }));
   return {
     tips: (tips || []).slice(-30),
     notes: (notes || []).slice(-20),
+    mistakes: listed(counted.mistakes),
+    strengths: listed(counted.strengths),
     rounds: rounds.map((r) => ({
       n: r.n, side: r.side, result: r.result, died: r.died, deathSpot: r.deathSpot,
       timing: timingOf(r), planted: r.planted, plantSpot: r.plantSpot,
       ultReady: r.died && r.ultAtDeath === 'ready',
-      reads: r.reads.map((x) => x.text),
+      reads: readsOf(r, map),
       // Riot's exact facts, when the match has been checked against them.
       ...(r.verified ? {
         verified: true, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
@@ -734,4 +876,4 @@ function against(tracker, role, history) {
 }
 
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
-  queueLabel, queueHalves, withArticle, spans, endedTooSoon, BASELINE_GAMES, BASELINE_MIN };
+  queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, readsOf, BASELINE_GAMES, BASELINE_MIN };

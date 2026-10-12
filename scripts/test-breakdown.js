@@ -305,8 +305,11 @@ const abyss = one.rows.map[0];
   const sp = b.rows.map.find((r) => r.label === 'Split').spots;
   ok(sp.placed === 17 && sp.top.length === 3 && sp.top[0].spot === 'A Site' && sp.top[0].deaths === 4 && sp.callout === null,
     `Split: A Site is 4 of the 17 placed deaths, under a quarter, so it is listed and never called out (${JSON.stringify(sp.top[0])})`);
+  // Five since the ledger keeps round 1's death in round 1, where it filed it
+  // into round 2 and refused round 2's own: five places, one death each.
   const ab = b.rows.map.find((r) => r.label === 'Abyss').spots;
-  ok(ab.placed === 4 && ab.top.length === 0 && ab.callout === null, `the swiftplay places ${ab.placed} deaths, too few to list a spot`);
+  ok(ab.placed === 5 && ab.top.length === 3 && ab.top.every((t) => t.deaths === 1) && ab.callout === null,
+    `the swiftplay places ${ab.placed} deaths at five places, listed, and none is called out`);
 }
 
 // ── Several matches: grouping, floors, repeats, the rest, the headline ─────

@@ -6,6 +6,7 @@ const { PURCHASE_URL } = require('../../shared/config');
 const { capGB } = require('../../shared/clips');
 const store = require('../services/store');
 const updater = require('../updater');
+const pcCheck = require('../services/pc-check');
 
 /**
  * Registers every ipcMain handler in one place. All channel names come from the
@@ -52,6 +53,10 @@ function registerIpc(deps) {
   safeHandle(C.BACKFILL_STATUS, async () => controller.getBackfillStatus());
   safeHandle(C.CLIPS_USAGE, async () => controller.clipsUsage());
   safeHandle(C.CLIPS_CLEAR, async () => controller.clearClips());
+  // Onboarding's PC check (8.3.1): what Node can tell of this PC, and the
+  // recorder's encoder asks for the page to put to WebCodecs. Called through
+  // the module, so check:onboardingriot can stand facts in for this PC's.
+  safeHandle(C.PC_CHECK, async () => pcCheck.gather());
 
   safeHandle(C.STATS_DASHBOARD, async (_e, mode, force) => controller.getStatsDashboard(mode, force));
   safeHandle(C.STATS_REFRESH, async (_e, mode) => controller.getMatches(true, mode));

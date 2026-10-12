@@ -148,5 +148,138 @@ console.log('\nan unproven dead read still waits for a second frame:');
     `got ${e.matchContext.playerHp}`);
 }
 
+// The player's Sunset swiftplay (8.3.0, a read a second), its tells as the
+// server keeps them, cut at 60 characters.
+console.log('\nthe death screen proves a death on its own frame:');
+{
+  // Round 2's first frame of the death screen, its alive flag left unread.
+  const e = alivePlayer();
+  e.updateMatchContext({ phase: 'postplant', spike: 'planted', aliveTell: 'KILLED BY Jett upper right and COMBAT REPORT open, no own' });
+  check('  KILLED BY and the COMBAT REPORT register at once', e.lastDeathAt > 0 && e.matchContext.playerAlive === false,
+    'it waited a read, so the death registered a second late, on the next frame');
+  const s = alivePlayer();
+  s.updateMatchContext({ phase: 'active', playerAlive: false, aliveTell: 'SWITCH PLAYER bottom left with teammate portrait' });
+  check('  and so does SWITCH PLAYER', s.lastDeathAt > 0);
+}
+
+console.log('\na "dead" phase needs the same proof as the alive flag:');
+{
+  // It registered a death on one frame of its own: the round 4 banner of that
+  // match, at 99 health, is the case below it.
+  const e = alivePlayer();
+  e.updateMatchContext({ phase: 'dead', aliveTell: 'own HP not visible' });
+  check('  one dead phase that proves nothing registers no death', e.lastDeathAt === 0 && e.matchContext.playerAlive === true,
+    'the phase registered a death on one unchecked frame');
+  check('  and leaves the phase as it was', e.matchContext.phase === 'active', `phase ${e.matchContext.phase}`);
+  e.updateMatchContext({ phase: 'dead', aliveTell: 'own HP not visible' });
+  check('  a second agreeing read does', e.lastDeathAt > 0);
+}
+
+console.log('\nthe SPECTATORS counter is a living player\'s HUD:');
+{
+  const e = alivePlayer();
+  e.updateMatchContext({ phase: 'dead', playerAlive: false, aliveTell: 'Spectating 1 top right and teammate shown, no own HP' });
+  e.updateMatchContext({ phase: 'dead', playerAlive: false, aliveTell: 'SPECTATORS 1 top right, teammate Phoenix centered with own w' });
+  check('  the round 4 banner read as dead on two frames running registers no death', e.lastDeathAt === 0,
+    'the second counter read was taken for the second agreeing read');
+  check('  and the player is alive', e.matchContext.playerAlive === true);
+  // Where another signal says the HUD is somebody else's, the counter still
+  // proves nothing: the death waits for a read that does.
+  const f = new CoachingEngine({});
+  f.setAgent('Jett');
+  f.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal', roundNumber: 4 });
+  f.updateMatchContext({ phase: 'dead', playerAlive: false, aliveTell: 'SPECTATORS 1 top right and Sova abilities' });
+  check('  beside a teammate\'s kit, the counter is no proof on one frame', f.lastDeathAt === 0);
+}
+
+console.log('\na death on a weak tell is judged by the read after it:');
+/** A living player at 100 with a Ghost in a post plant, then one read of a weak tell. */
+function weakDeath() {
+  const e = new CoachingEngine({});
+  e.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3 });
+  e.updateMatchContext({ phase: 'postplant', playerAlive: false, teamScore: 1, enemyScore: 3,
+    aliveTell: 'Spectating teammate, own HP not shown, Ghost and abilities b' });
+  return e;
+}
+{
+  const e = weakDeath();
+  check('  it registers at once', e.lastDeathAt > 0 && e.matchContext.playerAlive === false && e.matchContext.consecutiveDeaths === 1);
+  // 460.1 s of that match: the player's own HUD as it stood before.
+  e.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3,
+    aliveTell: 'own HP 100 bottom center and Ghost bottom right' });
+  check('  and is withdrawn when the next read is the player\'s own HUD again', e.matchContext.playerAlive === true
+    && e.matchContext.consecutiveDeaths === 0 && !e.matchMemory.some((l) => /Player died/.test(l)),
+    `alive ${e.matchContext.playerAlive}, deaths in a row ${e.matchContext.consecutiveDeaths}`);
+  check('  with its own health and gun back', e.matchContext.playerHp === 100 && e.matchContext.playerWeapon === 'Ghost');
+  const at = e.lastDeathAt;
+  e.updateMatchContext({ phase: 'dead', playerAlive: false, teamScore: 1, enemyScore: 3,
+    aliveTell: 'Spectating teammate, teammate portrait and name shown top ba' });
+  check('  and the counter read again a second later is no second death', e.lastDeathAt === at);
+}
+{
+  // Only a withdrawal takes the death's line out of the match memory.
+  const stands = (x) => x.matchMemory.some((l) => /Player died/.test(l));
+  // The Abyss swiftplay's round 1: the read after the death is the spectated
+  // teammate's HUD, called the player's own.
+  const e = weakDeath();
+  e.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 61, playerWeapon: 'Knife', teamScore: 1, enemyScore: 3,
+    aliveTell: 'own HP 61 and knife bottom left' });
+  check('  a different health and gun is somebody else\'s HUD: the death stands', stands(e));
+  const b = weakDeath();
+  b.updateMatchContext({ phase: 'buy', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3 });
+  check('  so does one the next round\'s buy phase follows', stands(b));
+  const s = new CoachingEngine({});
+  s.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3 });
+  s.updateMatchContext({ phase: 'dead', playerAlive: false, teamScore: 1, enemyScore: 3, aliveTell: 'KILLED BY Neon and COMBAT REPORT shown' });
+  s.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3,
+    aliveTell: 'own HP 100 and Ghost bottom right' });
+  check('  and one the death screen printed stands whatever the read after it says', s.lastDeathAt > 0 && stands(s));
+}
+{
+  const stands = (x) => x.matchMemory.some((l) => /Player died/.test(l));
+  // Each half of "as it stood" holds on its own.
+  const hp = weakDeath();
+  hp.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 61, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3,
+    aliveTell: 'own HP 61 and Ghost bottom right' });
+  const gun = weakDeath();
+  gun.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal', teamScore: 1, enemyScore: 3,
+    aliveTell: 'own HP 100 and Vandal bottom right' });
+  check('  the same gun at another health, or the same health with another gun, is not the HUD as it stood',
+    stands(hp) && stands(gun), `stands at 61 with the Ghost ${stands(hp)}, at 100 with a Vandal ${stands(gun)}`);
+  const score = weakDeath();
+  score.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 2, enemyScore: 3,
+    aliveTell: 'own HP 100 and Ghost bottom right' });
+  check('  nor is a read at another score, the round after it', stands(score));
+  const said = weakDeath();
+  said.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3,
+    aliveTell: 'Spectating teammate, unclear, own HP 100 and Ghost' });
+  check('  nor one whose tell says spectating, however unsure of it', stands(said));
+  const feed = weakDeath();
+  feed.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3,
+    aliveTell: 'own HP 100 and Ghost bottom right', killFeed: 'Killed by Reyna' });
+  check('  nor one whose kill feed prints the player\'s own KILLED BY', stands(feed));
+  // WHOSE HUD IS IT, asked of the read that would withdraw the death: the
+  // spectated teammate's kit called "own", at the player's health and gun.
+  const kit = new CoachingEngine({});
+  kit.setAgent('Jett');
+  kit.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal', teamScore: 2, enemyScore: 2 });
+  kit.updateMatchContext({ phase: 'active', playerAlive: false, teamScore: 2, enemyScore: 2, aliveTell: 'Spectating teammate, own HP not shown' });
+  kit.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal', teamScore: 2, enemyScore: 2,
+    aliveTell: 'own HP 100 and Sova abilities bottom center' });
+  check('  a teammate\'s kit called "own" at the player\'s health and gun is the teammate\'s HUD: the death stands',
+    stands(kit));
+  // THE VERY NEXT READ, in seconds: one after a pause or a server outage, its
+  // score unread, can be a later round, the player at full health with the
+  // same rifle bought again.
+  const late = new CoachingEngine({});
+  const t = Date.now();
+  late.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal', teamScore: 2, enemyScore: 2 }, t);
+  late.updateMatchContext({ phase: 'active', playerAlive: false, teamScore: 2, enemyScore: 2,
+    aliveTell: 'Spectating teammate, own HP not shown' }, t + 1000);
+  late.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal',
+    aliveTell: 'own HP 100 and Vandal bottom left' }, t + 181000);
+  check('  a read three minutes after the death judges nothing: it stands', stands(late));
+}
+
 console.log(`\n${fail ? 'FAIL' : 'PASS'}: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

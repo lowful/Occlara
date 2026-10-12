@@ -61,6 +61,8 @@ const reviewClips = require('../src/main/services/review-clips');
 const { ReviewStore, newId, MAX_REVIEWS } = require('../src/main/services/review-store');
 const { Recorder, Segment } = require('../src/main/services/recorder');
 const deathFrames = require('../src/shared/death-frames');
+const clipFrames = require('../src/shared/clip-frames');
+const lookStills = require('../src/main/services/look-stills');
 const verify = require('../src/shared/valorant-verify');
 const valorantReview = require('../src/shared/valorant-review');
 const riotReview = require('../src/shared/riot-review');
@@ -80,6 +82,12 @@ const ok = (cond, what, detail) => {
   if (!cond) { fails++; console.log(`FAIL  ${what}${detail ? `\n        ${detail}` : ''}`); } else console.log(`ok    ${what}`);
 };
 const same = (a, b) => util.isDeepStrictEqual(a, b);
+// Main's own source, read for what it does (recordingStills, the look run in a
+// sandbox), its lines ended as the checks below cut it. Git on Windows writes
+// it with CRLF (core.autocrlf), and cut on '\n}\n' those checks found no
+// function end at all and failed with main unchanged.
+const lfOf = (text) => String(text).replace(/\r\n/g, '\n');
+const mainText = () => lfOf(fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8'));
 async function section(title, fn) {
   console.log(`\n${title}`);
   try { await fn(); } catch (e) { ok(false, 'the section ran to the end', (e && e.stack) || String(e)); }
@@ -138,18 +146,64 @@ const b64 = (s) => Buffer.from(s).toString('base64');
   });
 
   await section('when a look\'s death was:', () => {
+    // RIOT'S DEATH ON THE WALL CLOCK (8.3.1): its round's barriers dropping,
+    // read off every frame of the round that shows the round clock, plus Riot's
+    // own milliseconds (death-frames.js barrierDrop, deathMoment), laid beside
+    // the reconciled rounds as index.js lays them (withRiotTimes).
+    //
+    // THE REAL SUNSET MATCH, read once a second by 8.3.0 and recorded, through
+    // the real reader. Its clips show the deaths of rounds 2, 3, 6 and 7 at
+    // 163.5, 252.62, 518.1 and 614.7 s, matched to its AI log frame by frame.
+    // Riot's record of it is not in the repo: each death's milliseconds here
+    // are the seconds from its round's buy timer reading 0:00, the barriers'
+    // last second, to the death its clip shows, so what is held is the drop
+    // the rounds' own clocks give and the frames it picks.
+    const sunset = replaySession('valorant-session-sunset-swiftplay.json', null);
+    const ss = (ms) => (Number.isFinite(ms) ? Math.round((ms - sunset.t0) / 10) / 100 : null);
+    const CLIP_DEATH = { 2: 163.5, 3: 252.62, 6: 518.1, 7: 614.7 };
+    const zeroOf = (n) => {
+      const z = sunset.records.filter((x) => x.round === n && x.state.phase === 'buy' && x.state.clock === '0:00').pop();
+      return z ? z.at : null;
+    };
+    // Round 2's death came after the plant, which is the first frame the
+    // screen read the spike down on.
+    const plantOf = (n) => {
+      const p = sunset.records.find((x) => x.round === n && (x.state.phase === 'postplant' || x.state.spike === 'planted'));
+      return p ? Math.round(p.at - (zeroOf(n) + 500)) : null;
+    };
+    const sunsetRows = sunset.rounds.map((r) => (CLIP_DEATH[r.n] && zeroOf(r.n) !== null ? {
+      ...r, verified: true, died: true, result: 'lost', traded: false, screenDied: !!r.died, afterPlant: r.n === 2,
+      deathMs: Math.round(sunset.t0 + CLIP_DEATH[r.n] * 1000 - (zeroOf(r.n) + 500)),
+      deathSec: Math.round((sunset.t0 + CLIP_DEATH[r.n] * 1000 - (zeroOf(r.n) + 500)) / 1000),
+      plantMs: r.n === 2 ? plantOf(2) : null,
+    } : r));
+    const sunsetLooks = deathFrames.looksFor(sunset.records, sunsetRows, sunset.window, 'riot');
+    const drops = [2, 3, 6, 7].map((n) => [n, deathFrames.barrierDrop(sunset.records, n, sunset.window), zeroOf(n)]);
+    ok(drops.every(([, d, z]) => d && z !== null && d.at >= z && d.at < z + 1000 && d.frames >= 20 && d.frames >= d.of - 2),
+      `each round's barriers drop where its clocked frames agree, inside the last second its buy timer showed (${drops.map(([n, d, z]) => `R${n} ${d ? `${ss(d.at)} s, ${d.frames} of ${d.of}` : 'none'}, 0:00 at ${ss(z)} s`).join('; ')})`);
+    const err = (l) => ss(clips.momentOf(l)) - CLIP_DEATH[l.round.n];
+    ok(sunsetLooks.map((l) => l.round.n).join() === '2,3,6,7' && sunsetLooks.every((l) => Math.abs(err(l)) <= 0.6),
+      `and the four deaths land within 0.6 s of where their clips show them, round 2 after its plant included (${sunsetLooks.map((l) => `R${l.round.n} ${ss(clips.momentOf(l))} s, ${err(l) >= 0 ? '+' : ''}${err(l).toFixed(2)}`).join('; ')}; the rule before put round 2's 2.65 s late and round 6's 1.15 s early)`);
+    ok(sunsetLooks.every((l) => l.frames[0].at <= l.moment - deathFrames.FRAME_MARGIN_MS && l.frames[1] && l.frames[1].at > l.moment
+      && same(l.frameAt, l.frames.map((f) => Math.sign(f.at - l.moment) * Math.round(Math.abs(f.at - l.moment) / 10) / 100))),
+    `framed by the last frame at least 0.3 s before each death and the first after it, with each one's seconds from it (${sunsetLooks.map((l) => `R${l.round.n} ${l.frameAt.join(' / ')}`).join('; ')})`);
+
     const abyss = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
-    const riotRounds = verify.reconcile(abyss.rounds, load('riot-abyss-13-11.json')).rounds;
+    const ABYSS_RIOT = load('riot-abyss-13-11.json');
+    const riotRounds = deathFrames.withRiotTimes(verify.reconcile(abyss.rounds, ABYSS_RIOT).rounds, ABYSS_RIOT);
     const riotLooks = deathFrames.looksFor(abyss.records, riotRounds, {}, 'riot');
-    // Riot gives the second into the round; the frame before it gives its own
-    // second off the round clock and the wall time it was captured. The death
-    // is that capture plus the seconds between them, and so it falls between
-    // the frame before and the one after it, where there is one.
-    const got = riotLooks.map((l) => ({ n: l.round.n, gap: l.gap, moment: clips.momentOf(l), at: l.at, next: l.frames[1] ? l.frames[1].at : null }));
-    ok(got.length === 4 && same(got.map((g) => [g.n, g.gap]), [[2, 4], [3, 1], [10, 3], [19, 5]])
-      && got.every((g) => g.moment === g.at + g.gap * 1000),
-      `Riot's looks on the real Abyss match: the death at the frame before it plus Riot's seconds past it (${got.map((g) => `R${g.n} +${g.gap}s`).join(', ')})`);
-    ok(got.some((g) => g.gap > clips.LEAD_MS / 1000), 'where a fixed two seconds would have put at least one death early', got.map((g) => g.gap).join(', '));
+    // THE ABYSS LOOKS ARE NO WORSE. Read every nine seconds or so, rounds 2, 3
+    // and 19 have clocked frames enough for a drop, and land within a second
+    // and a half of where the rule before put them, the frame before plus
+    // Riot's second off its own clock: that took the earliest second the clock
+    // allows and Riot's second rounded, each half a second on average. Round
+    // 10's frames agree on no drop and it keeps that rule.
+    const before = (l) => { const t = deathFrames.secondsIn(l.frames[0]); return l.at + (l.round.deathSec - t) * 1000; };
+    const got = riotLooks.map((l) => ({ n: l.round.n, moment: clips.momentOf(l), drop: deathFrames.barrierDrop(abyss.records, l.round.n, {}), old: before(l) }));
+    ok(got.map((g) => g.n).join() === '2,3,10,19' && got.every((g) => g.moment - g.old >= 0 && g.moment - g.old <= 1500)
+      && got.filter((g) => g.drop).every((g) => g.moment === g.drop.at + riotRounds.find((r) => r.n === g.n).deathMs)
+      && got.filter((g) => !g.drop).map((g) => g.n).join() === '10',
+    `Riot's looks on the real Abyss match: from the drop where the clock gives one, within 1.5 s after the rule before (${got.map((g) => `R${g.n} ${g.drop ? 'drop' : 'no drop'}, +${((g.moment - g.old) / 1000).toFixed(2)} s`).join('; ')})`);
 
     // THE REAL SPLIT SESSION, through the real reader (coaching-engine.js), its
     // frames logged as the AI log logs them and Riot's record laid over the
@@ -157,69 +211,216 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     // and with the frames the model misread that the simple replay never has.
     const SPLIT_RIOT = load('riot-split-13-7.json');
     const split = replaySession('valorant-session-split-competitive.json', SPLIT_RIOT);
+    const splitRounds = deathFrames.withRiotTimes(split.rounds, SPLIT_RIOT);
     const sec = (ms) => (Number.isFinite(ms) ? Math.round((ms - split.t0) / 100) / 10 : null);
-    const four = deathFrames.looksFor(split.records, split.rounds, split.window, 'riot');
+    const four = deathFrames.looksFor(split.records, splitRounds, split.window, 'riot');
     // Every death Riot has in it, looked at as one of the four would be.
-    const every = deathFrames.looksFor(split.records, split.rounds, split.window, 'riot', 24);
+    const every = deathFrames.looksFor(split.records, splitRounds, split.window, 'riot', 24);
     const of = (list, n) => list.find((l) => l.round.n === n) || null;
     const shown = (l) => (l ? `R${l.round.n} ${l.frames.map((f) => `${sec(f.at)} s ${f.state.phase} ${f.state.clock || ''}`.trim()).join(' / ')}` : 'none');
-    // Where Riot's death was on the wall clock: the frame its round's buy
-    // timer read 0:00 on, the barriers dropping, plus Riot's own milliseconds.
+    // Where Riot's death was on the wall clock, by the buy timer: the frame
+    // that read 0:00, the barriers' last second, its middle, plus Riot's own
+    // milliseconds. Good to half a second either way.
     const dropAt = (t) => {
       const r = split.records.find((x) => sec(x.at) === t);
-      return r && r.state.phase === 'buy' && r.state.clock === '0:00' ? r.at : null;
+      return r && r.state.phase === 'buy' && r.state.clock === '0:00' ? r.at + 500 : null;
     };
     const riotDeath = (n, drop) => (dropAt(drop) === null ? null : dropAt(drop) + SPLIT_RIOT.perRound.find((p) => p.n === n).deathMs);
     const holds = (l, death) => {
       const w = clips.windowOf(clips.momentOf(l));
       return !!w && death !== null && w.from <= death && death <= w.to;
     };
-    ok(four.map((l) => l.round.n).join() === '3,7,8,15' && four.filter((l) => l.gap !== null).map((l) => `${l.round.n}+${l.gap}`).join() === '3+2,7+3,8+3',
-      `the Split match's looks are rounds 3, 7, 8 and 15, the clock framing three of them by Riot's second (${four.map((l) => `R${l.round.n} ${l.gap === null ? 'no gap' : `+${l.gap}s`}`).join(', ')})`);
+    ok(four.map((l) => l.round.n).join() === '3,7,8,15' && four.every((l) => Number.isFinite(l.moment)),
+      `the Split match's looks are rounds 3, 7, 8 and 15, each timed by its round's clock (${four.map((l) => `R${l.round.n} ${sec(l.moment)} s`).join(', ')})`);
     // Round 15: Riot has the death 2 s into the round. No clocked frame comes
-    // before it, so its frames are the screen's: the one before the death (a
-    // buy phase frame the model read as "active 0:18", 82 s into the round by
-    // that clock) and the one that registered it.
+    // before it (the one before it is a buy phase frame the model read as
+    // "active 0:18", 82 s into the round by that clock), but the round clock
+    // runs on over the frames after it, the camera on a teammate.
     const r15 = of(four, 15);
-    ok(r15 && r15.gap === null && r15.frames.length === 2 && sec(r15.frames[0].at) === 1529.1 && r15.frames[0].state.clock === '0:18'
-      && r15.frames[1].died && sec(clips.momentOf(r15)) === 1550.4,
-    `round 15, framed by the buy timer read as the round clock, has no gap: its death is the frame that registered it, 1550.4 s in (${shown(r15)}, moment ${sec(clips.momentOf(r15))} s)`);
-    ok(r15 && holds(r15, riotDeath(15, 1547.4)),
-      `and its clip's 15 seconds hold the death, ${sec(riotDeath(15, 1547.4))} s in by the buy timer's end and Riot's 2.13 s (cut by that clock, they were 1518.1 to 1533.1 s, inside the buy phase)`);
-    // Round 1, a post plant death: the clock on its frames is the spike's.
+    ok(r15 && Math.abs(r15.moment - riotDeath(15, 1547.4)) <= 500 && r15.frames.length === 2 && r15.frames[1].died
+      && r15.frames[0].at < r15.moment && r15.frames[1].at > r15.moment,
+    `round 15, its frames the buy phase's last and the death's, is timed by the round's clock after it: ${sec(r15.moment)} s, by the buy timer ${sec(riotDeath(15, 1547.4))} s (${shown(r15)}; the rule before put it at its registering frame, 1550.4 s, and before that at 1518.1 to 1533.1 s, inside the buy phase)`);
+    ok(r15 && holds(r15, riotDeath(15, 1547.4)), 'and its clip\'s 15 seconds hold the death');
+    // Round 1, a post plant death: the clock on its frames after the plant is
+    // the spike's, and the clock before it times the death.
     const r1 = of(every, 1);
-    ok(r1 && r1.round.afterPlant && r1.gap === null && r1.frames.length === 2 && r1.frames[1].died && sec(clips.momentOf(r1)) === 77.8,
-      `round 1, after the plant, has no gap either: its death is its registering frame, 77.8 s in (${shown(r1)}, moment ${sec(clips.momentOf(r1))} s)`);
-    ok(r1 && holds(r1, riotDeath(1, 43.4)), `and its clip holds the death, ${sec(riotDeath(1, 43.4))} s in (cut by the spike's clock, it was around 98.8 s, 21 s past it)`);
+    ok(r1 && r1.round.afterPlant && Math.abs(r1.moment - riotDeath(1, 43.4)) <= 500 && r1.frames.length === 2 && r1.frames[1].died,
+      `round 1, after the plant, is timed by the clock before the plant: ${sec(r1.moment)} s, by the buy timer ${sec(riotDeath(1, 43.4))} s (${shown(r1)}; the rule before put it at its registering frame, 77.8 s, and before that around 98.8 s)`);
+    ok(r1 && holds(r1, riotDeath(1, 43.4)), 'and its clip holds the death');
+    ok(every.length >= 12 && every.every((l) => Number.isFinite(l.moment)),
+      `every death Riot has in the match is timed by its round's clock (${every.length} of them)`);
+    const byTimer = every.map((l) => {
+      const z = split.records.filter((x) => x.round === l.round.n && x.state.phase === 'buy' && x.state.clock === '0:00').pop();
+      return z ? { l, d: (l.moment - (z.at + 500 + l.round.deathMs)) / 1000 } : null;
+    }).filter(Boolean);
+    ok(byTimer.length >= 8 && byTimer.every((x) => Math.abs(x.d) <= 0.5),
+      `and where its round's buy timer was read to 0:00, within half a second of what that says (${byTimer.map((x) => `R${x.l.round.n} ${x.d >= 0 ? '+' : ''}${x.d.toFixed(2)}`).join(', ')})`);
     // THE PLANT ALONE SAYS SO, whatever the clock reads. Once the spike is down
     // the round clock leaves the screen, and a frame read after it carries one
     // read before. On the real Abyss match, read every ten seconds, through the
     // real reader, rounds 6 and 16 died after the plant on frames still reading
     // 1:20 and 1:23, readings first taken about 18 s earlier: 10 and 8 s before
     // Riot's second by those clocks, though by their rounds' buy timers both
-    // frames came after the death.
-    const abyssSession = replaySession('valorant-session-abyss-unrated.json', load('riot-abyss-13-11.json'));
-    const planted = deathFrames.looksFor(abyssSession.records, abyssSession.rounds, abyssSession.window, 'riot', 24)
-      .filter((l) => l.round.afterPlant);
+    // frames came after the death. Their clocked frames before the plant agree
+    // on no drop, so they are timed as before, by their registering frames.
+    const abyssSession = replaySession('valorant-session-abyss-unrated.json', ABYSS_RIOT);
+    const planted = deathFrames.looksFor(abyssSession.records, deathFrames.withRiotTimes(abyssSession.rounds, ABYSS_RIOT),
+      abyssSession.window, 'riot', 24).filter((l) => l.round.afterPlant);
     const byClock = (l) => { const t = deathFrames.secondsIn(l.frames[0]); return t === null ? null : l.round.deathSec - t; };
-    const near = planted.filter((l) => { const d = byClock(l); return d !== null && d >= 0 && d <= deathFrames.BEFORE_MS / 1000; });
-    ok(near.map((l) => l.round.n).join() === '6,16' && planted.every((l) => l.gap === null),
-      `a death after the plant has no gap, even where its frame's clock reads within ten seconds of Riot's second (${planted.map((l) => `R${l.round.n} `
-      + `${byClock(l) === null ? 'no clock' : `${byClock(l)} s by its clock`}, ${l.gap === null ? 'no gap' : `+${l.gap}s`}`).join('; ')})`);
+    // What times a post plant death that is timed: its frames before Riot's plant, and only those.
+    const beforePlant = (l) => {
+      const all = deathFrames.barrierDrop(abyssSession.records, l.round.n, abyssSession.window);
+      const pre = all && deathFrames.barrierDrop(abyssSession.records, l.round.n, { ...abyssSession.window, before: all.at + l.round.plantMs });
+      return !!pre && l.moment === pre.at + l.round.deathMs;
+    };
+    ok(planted.filter((l) => !Number.isFinite(l.moment)).map((l) => l.round.n).join() === '6,16'
+      && planted.every((l) => !Number.isFinite(l.moment) ? l.gap === null : beforePlant(l)),
+    `a death after the plant is never timed by a clock read after it: rounds 6 and 16, their frames reading within ten seconds of Riot's second and agreeing on no drop before it, are not timed, and one that is is timed by its frames before the plant (${planted.map((l) => `R${l.round.n} `
+      + `${byClock(l) === null ? 'no clock' : `${byClock(l)} s by its clock`}, ${Number.isFinite(l.moment) ? `timed ${Math.round((l.moment - abyssSession.t0) / 100) / 10} s` : 'not timed'}`).join('; ')})`);
     // Each moment between the frame before the death and the one after it,
-    // where a look has both: none on Abyss, some on Split, the clock's and
-    // the screen's.
-    const pairs = [...riotLooks, ...every].filter((l) => l.frames.length === 2);
+    // where a look has both.
+    const pairs = [...riotLooks, ...every, ...sunsetLooks].filter((l) => l.frames.length === 2);
     const between = (l) => { const m = clips.momentOf(l); return m >= l.frames[0].at && m <= l.frames[1].at; };
-    ok(pairs.length >= 2 && pairs.some((l) => l.gap !== null) && pairs.some((l) => l.gap === null) && pairs.every(between),
-      `and each lands between the frame before the death and the one after it (${pairs.length} looks with both: `
-      + `${pairs.map((l) => `R${l.round.n} ${sec(clips.momentOf(l))} s in [${sec(l.frames[0].at)}, ${sec(l.frames[1].at)}]`).join(', ')})`);
+    ok(pairs.length >= 10 && pairs.every((l) => Number.isFinite(l.moment)) && pairs.every(between),
+      `and each lands between the frame before the death and the one after it (${pairs.length} looks with both)`);
     const screenLooks = deathFrames.looksFor(abyss.records, abyss.rounds, {}, 'screen');
     ok(screenLooks.length === 4 && screenLooks.every((l) => clips.momentOf(l) === l.frames[1].at && l.frames[1].died),
       `the screen's looks: the death at the frame the screen registered it on (${screenLooks.map((l) => `R${l.round.n} +${(l.frames[1].at - l.at) / 1000}s`).join(', ')})`);
     ok(clips.momentOf({ at: T0, gap: null, frames: [{ at: T0 }] }) === T0 + 2000 && clips.momentOf({ at: T0 }) === T0 + 2000,
       'a look of one frame: two seconds after it, the margin the frame picker keeps');
     ok(clips.momentOf({ at: null, gap: 3 }) === null && clips.momentOf(null) === null, 'and a look with no time has no moment');
+    ok(clips.momentOf({ moment: T0 + 1234, at: T0, gap: 9 }) === T0 + 1234, 'and a look that carries its moment is that moment, whatever its frames say');
+  });
+
+  await section('the barriers dropping, read off the round\'s own clock:', () => {
+    // A round read about once a second, its clock showing the seconds left
+    // rounded down, as the HUD does: t seconds after the drop it reads 100 - t
+    // rounded down, 1:37 at 2.4 s.
+    const DROP = T0;
+    const clockAt = (t) => { const left = Math.floor(100 - t); return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`; };
+    const rec = (i, t, extra) => ({ i, at: Math.round(DROP + t * 1000), frame: `f${i}.jpg`, round: 4, died: false,
+      state: { phase: 'active', clock: clockAt(t), ...(extra || {}) } });
+    const steady = Array.from({ length: 20 }, (_v, k) => rec(k, 2.4 + k * 1.01));
+    const d = deathFrames.barrierDrop(steady, 4, {});
+    ok(d && Math.abs(d.at - DROP) <= 500 && d.frames === 20 && d.of === 20,
+      `twenty frames of a round's clock put its barriers within half a second of when they dropped (${d && (d.at - DROP)} ms, ${d && d.frames} of ${d && d.of})`);
+    const misread = steady.concat([{ ...rec(90, 10.9), state: { phase: 'active', clock: '1:30' } }]);
+    const m = deathFrames.barrierDrop(misread, 4, {});
+    ok(m && m.at === d.at && m.frames === 20 && m.of === 21, 'a clock misread by a second agrees with no other frame and is outvoted');
+    const buy = steady.concat(Array.from({ length: 30 }, (_v, k) => ({ ...rec(100 + k, -30 + k), state: { phase: 'buy', clock: `0:${String(30 - k).padStart(2, '0')}` } })));
+    ok(deathFrames.barrierDrop(buy, 4, {}).at === d.at && deathFrames.barrierDrop(buy, 4, {}).of === 20,
+      'a buy timer, 45 seconds or less, is not the round clock');
+    const asBuy = steady.map((r, k) => (k < 2 ? { ...r, state: { ...r.state, phase: 'buy' } } : r));
+    ok(deathFrames.barrierDrop(asBuy, 4, {}).of === 20, 'while the round clock read on a frame the model called buy still counts');
+    // After the plant the clock leaves the screen, and a read carries the clock
+    // of the read before it: each frame after it reads 1:14, the clock when
+    // the spike went down 26 s in, the later the frame the later the drop it
+    // says. Outvoted, they still count against the frames before the plant;
+    // Riot's plant takes them out.
+    const stale = (k, t) => ({ ...rec(200 + k, t), state: { phase: 'active', clock: '1:14' } });
+    const before = steady.slice(0, 18);
+    // The first one a fifth of a second after the plant, which carries the
+    // clock of the plant's own second and so meets the frames before at
+    // their edge: counted, it moves the drop by a third of a second.
+    const after = before.concat([26.2, 27.5, 28.5, 29.5, 30.5].map((t, k) => stale(k, t)));
+    const unplanted = deathFrames.barrierDrop(after, 4, {});
+    const r4 = { n: 4, died: true, verified: true, deathMs: 30123, plantMs: 26000 };
+    const planted = deathFrames.deathMoment(after, r4, {});
+    const preOnly = deathFrames.barrierDrop(before, 4, {});
+    ok(unplanted && unplanted.of === 23 && unplanted.at - preOnly.at > 200 && planted === preOnly.at + 30123 && Math.abs(planted - (DROP + 30123)) <= 500,
+      `a post plant death is timed by the clock before the plant: the five frames read after it, each a copy of 1:14, are left out, the one that moved the drop by ${unplanted && unplanted.at - preOnly.at} ms with them (${unplanted && unplanted.of} clocked frames, ${preOnly.of} before the plant, ${planted - DROP - 30123} ms off)`);
+    ok(deathFrames.deathMoment(after, { ...r4, afterPlant: true, plantMs: null }, {}) === null
+      && deathFrames.deathMoment(after, { ...r4, afterPlant: true }, {}) === planted,
+    "and without Riot's plant time a post plant death is not timed at all, since nothing tells the frames after the plant from those before");
+    ok(deathFrames.barrierDrop(steady.map((r) => ({ ...r, state: { ...r.state, phase: 'postplant' } })), 4, {}) === null
+      && deathFrames.barrierDrop(steady.map((r) => ({ ...r, state: { ...r.state, spike: 'planted' } })), 4, {}) === null,
+    'and a frame read after the plant, by its phase or its spike, never counts');
+    // Two rounds' frames filed under one: two answers, and no drop.
+    const twice = steady.slice(0, 8).concat(steady.slice(0, 8).map((r, k) => ({ ...r, i: 300 + k, at: r.at + 40000 })));
+    const lopsided = steady.slice(0, 9).concat(steady.slice(0, 4).map((r, k) => ({ ...r, i: 400 + k, at: r.at + 40000 })));
+    const close = steady.slice(0, 7).concat(steady.slice(0, 4).map((r, k) => ({ ...r, i: 500 + k, at: r.at + 40000 })));
+    ok(deathFrames.barrierDrop(twice, 4, {}) === null && deathFrames.barrierDrop(close, 4, {}) === null
+      && Math.abs(deathFrames.barrierDrop(lopsided, 4, {}).at - d.at) <= 500,
+    'two groups of frames each agreeing on its own drop are no answer, unless one is twice the other');
+    ok(deathFrames.barrierDrop([steady[0], { ...steady[1], state: { phase: 'active', clock: '1:20' } }], 4, {}) === null
+      && deathFrames.barrierDrop([steady[3]], 4, {}) !== null, 'two frames that disagree are no answer, while one alone is');
+    ok(deathFrames.barrierDrop(steady, 5, {}) === null && deathFrames.barrierDrop([], 4, {}) === null, 'a round with no clocked frame has none');
+    ok(deathFrames.deathMoment(steady, { n: 4, died: true, deathMs: 3000 }, {}) === d.at + 3000
+      && deathFrames.deathMoment(steady, { n: 4, died: true, deathSec: 3 }, {}) === d.at + 3000
+      && deathFrames.deathMoment(steady, { n: 4, died: false, deathMs: 3000 }, {}) === null
+      && deathFrames.deathMoment(steady, { n: 4, died: true }, {}) === null,
+    "Riot's death is the drop plus its milliseconds, or its second from an older record, and a round with no death or no time has none");
+    ok(deathFrames.deathMoment(steady, { n: 4, died: true, deathMs: 90000 }, {}) === null,
+      "and none outside the round's own frames: one frame of the next round filed under this one would put its death there");
+    const riotIn = { perRound: [{ n: 4, deathMs: 12345, plantMs: 25000 }, { n: 5, deathMs: 999 }] };
+    const rows = [{ n: 4, died: true, deathSec: 12 }, { n: 5, died: false, deathSec: null }];
+    const timed = deathFrames.withRiotTimes(rows, riotIn);
+    ok(timed[0].deathMs === 12345 && timed[0].plantMs === 25000 && timed[1].deathMs === null && !('deathMs' in rows[0])
+      && same(deathFrames.withRiotTimes(rows, null), rows),
+    "Riot's milliseconds are laid beside the rounds it records, a death only where there was one, the rounds handed in unchanged");
+  });
+
+  await section('the stills a look takes from its clip:', async () => {
+    ok(same(clips.LOOK_AT.riot, [-3, -1.5, -0.7, -0.3, 0.7]) && same(clips.LOOK_AT.screen, [-4.5, -3, -2, -1, 0]),
+      "Riot's look takes 3, 1.5, 0.7 and 0.3 s before the death and 0.7 s after it, the screen's 4.5, 3, 2 and 1 s before its read of the death and that moment");
+    const names = clips.LOOK_AT.riot.map((at, k) => clips.stillName(6, k + 1, at));
+    const { FRAME_RE } = require('../src/main/services/review-store');
+    ok(same(names, ['r6-rec1-before.jpg', 'r6-rec2-before.jpg', 'r6-rec3-before.jpg', 'r6-rec4-before.jpg', 'r6-rec5-after.jpg'])
+      && names.every((n) => FRAME_RE.test(n)) && clips.stillName(6, 1, 0) === 'r6-rec1-after.jpg'
+      && clips.stillName(0, 1, -1) === null && clips.stillName(6, 0, -1) === null && clips.stillName(6, 1, NaN) === null,
+    `named for the round, the order and the side of the death, as the library keeps frames (${names.join(', ')})`);
+    // AROUND RIOT'S OWN MOMENT OR NONE. The server is told a Riot look's
+    // seconds are from Riot's death, good to a few tenths, so its stills are
+    // taken only around the moment the round's clock and Riot's milliseconds
+    // give; the rule before (a frame's clock read to the second, the frame
+    // that registered the death) can be two seconds and more out. The
+    // screen's are around its read of the death, which it says they are.
+    const reg = { at: T0, gap: null, frames: [{ at: T0 }, { at: T0 + 1700 }] };
+    ok(clips.stillsMomentOf({ ...reg, moment: T0 + 1234 }, 'riot') === T0 + 1234
+      && clips.stillsMomentOf(reg, 'riot') === null && clips.stillsMomentOf({ at: T0, gap: 3 }, 'riot') === null
+      && clips.stillsMomentOf(reg, 'screen') === T0 + 1700 && clips.stillsMomentOf(null, 'riot') === null,
+    "a Riot look's stills are taken around Riot's own moment or not at all, the screen's around its read of the death");
+    const mainSrc = mainText();
+    const stillsSrc = mainSrc.slice(mainSrc.indexOf('\nasync function recordingStills('), mainSrc.indexOf('\n}\n', mainSrc.indexOf('\nasync function recordingStills(')));
+    ok(stillsSrc.includes('clips.stillsMomentOf(look, source)') && !stillsSrc.includes('clips.momentOf('),
+      'and main takes the stills by that rule (recordingStills in index.js)');
+    ok(lfOf(mainSrc.replace(/\n/g, '\r\n')) === mainSrc && !/\n(async )?function /.test(stillsSrc.slice(1)),
+      'main is cut the same as git on Windows writes it, with CRLF, and what is cut is the one function');
+    const order = lookStills.sendOrder(clips.LOOK_AT.riot);
+    ok(same(order, [3, 4, 0, 1, 2]) && same(lookStills.sendOrder([-1, 2]), [0, 1]) && same(lookStills.sendOrder([-4.5, -3, -2, -1, 0]), [3, 4, 0, 1, 2]),
+      'sent with the last before the death and the first after it ahead of the rest, the two a server from before 8.3.1 keeps and reads as those');
+
+    // A clip cut from the real recording of a canvas, its own 0 on the wall
+    // clock at W, the death at M: the frame on screen at each second asked.
+    const W = T0 + 1022;
+    const rd = webm.indexFile(FIXTURE, { keepBytes: true });
+    const clip = webm.cutClip({ init: rd.init, clusters: rd.clusters, from: 2000, to: 8000 });
+    const idx = clipFrames.indexClip(clip);
+    const whole = clipFrames.indexClip(fs.readFileSync(FIXTURE));
+    ok(idx && idx.codec === 'avc1.42c01f' && idx.width === 640 && idx.height === 360 && idx.frames[0].ms === 0 && idx.frames[0].key
+      && whole && whole.frames.length === 407 && whole.frames.filter((f) => f.key).length === 14,
+    `a clip's frames read off its blocks, its codec off its SPS: ${idx && idx.frames.length} frames, ${idx && idx.codec} at ${idx && idx.width}x${idx && idx.height}, and the whole recording's 407 in its Clusters of unknown size`);
+    const M = W + 4000;
+    let asked = null;
+    const fake = async (job) => { asked = job; return { ok: true, frames: job.picks.map((ts) => (ts === null ? null : Buffer.from(`still ${ts}`))) }; };
+    const stills = await lookStills.stillsOf({ bytes: clip, startWall: W, moment: M, offsets: [-3, -1.5, -0.7, 0.7, 30], decode: fake,
+      size: { width: 1280, height: 720, quality: 0.7 } });
+    const onScreen = (t) => { let k = 0; while (k + 1 < idx.frames.length && idx.frames[k + 1].ms <= t) k += 1; return idx.frames[k].ms; };
+    const want = [-3, -1.5, -0.7, 0.7].map((s) => onScreen(4000 + s * 1000));
+    ok(asked && asked.outWidth === 1280 && asked.outHeight === 720 && asked.quality === 0.7 && asked.codec === 'avc1.42c01f'
+      && same(asked.picks.slice(0, 4), want.map((ms) => Math.round(ms * 1000))) && asked.picks[4] === null,
+    `the page is asked for the frame on screen at each second, in microseconds of the clip, and nothing for a second past its end (${asked && asked.picks.join(', ')})`);
+    ok(asked && asked.chunks.length && asked.chunks[0].key && asked.chunks.every((c, k) => k === 0 || c.ts > asked.chunks[k - 1].ts)
+      && asked.chunks.length < idx.frames.length,
+    `decoded from the keyframe at or before each, in order, never the whole clip (${asked && asked.chunks.length} of ${idx.frames.length} frames)`);
+    const hundredths = (ms) => (ms < 0 ? -1 : 1) * Math.round(Math.abs(ms) / 10) / 100;
+    ok(stills.length === 4 && same(stills.map((s) => s.at), want.map((ms) => hundredths(W + ms - M)))
+      && stills.every((s, k) => s.jpeg.toString() === `still ${Math.round(want[k] * 1000)}`),
+    `the stills come back in time order, each at its own frame's seconds from the death (${stills.map((s) => s.at).join(', ')})`);
+    ok((await lookStills.stillsOf({ bytes: clip, startWall: W, moment: M, offsets: [-3], decode: async () => ({ ok: false, frames: [] }) })).length === 0
+      && (await lookStills.stillsOf({ bytes: Buffer.from('not a clip'), startWall: W, moment: M, offsets: [-3], decode: fake })).length === 0
+      && (await lookStills.stillsOf({ bytes: clip, startWall: null, moment: M, offsets: [-3], decode: fake })).length === 0,
+    'and none when the page could not decode it, the bytes are not a clip, or its 0 on the wall clock is not known');
   });
 
   // ── The recording, as the recorder keeps it: the real fixture on the wall clock
@@ -245,6 +446,13 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       'the recording is asked for 11 s before each death to 4 s after it, and told when the death was', JSON.stringify(asked.slice(0, 2)));
     ok(r.kept.length === SPEC.max && saved.length === SPEC.max && asked.length === SPEC.max && same(r.kept.map((k) => k.name), looks.slice(0, 6).map((l) => l.name)),
       `six at most, in the order the looks came (${r.kept.length} of 8)`);
+    const started = await reviewClips.cutClips({
+      looks: looks.slice(0, 2),
+      cut: (from) => ({ bytes: Buffer.from('a clip'), startWall: from - 700 }),
+      save: () => true, stopped: () => false, yieldTo: async () => {},
+    });
+    ok(same(started.kept.map((k) => k.startWall), [T0 - SPEC.beforeMs - 700, T0 + 60000 - SPEC.beforeMs - 700]),
+      "each clip kept says where its own 0 is on the wall clock, as the recorder cut it, for the look's stills");
     let stop = false;
     const written = [];
     const s = await reviewClips.cutClips({
@@ -312,6 +520,13 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     ok(fromFirst && fromFirst.bytes.equals(own(first, first.zero() + 1000, first.zero() + 5000)), 'a window inside the first recording is cut from it');
     ok(reach && reach.bytes.equals(own(second, at - SPEC.beforeMs, at + SPEC.afterMs)),
       'a window reaching back into the first is cut from the second, the one the moment is in');
+    // Where the clip's own 0 is on the wall clock (8.3.1), so the look's stills
+    // are taken at their seconds from the death: the keyframe it opens on.
+    const plan = webm.planClip(second.clusters(), at - SPEC.beforeMs - second.zero(), at + SPEC.afterMs - second.zero());
+    const reachIdx = reach && clipFrames.indexClip(reach.bytes);
+    ok(reach && plan && reach.startWall === second.zero() + plan.start
+      && reachIdx && reachIdx.frames[0].ms === 0 && fromFirst.startWall === first.zero() + webm.planClip(first.clusters(), 1000, 5000).start,
+    `and it says where its own 0 is on the wall clock, the keyframe it opens on: here the recording's first, ${reach && at - reach.startWall} ms before the death`);
 
     // AND ONLY ONE THAT HOLDS THE MOMENT. A recording that stopped a few
     // seconds before the death (given up, paused, stopped) or began a few
@@ -622,10 +837,146 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     ok(!(await nothingBody.arrayBuffer()).byteLength, 'a 404 carries no body');
   });
 
+  await section('the match\'s recording goes once Riot\'s look has cut its clips:', async () => {
+    // index.js's own look (forensicsFor and all it calls) run in a sandbox,
+    // with the real recorder's holds and cut over the canvas fixture, the real
+    // store, a stand in for the server and the frames page, and the next match
+    // in progress while the look waits to take its stills (afterMatch). Held
+    // to the link's end, the match before's recording, about 1.6 GB at 1080p,
+    // was kept through the whole of the next one (8.3.1).
+    const vm = require('vm');
+    const mainSrc = mainText();
+    const fnOf = (head) => { const i = mainSrc.indexOf(head); const j = i < 0 ? -1 : mainSrc.indexOf('\n}\n', i); return j < 0 ? '' : mainSrc.slice(i, j + 3); };
+    const lineOf = (head) => { const i = mainSrc.indexOf(head); return i < 0 ? '' : mainSrc.slice(i, mainSrc.indexOf('\n', i) + 1); };
+    const needed = ['\nasync function forensicsFor(', '\nasync function askForensics(', '\nasync function afterMatch(', '\nasync function recordingStills(',
+      '\nfunction clipLooks(', '\nasync function cutLookClips(', '\nfunction keepLookClips('].map(fnOf);
+    ok(needed.every(Boolean) && lineOf('const AFTER_MATCH_POLL_MS'), 'the look\'s own code is found in main');
+    const src = [lineOf('const AFTER_MATCH_MAX_MS'), lineOf('const AFTER_MATCH_POLL_MS'), ...needed, fnOf('\nfunction recordingCut(')].join('\n');
+
+    // The recording: the canvas fixture, its death 9 s in.
+    const mem = new Map();
+    const files = {
+      mkdir() {}, write: (f, b) => mem.set(f, Buffer.from(b)), append: (f, b) => mem.set(f, Buffer.concat([mem.get(f) || Buffer.alloc(0), Buffer.from(b)])),
+      read: (f, off, size) => mem.get(f).subarray(off, off + size), remove: (f) => mem.delete(f), removeTree() {}, list: () => [],
+    };
+    const seg = new Segment(path.join('/x', 'rec-look'), files, 60000);
+    seg.startWall = T0 + 7200000;
+    const meta = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'recording-canvas.json'), 'utf8'));
+    const bytesOf = fs.readFileSync(FIXTURE);
+    let off = 0;
+    for (const c of meta.chunks) { seg.push(bytesOf.subarray(off, off + c.size), seg.startWall + c.atMs); off += c.size; }
+    seg.finish();
+    const rec = new Recorder({ root: '/x', prefs: { get: () => null, set() {} }, files, log: () => {} });
+    rec.segments = [seg];
+    const M = seg.zero() + seg.clusters()[0].timecode + 9000;
+    // The AI log of the round: its clock read a second until a second before
+    // the death, Riot's 7.4 s after the barriers dropped, then the death read.
+    const logDir = freshDir();
+    const records = [];
+    const add = (at, state, died) => {
+      const i = records.length;
+      const frame = `frame-${String(i).padStart(5, '0')}.jpg`;
+      fs.writeFileSync(path.join(logDir, frame), Buffer.from(`frame ${i}`));
+      records.push({ i, at: Math.round(at), frame, state, round: 2, died: !!died, match: M - 70000 });
+    };
+    const DROP = M - 7400;
+    for (let k = 0; k < 7; k++) add(DROP + (0.4 + k) * 1000, { phase: 'active', clock: `1:${String(39 - k).padStart(2, '0')}` });
+    add(M + 1500, { phase: 'dead' }, true);
+    add(M + 2500, { phase: 'dead' });
+    const snap = { log: { dir: logDir, records }, startedAt: M - 70000, endedAt: M + 60000,
+      context: { agent: 'Jett', agentConfirmed: true, map: 'Sunset', language: 'en' } };
+    const riotRows = [{ n: 2, verified: true, died: true, result: 'lost', firstDeath: true, traded: false, deathSec: 7, deathMs: 7400,
+      plantMs: null, afterPlant: false, screenDied: true, side: 'attacking', killerAgent: 'Sova', weapon: 'Vandal', deathSpot: 'B Main' }];
+    const library = new ReviewStore(freshDir());
+    const reviewFor = (at) => {
+      const id = newId('valorant', at);
+      library.save({ id, game: 'valorant', at, review: { id, at, kind: 'valorant', rounds: [] } });
+      // As onValorantMatchEnded holds it: the match, and five minutes past its end.
+      return { id, cancelled: false, recording: rec.hold(snap.startedAt - 5000, snap.endedAt + 300000) };
+    };
+
+    let playing = true;
+    let asked = 0;
+    let mode = 'auto';
+    const cutsAt = [];
+    const sent = [];
+    const box = vm.createContext({
+      console: { log() {}, warn() {}, error() {} }, fs, path, Buffer, Map, Set, Promise, Date, Math, Number, JSON, Object, Array, String,
+      setTimeout: (f, ms) => setTimeout(f, Math.min(ms, 20)),
+      deathFrames, clips, reviewClips, lookStills, reviewStore: library,
+      recorder: { cutClip: (...a) => { cutsAt.push(rec.holds.length); return rec.cutClip(...a); } },
+      releaseRecording: (h) => rec.release(h),
+      store: { get: (k) => ({ recordingMode: mode, licenseKey: 'TEST' })[k] },
+      CAPTURE: { profiles: { standard: { targetW: 1280, targetH: 720, jpegQuality: 70 } } },
+      API: { DEATH_FORENSICS: '/api/coach/death-forensics' },
+      api: { post: async (_p, body) => {
+        sent.push(body);
+        return { ok: true, data: { deaths: body.deaths.map((d) => ({ n: d.n, cause: 'isolated', what: 'You held it alone.', better: 'Hold it with a teammate.' })) } };
+      } },
+      matchInProgress: () => { asked++; return playing; },
+      applyClipCap() {},
+      require: (m) => {
+        if (m !== './windows/frames-window') throw new Error(`${m} is not in the sandbox`);
+        return { open: async () => ({ decode: async (j) => ({ ok: true, frames: j.picks.map(() => Buffer.from('a still')) }), close() {} }) };
+      },
+    });
+    const main = vm.runInContext(`${src}\n;({ forensicsFor })`, box);
+    const until = async (fn, ms) => { const end = Date.now() + ms; while (!fn() && Date.now() < end) await new Promise((r) => setTimeout(r, 10)); return !!fn(); };
+
+    const job = reviewFor(M + 60000);
+    ok(rec.holds.length === 1, 'the match ended: its recording is held');
+    const out = main.forensicsFor(riotRows, snap, { job, stale: () => job.cancelled });
+    const waited = await until(() => asked >= 4, 5000);
+    const heldWhileWaiting = rec.holds.length;
+    const clipped = library.hasClip(job.id, 'r2-clip.mkv');
+    playing = false;
+    const looked = await out;
+    ok(cutsAt.length === 1 && cutsAt[0] === 1, `Riot's look cut its clip while the match's recording was held (${cutsAt.join(', ')} hold at the cut)`);
+    ok(waited && clipped && heldWhileWaiting === 0 && rec.stats().holds === 0,
+      `and let it go once the clip was cut: while the look waited for the match in progress, ${heldWhileWaiting} hold, the clip ${clipped ? 'beside the review' : 'missing'}`);
+    const d2 = sent[0] && sent[0].deaths.find((x) => x.n === 2);
+    ok(sent.length === 1 && d2 && d2.framesFrom === 'recording' && d2.frames.length === 5 && looked.byRound[2] && looked.byRound[2].clip === 'r2-clip.mkv',
+      `its stills were still taken once that match was over, from the clip beside the review (${d2 ? `${d2.frames.length} from the ${d2.framesFrom}` : 'none sent'})`);
+    const again = await main.forensicsFor(riotRows, snap, { job, stale: () => job.cancelled });
+    ok(cutsAt.length === 1 && again.byRound[2] && again.byRound[2].clip === 'r2-clip.mkv' && sent[1] && sent[1].deaths[0].framesFrom === 'recording'
+      && library.hasClip(job.id, 'r2-clip.mkv'),
+    'and a look of the match after it, Riot\'s again after a failure, takes that clip and asks the recorder for nothing');
+
+    // The screen's look comes before Riot's when no Riot ID is set, and Riot's
+    // may still follow it: it cuts, and lets nothing go.
+    const job2 = reviewFor(M + 61000);
+    const cutsBefore = cutsAt.length;
+    const screenRows = [{ n: 2, died: true, verified: false, result: 'lost', early: true, side: 'attacking', deathSpot: 'B Main' }];
+    const fromScreen = await main.forensicsFor(screenRows, snap, { source: 'screen', job: job2, stale: () => job2.cancelled });
+    ok(cutsAt.length === cutsBefore + 1 && fromScreen.byRound[2] && fromScreen.byRound[2].clip === 'r2-clip.mkv' && rec.holds.includes(job2.recording),
+      `while a look from the screen cuts its clip and lets the recording go no sooner (${rec.holds.includes(job2.recording) ? 'still held' : 'let go'} after it)`);
+    rec.release(job2.recording);
+
+    // OFF CHOSEN WHILE THE LOOK WAITS for the match in progress, its clip cut
+    // already: the look lands naming none and keeps none, and is sent the
+    // read's frames, as a look taken after Off is. 8.3.0 cut a look's clips
+    // after it landed, so Off chosen before then kept none.
+    const job3 = reviewFor(M + 62000);
+    playing = true;
+    const asks3 = asked;
+    const late = main.forensicsFor(riotRows, snap, { job: job3, stale: () => job3.cancelled });
+    const cutFirst = await until(() => asked >= asks3 + 2 && library.hasClip(job3.id, 'r2-clip.mkv'), 5000);
+    mode = 'off';
+    playing = false;
+    const offLook = await late;
+    const d3 = sent.length > 2 ? sent[sent.length - 1].deaths.find((x) => x.n === 2) : null;
+    const f3 = offLook.byRound[2];
+    ok(cutFirst && f3 && !f3.clip && !library.hasClip(job3.id, 'r2-clip.mkv') && d3 && d3.framesFrom === 'reads',
+      `and Off chosen while it waited, its clip already cut, leaves no clip named or kept and sends the read's frames (clip ${f3 && f3.clip ? f3.clip : 'none'}, `
+      + `${library.hasClip(job3.id, 'r2-clip.mkv') ? 'kept' : 'gone'}, sent from the ${d3 ? d3.framesFrom : 'nothing'})`);
+    mode = 'auto';
+  });
+
   await section('the words:', () => {
-    ok(!DASHES.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', 'clips.js'), 'utf8'))
-      && !DASHES.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'services', 'clip-scheme.js'), 'utf8'))
-      && !DASHES.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'services', 'review-clips.js'), 'utf8'))
+    const own = ['src/shared/clips.js', 'src/main/services/clip-scheme.js', 'src/main/services/review-clips.js', 'src/shared/clip-frames.js',
+      'src/main/services/look-stills.js', 'src/main/windows/frames-window.js', 'src/preload/frames-preload.js', 'src/renderer/frames/frames.js',
+      'src/renderer/frames/index.html', 'src/shared/death-frames.js'];
+    ok(own.every((f) => !DASHES.test(fs.readFileSync(path.join(__dirname, '..', f), 'utf8')))
       && DASHES.test(String.fromCharCode(0x2014)) && DASHES.test(String.fromCharCode(0x2013)) && !DASHES.test('a-b'),
     'no dash in the clips\' modules (the detector matches both dashes and not a hyphen)');
   });

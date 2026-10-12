@@ -5,9 +5,10 @@ const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
 
 /**
- * Onboarding bridge: dismiss the welcome tour for good, save its two choices
- * (Riot ID, advanced coaching) straight to config, and Connect a Riot ID,
- * whose recent matches main then grades and pushes as it goes.
+ * Onboarding bridge: dismiss the welcome tour for good, save its choices
+ * (Riot ID, advanced coaching, how Occlara watches) straight to config, check
+ * what this PC can record with, and Connect a Riot ID, whose recent matches
+ * main then grades and pushes as it goes.
  */
 function subscribe(channel, cb) {
   if (!C.PUSH_LIST.includes(channel)) return () => {};
@@ -31,6 +32,9 @@ contextBridge.exposeInMainWorld('occlara', {
   // can never disagree.
   setConfig: (patch) => ipcRenderer.invoke(C.CONFIG_SET, patch),
   getConfig: () => ipcRenderer.invoke(C.CONFIG_GET),
+  // What this PC has and the recorder's encoder asks (pc-check.js). The page
+  // puts the asks to VideoEncoder itself, as the recorder's page does.
+  checkPc: () => ipcRenderer.invoke(C.PC_CHECK),
   // Connect tests the Riot ID and starts grading its recent matches; the
   // page then follows the grading as main pushes it.
   testTracker: () => ipcRenderer.invoke(C.STATS_TEST),

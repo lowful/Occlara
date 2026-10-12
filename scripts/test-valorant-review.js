@@ -231,8 +231,8 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     `and 6 of 22 deaths at A Site, matching the frames (${spotReal && spotReal.text})`);
   ok(pats.every((p) => !/[\u2013\u2014]/.test(p.text)), 'no pattern text carries a dash');
   const side = pats.find((p) => p.key === 'sides');
-  ok(side && side.text === 'Defence was your stronger side: won 6 of 12 on attack and 7 of 12 on defence.',
-    `side split is exact, and names the stronger side (${side && side.text})`);
+  ok(side && side.text === 'Neither side was clearly stronger: won 6 of 12 on attack and 7 of 12 on defence.',
+    `side split is exact, and one round between the sides names no stronger side (${side && side.text})`);
 
   const mk = (n, extra) => ({ n, side: 'defending', result: 'lost', died: false, deathSpot: null, deathClock: null,
     early: false, ultAtDeath: null, planted: false, plantSpot: null, reads: [], frames: 3, ...extra });
@@ -371,6 +371,41 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     `a note that arrives with a source is kept as its text alone (${JSON.stringify(built.study)})`);
 }
 
+// ── The side study leans to is the side the patterns name (8.3.1) ──────────
+// The sides pattern names a stronger side only on a gap of two rounds, and
+// study() leaned on any gap: the player's Sunset swiftplay, 1 of 4 on attack
+// against 1 of 3 on defence, said "Neither side was clearly stronger" over
+// notes leaning to attack. The server mirrors the client's rule (weakSide),
+// held equal here on every split of three to twelve decided rounds a side.
+{
+  const split = (aw, an, dw, dn) => [
+    ...Array.from({ length: an }, (_v, i) => ({ n: i + 1, side: 'attacking', result: i < aw ? 'won' : 'lost', died: false })),
+    ...Array.from({ length: dn }, (_v, i) => ({ n: an + i + 1, side: 'defending', result: i < dw ? 'won' : 'lost', died: false })),
+  ];
+  const leadOf = (rows) => { const p = review.patterns(rows).find((x) => x.key === 'sides'); return p ? p.text.split(':')[0] : null; };
+  const named = { 'Attack was your stronger side': 'defense', 'Defence was your stronger side': 'attack' };
+  const differ = [];
+  let splits = 0;
+  for (let an = 3; an <= 12; an++) {
+    for (let dn = 3; dn <= 12; dn++) {
+      for (let aw = 0; aw <= an; aw++) {
+        for (let dw = 0; dw <= dn; dw++) {
+          const rows = split(aw, an, dw, dn);
+          const lead = leadOf(rows);
+          const weak = matchReview.weakSide(rows);
+          splits++;
+          if (weak !== (named[lead] || null)) differ.push(`${aw} of ${an} against ${dw} of ${dn}: ${weak} under "${lead}"`);
+        }
+      }
+    }
+  }
+  ok(!differ.length, `study leans to the weaker side only where the patterns name a stronger one, on all ${splits} splits (${differ.slice(0, 3).join('; ') || 'none differ'})`);
+  const sunset = split(1, 4, 1, 3);
+  ok(matchReview.weakSide(sunset) === null && leadOf(sunset) === 'Neither side was clearly stronger'
+    && matchReview.weakSide(split(1, 4, 3, 4)) === 'attack' && matchReview.weakSide(split(3, 3, 1, 3)) === 'defense',
+  'the Sunset swiftplay\'s 1 of 4 against 1 of 3 leans to neither, and a two round gap still does');
+}
+
 // ── A fresh ledger with a jump in the score ─────────────────────────────────
 {
   const l = new RoundLedger();
@@ -461,16 +496,25 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(picks.length === 10, `ten rounds are picked (${picks})`);
   ok(picks.some((n) => n <= 8) && picks.some((n) => n > 8 && n <= 16) && picks.some((n) => n > 16),
     `and every third of the match gets at least one (${picks})`);
-  ok([2, 7, 10, 23].every((n) => picks.includes(n)), 'every first death round is among them');
+  ok([2, 10, 23].every((n) => picks.includes(n)), 'every first death in a lost round is among them');
+  // A line explains a death in a round that was not won: round 7's first
+  // death was in a round the team won, and 11 rounds were lost to a death.
+  ok(!picks.includes(7) && input.rounds.filter(matchReview.lineWorthy).length === 11,
+    `and no won round is, first death or not (${picks})`);
   ok(/one round line for each of these rounds, in this order: R2, /.test(prompt), 'the prompt names them');
 
   // THE KILLER GATE, on the exact lines the live model wrote for this match.
+  // Its R5 line went to a round the team won, which gets no line at all now,
+  // so the same sentence is held to the gate on round 22, which Riot has
+  // Skye winning.
   const reply = 'SUMMARY: You won.\nR4: Taking A vent wide with no trade partner gives Viper an easy kill opportunity.\n'
     + 'R5: Peeking A vent alone against Viper is a free kill when your team is elsewhere.\n'
-    + 'R10: Dying first as Cypher catches you shows you stepped out without breaking his angle.\nFOCUS: Smoke first.';
+    + 'R10: Dying first as Cypher catches you shows you stepped out without breaking his angle.\n'
+    + 'R22: Peeking A vent alone against Viper is a free kill when your team is elsewhere.\nFOCUS: Smoke first.';
   const parsed = matchReview.parse(reply, input);
-  ok(!(5 in parsed.rounds) && parsed.dropped.some((d) => d.n === 5 && d.said === 'Viper' && d.riot === 'Phoenix'),
-    'R5 named Viper where Riot says Phoenix, and is dropped');
+  ok(!(22 in parsed.rounds) && parsed.dropped.some((d) => d.n === 22 && d.said === 'Viper' && d.riot === 'Skye'),
+    'R22 named Viper where Riot says Skye, and is dropped');
+  ok(!(5 in parsed.rounds) && !parsed.dropped.some((d) => d.n === 5), 'and round 5, won, gets no line to check');
   ok(4 in parsed.rounds && 10 in parsed.rounds, 'R4 (Viper) and R10 (Cypher) match Riot and stay');
 
   // THE COUNT GATE, on the sentence the live model wrote, which merged 6 of 12
@@ -538,6 +582,362 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const noPlantData = { perRound: riotPlants.perRound.map((r) => ({ ...r, planted: false })) };
   ok(verify.reconcile(screen, noPlantData).rounds.find((r) => r.n === 6).planted,
     'a record with no plant in any round falls back to the screen, which is what a renamed field looks like');
+
+  // AND RIOT'S SITE, when its record names one (8.3.1). The player's Sunset
+  // swiftplay: round 5 was "Spike planted at B Boba", a frame of round 4's
+  // plant the ledger had filed a round ahead, where Riot has round 5 planted
+  // on A. The screen's callout stays where it names Riot's site, the part
+  // Riot never says.
+  const siteRow = (n, spot) => ({ n, side: 'defending', result: null, died: false, deathSpot: null, deathClock: null, early: false,
+    ultAtDeath: null, ultSeen: null, planted: !!spot, plantSpot: spot, locs: [], reads: [], frames: 5 });
+  const sited = verify.reconcile([siteRow(4, 'B Boba'), siteRow(5, 'B Boba'), siteRow(6, 'A'), siteRow(7, 'Mid Courtyard'), siteRow(8, null)], { perRound: [
+    { n: 4, won: true, died: false, planted: true, plantSite: 'B' },
+    { n: 5, won: true, died: false, planted: true, plantSite: 'A' },
+    { n: 6, won: false, died: false, planted: true, plantSite: 'A' },
+    { n: 7, won: false, died: false, planted: true, plantSite: 'A' },
+    { n: 8, won: false, died: false, planted: true, plantSite: 'B' },
+    { n: 9, won: false, died: false, planted: true, plantSite: 'C' },
+  ] }).rounds;
+  const spotOf = (n) => sited.find((r) => r.n === n).plantSpot;
+  ok(spotOf(5) === 'A Site' && spotOf(4) === 'B Boba' && review.roundFacts(sited.find((r) => r.n === 5)).includes('Spike planted at A Site'),
+    `Riot's site is the plant's: round 5's B Boba, round 4's plant filed a round ahead, is A Site, and round 4 keeps the callout Riot never says (${spotOf(5)}, ${spotOf(4)})`);
+  ok(spotOf(6) === 'A Site' && spotOf(7) === 'A Site' && spotOf(8) === 'B Site' && spotOf(9) === 'C Site',
+    'a bare letter, a place on no site, no callout at all and a round never watched all take Riot\'s site');
+  const unsited = verify.reconcile([siteRow(5, 'B Boba')], { perRound: [{ n: 5, won: true, died: false, planted: true }] }).rounds;
+  ok(unsited[0].plantSpot === 'B Boba', 'and a record naming no site, one fetched before the server sent it, keeps the screen\'s');
+}
+
+// ── The reads a round keeps: play, the last of it, nobody named ─────────────
+// The player's Sunset swiftplay, read a second: every card's reads were its
+// buy phase, because the ledger kept a round's FIRST three notes, and the
+// review was written from them. The notes below are that match's own wording
+// (the names in it are made up); the frames are its shape, a buy phase and
+// then a round in mid with the death a tenth of a second after the last read.
+{
+  const { notPlay, namesSomeone } = require('../src/shared/valorant-rounds');
+  const l = new RoundLedger();
+  let at = 0;
+  const f = (o) => { at += 1000; l.observe({ at, team: 0, enemy: 0, side: 'defending', alive: true, ...o }); };
+  const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  f({ phase: 'buy', clock: '0:43', note: 'standing in A Lobby during buy phase' });
+  f({ phase: 'buy', clock: '0:42', note: 'player holding Classic in spawn during buy phase' });
+  f({ phase: 'buy', clock: '0:41', note: 'in spawn during buy phase with an overlay open' });
+  // A buy phase frame whose note never says so: the frame's phase decides.
+  f({ phase: 'buy', clock: '0:40', note: 'player holding A Elbow alone with Ghost' });
+  for (let s = 39; s >= 0; s--) f({ phase: 'buy', clock: clock(s) });
+  f({ phase: 'active', clock: '1:39', note: 'holding B Main with Ghost out, dash ready' });
+  // The model's buy words on a frame it read as active with the round clock running.
+  f({ phase: 'active', clock: '1:38', note: 'holding B Main during buy phase' });
+  f({ phase: 'active', clock: '1:37', note: 'holding Mid Courtyard, enemy spotted mid' });
+  f({ phase: 'active', clock: '1:36', note: 'holding Mid Courtyard alone with knife out' });
+  f({ phase: 'active', clock: '1:35', note: 'player at B Site stairs with 22 HP, teammate Zorbo ahead' });
+  f({ phase: 'active', clock: '1:34', note: 'player holding Mid Courtyard with low HP' });
+  // The death screen, on a frame the engine still held as alive and in play.
+  f({ phase: 'postplant', clock: '1:33', note: 'dead, viewing combat report while spike is planted on A' });
+  f({ phase: 'dead', clock: '1:32', alive: false, died: true, deathSpot: 'Mid Courtyard', note: 'killed by KAY/O, 159 damage taken' });
+  f({ phase: 'dead', clock: '1:31', alive: false, note: 'spectating teammate holding A Site' });
+  // Alive again by the alive flag (the spectator HUD), after the death: not before it.
+  f({ phase: 'active', clock: '1:30', note: 'holding A Site with Vandal' });
+  const r1 = l.list().find((r) => r.n === 1);
+  const reads = r1.reads.map((x) => x.text);
+  ok(JSON.stringify(reads) === JSON.stringify(['holding Mid Courtyard, enemy spotted mid',
+    'holding Mid Courtyard alone with knife out', 'player holding Mid Courtyard with low HP']),
+  `a round keeps the last three reads of play before the death, never the buy phase (${JSON.stringify(reads)})`);
+  // A round the player lived through ends on its banner, an active frame with
+  // under fifteen seconds left, whatever its note says.
+  for (let s = 29; s >= 1; s -= 7) f({ team: 0, enemy: 1, phase: 'buy', clock: clock(s), note: 'standing in B Lobby during buy phase' });
+  f({ team: 0, enemy: 1, phase: 'active', clock: '1:35', note: 'holding B Main with Vandal' });
+  f({ team: 0, enemy: 1, phase: 'active', clock: '1:10', note: 'player alone on B Site looking at a wall' }, 25000);
+  f({ team: 0, enemy: 1, phase: 'postplant', spike: 'planted', note: 'holding B Boba while spike is planted' }, 30000);
+  f({ team: 0, enemy: 1, phase: 'active', clock: '0:03', note: 'holding B Site with Vandal' }, 30000);
+  const r2 = l.list().find((r) => r.n === 2);
+  const lived = r2.reads.map((x) => x.text);
+  ok(!r2.died && JSON.stringify(lived) === JSON.stringify(['holding B Main with Vandal',
+    'player alone on B Site looking at a wall', 'holding B Boba while spike is planted']),
+  `and a round survived keeps its last three of play, never the banner that ends it (${JSON.stringify(lived)})`);
+  // The screen's half of Riot's afterPlant: a plant seen before the death.
+  const p = new RoundLedger();
+  at = 0;
+  const g = (o, dt = 1000) => { at += dt; p.observe({ at, side: 'attacking', alive: true, ...o }); };
+  g({ team: 0, enemy: 0, phase: 'active', clock: '1:20' });
+  g({ team: 0, enemy: 0, phase: 'dead', clock: '1:10', alive: false, died: true }, 10000);
+  g({ team: 0, enemy: 0, phase: 'dead', alive: false, spike: 'planted' }, 20000);
+  g({ team: 0, enemy: 1, phase: 'buy', clock: '0:29' }, 30000);
+  g({ team: 0, enemy: 1, phase: 'active', clock: '1:20' }, 30000);
+  g({ team: 0, enemy: 1, phase: 'postplant', spike: 'planted' }, 20000);
+  g({ team: 0, enemy: 1, phase: 'dead', alive: false, died: true }, 10000);
+  const pl = p.list();
+  ok(pl[0].planted && pl[0].afterPlant === false && pl[1].planted && pl[1].afterPlant === true,
+    'a death before the plant was seen is not after it, and one after it is');
+  ok(notPlay('holding B Main during buy phase') === 'buy' && notPlay('scoreboard open while dead in B Lobby')
+    && notPlay('player standing in spawn holding Classic, surrender vote active') === 'surrender'
+    && notPlay('WON ENEMY TEAM ELIMINATED banner shown') && notPlay('Spectating teammate defusing on A Site')
+    && notPlay('holding A Lobby with 100 HP') === null && notPlay('player holding Mid Courtyard with low HP') === null,
+  'what the state cannot tell, the words do: the buy phase, a menu, a vote, a banner, the spectator camera');
+  ok(namesSomeone('player at B Site stairs with 22 HP, teammate Zorbo ahead') === 'Zorbo'
+    && namesSomeone('player watching Klumpf walk through B Site') === 'Klumpf'
+    && namesSomeone('holding A Lobby with teammate zorbo') === 'zorbo'
+    && namesSomeone('teammate Sage running ahead toward mid, player holding A Lobby') === null
+    && namesSomeone('holding A Lobby with teammates Brimstone, Sova, Skye and Phoenix nearby') === null
+    && namesSomeone('ALLY DEFUSING, player holding A Site') === null
+    && namesSomeone('player holding Mid Courtyard with Ghost, signature ability charged') === null
+    && namesSomeone('holding A Main with KAY/O behind, knife out with dash ready') === null,
+  'a read naming a person is never kept; agents, weapons, callouts and the HUD\'s own words are not people');
+  // THE SERVER'S COPY (server/services/match-review.js) cannot require this
+  // one, so the two are held equal here, on every note this block reads.
+  const words = ['standing in A Lobby during buy phase', 'holding B Main during buy phase', 'holding B site with barriers up',
+    'buy phase with combat report open in B Lobby', 'scoreboard open while dead in B Lobby', 'player dead at B Site 5m',
+    'killed by KAY/O, 159 damage taken', 'spectating teammate holding A Site', 'WON ENEMY TEAM ELIMINATED banner shown',
+    'player standing in spawn holding Classic, surrender vote active', 'full scoreboard open while holding A Link',
+    'in buy menu at defender spawn, combat report open', 'player holding Mid Courtyard with low HP',
+    'holding A Lobby with 100 HP', 'holding Mid Courtyard, enemy spotted mid', 'ally defusing spike on A Site'];
+  ok(words.every((t) => !!notPlay(t) === matchReview.NOT_PLAY.test(t)) && words.filter((t) => notPlay(t)).length === 12
+    && matchReview.NOT_PLAY.source === require('../src/shared/valorant-rounds').NOT_PLAY.source,
+  "the server's copy of what is not play is the ledger's, word for word, and agrees read by read");
+}
+
+// ── Where a round begins: a buy read once play has been seen ────────────────
+{
+  const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  // THE MISREAD, as the engine hands it over: the player's round 5 post plant,
+  // a "buy 0:39" read off the ammo counter a second after the last post plant
+  // read, then four more timers on any number, and buy reads with no timer
+  // that carry the last one read, as the engine's context does. It advanced
+  // the round, and round 5's post plant, its spike and a death went to round 6.
+  const l = new RoundLedger();
+  let at = 0;
+  const seen = [];
+  const f = (o, dt = 1000) => { at += dt; l.observe({ at, team: 1, enemy: 3, side: 'defending', alive: true, ...o }); seen.push(l.current()); };
+  for (let s = 43; s >= 1; s--) f({ phase: 'buy', clock: clock(s) });
+  for (let s = 99; s >= 64; s--) f({ phase: 'active', clock: clock(s) });
+  for (let i = 0; i < 5; i++) f({ phase: 'postplant', clock: '1:04', spike: 'planted', spikeSpot: 'A Site' });
+  const from = seen.length;
+  f({ phase: 'buy', clock: '0:39' });
+  f({ phase: 'buy', clock: '0:39' });
+  f({ phase: 'buy', clock: '0:13' });
+  f({ phase: 'buy', clock: '0:23' });
+  f({ phase: 'buy', clock: '0:19' });
+  // Its start a tenth of a second after the last post plant read, alone.
+  f({ phase: 'buy', clock: '0:39' }, 1100);
+  f({ phase: 'active', clock: '0:39' });
+  f({ phase: 'active', clock: '0:39' });
+  // The engine's held "0:39", three seconds on: no timer was read here.
+  f({ phase: 'buy', clock: '0:39' }, 1100);
+  f({ phase: 'active', clock: '0:39' });
+  f({ phase: 'postplant', clock: '0:39', spike: 'planted' });
+  f({ phase: 'postplant', clock: '0:39', spike: 'planted' });
+  ok(seen.slice(from).every((n) => n === 5),
+    `misread buy timers in a post plant never begin the next round (${seen.slice(from).join(',')})`);
+  // The real buy phase, seven seconds after the last post plant read, still does.
+  f({ phase: 'buy', clock: '0:29' }, 7000);
+  f({ phase: 'buy', clock: '0:28' });
+  ok(l.current() === 6, `and the next real buy phase, before the score moves, is round 6 (${l.current()})`);
+
+  // THE RUNNING BUY TIMER. A buy timer already accepted is running, a play read
+  // inside it set "played", and a buy read misread inside it would begin a
+  // round that is still being bought.
+  const b = new RoundLedger();
+  at = 0;
+  const g = (o, dt = 1000) => { at += dt; b.observe({ at, team: 0, enemy: 3, side: 'attacking', alive: true, ...o }); };
+  for (let s = 99; s >= 40; s -= 3) g({ phase: 'active', clock: clock(s) });
+  g({ team: 1, enemy: 3, phase: 'active', clock: '0:05' }, 3000);
+  g({ team: 1, enemy: 3, phase: 'buy', clock: '0:28' }, 6000);
+  g({ team: 1, enemy: 3, phase: 'active', clock: '1:05' }, 2000);
+  g({ team: 1, enemy: 3, phase: 'buy', clock: '0:29' }, 6000);
+  g({ team: 1, enemy: 3, phase: 'buy', clock: '0:19' }, 1000);
+  ok(b.current() === 5, `a buy read inside the buy timer already running is that buy phase, never the next (${b.current()})`);
+
+  // THE SECOND READ IS ANOTHER SECOND OF THE TIMER. In the player's round 5
+  // the frame after the first "buy 0:39" read buy with no timer, and the
+  // engine handed it over carrying the 0:39 it held: one read twice, which as
+  // two agreeing reads began round 6 in the post plant. So is a still number
+  // misread twice, an ammo counter that has not moved.
+  const post = () => {
+    const led = new RoundLedger();
+    let t = 0;
+    const filed = [];
+    const h = (o, dt = 1000) => { t += dt; led.observe({ at: t, team: 1, enemy: 3, side: 'defending', alive: true, ...o }); filed.push(led.current()); };
+    for (let s = 43; s >= 1; s--) h({ phase: 'buy', clock: clock(s) });
+    for (let s = 99; s >= 64; s--) h({ phase: 'active', clock: clock(s) });
+    for (let i = 0; i < 5; i++) h({ phase: 'postplant', clock: '1:04', spike: 'planted', spikeSpot: 'A Site' });
+    return { h, filed, from: filed.length, led };
+  };
+  const copy = post();
+  copy.h({ phase: 'buy', clock: '0:39' }, 6100);
+  copy.h({ phase: 'buy', clock: '0:39' });
+  copy.h({ phase: 'postplant', clock: '0:39', spike: 'planted' });
+  const still = post();
+  still.h({ phase: 'buy', clock: '0:29' }, 2000);
+  still.h({ phase: 'buy', clock: '0:29' });
+  still.h({ phase: 'postplant', clock: '0:29', spike: 'planted' });
+  ok(copy.filed.slice(copy.from).every((n) => n === 5) && still.filed.slice(still.from).every((n) => n === 5),
+    `a buy read and the same clock again a second later are one read, and begin no round (${copy.filed.slice(copy.from).join(',')}; ${still.filed.slice(still.from).join(',')})`);
+  // A real buy phase whose second read left the timer empty begins on the read after it, the timer moving.
+  const real = post();
+  real.h({ phase: 'buy', clock: '0:29' }, 2000);
+  real.h({ phase: 'buy', clock: '0:29' });
+  real.h({ phase: 'buy', clock: '0:27' });
+  ok(real.led.current() === 6, `and a real buy phase read so still begins the round once its timer has moved (${real.filed.slice(real.from).join(',')})`);
+}
+
+// ── One death a round, and the ultimate ─────────────────────────────────────
+{
+  const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  // ONE DEATH A ROUND KEEPS THE FIRST, though the player was read alive
+  // between two registrations: on the real Abyss session round 23 those reads
+  // were the spectator camera, alive at 1:09 and 1:00 after a death Riot has
+  // 12 seconds in, and taking the later registration moved the death 36
+  // seconds late and to the teammate's spot.
+  const l = new RoundLedger();
+  let at = 0;
+  const f = (o, dt = 1000) => { at += dt; l.observe({ at, team: 12, enemy: 10, side: 'attacking', alive: true, ...o }); };
+  for (let s = 24; s >= 6; s -= 9) f({ phase: 'buy', clock: clock(s) }, 9000);
+  f({ phase: 'dead', clock: '0:05', alive: false, died: true }, 10000);
+  f({ phase: 'active', clock: '1:27', loc: 'Mid Bottom' }, 8000);
+  f({ phase: 'active', clock: '1:09', loc: 'A Main' }, 19000);
+  f({ phase: 'active', clock: '1:00', loc: 'A Lobby' }, 7000);
+  f({ phase: 'dead', clock: '0:51', alive: false, died: true, deathSpot: 'A Lobby' }, 8000);
+  const r = l.list().find((x) => x.n === 23);
+  ok(r.died && r.deathClock === null && r.deathSpot === null,
+    `the later registration, after the spectator camera read alive, does not replace the first (${r.deathSpot}, ${r.deathClock})`);
+
+  // THE ULTIMATE. The engine keeps the last ult it read when a read leaves the
+  // field empty, so one misread "ready" (3 of 8 pips lit) carried to the frame
+  // after it, and then a death was "holding your ultimate".
+  const u = new RoundLedger();
+  at = 0;
+  const h = (o, dt = 1000) => { at += dt; u.observe({ at, team: 1, enemy: 3, side: 'defending', alive: true, ...o }); };
+  for (let s = 29; s >= 1; s--) h({ phase: 'buy', clock: clock(s), ult: 'charging' });
+  for (let s = 99; s >= 80; s--) h({ phase: 'active', clock: clock(s), ult: 'charging' });
+  h({ phase: 'active', clock: '1:19', ult: 'ready' });
+  h({ phase: 'active', clock: '1:18', ult: 'ready' });
+  h({ phase: 'dead', clock: '1:17', alive: false, died: true, ult: 'ready' });
+  ok(u.list().find((x) => x.n === 5).ultAtDeath !== 'ready', 'one ready read carried a second is not an ultimate held');
+  const w = new RoundLedger();
+  at = 0;
+  const k = (o, dt = 1000) => { at += dt; w.observe({ at, team: 1, enemy: 3, side: 'defending', alive: true, ...o }); };
+  for (let s = 99; s >= 80; s--) k({ phase: 'active', clock: clock(s), ult: 'ready' });
+  k({ phase: 'dead', clock: '1:19', alive: false, died: true, ult: 'ready' });
+  ok(w.list().find((x) => x.n === 5).ultAtDeath === 'ready', 'ready read alive for twenty seconds is');
+  // With the frame's own read the engine can send (ultRead), two ready reads in a row while alive.
+  const x = new RoundLedger();
+  at = 0;
+  const q = (o, dt = 1000) => { at += dt; x.observe({ at, team: 1, enemy: 3, side: 'defending', alive: true, ...o }); };
+  for (let s = 99; s >= 90; s--) q({ phase: 'active', clock: clock(s), ult: 'charging', ultRead: 'charging' });
+  q({ phase: 'active', clock: '1:29', ult: 'ready', ultRead: 'ready' });
+  for (let s = 88; s >= 70; s--) q({ phase: 'active', clock: clock(s), ult: 'ready', ultRead: null });
+  q({ phase: 'dead', clock: '1:09', alive: false, died: true, ult: 'ready', ultRead: null });
+  ok(x.list().find((y) => y.n === 5).ultAtDeath !== 'ready', 'one read of its own, held for twenty seconds, is not');
+}
+
+// ── What the review is written from: the reads, the sides, the plants ──────
+{
+  // The map lock held Haven for the first three minutes of the Sunset match,
+  // and round 2's last reads named Haven's A Long.
+  const fp = review.foreignPlace;
+  ok(fp('holding A Long alone with low HP', 'Sunset') === 'A Long' && fp('holding A Long alone', 'Haven') === null
+    && fp('holding a long angle on B Site', 'Sunset') === null && fp('holding Hookah alone', 'Sunset') === 'hookah'
+    && fp('holding B Boba alone while spike is planted', 'Sunset') === null && fp('holding A Long alone', null) === null,
+  "a read naming a place another map has and this one does not is not this match's");
+  const mk = (n, o) => ({ n, side: n <= 4 ? 'attacking' : 'defending', result: 'lost', died: true, deathSpot: null,
+    deathClock: null, early: false, ultAtDeath: null, planted: false, plantSpot: null, reads: [], frames: 30, ...o });
+  const rows = [
+    mk(1, { planted: true, afterPlant: false, reads: [{ text: 'holding B site with spike carrier just killed' }] }),
+    mk(2, { planted: true, afterPlant: true, reads: [{ text: 'player standing at B Site holding knife' }, { text: 'holding A Long alone with low HP' }] }),
+    mk(3), mk(4, { result: 'won', died: false, planted: true }),
+    mk(5, { result: 'won', died: false, planted: true }), mk(6, { planted: true, afterPlant: false }), mk(7, { planted: true, afterPlant: false }),
+  ];
+  const rv = review.build({ rounds: rows, context: { map: 'Sunset', teamScore: 2, enemyScore: 5 }, endedBy: 'score', ai: {} });
+  ok(JSON.stringify(rv.rounds.find((c) => c.n === 2).reads) === '["player standing at B Site holding knife"]',
+    'so the card leaves it out');
+  const body = review.requestBody({ rounds: rows, context: { map: 'Sunset', teamScore: 2, enemyScore: 5 }, endedBy: 'score' });
+  ok(JSON.stringify(body.rounds.find((r) => r.n === 2).reads) === '["player standing at B Site holding knife"]',
+    'and so does what the model is sent');
+  // One round won on each side is no stronger side.
+  const pats = review.patterns(rows);
+  const side = pats.find((p) => p.key === 'sides');
+  ok(side && side.text === 'Neither side was clearly stronger: won 1 of 4 on attack and 1 of 3 on defence.',
+    `one win a side names no stronger side (${side && side.text})`);
+  // Post plants and retakes are the rounds the player was alive in when the
+  // spike went down: rounds 1, 6 and 7 were deaths before the plant.
+  const post = pats.find((p) => p.key === 'postplant');
+  ok(post && post.text === 'On attack, won 1 of 2 rounds once the spike was down.' && !pats.some((p) => p.key === 'retake'),
+    `a death before the plant is no post plant played, and no retake (${post && post.text})`);
+  const ins = require('../src/shared/insights').valorant(rows, {});
+  ok(!ins.missed.some((e) => e.key === 'postplant-lost'), 'nor a post plant that slipped');
+}
+
+// ── The review's model is told what was counted, and code holds it to it ───
+{
+  const D = 'no teammate killed your killer within five seconds.';
+  const mk = (n, o) => ({ n, side: n <= 4 ? 'attacking' : 'defending', result: 'lost', died: true, deathSpot: null,
+    deathClock: null, early: false, ultAtDeath: null, planted: false, plantSpot: null, verified: true, deathSec: 20,
+    killerAgent: 'KAY/O', weapon: 'Sheriff', traded: false, kills: 1, firstKill: false, firstDeath: false,
+    aliveAtDeath: { mates: 3, enemies: 4 }, reads: [], frames: 30, ...o });
+  const rows = [mk(1, { traded: true, reads: [{ text: 'holding B Main with Ghost' }] }), mk(2), mk(3),
+    mk(4, { result: 'won', died: false, kills: 4, firstKill: true }), mk(5, { result: 'won', died: false }), mk(6), mk(7)];
+  const body = review.requestBody({ rounds: rows, context: { map: 'Sunset', agent: 'Jett' }, endedBy: 'score',
+    riot: { agent: 'Jett', map: 'Sunset', score: '2-5', result: 'Defeat', scoreline: { kills: 9, deaths: 5, assists: 1, acs: 300 } } });
+  const untraded = (body.mistakes || []).find((m) => m.key === 'untraded');
+  ok(untraded && untraded.rounds.join() === '2,3,6,7' && untraded.detail === `4 of your 5 deaths went unanswered: ${D}`
+    && !('fix' in untraded) && (body.strengths || []).some((s) => s.key === 'multi-kill'),
+  'the model is sent the counted mistakes and strengths the review shows, with no fix line');
+  const input = matchReview.normalise(body);
+  const prompt = matchReview.buildPrompt(input);
+  ok(/COUNTED MISTAKES[^\n]*\n- Died where nobody could trade \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt)
+    && /Second, the first counted mistake in your own words, with its count exactly as given/.test(prompt),
+  'the summary is asked for the first counted mistake, with its count');
+  ok(/Seen in play: "holding B Main with Ghost"/.test(prompt) && !/every ten seconds/.test(prompt)
+    && /Nothing done in the buy phase is a mistake/.test(prompt) && /9 kills, 5 deaths, 1 assist,/.test(prompt),
+  'what was seen in play is sent as that, read a second, and the buy phase is never a mistake');
+  ok(/in this order: R1, R2, R3, R6, R7\./.test(prompt), 'a line is asked only for the rounds lost to a death');
+  const old = matchReview.normalise({ rounds: [{ n: 1, reads: ['standing in A Lobby during buy phase',
+    'player holding Classic in spawn during buy phase', 'holding A Lobby alone'] }] });
+  ok(JSON.stringify(old.rounds[0].reads) === '["holding A Lobby alone"]',
+    "a client from before sends its buy phase reads, and the server keeps them from the prompt");
+  // Nor its counted lists, which it counts on its own page: told "none cleared
+  // the bar" under COUNTED MISTAKES, the model was told a falsehood as true.
+  const before = { ...body };
+  delete before.mistakes;
+  delete before.strengths;
+  const oldPrompt = matchReview.buildPrompt(matchReview.normalise(before));
+  const noneCounted = matchReview.buildPrompt(matchReview.normalise({ ...body, mistakes: [], strengths: [] }));
+  ok(!/COUNTED (?:MISTAKES|STRENGTHS)/.test(oldPrompt)
+    && /COUNTED MISTAKES[^\n]*\n- none cleared the bar in this match/.test(noneCounted)
+    && /COUNTED STRENGTHS[^\n]*\n- none cleared the bar in this match/.test(noneCounted),
+  'and sends no counted lists, so its prompt says nothing of them, where one that counted none says so');
+
+  // THE MODEL'S OWN REPLY TO THE PLAYER'S SUNSET MATCH, word for word, with
+  // its round 3 line's first sentence in the summary too, which names no
+  // mistake and blames the spawn all the same.
+  const reply = 'SUMMARY: You lost the match by failing to establish early map control on attack. '
+    + 'Standing idle in spawn during buy phase was the repeated mistake occurring in rounds 1, 2, 3 and 4. '
+    + 'Holding a pistol in spawn prevents you from reacting quickly to enemy pushes. '
+    + 'Your ability to secure first kills when you committed correctly shows your potential for impact.\n'
+    + 'R1: Dying early with a utility weapon leaves your team at a numbers disadvantage before they can organize. '
+    + 'You need to hold an angle from cover rather than waiting in open spawn.\n'
+    + 'R2: Being dead while your team loses means you missed the chance to apply pressure earlier. '
+    + 'You must stay alive through the initial engagement to trade kills effectively.\n'
+    + 'R3: Holding a pistol in spawn prevents you from reacting quickly to enemy pushes. '
+    + 'You should be positioned near a checkpoint to take space immediately after the round starts.\n'
+    + 'R4: Opening menus in spawn delays your movement into position and wastes valuable time. '
+    + 'You must close all interfaces before moving out to ensure you are ready for contact.\n'
+    + 'FOCUS: Move to your first piece of cover immediately upon round start to avoid standing still in spawn '
+    + 'and missing the initial exchange.';
+  const p = matchReview.parse(reply, input);
+  ok(p.summary === 'You lost the match by failing to establish early map control on attack. '
+    + 'Your ability to secure first kills when you committed correctly shows your potential for impact.',
+  `a summary sentence blaming the spawn and the buy phase is dropped (${p.summary})`);
+  ok(!(1 in p.rounds) && !(3 in p.rounds) && p.rounds[2] && p.blamed.some((b) => b.n === 1 && b.said === 'spawn'),
+    `and so is every round line that does, the rest kept (${Object.keys(p.rounds)})`);
+  ok(!(4 in p.rounds) && !p.blamed.some((b) => b.n === 4), 'a won round with no death gets no line at all');
+  ok(p.focus === null, 'and a focus on standing in spawn goes too');
+  const named = matchReview.parse('SUMMARY: You lost 2 to 5. Your most repeated mistake was dying where nobody could '
+    + 'trade, 4 of your 5 deaths, in rounds 2, 3, 6 and 7. The repeated mistake was holding one angle too long in '
+    + 'rounds 1, 4 and 5. You won 4 of 7 duels.', input);
+  ok(named.summary === 'You lost 2 to 5. Your most repeated mistake was dying where nobody could trade, 4 of your 5 '
+    + 'deaths, in rounds 2, 3, 6 and 7.',
+  `the counted mistake with its own count stays, one the review never counted goes, and any other count (${named.summary})`);
 }
 
 // ── The round after the last one ────────────────────────────────────────────
@@ -594,8 +994,14 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(said.startsWith("Checked against Riot's record of the 10 rounds the coach watched: the screen read 9 deaths and Riot has 8, with none in round 17."),
     `and said that way (${said})`);
   ok(!/21/.test(said), 'never against the 21 deaths of rounds it never saw');
+  // NOTHING ABOUT THE NOTES IT DROPPED (8.3.1): the page shows none of them,
+  // and calls the summary and each round's why the coach's read, so "Riot
+  // contradicts one of the coach's reads, so it is hidden" read as one of those
+  // taken down.
   const one = verify.describe({ ...c.checks, readsDropped: 1 });
-  ok(/Riot contradicts one of the coach's reads, so it is hidden\.$/.test(one), `one hidden read, singular (${one})`);
+  const many = verify.describe({ ...c.checks, readsDropped: 3 });
+  ok(one === said && many === said && !/coach's reads?|hidden/.test(one),
+    `the notes Riot contradicts are dropped, and the line says nothing of them (${one})`);
   // Built from code points, so this file never carries the character it bans.
   const dashed = (t) => [0x2013, 0x2014].some((c) => t.includes(String.fromCharCode(c)));
   ok(dashed(`a ${String.fromCharCode(0x2014)} b`) && !dashed('a - b'), 'the dash check catches a dash and lets a hyphen through');
@@ -607,15 +1013,103 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     `the header counts the rounds the coach saw, not Riot's 24 (${partial.watched.rounds} watched, ${partial.watched.deaths} deaths)`);
   ok(!partial.refused.some((t) => /stopped before/.test(t)),
     'stopped on the last round, the review does not claim the match went on');
-  ok(partial.refused.includes("Riot's record fills in rounds 1 to 14, which the coach did not watch, so those rounds have no location or coach's read."),
+  // NOTHING SEEN ON SCREEN, never "no coach's read" (8.3.1): the page calls
+  // each round's why the coach's read, and the narrative Riot's record is sent
+  // writes one for a round lost to a death the coach never watched (round 3 of
+  // this session among them, teachable() on the server).
+  ok(partial.refused.includes("Riot's record fills in rounds 1 to 14, which the coach did not watch, so those rounds have no death location and nothing seen on screen."),
     `and it says where the other rounds come from (${partial.refused.join(' | ')})`);
+  const linesFor = matchReview.teachable(matchReview.normalise(review.requestBody({ rounds: c.rounds, context: abyss.context,
+    endedBy: 'stop', tips: [], notes: [] })).rounds);
+  ok(linesFor.some((n) => n < 15) && !partial.refused.some((t) => /coach's read/.test(t)),
+    `so a round it never watched can carry a line, and no refusal says it has none (lines for ${linesFor.join(', ')})`);
   const early = verify.reconcile(abyss.rounds.filter((r) => r.n <= 20), riot);
   const cut = review.build({ rounds: early.rounds, context: abyss.context, endedBy: 'stop' });
   ok(cut.refused.includes("Coaching was stopped before the match ended. Riot's record fills in rounds 21 to 24, "
-    + "which the coach did not watch, so those rounds have no location or coach's read."),
+    + 'which the coach did not watch, so those rounds have no death location and nothing seen on screen.'),
     `stopped at round 20 of 24, Riot's record shows the match went on (${cut.refused.join(' | ')})`);
+  // A review saved before 8.3.1 says the two in today's words where it is shown
+  // (served, from present() in index.js), and the saved one is left as it was.
+  const before = { ...cut, verification: `${said} Riot contradicts one of the coach's reads, so it is hidden.`,
+    refused: cut.refused.map((t) => t.replace('no death location and nothing seen on screen.', "no location or coach's read.")) };
+  const beforeMany = { ...before, verification: `${said} Riot contradicts 3 of the coach's reads, so they are hidden.` };
+  const shownBefore = review.served(before);
+  ok(shownBefore.verification === said && review.served(beforeMany).verification === said
+    && JSON.stringify(shownBefore.refused) === JSON.stringify(cut.refused)
+    && /reads, so it is hidden\.$/.test(before.verification) && before.refused.some((t) => t.endsWith("no location or coach's read.")),
+  `a review saved before says them in today's words when shown, and is left as it was (${shownBefore.verification} | ${shownBefore.refused.join(' | ')})`);
+  ok(JSON.stringify(review.served(cut)) === JSON.stringify(cut), 'and one built today is shown as it was built');
   ok(review.spans([1, 2, 3, 4, 24]) === 'rounds 1 to 4 and 24' && review.spans([5, 6, 9]) === 'rounds 5, 6 and 9'
     && review.spans([7]) === 'round 7', 'round runs read as a person would write them');
+}
+
+// ── 8.3.1: a death is Riot's only at Riot's moment ─────────────────────────
+// The player's Sunset swiftplay, read a second, through the real reader, its
+// frames as the AI log keeps them. 8.3.0 filed round 5's defuse, 436.8 to
+// 461.1 s, under round 6, and with it a false death read at 459.1 s off the
+// SPECTATORS counter: round 6 kept it, a minute before Riot's round 6 death,
+// and the line counted the two as one. Riot's record of the match is not in
+// the repo: each death's milliseconds here are its round's barriers dropping
+// (barrierDrop) to the death its clip shows, round 1's, which has no clip,
+// between its last frame alive and its first dead.
+{
+  const { replaySession } = require('./fixtures/replay-session');
+  const deathFrames = require('../src/shared/death-frames');
+  const sunset = replaySession('valorant-session-sunset-swiftplay.json', null);
+  const wall = (s) => sunset.t0 + s * 1000;
+  const DEATH = { 1: 70.4, 2: 163.5, 3: 252.62, 6: 518.1, 7: 614.7 };
+  const as830 = sunset.records.map((x) => (x.at >= wall(436.8) && x.at <= wall(461.15)
+    ? { ...x, round: 6, died: x.died || Math.abs(x.at - wall(459.1)) < 50 } : x));
+  const riotOf = (records) => ({ perRound: [1, 2, 3, 4, 5, 6, 7].map((n) => {
+    const drop = deathFrames.barrierDrop(records, n, sunset.window);
+    const died = n in DEATH;
+    return { n, won: n === 4 || n === 5, died, deathMs: died && drop ? Math.round(wall(DEATH[n]) - drop.at) : null, planted: false };
+  }) });
+  // 8.3.0's ledger: a death in every round but 4, round 6's at A Site with the ultimate ready.
+  const row = (n, died, extra) => ({ n, side: n <= 4 ? 'attacking' : 'defending', result: null, died, deathSpot: died ? 'Mid Top' : null,
+    deathClock: null, early: false, ultAtDeath: null, ultSeen: null, planted: false, plantSpot: null, locs: [], reads: [], frames: 30, ...(extra || {}) });
+  const rows = [1, 2, 3, 4, 5, 6, 7].map((n) => row(n, n !== 4, n === 6
+    ? { deathSpot: 'A Site', ultAtDeath: 'ready', reads: [{ text: 'You went down holding A Elbow.', death: true }] } : {}));
+  const then = verify.reconcile(rows, riotOf(as830), { records: as830, window: sunset.window });
+  const e6 = then.checks.early[0];
+  ok(then.checks.invented.join() === '5,6' && then.checks.agreed === 4 && then.checks.early.length === 1 && e6.n === 6 && e6.s === 59,
+    `filed as 8.3.0 filed it, round 6's death read 59 s before Riot's is one the screen invented, with round 5's (${JSON.stringify(then.checks)})`);
+  const r6 = then.rounds.find((r) => r.n === 6);
+  ok(r6.died && !r6.screenDied && r6.deathSpot === null && r6.ultAtDeath === null && !r6.reads.length && then.checks.readsDropped === 1,
+    'and nothing of it is laid over Riot\'s death: no place, no ultimate, no read of it, and no frame of it as the one that registered Riot\'s');
+  const said = verify.describe(then.checks);
+  ok(said === "Checked against Riot's record of the match: the screen read 6 deaths and Riot has 5, with none in round 5 and one in round 6 the screen read 59 s before Riot's."
+    && !/hidden|coach's read/.test(said), `the line says it in numbers alone (${said})`);
+  // As the ledger files it now, round 6's own death registered 1.9 s after Riot's is Riot's.
+  const now = verify.reconcile(rows, riotOf(sunset.records), { records: sunset.records, window: sunset.window });
+  ok(now.checks.agreed === 5 && now.checks.invented.join() === '5' && !now.checks.early.length
+    && now.rounds.find((r) => r.n === 6).deathSpot === 'A Site' && verify.describe(now.checks).endsWith('with none in round 5.'),
+  'a death the screen registered just after Riot\'s is Riot\'s, and keeps the place the screen read');
+  const untimed = verify.reconcile(rows, riotOf(as830));
+  ok(untimed.checks.agreed === 5 && !untimed.checks.early.length && untimed.rounds.find((r) => r.n === 6).deathSpot === 'A Site',
+    'and with no AI log frames to time them, a death is Riot\'s by its round alone, as before');
+  const mainSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8');
+  const lookSrc = mainSrc.slice(mainSrc.indexOf('const riotLook = async'), mainSrc.indexOf('deathFrames.withRiotTimes(rounds, riot)'));
+  ok(/verify\.reconcile\(snap\.rounds, riot,\s*\{ records: snap\.log \? snap\.log\.records : null, window: \{ from: snap\.startedAt, to: snap\.endedAt \} \}\)/.test(lookSrc),
+    'and main hands the check the match\'s AI log frames and window when Riot\'s record lands (riotLook in index.js)');
+
+  // AFTER RIOT'S IS NOT CHECKED. Registered late is the same death, the
+  // spectator trap: the real Abyss session, read every nine seconds, through
+  // the real reader, against Riot's real record of it.
+  const ABYSS = load('riot-abyss-13-11.json');
+  const session = replaySession('valorant-session-abyss-unrated.json', null);
+  const timed = verify.reconcile(session.rounds, ABYSS, { records: session.records, window: session.window });
+  const gapOf = (rr) => {
+    const m = deathFrames.deathMoment(session.records, { n: rr.n, died: true, deathMs: rr.deathMs, plantMs: rr.plantMs, afterPlant: rr.afterPlant }, session.window);
+    const reg = deathFrames.framesFor(session.records, { n: rr.n, died: true, verified: false, screenDied: true }, session.window).find((f) => f.died);
+    return m !== null && reg ? (reg.at - m) / 1000 : null;
+  };
+  const late = ABYSS.perRound.filter((rr) => rr.died && (session.rounds.find((r) => r.n === rr.n) || {}).died)
+    .map((rr) => ({ n: rr.n, gap: gapOf(rr) })).filter((g) => g.gap !== null && g.gap > 5);
+  ok(late.length >= 2 && late.some((g) => g.gap > 20) && late.every((g) => !timed.checks.early.some((e) => e.n === g.n))
+    && timed.checks.early.every((e) => e.s > 5),
+  `a death registered after Riot's, however late, is Riot's: ${late.map((g) => `R${g.n} ${g.gap.toFixed(1)} s after`).join(', ')}`
+    + ` (counted early: ${timed.checks.early.map((e) => `R${e.n} ${e.s} s before`).join(', ') || 'none'})`);
 }
 
 // ── 8.2.1: the watch ended it too soon, said only where it did ──────────────
@@ -703,6 +1197,13 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(riotRounds.attackersOf(5, 4) === 'blue', 'swiftplay halves are four rounds');
   ok(a.traded === null && a.aliveAtDeath === null, 'a feed with a player off the roster says nothing about teamwork');
   ok(a.feed.every((k) => !('killer' in k) && !('victim' in k)), 'the feed carries sides and times, never who');
+  // THE PLANT'S SITE (8.3.1), read and never sent before, so the review kept
+  // the screen's.
+  const older = riotRounds.parse({ ...d, rounds: [{ winning_team: 'Red', plant_events: { plant_site: 'b', plant_time_in_round: 30000 } }, d.rounds[1]] }, 'Me', 'EUW');
+  ok(a.plantSite === 'A' && b.plantSite === null && older.perRound[0].plantSite === 'B' && older.perRound[0].plantMs === 30000,
+    `Riot's site comes with each round planted, in either shape, and none where nothing was (${a.plantSite}, ${b.plantSite}, ${older.perRound[0].plantSite})`);
+  ok(riotRounds.plantSiteOf({ site: 'C Site' }) === 'C' && riotRounds.plantSiteOf({ site: 'Attackers' }) === null
+    && riotRounds.plantSiteOf({ site: 'D' }) === null && riotRounds.plantSiteOf(null) === null, 'a site is A, B or C, and nothing else is one');
 
   // Teamwork, on a full ten player round.
   const P = (id, team) => ({ name: id, tag: 'T', puuid: id, team_id: team, agent: { name: 'Jett' }, stats: {} });
@@ -860,6 +1361,22 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const old = review.build({ rounds: [{ ...rows[1], forensics: { cause: 'dry-peek', what: 'x.', better: 'y.', frames: ['r2-before.jpg'] } }],
     context: abyss.context, endedBy: 'score', ai: {} });
   ok(old.rounds[0].forensics.source === 'riot' && old.rounds[0].forensics.at === null, 'a look saved before 8.2 reads as Riot\'s, with no moment');
+  // A LOOK THAT SAW THE RECORDING (8.3.1) keeps all five of its stills on its
+  // card, in time order, with each one's seconds from the death, which the
+  // page labels them by. Cut to two, the card kept 3 and 1.5 s before the
+  // death, both "Just before", and lost the fight and the death screen.
+  const stills = ['r2-rec1-before.jpg', 'r2-rec2-before.jpg', 'r2-rec3-before.jpg', 'r2-rec4-before.jpg', 'r2-rec5-after.jpg'];
+  const recorded = review.build({ rounds: [{ ...rows[1], forensics: { cause: 'isolated', what: 'x.', better: 'y.', source: 'riot',
+    frames: stills, frameAt: [-3.01, -1.52, -0.71, -0.31, 0.69], framesFrom: 'recording', at: 1000 } }],
+  context: abyss.context, endedBy: 'score', ai: {} }).rounds[0].forensics;
+  ok(recorded.frames.join() === stills.join() && recorded.frameAt.join() === '-3.01,-1.52,-0.71,-0.31,0.69'
+    && recorded.framesFrom === 'recording',
+  `a look's five stills from the recording stay on its card with their seconds from the death (${JSON.stringify(recorded.frames)}, ${JSON.stringify(recorded.frameAt)})`);
+  const misfit = review.build({ rounds: [{ ...rows[1], forensics: { cause: 'isolated', frames: stills, frameAt: [-3, -1.5] } }],
+    context: abyss.context, endedBy: 'score', ai: {} }).rounds[0].forensics;
+  ok(!('frameAt' in old.rounds[0].forensics) && !('framesFrom' in old.rounds[0].forensics) && old.rounds[0].forensics.frames.join() === 'r2-before.jpg'
+    && misfit.frames.length === 5 && !('frameAt' in misfit),
+  'while a look from before keeps its names and no seconds, and seconds that do not match its frames are none');
 
   // THE FRAMES ARE HELD FOR THE WHOLE LINK, the look after it included. The
   // longest is a match recording was stopped in: every try at the scoreboard,

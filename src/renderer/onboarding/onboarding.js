@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Welcome tour. Four short pages instead of one long list, because the old
+ * Welcome tour. Five short pages instead of one long list, because the old
  * single card asked the player to read five numbered steps and a settings
  * question before they could get to a match.
  *
@@ -59,6 +59,8 @@ function go(next) {
   // than a second red button recommending the skip; after it, Let's go is.
   nextBtn.classList.toggle('btn-primary', !last || connected);
   connectBtn.classList.toggle('btn-primary', !connected);
+  // The PC check runs as its page opens, once (checkPc).
+  if (pages[index] && pages[index].id === 'ob-watch') checkPc();
 }
 
 backBtn.addEventListener('click', () => go(index - 1));
@@ -69,10 +71,68 @@ nextBtn.addEventListener('click', () => {
 
 document.getElementById('close').addEventListener('click', () => window.occlara.done());
 window.addEventListener('keydown', (e) => {
+  // A key a control took for itself is its own: the language list's arrows,
+  // Enter and Escape, and the choices' arrows (radioKey, below).
+  if (e.defaultPrevented) return;
   if (e.key === 'Escape') window.occlara.done();
-  else if (e.key === 'Enter' || e.key === 'ArrowRight') nextBtn.click();
+  else if (e.key === 'Enter') enterKey(e);
+  else if (e.key === 'ArrowRight') nextBtn.click();
   else if (e.key === 'ArrowLeft') backBtn.click();
 });
+
+/**
+ * ENTER ON A BUTTON IS THAT BUTTON, and the next page as well only from the
+ * last control of its page. Enter was Next from anywhere: on a choice it
+ * turned the page and the browser's own click picked after it, on Next it
+ * pressed Next twice, and on Back it went forward and back again. So a button
+ * takes its click here and the browser's is kept from following it; the
+ * page's last control (Frames only on How Occlara watches, On, advanced after
+ * every match) picks and goes on, as Enter in a form's last field sends it.
+ * Enter anywhere else is Next, as it was. The Riot ID field and Connect take
+ * their Enter for themselves (below).
+ */
+function enterKey(e) {
+  const btn = e.target && typeof e.target.closest === 'function' ? e.target.closest('button') : null;
+  if (!btn) { nextBtn.click(); return; }
+  e.preventDefault();
+  if (btn.disabled) return;
+  btn.click();
+  if (btn !== nextBtn && lastControl(btn)) nextBtn.click();
+}
+
+/** Whether `el` is the last control of its page that can be used, in the page's own order. */
+function lastControl(el) {
+  const page = el.closest('.page');
+  if (!page) return false;
+  const usable = [...page.querySelectorAll('button, input, select, textarea')]
+    .filter((c) => !c.disabled && !c.closest('[hidden]'));
+  return usable[usable.length - 1] === el;
+}
+
+/*
+ * THE CHOICES ARE RADIOS (role radio in a radiogroup): Record gameplay and
+ * Frames only, and Record's size. The arrow keys move between the choices of
+ * one group and pick the one they land on, as radios do, passing over one
+ * that cannot be made, and turn no page; Tab comes into a group on its picked
+ * choice alone (paintWatch). They turned the page, which a player moving
+ * between two cards marked as radios did not ask for.
+ */
+const RADIO_STEP = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
+function radioKey(e) {
+  const step = RADIO_STEP[e.key];
+  const group = e.currentTarget;
+  const radio = step && e.target && typeof e.target.closest === 'function' ? e.target.closest('[role="radio"]') : null;
+  if (!radio || radio.closest('[role="radiogroup"]') !== group) return;
+  e.preventDefault();
+  const radios = [...group.querySelectorAll('[role="radio"]')]
+    .filter((r) => r.closest('[role="radiogroup"]') === group && !r.disabled);
+  const at = radios.indexOf(radio);
+  if (at < 0 || radios.length < 2) return;
+  const to = radios[(at + step + radios.length) % radios.length];
+  to.focus();
+  to.click();
+}
+for (const g of document.querySelectorAll('[role="radiogroup"]')) g.addEventListener('keydown', radioKey);
 
 // ── Choices (each saves immediately) ────────────────────────────────────────
 
@@ -88,6 +148,192 @@ function wireSeg(seg, onPick) {
 wireSeg(document.getElementById('advanced'), (v) => {
   window.occlara.setConfig({ advancedTips: v === 'on' }).catch(() => {});
 });
+
+// ── How Occlara watches: Record gameplay or Frames only (8.3.1) ────────────
+// The recorder's On and Off (recordingMode 'auto' and 'off', Settings' Record
+// match video) and its size (recordingRes), chosen here with a check of this
+// PC behind the choice. The check runs as its page opens: main says what Node
+// can tell (pc-check.js), this page asks the GPU's encoder itself exactly as
+// the recorder's gate asks it (src/renderer/recorder), and pc-rules.js
+// recommends.
+//
+// THE RECOMMENDATION IS SAVED ONLY OVER THE DEFAULTS. On a first run the
+// store holds Record at 720p because nobody chose anything, so the
+// recommendation is pre selected and saved in its place. A player shown the
+// tour again after a logout keeps the Off or the 1080p they chose in
+// Settings, with the recommendation marked beside it: a tour run again never
+// silently resets a choice. Where the PC cannot record at all (no hardware
+// encoder, under 8 GB free) Record cannot be chosen, and Frames only is saved
+// whatever was; a saved size the encoder refuses gives way to the
+// recommended one, and the line says why (checkPc).
+//
+// Declared before the first call this page makes to main at load, so the
+// page can be drawn with no bridge at all (scripts/shot-surface.js), where
+// the check reads as one that could not finish.
+const watchRec = document.getElementById('ob-rec');
+const watchFrames = document.getElementById('ob-frames');
+const watchRes = document.getElementById('ob-res');
+const recTag = document.getElementById('ob-rec-tag');
+const framesTag = document.getElementById('ob-frames-tag');
+const pcLine = document.getElementById('ob-pc-line');
+const pcFacts = document.getElementById('ob-pc-facts');
+// An ask that never answers is not a no: past this it counts as unknown, and
+// the page goes on. The first ask took 291 ms on the PC 8.3 was built on, the
+// GPU's encoder factories starting, and every ask after it under a
+// millisecond.
+const ENCODER_WAIT_MS = 5000;
+let watch = { mode: 'auto', res: '720' };   // what is saved: the store's defaults until read
+let untouched = false;                       // saved as the defaults, which nobody chose
+let pickedHere = false;                      // the player picked on this page
+let rec = null;                              // pc-rules.js's recommendation, once the check is in
+let pcAsked = false;
+
+/**
+ * One of the recorder's asks put to the GPU's encoder, the very question its
+ * gate asks before every recording (src/renderer/recorder/recorder.js
+ * hardwareGate): true, false (an ask that throws is a no there too), or null
+ * when it never answered.
+ */
+function askEncoder(a) {
+  const ask = (async () => {
+    try {
+      const s = await VideoEncoder.isConfigSupported({
+        codec: a.codec, width: a.width, height: a.height, bitrate: a.bitrate, framerate: 30,
+        hardwareAcceleration: 'prefer-hardware',
+      });
+      return !!(s && s.supported);
+    } catch { return false; }
+  })();
+  let timer = null;
+  const late = new Promise((resolve) => { timer = setTimeout(() => resolve(null), ENCODER_WAIT_MS); });
+  return Promise.race([ask, late]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * The two choices and the size as saved, the recommendation marked, what this
+ * PC cannot do disabled, a size the encoder refused saying why on itself.
+ * Each group is one stop for Tab, its picked choice (radioKey).
+ */
+function paintWatch() {
+  const recordable = !rec || rec.recordable;
+  const on = watch.mode !== 'off' && recordable;
+  watchRec.setAttribute('aria-checked', String(on));
+  watchFrames.setAttribute('aria-checked', String(!on));
+  watchRec.tabIndex = on ? 0 : -1;
+  watchFrames.tabIndex = on ? -1 : 0;
+  watchRec.disabled = !recordable;
+  for (const b of watchRes.querySelectorAll('button')) {
+    const refused = !!(rec && rec.sizes[b.dataset.res] === false);
+    const picked = b.dataset.res === watch.res;
+    b.disabled = !recordable || refused;
+    b.title = recordable && refused ? rec.refused[b.dataset.res] || '' : '';
+    b.classList.toggle('active', picked);
+    b.setAttribute('aria-checked', String(picked));
+    b.tabIndex = picked ? 0 : -1;
+  }
+  // The size is Record's: quiet while Frames only is chosen.
+  watchRes.classList.toggle('quiet', !on);
+  recTag.hidden = !(rec && rec.recordable && rec.mode === 'auto');
+  framesTag.hidden = !(rec && rec.recordable && rec.mode === 'off');
+}
+
+/** Save a choice the moment it is made, as every choice in the tour is. */
+function choose(mode, res) {
+  const m = mode === 'off' ? 'off' : 'auto';
+  let r = res === '1080' ? '1080' : '720';
+  // Record at a size the encoder refused would never record: the other one.
+  const other = r === '1080' ? '720' : '1080';
+  if (m === 'auto' && rec && rec.sizes[r] === false && rec.sizes[other] !== false) r = other;
+  const changed = m !== watch.mode || r !== watch.res;
+  watch = { mode: m, res: r };
+  paintWatch();
+  if (changed) window.occlara.setConfig({ recordingMode: watch.mode, recordingRes: watch.res }).catch(() => {});
+}
+
+watchRec.addEventListener('click', () => {
+  if (watchRec.disabled) return;
+  pickedHere = true;
+  choose('auto', watch.res);
+});
+watchFrames.addEventListener('click', () => {
+  pickedHere = true;
+  choose('off', watch.res);
+});
+// A size is a Record choice: picking one picks Record.
+watchRes.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b || b.disabled) return;
+  pickedHere = true;
+  choose('auto', b.dataset.res);
+});
+
+/** The check's line, and what it found; `refused`, a saved size the encoder refused, said in it. */
+function paintPc(facts, refused) {
+  const why = refused && rec.refused[refused] && !rec.why.includes(rec.refused[refused])
+    ? `${rec.why} ${rec.refused[refused]}` : rec.why;
+  pcLine.textContent = why;
+  pcLine.className = 'ob-pc-line' + (rec.tone ? ` ${rec.tone}` : '');
+  const cells = [];
+  for (const r of window.OcclaraPcRules.factRows(facts)) {
+    const dt = document.createElement('dt');
+    dt.textContent = r.k;
+    const dd = document.createElement('dd');
+    dd.textContent = r.v;
+    if (r.wide) dd.className = 'wide';
+    // A value too long for its row is cut with an ellipsis; its title is whole.
+    dd.title = r.v;
+    cells.push(dt, dd);
+  }
+  pcFacts.replaceChildren(...cells);
+  pcFacts.hidden = false;
+}
+
+/**
+ * The check, once, as its page opens: what is saved, what main can tell of
+ * this PC, the encoder's two answers, then the recommendation, pre selected
+ * over the defaults alone (above).
+ */
+async function checkPc() {
+  if (pcAsked) return;
+  pcAsked = true;
+  let cfg = null;
+  try { cfg = await window.occlara.getConfig(); } catch { cfg = null; }
+  // A pick made while the config was on its way is newer than its answer.
+  if (cfg && typeof cfg === 'object' && !pickedHere) {
+    watch = { mode: cfg.recordingMode === 'off' ? 'off' : 'auto', res: String(cfg.recordingRes) === '1080' ? '1080' : '720' };
+    untouched = watch.mode === 'auto' && watch.res === '720' && !cfg.recordingAutoOff;
+  }
+  paintWatch();
+  let facts = null;
+  try { facts = await window.occlara.checkPc(); } catch { facts = null; }
+  const found = facts && typeof facts === 'object' && facts.ok !== false ? facts : {};
+  // BOTH ASKS AT ONCE. One after the other, an encoder that never answers
+  // held "Checking this PC" up for two waits, ten seconds, not one.
+  const asks = (Array.isArray(found.asks) ? found.asks : []).filter((a) => a && (a.res === '720' || a.res === '1080'));
+  const answers = await Promise.all(asks.map(askEncoder));
+  const encoder = {};
+  asks.forEach((a, i) => { encoder[a.res] = answers[i]; });
+  if (!window.OcclaraPcRules) return;
+  const all = { ...found, encoder };
+  rec = window.OcclaraPcRules.recommend(all);
+  // A SAVED SIZE THE ENCODER REFUSES never records: the recorder's gate asks
+  // the same question before every recording and records nothing on a no.
+  // It was kept, shown picked and disabled at once. It is shown unavailable
+  // now, the line saying why, and the recommended size is picked and saved
+  // in its place, beside the player's own Record or Frames only.
+  const refused = rec.recordable && rec.sizes[watch.res] === false ? watch.res : null;
+  paintPc(all, refused);
+  if (!rec.recordable) {
+    if (watch.mode !== 'off') choose('off', watch.res);
+    else paintWatch();
+  } else if (untouched && !pickedHere) {
+    choose(rec.mode, rec.res);
+  } else if (refused) {
+    choose(watch.mode, rec.res);
+  } else {
+    paintWatch();
+  }
+}
 
 // The Riot ID saves as it is typed, like Settings, so leaving the tour at any
 // point keeps it.

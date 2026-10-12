@@ -39,6 +39,18 @@
  * where its kill words cannot tell, every sentence naming an agent other than
  * the player's own. A body with no source is Riot's, which is every client
  * from before 8.2, and one with no language is English.
+ *
+ * FROM THE PLAYER'S OWN RECORDING (8.3.1). A recorded match sends up to five
+ * stills of the clip around each death, `frameAt` their seconds from it
+ * (negative before), `framesFrom: 'recording'`: on the real Sunset match the
+ * two frames the live read took showed none of the four fights and every look
+ * came back unclear, while the recording held each one 32 times a second. The
+ * prompt says what each frame is and when, in time order, from Riot's death
+ * second or, from the screen alone, from the moment the screen read the death,
+ * which comes up to a few seconds after it. The read's own frames timed by
+ * Riot's record come with `frameAt` too ('reads'). A body without frameAt is
+ * a client from before, and gets at most two frames and the words it always
+ * did.
  */
 
 const { promptName } = require('./languages');
@@ -169,12 +181,35 @@ function wrongKiller(text, killer, source, opts) {
   return null;
 }
 
+// "3 s", "0.7 s": a frame's distance from the death as the prompt says it.
+const secs = (at) => {
+  const s = Math.abs(at);
+  return `${s >= 10 ? Math.round(s) : Math.round(s * 10) / 10} s`;
+};
+
+/**
+ * What the frames are, frame by frame, when the client said when each was
+ * taken (frameAt, 8.3.1): from the recording or the read, against Riot's death
+ * second or, from the screen alone, the moment the screen read the death.
+ */
+function framesLines(death, screen) {
+  const from = death.framesFrom === 'recording' ? "the player's own screen recording" : "the player's own screen";
+  const mark = screen ? 'the screen read the player as dead' : 'the death';
+  const lines = death.frameAt.map((at, i) => `Frame ${i + 1}: ${at === 0 ? `the moment ${mark}` : `${secs(at)} ${at < 0 ? 'before' : 'after'} ${mark}`}.`);
+  const head = death.frameAt.length > 1 ? `${death.frameAt.length} frames from ${from}, in time order:` : `One frame from ${from}:`;
+  const timing = screen
+    ? 'The screen can read a death a few seconds late, so the death itself came at or before the moment it did, and may already show in an earlier frame.'
+    : "The seconds are from Riot's death second, the moment its record has the player dying, good to a few tenths of a second.";
+  return `${head}\n${lines.join('\n')}\n${timing}`;
+}
+
 /** One death in, the prompt out. */
 function buildPrompt(input, death) {
   const callouts = calloutsOf(input.map);
   const kit = kitOf(input.agent);
   // Read off the screen, and framed by when the screen read the death (8.2).
   const screen = input.source === 'screen';
+  const timed = Array.isArray(death.frameAt) && death.frameAt.length === death.frames.length;
   const facts = [];
   facts.push(`Round ${death.n}, ${death.side === 'attacking' ? 'on attack' : death.side === 'defending' ? 'on defence' : 'side unknown'}.`);
   if (typeof death.sec === 'number') facts.push(`Died ${death.sec} seconds after the barriers dropped.`);
@@ -189,19 +224,33 @@ function buildPrompt(input, death) {
     facts.push(screen ? 'The screen saw the spike planted in this round.'
       : death.afterPlant ? 'The spike was already planted.' : 'The spike was planted later in the round.');
   }
-  if (death.spot) facts.push(`The screen placed the death at ${death.spot}.`);
-  if (typeof death.gap === 'number') {
+  // The spot is the last place the screen read, which on the real Sunset match
+  // put round 6's death at A Site, a round earlier's, while every frame of it
+  // printed Mid Courtyard. Timed frames from around the death print the place
+  // themselves, and win.
+  if (death.spot) {
+    facts.push(timed ? `The screen placed the death at ${death.spot}. If the frames print another place above the minimap, that is where it was.`
+      : `The screen placed the death at ${death.spot}.`);
+  }
+  if (typeof death.gap === 'number' && !timed) {
     facts.push(death.gap <= 1 ? 'The first frame was taken in the second the player died.'
       : `The first frame was taken about ${death.gap} seconds before the player died.`);
   }
 
-  const frames = screen
+  const frames = timed ? framesLines(death, screen) : screen
     ? (death.frames.length > 1
       ? 'Two frames from the player\'s own screen: the FIRST is the last one before the screen read the player as dead, the SECOND is the first one where it did.'
       : 'One frame from the player\'s own screen, the last one before the screen read the player as dead.')
     : death.frames.length > 1
       ? 'Two frames from the player\'s own screen: the FIRST is the last one before the death, the SECOND is just after it.'
       : 'One frame from the player\'s own screen, the last one before the death.';
+  // Several frames, timed: what to read in the ones before the death and the
+  // one after it, and when there is too little to say.
+  const sees = timed
+    ? `- The frames before the death show where the player was and the fight, if there was one. A frame after it shows Valorant's death screen: KILLED BY and the combat report of the damage each side dealt, which tells a fight the player was in from one they never saw.
+- If no frame before the death shows an enemy or the fight, you cannot see what happened: the cause is unclear unless the position itself is the mistake (alone far from every teammate on the minimap, standing in the open on the spike).
+`
+    : '- If the first frame shows no enemy and no fight, and was taken several seconds before the death, you cannot see what happened next: the cause is unclear unless the position itself is the mistake (alone far from every teammate on the minimap, standing in the open on the spike).\n';
   const header = screen
     ? "FACTS READ OFF THE SCREEN during the match. Riot's record of it was not available, so they may be incomplete:"
     : "FACTS FROM RIOT'S RECORD, exact, do not contradict them:";
@@ -223,13 +272,12 @@ ${facts.join('\n')}
 Player's agent: ${input.agent || 'unknown'}. Their abilities: ${kit.length ? kit.join(', ') : 'unknown, so name no abilities'}.
 Map: ${input.map || 'unknown'}. Callouts that exist on it: ${callouts.length ? callouts.join(', ') : 'unknown, so name no callouts'}.
 
-Pick the ONE cause that best fits what the frame shows:
+Pick the ONE cause that best fits what the ${timed && death.frames.length > 1 ? 'frames show' : 'frame shows'}:
 ${Object.entries(CAUSES).map(([k, v]) => `${k}: ${v}`).join('\n')}
 
 Rules:
-- Describe only what is visible in the frame and stated in the facts. If the frame does not show the moment (a menu, a death screen only, a blur), the cause is unclear.
-- If the first frame shows no enemy and no fight, and was taken several seconds before the death, you cannot see what happened next: the cause is unclear unless the position itself is the mistake (alone far from every teammate on the minimap, standing in the open on the spike).
-${late}- Where the player is: read the location name printed above the minimap in the top left. Do not guess a place from the scenery.
+- Describe only what is visible in the ${timed && death.frames.length > 1 ? 'frames' : 'frame'} and stated in the facts. If the frame does not show the moment (a menu, a death screen only, a blur), the cause is unclear.
+${sees}${late}- Where the player is: read the location name printed above the minimap in the top left. Do not guess a place from the scenery.
 - Ignore any text boxes or cards drawn over the game by other apps. Judge from the game itself.
 - Weapons and health are in the bottom HUD. Do not call a pistol a knife or an Operator a rifle.
 - A fair fight from a sound position is lost-duel. Do not invent a positioning error to have something to say.
@@ -269,14 +317,51 @@ function parse(text, input, death) {
   return out;
 }
 
+// A frame as the look sends it: one JPEG, base64, of a sane size.
+const isFrame = (f) => typeof f === 'string' && f.length > 1000 && f.length < 1500000;
+// Frames a death, untimed (every client before 8.3.1) and timed (frameAt).
+const MAX_FRAMES = 2;
+const MAX_TIMED_FRAMES = 5;
+// How far from the death a timed frame may be, either way, in seconds: a
+// clip runs from 11 s before it to 4 s after.
+const MAX_FRAME_AT = 15;
+
 /**
- * The request body, checked: at most four deaths, at most two frames each.
+ * A death's frames and, when the client gave them, each one's seconds from the
+ * death (8.3.1): { frames, frameAt, framesFrom }. Timed, at most five, the
+ * nearest the death kept, in time order whatever order they came in (a client
+ * sends the last before the death and the first after it ahead of the rest,
+ * which is what a server from before reads as its two). Untimed, or timed in
+ * a way that does not add up (a time missing, one past a clip's length), at
+ * most two in the order sent, as before, and frameAt null.
+ */
+function framesOf(d) {
+  const raw = Array.isArray(d && d.frames) ? d.frames : [];
+  const at = d && Array.isArray(d.frameAt) ? d.frameAt : null;
+  const timed = at && at.length === raw.length
+    && at.every((x) => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= MAX_FRAME_AT);
+  if (!timed) return { frames: raw.filter(isFrame).slice(0, MAX_FRAMES), frameAt: null, framesFrom: null };
+  const pairs = raw.map((f, i) => ({ f, at: Math.round(at[i] * 100) / 100 })).filter((p) => isFrame(p.f))
+    .sort((a, b) => Math.abs(a.at) - Math.abs(b.at)).slice(0, MAX_TIMED_FRAMES)
+    .sort((a, b) => a.at - b.at);
+  return {
+    frames: pairs.map((p) => p.f),
+    frameAt: pairs.length ? pairs.map((p) => p.at) : null,
+    framesFrom: d.framesFrom === 'recording' ? 'recording' : 'reads',
+  };
+}
+
+/**
+ * The request body, checked: at most four deaths, at most two frames each, or
+ * five each with their seconds from the death (framesOf).
  *
  * `source` is 'screen' only when the client says so (8.2), and 'riot'
  * otherwise, which is what every client before 8.2 sent its deaths as. From
  * the screen a death keeps what the screen can read, its round, its side,
  * its spot and a plant, and nothing only Riot records: no second, killer,
  * weapon, first death, trade, numbers standing or timing against the plant.
+ * Its frames' seconds are from the moment the screen read the death, the
+ * screen's own, and are kept.
  */
 function normalise(body) {
   const b = body || {};
@@ -296,12 +381,14 @@ function normalise(body) {
     afterPlant: !screen && !!(d && d.afterPlant),
     spot: clip(d && d.spot, 32) || null,
     gap: riot(d && typeof d.gap === 'number' && d.gap >= 0 && d.gap <= 15 ? Math.round(d.gap) : null),
-    frames: (Array.isArray(d && d.frames) ? d.frames : [])
-      .filter((f) => typeof f === 'string' && f.length > 1000 && f.length < 1500000).slice(0, 2),
+    ...framesOf(d),
   })).filter((d) => d.n > 0 && d.frames.length).slice(0, 4);
   return { agent: clip(b.agent, 24) || null, map: clip(b.map, 24) || null,
     language: typeof b.language === 'string' ? clip(b.language, 8) : 'en',
     source: screen ? 'screen' : 'riot', deaths };
 }
 
-module.exports = { CAUSES, AVOIDABLE, buildPrompt, parse, normalise, wrongMap, foreignAbility, wrongKiller, calloutsOf };
+module.exports = {
+  CAUSES, AVOIDABLE, MAX_FRAMES, MAX_TIMED_FRAMES, MAX_FRAME_AT,
+  buildPrompt, parse, normalise, wrongMap, foreignAbility, wrongKiller, calloutsOf,
+};

@@ -321,3 +321,104 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 .page[data-page="2"] .seg { margin-top: 7px; }
 @keyframes obRowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ob-bf-row { animation: none; } }
+
+/* ── How Occlara watches (8.3.1) ──────────────────────────────────────────────
+   What the PC check found, then Record gameplay and Frames only as two cards,
+   the one saved marked like a radio and the recommendation tagged. The
+   recording's size sits in the Record card's top right, quiet while Frames
+   only is chosen. Measured by npm run check:onboardingriot with its longest
+   line, the low disk one, like every page of the tour. */
+.page[data-page="3"] .hero { margin-bottom: var(--space-2); }
+.ob-pc {
+  padding: 10px var(--space-3);
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  margin-bottom: var(--space-1);
+}
+.ob-pc-line { font-size: 12px; font-weight: 600; line-height: 1.45; color: var(--text); }
+.ob-pc-line.checking { color: var(--text-mute); font-weight: 500; animation: pulse 1.6s var(--ease) infinite; }
+.ob-pc-line.good { color: var(--good); }
+.ob-pc-line.warn { color: var(--warn); }
+/* Two facts a row, each a label and its value, the GPU's name on a row of its
+   own (.wide). A value that still does not fit is cut with an ellipsis and
+   whole in its title. */
+.ob-pc-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr);
+  gap: 3px 10px;
+  margin-top: var(--space-2);
+  font-size: 11px;
+  line-height: 1.4;
+  animation: riseIn 240ms var(--ease-expo) both;
+}
+.ob-pc-facts dt { color: var(--text-mute); font-weight: 600; }
+.ob-pc-facts dd { color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.ob-pc-facts dd.wide { grid-column: 2 / -1; }
+
+.ob-opts { display: flex; flex-direction: column; gap: var(--space-2); }
+.ob-opt { position: relative; }
+.ob-opt-main {
+  position: relative;
+  width: 100%;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 10px var(--space-3) 10px 34px;
+  text-align: left;
+  font-family: var(--font);
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.20);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.ob-opt-main:hover { border-color: rgba(255, 255, 255, 0.16); }
+/* The radio: a ring, filled with a dot once chosen. */
+.ob-opt-main::before {
+  content: '';
+  position: absolute; left: var(--space-3); top: 15px;
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 1.5px solid var(--text-mute);
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.ob-opt-main[aria-checked="true"] { border-color: rgba(var(--cyan-rgb), 0.5); background: rgba(var(--cyan-rgb), 0.04); }
+.ob-opt-main[aria-checked="true"]::before { border-color: var(--cyan); background: var(--cyan); box-shadow: inset 0 0 0 2px var(--bg-2); }
+.ob-opt-main:disabled { opacity: 0.45; cursor: default; }
+.ob-opt-main:disabled:hover { border-color: var(--glass-border); }
+.ob-opt-main:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+/* One height for both titles, the size switch's, so the two radios line up. */
+.ob-opt-title { display: flex; align-items: center; gap: var(--space-2); min-height: 22px; font-size: 13px; font-weight: 700; }
+.ob-opt.has-res .ob-opt-title { padding-right: 112px; }
+.ob-tag {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text); line-height: 1.4;
+  padding: 1px 7px;
+  border: 1px solid rgba(var(--cyan-rgb), 0.3);
+  border-radius: 999px;
+}
+.ob-opt-text { font-size: 11px; line-height: 1.45; color: var(--text-dim); }
+.ob-res {
+  position: absolute; top: 10px; right: var(--space-3); z-index: 1;
+  display: flex; gap: 2px; padding: 1px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+}
+.ob-res button {
+  font-family: var(--font); font-size: 10.5px; font-weight: 600; line-height: 1.3;
+  color: var(--text-dim); background: transparent;
+  border: none; border-radius: 6px; padding: 2px 9px; cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.ob-res button:hover { color: var(--text); }
+.ob-res button.active { background: var(--cyan); color: var(--bg); }
+.ob-res.quiet button.active { background: rgba(var(--cyan-rgb), 0.16); color: var(--text); }
+.ob-res button:disabled { opacity: 0.35; cursor: default; }
+.ob-res button:disabled:hover { color: var(--text-dim); }
+.ob-res button:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 1px; }
+
+/* The page assembles as the others do: the check, then the two cards. */
+.page .ob-pc, .page .ob-opt { animation: riseIn 380ms var(--ease-expo) both; }
+.page .ob-pc { animation-delay: 70ms; }
+.page .ob-opt:nth-child(1) { animation-delay: 125ms; }
+.page .ob-opt:nth-child(2) { animation-delay: 180ms; }

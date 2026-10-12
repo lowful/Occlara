@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- As strict as the recorder's page: its own script and nothing else. It
+       loads no style, no image, no font, makes no request and starts no
+       worker. What it decodes is handed to it by main, frame by frame. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; base-uri 'none'; form-action 'none'" />
+  <title>Occlara frames</title>
+</head>
+<body>
+  <!-- Nothing to show: this page is a window that is never shown
+       (src/main/windows/frames-window.js). -->
+  <script src="frames.js"></script>
+</body>
+</html>

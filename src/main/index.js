@@ -77,6 +77,7 @@ const deathFrames = require('../shared/death-frames');
 const clips = require('../shared/clips');
 const clipScheme = require('./services/clip-scheme');
 const reviewClips = require('./services/review-clips');
+const lookStills = require('./services/look-stills');
 
 // Every post-match review, for every game. See services/review-store.js.
 const reviewStore = new ReviewStore(path.join(app.getPath('userData'), 'reviews'));
@@ -713,53 +714,108 @@ async function riotRoundsFor(lm) {
 }
 
 /**
- * The coach's look at the deaths worth teaching: the frame before each one,
- * sent to the server with the facts about it (death-forensics.js), and a
- * cause from a closed list back. Four deaths at most, one call each.
+ * The coach's look at the deaths worth teaching: frames of each one, sent to
+ * the server with the facts about it (death-forensics.js), and a cause from a
+ * closed list back. Four deaths at most, one call each.
  *
- * Riot's verified deaths by default, framed by Riot's second. With
- * `opts.source` 'screen' (8.2), the deaths the screen saw in a review Riot's
- * record never reached, framed by when the screen read each one, and the
- * server is told so: it then claims no second and names no killer.
+ * Riot's verified deaths by default, timed by Riot's record against the
+ * round's own clock (death-frames.js deathMoment). With `opts.source` 'screen'
+ * (8.2), the deaths the screen saw in a review Riot's record never reached,
+ * timed by when the screen read each one, and the server is told so: it then
+ * claims no second and names no killer.
  *
- * Returns { byRound: { n: { cause, what, better, frames, source, at, moment } }, frames: { name: b64 } },
- * `at` being when the first frame looked at was captured and `moment` when
- * the death was, for its clip (clipLooks). Empty, never an error, when there
- * are no frames: the AI log was off, or the deaths were in rounds the coach
- * never saw.
+ * THE LOOK SEES THE RECORDING (8.3.1). The clip of each moment is cut first,
+ * while the match's recording is held (clipLooks), and the look is sent a few
+ * stills of it around the death (recordingStills, clips.LOOK_AT) with their
+ * seconds from it: on the real Sunset match the two frames the live read took
+ * showed none of its four fights, and all four looks came back unclear. A
+ * death with no clip (not recorded, Off, no AI log hold) is sent the read's
+ * frames around it, as before. Only stills leave the PC.
+ *
+ * `opts.job` is the review the look is for, whose clips it cuts and keeps,
+ * and `opts.stale` says when a newer look has taken over, which then keeps
+ * its own (the screen's look is stale once Riot's begins).
+ *
+ * Returns { byRound: { n: { cause, what, better, frames, frameAt, framesFrom,
+ * source, at, moment, clip } }, frames: { name: b64 } }: frames in time order,
+ * frameAt each one's seconds from the death when the look knew it, framesFrom
+ * 'recording' or 'reads', `at` when the first frame was taken, `moment` when
+ * the death was. Empty, never an error, when there are no frames: the AI log
+ * was off, or the deaths were in rounds the coach never saw.
  */
 async function forensicsFor(rounds, snap, opts) {
   const source = opts && opts.source === 'screen' ? 'screen' : 'riot';
+  const job = (opts && opts.job) || null;
+  const stale = opts && typeof opts.stale === 'function' ? opts.stale : () => false;
   const empty = { byRound: {}, frames: {} };
   const log = snap.log;
   if (!log || !log.dir || !log.records.length) return empty;
   const looks = deathFrames.looksFor(log.records, rounds, { from: snap.startedAt, to: snap.endedAt }, source);
+  const cut = job ? await clipLooks(job, looks, stale) : new Map();
+  if (stale()) return empty;
+  // Riot's look has its clips, the review's to keep: the recording goes now,
+  // never held through the wait for a match in progress (recordingCut).
+  if (job && source === 'riot') recordingCut(job, cut);
+  const stills = cut.size ? await recordingStills(job, looks, cut, source, stale) : new Map();
+  if (stale()) return empty;
+  const looked = await askForensics(looks, stills, snap, source, log);
+  if (stale()) return empty;
+  if (job) keepLookClips(job, looked, cut);
+  return looked;
+}
+
+/** The look's call to the server, from the stills of the recording where there are some and the read's frames elsewhere. */
+async function askForensics(looks, stills, snap, source, log) {
+  const empty = { byRound: {}, frames: {} };
   const deaths = [];
   const kept = {};
   for (const look of looks) {
     const r = look.round;
+    const moment = clips.momentOf(look);
     const imgs = [];
     const names = [];
-    look.frames.forEach((rec, i) => {
-      try {
-        const b64 = fs.readFileSync(path.join(log.dir, rec.frame)).toString('base64');
-        const name = look.names[i];
+    let frameAt = [];
+    let framesFrom = 'reads';
+    const shot = stills.get(r.n);
+    if (shot && shot.length) {
+      framesFrom = 'recording';
+      shot.forEach((s, k) => {
+        const name = clips.stillName(r.n, k + 1, s.at);
+        if (!name) return;
+        const b64 = s.jpeg.toString('base64');
         imgs.push(b64);
         names.push(name);
+        frameAt.push(s.at);
         kept[name] = b64;
-      } catch {}
-    });
+      });
+    } else {
+      look.frames.forEach((rec, i) => {
+        try {
+          const b64 = fs.readFileSync(path.join(log.dir, rec.frame)).toString('base64');
+          const name = look.names[i];
+          imgs.push(b64);
+          names.push(name);
+          kept[name] = b64;
+          if (Array.isArray(look.frameAt) && Number.isFinite(look.frameAt[i])) frameAt.push(look.frameAt[i]);
+        } catch {}
+      });
+    }
     if (!imgs.length) continue;
+    // Each frame's seconds from the death, where the look knows when the death
+    // was: Riot's, or the stills, which are taken at seconds from the moment.
+    if (frameAt.length !== names.length) frameAt = null;
     // A ledger row carries none of Riot's facts, so a look from the screen
     // sends its round, side, spot and plant alone.
     deaths.push({
       n: r.n, side: r.side, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
       firstDeath: r.firstDeath, traded: r.traded, alive: r.aliveAtDeath,
       planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, frames: imgs, names,
-      gap: look.gap, at: look.at,
-      // When the death itself was, on the wall clock, for its clip (8.3,
-      // shared/clips.js momentOf): kept here, never sent.
-      moment: clips.momentOf(look),
+      gap: framesFrom === 'recording' ? null : look.gap,
+      frameAt, framesFrom,
+      // When the first frame was taken, for the eye at that moment, and when
+      // the death itself was: kept here, never sent.
+      at: framesFrom === 'recording' && Number.isFinite(moment) ? Math.round(moment + frameAt[0] * 1000) : look.at,
+      moment,
     });
   }
   if (!deaths.length) return empty;
@@ -772,7 +828,13 @@ async function forensicsFor(rounds, snap, opts) {
       agent: source === 'screen' && !snap.context.agentConfirmed ? null : snap.context.agent,
       map: snap.context.map, language: snap.context.language || 'en',
       source,
-      deaths: deaths.map(({ names, at, moment, ...d }) => d),
+      deaths: deaths.map(({ names, at, moment, frames, frameAt, framesFrom, ...d }) => {
+        if (!frameAt) return { ...d, frames };
+        // The last frame before the death and the first after it lead, as the
+        // two a server from before 8.3.1 keeps and reads (look-stills.js).
+        const order = lookStills.sendOrder(frameAt);
+        return { ...d, frames: order.map((i) => frames[i]), frameAt: order.map((i) => frameAt[i]), framesFrom };
+      }),
     };
     const { ok, data } = await api.post(API.DEATH_FORENSICS, body, store.get('licenseKey'), 60000);
     if (!ok || !data || !Array.isArray(data.deaths)) {
@@ -783,17 +845,100 @@ async function forensicsFor(rounds, snap, opts) {
     for (const f of data.deaths) {
       const d = deaths.find((x) => x.n === f.n);
       if (!d || f.failed) continue;
-      out.byRound[f.n] = { cause: f.cause, what: f.what || null, better: f.better || null, frames: d.names,
-        source, at: typeof d.at === 'number' ? d.at : null, moment: typeof d.moment === 'number' ? d.moment : null };
+      out.byRound[f.n] = {
+        cause: f.cause, what: f.what || null, better: f.better || null, frames: d.names,
+        ...(d.frameAt ? { frameAt: d.frameAt } : {}), framesFrom: d.framesFrom,
+        source, at: typeof d.at === 'number' ? d.at : null, moment: typeof d.moment === 'number' ? d.moment : null,
+      };
       for (const name of d.names) out.frames[name] = kept[name];
     }
     console.log(`[review] death forensics${source === 'screen' ? ' from the screen' : ''}: `
-      + `${Object.entries(out.byRound).map(([n, f]) => `R${n} ${f.cause}`).join(', ')}`);
+      + `${Object.entries(out.byRound).map(([n, f]) => `R${n} ${f.cause} (${f.frames.length} ${f.framesFrom === 'recording' ? 'from the recording' : 'read'})`).join(', ')}`);
     return out;
   } catch (e) {
     console.log('[review] death forensics failed:', e.message);
     return empty;
   }
+}
+
+/*
+ * NEVER WHILE A MATCH IS BEING PLAYED (8.3.1). Decoding a clip is work for the
+ * PC, and the look waits for the match in progress to end before it takes its
+ * stills: Riot publishes a match 90 s to four minutes after it, by which time
+ * the next one may be under way. Nobody sees the review mid match, so the
+ * wait costs nothing on screen. An hour at most, the holds' own limit
+ * (aiLogStore.HOLD_MAX_MS); past it, or with the review withdrawn, the read's
+ * frames are sent.
+ */
+const AFTER_MATCH_MAX_MS = 60 * 60 * 1000;
+const AFTER_MATCH_POLL_MS = 2000;
+async function afterMatch(stop) {
+  const end = Date.now() + AFTER_MATCH_MAX_MS;
+  let said = false;
+  while (matchInProgress()) {
+    if (stop() || Date.now() > end) return false;
+    if (!said) { said = true; console.log('[review] a match is being played: the look waits for it to end'); }
+    await new Promise((resolve) => setTimeout(resolve, AFTER_MATCH_POLL_MS));
+  }
+  return !stop();
+}
+
+/**
+ * The stills of each clipped moment (look-stills.js): from the clip kept
+ * beside the review, at clips.LOOK_AT's seconds from the death, decoded in the
+ * frames page (windows/frames-window.js), opened for this and closed after it,
+ * never while a match is in progress. Map n -> [{ at, jpeg }], for the deaths
+ * that got any.
+ *
+ * None once the player chose Off meanwhile (cutsClips): the look is then sent
+ * the read's frames, as a look taken after Off is, and keeps no clip
+ * (keepLookClips).
+ */
+async function recordingStills(job, looks, cut, source, stale) {
+  const out = new Map();
+  const offsets = clips.LOOK_AT[source === 'screen' ? 'screen' : 'riot'];
+  const prof = (CAPTURE.profiles && CAPTURE.profiles.standard) || { targetW: 1280, targetH: 720, jpegQuality: 70 };
+  const off = () => !clips.cutsClips(store);
+  const stop = () => job.cancelled || stale() || off();
+  let page = null;
+  const t0 = Date.now();
+  try {
+    for (const look of looks) {
+      const c = cut.get(look.round.n);
+      // Riot's look only around Riot's own death on the wall clock, the
+      // screen's around its read of it (clips.stillsMomentOf); a death with
+      // neither is sent the read's frames.
+      const moment = clips.stillsMomentOf(look, source);
+      if (!c || !Number.isFinite(c.startWall) || !Number.isFinite(moment)) continue;
+      if (matchInProgress() && page) { page.close(); page = null; }
+      if (!(await afterMatch(stop))) break;
+      let bytes = null;
+      try { bytes = fs.readFileSync(reviewStore.clipFile(job.id, c.name)); } catch { bytes = null; }
+      if (!bytes) continue;
+      if (!page) {
+        try { page = await require('./windows/frames-window').open(); } catch (e) {
+          console.log('[review] the frames page did not open:', e.message);
+          break;
+        }
+      }
+      const got = await lookStills.stillsOf({
+        bytes, startWall: c.startWall, moment, offsets, decode: (j) => page.decode(j),
+        size: { width: prof.targetW, height: prof.targetH, quality: prof.jpegQuality / 100 },
+      });
+      if (got.length) out.set(look.round.n, got);
+    }
+  } finally {
+    if (page) page.close();
+  }
+  if (off()) {
+    console.log(`[review] ${job.id}: Off was chosen while the look was out, no stills from the recording`);
+    return new Map();
+  }
+  if (cut.size) {
+    console.log(`[review] ${job.id}: stills from the recording for ${out.size} of ${cut.size} clipped deaths`
+      + ` (${[...out.values()].reduce((n, s) => n + s.length, 0)} frames, ${Date.now() - t0} ms)`);
+  }
+  return out;
 }
 
 /**
@@ -821,16 +966,14 @@ function screenLook(job) {
 async function lookFromScreen(job) {
   if (job.cancelled || job.riotLooked) return;
   const snap = job.snap;
-  const looked = await forensicsFor(snap.rounds, snap, { source: 'screen' });
+  // Its clips are cut and kept by the look itself, never over Riot's look,
+  // which is the one kept whenever it lands.
+  const looked = await forensicsFor(snap.rounds, snap,
+    { source: 'screen', job, stale: () => job.cancelled || job.riotBusy || job.riotLooked });
   // Riot's rounds landed while this look was out. Theirs is painted, and if it
   // fails after all, the link's end looks again.
   if (job.riotBusy) { job.screenLook = null; return; }
   if (job.cancelled || job.riotLooked || !Object.keys(looked.byRound).length) return;
-  // The clip of each moment, out of the match's recording while it is held.
-  // Never over Riot's look, which is the one kept whenever it lands.
-  await clipLooks(job, looked, () => job.cancelled || job.riotBusy || job.riotLooked);
-  if (job.riotBusy) { job.screenLook = null; return; }
-  if (job.cancelled || job.riotLooked) return;
   // On the ledger's own rows, so a version built after this one (a scoreboard
   // linked late) still carries the looks. Riot's reconcile builds its rounds
   // afresh and keeps none of them.
@@ -843,10 +986,13 @@ async function lookFromScreen(job) {
 
 /**
  * THE CLIPS OF A LOOK'S MOMENTS (8.3): cut out of the match's recording while
- * its hold still keeps the pages (releaseMatchHolds comes after every look),
+ * its hold still keeps the pages (let go once Riot's look has cut its clips,
+ * recordingCut, or else when the link is done, releaseMatchHolds),
  * kept beside the review (review-store.js saveClip), and named on the look
  * (`clip`), which its card then plays. 11 seconds before each death to 4
- * after it (shared/clips.js), six a review at most, then the cap.
+ * after it (shared/clips.js), six a review at most, then the cap. Since 8.3.1
+ * they are cut BEFORE the look is sent, which takes its stills from them
+ * (recordingStills), and named once it answers (keepLookClips).
  *
  * A match the recorder did not record (Off, given up as busy, a PC with no
  * hardware encoder, a death before the recording began) has no clip, and its
@@ -864,51 +1010,107 @@ async function lookFromScreen(job) {
  * finishing last, and the review keeping Riot's cards with the screen's clips
  * in place of theirs. The last look's are the ones kept, and a clip an earlier
  * look cut of a round this one did not choose goes (keepClips).
+ *
+ * Resolves Map n -> { name, startWall }: the clips cut, and where each one's
+ * own 0 is on the wall clock.
  */
-function clipLooks(job, looked, stale) {
-  const run = () => cutLookClips(job, looked, stale);
-  job.clipping = (job.clipping || Promise.resolve()).then(run, run);
-  return job.clipping;
+function clipLooks(job, looks, stale) {
+  const run = () => cutLookClips(job, looks, stale);
+  const cut = (job.clipping || Promise.resolve()).then(run, run)
+    .catch((e) => { console.log('[clips] the clips could not be cut:', e.message); return new Map(); });
+  job.clipping = cut;
+  return cut;
 }
 
-async function cutLookClips(job, looked, stale) {
-  if (stale()) return;
+async function cutLookClips(job, looks, stale) {
+  const cut = new Map();
+  if (stale()) return cut;
   // Off: nothing is cut. The look is still the review's last, so its cards
-  // name no clip, and an earlier look's clips go, as they do when the
-  // recording holds none of this one's moments.
+  // name no clip, and an earlier look's clips go once it answers, as they do
+  // when the recording holds none of this one's moments.
   const off = () => !clips.cutsClips(store);
   if (off()) {
-    try { reviewStore.keepClips(job.id, []); } catch (e) { console.log('[clips] keepClips:', e.message); }
     console.log(`[clips] ${job.id}: Off was chosen, no clip cut`);
-    return;
+    return cut;
   }
-  const looks = Object.entries((looked && looked.byRound) || {})
-    .map(([n, f]) => ({ key: Number(n), name: clips.roundClip(n), moment: f && f.moment }))
+  const wanted = (looks || [])
+    .map((l) => ({ key: l.round.n, name: clips.roundClip(l.round.n), moment: clips.momentOf(l) }))
     .filter((l) => l.name && Number.isFinite(l.moment))
     .sort((a, b) => a.key - b.key);
-  let r = { kept: [], tried: 0, missed: 0 };
-  if (looks.length) {
-    try {
-      r = await reviewClips.cutClips({
-        looks, max: clips.MAX_CLIPS,
-        cut: (from, to, at) => recorder.cutClip(from, to, at),
-        save: (name, bytes) => !stale() && reviewStore.saveClip(job.id, name, bytes) > 0,
-        // Off chosen while they are cut: the ones kept stay named, no more.
-        stopped: () => stale() || off(),
-      });
-    } catch (e) {
-      console.log('[clips] the clips could not be cut:', e.message);
-      return;
+  if (!wanted.length) return cut;
+  // The recording let go once Riot's look had cut its clips (recordingCut):
+  // a look after it takes those clips, the rounds it wants that they are of,
+  // and asks the recorder for nothing.
+  if (job.recordingLetGo) {
+    for (const l of wanted) {
+      const c = job.clipsCut && job.clipsCut.get(l.key);
+      if (c && reviewStore.hasClip(job.id, c.name)) cut.set(l.key, c);
     }
+    console.log(`[clips] ${job.id}: ${cut.size} of ${wanted.length} moments already clipped, the recording let go`);
+    return cut;
   }
-  if (stale()) return;
-  for (const k of r.kept) if (looked.byRound[k.key]) looked.byRound[k.key].clip = k.name;
-  try { reviewStore.keepClips(job.id, r.kept.map((k) => k.name)); } catch (e) { console.log('[clips] keepClips:', e.message); }
-  if (looks.length) {
-    console.log(`[clips] ${job.id}: ${r.kept.length} of ${looks.length} moments clipped`
-      + `${r.missed ? `, ${r.missed} not in the recording` : ''} (${Math.round(r.kept.reduce((n, k) => n + k.bytes, 0) / 1024)} KB)`);
+  let r = { kept: [], tried: 0, missed: 0 };
+  try {
+    r = await reviewClips.cutClips({
+      looks: wanted, max: clips.MAX_CLIPS,
+      cut: (from, to, at) => recorder.cutClip(from, to, at),
+      save: (name, bytes) => !stale() && reviewStore.saveClip(job.id, name, bytes) > 0,
+      // Off chosen while they are cut: the ones kept stay named, no more.
+      stopped: () => stale() || off(),
+    });
+  } catch (e) {
+    console.log('[clips] the clips could not be cut:', e.message);
+    return cut;
   }
-  if (r.kept.length) applyClipCap();
+  for (const k of r.kept) cut.set(k.key, { name: k.name, startWall: k.startWall });
+  console.log(`[clips] ${job.id}: ${r.kept.length} of ${wanted.length} moments clipped`
+    + `${r.missed ? `, ${r.missed} not in the recording` : ''} (${Math.round(r.kept.reduce((n, k) => n + k.bytes, 0) / 1024)} KB)`);
+  return cut;
+}
+
+/*
+ * THE RECORDING GOES ONCE RIOT'S LOOK HAS CUT ITS CLIPS (8.3.1). Its stills are
+ * decoded from those clips beside the review (recordingStills), never from the
+ * recording, and they wait for a match in progress to end (afterMatch): held
+ * to the link's end, the match before's recording, about 1.6 GB at 1080p, was
+ * kept through the whole of the next one. Never before its clips are cut, and
+ * never for a look that may still cut: Riot's is the look a review keeps, a
+ * look before it has cut already (clipLooks runs one at a time), and a look
+ * after it (Riot's again after a failure, the screen's if Riot's never
+ * finished) takes the clips cut here (cutLookClips). The AI log's frames stay
+ * held to the link's end, for a death with no clip.
+ */
+function recordingCut(job, cut) {
+  job.clipsCut = new Map(cut);
+  if (job.recordingLetGo) return;
+  job.recordingLetGo = true;
+  releaseRecording(job.recording);
+  job.recording = null;
+  console.log(`[clips] ${job.id}: Riot's look has its clips, the match's recording is let go`);
+}
+
+/**
+ * The look answered: each death it looked at names its clip, and the review
+ * keeps those clips and no others (an earlier look's, a round the server
+ * failed on, or every one when the look failed or Off was chosen). Then the
+ * cap.
+ *
+ * OFF CHOSEN WHILE THE LOOK WAS OUT keeps none either (cutsClips, asked again
+ * here). Its clips were cut before it was sent, and it can wait out a whole
+ * match for its stills: asked only before the cut, Off chosen between matches
+ * while Riot's look waited, or while the server answered, left its clip
+ * beside the review and named on its card, where 8.3.0, cutting after the
+ * look, kept none.
+ */
+function keepLookClips(job, looked, cut) {
+  const names = [];
+  const off = !clips.cutsClips(store);
+  for (const [n, f] of Object.entries((looked && looked.byRound) || {})) {
+    const c = off ? null : cut.get(Number(n));
+    if (c && f) { f.clip = c.name; names.push(c.name); }
+  }
+  try { reviewStore.keepClips(job.id, names); } catch (e) { console.log('[clips] keepClips:', e.message); }
+  if (names.length) applyClipCap();
 }
 
 /**
@@ -1110,7 +1312,8 @@ function onValorantMatchEnded(snap) {
     log: holdAiLogFrames(snap.startedAt, snap.endedAt),
     // And its recording, held the same way (8.3), for the clips cut from the
     // moments the review looks at, and through the minutes a match the watch
-    // ended too early can still resume in. An hour at most, as the frames.
+    // ended too early can still resume in. An hour at most, as the frames, and
+    // let go once Riot's look has cut its clips (recordingCut).
     recording: holdRecording(snap.startedAt - 5000, (snap.endedAt || Date.now()) + RECORDING_RESUME_MS),
   };
   // AND KEPT WITH THE REVIEW (8.2): the session folder, and the match's stamp
@@ -1227,7 +1430,10 @@ function linkRiotRecord(job) {
   const riotLook = async (lm, riot) => {
     const verify = require('../shared/valorant-verify');
     const valorantReview = require('../shared/valorant-review');
-    const { rounds, checks } = verify.reconcile(snap.rounds, riot);
+    // With the match's AI log frames, which time each death against Riot's
+    // (valorant-verify.js earlyBy): one the screen read well before it is not it.
+    const { rounds, checks } = verify.reconcile(snap.rounds, riot,
+      { records: snap.log ? snap.log.records : null, window: { from: snap.startedAt, to: snap.endedAt } });
     const context = { ...snap.context, agent: (riot.me && riot.me.agent) || snap.context.agent };
     const vsnap = { ...snap, rounds, context };
     const verification = verify.describe(checks);
@@ -1236,11 +1442,12 @@ function linkRiotRecord(job) {
     repaintReview(job, buildValorantReview({ ...vsnap, ai: null }, lm, { ...extra, narrativePending: true }).built,
       null, { transient: true });
 
-    const looked = await forensicsFor(rounds, { ...snap, context });
-    if (job.cancelled) return false;
-    // The clip of each moment, while the match's recording is held. Riot's
-    // look is the one kept, so its clips are, and the screen's go.
-    await clipLooks(job, looked, () => job.cancelled);
+    // Timed by Riot's own milliseconds against the round's clock (8.3.1,
+    // death-frames.js): reconcile keeps the second alone. Its clips are cut
+    // by the look while the match's recording is held, and since Riot's look
+    // is the one kept, its clips are, and the screen's go.
+    const looked = await forensicsFor(deathFrames.withRiotTimes(rounds, riot), { ...snap, context },
+      { job, stale: () => job.cancelled });
     if (job.cancelled) return false;
     for (const r of rounds) if (looked.byRound[r.n]) r.forensics = looked.byRound[r.n];
 
@@ -2929,12 +3136,15 @@ function playbookMode() {
 //   every frame of the last few minutes, whole
 //   every frame around a death the engine registered, before and after it,
 //     because that is what the review goes back to look at
+//   every frame around a round change, where a round filed wrong is traced
+//     to (8.3.1)
 //   one frame every ten seconds of everything older, for the viewer
 // and holds a finished match's frames whole until its review has looked.
 const AI_LOG_RECENT        = 180;     // the last three minutes at the fastest read
 const AI_LOG_THIN_MS       = 10000;   // older frames: one per ten seconds
 const AI_LOG_DEATH_BEFORE  = 35000;   // kept before a registered death
 const AI_LOG_DEATH_AFTER   = 5000;    // and after it
+const AI_LOG_ROUND_MS      = 10000;   // kept either side of a round change
 const AI_LOG_MAX_FRAMES    = 1500;    // hard ceiling, oldest go first
 const AI_LOG_KEEP_SESSIONS = 5;       // only the most recent sessions survive
 const AI_LOG_WRITE_MS      = 3000;    // log.json is rewritten at most this often
@@ -2943,6 +3153,7 @@ let aiLogRecords = [];             // in-memory index, flushed to log.json
 let aiLogWarned = false;           // one write failure is reported per session
 let aiLogSeq = 0;                  // frame file counter, never reused in a session
 let aiLogKeepUntil = 0;            // frames up to here follow a death, and are kept
+let aiLogTurnUntil = 0;            // and these a round change
 let aiLogHolds = [];               // [{ from, to, until }] matches awaiting their review
 let aiLogLastWrite = 0;
 let aiLogWriteTimer = null;
@@ -2971,6 +3182,7 @@ function startAiLog() {
     aiLogWarned = false;
     aiLogSeq = 0;
     aiLogKeepUntil = 0;
+    aiLogTurnUntil = 0;
     console.log('[ai-log] started', path.basename(aiLogDir));
   } catch (e) { aiLogDir = null; console.error('[ai-log] start failed:', e.message); }
 }
@@ -2993,6 +3205,21 @@ function recordAiFrame(d) {
       aiLogKeepUntil = at + AI_LOG_DEATH_AFTER;
     } else if (at <= aiLogKeepUntil) {
       rec.keep = true;
+    }
+    // A ROUND CHANGE IS KEPT AS A DEATH IS (8.3.1): the ten seconds either side
+    // of a frame the ledger filed under another round than the frame before.
+    // The reads that moved the round are what a round filed wrong is traced to,
+    // and thinned to one in ten seconds they were gone: on the player's Sunset
+    // swiftplay a buy read seven seconds before round 4's buy phase ended began
+    // round 5, and the play read that let it was not in the log. Marked apart
+    // (`turn`), so the cap loses these before any death's.
+    const prev = aiLogRecords[aiLogRecords.length - 1];
+    if (prev && typeof rec.round === 'number' && typeof prev.round === 'number' && rec.round !== prev.round) {
+      for (const r of aiLogRecords) if (r.at >= at - AI_LOG_ROUND_MS) r.turn = true;
+      rec.turn = true;
+      aiLogTurnUntil = at + AI_LOG_ROUND_MS;
+    } else if (at <= aiLogTurnUntil) {
+      rec.turn = true;
     }
     aiLogRecords.push(rec);
     if (i % 10 === 0) thinAiLog();
@@ -3021,7 +3248,7 @@ function thinAiLog() {
   const out = [];
   let lastKept = -Infinity;
   aiLogRecords.forEach((r, idx) => {
-    const keep = idx >= edge || r.keep || r.kept || held(r) || r.at - lastKept >= AI_LOG_THIN_MS;
+    const keep = idx >= edge || r.keep || r.turn || r.kept || held(r) || r.at - lastKept >= AI_LOG_THIN_MS;
     if (keep) {
       if (idx < edge) { r.kept = true; lastKept = r.at; }
       out.push(r);
@@ -3031,11 +3258,17 @@ function thinAiLog() {
   });
   // THE CAP LOSES THE LEAST FIRST, and never the last three minutes. Taking
   // the oldest unheld record took the live match's death windows once a long
-  // hold (a review still waiting for Riot) filled the log.
+  // hold (a review still waiting for Riot) filled the log. A round change's
+  // frames go before any death's: the review goes back to the deaths. And
+  // after a held match's other frames: ranked with them, the round changes of
+  // a match played straight after another, the one before it held for its
+  // review, were the first frames the cap took.
   while (out.length > AI_LOG_MAX_FRAMES) {
     const limit = out.length - AI_LOG_RECENT;
     const first = (test) => { for (let i = 0; i < limit; i++) if (test(out[i])) return i; return -1; };
-    let k = first((r) => !r.keep && !held(r));
+    let k = first((r) => !r.keep && !r.turn && !held(r));
+    if (k < 0) k = first((r) => !r.keep && !r.turn && held(r));
+    if (k < 0) k = first((r) => !r.keep && !held(r));
     if (k < 0) k = first((r) => !r.keep && held(r));
     if (k < 0) k = first((r) => r.keep && !held(r));
     if (k < 0) k = 0;
@@ -3098,17 +3331,19 @@ function releaseAiLogFrames(log) {
  * A finished match's recording, held as its AI log frames are (8.3): pages
  * older than two minutes go unless a hold covers them, and a review looks at
  * its deaths minutes after the match, once Riot has published it. Until
- * released (releaseRecording, when the review's work is done), and `forMs` at
- * most, an hour by default (recorder.js HOLD_MAX_MS).
+ * released (releaseRecording: once Riot's look has cut its clips, or when the
+ * review's work is done), and `forMs` at most, an hour by default (recorder.js
+ * HOLD_MAX_MS).
  */
 function holdRecording(from, to, forMs) { return recorder.hold(from, to, forMs); }
 function releaseRecording(hold) { recorder.release(hold); }
 
 /**
  * A review's work is done (or withdrawn): its AI log frames and its recording
- * are let go together. The clips of the moments it looked at are cut before
- * this, as each look lands (clipLooks), since the recording's pages go once
- * nothing holds them.
+ * are let go together, the recording unless Riot's look let it go already
+ * (recordingCut). The clips of the moments it looked at are cut before this,
+ * as each look lands (clipLooks), since the recording's pages go once nothing
+ * holds them.
  */
 function releaseMatchHolds(job) {
   if (!job) return;

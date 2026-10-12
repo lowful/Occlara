@@ -259,13 +259,15 @@ const strip = (rv) => {
     'in a round where Riot says the screen invented the death, its reads are dropped');
   ok(up2.rounds.find((c) => c.n === agreed.n).reads.includes('Holding the long angle.'),
     'where Riot agrees, they stay');
-  // The line that says how many reads Riot contradicts counts every one hidden:
-  // the ones reconcile() drops and the ones in a round the screen got wrong.
+  // The notes Riot contradicts go, the ones reconcile() drops and the ones in a
+  // round the screen got wrong, and the verification line says nothing of them
+  // (8.3.1): the page shows no note, and calls the summary and each round's
+  // why the coach's read, so "Riot contradicts 3 of the coach's reads, so they
+  // are hidden" read as three of those taken down.
   const total = (rv) => rv.rounds.reduce((a, c) => a + c.reads.length, 0);
   const hidden = total(old) - total(up2);
-  const said = /contradicts (one|\d+) of the coach's reads/.exec(up2.verification || '');
-  const count = said ? (said[1] === 'one' ? 1 : Number(said[1])) : 0;
-  ok(hidden > 1 && count === hidden, `and the verification line counts every read it hides (${count} said, ${hidden} hidden)`);
+  ok(hidden > 1 && /^Checked against Riot's record/.test(up2.verification || '') && !/coach's reads?|hidden/.test(up2.verification),
+    `and the verification line says nothing of the ${hidden} notes it drops (${up2.verification})`);
 }
 
 // ── Its looks from the screen survive the check, where Riot agrees ─────────
@@ -363,7 +365,7 @@ const strip = (rv) => {
     && !up.rounds.find((c) => c.n === 2).died && up.rounds.find((c) => c.n === 2).spot === null,
     "the screen's death spots stay where Riot confirms the death, and go where Riot says the player lived");
   const SAID = "The coach thought the match was over at 3 to 5, and it went on. Riot's record fills in rounds 9 to 20, "
-    + "which the coach did not watch, so those rounds have no location or coach's read.";
+    + 'which the coach did not watch, so those rounds have no death location and nothing seen on screen.';
   ok(up.refused.includes(SAID), `the review says the coach ended it too soon (${up.refused.join(' | ')})`);
   ok(up.summary === null && up.focus === null && up.refused.some((l) => /taken down/.test(l)),
     'and the read written from the 3-5 is taken down, saying so');

@@ -69,11 +69,39 @@ const CAUSE_FIX = {
 };
 
 /**
+ * A round the player was alive in when the spike went down, so a post plant or
+ * a retake they played. Riot says whether a death came after the plant
+ * (afterPlant), and the ledger whether it saw the plant before the death. On
+ * the player's Sunset swiftplay round 1 counted as a post plant that slipped
+ * though they died before the plant, and the retakes counted two rounds they
+ * died in before the enemy planted. A row from before either field existed
+ * counts as it always did.
+ */
+function aliveAtPlant(r) {
+  return !!r.planted && (!r.died || r.afterPlant !== false);
+}
+
+/**
+ * The floor of a count that is a strength: a share of the rounds, never
+ * under two. Three was the floor for any match, sized for 24 rounds, and a
+ * seven round swiftplay with first kills in two of them showed no strength
+ * at all. One in eight rounds keeps the 24 round floor at three.
+ */
+const shareFloor = (n) => Math.max(2, Math.ceil(n / 8));
+
+// A strong scoreline: this K/D with at least this many kills, or a combat
+// score this far above the player's own average in the role.
+const KD_STRONG = 1.5;
+const KD_KILLS = 8;
+const ACS_ABOVE = 1.1;
+
+/**
  * Valorant.
  *
  * @param rounds  reconciled rounds (valorant-verify) or ledger rows, each
  *                optionally carrying `forensics: { cause, what, better }`
- * @param opts    { role }
+ * @param opts    { role, scoreline: { kills, deaths, acs }, against: the
+ *                review's rows against the player's own average (ACS among them) }
  */
 function valorant(rounds, opts = {}) {
   const rows = Array.isArray(rounds) ? rounds : [];
@@ -191,8 +219,15 @@ function valorant(rounds, opts = {}) {
   out.mistakes.sort((a, b) => b.weight * b.count - a.weight * a.count);
 
   // ── Strengths ─────────────────────────────────────────────────────────────
+  // FLOORS FOR THE MATCH THAT WAS PLAYED. They were counts sized for 24 rounds,
+  // and the player's 7 round Sunset swiftplay, twice as many kills as deaths,
+  // a combat score over their own Duelist average, a four kill round and the
+  // first kill in two rounds, came back with no strength at all, under three
+  // mistakes. A count is now a share of the rounds, never under two
+  // (shareFloor); one round of four kills is a multi kill round on its own; and
+  // the scoreboard itself can be the strength.
   const openers = verified.filter((r) => r.firstKill).map((r) => r.n);
-  if (openers.length >= 3) {
+  if (openers.length >= shareFloor(verified.length)) {
     push(out.strengths, {
       key: 'first-kill', title: 'Opened rounds',
       detail: `You got the first kill of the round ${times(openers.length)}, ${roundList(openers)}.`,
@@ -200,16 +235,20 @@ function valorant(rounds, opts = {}) {
     });
   }
   const multi = verified.filter((r) => typeof r.kills === 'number' && r.kills >= 3);
-  if (multi.length >= 2) {
+  const big = multi.filter((r) => r.kills >= 4);
+  if (multi.length >= 2 || big.length) {
+    const one = multi.length === 1 ? multi[0] : null;
     push(out.strengths, {
       key: 'multi-kill', title: 'Multi kill rounds',
-      detail: `Three or more kills in ${plural(multi.length, 'round')}, ${roundList(multi.map((r) => r.n))}.`,
+      detail: one
+        ? `${plural(one.kills, 'kill')} in round ${one.n}${one.kills >= 5 ? ', an ace' : ''}.`
+        : `Three or more kills in ${plural(multi.length, 'round')}, ${roundList(multi.map((r) => r.n))}.`,
       rounds: multi.map((r) => r.n),
     });
   }
   const tradeRounds = verified.filter((r) => typeof r.trades === 'number' && r.trades > 0);
   const tradeCount = tradeRounds.reduce((a, r) => a + r.trades, 0);
-  if (tradeCount >= 3) {
+  if (tradeCount >= shareFloor(verified.length)) {
     push(out.strengths, {
       key: 'trades', title: 'Traded your teammates',
       detail: `You killed the player who had just killed a teammate ${times(tradeCount)}.`,
@@ -227,7 +266,7 @@ function valorant(rounds, opts = {}) {
     });
   }
   const decided = rows.filter((r) => r.result && r.side);
-  const post = decided.filter((r) => r.planted && r.side === 'attacking');
+  const post = decided.filter((r) => aliveAtPlant(r) && r.side === 'attacking');
   const postWon = post.filter((r) => r.result === 'won');
   if (post.length >= 3 && postWon.length * 10 >= post.length * 6) {
     push(out.strengths, {
@@ -236,7 +275,7 @@ function valorant(rounds, opts = {}) {
       rounds: postWon.map((r) => r.n),
     });
   }
-  const retakes = decided.filter((r) => r.planted && r.side === 'defending');
+  const retakes = decided.filter((r) => aliveAtPlant(r) && r.side === 'defending');
   const retakeWon = retakes.filter((r) => r.result === 'won');
   if (retakes.length >= 3 && retakeWon.length * 2 >= retakes.length) {
     push(out.strengths, {
@@ -252,6 +291,28 @@ function valorant(rounds, opts = {}) {
       key: 'survived', title: 'Stayed alive',
       detail: `You survived ${lived.length} of ${plural(verified.length, 'round')}.`,
       rounds: lived.map((r) => r.n),
+    });
+  }
+  // THE SCOREBOARD, once Riot's is in: half again as many kills as deaths
+  // with eight kills at least, or a combat score a tenth above the player's
+  // own average in the role (valorant-review.js against, three matches at
+  // least). A few points above an average is a coin flip; the average beside
+  // a K/D that clears is said whenever the match beat it.
+  const sl = opts.scoreline || null;
+  const kills = sl && typeof sl.kills === 'number' ? sl.kills : null;
+  const died = sl && typeof sl.deaths === 'number' ? sl.deaths : null;
+  const kd = kills !== null && died !== null && kills >= KD_KILLS && (died === 0 || kills / died >= KD_STRONG);
+  const acs = (opts.against || []).find((a) => a && a.label === 'ACS' && typeof a.value === 'number'
+    && typeof a.baseline === 'number' && a.baseline > 0 && a.value > a.baseline);
+  if (kd || (acs && acs.value >= acs.baseline * ACS_ABOVE)) {
+    const said = [];
+    if (kd) said.push(`${plural(kills, 'kill')} against ${plural(died, 'death')}`);
+    if (acs) {
+      said.push(`${acs.value} combat score a round against your ${role ? `${role} ` : ''}average of ${acs.baseline}, `
+        + `over ${plural(acs.games, 'match', 'matches')}`);
+    }
+    push(out.strengths, {
+      key: 'scoreline', title: 'Strong scoreline', detail: `${said.join(', and ')}.`, rounds: [], count: 1,
     });
   }
 
@@ -546,5 +607,5 @@ function inTodaysWords(ins) {
   return { ...ins, mistakes: fix(ins.mistakes), strengths: fix(ins.strengths), missed: fix(ins.missed) };
 }
 
-module.exports = { valorant, rivals, lol, roundList, repeatTitle, specificOf, WEIGHT,
+module.exports = { valorant, rivals, lol, roundList, repeatTitle, specificOf, WEIGHT, aliveAtPlant, shareFloor,
   factsView, asFacts, countable, inTodaysWords, CLUTCH_RE, ONLY_RE };

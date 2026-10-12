@@ -59,6 +59,9 @@ class CoachingEngine extends EventEmitter {
     this.rateLimitedAt = 0;   // the server's read limiter last answered 429
     this.captureTimes = [];   // the capture helper's time per frame, for the log
     this.lastNote = null;
+    this.lastUltRead = null;  // this frame's own ultimate read, for the ledger's strict rule
+    this.frameAt = 0;         // when the frame being applied was CAPTURED
+    this.onTrial = null;      // a death on a weak tell, waiting one read for its verdict (judgeTrial)
     // Experimental settings, read live from the store so a settings flip
     // applies to the very next capture: { proPlaybook: 'off'|'on'|'hybrid' }.
     this.experiments = typeof opts.experiments === 'function' ? opts.experiments : () => ({});
@@ -167,7 +170,11 @@ class CoachingEngine extends EventEmitter {
     this.mapConfirmedByLabels = false; // once true, the model cannot change the map
     this.mapDoubt = 0;                 // else a stale doubt keeps blocking callouts
     this.mapChallenger = null;
+    this.labelDoubt = 0;               // printed labels the locked map does not have, since the lock
     this.aliveFalseStreak = 0;
+    this.lastUltRead = null;
+    this.frameAt = 0;
+    this.onTrial = null;
     this.pendingMode = null;
     this.standardEvidence = 0;
     this.swapEvidence = 0;
@@ -200,6 +207,8 @@ class CoachingEngine extends EventEmitter {
     if (this.loopTimer)  { clearInterval(this.loopTimer);  this.loopTimer = null; }
     if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
     this.pending.clear();
+    // A death still on trial has no next read coming: it stands.
+    this.settleTrial(true);
     this.emit('status', 'stopped');
 
     // A match the watch already ended has had its review. Anything since, a
@@ -256,9 +265,20 @@ class CoachingEngine extends EventEmitter {
    * through the guards: the spectator merge, HP beats death, the scoreboard
    * continuity check. `died` is true only on the frame a death was REGISTERED,
    * which is the engine's own debounced decision, never the raw alive flag.
+   *
+   * ON THE TIME THE FRAME WAS CAPTURED (`at`, applyRead's), never the time
+   * its reply was applied. With up to four reads out a reply lands one to four
+   * seconds after its frame, and later still behind a slow one, so the buy
+   * phase a buy timer puts its start at moved from run to run: on the player's
+   * Sunset swiftplay replayed at a read p90 of 2.7 seconds, round 5's post
+   * plant was filed under round 6 again in 2 runs of 100, and the Abyss
+   * swiftplay lost round 1's death in 14.
    */
-  recordFrame({ lobby, died }) {
-    const at = Date.now();
+  recordFrame({ lobby, died, at: capturedAt }) {
+    const at = Number.isFinite(capturedAt) ? capturedAt : Date.now();
+    // A death the read before this one left on trial: its AI log record goes
+    // now, with the verdict, before this frame's.
+    this.settleTrial();
     if (lobby) {
       const w = this.endWatch.lobby({ at, rounds: this.ledger.size() });
       if (w && w.kind === 'end') this.endMatch(w.reason);
@@ -269,11 +289,19 @@ class CoachingEngine extends EventEmitter {
       at, team: c.teamScore | 0, enemy: c.enemyScore | 0, side: c.side, phase: c.phase,
       alive: c.playerAlive, died: !!died, deathSpot: c.deathSpot,
       clock: c.clock, ult: c.playerUlt, spike: c.spike, spikeSpot: c.spikeSpot,
+      // This frame's own ultimate read, null when it read none: `ult` is the
+      // last one read, which the context keeps, so one misread "ready" rode on
+      // to a false death two frames later (valorant-rounds.js, the ultimate).
+      ultRead: this.lastUltRead,
       loc: c.locLabel || c.playerSpot,
       // What the player was SEEN doing this frame, a fact. It fills the round's
       // "what the coach saw" lines, which live tips used to fill.
       note: this.lastNote,
     };
+    // A death on trial is filed now, and the ledger as it stood is kept, in
+    // case the next read withdraws it (judgeTrial).
+    const trial = this.onTrial && this.onTrial.frame === this.analyzedFrames ? this.onTrial : null;
+    if (trial) trial.seen = seen;
     const w = this.endWatch.play({
       team: seen.team, enemy: seen.enemy, mode: c.gameMode, phase: c.phase, clock: c.clock, map: c.map,
       scoreRead: this.scoreReadThisFrame !== false, at,
@@ -300,7 +328,98 @@ class CoachingEngine extends EventEmitter {
     // before the reset, carries this match's held score: filed here it was a
     // round bought at 13-12 that nobody played.
     if (this.newMatchReads > 0) return;
+    if (trial) trial.filed = { ledger: this.ledger, before: ledgerState(this.ledger) };
     this.ledger.observe(seen);
+  }
+
+  /**
+   * THE NEXT READ JUDGES A DEATH ON A WEAK TELL. A death registered without
+   * anything the death screen prints (KILLED BY, the COMBAT REPORT, SWITCH
+   * PLAYER) is withdrawn when the very next read, in the same round, shows the
+   * player's own HUD as it stood before it: the same health and the same gun.
+   * On the player's Sunset swiftplay, in round 5's post plant, the model wrote
+   * "Spectating teammate, own HP not shown" off the SPECTATORS 1 counter while
+   * the player stood at 100 health with a Ghost, and the read a second later
+   * was "own HP 100 and Ghost". Riot has the round survived, and its round 6
+   * death was refused for that one.
+   *
+   * The same health and the same gun, because the read after a real death is
+   * often the spectated teammate's HUD read as the player's own: on the Abyss
+   * swiftplay round 1 died "spectating teammate with HP 61", and the read after
+   * it said "own HP 61 and knife", the teammate's, where the player had 75 and
+   * a Bandit. Riot's record still puts back the rare revive this takes away.
+   *
+   * The death's cooldown stands, so the counter read again a frame later is no
+   * second death either.
+   *
+   * The very next read is one taken within seconds (TRIAL_MS): one after a
+   * pause or a server outage can be a later round whose score went unread, the
+   * player at full health with the same rifle bought again. And its HUD is weighed
+   * by the spectate guard's own rules too, so a teammate's kit called "own",
+   * the guard's strongest signal ("own HP 19 and Sova abilities" while the
+   * player was Iso), is the teammate's HUD at the player's health and gun.
+   */
+  judgeTrial(updates, now) {
+    const t = this.onTrial;
+    if (!t || t.judged) return;
+    t.judged = true;
+    const u = updates || {};
+    const sameRound = u.phase !== 'buy'
+      && (typeof u.teamScore !== 'number' || u.teamScore === t.team)
+      && (typeof u.enemyScore !== 'number' || u.enemyScore === t.enemy);
+    const soon = now - t.at <= TRIAL_MS;
+    const hud = spectate.readHudOwner({
+      tell: u.aliveTell, agent: this.matchContext.agentConfirmed ? this.matchContext.agent : null,
+      weapon: u.playerWeapon, prevWeapon: t.weapon, hp: u.playerHp, prevHp: t.hp, killFeed: u.killFeed, phase: u.phase,
+    });
+    const ownHud = u.playerAlive === true && typeof u.playerHp === 'number' && u.playerHp > 0
+      && u.playerHp === t.hp && !!u.playerWeapon && u.playerWeapon === t.weapon
+      && !spectate.tellSaysSpectating(u.aliveTell) && !DEATH_SCREEN.test(String(u.aliveTell || ''))
+      && !spectate.KILLED_BY_PLAYER.test(String(u.killFeed || '')) && !hud.spectating;
+    if (sameRound && soon && ownHud) {
+      const c = this.matchContext;
+      console.log(`[engine] death withdrawn: the next read is the player's own HUD again, ${u.playerHp} health`
+        + ` and ${u.playerWeapon} (the death read "${t.tell}")`);
+      t.withdrawn = true;
+      if (t.seen) t.seen.died = false;
+      // The ledger as it stood before that frame, the frame filed again as no
+      // death. Nothing reached the ledger between the two.
+      if (t.filed && t.filed.before && t.filed.ledger === this.ledger) {
+        try {
+          putLedgerBack(this.ledger, t.filed.before);
+          this.ledger.observe(t.seen);
+        } catch (e) { console.log('[engine] round ledger error:', e.message); }
+      }
+      c.playerAlive = true;
+      if (c.phase === 'dead') c.phase = t.phase && t.phase !== 'dead' ? t.phase : 'active';
+      c.playerHp = t.hp;
+      c.consecutiveDeaths = t.consecutiveDeaths;
+      c.consecutiveWins = t.consecutiveWins;
+      c.deathSpot = t.deathSpot;
+      c.spectateSuspected = false;
+      this.aliveFalseStreak = 0;
+      for (const line of t.lines) {
+        const i = this.matchMemory.lastIndexOf(line);
+        if (i >= 0) this.matchMemory.splice(i, 1);
+      }
+    }
+    this.settleTrial(true);
+  }
+
+  /**
+   * The trial is over: the AI log gets its frame, with the verdict. A death
+   * frame logged as one tells the review's frame picker that the death was
+   * there (death-frames.js, the frame that registered it), so it waits a read
+   * for the verdict, or for the stop (`force`), where no read is coming.
+   */
+  settleTrial(force) {
+    const t = this.onTrial;
+    if (!t || (!force && t.frame >= this.analyzedFrames)) return;
+    this.onTrial = null;
+    if (t.rec) {
+      t.rec.died = !t.withdrawn;
+      this.writeDiagnostics(t.rec);
+    }
   }
 
   /** Everything the review needs about the match so far, or null if too thin. */
@@ -368,7 +487,7 @@ class CoachingEngine extends EventEmitter {
     c.enemyScore = f.enemy;
     c.roundNumber = f.team + f.enemy + 1;
     // One observation at the final score, so the last round gets its result.
-    this.ledger.observe({ at: Date.now(), team: f.team, enemy: f.enemy, side: c.side, phase: null,
+    this.ledger.observe({ at: this.frameAt || Date.now(), team: f.team, enemy: f.enemy, side: c.side, phase: null,
       alive: c.playerAlive, died: false, clock: null });
     return true;
   }
@@ -566,28 +685,43 @@ class CoachingEngine extends EventEmitter {
 
   applyRead({ data, shot, at }) {
     this.analyzedFrames++;
+    // Every guard measures time on when the frame was captured, which is what
+    // its clock, its buy timer and its death were read at. On when its reply
+    // was applied, the Split round 18 combat report and the Abyss swiftplay
+    // round 1 death each came out differently from run to run of the same
+    // session with the latency drawn again.
+    const now = Number.isFinite(at) ? at : Date.now();
+    this.frameAt = now;
     const deathBefore = this.lastDeathAt;
-    this.processRead(data);
+    this.processRead(data, now);
     const died = this.lastDeathAt !== deathBefore;
     // The round ledger and the match-end watch. Guarded, because a bug in the
     // review's bookkeeping must never cost the reader its next frame.
     try {
-      this.recordFrame({ lobby: this.inLobby, died });
+      this.recordFrame({ lobby: this.inLobby, died, at: now });
     } catch (e) { console.log('[engine] round ledger error:', e.message); }
     // The AI decision log keeps the frame and what was read from it. The post
     // match review goes back to these frames for the moments before a death,
     // matched on the round the ledger filed the frame under and the clock on it.
     if (this.diagnostics && !this.inLobby) {
-      try {
-        this.diagnostics({ at, image: shot, state: data.context || {}, aiTip: '', shown: null, reject: null,
-          died, round: this.ledger.current(), match: this.matchStartedAt });
-      } catch (e) { console.log('[engine] diagnostics sink error:', e.message); }
+      const rec = { at, image: shot, state: data.context || {}, aiTip: '', shown: null, reject: null,
+        died, round: this.ledger.current(), match: this.matchStartedAt };
+      // A death on trial is logged with its verdict, a read later.
+      const trial = this.onTrial && this.onTrial.frame === this.analyzedFrames ? this.onTrial : null;
+      if (trial) trial.rec = rec;
+      else this.writeDiagnostics(rec);
     }
   }
 
+  writeDiagnostics(rec) {
+    if (!this.diagnostics) return;
+    try { this.diagnostics(rec); } catch (e) { console.log('[engine] diagnostics sink error:', e.message); }
+  }
+
   /** One read into the match state, through every guard in updateMatchContext. */
-  processRead(data) {
+  processRead(data, now = Date.now()) {
     this.lastNote = null;
+    this.lastUltRead = null;
     if (!data || data.lobby) {
       if (!this.inLobby) console.log('[engine] menu or lobby');
       this.inLobby = true;
@@ -595,7 +729,12 @@ class CoachingEngine extends EventEmitter {
     }
     this.inLobby = false;
     const c = data.context || {};
-    this.updateMatchContext(c);
+    this.updateMatchContext(c, now);
+    // The ultimate THIS frame read, the player's own only: once dead, the icon
+    // is the spectated teammate's.
+    if ((c.playerUlt === 'ready' || c.playerUlt === 'charging') && !this.isSpectating()) {
+      this.lastUltRead = c.playerUlt;
+    }
     this.trackEnemy(c);
     // What the player was SEEN doing, a fact rather than advice. It goes into
     // the round ledger, and the review is written from it.
@@ -915,6 +1054,21 @@ class CoachingEngine extends EventEmitter {
     // get to overturn evidence the game itself rendered.
     if (this.mapConfirmedByLabels) return;
     const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+    // NOR A MAP THE LABELS RULE OUT. Short of naming one map, the printed labels
+    // still narrow it, and a read outside what they leave is refused, not even
+    // pending: on the player's Sunset swiftplay the model said Haven for three
+    // minutes while the game printed B Lobby, B Main and Mid Bottom, none of
+    // them on Haven. A map the game data does not know has no labels to weigh
+    // (weighLockAgainst), so the labels never refuse it.
+    const fits = this.labelCandidates();
+    if (fits.length && MAP_LABEL_INDEX[v.toLowerCase()] && !fits.includes(v.toLowerCase())) {
+      if (!same(this.lastRefusedMap, v)) {
+        console.log(`[engine] map read ${v} refused: the printed labels (${this.seenLabels.join(', ')}) fit only ${fits.join(', ')}`);
+      }
+      this.lastRefusedMap = v;
+      return;
+    }
+    this.lastRefusedMap = null;
 
     // Not locked yet: two agreeing reads acquire the lock.
     if (!this.matchContext.map) {
@@ -922,6 +1076,7 @@ class CoachingEngine extends EventEmitter {
         this.matchContext.map = v;
         this.pendingMap = null;
         this.mapDoubt = 0;
+        this.labelDoubt = 0;
         this.matchContext.mapUncertain = false;
         console.log(`[engine] map locked: ${v}`);
       } else {
@@ -953,6 +1108,7 @@ class CoachingEngine extends EventEmitter {
       this.matchContext.map = v;
       this.mapDoubt = 0;
       this.mapChallenger = null;
+      this.labelDoubt = 0;
       this.matchContext.mapUncertain = false;
       // Everything derived from the old map is now meaningless.
       this.matchContext.playerSpot = null;
@@ -1004,13 +1160,66 @@ class CoachingEngine extends EventEmitter {
       // any pending doubt outright.
       this.mapDoubt = 0;
       this.mapChallenger = null;
+      this.labelDoubt = 0;
       this.matchContext.mapUncertain = false;
       this.mapConfirmedByLabels = true;
+      return;
     } else if (!id.candidates.length) {
       // No single map contains all these labels, so one was misread. Drop the
       // oldest and keep going rather than locking onto a contradiction.
       this.seenLabels.shift();
     }
+    this.weighLockAgainst(l);
+  }
+
+  /**
+   * A LOCK THE PRINTED LABELS CONTRADICT IS RELEASED. The model's map won the
+   * lock on two agreeing reads, and nothing the game printed could take it
+   * back until the labels named one map outright: the server dropped the map
+   * claim of every read whose label the locked map lacks (mapLabelConflict,
+   * coach.js), and the client never looked. On the player's Sunset swiftplay
+   * Haven was locked on the first two buy phase reads, the game then printed B
+   * Lobby, which Haven does not have, and Haven went back to the model as
+   * context for three minutes, its notes naming C Link and A Long.
+   *
+   * So two reads of a label some map has and the locked one does not release
+   * it, the bar two agreeing contradictions already set. A label only some maps
+   * have, the locked one among them, clears the doubt: a right lock sees those
+   * every round. One every map has proves nothing either way.
+   *
+   * Nor does any label prove anything about a map the game data does not know,
+   * one released after the last sync:valorant: none of its callouts is in the
+   * index, so every label it prints read as one it lacks, its lock went on the
+   * second, and its reads were refused while the labels fitted another map.
+   * The server's labelFitsMap has no opinion on such a map either.
+   */
+  weighLockAgainst(label) {
+    const locked = String(this.matchContext.map || '').toLowerCase();
+    if (!locked || this.mapConfirmedByLabels || !MAP_LABEL_INDEX[locked]) return;
+    const maps = mapsWithLabel(normaliseLabel(label));
+    if (!maps.length || maps.length === Object.keys(MAP_LABEL_INDEX).length) return;
+    if (maps.includes(locked)) { this.labelDoubt = 0; return; }
+    this.labelDoubt = (this.labelDoubt || 0) + 1;
+    if (this.labelDoubt < 2) return;
+    console.log(`[engine] map lock released: ${this.matchContext.map} has no "${label}"`
+      + ` (labels: ${this.seenLabels.join(', ')})`);
+    this.matchContext.map = null;
+    this.pendingMap = null;
+    this.mapDoubt = 0;
+    this.mapChallenger = null;
+    this.labelDoubt = 0;
+    this.matchContext.mapUncertain = false;
+    this.matchContext.playerSpot = null;
+    this.matchContext.playerSpotVerified = false;
+    this.matchContext.teamRead = null;
+    this.matchContext.enemySpot = null;
+    this.remember('Map unknown again: the printed labels do not fit the map it was locked to');
+  }
+
+  /** The maps every printed label seen so far fits, lowercase, or [] when they say nothing. */
+  labelCandidates() {
+    const id = mapFromLabels(this.seenLabels || []);
+    return id && Array.isArray(id.candidates) ? id.candidates.map((m) => String(m).toLowerCase()) : [];
   }
 
   /** Dead and watching. Either signal counts: the phase read and the alive flag
@@ -1019,7 +1228,10 @@ class CoachingEngine extends EventEmitter {
     return this.matchContext.playerAlive === false || this.matchContext.phase === 'dead';
   }
 
-  updateMatchContext(updates) {
+  updateMatchContext(updates, now = Date.now()) {
+    // A death the read before this one left on trial is judged first, so a
+    // withdrawn one is undone before this read is weighed against it.
+    if (this.onTrial) this.judgeTrial(updates, now);
     const prevPhase = this.matchContext.phase;
     const prevRound = this.matchContext.roundNumber;
     const prevTeam  = this.matchContext.teamScore  | 0;
@@ -1092,11 +1304,12 @@ class CoachingEngine extends EventEmitter {
       this.seenLabels = [];
       this.mapDoubt = 0;
       this.mapChallenger = null;
+      this.labelDoubt = 0;
       this.matchContext.mapUncertain = false;
       this.scoreboardChallenge = null;
       // The rest of what belongs to one match: the score clock the rate
       // ceiling measures from, the weapons seen this round, a pending step.
-      this.lastScoreAt = Date.now();
+      this.lastScoreAt = now;
       this.roundWeapons = new Set();
       this.lastStep = null;
       this.rollbackReads = 0;
@@ -1180,7 +1393,7 @@ class CoachingEngine extends EventEmitter {
       // decides what is believable within it. A genuine gap (alt tab, a paused
       // session) still passes, because the allowance grows with real elapsed
       // time rather than with frames.
-      const sinceScore = this.lastScoreAt ? (Date.now() - this.lastScoreAt) : 0;
+      const sinceScore = this.lastScoreAt ? (now - this.lastScoreAt) : 0;
       const roundsPossible = this.lastScoreAt
         ? 1 + Math.floor(sinceScore / MIN_ROUND_MS)
         : Infinity;   // first read of the session has nothing to measure against
@@ -1197,7 +1410,7 @@ class CoachingEngine extends EventEmitter {
       const step = this.lastStep;
       const readSig = `${updates.teamScore}|${updates.enemyScore}`;
       const fromSum = step ? step.from.team + step.from.enemy : 0;
-      const carriesOn = backwards && !!step && !step.bought && Date.now() - step.at < STEP_ROLLBACK_MS
+      const carriesOn = backwards && !!step && !step.bought && now - step.at < STEP_ROLLBACK_MS
         && typeof updates.teamScore === 'number' && typeof updates.enemyScore === 'number'
         && updates.teamScore >= step.from.team && updates.enemyScore >= step.from.enemy
         && updates.teamScore + updates.enemyScore - fromSum <= 1;
@@ -1213,7 +1426,7 @@ class CoachingEngine extends EventEmitter {
         if (typeof this.ledger.rollback === 'function') this.ledger.rollback(step.from);
         const isFrom = updates.teamScore === step.from.team && updates.enemyScore === step.from.enemy;
         this.lastStep = isFrom ? null
-          : { from: step.from, to: { team: updates.teamScore, enemy: updates.enemyScore }, at: Date.now(), bought: false };
+          : { from: step.from, to: { team: updates.teamScore, enemy: updates.enemyScore }, at: now, bought: false };
         this.rollbackReads = 0;
         this.rollbackSig = null;
         this.scoreboardChallenge = null;
@@ -1246,7 +1459,7 @@ class CoachingEngine extends EventEmitter {
             // The frame that accepted it, which can never be the one that
             // confirms it (see bought below).
             this.lastStep = { from: { team: prevTeam, enemy: prevEnemy },
-              to: { team: updates.teamScore, enemy: updates.enemyScore }, at: Date.now(), bought: false,
+              to: { team: updates.teamScore, enemy: updates.enemyScore }, at: now, bought: false,
               frame: this.analyzedFrames };
           }
         } else {
@@ -1272,7 +1485,7 @@ class CoachingEngine extends EventEmitter {
       // guard stripped leaves roundNumber deleted, so the allowance keeps
       // growing from the last believed read rather than resetting on a rejection
       // and quietly handing the next bad read a bigger budget.
-      if (typeof updates.roundNumber === 'number') this.lastScoreAt = Date.now();
+      if (typeof updates.roundNumber === 'number') this.lastScoreAt = now;
     }
 
     // Whether THIS frame carried a score of its own past the guard. The context
@@ -1410,7 +1623,28 @@ class CoachingEngine extends EventEmitter {
       console.log(`[engine] ignoring phase "dead": own health is ${updates.playerHp}`);
       delete updates.phase;
     }
-    if (updates.playerAlive === false && updates.phase !== 'dead') {
+    // THE SPECTATOR COUNTER IS NOT A DEATH (spectate-tells.js). A dead read whose
+    // only evidence is "SPECTATORS 1" is a living player's HUD read wrong, so it
+    // is dropped rather than waited on: on the round 4 banner of the player's
+    // Sunset swiftplay the counter was read as dead on two frames running, and
+    // two agreeing reads are what an unproven death waits for. Only a strong
+    // signal outranks it (a foreign agent's kit, the kill feed's KILLED BY);
+    // the weak ones, a gun changed and the model's own "dead", do not.
+    if ((updates.playerAlive === false || updates.phase === 'dead') && hud.confidence !== 'strong'
+        && spectate.countsSpectators(updates.aliveTell)) {
+      console.log(`[engine] ignoring a dead read on the spectator counter: "${String(updates.aliveTell).slice(0, 60)}"`);
+      delete updates.playerAlive;
+      if (updates.phase === 'dead') delete updates.phase;
+      this.matchContext.spectateSuspected = false;
+    }
+    // ONE PROOF, WHICHEVER SIGNAL SAYS DEAD. The phase "dead" used to skip all
+    // of this and register a death on one frame of its own, so the false death
+    // on that Sunset banner went in unchecked. And the alive flag's proof knew
+    // "spectating", the counter's word, and nothing the death screen prints:
+    // none of the match's five real deaths, each "KILLED BY <agent> and COMBAT
+    // REPORT", proved anything, and two of them registered a frame late.
+    const deadRead = updates.playerAlive === false || updates.phase === 'dead';
+    if (deadRead) {
       const tell   = String(updates.aliveTell || '');
       // A named tell only counts as proof when the health number was ALSO
       // genuinely absent. In a real session the health went unread on more than
@@ -1419,12 +1653,15 @@ class CoachingEngine extends EventEmitter {
       // path for real deaths (where there is no health to read) and makes a
       // frame the model simply could not parse wait for a second opinion.
       const healthAbsent = updates.playerHp == null || updates.playerHp === 0;
-      const proven = healthAbsent && DEAD_TELL.test(tell) && !UNSURE_TELL.test(tell);
+      const proven = healthAbsent && DEAD_TELL.test(tell) && !UNSURE_TELL.test(tell)
+        && !spectate.countsSpectators(tell);
       this.aliveFalseStreak = (this.aliveFalseStreak || 0) + 1;
       if (proven) {
         if (this.aliveFalseStreak === 1) console.log(`[engine] death seen on one frame: "${tell}"`);
       } else if (this.aliveFalseStreak < 2 && prevAlive !== false) {
-        delete updates.playerAlive;   // unproven, wait for a second read
+        // Unproven, wait for a second read: the phase as much as the flag.
+        delete updates.playerAlive;
+        if (updates.phase === 'dead') delete updates.phase;
       }
     } else if (updates.playerAlive === true || updates.phase === 'active') {
       this.aliveFalseStreak = 0;
@@ -1447,7 +1684,6 @@ class CoachingEngine extends EventEmitter {
     // The round clock chain is anchored on what cannot be a buy timer (more than
     // 45 seconds, or a post plant spike timer), so a buy phase misread as active
     // can never start one.
-    const now = Date.now();
     const rc = this.lastRoundClock;
     const carriesOn = (left) => !!rc && left !== null && now - rc.at < 15000
       && Math.abs(rc.left - (now - rc.at) / 1000 - left) <= 3;
@@ -1467,6 +1703,14 @@ class CoachingEngine extends EventEmitter {
       updates.playerAlive = true;
       if (updates.phase === 'dead') updates.phase = 'buy';
       this.matchContext.spectateSuspected = false;
+      this.aliveFalseStreak = 0;
+    } else if (inBuy && deadRead) {
+      // One the proof above already set aside to wait for a second read is no
+      // first read either: it was a living player buying. Counted, the Abyss
+      // round 10 buy phase's last frame, its kill feed still reading "killed by
+      // Skye", made the next frame's unproven "dead" the second read, and a
+      // death registered three seconds into a round the player lived another
+      // twelve of.
       this.aliveFalseStreak = 0;
     }
 
@@ -1544,7 +1788,7 @@ class CoachingEngine extends EventEmitter {
       if (key === 'teamRead') {
         const prevRead = this.matchContext.teamRead;
         this.matchContext.teamRead = v;
-        this.matchContext.teamReadAt = Date.now();
+        this.matchContext.teamReadAt = now;
         if (prevRead && String(prevRead).toLowerCase() !== String(v).toLowerCase()) {
           this.remember(`Team plan changed: ${v}`);
           console.log(`[engine] team plan changed: "${prevRead}" -> "${v}"`);
@@ -1560,7 +1804,7 @@ class CoachingEngine extends EventEmitter {
     // Round-transition awareness: note phase flips (buy -> active -> postplant …)
     // so the next request coaches the NEW phase and the cooldown briefly relaxes.
     if (updates.phase && updates.phase !== prevPhase) {
-      this.lastPhaseChange = { from: prevPhase, to: updates.phase, at: Date.now() };
+      this.lastPhaseChange = { from: prevPhase, to: updates.phase, at: now };
       // A new buy phase means a new plan: drop last round's team read so a
       // stale "4 stacking A" never coaches this round, and drop the player's
       // last known spot, everyone is back at spawn.
@@ -1596,10 +1840,27 @@ class CoachingEngine extends EventEmitter {
     // so a flapping read cannot log the same death twice.
     const diedByPhase = updates.phase === 'dead' && prevPhase !== 'dead';
     const diedByAlive = updates.playerAlive === false && prevAlive !== false;
-    if ((diedByPhase || diedByAlive) && Date.now() - this.lastDeathAt > 20000) {
+    if ((diedByPhase || diedByAlive) && now - this.lastDeathAt > 20000) {
+      // A death on a weak tell, nothing the death screen prints, is on trial
+      // until the next read (judgeTrial), with what it is about to change.
+      const tell = String(updates.aliveTell || '');
+      const trial = {
+        frame: this.analyzedFrames, at: now, tell: tell.slice(0, 60),
+        team: this.matchContext.teamScore | 0, enemy: this.matchContext.enemyScore | 0,
+        hp: this.matchContext.playerHp, weapon: this.matchContext.playerWeapon, phase: prevPhase,
+        consecutiveDeaths: this.matchContext.consecutiveDeaths, consecutiveWins: this.matchContext.consecutiveWins,
+        deathSpot: this.matchContext.deathSpot, lines: [],
+      };
+      const note = (line) => {
+        const pushed = this.matchMemory[this.matchMemory.length - 1] !== line;
+        this.remember(line);
+        if (pushed) trial.lines.push(line);
+      };
+      this.onTrial = DEATH_SCREEN.test(tell) || spectate.KILLED_BY_PLAYER.test(String(updates.killFeed || ''))
+        ? null : trial;
       this.matchContext.consecutiveDeaths++;
       this.matchContext.consecutiveWins = 0;
-      this.lastDeathAt = Date.now();   // opens the death-review window
+      this.lastDeathAt = now;          // opens the death-review window
       this.matchContext.lastDeathAt = this.lastDeathAt;   // visible to the tip verifier
       this.deathTipsSent = 0;          // this death gets its own review budget
       // The health they died with is not health they still have. Leaving it set
@@ -1615,12 +1876,13 @@ class CoachingEngine extends EventEmitter {
       this.matchContext.deathSpot =
         this.matchContext.locLabel || this.matchContext.playerSpot || null;
       const where = this.matchContext.deathSpot;
-      this.remember(`Player died round ${(this.matchContext.teamScore | 0) + (this.matchContext.enemyScore | 0) + 1}${where ? ` at ${where}` : ''}`);
+      note(`Player died round ${(this.matchContext.teamScore | 0) + (this.matchContext.enemyScore | 0) + 1}${where ? ` at ${where}` : ''}`);
       if (this.matchContext.consecutiveDeaths >= 2) {
-        this.remember(`Player has died ${this.matchContext.consecutiveDeaths} rounds in a row`);
+        note(`Player has died ${this.matchContext.consecutiveDeaths} rounds in a row`);
       }
       console.log(`[engine] death registered via ${diedByPhase ? 'phase' : 'alive flag'}`
-        + (this.lastAliveTell ? ` ("${this.lastAliveTell}")` : ''));
+        + (this.lastAliveTell ? ` ("${this.lastAliveTell}")` : '')
+        + (this.onTrial ? ', on a weak tell: the next read can withdraw it' : ''));
     }
     // Back alive: a new round started for this player.
     if ((updates.phase === 'active' && prevPhase === 'dead')
@@ -1650,7 +1912,7 @@ class CoachingEngine extends EventEmitter {
     if (team > prevTeam)  this.remember(`Won round ${team + enemy} (score ${team}-${enemy})`);
     if (enemy > prevEnemy) {
       this.remember(`Lost round ${team + enemy} (score ${team}-${enemy})`);
-      this.lastRoundLostAt = Date.now();   // opens the round-review window
+      this.lastRoundLostAt = now;   // opens the round-review window
     }
 
     // ── Halftime math (mode-aware) ─────────────────────────────────────────
@@ -1885,6 +2147,21 @@ function halfOfRound(rn, mode) {
   return null;
 }
 
+/**
+ * The round ledger's own state, copied. It is plain data (valorant-rounds.js is
+ * a pure module), so the copy is exact, and null if that ever stops being so:
+ * a death then stays filed, as every death did before it could be withdrawn.
+ */
+function ledgerState(ledger) {
+  try { return structuredClone({ ...ledger }); } catch { return null; }
+}
+
+/** Put a ledger back as ledgerState found it, the same object. */
+function putLedgerBack(ledger, state) {
+  for (const k of Object.keys(ledger)) delete ledger[k];
+  Object.assign(ledger, state);
+}
+
 /** A quantile of a list of milliseconds, taken the way the cadence always took its p90. */
 function quantile(list, q) {
   const sorted = list.slice().sort((a, b) => a - b);
@@ -1936,8 +2213,19 @@ const TEAM_PLAN_TTL_MS = 45000;
 
 // Evidence that the player is genuinely dead and spectating, as reported in the
 // model's aliveTell. Any one of these is direct proof, so the death registers
-// from a single frame instead of waiting ~12s for a second one to agree.
-const DEAD_TELL = /spectat|kill ?cam|death ?recap|observer|you died|respawn|teammate'?s? (?:name|loadout)|no hp|grey(?:ed)?[- ]?out/i;
+// from a single frame instead of waiting ~12s for a second one to agree. The
+// death screen's own words came last: every real death of the player's Sunset
+// swiftplay read "KILLED BY <agent> and COMBAT REPORT" first, and this matched
+// none of them. "spectat" is also the spectator counter's word, which the
+// proof weighs apart (spectate-tells.js, countsSpectators).
+const DEAD_TELL = /spectat|kill ?cam|death ?recap|observer|you died|respawn|teammate'?s? (?:name|loadout)|no hp|grey(?:ed)?[- ]?out|killed by|combat report|switch player/i;
+// What only the death screen prints. A death registered without any of it is
+// on a weak tell, and the read after it can withdraw it (judgeTrial).
+const DEATH_SCREEN = /killed by|combat report|switch player|kill ?cam|death ?recap/i;
+// How soon after the death the read that judges it must have been taken. The
+// slowest cadence is a read every five seconds, and a buy phase is thirty, so
+// a read later than this is a pause or an outage, and may be another round.
+const TRIAL_MS = 15000;
 // A read the model itself was not sure about never counts as proof.
 const UNSURE_TELL = /unreadable|kept previous|unclear|not sure|cannot tell|can.?t tell|assum/i;
 

@@ -70,6 +70,22 @@ const SPECTATE_TELL = new RegExp(
  */
 const SPECTATE_FALSE_FRIEND = /\bspectat(?:e|es|ing|or)\s+(?:the\s+)?(?:score\s?board|mini\s?map)\b/i;
 
+/*
+ * THE SPECTATOR COUNTER IS ON A LIVING PLAYER'S HUD.
+ *
+ * "SPECTATORS 1" at the top right counts who is watching the PLAYER: a dead
+ * teammate's camera on them. On the player's Sunset swiftplay the model wrote
+ * it as "Spectating 1 top right" on the round 4 banner, at 99 health, and as
+ * "SPECTATORS 1 top right" on the frame after, and a death registered in a
+ * round Riot has the player surviving. A spectator screen names a teammate, a
+ * banner or SWITCH PLAYER, never a number, and a teammate's name that ends in
+ * one ("h20") is not the counter either.
+ */
+const SPECTATOR_COUNT = /\bspectators\b|\bspectat(?:e|es|ing|or)\s*:?\s*\d{1,2}(?![\w/])|\b\d{1,2}\s+spectators?\b|\bspectators?\s+(?:count|counter|number|icon)\b/i;
+
+/** What only the death screen prints, which outranks both false friends. */
+const DEATH_SCREEN = /switch player|kill ?cam|combat report|killed by/i;
+
 /** A read the model itself was unsure about is never proof of anything. */
 const UNSURE_TELL = /unreadable|kept previous|unclear|not sure|cannot tell|can.?t tell|assum/i;
 
@@ -90,14 +106,19 @@ const ABILITY_OWNER = /\b([A-Z][a-zA-Z/]+)(?:'s)?\s+(?:abilit|ult|ability bar)/g
 
 const lower = (v) => String(v || '').toLowerCase();
 
-/** Does the tell name a spectator screen, allowing for the scoreboard exception? */
+/** The spectator counter named, and nothing the death screen prints beside it. */
+function countsSpectators(tell) {
+  const t = String(tell || '');
+  return SPECTATOR_COUNT.test(t) && !DEATH_SCREEN.test(t);
+}
+
+/** Does the tell name a spectator screen, allowing for the scoreboard and counter exceptions? */
 function tellSaysSpectating(tell) {
   const t = String(tell || '');
   if (!t || !SPECTATE_TELL.test(t)) return false;
-  // The scoreboard exception only applies when nothing stronger is present.
-  if (SPECTATE_FALSE_FRIEND.test(t) && !/switch player|kill ?cam|combat report|killed by/i.test(t)) {
-    return false;
-  }
+  // Both exceptions only apply when nothing stronger is present.
+  if (SPECTATE_FALSE_FRIEND.test(t) && !DEATH_SCREEN.test(t)) return false;
+  if (countsSpectators(t)) return false;
   return true;
 }
 
@@ -240,6 +261,6 @@ function readHudOwner(f) {
 }
 
 module.exports = {
-  SPECTATE_TELL, SPECTATE_FALSE_FRIEND, UNSURE_TELL, OWN_HUD, KILLED_BY_PLAYER,
-  tellSaysSpectating, foreignAgentInTell, readHudOwner,
+  SPECTATE_TELL, SPECTATE_FALSE_FRIEND, SPECTATOR_COUNT, UNSURE_TELL, OWN_HUD, KILLED_BY_PLAYER,
+  tellSaysSpectating, countsSpectators, foreignAgentInTell, readHudOwner,
 };

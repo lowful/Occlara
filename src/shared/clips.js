@@ -18,8 +18,13 @@
  * on a keyframe, and a clip starts on the one at or before its first second,
  * so it can open up to a second early.
  *
- * WHEN THE DEATH WAS. A look has no time of the death itself, only the frames
- * it looked at (death-frames.js), each stamped when it was captured:
+ * WHEN THE DEATH WAS. Riot's look carries it (8.3.1, `moment`): its round's
+ * barriers dropping, read off every clocked frame of the round, plus Riot's
+ * own milliseconds (death-frames.js deathMoment). On the real Sunset match,
+ * with Riot's seconds alone, that put each death within 0.6 s of where its
+ * clip shows it; the rule before put round 2's 2.65 s late and round 6's
+ * 1.15 s early. A look without it has only the frames it looked at, each
+ * stamped when it was captured:
  *   Riot's look      the last frame before Riot's death second, and how many
  *                    seconds before it (gap): the death is that frame's time
  *                    plus the gap. On the real Abyss match, read every nine
@@ -32,6 +37,17 @@
  *                    registered it on: the death is at or before the second
  *   a frame alone    about two seconds after it, the margin the frame picker
  *                    keeps before a death
+ *
+ * THE STILLS A LOOK TAKES FROM ITS CLIP (8.3.1, LOOK_AT), in seconds from that
+ * moment, chosen on the real Sunset match's four clips. Riot's: 3 s before (where
+ * the player stood, the health, the weapon, who was near), 1.5 s (the
+ * approach), 0.7 and 0.3 s (the fight: round 3's two enemies at the end of the
+ * street are on screen from 0.7 s before), and 0.7 s after, the death screen,
+ * KILLED BY and the combat report of damage dealt and taken. Later than about
+ * 1 s after, the frames are the player's own map, a ping wheel, black, then a
+ * teammate's camera. The screen's moment is the frame that registered the
+ * death, which on that match came 0.7 to 2.7 s after it, so its stills reach
+ * further back: 4.5, 3, 2 and 1 s before it and that moment itself.
  *
  * AND NOT ONCE THE PLAYER CHOSE OFF (cutsClips), whatever the recorder still
  * holds of a match already played.
@@ -48,6 +64,13 @@ const AFTER_MS = 4000;
 const LEAD_MS = 2000;
 // A review keeps at most this many. A Valorant review looks at four deaths.
 const MAX_CLIPS = 6;
+
+// The seconds from the death a look's stills are taken at (see THE STILLS A
+// LOOK TAKES), in time order: Riot's moment, and the screen's.
+const LOOK_AT = Object.freeze({
+  riot: Object.freeze([-3, -1.5, -0.7, -0.3, 0.7]),
+  screen: Object.freeze([-4.5, -3, -2, -1, 0]),
+});
 
 // The space every clip may take, together, in GB: a choice in Settings.
 const CAPS_GB = [5, 10, 20, 50];
@@ -83,19 +106,52 @@ function windowOf(moment) {
 }
 
 /**
- * When the death a look looked at happened, on the wall clock, from the frames
- * it was sent (see WHEN THE DEATH WAS). Null when the look has no time at all.
+ * When the death a look looked at happened, on the wall clock (see WHEN THE
+ * DEATH WAS). Null when the look has no time at all.
  *
- * @param look  { at, gap, frames: [{ at }, ...] } as death-frames.js looksFor
- *              gives it: `at` the first frame's capture, `gap` the seconds from
- *              it to Riot's death second, or null
+ * @param look  { moment, at, gap, frames: [{ at }, ...] } as death-frames.js
+ *              looksFor gives it: `moment` Riot's death off its round's clock,
+ *              when there is one; `at` the first frame's capture, `gap` the
+ *              seconds from it to Riot's death second, or null
  */
 function momentOf(look) {
+  if (look && Number.isFinite(look.moment)) return look.moment;
   if (!look || !Number.isFinite(look.at)) return null;
   if (Number.isFinite(look.gap) && look.gap >= 0) return look.at + look.gap * 1000;
   const second = Array.isArray(look.frames) ? look.frames[1] : null;
   if (second && Number.isFinite(second.at) && second.at >= look.at) return second.at;
   return look.at + LEAD_MS;
+}
+
+/**
+ * The moment a look's stills are taken around (8.3.1, LOOK_AT), or null for
+ * none. The screen's look takes them around its read of the death, and the
+ * server is told that is what their seconds count from. Riot's look takes
+ * them only around Riot's own death on the wall clock (`moment`, deathMoment),
+ * because the server is told their seconds are from Riot's death, good to a
+ * few tenths. A moment from the rule before it (a frame's clock read to the
+ * second, or the frame that registered the death) can be two seconds and
+ * more out, enough to put the death screen in the still called 0.3 s before
+ * it. Without Riot's moment the look is sent the read's own frames, with the
+ * words they always had.
+ */
+function stillsMomentOf(look, source) {
+  if (source === 'screen') return momentOf(look);
+  return look && Number.isFinite(look.moment) ? look.moment : null;
+}
+
+/**
+ * The name a look's still from the recording is kept under, beside the review
+ * (8.3.1): round n's k-th of them in time order, before or after the death,
+ * r6-rec1-before.jpg to r6-rec5-after.jpg. The read frames keep their names,
+ * r6-before.jpg and r6-after.jpg, and a page that reads no seconds labels each
+ * by the word in its name.
+ */
+function stillName(n, k, at) {
+  const r = Number(n);
+  const i = Number(k);
+  if (!Number.isInteger(r) || r < 1 || r > 999 || !Number.isInteger(i) || i < 1 || i > 9 || !Number.isFinite(at)) return null;
+  return `r${r}-rec${i}-${at < 0 ? 'before' : 'after'}.jpg`;
 }
 
 /**
@@ -134,6 +190,6 @@ function pickSpread(list, max) {
 }
 
 module.exports = {
-  CLIP_RE, BEFORE_MS, AFTER_MS, LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME,
-  roundClip, deathClip, capGB, windowOf, momentOf, cutsClips, pickSpread,
+  CLIP_RE, BEFORE_MS, AFTER_MS, LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME, LOOK_AT,
+  roundClip, deathClip, capGB, windowOf, momentOf, stillsMomentOf, stillName, cutsClips, pickSpread,
 };

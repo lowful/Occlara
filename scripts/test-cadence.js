@@ -109,12 +109,17 @@ function scenario({ plan, capture = () => 100, speed = 'auto' }) {
       s.sends.push(clock);
       s.later(capture(k), () => resolve(`frame-${k}`));
     }),
-    // The AI log's sink, which sees every read at the moment it is applied.
-    diagnostics: (rec) => s.applied.push({ k: Number(String(rec.image).slice(6)), at: clock }),
+    // The AI log's sink, which sees every read at the moment it is applied,
+    // and the second its frame was captured.
+    diagnostics: (rec) => s.applied.push({ k: Number(String(rec.image).slice(6)), at: clock, captured: rec.at }),
   });
   // Running without start(): its heartbeat is a real setInterval, and the
   // heartbeat here is run().
   s.engine.isRunning = true;
+  // The second the round ledger is told each frame was read at.
+  s.filed = [];
+  const observe = s.engine.ledger.observe.bind(s.engine.ledger);
+  s.engine.ledger.observe = (seen) => { s.filed.push(seen.at); return observe(seen); };
   s.engine.on('cadence', (ms) => s.cadence.push({ ms, at: clock }));
   s.engine.on('notice', (x) => s.notices.push(x));
   sim = s;
@@ -180,6 +185,11 @@ const inOrder = (list) => list.every((k, i) => i === 0 || k > list[i - 1]);
       `every reply is applied in capture order (${order.length} applied, first out of place at ${order.findIndex((k, i) => k !== i)})`);
     const early = s.answered.filter((n, i) => i > 0 && n < s.answered[i - 1]).length;
     ok(early > 10, `though the server answered ${early} of them before one sent ahead of it`);
+    // The ledger and the match-end watch reckon on the frame, not the reply: a
+    // buy timer read at 0:39 began its buy phase when the frame was taken.
+    const late = s.applied.filter((a, i) => a.at !== a.captured).length;
+    ok(late > 150 && s.filed.length === s.applied.length && s.filed.every((at, i) => at === s.applied[i].captured),
+      `the round ledger files each frame at the second it was captured, though ${late} were applied seconds later`);
     ok(s.maxUnmeasured === 2, `two reads out before any latency is measured (${s.maxUnmeasured})`);
     ok(s.maxInFlight === 4 && s.maxOut <= 4, `then up to four, never more (engine ${s.maxInFlight}, server ${s.maxOut})`);
     ok(e.inFlightLimit() === 4, `four allowed at p90 3s and a gap of a second (${e.inFlightLimit()})`);

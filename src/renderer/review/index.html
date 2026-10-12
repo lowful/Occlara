@@ -37,7 +37,9 @@
 
       <!-- EVERY GAME: the grade and the three lists. Moved by the painter to
            sit under whichever game's header is showing, so there is one copy
-           of this markup and not three that drift apart. -->
+           of this markup and not three that drift apart. A Valorant review
+           takes the two apart (paintCommon): the grade under the result, the
+           lists under the coach's read. -->
       <div id="common" class="common" hidden>
         <div id="grade-host"></div>
         <div id="insights-host"></div>
@@ -46,27 +48,27 @@
       <!-- VALORANT. Its own container rather than a third shape squeezed
            through the League slots: the League and Rivals painters hide and
            relabel shared sections, and a review that is round by round has
-           none of their sections at all. -->
+           none of their sections at all.
+
+           ONE SCREEN, THEN THE ROUNDS (8.3.1): the result with Riot's
+           scoreboard and how it compares, the grade and the coach's read
+           first; the repeated mistakes; then every round in one list, each
+           death the coach looked at inside its own round. -->
       <div id="vreview" hidden>
-        <section class="v-hero">
-          <div id="v-result" class="v-result"></div>
-          <div id="v-score" class="v-score"></div>
-          <div id="v-meta" class="v-meta"></div>
-          <p id="v-verified" class="v-verified" hidden></p>
-        </section>
-
-        <section class="v-stats" id="v-stats"></section>
-        <p id="v-stats-note" class="hint" hidden></p>
-
-        <section class="block">
-          <h3>Round by round</h3>
-          <div id="v-strip" class="v-strip" role="list"></div>
-          <div class="v-legend">
-            <span><i class="lg won"></i>Won</span>
-            <span><i class="lg lost"></i>Lost</span>
-            <span><i class="lg died"></i>You died</span>
-            <span><i class="lg planted"></i>Spike down</span>
+        <!-- The result and where it came from, Riot's scoreboard beside it,
+             and against the player's own average under each number, which
+             was a section of its own repeating the same four numbers. -->
+        <section class="v-hero" id="v-hero">
+          <div class="v-hero-main">
+            <div id="v-result" class="v-result"></div>
+            <div id="v-score" class="v-score"></div>
+            <div id="v-meta" class="v-meta"></div>
           </div>
+          <div id="v-stats-wrap" class="v-stats-wrap" hidden>
+            <div id="v-stats" class="v-stats"></div>
+            <p id="v-against-note" class="v-against-note" hidden></p>
+          </div>
+          <p id="v-verified" class="v-verified" hidden></p>
         </section>
 
         <section class="block" id="v-summary-wrap">
@@ -78,42 +80,33 @@
           </div>
         </section>
 
-        <section class="block" id="v-patterns-wrap">
-          <h3>More from the numbers</h3>
-          <div id="v-patterns" class="v-patterns"></div>
-        </section>
-
+        <!-- EVERY ROUND, ONCE (8.3.1). The strip on top is the match at a
+             glance and the way to a round; under it what the numbers say
+             about the rounds and nothing the lists above said; then one row
+             a round. A death the coach looked at carries its clip, its
+             frames and what the coach saw in its own row, where it used to
+             be a section of its own at the bottom of the page. -->
         <section class="block" id="v-rounds-wrap">
           <h3>Round by round</h3>
-          <p class="hint">Facts come from Riot's record when the match links, and from the screen otherwise. Where the coach looked at a death, its card names the cause, and the frames and what the coach saw in them are at the bottom of this review.</p>
+          <div id="v-strip" class="v-strip" role="list"></div>
+          <div class="v-legend">
+            <span><i class="lg won"></i>Won</span>
+            <span><i class="lg lost"></i>Lost</span>
+            <span><i class="lg died"></i>You died</span>
+            <span><i class="lg planted"></i>Spike down</span>
+          </div>
+          <ul id="v-patterns" class="v-patterns" hidden></ul>
           <div id="v-rounds" class="v-rounds"></div>
-        </section>
-
-        <section class="block" id="v-against-wrap">
-          <h3>Against your own average</h3>
-          <p id="v-against-note" class="hint"></p>
-          <div id="v-against"></div>
         </section>
 
         <section class="block" id="v-study-wrap">
           <h3>Study before your next match</h3>
-          <div id="v-study" class="v-study"></div>
+          <ul id="v-study" class="v-study"></ul>
         </section>
 
         <section class="block" id="v-refused-wrap">
           <h3>What this review cannot tell you</h3>
           <ul id="v-refused" class="r-refused"></ul>
-        </section>
-
-        <!-- WHERE YOU DIED, AND HOW (8.2). Last, and for every review: each
-             death the coach looked at, the frames across the column and what
-             it saw in them, whether Riot's record timed the death or the
-             screen did. A round card above keeps only the cause, and a link
-             down to here. -->
-        <section class="block" id="v-looks-wrap" hidden>
-          <h3>Where you died, and how</h3>
-          <p class="hint">The deaths worth reviewing: the clip of each from your recording when the match was recorded, the frames the coach looked at, and what it saw in them. Click a clip to play or pause it, and a frame to see it larger.</p>
-          <div id="v-looks" class="v-looks"></div>
         </section>
 
         <p class="v-foot">Read silently. Nothing was shown on your screen while you played.</p>
@@ -149,8 +142,8 @@
              on this PC, where the game was recorded. -->
         <section class="block" id="r-deaths-wrap" hidden>
           <h3>Your deaths</h3>
-          <p class="hint">Every death of the game, by the game's clock. Where the game was recorded on this PC, up to six of them, spread across the game, have a clip, from 11 seconds before the death to 4 after it. Click a clip to play or pause it.</p>
-          <div id="r-deaths" class="v-looks"></div>
+          <p class="hint">Where the game was recorded on this PC, up to six deaths, spread across the game, have a clip from 11 seconds before the death to 4 after it.</p>
+          <div id="r-deaths" class="v-rounds"></div>
         </section>
 
         <section class="block" id="r-moments-wrap" hidden>

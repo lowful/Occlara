@@ -128,6 +128,17 @@ function lengthOf(d) {
 }
 
 /**
+ * The site the spike went down on, 'A', 'B' or 'C', or null (8.3.1). It was
+ * read here and never sent, so the review kept the screen's: on the player's
+ * Sunset swiftplay round 5 was "Spike planted at B Boba", a frame of round
+ * 4's plant the ledger had filed a round ahead, where the spike went down on A.
+ */
+function plantSiteOf(plant) {
+  const m = /^([abc])(?![a-z])/i.exec(String((plant && (plant.site || plant.plant_site)) || '').trim());
+  return m ? m[1].toUpperCase() : null;
+}
+
+/**
  * @param d     the v4 `data` object
  * @param name  Riot name
  * @param tag   Riot tag
@@ -205,6 +216,7 @@ function parse(d, name, tag) {
       firstKill: !!(inRound[0] && isMe(inRound[0].killer)),
       planted: !!(plant && (plant.site || plant.plant_site || plantMs !== null)),
       plantMs,
+      plantSite: plantSiteOf(plant),
       // A death after the spike went down is a post-plant death, never "early".
       afterPlant: !!(death && plantMs !== null && death.ms !== null && death.ms > plantMs),
       ...teamwork,
@@ -255,4 +267,4 @@ function parse(d, name, tag) {
   };
 }
 
-module.exports = { parse, attackersOf, killsOf, playersOf, teamworkOf, TRADE_MS };
+module.exports = { parse, attackersOf, killsOf, playersOf, teamworkOf, plantSiteOf, TRADE_MS };

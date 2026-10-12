@@ -21,8 +21,16 @@
  *
  * The screen keeps only what Riot does not record: where the player was, the
  * ultimate icon, and what the coach said at the time. A screen death spot is
- * kept only in a round Riot confirms a death, and a plant site only in a round
- * Riot says was planted.
+ * kept only in a round Riot confirms a death, and a plant's callout only in a
+ * round Riot says was planted, on the site Riot says it was planted on.
+ *
+ * AND A DEATH IS RIOT'S ONLY WHERE ITS MOMENT IS (8.3.1). With the AI log's
+ * frames beside the ledger, a death the screen registered more than five
+ * seconds before Riot's own is another moment, and counted with the deaths the
+ * screen invented: on the player's Sunset swiftplay 8.3.0 filed round 5's
+ * false death, read during an ally's defuse, under round 6, nearly a minute
+ * before Riot's round 6 death, and the line counted it as agreeing while round
+ * 6 took its place and its ultimate.
  *
  * AND THE COACH'S OWN READS ARE CHECKED. A death review in a round Riot says
  * the player survived is dropped, and so is one naming a killer Riot says did
@@ -32,12 +40,62 @@
  * Pure, so the tests run it against the real fixture and Riot's real record.
  */
 
+const deathFrames = require('./death-frames');
+
 let AGENTS = [];
 try {
   const d = require('./valorant-data.generated.json');
   AGENTS = Object.keys(d.agents || {});
 } catch {
   AGENTS = [];
+}
+
+/*
+ * WHERE THE SPIKE WENT DOWN IS RIOT'S, when its record names the site (8.3.1;
+ * server/services/riot-rounds.js plantSiteOf). The screen's callout stays where
+ * it names that site, the part Riot never says ("B Boba" in a round Riot has
+ * planted on B), and gives way to the site where it names another or none: on
+ * the player's Sunset swiftplay round 5's "B Boba" was round 4's plant, filed a
+ * round ahead, and Riot has round 5 planted on A. A record with no site, one
+ * fetched before the server sent it, keeps the screen's, as before.
+ */
+const SITE_RE = /^([abc])(?![a-z])/i;
+function plantSpotOf(screen, site) {
+  const riot = typeof site === 'string' && /^[ABC]$/.test(site) ? site : null;
+  if (!riot) return screen || null;
+  const said = String(screen || '').trim();
+  const m = SITE_RE.exec(said);
+  // A bare letter says nothing the site does not.
+  return m && m[1].toUpperCase() === riot && said.length > 1 ? screen : `${riot} Site`;
+}
+
+/*
+ * A SCREEN DEATH MORE THAN THIS BEFORE RIOT'S IS NOT RIOT'S (8.3.1). Riot's
+ * death is its round's barriers dropping, read off the round's own clock, plus
+ * Riot's milliseconds (death-frames.js deathMoment), and the screen's is the
+ * frame that registered it (framesFor, the ledger's own rule for which one).
+ * A read a second registers a death 0.7 to 2.7 s after it (the Sunset clips),
+ * so one five seconds before cannot be it. AFTER IS NOT CHECKED: a death
+ * registered late is the same death, the spectator trap, and on the Abyss
+ * session read every nine seconds, 26, 42 and 50 s after Riot's.
+ */
+const EARLY_DEATH_MS = 5000;
+
+/**
+ * How many seconds before Riot's death the screen registered its own of the
+ * round, when it was more than EARLY_DEATH_MS before; null when it was not, or
+ * when the frames cannot say (no AI log, no clock to place Riot's death by, no
+ * frame that registered the screen's).
+ */
+function earlyBy(records, rr, window) {
+  if (!Array.isArray(records) || !records.length) return null;
+  const moment = deathFrames.deathMoment(records,
+    { n: rr.n, died: true, deathMs: rr.deathMs, plantMs: rr.plantMs, afterPlant: !!rr.afterPlant }, window);
+  if (!Number.isFinite(moment)) return null;
+  const reg = deathFrames.framesFor(records, { n: rr.n, died: true, verified: false, screenDied: true }, window)
+    .find((f) => f && f.died);
+  if (!reg || !Number.isFinite(reg.at) || moment - reg.at <= EARLY_DEATH_MS) return null;
+  return Math.round((moment - reg.at) / 1000);
 }
 
 /** The agent a read names as the killer, or null. Plain string search, no regex. */
@@ -59,12 +117,17 @@ const same = (a, b) => String(a || '').toLowerCase().replace(/[^a-z]/g, '')
 /**
  * @param rounds  ledger.list() rows
  * @param riot    the /api/coach/match-rounds reply: { perRound: [...] }
+ * @param opts    { records, window }: the match's AI log records and its wall
+ *                clock bounds, which time each death (earlyBy); without them
+ *                a death is Riot's by its round alone, as before
  * @returns { rounds, checks }
  */
-function reconcile(rounds, riot) {
+function reconcile(rounds, riot, opts) {
   const per = Array.isArray(riot && riot.perRound) ? riot.perRound : [];
   if (!per.length) return { rounds, checks: null };
 
+  const records = opts && Array.isArray(opts.records) ? opts.records : null;
+  const window = (opts && opts.window) || {};
   const ledger = rounds || [];
   const byN = new Map(ledger.map((r) => [r.n, r]));
   const riotN = new Set(per.map((rr) => rr.n));
@@ -81,8 +144,9 @@ function reconcile(rounds, riot) {
     watched: 0,          // rounds the coach watched that Riot has
     screenDeaths: 0,     // deaths the screen read in them
     riotDeaths: 0,       // Riot's deaths in those same rounds
-    agreed: 0,           // rounds both have a death in
-    invented: [],        // rounds the screen called a death and Riot did not
+    agreed: 0,           // rounds both have a death in, at the same moment
+    invented: [],        // rounds the screen called a death and Riot did not, or not then
+    early: [],           // { n, s } of those, Riot's death s seconds after the screen's
     missed: [],          // rounds Riot has a death the screen did not see
     readsDropped: 0,     // coach reads Riot contradicts
     roundsAdded: 0,      // rounds Riot has that the coach never watched
@@ -113,12 +177,18 @@ function reconcile(rounds, riot) {
 
   const merged = per.map((rr) => {
     const r = byN.get(rr.n);
+    // The screen's death of the round, when it came well before Riot's: a
+    // death invented as surely as one in a round Riot has none in, and
+    // nothing of it (its spot, its ultimate, its reads) is laid over Riot's.
+    const early = r && r.died && rr.died ? earlyBy(records, rr, window) : null;
+    const screenDeath = !!(r && r.died) && early === null;
     if (r) {
       checks.watched++;
       if (r.died) checks.screenDeaths++;
       if (rr.died) checks.riotDeaths++;
-      if (r.died && rr.died) checks.agreed++;
-      if (r.died && !rr.died) checks.invented.push(rr.n);
+      if (screenDeath && rr.died) checks.agreed++;
+      if (r.died && !(screenDeath && rr.died)) checks.invented.push(rr.n);
+      if (early !== null) checks.early.push({ n: rr.n, s: early });
       if (rr.died && !r.died) checks.missed.push(rr.n);
     } else {
       checks.roundsAdded++;
@@ -128,7 +198,7 @@ function reconcile(rounds, riot) {
 
     const reads = [];
     for (const x of (r ? r.reads : [])) {
-      if (x.death && !rr.died) { checks.readsDropped++; continue; }
+      if (x.death && (!rr.died || early !== null)) { checks.readsDropped++; continue; }
       const named = namedKiller(x.text);
       if (named && rr.killerAgent && !same(named, rr.killerAgent)) { checks.readsDropped++; continue; }
       reads.push(x);
@@ -140,21 +210,21 @@ function reconcile(rounds, riot) {
       side: rr.side || (r && r.side) || null,
       result: rr.won === true ? 'won' : rr.won === false ? 'lost' : (r ? r.result : null),
       died: !!rr.died,
-      // Whether the screen filed a death in this round itself. The frame
-      // picker needs it: only a death the screen registered has a frame that
-      // registered it (death-frames.js).
-      screenDied: !!(r && r.died),
-      deathSpot: rr.died && r ? r.deathSpot : null,
+      // Whether the screen filed this death itself. The frame picker needs
+      // it: only a death the screen registered has a frame that registered it
+      // (death-frames.js). One registered well before Riot's is not this one.
+      screenDied: screenDeath,
+      deathSpot: rr.died && r && screenDeath ? r.deathSpot : null,
       deathSec: sec,
       // Kept in the ledger's own unit so every existing reader of deathClock
       // still works: seconds LEFT on a 100 second round.
       deathClock: sec !== null ? Math.max(0, 100 - sec) : null,
       early: !!rr.died && !rr.afterPlant && sec !== null && sec <= 30,
-      ultAtDeath: rr.died && r ? r.ultAtDeath : null,
+      ultAtDeath: rr.died && r && screenDeath ? r.ultAtDeath : null,
       ultSeen: r ? r.ultSeen : null,
       planted,
-      // The site is the screen's, and only in a round that was planted.
-      plantSpot: planted && r ? r.plantSpot : null,
+      // Only in a round that was planted, on Riot's site (plantSpotOf).
+      plantSpot: planted ? plantSpotOf(r ? r.plantSpot : null, rr.plantSite) : null,
       locs: r ? r.locs.slice() : [],
       reads,
       frames: r ? r.frames : 0,
@@ -179,13 +249,16 @@ function reconcile(rounds, riot) {
   });
 
   checks.invented.sort((a, b) => a - b);
+  checks.early.sort((a, b) => a.n - b.n);
   return { rounds: merged, checks };
 }
 
+/** "a", "a and b", "a, b and c". */
+const listText = (xs) => (xs.length < 2 ? String(xs[0]) : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 /** "round 6", "rounds 6 and 17", "rounds 2, 6 and 17". */
 function roundsText(ns) {
   if (ns.length === 1) return `round ${ns[0]}`;
-  return `rounds ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
+  return `rounds ${listText(ns)}`;
 }
 const deathsText = (n) => (n === 0 ? 'no deaths' : n === 1 ? '1 death' : `${n} deaths`);
 
@@ -198,6 +271,16 @@ const deathsText = (n) => (n === 0 ? 'no deaths' : n === 1 ? '1 death' : `${n} d
  * written to say what the check corrected. And it is scoped to the rounds the
  * coach watched, because a session started partway is the normal way the app
  * is used and Riot's other rounds are no fault of the screen's.
+ *
+ * NOTHING ABOUT THE NOTES IT DROPPED (8.3.1). It said "Riot contradicts one
+ * of the coach's reads, so it is hidden" when the round cards showed the
+ * coach's notes. The page shows none of them now (review.js), and calls the
+ * summary and each round's why "the coach's read", so the sentence read as a
+ * summary or a round line taken down. They are still dropped (readsDropped).
+ *
+ * A DEATH READ WELL BEFORE RIOT'S IS SAID IN NUMBERS ALONE (8.3.1): its round
+ * and how many seconds before Riot's it came, beside the rounds Riot has none
+ * in. "None in round 6" would be untrue, Riot having one there.
  */
 function describe(checks) {
   if (!checks) return null;
@@ -207,6 +290,7 @@ function describe(checks) {
   const S = checks.screenDeaths;
   const R = checks.riotDeaths;
   const I = checks.invented;
+  const E = Array.isArray(checks.early) ? checks.early : [];
   const M = checks.missed;
   const w = checks.watched;
   const scope = checks.roundsAdded > 0 ? `the ${w === 1 ? 'one round' : `${w} rounds`} the coach watched` : 'the match';
@@ -221,16 +305,18 @@ function describe(checks) {
     deaths = `the screen read no deaths and Riot has ${R}, in ${roundsText(M)}`;
   } else {
     const where = [];
-    if (I.length) where.push(`none in ${roundsText(I)}`);
+    const none = I.filter((n) => !E.some((e) => e.n === n));
+    if (none.length) where.push(`none in ${roundsText(none)}`);
+    if (E.length) {
+      where.push(E.length === 1 ? `one in round ${E[0].n} the screen read ${E[0].s} s before Riot's`
+        : `deaths in ${roundsText(E.map((e) => e.n))} the screen read ${listText(E.map((e) => e.s))} s before Riot's`);
+    }
     if (M.length) {
       where.push(M.length === 1 ? `one in round ${M[0]} the screen missed` : `deaths in ${roundsText(M)} the screen missed`);
     }
-    deaths = `the screen read ${deathsText(S)} and Riot has ${R}, with ${where.join(' and ')}`;
+    deaths = `the screen read ${deathsText(S)} and Riot has ${R}, with ${listText(where)}`;
   }
-  const n = checks.readsDropped;
-  const reads = n === 1 ? " Riot contradicts one of the coach's reads, so it is hidden."
-    : n > 1 ? ` Riot contradicts ${n} of the coach's reads, so they are hidden.` : '';
-  return `Checked against Riot's record of ${scope}: ${deaths}.${reads}`;
+  return `Checked against Riot's record of ${scope}: ${deaths}.`;
 }
 
 module.exports = { reconcile, describe, namedKiller };

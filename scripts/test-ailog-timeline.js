@@ -169,6 +169,16 @@ const dead = (tell, extra) => at(tell, extra);
   // The reverse trap: a health number read off the spectated teammate's hud.
   ok(v('Spectating THINKtwise with 87 HP and Vandal bottom center', { playerHp: 87, playerAlive: true }) === 'dead',
     "a teammate's health number does not make you alive");
+
+  // THE SPECTATORS COUNTER counts who is watching the player, on a LIVING
+  // player's hud: read as "Spectating 1" on the Sunset match it put a death in
+  // the log's list that the engine (spectate-tells.js countsSpectators) no
+  // longer registers, so the viewer said 6 deaths where the review said 5.
+  ok(v('Spectating 1 top right and teammate shown, no own HP', { playerAlive: false }) !== 'dead'
+    && v('SPECTATORS 1 top right, teammate centered with own weapon') !== 'dead',
+  'the SPECTATORS counter is a living player\'s hud, never spectating');
+  ok(v('Spectating 1 top right, SWITCH PLAYER bottom left') === 'dead',
+    'and beside the spectator screen\'s own words, it is still dead');
 }
 
 {
