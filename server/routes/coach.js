@@ -847,6 +847,15 @@ const BENCH_MODELS = new Set([
   'meta/muse-spark-1.3-contributor',
   'xiaomi/mimo-v2.6-flash',
   'qwen/qwen3.8-flash',
+  // The stronger models of 13 Oct 2026, for the read, the death look and the
+  // review: the first round could bench none of them, as none was listed.
+  'anthropic/claude-haiku-5.5',
+  'anthropic/claude-sonnet-5.5',
+  'openai/gpt-6-sol',
+  'google/gemini-3.8-flash',
+  'xiaomi/mimo-v2.6-pro',
+  'qwen/qwen3.8-omni-flash',
+  'perceptron/perceptron-mk1.5',
 ]);
 function benchModel(req) {
   const m = String((req.body && req.body.benchModel) || '').trim();

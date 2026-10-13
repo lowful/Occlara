@@ -20,6 +20,24 @@
  *
  *   npm run bench:review                  every fixture, all three variants
  *   npm run bench:review -- --runs 2      twice each, to see the variance
+ *
+ * A MODEL IS NAMED ONLY BESIDE THE ADMIN PASSWORD. The route answers on
+ * benchModel(req) || AI.reviewModel, and the server honours benchModel only
+ * with X-Admin-Password and only for a model on its BENCH_MODELS list
+ * (server/routes/coach.js); any other is ignored without a word and the
+ * configured model answers, so a name off the list is refused here rather
+ * than benched as something it is not. The reply never says which model
+ * wrote it: the per call cost on /api/admin/costs is how to tell.
+ *
+ *   ADMIN_PASSWORD=... npm run bench:review -- --variants C --models qwen/qwen3.7-flash,openai/gpt-6-luna
+ *
+ *   --scoreline    Riot's scoreboard line on the linked match, as the app sends
+ *                  it (withRiot in src/main/index.js): kills, deaths, assists
+ *                  and the combat score a round
+ *   --out <file>   every request and reply as JSON, to read them again later
+ *
+ * Without --models nothing changes: no password is sent and the server's own
+ * review model answers.
  */
 
 const fs = require('fs');
@@ -35,9 +53,38 @@ const flag = (name, dflt) => {
 };
 const RUNS = Number(flag('runs', 1));
 const VARIANTS = String(flag('variants', 'A,B,C')).split(',');
+const MODELS = String(flag('models', '')).split(',').map((s) => s.trim()).filter(Boolean);
+const SCORELINE = args.includes('--scoreline');
+const OUT = flag('out', null);
+const ADMIN = process.env.ADMIN_PASSWORD || '';
 const SERVER = process.env.OCCLARA_SERVER || 'https://ghostcoach-production.up.railway.app';
 const APPDATA = process.env.APPDATA || '';
 const cfg = JSON.parse(fs.readFileSync(path.join(APPDATA, 'Occlara', 'occlara-config.json'), 'utf8'));
+
+/** The models the server will bench, read from its BENCH_MODELS list, or null when the list cannot be read. */
+function benchList() {
+  try {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'coach.js'), 'utf8');
+    const block = /const BENCH_MODELS = new Set\(\[([\s\S]*?)\]\);/.exec(src);
+    return block ? new Set([...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1])) : null;
+  } catch {
+    return null;
+  }
+}
+
+if (MODELS.length) {
+  if (!ADMIN) {
+    console.error('--models needs ADMIN_PASSWORD in the environment: the server honours benchModel only beside it.');
+    process.exit(1);
+  }
+  const listed = benchList();
+  const off = listed ? MODELS.filter((m) => !listed.has(m)) : [];
+  if (!listed) console.log('WARNING could not read BENCH_MODELS from server/routes/coach.js, the names are not checked');
+  if (off.length) {
+    console.error(`Not on the server's BENCH_MODELS list, so the live server would answer on its own model: ${off.join(', ')}`);
+    process.exit(1);
+  }
+}
 
 const MATCHES = [
   // Agents from Riot's record of each match. The Abyss one was first run as Iso
@@ -50,18 +97,25 @@ function post(body) {
   return new Promise((resolve) => {
     const data = JSON.stringify(body);
     const u = new URL('/api/coach/match-review', SERVER);
+    const headers = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data),
+      'x-license-key': cfg.licenseKey };
+    // Only a request naming a model carries the password, and it is never printed.
+    if (body.benchModel) headers['X-Admin-Password'] = ADMIN;
+    const started = Date.now();
     const req = https.request({
       hostname: u.hostname, path: u.pathname, method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data),
-        'x-license-key': cfg.licenseKey },
+      headers,
       timeout: 60000,
     }, (res) => {
       let out = '';
       res.on('data', (c) => { out += c; });
-      res.on('end', () => { try { resolve(JSON.parse(out)); } catch { resolve({ error: out.slice(0, 200) }); } });
+      res.on('end', () => {
+        const at = { _ms: Date.now() - started, _status: res.statusCode };
+        try { resolve({ ...JSON.parse(out), ...at }); } catch { resolve({ error: out.slice(0, 200), ...at }); }
+      });
     });
-    req.on('error', (e) => resolve({ error: e.message }));
-    req.on('timeout', () => { req.destroy(); resolve({ error: 'timeout' }); });
+    req.on('error', (e) => resolve({ error: e.message, _ms: Date.now() - started }));
+    req.on('timeout', () => { req.destroy(); resolve({ error: 'timeout', _ms: Date.now() - started }); });
     req.write(data);
     req.end();
   });
@@ -140,6 +194,9 @@ function grade(res, body) {
 
 (async () => {
   const totals = {};
+  const saved = { server: SERVER, models: MODELS, variants: VARIANTS, runs: RUNS, scoreline: SCORELINE, matches: [], results: [] };
+  // No model named is the server's own review model, as the bench always ran.
+  const who = MODELS.length ? MODELS : [null];
   for (const m of MATCHES) {
     const rep = replay(load(m.file).frames, m.mode);
     const ctx = { ...rep.context, agent: m.agent, map: rep.context.map || m.map };
@@ -152,33 +209,53 @@ function grade(res, body) {
       const riot = load(m.riot);
       rounds = require('../src/shared/valorant-verify').reconcile(rep.rounds, riot).rounds;
       riotInfo = { agent: riot.me.agent, map: riot.map, score: riot.score, result: riot.result };
+      // The player's own line as the app sends it once the match links, the
+      // combat score a round from Riot's total over the match's rounds.
+      if (SCORELINE) {
+        riotInfo.scoreline = { kills: riot.me.kills, deaths: riot.me.deaths, assists: riot.me.assists,
+          acs: Math.round(riot.me.score / riot.rounds) };
+      }
     }
     const body = review.requestBody({ rounds, context: ctx, endedBy: rep.endedBy, tips, riot: riotInfo });
+    saved.matches.push({ file: m.file, body });
     console.log(`\n${'='.repeat(78)}\n${m.file}: ${rep.rounds.length} rounds, ended by ${rep.endedBy}, `
       + `patterns: ${body.patterns.map((p) => p.key).join(', ') || 'none'}\n${'='.repeat(78)}`);
     for (let run = 0; run < RUNS; run++) {
-      for (const v of VARIANTS) {
-        const res = await post({ ...body, variant: v });
-        if (res.error) { console.log(`\n[${v}] ERROR ${res.error}`); continue; }
-        if (v !== 'A' && !res.variant) console.log(`\n[${v}] WARNING the live server ignored the variant, it has not deployed yet`);
-        const g = grade(res, body);
-        const t = totals[v] || (totals[v] = { n: 0, parsed: 0, roundLines: 0, foreign: 0, claims: 0, restate: [], dashes: 0, words: 0 });
-        t.n++; t.parsed += g.parsed ? 1 : 0; t.roundLines += g.roundLines; t.foreign += g.foreign.length;
-        t.claims += g.claims.length; if (g.restate !== null) t.restate.push(g.restate); t.dashes += g.dashes; t.words += g.words;
-        console.log(`\n[${v}] run ${run + 1}  parsed ${g.parsed}  rounds ${g.roundLines}  focus ${g.focus}  `
-          + `foreign places ${g.foreign.join('/') || 'none'}  unsupported ${g.claims.join('/') || 'none'}  `
-          + `restates read ${g.restate === null ? 'n/a' : g.restate + '%'}  dashes ${g.dashes}  words ${g.words}`);
-        console.log(`SUMMARY: ${res.summary || res.review}`);
-        for (const [n, why] of Object.entries(res.rounds || {})) console.log(`  R${n}: ${why}`);
-        if (res.focus) console.log(`FOCUS: ${res.focus}`);
-        if (res.study && res.study.length) console.log(`STUDY: ${res.study.map((s) => s.text.slice(0, 70)).join(' | ')}`);
+      for (const model of who) {
+        for (const v of VARIANTS) {
+          const tag = model ? `${model} ${v}` : v;
+          const res = await post({ ...body, variant: v, ...(model ? { benchModel: model } : {}) });
+          const secs = `${(res._ms / 1000).toFixed(1)}s`;
+          saved.results.push({ file: m.file, model, variant: v, run: run + 1, ms: res._ms, status: res._status || null, res });
+          if (res.error) { console.log(`\n[${tag}] ERROR ${res.error} (HTTP ${res._status || 'none'}, ${secs})`); continue; }
+          if (v !== 'A' && !res.variant) console.log(`\n[${tag}] WARNING the live server ignored the variant, it has not deployed yet`);
+          const g = grade(res, body);
+          const t = totals[tag] || (totals[tag] = { n: 0, parsed: 0, roundLines: 0, foreign: 0, claims: 0, restate: [], dashes: 0, words: 0, ms: [] });
+          t.n++; t.parsed += g.parsed ? 1 : 0; t.roundLines += g.roundLines; t.foreign += g.foreign.length;
+          t.claims += g.claims.length; if (g.restate !== null) t.restate.push(g.restate); t.dashes += g.dashes; t.words += g.words;
+          t.ms.push(res._ms);
+          console.log(`\n[${tag}] run ${run + 1}  parsed ${g.parsed}  rounds ${g.roundLines}  focus ${g.focus}  `
+            + `foreign places ${g.foreign.join('/') || 'none'}  unsupported ${g.claims.join('/') || 'none'}  `
+            + `restates read ${g.restate === null ? 'n/a' : g.restate + '%'}  dashes ${g.dashes}  words ${g.words}  latency ${secs}`);
+          console.log(`SUMMARY: ${res.summary || res.review}`);
+          for (const [n, why] of Object.entries(res.rounds || {})) console.log(`  R${n}: ${why}`);
+          if (res.focus) console.log(`FOCUS: ${res.focus}`);
+          if (res.study && res.study.length) console.log(`STUDY: ${res.study.map((s) => s.text.slice(0, 70)).join(' | ')}`);
+        }
       }
     }
   }
   console.log(`\n${'='.repeat(78)}\nTOTALS`);
   for (const [v, t] of Object.entries(totals)) {
     const r = t.restate.length ? Math.round(t.restate.reduce((a, b) => a + b, 0) / t.restate.length) : 'n/a';
+    const ms = t.ms.slice().sort((a, b) => a - b);
+    const p50 = ms.length ? (ms[Math.floor((ms.length - 1) / 2)] / 1000).toFixed(1) : 'n/a';
     console.log(`${v}: parsed ${t.parsed}/${t.n}, round lines ${t.roundLines}, foreign places ${t.foreign}, `
-      + `unsupported claims ${t.claims}, restates read ${r}%, dashes ${t.dashes}, words ${Math.round(t.words / t.n)} avg`);
+      + `unsupported claims ${t.claims}, restates read ${r}%, dashes ${t.dashes}, words ${Math.round(t.words / t.n)} avg, `
+      + `latency p50 ${p50}s`);
+  }
+  if (OUT) {
+    fs.writeFileSync(OUT, JSON.stringify(saved, null, 1));
+    console.log(`\nEvery request and reply written to ${OUT}`);
   }
 })();
