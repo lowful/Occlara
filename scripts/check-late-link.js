@@ -120,6 +120,7 @@ if (!process.versions.electron) {
 const Module = require('module');
 const { EventEmitter } = require('events');
 const { app, ipcMain } = require('electron');
+require('./fixtures/electron-version');
 const { ReviewStore } = require(path.join(REPO, 'src/main/services/review-store'));
 const { weekKey } = require(path.join(REPO, 'src/main/services/weekly-report'));
 const riotReview = require(path.join(REPO, 'src/shared/riot-review'));

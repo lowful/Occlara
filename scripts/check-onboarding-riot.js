@@ -80,6 +80,7 @@ if (!process.versions.electron) {
 }
 
 const { app, BrowserWindow } = require('electron');
+require('./fixtures/electron-version');
 
 const lines = [];
 let reported = false;

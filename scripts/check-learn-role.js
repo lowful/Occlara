@@ -54,6 +54,7 @@ if (!process.versions.electron) {
 }
 
 const { app, ipcMain, BrowserWindow } = require('electron');
+require('./fixtures/electron-version');
 const C = require(path.join(REPO, 'src/shared/channels'));
 
 const ROLE = process.env.OCCLARA_CHECK_ROLE || 'Mid';

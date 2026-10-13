@@ -119,6 +119,7 @@ if (!process.versions.electron) {
 const Module = require('module');
 const { EventEmitter } = require('events');
 const { app, ipcMain, nativeImage, screen } = require('electron');
+require('./fixtures/electron-version');
 const C = require(path.join(REPO, 'src/shared/channels'));
 const webm = require(path.join(REPO, 'src/shared/webm'));
 const recorderModule = require(path.join(REPO, 'src/main/services/recorder'));

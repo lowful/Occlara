@@ -71,6 +71,7 @@ if (!process.versions.electron) {
 const Module = require('module');
 const { EventEmitter } = require('events');
 const { app, ipcMain } = require('electron');
+require('./fixtures/electron-version');
 const { replay, load } = require('./fixtures/replay-match');
 const surfaces = require('./fixtures/surfaces');
 const C = require(path.join(REPO, 'src/shared/channels'));

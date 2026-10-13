@@ -41,6 +41,7 @@ if (!process.versions.electron) {
 }
 
 const { app } = require('electron');
+require('./fixtures/electron-version');
 const C = require(path.join(REPO, 'src/shared/channels'));
 const review = require(path.join(REPO, 'src/shared/lol-review'));
 
