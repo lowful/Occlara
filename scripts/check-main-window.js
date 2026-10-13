@@ -62,6 +62,7 @@ if (!process.versions.electron) {
 }
 
 const { app, BrowserWindow } = require('electron');
+require('./fixtures/electron-version');
 const { replay, load } = require('./fixtures/replay-match');
 const surfaces = require('./fixtures/surfaces');
 const verify = require(path.join(REPO, 'src/shared/valorant-verify'));

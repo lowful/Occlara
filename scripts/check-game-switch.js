@@ -51,6 +51,7 @@ if (!process.versions.electron) {
 
 // Child.
 const { app, ipcMain } = require('electron');
+require('./fixtures/electron-version');
 const C = require(path.join(REPO, 'src/shared/channels'));
 
 const lines = [];
