@@ -20,11 +20,22 @@
  *   first hundred as nobody; any 8 character header became a person; and the
  *   route list evicted its busiest route first.
  *
- * Real modules throughout, against a fake Supabase. Nothing touches a network.
+ *   A GAME NO LONGER COACHED. Marvel Rivals was removed after 8.3.2, and an
+ *   install from before that left on it still calls /api/rivals/draft,
+ *   /review and /identify. Every path under /api/rivals, by any method, with
+ *   a licence or none, answers 410 with one sentence and asks neither the
+ *   licence table nor a model, and is never rate limited, in the server as
+ *   Railway starts it. Ask Coach asked about that game answers as for any
+ *   game it does not know, no other server code or data names it, and no
+ *   file of the app calls those routes, so a current install loses nothing.
+ *
+ * Real modules throughout, against a fake Supabase and a fake model. Nothing
+ * leaves the machine: the server as Railway starts it runs on a local port.
  *
  * Run: npm run test:serverguards
  */
 
+const fs = require('fs');
 const path = require('path');
 const Module = require('module');
 const { EventEmitter } = require('events');
@@ -32,6 +43,10 @@ const { EventEmitter } = require('events');
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321';
 process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'test-key-not-used';
 delete process.env.ADMIN_PASSWORD;
+// The model is a fake (below), so Ask Coach's prompt can be read as it is sent.
+process.env.AI_API_KEY = 'test-ai-key';
+process.env.AI_BASE_URL = 'http://ai.test/v1';
+for (const v of ['AI_PROVIDER', 'AI_TEXT_MODEL', 'AI_VISION_MODEL', 'AI_TEXT_MODEL_FALLBACK']) delete process.env[v];
 
 let fails = 0;
 let checks = 0;
@@ -41,9 +56,10 @@ const ok = (cond, what) => {
 };
 
 // ── A fake Supabase for the admin account lookups ───────────────────────────
-const sb = { inCalls: [], lookups: 0, inFlight: 0, maxInFlight: 0, fail: false };
+const sb = { inCalls: [], lookups: 0, inFlight: 0, maxInFlight: 0, fail: false, tables: 0 };
 const fakeSupabase = {
   from: () => {
+    sb.tables++;
     const api = {
       select: () => api, eq: () => api, abortSignal: () => api,
       single: async () => ({ data: { status: 'active', expires_at: null }, error: null }),
@@ -74,6 +90,14 @@ Module._load = function patched(request, parent, isMain) {
   return realLoad(request, parent, isMain);
 };
 
+// ── A fake model: every request it is sent is kept ──────────────────────────
+const model = { sent: [] };
+global.fetch = async (url, init = {}) => {
+  model.sent.push({ url: String(url), body: JSON.parse(init.body || '{}') });
+  const json = { choices: [{ message: { content: 'Hold your angle with a teammate close enough to trade you, then swing together.' }, finish_reason: 'stop' }] };
+  return { status: 200, ok: true, text: async () => JSON.stringify(json), json: async () => json };
+};
+
 const SERVER = path.join(__dirname, '..', 'server');
 const { adminPasswordOk, isAdmin, makeAdminLimiter } = require(path.join(SERVER, 'services', 'admin-auth.js'));
 const { errorHandler, corsRefusal } = require(path.join(SERVER, 'services', 'http-errors.js'));
@@ -81,6 +105,7 @@ const presenceMod = require(path.join(SERVER, 'services', 'presence.js'));
 const { Presence, presence, hashOf } = presenceMod;
 const adminRouter = require(path.join(SERVER, 'routes', 'admin.js'));
 const coach = require(path.join(SERVER, 'routes', 'coach.js'));
+const retired = require(path.join(SERVER, 'routes', 'retired.js'));
 
 function call(router, method, url, { headers = {}, body = {} } = {}) {
   return new Promise((resolve, reject) => {
@@ -286,6 +311,173 @@ const PW = 'correct horse battery staple';
     const fifth = await resolveWho();
     ok(fifth[hashOf('GC-ZZZZ-AAAA-BBBB-CCCC')] && fifth[hashOf('GC-ZZZZ-AAAA-BBBB-CCCC')].email,
       'and the next refresh simply asks again');
+  }
+
+  // ── A game no longer coached: Marvel Rivals ──────────────────────────────
+  const GONE = { error: 'Marvel Rivals is no longer supported by Occlara. Update Occlara at occlara.app.' };
+  const LICENCE = { 'X-License-Key': 'GC-QWER-TYUI-OPAS-DFGH' };
+  {
+    // The three paths the Rivals routes served, and any other, by any method.
+    const OLD = [['POST', '/draft'], ['POST', '/review'], ['POST', '/identify'], ['GET', '/'], ['GET', '/review'],
+      ['PUT', '/draft'], ['DELETE', '/identify'], ['POST', '/scoreboard/12?x=1']];
+    const tables = sb.tables;
+    const sent = model.sent.length;
+    const wrong = [];
+    for (const [method, url] of OLD) {
+      for (const headers of [LICENCE, {}]) {
+        const r = await call(retired.rivals, method, url, { headers, body: { image: 'aGVsbG8=' } });
+        if (r.status !== 410 || JSON.stringify(r.body) !== JSON.stringify(GONE)) {
+          wrong.push(`${method} ${url} ${headers === LICENCE ? 'with' : 'without'} a licence: ${r.status} ${JSON.stringify(r.body)}`);
+        }
+      }
+    }
+    ok(wrong.length === 0, `every /api/rivals path, by any method, with a licence or none, answers 410 with the one sentence${wrong.length ? `: ${wrong.join('; ')}` : ''}`);
+    ok(sb.tables === tables && model.sent.length === sent,
+      `and asks neither the licence table nor a model (${sb.tables - tables} lookups, ${model.sent.length - sent} model calls)`);
+  }
+  {
+    // Ask Coach from an older install still on that game: answered as for any
+    // game it does not know, its prompt naming neither the game nor heroes.
+    const ask = async (game) => {
+      model.sent.length = 0;
+      const r = await call(coach, 'POST', '/chat', { headers: LICENCE,
+        body: { messages: [{ role: 'user', content: 'How do I stop dying first?' }], context: { game } } });
+      const first = model.sent[0];
+      return { status: r.status, prompt: String((first && first.body.messages && first.body.messages[0].content) || '') };
+    };
+    const old = await ask('rivals');
+    const unknown = await ask('a game Occlara never coached');
+    const lol = await ask('lol');
+    ok(old.status === 200 && old.prompt.length > 500 && old.prompt === unknown.prompt
+      && /a Radiant-level Valorant coach/.test(old.prompt) && !/marvel|rivals|\bheroes\b/i.test(old.prompt),
+    `Ask Coach asked about Marvel Rivals by an older install answers as for any game it does not know, naming neither (${old.status})`);
+    ok(lol.status === 200 && /a high level League of Legends coach/.test(lol.prompt) && /\bchampions\b/.test(lol.prompt)
+      && !/marvel|rivals|\bheroes\b/i.test(lol.prompt), 'and League is still asked about as League');
+  }
+  {
+    // And no other server code or data names the game: what is left is the
+    // 410 itself (routes/retired.js) and the line in server.js mounting it.
+    const NAMES_IT = /rivals|marvel|netease/i;
+    const MOUNT = /^app\.use\('\/api\/rivals',\s*retiredRoutes\.rivals\);$/;
+    ok(['rivals', 'Marvel', 'NetEase'].every((w) => NAMES_IT.test(w)) && !NAMES_IT.test('Valorant and League of Legends')
+      && MOUNT.test("app.use('/api/rivals',   retiredRoutes.rivals);") && !MOUNT.test("app.use('/api/rivals',   rivalsRoutes);"),
+    'the scan finds the game when it is named, and knows its mount');
+    const hits = [];
+    let read = 0;
+    const walk = (dir) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        if (!/\.(js|json)$/.test(e.name)) continue;
+        const rel = path.relative(SERVER, p).split(path.sep).join('/');
+        read++;
+        if (rel === 'routes/retired.js') continue;
+        fs.readFileSync(p, 'utf8').split('\n').forEach((line, i) => {
+          if (!NAMES_IT.test(line)) return;
+          if (rel === 'server.js' && MOUNT.test(line.trim())) return;
+          hits.push(`${rel}:${i + 1}`);
+        });
+      }
+    };
+    walk(SERVER);
+    ok(read > 20 && hits.length === 0,
+      `no other server code or data names it (${read} files read${hits.length
+        ? `; named ${hits.length} times, at ${hits.slice(0, 12).join(', ')}${hits.length > 12 ? ' and more' : ''}` : ''})`);
+
+    // And no file of the app calls one, so a current install loses nothing to the 410.
+    const SRC = path.join(__dirname, '..', 'src');
+    const files = [];
+    const walkSrc = (dir) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walkSrc(p);
+        else if (/\.(js|html)$/.test(e.name)) files.push(p);
+      }
+    };
+    walkSrc(SRC);
+    // A comment may say what the server does with them; a line of code may not name one.
+    const COMMENT = /^\s*(\/\/|\/?\*|<!--)/;
+    ok(COMMENT.test('  // the server answers /api/rivals with 410') && COMMENT.test(' * /api/rivals/draft')
+      && !COMMENT.test("const DRAFT_ROUTE = '/api/rivals/draft';"), 'the app scan tells a comment from a call');
+    const callers = files.filter((f) => fs.readFileSync(f, 'utf8').split('\n')
+      .some((line) => line.includes('/api/rivals') && !COMMENT.test(line))).map((f) => path.relative(SRC, f));
+    ok(files.length > 50 && callers.length === 0,
+      `no file of the app calls a Rivals route, so a current install loses nothing to the 410 (${files.length} files read${callers.length ? `; called from ${callers.join(', ')}` : ''})`);
+  }
+  {
+    // The server as Railway starts it: server.js in a process of its own, on a
+    // free local port, with stand in secrets and a working folder holding no
+    // .env for dotenv to find. Nothing it is asked here looks anything up.
+    const os = require('os');
+    const net = require('net');
+    const http = require('http');
+    const { spawn } = require('child_process');
+    const port = await new Promise((resolve, reject) => {
+      const probe = net.createServer();
+      probe.once('error', reject);
+      probe.listen(0, '127.0.0.1', () => { const p = probe.address().port; probe.close(() => resolve(p)); });
+    });
+    const env = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (!/^(AI_|STRIPE_|SUPABASE_|ADMIN_|GEMINI|OPENROUTER|HENRIKDEV|TRACKER|RIOT)/i.test(k)) env[k] = v;
+    }
+    Object.assign(env, { PORT: String(port), SUPABASE_URL: 'http://localhost:54321', SUPABASE_SERVICE_KEY: 'stand-in-guards-1',
+      AI_API_KEY: 'sk-or-v1-stand-in-guards-2', AI_BASE_URL: 'https://openrouter.ai/api/v1', STRIPE_SECRET_KEY: 'sk_test_stand_in_guards_3' });
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-guards-'));
+    const child = spawn(process.execPath, [path.join(SERVER, 'server.js')], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    let output = '';
+    child.stdout.on('data', (d) => { output += d; });
+    child.stderr.on('data', (d) => { output += d; });
+    const exited = new Promise((resolve) => child.once('exit', resolve));
+    const send = (method, p, { headers = {}, body = null } = {}) => new Promise((resolve) => {
+      const data = body === null ? null : JSON.stringify(body);
+      const req = http.request({ host: '127.0.0.1', port, method, path: p, timeout: 3000,
+        headers: { ...headers, ...(data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {}) } }, (res) => {
+        let text = '';
+        res.on('data', (c) => { text += c; });
+        res.on('end', () => { let json = null; try { json = JSON.parse(text); } catch (e) { /* not JSON */ } resolve({ status: res.statusCode, json, text }); });
+      });
+      req.on('error', () => resolve(null));
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+      if (data) req.write(data);
+      req.end();
+    });
+    const results = {};
+    try {
+      let up = null;
+      for (let i = 0; i < 120 && !up && child.exitCode === null; i++) {
+        up = await send('GET', '/health');
+        if (!up) await new Promise((r) => setTimeout(r, 150));
+      }
+      results.health = up;
+      results.old = [];
+      for (const [method, p] of [['POST', '/api/rivals/draft'], ['POST', '/api/rivals/review'], ['POST', '/api/rivals/identify'],
+        ['GET', '/api/rivals'], ['GET', '/api/rivals/heroes?all=1']]) {
+        for (const headers of [LICENCE, {}]) {
+          const r = await send(method, p, { headers, body: method === 'GET' ? null : { image: 'aGVsbG8=' } });
+          results.old.push({ what: `${method} ${p} ${headers === LICENCE ? 'with' : 'without'} a licence`, r });
+        }
+      }
+      results.burst = [];
+      for (let i = 0; i < 95; i++) results.burst.push(await send('POST', '/api/rivals/draft', { headers: LICENCE, body: { image: 'aGVsbG8=' } }));
+      results.read = await send('POST', '/api/coach/read', { body: { image: 'aGVsbG8=' } });
+      results.nothing = await send('GET', '/api/nothing-here');
+    } finally {
+      child.kill();
+      await exited;
+      try { fs.rmSync(cwd, { recursive: true, force: true }); } catch (e) { /* the folder outlives a slow exit */ }
+    }
+    const h = results.health;
+    ok(h && h.status === 200, `the server starts as Railway starts it (${h ? h.status : `no answer: ${output.slice(-300)}`})`);
+    const off = (results.old || []).filter(({ r }) => !r || r.status !== 410 || JSON.stringify(r.json) !== JSON.stringify(GONE));
+    ok(h && results.old.length === 10 && off.length === 0,
+      `and answers every old Rivals path 410 with the sentence where those routes were mounted${off.length ? `: ${off.map((o) => `${o.what} ${o.r ? `${o.r.status} ${o.r.text.slice(0, 80)}` : 'no answer'}`).join('; ')}` : ''}`);
+    const burst = results.burst || [];
+    ok(h && burst.length === 95 && burst.every((r) => r && r.status === 410),
+      `however often it asks: 95 in a minute from one licence are all 410, no rate limit turns one into a 429 (${burst.map((r) => (r ? r.status : 'none')).filter((s) => s !== 410).join(', ') || 'all 410'})`);
+    ok(results.read && results.read.status === 400 && results.nothing && results.nothing.status === 404,
+      `while the coach routes beside it answer as before, and a path nobody serves is still 404 (${results.read && results.read.status}, ${results.nothing && results.nothing.status})`);
   }
 
   console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' server guard checks passed'}`);

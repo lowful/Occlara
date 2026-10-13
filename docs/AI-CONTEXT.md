@@ -139,8 +139,8 @@ every surface. Use the variables, never hardcode:
   12/13/15px. The rule that matters most: **space BETWEEN groups must beat space
   WITHIN them**, or nothing groups.
 
-**One palette.** There used to be a `:root[data-game="rivals"]` block painting
-the app navy and gold. It is gone; the app looks the same whichever game it is
+**One palette.** There used to be a per-game block painting the app in another
+game's colours. It is gone; the app looks the same whichever game it is
 coaching. `data-game` is still set on `<html>` as the hook if a palette ever
 returns.
 
@@ -188,213 +188,15 @@ everything crosses through a preload via `contextBridge`.
 
 ---
 
-## 6. Marvel Rivals, current status
+## 6. League of Legends, and why it deliberately has no live coach
 
-Registered in `src/shared/games.js` as **preview, not shipped**:
-`features = { review: true, draft: false }`, hidden unless `devGames` is on.
-
-**Built and passing (all offline, no external dependency):**
-
-- `server/services/rivals-heroes.js`: every one of the 54 Season 10 heroes is
-  classified by role, aim (hitscan/projectile/melee), air (flight/leap/ground)
-  and archetype. 53 in `HEROES`, and Deadpool in `ROLE_FORMS`, one set per role,
-  returned only when the caller proves the role. `PENDING` is empty and is where
-  the next season's hero goes first. Gorr, Jubilee, The Hood and White Fox were
-  classified on 25 Sep 2026 from their official kit text, quoted beside each.
-  The total independently matches `META.heroCount` in `rivals-knowledge.js`.
-  **ABSENCE MEANS SILENCE**: an unknown hero returns null and produces no advice
-  at all, so being a season behind costs coverage, never correctness.
-- `server/services/rivals-counters.js`: the switch call, including
-  flight-into-hitscan. Will not fire on one enemy, while the player is winning,
-  about a hero it cannot vouch for, or twice for the same reason in a match.
-- `src/shared/rivals-moments.js`: WHEN a live tip may appear: death, team wipe,
-  objective flip, round start. Six per match, 25s minimum gap. A 6v6 shooter has
-  almost no readable moments, so speech has to be earned rather than timed.
-- Role glyphs in `tip-visuals.js` (shield / blade / cross) plus the hero NAME.
-  **Never a portrait**: shipping Marvel or NetEase character art in a paid
-  product is a trademark problem.
-- `POST /api/rivals/identify`: returns a roster and nothing else, so the hero
-  read is gradeable, plus `npm run verify:rivalsheroes` to grade it.
-
-**The blocker is the hero read, not data.** Live tips are only as good as knowing
-who is on screen. `verify:rivalsheroes` scores it against real frames in
-`fixtures/rivals/` (gitignored). **Precision is the gate at 90%**: recall can be
-poor and this still ships because unknown heroes are already silence, but
-nothing downstream catches a hero that was never there.
-
-### MEASURED, 17 Sep 2026. It fails, and not narrowly.
-
-First real grading, against a Season 10 scoreboard with a hand written answer
-key. Six runs of the same frame:
-
-```
-precision  17 to 42%   (gate 90%)
-recall     18 to 45%   (no gate)
-side       33 to 100%  (gate 85%)
-```
-
-**It names different heroes every run**, and it answers outside the game: across
-those runs it produced Mephisto, Doctor Doom, She-Hulk, Wasp, Miles Morales,
-Juggernaut, Havok, Gorgon and Mystique, none of whom are in Marvel Rivals, plus
-Aleksei, Mackintosh, Cherry and Lightning Ace, who are not Marvel characters at
-all. That is the signature of a model sampling plausible names rather than
-reading art.
-
-Things tried that did not fix it:
-
-- **The closed roster in the prompt.** All 54 names, built from the hero table so
-  it cannot drift, with "never answer with a name outside that list". It still
-  answered outside the list.
-- **A 3x upscaled crop of the portrait column.** Scored slightly WORSE than the
-  full frame, so this is not simply pixel count.
-- **Describing the screen, the team colours and the highlighted row.** This did
-  help side accuracy, which moved from 33% toward 100%, and did nothing for
-  identity.
-
-Three real bugs were found and fixed along the way, and they had been hiding each
-other and the result:
-
-1. `sanitize()` collapses newlines, so the reply arrived as one line and the
-   line-anchored parser returned an empty roster.
-2. The grader scored an empty roster as **100% precision and PASS**, because
-   precision is tp/(tp+fp). A gate a mute model clears is not a gate.
-3. Once the prefix was made optional, the scan swallowed "HERO:" into every name
-   after the first, so eleven of twelve reads were scored as hallucinations. The
-   measured precision was a property of the parser.
-
-**What the scoreboard CAN be read for.** Everything on it except hero identity is
-printed text or a three-way glyph, and those are a different problem:
-map, mode, duration, victory or defeat, the season, player names, every K/D/A,
-and the role icons. A post match review built on those is honest today. One built
-on hero identity is not.
-
-### The fix is the SCREEN, not the prompt. 20 Sep 2026.
-
-Six prompt revisions moved nothing, so the next question was whether any hero
-read works. `/identify` was run against two frame types on the same day, same
-model:
-
-```
-HERO SELECT, name printed large     expected: The Punisher
-  read: "the punisher" | mine, "the punisher" | ally        both exact
-
-SCOREBOARD, portrait art only       expected: 11 heroes
-  read: venom, hulk, white fox, loki, jeff the land shark,
-        mister fantastic, cyclops, human torch, scarlet witch,
-        peni parker, ...                                     17 to 42% precision
-```
-
-**This is text recognition versus art recognition, and only one of them works.**
-Valorant's guards already turn on exactly this distinction: the map fingerprint
-is built from the location name Valorant PRINTS on screen, precisely because the
-printed label beats the model's opinion about the picture. Rivals has the same
-property and it had not been used.
-
-So the design changed rather than the prompt:
-
-- The coach learns the player's hero **at hero select, where the game writes it
-  down**, and never guesses a hero from a portrait.
-- `DRAFT_PROMPT` gained a `mine` field. `confirmMine()` in `server/routes/rivals.js`
-  checks it against the closed roster and drops it otherwise, so an OCR slip
-  arrives absent rather than wrong.
-- `features.heroCapture` is separate from `features.draft` **on purpose**. Draft
-  advice stays off because the teammate ROLE count is what reads wrong; the
-  engine still asks the draft question for the name, and `vet()` returns empty
-  so no draft sentence can reach a player.
-
-**What it bought, immediately:** the ability gate. `src/shared/rivals-abilities.js`
-refuses any tip naming an ability the player's hero does not have, which is the
-Rivals equivalent of `validateTipForAgent` and could not exist while the hero was
-unknown. It permits an ability whose OWNER is named in the same sentence, because
-"The Thing has Yancy Street Charge, which turns your dash off" is the counter
-table's most valuable output and a naive gate eats it.
-
-**What it did NOT buy:** the switch call. `switchAdvice()` needs the ENEMY list,
-which comes off scoreboard portraits, which is the read that failed. Counters
-stay unwired, and knowing your own hero does not change that.
-
-Two data defects surfaced while wiring it, both found by listing every ability
-name rather than by any test:
-
-- `占位空格` ("placeholder space"), the site's own spacer row, was scraped as a
-  real ability on **all 54 heroes**. Being universal made it look legitimate.
-- Gorr's Base Stats row parsed as an ability called "Gorr" whose description was
-  "175 Health + 175 Regenerative Shield", because the row-0 skip compares against
-  the full hero name and the cell says just "Gorr".
-
-Both are filtered in `sync-rivals-data.js` now, 665 ability rows down to 610.
-
-### The balance post IS a source, and it was never checked. 20 Sep 2026.
-
-The table below is about **win rate and tier data**, and for that it still
-holds. It was being read as "no Rivals data exists anywhere", which is wrong and
-cost the coach a real source for months.
-
-NetEase publishes the balance changes themselves, at
-`marvelrivals.com/balancepost/`, linked from `/news/`. First party, no key, no
-permission question, and a better kind of knowledge than a tier list:
-
-```
-a tier list says     "Hela is S tier"                  opinion, contested, stale in a month
-a balance post says  "Reduce Nastrond Crow Form        fact, dated, quotable, and the
-                      damage from 70 to 60,             player can go and check it
-                      published 2026/09/08"
-```
-
-`npm run sync:rivalsbalance` parses it: version, publish date, global changes,
-and per hero a one line official summary plus the change bullets. The
-2026/09/08 post yields **38 heroes and 3 global changes**.
-
-**The coach quotes and never judges.** It does not say buffed or nerfed, because
-deciding which requires inference and the inference is unsafe: "reduce cooldown"
-is a buff, "reduce damage" is a nerf, and the verb is identical. NetEase already
-writes a characterisation per hero, so there is a sourced sentence and nothing
-to infer.
-
-Two parse defects worth knowing, both found by reading the output rather than by
-a test:
-
-- **Global changes carry no bullet dash.** The section reads "Strategists:" then
-  two bare sentences, so a bullet-only rule reported zero global changes while
-  the page plainly had two. Nothing errored, and "this patch changed nothing
-  globally" is believable output.
-- **Deadpool has three sections**, `(Vanguard)`, `(Duelist)` and `(Strategist)`,
-  with different changes in each. A one-to-one client map silently kept the last
-  and dropped two, printing 36 against 38 parsed. `check:rivalsknowledge`
-  asserts the two copies agree on the section count.
-
-**Still not reachable, so do not re-hunt:** the site's MAPS and HERO HOT LIST nav
-items are `javascript:;` dropdowns rendered client side. None of `/maps/`,
-`/gamemap/`, `/hotlist/`, `/herolist/`, `/teamup/` or `/hero/` exist, and the nav
-JS does not carry the URLs. `/heroes/`, `/news/` and the article pages are the
-whole of what is statically reachable. `robots.txt` 404s.
-
-**Every external WIN RATE source has been checked and rejected. Do not
-re-litigate:**
-
-| Source | Why not |
-|---|---|
-| `marvelrivalsapi.com` | 502 throughout. Only its docs host is up |
-| `externref/marvelrivalsapi` | Python wrapper for the above |
-| `MarvelRivalsAPI/MarvelRivalsAPI-Wrapper` | Official Node wrapper for the above. Same dead upstream |
-| `AImaginationLab/marvel-rivals-mcp` | **Do not install.** Calls `marvelsapi.com`, which redirects to `survey-smiles.com`. Parked domain, survey spam |
-| `Causalzap/rivalsvictory-assets` | 40 heroes vs 53, no licence, no aim/mobility data |
-| `rivalsdata.com` | robots.txt allows crawling but the server 403s a self-identifying bot. Getting past that means pretending to be Chrome, so no scraper ships |
-| `tracker.gg` | robots.txt disallows `/marvel-rivals/matches/*` and `/*/profile/*`. **Their public API is the one live lead**: it answers 401 rather than 404 on a marvel-rivals route, so the route exists. Worth trying with the `TRACKER_API_KEY` already on Railway |
-
-There is **no official Marvel Rivals developer API**. Every tracker derives data
-by scraping, community submission, or network monitoring, and that last one is
-something this product can never do.
-
-## 7. League of Legends, and why it deliberately has no live coach
-
-League is the third game and the only one with **no live coaching at all**. That
+League is the second game and the only one with **no live coaching at all**. That
 is a policy decision, not an unfinished feature. Riot's third-party policy
 forbids in-game notifications that dictate player action from game state, so the
 League feature grades **after** the game instead of coaching during it. The guard
 in `src/main/index.js` is what enforces it: any game without the `live` feature
-gets a message saying so and no engine. Rivals returns before that guard because
-it has its own engine; League falls through to it and must keep doing so.
+gets a message saying so and no engine, and League must keep falling through to
+it.
 
 Before that guard existed, selecting League started the **Valorant** engine, so
 League frames hit a prompt about spike timers with the map lock and callout gate
@@ -432,11 +234,11 @@ the UI reads it:
 | `false` | it does not | grade against the last ten games and **say so on screen** |
 
 A metric with `sourced: false` has **no band table at all**, and
-`test:lolgrader` asserts that, so a number cannot quietly be added later. This is
-`ABSENCE MEANS SILENCE` from `rivals-heroes.js` pointed at numbers instead of
-heroes: **a wrong target is worse than no target, because the player will chase
-it.** Only CS at 10:00 is `sourced: true`. Vision score has no band table on
-purpose; the commonly repeated "above 35 is good" traces to no primary source.
+`test:lolgrader` asserts that, so a number cannot quietly be added later.
+**Absence means silence: a wrong target is worse than no target, because the
+player will chase it.** Only CS at 10:00 is `sourced: true`. Vision score has
+no band table on purpose; the commonly repeated "above 35 is good" traces to
+no primary source.
 
 Five bands, not eight ranks, because the data does not support eight-way
 granularity and the alternative is inventing seven numbers to sit between the two
@@ -483,7 +285,7 @@ and only a running window could see the bug.
   Rank emblems are not in Data Dragon, carry a separate licensing question, and
   are ornate gold gradients that would fight `--bg` anyway.
 
-## 8. Release and ops
+## 7. Release and ops
 
 ```
 npm start                 run it
@@ -512,7 +314,7 @@ details.
 
 ---
 
-## 9. Conventions and traps
+## 8. Conventions and traps
 
 - **No em dashes or en dashes anywhere**, in tips, UI copy, docs or commits. Use
   commas. Hard rule.
@@ -542,9 +344,8 @@ details.
 
 ---
 
-## 10. Honest current limitations
+## 9. Honest current limitations
 
-- Rivals draft coaching is not built, and its data source is down.
 - The live model is set outside this repo, so `/health` is the only truth.
 - The overlay's tip glyph lexicon covers Valorant vocabulary only.
 - Tips are still full sentences. Compressing them into comms shorthand would

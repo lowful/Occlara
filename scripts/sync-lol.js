@@ -8,14 +8,12 @@
  * runtime, so coaching does not sit behind someone else's CDN and the client
  * still renders with no network at all.
  *
- * WHY ICONS ARE BUNDLED HERE AND WERE FORBIDDEN FOR MARVEL RIVALS. That was a
- * trademark constraint on NetEase artwork, not a general rule, and it does not
- * carry over. Riot publishes Data Dragon for third-party use, so League ships
- * real champion portraits. Measured before deciding: 173 icons at roughly 27KB
- * each is about 4.6MB on a 100MB installer, which buys offline rendering and no
- * CSP change (img-src is 'self'). Separately, a PAID product still needs Riot
- * product registration and approval; that is a permission to obtain, not a
- * reason to avoid the data.
+ * WHY ICONS ARE BUNDLED HERE. Riot publishes Data Dragon for third-party use,
+ * so League ships real champion portraits. Measured before deciding: 173 icons
+ * at roughly 27KB each is about 4.6MB on a 100MB installer, which buys offline
+ * rendering and no CSP change (img-src is 'self'). Separately, a PAID product
+ * still needs Riot product registration and approval; that is a permission to
+ * obtain, not a reason to avoid the data.
  *
  * THE PATCH AND THE COUNT ARE DERIVED, NEVER TYPED. The roster changes every
  * patch, and a hardcoded number is a lie with a date on it.

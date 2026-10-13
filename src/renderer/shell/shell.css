@@ -39,12 +39,6 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .game-seg button .game-logo { width: var(--icon-md); height: var(--icon-md); flex: none; }
-/* Marvel Rivals' emblem is about half as tall as it is wide, so at the others'
-   size it read as half their size, its brackets slivers: a size up it sits in
-   the square as large as they do, and it still clears the button's edges. */
-.game-seg button .game-logo[data-game="rivals"] {
-  width: calc(var(--icon-md) + var(--space-1)); height: calc(var(--icon-md) + var(--space-1));
-}
 .game-seg button.named { width: auto; padding: 0 var(--space-2); }
 /* Hover brightens the games not picked, never the one that is: this rule
    outranks the pressed one below, and over the pressed button's --text ground

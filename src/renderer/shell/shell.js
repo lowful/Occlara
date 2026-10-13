@@ -204,8 +204,6 @@ function readConfig(fallback) {
 const SEALED_FACTS = {
   valorant: { capture: true, game: 'Read the way OBS reads it: the display only, never memory or files',
     after: "Checked against Riot's record once it is published, 90 seconds to four minutes after the end" },
-  rivals: { capture: true, game: 'Read the way OBS reads it: the display only, never memory or files',
-    after: 'Graded from the end of match scoreboard as soon as it shows' },
   lol: { capture: false, game: "Recorded from the game's own local data, never memory or files",
     after: 'Graded from what was recorded, the moment the game ends' },
 };
@@ -232,7 +230,7 @@ function paintSealedFacts() {
  *     it is why Start is locked;
  *   - a notice from main (capture blocked, the server down, recording stopped
  *     for the session, a review saved in Matches), but never the
- *     "Recording..." a Rivals or League session keeps up for its whole length
+ *     "Recording..." a League session keeps up for its whole length
  *     (kind 'recording'): Stop and the live card already say it;
  *   - paused, in the player's language (panel.pausedLine), which only the
  *     pause button's icon says otherwise. Paused, nothing is read, so a notice

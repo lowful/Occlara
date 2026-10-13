@@ -509,7 +509,7 @@ class Backfill {
    * the match is over. late() starts nothing mid match and keeps no lateAt for
    * it, and the launch's one try was the session's only one: an app opened mid
    * match (a restart after a crash or an update, Start pressed before the
-   * timer, a League or Rivals game being recorded) left the recordings it was
+   * timer, a League game being recorded) left the recordings it was
    * opened to repair, the match the watch just ended early included, for the
    * next launch, which for an app left in the tray can be days away.
    *

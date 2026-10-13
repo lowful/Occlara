@@ -13,8 +13,9 @@
  *
  * Held here, on a scripted provider (no network, no money):
  *   every call to OpenRouter asks for its usage, and only OpenRouter is asked
- *   each route's calls are booked under it: read, forensics, review, chat, and
- *     Rivals' through its own provider layer, each with its licence
+ *   each route's calls are booked under it: read, forensics, review and chat,
+ *     each with its licence, and a call outside any request under other with
+ *     none; no other route is kept (Marvel Rivals' went with the game)
  *   a reply with no cost books the flat price per image, counted apart
  *   a call aborted at its deadline books the flat price (it is billed), one
  *     the provider refused books nothing
@@ -34,7 +35,7 @@ process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'test-key
 process.env.AI_API_KEY = 'test-ai-key';
 process.env.AI_BASE_URL = 'https://openrouter.ai/api/v1';
 for (const v of ['AI_PROVIDER', 'AI_READ_MODEL', 'AI_REVIEW_MODEL', 'AI_TEXT_MODEL', 'AI_VISION_MODEL', 'AI_COST_PER_CALL',
-  'AI_VISION_MODEL_DEEP', 'AI_TEXT_MODEL_FALLBACK', 'AI_FORENSICS_MODEL']) delete process.env[v];
+  'AI_TEXT_MODEL_FALLBACK', 'AI_FORENSICS_MODEL']) delete process.env[v];
 process.env.ADMIN_PASSWORD = 'cost-password';
 
 let fails = 0;
@@ -108,7 +109,6 @@ function call(router, method, url, { headers = {}, body = {} } = {}) {
 
 const A = 'GC-AAAA-AAAA-AAAA-AAAA';
 const B = 'GC-BBBB-BBBB-BBBB-BBBB';
-const C = 'GC-CCCC-CCCC-CCCC-CCCC';
 const IMG = 'x'.repeat(5000);
 const ROUNDS = [1, 2, 3, 4].map((n) => ({ n, side: 'attacking', result: n % 2 ? 'won' : 'lost', died: n % 2 === 0, reads: [] }));
 const routes = (r) => Object.fromEntries(Object.entries(r.routes).map(([k, v]) => [k, v.calls]));
@@ -119,7 +119,7 @@ const routes = (r) => Object.fromEntries(Object.entries(r.routes).map(([k, v]) =
     && !costs.asksUsage('https://api.openai.com/v1') && !costs.asksUsage('https://openrouter.ai.evil.example/v1') && !costs.asksUsage('https://notopenrouter.ai/v1')
     && !costs.asksUsage('') && costs.asking(),
   'OpenRouter is asked what each call cost, and no other provider: a look alike host is not OpenRouter');
-  ok(costs.routes.join() === 'read,forensics,review,chat,rivals,other', `the routes a call is booked under: ${costs.routes.join(', ')}`);
+  ok(costs.routes.join() === 'read,forensics,review,chat,other', `the routes a call is booked under, and no other: ${costs.routes.join(', ')}`);
 
   // ── Each route's calls, with what the provider said they cost ─────────────
   ai.next = priced('STATE: {"phase":"buy","team":3,"enemy":2}', 0.00042);
@@ -137,29 +137,26 @@ const routes = (r) => Object.fromEntries(Object.entries(r.routes).map(([k, v]) =
   ok(ai.sent.length === 5 && ai.sent.every((s) => s.usage && s.usage.include === true),
     `every call asked the provider for its usage (${ai.sent.length} calls)`);
   ok(ai.sent[2].images === 5 && ai.sent[1].images === 2, 'and the look sent each death its frames, five timed stills for one');
-  // Rivals: its routes count a call, then make it, through their own layer.
-  ai.next = priced('', 0.0009);
-  coach.ai.trackCall(C, 1);
-  await coach.ai.visionInfer(IMG, 'read this scoreboard', 20, false);
   // A call outside any request at all.
   ai.next = priced('ok', 0.0002);
-  await coach.ai.textInfer('say ok', 5);
+  await coach.__test.textInfer('say ok', 5);
 
   let rep = costs.report(null);
   const t = rep.today.routes;
   ok(t.read.calls === 1 && near(t.read.real, 0.00042) && t.forensics.calls === 2 && near(t.forensics.real, 0.0062)
     && t.review.calls === 1 && near(t.review.real, 0.0105) && t.chat.calls === 1 && near(t.chat.real, 0.0007)
-    && t.rivals.calls === 2 && near(t.rivals.real, 0.0011),
-  `each call booked at its own cost under the route it served (${JSON.stringify(routes(rep.today))})`);
-  ok(rep.today.calls === 7 && rep.today.priced === 7 && near(rep.today.real, 0.00042 + 0.0062 + 0.0105 + 0.0007 + 0.0011)
+    && t.other.calls === 1 && near(t.other.real, 0.0002) && JSON.stringify(Object.keys(t)) === JSON.stringify(costs.routes),
+  `each call booked at its own cost under the route it served, one outside a request under other (${JSON.stringify(routes(rep.today))})`);
+  ok(rep.today.calls === 6 && rep.today.priced === 6 && near(rep.today.real, 0.00042 + 0.0062 + 0.0105 + 0.0007 + 0.0002)
     && rep.today.estimated === 0 && near(rep.today.cost, rep.today.real) && near(rep.month.cost, rep.today.cost),
   `in all, today and this month, every one priced by the provider ($${rep.today.cost})`);
   const a = costs.report(A).today;
   const b = costs.report(B).today;
-  const c = costs.report(C).today;
   ok(a.calls === 3 && near(a.real, 0.00042 + 0.0062) && a.routes.read.calls === 1 && a.routes.forensics.calls === 2
-    && b.calls === 2 && near(b.real, 0.0112) && c.calls === 1 && near(c.real, 0.0009) && c.routes.rivals.calls === 1,
-  `and under the licence that made it, Rivals' too (A $${a.real}, B $${b.real}, C $${c.real})`);
+    && b.calls === 2 && near(b.real, 0.0112) && b.routes.review.calls === 1 && b.routes.chat.calls === 1,
+  `and under the licence that made it (A $${a.real}, B $${b.real})`);
+  ok(JSON.stringify(costs.keys().sort()) === JSON.stringify([A, B].sort()),
+    `and the call outside any request under no licence at all (${costs.keys().length} licences booked)`);
   ok(costs.report('GC-NOBODY').today.calls === 0, 'a licence that made no call has spent nothing');
 
   // ── No cost said, aborted, refused ────────────────────────────────────────
@@ -172,9 +169,9 @@ const routes = (r) => Object.fromEntries(Object.entries(r.routes).map(([k, v]) =
     `a reply that says nothing of its cost books the flat price for each image it carried, apart ($${rep.today.routes.forensics.estimated})`);
   ai.next = (body, init) => new Promise((_, rej) => { init.signal.addEventListener('abort', () => rej(init.signal.reason || new Error('aborted'))); });
   let aborted = null;
-  try { await coach.ai.visionInfer(IMG, 'read this', 10, false, null, { abortMs: 60 }); } catch (e) { aborted = e; }
+  try { await coach.__test.visionInfer(IMG, 'read this', 10, false, null, { abortMs: 60 }); } catch (e) { aborted = e; }
   rep = costs.report(null);
-  ok(aborted && rep.today.routes.rivals.calls === 3 && near(rep.today.routes.rivals.estimated, flat),
+  ok(aborted && rep.today.routes.other.calls === 2 && near(rep.today.routes.other.estimated, flat),
     `a call aborted at its deadline is billed all the same: the flat price (${aborted && aborted.name})`);
   ai.next = () => ({ status: 500, text: 'upstream exploded' });
   const before = costs.report(null).today.calls;
@@ -187,6 +184,10 @@ const routes = (r) => Object.fromEntries(Object.entries(r.routes).map(([k, v]) =
   ok(view.status === 200 && v.spend && near(v.spend.today.cost, costs.report(null).today.cost) && v.spend.today.routes.forensics.calls === 3
     && v.global.costToday === v.spend.today.cost && typeof v.global.estCostToday === 'string' && v.spend.asksProvider === true && v.since,
   `/api/admin/costs shows the spend today and this month by route, the real and the estimated apart ($${v.spend && v.spend.today.real} real, $${v.spend && v.spend.today.estimated} estimated)`);
+  const listed = (x) => JSON.stringify(Object.keys((x && x.routes) || {}));
+  ok(v.spend && v.spend.routes.join() === 'read,forensics,review,chat,other' && listed(v.spend.today) === JSON.stringify(v.spend.routes)
+    && listed(v.spend.month) === listed(v.spend.today) && !/rivals/i.test(JSON.stringify(v)),
+  `listing read, forensics, review, chat and other, and no route of a game Occlara no longer coaches (${v.spend && v.spend.routes.join(', ')})`);
   const rowA = (v.topUsers || []).find((r) => r.user === hashOf(A));
   ok(rowA && near(rowA.costToday, costs.report(A).today.cost) && rowA.spendToday.routes.forensics.calls === 3 && !JSON.stringify(v).includes(A),
     "and each licence's own, by its hash, no part of a key in it");
@@ -201,11 +202,10 @@ const routes = (r) => Object.fromEntries(Object.entries(r.routes).map(([k, v]) =
     };
     try { await fn(); } finally { global.Date = Real; }
   };
-  // A call of that licence, counted then made, as a game's route makes it.
+  // A call of that licence, made as the read's route makes it.
   const book = async (key, cost) => {
     ai.next = priced('ok', cost);
-    coach.ai.trackCall(key, 1);
-    await coach.ai.visionInfer(IMG, 'x', 5, false);
+    await coach.__test.asRoute('read', key, () => coach.__test.visionInfer(IMG, 'x', 5, false));
   };
   let byA = null;
   await at('2030-01-30T12:00:00.000Z', async () => { await book(A, 0.5); await book(A, 0.25); rep = costs.report(null); });

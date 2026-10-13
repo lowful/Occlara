@@ -124,7 +124,7 @@ const summary = patterns.summarise(saved);
   const mixed = rows.map((r, i) => (i < 2 ? { ...r, result: 'Defeat' } : i === 2 ? { ...r, result: null } : r));
   ok(same(winLoss(mixed), { wins: 3, losses: 2, draws: 0, unknown: 1 }),
     `three won, two lost, one with no result (${JSON.stringify(winLoss(mixed))})`);
-  // Rivals reads its result off the screen, in whatever case it printed.
+  // A result is read in whatever case it was saved in.
   ok(same(wl(['VICTORY', 'victory', 'Win', 'DEFEAT', 'defeat', 'Loss']), { wins: 3, losses: 3, draws: 0, unknown: 0 }),
     'a win and a loss read however they are cased or worded, as the rows colour them');
   ok(same(wl(['Draw', 'DRAW', 'Tie', 'Remake', '', null, undefined]), { wins: 0, losses: 0, draws: 3, unknown: 4 }),

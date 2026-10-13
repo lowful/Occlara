@@ -37,7 +37,7 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .mark { margin-bottom: 14px; animation: float 4.5s ease-in-out infinite; }
 @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 .logo h1 { font-size: 27px; font-weight: 800; letter-spacing: -0.6px; }
-/* Centred and balanced, because naming three games takes two lines at this
+/* Centred and balanced, because naming the games can take two lines at this
    width, and a ragged left-aligned second line under a centred mark looks
    like a layout fault. */
 .sub {

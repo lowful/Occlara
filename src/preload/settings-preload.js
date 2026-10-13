@@ -25,11 +25,11 @@ contextBridge.exposeInMainWorld('occlara', {
   // plain data, so no surface needs Node access to draw the picker.
   //
   // `coaching` is canCoach(), not the registry's bare `coaching` key. Only
-  // Valorant carries that key; Rivals and League declare a feature map instead,
-  // so the bare key read false for both and Settings told their players that
-  // coaching for their game was not built, while Start ran their recorder and
-  // graded reviews landed in Matches. canCoach() is the same question Start
-  // asks before it refuses a game.
+  // Valorant carries that key; League declares a feature map instead, so the
+  // bare key read false for it and Settings told its players that coaching
+  // for their game was not built, while Start ran their recorder and graded
+  // reviews landed in Matches. canCoach() is the same question Start asks
+  // before it refuses a game.
   games: {
     list: (includeUnavailable) => GAMES.list(includeUnavailable)
       .map((g) => ({ id: g.id, label: g.label, coaching: GAMES.canCoach(g.id), preview: !!g.preview })),

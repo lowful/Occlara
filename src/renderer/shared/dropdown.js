@@ -99,8 +99,8 @@
 
     function paintButton() {
       const c = current();
-      // `short` lets a cramped trigger say "Rivals" while the list still says
-      // "Marvel Rivals". The panel header has about 90px for this control.
+      // `short` lets a cramped trigger say "League" while the list still says
+      // "League of Legends". The panel header has about 90px for this control.
       text.textContent = c ? (c.short || c.label) : (o.placeholder || '');
       mount.classList.toggle('dd-empty', !c);
     }

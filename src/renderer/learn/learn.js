@@ -324,7 +324,7 @@ function paintStarters() {
       if (p.icon) {
         const img = document.createElement('img');
         // Riot licenses Data Dragon art for third-party use, so this is a real
-        // portrait rather than the role glyph the Rivals side has to use.
+        // portrait.
         img.src = `../../../assets/${p.icon}`;
         img.width = 34; img.height = 34;
         img.alt = '';

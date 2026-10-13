@@ -181,8 +181,8 @@ const strip = (rv) => {
     && back.insights.mistakes.every((e, i) => e.title === recorded.insights.mistakes[i].title && e.fix === recorded.insights.mistakes[i].fix)
     && back.insights.strengths.find((e) => e.key === 'clutch').detail === 'Round 1, alone against one. Round 17, alone against 3.',
     'a recorded review keeps its lists and fix lines, with its clutch line in today\'s words');
-  const rivals = { kind: 'rivals', insights: { mistakes: [], strengths: [], missed: [] } };
-  ok(valorantReview.served(rivals) === rivals && valorantReview.served(null) === null, 'and another game\'s review is not touched');
+  const league = { kind: 'lol', insights: { mistakes: [], strengths: [], missed: [] } };
+  ok(valorantReview.served(league) === league && valorantReview.served(null) === null, 'and another game\'s review is not touched');
 }
 
 // ── Measured against the matches before it, never after ─────────────────────

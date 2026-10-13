@@ -67,7 +67,7 @@ const CHANNELS = {
   // looked at adds when its frame was captured, to open the log at it.
   REVIEW_AILOG:    'reviews:ailog',      // (id, at?) open the AI log on one saved review's match, at the frame captured at `at`
   PATTERNS_GET:    'reviews:patterns',   // (game) -> repeated mistakes, strengths, misses, grade trend
-  // The breakdown in Matches: by map and agent (hero, champion), counted from
+  // The breakdown in Matches: by map and agent (champion), counted from
   // the saved reviews of one game (src/shared/breakdown.js).
   BREAKDOWN_GET:   'reviews:breakdown',  // (game, { queue }) -> { game, matches, dims, rows, headline, ... }
   // Grading the recent matches of the Riot ID in config from Riot's record
@@ -114,19 +114,14 @@ const CHANNELS = {
   // The recorded League game is graded and ready. Fired ONCE per finished game,
   // after it ends, never during it.
   PUSH_LOL_REVIEW:   'push:lolReview',
-  // The Marvel Rivals post match review, computed from the end of match
-  // scoreboard. A SEPARATE CHANNEL from the League one rather than a shared
-  // "review" channel, because the two carry different shapes and the review
-  // window has to know which it is holding. It also means the League path is
-  // untouched: that surface has a boot check of its own (check:lolreview) and
-  // widening its channel would put a second producer behind it.
-  PUSH_RIVALS_REVIEW: 'push:rivalsReview',
   // The reasoning behind a tip the player just saw, on demand. A live tip is one
   // sentence because it is read mid fight; this is the same call explained at
   // length, and it only ever fires when the player asks for it.
-  // The Valorant post-match review, the round by round one. Its own channel for
-  // the reason the Rivals one has its own: a different shape, and the review
-  // window branches on review.kind rather than sniffing for fields.
+  // The Valorant post-match review, the round by round one. A SEPARATE CHANNEL
+  // from the League one rather than a shared "review" channel, because the two
+  // carry different shapes, and the review window branches on review.kind
+  // rather than sniffing for fields. It also means the League path is
+  // untouched: that surface has a boot check of its own (check:lolreview).
   PUSH_VALORANT_REVIEW: 'push:valorantReview',
   // The main window's page and seal, to the shell: { page, shown, sealed, maximized }.
   PUSH_SHELL:        'push:shell',
@@ -173,7 +168,6 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_REVIEWS,
   CHANNELS.PUSH_BACKFILL,
   CHANNELS.PUSH_LOL_REVIEW,
-  CHANNELS.PUSH_RIVALS_REVIEW,
   CHANNELS.PUSH_VALORANT_REVIEW,
   CHANNELS.PUSH_SHELL,
   CHANNELS.PUSH_PAGE,

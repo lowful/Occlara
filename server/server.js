@@ -37,7 +37,7 @@ const paymentRoutes = require('./routes/payments');
 const licenseRoutes = require('./routes/license');
 const accountRoutes = require('./routes/account');
 const coachRoutes   = require('./routes/coach');
-const rivalsRoutes  = require('./routes/rivals');
+const retiredRoutes = require('./routes/retired');
 const adminRoutes   = require('./routes/admin');
 const webhookHandler = require('./routes/webhook');
 const { errorHandler, corsRefusal } = require('./services/http-errors');
@@ -185,7 +185,6 @@ app.use('/api/payments/create-checkout', checkoutLimiter);
 app.use('/api/coach/chat',               chatLimiter);
 app.use('/api/coach/read',               readLimiter);
 app.use('/api/coach',                    coachLimiter);
-app.use('/api/rivals',                   coachLimiter);
 app.use('/api/admin',                    adminLimiter);
 app.use('/admin',                        adminLimiter);
 
@@ -194,7 +193,10 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/license',  licenseRoutes);
 app.use('/api/account',  accountRoutes);
 app.use('/api/coach',    coachRoutes);
-app.use('/api/rivals',   rivalsRoutes);
+// A game Occlara no longer coaches: an older install still calling its routes
+// is answered 410 on every path, and nothing is looked up or called. See
+// routes/retired.js.
+app.use('/api/rivals',   retiredRoutes.rivals);
 app.use('/api/admin',    adminRoutes);
 
 // The live view: who is on Occlara right now. The page itself holds no data;

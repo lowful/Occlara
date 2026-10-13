@@ -2,7 +2,7 @@
 
 /**
  * The match library: what keeps happening across matches, on which map and
- * agent (hero, champion) it happens, then every match.
+ * agent (champion) it happens, then every match.
  *
  * Everything shown is read from saved reviews. Patterns need two matches of one
  * game before they say anything, and the page says that rather than showing an
@@ -181,19 +181,6 @@ const COLS = {
       col('stats.firstDeath', 'First death', 'rate', { unit: 'rounds', opt: true }),
     ],
   },
-  rivals: {
-    map: [
-      col('label', 'Map', 'label'), col('matches', 'Matches', 'int'), col('record', 'Record', 'record'),
-      col('winRate', 'Win %', 'rate', { unit: 'matches won' }), col('grade', 'Grade', 'grade'),
-      col('stats.kda', 'K/D/A', 'kda', { opt: true, min: KDA_MIN }), col('stats.damage', 'Damage', 'avg', { opt: true }),
-    ],
-    hero: [
-      col('label', 'Hero', 'label'), col('matches', 'Matches', 'int'), col('record', 'Record', 'record'),
-      col('winRate', 'Win %', 'rate', { unit: 'matches won' }), col('grade', 'Grade', 'grade'),
-      col('stats.kda', 'K/D/A', 'kda', { opt: true, min: KDA_MIN }), col('stats.damage', 'Damage', 'avg', { opt: true }),
-      col('stats.duty', 'Role duty', 'duty', { opt: true }), col('stats.accuracy', 'Accuracy', 'pctavg', { opt: true }),
-    ],
-  },
   lol: {
     champion: [
       col('label', 'Champion', 'label'), col('matches', 'Games', 'int'), col('grade', 'Grade', 'grade'),
@@ -232,7 +219,7 @@ function cell(c, row) {
     case 'label':
       td.append(el('span', null, row.label));
       if (row.sub) td.append(el('small', null, row.sub));
-      // A long Rivals map or hero name is cut to fit; the whole one on hover.
+      // A long map, agent or champion name is cut to fit; the whole one on hover.
       td.title = row.sub ? `${row.label}, ${row.sub}` : row.label;
       return td;
     case 'int':
@@ -275,14 +262,9 @@ function cell(c, row) {
       td.textContent = kdaText(v);
       td.title = `K/D ${v.value.toFixed(2)} ${over(v.n)}`;
       return td;
-    case 'duty':
-      if (!v || v.value === null || v.value === undefined) return none(td);
-      td.append(el('span', null, v.value.toLocaleString('en-US')), el('small', 'b-unit', v.label.toLowerCase()));
-      td.title = `${v.label}, average ${over(v.n)}`;
-      return td;
     default:
       if (!v || v.value === null || v.value === undefined) return none(td);
-      td.textContent = c.kind === 'dec1' ? v.value.toFixed(1) : c.kind === 'pctavg' ? `${v.value}%` : v.value.toLocaleString('en-US');
+      td.textContent = c.kind === 'dec1' ? v.value.toFixed(1) : v.value.toLocaleString('en-US');
       td.title = over(v.n);
       return td;
   }
@@ -359,13 +341,6 @@ function detailLines(gameId, dim, row, dims) {
       s.hs && s.hs.value !== null ? `Headshot ${s.hs.value}%` : null].filter(Boolean);
     if (board.length) out.push(['Scoreboard', board.join(DOT) + DOT + matchesWord(sample, false)]);
   }
-  if (gameId === 'rivals') {
-    const line = [kdaLine(s.kda, row.matches), s.kd && s.kd.value !== null ? `K/D ${s.kd.value.toFixed(2)}` : null,
-      s.damage && s.damage.value !== null ? `Damage ${s.damage.value.toLocaleString('en-US')}` : null,
-      s.duty ? `${s.duty.label} ${s.duty.value.toLocaleString('en-US')}` : null,
-      s.accuracy && s.accuracy.value !== null ? `Accuracy ${s.accuracy.value}%` : null].filter(Boolean);
-    if (line.length) out.push(['Averages', line.join(DOT)]);
-  }
   if (gameId === 'lol') {
     const line = [s.kda && s.kda.value !== null ? `KDA ${s.kda.value.toFixed(2)}` : null,
       s.csPerMin && s.csPerMin.value !== null ? `CS a minute ${s.csPerMin.value.toFixed(1)}` : null,
@@ -374,7 +349,7 @@ function detailLines(gameId, dim, row, dims) {
     if (line.length) out.push(['Averages', line.join(DOT)]);
   }
   if (row.cross && row.cross.length) {
-    const title = dim === 'map' ? (gameId === 'rivals' ? 'Heroes here' : 'Agents here') : 'Maps';
+    const title = dim === 'map' ? 'Agents here' : 'Maps';
     out.push([title, row.cross.slice(0, 6).map(crossText).join(DOT)]);
   }
   if (row.spots) {

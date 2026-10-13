@@ -8,14 +8,12 @@
  * the backend reads champions: the learning surface is assembled in the main
  * process from data that ships with the app, which is why it works offline.
  *
- * The shape of rivals-heroes.js, but with far less hand authoring, and the
- * difference is the whole point of picking League: Riot publishes the roster,
- * the roles, a difficulty score and the attack range, so role, difficulty and
- * melee-versus-ranged are all DERIVED. The Rivals table had to invent every one
- * of those by hand and could only vouch for 40 of 53 heroes.
+ * Hardly any of it is authored by hand, and that is the point of picking
+ * League: Riot publishes the roster, the roles, a difficulty score and the
+ * attack range, so role, difficulty and melee-versus-ranged are all DERIVED.
  *
- * The same silence rule still applies, because it is about honesty rather than
- * about the data source: an unknown champion returns null and nothing
+ * The silence rule applies all the same, because it is about honesty rather
+ * than about the data source: an unknown champion returns null and nothing
  * downstream says anything about it.
  *
  * WHAT RIOT DOES NOT PUBLISH is lane. `tags` says Mage or Fighter, not mid or

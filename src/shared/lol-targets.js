@@ -20,8 +20,7 @@
  * A metric with `sourced: false` has NO band table, and test:lolgrader asserts
  * that, so a number cannot quietly be added later. That is deliberate: a wrong
  * target is worse than no target, because the player will chase it. It is
- * ABSENCE MEANS SILENCE from rivals-heroes.js, pointed at numbers instead of
- * heroes.
+ * ABSENCE MEANS SILENCE, pointed at numbers.
  *
  * FIVE BANDS, NOT EIGHT RANKS. The underlying data does not support eight-way
  * granularity, and pretending otherwise means inventing seven numbers to sit

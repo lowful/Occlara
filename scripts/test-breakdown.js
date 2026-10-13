@@ -4,13 +4,12 @@
  * The breakdown on the real fixtures: what each map and agent row counts, the
  * floors that keep a small sample from reading as a rate, the headline rule,
  * old saved cards read back from their fact lines, the recorded sessions as
- * the real engine read them, and the other two games. And the claims a row
- * makes: the second pistol from Riot's own sides, a death spot only when it
- * leads, a repeat only of the same place, agent or direction and only out of
- * the recorded matches (one graded from Riot's record alone repeats nothing),
- * a hero's duty from its labelled role, K/D/A an average match over only the
- * lines that read assists, and League one mode at a time, the most played
- * first.
+ * the real engine read them, and League. And the claims a row makes: the
+ * second pistol from Riot's own sides, a death spot only when it leads, a
+ * repeat only of the same place or agent and only out of the recorded matches
+ * (one graded from Riot's record alone repeats nothing), K/D/A an average
+ * match over only the lines that read assists, and League one mode at a time,
+ * the most played first. A game Occlara no longer coaches has no breakdown.
  *
  * Run: npm run test:breakdown
  */
@@ -487,94 +486,17 @@ const abyss = one.rows.map[0];
   ok(sunset.stats.kda.value === sunset.stats.kd.value, 'and its K/D is the K/D column\'s over the same matches');
 }
 
-// ── Marvel Rivals ───────────────────────────────────────────────────────────
+// ── A game Occlara no longer coaches ────────────────────────────────────────
+// Marvel Rivals is not coached any more, and the library never hands over a
+// review of it (review-store.js). Asked for by its id, the breakdown is empty.
 {
-  const rv = (hero, role, map, result, sl, score) => ({ id: `rivals-${T0 + (++seq) * HOUR}-r${seq}`, game: 'rivals', at: T0 + seq * HOUR,
-    review: { kind: 'rivals', empty: false, game: { hero, role, map, mode: 'Competitive', result },
-      scoreline: sl, grade: { score, letter: letterOf(score), provisional: false, categories: [] },
-      insights: { mistakes: [], strengths: [], missed: [] } } });
-  const list = newestFirst([
-    rv('Luna Snow', 'Strategist', 'Tokyo 2099', 'VICTORY', { kills: 10, deaths: 5, assists: 20, damage: 8000, healing: 15000, blocked: 0, accuracy: 40 }, 78),
-    rv('Luna Snow', 'Strategist', 'Yggsgard', 'DEFEAT', { kills: 6, deaths: 7, assists: 18, damage: 6000, healing: 17000, blocked: 0, accuracy: 44 }, 66),
-    rv('Hela', 'Duelist', 'Tokyo 2099', 'VICTORY', { kills: 30, deaths: 8, assists: 5, damage: 30000, healing: 0, blocked: 0, accuracy: 50 }, 85),
-  ]);
-  const b = breakdown.build('rivals', list);
-  ok(same(b.dims.map((d) => d.key), ['map', 'hero']), 'Rivals is by map and by hero');
-  const luna = b.rows.hero.find((r) => r.label === 'Luna Snow');
-  ok(luna.sub === 'Strategist' && luna.stats.kd.value === 1.33 && luna.stats.duty.label === 'Healing'
-    && luna.stats.duty.value === 16000 && luna.stats.accuracy.value === 42, 'a Strategist is read on healing and her own accuracy');
-  ok(same(luna.record, { won: 1, lost: 1, drawn: 0, known: 2 }), 'VICTORY and DEFEAT read as a 1-1 record');
-  ok(same(luna.stats.kda, { value: 1.33, kills: 8, deaths: 6, assists: 19, n: 2 }),
-    `her K/D/A is an average match, 10/5/20 and 6/7/18 as 8/6/19 (${JSON.stringify(luna.stats.kda)})`);
-  const tokyo = b.rows.map.find((r) => r.label === 'Tokyo 2099');
-  ok(tokyo.matches === 2 && tokyo.stats.accuracy === null && tokyo.stats.duty === null,
-    'a map row never averages accuracy or duty across heroes');
-  // Luna's 10/5/20 and Hela's 30/8/5 are 20, 6.5 and 12.5 a match, and 40
-  // kills over 13 deaths.
-  ok(same(tokyo.stats.kda, { value: 3.08, kills: 20, deaths: 7, assists: 13, n: 2 }),
-    `K/D/A is on a map row too, across its heroes, as K/D is (${JSON.stringify(tokyo.stats.kda)})`);
-  // A scoreboard read with no assists stays out of K/D/A, and in K/D.
-  const blind = JSON.parse(JSON.stringify(list.find((s) => s.review.game.hero === 'Luna Snow')));
-  blind.at = T0 + (++seq) * HOUR;
-  blind.id = `rivals-${blind.at}-r${seq}`;
-  blind.review.scoreline.assists = null;
-  const lunaThree = breakdown.build('rivals', newestFirst([...list, blind])).rows.hero.find((r) => r.label === 'Luna Snow');
-  ok(lunaThree.matches === 3 && lunaThree.stats.kd.n === 3 && same(lunaThree.stats.kda, luna.stats.kda),
-    `a Rivals line with no assists read counts for K/D and not K/D/A (${JSON.stringify(lunaThree.stats.kda)})`);
-}
-{
-  // Deadpool is three roles. Two matches as a Strategist and one as a
-  // Vanguard: the row is labelled Strategist, so its healing is the two
-  // Strategist matches' alone, never the Vanguard match's 300 folded in.
-  const dp = (role, healing, blocked) => ({ id: `rivals-${T0 + (++seq) * HOUR}-d${seq}`, game: 'rivals', at: T0 + seq * HOUR,
-    review: { kind: 'rivals', empty: false, game: { hero: 'Deadpool', role, map: 'Tokyo 2099', mode: 'Competitive', result: 'VICTORY' },
-      scoreline: { kills: 10, deaths: 5, assists: 5, damage: 9000, healing, blocked, accuracy: 40 },
-      grade: { score: 70, letter: 'B', provisional: false, categories: [] }, insights: { mistakes: [], strengths: [], missed: [] } } });
-  const row = breakdown.build('rivals', newestFirst([dp('Strategist', 10000, 0), dp('Vanguard', 300, 25000), dp('Strategist', 14000, 0)]))
-    .rows.hero[0];
-  ok(row.sub === 'Strategist' && row.stats.duty && row.stats.duty.label === 'Healing'
-    && row.stats.duty.value === 12000 && row.stats.duty.n === 2,
-    `a hero of several roles is read on the labelled role's duty over that role's matches (${JSON.stringify(row.stats.duty)})`);
-}
-{
-  // What repeats across Rivals matches is the direction against the
-  // player's average. Each match's own percentage ("Kills down 50%") is not
-  // the repeat, so the row says the direction alone, the right way round for
-  // deaths, where lower is better.
-  const insights = require('../src/shared/insights');
-  const vs = (id, label, value, baseline, lowerIsBetter) => {
-    const delta = value - baseline;
-    return { id, label, scope: 'role', value, baseline, delta, better: lowerIsBetter ? delta < 0 : delta > 0, games: 4 };
-  };
-  const match = (hero, role, against) => {
-    const review = { kind: 'rivals', empty: false, against, scoreline: {},
-      game: { hero, role, map: 'Tokyo 2099', mode: 'Competitive', result: 'VICTORY' },
-      grade: { score: 70, letter: 'B', provisional: false, categories: [] } };
-    review.insights = insights.rivals(review);
-    return { id: `rivals-${T0 + (++seq) * HOUR}-v${seq}`, game: 'rivals', at: T0 + seq * HOUR, review };
-  };
-  const list = newestFirst([
-    match('Luna Snow', 'Strategist', [vs('kills', 'Kills', 6, 10), vs('deaths', 'Deaths', 5, 8, true)]),
-    match('Luna Snow', 'Strategist', [vs('kills', 'Kills', 8, 10), vs('deaths', 'Deaths', 6, 8, true)]),
-    match('Luna Snow', 'Strategist', [vs('kills', 'Kills', 5, 10), vs('deaths', 'Deaths', 10, 8, true)]),
-    match('Hela', 'Duelist', [vs('deaths', 'Deaths', 12, 8, true)]),
-    match('Hela', 'Duelist', [vs('deaths', 'Deaths', 11, 8, true)]),
-  ]);
-  const own = list.flatMap((s) => [...s.review.insights.mistakes, ...s.review.insights.strengths])
-    .filter((x) => x.key.startsWith('vs:'));
-  ok(own.length === 8 && own.every((x) => /\d+%$/.test(x.title)) && own.some((x) => x.title === 'Kills down 50%'),
-    `each match's own comparison carries that match's percentage (${own.map((x) => x.title).join(', ')})`);
-  const rows = breakdown.build('rivals', list).rows.hero;
-  const luna = rows.find((r) => r.label === 'Luna Snow');
-  const hela = rows.find((r) => r.label === 'Hela');
-  ok(luna.mistake && luna.mistake.title === 'Kills below your average' && luna.mistake.matches === 3,
-    `kills down in three matches repeat as below the average, with no one match's number (${luna.mistake && luna.mistake.title})`);
-  ok(luna.strength && luna.strength.title === 'Deaths below your average' && luna.strength.matches === 2,
-    `fewer deaths in two of three repeat as a strength, below the average (${luna.strength && luna.strength.title})`);
-  ok(hela.mistake && hela.mistake.title === 'Deaths above your average' && hela.mistake.matches === 2,
-    `more deaths in both repeat as a mistake, above the average (${hela.mistake && hela.mistake.title})`);
-  ok([luna.mistake, luna.strength, hela.mistake].every((x) => x && !/\d/.test(x.title) && !DASHES.test(x.title)),
-    'no repeated title carries a number or a dash');
+  const old = { id: `rivals-${T0 + (++seq) * HOUR}-r${seq}`, game: 'rivals', at: T0 + seq * HOUR,
+    review: { kind: 'rivals', empty: false, game: { map: 'Tokyo 2099', mode: 'Competitive', result: 'VICTORY' },
+      scoreline: { kills: 10, deaths: 5, assists: 20 }, grade: { score: 78, letter: 'B', provisional: false, categories: [] },
+      insights: { mistakes: [], strengths: [], missed: [] } } };
+  const b = breakdown.build('rivals', [old]);
+  ok(b.matches === 0 && !b.dims.length && !Object.keys(b.rows).length && !b.headline.length,
+    'a breakdown asked for Marvel Rivals has no dimension, no row and no headline');
 }
 
 // ── League of Legends ───────────────────────────────────────────────────────

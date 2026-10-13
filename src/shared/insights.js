@@ -365,39 +365,6 @@ function valorant(rounds, opts = {}) {
   return out;
 }
 
-/**
- * Marvel Rivals, from the computed review: this match against the player's own
- * role and hero average. Only metrics that HAVE a baseline speak, and a move of
- * under 15% is noise at ten matches.
- */
-function rivals(review) {
-  const out = { mistakes: [], strengths: [], missed: [] };
-  if (!review || review.empty) return out;
-  for (const a of review.against || []) {
-    if (!a.baseline || a.better === null) continue;
-    const move = Math.abs(a.delta) / Math.abs(a.baseline);
-    if (move < 0.15) continue;
-    const pctMove = Math.round(move * 100);
-    const scope = a.scope === 'hero' ? `your ${review.game.hero || 'hero'} average` : `your ${review.game.role || 'role'} average`;
-    // UP AND DOWN ARE THE NUMBER'S, never the verdict's. Taken from `better`,
-    // a player who died less than usual read "Deaths up 38%", because fewer
-    // deaths is the better way for that one.
-    const entry = {
-      key: `vs:${a.id}`, title: `${a.label} ${a.delta > 0 ? 'up' : 'down'} ${pctMove}%`,
-      detail: `${a.label} ${fmt(a.value)} against ${scope} of ${fmt(a.baseline)}, over ${plural(a.games, 'match', 'matches')}.`,
-      rounds: [], count: 1,
-    };
-    (a.better ? out.strengths : out.mistakes).push({ ...entry, weight: pctMove / 10 });
-  }
-  out.mistakes.sort((a, b) => b.weight - a.weight);
-  const s = review.scoreline || {};
-  if (typeof s.deaths === 'number' && typeof s.kills === 'number' && s.deaths >= 8 && s.deaths > s.kills + (s.assists || 0) / 2) {
-    out.missed.push({ key: 'deaths-heavy', title: 'More deaths than fights won',
-      detail: `${plural(s.deaths, 'death')} against ${plural(s.kills, 'kill')} and ${plural(s.assists || 0, 'assist')}. Every death is a respawn walk your team plays short.`,
-      rounds: [], count: 1 });
-  }
-  return out;
-}
 const fmt = (v) => (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('en-US') : String(Math.round(v * 100) / 100));
 
 /**
@@ -443,17 +410,16 @@ function lol(review) {
 }
 
 /**
- * A REPEAT ACROSS MATCHES IS NOT ONE MATCH'S TITLE. Three entries are named
- * from one match's specifics: "Dying at A Site", "Skye kept winning", and a
- * Rivals comparison carrying that match's percentage ("Kills down 52%"). Counted
- * across matches under the newest one's title, "Dying at B Main, in 3 of your
- * last 3" was printed when only one of those deaths was at B Main. This is
- * the title and fix a count across matches may carry: the newest specific
- * one when every sighting names the same place or agent, otherwise one that
- * is true of all of them. A Rivals comparison keeps only its direction.
+ * A REPEAT ACROSS MATCHES IS NOT ONE MATCH'S TITLE. Two entries are named
+ * from one match's specifics: "Dying at A Site" and "Skye kept winning".
+ * Counted across matches under the newest one's title, "Dying at B Main, in 3
+ * of your last 3" was printed when only one of those deaths was at B Main.
+ * This is the title and fix a count across matches may carry: the newest
+ * specific one when every sighting names the same place or agent, otherwise
+ * one that is true of all of them.
  *
  * @param key        the insight key
- * @param list       'mistakes' | 'strengths' | 'missed'
+ * @param list       'mistakes' | 'strengths' | 'missed' (no title depends on it now; kept for the callers)
  * @param newest     the newest sighting ({ title, fix })
  * @param specifics  the distinct places or agents its sightings named (case folded)
  */
@@ -465,16 +431,6 @@ function repeatTitle(key, list, newest, specifics) {
   if (key === 'same-killer' && !one) {
     return { title: 'One enemy agent kept winning',
       fix: 'Track where their strongest player plays, then fight them with a teammate or with utility, never alone.' };
-  }
-  if (String(key).startsWith('vs:')) {
-    // Lazily: the Rivals review loads its game data, and only Rivals needs it.
-    const { METRICS } = require('./rivals-review');
-    const id = String(key).slice(3);
-    const m = (METRICS || []).find((x) => x.id === id);
-    const label = m ? m.label : id.charAt(0).toUpperCase() + id.slice(1);
-    const good = list === 'strengths';
-    const higher = m && m.lowerIsBetter ? !good : good;
-    return { title: `${label} ${higher ? 'above' : 'below'} your average`, fix: newest.fix || null };
   }
   return { title: newest.title, fix: newest.fix || null };
 }
@@ -607,5 +563,5 @@ function inTodaysWords(ins) {
   return { ...ins, mistakes: fix(ins.mistakes), strengths: fix(ins.strengths), missed: fix(ins.missed) };
 }
 
-module.exports = { valorant, rivals, lol, roundList, repeatTitle, specificOf, WEIGHT, aliveAtPlant, shareFloor,
+module.exports = { valorant, lol, roundList, repeatTitle, specificOf, WEIGHT, aliveAtPlant, shareFloor,
   factsView, asFacts, countable, inTodaysWords, CLUTCH_RE, ONLY_RE };

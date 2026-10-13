@@ -87,26 +87,19 @@ const still = () => (recGame === 'lol' ? "Your review is still built from the ga
 /*
  * WHAT ON AND OFF DO, TRUE IN EACH GAME, which is why it is written per game.
  * A Valorant match is recorded while its screen is read, and a League game
- * while its own record is (Settings never says League's screen is read). A
- * Rivals match is not recorded at all yet, since its session never starts the
- * recorder, so it says so, and the status line under it is not shown there:
- * "your last session" would be another game's.
+ * while its own record is (Settings never says League's screen is read).
  */
 const REC_HINT = {
   valorant: 'On records each match on this PC at about 30 frames a second while the coach reads your screen; if your PC cannot keep up while you play, recording stops for that session and the coach keeps reading. Off records nothing, and the coach still reads your screen at the speed set above. The video stays on this PC: once a review is built, a short clip of each moment it looked at is kept beside it and the rest is deleted.',
   lol: "On records each game on this PC at about 30 frames a second; if your PC cannot keep up while you play, recording stops for that session. Off records nothing. Either way your review is built from the game's own record. The video stays on this PC: once a review is built, short clips of up to six of your deaths, spread across the game, are kept beside it and the rest is deleted.",
-  rivals: 'Marvel Rivals matches are not recorded yet: their review is graded from the end of match scoreboard, as it always was. On and Off are for Valorant and League of Legends.',
 };
 // Capture speed and Performance are about reading the screen, and say what
-// they do in each game. Capture speed is the Valorant engine's alone: the
-// Rivals engine looks on its own timer (rivals-engine.js PROBE_MS) and
-// League's session never reads the screen. Performance sizes every frame
-// read, Rivals' too, and in League nothing (index.js readSize).
+// they do in each game. Both are the Valorant engine's alone: League's
+// session never reads the screen (index.js readSize).
 const OWN_RECORD = "its review is built from the game's own record";
 const READ_HINTS = [
-  { el: document.getElementById('capture-hint'), lol: `In League of Legends this does nothing: ${OWN_RECORD}. It sets how often a Valorant match is read.`,
-    rivals: 'In Marvel Rivals this does nothing: the coach looks for hero select and the end of match scoreboard on its own, every 8 seconds. It sets how often a Valorant match is read.' },
-  { el: document.getElementById('perf-hint'), lol: `In League of Legends this does nothing: ${OWN_RECORD}. It is for Valorant and Marvel Rivals.` },
+  { el: document.getElementById('capture-hint'), lol: `In League of Legends this does nothing: ${OWN_RECORD}. It sets how often a Valorant match is read.` },
+  { el: document.getElementById('perf-hint'), lol: `In League of Legends this does nothing: ${OWN_RECORD}. It is for Valorant.` },
 ].filter((h) => h.el).map((h) => ({ ...h, own: h.el.textContent }));
 function paintRecHint() {
   recHint.textContent = REC_HINT[recGame] || REC_HINT.valorant;
@@ -157,7 +150,7 @@ function paintRecording(r) {
   markSeg(recSeg, off ? 'off' : 'auto');
   markSeg(recResSeg, String(r.res) === '1080' ? '1080' : '720');
   paintRecHint();
-  const line = recGame === 'rivals' ? null : recordingLine(r);
+  const line = recordingLine(r);
   // Written only when it changes: it is a live region, and the state is
   // pushed on every config write and status tick.
   const text = line ? line.text : '';
@@ -253,7 +246,7 @@ window.occlara.onReviews(() => readClips());
  *
  * The section stays hidden while only one game can be coached. A picker with a
  * single option is not a choice, and a picker whose second option does nothing
- * is worse: it would let someone select Marvel Rivals and then be coached by
+ * is worse: it would let someone select another game and then be coached by
  * the Valorant engine wearing a different palette. Games appear here only once
  * their coaching genuinely exists, or when devGames is set for development.
  */
@@ -265,12 +258,10 @@ let gameDD = null;
  * is reviewed after the match and shows nothing during one; what differs is
  * where the review's facts come from and what is not there yet, which is what
  * the preview label is about. Taken from games.js and the engine each game
- * starts: Rivals reads its hero from hero select and its end of match
- * scoreboard, League records the game in silence through Riot's own local
- * game data, and neither has a stats source.
+ * starts: League records the game in silence through Riot's own local game
+ * data, and has no stats source.
  */
 const GAME_NOTES = {
-  rivals: 'Graded after every match from the end of match scoreboard. No stats page for this game yet.',
   lol: 'Recorded in silence and graded after every game. No stats page for this game yet.',
 };
 
@@ -297,7 +288,7 @@ function buildGamePicker(current, includeUnavailable) {
     // A game that is only partly finished says so plainly rather than hiding
     // behind a colour. The label is the registry's own preview flag, and the
     // note says what its review is made from. It used to say "Coaching for this
-    // game is not built yet" about Rivals and League, which Start records and
+    // game is not built yet" about League, which Start records and
     // grades, and that "the look and layout are real", about palettes that are
     // gone. Only a game Start would refuse is called unbuilt.
     tag: g.preview || !g.coaching ? 'preview' : '',
