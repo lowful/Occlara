@@ -34,6 +34,19 @@ const EXCLUDE = {
     + 'so it fails by design on any branch with work in progress',
 };
 
+// Checks that need a GPU's own video encoder. The recorder records only on a
+// hardware H.264 encoder, by design (the gate in src/renderer/recorder/
+// recorder.js: software encoding took a whole core), so on a machine with no
+// GPU these can only fail. CI runners have none and say so with
+// OCCLARA_NO_GPU=1 (.github/workflows/ci.yml); on a PC they run as always.
+const NEEDS_GPU = {
+  'check:clips': 'it cuts clips from a real recording, and with no GPU '
+    + '(OCCLARA_NO_GPU) the recorder has no hardware H.264 encoder to record on',
+  'check:recorder': 'it drives the real recorder, and with no GPU '
+    + '(OCCLARA_NO_GPU) the recorder has no hardware H.264 encoder to record on',
+};
+if (process.env.OCCLARA_NO_GPU === '1') Object.assign(EXCLUDE, NEEDS_GPU);
+
 const RUNNABLE = /^(check|test):/;
 const names = Object.keys(scripts).filter((n) => RUNNABLE.test(n) && !EXCLUDE[n]).sort();
 

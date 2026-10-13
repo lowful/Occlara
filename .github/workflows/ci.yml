@@ -56,9 +56,14 @@ jobs:
 
       # A runner has no display and the window checks open real windows, so
       # the suite runs on a virtual one, 1920x1080 like the PC the app is
-      # built on.
-      - name: Install a virtual screen
-        run: command -v xvfb-run >/dev/null || { sudo apt-get update && sudo apt-get install -y xvfb; }
+      # built on, under a window manager as every desktop has one: without it
+      # a window cannot be minimised, and check:mainwindow minimises one.
+      - name: Install a virtual screen and a window manager
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb openbox
 
+      # A runner has no GPU either, so the two checks that need its hardware
+      # video encoder are skipped here, with the reason printed (run-all.js).
       - name: Run checks and tests
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm test
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" bash -c 'openbox & sleep 1; npm test'
+        env:
+          OCCLARA_NO_GPU: '1'
