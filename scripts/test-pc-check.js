@@ -175,8 +175,16 @@ const pick = (r) => `${r.tier} ${r.mode} ${r.res} ${r.recordable ? 'recordable' 
     ok(same(pcCheck.physical({ size: { width: 1536, height: 864 }, scaleFactor: 1.25 }), { width: 1920, height: 1080 })
       && same(pcCheck.physical({ size: { width: 1920, height: 1080 }, scaleFactor: 1 }), { width: 1920, height: 1080 })
       && pcCheck.physical(null) === null, 'the display in physical pixels: 1536x864 at 125% is the 1920x1080 it is');
-    ok(pcCheck.driveOf('C:\\Users\\p\\AppData\\Roaming\\Occlara\\recording') === 'C:' && pcCheck.driveOf('D:\\Games\\Occlara\\recording') === 'D:',
-      'the drive the recordings go to, by its letter');
+    // driveOf reads a folder by the path rules of the platform it runs on, as
+    // the app does: a Windows folder has a drive letter, and a macOS or Linux
+    // one (CI runs on Linux) has none, which is null.
+    if (process.platform === 'win32') {
+      ok(pcCheck.driveOf('C:\\Users\\p\\AppData\\Roaming\\Occlara\\recording') === 'C:' && pcCheck.driveOf('D:\\Games\\Occlara\\recording') === 'D:',
+        'the drive the recordings go to, by its letter');
+    } else {
+      ok(pcCheck.driveOf('/home/p/.config/Occlara/recording') === null && pcCheck.driveOf('/Volumes/Games/Occlara/recording') === null,
+        'no drive letter where the platform has none', String(pcCheck.driveOf('/home/p/.config/Occlara/recording')));
+    }
     ok(same(pcCheck.asks({ width: 1920, height: 1080 }), [
       { res: '720', width: 1280, height: 720, codec: 'avc1.42E01F', bitrate: 3e6 },
       { res: '1080', width: 1920, height: 1080, codec: 'avc1.42E028', bitrate: 6e6 },
@@ -184,9 +192,13 @@ const pick = (r) => `${r.tier} ${r.mode} ${r.res} ${r.recordable ? 'recordable' 
     ok(same(pcCheck.asks(null), pcCheck.asks({ width: 1920, height: 1080 })), 'with no display known, the boxes themselves');
 
     const seen = [];
+    // userData as the platform running this spells it, and the drive driveOf
+    // finds in it there: C: on Windows, none on macOS or Linux.
+    const USER_DATA = process.platform === 'win32' ? 'C:\\Users\\p\\AppData\\Roaming\\Occlara' : '/home/p/.config/Occlara';
+    const DRIVE = process.platform === 'win32' ? 'C:' : null;
     const app = (over) => Object.assign({
       getGPUInfo: async (kind) => { seen.push(kind); return basic; },
-      getPath: (n) => (n === 'userData' ? 'C:\\Users\\p\\AppData\\Roaming\\Occlara' : null),
+      getPath: (n) => (n === 'userData' ? USER_DATA : null),
     }, over);
     const screen = (over) => Object.assign({ getPrimaryDisplay: () => ({ size: { width: 2560, height: 1440 }, scaleFactor: 1 }) }, over);
     const os = (over) => Object.assign({ cpus: () => Array(16).fill({ model: ' Intel(R) Core(TM) i5-14400F ' }), totalmem: () => 31.84 * GB }, over);
@@ -194,10 +206,10 @@ const pick = (r) => `${r.tier} ${r.mode} ${r.res} ${r.recordable ? 'recordable' 
     const deps = (o) => Object.assign({ app: app(), screen: screen(), os: os(), freeBytes: (dir) => { free.push(dir); return 103.4 * GB; }, log: () => {} }, o);
     const got = await pcCheck.gather(deps());
     ok(got.ok === true && got.gpu === 'NVIDIA GeForce RTX 5060' && got.cpu === 'Intel(R) Core(TM) i5-14400F' && got.threads === 16
-      && got.ramBytes === 31.84 * GB && same(got.display, { width: 2560, height: 1440 }) && got.freeBytes === 103.4 * GB && got.drive === 'C:',
+      && got.ramBytes === 31.84 * GB && same(got.display, { width: 2560, height: 1440 }) && got.freeBytes === 103.4 * GB && got.drive === DRIVE,
     'every fact, as each source gave it', JSON.stringify(got));
     ok(seen[0] === 'basic', "the GPU is asked with getGPUInfo('basic'), 22 ms here where 'complete' took 260");
-    ok(free[0] === path.join('C:\\Users\\p\\AppData\\Roaming\\Occlara', 'recording'), 'the free space of the folder the recordings go to', free[0]);
+    ok(free[0] === path.join(USER_DATA, 'recording'), 'the free space of the folder the recordings go to', free[0]);
     ok(same(got.asks, pcCheck.asks({ width: 2560, height: 1440 })), 'and the asks for the display it found');
 
     const hung = await pcCheck.gather(deps({ app: app({ getGPUInfo: () => new Promise(() => {}) }), gpuWaitMs: 20 }));
@@ -209,7 +221,7 @@ const pick = (r) => `${r.tier} ${r.mode} ${r.res} ${r.recordable ? 'recordable' 
       freeBytes: () => { throw new Error('no drive'); },
     }));
     ok(broken.ok === true && broken.gpu === null && broken.threads === null && broken.cpu === null && broken.ramBytes === null
-      && broken.display === null && broken.freeBytes === null && broken.drive === 'C:' && same(broken.asks, pcCheck.asks(null)),
+      && broken.display === null && broken.freeBytes === null && broken.drive === DRIVE && same(broken.asks, pcCheck.asks(null)),
     'every source failing at once: each fact null, the asks still the boxes, and an answer all the same', JSON.stringify(broken));
     const nan = await pcCheck.gather(deps({ os: os({ cpus: () => [], totalmem: () => 0 }), freeBytes: () => NaN }));
     ok(nan.threads === null && nan.ramBytes === null && nan.freeBytes === null, 'zero threads, zero memory and NaN free space are not known, not facts');
