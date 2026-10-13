@@ -41,8 +41,11 @@ Edit `.env` and fill in all values:
 ### 3. Create Stripe products and prices
 
 The plans are sold by the site now (its `create-checkout` edge function, with its own
-price IDs), and this server reads none of the price IDs below. What follows is how the
-old Railway checkout was set up, kept for its history.
+price IDs), and this server reads none of the price IDs below. Today they are Weekly
+$10, Monthly $29.99 and Yearly $249.99, set in the site repo's
+`supabase/functions/_shared/billing.ts`, which `create-checkout` and `create-license`
+both read; this server takes a renewal's period from Stripe itself. What
+follows is how the old Railway checkout was set up, kept for its history.
 
 Create the following in the [Stripe dashboard](https://dashboard.stripe.com/products) or via the Stripe CLI:
 
