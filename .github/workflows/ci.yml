@@ -17,6 +17,9 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    # A window check that never quits would otherwise hold the runner for the
+    # six hour default.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -28,12 +31,13 @@ jobs:
             package-lock.json
             server/package-lock.json
 
-      # The suite only ever require()s plain modules, never the Electron runtime,
-      # so skip the ~100MB binary download that electron's postinstall would do.
+      # The window checks (check:seal, check:matches and ten more) boot the real
+      # app under Electron, so the binary is needed. It used to be skipped on
+      # the belief that the suite only require()s plain modules, and every one
+      # of those checks then failed on "Electron failed to install correctly",
+      # which kept this job red on every push and hid whatever else broke.
       - name: Install client dependencies
         run: npm ci
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       # check:server loads every server module, so the backend's own
       # dependencies have to be present or it reports a false failure.
@@ -41,5 +45,20 @@ jobs:
         run: npm ci
         working-directory: server
 
+      # Chromium's sandbox needs an unprivileged user namespace, which Ubuntu
+      # 24.04's AppArmor refuses by default, and Electron exits at launch
+      # without one.
+      - name: Allow Electron's sandbox
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
+      # A runner has no display and the window checks open real windows, so
+      # the suite runs on a virtual one, 1920x1080 like the PC the app is
+      # built on.
+      - name: Install a virtual screen
+        run: command -v xvfb-run >/dev/null || { sudo apt-get update && sudo apt-get install -y xvfb; }
+
       - name: Run checks and tests
-        run: npm test
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm test
