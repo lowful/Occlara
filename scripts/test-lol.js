@@ -60,7 +60,7 @@ console.log('\n[lol] champion lookups');
   check('punctuation and spacing do not matter',
     champs.champion("Kai'Sa") !== null && champs.champion('kaisa') !== null);
 
-  // The silence rule, same as Rivals: unknown means null, never a guess.
+  // The silence rule: unknown means null, never a guess.
   check('an unknown champion returns null', champs.champion('Notarealchampion') === null);
   check('empty input returns null', champs.champion('') === null && champs.champion(undefined) === null);
 

@@ -3,9 +3,9 @@
 /**
  * The Valorant post-match review, computed.
  *
- * Same principle as lol-review.js and rivals-review.js, for the same reason: a
- * review is where a confident wrong sentence costs most, because the match is
- * over and the player can only check it against a half memory. So every number
+ * Same principle as lol-review.js, for the same reason: a review is where a
+ * confident wrong sentence costs most, because the match is over and the
+ * player can only check it against a half memory. So every number
  * and every pattern here is ARITHMETIC over the round ledger. The model writes
  * exactly two kinds of sentence, the summary and a short "why" per round, and
  * both are labelled as the coach's read rather than presented as fact.
@@ -851,8 +851,7 @@ function ledgerOf(snap) {
 /**
  * Against the player's own recent matches, IN THE SAME ROLE.
  *
- * A controller's ACS and a duelist's ACS are different quantities, the same
- * argument rivals-review.js makes about Strategists and Duelists. Comparing
+ * A controller's ACS and a duelist's ACS are different quantities. Comparing
  * across roles manufactures a trend out of the player switching role.
  */
 function against(tracker, role, history) {

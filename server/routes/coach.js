@@ -111,13 +111,12 @@ function trackCall(key, units = 1) {           // units: frame-memory calls send
  * status) is not billed and books nothing.
  *
  * WHICH ROUTE AND LICENCE travel with the request (costScope): the router
- * below sets them for every coach route, and another game's provider layer
- * (layerFor) for its own, so a model call made deep in a prompt helper is
- * booked without being told. In memory like the rest of this file, so a
- * restart clears it; the admin view says since when.
+ * below sets them for every coach route, so a model call made deep in a
+ * prompt helper is booked without being told. In memory like the rest of
+ * this file, so a restart clears it; the admin view says since when.
  */
 const costScope = new AsyncLocalStorage();
-const COST_ROUTES = ['read', 'forensics', 'review', 'chat', 'rivals', 'other'];
+const COST_ROUTES = ['read', 'forensics', 'review', 'chat', 'other'];
 const ROUTE_OF_PATH = { '/read': 'read', '/death-forensics': 'forensics', '/match-review': 'review', '/chat': 'chat', '/frame-chat': 'chat' };
 const COSTS_SINCE = new Date().toISOString();
 const costBuckets = () => Object.fromEntries(COST_ROUTES.map((r) => [r, { calls: 0, priced: 0, real: 0, estimated: 0 }]));
@@ -241,10 +240,6 @@ const AI = {
   // a different model, because the previous safety net keyed on the model NAME
   // containing "thinking" and therefore missed qwen3.7-flash entirely.
   textModel:   process.env.AI_TEXT_MODEL || 'google/gemini-3-flash-preview',
-  // Unused by the live analyze loop; kept for anything that explicitly opts into
-  // a deep-reasoning image read. Defaults to the same vision model so an unset
-  // env var cannot silently reintroduce a second model.
-  visionDeep:  process.env.AI_VISION_MODEL_DEEP || process.env.AI_VISION_MODEL || 'google/gemini-3-flash-preview',
   // The live READ (facts only, every one to five seconds) and the post match
   // REVIEW are different jobs with different budgets, so each has its own
   // switch.
@@ -3529,12 +3524,12 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
         })()
       : '';
 
-    // THE GAME THE PLAYER CHOSE. The app sends it, and with League or Marvel
-    // Rivals chosen it sends no Valorant tracker data, so a prompt that still
-    // said "Only discuss Valorant" answered a League question about Valorant.
-    const gameName = ctx.game === 'rivals' ? 'Marvel Rivals' : ctx.game === 'lol' ? 'League of Legends' : 'Valorant';
+    // THE GAME THE PLAYER CHOSE. The app sends it, and with League chosen it
+    // sends no Valorant tracker data, so a prompt that still said "Only
+    // discuss Valorant" answered a League question about Valorant.
+    const gameName = ctx.game === 'lol' ? 'League of Legends' : 'Valorant';
     const valorant = gameName === 'Valorant';
-    const picks = valorant ? 'agents' : ctx.game === 'rivals' ? 'heroes' : 'champions';
+    const picks = valorant ? 'agents' : 'champions';
     const prompt = `You are Occlara, a ${valorant ? 'Radiant-level ' : 'high level '}${gameName} coach talking directly with your player after (or during) a session. Be honest, specific, and encouraging, like a real coach in a VOD review. Casual tone, no fluff.
 
 ${statsLine}
@@ -3610,78 +3605,18 @@ module.exports.buildContextPrompt = buildContextPrompt;
 module.exports.__test = {
   checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,
   benchModel, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,
+  // The provider calls themselves, for the tests of what a call sends, what it
+  // is booked at and how its data policy falls back. Made outside a request a
+  // call is booked and counted under 'other' with no licence; asRoute runs one
+  // as a route's own, under that route and licence (costScope).
+  visionInfer, textInfer,
+  asRoute: (route, key, fn) => costScope.run({ route, key: key || null }, fn),
 };
 // The models actually in use, so /health reports THIS rather than keeping its
 // own copy of the defaults. It kept a separate copy and they drifted, which
 // turned the one endpoint whose job is answering "what is live" into a thing
 // that stated a model no code path could reach.
 module.exports.telemetry  = telemetry;
-
-/**
- * THE PROVIDER LAYER, shared with any future game's routes.
- *
- * Exported rather than extracted into its own module, deliberately. The
- * intention was to lift it into server/services/ai.js, but the members are not
- * contiguous: agentKitBlock, ROLE_BRIEF, SPECTATE_TELL and ANALYZE_SCHEMA sit
- * interleaved between them, and all four are Valorant prompt code. Pulling the
- * provider layer out cleanly would mean rearranging the prompt file around it,
- * on a server that is live and is the only thing standing between a paying user
- * and no coaching at all. Exporting achieves the actual goal, which is that a
- * second game never needs to EDIT this file, at none of the risk.
- *
- * What is shared here is not convenience, it is scar tissue. Each of these
- * exists because of a specific outage:
- *   visionInfer / textInfer  the reasoning-token guard, after a "flash" model
- *                            that reasons by default returned 0 tips and 0
- *                            STATE lines across 10 real frames
- *   creditsLookExhausted     the breaker, and the rate-limit distinction added
- *                            after a 429 mentioning "quota" was reported to a
- *                            player as an empty wallet
- *   sanitize                 dash removal, a hard rule in this product's copy
- * A second game re-implementing these would re-learn every one of them the
- * expensive way.
- *
- * HANDED OUT PER GAME (8.3.1, layerFor), so what its model calls cost is
- * booked under that game's name (bookCost): its routes are not this router's,
- * and the route a call served travels with the request. And under the licence
- * that made the call, which a game's routes never pass to the call itself:
- * they count the call (trackCall) with the licence and make it in the same
- * breath, so the layer keeps the licence counted last and hands it to the next
- * call. Rivals counts each read on the line before it, with no await between.
- * A game's call made without counting one is booked with no licence.
- */
-function layerFor(route) {
-  let counted = null;
-  const scoped = (fn) => (...args) => {
-    const key = counted;
-    counted = null;
-    return costScope.run({ route, key }, () => fn(...args));
-  };
-  return {
-    visionInfer: scoped(visionInfer),
-    textInfer: scoped(textInfer),
-    sanitize,
-    validateKey,
-    // The licence answer in three parts ('valid', 'invalid', 'unavailable'), so
-    // another game's routes can answer an outage with 503 rather than 403.
-    checkLicence: checkKey,
-    trackCall: (key, units) => {
-      counted = String(key || '').trim().toUpperCase() || null;
-      trackCall(key, units);
-    },
-    creditsLookExhausted,
-    creditsRetryIn,
-    // Which model a caller gets when it explicitly wants the deeper image read.
-    // Exposed so /api/rivals/identify can ask for it by name: that route reads
-    // twelve small character portraits off one scoreboard, which is a harder
-    // visual task than reading a HUD, and it measured at 17 to 42% precision on
-    // the live vision model. Setting AI_VISION_MODEL_DEEP in Railway now changes
-    // that one call without touching the coaching loop or needing a deploy.
-    deepVisionModel: () => AI.visionDeep,
-  };
-}
-module.exports.ai = layerFor('rivals');
-module.exports.layerFor = layerFor;
 // What the model calls cost, for /api/admin/costs (admin.js) and the tests.
 module.exports.costs = { report: costReport, keys: () => [...costLedger.keys.keys()], since: COSTS_SINCE, routes: COST_ROUTES,
   perCall: COST_PER_CALL, asksUsage, asking: () => asksUsage(AI.baseUrl), bookCost };

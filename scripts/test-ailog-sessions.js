@@ -301,7 +301,7 @@ const look = { calls: 0 };
 const finished = () => { look.calls++; return kept; };
 const own = { valorant: true, source: 'watched', at: E1, aiLog: place1 };
 ok(store.scopeFor({ ...own, source: 'riot' }, [A], finished) === null, 'a match graded from Riot\'s record alone has no log to open');
-ok(store.scopeFor({ ...own, valorant: false }, [A], finished) === null, 'nor does Marvel Rivals or League');
+ok(store.scopeFor({ ...own, valorant: false }, [A], finished) === null, 'nor does League');
 ok(store.scopeFor(own, [A, B], finished) === place1, 'a review that kept its place opens it while the session is kept');
 ok(store.scopeFor(own, [B], finished) === false, 'and is gone once the session is pruned');
 // THE LOG OFF IS NO EYE, null, as for a match graded from Riot's record alone:

@@ -347,18 +347,10 @@ try {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
-// ── Rivals and League ───────────────────────────────────────────────────────
-const rv = {
-  kind: 'rivals', empty: false,
-  game: { hero: 'Luna Snow', role: 'Strategist' },
-  scoreline: { kills: 9, deaths: 5, assists: 22, healing: 24000, damage: 6000 },
-  against: [],
-};
-const gr = grade.rivals(rv, []);
-ok(gr && gr.score !== null && gr.provisional, `a Rivals match grades, provisionally until there is a baseline (${gr && gr.score})`);
-ok(gr.categories.find((c) => c.key === 'duty').evidence[0].includes('24,000 healing'), 'a Strategist is graded on healing');
-const rvb = { ...rv, against: [{ id: 'healing', label: 'Healing', scope: 'role', value: 24000, baseline: 16000, delta: 8000, better: true, games: 4 }] };
-ok(insights.rivals(rvb).strengths.some((s) => s.key === 'vs:healing'), 'healing half again above the role average is a strength');
+// ── League ──────────────────────────────────────────────────────────────────
+// Two games are graded, Valorant above and League here. Marvel Rivals is no
+// longer coached, and its grader and its lists went with it.
+ok(!('rivals' in grade) && !('rivals' in insights), 'only Valorant and League have a grader and lists');
 
 const lv = {
   kind: 'lol',
@@ -490,60 +482,23 @@ ok(conceded({ dragonsAgainst: 1, baronsAgainst: 2 }) === 'The enemy took 1 drago
     'a week of Riot only matches has its grades, and nothing to praise or fix');
 }
 
-// ── Rivals titles saved backwards before 8.0.3 are rebuilt once ─────────────
-{
-  const { repairRivalsTitles } = require('../src/main/services/review-repair');
-  const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-repair-'));
-  try {
-    const st = new ReviewStore(dir2);
-    const review = { kind: 'rivals', empty: false, game: { hero: 'Luna Snow', role: 'Strategist' }, scoreline: {},
-      grade: { score: 66, letter: 'C', provisional: false, categories: [] },
-      against: [{ id: 'deaths', label: 'Deaths', value: 11, baseline: 8, delta: 3, better: false, games: 5, scope: 'role' }] };
-    // As 8.0.2 saved it: more deaths than usual, titled "Deaths down".
-    review.insights = { mistakes: [{ key: 'vs:deaths', title: 'Deaths down 38%', detail: 'x', rounds: [], count: 1, weight: 3.8 }],
-      strengths: [], missed: [] };
-    const id = newId('rivals', 1758000000000);
-    st.save({ id, game: 'rivals', at: 1758000000000, review });
-    ok(st.list('rivals')[0].topMistake === 'Deaths down 38%', 'an 8.0.2 Rivals review reads its deaths backwards');
-    ok(repairRivalsTitles(st, insights) === 1, 'the repair rewrites it');
-    ok(st.list('rivals')[0].topMistake === 'Deaths up 38%' && st.get(id).review.insights.mistakes[0].title === 'Deaths up 38%',
-      'and the library row and the review now say the deaths went up');
-    ok(st.get(id).review.grade.score === 66 && st.get(id).at === 1758000000000, 'nothing else in it changes');
-    ok(repairRivalsTitles(st, insights) === 0, 'and a second run finds nothing to rewrite');
-  } finally {
-    fs.rmSync(dir2, { recursive: true, force: true });
-  }
-}
-
 // ── The weekly report's counts carry a title true of every match ────────────
+// "Dying at B Main" is one match's place: a week's count of it over three
+// matches died at B Main once and at A Site twice says what all three share.
 {
   const now = 1758400000000;
-  const week = (i, pct) => ({ id: `rivals-${now - i * 3600000}-wk${i}x`, at: now - i * 3600000, game: 'rivals',
-    review: { kind: 'rivals', game: { hero: 'Luna Snow', role: 'Strategist' },
+  const week = (i, place) => ({ id: `valorant-${now - i * 3600000}-wk${i}x`, at: now - i * 3600000, game: 'valorant',
+    review: { kind: 'valorant', game: { map: 'Abyss', agent: 'Jett' },
       grade: { score: 70, letter: 'B', provisional: false, categories: [] },
-      insights: { mistakes: [], missed: [], strengths: [
-        { key: 'vs:healing', title: `Healing up ${pct}%`, detail: 'x', rounds: [], count: 1 },
+      insights: { strengths: [], missed: [], mistakes: [
+        { key: 'same-spot', title: `Dying at ${place}`, place, detail: 'x', rounds: [], count: 3, weight: 1.5,
+          fix: `Change your position at ${place} each round, or play one step off where they expect you.` },
       ] } } });
-  const w = assembleReport({ riotId: '', stats: null, reviews: [week(1, 32), week(2, 16), week(3, 25)], patterns: null, now });
-  ok(w.doingWell.includes('Healing above your average, in 3 matches') && !w.doingWell.some((x) => /\d+%/.test(x)),
-    `a week's repeat carries no one match's percentage (${w.doingWell.join(' | ')})`);
-  const one = assembleReport({ riotId: '', stats: null, reviews: [week(1, 32)], patterns: null, now });
-  ok(one.doingWell.includes('Healing up 32%'), 'while one match keeps its own title');
-}
-
-// ── A Rivals comparison's up and down are the number's ──────────────────────
-{
-  const ins = insights.rivals({ empty: false, game: { hero: 'Hela', role: 'Duelist' }, scoreline: {}, against: [
-    { id: 'deaths', label: 'Deaths', value: 4, baseline: 8, delta: -4, better: true, games: 5, scope: 'role' },
-    { id: 'kills', label: 'Kills', value: 10, baseline: 20, delta: -10, better: false, games: 5, scope: 'role' },
-  ] });
-  ok(ins.strengths.some((s) => s.title === 'Deaths down 50%') && ins.mistakes.some((m) => m.title === 'Kills down 50%'),
-    `fewer deaths than usual reads "Deaths down", never "Deaths up" (${ins.strengths.map((s) => s.title).join(', ')})`);
-  const rv = (i) => ({ id: `rivals-${1758000000000 + i}-riv${i}x`, at: 1758000000000 + i, game: 'rivals',
-    review: { kind: 'rivals', insights: ins } });
-  const p = patterns.summarise([rv(2), rv(1)]);
-  ok(p.strengths.some((s) => s.title === 'Deaths below your average') && p.mistakes.some((m) => m.title === 'Kills below your average'),
-    'and a pattern of them carries the direction, never one match\'s percentage');
+  const w = assembleReport({ riotId: '', stats: null, reviews: [week(1, 'B Main'), week(2, 'A Site'), week(3, 'A Site')], patterns: null, now });
+  ok(w.toImprove.some((x) => x.startsWith('Dying at the same spot.')) && !w.toImprove.some((x) => /Main|Site/.test(x)),
+    `a week's repeat carries no one match's place (${w.toImprove.join(' | ')})`);
+  const one = assembleReport({ riotId: '', stats: null, reviews: [week(1, 'B Main')], patterns: null, now });
+  ok(one.toImprove.some((x) => x.startsWith('Dying at B Main.')), `while one match keeps its own title (${one.toImprove.join(' | ')})`);
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' grade and library checks passed'}`);

@@ -841,7 +841,7 @@ function watched(store, startedAt, over = {}) {
     for (let i = 0; i < MAX_REVIEWS; i++) {
       // The two oldest share one moment, so the take back must keep their order too.
       const at = T0 - Math.min(i + 1, MAX_REVIEWS - 1) * HOUR;
-      const game = i % 2 ? 'lol' : 'rivals';
+      const game = 'lol';
       const id = newId(game, at);
       h.store.save({ id, game, at, review: { kind: game, id, at, n: i },
         frames: i >= MAX_REVIEWS - 2 ? { 'death-1.jpg': jpeg } : undefined });

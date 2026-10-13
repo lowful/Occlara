@@ -28,6 +28,15 @@
  * bottom any more, every round listed and no raw read shown, and the eye on
  * that moment opening the AI log at the frame the coach looked at.
  *
+ * AND A PROFILE 8.3.2 LEFT WITH MARVEL RIVALS IN IT, which Occlara no longer
+ * coaches: its stored game, its history and its saved reviews (their files,
+ * a folder of frames, their library rows and a file left without a row) are
+ * put away by the real launch before the page opens (retired-games.js),
+ * rivalsTitlesRepaired is kept, a Valorant and a League review whose words
+ * name the game are kept, the library has a tab for Valorant and League
+ * alone, and the AI log session the Valorant reader wrote while Marvel Rivals
+ * was played opens in the real log window as any other session does.
+ *
  * Results travel through a FILE, not stdout: an Electron main process on Windows
  * does not reliably flush a piped stdout.
  *
@@ -53,7 +62,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: saved reviews are listed, patterns and the breakdown paint and sort for every game, the grading line follows the Riot ID, a row opens its review with its kept frame in its own round, its eyes open the AI log on that match alone and at the moment looked at, and a match graded from Riot\'s record alone states facts');
+  console.log('PASS: saved reviews are listed, patterns and the breakdown paint and sort for every game, the grading line follows the Riot ID, a row opens its review with its kept frame in its own round, its eyes open the AI log on that match alone and at the moment looked at, a match graded from Riot\'s record alone states facts, and what 8.3.2 kept of Marvel Rivals is put away at launch with rivalsTitlesRepaired kept, every review whose words name it kept, and its AI log opening as any other');
   process.exit(0);
 }
 
@@ -94,13 +103,20 @@ function settled(w, code) {
 }
 
 // A profile holding three saved Valorant reviews, built from the real match, a
-// fourth graded from Riot's record alone, and three each of Marvel Rivals and
-// League (below).
+// fourth graded from Riot's record alone, four League games, and what 8.3.2
+// kept of Marvel Rivals (below).
 const ud = path.join(os.tmpdir(), 'occlara-check-matches');
+const CONFIG = path.join(ud, 'occlara-config.json');
 fs.rmSync(ud, { recursive: true, force: true });
 fs.mkdirSync(ud, { recursive: true });
-fs.writeFileSync(path.join(ud, 'occlara-config.json'), JSON.stringify({
-  game: 'valorant', onboardingCompleted: true, licenseKey: '', language: 'en',
+fs.writeFileSync(CONFIG, JSON.stringify({
+  // Marvel Rivals chosen when 8.3.2 last ran, with its history kept: the
+  // launch makes the game Valorant and drops the history, and keeps
+  // rivalsTitlesRepaired, which says an install ran 8.0.3 (index.js
+  // keepOldConnection) and is no Rivals key.
+  game: 'rivals', onboardingCompleted: true, licenseKey: '', language: 'en',
+  rivalsHistory: [{ at: 1, hero: 'Luna Snow', role: 'Strategist', kills: 10, deaths: 5, assists: 20 }],
+  rivalsTitlesRepaired: true,
   // The Riot ID the grading line follows (below). With no licence the main
   // surfaces never launch, so nothing is fetched for it.
   riotId: 'New#EUW',
@@ -148,10 +164,23 @@ const newestFrames = frameRun(NEWEST, 6, 2);   // one death, frames 2 and 3; fra
 const newDir = logSession(BEFORE - 60000, [...frameRun(BEFORE, 3, -9), ...newestFrames]);
 // Its last frame half a minute before its end, as the menus after a match leave it.
 logSession(OLDEST - 60000, [...frameRun(OLDEST, 3, -9), [now - 2 * 3600000 - 30000, ALIVE, OLDEST]]);
-const AILOG = { newest: newestFrames.length, session: 3 + newestFrames.length, oldest: 4 };
+// And one the Valorant reader wrote while Marvel Rivals was played with
+// Valorant chosen, as 8.3.2 could have kept: its misreads of that screen, a
+// map Valorant does not have and a hero's health, and no match. Only the
+// Valorant reader ever wrote the log, so it is the player's log like any
+// other session, and opens as one (below).
+const RIVALS_SEEN = { map: 'Tokyo 2099', playerAlive: true, playerHp: 250, playerNote: 'a Strategist healing a Vanguard' };
+const RIVALS_AT = now - 11 * 3600000;
+const rivalsSession = path.basename(logSession(RIVALS_AT, [0, 1, 2].map((k) => [RIVALS_AT + k * 1000, RIVALS_SEEN, null])));
+const AILOG = { newest: newestFrames.length, session: 3 + newestFrames.length, oldest: 4, rivals: 3 };
 // The newest match is saved as 8.1 saved it: its study note beside the name it
 // was imported from, which main must never hand a window (present(), below).
 const STUDY_TEXT = 'Trade your entry within a second of contact.';
+// Words that name the game in a Valorant review and a League one.
+const NAMES_RIVALS = {
+  valorant: 'Your rivals traded every entry, and the Marvel Rivals habit of diving alone cost round 9.',
+  lol: 'An ally died in the 20 s before, to the same rivals.',
+};
 const ids = [0, 1, 2].map((i) => {
   const id = newId('valorant', now - i * 3600000);
   const review = { ...built, id, at: now - i * 3600000, kind: 'valorant' };
@@ -161,6 +190,9 @@ const ids = [0, 1, 2].map((i) => {
   // The oldest of the three was lost, so Abyss is 2-1, a win rate past its
   // floor, beside Bind's 1-0, which is under it (the sort, below).
   if (i === 2) review.game = { ...built.game, result: 'Defeat', score: '11-13' };
+  // And its words name Marvel Rivals, as a player's or a model's can: it is
+  // no Rivals review, and the launch keeps it (below).
+  if (i === 2) review.summary = NAMES_RIVALS.valorant;
   // A real JPEG header is not needed: the check only asserts the data URL arrives.
   store.save({ id, game: 'valorant', at: review.at, review, frames: i === 0 ? { 'r2-before.jpg': Buffer.from('frame').toString('base64') } : null });
   return id;
@@ -181,27 +213,42 @@ riotOnly.id = newId('valorant', riotOnly.at);
 // Main serves it as facts (present()) and the row names no top mistake.
 riotOnly.insights = insightsOf.valorant(verify.reconcile([], riotRec).rounds, { role: 'Initiator' });
 store.save({ id: riotOnly.id, game: 'valorant', at: riotOnly.at, review: riotOnly });
-// Marvel Rivals with no hero read in any match and no map in one: By hero has
-// no row to show and has to say why, and By map has to say what it left out.
+// MARVEL RIVALS, as 8.3.2 saved it: three reviews in the library, one with a
+// frame kept beside it, and a file of a fourth whose row is gone. All of it is
+// deleted at launch, and none of it is ever listed or opened.
+const RIVALS = [];
 ['Tokyo 2099', 'Yggsgard', null].forEach((map, i) => {
   const at = now - (10 + i) * 3600000;
   const id = newId('rivals', at);
+  RIVALS.push(id);
   store.save({ id, game: 'rivals', at, review: { id, at, kind: 'rivals', empty: false,
     game: { hero: null, role: null, map, mode: 'Competitive', result: 'VICTORY' },
     scoreline: { kills: 12, deaths: 6, assists: 8, damage: 14000, healing: 0, blocked: 0, accuracy: 41 },
     grade: { score: 72, letter: 'B', provisional: false, categories: [] },
-    insights: { mistakes: [], strengths: [], missed: [] } } });
+    insights: { mistakes: [], strengths: [], missed: [] } },
+  frames: i === 0 ? { 'scoreboard.jpg': Buffer.from('a kept frame').toString('base64') } : undefined });
 });
-// League: two Summoner's Rift games and an ARAM, broken down one mode at a time.
-['CLASSIC', 'CLASSIC', 'ARAM'].forEach((mode, i) => {
+const RIVALS_ORPHAN = newId('rivals', now - 13 * 3600000);
+fs.writeFileSync(path.join(ud, 'reviews', `${RIVALS_ORPHAN}.json`), JSON.stringify({ id: RIVALS_ORPHAN, game: 'rivals', at: now - 13 * 3600000,
+  review: { id: RIVALS_ORPHAN, kind: 'rivals', empty: false, game: { map: 'Klyntar' } } }));
+// League: three Summoner's Rift games and an ARAM, broken down one mode at a
+// time. One Rift game has no champion read: the Rift's cut has to say what it
+// left out.
+// The first one's words name Marvel Rivals too, and it is kept (below).
+const lolIds = ['CLASSIC', 'CLASSIC', 'ARAM', 'CLASSIC'].map((mode, i) => {
   const at = now - (20 + i) * 3600000;
   const id = newId('lol', at);
   store.save({ id, game: 'lol', at, review: { id, at,
-    game: { champion: 'Ahri', role: 'Middle', mode, durationSec: 1800 },
+    game: { champion: i === 3 ? null : 'Ahri', role: 'Middle', mode, durationSec: 1800 },
     scoreline: { kills: 6, deaths: 3, assists: 7, cs: 220, ward: 15 },
     grade: { score: 74, letter: 'B', provisional: false, categories: [] },
-    insights: { mistakes: [], strengths: [], missed: [] } } });
+    insights: { mistakes: [], strengths: [], missed: [] },
+    ...(i === 0 ? { summary: NAMES_RIVALS.lol } : {}) } });
+  return id;
 });
+if (!fs.existsSync(path.join(ud, 'reviews', RIVALS[0], 'scoreboard.jpg')) || store.index().filter((r) => r.game === 'rivals').length !== 3) {
+  throw new Error('the Rivals reviews were not seeded');
+}
 process.env.OCCLARA_DEV_USERDATA = ud;
 
 app.disableHardwareAcceleration();
@@ -211,6 +258,29 @@ setTimeout(async () => {
   // Since 8.1 the library is three pages of the main window, each a view.
   const mainWindow = require(path.join(REPO, 'src/main/windows/main-window'));
   try {
+    // WHAT 8.3.2 KEPT OF MARVEL RIVALS IS PUT AWAY BY THE LAUNCH, before any
+    // page asks (index.js, retired-games.js): every review of it with its
+    // folder and its row, the file left without a row too, the stored game
+    // and its history, and rivalsTitlesRepaired kept as it was.
+    const cfg = JSON.parse(fs.readFileSync(CONFIG, 'utf8'));
+    const leftOnDisk = fs.readdirSync(path.join(ud, 'reviews')).filter((n) => n.startsWith('rivals-'));
+    const rivalRows = store.index().filter((r) => r.game === 'rivals' || String(r.id).startsWith('rivals-'));
+    lines.push(`retired: game=${cfg.game} rivalsHistory=${'rivalsHistory' in cfg} rivalsTitlesRepaired=${cfg.rivalsTitlesRepaired} `
+      + `files left=${leftOnDisk.join(',') || 'none'} rows left=${rivalRows.length} rows kept=${store.index().length}`);
+    if (cfg.game !== 'valorant') return report(false, `a stored game of Marvel Rivals is still "${cfg.game}" after launch, expected valorant`);
+    if ('rivalsHistory' in cfg) return report(false, 'the Rivals history is still in the config after launch');
+    if (cfg.rivalsTitlesRepaired !== true) return report(false, `rivalsTitlesRepaired went with Marvel Rivals (${cfg.rivalsTitlesRepaired}), and it says an install ran 8.0.3`);
+    if (leftOnDisk.length) return report(false, `the launch left the Rivals reviews' files on disk: ${leftOnDisk.join(', ')}`);
+    if (rivalRows.length) return report(false, `the launch left ${rivalRows.length} Rivals rows in the library`);
+    if (store.index().length !== 8) return report(false, `the library kept ${store.index().length} rows, expected the 4 Valorant and 4 League ones`);
+    // A Valorant review and a League one whose words name Marvel Rivals are
+    // no Rivals reviews: only the game a review was saved under decides.
+    const named = [[ids[2], NAMES_RIVALS.valorant], [lolIds[0], NAMES_RIVALS.lol]].map(([id, words]) => {
+      const e = store.get(id);
+      return !!e && e.review.summary === words && store.list().some((r) => r.id === id);
+    });
+    lines.push(`kept though their words name Marvel Rivals: valorant=${named[0]} lol=${named[1]}`);
+    if (!named.every(Boolean)) return report(false, 'the launch took a Valorant or League review whose words name Marvel Rivals');
     mainWindow.create();
     mainWindow.show('matches');
     // WAITED FOR, not given a fixed few seconds: on a machine busy with a game
@@ -398,27 +468,16 @@ setTimeout(async () => {
       await js(`[...document.querySelectorAll('#tabs .tab')].find((b) => b.textContent === ${JSON.stringify(label)}).click(); true`);
       await wait(900);
     };
-    // A CUT WITH NO ROWS SAYS WHY. No Rivals match here has a hero read, and
-    // one has no map: By map leaves that one out and says so, and By hero,
-    // with nothing to list, says it is the hero that is missing rather than
-    // asking for a match that was already played.
-    await tab('Marvel Rivals');
-    const rvMap = await js("({ sub: document.getElementById('b-sub').textContent, maps: [...document.querySelectorAll('#b-table .b-row .b-name span:first-child')].map((n) => n.textContent).join(',') })");
-    lines.push(`rivals by map: ${rvMap.maps} | ${rvMap.sub}`);
-    if (rvMap.maps !== 'Tokyo 2099,Yggsgard') return report(false, `Rivals By map listed ${rvMap.maps}, expected Tokyo 2099,Yggsgard`);
-    const rvRec = await recordOf(js);
-    lines.push(`rivals record: shown=${rvRec.shown} ${rvRec.w}:${rvRec.l}`);
-    if (!rvRec.shown || rvRec.w !== '3' || rvRec.l !== '0') {
-      return report(false, `on Marvel Rivals the title reads ${rvRec.w}:${rvRec.l}, expected its three VICTORY matches as 3:0`);
-    }
-    if (!rvMap.sub.includes('1 match with no map read is not in a row.')) return report(false, `the Rivals sub line does not say a match is in no row: "${rvMap.sub}"`);
-    await js("[...document.querySelectorAll('#b-dims button')].find((b) => b.textContent === 'By hero').click(); true");
-    await wait(400);
-    const rvHero = await js("({ empty: document.getElementById('b-empty').textContent, shown: !document.getElementById('b-empty').hidden, table: !document.getElementById('b-table').hidden, sub: document.getElementById('b-sub').textContent })");
-    lines.push(`rivals by hero: "${rvHero.empty}" | ${rvHero.sub}`);
-    if (!rvHero.shown || rvHero.table || rvHero.empty !== 'None of these matches has a confirmed hero yet.') {
-      return report(false, `By hero with no hero read says "${rvHero.empty}"`);
-    }
+    // TWO GAMES, AND A TAB EACH: Marvel Rivals is no longer coached, and the
+    // library its reviews were deleted from has no tab for it.
+    const tabs = await js("[...document.querySelectorAll('#tabs .tab')].map((b) => b.textContent).join(',')");
+    lines.push(`tabs: ${tabs}`);
+    if (tabs !== 'Valorant,League of Legends') return report(false, `the library's tabs are ${tabs}, expected Valorant,League of Legends`);
+    // A CUT WITH NO ROWS SAYS WHY: with nothing read for it in any match, it
+    // says what is missing rather than asking for a match already played.
+    const noAgent = await js("emptyLine({ game: 'valorant', matches: 3, dims: [{ key: 'agent', one: 'agent' }] }, 'agent')");
+    lines.push(`a cut with nothing read: "${noAgent}"`);
+    if (noAgent !== 'None of these matches has a confirmed agent yet.') return report(false, `a cut with no agent read says "${noAgent}"`);
     // LEAGUE IS ONE MODE AT A TIME, the most played first, with no All chip.
     await tab('League of Legends');
     const lol = await js("({ sub: document.getElementById('b-sub').textContent, chips: document.querySelectorAll('#b-queues .b-chip').length, shown: !document.getElementById('b-queues').hidden, champs: [...document.querySelectorAll('#b-table .b-row .b-name span:first-child')].map((n) => n.textContent).join(',') })");
@@ -433,7 +492,9 @@ setTimeout(async () => {
     if (!/^All 3 of your saved matches are in modes played on other rules/.test(leftMany) || !/^Your one saved game is in a mode/.test(leftOne)) {
       return report(false, 'a library of left out modes is not told why there is no breakdown');
     }
-    if (lol.champs !== 'Ahri' || lol.sub !== "Across 2 games in Summoner's Rift.") {
+    // And the Rift's game with no champion read is in no row, which the line
+    // under the heading says, or the rows read as a miscount.
+    if (lol.champs !== 'Ahri' || lol.sub !== "Across 3 games in Summoner's Rift. 1 game with no champion read is not in a row.") {
       return report(false, `League counted ${lol.champs}: "${lol.sub}"`);
     }
     await tab('Valorant');
@@ -482,6 +543,17 @@ setTimeout(async () => {
       return v && v.main ? w : null;
     }, 20000);
     if (!lwin) return report(false, 'the eye did not open the AI log on a match');
+    // What the AI log page throws or fails to load, from here on (the session
+    // read while Marvel Rivals was played, below, must open without either).
+    const THROWN = /uncaught|TypeError|ReferenceError|load failed/i;
+    if (!THROWN.test('Uncaught TypeError: x is not a function') || !THROWN.test('[ailog] load failed boom') || THROWN.test('[ailog] ready')) {
+      return report(false, 'the detector for what the AI log page throws does not match what it looks for');
+    }
+    const thrown = [];
+    lwin.webContents.on('console-message', (e, lvl, msg) => {
+      const text = typeof msg === 'string' ? msg : String((e && e.message) || '');
+      if (THROWN.test(text)) thrown.push(text);
+    });
     const logView = () => lwin.webContents.executeJavaScript(VIEW);
     const viewWhen = async (test) => (await until(async () => { const v = await logView(); return test(v) ? v : null; }, 10000)) || logView();
     let lv = await logView();
@@ -565,6 +637,16 @@ setTimeout(async () => {
     if (lv.frames !== AILOG.newest || lv.at !== 1 || !lv.whole || lv.picker) {
       return report(false, `the moment's eye showed ${lv.frames} frames at ${lv.at}, expected the newest match's ${AILOG.newest} at its frame 1`);
     }
+    // THE SESSION READ WHILE MARVEL RIVALS WAS PLAYED, named to the open log
+    // as its picker names a session: it opens whole, every frame of it, and
+    // the page throws nothing on its misreads.
+    require(path.join(REPO, 'src/main/windows/ailog-window')).open(rivalsSession);
+    lv = await viewWhen((v) => v.frames === AILOG.rivals && !v.whole);
+    lines.push(`ai log on the session read while Marvel Rivals was played: ${JSON.stringify(lv)} thrown=${thrown.length}`);
+    if (!lv.main || lv.frames !== AILOG.rivals || lv.whole) {
+      return report(false, `the session read while Marvel Rivals was played opened as ${JSON.stringify(lv)}, expected its ${AILOG.rivals} frames whole`);
+    }
+    if (thrown.length) return report(false, `the AI log page threw: ${thrown.join(' | ')}`);
 
     // THE REVIEW REACHES THE WINDOW THROUGH present() (index.js). What the
     // page was pushed, what it gets asking again (LOL_REVIEW_GET) and what it

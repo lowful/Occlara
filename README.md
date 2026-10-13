@@ -1,13 +1,12 @@
 # Occlara
 
-A post-match AI coach for **Valorant**, **Marvel Rivals** and **League of
-Legends**. Occlara reads your game while you play (the display, the way OBS
-captures it) and shows **nothing** during the match. When the match ends it
-opens a graded review: a score out of 100 with four categories and the facts
-behind each, your repeated mistakes with a fix for each, what went well, and
-what you missed. Every review is kept in the match library, which also tracks
-what keeps repeating across your games. Players unlock the app with a license
-key.
+A post-match AI coach for **Valorant** and **League of Legends**. Occlara
+reads your game while you play (the display, the way OBS captures it) and
+shows **nothing** during the match. When the match ends it opens a graded
+review: a score out of 100 with four categories and the facts behind each,
+your repeated mistakes with a fix for each, what went well, and what you
+missed. Every review is kept in the match library, which also tracks what
+keeps repeating across your games. Players unlock the app with a license key.
 
 > This repository is the **Electron desktop client** and the backend it talks to
 > (`server/`, deployed at `https://ghostcoach-production.up.railway.app`).

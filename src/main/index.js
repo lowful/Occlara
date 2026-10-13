@@ -54,7 +54,7 @@ const splashWindow     = require('./windows/splash-window');
 const api              = require('./services/api-client');
 const aiLogStore       = require('./services/ai-log-store');
 const aiLogTimeline    = require('./services/ai-log-timeline');
-const { RivalsEngine } = require('./services/rivals-engine');
+const retiredGames     = require('./services/retired-games');
 const { reconcile: reconcileDeaths, summarise: summariseDeaths, makeCheckCache } = require('./services/death-reconcile');
 const tray     = require('./tray');
 const hotkeys  = require('./hotkeys');
@@ -119,8 +119,7 @@ app.on('before-quit', () => { appQuitting = true; });
 // ── The match recorded on this PC (8.3) ──────────────────────────────────────
 // services/recorder.js says what it does and why; this is only what it is
 // wired to. It records Valorant's sessions and League's, whose reviews have
-// deaths to clip (clipLooks, clipLolDeaths); a Rivals review is one end of
-// match scoreboard, with no moment to show.
+// deaths to clip (clipLooks, clipLolDeaths).
 //
 // THE DEV SWITCHES WORK UNPACKAGED ONLY, so no installed build can be talked
 // into recording a canvas instead of the screen, or into giving up early:
@@ -322,9 +321,6 @@ function matchInProgress() {
   if (!state.isCoaching || !engine) return false;
   // League records from the game client's own API, live while a game is on.
   if (engine instanceof LolRecorder) return !!engine.live;
-  // Rivals reads hero select and the end screen; what is between them, the
-  // screens it is told to skip, is the match.
-  if (engine instanceof RivalsEngine) return engine.seen === 'away' || engine.seen === 'select';
   if (!engine.endWatch) return false;
   if (engine.endWatch.ended) return false;
   // Before the first round of the session, a menu is just a menu.
@@ -337,9 +333,9 @@ function matchInProgress() {
  * a second monitor would be a live feed of the match by another name.
  */
 function liveLogSealed() {
-  // Only the Valorant reader writes the log. A League game or a Rivals match
-  // in progress has nothing in it to seal, and sealing hid the finished
-  // Valorant session behind them.
+  // Only the Valorant reader writes the log. A League game in progress has
+  // nothing in it to seal, and sealing hid the finished Valorant session
+  // behind it.
   return engine instanceof CoachingEngine && matchInProgress();
 }
 
@@ -664,8 +660,7 @@ function showReview(review) {
   // Held as main has it, so the repaint paths still recognise what is on
   // screen; only the copy that leaves for the window is presented.
   lastReviewShown = review;
-  const ch = review.kind === 'valorant' ? C.PUSH_VALORANT_REVIEW
-    : review.kind === 'rivals' ? C.PUSH_RIVALS_REVIEW : C.PUSH_LOL_REVIEW;
+  const ch = review.kind === 'valorant' ? C.PUSH_VALORANT_REVIEW : C.PUSH_LOL_REVIEW;
   registry.broadcast(ch, present(review));
 }
 
@@ -1621,7 +1616,7 @@ function chatReviewContext(id, game) {
   const g = r.game || {};
   const lines = [];
   lines.push(`${e.game} match on ${new Date(e.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}: `
-    + [g.map, g.agent || g.hero || g.champion, g.mode, g.result, g.score].filter(Boolean).join(', ') + '.');
+    + [g.map, g.agent || g.champion, g.mode, g.result, g.score].filter(Boolean).join(', ') + '.');
   const sl = r.scoreline || {};
   if (typeof sl.kills === 'number') lines.push(`Scoreline ${sl.kills}/${sl.deaths}/${sl.assists}${sl.acs ? `, ACS ${sl.acs}` : ''}.`);
   const gr = r.grade;
@@ -1665,8 +1660,8 @@ const controller = {
       return;
     }
     // The read's gap is the Valorant engine's, which says it as it starts: a
-    // Rivals or League session after a Valorant one showed the Valorant tier
-    // in Settings and on the Recording screen.
+    // League session after a Valorant one showed the Valorant tier in
+    // Settings and on the Recording screen.
     state.cadence = null;
 
     // REFUSE RATHER THAN COACH THE WRONG GAME.
@@ -1680,14 +1675,14 @@ const controller = {
     const chosenGame = store.get('game');
     if (!gameRegistry.canCoach(chosenGame)) {
       const g = gameRegistry.get(chosenGame);
-      pushNotice(`${g.label} is not reviewed yet. Switch to Valorant, Marvel Rivals or League of Legends in Settings to record a match.`);
+      pushNotice(`${g.label} is not reviewed yet. Switch to Valorant or League of Legends in Settings to record a match.`);
       return;
     }
 
     // RECORDING AGAIN, IN ANY GAME, the seal follows this recording's match
     // (syncSeal) and no longer the one a stop left held. Cleared only in the
-    // Valorant path, a held seal outlived a switch to Rivals or League: the
-    // player pressed Start, every page and the review at the game's end stayed
+    // Valorant path, a held seal outlived a switch to League: the player
+    // pressed Start, every page and the review at the game's end stayed
     // behind "Recording stopped", and only a Stop let them out. The seal is
     // settled once each branch below is recording (syncSeal after its
     // 'coaching' status), never here: not recording yet, settling it lifted the
@@ -1696,97 +1691,11 @@ const controller = {
     sealHeld = false;
 
     // A DIFFERENT GAME GETS A DIFFERENT ENGINE, never this one with a new
-    // palette. The Rivals coach reads hero select and a scoreboard a handful of
-    // times a match; this one reads a Valorant HUD every ten seconds. Sharing
-    // the engine would mean the map lock, the callout gate and the spike
-    // arithmetic all running against a game that has none of those.
-    if (chosenGame === 'rivals') {
-      engine = new RivalsEngine({
-        getKey: () => store.get('licenseKey'),
-        capture: () => capture.captureScreenshot(store.get('captureQuality') === 'performance' ? 'performance' : 'standard'),
-        log: (m) => console.log(m),
-        getHistory: () => store.get('rivalsHistory') || [],
-        // Only the features that actually work. The draft read gets roles wrong,
-        // so no draft tip is ever spoken. heroCapture is separate on purpose:
-        // the engine still ASKS the draft question, because that screen is the
-        // only place the game prints the player's hero name, and a printed name
-        // is the one hero read that graded clean. See games.js for the numbers.
-        features: {
-          review: gameRegistry.hasFeature('rivals', 'review'),
-          draft: gameRegistry.hasFeature('rivals', 'draft'),
-          heroCapture: gameRegistry.hasFeature('rivals', 'heroCapture'),
-        },
-      });
-      // Rivals says nothing live either: only its system messages reach the panel.
-      engine.on('tip', (t) => { if (t && t.source === 'system') pushNotice(t.text); });
-      // The out of credits notice, and its clearing once reads work again.
-      engine.on('notice', (n) => {
-        if (!n) return;
-        if (n.text) pushNotice(n.text, n.kind);
-        else if (state.notice && state.notice.kind === n.kind) pushNotice(null);
-      });
-      // 'paused' and 'coaching' drive the panel and the pause button, the same
-      // contract as the Valorant engine; anything else is only logged.
-      engine.on('status', (s) => {
-        if (s === 'paused' || s === 'coaching') {
-          state.isPaused = s === 'paused';
-          setStatus(s);
-        } else {
-          console.log('[rivals] status', JSON.stringify(s));
-        }
-      });
-      // The post match review, computed from the scoreboard rather than written
-      // by the model. Same channel the Valorant and League reviews use, and the
-      // review object carries kind: 'rivals' so the surface knows which shape it
-      // is looking at rather than sniffing for optional fields.
-      engine.on('review', (r) => {
-        // SAVED BEFORE IT IS SHOWN, because a review that is only pushed to a
-        // window is lost the moment the window closes, which is how this
-        // shipped at first: no record, and therefore no baseline to judge the
-        // next match against.
-        //
-        // The entry is built from the REVIEW rather than the raw frame, so a
-        // hero the review refused to believe never enters the baseline either.
-        try {
-          const rivalsReview = require('../shared/rivals-review');
-          const entry = rivalsReview.historyEntry(r);
-          if (entry) {
-            const past = store.get('rivalsHistory') || [];
-            store.set('rivalsHistory',
-              [...past, entry].slice(-rivalsReview.RIVALS_BASELINE_GAMES));
-          }
-        } catch (e) {
-          // Losing the record must never lose the review the player is waiting
-          // for, so this is reported and stepped over.
-          console.error('[rivals] could not record the match:', e.message);
-        }
-        // Graded and counted like every other game, then kept in the library.
-        try {
-          r.id = newId('rivals');
-          r.at = Date.now();
-          if (!r.empty) {
-            r.grade = grader.rivals(r, store.get('rivalsHistory') || []);
-            r.insights = insightsOf.rivals(r);
-          }
-        } catch (e) { console.error('[rivals] grade failed:', e.message); }
-        showReview(r);
-        if (!r.empty) saveReview(r, 'rivals');
-        openPage('review');
-        console.log(`[rivals] review ready: ${r.game.hero || 'hero unread'}, `
-          + `${r.scoreline.kills}/${r.scoreline.deaths}/${r.scoreline.assists}`);
-      });
-      // Coaching is set BEFORE anything is pushed: the panel and the tray used
-      // to receive a state that still said stopped, showed Ready and a Start
-      // button that did nothing, and could not stop the session.
-      state.isCoaching = true;
-      state.isPaused = false;
-      engine.start();
-      pushNotice('Recording. Play your match: the scoreboard at the end is reviewed and graded automatically.', 'recording');
-      setStatus('coaching');
-      syncSeal();
-      return;
-    }
-
+    // palette. League is recorded from the game client's own data while this
+    // one reads a Valorant HUD every second or so. Sharing the engine would
+    // mean the map lock, the callout gate and the spike arithmetic all running
+    // against a game that has none of those.
+    //
     // LEAGUE RECORDS AND SAYS NOTHING. It is not a live coach and must never
     // become one: Riot's policy bans overlays that provide game-session-specific
     // information previously unknown to the player, and bans apps that dictate
@@ -1816,12 +1725,12 @@ const controller = {
 
     // EVERY OTHER GAME MUST OPT IN, rather than falling through to this one.
     //
-    // The branch above names Rivals explicitly, so anything else landed here
-    // and got the Valorant coach: League selected meant League frames going to
-    // a prompt about spike timers, with the map lock and the callout gate
-    // running against a game that has neither. Same failure the hero tables are
-    // built to avoid, one level up: silence when we cannot help, never a
-    // confident answer about the wrong thing.
+    // Before League had a branch of its own it landed here and got the
+    // Valorant coach: League frames going to a prompt about spike timers, with
+    // the map lock and the callout gate running against a game that has
+    // neither. So a game reaches this engine only by having a live coach:
+    // silence when we cannot help, never a confident answer about the wrong
+    // thing.
     if (!gameRegistry.hasFeature(chosenGame, 'live')) {
       const g = gameRegistry.get(chosenGame);
       console.log(`[coach] ${g.label} has no live coach, not starting one`);
@@ -1996,7 +1905,7 @@ const controller = {
     const g = game || gameRegistry.get(store.get('game')).id;
     return { game: g, ...patternsOf.summarise(reviewStore.recent(g, patternsOf.LOOK_BACK)) };
   },
-  /** By map and agent (hero, champion), counted from every saved review of one game. */
+  /** By map and agent (champion), counted from every saved review of one game. */
   getBreakdown(game, opts) {
     const g = game || gameRegistry.get(store.get('game')).id;
     const queue = opts && typeof opts.queue === 'string' ? opts.queue : 'All';
@@ -2077,11 +1986,11 @@ const controller = {
   // WHICHEVER REVIEW ARRIVED LAST, not specifically the League one.
   //
   // The channel name is historical: this window was built for League and is now
-  // the post match review window for two games. The renderer branches on
+  // the post match review window for every game. The renderer branches on
   // review.kind, so the honest answer to "what should this window show" is the
   // most recent review of either kind. Returning the League one unconditionally
-  // meant a Rivals player who opened the window by hand saw either nothing or
-  // last week's League game.
+  // meant a player of the other game who opened the window by hand saw either
+  // nothing or last week's League game.
   getLolReview() {
     if (!lastReviewShown) {
       const top = reviewStore.list()[0];
@@ -2354,7 +2263,7 @@ const controller = {
         state.chatReviewId = seed.reviewId;
         const g = e.review.game || {};
         state.chatSeed = { reviewId: seed.reviewId,
-          title: [g.map, g.agent || g.hero || g.champion, g.score].filter(Boolean).join(' ') || 'last' };
+          title: [g.map, g.agent || g.champion, g.score].filter(Boolean).join(' ') || 'last' };
       }
       // The Ask Coach page is kept between visits, so it is loaded again to
       // take this seed (CHAT_SEED) and open on this match.
@@ -2405,9 +2314,9 @@ const controller = {
     // agent list with no indication anything was wrong.
     //
     // A game with no stats source returns EMPTY AND SAYS WHY, rather than
-    // falling through to the Valorant tracker. Same rule as the coaching guard
-    // and as ABSENCE MEANS SILENCE in the hero tables: no data is an honest
-    // answer, the wrong game's data is not.
+    // falling through to the Valorant tracker. Same rule as the coaching guard,
+    // ABSENCE MEANS SILENCE: no data is an honest answer, the wrong game's
+    // data is not.
     const g = gameRegistry.get(store.get('game'));
     if (!gameRegistry.hasFeature(g.id, 'stats')) {
       return {
@@ -2512,8 +2421,8 @@ const controller = {
     // the live advice Occlara does not give.
     const midMatch = matchInProgress();
     // ONE GAME'S DATA IS NEVER SHOWN UNDER ANOTHER GAME'S NAME. The tracker
-    // profile and match list are Valorant's, so with League or Rivals chosen
-    // the chat was answering about the player's Valorant rank.
+    // profile and match list are Valorant's, so with League chosen the chat
+    // was answering about the player's Valorant rank.
     // Asked about one saved review, that review's game, whatever Settings says.
     const seeded = state.chatReviewId ? reviewStore.get(state.chatReviewId) : null;
     const gameId = (seeded && seeded.game) || gameRegistry.get(store.get('game')).id;
@@ -2756,7 +2665,9 @@ function forgetRiotId(riotId) {
     // before it a typed Riot ID WAS the connection, and after it one typed and
     // never connected is not. rivalsTitlesRepaired is written at the first
     // launch of 8.0.3 or later, and this runs at module load, before this
-    // launch's surfaces could write it.
+    // launch's surfaces could write it. Its name is a repair's that is gone,
+    // and it is no Rivals flag: it is kept for this meaning alone
+    // (createAppSurfaces, retired-games.js).
     if (store.get('rivalsTitlesRepaired')) return;
     const id = (store.get('riotId') || '').trim();
     const saved = store.get('playerStats');
@@ -3844,16 +3755,15 @@ function openAppWithSplash() {
 function createAppSurfaces(opts) {
   if (surfacesUp) return;
   surfacesUp = true;
-  // Once: Rivals titles saved before 8.0.3 read backwards for deaths, and the
-  // library row, the review and the weekly report read the saved words.
+  // 8.0.3 OR LATER HAS RUN ON THIS INSTALL, said at its first launch. A repair
+  // of saved reviews wrote rivalsTitlesRepaired here from 8.0.3 on, and the
+  // repair is gone with the game it was for, but the key is how
+  // keepOldConnection() tells an install that ran 8.0.3, the version that
+  // brought Connect, from one that never did. So it is still written here, at
+  // the same moment, under the same name (retired-games.js says why it is no
+  // Rivals key).
   if (!store.get('rivalsTitlesRepaired')) {
-    try {
-      const n = require('./services/review-repair').repairRivalsTitles(reviewStore, insightsOf);
-      store.set('rivalsTitlesRepaired', true);
-      if (n) { breakdownCache.clear(); console.log(`[reviews] rewrote the comparison titles of ${n} Rivals reviews`); }
-    } catch (e) {
-      console.warn('[reviews] Rivals title repair failed:', e.message);
-    }
+    try { store.set('rivalsTitlesRepaired', true); } catch {}
   }
   // The panel's "last match" grade survives a restart: it is the newest saved
   // review's, not only one reviewed since the app opened.
@@ -4012,6 +3922,12 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     logger.init(app);
     console.log('[main] Ready. Debug log:', logger.getLogPath());
+    // A GAME OCCLARA NO LONGER COACHES, put away before any page can ask for
+    // it (retired-games.js): a stored choice of Marvel Rivals becomes
+    // Valorant, its config keys go, and its saved reviews are deleted with
+    // their folders and rows, none of which can be opened any more. After the
+    // first launch there is nothing left to do, and nothing is said.
+    retiredGames.putAway({ store, reviewStore });
     // Whatever recording a run before this one left (a crash, a kill) is a
     // picture of somebody's screen that no review is waiting for any more.
     try { recorder.sweep(); } catch (e) { console.warn('[recorder] sweep failed:', e.message); }

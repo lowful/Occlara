@@ -403,7 +403,6 @@ Short version, accurate as of this brief, so nothing on the site has to guess:
 - **Valorant.** Live coaching while you play. Screen capture only, the same way
   OBS sees the display. It never reads game memory, never touches game files,
   never automates input.
-- **Marvel Rivals.** The same live coaching.
 - **League of Legends.** Recorded silently during the game and reviewed after it
   ends. **There is no live League coaching and there must never be**, because
   Riot's League policy approves overlays that show "static data that is available
@@ -414,9 +413,9 @@ Short version, accurate as of this brief, so nothing on the site has to guess:
   read as live.
 - **After the match**, the death log above, the session grade, and a chat where
   you can ask about any single captured frame.
-- **Stats** exist for Valorant. Marvel Rivals has no official API and League
-  needs a production key the app does not have, so those two say so instead of
-  showing a Valorant shaped dashboard with someone else's numbers in it.
+- **Stats** exist for Valorant. League needs a production key the app does not
+  have, so it says so instead of showing a Valorant shaped dashboard with
+  someone else's numbers in it.
 
 ## Copy rules
 

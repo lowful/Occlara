@@ -27,7 +27,7 @@ const RECENT = 5;
 
 // The result tests the library's rows colour by (matches.js row()), so the
 // header never counts a match the row below it does not paint as won or lost.
-// Rivals results are read off the screen, in whatever case it printed them.
+// A result is matched in whatever case it was saved in.
 const WON = /vict|win/i;
 const LOST = /defeat|loss/i;
 const DRAWN = /draw|\btie\b/i;

@@ -49,8 +49,8 @@
   --cyan-rgb: 255, 255, 255;
   /* The label colour ON the accent. A token rather than a hardcoded #fff in
      .btn-primary, so the accent and the thing written on it can only ever move
-     together. That mattered when the accent was repointed per game and white
-     measured 1.59:1 on the gold one; it is cheap insurance now. */
+     together. That mattered when the accent was repointed per game; it is
+     cheap insurance now. */
   --on-accent: #FFFFFF;
 
   /* Status. These describe an OUTCOME, not the brand, so they stay the same
@@ -160,9 +160,9 @@
 }
 
 /* ── One palette ────────────────────────────────────────────────────────────
-   There used to be a :root[data-game="rivals"] block here that repointed the
-   brand tokens to navy and gold, and it is gone: the app looks the same
-   whichever game it is coaching.
+   There used to be a per-game block here that repointed the brand tokens to
+   another game's colours, and it is gone: the app looks the same whichever
+   game it is coaching.
 
    i18n-apply.js still sets data-game on <html>, which is worth keeping. It
    costs nothing, it is how a surface can tell what is being coached, and it is

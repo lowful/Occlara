@@ -6,12 +6,11 @@
  *
  * ANY NEW RECORDING TAKES OVER A HELD SEAL. A stop in the middle of a Valorant
  * match holds the seal until the player opens a page (sealHeld in index.js).
- * Only the Valorant path of Start cleared it, so after a switch to League or
- * Marvel Rivals and a Start, every page asked for, and the review when the
- * game ended, stayed behind "Recording stopped" until a Stop. Here each game
- * is started over a held seal: the seal lifts, a page from the sidebar shows,
- * and the seal then follows that game's own match, on while one is played and
- * off once it is over.
+ * Only the Valorant path of Start cleared it, so after a switch to League and
+ * a Start, every page asked for, and the review when the game ended, stayed
+ * behind "Recording stopped" until a Stop. Here League is started over a held
+ * seal: the seal lifts, a page from the sidebar shows, and the seal then
+ * follows League's own game, on while one is played and off once it is over.
  *
  * A REVIEW WITHDRAWN BECAUSE ITS MATCH RESUMED IS SEALED AT ONCE. The watch
  * ended a match too early, its review opened, and play carried on: the review
@@ -65,7 +64,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: a held seal is taken over by a League or a Rivals recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, and the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts');
+  console.log('PASS: a held seal is taken over by a League recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, and the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts');
   process.exit(0);
 }
 
@@ -115,15 +114,6 @@ class StandInValorant extends EventEmitter {
 }
 StandInValorant.startsInMatch = false;
 
-/** Marvel Rivals: `seen` is the screen it last read, 'select' and 'away' being the match. */
-class StandInRivals extends EventEmitter {
-  constructor() { super(); this.seen = null; engines.push(this); }
-  start() {}
-  stop() {}
-  pause() {}
-  resume() {}
-}
-
 /** League: `live` while the game client reports a game. */
 class StandInLeague extends EventEmitter {
   constructor() { super(); this.live = false; engines.push(this); }
@@ -138,7 +128,6 @@ const realLoad = Module._load;
 Module._load = function patched(request, parent, isMain) {
   if (parent && parent.filename && same(parent.filename, INDEX)) {
     if (request === './services/coaching-engine') return StandInValorant;
-    if (request === './services/rivals-engine') return { RivalsEngine: StandInRivals };
     if (request === './services/lol-recorder') return { LolRecorder: StandInLeague };
   }
   return realLoad(request, parent, isMain);
@@ -228,15 +217,15 @@ setTimeout(async () => {
       return null;
     };
 
-    // 1. A held seal, taken over by a recording of each other game.
-    for (const game of ['lol', 'rivals']) {
+    // 1. A held seal, taken over by a recording of the other game.
+    for (const game of ['lol']) {
       const notHeld = await holdSeal(game, { reloadShell: game === 'lol' });
       if (notHeld) return report(false, notHeld);
       await invoke(C.CONFIG_SET, { game });
       send(C.COACH_START);
       const e = latest();
       const st = await invoke(C.STATE_GET);
-      if (!st.isCoaching || st.gameId !== game || !(e instanceof (game === 'lol' ? StandInLeague : StandInRivals))) {
+      if (!st.isCoaching || st.gameId !== game || !(e instanceof StandInLeague)) {
         return report(false, `${game} did not start recording (${st.gameId}, recording=${st.isCoaching})`);
       }
       // The seal's tick, as SHELL_GET settles it, and a page from the sidebar.
@@ -247,10 +236,10 @@ setTimeout(async () => {
       if (s.sealed) return report(false, `recording ${game}, the seal a Valorant stop held is still on`);
       if (!opened) return report(false, `recording ${game}, a page asked for from the sidebar stays behind the seal`);
       // From here the seal follows this recording's own match.
-      if (game === 'lol') e.live = true; else e.seen = 'select';
+      e.live = true;
       const during = await invoke(C.SHELL_GET);
       const hiddenDuring = shownViews();
-      if (game === 'lol') e.live = false; else e.seen = 'scoreboard';
+      e.live = false;
       const over = await invoke(C.SHELL_GET);
       const back = await until(() => mainWindow.current().shown === 'matches', 4000);
       lines.push(`${game} match: sealed while played=${during.sealed} pages shown=${hiddenDuring.join(',') || 'none'} | over: sealed=${over.sealed} Matches back=${!!back}`);

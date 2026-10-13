@@ -24,8 +24,22 @@ const OTHER = 'GC-ZZZZ-YYYY-XXXX-WWWW';
 
 ok(classify('/api/coach/read').kind === 'read' && classify('/api/coach/read').game === 'valorant', 'a live read is recording Valorant');
 ok(classify('/api/coach/death-forensics').kind === 'review', 'the death look is a review');
-ok(classify('/api/rivals/review').kind === 'review' && classify('/api/rivals/draft').kind === 'read', 'Rivals: the scoreboard is a review, hero select a read');
 ok(classify('/api/license/activate').kind === 'license', 'the licence re-check is just the app being open');
+
+// Marvel Rivals is no longer coached, and every /api/rivals path answers 410
+// (routes/retired.js). An older install left on it still calls them: that is
+// the app being open, never a match read or reviewed, and it names no game.
+{
+  const old = ['/api/rivals/draft', '/api/rivals/review', '/api/rivals/identify'].map((path) => classify(path));
+  ok(old.every((c) => c.kind === 'other' && c.game === null),
+    `an older install's call to a retired Rivals route is no read, no review and no game (${JSON.stringify(old)})`);
+  const q = new Presence({ now: () => clock });
+  q.touch({ key: KEY, path: '/api/rivals/draft', version: '8.3.2' });
+  q.touch({ key: KEY, path: '/api/rivals/review', version: '8.3.2' });
+  const u = q.snapshot().users[0];
+  ok(u && u.state === 'app open' && u.game === null && u.readsLastMinute === 0 && u.version === '8.3.2',
+    `so the admin view shows that install with its app open and its version, not recording a game (${JSON.stringify(u && { state: u.state, game: u.game, reads: u.readsLastMinute })})`);
+}
 
 p.touch({ key: KEY, path: '/api/coach/read', version: '8.0.1' });
 p.touch({ key: KEY, path: '/api/coach/read' });

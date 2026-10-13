@@ -32,7 +32,7 @@ process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'test-key
 process.env.AI_API_KEY = 'test-ai-key';
 process.env.AI_BASE_URL = 'http://ai.test/v1';
 for (const v of ['AI_PROVIDER', 'AI_READ_MODEL', 'AI_REVIEW_MODEL', 'AI_TEXT_MODEL', 'AI_VISION_MODEL',
-  'AI_VISION_MODEL_DEEP', 'AI_TEXT_MODEL_FALLBACK', 'AI_FORENSICS_MODEL']) delete process.env[v];
+  'AI_TEXT_MODEL_FALLBACK', 'AI_FORENSICS_MODEL']) delete process.env[v];
 process.env.ADMIN_PASSWORD = 'bench-password';
 
 let fails = 0;
@@ -178,14 +178,14 @@ const reviewBody = { rounds: ROUNDS, context: { agent: 'Jett', map: 'Abyss' } };
     const t0 = Date.now();
     let err = null;
     try {
-      await coach.ai.visionInfer('aGVsbG8=', 'read this', 10, false, 'deepseek/deepseek-v4.1-flash', { abortMs: 80 });
+      await coach.__test.visionInfer('aGVsbG8=', 'read this', 10, false, 'deepseek/deepseek-v4.1-flash', { abortMs: 80 });
     } catch (e) { err = e; }
     ok(err && ai.sent[0].signal.aborted && Date.now() - t0 < 3000,
       `a call past its deadline is aborted, not left running (${err && err.name}, ${Date.now() - t0}ms)`);
 
     ai.sent.length = 0;
     let err2 = null;
-    try { await coach.ai.textInfer('say something', 20, { timeoutMs: 60 }); } catch (e) { err2 = e; }
+    try { await coach.__test.textInfer('say something', 20, { timeoutMs: 60 }); } catch (e) { err2 = e; }
     await new Promise((r) => setTimeout(r, 1300));
     ok(err2 && ai.sent.length >= 1 && ai.sent[0].signal.aborted,
       'a text call that timed out is cancelled upstream a second later, rather than generating on');

@@ -49,7 +49,6 @@ function classify(path) {
   if (p.startsWith('/api/coach/read') || p.startsWith('/api/coach/analyze')) return { kind: 'read', game: 'valorant' };
   if (/^\/api\/coach\/(match-review|death-forensics|match-rounds|last-match)/.test(p)) return { kind: 'review', game: 'valorant' };
   if (p.startsWith('/api/coach/detect-agent')) return { kind: 'read', game: 'valorant' };
-  if (p.startsWith('/api/rivals/')) return { kind: /review|identify/.test(p) ? 'review' : 'read', game: 'rivals' };
   if (p.startsWith('/api/license/')) return { kind: 'license', game: null };
   if (p.startsWith('/api/coach/chat') || p.startsWith('/api/coach/frame-chat')) return { kind: 'chat', game: null };
   return { kind: 'other', game: null };

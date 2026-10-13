@@ -132,8 +132,8 @@ function assembleReport(input) {
   // What went well and what to fix, from the matches themselves: the entries
   // that showed up most this week.
   // A count across matches carries a title true of all of them
-  // (insights.repeatTitle): "Healing up 32%, in 3 matches" pinned one match's
-  // figure on three, and "Dying at B Main" one match's place. A match graded
+  // (insights.repeatTitle): "Dying at B Main" pinned one match's place on
+  // three, and "Skye kept winning" one match's agent. A match graded
   // from Riot's record alone counts in the grades above and in no list here
   // (insights.countable): Riot records what happened, never what to fix.
   const count = (list) => {

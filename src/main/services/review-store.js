@@ -21,16 +21,28 @@
  * and the rewritten summary land. Every version goes to the same id, so the
  * library holds the best one and never three copies of one match.
  *
+ * A GAME OCCLARA NO LONGER COACHES (games.js RETIRED) HAS NO REVIEWS HERE.
+ * Its saved ones are never listed or opened, so none is counted or shown
+ * anywhere, and they are deleted at launch, folder and row and all
+ * (removeRetired(), from retired-games.js): there is no page left to open
+ * one with.
+ *
  * Plain fs, no Electron, so the tests run it against a temp folder.
  */
 
 const fs = require('fs');
 const path = require('path');
 const { CLIP_RE } = require('../../shared/clips');
+const { isRetired } = require('../../shared/games');
 
 const MAX_REVIEWS = 300;          // about a season of daily play
 const ID_RE = /^[a-z]+-\d{10,}-[a-z0-9]{4,}$/;
 const FRAME_RE = /^[a-z0-9-]{1,40}\.jpg$/;
+
+/** A review id of a retired game: an id starts with its game (newId). */
+const retiredId = (id) => isRetired(String(id || '').split('-')[0]);
+/** A library row of a retired game, by its game or its id. */
+const retiredRow = (r) => !!r && (isRetired(r.game) || retiredId(r.id));
 
 function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
@@ -56,7 +68,7 @@ function metaOf(id, game, review, at) {
   const top = r.insights && r.insights.mistakes && r.insights.mistakes[0];
   return {
     id, game, at,
-    title: g.agent || g.hero || g.champion || null,
+    title: g.agent || g.champion || null,
     map: g.map || null,
     mode: g.mode || null,
     result: g.result || null,
@@ -115,7 +127,7 @@ class ReviewStore {
    * Save (or replace) one review.
    *
    * @param entry.id      the review's id, from newId(); the same id replaces
-   * @param entry.game    'valorant' | 'rivals' | 'lol'
+   * @param entry.game    'valorant' | 'lol'
    * @param entry.at      when the match ended
    * @param entry.review  the review object the window paints
    * @param entry.frames  { name: jpeg base64 } to keep beside it, optional
@@ -141,17 +153,18 @@ class ReviewStore {
     return rows[0] && rows.find((r) => r.id === id);
   }
 
-  /** The list, newest first, optionally one game's. */
+  /** The list, newest first, optionally one game's. Never a retired game's. */
   list(game) {
-    const rows = this.index().map(listed);
+    const rows = this.index().filter((r) => !retiredRow(r)).map(listed);
     return game ? rows.filter((r) => r.game === game) : rows;
   }
 
-  /** One whole review, or null. */
+  /** One whole review, or null. Null for a retired game's: none can be opened. */
   get(id) {
-    if (!ID_RE.test(String(id || ''))) return null;
+    if (!ID_RE.test(String(id || '')) || retiredId(id)) return null;
     const e = readJson(path.join(this.root, `${id}.json`), null);
-    return e && e.review ? e : null;
+    if (!e || !e.review || isRetired(e.game) || isRetired(e.review.kind)) return null;
+    return e;
   }
 
   /** The last `n` whole reviews of one game, newest first. */
@@ -195,6 +208,38 @@ class ReviewStore {
     try { fs.rmSync(path.join(this.root, id), { recursive: true, force: true }); } catch {}
     if (!skipIndex) writeJson(path.join(this.root, 'index.json'), this.index().filter((r) => r.id !== id));
     return true;
+  }
+
+  /**
+   * Every saved review of a game Occlara no longer coaches, deleted: its
+   * file, its folder (frames, clips) and its library row, and a file or a
+   * folder of one left without a row too. Returns how many reviews went, 0
+   * when there was nothing to delete.
+   *
+   * THE INDEX IS READ ONCE, and written back only from that one read. Read
+   * again after the deletes, an index the disk did not hand over at that
+   * moment (a scanner holding the file) came back as no rows at all, and was
+   * written back empty over every Valorant and League row in the library. An
+   * index that cannot be read is not written at all: its retired rows are
+   * never listed or opened, and go at the next launch that reads it.
+   */
+  removeRetired() {
+    const file = path.join(this.root, 'index.json');
+    const read = readJson(file, null);
+    const rows = Array.isArray(read) ? read : null;
+    const ids = new Set((rows || []).filter(retiredRow).map((r) => r.id).filter((id) => ID_RE.test(String(id || ''))));
+    let names = [];
+    try { names = fs.readdirSync(this.root); } catch { names = []; }
+    for (const name of names) {
+      const id = name.endsWith('.json') ? name.slice(0, -'.json'.length) : name;
+      if (ID_RE.test(id) && retiredId(id)) ids.add(id);
+    }
+    const gone = (r) => !!r && (ids.has(r.id) || retiredRow(r));
+    const stale = !!rows && rows.some(gone);
+    if (!ids.size && !stale) return 0;
+    for (const id of ids) this.remove(id, true);
+    if (stale) writeJson(file, rows.filter((r) => !gone(r)));
+    return ids.size;
   }
 
   // ── Clips (8.3) ────────────────────────────────────────────────────────────

@@ -170,6 +170,12 @@ answer 410 to every caller: only installs older than 8.0 called them. A key that
 checked because the database is failing is answered 503 with `retry: true`, not
 403, and a key confirmed in the last half hour is still honoured through it.
 
+### Retired
+
+| Method | Path            | Gate | Description |
+|--------|-----------------|------|-------------|
+| any    | `/api/rivals/*` | none | 410 Gone: Marvel Rivals is no longer coached. Only installs from 8.3.2 and before that were left on it call these. No licence is looked up and no model called, see `routes/retired.js` |
+
 ### Admin
 
 | Method | Path                   | Gate                     | Description              |

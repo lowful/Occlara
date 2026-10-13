@@ -9,8 +9,7 @@
  *   'kept'   the log still holds the match: the eye opens it on its frames
  *   'gone'   it no longer does: the eye stays, disabled, and its tooltip says why
  *   null     nothing was recorded (a match graded from Riot's record alone,
- *            one recorded with the AI log off, Marvel Rivals, League): there
- *            is no eye at all
+ *            one recorded with the AI log off, League): there is no eye at all
  *
  * The page sends the review's id and nothing else (REVIEW_AILOG): which session
  * and which frames are main's to find. The one exception is the eye on a death

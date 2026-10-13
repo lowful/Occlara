@@ -1,11 +1,11 @@
 # Occlara
 
-A post-match AI coach for Valorant, Marvel Rivals and League of Legends. An
-Electron client reads the game while it is played, shows NOTHING during the
-match, and when it ends opens a graded review: a score out of 100 with four
-categories and their evidence, the player's repeated mistakes with a fix for
-each, what went well, and what was missed. Every review is kept in the match
-library, which also counts what keeps repeating across matches.
+A post-match AI coach for Valorant and League of Legends. An Electron client
+reads the game while it is played, shows NOTHING during the match, and when it
+ends opens a graded review: a score out of 100 with four categories and their
+evidence, the player's repeated mistakes with a fix for each, what went well,
+and what was missed. Every review is kept in the match library, which also
+counts what keeps repeating across matches.
 
 The client never reads game memory, never touches game files, and never
 automates input. It captures the display the same way OBS does. That property
@@ -77,7 +77,7 @@ src/shared/grade.js                   0 to 100, a letter, four categories with e
 server/services/match-review.js       the model's half: summary, a why per round, focus
 src/main/services/review-store.js     every review saved, userData/reviews, with its frames and clips
 src/shared/patterns.js                what repeats across the last ten matches of a game
-src/shared/breakdown.js               the library by map and agent (hero, champion), counted
+src/shared/breakdown.js               the library by map and agent (or champion), counted
 src/shared/riot-review.js             a review from Riot's record alone, or a recording linked late
 src/main/services/backfill.js         Connect grades the last ten matches from Riot's record; the late link at launch
 src/renderer/review/                  one page for every game, branched on review.kind
@@ -628,9 +628,9 @@ carry sat: clicked, that was the row's click too.
   among the finished sessions only.
 - **Main resolves the scope, never a page.** `REVIEW_AILOG(id)` names the
   review; `REVIEWS_LIST` rows and a presented review say only `aiLog: 'kept'`,
-  `'gone'` or null (`scopeFor`). Null is no eye: Riot's record alone, Rivals
-  and League record nothing, and a match recorded with the AI log off has no
-  log to open. Gone is a disabled eye with its reason. The kept
+  `'gone'` or null (`scopeFor`). Null is no eye: Riot's record alone and
+  League write nothing to the log, and a match recorded with the AI log off
+  has no log to open. Gone is a disabled eye with its reason. The kept
   folder list is cached in main and dropped when a session starts, is pruned
   or a match ends; each finished session's matches are read once.
 - **That read is STRICT** (`read()` with a scope): only the match's frames, a
@@ -673,9 +673,7 @@ Decisions.
   three matches, an absolute ladder until then; first kills; multi kill rounds),
   Teamplay (traded deaths, trades made, assists), Decisions (deaths with the
   team ahead and the round lost, ult held, avoidable causes; clutches won).
-- Marvel Rivals: Impact, Survival, Role duty (healing, blocked or damage by
-  role), Accuracy against the same hero. League: Farming (not for supports),
-  Survival, Vision, Objectives.
+- League: Farming (not for supports), Survival, Vision, Objectives.
 - **One category is not a grade.** From the screen alone Valorant can count
   deaths and nothing else, and that graded a 13 to 11 win at 45. An overall needs
   two categories carrying half the weight; below that it says what would grade it.
@@ -819,8 +817,10 @@ server falls back to `/last-match`.
   that profile counts once, read at load before any refresh can write one
   (`keepOldConnection`, `riotConnectedKept`), and only on an install that
   never ran 8.0.3, the version that brought Connect (`rivalsTitlesRepaired`,
-  written at its first launch, says it did): after it a typed ID with a
-  profile from an earlier launch was never connected. Settings says
+  written at its first launch, says it did; no Marvel Rivals key whatever its
+  name: the repair that wrote it went with that game, and it is still written
+  at the first launch, `createAppSurfaces`, for this alone): after it a typed
+  ID with a profile from an earlier launch was never connected. Settings says
   "Connected" by the same rule. Never during a match: a launch
   whose try lands mid match tries again each minute until the match is over
   (`atLaunch()`), where it used to be the session's only try. At most once in
@@ -889,14 +889,14 @@ server falls back to `/last-match`.
 ### The breakdown
 
 `src/shared/breakdown.js` cuts every saved review of a game by map and agent
-(map and hero for Rivals, champion for League), cached in main until the next
-save. Counted, never written, and every number carries its sample:
+(map and champion for League), cached in main until the next save. Counted,
+never written, and every number carries its sample:
 
 - Round numbers come only from Riot checked rounds (the screen files a result a
   round late often enough to fake a side win rate), death locations only from
   recorded rounds, the scoreboard only from matches that have one. K/D is total
   kills over total deaths; ACS, ADR and headshot % are weighted by rounds.
-  K/D/A (Valorant and Rivals) is an average match's kills, deaths and assists,
+  K/D/A (Valorant) is an average match's kills, deaths and assists,
   over only the matches whose line read all three, and it sorts on their K/D.
   Pistol rounds are round 1 and the first round Riot's sides change, never
   overtime; the review's own halftime is used only when no side is known,
@@ -917,9 +917,9 @@ save. Counted, never written, and every number carries its sample:
   a minute across them is a number about nothing; the most played opens first.
 - **A repeat across matches is the same thing each time.** "Dying at A Site"
   repeats only at A Site on the same map (the name exists on nearly every
-  map), "Skye kept winning" only against Skye, and a Rivals comparison only in
-  its direction (`insights.repeatTitle`, used by the patterns too). Otherwise
-  the title is one that is true of every match it counts.
+  map) and "Skye kept winning" only against Skye (`insights.repeatTitle`, used
+  by the patterns too). Otherwise the title is one that is true of every match
+  it counts.
 
 ## The match is recorded on the PC
 
@@ -944,8 +944,7 @@ Display Capture takes it: desktopCapturer's source for the primary display
 (matched on `display_id`) opened with getUserMedia, never the game's memory or
 files, never a hook into it. The page is a window that is never shown, and its
 one voice is a notice on the window's notice line about capture. Valorant
-sessions and League sessions record, the two whose reviews have deaths to
-clip; a Rivals review is one end of match scoreboard and records nothing. The
+sessions and League sessions record, both reviews having deaths to clip. The
 player does nothing: recording is on by default (On, stored 'auto'), measures
 its own cost on every PC, turns itself off where the PC cannot afford it, and
 the coach keeps reading once a second either way.
@@ -1162,22 +1161,19 @@ PC coped, never what was on it.
 - **Settings**: "Record match video", On or Off (the player asked for a
   setting that toggles it; On is the stored 'auto', never renamed), 720p or
   1080p, a hint per game (`REC_HINT`: Valorant's recorded while its screen is
-  read, League's while its own record is, never saying its screen is read,
-  Rivals' not recorded yet, with no status line there, since "your last
-  session" would be another game's), and one status line: "Recording now at
-  720p, about 30 fps" (`liveView`: the track's own height when it gives one,
-  so a 1280x1024 display at 1080p says 1024p, else the setting; the median of
-  the last ten seconds whose picture changed, to the nearest five), or why it
+  read, League's while its own record is, never saying its screen is read),
+  and one status line: "Recording now at 720p, about 30 fps" (`liveView`: the
+  track's own height when it gives one, so a 1280x1024 display at 1080p says
+  1024p, else the setting; the median of the last ten seconds whose picture
+  changed, to the nearest five), or why it
   is not, this session's reason before the last session's: no hardware video
   encoder, the PC busy (two sessions in a week turned it off, with Try again,
   which sets it back On), not enough disk, Windowed Fullscreen needed, an
   error; in League it says the review is still built from the game's record,
   never that the screen is read, and so do Capture speed and Performance,
   which say there that they do nothing in League (and League's recording
-  covers the standard frame whatever Performance says, `readSize`); in Rivals
-  Capture speed says it does nothing either, its engine looking on its own
-  8 second timer (`PROBE_MS`), and Performance what it does. The line is written only
-  when it changes, a polite live region.
+  covers the standard frame whatever Performance says, `readSize`). The line
+  is written only when it changes, a polite live region.
   Under it what the clips take against the cap, the cap, and Clear clips,
   which asks on the first press and clears on a second within four seconds
   (`CLIPS_USAGE`, `CLIPS_CLEAR`, read again on every `PUSH_REVIEWS`).
@@ -1325,7 +1321,7 @@ review/      the post-match review, every game, branched on review.kind
 stats/       rank, win rate, tracker matches, graded matches
 chat/        Ask Coach, opened plainly or on one match's review
 settings/    all preferences, version string at the bottom, and under it Riot's
-             notice word for word and NetEase's and Marvel's (8.3.2)
+             notice word for word (8.3.2)
 ```
 
 The pages and their order are `src/shared/shell-nav.js`. A page is loaded with
@@ -1351,13 +1347,12 @@ engine's `stoppedLive`). Not recording, nothing can tell when that match ends,
 and Home would paint its review and the focus for the next match while it is
 still being played. Held, the screen says recording stopped and the sidebar
 stays open: any page the player opens lifts it, their own choice, as opening
-Matches was before 8.1. Start clears it in every game, before the Rivals and
-League branches, and the seal then follows that recording's match: cleared in
-the Valorant path alone, a held seal kept every page and the League or Rivals
-review behind "Recording stopped" until a Stop. A review withdrawn because its
-match resumed seals first (`withdrawReview`), so its switch to Home never runs
-unsealed. `npm run check:seal` boots the app with stand-in engines and holds
-both.
+Matches was before 8.1. Start clears it in every game, before the League
+branch, and the seal then follows that recording's match: cleared in the
+Valorant path alone, a held seal kept every page and the League review behind
+"Recording stopped" until a Stop. A review withdrawn because its match resumed
+seals first (`withdrawReview`), so its switch to Home never runs unsealed.
+`npm run check:seal` boots the app with stand-in engines and holds both.
 
 **Closing hides the window.** Its X, Alt+F4 and the taskbar's Close put it out
 of sight like Ctrl+Shift+M, with the dock mark in the corner, and Occlara keeps
@@ -1527,8 +1522,8 @@ the line said when there was something to say is **the notice line** in the
 top strip, left of the window's buttons (`shell.js noticeLine`), empty
 otherwise, never hidden, because a live region shown and filled in the same
 moment is not always read out: the licence ending always (the notice or the default sentence),
-then a notice from main except the "Recording..." a Rivals or League session
-keeps up (kind 'recording', which the button and the live card already say),
+then a notice from main except the "Recording..." a League session keeps up
+(kind 'recording', which the button and the live card already say),
 then paused in the player's language (`panel.pausedLine`), which takes the
 place of a notice about the reading ('read-failed', 'capture', and the
 recorder's 'recorder', whose last words are that the coach still reads your
@@ -1567,8 +1562,8 @@ updated in the portal while the app was closed renews that same key, and if
 the server says yes the window goes and the app opens. The server's expiry is
 taken whenever it sends the field, null included, so a key made lifetime by
 hand no longer ends again on the old date. A session starts with no cadence
-until its engine says one (`state.cadence`), so a Rivals or League session
-after a Valorant one shows no Valorant tier. The licence window's "Get one" opens the sign up page
+until its engine says one (`state.cadence`), so a League session after a
+Valorant one shows no Valorant tier. The licence window's "Get one" opens the sign up page
 (`OPEN_PURCHASE` with 'signup', `SIGNUP_URL`), Settings' Manage subscription
 the account page, and a page names which, never a URL (`test:surfaces`).
 
@@ -1583,9 +1578,9 @@ every surface. Use the variables, do not hardcode colours, radii, easings or
 durations:
 
 - Brand: `--red` `#FF4655`, `--cyan` `#FFFFFF`, `--bg` `#08090A`
-  The token NAMES are historical. `--cyan` is white and, under
-  `[data-game="rivals"]`, `--red` is gold. They mean "primary accent" and
-  "secondary accent". Do not rename them: they are consumed 225 times across 15
+  The token NAMES are historical. `--cyan` is white. They mean "primary
+  accent" and "secondary accent", the same in every game (one palette,
+  `theme.css`). Do not rename them: they are consumed 225 times across 15
   files and `npm run check:palette` exists because that edit has gone wrong.
 - Text: `--text`, `--text-dim`, `--text-mute`
 - Status: `--good`, `--warn`, `--red`, each with an `-rgb` twin
@@ -1677,27 +1672,27 @@ keep arriving, they just stop being informed by the previous one.
 The models are whatever Railway says where an env var is set, and the code
 default where it is not: `AI_READ_MODEL` (default deepseek/deepseek-v4.1-flash),
 `AI_FORENSICS_MODEL` (default openai/gpt-6-luna), `AI_REVIEW_MODEL` (falls back
-to `AI_TEXT_MODEL`). `AI_VISION_MODEL` serves agent detection, frame chat and
-the Rivals reads; the tip era routes it also served to installs before 8.0
-(`/analyze`, `/recap`, `/summary/*`, `/suggest-library-tip`) answer 410 with an
-"update Occlara" sentence, no licence checked and no model called. Every model call switches
-reasoning off and retries a 400 without the switch. There is a credits breaker:
-on a 402 the server reports it honestly rather than pretending to be down, and
-the client backs off for three minutes.
+to `AI_TEXT_MODEL`). `AI_VISION_MODEL` serves agent detection and frame chat;
+the tip era routes it also served to installs before 8.0 (`/analyze`,
+`/recap`, `/summary/*`, `/suggest-library-tip`) answer 410 with an "update
+Occlara" sentence, no licence checked and no model called, as every
+`/api/rivals` path does since 8.4.0 (below, "Marvel Rivals was removed in
+8.4.0"). Every model call switches reasoning off and retries a 400 without the
+switch. There is a credits breaker: on a 402 the server reports it honestly
+rather than pretending to be down, and the client backs off for three minutes.
 
 **What the calls cost is the provider's own figure** (8.3.1, `coach.js
 bookCost`). Every call to OpenRouter asks for its usage (`usage: { include:
 true }`) and books the `usage.cost` it returns under the route it served
-(read, forensics, review, chat, rivals, other) and the licence that made it,
-by day and by month, carried with the request (`costScope`: the coach router
-sets it, another game's provider layer `layerFor` its own). A call that
-returns no cost (another provider, the legacy Gemini path, one aborted at its
-deadline, billed all the same) books the flat price per image instead, counted
-apart as estimated; one the provider refused books nothing. `/api/admin/costs`
-shows `spend` today and this month by route, real and estimated apart, and each
-licence's own by its hash; `global` keeps the calls as the routes count them
-and the flat estimate beside them. `npm run test:aicost` holds it on a
-scripted provider.
+(read, forensics, review, chat, other) and the licence that made it, by day
+and by month, carried with the request (`costScope`, which the coach router
+sets). A call that returns no cost (another provider, the legacy Gemini path,
+one aborted at its deadline, billed all the same) books the flat price per
+image instead, counted apart as estimated; one the provider refused books
+nothing. `/api/admin/costs` shows `spend` today and this month by route, real
+and estimated apart, and each licence's own by its hash; `global` keeps the
+calls as the routes count them and the flat estimate beside them. `npm run
+test:aicost` holds it on a scripted provider.
 
 **`npm run verify:ai` is the gate for any read prompt or model change.** It
 runs the live read over the 240 real frames and fails on parse under 95%,
@@ -1870,158 +1865,51 @@ with one to five pips in `--tier-1` through `--tier-5`; the pip COUNT carries th
 tier as well as the colour does.
 
 **The game picker shows the games' own logos: the player's decision of
-2026-10-10.** Until 8.2.1 its three buttons carried icons Occlara drew (a
-reticle, a hexagon with a spark, a square map), because Riot's IP policy says
-a project "may not use any of our logos or trademarks" without a written
-licence and Marvel's marks are as protected. The player was told that, with
-Riot's policy text and Marvel's terms, and chose the logos. The sources are
-`assets/games/valorant.svg`, `rivals.svg` and `lol.svg`, each one filled
-path on a 24 unit box: Valorant's and League's the monochrome paths Simple
-Icons publishes, Marvel Rivals' TRACED from the game site's icon (a bolt like
-an R between two slanted brackets), since no vector of it is published, and
-point symmetric as the emblem is. `src/renderer/shared/game-logos.js` draws the
-same paths inline so they take `currentColor` and keep the picker's colours,
-and `test:surfaces` fails if a path there ever differs from its file. The
-Rivals emblem is half as tall as it is wide, so it is drawn a size up
-(`shell.css`). Each button still carries the game's full name as its title and
-accessible name, because a symbol alone is a guess, and the recording lock.
-Hover lights the games not picked and never the picked one: the hover rule
-outranked the pressed one, and its `--text` over the pressed button's `--text`
-ground drew that logo white on white (`test:surfaces` cascades the rules).
-Rank marks stay ours (above): that decision was about the picker alone.
+2026-10-10.** Until 8.2.1 its buttons carried icons Occlara drew, because
+Riot's IP policy says a project "may not use any of our logos or trademarks"
+without a written licence. The player was told that, with Riot's policy text,
+and chose the logos. The sources are `assets/games/valorant.svg` and
+`lol.svg`, each one filled path on a 24 unit box, the monochrome paths Simple
+Icons publishes. `src/renderer/shared/game-logos.js` draws the same paths
+inline so they take `currentColor` and keep the picker's colours, and
+`test:surfaces` fails if a path there ever differs from its file, or if a logo
+is sized apart from the other. Each button still carries the game's full name
+as its title and accessible name, because a symbol alone is a guess, and the
+recording lock. Hover lights the game not picked and never the picked one: the
+hover rule outranked the pressed one, and its `--text` over the pressed
+button's `--text` ground drew that logo white on white (`test:surfaces`
+cascades the rules). Rank marks stay ours (above): that decision was about the
+picker alone.
 
-## Marvel Rivals reads TEXT, never art
+## Marvel Rivals was removed in 8.4.0
 
-The whole Rivals design turns on one measured fact, and it is easy to undo by
-accident because the failing approach looks more capable.
-
-**Naming heroes from scoreboard portraits does not work.** Graded against a real
-Season 10 frame with a hand written answer key, six runs scored 17 to 42%
-precision against a 90% gate, and answered Mephisto, Doctor Doom and Lightning
-Ace, two of whom are not in the game and one of whom is not a Marvel character.
-Six prompt revisions moved nothing. A 3x upscaled crop of the portrait column
-scored WORSE than the full frame, so it is not a pixel count problem.
-
-**Reading the hero name that hero select PRINTS works perfectly.** Same model,
-same day, exact both times. This is text recognition versus art recognition, and
-it is the same distinction the Valorant map fingerprint already turns on, where
-the printed location label outranks the model's opinion about the picture.
-
-So:
-
-```
-hero select    the hero name is printed, so the coach learns YOUR hero here
-scoreboard     printed text only: result, map, mode, K/D/A, damage, healing,
-               accuracy, role icons. Never hero identity
-```
-
-`features.heroCapture` is **separate from `features.draft`** on purpose. Draft
-advice is off because the teammate ROLE COUNT reads wrong; the engine still asks
-the draft question for the name, and `vet()` returns empty so no draft sentence
-reaches a player. Do not merge those flags.
-
-`confirmMine()` in `server/routes/rivals.js` checks the printed name against the
-closed roster, so an OCR slip arrives absent rather than wrong. The engine holds
-the hero for the match and **forgets it once a scoreboard is reviewed**, or the
-next match opens its review naming the last match's hero.
-
-What the hero read bought is `src/shared/rivals-abilities.js`: no sentence may
-name an ability the player's hero does not have. The Rivals engine still writes
-draft and scoreboard lines internally, and none of them reach the screen during
-a match; only its system notices reach the window's notice line. It permits one whose OWNER is named in the same sentence,
-because "The Thing has Yancy Street Charge, which turns your dash off" is the
-counter table's best output.
-
-What it did **not** buy is the switch call. `switchAdvice()` needs the ENEMY
-list, which comes off portraits, which is the read that failed. Counters stay
-unwired. `rivals-meta.js` and `rivals-moments.js` are also unwired and their
-headers say exactly what is missing; read those before calling either.
-
-### The Rivals review is computed, like the League one
-
-`src/shared/rivals-review.js`, and the reason is `lol-review.js`'s reason word
-for word: a review is where a confident wrong sentence costs most. The model is
-not involved. It makes exactly one judgement, the healing check, because that
-data is not close: across twelve real rows Strategists healed 13,068 to 33,213
-and everybody else 0 to 567. **Damage blocked gets no such rule**, because those
-rows overlap, and any threshold drawn through an overlap is a coin flip wearing
-a number.
-
-**It compares you against yourself, and the scoping is the whole design.**
-`rivalsHistory` keeps the last 10 matches and a baseline needs 3, matching the
-League numbers. A global average would be arithmetic that means nothing, so:
-
-- **role scoped** for kills, deaths, assists, damage, blocked and healing. A
-  Strategist's kills and a Duelist's kills are different quantities, and a
-  Vanguard dies more than a Strategist by design. Comparing across roles
-  manufactures a trend out of the player switching role.
-- **hero scoped** for accuracy alone, because a projectile hero is naturally
-  lower than a hitscan one at identical skill. `fundamentals()` already says "if
-  you cannot tell which the hero is, do not coach the accuracy", and comparing
-  Hela's accuracy to Jeff's is that mistake with extra steps.
-
-`lowerIsBetter` on deaths is not cosmetic: without it the review congratulates a
-player for dying more than usual. A column that is zero and always has been is
-dropped, but a zero against a real average is the most informative row there is
-and must survive that filter.
-
-The history entry is built from the REVIEW, not the raw frame, so a hero the
-review refused to believe never enters the baseline as that hero either.
-
-Two things that look like details:
-
-- **Heroes switch mid match.** A hero read at draft is the hero they STARTED on.
-  The contradiction is detectable in one direction only: a non-Strategist name
-  against a healing column that proves a Strategist means they switched, and the
-  name is dropped.
-- **The refusals are rendered, not just observed.** A player who can see the
-  enemy team on their own screen will otherwise assume the coach saw it too and
-  chose to stay quiet.
-
-**There is no mode table and that is deliberate.** marvelrivals.com publishes no
-modes page, `/gamemodes/` and `/gameinfo/` both 404, so a list would be written
-from memory and presented as fact. The mode is printed text, the read that
-works, and the review only displays it. Only its SHAPE is checked: a mode is a
-short label, so the objective line is dropped while a mode nobody here has heard
-of comes through.
-
-### The meta comes from the game's own balance post
-
-`npm run sync:rivalsbalance` fetches `marvelrivals.com/balancepost/`, which is
-linked from `/news/`. First party, no key. It is a better source than a tier
-list because it is dated and quotable: "Reduce Nastrond Crow Form damage from 70
-to 60, published 2026/09/08" is a fact the player can check, where "Hela is S
-tier" is a contested opinion that is stale in a month.
-
-**The coach quotes it and never judges it.** It does not say buffed or nerfed,
-because deciding which needs inference and the inference is unsafe: "reduce
-cooldown" is a buff, "reduce damage" is a nerf, and the verb is identical.
-NetEase writes a one line characterisation per hero, so there is a sourced
-sentence and nothing to infer.
-
-Two shapes that bite, both recorded in docs/AI-CONTEXT.md: the GLOBAL CHANGES
-section carries **no bullet dashes**, and **Deadpool has three sections** because
-he is tri-role, so a one-to-one map silently drops two of them.
-
-`balanceBlock()` and `metaBlock()` are added to the prompt **separately**, because
-one is fetched and one is hand written and they go stale on different days.
-Nesting the sourced one inside the hand written one meant it vanished exactly
-when it became the only meta knowledge left.
-
-```
-npm run sync:rivals          roster, health and abilities from the game's own site
-npm run sync:rivalsbalance   the official balance post: version, date, what changed
-npm run check:rivalsknowledge every hero and ability named is one the game has
-npm run check:rivalsreview    boots the app, paints a Rivals review, then a League
-                              one into the same review page
-npm run check:clientboot      src/ never requires from server/, which is not shipped
-```
-
-That last one exists because `package.json` ships `src/`, `assets/`,
-`node_modules/` and `package.json`, and **not `server/`**. A require reaching
-across resolves in the repo, passes every test, and throws MODULE_NOT_FOUND on a
-real install. It is the mirror of `check:server`, and `sync:rivals` writes a
-second smaller copy into `src/shared` so the shortcut is never needed.
+The player's decision: Occlara coaches Valorant and League of Legends, and
+Marvel Rivals went whole, its engine, review, routes, data syncs, logo and
+copy. An install from before still calls its routes, so every path under
+`/api/rivals`, by any method, answers 410 with "Marvel Rivals is no longer
+supported by Occlara. Update Occlara at occlara.app." and nothing else: no
+licence looked up, no model called, no rate limit, and the live view counts it
+as no read, no review and no game (`server/routes/retired.js`,
+`test:serverguards`, `test:licenceoutage`, `test:presence`). What a player's
+PC kept of it is put away at launch, before any page can ask
+(`retired-games.js putAway`, in `app.whenReady`): a stored game of 'rivals'
+becomes 'valorant', `rivalsHistory`, the baseline its reviews were graded
+against, goes from the config, and its saved reviews, which no page can open
+any more, are deleted with their folders and library rows, said in one log
+line. Until then `review-store.js` never lists or opens one, so none is
+counted on Home, in Matches, the patterns, the breakdown or the weekly report.
+After the first launch there is nothing left to do. A review is the game's by
+the game it was saved under and its id, never by its words: a Valorant or
+League review whose sentences name Marvel Rivals stays. The library's index
+is read once and written back from that read alone, and not at all when the
+disk would not hand it over: read a second time after the deletes, a failed
+read wrote it back empty over every Valorant and League row. Only the
+Valorant reader ever wrote the AI log, so a session of it recorded while
+Marvel Rivals was played is that reader's misreads, kept and opened as any
+other. The id is kept only as `games.js RETIRED`, which is what makes that
+possible (`test:games`, and `check:matches` on a profile 8.3.2 left).
+`rivalsTitlesRepaired` is not one of its keys: it says an install ran 8.0.3
+(the late link, above), and stays.
 
 ## One game's data is never shown under another game's name
 
@@ -2031,10 +1919,10 @@ which game it was for, so selecting League returned all of it unchanged.
 
 `getStatsDashboard` now reads `hasFeature(game, 'stats')` and a game without a
 stats source returns empty with `statsSupported: false`, which the renderer
-paints as a panel naming the game. Rivals has no official API at all, and League
-needs a Riot production key the app does not have. Both say `stats: false` in
-`src/shared/games.js` **explicitly**, rather than relying on `hasFeature`
-returning false by absence.
+paints as a panel naming the game. League needs a Riot production key the app
+does not have, and says `stats: false` in `src/shared/games.js`
+**explicitly**, rather than relying on `hasFeature` returning false by
+absence.
 
 Switching game is a harder boundary than switching Riot ID: it stops a running
 session, clears every tracker cache, closes the League only Learn window, and
@@ -2300,7 +2188,7 @@ falls back per call: it is sent once more without the preference, booked as
 any call, and nothing else ever is (a 400, 401, 402, 403, 429, any other 5xx
 or a timeout is the call's own answer). The calls
 that fell back are counted per route since boot (read, forensics, review,
-chat, rivals, other), said in one log line a route an hour at most, and
+chat, other), said in one log line a route an hour at most, and
 `GET /health` counts them as `dataPolicy: { mode, fellBack, refusedAgain,
 since }`: a route counting in `fellBack` sends its model's frames to providers
 that may keep them, each call after a refused round trip, until the model
@@ -2357,6 +2245,13 @@ and this repo is public. Never commit a key.
 
 `src/shared/valorant-data.generated.json` is generated by
 `npm run sync:valorant` from valorant-api.com. Do not hand-edit it.
+
+**src/ never requires from server/** (`npm run check:clientboot`), because
+`package.json` ships `src/`, `assets/`, `node_modules/` and `package.json`,
+and **not `server/`**. A require reaching across resolves in the repo, passes
+every test, and throws MODULE_NOT_FOUND on a real install. It is the mirror of
+`check:server`, and `sync:valorant` writes an identical copy of its data into
+`src/shared` and `server/` so the shortcut is never needed.
 
 **The name is Occlara; two identifiers are still ghostcoach.** `appId`
 (`com.ghostcoach.app2`) and the `GhostCoach-releases` repo deliberately keep the

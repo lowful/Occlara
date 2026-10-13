@@ -373,6 +373,14 @@ setTimeout(async () => {
       const at = Number(readConfig().lateLinkAt) || 0;
       lines.push(`lateLinkAt: ${at ? new Date(at).toISOString() : 'not kept'}`);
       if (!(at > Date.now() - 120000 && at <= Date.now())) return report(false, 'the config does not keep when the late link started');
+      // 8.0.3 OR LATER HAS RUN HERE, said at the first launch (createAppSurfaces).
+      // keepOldConnection() reads rivalsTitlesRepaired to tell an install that
+      // ran 8.0.3 from one that never did (the typedold step), so the launch
+      // still writes it, though the repair that named it is gone with Marvel
+      // Rivals (retired-games.js).
+      const ran803 = readConfig().rivalsTitlesRepaired;
+      lines.push(`rivalsTitlesRepaired after the first launch: ${ran803}`);
+      if (ran803 !== true) return report(false, 'the first launch did not say it ran 8.0.3 or later (rivalsTitlesRepaired)');
       // HOME SHOWS RIOT'S RESULT: it repaints on the save, from the library.
       const home = await until(async () => {
         const s = surfaces.find('/home/');

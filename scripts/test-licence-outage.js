@@ -84,7 +84,7 @@ Module._load = function patched(request, parent, isMain) {
 const SERVER = path.join(__dirname, '..', 'server');
 const licenseRouter = require(path.join(SERVER, 'routes', 'license.js'));
 const coach = require(path.join(SERVER, 'routes', 'coach.js'));
-const rivalsRouter = require(path.join(SERVER, 'routes', 'rivals.js'));
+const retired = require(path.join(SERVER, 'routes', 'retired.js'));
 const { checkKey, validKeys, licenceDb, STALE_KEY_MS } = coach.__test;
 
 /** Drive one request through a real Express router and resolve with its answer. */
@@ -289,19 +289,25 @@ const ACTIVE = { id: 'lic_1', license_key: KEY, plan: 'monthly', status: 'active
     ok(r.status === 400, `a request with no key at all is still 400 (${r.status})`);
   }
 
-  // ── the Rivals routes share the answer ───────────────────────────────────
+  // ── the retired Rivals routes are 410 through it all ─────────────────────
+  // Marvel Rivals is no longer coached (routes/retired.js). An older install
+  // left on it is told so whether the licence database answers or not, and
+  // the database is never asked, so an outage is never its answer.
   validKeys.clear();
   db.rows = [{ ...ACTIVE }];
   db.outage = true;
   {
-    const r = await call(rivalsRouter, 'POST', '/draft', { headers: { 'X-License-Key': KEY }, body: { image: 'x' } });
-    ok(r.status === 503 && r.body.retry === true, `a Rivals read during an outage is 503 with retry (${r.status})`);
+    const asked = db.queries;
+    const r = await call(retired.rivals, 'POST', '/draft', { headers: { 'X-License-Key': KEY }, body: { image: 'x' } });
+    ok(r.status === 410 && JSON.stringify(r.body) === JSON.stringify({ error: retired.RIVALS_GONE }) && db.queries === asked,
+      `an older install's Rivals call during an outage is 410, never 503, and asks no licence (${r.status}, ${db.queries - asked} lookups)`);
   }
   recovered();
   db.rows = [];
   {
-    const r = await call(rivalsRouter, 'POST', '/draft', { headers: { 'X-License-Key': KEY }, body: { image: 'x' } });
-    ok(r.status === 403, `and a Rivals read with a dead key is still 403 (${r.status})`);
+    const asked = db.queries;
+    const r = await call(retired.rivals, 'POST', '/review', { headers: { 'X-License-Key': KEY }, body: { image: 'x' } });
+    ok(r.status === 410 && db.queries === asked, `and with a dead key it is 410 too, never 403 (${r.status}, ${db.queries - asked} lookups)`);
   }
 
   // ── the client keeps its licence through a transient answer ─────────────

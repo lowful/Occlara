@@ -22,7 +22,7 @@
  * invent a number that looks like measurement. A metric nobody can defend is
  * worse than no metric, because the player will chase it.
  *
- * That is ABSENCE MEANS SILENCE from rivals-heroes.js, applied to numbers.
+ * That is ABSENCE MEANS SILENCE, applied to numbers.
  */
 
 const METRICS = {

@@ -20,7 +20,7 @@
  *     above it, white in Stats
  *   - the library's trend drew every grade from 77 up at the same height
  *   - Stats never showed a review saved while it was open
- *   - Settings said coaching for Rivals and League was not built
+ *   - Settings said coaching for League was not built
  *   - the AI log called every 8.0 death a miss, because 8.0 shows nothing
  *     during a match by design and the log still counted reviews
  *   - the activation screen sold "Real-time Valorant AI coaching"
@@ -469,32 +469,32 @@ async function openShell(cfg, state, opts) {
       && !note.classList.contains('system') && note.title === p.notice() && /^M8 5\.2/.test(pauseIcon()),
     'paused: the play icon, the card at rest, and the notice line says paused, dim, whole in its title', `read "${p.notice()}", icon ${pauseIcon()}`);
     ok(/^M8 5\.2/.test('M8 5.2v13.6') && !/^M8 5\.2/.test('M9 5v14'), 'the play icon detector matches the play path and not the pause one');
-    // A Rivals or League session puts "Recording..." up as a notice for its
-    // whole length (kind 'recording'): Stop and the live card already say
-    // it, so it is never shown, and paused the paused line is.
+    // A League session puts "Recording..." up as a notice for its whole
+    // length (kind 'recording'): Stop and the live card already say it, so it
+    // is never shown, and paused the paused line is.
     const PAUSED = I18N.t('en', 'panel.pausedLine');
-    const REC = { text: 'Recording. Play your match: the scoreboard at the end is reviewed and graded automatically.', at: 1, kind: 'recording' };
+    const REC = { text: 'Recording. Nothing appears during your game, and the graded review opens when it ends.', at: 1, kind: 'recording' };
     const DOWN = { text: 'Cannot reach the coach server right now. Reading resumes when it is back.', at: 2, kind: 'read-failed' };
-    const live = (paused, notice, game) => ({ ...BASE, gameId: game || 'rivals', isCoaching: true, isPaused: paused,
+    const live = (paused, notice, game) => ({ ...BASE, gameId: game || 'lol', isCoaching: true, isPaused: paused,
       status: paused ? 'paused' : 'coaching', sounds: false, notice });
-    const rv = await openShell({ language: 'en' }, { gameId: 'rivals' });
-    rv.bridge.emit(C.PUSH_STATE, live(false, REC));
-    ok(rv.notice() === null, 'the "Recording..." a Rivals session keeps up is not shown: the button and the live card say it', `read "${rv.notice()}"`);
-    rv.bridge.emit(C.PUSH_STATE, live(true, REC));
-    ok(rv.notice() === PAUSED && !rv.$('notice').classList.contains('system'),
-      'paused, the notice line says paused, and is no notice', `read "${rv.notice()}"`);
-    rv.bridge.emit(C.PUSH_STATE, live(false, REC));
-    ok(rv.notice() === null, 'resumed, it says nothing again', `read "${rv.notice()}"`);
+    const lg = await openShell({ language: 'en' }, { gameId: 'lol' });
+    lg.bridge.emit(C.PUSH_STATE, live(false, REC));
+    ok(lg.notice() === null, 'the "Recording..." a League session keeps up is not shown: the button and the live card say it', `read "${lg.notice()}"`);
+    lg.bridge.emit(C.PUSH_STATE, live(true, REC));
+    ok(lg.notice() === PAUSED && !lg.$('notice').classList.contains('system'),
+      'paused, the notice line says paused, and is no notice', `read "${lg.notice()}"`);
+    lg.bridge.emit(C.PUSH_STATE, live(false, REC));
+    ok(lg.notice() === null, 'resumed, it says nothing again', `read "${lg.notice()}"`);
     // Paused, nothing is read, so a notice about the reading is out of date:
     // the paused line says what is true. A notice that is not about the
     // reading (the licence ending) still takes the line.
-    rv.bridge.emit(C.PUSH_STATE, live(false, DOWN));
-    ok(rv.notice() === DOWN.text && rv.$('notice').classList.contains('system'), 'recording, a notice of something wrong is shown, as a notice');
-    rv.bridge.emit(C.PUSH_STATE, live(true, DOWN));
-    ok(rv.notice() === PAUSED, 'paused, a read that failed before the pause no longer holds the line', `read "${rv.notice()}"`);
+    lg.bridge.emit(C.PUSH_STATE, live(false, DOWN));
+    ok(lg.notice() === DOWN.text && lg.$('notice').classList.contains('system'), 'recording, a notice of something wrong is shown, as a notice');
+    lg.bridge.emit(C.PUSH_STATE, live(true, DOWN));
+    ok(lg.notice() === PAUSED, 'paused, a read that failed before the pause no longer holds the line', `read "${lg.notice()}"`);
     const LICENCE = { text: 'Your subscription has ended. Renew in Settings to start coaching.', at: 3 };
-    rv.bridge.emit(C.PUSH_STATE, live(true, LICENCE));
-    ok(rv.notice() === LICENCE.text && rv.$('notice').classList.contains('system'), 'while a notice that is not about the reading still is, paused or not');
+    lg.bridge.emit(C.PUSH_STATE, live(true, LICENCE));
+    ok(lg.notice() === LICENCE.text && lg.$('notice').classList.contains('system'), 'while a notice that is not about the reading still is, paused or not');
     // Capture blocked: shown whole in its title however long, and paused,
     // the paused line over it.
     const BLOCKED = { text: 'Windows blocked screen capture. Add Occlara to your antivirus exclusions (Windows Security, Virus and threat protection, Exclusions), then start again.', at: 4, kind: 'capture' };
@@ -594,9 +594,9 @@ async function openShell(cfg, state, opts) {
     p.bridge.emit(C.PUSH_STATE, { ...BASE, status: 'stopped' });
     ok(same(p.sfx, ['start', 'start', 'stop']), 'stopping from a pause is still the end, once', p.sfx.join(','));
 
-    // Rivals and League start through a state push alone.
-    p.bridge.emit(C.PUSH_STATE, { ...BASE, gameId: 'rivals', isCoaching: true });
-    ok(same(p.sfx.slice(3), ['start']), 'a Rivals start, carried by state alone, still sounds', p.sfx.join(','));
+    // League starts through a state push alone.
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, gameId: 'lol', isCoaching: true });
+    ok(same(p.sfx.slice(3), ['start']), 'a League start, carried by state alone, still sounds', p.sfx.join(','));
     p.bridge.emit(C.PUSH_STATUS, { status: 'stopped' });
     ok(same(p.sfx.slice(3), ['start', 'stop']), 'and its stop', p.sfx.join(','));
 
@@ -610,29 +610,26 @@ async function openShell(cfg, state, opts) {
   });
 
   await section('the agent bubble asks only a Valorant session:', async () => {
-    const r = await openShell({ language: 'en' }, { gameId: 'rivals' });
-    r.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
-    ok(r.$('agent-bubble').hidden, 'a Rivals start never opens "Reading your agent", which nothing would answer');
     const l = await openShell({ language: 'en' }, { gameId: 'lol' });
     l.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
-    ok(l.$('agent-bubble').hidden, 'nor a League one');
+    ok(l.$('agent-bubble').hidden, 'a League start never opens "Reading your agent", which nothing would answer');
     const v = await openShell({ language: 'en' }, { gameId: 'valorant' });
     v.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
     ok(!v.$('agent-bubble').hidden && !v.$('ab-detect').hidden, 'a Valorant start still asks for the agent');
   });
 
   // THE GAMES' OWN LOGOS (8.2.1), the player's decision of 2026-10-10 after
-  // reading Riot's policy and Marvel's terms: they replaced the marks Occlara
-  // drew. Each is drawn inline in currentColor, so the picker's colours hold,
-  // and each is held to its source file in assets/games.
+  // reading Riot's policy: they replaced the marks Occlara drew. Each is drawn
+  // inline in currentColor, so the picker's colours hold, and each is held to
+  // its source file in assets/games. Two games, Valorant and League.
   await section('the game picker shows each game\'s own logo, named in full:', async () => {
-    const NAMES = ['Valorant', 'Marvel Rivals', 'League of Legends'];
-    const p = await openShell({ language: 'en' }, { gameId: 'rivals' });
+    const NAMES = ['Valorant', 'League of Legends'];
+    const p = await openShell({ language: 'en' }, { gameId: 'lol' });
     const buttons = () => p.$('gamepick').querySelectorAll('button');
-    ok(!p.$('gamepick').hidden && buttons().length === 3, 'three buttons, one per game', `${buttons().length} buttons`);
+    ok(!p.$('gamepick').hidden && buttons().length === 2, 'two buttons, one per game', `${buttons().length} buttons`);
     ok(same(buttons().map((b) => b.getAttribute('aria-label')), NAMES) && buttons().every((b) => b.title === b.getAttribute('aria-label')),
       'each named in full, as its accessible name and its tooltip', buttons().map((b) => `${b.getAttribute('aria-label')}/${b.title}`).join(', '));
-    ok(same(buttons().map((b) => b.getAttribute('aria-pressed')), ['false', 'true', 'false']), 'the game in use, and only it, is pressed');
+    ok(same(buttons().map((b) => b.getAttribute('aria-pressed')), ['false', 'true']), 'the game in use, and only it, is pressed');
     ok(buttons().every((b) => b.querySelectorAll('svg').length === 1 && !b.textContent.trim()), 'each is a logo with no text in it');
     ok(p.scripts.some((x) => /game-logos\.js$/.test(x)) && !p.scripts.some((x) => /game-marks\.js$/.test(x)),
       'drawn by shared/game-logos.js, the marks Occlara drew gone');
@@ -642,8 +639,11 @@ async function openShell(cfg, state, opts) {
       'recording, every logo is locked with the tooltip saying why, and keeps its name');
 
     const logos = require('../src/renderer/shared/game-logos');
-    ok(same(logos.ids(), ['valorant', 'rivals', 'lol']) && logos.svg('nope') === '' && logos.path('nope') === null,
-      'a logo for each game, none for anything else');
+    ok(same(logos.ids(), ['valorant', 'lol']) && logos.svg('nope') === '' && logos.path('nope') === null
+      && logos.svg('rivals') === '' && logos.path('rivals') === null,
+      'a logo for each game, none for anything else, Marvel Rivals included');
+    ok(same(fs.readdirSync(path.join(ROOT, 'assets', 'games')).sort(), ['lol.svg', 'valorant.svg']),
+      'and assets/games holds those two sources alone', fs.readdirSync(path.join(ROOT, 'assets', 'games')).join(', '));
     /** Every point a path's commands end on, in absolute units: the box it draws in. */
     const pathPoints = (d) => {
       const toks = String(d).match(/[a-zA-Z]|-?(?:\d*\.\d+|\d+)(?:e-?\d+)?/g) || [];
@@ -683,16 +683,12 @@ async function openShell(cfg, state, opts) {
     }
     ok(/<path[^>]*\sd="([^"]+)"/.test('<path fill="currentColor" d="M0 0Z"/>') && /<text|#[0-9a-f]{3}|rgb/i.test('<text>V</text>')
       && /<text|#[0-9a-f]{3}|rgb/i.test('fill="#FF4655"'), 'the path and no colour detectors match what they look for');
-    // The Rivals emblem has no published vector and was traced; it is point
-    // symmetric, as the emblem is: every point has its twin across the centre.
-    const riv = pathPoints(logos.path('rivals'));
-    const lonely = riv.filter(([px, py]) => !riv.some(([qx, qy]) => Math.abs(qx - (24 - px)) < 0.005 && Math.abs(qy - (24 - py)) < 0.005));
-    ok(riv.length === 20 && !lonely.length, 'the traced Rivals emblem is point symmetric about its centre', `${riv.length} points, ${JSON.stringify(lonely)}`);
-    // The emblem is half as tall as it is wide, and is drawn a size up.
+    // Both logos are the icon size, on the tokens, and none is sized apart:
+    // the rule that drew the Marvel Rivals emblem a size up went with it.
     const css = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8');
     ok(/\.game-seg button \.game-logo \{ width: var\(--icon-md\); height: var\(--icon-md\);/.test(css)
-      && /\.game-logo\[data-game="rivals"\] \{\s*width: calc\(var\(--icon-md\) \+ var\(--space-1\)\)/.test(css)
-      && /data-game="rivals"/.test(logos.svg('rivals')), 'the logos are the icon size, the Rivals emblem a size up, on the tokens');
+      && !/\.game-logo\[data-game=/.test(css) && logos.ids().every((id) => logos.svg(id).includes(`data-game="${id}"`)),
+    'the logos are the icon size, on the tokens, with no logo sized apart', (css.match(/\.game-logo\[[^\n]*/) || [''])[0]);
 
     // THE PICKED GAME'S LOGO STAYS ON ITS GROUND UNDER THE POINTER. A logo is
     // drawn in currentColor, and the hover rule outranked the pressed one, so
@@ -820,16 +816,12 @@ async function openShell(cfg, state, opts) {
     const val = (map, line) => entry('valorant', { kind: 'valorant', rounds: [], insights: {}, grade: graded,
       game: { map, agent: 'Jett', mode: 'Competitive', result: 'Victory', score: '13-11' },
       scoreline: { acs: 250, adr: 160, headshotPct: 22, ...line } });
-    const riv = (map, line) => entry('rivals', { kind: 'rivals', empty: false, insights: {}, grade: graded,
-      game: { hero: 'Luna Snow', role: 'Strategist', map, mode: 'Competitive', result: 'VICTORY' },
-      scoreline: { damage: 8000, healing: 15000, blocked: 0, accuracy: 40, ...line } });
     const saved = {
       // Abyss: 31/21/4 and 20/15/7, an average 26/18/6 at K/D 1.42. Lotus:
       // one line of the two has no assists. Haven: 15/10/3. Bind: no assists.
       valorant: [val('Abyss', { kills: 31, deaths: 21, assists: 4 }), val('Abyss', { kills: 20, deaths: 15, assists: 7 }),
         val('Lotus', { kills: 31, deaths: 21, assists: 4 }), val('Lotus', { kills: 20, deaths: 15 }),
         val('Haven', { kills: 15, deaths: 10, assists: 3 }), val('Bind', { kills: 10, deaths: 12 })],
-      rivals: [riv('Tokyo 2099', { kills: 10, deaths: 5, assists: 20 }), riv('Tokyo 2099', { kills: 6, deaths: 7, assists: 18 })],
       lol: [entry('lol', { game: { champion: 'Ahri', role: 'Middle', durationSec: 1800, mode: 'CLASSIC' }, grade: graded,
         scoreline: { kills: 8, deaths: 2, assists: 6, cs: 240, ward: 18 }, insights: {} })],
     };
@@ -904,16 +896,6 @@ async function openShell(cfg, state, opts) {
 
     m.document.querySelectorAll('#b-dims button').find((b) => b.textContent === 'By agent').click();
     ok(heads().includes('K/D/A') && kdaCell('Jett'), 'the agent cut has the column too', heads().join(','));
-
-    m.bridge.emit(C.PUSH_GAME, { id: 'rivals' });
-    await settle();
-    ok(heads().includes('K/D/A') && kdaCell('Tokyo 2099') && kdaCell('Tokyo 2099').textContent === '8/6/19',
-      'Marvel Rivals by map reads 10/5/20 and 6/7/18 as 8/6/19', heads().join(','));
-    m.document.querySelectorAll('#b-dims button').find((b) => b.textContent === 'By hero').click();
-    ok(heads().includes('K/D/A') && kdaCell('Luna Snow') && kdaCell('Luna Snow').title === 'K/D 1.33 over 2 matches',
-      'and by hero', heads().join(','));
-    const averages = lineOf('Luna Snow', 'Averages');
-    ok(averages.startsWith('K/D/A 8/6/19') && averages.includes('K/D 1.33'), 'its Averages line carries it', `read "${averages}"`);
 
     // League's KDA is its own ratio, (kills plus assists) over deaths.
     m.bridge.emit(C.PUSH_GAME, { id: 'lol' });
@@ -1034,7 +1016,6 @@ async function openShell(cfg, state, opts) {
     const at = Date.UTC(2026, 9, 1, 20);
     const results = {
       valorant: ['Victory', 'Defeat', 'Victory', 'Draw', null, 'Victory', 'Defeat'],
-      rivals: ['VICTORY', 'defeat', 'victory'],
       lol: [null, null],
     };
     const rowsFor = (g) => (results[g] || []).map((result, i) => ({ id: `${g}-${i}`, at: at - i * 3600000, title: 'Jett',
@@ -1075,11 +1056,13 @@ async function openShell(cfg, state, opts) {
     await settle();
     r = read();
     ok(r.w === '4' && r.l === '2' && r.sr === '4 wins, 2 losses', 'a review saved while it is open repaints it', JSON.stringify(r));
-    m.bridge.emit(C.PUSH_GAME, { id: 'rivals' });
+    // A result is counted in whatever case it was saved in, as its row is painted.
+    results.valorant = ['VICTORY', 'defeat', 'victory'];
+    m.bridge.emit(C.PUSH_REVIEWS, { id: 'valorant-case', game: 'valorant' });
     await settle();
     r = read();
-    ok(r.shown && r.w === '2' && r.l === '1' && r.title === '2 wins, 1 loss.',
-      'Marvel Rivals counts its own matches, read off the screen in any case', JSON.stringify(r));
+    ok(r.shown && r.w === '2' && r.l === '1' && r.title === '2 wins, 1 loss.' && painted('win') === 2 && painted('loss') === 1,
+      'a result is counted in whatever case it was saved in, as its row is painted', JSON.stringify(r));
     m.bridge.emit(C.PUSH_GAME, { id: 'lol' });
     await settle();
     ok(wl.hidden && m.document.querySelectorAll('#list .m-row').length === 2,
@@ -1139,7 +1122,7 @@ async function openShell(cfg, state, opts) {
         { id: `valorant-${at - 3600000}-gone01`, at: at - 3600000, game: 'valorant', title: 'Jett', source: 'watched', aiLog: 'gone', grade: { score: 70, letter: 'B' } },
         { id: `valorant-${at - 7200000}-riot01`, at: at - 7200000, game: 'valorant', title: 'Sova', source: 'riot', aiLog: null, grade: { score: 75, letter: 'B' } },
       ],
-      rivals: [{ id: `rivals-${at}-riv001`, at, game: 'rivals', title: 'Luna Snow', aiLog: null, grade: { score: 72, letter: 'B' } }],
+      lol: [{ id: `lol-${at}-lol001`, at, game: 'lol', title: 'Ahri', aiLog: null, grade: { score: 72, letter: 'B' } }],
     };
     const m = loadSurface('matches', {
       handlers: {
@@ -1185,10 +1168,10 @@ async function openShell(cfg, state, opts) {
       'the row itself still opens the review, and only the review');
     ok(typeof m.bridge.api.openAiLog === 'function' && typeof m.bridge.api.askAbout === 'undefined',
       'the library\'s bridge opens the AI log and no longer asks about a match');
-    m.bridge.emit(C.PUSH_GAME, { id: 'rivals' });
+    m.bridge.emit(C.PUSH_GAME, { id: 'lol' });
     await settle();
     ok(items().length === 1 && !eyeOf(items()[0]) && !gapOf(items()[0]),
-      'Marvel Rivals writes no AI log, so its rows have no eye, nor room kept for one');
+      'League writes no AI log, so its rows have no eye, nor room kept for one');
     ok(!DASHES.test(LogEye.NAME + LogEye.GONE), 'with no dash in its name or its tooltip');
   });
 
@@ -1220,11 +1203,12 @@ async function openShell(cfg, state, opts) {
     ok(riot.$('eye-host').hidden && !eyeIn(riot) && !riot.$('ask').hidden,
       'a review graded from Riot\'s record alone has no eye, and still has Ask');
     // The page is kept between reviews, so the eye follows whichever is painted.
-    v.bridge.emit(C.PUSH_RIVALS_REVIEW, { id: 'rivals-1759348800000-riv001', kind: 'rivals', aiLog: null,
-      game: { hero: 'Luna Snow', role: 'Strategist', map: 'Tokyo 2099', mode: 'Competitive', result: 'victory' },
-      scoreline: { kills: 10, deaths: 5, assists: 20, damage: 8000, healing: 15000, blocked: 0, accuracy: 40 } });
+    v.bridge.emit(C.PUSH_LOL_REVIEW, { id: 'lol-1759348800000-lol001', kind: 'lol', aiLog: null,
+      game: { champion: 'Ahri', role: 'Middle', mode: 'CLASSIC', duration: '31:04' },
+      scoreline: { kills: 10, deaths: 5, assists: 20, cs: 210, csAt10: 70, ward: 14 },
+      deaths: { headline: '', detail: '' }, deathList: [], moments: [], objectives: {}, scored: [], unmeasured: [], next: null, gamesRecorded: 0 });
     await settle();
-    ok(v.$('eye-host').hidden && !eyeIn(v), 'a Marvel Rivals review painted after it takes the eye away');
+    ok(v.$('eye-host').hidden && !eyeIn(v), 'a League review painted after it takes the eye away');
     v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...base, aiLog: 'kept' });
     await settle();
     ok(!v.$('eye-host').hidden && eyeIn(v) && !eyeIn(v).disabled, 'and the next recorded one brings it back');
@@ -1979,8 +1963,8 @@ async function openShell(cfg, state, opts) {
       'no rated game: no rank card, and with no focus either the column goes and the last match takes the row');
     const error = await openHome({ history: () => ({ error: 'no-riot-id' }) });
     ok(error.$('rank').hidden && error.document.querySelectorAll('#recent-list .r-rr').every((s) => s.hidden), 'a history that did not answer: none');
-    const rivals = await openHome({ game: 'rivals' });
-    ok(rivals.$('rank').hidden && !asked(rivals), 'Marvel Rivals: no rank card, and nothing asked');
+    const league = await openHome({ game: 'lol' });
+    ok(league.$('rank').hidden && !asked(league), 'League of Legends: no rank card, and nothing asked');
     const emptyLib = await openHome({ rows: [] });
     ok(emptyLib.$('content').hidden && !emptyLib.$('empty').hidden && !asked(emptyLib),
       'no match in the library yet: Home asks for no rank it would not show');
@@ -1989,10 +1973,10 @@ async function openShell(cfg, state, opts) {
     // the new arrival, which a card still shown as it began would.
     const h = await openHome();
     ok(!h.$('rank').hidden && h.$('rank').style.getPropertyValue('--i') === '0', 'the setup: the rank rose in by itself, after the others');
-    h.bridge.emit(C.PUSH_GAME, { id: 'rivals', label: 'Marvel Rivals' });
+    h.bridge.emit(C.PUSH_GAME, { id: 'lol', label: 'League of Legends' });
     await settle();
     ok(h.$('rank').hidden && h.document.querySelectorAll('#recent-list .r-rr').every((s) => s.hidden) && h.$('rank').style.getPropertyValue('--i') === '0',
-      'switched to Marvel Rivals, the rank and the RR are gone before the cards arrive, and the rank takes no place among them',
+      'switched to League of Legends, the rank and the RR are gone before the cards arrive, and the rank takes no place among them',
       `--i ${h.$('rank').style.getPropertyValue('--i')}`);
     // A Riot ID taken out in Settings takes its rank with it; a state push
     // that does not change the Riot ID repaints nothing.
@@ -2025,18 +2009,18 @@ async function openShell(cfg, state, opts) {
     ok(h.bridge.listening(C.PUSH_GAME) === 1 && h.bridge.listening(C.PUSH_REVIEWS) === 1 && h.bridge.listening(C.PUSH_STATE) === 1,
       'and Home already listening for a change of game, a review saved and the Riot ID',
       `game ${h.bridge.listening(C.PUSH_GAME)}, reviews ${h.bridge.listening(C.PUSH_REVIEWS)}, state ${h.bridge.listening(C.PUSH_STATE)}`);
-    h.bridge.emit(C.PUSH_GAME, { id: 'rivals', label: 'Marvel Rivals' });
+    h.bridge.emit(C.PUSH_GAME, { id: 'lol', label: 'League of Legends' });
     await settle();
-    ok(named(h) === 'Marvel Rivals' && listed(h, 'rivals') === 1 && noRank(h),
-      'Marvel Rivals picked meanwhile: Home follows, its name, its library, and no rank', `named "${named(h)}", asked for rivals ${listed(h, 'rivals')} times`);
+    ok(named(h) === 'League of Legends' && listed(h, 'lol') === 1 && noRank(h),
+      'League of Legends picked meanwhile: Home follows, its name, its library, and no rank', `named "${named(h)}", asked for League ${listed(h, 'lol')} times`);
     const valorantReads = listed(h, 'valorant');
     first(HOME_HISTORY);
     await settle();
-    ok(noRank(h) && named(h) === 'Marvel Rivals', 'and the Valorant rank answer landing after it paints nothing there');
-    h.bridge.emit(C.PUSH_REVIEWS, { id: 'rivals-1759348800000-abcd', game: 'rivals' });
+    ok(noRank(h) && named(h) === 'League of Legends', 'and the Valorant rank answer landing after it paints nothing there');
+    h.bridge.emit(C.PUSH_REVIEWS, { id: 'lol-1759348800000-abcd', game: 'lol' });
     await settle();
-    ok(listed(h, 'rivals') === 2 && listed(h, 'valorant') === valorantReads && named(h) === 'Marvel Rivals',
-      'a review saved after it paints Marvel Rivals again, never Valorant', `rivals ${listed(h, 'rivals')}, valorant ${listed(h, 'valorant') - valorantReads} more`);
+    ok(listed(h, 'lol') === 2 && listed(h, 'valorant') === valorantReads && named(h) === 'League of Legends',
+      'a review saved after it paints League of Legends again, never Valorant', `League ${listed(h, 'lol')}, valorant ${listed(h, 'valorant') - valorantReads} more`);
 
     // A rank answer held across the change, asked for by a repaint (a review
     // saved) rather than the first paint, paints nothing on the other game.
@@ -2047,27 +2031,27 @@ async function openShell(cfg, state, opts) {
     s.bridge.emit(C.PUSH_REVIEWS, { id: HOME_ROWS[0].id, game: 'valorant' });
     await settle();
     ok(calls === 2 && typeof late === 'function', 'a review saved asks for the rank again, and that answer is held');
-    s.bridge.emit(C.PUSH_GAME, { id: 'rivals', label: 'Marvel Rivals' });
+    s.bridge.emit(C.PUSH_GAME, { id: 'lol', label: 'League of Legends' });
     await settle();
-    ok(noRank(s) && named(s) === 'Marvel Rivals', 'switched to Marvel Rivals: no rank');
+    ok(noRank(s) && named(s) === 'League of Legends', 'switched to League of Legends: no rank');
     if (late) late(HOME_HISTORY);
     await settle();
-    ok(noRank(s) && named(s) === 'Marvel Rivals', 'and the Valorant answer released after it stays off Marvel Rivals\' Home: no rank card, no RR');
+    ok(noRank(s) && named(s) === 'League of Legends', 'and the Valorant answer released after it stays off League of Legends\' Home: no rank card, no RR');
 
-    // The library read for Valorant held until Marvel Rivals' is painted:
+    // The library read for Valorant held until League of Legends' is painted:
     // landing after it, it paints nothing, or Valorant's matches would stand
-    // under Marvel Rivals' name.
+    // under League of Legends' name.
     let release = null;
-    const p = await openHome({ list: (g) => (g === 'rivals' ? []
+    const p = await openHome({ list: (g) => (g === 'lol' ? []
       : release ? HOME_ROWS : new Promise((r) => { release = () => r(HOME_ROWS); })) });
     ok(typeof release === 'function' && p.$('content').hidden, 'the setup: Valorant\'s library read is still out');
-    p.bridge.emit(C.PUSH_GAME, { id: 'rivals', label: 'Marvel Rivals' });
+    p.bridge.emit(C.PUSH_GAME, { id: 'lol', label: 'League of Legends' });
     await settle();
-    ok(named(p) === 'Marvel Rivals' && !p.$('empty').hidden && p.$('content').hidden, 'Marvel Rivals, with nothing in its library, is painted meanwhile');
+    ok(named(p) === 'League of Legends' && !p.$('empty').hidden && p.$('content').hidden, 'League of Legends, with nothing in its library, is painted meanwhile');
     if (release) release();
     await settle();
-    ok(named(p) === 'Marvel Rivals' && !p.$('empty').hidden && p.$('content').hidden && !p.document.querySelector('#recent-list .r-row'),
-      'and the Valorant read landing after it paints nothing: no Valorant match under Marvel Rivals\' name');
+    ok(named(p) === 'League of Legends' && !p.$('empty').hidden && p.$('content').hidden && !p.document.querySelector('#recent-list .r-row'),
+      'and the Valorant read landing after it paints nothing: no Valorant match under League of Legends\' name');
     // The first paint overtaken by a review saved meanwhile: the cards it was
     // to bring in arrive with the paint that lands instead.
     let hold = null;
@@ -2171,18 +2155,19 @@ async function openShell(cfg, state, opts) {
     });
     await settle();
     const games = se.bridge.api.games.list(false);
-    ok(['rivals', 'lol'].every((id) => (games.find((g) => g.id === id) || {}).coaching === true),
-      'the bridge calls Rivals and League coachable, as Start does');
+    ok(same(games.map((g) => g.id), ['valorant', 'lol']) && (games.find((g) => g.id === 'lol') || {}).coaching === true,
+      'the bridge lists Valorant and League alone, and calls League coachable, as Start does', games.map((g) => g.id).join(','));
+    ok(same(se.bridge.api.games.list(true).map((g) => g.id), ['valorant', 'lol']), 'and so it does with devGames on');
     se.document.querySelector('#gamepick .dd-btn').click();   // open the real dropdown
     const row = (id) => se.document.querySelector(`.dd-opt[data-value="${id}"]`);
-    for (const id of ['rivals', 'lol']) {
-      const r = row(id);
-      const note = r ? r.title : '';
-      ok(r && /graded after every/i.test(note) && !/not built|look and layout/i.test(note) && !DASHES.test(note),
-        `${id}: the tooltip says how it is graded, never that coaching is not built`, `read "${note}"`);
-      const tag = r && r.querySelector('.dd-opt-tag');
-      ok(tag && tag.textContent === 'preview', `${id}: still labelled preview, the registry's own flag`);
-    }
+    ok(same(se.document.querySelectorAll('.dd-opt').map((o) => o.getAttribute('data-value')), ['valorant', 'lol']) && !row('rivals'),
+      'the dropdown offers Valorant and League of Legends, and no Marvel Rivals');
+    const r = row('lol');
+    const note = r ? r.title : '';
+    ok(r && /graded after every/i.test(note) && !/not built|look and layout/i.test(note) && !DASHES.test(note),
+      'lol: the tooltip says how it is graded, never that coaching is not built', `read "${note}"`);
+    const tag = r && r.querySelector('.dd-opt-tag');
+    ok(tag && tag.textContent === 'preview', 'lol: still labelled preview, the registry\'s own flag');
     const v = row('valorant');
     ok(v && !v.title && !v.querySelector('.dd-opt-tag'), 'Valorant carries no label');
   });
@@ -2271,9 +2256,7 @@ async function openShell(cfg, state, opts) {
 
     // WHAT ON AND OFF DO, per game. Valorant is recorded while its screen is
     // read; League while its own record is, and Settings never says League's
-    // screen is read; Rivals is not recorded at all yet (its session never
-    // starts the recorder), and its status line is not shown, since "your
-    // last session" there would be another game's.
+    // screen is read.
     const hint = (se) => se.$('rec-hint').textContent;
     const val = hint(plain);
     ok(val === 'On records each match on this PC at about 30 frames a second while the coach reads your screen; if your PC cannot keep up while you play, '
@@ -2297,33 +2280,24 @@ async function openShell(cfg, state, opts) {
     const valRead = readHints(plain);
     const lolRead = readHints(lol);
     ok(lolRead.every((t) => /^In League of Legends this does nothing: its review is built from the game's own record\./.test(t) && !/screen/i.test(t) && !DASHES.test(t))
-      && /It sets how often a Valorant match is read\.$/.test(lolRead[0]) && /It is for Valorant and Marvel Rivals\.$/.test(lolRead[1])
+      && /It sets how often a Valorant match is read\.$/.test(lolRead[0]) && /It is for Valorant\.$/.test(lolRead[1])
       // In a live round: the rest is read less often (read-cadence.js, 8.3.2).
       && /^How often Occlara reads your screen in a live round\. Menus, buy phases and the time spent dead are read less often\./.test(valRead[0])
       && /^Screenshots are read at 720p/.test(valRead[1]),
     'League: Capture speed and Performance say they do nothing there, never that its screen is read, and Capture speed that it is Valorant\'s; Valorant keeps what they do', lolRead.join(' | '));
-    const riv = await open({ game: 'rivals', recordingMode: 'auto', recordingLast: { outcome: 'busy', at: 1 } });
-    ok(/^Marvel Rivals matches are not recorded yet/.test(hint(riv)) && /Valorant and League of Legends/.test(hint(riv)),
-      'Rivals: its matches are not recorded yet, and On and Off are the other games\'', hint(riv));
-    ok(riv.$('rec-note').hidden && riv.$('rec-retry').hidden, 'with no status line: "your last session" there would be another game\'s');
-    riv.bridge.emit(C.PUSH_STATE, { gameId: 'rivals', recording: { mode: 'off', res: '720', autoOff, last: null } });
-    ok(riv.$('rec-note').hidden && riv.$('rec-retry').hidden, 'nor once a push says recording turned itself off');
-    riv.bridge.emit(C.PUSH_STATE, { gameId: 'valorant', recording: { mode: 'auto', res: '720', autoOff: null, last: { outcome: 'busy', at: 1 } } });
-    ok(hint(riv) === val && !riv.$('rec-note').hidden && /your PC was busy/.test(riv.$('rec-note').textContent),
-      'the game switched to Valorant while the page is open: its hint, and its status line back');
-    riv.bridge.emit(C.PUSH_STATE, { gameId: 'lol', recording: { mode: 'auto', res: '720', autoOff: null, last: null } });
-    ok(hint(riv) === lolHint, 'and to League, League\'s');
-    ok(readHints(riv).every((t) => /^In League of Legends this does nothing/.test(t)), 'and its Capture speed and Performance say so too', readHints(riv).join(' | '));
-    riv.bridge.emit(C.PUSH_STATE, { gameId: 'rivals', recording: { mode: 'auto', res: '720', autoOff: null, last: null } });
-    // Capture speed is the Valorant engine's alone: Rivals looks on its own
-    // timer (rivals-engine.js PROBE_MS). Performance sizes every Rivals frame.
-    const rivRead = readHints(riv);
-    const probe = /const PROBE_MS = (\d+);/.exec(fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'services', 'rivals-engine.js'), 'utf8'));
-    ok(probe && rivRead[0].includes(`on its own, every ${Number(probe[1]) / 1000} seconds.`)
-      && /^In Marvel Rivals this does nothing: the coach looks for hero select and the end of match scoreboard on its own/.test(rivRead[0])
-      && /It sets how often a Valorant match is read\.$/.test(rivRead[0]) && rivRead[1] === valRead[1] && !DASHES.test(rivRead[0]),
-    'and back to Rivals: Capture speed says it does nothing there, the engine looking on its own timer, and Performance what it does', rivRead.join(' | '));
-    ok([val, lolHint, hint(await open({ game: 'rivals' }))].every((t) => t && !DASHES.test(t)), 'with no dash in any of them');
+    // The game switched while the page is open: each game's words, and the
+    // status line, which is about the recorder, in both.
+    const sw = await open({ game: 'valorant', recordingMode: 'auto', recordingLast: { outcome: 'busy', at: 1 } });
+    ok(hint(sw) === val && !sw.$('rec-note').hidden && /your PC was busy/.test(sw.$('rec-note').textContent),
+      'Valorant: its hint, and its status line', sw.$('rec-note').textContent);
+    sw.bridge.emit(C.PUSH_STATE, { gameId: 'lol', recording: { mode: 'auto', res: '720', autoOff: null, last: null } });
+    ok(hint(sw) === lolHint, 'the game switched to League while the page is open: League\'s');
+    ok(readHints(sw).every((t) => /^In League of Legends this does nothing/.test(t)), 'and its Capture speed and Performance say so too', readHints(sw).join(' | '));
+    sw.bridge.emit(C.PUSH_STATE, { gameId: 'valorant', recording: { mode: 'auto', res: '720', autoOff: null, last: { outcome: 'busy', at: 1 } } });
+    ok(hint(sw) === val && !sw.$('rec-note').hidden && /your PC was busy/.test(sw.$('rec-note').textContent) && same(readHints(sw), valRead),
+      'and back to Valorant: its hint, its status line back, and what Capture speed and Performance do', readHints(sw).join(' | '));
+    ok([val, lolHint, ...valRead, ...lolRead].every((t) => t && !DASHES.test(t) && !/Rivals|Marvel/.test(t)),
+      'with no dash in any of them, and none naming a game Occlara no longer coaches');
     // The page's own words before main has answered anything (the
     // screenshot tool runs it with no bridge to answer at all).
     const never = () => new Promise(() => {});
@@ -2359,7 +2333,7 @@ async function openShell(cfg, state, opts) {
     se.bridge.emit(C.PUSH_STATE, { isCoaching: true, cadence: null });
     const idxSrc = fs.readFileSync(path.join(ROOT, 'src', 'main', 'index.js'), 'utf8');
     ok(se.$('cadence-now').hidden && /revalidateNow\(\);\s*return;\s*\}\s*(?:\/\/[^\n]*\n\s*)*state\.cadence = null;/.test(idxSrc),
-      'and a session starts with no gap until its engine says one, so a Rivals or League one after Valorant shows none');
+      'and a session starts with no gap until its engine says one, so a League one after Valorant shows none');
   });
 
   // ONE STATUS LINE AND THE CLIPS (8.3): recording now, at what size and about
@@ -2625,10 +2599,9 @@ async function openShell(cfg, state, opts) {
     ok(l.$('r-deaths').classList.contains('v-rounds') && same(ld(1).children.map((c) => c.className.split(' ')[0]), ['v-round-head', 'v-moment'])
       && ld(3).classList.contains('quiet') && ld(3).children.length === 1 && ld(3).querySelector('.v-round-head .v-look-what'),
     'drawn as a Valorant review draws its rounds: a death with its clip a row with the clip beside its fact, one with its fact alone a line');
-    ok(l.$('r-meta').textContent === 'Middle  ·  CLASSIC  ·  31:04', 'and its line about the game is in middots, as the Valorant and Rivals ones are',
+    ok(l.$('r-meta').textContent === 'Middle  ·  CLASSIC  ·  31:04', 'and its line about the game is in middots, as the Valorant one is',
       l.$('r-meta').textContent);
-    // Rivals has five numbers to League's four, and in four columns its
-    // accuracy sat alone on a second row.
+    // In fixed columns a number past the last sat alone on a second row.
     const scoreRule = (rcss.match(/(?:^|\n)\.scoreline \{([^}]*)\}/) || [])[1] || '';
     ok(/grid-template-columns: repeat\(auto-fit, minmax\(110px, 1fr\)\);/.test(scoreRule),
       'and the scores are one row however many a game has', scoreRule.trim());
@@ -2641,14 +2614,17 @@ async function openShell(cfg, state, opts) {
     ok(!ld(3).querySelector('video') && !ld(3).querySelector('.v-clip-gone') && ld(3).querySelector('.v-look-what'), 'one never recorded has its fact alone');
     ld(1).querySelector('.v-clip-play').click();
     ok(lv.paused === false, 'and its clip plays on a click');
-    l.bridge.emit(C.PUSH_RIVALS_REVIEW, { id: 'rivals-1759341600000-riv001', kind: 'rivals', game: { hero: 'Luna Snow', role: 'Strategist' },
-      scoreline: { kills: 3, deaths: 2, assists: 9, damage: 9000, healing: 20000, blocked: 0, accuracy: 40 } });
+    // The page is kept between reviews: a Valorant review painted after it
+    // takes the window, and the League clip still playing goes with it.
+    l.bridge.emit(C.PUSH_VALORANT_REVIEW, { id: 'valorant-1759341600000-val001', kind: 'valorant', source: 'watched', rounds: [],
+      game: { map: 'Abyss', agent: 'Jett', result: 'Victory', score: '13-11' } });
     await settle();
-    ok(l.$('r-deaths-wrap').hidden && !l.document.querySelectorAll('#r-deaths .l-death').length && lv.paused === true && !lv.hasAttribute('src'),
-      'a Rivals review painted after it hides the list, and its playing clip is stopped and let go');
+    ok(l.$('review').hidden && !l.$('vreview').hidden && lv.paused === true && !lv.hasAttribute('src'),
+      'a Valorant review painted after it takes the window, and the playing clip is stopped and let go');
     l.bridge.emit(C.PUSH_LOL_REVIEW, { ...lol, deathList: [] });
     await settle();
-    ok(l.$('r-deaths-wrap').hidden, 'a League game with no death has no such list');
+    ok(!l.$('review').hidden && l.$('vreview').hidden && l.$('r-deaths-wrap').hidden && !l.document.querySelectorAll('#r-deaths .l-death').length,
+      'and a League game with no death after it takes the window back, with no such list');
   });
 
   await section('the AI log describes deaths, and only a tip era log counts reviews:', async () => {
@@ -2949,9 +2925,35 @@ async function openShell(cfg, state, opts) {
       'the dash detector matches both banned dashes and not a hyphen');
     const doc = new Document(fs.readFileSync(path.join(RENDERER, 'activation', 'index.html'), 'utf8'));
     const sub = (doc.querySelector('.logo .sub') || { textContent: '' }).textContent;
-    ok(/post-match/i.test(sub) && ['Valorant', 'Marvel Rivals', 'League of Legends'].every((g) => sub.includes(g)),
-      'it sells post-match coaching for all three games', `read "${sub}"`);
+    ok(/post-match/i.test(sub) && ['Valorant', 'League of Legends'].every((g) => sub.includes(g)) && !/Rivals|Marvel/.test(sub),
+      'it sells post-match coaching for both games, Valorant and League of Legends, and no other', `read "${sub}"`);
     ok(!REAL_TIME.test(sub) && !DASHES.test(sub), 'with no real time claim and no dash');
+  });
+
+  // TWO GAMES, VALORANT AND LEAGUE OF LEGENDS. Marvel Rivals is no longer
+  // coached, and no page, stylesheet or script under src/renderer names it,
+  // its publisher or its heroes any more: copy that comes back with a page
+  // would sell a game the app does not coach.
+  await section('no page names a game Occlara no longer coaches:', () => {
+    const RETIRED_WORDS = /rivals|marvel|netease|luna snow|strategist|vanguard/i;
+    const named = (line) => RETIRED_WORDS.test(line.replace(/arrivals?/gi, ''));
+    ok(named('Marvel Rivals') && named('data-game="rivals"') && named('a Strategist') && named('NetEase Games')
+      && !named('Valorant and League of Legends') && !named('the frames arrivals sorted'),
+    'the detector finds the game, its id, its publisher and its roles, and passes over the two games and "arrivals"');
+    const hits = [];
+    const walk = (dir) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        if (!/[.](html|js|css)$/.test(e.name)) continue;
+        fs.readFileSync(p, 'utf8').split('\n').forEach((line, i) => {
+          // "arrivals" carries the letters and is no game.
+          if (named(line)) hits.push(`${path.relative(ROOT, p)}:${i + 1}`);
+        });
+      }
+    };
+    walk(RENDERER);
+    ok(!hits.length, 'none of src/renderer names it', hits.slice(0, 8).join(', '));
   });
 
   // THE KEY IN THE SHAPE IT HAS (8.3.2). The box showed XXXX-XXXX-XXXX-XXXX,
@@ -3034,12 +3036,12 @@ async function openShell(cfg, state, opts) {
       'key.js\'s shape is the server\'s, and its placeholder the box\'s', `${rules.SHAPE.source} | ${SERVER_KEY && SERVER_KEY.source}`);
   });
 
-  // THE NOTICES THE GAMES' OWNERS ASK FOR (8.3.2), under the version line in
+  // THE NOTICE THE GAMES' OWNER ASKS FOR (8.3.2), under the version line in
   // Settings: Riot's in exactly its own words, which its policy asks for where
-  // players can readily see it, and NetEase's and Marvel's beside it.
-  await section('Settings, the games\' owners\' notices under the version:', async () => {
+  // players can readily see it. Both games are Riot's: the line for NetEase
+  // and Marvel went with Marvel Rivals.
+  await section('Settings, the games\' owner\'s notice under the version:', async () => {
     const RIOT = "Occlara isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.";
-    const NETEASE = 'Occlara is not affiliated with or endorsed by NetEase Games or Marvel.';
     const se = loadSurface('settings', {
       handlers: {
         [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', devGames: false }),
@@ -3049,16 +3051,16 @@ async function openShell(cfg, state, opts) {
     });
     await settle();
     const riot = se.$('legal-riot');
-    const netease = se.$('legal-netease');
     ok(!!riot && riot.textContent === RIOT, 'Riot\'s notice, word for word', riot ? riot.textContent : 'missing');
-    ok(!!netease && netease.textContent === NETEASE, 'and NetEase\'s and Marvel\'s', netease ? netease.textContent : 'missing');
+    ok(!se.$('legal-netease') && !/NetEase|Marvel/.test(se.document.querySelector('section.wip').textContent),
+      'and no line for NetEase or Marvel, whose game Occlara no longer coaches');
     const box = se.document.querySelector('section.wip');
     const lines = box ? box.querySelectorAll('.wip-line') : [];
     const iVer = lines.findIndex((l) => l.classList.contains('ver'));
-    ok(iVer !== -1 && lines[iVer + 1] === riot && lines[iVer + 2] === netease && lines.length === iVer + 3,
-      'under the version line, the last two lines of its box', lines.map((l) => l.className).join(' | '));
-    ok(se.$('version').textContent === 'Version 8.3.2', 'the version line above them still paints', se.$('version').textContent);
-    ok([riot, netease].every((el) => !!el && el.classList.contains('legal') && !el.hasAttribute('data-i18n') && !el.hidden),
+    ok(iVer !== -1 && lines[iVer + 1] === riot && lines.length === iVer + 2,
+      'under the version line, the last line of its box', lines.map((l) => l.className).join(' | '));
+    ok(se.$('version').textContent === 'Version 8.3.2', 'the version line above it still paints', se.$('version').textContent);
+    ok(!!riot && riot.classList.contains('legal') && !riot.hasAttribute('data-i18n') && !riot.hidden,
       'shown, and never translated: Riot asks for these words');
     const css = fs.readFileSync(path.join(RENDERER, 'settings', 'settings.css'), 'utf8');
     const rule = /\.wip-line\.legal\s*\{([^}]*)\}/.exec(css);
@@ -3066,7 +3068,7 @@ async function openShell(cfg, state, opts) {
     const px = (r) => { const m = r && /font-size:\s*([\d.]+)px/.exec(r[1]); return m ? Number(m[1]) : NaN; };
     ok(!!rule && /color:\s*var\(--text-mute\)/.test(rule[1]) && px(rule) <= px(lineRule),
       'in the theme\'s muted small type, no bigger than the lines above it', rule ? rule[1].trim() : 'no .wip-line.legal rule');
-    ok(!DASHES.test(RIOT + NETEASE), 'with no dash');
+    ok(!DASHES.test(RIOT), 'with no dash');
   });
 
   // MANAGE SUBSCRIPTION OPENS THE ACCOUNT PAGE (8.3.2). Settings and the
@@ -3217,7 +3219,7 @@ async function openShell(cfg, state, opts) {
     h.bridge.emit(C.PUSH_REVIEWS, { id: 'h0', game: 'valorant' });
     await settle();
     ok(!arrived().length, 'a review saved while it is open repaints it without the cards arriving again');
-    h.bridge.emit(C.PUSH_GAME, { id: 'rivals', label: 'Marvel Rivals' });
+    h.bridge.emit(C.PUSH_GAME, { id: 'lol', label: 'League of Legends' });
     await settle();
     ok(arrived().length >= 3, 'a change of game brings them in again');
 
@@ -3851,9 +3853,9 @@ async function openShell(cfg, state, opts) {
     ok(opened && closedOnly && doneSent() === 1, 'the language list takes its own Enter and Escape, turning no page and ending no tour; Escape with it closed ends the tour',
       `opened ${opened}, closed only ${closedOnly}, done sent ${doneSent()}`);
 
-    // THE WORDS ARE TRUE IN EVERY GAME. Valorant and League record, Marvel
-    // Rivals does not yet, and League's screen is never read: its review
-    // comes from the game's own record.
+    // THE WORDS ARE TRUE IN EVERY GAME. Valorant and League record, and
+    // League's screen is never read: its review comes from the game's own
+    // record.
     const copy = new Set();
     for (const t of tours) {
       for (const el of t.p.document.querySelectorAll('#ob-watch h1, #ob-watch .sub, #ob-pc-line, #ob-watch .ob-opt-title, #ob-watch .ob-opt-text, #ob-pc-facts dt, #ob-pc-facts dd')) {
@@ -3871,7 +3873,7 @@ async function openShell(cfg, state, opts) {
     ok(/Valorant and League are recorded at about 30 fps/.test(recCard) && /stays on this PC/.test(recCard),
       'Record gameplay: Valorant and League, about 30 fps, and the video stays on this PC', recCard);
     ok(/Nothing is recorded/.test(framesCard) && /no clips/.test(framesCard), 'Frames only: nothing is recorded, so no clips', framesCard);
-    ok(!words.some((w) => /Rivals/.test(w)), 'and nothing says Marvel Rivals is recorded');
+    ok(!words.some((w) => /Rivals|Marvel/.test(w)), 'and nothing names a game Occlara no longer coaches');
   });
 
   console.log(fails ? `\nFAIL: ${fails} problem(s)` : '\nPASS: every surface does the right thing with what arrives');

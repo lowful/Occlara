@@ -185,5 +185,20 @@ check('  an old client\'s report still counts as it always did, and as a tip era
   t.summary().sessions === 4 && t.summary().tipsShown === shownBefore + 4 && t.summary().recording.reports === 5,
   JSON.stringify({ sessions: t.summary().sessions, shown: t.summary().tipsShown, recordings: t.summary().recording.reports }));
 
+// ── A game Occlara no longer coaches ──────────────────────────────────────
+// Marvel Rivals was removed after 8.3.2. A block that names it is counted as
+// any game off the list is, under the word other, and nothing names it.
+console.log('\na block naming a game Occlara no longer coaches:');
+t.record({ version: '8.3.2', game: 'rivals', mode: 'auto', res: '720', outcome: 'recorded', minutes: 9, fpsP50: 30,
+  recorderCpuP50: 4, systemCpuP90: 50, encoderOk: true }, 'oldgame1');
+const gone = t.recordingRows().find((r) => r.user === 'oldgame1');
+check('  is kept with its game as the word other, every other field as sent',
+  gone && gone.game === 'other' && gone.version === '8.3.2' && gone.outcome === 'recorded' && gone.minutes === 9 && gone.fpsP50 === 30,
+  JSON.stringify(gone));
+const byGame = t.summary().recording.byGame;
+check('  and counted under other: the summary names no game but Valorant, League and other',
+  JSON.stringify(Object.keys(byGame).sort()) === JSON.stringify(['lol', 'other', 'valorant']) && byGame.other.reports === 3
+    && !/rivals/i.test(JSON.stringify(t.summary())), JSON.stringify(byGame));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -26,92 +26,39 @@ const GAMES = {
     palette: null,          // null means "the defaults already in theme.css"
     coaching: true,
     // How the game is read, which differs more than the palette does: Valorant
-    // is read every one to five seconds through the match, Marvel Rivals at its
-    // printed screens. Nothing is shown to the player during a match in any
-    // game: Riot's policy bans "go here now" and names the alternative in the
-    // same sentence, "coaching the player game over game". That is the product.
+    // is read every one to five seconds through the match. Nothing is shown to
+    // the player during a match in any game: Riot's policy bans "go here now"
+    // and names the alternative in the same sentence, "coaching the player
+    // game over game". That is the product.
     cadence: 'live',
-  },
-
-  rivals: {
-    id: 'rivals',
-    label: 'Marvel Rivals',
-    // No palette. Rivals used to repaint the whole app navy and gold; it now
-    // looks the same whichever game is being coached, so this is null exactly
-    // like Valorant's and the :root[data-game="rivals"] block in theme.css is
-    // gone. data-game is still set on <html>, so a palette could come back
-    // without touching anything but the stylesheet.
-    palette: null,
-    // Draft advice and post-match review, not a live tip stream. A 6v6 hero
-    // shooter is decided by the hero select screen and by knowing when to
-    // switch, and neither is a per-second decision.
-    // COACHING IS NOT ONE SWITCH, because the two halves are not equally ready.
-    //
-    // Measured against real capture frames: the post-match review reads a
-    // scoreboard essentially perfectly, every figure matching the screen. The
-    // draft read does not. It gets the teammate COUNT right and their ROLES
-    // wrong, which produced confident advice naming the wrong role on three of
-    // four frames, and a higher quality capture made it worse rather than
-    // better, so it is not a legibility problem.
-    //
-    // A single `coaching` boolean forces a choice between shipping the broken
-    // half and withholding the good one. So each feature carries its own flag,
-    // and the game counts as coachable when any of them is true.
-    features: {
-      review: true,         // proven against a real scoreboard
-      draft: false,         // roles read wrong, see test-rivals-draft
-      // READING THE DRAFT SCREEN AND SPEAKING ABOUT IT ARE SEPARATE, which is
-      // why this is not covered by the flag above. The draft TIP is arithmetic
-      // over teammate role icons and that arithmetic is wrong. The hero name is
-      // PRINTED IN LARGE TEXT on the same screen, and graded on a real frame the
-      // model read it exactly right on both attempts, the same day it scored 17
-      // to 42% naming heroes from scoreboard portraits. Text is not art.
-      //
-      // So the engine still asks the draft question, throws away the sentence,
-      // and keeps the one field it can trust. That field is what lets the
-      // ability gate exist: a coach that knows your hero can refuse to tell you
-      // to press a button you do not have.
-      heroCapture: true,
-      // No rank, win rate or match history. Every Marvel Rivals tracker derives
-      // its data by scraping or community submission, there is no official API,
-      // and the one MCP server claiming to be one resolves to a parked survey
-      // domain. Stated explicitly rather than left to hasFeature's
-      // false-by-absence, because the stats dashboard reads this to decide
-      // whether to show Valorant's numbers or an honest blank.
-      stats: false,
-    },
-    // Still labelled honestly in the picker, because only part of it works.
-    preview: true,
-    cadence: 'draft',
   },
 
   lol: {
     id: 'lol',
     label: 'League of Legends',
     palette: null,
-    // League INVERTS the Rivals problem, and saying so here matters because
-    // pattern matching from Rivals gets this wrong in two different ways.
+    // League is read differently from Valorant, in two ways that matter.
     //
     // 1. Riot's Data Dragon publishes every champion, ability and icon per
-    //    patch for third-party use. The "never a portrait" rule written for
-    //    Marvel Rivals is a TRADEMARK constraint on NetEase art and it does NOT
-    //    carry over here: League can ship real champion icons. Separate from
-    //    that is Riot product registration and approval for a PAID product,
-    //    which is a permission to obtain rather than a data problem.
+    //    patch for third-party use, so League can ship real champion icons.
+    //    Separate from that is Riot product registration and approval for a
+    //    PAID product, which is a permission to obtain rather than a data
+    //    problem.
     //
     // 2. Riot documents a Live Client Data API on 127.0.0.1:2999 that hands
-    //    over exact champion names, scores and events during a match. The thing
-    //    that blocks Rivals, knowing who is on screen, does not exist here.
-    //    That is a decision to take deliberately rather than drift into,
-    //    because it is a NEW KIND OF INPUT for a product whose promise is "we
-    //    only capture the display". It is not memory reading, not file access
-    //    and not input automation, so it does not break that promise, but the
-    //    promise has to be restated rather than quietly widened. It is the Live
-    //    Client Data API on 2999, NOT the LCU, which Riot says is unsupported
-    //    for third parties.
+    //    over exact champion names, scores and events during a match, so
+    //    nothing has to be read off the screen to know who is playing. That
+    //    is a decision to take deliberately rather than drift into, because
+    //    it is a NEW KIND OF INPUT for a product whose promise is "we only
+    //    capture the display". It is not memory reading, not file access and
+    //    not input automation, so it does not break that promise, but the
+    //    promise has to be restated rather than quietly widened. It is the
+    //    Live Client Data API on 2999, NOT the LCU, which Riot says is
+    //    unsupported for third parties.
     //
-    // Nothing here uses either yet. This entry only reserves the id so the
-    // picker, the config and the palette hook all know the game exists.
+    // A GAME IS COACHABLE WHEN ANY OF ITS FEATURES IS, which is why League
+    // carries a feature map rather than one `coaching` switch: its review is
+    // built and its live coach must never be (canCoach below).
     features: {
       learn: true,          // the curriculum surface, no live coaching
       live: false,          // not built, and gated on the decision above
@@ -119,27 +66,37 @@ const GAMES = {
       // (Account-V1, League-V4, Champion-Mastery-V4, Match-V5). The app has no
       // Riot key of any kind, so there is no League data source at all. Until
       // there is, the dashboard says so instead of showing Valorant's numbers
-      // under a League selection.
+      // under a League selection. Stated explicitly rather than left to
+      // hasFeature's false-by-absence, because the stats dashboard reads it.
       stats: false,
     },
-    // preview is FALSE, deliberately, and this is the one place the League
-    // brief and this registry disagree on a word. Here `preview: true` does not
-    // mean "unfinished", it means SHOW IT TO PLAYERS with a preview label, the
-    // way Rivals is shown because its shell is genuinely real. League has no
-    // shell yet: no data, no surface, nothing to look at. So it stays behind
-    // devGames until the learn surface exists, and this flips to true on the
-    // day there is something worth previewing. That day is here: 173 champions
-    // of real data and a twelve lesson curriculum. `preview` does not mean
-    // unfinished, it means shown WITH a preview label, and the label is honest
-    // because live coaching genuinely is not built.
+    // `preview` does not mean unfinished, it means SHOWN TO PLAYERS with a
+    // preview label, and the label is honest because live coaching genuinely
+    // is not built. It stayed false until there was something worth
+    // previewing: 173 champions of real data and a twelve lesson curriculum.
     preview: true,
-    // Not 'live' and not 'draft'. Learning is a player sitting down to study,
-    // which is neither a tip stream nor a one-shot read.
+    // Not 'live'. Learning is a player sitting down to study, which is
+    // neither a tip stream nor a one-shot read.
     cadence: 'learn',
   },
 };
 
 const DEFAULT_GAME = 'valorant';
+
+/**
+ * GAMES OCCLARA COACHED ONCE AND NO LONGER DOES. Marvel Rivals was coached
+ * until 8.3.2 and is not any more. What an install kept of it is put away at
+ * launch (src/main/services/retired-games.js): a stored choice of it becomes
+ * the default game, its config keys go, and its saved reviews are deleted.
+ * Until they are, the library never lists or opens one (review-store.js).
+ * The id is kept here, and nowhere else, so that is possible at all.
+ */
+const RETIRED = Object.freeze(['rivals']);
+
+/** Is this the id of a game Occlara no longer coaches? */
+function isRetired(id) {
+  return RETIRED.includes(String(id || '').toLowerCase());
+}
 
 /** The game record for an id, falling back to the default rather than throwing. */
 function get(id) {
@@ -165,8 +122,9 @@ function list(includeUnavailable) {
  * Is this a game we can actually coach right now?
  *
  * True when ANY feature works, since a game whose review is proven and whose
- * draft is not should still review. Valorant carries `coaching: true` and no
- * feature map, so it stays coachable without listing every feature it has.
+ * live coach does not exist should still review. Valorant carries
+ * `coaching: true` and no feature map, so it stays coachable without listing
+ * every feature it has.
  */
 function canCoach(id) {
   const g = get(id);
@@ -181,4 +139,4 @@ function hasFeature(id, name) {
   return !!g.coaching;          // a game with no feature map has all of them
 }
 
-module.exports = { GAMES, DEFAULT_GAME, get, list, canCoach, hasFeature };
+module.exports = { GAMES, DEFAULT_GAME, RETIRED, isRetired, get, list, canCoach, hasFeature };

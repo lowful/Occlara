@@ -29,7 +29,7 @@
  * left invisible or offset.
  *
  * Everything else about the pages is the surfaces' own checks (check:matches,
- * check:rivalsreview, check:lolreview, check:gameswitch, check:onboardingriot);
+ * check:lolreview, check:gameswitch, check:onboardingriot);
  * this is the window around them.
  *
  * Results travel through a FILE, not stdout: an Electron main process on Windows

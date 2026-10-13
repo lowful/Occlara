@@ -42,7 +42,7 @@ router.get('/coaching', (req, res) => {
 //
 // WHAT THE MODEL CALLS COST (8.3.1). `spend` is the provider's own figure for
 // every call, today and this month, by route (read, forensics, review, chat,
-// rivals, other): `real` what OpenRouter said each call cost, `estimated` the
+// other): `real` what OpenRouter said each call cost, `estimated` the
 // flat price for the calls it said nothing about (another provider, a call
 // aborted at its deadline), `cost` the two together, `priced` how many calls
 // carried a cost of their own. `global` is the calls as the routes count them

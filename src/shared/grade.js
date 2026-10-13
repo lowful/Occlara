@@ -308,73 +308,6 @@ function riotWords(grade) {
     ? { ...c, evidence: c.evidence.map((e) => (e === NONE_AVOIDABLE ? NONE_COUNTED : e)) } : c)) };
 }
 
-// ── Marvel Rivals ───────────────────────────────────────────────────────────
-
-/** What a role is graded on for its duty, and the ladder until a baseline exists. */
-const RIVALS_DUTY = {
-  Strategist: { stat: 'healing', label: 'healing', pts: [[4000, 35], [9000, 55], [15000, 72], [22000, 86], [30000, 96]] },
-  Vanguard:   { stat: 'blocked', label: 'damage blocked', pts: [[4000, 35], [12000, 55], [22000, 72], [35000, 86], [50000, 96]] },
-  Duelist:    { stat: 'damage', label: 'damage', pts: [[4000, 35], [9000, 55], [15000, 72], [22000, 86], [30000, 96]] },
-};
-
-function rivals(review, history) {
-  if (!review || review.empty) return null;
-  const s = review.scoreline || {};
-  const role = review.game && review.game.role;
-  const against = new Map((review.against || []).map((a) => [a.id, a]));
-  const vs = (id, pts, lowerIsBetter) => {
-    const a = against.get(id);
-    if (!a || !a.baseline) return null;
-    const ratio = lowerIsBetter ? a.baseline / Math.max(0.5, a.value) : a.value / a.baseline;
-    return { score: curve(ratio, pts), a };
-  };
-  const ratioPts = [[0.5, 35], [0.8, 56], [1.0, 72], [1.25, 86], [1.6, 97]];
-  const noBaseline = [];
-
-  const impact = { key: 'impact', label: 'Impact', weight: 30, score: null, evidence: [] };
-  const k = num(s.kills); const d = num(s.deaths); const as = num(s.assists);
-  if (k !== null && d !== null) {
-    const kv = vs('kills', ratioPts);
-    const kda = (k + (as || 0) * 0.5) / Math.max(1, d);
-    impact.score = kv ? kv.score : curve(kda, [[0.8, 38], [1.5, 55], [2.5, 70], [4, 84], [6, 95]]);
-    impact.evidence.push(`${plural(k, 'kill')}, ${plural(d, 'death')}, ${plural(as || 0, 'assist')}`);
-    if (kv) impact.evidence.push(`your ${role || ''} average is ${round1(kv.a.baseline)} kills`.replace('  ', ' '));
-    else noBaseline.push('impact');
-  }
-
-  const survival = { key: 'survival', label: 'Survival', weight: 25, score: null, evidence: [] };
-  if (d !== null) {
-    const dv = vs('deaths', ratioPts, true);
-    survival.score = dv ? dv.score : curve(d, [[2, 95], [5, 82], [8, 66], [11, 52], [15, 38]]);
-    survival.evidence.push(plural(d, 'death'));
-    if (dv) survival.evidence.push(`your ${role || ''} average is ${round1(dv.a.baseline)}`.replace('  ', ' '));
-    else noBaseline.push('survival');
-  }
-
-  const duty = { key: 'duty', label: 'Role duty', weight: 30, score: null, evidence: [] };
-  const spec = RIVALS_DUTY[role];
-  if (spec && num(s[spec.stat]) !== null) {
-    const dv = vs(spec.stat, ratioPts);
-    duty.score = dv ? dv.score : curve(s[spec.stat], spec.pts);
-    duty.evidence.push(`${Math.round(s[spec.stat]).toLocaleString('en-US')} ${spec.label}`);
-    if (dv) duty.evidence.push(`your ${role} average is ${Math.round(dv.a.baseline).toLocaleString('en-US')}`);
-    else noBaseline.push('duty');
-  }
-
-  const aim = { key: 'aim', label: 'Accuracy', weight: 15, score: null, evidence: [] };
-  const av = vs('accuracy', ratioPts);
-  if (av) {
-    aim.score = av.score;
-    aim.evidence.push(`${round1(av.a.value)}% against your ${review.game.hero} average of ${round1(av.a.baseline)}%`);
-  }
-
-  const notes = [];
-  if (noBaseline.length) {
-    notes.push(`Still learning you: ${3 - Math.min(2, (history || []).length)} more matches on this role and the grade compares you with yourself.`);
-  }
-  return finish([impact, survival, duty, aim], noBaseline.length > 0, notes);
-}
-
 // ── League of Legends ───────────────────────────────────────────────────────
 
 function lol(review) {
@@ -424,4 +357,4 @@ function lol(review) {
   return finish(cats, false, notes);
 }
 
-module.exports = { valorant, rivals, lol, letter, curve, combine, riotWords, NONE_AVOIDABLE, NONE_COUNTED };
+module.exports = { valorant, lol, letter, curve, combine, riotWords, NONE_AVOIDABLE, NONE_COUNTED };

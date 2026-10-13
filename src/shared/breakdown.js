@@ -2,7 +2,7 @@
 
 /**
  * The breakdown: the same saved reviews the patterns count, cut by map and by
- * agent (by map and hero for Marvel Rivals, by champion for League).
+ * agent (by champion for League).
  *
  * EVERY NUMBER IS COUNTED, NONE IS WRITTEN. The model never reaches this file.
  * The one model judgement inside a saved review, the death cause label, only
@@ -36,7 +36,7 @@
 
 const { roleOf } = require('./agent-roles');
 const { letter } = require('./grade');
-const { repeatTitle, countable } = require('./insights');
+const { countable } = require('./insights');
 
 const FLOOR = {
   winMatches: 3,      // a match win rate
@@ -139,20 +139,13 @@ function kdaOf(lines) {
  * the next read as a repeat, under whichever place the newest match had. So the
  * place and the agent the entry carries are counted with the key, case folded
  * as the review folds them, and a repeat is the same place or the same agent.
- *
- * A RIVALS COMPARISON'S TITLE CARRIES ONE MATCH'S NUMBER, "Kills down 52%",
- * and what repeats across matches is the direction, never that number. So the
- * title says only the direction, by the rule the patterns use too
- * (insights.repeatTitle): deaths are lower is better, so a deaths mistake is
- * above the average and a deaths strength below it.
  */
-function countedAs(x, list, map) {
+function countedAs(x, map) {
   const key = String(x.key);
   // A place is a place ON A MAP: A Site, B Main and Mid exist on nearly every
   // map, so on an agent row, which spans maps, the map is part of the place.
   if (key === 'same-spot') return { id: `${key}:${keyOf(map)}:${keyOf(x.place || x.title)}`, title: x.title };
   if (key === 'same-killer') return { id: `${key}:${keyOf(x.agent || x.title)}`, title: x.title };
-  if (key.startsWith('vs:')) return { id: key, title: repeatTitle(key, list, x, null).title };
   return { id: key, title: x.title };
 }
 
@@ -170,7 +163,7 @@ function repeated(entries, list) {
     const seen = new Set();
     for (const x of ((e.insights || {})[list] || [])) {
       if (!x || !x.key) continue;
-      const c = countedAs(x, list, e.map);
+      const c = countedAs(x, e.map);
       if (seen.has(c.id)) continue;
       seen.add(c.id);
       // Entries arrive newest first, so the title and the fix are the newest
@@ -528,78 +521,6 @@ function valorant(list, opts) {
   };
 }
 
-// ── Marvel Rivals ───────────────────────────────────────────────────────────
-
-const RIVALS_DUTY = { Strategist: ['healing', 'Healing'], Vanguard: ['blocked', 'Blocked'] };
-
-function rivalsEntry(s) {
-  const r = s.review || {};
-  const g = r.game || {};
-  return {
-    id: s.id, at: s.at, map: g.map || null, hero: g.hero || null, role: g.role || null, mode: g.mode || null,
-    result: g.result || null, grade: r.grade || null, scoreline: r.scoreline || {}, insights: countable(r),
-  };
-}
-
-function avgOf(entries, key) {
-  const xs = entries.map((e) => num(e.scoreline[key])).filter((v) => v !== null);
-  return { value: xs.length ? Math.round(mean(xs)) : null, n: xs.length };
-}
-
-function rivalsRow(dim, label, es, rest) {
-  let kills = 0; let deaths = 0; let kdN = 0;
-  for (const e of es) {
-    if (num(e.scoreline.kills) !== null && num(e.scoreline.deaths) !== null) {
-      kills += e.scoreline.kills; deaths += e.scoreline.deaths; kdN++;
-    }
-  }
-  const roles = cross(es, 'role');
-  const role = dim === 'hero' && roles[0] ? roles[0].label : null;
-  // THE DUTY OF THE ROLE THE ROW IS LABELLED WITH, over the matches played in
-  // that role. Deadpool is three roles: a match he played as a Vanguard healed
-  // nothing, and averaging it in read as a Strategist who stopped healing.
-  const inRole = role ? es.filter((e) => keyOf(e.role) === keyOf(role)) : [];
-  const duty = role && RIVALS_DUTY[role] ? { label: RIVALS_DUTY[role][1], ...avgOf(inRole, RIVALS_DUTY[role][0]) } : null;
-  const record = recordOf(es);
-  return {
-    key: keyOf(label), label, sub: role, matches: es.length,
-    record, winRate: rate(record.won, record.known, FLOOR.winMatches), grade: gradeOf(es),
-    stats: {
-      kd: { value: kdN ? round2(kills / Math.max(1, deaths)) : null, kills, deaths, n: kdN },
-      kda: kdaOf(es.map((e) => e.scoreline)),
-      damage: avgOf(es, 'damage'),
-      // Duty and accuracy only on a hero: averaged across heroes they compare
-      // a projectile hero's accuracy with a hitscan one's, and healing with
-      // blocking.
-      duty: duty && duty.value !== null ? duty : null,
-      accuracy: dim === 'hero' ? avgOf(es, 'accuracy') : null,
-    },
-    cross: cross(es, dim === 'map' ? 'hero' : 'map'),
-    spots: null,
-    mistake: repeated(es, 'mistakes'),
-    strength: repeated(es, 'strengths'),
-    vsRest: against(es, rest),
-  };
-}
-
-function rivals(list, opts) {
-  const all = list.filter((s) => (s.review || {}).kind === 'rivals' && !(s.review || {}).empty).map(rivalsEntry);
-  const { queues, queue, kept } = pickQueue(all, opts);
-  const dims = [
-    { key: 'map', label: 'By map', one: 'map', many: 'maps' },
-    { key: 'hero', label: 'By hero', one: 'hero', many: 'heroes' },
-  ];
-  const rows = {
-    map: rowsBy(kept, 'map', (label, es, rest) => rivalsRow('map', label, es, rest)),
-    hero: rowsBy(kept, 'hero', (label, es, rest) => rivalsRow('hero', label, es, rest)),
-  };
-  return {
-    game: 'rivals', matches: kept.length, total: all.length, queue, queues, left: 0, checked: 0,
-    unknown: { map: kept.filter((e) => !e.map).length, hero: kept.filter((e) => !e.hero).length },
-    dims, rows, ...headlineOf(dims, rows, kept),
-  };
-}
-
 // ── League of Legends ───────────────────────────────────────────────────────
 
 function lolEntry(s) {
@@ -685,14 +606,13 @@ function lol(list, opts) {
 }
 
 /**
- * @param game   'valorant' | 'rivals' | 'lol'
+ * @param game   'valorant' | 'lol'
  * @param saved  every saved review of that game, newest first ({ id, game, at, review })
  * @param opts   { queue: 'All' | a queue label }; League has no All, and starts on its most played mode
  */
 function build(game, saved, opts = {}) {
   const list = (Array.isArray(saved) ? saved : []).filter((s) => s && s.review);
   if (game === 'valorant') return valorant(list, opts);
-  if (game === 'rivals') return rivals(list, opts);
   if (game === 'lol') return lol(list, opts);
   return { game, matches: 0, total: 0, queue: 'All', queues: [], left: 0, checked: 0, unknown: {}, dims: [], rows: {}, headline: [], note: null };
 }

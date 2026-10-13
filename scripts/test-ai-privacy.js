@@ -39,7 +39,7 @@ process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'test-key
 process.env.AI_API_KEY = 'test-ai-key';
 process.env.AI_BASE_URL = 'https://openrouter.ai/api/v1';
 for (const v of ['AI_PROVIDER', 'AI_READ_MODEL', 'AI_REVIEW_MODEL', 'AI_TEXT_MODEL', 'AI_VISION_MODEL', 'AI_COST_PER_CALL',
-  'AI_VISION_MODEL_DEEP', 'AI_TEXT_MODEL_FALLBACK', 'AI_FORENSICS_MODEL', 'AI_DATA_COLLECTION']) delete process.env[v];
+  'AI_TEXT_MODEL_FALLBACK', 'AI_FORENSICS_MODEL', 'AI_DATA_COLLECTION']) delete process.env[v];
 
 let fails = 0;
 let checks = 0;
@@ -123,10 +123,10 @@ const IMG = 'x'.repeat(4000);
 
   // ── Every call to OpenRouter denies collection ────────────────────────────
   sent.length = 0;
-  await coach.ai.textInfer('say ok', 5);
+  await coach.__test.textInfer('say ok', 5);
   ok(denies(sent[0]), `a text call asks OpenRouter for providers that keep nothing (${JSON.stringify(sent[0] && sent[0].body.provider)})`);
   sent.length = 0;
-  await coach.ai.visionInfer(IMG, 'read this scoreboard', 20, false);
+  await coach.__test.visionInfer(IMG, 'read this scoreboard', 20, false);
   ok(denies(sent[0]), 'and so does a call carrying a frame');
   ok(sent[0] && sent[0].body.usage && sent[0].body.usage.include === true, 'beside the usage it already asked for');
 
@@ -140,13 +140,13 @@ const IMG = 'x'.repeat(4000);
   sent.length = 0;
   reply = (n) => (n === 1 ? { status: 400, text: 'reasoning is not supported' }
     : { status: 200, json: { choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] } });
-  await coach.ai.textInfer('say ok', 5);
+  await coach.__test.textInfer('say ok', 5);
   ok(sent.length === 2 && sent.every(denies), `and both requests of the retry without the reasoning switch (${sent.length})`);
   // A reasoner that spent its budget is asked again with headroom: the same.
   sent.length = 0;
   reply = (n) => (n === 1 ? { status: 200, json: { choices: [{ message: { content: '', reasoning: 'thinking' }, finish_reason: 'length' }] } }
     : { status: 200, json: { choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] } });
-  await coach.ai.visionInfer(IMG, 'read this', 10, false);
+  await coach.__test.visionInfer(IMG, 'read this', 10, false);
   ok(sent.length === 2 && sent.every(denies), `and both requests of the retry with headroom (${sent.length})`);
   reply = () => ({ status: 200, json: { choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] } });
 
@@ -154,13 +154,13 @@ const IMG = 'x'.repeat(4000);
   for (const v of ['allow', ' Allow ']) {
     process.env.AI_DATA_COLLECTION = v;
     sent.length = 0;
-    await coach.ai.textInfer('say ok', 5);
+    await coach.__test.textInfer('say ok', 5);
     ok(sent[0] && !('provider' in sent[0].body), `AI_DATA_COLLECTION=${JSON.stringify(v)} sends the request as it was before, with no preference`);
   }
   for (const v of ['deny', '', 'yes']) {
     process.env.AI_DATA_COLLECTION = v;
     sent.length = 0;
-    await coach.ai.textInfer('say ok', 5);
+    await coach.__test.textInfer('say ok', 5);
     ok(denies(sent[0]), `and any other value (${JSON.stringify(v)}) still denies`);
   }
   delete process.env.AI_DATA_COLLECTION;
@@ -186,7 +186,7 @@ const IMG = 'x'.repeat(4000);
   const policyNow = () => coach.liveModels().dataPolicy || {};
   const counts = () => policyNow().fellBack || {};
   const refused = () => policyNow().refusedAgain || {};
-  const zero = { read: 0, forensics: 0, review: 0, chat: 0, rivals: 0, other: 0 };
+  const zero = { read: 0, forensics: 0, review: 0, chat: 0, other: 0 };
   ok(JSON.stringify(counts()) === JSON.stringify(zero) && JSON.stringify(refused()) === JSON.stringify(zero) && policyNow().mode === 'deny',
     `a server just started counts nothing, every route listed, asking deny (${JSON.stringify(coach.liveModels().dataPolicy)})`);
   {
@@ -207,13 +207,13 @@ const IMG = 'x'.repeat(4000);
     `one line says so, OpenRouter's words in it (${policyLines('read')[0]})`);
   }
   {
-    // Every route, each counted under its own name: the routes costScope books.
+    // Every route, each counted under its own name: the routes costScope books,
+    // and a call made outside any route under other.
     const each = {
-      forensics: () => coach.layerFor('forensics').visionInfer([IMG, IMG], 'look at this death', 50, true),
-      review: () => coach.layerFor('review').textInfer('write the review', 50, { json: true }),
-      chat: () => coach.layerFor('chat').textInfer('answer the player', 50),
-      rivals: () => coach.ai.visionInfer(IMG, 'read this scoreboard', 20, false),
-      other: () => coach.layerFor('other').textInfer('say ok', 5),
+      forensics: () => coach.__test.asRoute('forensics', null, () => coach.__test.visionInfer([IMG, IMG], 'look at this death', 50, true)),
+      review: () => coach.__test.asRoute('review', null, () => coach.__test.textInfer('write the review', 50, { json: true })),
+      chat: () => coach.__test.asRoute('chat', null, () => coach.__test.textInfer('answer the player', 50)),
+      other: () => coach.__test.textInfer('say ok', 5),
     };
     const answered = {};
     for (const [route, fn] of Object.entries(each)) {
@@ -222,10 +222,10 @@ const IMG = 'x'.repeat(4000);
       const out = await caught(fn);
       answered[route] = !out.error && sent.length === 2 && denies(sent[0]) && !('provider' in sent[1].body);
     }
-    ok(Object.values(answered).every(Boolean), `the death look, the review, Ask Coach, Rivals and the rest fall back the same (${JSON.stringify(answered)})`);
-    ok(JSON.stringify(counts()) === JSON.stringify({ read: 1, forensics: 1, review: 1, chat: 1, rivals: 1, other: 1 }),
-      `each counted under its own route (${JSON.stringify(counts())})`);
-    ok(['forensics', 'review', 'chat', 'rivals', 'other'].every((r) => policyLines(r).length === 1),
+    ok(Object.values(answered).every(Boolean), `the death look, the review, Ask Coach and the rest fall back the same (${JSON.stringify(answered)})`);
+    ok(JSON.stringify(counts()) === JSON.stringify({ read: 1, forensics: 1, review: 1, chat: 1, other: 1 }),
+      `each counted under its own route, and no other route is kept (${JSON.stringify(counts())})`);
+    ok(['forensics', 'review', 'chat', 'other'].every((r) => policyLines(r).length === 1),
       'and each route says so in a line of its own');
   }
   {
@@ -257,12 +257,12 @@ const IMG = 'x'.repeat(4000);
     for (const w of wordings) {
       sent.length = 0;
       reply = (n) => (n === 1 ? POLICY_404(w) : fine(0.0001));
-      const out = await caught(() => coach.ai.textInfer('say ok', 5));
+      const out = await caught(() => coach.__test.textInfer('say ok', 5));
       took.push(!out.error && sent.length === 2 && !('provider' in sent[1].body));
     }
     sent.length = 0;
     reply = (n) => (n === 1 ? { status: 404, text: 'No endpoints found matching your data policy' } : fine(0.0001));
-    const plain = await caught(() => coach.ai.textInfer('say ok', 5));
+    const plain = await caught(() => coach.__test.textInfer('say ok', 5));
     took.push(!plain.error && sent.length === 2);
     ok(took.every(Boolean), `and so are its other wordings, JSON or plain text (${took.join(', ')})`);
   }
@@ -280,7 +280,7 @@ const IMG = 'x'.repeat(4000);
     for (const m of others) {
       sent.length = 0;
       reply = () => POLICY_404(m);
-      const out = await caught(() => coach.ai.textInfer('say ok', 5));
+      const out = await caught(() => coach.__test.textInfer('say ok', 5));
       // textInfer tries its backstop model once on an error: every request still denies.
       kept.push(!!out.error && out.error.status === 404 && sent.length >= 1 && sent.every(denies));
     }
@@ -294,53 +294,53 @@ const IMG = 'x'.repeat(4000);
     // that may keep it, and setting AI_DATA_COLLECTION=allow would not help.
     sent.length = 0;
     reply = () => REFUSED;
-    const before = counts().rivals;
-    const again = refused().rivals;
-    const out = await caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false));
+    const before = counts().other;
+    const again = refused().other;
+    const out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
     ok(out.error && out.error.status === 404 && sent.length === 2 && denies(sent[0]) && !('provider' in sent[1].body)
-      && counts().rivals === before && refused().rivals === again + 1,
-    `a call refused again without the preference is the call's 404, retried once, and counted as refused again, never as fallen back (${sent.length} requests, fellBack ${counts().rivals}, refusedAgain ${refused().rivals})`);
-    ok(refusedLines('rivals').length === 1 && /refused again without data_collection deny/.test(refusedLines('rivals')[0])
-      && /AI_DATA_COLLECTION=allow does not change/.test(refusedLines('rivals')[0]),
-    `and one line says the preference is not what stops it (${refusedLines('rivals')[0]})`);
+      && counts().other === before && refused().other === again + 1,
+    `a call refused again without the preference is the call's 404, retried once, and counted as refused again, never as fallen back (${sent.length} requests, fellBack ${counts().other}, refusedAgain ${refused().other})`);
+    ok(refusedLines('other').length === 1 && /refused again without data_collection deny/.test(refusedLines('other')[0])
+      && /AI_DATA_COLLECTION=allow does not change/.test(refusedLines('other')[0]),
+    `and one line says the preference is not what stops it (${refusedLines('other')[0]})`);
     // A model OpenRouter has no live provider for, refused for the policy first
     // and then for itself: the retry is harmless, and counted as what it was.
     sent.length = 0;
     reply = (n) => (n === 1 ? REFUSED : POLICY_404('No endpoints found for deepseek/deepseek-v9-flash.'));
-    const gone = await caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false));
-    ok(gone.error && gone.error.status === 404 && sent.length === 2 && counts().rivals === before && refused().rivals === again + 2
-      && refusedLines('rivals').length === 1,
-    `a model with no endpoint at all is the same: refused again, never fallen back, and said no more within the hour (fellBack ${counts().rivals}, refusedAgain ${refused().rivals})`);
+    const gone = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
+    ok(gone.error && gone.error.status === 404 && sent.length === 2 && counts().other === before && refused().other === again + 2
+      && refusedLines('other').length === 1,
+    `a model with no endpoint at all is the same: refused again, never fallen back, and said no more within the hour (fellBack ${counts().other}, refusedAgain ${refused().other})`);
     // Cut off on its way without the preference: a provider may have had the frame by then.
     sent.length = 0;
     reply = (n) => (n === 1 ? REFUSED : { hang: true });
     let watchdog = null;
     const cut = await Promise.race([
-      caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false, null, { abortMs: 80 })),
+      caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false, null, { abortMs: 80 })),
       new Promise((resolve) => { watchdog = setTimeout(() => resolve({ error: { name: 'no abort after 3s' } }), 3000); }),
     ]);
     clearTimeout(watchdog);
-    ok(cut.error && /TimeoutError|AbortError/.test(cut.error.name) && sent.length === 2 && counts().rivals === before + 1
-      && refused().rivals === again + 2,
-    `while one cut off on its way without it counts as fallen back, as a provider may have had it (${cut.error && cut.error.name}, fellBack ${counts().rivals})`);
+    ok(cut.error && /TimeoutError|AbortError/.test(cut.error.name) && sent.length === 2 && counts().other === before + 1
+      && refused().other === again + 2,
+    `while one cut off on its way without it counts as fallen back, as a provider may have had it (${cut.error && cut.error.name}, fellBack ${counts().other})`);
     // A 404 in any words but OpenRouter's "No endpoints found" could be a
     // provider's own: it may have had the frame, so it fell back.
     sent.length = 0;
     reply = (n) => (n === 1 ? REFUSED : { status: 404, text: 'Not Found' });
-    const plain = await caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false));
-    ok(plain.error && plain.error.status === 404 && sent.length === 2 && counts().rivals === before + 2 && refused().rivals === again + 2,
-      `and so does one answered by a 404 in other words (fellBack ${counts().rivals}, refusedAgain ${refused().rivals})`);
+    const plain = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
+    ok(plain.error && plain.error.status === 404 && sent.length === 2 && counts().other === before + 2 && refused().other === again + 2,
+      `and so does one answered by a 404 in other words (fellBack ${counts().other}, refusedAgain ${refused().other})`);
   }
   {
     // The call's other retries carry what the call carries by then.
     sent.length = 0;
     reply = (n) => (n === 1 ? REFUSED : n === 2 ? { status: 400, text: 'reasoning is not supported' } : fine(0.0002));
-    let out = await caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false));
+    let out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
     ok(!out.error && sent.length === 3 && denies(sent[0]) && sent.slice(1).every((s) => !('provider' in s.body)),
       `after the fall back, the retry without the reasoning switch goes without the preference too (${sent.length} requests)`);
     sent.length = 0;
     reply = (n) => (n === 1 ? { status: 400, text: 'reasoning is not supported' } : n === 2 ? REFUSED : fine(0.0002));
-    out = await caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false));
+    out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
     ok(!out.error && sent.length === 3 && denies(sent[0]) && denies(sent[1]) && !('provider' in sent[2].body),
       `and a refusal of the retry without the reasoning switch falls back the same (${sent.length} requests)`);
   }
@@ -373,13 +373,13 @@ const IMG = 'x'.repeat(4000);
     for (const [status, r] of cases) {
       sent.length = 0;
       reply = () => r;
-      const out = await caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false));
+      const out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
       held.push(`${status} ${!!out.error && out.error.status === status && sent.length === 1 && denies(sent[0])}`);
     }
     // A 400 is asked once more without the reasoning switch, as always, and still denies.
     sent.length = 0;
     reply = () => ({ status: 400, text: SAYS });
-    let out = await caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false));
+    let out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
     held.push(`400 ${!!out.error && out.error.status === 400 && sent.length === 2 && sent.every(denies)}`);
     sent.length = 0;
     reply = () => ({ hang: true });
@@ -388,7 +388,7 @@ const IMG = 'x'.repeat(4000);
     // the test would exit 0 having printed nothing more.
     let watchdog = null;
     out = await Promise.race([
-      caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false, null, { abortMs: 60 })),
+      caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false, null, { abortMs: 60 })),
       new Promise((resolve) => { watchdog = setTimeout(() => resolve({ error: { name: 'no abort after 3s' } }), 3000); }),
     ]);
     clearTimeout(watchdog);
@@ -398,7 +398,7 @@ const IMG = 'x'.repeat(4000);
     // Last, as it opens the credits breaker: the fresh load below closes it again.
     sent.length = 0;
     reply = () => ({ status: 402, text: SAYS });
-    out = await caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false));
+    out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
     ok(out.error && out.error.status === 402 && sent.length === 1 && denies(sent[0]) && JSON.stringify(counts()) === before,
       `nor is an empty wallet (402) (${sent.length} request)`);
   }
@@ -408,7 +408,7 @@ const IMG = 'x'.repeat(4000);
     process.env.AI_DATA_COLLECTION = 'allow';
     sent.length = 0;
     reply = () => REFUSED;
-    const out = await caught(() => coach.ai.visionInfer(IMG, 'read this', 10, false));
+    const out = await caught(() => coach.__test.visionInfer(IMG, 'read this', 10, false));
     ok(out.error && out.error.status === 404 && sent.length === 1 && !('provider' in sent[0].body)
       && JSON.stringify(counts()) === JSON.stringify(zero),
     `with AI_DATA_COLLECTION=allow nothing is asked and nothing retried (${sent.length} request)`);
@@ -427,19 +427,19 @@ const IMG = 'x'.repeat(4000);
   process.env.AI_BASE_URL = 'https://api.openai.com/v1';
   coach = loadCoach();
   sent.length = 0;
-  await coach.ai.textInfer('say ok', 5);
+  await coach.__test.textInfer('say ok', 5);
   ok(sent[0] && sent[0].url.startsWith('https://api.openai.com/v1/') && !('provider' in sent[0].body) && !('usage' in sent[0].body),
     'a provider that is not OpenRouter gets neither OpenRouter field');
   ok(policyNow().mode === 'allow', `and /health says its calls carry no preference (${policyNow().mode})`);
   sent.length = 0;
   reply = () => ({ status: 404, text: JSON.stringify({ error: { message: 'No endpoints found matching your data policy', code: 404 } }) });
-  try { await coach.ai.visionInfer(IMG, 'read this', 10, false); } catch (e) { /* the call's own 404 */ }
-  ok(sent.length === 1 && counts().rivals === 0, 'and what it answers is never taken for a refusal of one');
+  try { await coach.__test.visionInfer(IMG, 'read this', 10, false); } catch (e) { /* the call's own 404 */ }
+  ok(sent.length === 1 && counts().other === 0, 'and what it answers is never taken for a refusal of one');
   reply = () => ({ status: 200, json: { choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] } });
   process.env.AI_BASE_URL = 'https://openrouter.ai.evil.example/v1';
   coach = loadCoach();
   sent.length = 0;
-  await coach.ai.textInfer('say ok', 5);
+  await coach.__test.textInfer('say ok', 5);
   ok(sent[0] && !('provider' in sent[0].body), 'nor does a host that only looks like OpenRouter');
 
   // ── GET /health shows it, from the server as Railway starts it ────────────
@@ -507,6 +507,9 @@ const IMG = 'x'.repeat(4000);
     ok(apiBody && JSON.stringify(apiBody.dataPolicy) === JSON.stringify(dp), 'and /api/health shows the same');
     const shown = `${health && health.body}${apiHealth && apiHealth.body}`;
     ok(!!health && Object.values(SECRETS).every((s) => !shown.includes(s)), 'with no secret in either: no provider, database, Stripe or admin key');
+    ok(!!health && !!apiHealth && JSON.stringify(Object.keys((dp && dp.fellBack) || {})) === JSON.stringify(Object.keys(zero))
+      && JSON.stringify(Object.keys((dp && dp.refusedAgain) || {})) === JSON.stringify(Object.keys(zero)) && !/rivals/i.test(shown),
+    `and the routes it lists are read, forensics, review, chat and other, none of a game Occlara no longer coaches (${dp && Object.keys(dp.fellBack || {}).join(', ')})`);
   }
 
   finished = true;
