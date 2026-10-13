@@ -269,15 +269,42 @@ const AI = {
   // and speed buys more of those. The default no longer falls through to
   // AI_VISION_MODEL on purpose: that one was set for the old tip prompt.
   readModel:   process.env.AI_READ_MODEL || 'deepseek/deepseek-v4.1-flash',
-  reviewModel: process.env.AI_REVIEW_MODEL || process.env.AI_TEXT_MODEL || 'google/gemini-3-flash-preview',
-  // The post match look at a handful of deaths, one or two frames each. A
-  // vision job like the read, but once a match rather than every second, so it
-  // can afford a stronger model than the read can.
-  // Chosen by npm run bench:forensics on the four teachable deaths of the real
-  // Abyss match: GPT 6 Luna was the one model that said "unclear" when the
-  // frame did not show the fight, where the others invented a peek to fill the
-  // slot. A confident wrong cause is the one thing this feature must not do.
-  forensicsModel: process.env.AI_FORENSICS_MODEL || 'openai/gpt-6-luna',
+  // THE WRITTEN REVIEW, one call at the match's end and one when Riot's record
+  // links. Its own default since 8.4.0, no longer AI_TEXT_MODEL's (which Ask
+  // Coach keeps), chosen by npm run bench:review -- --models on the live prompt
+  // and both fixtures, 13 Oct 2026, 12 reviews a model (exact cost from
+  // /api/admin/costs):
+  //
+  //   openai/gpt-6-sol                1 wrong fact in 84 lines, 0 unsupported, 0 lines lost,
+  //                                   opens with the result 11/12, $0.007 to $0.013 a review
+  //   google/gemini-3-flash-preview   4 wrong, 8 unsupported (a made up cause on every
+  //                                   screen only match), $0.0022
+  //   qwen/qwen3.7-flash (was live)   10+ wrong, 7 unsupported, 14 of 84 lines lost, $0.0001
+  //   anthropic/claude-haiku-5.5      19 wrong, 10 unsupported
+  //   xiaomi/mimo-v2.6-pro            24 unsupported, 10 s a review
+  //   gemini-3.8-flash, claude-sonnet-5.5: still reason with the switch off, cut off at
+  //                                   the budget or empty, so not judged
+  //
+  // Sol is about $0.022 a linked match, 6 to 8% of the match's read.
+  reviewModel: process.env.AI_REVIEW_MODEL || 'openai/gpt-6-sol',
+  // The post match look at a handful of deaths, a few frames each. A vision
+  // job like the read, but once a match rather than every second, so it can
+  // afford a stronger model than the read can. A confident wrong cause is the
+  // one thing this feature must not do, so a model right more often but
+  // inventing more is worse. Chosen by npm run bench:forensics on the four
+  // teachable deaths of the real Abyss match, on the timed body every 8.3.1+
+  // client sends (--timed), 13 Oct 2026:
+  //
+  //   openai/gpt-6-sol           1 confident wrong in 36, unclear where right 39/39,
+  //                              the R3 fight found 12 of 13, no overlay copied, 2.1 s
+  //   openai/gpt-6-luna (was)    7 confident wrong in 36, R3 found 0 of 13, 5 overlay copies
+  //   anthropic/claude-sonnet-5.5  0 wrong, but two calls a look, 14 s, 3x Sol
+  //   anthropic/claude-haiku-5.5   9 wrong in 12, took the overlay cards as instructions
+  //   google/gemini-3.8-flash      cut off at the 320 token budget every time
+  //
+  // Sol costs about $0.03 a match on two frames a death, about $0.07 at five
+  // recording stills (an estimate), against Luna's $0.003.
+  forensicsModel: process.env.AI_FORENSICS_MODEL || 'openai/gpt-6-sol',
 };
 
 // ─── Out-of-credits breaker ──────────────────────────────────────────────────

@@ -493,6 +493,10 @@ before the death and lost the fight and the death screen.
   bench had models reading the card back. The prompt says to ignore overlays.
   The model was chosen by `npm run bench:forensics`: GPT 6 Luna said "unclear"
   when the frame did not show the fight, where the others invented a peek.
+  Since 8.4.0 it is GPT 6 Sol, benched again on the body 8.3.1+ clients send
+  (`--timed`): 1 confident wrong cause in 36 looks against Luna's 7, the R3
+  fight in Mid Library found 12 of 13 times against 0, no overlay copied, at
+  about $0.03 a match (the table beside `forensicsModel`).
 
 **A review Riot's record never reached looks too** (8.2). Before, frames
 reached a review only through Riot's verified deaths, so a screen only review
@@ -1671,8 +1675,13 @@ keep arriving, they just stop being informed by the previous one.
 
 The models are whatever Railway says where an env var is set, and the code
 default where it is not: `AI_READ_MODEL` (default deepseek/deepseek-v4.1-flash),
-`AI_FORENSICS_MODEL` (default openai/gpt-6-luna), `AI_REVIEW_MODEL` (falls back
-to `AI_TEXT_MODEL`). `AI_VISION_MODEL` serves agent detection and frame chat;
+`AI_FORENSICS_MODEL` (default openai/gpt-6-sol since 8.4.0), `AI_REVIEW_MODEL`
+(default openai/gpt-6-sol since 8.4.0, no longer falling back to
+`AI_TEXT_MODEL`, which Ask Coach keeps; the bench tables are beside each in
+coach.js). Two rounds of benches on 13 Oct 2026 kept the read on DeepSeek: the
+one model that agreed with one more of Riot's deaths, Gemini 3.5 Flash Lite,
+cost 4 to 5.6 times as much, and every other candidate agreed with fewer at
+2.3 to 8 times the price. `AI_VISION_MODEL` serves agent detection and frame chat;
 the tip era routes it also served to installs before 8.0 (`/analyze`,
 `/recap`, `/summary/*`, `/suggest-library-tip`) answer 410 with an "update
 Occlara" sentence, no licence checked and no model called, as every

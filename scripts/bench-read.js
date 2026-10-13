@@ -32,6 +32,17 @@
  *   node scripts/bench-read.js qwen/qwen3.7-flash deepseek/deepseek-v4.1-flash
  *   node scripts/bench-read.js --frames 60 <models...>     first 60 frames only
  *   node scripts/bench-read.js --lag 4 <models...>         context four reads old
+ *   node scripts/bench-read.js --trace out.jsonl <models...>   every read, and the rounds, to a file
+ *   node scripts/bench-read.js --min-gap 1000 <models...>  reads of a model at least 1 s apart
+ *
+ * --trace FILE appends one JSON line per read (the frame, its latency, the
+ * model the server says answered, the error, what the STATE said) and one per
+ * model with the rounds it invented and missed, which the table only counts.
+ * --min-gap MS starts a model's reads at least MS apart. A model that fails in
+ * a tenth of a second sends all 240 frames in seconds and spends the licence's
+ * 150 reads a minute, which refuses the player's own reads for that minute
+ * too. A healthy read takes longer than a second, so 1000 changes nothing
+ * else. Neither is on by default.
  *
  * --lag N SENDS EACH FRAME WITH THE CONTEXT OF N READS EARLIER, as the client
  * does with N reads in flight: the replies to the reads just before it have
@@ -60,9 +71,16 @@ const flag = (name, d) => { const i = args.indexOf('--' + name); return i >= 0 ?
 const SESSION = flag('session', 'session-2026-09-22T04-24-07-240Z');
 const LIMIT = Number(flag('frames', 0)) || Infinity;
 const LAG = Math.max(1, Math.floor(Number(flag('lag', 1))) || 1);
+const TRACE = flag('trace', '');
+const MIN_GAP = Math.max(0, Number(flag('min-gap', 0)) || 0);
+// A flag's value is never a model, though a trace path has slashes in it.
+const VALUED = new Set(['session', 'frames', 'lag', 'parallel', 'trace', 'min-gap']);
+const valueAt = new Set(args.map((a, i) => (a.startsWith('--') && VALUED.has(a.slice(2)) ? i + 1 : -1)).filter((i) => i >= 0));
 // 'live' is whatever the server runs with no override, which is what a player
 // gets: npm run verify:ai measures that and fails below the gate.
-const MODELS = args.filter((a) => (a.includes('/') || a === 'live') && !a.startsWith('--'));
+const MODELS = args.filter((a, i) => !valueAt.has(i) && (a.includes('/') || a === 'live') && !a.startsWith('--'));
+/** One JSON line to the --trace file, when there is one. */
+const trace = (o) => { if (TRACE) fs.appendFileSync(TRACE, JSON.stringify(o) + '\n'); };
 const GATE = args.includes('--gate');
 if (!MODELS.length) { console.log('name at least one model'); process.exit(1); }
 
@@ -125,7 +143,7 @@ async function read(model, image, context) {
   // The server names the model that answered a bench request. Anything else
   // means benchModel was not honoured, and the numbers would belong to the
   // live model, so the run stops rather than reporting them under this name.
-  return { ...j, ms, ignored: bench && j.model !== model };
+  return { ...j, ms, serverMs: j.ms, ignored: bench && j.model !== model };
 }
 
 async function run(model) {
@@ -140,13 +158,21 @@ async function run(model) {
   // The context each frame found, every read before it applied: frame i is
   // sent with the one after read i - LAG, and nothing before the first.
   const found = [];
+  let lastStart = 0;
   for (const f of frames) {
     r.n++;
     found.push(ctx);
     const sent = found[found.length - LAG] || {};
     const image = fs.readFileSync(path.join(dir, f.frame)).toString('base64');
+    if (MIN_GAP) {
+      const wait = lastStart + MIN_GAP - Date.now();
+      if (wait > 0) await new Promise((res) => setTimeout(res, wait));
+    }
+    lastStart = Date.now();
     let j;
     try { j = await read(model, image, sent); } catch (e) { j = { err: e.message, ms: 0 }; }
+    trace({ model, i: r.n, frame: f.frame, at: f.at, ms: j.ms, serverMs: j.serverMs == null ? null : j.serverMs,
+      err: j.err || null, servedBy: j.model || null, lobby: !!j.lobby, parsed: !!j.parsed, context: j.context || null });
     if (j.err) { r.errs++; r.firstErr = r.firstErr || j.err; continue; }
     if (j.ignored) {
       r.errs = frames.length;
@@ -188,6 +214,9 @@ async function run(model) {
   }
   r.deaths = d;
   r.finalRead = finalRead;
+  trace({ model, summary: true, lag: LAG, n: r.n, errs: r.errs, firstErr: r.firstErr, lobby: r.lobby, parsed: r.parsed,
+    labels: r.labels, labelsOk: r.labelsOk, hp: r.hp, finalRead, deaths: d,
+    rounds: ledger.list(finalRead ? 24 : null).map((x) => ({ n: x.n, died: !!x.died, side: x.side, spot: x.deathSpot || null })) });
   return r;
 }
 

@@ -35,6 +35,12 @@
  *                  it (withRiot in src/main/index.js): kills, deaths, assists
  *                  and the combat score a round
  *   --out <file>   every request and reply as JSON, to read them again later
+ *   --costs        what EACH review cost, read from /api/admin/costs before and
+ *                  after it (this licence's review route, and the server's),
+ *                  printed on its line and kept with it in --out. The proof a
+ *                  named model answered that review: a call that failed and
+ *                  was answered by the server's fallback costs the fallback's
+ *                  price, or books two calls. Needs ADMIN_PASSWORD.
  *
  * Without --models nothing changes: no password is sent and the server's own
  * review model answers.
@@ -43,6 +49,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
 const { replay, load } = require('./fixtures/replay-match');
 const review = require('../src/shared/valorant-review');
 
@@ -56,10 +63,59 @@ const VARIANTS = String(flag('variants', 'A,B,C')).split(',');
 const MODELS = String(flag('models', '')).split(',').map((s) => s.trim()).filter(Boolean);
 const SCORELINE = args.includes('--scoreline');
 const OUT = flag('out', null);
+const COSTS = args.includes('--costs');
 const ADMIN = process.env.ADMIN_PASSWORD || '';
 const SERVER = process.env.OCCLARA_SERVER || 'https://ghostcoach-production.up.railway.app';
 const APPDATA = process.env.APPDATA || '';
 const cfg = JSON.parse(fs.readFileSync(path.join(APPDATA, 'Occlara', 'occlara-config.json'), 'utf8'));
+// The 8 character hash /api/admin/costs names a licence by: never the key itself.
+const LICENCE = crypto.createHash('sha256').update(String(cfg.licenseKey || '').trim().toUpperCase()).digest('hex').slice(0, 8);
+
+if (COSTS && !ADMIN) {
+  console.error('--costs needs ADMIN_PASSWORD in the environment: /api/admin/costs answers only beside it.');
+  process.exit(1);
+}
+
+/**
+ * The review route's spend so far today, this licence's and the server's, or
+ * null when it cannot be read. The password goes only in the header.
+ */
+function reviewSpend() {
+  return new Promise((resolve) => {
+    const u = new URL('/api/admin/costs', SERVER);
+    const req = https.request({ hostname: u.hostname, path: u.pathname, method: 'GET', timeout: 20000,
+      headers: { 'X-Admin-Password': ADMIN } }, (res) => {
+      let out = '';
+      res.on('data', (c) => { out += c; });
+      res.on('end', () => {
+        try {
+          const j = JSON.parse(out);
+          const pick = (r) => ({ calls: (r && r.calls) || 0, real: (r && r.real) || 0, estimated: (r && r.estimated) || 0 });
+          // A licence with nothing booked today is not listed: nothing spent.
+          const mine = (j.topUsers || []).find((x) => x.user === LICENCE);
+          const routes = (b) => (b && b.routes && b.routes.review) || null;
+          resolve({ mine: pick(mine && routes(mine.spendToday)), all: pick(routes(j.spend && j.spend.today)),
+            listed: !!mine || !(j.topUsers || []).length || j.topUsers.length < 10 });
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.end();
+  });
+}
+
+/** One review's spend, after minus before, to the millionth of a dollar the ledger keeps. */
+function spendOf(before, after) {
+  if (!before || !after) return null;
+  const d = (a, b) => Math.round((b - a) * 1e6) / 1e6;
+  const part = (k) => ({ calls: after[k].calls - before[k].calls, real: d(before[k].real, after[k].real),
+    estimated: d(before[k].estimated, after[k].estimated) });
+  // Off the top ten in both, this licence's own spend cannot be told: only the server's.
+  return { mine: before.listed && after.listed ? part('mine') : null, all: part('all') };
+}
 
 /** The models the server will bench, read from its BENCH_MODELS list, or null when the list cannot be read. */
 function benchList() {
@@ -224,10 +280,19 @@ function grade(res, body) {
       for (const model of who) {
         for (const v of VARIANTS) {
           const tag = model ? `${model} ${v}` : v;
+          const before = COSTS ? await reviewSpend() : null;
           const res = await post({ ...body, variant: v, ...(model ? { benchModel: model } : {}) });
+          const spend = COSTS ? spendOf(before, await reviewSpend()) : null;
           const secs = `${(res._ms / 1000).toFixed(1)}s`;
-          saved.results.push({ file: m.file, model, variant: v, run: run + 1, ms: res._ms, status: res._status || null, res });
-          if (res.error) { console.log(`\n[${tag}] ERROR ${res.error} (HTTP ${res._status || 'none'}, ${secs})`); continue; }
+          saved.results.push({ file: m.file, model, variant: v, run: run + 1, ms: res._ms, status: res._status || null, res,
+            ...(COSTS ? { spend } : {}) });
+          // Written after every review, so a run stopped early keeps what it had.
+          if (OUT) fs.writeFileSync(OUT, JSON.stringify(saved, null, 1));
+          const own = spend ? (spend.mine || spend.all) : null;
+          const paid = !COSTS ? '' : own
+            ? `  cost $${(own.real + own.estimated).toFixed(6)} (${own.calls} call${own.calls === 1 ? '' : 's'}${own.estimated ? ', part estimated' : ''}${spend.mine ? '' : ', server wide'})`
+            : '  cost unread';
+          if (res.error) { console.log(`\n[${tag}] ERROR ${res.error} (HTTP ${res._status || 'none'}, ${secs})${paid}`); continue; }
           if (v !== 'A' && !res.variant) console.log(`\n[${tag}] WARNING the live server ignored the variant, it has not deployed yet`);
           const g = grade(res, body);
           const t = totals[tag] || (totals[tag] = { n: 0, parsed: 0, roundLines: 0, foreign: 0, claims: 0, restate: [], dashes: 0, words: 0, ms: [] });
@@ -236,7 +301,7 @@ function grade(res, body) {
           t.ms.push(res._ms);
           console.log(`\n[${tag}] run ${run + 1}  parsed ${g.parsed}  rounds ${g.roundLines}  focus ${g.focus}  `
             + `foreign places ${g.foreign.join('/') || 'none'}  unsupported ${g.claims.join('/') || 'none'}  `
-            + `restates read ${g.restate === null ? 'n/a' : g.restate + '%'}  dashes ${g.dashes}  words ${g.words}  latency ${secs}`);
+            + `restates read ${g.restate === null ? 'n/a' : g.restate + '%'}  dashes ${g.dashes}  words ${g.words}  latency ${secs}${paid}`);
           console.log(`SUMMARY: ${res.summary || res.review}`);
           for (const [n, why] of Object.entries(res.rounds || {})) console.log(`  R${n}: ${why}`);
           if (res.focus) console.log(`FOCUS: ${res.focus}`);

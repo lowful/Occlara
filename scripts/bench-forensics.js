@@ -28,6 +28,20 @@
  * person grades it against: whether the frames showed the moment at all
  * (the screen can read a death late), and whether a killer slipped through.
  *
+ * --timed: the body an 8.3.1+ client sends for a match it did not record.
+ * Without it the deaths go as a client from before 8.3.1 sent them, two
+ * frames each and no seconds, and the server answers with that prompt. With
+ * it the rounds are given Riot's own milliseconds first (withRiotTimes, as
+ * index.js hands forensicsFor), so the frames are picked and timed by Riot's
+ * moment, and each death whose look knows that moment carries frameAt, each
+ * frame's seconds from it, and framesFrom 'reads', its frames in the order
+ * index.js sends them (look-stills.js sendOrder). A death the round clock
+ * could not place goes without, as it does from the client. The server then
+ * builds its timed prompt, which is the one players get: on round one's bench
+ * a model's verdict flipped between the two bodies. A look from the screen
+ * alone is sent untimed by the client, so --timed changes nothing with
+ * --screen.
+ *
  * COSTS REAL MONEY, a little: four calls per model, two images each.
  *
  * NEEDS THE ADMIN PASSWORD. The server honours benchModel only beside
@@ -35,6 +49,7 @@
  * (the value Railway has).
  *
  *   node scripts/bench-forensics.js google/gemini-3.5-flash-lite openai/gpt-6-luna
+ *   node scripts/bench-forensics.js openai/gpt-6-luna --timed
  *   node scripts/bench-forensics.js openai/gpt-6-luna --screen
  */
 
@@ -43,6 +58,7 @@ const path = require('path');
 const { replay, load } = require('./fixtures/replay-match');
 const verify = require('../src/shared/valorant-verify');
 const deathFrames = require('../src/shared/death-frames');
+const lookStills = require('../src/main/services/look-stills');
 const { profileDir, configPath, benchSession } = require('./profile-path');
 
 const SERVER = process.env.OCCLARA_SERVER || 'https://ghostcoach-production.up.railway.app';
@@ -51,6 +67,8 @@ const SESSION = 'session-2026-09-22T04-24-07-240Z';
 const MODELS = process.argv.slice(2).filter((a) => a.includes('/'));
 const SCREEN = process.argv.includes('--screen');
 const SOURCE = SCREEN ? 'screen' : 'riot';
+// The client's timed body (8.3.1+), for Riot's look; the screen's read frames go untimed from the client.
+const TIMED = process.argv.includes('--timed') && !SCREEN;
 if (!MODELS.length) { console.log('name at least one model'); process.exit(1); }
 
 /** ADMIN_PASSWORD from the environment, or from server/.env when it exists. */
@@ -95,23 +113,35 @@ if (played.records.length !== log.records.length) {
 // The fixture was cut from this very log, frame for frame, so the replay's
 // round for frame i is the round of the log's frame i.
 const records = played.records.map((r, i) => ({ ...r, frame: log.records[i].frame }));
-const { rounds } = verify.reconcile(played.rounds, load('riot-abyss-13-11.json'));
+const riotRecord = load('riot-abyss-13-11.json');
+const { rounds } = verify.reconcile(played.rounds, riotRecord);
 // The looks the client takes, by the same picker: Riot's verified deaths, or
-// with --screen the screen's own ledger, which Riot never checked.
-const looks = deathFrames.looksFor(records, SCREEN ? played.rounds : rounds, {}, SOURCE);
+// with --screen the screen's own ledger, which Riot never checked. Timed, the
+// rounds carry Riot's milliseconds as they do in index.js, which moves the
+// moment off the rounded second and can change which frames are picked.
+const looks = deathFrames.looksFor(records, SCREEN ? played.rounds
+  : TIMED ? deathFrames.withRiotTimes(rounds, riotRecord) : rounds, {}, SOURCE);
 const riotOf = (n) => rounds.find((r) => r.n === n) || {};
 
-const deaths = looks.map(({ round: r, frames: recs, gap }) => ({
-  n: r.n, side: r.side, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
-  firstDeath: r.firstDeath, traded: r.traded, alive: r.aliveAtDeath,
-  planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, gap,
-  frames: recs.map((x) => fs.readFileSync(path.join(dir, x.frame)).toString('base64')),
-  shown: recs.map((x) => x.frame),
-}));
+const deaths = looks.map(({ round: r, frames: recs, gap, frameAt }) => {
+  const d = {
+    n: r.n, side: r.side, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
+    firstDeath: r.firstDeath, traded: r.traded, alive: r.aliveAtDeath,
+    planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, gap,
+    frames: recs.map((x) => fs.readFileSync(path.join(dir, x.frame)).toString('base64')),
+    shown: recs.map((x) => x.frame),
+  };
+  if (!TIMED || !Array.isArray(frameAt) || frameAt.length !== recs.length || !frameAt.every(Number.isFinite)) return d;
+  // index.js askForensics: the last frame before the death and the first after it lead.
+  const order = lookStills.sendOrder(frameAt);
+  return { ...d, frames: order.map((i) => d.frames[i]), shown: order.map((i) => d.shown[i]),
+    frameAt: order.map((i) => frameAt[i]), framesFrom: 'reads' };
+});
 
 (async () => {
-  console.log(`Abyss 13 to 11, Jett, ${SCREEN ? 'from the screen alone' : "from Riot's record"}. `
-    + `Deaths looked at: ${deaths.map((d) => `R${d.n} (${d.shown.join(', ')})`).join(', ')}\n`);
+  console.log(`Abyss 13 to 11, Jett, ${SCREEN ? 'from the screen alone' : "from Riot's record"}`
+    + `${TIMED ? ", timed as an 8.3.1+ client sends a match it did not record" : ''}. `
+    + `Deaths looked at: ${deaths.map((d) => `R${d.n} (${d.shown.join(', ')}${d.frameAt ? `; at ${d.frameAt.join(', ')} s` : ''})`).join(', ')}\n`);
   for (const model of MODELS) {
     const t0 = Date.now();
     const resp = await fetch(`${SERVER}/api/coach/death-forensics`, {
