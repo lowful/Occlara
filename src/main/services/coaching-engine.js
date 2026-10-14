@@ -68,6 +68,8 @@ class CoachingEngine extends EventEmitter {
     this.lastUltRead = null;  // this frame's own ultimate read, for the ledger's strict rule
     this.frameAt = 0;         // when the frame being applied was CAPTURED
     this.onTrial = null;      // a death on a weak tell, waiting one read for its verdict (judgeTrial)
+    this.deathClock = null;   // { at, left } the round clock at the last registered death
+    this.returnHeld = false;  // a return from the dead read once, waiting for a second read
     // Experimental settings, read live from the store so a settings flip
     // applies to the very next capture: { proPlaybook: 'off'|'on'|'hybrid' }.
     this.experiments = typeof opts.experiments === 'function' ? opts.experiments : () => ({});
@@ -184,6 +186,8 @@ class CoachingEngine extends EventEmitter {
     this.lastUltRead = null;
     this.frameAt = 0;
     this.onTrial = null;
+    this.deathClock = null;
+    this.returnHeld = false;
     this.pendingMode = null;
     this.standardEvidence = 0;
     this.swapEvidence = 0;
@@ -1336,6 +1340,10 @@ class CoachingEngine extends EventEmitter {
     const prevEnemy = this.matchContext.enemyScore | 0;
     const prevAlive = this.matchContext.playerAlive;
     const prevSpike = this.matchContext.spike;
+    // The score this read printed, before the guards below take a step's first
+    // read or fill a lone digit (a return from the dead, below).
+    const printedTeam = updates.teamScore;
+    const printedEnemy = updates.enemyScore;
     let newMatch = false;   // set by the new-match reset, so the continuity guard stands down
 
     // ONE SCORE IS NOT A SCOREBOARD. The server validates the two digits
@@ -1674,6 +1682,46 @@ class CoachingEngine extends EventEmitter {
     // and Bandit", "own HP 19 and Sova abilities" while the player was Iso.
     // Health won all three times, the death never registered, and with it went
     // the death flag, the spectator merge guard and two correct death reviews.
+    //
+    // A RETURN FROM THE DEAD IN THE SAME ROUND WAITS FOR A SECOND READ (8.4.1).
+    // Nobody comes back mid round but by a revive, and one read saying so is
+    // likelier the death screen read wrong: on the player's Fracture swiftplay,
+    // 34 seconds after round 6's death, a frame showing SWITCH PLAYER, a
+    // teammate's portrait and the COMBAT REPORT read "own HP 50 and Sheriff".
+    // Believed, it was the boundary below (coming back from spectating), which
+    // switches off every weak signal, the gun gone from Ghost to Sheriff among
+    // them, the player was alive again, and the next read's SWITCH PLAYER
+    // registered a second death in the round. So while a registered death
+    // stands, an alive claim whose round clock carries on the clock at the
+    // death (within 3 s) is held for one more read: the next such claim is
+    // believed, a dead read or a buy read starts it again, and a buy read, a
+    // score that moved, or a clock that does not carry on is never held.
+    // judgeTrial, above, has already ruled on a death on trial.
+    const dc = this.deathClock;
+    const leftNow = clockSeconds(updates.clock);
+    const stepped = (typeof printedTeam === 'number' && printedTeam > prevTeam)
+      || (typeof printedEnemy === 'number' && printedEnemy > prevEnemy);
+    const sameRound = !!dc && dc.left !== null && leftNow !== null && leftNow > 0
+      && Math.abs(dc.left - (now - dc.at) / 1000 - leftNow) <= 3;
+    // The phase a held read claimed, which the spike guard below still weighs.
+    let heldPhase = null;
+    if (prevAlive === false && updates.playerAlive === true && updates.phase !== 'buy'
+        && !stepped && sameRound && this.lastDeathAt > 0 && !this.onTrial) {
+      if (!this.returnHeld) {
+        this.returnHeld = true;
+        console.log(`[engine] holding a return from the dead for a second read: "${String(updates.aliveTell || '').slice(0, 50)}"`);
+        delete updates.playerAlive;
+        if (updates.phase === 'active' || updates.phase === 'postplant') {
+          heldPhase = updates.phase;
+          delete updates.phase;
+        }
+        delete updates.playerHp;
+      } else {
+        this.returnHeld = false;
+      }
+    } else if (updates.playerAlive === false || updates.phase === 'dead' || updates.phase === 'buy') {
+      this.returnHeld = false;
+    }
     // A BUY PHASE IS ALWAYS A BOUNDARY, and leaning only on roundNumber is not
     // safe: in the session this was built from, roundNumber was missing on a
     // third of the frames. Without this, the weapon and health carried over from
@@ -1799,6 +1847,22 @@ class CoachingEngine extends EventEmitter {
     const carriesOn = (left) => !!rc && left !== null && now - rc.at < 15000
       && Math.abs(rc.left - (now - rc.at) / 1000 - left) <= 3;
     if (updates.phase === 'buy' && carriesOn(clockLeft)) updates.phase = rc.phase;
+    // NO SPIKE IS DOWN WHILE THE ROUND CLOCK RUNS (8.4.1). Once planted the
+    // spike icon takes the timer's place, so a read of the live round, its own
+    // round clock still counting (over 45 seconds, or carrying on the clock of
+    // the round in play), saying "planted" read it off something else: on the
+    // player's Fracture swiftplay, round 3 at 0:51, the chat line "spotted the
+    // SPIKE in B", the clock running on to 0:41 and 0:32 after it, and Riot has
+    // no plant. The claim goes before the merge, so the context never holds
+    // it; a plant the context already holds stays. The frame of the plant
+    // itself can still show the timer's last second, and is read "postplant":
+    // the Split's round 2 plant, which Riot has, was read only there, at 1:12.
+    if (updates.spike === 'planted' && (updates.phase === 'active' || heldPhase === 'active') && clockLeft !== null
+        && (clockLeft > BUY_MAX_LEFT || (!!rc && rc.phase === 'active' && carriesOn(clockLeft)))) {
+      console.log(`[engine] ignoring "planted" on a live round read, its round clock ${updates.clock} still running`);
+      delete updates.spike;
+      delete updates.spikeSpot;
+    }
     const buyRead = isBuyPhase(updates.phase, updates.clock);
     // A buy read with no clock knows only that the buy phase is still on, so
     // it never cuts short a window two clocked reads agree on: two seconds of
@@ -2007,6 +2071,9 @@ class CoachingEngine extends EventEmitter {
         ? null : trial;
       this.matchContext.consecutiveDeaths++;
       this.matchContext.consecutiveWins = 0;
+      // The round clock at the death, which a return in the same round carries on.
+      this.deathClock = { at: now, left: clockSeconds(this.matchContext.clock) };
+      this.returnHeld = false;
       this.lastDeathAt = now;          // opens the death-review window
       this.matchContext.lastDeathAt = this.lastDeathAt;   // visible to the tip verifier
       this.deathTipsSent = 0;          // this death gets its own review budget
@@ -2103,11 +2170,24 @@ class CoachingEngine extends EventEmitter {
     //
     // Only round 5's own buy phase counts: the score can lag a round, so a buy
     // phase after play at 2 to 2 is round 6 being bought.
+    //
+    // AND ONLY A BUY TIMER THAT BEGAN AFTER ROUND 4 WAS PLAYED (8.4.1), by the
+    // clock printed on this frame: buyVerdict's start, to within the 2 s a
+    // whole second clock and the countdown's own 0:00 leave (valorant-rounds.js
+    // beganAfterPlay). The round end countdown reads like a buy timer, and on
+    // the player's Fracture swiftplay the TAB scoreboard was open over round
+    // 4's: "buy 0:01" and "buy 0:00" with round 4's 4,550 credits still on it,
+    // after the banner's 4 to 0 had moved the ledger to round 5. Two reads
+    // locked standard, and nothing could take it back: rounds 5 and 6 were
+    // played on defence by the halftime math, 4 to 1 was no match point, and
+    // the final 5 to 1 was never read. A timer at 0:01 began 29 seconds
+    // before, inside round 4. The real buy phase's 0:43 and 0:42 began after
+    // it, and two of them lock swiftplay (test:sessionreplay).
     const sideRead = typeof updates.side === 'string' ? updates.side : null;
     const buying = isBuyPhase(updates.phase, updates.clock);
     const L = this.ledger;
     const roundFive = buying && team + enemy === 4 && !!L && L.base === 5 && L.offset === 0
-      && !(L.since && L.since.played);
+      && !(L.since && L.since.played) && L.beganAfterPlay(now, clockSeconds(updates.clock));
     if (roundFive && typeof updates.playerCredits === 'number' && updates.playerCredits > PISTOL_CREDITS) {
       this.economyEvidence++;
       if (this.economyEvidence >= 2 && this.matchContext.gameMode !== 'standard') {

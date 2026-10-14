@@ -12,6 +12,15 @@
  *   BENCH MODEL. Any licence could send benchModel and run every read on a
  *   model nine times the price. Now only beside the admin password.
  *
+ *   READ PROMPT VARIANT (8.4.1). Variant b of the live read is an admin
+ *   bench's alone, the same way: a player naming it is read with the live
+ *   prompt, which is byte for byte the one every install has read with, and
+ *   the variant says what the player's Fracture swiftplay showed it must.
+ *
+ *   ASK COACH'S CONTEXT (8.4.1). It was told Stats' four Overview scores were
+ *   a coached-session trend and to drill the weakest of them. They are sums
+ *   over the tracker profile it already has, and neither is said any more.
+ *
  *   CLIENT ERRORS. A malformed or aborted body and a refused origin were all
  *   answered 500 and filed under Recent errors on the admin page. Now 400, and
  *   kept out of it.
@@ -91,11 +100,19 @@ Module._load = function patched(request, parent, isMain) {
 };
 
 // ── A fake model: every request it is sent is kept ──────────────────────────
-const model = { sent: [] };
+// `reply` scripts its answer (a read's STATE line); null is the coach's sentence.
+const model = { sent: [], reply: null };
 global.fetch = async (url, init = {}) => {
   model.sent.push({ url: String(url), body: JSON.parse(init.body || '{}') });
-  const json = { choices: [{ message: { content: 'Hold your angle with a teammate close enough to trade you, then swing together.' }, finish_reason: 'stop' }] };
+  const content = model.reply != null ? model.reply : 'Hold your angle with a teammate close enough to trade you, then swing together.';
+  const json = { choices: [{ message: { content }, finish_reason: 'stop' }] };
   return { status: 200, ok: true, text: async () => JSON.stringify(json), json: async () => json };
+};
+/** The prompt a request to the fake model carried, a vision call's or a text call's. */
+const promptOf = (sent) => {
+  const msgs = (sent && sent.body && sent.body.messages) || [];
+  const c = msgs.length ? msgs[msgs.length - 1].content : '';
+  return typeof c === 'string' ? c : (Array.isArray(c) ? c.filter((p) => p && p.type === 'text').map((p) => p.text).join('\n') : '');
 };
 
 const SERVER = path.join(__dirname, '..', 'server');
@@ -221,6 +238,108 @@ const PW = 'correct horse battery staple';
       'a bench with the admin password gets its model');
     ok(benchModel({ body: { benchModel: 'some/unknown-model' }, headers: { 'x-admin-password': PW } }) === null,
       'and only one on the allowlist');
+  }
+
+  // ── The read prompt, and its variant b (8.4.1) ────────────────────────────
+  {
+    const crypto = require('crypto');
+    const readPrompt = require(path.join(SERVER, 'services', 'read-prompt.js'));
+    const { readVariant } = coach.__test;
+    const sha = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
+    // TODAY'S LIVE PROMPT, BYTE FOR BYTE: its length and sha256 for three
+    // contexts, taken from the prompt every install read with before b was
+    // written. It changes only when a variant is made the default, once
+    // npm run verify:ai has passed it live.
+    const LIVE = [
+      [{}, 4378, 'fca5c78206bda89f06c50b8f72068830c4cae5afa70e90b018e041646949b64c'],
+      [{ agent: 'Jett', map: 'Fracture', side: 'attacking', teamScore: 4, enemyScore: 1, playerAlive: false, gameMode: 'swiftplay' },
+        4578, '4d932b23cac299d678df47bca121bd89f1e8aa53f336c50a9c1c76fdfedc1e84'],
+      [{ map: 'Abyss', teamScore: 0, enemyScore: 0, playerAlive: true }, 4471, '32ac2fcd61539669fd7c2193a662cde813da0a32576210b7756e0b7deca31507'],
+    ];
+    const moved = LIVE.map(([c, len, h]) => ({ p: readPrompt.buildReadPrompt(c), len, h }))
+      .filter(({ p, len, h }) => p.length !== len || sha(p) !== h).map(({ p, len }) => `${p.length} characters where ${len} were`);
+    ok(moved.length === 0, `the live read prompt is byte for byte the one every install reads with${moved.length ? ` (${moved.join('; ')})` : ''}`);
+    ok(sha(readPrompt.FIELDS) === '307ee0dac94c7ae22b2bf0cc707dcda0e8ff3c2521c03c5e8d3289b366a4fcdc',
+      'and its STATE line, the shape mapState parses, is the one it always was');
+
+    // Who may ask for it: an admin bench, as for a bench model.
+    ok(readVariant({ body: { variant: 'b' }, headers: {} }) === null, 'a licence alone cannot switch its read to variant b');
+    ok(readVariant({ body: { variant: 'b' }, headers: { 'x-admin-password': 'guess' } }) === null, 'nor with a wrong admin password');
+    ok(readVariant({ body: { variant: 'b' }, headers: {}, query: { password: PW } }) === null, 'nor with the password in the query string');
+    ok(readVariant({ body: { variant: 'b' }, headers: { 'x-admin-password': PW } }) === 'b'
+      && readVariant({ body: { variant: ' B ' }, headers: { 'x-admin-password': PW } }) === 'b', 'an admin bench naming it gets it');
+    ok(readVariant({ body: { variant: 'z' }, headers: { 'x-admin-password': PW } }) === null
+      && readVariant({ body: {}, headers: { 'x-admin-password': PW } }) === null, 'and only a variant the prompt has');
+
+    // Through the route, the fake model answering a tell longer than either cap.
+    const CTX = { map: 'Fracture', teamScore: 2, enemyScore: 0, agent: 'Jett' };
+    const TELL = 'Spectating, teammate\'s health 89 with Knife bottom-left, SPECTATORS 1 top right, Blade Storm in hand';
+    model.reply = `STATE: ${JSON.stringify({ phase: 'active', alive: true, hp: 89, aliveTell: TELL, weapon: 'Knife' })}`;
+    const read = async (body, headers) => {
+      model.sent.length = 0;
+      const r = await call(coach, 'POST', '/read', { headers: { 'X-License-Key': 'GC-READ-TEST-AAAA-BBBB', ...(headers || {}) },
+        body: { image: 'aGVsbG8=', context: CTX, ...body } });
+      return { r, body: r.body || {}, prompt: promptOf(model.sent[0]) };
+    };
+    const live = readPrompt.buildReadPrompt(CTX);
+    const plain = await read({});
+    ok(plain.r.status === 200 && plain.prompt === live && !('variant' in plain.body) && !('model' in plain.body)
+      && plain.body.context.aliveTell === TELL.slice(0, 60),
+    `a client's read is the live prompt, its tell kept to 60 characters, and its reply the shape it always was (${plain.r.status})`);
+    const player = await read({ variant: 'b' });
+    ok(player.r.status === 200 && player.prompt === live && player.body.variant === null && player.body.context.aliveTell === TELL.slice(0, 60),
+      'a player naming the variant is read with the live prompt and its cap, and told it was (variant null)');
+    const bench = await read({ variant: 'b' }, { 'X-Admin-Password': PW });
+    ok(bench.r.status === 200 && bench.prompt === readPrompt.buildReadPrompt(CTX, 'b') && bench.prompt !== live && bench.body.variant === 'b',
+      'an admin bench naming it is read with variant b, and told so');
+    ok(bench.body.context.aliveTell === TELL.slice(0, 90) && /SPECTATORS 1/.test(bench.body.context.aliveTell)
+      && !/SPECTATORS/.test(plain.body.context.aliveTell),
+    `on b the tell keeps 90 characters, so "SPECTATORS 1" survives where 60 cut it to "${plain.body.context.aliveTell.slice(-3)}"`);
+    ok(plain.body.context.playerAlive === false && plain.body.context.playerHp === undefined
+      && bench.body.context.playerAlive === true && bench.body.context.playerHp === 89,
+    'and the counter it keeps is seen for what it is (SPECTATOR_COUNT): the living player\'s 89 stands, where the cut tell read them dead');
+    model.reply = null;
+
+    // What b says, against what the live prompt says.
+    const B = readPrompt.buildReadPrompt({}, 'b');
+    const A = readPrompt.buildReadPrompt({});
+    const aliveOf = (p) => p.split('\n').find((l) => l.startsWith('- alive and aliveTell:')) || '';
+    const deadOf = (p) => { const l = aliveOf(p); return l.slice(l.indexOf('No:')); };
+    const changed = B.split('\n').filter((l) => !A.split('\n').includes(l));
+    ok(B.includes(readPrompt.FIELDS) && changed.length === 3, `b keeps the STATE line and changes three lines (${changed.length})`);
+    ok(/the word "Spectating"/.test(A) && !/the word "Spectating"|"Spectating"/.test(B), 'b never offers "Spectating" as a dead tell, where the live prompt does');
+    ok(/SPECTATORS and a number at the top right counts the people watching/.test(B) && /never a sign of death/.test(B)
+      && !/SPECTATORS/.test(A), 'b says what SPECTATORS and a number is, and that it is never a sign of death');
+    ok(['SWITCH PLAYER', 'KILLED BY', 'COMBAT REPORT'].every((w) => deadOf(B).includes(w))
+      && /only when they are printed on this frame/.test(deadOf(B)), 'b asks for SWITCH PLAYER, KILLED BY or COMBAT REPORT only when they are printed on the frame');
+    ok(/"/.test(deadOf(A)) && /portrait and name above "SWITCH PLAYER"/.test(A) && deadOf(B).length > 200 && !/"/.test(deadOf(B))
+      && !/portrait and name above/.test(B), 'with nothing quoted for the model to copy, where the live prompt handed it the sentence it copied');
+    ok(/After a plant it is the spike timer/.test(A) && !/spike timer/i.test(B) && /spike icon there and no timer at all: clock null/.test(B),
+      'and b says a planted spike shows no timer, where the live prompt said it had one');
+  }
+
+  // ── Ask Coach's context (8.4.1) ───────────────────────────────────────────
+  {
+    // What an 8.4.0 install sends, Stats' four Overview scores as a trend.
+    const TREND = { impact: { avg: 83, direction: 'flat' }, positioning: { avg: 62, direction: 'down' },
+      utility: { avg: 65, direction: 'up' }, aim: { avg: 71, direction: 'flat' } };
+    model.sent.length = 0;
+    const r = await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': 'GC-CHAT-TEST-AAAA-BBBB' },
+      body: { messages: [{ role: 'user', content: 'What should I work on?' }], context: { game: 'valorant', coachTrend: TREND } } });
+    const prompt = promptOf(model.sent[0]);
+    const TOLD = /coached.session|weakest or falling|falling category|impact 83|positioning 62|utility 65|aim 71/i;
+    ok(TOLD.test('Their coached-session trend (0-100 per category, last 10 sessions vs the 10 before): impact 83 flat')
+      && TOLD.test('Target the weakest or falling category when giving drills.') && !TOLD.test('Their tracker profile (last 25 competitive matches)'),
+    'the check finds the old trend line and its order, and not the tracker profile');
+    ok(r.status === 200 && prompt.length > 500 && !TOLD.test(prompt),
+      `Ask Coach is never told Stats' four scores are a coached-session trend, nor to drill the weakest, whatever a client sends (${r.status})`);
+    const indexSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8');
+    // Line ends as git checks the file out on this PC (CRLF) or as it is stored (LF).
+    const chatFn = (indexSrc.match(/\r?\n {2}async chat\(messages\) \{[\s\S]*?\r?\n {2}\},\r?\n/) || [''])[0];
+    ok(/coachTrend\s*:/.test('      coachTrend:   valorant ? trend : null,') && !/coachTrend\s*:/.test('      // No coachTrend (8.4.1): Stats'),
+      'the app check finds a coachTrend field, and not a comment naming it');
+    ok(chatFn.length > 1000 && /api\.post\('\/api\/coach\/chat'/.test(chatFn) && !/coachTrend\s*:/.test(chatFn),
+      `and the app sends none: chat()'s context has no coachTrend (${chatFn.length} characters of chat() read)`);
   }
 
   // ── Client errors are 4xx and stay out of Recent errors ──────────────────

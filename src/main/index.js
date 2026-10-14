@@ -1079,7 +1079,8 @@ async function cutLookClips(job, looks, stale) {
     return cut;
   }
   const wanted = (looks || [])
-    .map((l) => ({ key: l.round.n, name: clips.roundClip(l.round.n), moment: clips.momentOf(l) }))
+    // From no earlier than its round's barriers, its stills inside (clips.lookWindow, 8.4.1).
+    .map((l) => ({ key: l.round.n, name: clips.roundClip(l.round.n), moment: clips.momentOf(l), window: clips.lookWindow(l) }))
     .filter((l) => l.name && Number.isFinite(l.moment))
     .sort((a, b) => a.key - b.key);
   if (!wanted.length) return cut;
@@ -2366,7 +2367,12 @@ const controller = {
   },
   // Opened plainly, the chat talks about the newest reviewed match.
   openChat()      { state.chatReviewId = null; openPage('coach'); },
-  openStats()     { openPage('stats'); },
+  // Home's Rank journey (8.4.1) opens Stats with the journey open, where it
+  // opened Stats with the journey folded in the Rank tile: kept here until the
+  // page asks (STATS_OPENED_FOR, taken once), as it loads or as it is about to
+  // show. Opened any other way, Stats opens as it is.
+  openStats(what) { state.statsOpenFor = what === 'journey' ? 'journey' : null; openPage('stats'); },
+  takeStatsOpen() { const w = state.statsOpenFor || null; state.statsOpenFor = null; return w; },
 
   /** "Ask Coach about this" from the stats dashboard: stash the session's
    *  context, then open chat; the chat window collects the seed via CHAT_SEED
@@ -2556,7 +2562,9 @@ const controller = {
       matchMemory:  engine && !midMatch && Array.isArray(engine.matchMemory) ? engine.matchMemory.slice(-8) : [],
       stats:        valorant ? await fetchTrackerStats() : null,
       noSessionYet: !hasSessionData,
-      coachTrend:   valorant ? (() => { const tp = guardedTrackerPair(); return computeCategoryTrends([], tp.stats, tp.prevStats); })() : null,
+      // No coachTrend (8.4.1): Stats' four Overview scores are sums over the
+      // tracker profile in `stats`, and went to the coach as a "coached-session
+      // trend" to drill the weakest of. The server ignores them from any client.
       // The chat works WITH the stats dashboard: it sees the same recent
       // matches (with ratings) and coached sessions the player is looking at.
       recentMatches: !valorant ? [] : (await this.getMatches(false)).matches.slice(0, 5).map((m) => ({

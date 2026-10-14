@@ -22,6 +22,7 @@ const insights = require('./insights');
 const grader = require('./grade');
 const { CLIP_RE, LOOK_AT } = require('./clips');
 const { roleOf } = require('./agent-roles');
+const { weaponName } = require('./valorant-verify');
 
 let DATA = {};
 try {
@@ -111,10 +112,62 @@ function foreignPlace(text, map) {
   return null;
 }
 
-/** A round's reads as the review shows and sends them: none from another map. */
-function readsOf(r, map) {
+/*
+ * A READ NAMING ANOTHER AGENT'S KIT IS NOT THE PLAYER'S PLAY (8.4.1). Round 2
+ * of the player's Fracture swiftplay, on Jett, kept "holding A Main with
+ * alarmbot deployed", Killjoy's, and it went to the review model as what the
+ * player was seen doing: a spectated teammate's HUD, or a misread. So a read
+ * naming an ability the player's agent does not have is left out, the engine's
+ * rule for a teammate's kit called "own" (spectate-tells.js foreignAgentInTell)
+ * with the look's own allowance (death-forensics.js foreignAbility): named
+ * with its owner ("a Killjoy alarmbot at A Main") it is about that agent, not
+ * the player. Matched as whole words, where foreignAgentInTell matches inside
+ * them: that way Harbor's Cove is in every "from cover". Only with an agent
+ * the player confirmed or Riot's record names, the engine's rule, and an
+ * agent the game data does not know (one released after the last sync) has
+ * no kit to hold a read to, so every read stays.
+ */
+const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const KITS = (() => {
+  const out = [];
+  for (const [agent, a] of Object.entries(DATA.agents || {})) {
+    const owner = new RegExp(`\\b${escapeRe(agent)}\\b`, 'i');
+    for (const ab of (a && a.abilities) || []) {
+      // "nebula  / dissipate" is two names; KAY/O's "frag/ment" is one.
+      for (const part of String(ab).split(/\s+\/\s+/)) {
+        const name = part.trim().toLowerCase();
+        if (name.length >= 4) out.push({ agent: agent.toLowerCase(), name, owner, re: new RegExp(`\\b${escapeRe(name)}\\b`, 'i') });
+      }
+    }
+  }
+  return out;
+})();
+
+/** The ability of another agent a read names, the player being on `agent`, or null. */
+function foreignKit(text, agent) {
+  const mine = String(agent || '').trim().toLowerCase();
+  if (!mine || !KITS.some((k) => k.agent === mine)) return null;
+  const t = String(text || '');
+  for (const k of KITS) {
+    if (k.agent === mine || !k.re.test(t) || k.owner.test(t)) continue;
+    return k.name;
+  }
+  return null;
+}
+
+/**
+ * A round's reads as the review shows and sends them: none from another map,
+ * and none naming another agent's kit (`agent`, the player's, when known).
+ */
+function readsOf(r, map, agent) {
   return (Array.isArray(r && r.reads) ? r.reads : []).map((x) => (x && typeof x === 'object' ? x.text : x))
-    .filter((t) => typeof t === 'string' && t && !foreignPlace(t, map));
+    .filter((t) => typeof t === 'string' && t && !foreignPlace(t, map) && !foreignKit(t, agent));
+}
+
+/** The agent a round's reads are held to: Riot's, else the one the player confirmed, else none. */
+function kitAgentOf(riotAgent, ctx) {
+  const c = ctx || {};
+  return (typeof riotAgent === 'string' && riotAgent) || (c.agentConfirmed && typeof c.agent === 'string' ? c.agent : null);
 }
 
 /*
@@ -444,6 +497,7 @@ function build(input) {
   }
 
   const mapName = ctx.map || (tracker && tracker.map) || null;
+  const kitAgent = kitAgentOf((tracker && tracker.agent) || (input.riotMe && input.riotMe.agent), ctx);
   const cards = rounds.map((r) => ({
     n: r.n,
     side: sideLabel(r.side),
@@ -477,7 +531,7 @@ function build(input) {
       afterPlant: !!r.afterPlant,
     } : null,
     facts: roundFacts(r, { riotOnly }),
-    reads: readsOf(r, mapName),
+    reads: readsOf(r, mapName, kitAgent),
     why: typeof whys[r.n] === 'string' && whys[r.n] ? whys[r.n] : null,
     // The coach's look at the frame before the death, when it took one.
     forensics: r.forensics && r.forensics.cause ? {
@@ -680,10 +734,42 @@ function riotOnlyNote(grade, riotOnly) {
 function served(review) {
   if (!review || review.kind !== 'valorant') return review;
   if (review.source === 'riot') {
-    return { ...review, insights: insights.asFacts(review.insights), grade: grader.riotWords(review.grade) };
+    return weaponsInTodaysWords({ ...review, insights: insights.asFacts(review.insights), grade: grader.riotWords(review.grade) });
   }
   const out = review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review;
-  return aboutNotesInTodaysWords(out);
+  return weaponsInTodaysWords(aboutNotesInTodaysWords(out));
+}
+
+/*
+ * A WEAPON THAT NAMES NO WEAPON, LEFT OFF A REVIEW SAVED WITH ONE (8.4.1).
+ * The player's Fracture swiftplay was saved with round 6 "Died at B Tree, 3s
+ * in, to Chamber with a Weapon": the server had taken HenrikDev's type for a
+ * name, which neither the server nor the client does now (valorant-verify.js
+ * weaponName). Shown, the card and the strip say "to Chamber", as a review
+ * built today does, and its Riot facts carry no weapon. On disk it stays as
+ * it was saved. A card from before 8.0.3, with no Riot fields, is read off
+ * its death line alone.
+ */
+function weaponsInTodaysWords(review) {
+  if (!review || !Array.isArray(review.rounds)) return review;
+  const cut = (line) => {
+    if (typeof line !== 'string' || !line.startsWith('Died')) return line;
+    const k = line.lastIndexOf(' with ');
+    if (k < 0) return line;
+    const tail = line.slice(k + ' with '.length);
+    const named = tail.startsWith('an ') ? tail.slice(3) : tail.startsWith('a ') ? tail.slice(2) : null;
+    return named && !weaponName(named) ? line.slice(0, k) : line;
+  };
+  let changed = false;
+  const rounds = review.rounds.map((c) => {
+    if (!c || typeof c !== 'object') return c;
+    const facts = Array.isArray(c.facts) ? c.facts.map(cut) : c.facts;
+    const typeWord = c.riot && typeof c.riot.weapon === 'string' && !weaponName(c.riot.weapon);
+    if (!typeWord && (!Array.isArray(c.facts) || facts.every((f, i) => f === c.facts[i]))) return c;
+    changed = true;
+    return { ...c, facts, ...(typeWord ? { riot: { ...c.riot, weapon: null } } : {}) };
+  });
+  return changed ? { ...review, rounds } : review;
 }
 
 /*
@@ -725,6 +811,7 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
   const team = typeof ctx.teamScore === 'number' ? ctx.teamScore : null;
   const enemy = typeof ctx.enemyScore === 'number' ? ctx.enemyScore : null;
   const map = ctx.map || (riot && riot.map) || null;
+  const kitAgent = kitAgentOf(riot && riot.agent, ctx);
   /*
    * THE COUNTED LISTS GO WITH THE ROUNDS, so the summary names the mistake the
    * review counted. Asked for "the most repeated mistake" with only the round
@@ -752,7 +839,7 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
       n: r.n, side: r.side, result: r.result, died: r.died, deathSpot: r.deathSpot,
       timing: timingOf(r), planted: r.planted, plantSpot: r.plantSpot,
       ultReady: r.died && r.ultAtDeath === 'ready',
-      reads: readsOf(r, map),
+      reads: readsOf(r, map, kitAgent),
       // Riot's exact facts, when the match has been checked against them.
       ...(r.verified ? {
         verified: true, sec: r.deathSec, killer: r.killerAgent, weapon: r.weapon,
@@ -875,4 +962,4 @@ function against(tracker, role, history) {
 }
 
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
-  queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, readsOf, BASELINE_GAMES, BASELINE_MIN };
+  queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, BASELINE_GAMES, BASELINE_MIN };

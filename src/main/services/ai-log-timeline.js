@@ -33,6 +33,8 @@
 const { __test } = require('./coaching-engine');
 const { clockSeconds, isBuyPhase, BUY_MAX_LEFT } = require('../../shared/valorant-rounds');
 const { countsSpectators } = require('../../shared/spectate-tells');
+const { borrowedInto } = require('../../shared/death-frames');
+const { filedRounds } = require('./death-reconcile');
 
 // A map change with no score reset behind it needs this many consecutive frames
 // AND an agreeing label fingerprint before it counts. The longest run of pure
@@ -206,7 +208,30 @@ function mapsPlayed(records) {
 const SPECTATING = /\bswitch player\b|\bkill ?cam\b|\bspectat(?:e|es|ing|or)\b|\bwatching (?:a |your )?teammate\b|\bteammate\b[^.]{0,24}\bhp\b/i;
 const NOT_SPECTATING = /\bspectat(?:e|es|ing|or)\s+(?:the\s+)?(?:score\s?board|mini\s?map)\b/i;
 // Evidence the player is looking at their OWN hud: their loadout and health.
-const OWN_HUD = /\bown (?:hp|health|loadout|weapon|abilit)/i;
+const OWN_HUD = /\bown (?:hp|health|loadout|weapon|abilit)/gi;
+// AND NOT ITS NEGATION (8.4.1), which the model writes as often as the claim:
+// "KILLED BY ASTRA and COMBAT REPORT panel visible, no own health number",
+// "own HP not visible". Read as the player's own HUD, it made the frame after
+// each real death of the player's Fracture swiftplay alive, so every one was
+// pinned a frame or two late (92 for 91, 303 for 301, 325 for 324). In every
+// session the player's PC kept (four, 1,501 frames), each negation sat right
+// beside the words, before them ("no own health") or after them ("own HP not
+// visible"), so only those two places are read, a number word allowed between
+// ("own health number not shown").
+const OWN_NEGATED_BEFORE = /\b(?:no|not|without|never|nor)\s+$/i;
+const OWN_NEGATED_AFTER = /^\s*(?:numbers?\s+|bars?\s+)?(?:is\s+|are\s+|was\s+)?(?:not|no|isn't|aren't|missing|hidden|gone|absent|replaced)\b/i;
+
+/** Whether a tell names the player's own HUD, and does not say it is missing. */
+function ownHud(tell) {
+  const t = String(tell || '');
+  for (const m of t.matchAll(OWN_HUD)) {
+    const before = t.slice(Math.max(0, m.index - 12), m.index);
+    // To the end of its own clause, the rest of a cut word ("abilit|ies") left out.
+    const after = t.slice(m.index + m[0].length).split(/[,.;|]/)[0].replace(/^\w*/, '');
+    if (!OWN_NEGATED_BEFORE.test(before) && !OWN_NEGATED_AFTER.test(after)) return true;
+  }
+  return false;
+}
 
 // PROOF rather than interpretation. Valorant prints SWITCH PLAYER on screen only
 // while spectating, so the model reporting those words is reporting something it
@@ -235,7 +260,13 @@ function aliveVerdict(state) {
   // the screenshot showed a living player with the scoreboard open. Logs written
   // before that was fixed still carry the wrong flag, so this reads the evidence
   // and not the conclusion.
-  if (OWN_HUD.test(tell)) return 'alive';
+  if (ownHud(tell)) return 'alive';
+  // A dead flag whose tell is the counter and nothing the death screen prints
+  // is the read the engine drops, not waits on (CLAUDE.md, the SPECTATORS
+  // counter): no evidence either way. "Spectating 1 top right and teammate
+  // shown, no own HP" was alive here only while "no own HP" read as the
+  // player's own HUD (8.4.1).
+  if (s.playerAlive === false && countsSpectators(tell)) return 'unknown';
   if (s.playerAlive === false) return 'dead';
   if (s.playerAlive === true) return 'alive';
   return 'unknown';
@@ -265,9 +296,107 @@ function buyTimerEnd(recs, i) {
   return 0;
 }
 
+/**
+ * THE ENGINE'S OWN DEATHS, in a log it wrote (8.4.1). Every record since 8.0
+ * carries `died`, true on the one frame the engine REGISTERED a death on, after
+ * every guard (HP beats death, the spectator rules, nobody dies in a buy
+ * phase), and `round`, the round the ledger filed that frame under. Since
+ * 8.3.1 a death on a weak tell waits a read for its verdict and its record is
+ * written with it (coaching-engine.js judgeTrial, settleTrial): false when the
+ * next read withdrew it. So a withdrawn death is already no death here.
+ *
+ * The log used to find its own deaths in runs of frames (runDeaths, below,
+ * kept for a log from before 8.0, whose records carry neither), and on the
+ * player's Fracture swiftplay it listed 6 where the engine registered 5, its
+ * ledger kept 4 and Riot has 3: each real death a frame or two late, one
+ * SWITCH PLAYER frame in round 3 the engine never registered (its weak tell
+ * a read before was withdrawn, and the cooldown held), and round 6 twice. Its
+ * header then said "the coach marked 6" beside a review saying the screen read
+ * 4. The eye opens a match on the first of these (ailog.js), so on a death the
+ * engine kept, never a frame it withdrew or never registered.
+ *
+ * ONE A ROUND, THE FIRST, as the ledger keeps them (valorant-rounds.js: a
+ * second registration in one round is a misread, and the later one was
+ * measured to move a real death 36 s late), in the round the record is filed
+ * under (death-reconcile.js filedRounds: the ledger's round it carries, or for
+ * a record read after the watch ended a match, the round its score says). Each
+ * match counts its own rounds, so a round is a match's (its stamp). On the five
+ * committed sessions replayed through the real engine these are the ledger's
+ * own deaths, round for round (test-ailog-timeline.js).
+ *
+ * AND A DEATH ON THE BANNER IS THE ROUND BEFORE'S, as the ledger files it. A
+ * death registered on the first frames of a round, before its buy phase or any
+ * play, is filed back into the round that ended when that round has none
+ * (valorant-rounds.js, the score lags), while its record carries the round the
+ * ledger was on, the new one. On the real 24 round Abyss match rounds 6 and 24
+ * died on the banner that already printed the next score: taken at the round
+ * on their records, round 6's death was round 7's, round 7's own was then
+ * refused as a second, and round 24's went to a round 25 the match never had,
+ * so the log listed 21 deaths where its ledger has 22, and Riot's check found
+ * none in round 25. The rule is the review's own frame picker's
+ * (death-frames.js borrowedInto), held to the ledger on that match and on a
+ * banner death driven through the real engine.
+ */
+function engineWrote(recs) {
+  return (Array.isArray(recs) ? recs : []).some((r) => !!r && typeof r.died === 'boolean');
+}
+
+function engineDeaths(recs) {
+  const out = [];
+  const filed = new Set();
+  const under = filedRounds(recs);
+  // Each match's records under the round each is filed under, for the banner.
+  const view = recs.map((r, i) => ({ ...(r || {}), round: under[i].round }));
+  const byMatch = new Map();
+  view.forEach((v, i) => {
+    if (!byMatch.has(under[i].match)) byMatch.set(under[i].match, []);
+    byMatch.get(under[i].match).push(v);
+  });
+  for (let i = 0; i < recs.length; i++) {
+    const r = recs[i] || {};
+    if (r.died !== true) continue;
+    const { match } = under[i];
+    const stamped = under[i].round;
+    const round = typeof stamped === 'number' && borrowedInto(byMatch.get(match), stamped) === view[i]
+      ? stamped - 1 : stamped;
+    const key = `${match}|${round}`;
+    if (filed.has(key)) continue;
+    filed.add(key);
+    // What the death screen showed, as long as it stayed up: up to the next
+    // frame of the player's own HUD or the next death registered.
+    let to = i;
+    while (to + 1 < recs.length && recs[to + 1].died !== true && aliveVerdict(recs[to + 1].state) !== 'alive') to++;
+    const tells = recs.slice(i, to + 1).map((x) => String((x.state || {}).aliveTell || '')).join(' | ');
+    out.push({
+      at: i,
+      frames: to - i + 1,
+      proven: SPECTATING_PROOF.test(tells),
+      // The engine's first read of the session (or of the match on screen)
+      // registered it: there is no run up to show.
+      joinedInProgress: i === 0,
+      round,
+      // Registered by the engine, so its round is the ledger's: what Riot's
+      // check pairs it by (death-reconcile.js).
+      registered: true,
+      killedBy: killerOf(recs, i),
+      reviewed: recs.slice(i, to + 2).some((x) => x.shown && x.shown.death),
+      ...windowFor(recs, i),
+    });
+  }
+  return out;
+}
+
+/**
+ * Every death in a session: the engine's own in a log it wrote (engineDeaths),
+ * and in a log from before 8.0, found in runs of frames (runDeaths).
+ */
 function deaths(records) {
   const recs = Array.isArray(records) ? records : [];
+  return engineWrote(recs) ? engineDeaths(recs) : runDeaths(recs);
+}
 
+/** A log from before 8.0, which carries no verdict of the engine's: deaths found in runs of frames. */
+function runDeaths(recs) {
   // Group into runs first, because a death is judged on the run and not on the
   // frame that started it. Unknown frames extend whichever run they sit in.
   const runs = [];
@@ -405,15 +534,22 @@ function killerOf(recs, i) {
  * against its screenshot, all carried the score 2-3 while the screenshots showed
  * 1-2, 2-3 and 2-3. A ceiling built on an unreliable number must not be allowed
  * to delete evidence, so it is a diagnostic and nothing more.
+ *
+ * The engine's own deaths (engineDeaths) are one a round because their round is
+ * the LEDGER's, which the score's lag is already worked out of, and in a log
+ * the engine wrote the rounds here are the ledger's too, and a record with no
+ * ledger round its score's, as engineDeaths files it.
  */
 function deathSanity(records) {
   const found = deaths(records);
   const recs = Array.isArray(records) ? records : [];
   let rounds = 0;
-  for (const r of recs) {
-    const s = r.state || {};
-    if (typeof s.teamScore === 'number' && typeof s.enemyScore === 'number') {
-      rounds = Math.max(rounds, s.teamScore + s.enemyScore + 1);
+  if (engineWrote(recs)) {
+    for (const f of filedRounds(recs)) if (typeof f.round === 'number') rounds = Math.max(rounds, f.round);
+  } else {
+    for (const r of recs) {
+      const s = r.state || {};
+      if (typeof s.teamScore === 'number' && typeof s.enemyScore === 'number') rounds = Math.max(rounds, s.teamScore + s.enemyScore + 1);
     }
   }
   return {
@@ -426,4 +562,4 @@ function deathSanity(records) {
   };
 }
 
-module.exports = { segments, mapsPlayed, matchStarts, deaths, deathSanity, aliveVerdict, MIN_RUN };
+module.exports = { segments, mapsPlayed, matchStarts, deaths, deathSanity, aliveVerdict, engineWrote, ownHud, MIN_RUN };

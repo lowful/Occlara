@@ -422,6 +422,66 @@ ok(conceded({ dragonsAgainst: 1, baronsAgainst: 2 }) === 'The enemy took 1 drago
     'as does every count across matches, and the saved review is left as it was');
 }
 
+// ── The trades line, and one look's cause, in today's words (8.4.1) ─────────
+// The player's Fracture swiftplay: "You killed the player who had just killed a
+// teammate twice." read as the enemy killing a teammate twice, and the one
+// look the coach counted as a miss read "Repeeks" beside its round's "Repeek".
+{
+  const R = (n, o) => ({ n, side: 'defending', result: 'won', died: false, verified: true, kills: 1, firstKill: false,
+    firstDeath: false, traded: null, trades: 0, deathSpot: null, early: false, planted: false, afterPlant: false, reads: [], ...o });
+  const six = [R(1, { trades: 1 }), R(2, { died: true, traded: true, kills: 3,
+    forensics: { cause: 'repeek', what: 'You stayed on the same A Main angle.', better: 'Fall back after the first exchange.' } }),
+  R(3, { trades: 1, kills: 2 }), R(4, { kills: 4 }), R(5, { result: 'lost', died: true, traded: false }),
+  R(6, { died: true, traded: false, kills: 0, firstDeath: true })];
+  const got = insights.valorant(six, { role: 'Duelist' });
+  const trades = got.strengths.find((e) => e.key === 'trades');
+  ok(trades && trades.detail === 'Twice you killed an enemy right after they killed a teammate.',
+    `the trades line says its count first, so it is the player's (${trades && trades.detail})`);
+  ok(insights.tradesDetail(1) === 'Once, you killed an enemy right after they killed a teammate.'
+    && insights.tradesDetail(5) === '5 times you killed an enemy right after they killed a teammate.',
+  'and its one and N forms');
+  const miss = got.missed.find((e) => e.key === 'cause:repeek');
+  ok(miss && miss.title === 'Repeek' && miss.count === 1, `one look's cause is named in the singular (${miss && miss.title})`);
+  const again = insights.valorant(six.map((r) => (r.n === 5 ? { ...r, forensics: { cause: 'repeek', what: 'Again.', better: 'Change angle.' } } : r)),
+    { role: 'Duelist' });
+  ok(again.mistakes.some((e) => e.key === 'cause:repeek' && e.title === 'Repeeks' && e.count === 2)
+    && !again.missed.some((e) => e.key === 'cause:repeek'), 'and two of it in the plural, a repeated mistake');
+  // Saved in 8.4.0's words, shown in today's, the file left as it was.
+  const old = { kind: 'valorant', source: 'watched', insights: {
+    mistakes: [{ key: 'cause:dry-peek', title: 'Dry peeks', detail: 'x', rounds: [2, 9], count: 2, judged: true }],
+    strengths: [{ key: 'trades', title: 'Traded your teammates', detail: 'You killed the player who had just killed a teammate twice.', rounds: [1, 3], count: 2 }],
+    missed: [{ key: 'cause:repeek', title: 'Repeeks', detail: 'Round 2: You stayed on the same A Main angle.', fix: 'Fall back.', rounds: [2], count: 1, judged: true }],
+  } };
+  const before = JSON.stringify(old);
+  const shown = review.served(old).insights;
+  ok(shown.strengths[0].detail === 'Twice you killed an enemy right after they killed a teammate.' && shown.missed[0].title === 'Repeek'
+    && shown.mistakes[0].title === 'Dry peeks' && JSON.stringify(old) === before,
+  `a review saved in the old words is shown in today's, two of a cause still plural, the saved review unchanged (${shown.missed[0].title}; ${shown.strengths[0].detail})`);
+  ok(insights.inTodaysWords({ strengths: [{ key: 'trades', detail: 'You killed the player who had just killed a teammate 3 times.' }] })
+    .strengths[0].detail === '3 times you killed an enemy right after they killed a teammate.'
+    && insights.asFacts(old.insights).facts.find((f) => f.key === 'trades').detail === 'Twice you killed an enemy right after they killed a teammate.',
+  "every count of the old line, and as a fact of a review graded from Riot's record alone");
+  ok(insights.TRADES_RE.test('You killed the player who had just killed a teammate once.')
+    && !insights.TRADES_RE.test('Twice you killed an enemy right after they killed a teammate.')
+    && !insights.TRADES_RE.test('You killed the player who had just killed a teammate.'),
+  'the old line is matched by its own words and count, today\'s never');
+  // Only a title the list wrote, either form of its cause's, is put in today's
+  // words: one it never wrote under a cause's key is left as it was saved.
+  const own = insights.inTodaysWords({ missed: [{ key: 'cause:repeek', title: 'Peeked the same angle twice', rounds: [2], count: 1 }],
+    mistakes: [{ key: 'cause:repeek', title: 'Repeek', rounds: [2, 5], count: 2 }] });
+  ok(own.missed[0].title === 'Peeked the same angle twice' && own.mistakes[0].title === 'Repeeks',
+    `a title no list wrote stays, and the singular counted twice is the plural (${own.missed[0].title}; ${own.mistakes[0].title})`);
+  // Across matches: the newest sighting's title is the singular, the count is
+  // two at least, and the example quoted is today's line.
+  const mk = (i) => ({ id: `valorant-${1758000000000 + i}-trd${i}x`, at: 1758000000000 + i, game: 'valorant', review: JSON.parse(before) });
+  const p = patterns.summarise([mk(2), mk(1)]);
+  const missP = p.missed.find((e) => e.key === 'cause:repeek');
+  const tradeP = p.strengths.find((e) => e.key === 'trades');
+  ok(missP && missP.matches === 2 && missP.title === 'Repeeks' && tradeP
+    && tradeP.examples[0].detail === 'Twice you killed an enemy right after they killed a teammate.',
+  `a cause seen once a match, counted across two, is "Repeeks", and the patterns quote today's trades line (${missP && missP.title})`);
+}
+
 // ── The lists count recorded matches, the grades every match ───────────────
 // A match graded from Riot's record alone has a grade and nothing to count in
 // a list: counted, its lists made Home's "most repeated mistake" mostly a

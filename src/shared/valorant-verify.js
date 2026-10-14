@@ -51,6 +51,36 @@ try {
 }
 
 /*
+ * A WEAPON IS A NAME, NEVER A TYPE (8.4.1). The server took HenrikDev's type
+ * for a weapon it could not name, and the player's Fracture round 6 read "to
+ * Chamber with a Weapon" (server/services/riot-rounds.js weaponOf, which no
+ * longer does). A server from before still sends "Weapon" or "Ability", so
+ * here, where Riot's record enters the client, a word that names no weapon is
+ * no weapon: the card says "to Chamber", and neither prompt is told one. The
+ * server's list, mirrored by hand (check:clientboot forbids reaching into
+ * server/); test:valorantreview holds the two equal.
+ */
+const NOT_A_WEAPON = ['weapon', 'ability', 'bomb', 'fall', 'invalid', 'ultimate', 'primary', 'ability1', 'ability2',
+  'grenadeability', 'passive'];
+function weaponName(w) {
+  const s = typeof w === 'string' ? w.trim() : '';
+  return s && !NOT_A_WEAPON.includes(s.toLowerCase().replace(/\s+/g, '')) ? s : null;
+}
+
+/*
+ * A KILLER IS AN AGENT, NEVER A PLAYER (8.4.1). The server names the killer in
+ * Riot's death check by the agent they played (coach.js killerAgentOf), and
+ * one from before still sends the killer's full Riot ID, or a puuid, which the
+ * AI log painted on every death Riot confirmed: a name its owner may have
+ * hidden. So where that check enters the client (death-reconcile.js), a
+ * killer is an agent the game data knows, in its own spelling, or none.
+ */
+function agentName(s) {
+  const t = typeof s === 'string' ? s.trim().toLowerCase() : '';
+  return (t && AGENTS.find((a) => a.toLowerCase() === t)) || null;
+}
+
+/*
  * WHERE THE SPIKE WENT DOWN IS RIOT'S, when its record names the site (8.3.1;
  * server/services/riot-rounds.js plantSiteOf). The screen's callout stays where
  * it names that site, the part Riot never says ("B Boba" in a round Riot has
@@ -232,7 +262,7 @@ function reconcile(rounds, riot, opts) {
       verified: true,
       kills: typeof rr.kills === 'number' ? rr.kills : null,
       killerAgent: rr.killerAgent || null,
-      weapon: rr.weapon || null,
+      weapon: weaponName(rr.weapon),
       firstDeath: !!rr.firstDeath,
       firstKill: !!rr.firstKill,
       // From Riot's kill feed, null when the feed could not say (a record
@@ -319,4 +349,4 @@ function describe(checks) {
   return `Checked against Riot's record of ${scope}: ${deaths}.`;
 }
 
-module.exports = { reconcile, describe, namedKiller };
+module.exports = { reconcile, describe, namedKiller, weaponName, agentName, NOT_A_WEAPON };

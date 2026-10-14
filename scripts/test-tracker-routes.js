@@ -236,6 +236,46 @@ const V4 = {
     ok(r.status === 200 && r.body.perRound, 'and the same match links once the tracker answers');
   }
 
+  // ── a weapon is its name, never its type (8.4.1) ─────────────────────────
+  // HenrikDev gives a kill it cannot name weapon { name: null, type: 'Weapon' }:
+  // the player's Fracture round 6 read "with a Weapon" on the card and in the
+  // AI log's death check.
+  henrik.match = async () => ({ status: 200, json: { data: { ...V4,
+    kills: V4.kills.map((k, i) => (i === 1 ? { ...k, weapon: { id: 'hh', name: null, type: 'Weapon' } } : k)) } } });
+  {
+    const deaths = await call(coach, 'GET', `/match-deaths?matchId=md1&username=${ME}`, { headers: H });
+    const rounds = await call(coach, 'GET', `/match-rounds?matchId=md1&username=${ME}`, { headers: H });
+    const d = deaths.body && Array.isArray(deaths.body.deaths) ? deaths.body.deaths[0] : null;
+    const r2 = rounds.body && Array.isArray(rounds.body.perRound) ? rounds.body.perRound.find((x) => x.n === 2) : null;
+    ok(deaths.status === 200 && d && d.round === 2 && d.weapon === null && r2 && r2.died && r2.weapon === null,
+      `a kill Riot names no weapon for has none, in the death check and the round record alike (${d && JSON.stringify(d.weapon)}, ${r2 && JSON.stringify(r2.weapon)})`);
+  }
+  henrik.match = async () => ({ status: 200, json: { data: V4 } });
+
+  // ── Riot's death check names the killer by agent, never by Riot ID (8.4.1) ─
+  // It answered the killer's full Riot ID, which the AI log painted ("killed by
+  // Foe#NA1"): the rule of the roster (/matches, below) is the death check's.
+  {
+    const killer = async (id, data) => {
+      henrik.match = async () => ({ status: 200, json: { data } });
+      const r = await call(coach, 'GET', `/match-deaths?matchId=${id}&username=${ME}`, { headers: H });
+      const d = r.body && Array.isArray(r.body.deaths) ? r.body.deaths[0] : null;
+      return { r, d, text: JSON.stringify(r.body || {}) };
+    };
+    const named = await killer('mdk1', V4);
+    ok(named.r.status === 200 && named.d && named.d.round === 2 && named.d.killer === 'Omen' && !/Foe|NA1/.test(named.text),
+      `Riot's death check names the killer by their agent, and no other player's name or tag is in the reply (${JSON.stringify(named.d && named.d.killer)})`);
+    const byId = await killer('mdk2', { ...V4,
+      players: V4.players.map((p, i) => ({ ...p, puuid: `p${i}` })),
+      kills: V4.kills.map((k) => ({ ...k, killer: { puuid: k.killer.name === 'Foe' ? 'p1' : 'p0' } })) });
+    ok(byId.d && byId.d.killer === 'Omen', `a killer named by puuid alone is found by it (${JSON.stringify(byId.d && byId.d.killer)})`);
+    const stranger = await killer('mdk3', { ...V4,
+      kills: V4.kills.map((k, i) => (i === 1 ? { ...k, killer: { name: 'Stranger', tag: 'ZZ1' } } : k)) });
+    ok(stranger.d && stranger.d.killer === null && !/Stranger|ZZ1/.test(stranger.text),
+      `and a killer the roster does not have is no killer, never a name (${JSON.stringify(stranger.d && stranger.d.killer)})`);
+  }
+  henrik.match = async () => ({ status: 200, json: { data: V4 } });
+
   // ── what will not change on a retry stays a 200 ──────────────────────────
   regionCache.clear();
   henrik.account = async () => ({ status: 404, json: { errors: [{ message: 'Not found' }] } });
@@ -289,6 +329,30 @@ const V4 = {
     const ids = (r.body.matches || []).map((m) => m.id);
     ok(r.status === 200 && r.body.cached === false && r.body.partial === true && ids.includes('u2') && ids.includes('s1'),
       `a swiftplay call past its deadline keeps that queue's last rows beside the fresh unrated ones (${ids.join(', ')})`);
+  }
+
+  // ── /matches: a teammate's Riot ID never leaves the server (8.4.1) ───────
+  // Stats' "Your team" showed every teammate's full Riot ID. Valorant lets a
+  // player hide theirs, and Riot's policy is that no product shows a player's
+  // identity to others without their opt in: a row is its agent and numbers.
+  henrik.stored = async (u) => ({ status: 200, json: { data: /mode=competitive/.test(u) ? [row('roster1', 'Competitive', 13, 7, 30)] : [] } });
+  henrik.match = async () => ({ status: 200, json: { data: { ...V4,
+    players: [
+      { name: 'Roster', tag: 'EUW', team_id: 'Red', agent: { name: 'Jett' }, stats: { kills: 20, deaths: 10, assists: 4, score: 6000 } },
+      { name: 'Fade', tag: 'EUW', team_id: 'Red', agent: { name: 'Sova' }, stats: { kills: 15, deaths: 12, assists: 9, score: 4800 } },
+      // The agent as a character object, which the roster used to hand on whole.
+      { name: 'Hidden Friend', tag: 'ZZ9', team_id: 'Red', character: { name: 'Omen' }, stats: { kills: 8, deaths: 14, assists: 6, score: 2600 } },
+      { name: 'Foe', tag: 'NA1', team_id: 'Blue', agent: { name: 'Reyna' }, stats: { kills: 12, deaths: 15, assists: 2, score: 4000 } },
+    ],
+    teams: [{ team_id: 'Red', rounds: { won: 13 } }, { team_id: 'Blue', rounds: { won: 7 } }] } } });
+  {
+    const r = await call(coach, 'GET', `/matches?mode=competitive&username=${encodeURIComponent('Roster#EUW')}`, { headers: H });
+    const team = (((r.body.matches || [])[0] || {}).team) || [];
+    const read = team.map((p) => `${p.agent}:${p.kills}/${p.deaths}/${p.assists}${p.me ? ':me' : ''}`).join(', ');
+    ok(r.status === 200 && read === 'Jett:20/10/4:me, Sova:15/12/9, Omen:8/14/6',
+      `a match's team is each teammate's agent and numbers, the player's own row marked (${read})`);
+    ok(team.length === 3 && team.every((p) => !('name' in p) && !('tag' in p)) && !/Fade|Hidden Friend|ZZ9|Foe|NA1/.test(JSON.stringify(r.body)),
+      `and no teammate's name or tag is anywhere in the reply (${JSON.stringify(team[1] || {})})`);
   }
 
   // ── /recent-matches: the matches Connect grades from Riot's record ──────

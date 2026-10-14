@@ -236,6 +236,15 @@ function bigCluster(tcMs) {
   }
   return Buffer.concat([W.id(0x1F43B675), W.UNKNOWN].concat(parts));
 }
+// A second of `frames` frames of `bytes` each, a keyframe opening it.
+function sizedCluster(tcMs, frames, bytes) {
+  const parts = [W.el(0xE7, W.uint(tcMs, 4))];
+  for (let i = 0; i < frames; i++) {
+    const rel = Math.round((i * 1000) / frames);
+    parts.push(W.el(0xA3, Buffer.from([0x81, (rel >> 8) & 0xFF, rel & 0xFF, i === 0 ? 0x80 : 0x00]), Buffer.alloc(bytes, i % 256)));
+  }
+  return Buffer.concat([W.id(0x1F43B675), W.UNKNOWN].concat(parts));
+}
 
 // ── The page, as the real one answers ───────────────────────────────────────
 const STREAM_JPEG = Buffer.from('ffd8ffe000104a46494600010101004800480000ffd9', 'hex');
@@ -256,7 +265,7 @@ function fakePage(h) {
         later(() => p.emit('status', h.opts.gate === false
           ? { type: 'started', ok: false, outcome: 'no-hw-encoder', encoderOk: false, why: `no hardware H.264 encoder at ${msg.width}x${msg.height}` }
           : { type: 'started', ok: true, encoderOk: true, startWall: h.clock.now() - (h.opts.startEarly || 0), mime: 'video/x-matroska;codecs=avc1',
-            settings: { width: track.width, height: track.height, frameRate: 60 } }));
+            settings: { width: track.width, height: track.height, frameRate: 60 }, videoBitsPerSecond: msg.bitrate }));
       } else if (msg.type === 'stop') {
         if (h.opts.slowStop) h.clock.setTimeout(() => p.emit('status', { type: 'stopped', chunks: p.n }), h.opts.slowStop);
         else later(() => p.emit('status', { type: 'stopped', chunks: p.n }));
@@ -323,7 +332,7 @@ function harness(opts) {
     limits: () => o.limits || {},
     pageMs: () => o.pageMs || null,
     version: '8.3.0',
-    log: () => {},
+    log: o.log || (() => {}),
   });
   h.rec.on('notice', (n) => h.notices.push(n));
   // And how each came: { exiting } says the process ends next (shutdown()).
@@ -492,6 +501,51 @@ function readerAfter(frames, menus) {
     ok(!h3.pages.length && h3.rec.state === 'idle', 'no source that is the primary display: no page, nothing recorded');
     const b3 = await h3.stop();
     ok(b3 && b3.outcome === 'error', 'and the session says error', JSON.stringify(b3));
+  });
+
+  // THE MINUTE LINE SAYS WHAT HAPPENED (8.4.1). On the player's Fracture
+  // swiftplay the recording fell from about 57 to 32 frames a second for its
+  // last two minutes with no line saying why, and at 57 its pages ran about
+  // twice the 6 Mbps asked, a constant 24 KB a frame. So the line once a
+  // minute names the track's own settings beside the frames delivered, and
+  // what was written since the last line against the bitrate asked. Logging
+  // only: the same seconds give up as before.
+  await section('the minute line names the track\'s own settings and what was written against the bitrate asked:', async () => {
+    const lines = [];
+    const h = harness({ prefsInit: { recordingRes: '1080' }, log: (...a) => lines.push(a.join(' ')) });
+    h.env.inMatch = true;
+    const p = await h.start();
+    const started = lines.find((l) => l.startsWith('[recorder] recording '));
+    ok(started && started.endsWith("; the track's own settings 60 fps, MediaRecorder at 6 Mbps"),
+      'the start line says the track\'s own frame rate and the bitrate MediaRecorder took', started);
+    const second = async (fps, frameRate) => {
+      const data = p.n === 0 ? Buffer.concat([SYNTH_INIT, sizedCluster(0, fps, 24 * 1024)]) : sizedCluster(p.n * 1000, fps, 24 * 1024);
+      p.emit('chunk', { seq: p.n, wall: h.clock.now(), data: toAB(data) });
+      p.n += 1;
+      p.health({ fps, track: { width: 1920, height: 1080, frameRate } });
+      await h.clock.advance(1000);
+    };
+    const minuteLines = () => lines.filter((l) => l.startsWith('[recorder] fps p50 '));
+    for (let i = 0; i < 60; i++) await second(57, 60);
+    // The second minute, the capture down to 32 a second and the track asked for 30.
+    for (let i = 0; i < 60; i++) await second(32, 30);
+    const [one, two] = minuteLines();
+    const num = (re, l) => { const m = re.exec(l || ''); return m ? Number(m[1]) : NaN; };
+    const rate = (l) => num(/ \(([\d.]+) a second, /, l);
+    const mbps = (l) => num(/ a second, ([\d.]+) Mbps against the 6 Mbps asked, /, l);
+    const kb = (l) => num(/ Mbps asked, (\d+) KB a frame\)/, l);
+    ok(minuteLines().length === 2 && /^\[recorder\] fps p50 57, the track's own settings 1920x1080 at 60 fps, \d+ frames and [\d.]+ MB written in the last 60 s \(/.test(one || ''),
+      'the first minute: 57 frames a second delivered, the track\'s own settings 1920x1080 at 60 fps, and what was written in the last 60 s', one);
+    ok(rate(one) >= 55 && rate(one) <= 57.5 && mbps(one) >= 10.8 && mbps(one) <= 11.6 && kb(one) === 24,
+      `written at about 57 a second, 11 Mbps against the 6 asked, 24 KB a frame (${rate(one)} a second, ${mbps(one)} Mbps, ${kb(one)} KB)`);
+    ok(/^\[recorder\] fps p50 (32|57), the track's own settings 1920x1080 at 30 fps, /.test(two || '') && rate(two) >= 31 && rate(two) <= 33.5
+      && mbps(two) >= 6 && mbps(two) <= 6.7 && kb(two) === 24,
+    `the second minute says the track was asked for 30 and wrote 32 a second at 24 KB a frame (${rate(two)} a second, ${mbps(two)} Mbps)`, two);
+    ok(h.rec.state === 'recording' && !h.notices.length && h.rec.session && !h.rec.session.gaveUp,
+      'and nothing is judged by it: still recording, no notice');
+    await h.stop();
+    ok(R.trackText(null) === "the track's own settings not reported" && R.trackText({ width: 1280, height: 720 }) === "the track's own settings 1280x720 at no frame rate",
+      'a page that reported no settings, or no frame rate, says so');
   });
 
   await section('a recording that cannot cover the read\'s frame leaves the read on GDI, and records on:', async () => {

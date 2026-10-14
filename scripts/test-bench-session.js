@@ -15,6 +15,11 @@
  * that does not exist, with the server pointed at a closed local port, so no
  * frame and no request can leave the machine.
  *
+ * And the read bench's --variant (8.4.1), against a stand in for the server
+ * on this machine over three stand in frames: the variant asked for beside the
+ * admin password on every frame, nothing of it without the flag, and a run the
+ * server did not read with it stopped at its first frame.
+ *
  * Run: npm run test:benchsession
  */
 const fs = require('fs');
@@ -84,5 +89,81 @@ try {
   fs.rmSync(temp, { recursive: true, force: true });
 }
 
-console.log(fails ? `\nFAIL: ${fails} problem(s)` : '\nPASS: the benches read the bench copy first, and say where they looked');
-process.exit(fails ? 1 : 0);
+/*
+ * THE READ BENCH'S --variant (8.4.1). With it every frame asks for the read
+ * prompt's variant beside the admin password, and a run the server did not
+ * read with that variant stops rather than report the live prompt's numbers
+ * under its name; without it a run sends neither, as it always has. Against a
+ * stand in for the server on this machine, over a profile of stand in frames
+ * (bytes, nobody's screen): no request leaves the machine.
+ */
+async function variantRuns() {
+  const http = require('http');
+  const { spawn } = require('child_process');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-bench-variant-'));
+  const NAME = 'session-stand-in';
+  const dir = path.join(tmp, 'Occlara', 'bench', NAME);
+  fs.mkdirSync(dir, { recursive: true });
+  const records = [0, 1, 2].map((i) => ({ frame: `frame-${i}.jpg`, at: 1000000 + i * 1000 }));
+  for (const r of records) fs.writeFileSync(path.join(dir, r.frame), Buffer.from('a stand in, not a frame'));
+  fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify({ records }));
+  fs.writeFileSync(path.join(tmp, 'Occlara', 'occlara-config.json'), JSON.stringify({ licenseKey: 'GC-BENCH-TEST-0000-0000' }));
+  // What each read asked for, and whether the stand in honours a variant.
+  const seen = [];
+  let honour = true;
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      let j = {};
+      try { j = JSON.parse(body); } catch (e) { /* not JSON */ }
+      const asked = Object.prototype.hasOwnProperty.call(j, 'variant');
+      const admin = req.headers['x-admin-password'] || null;
+      seen.push({ url: req.url, admin, asked, variant: j.variant });
+      const out = { lobby: false, context: { phase: 'buy' }, parsed: true, ms: 3,
+        ...(asked ? { variant: honour && admin ? j.variant : null } : {}) };
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(out));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  const bench = (args) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [path.join(__dirname, 'bench-read.js'), ...args, '--session', NAME], {
+      env: { ...process.env, APPDATA: tmp, OCCLARA_SERVER: `http://127.0.0.1:${port}`, ADMIN_PASSWORD: 'offline-test' },
+      windowsHide: true,
+    });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { out += d; });
+    const timer = setTimeout(() => child.kill(), 30000);
+    child.on('exit', (status) => { clearTimeout(timer); resolve({ status, out }); });
+  });
+  try {
+    seen.length = 0;
+    const plain = await bench(['live']);
+    ok(plain.status === 0 && seen.length === 3 && seen.every((s) => s.url === '/api/coach/read' && !s.asked && !s.admin)
+      && /3 frames from session-stand-in/.test(plain.out) && !/variant/i.test(plain.out),
+    'bench-read without --variant sends no variant and no admin password, and says nothing of one', plain.out.trim());
+    seen.length = 0;
+    const b = await bench(['live', '--variant', 'b']);
+    ok(b.status === 0 && seen.length === 3 && seen.every((s) => s.variant === 'b' && s.admin === 'offline-test')
+      && /read with the read prompt's variant b/.test(b.out) && !/not variant b/.test(b.out),
+    'with --variant b every frame asks for variant b beside the admin password, and the run says it read with it', b.out.trim());
+    honour = false;
+    seen.length = 0;
+    const refused = await bench(['live', '--variant', 'b']);
+    ok(seen.length === 1 && /the server read with the live prompt, not variant b/.test(refused.out),
+      'and a server that read with the live prompt stops the run at its first frame, saying so', refused.out.trim());
+  } finally {
+    server.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+variantRuns()
+  .catch((e) => ok(false, 'the variant runs ran to the end', (e && e.stack) || String(e)))
+  .then(() => {
+    console.log(fails ? `\nFAIL: ${fails} problem(s)` : '\nPASS: the benches read the bench copy first, say where they looked, and read with a variant only when the server says so');
+    process.exit(fails ? 1 : 0);
+  });

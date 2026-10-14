@@ -361,7 +361,9 @@ async function paint() {
 
 $('top-more').addEventListener('click', () => window.occlara.go('patterns'));
 $('recent-all').addEventListener('click', () => window.occlara.go('matches'));
-$('rank-more').addEventListener('click', () => window.occlara.go('stats'));
+// Stats with the journey open, which this button names (8.4.1): it opened
+// Stats with the journey folded in the Rank tile, one more click away.
+$('rank-more').addEventListener('click', () => window.occlara.openRankJourney());
 $('empty-settings').addEventListener('click', () => window.occlara.go('settings'));
 
 /*

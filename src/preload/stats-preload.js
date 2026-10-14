@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('occlara', {
   refreshMatches:  (mode) => ipcRenderer.invoke(C.STATS_REFRESH, mode),
   matchesFor:      (mode) => ipcRenderer.invoke(C.STATS_MATCHES, mode),
   rankHistory:     (force) => ipcRenderer.invoke(C.STATS_RANK_HISTORY, force),
+  // What the page was opened to show, taken once: 'journey' from Home's Rank
+  // journey, else null (8.4.1).
+  openedFor:       () => ipcRenderer.invoke(C.STATS_OPENED_FOR),
   openWeekly:      () => ipcRenderer.send(C.OPEN_WEEKLY),
   openAiLog:       (sessionId) => ipcRenderer.send(C.OPEN_AILOG, sessionId || null),
   askAboutSession: (seed) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, seed),

@@ -61,6 +61,8 @@ contextBridge.exposeInMainWorld('occlara', {
   // The eye on the last match: the review's id only, and main finds its frames.
   openAiLog:  (id) => ipcRenderer.send(C.REVIEW_AILOG, id),
   go:         (page) => ipcRenderer.send(C.SHELL_NAV, page),
+  // The rank card's Rank journey: Stats, with the journey open (8.4.1).
+  openRankJourney: () => ipcRenderer.send(C.OPEN_STATS, 'journey'),
   onReviews:  (cb) => subscribe(C.PUSH_REVIEWS, cb),
   // A review still being built moved on a step, or is whole (8.4.1).
   onReviewWork: (cb) => subscribe(C.PUSH_REVIEW_WORK, cb),
