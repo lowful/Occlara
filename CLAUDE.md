@@ -282,9 +282,9 @@ says so, a spawn is never a death spot, and every insight and pattern must clear
 its stated floor. The review is SAVED the moment the match ends, before the
 narrative call (`match-ended`), because a quit or a Stop then Start in that
 minute lost it or pointed its death frames at the next session's empty log. The
-review page opens at once and repaints when Riot publishes the scoreboard, 90 seconds
-to four minutes later, and every version is saved to the same review id, except
-the corrected numbers shown while the summary is rewritten. It never opens over
+review page opens at once, on its loading screen while the review is built
+(below), and every version is saved to the same review id as it lands, except
+the corrected numbers held while the summary is rewritten. It never opens over
 a match in progress: one already under way, or the one recording was stopped in
 the middle of, which is saved to Matches with a notice. Each review keeps its
 own Riot retries, and stopping recording does not cancel them: each try is
@@ -292,6 +292,43 @@ verified against that match's own window, so a late answer can only be that
 match. The link checks the newest match and the four before it, and refuses a
 deathmatch, a match with fewer rounds than the coach watched, and a match
 already linked to another review.
+
+**A review still being built is a loading screen, not a half review** (8.4.1,
+the player's ask: "if the match review is not complete, loading and verifying
+from Riot, have it as a loading screen until everything is complete"). The page
+used to paint the screen's review at the end and repaint it three times as the
+rest landed. Now each job says what is left of its work (`src/shared/review-work.js
+workOf`, from flags the steps set: `byRiot` and `narrated` as the narrative
+comes back, `tracker`, `riotBusy` and `stage` while Riot's record is laid over,
+`screenLooked`, `finished`), it goes with the review (`present()`) and every
+library row, and it is pushed on every change (`PUSH_REVIEW_WORK`), at each
+step and by a second's tick while any review waits. The page shows the steps in
+the Recording screen's shape: with Riot's record, the match saved, waiting for
+Riot's record (usually 1 to 4 minutes, with the time since the end and how long
+it waits), checking the deaths, the coach's look, the review written; from the
+screen alone, saved, written, the look. NOTHING ON IT MOVES FOR LONG, nor on
+the pill below: with its mark turning and its dot breathing the page was
+composited every frame, and the look's stills, decoded from the clip on the GPU
+while it waits, timed out in check:clips in three runs of three (0.7 s with it
+still), so it rises in once and its ticking clock says the work goes on. It
+holds every version meanwhile and paints the last one whole once the work is
+null: Riot's look landed and the read rewritten, the link given up, or from the
+screen alone the narrative and the screen's look done. IT NEVER WAITS FOREVER: Riot's record not in six minutes after the end,
+the screen's review is painted with the note it carries already (the scoreboard
+fills in once the match is published) and repaints when the record lands;
+nothing is a loading screen past twelve; and a job once painted whole is done
+for good (`released`), so a record landing late never turns it back. Never for
+a part of a match (a stop mid match, the next match begun over it), a review
+saved before, or League, whose reviews are whole at the end. Home's last match
+and its recent row, and its row in Matches, show `GradeView.checking` where the
+grade, result and score would be (the Matches header counts no result for it),
+and repaint on the push. `test:surfaces` holds `workOf` and the three pages,
+and main's own tick and latch (`workOfJob`, `noteWork`, `watchWork`) in a
+sandbox on a fake clock: Riot's record not in, the page told at six minutes
+with nothing else happening, and Riot's rounds landing at seven never a loading
+screen again. `test:homemodel` holds the rows, `check:mainwindow` the loading
+screen through the real index.js with a stand-in reader, and Home and Matches
+beside it.
 
 **Variant C won the review bench** (`npm run bench:review`, live, spends money)
 by making fewer unsupported claims than B; the numbers are in `match-review.js`.
@@ -330,10 +367,11 @@ Riot's, and the line says it in numbers alone ("one in round 6 the screen read
 59 s before Riot's"). One registered after Riot's is never counted so: that
 is the spectator trap, the same death read late, up to 50 s on the Abyss
 session read every nine seconds.
-The corrected review repaints at once with the summary marked as
-updating, the coach looks at the teachable deaths, then the model writes the
-summary again from all of it, including Riot's scoreboard line, because a 31/21
-match MVP reviewed from its deaths alone reads as a struggling player.
+The corrected review goes to the page at once with the summary marked as
+updating (held behind the loading screen while that is up, above), the coach
+looks at the teachable deaths, then the model writes the summary again from all
+of it, including Riot's scoreboard line, because a 31/21 match MVP reviewed from
+its deaths alone reads as a struggling player.
 
 **The kill feed gives teamwork** (`teamworkOf`): whether a death was traded (a
 teammate killed the killer within five seconds, generous on purpose), trades the
@@ -1358,13 +1396,57 @@ Valorant path alone, a held seal kept every page and the League review behind
 seals first (`withdrawReview`), so its switch to Home never runs unsealed.
 `npm run check:seal` boots the app with stand-in engines and holds both.
 
-**Closing hides the window.** Its X, Alt+F4 and the taskbar's Close put it out
-of sight like Ctrl+Shift+M, with the dock mark in the corner, and Occlara keeps
-running in the tray: a review still being checked against Riot's record,
-minutes after the match, would lose that check to a quit. The tray and
-Settings quit, and `before-quit` is what lets the window close for real, an
-update's restart included. A match that resumes after its review opened
-minimises the window if it is in front, as the review window used to close.
+**Closing quits** (8.4.1, the player's ask: "when the user closes it, just
+close it fully dont minimize it"). Its X, Alt+F4 and the taskbar's Close used
+to put the window out of sight like Ctrl+Shift+M, Occlara running on in the
+tray, so a review still being checked against Riot's record kept its check.
+Each is now the window's `close`, held in `main-window.js` and handed to
+index.js on the next turn (`onCloseAsk`, `quitFromClose`), NEVER INSIDE THE
+CLOSE EVENT: Electron takes a close its handler prevented for a quit cancelled
+(it clears its quitting flag as the handler returns), so the quit decided in
+that same turn with nothing to ask closed every window and never quit, and the
+real app ran on with no window and no tray (index.js's `window-all-closed`
+keeps it alive for a tray its cleanup had taken down). It quits by the tray's
+own path, `cleanupAndQuit`, and first asks only when quitting would lose
+something: a match being recorded right now (the seal's live test), a review
+still being built (`review-work.js leftOf`), and a League game's death clips in
+the seconds after its review opens, before they are cut (`clipLolDeaths`,
+`lolClipping`).
+Each question is a native dialog, asked once, whose default and whose Escape
+keep Occlara as it is, and a close while one is up asks nothing more. What
+they say is `src/shared/quit-ask.js`, checked against what the code does: a
+match quit in the middle of keeps the rounds read so far in Matches as a part,
+with no read and no clips (a League game stopped part way is never graded),
+counted as a stop files them (the ledger's `list()`, never `size()`, which
+counts a round only begun off the loading screen or a banner, and said a round
+was kept when nothing was); and a review being checked is checked at a later
+launch only with a Riot ID connected and once Riot has the match, BY THE LATE
+LINK, WHICH DOES NOT FINISH IT AS THE LIVE LINK WOULD: it lays Riot's record
+over it with no model call, so no look at the deaths Riot times and no read
+(the screen's is taken down), and the recording its clips would be cut from is
+deleted as the app quits. A typed and never connected Riot ID runs no late
+link, so that one says Grade my recent matches is what checks it. The tray's
+Quit and Settings' quit with no question as they always did, and an update's
+Restart now and Windows ending its session close the window as the app goes
+(`before-quit`, `session-end`) and never ask. Ctrl+Shift+M still hides the
+window to the corner mark. `test:shellnav` holds every wording and the close
+held and handed over on the next turn on stand-in windows, `check:seal` the
+match's and the review's questions through the real index.js (the dialog and
+`app.quit` stood in for), a round only begun included, `check:clips` the
+League clips' question on a real League review, and `check:mainwindow` the X
+and Alt+F4 quitting with nothing asked when nothing is at stake, and never
+inside their close event. A match that
+resumes after its review opened minimises the window if it is in front, as the
+review window used to close.
+
+**The tray icon opens the app** (8.4.1). It had a double click alone, which
+toggled the window, so a single click did nothing and a double click on a
+window behind the game hid it. A click and a double click now bring the window
+up and to the front on the page it was on (`tray.js`, `controller.showWindow`),
+the seal settled first, so mid match it shows the Recording screen; the context
+menu is as it was, its Show or Hide still a toggle. `test:shellnav` holds
+`tray.js` on a stand-in Tray, `check:seal` the click from hidden, minimised and
+mid match.
 
 A WebContentsView's page is NOT closed with the window it is laid on, and
 once closed its `webContents` reads undefined rather than destroyed, so
@@ -1645,10 +1727,12 @@ Renderers have no Node access. Everything crosses through a preload via
 `REVIEW_AILOG` (the eye: the AI log on that review's match, or at one moment
 of it from the eye on a death the coach looked at), `PATTERNS_GET`,
 `BREAKDOWN_GET`, and `PUSH_REVIEWS` fires whenever a review is saved or
-improved. Grading from Riot's record is `BACKFILL_START` and
+improved. `PUSH_REVIEW_WORK` carries `{ id, work }` for a review still being
+built, the step it is on or null once it is whole, to the review page, Home
+and Matches (8.4.1). Grading from Riot's record is `BACKFILL_START` and
 `BACKFILL_STATUS`, and `PUSH_BACKFILL` carries its status on every change to
 onboarding, Settings and Matches. The main window is `SHELL_NAV` (go to a
-page), `SHELL_WINDOW` (minimise, maximise, close) and `SHELL_GET`, and
+page), `SHELL_WINDOW` (minimise, maximise, close, which quits) and `SHELL_GET`, and
 `PUSH_SHELL` carries its navigation state, sealed or not, on every change.
 Moving between pages is `PUSH_PAGE` to one page (arm, enter, leave) and
 `PAGE_READY` back from it, taken from that page's own view only; every page

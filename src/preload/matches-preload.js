@@ -40,6 +40,8 @@ contextBridge.exposeInMainWorld('occlara', {
   openAiLog:    (id) => ipcRenderer.send(C.REVIEW_AILOG, id),
   openSettings: () => ipcRenderer.send(C.OPEN_SETTINGS),
   onReviews:    (cb) => subscribe(C.PUSH_REVIEWS, cb),
+  // A review still being built moved on a step, or is whole (8.4.1).
+  onReviewWork: (cb) => subscribe(C.PUSH_REVIEW_WORK, cb),
   onGame:       (cb) => subscribe(C.PUSH_GAME, cb),
   games:        () => GAMES.list(true).map((g) => ({ id: g.id, label: g.label })),
   close:        () => window.close(),

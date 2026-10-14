@@ -208,7 +208,37 @@
     return wrap;
   }
 
-  const api = { gradeCard, insightLists, factList, roundChips, letterOf, tone, scoreTone, gradeTone, el };
+  /*
+   * A REVIEW STILL BEING CHECKED (8.4.1), in its grade's place. Until a review
+   * is whole its grade, result and score are the screen's, and Riot's record
+   * changes them minutes later (the review page shows a loading screen
+   * meanwhile), so its row in Matches and Home's recent matches show this pill
+   * where the grade would be, and Home's last match the card (`full`), saying
+   * what it waits for. Drawn here, as every grade is, so the three agree.
+   *
+   * `work` is the review's work from main ({ path: 'riot' | 'screen', step }),
+   * and none draws nothing.
+   */
+  const CHECKING = {
+    riot: { pill: 'Checking', title: "Being checked against Riot's record",
+      sub: 'Riot publishes a match 1 to 4 minutes after it ends. Its grade shows here once the review is complete.' },
+    screen: { pill: 'Writing', title: 'The review is being written',
+      sub: 'Its grade shows here once the review is complete.' },
+  };
+  function checking(work, opts) {
+    const w = work && CHECKING[work.path] ? CHECKING[work.path] : null;
+    if (!w) return null;
+    const pill = el('span', 'gv-checking');
+    pill.append(el('i', 'gv-checking-dot'), document.createTextNode(w.pill));
+    pill.title = w.title;
+    if (!(opts && opts.full)) return pill;
+    const card = el('section', 'gv-checking-card');
+    card.setAttribute('role', 'status');
+    card.append(pill, el('div', 'gv-checking-title', w.title), el('p', 'gv-sub', w.sub));
+    return card;
+  }
+
+  const api = { gradeCard, insightLists, factList, roundChips, letterOf, tone, scoreTone, gradeTone, checking, el };
   if (typeof window !== 'undefined') window.GradeView = api;
   // Node, for the test that holds the colour rule to grade.js. Nothing here
   // touches the DOM until a card is drawn, so requiring it is safe.

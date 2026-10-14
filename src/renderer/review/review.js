@@ -848,9 +848,122 @@ function paintEye(r) {
   host.hidden = !eye;
 }
 
+/*
+ * A REVIEW STILL BEING BUILT IS A LOADING SCREEN (8.4.1). The page used to
+ * paint the screen's review at the match's end and repaint it as each half
+ * landed: Riot's scoreboard, Riot's rounds with the summary marked as being
+ * rewritten, the coach's look at the deaths, the summary again. Now a review
+ * that arrives with its work (index.js present(), shared/review-work.js) shows
+ * the steps it is on, the one under way with the time since the match ended,
+ * and is painted whole once main says the work is done (PUSH_REVIEW_WORK with
+ * none), from the version the page holds by then. Main says so at six minutes
+ * if Riot's record is not in, and the review then carries its note that the
+ * scoreboard fills in once the match is published. Nothing is a loading
+ * screen once it has been painted whole, nor a review saved before.
+ */
+const BUILD_STEPS = {
+  saved: { label: 'Match saved', note: 'Kept in Matches' },
+  riot: { label: "Waiting for Riot's record", note: 'Riot publishes a match 1 to 4 minutes after it ends' },
+  deaths: { label: 'Checking your deaths against it' },
+  look: { label: "The coach's look at your deaths" },
+  writing: { label: 'Writing your review' },
+};
+const BUILD_TEXT = {
+  riot: { title: 'Checking your match',
+    sub: "Your review opens here once Riot's record is laid over what the coach read and the coach has looked at your deaths." },
+  screen: { title: 'Writing your review', sub: 'Your review opens here once it is whole, usually in a minute or two.' },
+};
+const STEP_SAID = { done: 'Done', now: 'Under way', next: 'Next' };
+let buildTick = null;
+
+/** 0:42, 3:05: minutes and seconds. */
+function clockOf(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** A done step's mark, on the 24 unit grid the app's icons use. */
+function doneMark() {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS(SVG_NS, 'path');
+  p.setAttribute('d', 'M5 12.5l4.5 4.5L19 7.5');
+  p.setAttribute('fill', 'none');
+  p.setAttribute('stroke', 'currentColor');
+  p.setAttribute('stroke-width', '2.4');
+  p.setAttribute('stroke-linecap', 'round');
+  p.setAttribute('stroke-linejoin', 'round');
+  svg.append(p);
+  return svg;
+}
+
+/** The loading screen for `work`, or none: the review painted, or nothing to paint. */
+function paintBuilding(work) {
+  const host = $('building');
+  clearInterval(buildTick);
+  buildTick = null;
+  if (!work) { host.hidden = true; return; }
+  // Nothing of the review shows behind it, nor the clips of the one before.
+  releaseClips($('v-rounds'));
+  releaseClips($('r-deaths'));
+  for (const id of ['empty', 'review', 'vreview', 'common']) $(id).hidden = true;
+  const text = BUILD_TEXT[work.path] || BUILD_TEXT.riot;
+  $('b-title').textContent = text.title;
+  $('b-sub').textContent = text.sub;
+  const steps = Array.isArray(work.steps) && work.steps.length ? work.steps : ['saved'];
+  const at = steps.indexOf(work.step);
+  const list = $('b-steps');
+  list.replaceChildren();
+  steps.forEach((key, i) => {
+    const s = BUILD_STEPS[key] || { label: key };
+    const state = at < 0 ? (i === 0 ? 'done' : 'next') : i < at ? 'done' : i === at ? 'now' : 'next';
+    const li = el('li', `b-step ${state}`);
+    li.dataset.step = key;
+    if (state === 'now') li.setAttribute('aria-current', 'step');
+    const mark = el('span', 'b-state');
+    mark.setAttribute('aria-hidden', 'true');
+    if (state === 'done') mark.append(doneMark());
+    const body = el('span', 'b-text');
+    body.append(el('span', 'sr-only', `${STEP_SAID[state]}: `), el('b', null, s.label));
+    if (s.note && (state === 'now' || key === 'saved')) body.append(el('small', null, s.note));
+    li.append(mark, body);
+    if (state === 'now') {
+      const time = el('span', 'b-time');
+      time.setAttribute('aria-hidden', 'true');
+      li.append(time);
+    }
+    list.append(li);
+  });
+  const now = BUILD_STEPS[work.step];
+  const said = now ? now.label : '';
+  if ($('b-now').textContent !== said) $('b-now').textContent = said;
+  host.hidden = false;
+  const tick = () => tickBuilding(work);
+  tick();
+  buildTick = setInterval(tick, 1000);
+}
+
+/** The second's hand: the time since the match ended, and how long the page waits for Riot's record. */
+function tickBuilding(work) {
+  const now = Date.now();
+  const time = $('b-steps').querySelector('.b-time');
+  if (time && Number.isFinite(work.endedAt)) time.textContent = clockOf(now - work.endedAt);
+  const foot = $('b-foot');
+  if (work.path === 'riot' && work.step === 'riot' && Number.isFinite(work.until)) {
+    foot.textContent = work.until > now
+      ? `If Riot's record is not out within ${clockOf(work.until - now)}, the review opens with what the screen read, and fills in when the record comes.`
+      : 'Opening with what the screen read.';
+  } else {
+    foot.textContent = work.path === 'riot' && work.step !== 'riot' ? "Riot's record is in." : '';
+  }
+  foot.hidden = !foot.textContent;
+}
+
 function paint(r) {
   paintEye(r);
   if (!r) {
+    paintBuilding(null);
     releaseClips($('v-rounds'));
     releaseClips($('r-deaths'));
     for (const id of ['common', 'grade-host', 'insights-host']) $(id).hidden = true;
@@ -861,7 +974,11 @@ function paint(r) {
   }
   $('empty').hidden = true;
   current = r;
-  $('ask').hidden = !r.id;
+  // Asked about half built, the coach would talk about a review about to change.
+  $('ask').hidden = !r.id || !!r.work;
+  if (r.work) { paintBuilding(r.work); return; }
+  const wasBuilding = !$('building').hidden;
+  paintBuilding(null);
   // Valorant has its own container, so the League one is simply hidden
   // rather than having each of its sections turned off one by one.
   if (r.kind === 'valorant') {
@@ -871,6 +988,12 @@ function paint(r) {
     $('vreview').hidden = false;
     paintValorant(r);
     paintCommon(r, { grade: $('v-hero'), lists: $('v-summary-wrap') });
+    // Whole at last, it rises in where the loading screen was.
+    if (wasBuilding) {
+      $('vreview').classList.remove('v-arrive');
+      void $('vreview').offsetWidth;
+      $('vreview').classList.add('v-arrive');
+    }
     return;
   }
   releaseClips($('v-rounds'));
@@ -919,5 +1042,20 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeWindo
 // Both paths, because the window can be opened by the push OR by hand later.
 window.occlara.onReview(paint);
 if (window.occlara.onValorantReview) window.occlara.onValorantReview(paint);
+// The review on the page moving on a step, or whole (8.4.1): its loading
+// screen follows, and once its work is done the version held is painted. A
+// review the page is not showing is not its business.
+if (window.occlara.onReviewWork) {
+  window.occlara.onReviewWork((m) => {
+    if (!m || !current || !current.id || m.id !== current.id) return;
+    if (m.work) {
+      current = { ...current, work: m.work };
+      $('ask').hidden = true;
+      paintBuilding(m.work);
+      return;
+    }
+    if (current.work) paint({ ...current, work: null });
+  });
+}
 window.occlara.getReview().then(paint).catch(() => paint(null));
 console.log('[review] ready');
