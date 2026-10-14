@@ -676,7 +676,12 @@ function row(m, gutter) {
   const main = el('div', 'm-main');
   const top = el('div', 'm-top');
   top.append(el('span', 'm-title', m.title || 'Unknown'));
-  if (m.result) {
+  // STILL BEING CHECKED (8.4.1): its result, its top mistake and its grade
+  // are the screen's until the review is whole, and Riot's record changes
+  // them minutes later, so the row says it is being checked where its grade
+  // would be (GradeView.checking) and names neither of the others yet.
+  const checking = m.work ? window.GradeView.checking(m.work) : null;
+  if (m.result && !checking) {
     top.append(el('span', 'm-res ' + (/vict|win/i.test(m.result) ? 'win' : /defeat|loss/i.test(m.result) ? 'loss' : ''),
       [m.result, m.score].filter(Boolean).join(' ')));
   }
@@ -684,13 +689,16 @@ function row(m, gutter) {
   main.append(el('div', 'm-meta', [fmtWhen(m.at), m.map, m.mode,
     m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null]
     .filter(Boolean).join('  ·  ')));
-  if (m.topMistake) main.append(el('div', 'm-top-mistake', `Top mistake: ${m.topMistake}`));
+  if (m.topMistake && !checking) main.append(el('div', 'm-top-mistake', `Top mistake: ${m.topMistake}`));
 
   const grade = el('div', 'm-grade');
   const g = m.grade;
-  grade.append(el('span', 'm-score', g ? g.score : '--'));
-  grade.append(el('span', 'm-letter ' + (g ? gradeTone(g) : 'none'), g ? g.letter : '?'));
-  if (g && g.provisional) grade.title = 'Provisional: some of the record was missing';
+  if (checking) grade.append(checking);
+  else {
+    grade.append(el('span', 'm-score', g ? g.score : '--'));
+    grade.append(el('span', 'm-letter ' + (g ? gradeTone(g) : 'none'), g ? g.letter : '?'));
+    if (g && g.provisional) grade.title = 'Provisional: some of the record was missing';
+  }
   b.append(main, grade);
   b.addEventListener('click', () => window.occlara.openReview(m.id));
   item.append(b);
@@ -786,6 +794,9 @@ const SECTION_TITLES = { list: 'Matches', patterns: 'Patterns', breakdown: 'Brea
   // minutes after the match, or a match graded from it) repaints the list, the
   // patterns and the breakdown.
   window.occlara.onReviews(() => load());
+  // A review still being built moving on, or whole at last (8.4.1): its row
+  // says it is being checked, or shows its grade.
+  if (typeof window.occlara.onReviewWork === 'function') window.occlara.onReviewWork(() => load());
   window.occlara.onGame((g) => { if (g && g.id) { game = g.id; paintTabs(games); load(); } });
   console.log('[matches] ready');
 })();

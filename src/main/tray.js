@@ -7,6 +7,12 @@ const fs   = require('fs');
 /**
  * System tray. `actions` injects the handlers so the tray stays decoupled from
  * the coaching controller.
+ *
+ * THE ICON OPENS THE APP (8.4.1). It had a double click alone, and that
+ * toggled the window: a single click did nothing at all, and a window behind
+ * the game went out of sight on a double click. A click and a double click
+ * now both bring the window up and to the front (actions.show); the context
+ * menu, the right click, is as it was, its Show or Hide still a toggle.
  */
 let tray = null;
 
@@ -20,7 +26,10 @@ function create(actions) {
     tray = new Tray(icon);
     tray.setToolTip('Occlara');
     update(false, actions);
-    tray.on('double-click', () => actions.toggleMinimize());
+    // A double click is a click first, so the window is asked up twice, and
+    // asking it up again changes nothing.
+    tray.on('click', () => actions.show());
+    tray.on('double-click', () => actions.show());
   } catch (err) {
     console.warn('[tray] Could not create tray:', err.message);
   }

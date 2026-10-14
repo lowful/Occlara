@@ -90,6 +90,33 @@ button.gv-rchip:hover { border-color: rgba(255, 255, 255, 0.45); color: var(--te
 button.gv-rchip:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .gv-empty { font-size: 12.5px; color: var(--text-mute); line-height: 1.5; margin: 0; }
 
+/* A review still being checked (8.4.1, grade-view.js checking): a pill where
+   its grade would be, its word beside a dot, and on Home's last match a card
+   in the grade card's frame saying what it waits for. The word is the signal.
+   The dot is still: anything that never stops moving keeps its page composited
+   every frame, and the look at the deaths decodes its stills on the GPU while
+   the review is being checked (review.css, the loading screen, says what that
+   cost). */
+.gv-checking {
+  flex: none; align-self: center;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-dim); white-space: nowrap;
+}
+.gv-checking-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text); }
+.gv-checking-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--bg-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+}
+.gv-checking-card .gv-checking { align-self: flex-start; }
+.gv-checking-title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+.gv-checking-card .gv-sub { margin: 0; }
+
 @media (max-width: 520px) {
   .gv-cats { grid-template-columns: 1fr; }
 }

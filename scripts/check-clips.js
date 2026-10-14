@@ -46,7 +46,9 @@
  *   a League session is recorded too, and a death the game stamps at 0:13 of
  *     its own clock is found in the recording by the polls' wall clock, cut
  *     11 s before to 4 s after as d1-clip.mkv, named in the review's deaths,
- *     its hold let go; "Your deaths" on screen repaints with it, and it plays
+ *     its hold let go; "Your deaths" on screen repaints with it, and it plays.
+ *     Closed in the seconds before that cut (8.4.1, closing quits), Occlara
+ *     asks first, keeping the clips by default
  *   Clear clips from Settings' channel: every clip goes, the review on screen
  *     says so, and each saved review does
  *   a recording looked at in rounds 2, 14, 17 and 19, a clip of each, graded
@@ -110,7 +112,7 @@ if (!process.versions.electron) {
   if (rec.fatal) console.log('FAIL  ' + rec.fatal);
   const bad = rec.lines.filter((l) => !l.ok).length + (rec.fatal ? 1 : 0);
   if (bad) { console.error(`\nFAIL: ${bad} of ${rec.lines.length} clip checks failed`); process.exit(1); }
-  console.log(`\nPASS: all ${rec.lines.length} checks: a death recorded live is clipped beside its review while its recording is held, a clip cleared stays said to be, nothing is clipped once Off is chosen, a review's moment plays its clip through occlara-clip and seeks to its frame, a League death is clipped by the game's own clock and plays, and a late link keeps only the clips its cards name`);
+  console.log(`\nPASS: all ${rec.lines.length} checks: a death recorded live is clipped beside its review while its recording is held, a clip cleared stays said to be, nothing is clipped once Off is chosen, a review's moment plays its clip through occlara-clip and seeks to its frame, a League death is clipped by the game's own clock and plays, closing while it is cut asks first, and a late link keeps only the clips its cards name`);
   process.exit(0);
 }
 
@@ -657,6 +659,38 @@ setTimeout(async () => {
     lolEngine.emit('game', gameDiedAt(13));
     const lolId = await until(() => (new ReviewStore(REVIEWS).list('lol').find((r) => r.id !== offLolId) || {}).id || null, 8000);
     if (!ok(lolId, 'the game ended: its review is saved')) return report();
+    // CLOSING ASKS FIRST WHILE ITS DEATHS ARE CUT (8.4.1). The review is whole
+    // and saved, and its deaths are cut from the recording six seconds later,
+    // which a quit deletes. The dialog and app.quit are stood in for: kept
+    // open, nothing quits, and the clip is cut below as it always was.
+    {
+      const { dialog } = require('electron');
+      const realBox = dialog.showMessageBox;
+      const realQuit = app.quit;
+      const asked = [];
+      let quits = 0;
+      const aboutClips = (o) => /death clips/.test((o && o.message) || '');
+      // Any other question is answered Quit, so only this one can keep it open.
+      dialog.showMessageBox = (...a) => {
+        const opts = a.length > 1 ? a[1] : a[0];
+        asked.push(opts);
+        return Promise.resolve({ response: aboutClips(opts) ? 0 : 1 });
+      };
+      app.quit = () => { quits++; };
+      try {
+        win.close();
+        await until(() => asked.some(aboutClips) || quits, 3000);
+        await wait(200);
+      } finally {
+        dialog.showMessageBox = realBox;
+        app.quit = realQuit;
+      }
+      const clipsAsked = asked.find(aboutClips);
+      ok(clipsAsked && clipsAsked.message === "Your last game's death clips are still being saved. Quit now?"
+        && (clipsAsked.buttons || [])[0] === 'Keep Occlara open' && !quits && !win.isDestroyed(),
+      `closed while its deaths are being cut, Occlara asks first and keeps them by default (asked: ${asked.map((o) => o.message).join(' | ') || 'nothing'}; quit ${quits})`);
+      if (quits) return report();
+    }
     const lolClip = path.join(REVIEWS, lolId, 'd1-clip.mkv');
     const lolKept = await until(() => fs.existsSync(lolClip) && fs.statSync(lolClip).size > 0, 20000);
     const lolNamed = await until(() => {

@@ -45,6 +45,9 @@ function winLoss(rows) {
   const out = { wins: 0, losses: 0, draws: 0, unknown: 0 };
   for (const r of Array.isArray(rows) ? rows : []) {
     if (!r) continue;
+    // A review still being built (8.4.1): its row says it is being checked,
+    // not won or lost, so the header does not count the screen's result.
+    if (workOfRow(r)) { out.unknown++; continue; }
     const result = String(r.result || '');
     if (WON.test(result)) out.wins++;
     else if (LOST.test(result)) out.losses++;
@@ -52,6 +55,18 @@ function winLoss(rows) {
     else out.unknown++;
   }
   return out;
+}
+
+/**
+ * A review still being built (8.4.1, review-work.js workOf, on the row main
+ * lists): which way it is finished and the step it is on, or null. Its grade,
+ * result and score are the screen's until it is whole, so Home says it is
+ * being checked where they would be.
+ */
+function workOfRow(r) {
+  const w = r && r.work;
+  if (!w || typeof w !== 'object' || (w.path !== 'riot' && w.path !== 'screen')) return null;
+  return { path: w.path, step: typeof w.step === 'string' ? w.step : null };
 }
 
 function rowOf(r) {
@@ -63,6 +78,7 @@ function rowOf(r) {
     // library row (index.js listReviews), for the eye on the last match:
     // 'kept', 'gone', or null when nothing was recorded (shared/log-eye.js).
     aiLog: r.aiLog === 'kept' || r.aiLog === 'gone' ? r.aiLog : null,
+    work: workOfRow(r),
   };
 }
 

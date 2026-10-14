@@ -58,7 +58,7 @@ const CHANNELS = {
   OPEN_LEARN:      'window:openLearn',   // the League learning surface
   OPEN_REVIEW:     'window:openReview',  // the last post-match review, any game
   // The match library: every saved review, for every game.
-  REVIEWS_LIST:    'reviews:list',       // (game?) -> [{ id, at, game, title, result, score, grade, aiLog: 'kept' | 'gone' | null }]
+  REVIEWS_LIST:    'reviews:list',       // (game?) -> [{ id, at, game, title, result, score, grade, aiLog: 'kept' | 'gone' | null, work: null | { path, step, ... } }]
   REVIEW_GET:      'reviews:get',        // (id) -> the saved review
   REVIEW_OPEN:     'reviews:open',       // (id) open the review window on one saved review
   // The eye on a library row and on the review page (8.2): the AI log, opened
@@ -123,6 +123,12 @@ const CHANNELS = {
   // rather than sniffing for fields. It also means the League path is
   // untouched: that surface has a boot check of its own (check:lolreview).
   PUSH_VALORANT_REVIEW: 'push:valorantReview',
+  // A review still being built (8.4.1, src/shared/review-work.js): { id, work },
+  // work the step it is on or null once it is done, on every change. The
+  // review page shows its loading screen until then, and Home and Matches say
+  // it is being checked where its grade would be. The review itself arrives
+  // with its work too (index.js present()), and every library row (REVIEWS_LIST).
+  PUSH_REVIEW_WORK:  'push:reviewWork',
   // The main window's page and seal, to the shell: { page, shown, sealed, maximized }.
   PUSH_SHELL:        'push:shell',
   // Moving between pages (8.2, src/shared/shell-nav.js createMotion), to one
@@ -169,6 +175,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_BACKFILL,
   CHANNELS.PUSH_LOL_REVIEW,
   CHANNELS.PUSH_VALORANT_REVIEW,
+  CHANNELS.PUSH_REVIEW_WORK,
   CHANNELS.PUSH_SHELL,
   CHANNELS.PUSH_PAGE,
   CHANNELS.PUSH_RECORDER,

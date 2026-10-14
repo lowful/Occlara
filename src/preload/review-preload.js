@@ -32,6 +32,13 @@ contextBridge.exposeInMainWorld('occlara', {
     ipcRenderer.on(C.PUSH_VALORANT_REVIEW, h);
     return () => ipcRenderer.removeListener(C.PUSH_VALORANT_REVIEW, h);
   },
+  // A review still being built (8.4.1): { id, work }, the step it is on, or
+  // work null once it is whole and the page paints it.
+  onReviewWork: (cb) => {
+    const h = (_e, w) => cb(w);
+    ipcRenderer.on(C.PUSH_REVIEW_WORK, h);
+    return () => ipcRenderer.removeListener(C.PUSH_REVIEW_WORK, h);
+  },
   openLearn: () => ipcRenderer.send(C.OPEN_LEARN),
   // The library, and Ask Coach opened on this match.
   openMatches: () => ipcRenderer.send(C.OPEN_HISTORY),

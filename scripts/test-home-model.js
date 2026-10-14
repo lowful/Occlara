@@ -149,6 +149,29 @@ const summary = patterns.summarise(saved);
     .recent.map((r) => r.aiLog).join() === 'kept,gone', 'the recent rows carry it the same way');
 }
 
+// ── A review still being built (8.4.1) ──────────────────────────────────────
+// The step main puts on its library row (review-work.js workOf, index.js
+// listReviews), so Home's last match and its row say it is being checked
+// where its grade, result and score would be: which way it is finished and
+// the step, nothing more.
+{
+  const WORK = { path: 'riot', steps: ['saved', 'riot', 'deaths', 'look', 'writing'], step: 'riot', endedAt: T0, until: T0 + 360000, scoreboard: false };
+  const m = homeModel({ rows: [{ ...rows[0], work: WORK }, rows[1]], patterns: summary, review: saved[0].review });
+  ok(same(m.last.work, { path: 'riot', step: 'riot' }) && same(m.recent[0].work, { path: 'riot', step: 'riot' }) && m.recent[1].work === null,
+    `the last match and its recent row carry the step it is on, the other rows none (${JSON.stringify(m.last.work)})`);
+  const screen = homeModel({ rows: [{ ...rows[0], work: { path: 'screen', step: 'writing' } }], patterns: summary, review: null });
+  ok(same(screen.last.work, { path: 'screen', step: 'writing' }), 'from the screen alone, the same');
+  const odd = (work) => homeModel({ rows: [{ ...rows[0], work }], patterns: summary, review: null }).last.work;
+  ok(odd(null) === null && odd(undefined) === null && odd('riot') === null && odd({ path: 'other', step: 'riot' }) === null
+    && same(odd({ path: 'riot' }), { path: 'riot', step: null }),
+  'no work, or work in any other shape, is none: the grade shows as it always did');
+  ok(m.last.grade === rows[0].grade && m.last.result === rows[0].result,
+    'the row keeps its grade and result: Home leaves them unsaid while it is being checked, nothing here drops them');
+  const wl = winLoss([{ ...rows[0], result: 'Defeat', work: WORK }, { ...rows[1], result: 'Victory' }]);
+  ok(same(wl, { wins: 1, losses: 0, draws: 0, unknown: 1 }),
+    `the Matches header counts no result for a review still being checked, as its row paints none (${JSON.stringify(wl)})`);
+}
+
 // ── The rank card (8.2.1): Stats' rules, on the history Stats reads ────────
 // Oldest first, as the rank history route returns them.
 {

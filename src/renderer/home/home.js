@@ -56,14 +56,20 @@ function paintLast(last) {
   const top = el('div', 'last-top');
   const facts = el('div', 'last-facts');
   facts.append(el('span', 'label', `Last match${last.at ? ', ' + when(last.at) : ''}`));
-  if (last.result) facts.append(el('span', 'result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''), last.result));
-  if (last.score) facts.append(el('span', 'score', String(last.score).replace(/\s*-\s*/, ' : ')));
+  // STILL BEING CHECKED (8.4.1): its result, score and grade are the screen's
+  // until the review is whole, and Riot's record changes them minutes later,
+  // so the card says what it waits for in their place, as its review page
+  // shows a loading screen.
+  if (last.result && !last.work) facts.append(el('span', 'result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''), last.result));
+  if (last.score && !last.work) facts.append(el('span', 'score', String(last.score).replace(/\s*-\s*/, ' : ')));
   const meta = [last.title, last.map, last.mode].filter(Boolean).join('  ·  ');
   if (meta) facts.append(el('span', 'meta', meta));
   top.append(facts);
   host.append(top);
 
-  if (last.grade) host.append(GV.gradeCard({ ...last.grade, categories: last.categories || [] }, { label: 'Match grade' }));
+  const checking = last.work ? GV.checking(last.work, { full: true }) : null;
+  if (checking) host.append(checking);
+  else if (last.grade) host.append(GV.gradeCard({ ...last.grade, categories: last.categories || [] }, { label: 'Match grade' }));
 
   /*
    * THE FOOT CARRIES TWO BUTTONS AND NOTHING ELSE (8.2.1): the eye, "View
@@ -121,7 +127,9 @@ function paintRecent(recent) {
     b.dataset.id = m.id;
     const main = el('span', 'r-main');
     const title = el('span', 'r-title', m.map || m.title || 'Match');
-    if (m.result) {
+    // Still being checked (8.4.1): the screen's result and grade are not said
+    // until Riot's record has had its say, the pill in their place.
+    if (m.result && !m.work) {
       title.append(el('span', 'r-res ' + (isWin(m.result) ? 'win' : isLoss(m.result) ? 'loss' : ''),
         [m.result, m.score].filter(Boolean).join(' ')));
     }
@@ -133,9 +141,13 @@ function paintRecent(recent) {
     // (fillRank): a match Riot's record calls Competitive, placed on its own
     // game in the rank history (home-model.js rrForRows).
     b.append(el('span', 'r-rr'));
+    const checking = m.work ? GV.checking(m.work) : null;
     const g = m.grade;
-    b.append(el('span', 'r-score', g ? String(g.score) : '--'));
-    b.append(el('span', 'gv-letter ' + (g ? GV.gradeTone(g) : 'none'), g ? g.letter : '?'));
+    if (checking) b.append(checking);
+    else {
+      b.append(el('span', 'r-score', g ? String(g.score) : '--'));
+      b.append(el('span', 'gv-letter ' + (g ? GV.gradeTone(g) : 'none'), g ? g.letter : '?'));
+    }
     b.addEventListener('click', () => window.occlara.openReview(m.id));
     host.append(b);
   }
@@ -368,6 +380,9 @@ $('empty-settings').addEventListener('click', () => window.occlara.go('settings'
   // graded from it) repaints Home, and so does a change of game, whose cards
   // arrive again.
   window.occlara.onReviews(() => load());
+  // A review still being built moving on, or whole at last (8.4.1): its last
+  // match card and its row say so, or show its grade.
+  if (typeof window.occlara.onReviewWork === 'function') window.occlara.onReviewWork(() => load());
   window.occlara.onGame((g) => { if (g && g.id) { game = g.id; load({ arrive: true }); } });
   // A Riot ID changed in Settings is another account's rank, or none: the
   // state main pushes on every config write carries it, and only a change of

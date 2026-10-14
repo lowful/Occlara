@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, globalShortcut, screen, protocol } = require('electron');
+const { app, globalShortcut, screen, protocol, dialog } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -78,6 +78,8 @@ const clips = require('../shared/clips');
 const clipScheme = require('./services/clip-scheme');
 const reviewClips = require('./services/review-clips');
 const lookStills = require('./services/look-stills');
+const reviewWork = require('../shared/review-work');
+const quitAsk = require('../shared/quit-ask');
 
 // Every post-match review, for every game. See services/review-store.js.
 const reviewStore = new ReviewStore(path.join(app.getPath('userData'), 'reviews'));
@@ -557,7 +559,8 @@ function leaveReview(opts) {
 }
 
 /**
- * Out of sight (Ctrl+Shift+M, its X, Alt+F4), the main window leaves a small
+ * Out of sight (Ctrl+Shift+M, or the tray menu's Hide; its X, Alt+F4 and the
+ * taskbar's Close quit since 8.4.1), the main window leaves a small
  * click-through mark in the corner of the screen to say Occlara is still
  * running; it never catches the cursor. Back by any path (a page opened, the
  * tray, a second launch) the mark goes. The tray's Show or Hide follows both.
@@ -610,6 +613,9 @@ function onMainWindow(kind) {
   }
 }
 mainWindow.onWindowChange(onMainWindow);
+// CLOSING QUITS (8.4.1): its X, Alt+F4 and the taskbar's Close, asking first
+// only when that would lose something (quitFromClose, by cleanupAndQuit).
+mainWindow.onCloseAsk(() => { quitFromClose(); });
 
 /**
  * THE ONE WAY A REVIEW REACHES A WINDOW. Every review a renderer is handed,
@@ -638,6 +644,11 @@ mainWindow.onWindowChange(onMainWindow);
  * while it is on disk (clipUrl), and said to be cleared, for space or from
  * Settings, once it is not (clipGone). Asked of the disk each time, because
  * the cap takes the oldest reviews' clips whenever a new one is kept.
+ *
+ * And its work (8.4.1): the step a review still being built is on, which its
+ * page shows as a loading screen until the review is whole, or null
+ * (workForId, shared/review-work.js). Only a review whose job is still here
+ * has any, so one saved before, or reopened after a launch, never does.
  */
 function present(review) {
   if (!review || typeof review !== 'object') return review;
@@ -647,6 +658,7 @@ function present(review) {
     out.study = review.study.filter((n) => n && typeof n.text === 'string' && n.text).map((n) => ({ text: n.text }));
   }
   out.aiLog = aiLogStateOf(reviewLogEntry(review, review.at));
+  out.work = review.id ? workForId(review.id) : null;
   if (!review.id) return out;
   return reviewClips.presentClips(out, {
     has: (name) => reviewStore.hasClip(review.id, name),
@@ -989,7 +1001,9 @@ async function recordingStills(job, looks, cut, source, stale) {
  */
 function screenLook(job) {
   if (!job.screenLook) {
-    job.screenLook = lookFromScreen(job).catch((e) => console.log('[review] the look from the screen failed:', e.message));
+    job.screenLook = lookFromScreen(job).catch((e) => console.log('[review] the look from the screen failed:', e.message))
+      // From the screen alone, the look is the review's last step (8.4.1).
+      .then(() => { job.screenLooked = true; noteWork(job); });
   }
   return job.screenLook;
 }
@@ -1202,6 +1216,63 @@ function reviewBeingBuilt(now) {
   return false;
 }
 
+/*
+ * A REVIEW STILL BEING BUILT IS A LOADING SCREEN (8.4.1). Each job says what is
+ * left of its work (shared/review-work.js workOf, from the flags the steps below
+ * set: byRiot and narrated once the narrative is back, screenLooked, tracker,
+ * riotBusy and stage while Riot's record is laid over, finished once the last
+ * version is painted or the link is over). The review page shows the step as a
+ * loading screen and paints the review whole once it is null, and Home and
+ * Matches say it is being checked where its grade would be. It goes with the
+ * review (present()) and every library row, and is pushed on every change
+ * (PUSH_REVIEW_WORK): at each step, and by a second's tick while any review
+ * waits, for the waits the clock ends, Riot's record not in six minutes after
+ * the end and nothing a loading screen past twelve.
+ */
+const riotIdSet = () => (store.get('riotId') || '').includes('#');
+
+/**
+ * One job's loading screen, or null. ONCE NULL, NULL FOR GOOD (`released`): a
+ * review painted from the screen at six minutes repaints when Riot's record
+ * lands after all, and never turns back into a loading screen for its look.
+ */
+function workOfJob(job) {
+  const work = reviewWork.workOf(job, Date.now(), riotIdSet());
+  if (!work && job && !job.cancelled) job.released = true;
+  return work;
+}
+
+/** The work of the review with this id, while its job is here; null for every other. */
+function workForId(id) {
+  for (const job of reviewJobs.values()) if (job && job.id === id) return workOfJob(job);
+  return null;
+}
+
+/** Said to every page when it changed: the review page, Home and Matches. */
+function noteWork(job) {
+  if (!job || job.cancelled) return;
+  const work = workOfJob(job);
+  const said = JSON.stringify(work);
+  if (said === job.workSaid) return;
+  job.workSaid = said;
+  registry.broadcast(C.PUSH_REVIEW_WORK, { id: job.id, work });
+  if (work) watchWork();
+}
+
+let workTimer = null;
+/** The second's tick, while any review is still a loading screen, and not a moment longer. */
+function watchWork() {
+  if (workTimer) return;
+  workTimer = setInterval(() => {
+    let waiting = false;
+    for (const job of reviewJobs.values()) {
+      try { noteWork(job); } catch (e) { console.warn('[review] the work of a review:', e.message); }
+      if (job && !job.cancelled && job.workSaid && job.workSaid !== 'null') waiting = true;
+    }
+    if (!waiting) { clearInterval(workTimer); workTimer = null; }
+  }, 1000);
+}
+
 /**
  * The engine says the last end was wrong: the match is still being played.
  * Its review is taken back everywhere it went, the window included, and the
@@ -1358,6 +1429,11 @@ function onValorantMatchEnded(snap) {
   // NOTHING OPENS OVER A MATCH IN PROGRESS: the next one already being played,
   // one the player had already left for the next (next-match), or the one
   // recording was stopped in the middle of. Those are kept in the library.
+  //
+  // And what opens is a loading screen (8.4.1, shared/review-work.js) until
+  // the review is whole: this version, the screen's, is saved now and held by
+  // the page, and painted once Riot's record and the coach's look are in, or
+  // at six minutes without them.
   const live = matchInProgress() || snap.endedBy === 'next-match' || !!snap.stoppedLive;
   const first = stampReview(job, buildValorantReview(snap, null, { history: job.history, narrativeComing: true }).built);
   job.showing = first;
@@ -1371,6 +1447,7 @@ function onValorantMatchEnded(snap) {
     syncSeal();
     pushNotice('Recording stopped in the middle of a match. Its review is saved in Matches.', 'review');
   }
+  noteWork(job);
   console.log(`[review] valorant review ready: ${snap.rounds.length} rounds, ended by ${snap.endedBy}`
     + (live ? ', saved but not shown, a match is in progress' : ''));
 }
@@ -1391,9 +1468,14 @@ function onValorantMatchReview(reviewText, snap) {
   snap.log = job.log;
   job.snap = snap;
   if (!snap.ai) console.log('[review] no model narrative for this match');
+  // Which way this review is finished, decided here, where the link and the
+  // look from the screen start (shared/review-work.js pathOf).
+  job.narrated = true;
+  job.byRiot = riotIdSet();
   repaintReview(job, buildValorantReview(snap, null, { history: job.history }).built);
-  if (!(store.get('riotId') || '').includes('#')) screenLook(job);
+  if (!job.byRiot) screenLook(job);
   linkRiotRecord(job);
+  noteWork(job);
 }
 
 // A boot check (check:latelink) shortens every wait between a review's link
@@ -1427,6 +1509,9 @@ function linkRiotRecord(job) {
     const look = job.cancelled || job.riotLooked ? job.screenLook : screenLook(job);
     Promise.resolve(look).then(() => {
       releaseMatchHolds(job);
+      // Its work over, whichever way it went: no page is left waiting on it.
+      job.finished = true;
+      noteWork(job);
       if (reviewJobs.get(snap.startedAt) === job) reviewJobs.delete(snap.startedAt);
     });
   };
@@ -1456,7 +1541,11 @@ function linkRiotRecord(job) {
     // A look from the screen still out when Riot's rounds land paints nothing
     // over them (lookFromScreen), and none is taken once these are painted.
     job.riotBusy = true;
-    try { return await riotLook(lm, riot); } finally { job.riotBusy = false; }
+    // Riot's record is in: its loading screen moves on to laying it over the
+    // screen's rounds, the look, then the review written again (8.4.1).
+    job.stage = 'deaths';
+    noteWork(job);
+    try { return await riotLook(lm, riot); } finally { job.riotBusy = false; job.stage = null; noteWork(job); }
   };
   const riotLook = async (lm, riot) => {
     const verify = require('../shared/valorant-verify');
@@ -1477,11 +1566,15 @@ function linkRiotRecord(job) {
     // death-frames.js): reconcile keeps the second alone. Its clips are cut
     // by the look while the match's recording is held, and since Riot's look
     // is the one kept, its clips are, and the screen's go.
+    job.stage = 'look';
+    noteWork(job);
     const looked = await forensicsFor(deathFrames.withRiotTimes(rounds, riot), { ...snap, context },
       { job, stale: () => job.cancelled });
     if (job.cancelled) return false;
     for (const r of rounds) if (looked.byRound[r.n]) r.forensics = looked.byRound[r.n];
 
+    job.stage = 'writing';
+    noteWork(job);
     let ai = null;
     try {
       const body = valorantReview.requestBody({
@@ -1499,6 +1592,8 @@ function linkRiotRecord(job) {
       console.log('[review] verified narrative failed:', e.message);
     }
     const final = buildValorantReview({ ...vsnap, ai }, lm, extra).built;
+    // The review is whole: this version is the one its page paints (8.4.1).
+    job.finished = true;
     repaintReview(job, final, Object.keys(looked.frames).length ? looked.frames : null);
     job.riotLooked = true;
     return true;
@@ -1547,6 +1642,7 @@ function linkRiotRecord(job) {
     // review open, and a late scoreboard must not replace it with this one.
     repaintReview(job, next.built);
     if (lm.matchId) retireStopStubs(job, lm);
+    noteWork(job);
     // The totals are Riot's now; the rounds follow, and they are what fixes
     // the deaths, the timing and the coach's reads.
     riotThen(lm, RIOT_ROUNDS_RETRY_MS);
@@ -1582,8 +1678,10 @@ function linkRiotRecord(job) {
           // checks it again (backfill.js late()).
           const taken = /already linked/.test(String(lastTry.why || ''));
           job.linkMissing = taken ? 'taken' : mayGoOn(mctx.score) ? 'later' : true;
+          // Given up: painted from the screen with why, never left loading.
           repaintReview(job, buildValorantReview(snap, null,
             { history: job.history, linkMissing: job.linkMissing }).built);
+          noteWork(job);
         }
         done();
         return;
@@ -1857,10 +1955,12 @@ const controller = {
   /**
    * The match library: saved reviews, newest first, one game or all. Each row
    * says whether the AI log still holds its match, for the eye on it, and
-   * nothing about where: that is found again when the eye is pressed.
+   * nothing about where: that is found again when the eye is pressed. And the
+   * step a review still being built is on (8.4.1), so its row and Home's last
+   * match say it is being checked where its grade would be, half done.
    */
   listReviews(game) {
-    return reviewStore.list(game || null).map((row) => ({ ...row, aiLog: aiLogStateOf(rowLogEntry(row)) }));
+    return reviewStore.list(game || null).map((row) => ({ ...row, aiLog: aiLogStateOf(rowLogEntry(row)), work: workForId(row.id) }));
   },
   getReview(id) {
     const e = reviewStore.get(id);
@@ -1940,20 +2040,37 @@ const controller = {
   getBackfillStatus() { return backfill.getStatus(); },
 
   toggleMinimizePanel() {
-    // Ctrl+Shift+M and the tray: the main window out of sight, or back, the
-    // corner mark and the tray following it (onMainWindow). Back mid match,
-    // it comes up without taking the keyboard from the game.
+    // Ctrl+Shift+M and the tray menu's Show or Hide: the main window out of
+    // sight, or back, the corner mark and the tray following it
+    // (onMainWindow). Back mid match, it comes up without taking the keyboard
+    // from the game.
     return mainWindow.toggleHidden({ focus: !matchInProgress() });
   },
   /**
-   * The top strip's buttons. Its X hides the window and Occlara keeps running
-   * in the tray (main-window.js), so the review that just opened keeps being
-   * checked against Riot's record. The tray and Settings quit.
+   * THE TRAY ICON OPENS THE APP (8.4.1). Clicked or double clicked, the window
+   * comes up and to the front on the page it was on, from hidden, minimised or
+   * behind another window, and the seal settled first decides what it shows:
+   * mid match, the Recording screen. A click never hides it: the icon only had
+   * a double click, and that toggled, so a window behind the game went out of
+   * sight on it, and a single click did nothing at all. The player is in the
+   * notification area, not the game, so the window takes the focus. (The
+   * tray is only there while the app's surfaces are, so nothing is asked of
+   * them here.)
+   */
+  showWindow() {
+    syncSeal();
+    mainWindow.reveal();
+  },
+  /**
+   * The top strip's buttons. Its X closes the window as Alt+F4 and the
+   * taskbar's Close do, and closing quits (8.4.1, quitFromClose), asking first
+   * only when quitting would lose a match being recorded or a review still
+   * being built.
    */
   windowAction(action) {
     if (action === 'minimize') mainWindow.minimize();
     else if (action === 'maximize') mainWindow.toggleMaximize();
-    else if (action === 'close') mainWindow.hide();
+    else if (action === 'close') mainWindow.close();
   },
   /** A page of the main window, by its id in src/shared/shell-nav.js. */
   showPage(id) { openPage(id); },
@@ -2853,7 +2970,10 @@ function finishLolGame(record) {
     saveReview(built, 'lol');
     openPage('review');
     console.log(`[lol] review ready: ${built.scoreline.kills}/${built.scoreline.deaths}/${built.scoreline.assists}`);
-    clipLolDeaths(built, record).catch((e) => console.log('[clips] the League deaths could not be clipped:', e.message));
+    // Counted while they are cut, the seconds closing asks about (lolClipsAtStake).
+    lolClipping++;
+    clipLolDeaths(built, record).catch((e) => console.log('[clips] the League deaths could not be clipped:', e.message))
+      .finally(() => { lolClipping = Math.max(0, lolClipping - 1); });
   } catch (e) {
     // A failed grade must never lose the game that was recorded, so the raw
     // record is kept for inspection rather than dropped on the floor.
@@ -2876,6 +2996,10 @@ function finishLolGame(record) {
  * in cutLookClips).
  */
 const LOL_CLIP_SETTLE_MS = 6000;
+// League games whose deaths are being clipped right now (finishLolGame): a
+// quit in those seconds deletes the recording they are cut from, so closing
+// asks first (lolClipsAtStake, 8.4.1).
+let lolClipping = 0;
 async function clipLolDeaths(built, record) {
   const { wallAt } = require('./services/lol-recorder');
   const off = () => !clips.cutsClips(store);
@@ -3658,6 +3782,8 @@ function stopLicenseWatch() {
 const trayActions = {
   start:          () => controller.start(),
   stop:           () => controller.stop(),
+  // The icon itself, clicked or double clicked: the window up and in front.
+  show:           () => controller.showWindow(),
   toggleMinimize: () => controller.toggleMinimizePanel(),
   isMinimized:    () => mainWindow.isHidden(),
   openSettings:   () => controller.openSettings(),
@@ -3880,6 +4006,115 @@ function maybeShowWeeklyReport() {
   }, 4000);
 }
 
+/*
+ * CLOSING QUITS (8.4.1). The window's X, Alt+F4 and the taskbar's Close used to
+ * hide Occlara in the tray, so the review that had just opened kept being
+ * checked against Riot's record; the player asked for closing to close it. So
+ * a close (main-window.js onCloseAsk, handed over on the turn after its close
+ * event, since a quit inside that event is one Electron cancels) quits by the
+ * tray's own path, cleanupAndQuit, and asks first only when that would lose
+ * something, each question once, a native dialog whose default and whose
+ * Escape keep Occlara as it is (shared/quit-ask.js says what each one says and
+ * why it is true):
+ *
+ *   a match being recorded right now (the seal's live test)
+ *   a review still being built (shared/review-work.js leftOf)
+ *   a League game's death clips still being cut, the seconds after its review
+ *     opens (clipLolDeaths, lolClipping)
+ *
+ * Kept open, nothing changes. The tray's Quit and Settings' quit as they
+ * always did, with no question, and so do an update's Restart now and Windows
+ * ending its session, which close the window as the app goes (before-quit,
+ * 'session-end') and never come here. A second close while a question is up
+ * asks nothing more. Ctrl+Shift+M still hides the window to the corner mark.
+ */
+let closeAsking = false;
+async function quitFromClose() {
+  if (closeAsking || appQuitting) return;
+  closeAsking = true;
+  try {
+    for (const ask of [matchAtStake, reviewAtStake, lolClipsAtStake]) {
+      const q = ask();
+      if (!q) continue;
+      const answer = await askBeforeQuit(q);
+      if (answer !== q.quit) {
+        console.log(`[main] closing: kept open, the ${q.kind} question answered ${q.buttons[answer] || answer}`);
+        return;
+      }
+    }
+    console.log('[main] closing: quitting');
+    cleanupAndQuit();
+  } catch (e) {
+    // A question that could not be asked is not a yes.
+    console.warn('[main] closing: the question could not be asked, kept open:', e.message);
+  } finally {
+    closeAsking = false;
+  }
+}
+
+/** Whether what is recorded of the match in progress would be clipped: recording on, and on disk. */
+function recordingOnDisk() {
+  try { return clips.cutsClips(store) && recorder.stats().pages > 0; } catch { return false; }
+}
+
+/** The question a match being recorded asks, or null. */
+function matchAtStake() {
+  if (!state.isCoaching || !matchInProgress()) return null;
+  const lol = engine instanceof LolRecorder;
+  return quitAsk.matchQuestion({
+    game: lol ? 'lol' : 'valorant',
+    // The rounds a stop files (coaching-engine.js matchSnapshot, the ledger's
+    // list()), never size(): that counts a round only begun, filed off a
+    // banner or the loading screen, and the question then said a round was
+    // kept in Matches when the stop kept nothing.
+    rounds: !lol && engine && engine.ledger && typeof engine.ledger.list === 'function' ? engine.ledger.list().length : 0,
+    connected: !!connectedRiotId(),
+    clips: recordingOnDisk(),
+  });
+}
+
+/** The question the newest review still being built asks, or null. */
+function reviewAtStake() {
+  const now = Date.now();
+  let newest = null;
+  let left = null;
+  for (const job of reviewJobs.values()) {
+    const l = reviewWork.leftOf(job, now, riotIdSet(), aiLogStore.HOLD_MAX_MS);
+    if (l && (!newest || job.snap.endedAt > newest.snap.endedAt)) { newest = job; left = l; }
+  }
+  if (!newest) return null;
+  return quitAsk.reviewQuestion({
+    left,
+    riotIdSet: riotIdSet(),
+    connected: !!connectedRiotId(),
+    clips: clips.cutsClips(store) && ((newest.clipsCut && newest.clipsCut.size > 0) || recordingOnDisk()),
+  });
+}
+
+/** The question a League game's death clips still being cut ask, or null. */
+function lolClipsAtStake() {
+  return quitAsk.clipsQuestion({ cutting: lolClipping });
+}
+
+/**
+ * One question over the window, the answer's index. The window comes up for
+ * it first: closed from the taskbar while minimised, a dialog it owns would
+ * stay minimised with it.
+ */
+async function askBeforeQuit(q) {
+  const w = mainWindow.get();
+  if (w) {
+    if (w.isMinimized()) w.restore();
+    if (!w.isVisible()) w.show();
+  }
+  const opts = {
+    type: 'question', title: 'Occlara', message: q.message, detail: q.detail,
+    buttons: q.buttons, defaultId: 0, cancelId: 0, noLink: true,
+  };
+  const r = w ? await dialog.showMessageBox(w, opts) : await dialog.showMessageBox(opts);
+  return r && Number.isInteger(r.response) ? r.response : 0;
+}
+
 function cleanupAndQuit() {
   try {
 
@@ -3909,7 +4144,8 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', () => {
     // Opened again from the Start menu or a shortcut: the window comes back
-    // from wherever it went, hidden by its X, by Ctrl+Shift+M or minimised.
+    // from wherever it went, hidden by Ctrl+Shift+M or the tray's Hide, or
+    // minimised (its X quits since 8.4.1).
     if (surfacesUp) { mainWindow.reveal(); return; }
     const win = registry.get('activation') || registry.get('onboarding');
     if (win) {

@@ -22,9 +22,9 @@ const registry = require('../src/main/windows/registry');
 
 let fails = 0;
 let checks = 0;
-const ok = (cond, what) => {
+const ok = (cond, what, detail) => {
   checks++;
-  if (!cond) { fails++; console.log(`FAIL  ${what}`); } else console.log(`ok    ${what}`);
+  if (!cond) { fails++; console.log(`FAIL  ${what}${detail ? `\n        ${detail}` : ''}`); } else console.log(`ok    ${what}`);
 };
 
 // ── The page table ────────────────────────────────────────────────────────
@@ -393,6 +393,14 @@ function rig() {
     }
     loadFile() {}
     isDestroyed() { return this.dead; }
+    // Asked to close, as its X, Alt+F4 and the taskbar's Close ask: the event
+    // a listener can hold, and closed for real when none does.
+    close() {
+      const e = { prevented: false, preventDefault() { this.prevented = true; } };
+      this.emit('close', e);
+      if (!e.prevented) { this.visible = false; this.dead = true; this.emit('closed'); }
+      return e;
+    }
     getContentSize() { return this.minimized ? [0, 0] : [1200, 780]; }
     getBounds() { return { x: 0, y: 0, width: 1200, height: 780 }; }
     isVisible() { return this.visible; }
@@ -410,15 +418,20 @@ function rig() {
     // Out of every capture or not (8.3), and how often Windows was asked.
     setContentProtection(on) { this.protected = !!on; this.protectAsks = (this.protectAsks || 0) + 1; }
   }
-  const electron = { app: { on() {} }, BrowserWindow: Win, WebContentsView: View, screen: { getAllDisplays: () => [] } };
+  let quits = 0;
+  const electron = { app: { on() {}, quit() { quits++; } }, BrowserWindow: Win, WebContentsView: View, screen: { getAllDisplays: () => [] } };
   const clock = { now: 0, seq: 0, timers: new Map() };
   const tick = (ms) => {
     clock.now += ms;
     for (const [h, t] of [...clock.timers]) if (t.at <= clock.now) { clock.timers.delete(h); t.fn(); }
   };
-  const real = { setTimeout: global.setTimeout, clearTimeout: global.clearTimeout };
+  const real = { setTimeout: global.setTimeout, clearTimeout: global.clearTimeout, setImmediate: global.setImmediate };
   global.setTimeout = (fn, ms) => { const h = ++clock.seq; clock.timers.set(h, { fn, at: clock.now + ms }); return h; };
   global.clearTimeout = (h) => { clock.timers.delete(h); };
+  // The next turn, run by hand (turn()): a close is handed to index.js there.
+  const immediates = [];
+  global.setImmediate = (fn, ...args) => { immediates.push(() => fn(...args)); return immediates.length; };
+  const turn = () => { while (immediates.length) immediates.shift()(); };
   const file = require.resolve('../src/main/windows/main-window');
   const load = Module._load;
   Module._load = function (request, parent, ...rest) {
@@ -546,6 +559,44 @@ function rig() {
     ok(wins.length === 3 && mw.current().sealed && third.protected === true && third.protectAsks === 1,
       'made again while sealed, the new window is out of captures from its creation');
 
+    // CLOSING QUITS (8.4.1). Its X, Alt+F4 and the taskbar's Close are the
+    // window's 'close': held, and handed to index.js, which quits by the
+    // tray's own path, asking first when that would lose something. Never
+    // hidden in the tray any more, which is what a close used to do.
+    mw.setSealed(false);
+    third.visible = true;
+    const asked = [];
+    let hides = 0;
+    third.on('hide', () => { hides++; });
+    mw.onCloseAsk(() => asked.push('close'));
+    const held = third.close();
+    // NEVER INSIDE THE CLOSE EVENT: Electron takes a close prevented there for
+    // a quit cancelled, so a quit index.js decides in the same turn closed
+    // every window and the process ran on with none (main-window.js).
+    ok(held.prevented && asked.length === 0, 'a close is held, and index.js is not handed it inside the close event itself');
+    turn();
+    ok(asked.length === 1 && third.visible && !third.dead && !hides,
+      'but on the next turn, the window left as it was, never hidden in the tray');
+    mw.close();
+    turn();
+    ok(asked.length === 2 && third.visible && !third.dead, 'and the top strip\'s X is that same close');
+    mw.onCloseAsk(null);
+    const quitsBefore = quits;
+    const bare = third.close();
+    const quitsInEvent = quits;
+    turn();
+    ok(bare.prevented && quitsInEvent === quitsBefore && quits === quitsBefore + 1 && !third.dead,
+      'with nothing set to ask, a close quits the app, on the next turn too');
+    mw.onCloseAsk(() => asked.push('close'));
+    third.close();
+    third.emit('session-end');
+    turn();
+    ok(asked.length === 2, 'a close whose turn comes after Windows began ending its session asks nothing');
+    const ending = third.close();
+    turn();
+    ok(!ending.prevented && asked.length === 2 && third.dead,
+      'Windows ending its session: the window closes for real, and nothing is asked');
+
     // THE SHELL IS DRAWN TO THE SIZES ITS PAGES ARE LAID BESIDE (change them
     // together, CLAUDE.md). A page is laid at x = SIDEBAR_W and y = TOP_H over
     // the shell's own document, so its top strip is TOP_H tall, and the notice
@@ -570,6 +621,142 @@ function rig() {
   } finally {
     Object.assign(global, real);
   }
+}
+
+// ── The tray icon opens the app (8.4.1) ───────────────────────────────────
+// The real tray.js on a stand-in Tray. The icon had a double click alone, and
+// that toggled the window, so a click did nothing and a double click on a
+// window behind the game hid it. A click and a double click bring it up, and
+// the context menu is as it was.
+{
+  const EventEmitter = require('events');
+  const Module = require('module');
+  const made = [];
+  class Tray extends EventEmitter {
+    constructor() { super(); this.menu = null; this.tip = ''; made.push(this); }
+    setToolTip(t) { this.tip = t; }
+    setContextMenu(m) { this.menu = m; }
+    destroy() {}
+  }
+  const electron = {
+    Tray, Menu: { buildFromTemplate: (t) => t }, app: {},
+    nativeImage: { createFromPath: () => ({ resize: () => ({}) }), createEmpty: () => ({}) },
+  };
+  const file = require.resolve('../src/main/tray');
+  const load = Module._load;
+  Module._load = function (request, parent, ...rest) {
+    if (request === 'electron' && parent && parent.filename === file) return electron;
+    return load.call(this, request, parent, ...rest);
+  };
+  let trayMod = null;
+  try { delete require.cache[file]; trayMod = require(file); } finally { Module._load = load; }
+  const calls = [];
+  const actions = { isMinimized: () => true };
+  for (const k of ['start', 'stop', 'show', 'toggleMinimize', 'openReview', 'openHistory', 'openWeekly', 'openAiLog', 'openSettings', 'quit']) {
+    actions[k] = () => calls.push(k);
+  }
+  trayMod.create(actions);
+  const t = made[0];
+  ok(!!t && t.listenerCount('click') === 1 && t.listenerCount('double-click') === 1, 'the icon listens for a click and a double click');
+  if (t) t.emit('click');
+  ok(calls.join() === 'show', 'a click on the icon brings the window up and to the front');
+  if (t) t.emit('double-click');
+  ok(calls.join() === 'show,show', 'and so does a double click, which never hides it any more');
+  const labels = (t && t.menu ? t.menu : []).map((i) => (i.type === 'separator' ? '-' : i.label));
+  ok(labels.join('|') === 'Start Recording|Show Occlara|Last Review…|Matches…|Weekly Report…|AI Log…|Settings…|-|Quit Occlara',
+    'the context menu is as it was', labels.join('|'));
+  calls.length = 0;
+  if (t) t.menu[1].click();
+  if (t) t.menu[8].click();
+  ok(calls.join() === 'toggleMinimize,quit', 'its Show or Hide still toggles the window, and its Quit still quits');
+  trayMod.update(true, { ...actions, isMinimized: () => false });
+  ok(t && t.menu[0].label === 'Stop Recording' && t.menu[1].label === 'Hide Occlara' && t.tip === 'Occlara, recording',
+    'and it follows the recording and the window as before');
+}
+
+// ── Closing quits, and asks first when that would lose something (8.4.1) ──
+// shared/quit-ask.js, every wording, and shared/review-work.js leftOf(), what
+// a review still being built would lose.
+{
+  const { matchQuestion, reviewQuestion, clipsQuestion, STAY_RECORDING, STAY_OPEN } = require('../src/shared/quit-ask');
+  const { leftOf } = require('../src/shared/review-work');
+  const DASH = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
+  ok(DASH.test(String.fromCharCode(0x2014)) && DASH.test(String.fromCharCode(0x2013)) && !DASH.test('-'), 'the dash test finds both dashes and no hyphen');
+  const all = [];
+  const q = (x) => { if (x) all.push(x); return x; };
+
+  const m7 = q(matchQuestion({ game: 'valorant', rounds: 7, connected: true, clips: true }));
+  ok(m7 && m7.message === 'A match is being recorded. Quit and stop recording?'
+    && m7.detail === 'The 7 rounds recorded so far are kept in Matches as part of a match, as the screen read them, '
+      + "with no coach's read and no video clips. It is checked against Riot's record at a later launch, once the match is over. "
+      + 'Keep recording and the whole match is reviewed when it ends.',
+  'a match being recorded: its rounds kept in Matches as a part, with no read or clips, checked at a later launch', m7 && m7.detail);
+  const m1 = q(matchQuestion({ game: 'valorant', rounds: 1, connected: false, clips: false }));
+  ok(m1 && m1.detail === "The round recorded so far is kept in Matches as part of a match, as the screen read it, with no coach's read. "
+    + 'Keep recording and the whole match is reviewed when it ends.',
+  'one round, no Riot ID connected and nothing recorded on this PC: nothing said of either', m1 && m1.detail);
+  const m0 = q(matchQuestion({ game: 'valorant', rounds: 0, connected: true, clips: true }));
+  ok(m0 && m0.detail === 'No round of it has been recorded yet, so nothing of it is kept. Keep recording and the match is reviewed when it ends.',
+    'no round read yet: nothing of it is kept, and it says so', m0 && m0.detail);
+  const lol = q(matchQuestion({ game: 'lol', rounds: 0, connected: true, clips: true }));
+  ok(lol && lol.message === 'A game is being recorded. Quit and stop recording?'
+    && lol.detail === 'A game stopped part way is not reviewed, so nothing of this one is kept. Keep recording and it is reviewed when it ends.',
+  'a League game being recorded: one stopped part way is not graded (lol-recorder.js stop())', lol && lol.detail);
+  ok(matchQuestion(null) === null && reviewQuestion(null) === null && reviewQuestion({ left: null }) === null, 'nothing at stake, nothing asked');
+
+  const riotLeft = { path: 'riot', narrated: true, recordIn: false, scoreboard: false, part: false };
+  const rc = q(reviewQuestion({ left: riotLeft, riotIdSet: true, connected: true, clips: true }));
+  ok(rc && rc.message === "Your last match is still being checked against Riot's record. Quit now?"
+    && rc.detail === 'Quit now and it is checked at a later launch instead, once Riot has the match, without the coach\'s look '
+      + 'at your deaths, their video clips or a written read. Keep Occlara open and it finishes by itself.',
+  'a review checked against Riot\'s record: a later launch checks it, without the look, the clips or a read (riot-review.js upgradeWatched)', rc && rc.detail);
+  const rt = q(reviewQuestion({ left: riotLeft, riotIdSet: true, connected: false, clips: false }));
+  ok(rt && rt.detail === 'Quit now and it stays as the screen read it until you press Grade my recent matches in Matches, '
+    + "which lays Riot's record over it without the coach's look at your deaths or a written read. Keep Occlara open and it finishes by itself.",
+  'a Riot ID typed and never connected runs no late link: Grade my recent matches is what checks it then', rt && rt.detail);
+  const rn = q(reviewQuestion({ left: riotLeft, riotIdSet: false, connected: false, clips: true }));
+  ok(rn && rn.detail === "Quit now and it is kept as the screen read it, without Riot's record, the coach's look at your deaths "
+    + 'or their video clips. Keep Occlara open and it finishes by itself.',
+  'the Riot ID taken out of Settings meanwhile: nothing will check it, and its read stays', rn && rn.detail);
+  const sw = q(reviewQuestion({ left: { path: 'screen', narrated: false }, riotIdSet: false, connected: false, clips: true }));
+  ok(sw && sw.message === "Your last match's review is still being written. Quit now?"
+    && sw.detail === "Quit now and it is kept as the screen read it, without the coach's read, its look at your deaths or their video clips. "
+      + 'Keep Occlara open and it finishes by itself, usually in a minute or two.',
+  'from the screen alone, the narrative still to come: kept without the read or the look', sw && sw.detail);
+  const sl = q(reviewQuestion({ left: { path: 'screen', narrated: true }, riotIdSet: false, connected: false, clips: false }));
+  ok(sl && sl.detail === "Quit now and it is kept without the coach's look at your deaths. Keep Occlara open and it finishes by itself, usually in a minute or two.",
+    'the narrative in, the look still out: kept without the look', sl && sl.detail);
+  // A League game's deaths are cut six seconds after its review opens
+  // (index.js clipLolDeaths), from the recording a quit deletes.
+  const cq = q(clipsQuestion({ cutting: 1 }));
+  ok(cq && cq.message === "Your last game's death clips are still being saved. Quit now?"
+    && cq.detail === 'Quit now and its review is kept without the video clips of your deaths. '
+      + 'Keep Occlara open and they are saved by themselves in a few seconds.',
+  'a League game\'s death clips still being cut: its review is kept, without them', cq && cq.detail);
+  ok(clipsQuestion(null) === null && clipsQuestion({ cutting: 0 }) === null, 'and with none being cut, nothing is asked');
+  ok(all.length === 10 && all.every((x) => x.buttons.length === 2 && x.quit === 1
+    && x.buttons[0] === (x.kind === 'match' ? STAY_RECORDING : STAY_OPEN) && /^Quit/.test(x.buttons[1])),
+  'every question keeps Occlara as it is on its first button, the default and what Escape answers, and quits on its second');
+  ok(all.every((x) => !DASH.test(x.message + x.detail + x.buttons.join(''))), 'and none of them carries a dash');
+
+  // What a review still being built would lose (review-work.js leftOf).
+  const END = 1_800_000_000_000;
+  const HOLD = 60 * 60 * 1000;
+  const job = (extra) => ({ id: 'valorant-x', snap: { endedAt: END, endedBy: 'score' }, ...extra });
+  const left = (j, at, riot) => leftOf(j, at === undefined ? END + 60000 : at, riot === undefined ? true : riot, HOLD);
+  ok(JSON.stringify(left(job({ byRiot: true, narrated: true }))) === JSON.stringify({ path: 'riot', narrated: true, recordIn: false, scoreboard: false, part: false }),
+    'a review waiting for Riot\'s record has the check left to lose');
+  ok(left(job({ byRiot: true, riotLooked: true })) === null && left(job({ byRiot: true, linkMissing: true })) === null
+    && left(job({ byRiot: true, finished: true })) === null && left(job({ byRiot: true, cancelled: true })) === null,
+  'and nothing once Riot\'s look has landed, the link has given up, its work is over or it was withdrawn');
+  ok(left(job({ byRiot: false, narrated: true, screenLooked: true })) === null && left(job({ byRiot: false })).path === 'screen'
+    && left(job({ byRiot: false, narrated: true })).narrated === true, 'from the screen alone, the narrative and the look are what is left');
+  ok(left(job({ byRiot: true }), END + HOLD) === null && left(job({ byRiot: true }), END + HOLD - 1) !== null,
+    'counted for the hour its match is held at most, as the update\'s question counts it');
+  ok(left(job({ byRiot: true, snap: { endedAt: END, endedBy: 'stop', stoppedLive: true } })).part === true,
+    'a match recording was stopped in still has its link to lose, and is said to be a part');
+  ok(left(job({}), undefined, false).path === 'screen' && left(job({}), undefined, true).path === 'riot',
+    'before its narrative, the Riot ID in Settings says which way it is finished');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' shell navigation checks passed'}`);

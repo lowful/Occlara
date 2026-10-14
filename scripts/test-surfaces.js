@@ -1215,6 +1215,220 @@ async function openShell(cfg, state, opts) {
     ok(v.bridge.api.openAiLog && typeof v.bridge.api.askAbout === 'function', 'the review\'s bridge opens the AI log and still asks about a match');
   });
 
+  // A REVIEW STILL BEING BUILT IS A LOADING SCREEN (8.4.1): "if the match
+  // review is not complete, loading and verifying from Riot, have it as a
+  // loading screen until everything is complete". What is left of a job's
+  // work (shared/review-work.js workOf), then the page: the steps while it is
+  // built, and the review whole once main says the work is done.
+  await section('a review still being built is a loading screen, painted whole once its work is done:', async () => {
+    const reviewWork = require('../src/shared/review-work');
+    const { workOf, RIOT_WAIT_MS, BUILD_MAX_MS, STEPS } = reviewWork;
+    const END = Date.UTC(2026, 9, 13, 20, 0, 0);
+    const job = (extra, snap) => ({ id: 'valorant-1792000000000-build1', snap: { endedAt: END, endedBy: 'score', ...(snap || {}) }, ...(extra || {}) });
+    const at = (j, ms, riot) => workOf(j, END + ms, riot === undefined ? true : riot);
+    const w0 = at(job({ byRiot: true }), 30000);
+    ok(w0 && w0.path === 'riot' && w0.step === 'riot' && same(w0.steps, ['saved', 'riot', 'deaths', 'look', 'writing'])
+      && w0.endedAt === END && w0.until === END + RIOT_WAIT_MS && w0.scoreboard === false,
+    'with a Riot ID, a match just over waits for Riot\'s record, and says until when', JSON.stringify(w0));
+    ok(RIOT_WAIT_MS === 6 * 60000 && BUILD_MAX_MS === 12 * 60000 && same(STEPS.screen, ['saved', 'writing', 'look']),
+      'Riot\'s record waited for six minutes, nothing a loading screen past twelve, and from the screen alone the review written before the look');
+    ok(at(job({ byRiot: true, tracker: { matchId: 'm1' } }), 90000).scoreboard === true, 'the scoreboard linked, still waiting for the rounds');
+    const busy = at(job({ byRiot: true, riotBusy: true, stage: 'look' }), 7 * 60000);
+    ok(busy && busy.step === 'look' && busy.until === null, 'Riot\'s rounds in at the last moment, the look and the review still come after six minutes', JSON.stringify(busy));
+    ok(at(job({ byRiot: true, riotBusy: true }), 60000).step === 'deaths' && at(job({ byRiot: true, riotBusy: true, stage: 'nope' }), 60000).step === 'deaths',
+      'its rounds in with no step said yet, or one it does not know: laying them over the screen\'s');
+    ok(at(job({ byRiot: true }), RIOT_WAIT_MS) === null && at(job({ byRiot: true }), RIOT_WAIT_MS - 1) !== null,
+      'Riot\'s record not in after six minutes: the review is painted from the screen');
+    ok(at(job({ byRiot: true, riotBusy: true }), BUILD_MAX_MS) === null, 'and past twelve nothing is a loading screen, whatever is still going on');
+    ok([{ riotLooked: true }, { linkMissing: true }, { linkMissing: 'later' }, { finished: true }, { cancelled: true }, { released: true }]
+      .every((x) => at(job({ byRiot: true, ...x }), 60000) === null),
+    'none once Riot\'s look has landed and the read is written, the link has given up, the work is over, it was withdrawn, or it was once painted whole');
+    ok(at(job({ byRiot: false }), 10000).step === 'writing' && at(job({ byRiot: false, narrated: true }), 10000).step === 'look'
+      && at(job({ byRiot: false, narrated: true, screenLooked: true }), 10000) === null && at(job({ byRiot: false }), 10000).until === null,
+    'from the screen alone: the review written, then the look from the screen, then whole');
+    ok(at(job({}), 10000, false).path === 'screen' && at(job({}), 10000, true).path === 'riot'
+      && at(job({ byRiot: false }), 10000, true).path === 'screen' && at(job({ byRiot: true }), 10000, false).path === 'riot',
+    'which way, decided as the narrative comes back, and the Riot ID in Settings until then');
+    ok(at(job({ byRiot: true }, { stoppedLive: true }), 10000) === null && at(job({ byRiot: true }, { endedBy: 'next-match' }), 10000) === null,
+      'never for a part of a match, saved and not shown: one recording was stopped in, or the next began over');
+    ok(at(job({ byRiot: true }), -60000).step === 'riot' && workOf(null, END, true) === null && workOf(job({}, { endedAt: null }), END, true) === null,
+      'a clock set back counts from the end, and no job or no end is no loading screen');
+
+    // The page.
+    const BUILT = { id: 'valorant-1792000000000-build1', kind: 'valorant', source: 'watched', aiLog: 'kept', rounds: [],
+      game: { map: 'Abyss', agent: 'Jett', result: 'Defeat', score: '3-5' },
+      grade: { score: 61, letter: 'C', provisional: false, categories: [], notes: [] },
+      summary: 'The screen\'s read of the match.', insights: { mistakes: [], strengths: [], missed: [] } };
+    const ended = Date.now() - 100000;
+    const RIOT_WORK = { path: 'riot', steps: ['saved', 'riot', 'deaths', 'look', 'writing'], step: 'riot', endedAt: ended, until: ended + RIOT_WAIT_MS, scoreboard: false };
+    const v = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => ({ ...BUILT, work: RIOT_WORK }) } });
+    await settle();
+    const steps = () => v.document.querySelectorAll('#b-steps .b-step').map((li) => `${li.dataset.step}:${li.className.split(' ')[1]}`);
+    ok(!v.$('building').hidden && v.$('vreview').hidden && v.$('review').hidden && v.$('empty').hidden && v.$('common').hidden,
+      'a review still being built arrives as its loading screen, nothing of the review behind it');
+    ok(same(steps(), ['saved:done', 'riot:now', 'deaths:next', 'look:next', 'writing:next']), 'its steps in order, the one it is on marked', steps().join(' '));
+    ok(v.$('b-title').textContent === 'Checking your match'
+      && v.$('b-sub').textContent === "Your review opens here once Riot's record is laid over what the coach read and the coach has looked at your deaths.",
+    'it says what it is waiting for', v.$('b-sub').textContent);
+    const now = v.document.querySelector('#b-steps .b-step.now');
+    ok(now && now.getAttribute('aria-current') === 'step' && /Riot publishes a match 1 to 4 minutes after it ends/.test(now.textContent)
+      && /^1:4\d$/.test((now.querySelector('.b-time') || {}).textContent || ''),
+    'the wait for Riot\'s record says how long it usually takes, and how long since the match ended', now && now.textContent);
+    ok(/^If Riot's record is not out within 4:\d\d, the review opens with what the screen read, and fills in when the record comes\.$/.test(v.$('b-foot').textContent),
+      'and how long the page waits for it before painting what the screen read', v.$('b-foot').textContent);
+    ok(v.$('b-now').getAttribute('aria-live') === 'polite' && v.$('b-now').textContent === "Waiting for Riot's record"
+      && (now.querySelector('.b-time') || {}).getAttribute('aria-hidden') === 'true',
+    'the step is said once to a screen reader, the ticking clock never');
+    ok(v.$('ask').hidden && !v.$('eye-host').hidden, 'Ask about this match waits for the whole review; the eye on its frames does not');
+    // A minute on, by the page's own clock: its second's tick says so.
+    v.window.Date = class extends Date { static now() { return Date.now() + 60000; } };
+    v.clock.advance(1000);
+    ok(/^2:4\d$/.test((v.document.querySelector('#b-steps .b-step.now .b-time') || {}).textContent || ''), 'the clock goes on ticking, a second at a time');
+    // The record lands: the steps move on, said once.
+    v.bridge.emit(C.PUSH_REVIEW_WORK, { id: BUILT.id, work: { ...RIOT_WORK, step: 'look', until: null } });
+    await settle();
+    ok(same(steps(), ['saved:done', 'riot:done', 'deaths:done', 'look:now', 'writing:next']) && v.$('b-now').textContent === "The coach's look at your deaths"
+      && v.$('b-foot').textContent === "Riot's record is in.",
+    'Riot\'s record in, the steps move on to the coach\'s look', steps().join(' '));
+    v.bridge.emit(C.PUSH_REVIEW_WORK, { id: 'valorant-1792000000000-other1', work: null });
+    await settle();
+    ok(!v.$('building').hidden, 'another review\'s work is not this page\'s business');
+    // A newer version arrives while it is still being built: held, not painted.
+    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...BUILT, summary: "Riot's read of the match.", work: { ...RIOT_WORK, step: 'writing', until: null } });
+    await settle();
+    ok(!v.$('building').hidden && v.$('vreview').hidden && same(steps().slice(-1), ['writing:now']), 'a newer version of it while it is built is held, the loading screen on');
+    // Whole: the version held is painted.
+    v.bridge.emit(C.PUSH_REVIEW_WORK, { id: BUILT.id, work: null });
+    await settle();
+    ok(v.$('building').hidden && !v.$('vreview').hidden && v.$('v-summary').textContent === "Riot's read of the match."
+      && (v.document.querySelector('#grade-host .gv-score') || {}).textContent === '61' && !v.$('ask').hidden,
+    'its work done, the review is painted whole from the version the page holds, its grade, its read and Ask with it');
+    ok(v.$('vreview').classList.contains('v-arrive'), 'and it rises in where the loading screen was');
+
+    // From the screen alone.
+    const s = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => ({ ...BUILT,
+      work: { path: 'screen', steps: ['saved', 'writing', 'look'], step: 'writing', endedAt: Date.now() - 20000, until: null, scoreboard: false } }) } });
+    await settle();
+    const sSteps = s.document.querySelectorAll('#b-steps .b-step').map((li) => `${li.dataset.step}:${li.className.split(' ')[1]}`);
+    ok(!s.$('building').hidden && s.$('b-title').textContent === 'Writing your review' && same(sSteps, ['saved:done', 'writing:now', 'look:next'])
+      && s.$('b-foot').hidden && s.$('b-sub').textContent === 'Your review opens here once it is whole, usually in a minute or two.',
+    'with no Riot ID, the review written, then the coach\'s look, and no wait for Riot', sSteps.join(' '));
+    // A review with no work, saved before or done long ago, is never one.
+    const done = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => ({ ...BUILT, work: null }) } });
+    await settle();
+    const plain = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => ({ ...BUILT }) } });
+    await settle();
+    ok(done.$('building').hidden && !done.$('vreview').hidden && plain.$('building').hidden && !plain.$('vreview').hidden,
+      'a review with no work, or saved before there was any, is painted whole at once');
+    // The page is kept between reviews: another one shown over the loading screen takes it away.
+    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...BUILT, work: RIOT_WORK });
+    await settle();
+    v.bridge.emit(C.PUSH_LOL_REVIEW, { id: 'lol-1759348800000-lol002', kind: 'lol', aiLog: null,
+      game: { champion: 'Ahri', role: 'Middle', mode: 'CLASSIC', duration: '31:04' },
+      scoreline: { kills: 10, deaths: 5, assists: 20, cs: 210, csAt10: 70, ward: 14 },
+      deaths: { headline: '', detail: '' }, deathList: [], moments: [], objectives: {}, scored: [], unmeasured: [], next: null, gamesRecorded: 0 });
+    await settle();
+    ok(v.$('building').hidden && !v.$('review').hidden, 'another review painted over a loading screen takes it away');
+    ok(v.bridge.listening(C.PUSH_REVIEW_WORK) === 1 && C.PUSH_LIST.includes(C.PUSH_REVIEW_WORK), 'over PUSH_REVIEW_WORK, a channel from channels.js');
+
+    // In the app's own design: tokens, no gradient, and still asked for less motion.
+    const css = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
+    const part = css.slice(css.indexOf('A review still being built (8.4.1)'), css.indexOf('Every game: the grade, the lists'));
+    ok(part.length > 200 && !/gradient/i.test(part) && !/#[0-9a-f]{3,8}\b/i.test(part) && /var\(--bg-2\)/.test(part) && /var\(--r-md\)/.test(part),
+      'its rules use the theme\'s tokens and no gradient');
+    // NOTHING ON IT MOVES FOR LONG: an animation that never ends kept the page
+    // composited every frame, and the look's stills, decoded on the GPU while
+    // it waits, timed out in check:clips. Its arrival alone moves, and not
+    // when asked for less motion.
+    ok(!/infinite/.test(part) && /\.building \{[^}]*animation: riseIn/.test(part)
+      && /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.building, #vreview\.v-arrive \{ animation: none; \}/.test(part),
+    'nothing on it moves for long, its arrival alone, and that not when asked for less motion; the clock ticking is what says it goes on');
+  });
+
+  // THE CLOCK THAT ENDS A LOADING SCREEN, and the latch that keeps it ended,
+  // are main's (index.js workOfJob, noteWork, watchWork), run here in a
+  // sandbox on a fake clock. workOf() alone says when the work is null; it is
+  // main's second's tick that tells the page so at six minutes, when nothing
+  // else happens, and main's `released` that keeps Riot's rounds landing at
+  // seven minutes from turning a review painted whole back into a loading
+  // screen. Neither was held by any check.
+  await section('main ends a review\'s loading screen by the clock, and never brings it back:', async () => {
+    const vm = require('vm');
+    const reviewWork = require('../src/shared/review-work');
+    const { RIOT_WAIT_MS, BUILD_MAX_MS } = reviewWork;
+    const idx = fs.readFileSync(path.join(ROOT, 'src', 'main', 'index.js'), 'utf8').replace(/\r\n/g, '\n');
+    const head = '\nconst riotIdSet = ';
+    const from = idx.indexOf(head);
+    const to = from < 0 ? -1 : idx.indexOf('\n/**\n * The engine says the last end was wrong', from);
+    const WIRING = to < 0 ? '' : idx.slice(from, to);
+    ok(/function workOfJob\(/.test(WIRING) && /function noteWork\(/.test(WIRING) && /function watchWork\(/.test(WIRING),
+      'main\'s work wiring is found in index.js');
+    const END = Date.UTC(2026, 9, 13, 21, 0, 0);
+    let clock = END + 30000;
+    const timers = new Map();
+    let seq = 0;
+    const pushes = [];
+    const box = {
+      console: { log() {}, warn() {}, error() {} },
+      Date: { now: () => clock },
+      setInterval: (fn, ms) => { const id = ++seq; timers.set(id, { fn, ms, next: clock + ms }); return id; },
+      clearInterval: (id) => { timers.delete(id); },
+      store: { get: (k) => (k === 'riotId' ? 'Player#EUW' : null) },
+      reviewWork, reviewJobs: new Map(), C,
+      registry: { broadcast: (ch, msg) => pushes.push({ ch, ...msg }) },
+    };
+    // Each timer due by then runs in order, the clock at its moment.
+    const advance = (ms) => {
+      const until = clock + ms;
+      for (;;) {
+        let due = null;
+        for (const t of timers.values()) if (t.next <= until && (!due || t.next < due.next)) due = t;
+        if (!due) break;
+        clock = due.next;
+        due.next += due.ms;
+        due.fn();
+      }
+      clock = until;
+    };
+    vm.createContext(box);
+    const w = WIRING ? vm.runInContext(`${WIRING}\n;({ workOfJob, workForId, noteWork })`, box) : null;
+    if (!w) return;
+    const job = { id: 'valorant-1792000000000-wire1', snap: { endedAt: END, endedBy: 'score' }, byRiot: true, narrated: true };
+    box.reviewJobs.set(END - 40 * 60000, job);
+    w.noteWork(job);
+    ok(pushes.length === 1 && pushes[0].ch === C.PUSH_REVIEW_WORK && pushes[0].id === job.id
+      && pushes[0].work && pushes[0].work.step === 'riot' && timers.size === 1,
+    'a review waiting for Riot\'s record says so, once, and main\'s second\'s tick starts', JSON.stringify(pushes));
+    advance(60000);
+    ok(pushes.length === 1, 'the tick says nothing while nothing has changed');
+    advance(RIOT_WAIT_MS - 90000 - 1000);
+    ok(pushes.length === 1 && !job.released, 'still waiting a second before six minutes');
+    advance(1000);
+    ok(pushes.length === 2 && pushes[1].id === job.id && pushes[1].work === null && job.released === true && timers.size === 0,
+      'Riot\'s record not in at six minutes: the tick says the work is done, once, with nothing else happening, and stops', JSON.stringify(pushes[1]));
+    advance(60000);
+    job.riotBusy = true;
+    job.stage = 'deaths';
+    w.noteWork(job);
+    ok(pushes.length === 2 && w.workForId(job.id) === null && timers.size === 0,
+      'Riot\'s rounds landing at seven minutes never turn the review painted whole back into a loading screen', JSON.stringify(pushes.slice(2)));
+    // Riot's rounds in at the last moment: the look and the read still come,
+    // and twelve minutes after the end the page is painted whatever is left.
+    const late = { id: 'valorant-1792000000000-wire2', snap: { endedAt: clock - (BUILD_MAX_MS - 2000), endedBy: 'score' },
+      byRiot: true, narrated: true, riotBusy: true, stage: 'look' };
+    box.reviewJobs.set(END - 20 * 60000, late);
+    w.noteWork(late);
+    ok(pushes.length === 3 && pushes[2].work && pushes[2].work.step === 'look' && timers.size === 1, 'its look still out, the page is told the step');
+    advance(3000);
+    ok(pushes.length === 4 && pushes[3].id === late.id && pushes[3].work === null && timers.size === 0,
+      'and twelve minutes after the end the tick paints it, whatever is still going on');
+    // Withdrawn, a review is said nothing more about, and no review it is not is ever one.
+    const gone = { id: 'valorant-1792000000000-wire3', snap: { endedAt: clock, endedBy: 'score' }, byRiot: true, cancelled: true };
+    box.reviewJobs.set(END - 10 * 60000, gone);
+    w.noteWork(gone);
+    ok(pushes.length === 4 && w.workForId('valorant-1792000000000-none') === null, 'a withdrawn review is said nothing more about, and an id with no job has no work');
+  });
+
   // EVERY ROUND, ONCE (8.3.1): one list of rounds, and a death the coach looked
   // at inside its own round, where it was a section of its own at the bottom of
   // the page ("Where you died, and how") with the round's facts said again. A
@@ -1877,6 +2091,85 @@ async function openShell(cfg, state, opts) {
     const pageEye = h.window.LogEye;
     ok(pageEye.labelled(null, () => {}, 'View match') === null && pageEye.labelled('kept', null, 'View match').classList.contains('labelled'),
       'labelled() follows button(): no word from main, no eye');
+  });
+
+  // A REVIEW STILL BEING BUILT (8.4.1), where its grade would show half done:
+  // Home's last match and its recent row, and its row in Matches, say it is
+  // being checked, until main says its work is done.
+  await section('Home and Matches say a review still being built is being checked, where its grade would be:', async () => {
+    const WORK = { path: 'riot', steps: ['saved', 'riot', 'deaths', 'look', 'writing'], step: 'riot', endedAt: HOME_AT, until: HOME_AT + 360000, scoreboard: false };
+    let building = true;
+    const rowsNow = () => [{ ...HOME_ROWS[0], work: building ? WORK : null }, ...HOME_ROWS.slice(1)];
+    const h = await openHome({ list: () => rowsNow() });
+    const last = h.$('last');
+    const card = last.querySelector('.gv-checking-card');
+    ok(card && !last.querySelector('.gv-grade') && !last.querySelector('.result') && !last.querySelector('.score'),
+      'Home\'s last match: the checking card in place of its grade, and the screen\'s result and score unsaid', last.textContent);
+    ok(card && card.getAttribute('role') === 'status' && /Being checked against Riot's record/.test(card.textContent)
+      && /Riot publishes a match 1 to 4 minutes after it ends\. Its grade shows here once the review is complete\./.test(card.textContent)
+      && card.querySelector('.gv-checking').textContent === 'Checking',
+    'saying what it waits for and how long that usually takes', card && card.textContent);
+    ok(last.querySelector('.last-foot') && last.querySelector('.last-foot').textContent === 'View matchOpen review',
+      'its foot is as it was: the review opens on its loading screen');
+    const first = h.$('recent-list').querySelector('.r-row');
+    const second = h.$('recent-list').querySelectorAll('.r-row')[1];
+    ok(first.querySelector('.gv-checking') && !first.querySelector('.r-score') && !first.querySelector('.gv-letter') && !first.querySelector('.r-res'),
+      'its recent row: the pill where the grade and the result were');
+    ok(second.querySelector('.r-score') && second.querySelector('.gv-letter') && !second.querySelector('.gv-checking'), 'and every other row its grade');
+    const asks = () => h.bridge.invoked.filter((x) => x[0] === C.REVIEWS_LIST).length;
+    const before = asks();
+    building = false;
+    h.bridge.emit(C.PUSH_REVIEW_WORK, { id: HOME_ROWS[0].id, work: null });
+    await settle();
+    ok(asks() > before && h.$('last').querySelector('.gv-grade') && !h.$('last').querySelector('.gv-checking-card')
+      && h.$('last').querySelector('.score').textContent === '13 : 9' && h.$('recent-list').querySelector('.r-row .r-score'),
+    'its work done, Home reads the library again and shows the grade, the result and the score');
+    ok(h.bridge.listening(C.PUSH_REVIEW_WORK) === 1, 'Home listens on PUSH_REVIEW_WORK');
+
+    // From the screen alone, the words are its own.
+    const s = await openHome({ rows: [{ ...HOME_ROWS[0], work: { path: 'screen', step: 'writing' } }, ...HOME_ROWS.slice(1)] });
+    const sCard = s.$('last').querySelector('.gv-checking-card');
+    ok(sCard && /The review is being written/.test(sCard.textContent) && sCard.querySelector('.gv-checking').textContent === 'Writing'
+      && !/Riot/.test(sCard.textContent), 'from the screen alone it says it is being written, and nothing of Riot', sCard && sCard.textContent);
+
+    // Matches.
+    let mBuilding = true;
+    const mRows = () => [{ id: 'valorant-1759348800000-homea', at: HOME_AT, title: 'Jett', map: 'Ascent', mode: 'Competitive',
+      result: 'Victory', score: '13-9', topMistake: 'Died where nobody could trade', grade: { score: 83, letter: 'A' }, aiLog: 'kept',
+      work: mBuilding ? WORK : null },
+    { id: 'valorant-1759344300000-homeb', at: HOME_AT - 75 * MIN, title: 'Jett', map: 'Bind', mode: 'Competitive',
+      result: 'Defeat', score: '10-13', grade: { score: 64, letter: 'C' }, aiLog: 'gone', work: null }];
+    const m = loadSurface('matches', {
+      handlers: {
+        [C.STATE_GET]: () => ({ gameId: 'valorant' }),
+        [C.REVIEWS_LIST]: () => mRows(),
+        [C.PATTERNS_GET]: () => ({ matches: 2, enough: false, grades: [], categories: [], average: null, mistakes: [], strengths: [], missed: [] }),
+      },
+    });
+    await settle();
+    const mFirst = m.document.querySelector('#list .m-row');
+    ok(mFirst && mFirst.querySelector('.m-grade .gv-checking') && !mFirst.querySelector('.m-score') && !mFirst.querySelector('.m-letter')
+      && !mFirst.querySelector('.m-res') && !mFirst.querySelector('.m-top-mistake'),
+    'its row in Matches: the pill where its grade was, and neither the screen\'s result nor its top mistake');
+    const mSecond = m.document.querySelectorAll('#list .m-row')[1];
+    ok(mSecond && mSecond.querySelector('.m-score').textContent === '64' && !mSecond.querySelector('.gv-checking'), 'every other row as it was');
+    mBuilding = false;
+    m.bridge.emit(C.PUSH_REVIEW_WORK, { id: 'valorant-1759348800000-homea', work: null });
+    await settle();
+    const mAfter = m.document.querySelector('#list .m-row');
+    ok(mAfter && mAfter.querySelector('.m-score') && mAfter.querySelector('.m-score').textContent === '83' && !mAfter.querySelector('.gv-checking')
+      && mAfter.querySelector('.m-top-mistake'), 'its work done, the row shows its grade, its result and its top mistake');
+    ok(m.bridge.listening(C.PUSH_REVIEW_WORK) === 1, 'Matches listens on PUSH_REVIEW_WORK');
+
+    // One drawing of it, shared/grade-view.js's, as every grade is.
+    const GV = h.window.GradeView;
+    ok(GV.checking(null) === null && GV.checking({ path: 'other' }) === null && GV.checking({ path: 'riot' }).className === 'gv-checking'
+      && GV.checking({ path: 'riot' }, { full: true }).className === 'gv-checking-card',
+    'GradeView.checking draws the pill and the card, and nothing for no work');
+    const gvCss = fs.readFileSync(path.join(RENDERER, 'shared', 'grade-view.css'), 'utf8');
+    const gvPart = gvCss.slice(gvCss.indexOf('A review still being checked'), gvCss.indexOf('@media (max-width: 520px)'));
+    ok(gvPart.length > 200 && /\.gv-checking-dot \{/.test(gvPart) && !/animation|infinite|gradient/.test(gvPart),
+      'its dot is still, as the loading screen is, and nothing of it is a gradient');
   });
 
   // "Bring the bars lower so it's balanced and there's no dead space."
