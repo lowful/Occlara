@@ -6,14 +6,25 @@
  * does (src/renderer/recorder/recorder.js; check:recorder runs the real one).
  *
  * The numbers asserted are the SPEC's, written here, never read back from the
- * module: 720p in 1280x720 at 3 Mbps and 1080p at 6, asked for 60 fps, a
- * keyframe and a chunk a second; one minute pages, two minutes kept, an hour's
+ * module: 720p in 1280x720 at 3 Mbps and 1080p at 6, asked for 60 fps and
+ * recorded at 30, a keyframe and a chunk a second; one minute pages, two minutes kept, an hour's
  * hold; no start under 8 GB free, a stop under 4; for 20 s straight, under 12
  * frames a second while the picture changes, a chunk 4 s late, the recorder
  * over 60% of a core, the PC over 95%; black under 4 of 255; two busy sessions
  * in seven days. So a constant moved in the module fails a line here.
  *
  * Held here:
+ *   thirty frames a second (8.4.2): grid.js, as the page loads it, records 30
+ *     a second of a capture at 32 to 60 and every frame of one at 30 or
+ *     under, jittered or not; its pump closes at once a frame the writer
+ *     cannot take now, never queues one, and ends with nothing open; and the
+ *     real page, run with stand ins for Chromium, hands MediaRecorder the
+ *     generator and never the capture, 30 of a capture's 60 a second, and
+ *     stops with every chunk handed over, then no frame and no buffer of the
+ *     capture left open; Settings and the counts say the frames recorded,
+ *     the busy rule judges the frames delivered; and the wall clock drifting
+ *     75 ppm either way from the recording's own clock, a clip forty minutes
+ *     in is cut within 2 ms of its moment (Segment.zeroAt)
  *   the size never crops: the display's own shape filling the box and
  *     covering the read's frame, within H.264 level 4.0, the bitrate with it;
  *     a recording that cannot cover the read leaves the read on GDI
@@ -86,6 +97,8 @@ const SPEC = {
   // H.264 level 4.0's frame, which none passes.
   read: { width: 1280, height: 720 }, mbLevel40: 8160,
   askFps: 60, keyframeMs: 1000, timesliceMs: 1000,
+  // Recorded at 30 a second of the capture's up to 60 (8.4.2, grid.js).
+  recordFps: 30,
   pageMs: 60000, keepRecentMs: 120000, holdMs: 3600000, keepMatchMs: 90 * 60000,
   diskStart: 8 * 1024 ** 3, diskStop: 4 * 1024 ** 3,
   sustainS: 20, minFps: 12, maxLagMs: 4000, maxRecorderCpu: 60, maxSystemCpu: 95,
@@ -267,8 +280,11 @@ function fakePage(h) {
           : { type: 'started', ok: true, encoderOk: true, startWall: h.clock.now() - (h.opts.startEarly || 0), mime: 'video/x-matroska;codecs=avc1',
             settings: { width: track.width, height: track.height, frameRate: 60 }, videoBitsPerSecond: msg.bitrate }));
       } else if (msg.type === 'stop') {
-        if (h.opts.slowStop) h.clock.setTimeout(() => p.emit('status', { type: 'stopped', chunks: p.n }), h.opts.slowStop);
-        else later(() => p.emit('status', { type: 'stopped', chunks: p.n }));
+        // As the real page answers: its chunks, then nothing left open, and
+        // the frames it recorded (thirty a second of what it was handed).
+        const stopped = () => p.emit('status', { type: 'stopped', chunks: p.n, framesOpen: 0, tracksLive: 0, recorded: p.n * 30 });
+        if (h.opts.slowStop) h.clock.setTimeout(stopped, h.opts.slowStop);
+        else later(stopped);
       } else if (msg.type === 'grab') {
         if (p.deaf) return;
         later(() => p.emit('reply', p.stale ? { id: msg.id, ok: false, why: 'stale', ageMs: 2500 }
@@ -287,12 +303,203 @@ function fakePage(h) {
       p.emit('chunk', { seq: p.n, wall: h.clock.now(), data: toAB(data) });
       p.n += 1;
     },
+    // As the real page says it: what the capture delivered (fps), and what the
+    // recording kept of it, thirty a second at most (recordedFps, grid.js).
     health(extra) {
-      p.emit('status', { type: 'health', at: h.clock.now(), fps: 30, changing: true, frameAgeMs: 20, lagMs: 0, luma: 100, ...(extra || {}) });
+      const e = extra || {};
+      const fps = Number.isFinite(e.fps) ? e.fps : 30;
+      p.emit('status', { type: 'health', at: h.clock.now(), fps, recordedFps: Math.min(30, fps), changing: true, frameAgeMs: 20, lagMs: 0, luma: 100, ...e });
     },
     count: (type) => p.sent.filter((m) => m.type === type).length,
   };
   return p;
+}
+
+/**
+ * THE REAL RECORDER PAGE (src/renderer/recorder), its scripts as its
+ * index.html loads them, in a VM with stand ins for what Chromium hands it:
+ * the capture's track, whose frames this test emits at the times it chooses,
+ * each holding one of the capture's buffers until it and every clone of it
+ * are closed; processors that buffer as Chromium's do (the oldest frame
+ * closed past maxBufferSize); a track generator writing through a real
+ * WritableStream; and a MediaRecorder that counts the frames of whichever
+ * track it was handed, a chunk every timeslice of the page's own clock. The
+ * page's clock and timers are this test's.
+ */
+function recorderPage() {
+  const vm = require('vm');
+  const dir = path.join(__dirname, '..', 'src', 'renderer', 'recorder');
+  const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+  const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
+  const WALL0 = Date.UTC(2026, 9, 14, 0, 24, 0);
+  const clock = { ms: 0 };
+  const timers = new Map();
+  let tid = 0;
+  const out = { status: [], chunks: [], replies: [], asked: null };
+  let command = null;
+  const buffers = { made: 0, open: 0 };
+  const tracks = [];
+  const processors = [];
+  const generators = [];
+  const recorders = [];
+  const capture = new Set();
+  // A frame on one of the capture's buffers: the buffer is given back once
+  // every frame on it is closed.
+  const frameOn = (b, ts) => {
+    b.refs += 1;
+    if (b.refs === 1) buffers.open += 1;
+    return {
+      timestamp: ts, closed: false,
+      close() { if (this.closed) return; this.closed = true; b.refs -= 1; if (!b.refs) buffers.open -= 1; },
+      clone() { return frameOn(b, ts); },
+    };
+  };
+  class Track {
+    constructor(settings) {
+      Object.assign(this, { kind: 'video', readyState: 'live', sinks: new Set(), settings });
+      capture.add(this);
+      tracks.push(this);
+    }
+    getSettings() { return { ...this.settings }; }
+    clone() { return new Track(this.settings); }
+    addEventListener() {}
+    stop() { this.readyState = 'ended'; capture.delete(this); this.sinks.clear(); }
+  }
+  class MediaStreamTrackProcessor {
+    constructor({ track, maxBufferSize }) {
+      const max = Math.max(1, Number(maxBufferSize) || 1);
+      const queue = [];
+      const waits = [];
+      let done = false;
+      const sink = (f) => {
+        if (done) { f.close(); return; }
+        if (waits.length) { waits.shift()({ value: f, done: false }); return; }
+        queue.push(f);
+        while (queue.length > max) queue.shift().close();
+      };
+      track.sinks.add(sink);
+      processors.push({ track, max });
+      this.readable = {
+        getReader: () => ({
+          read: () => (queue.length ? Promise.resolve({ value: queue.shift(), done: false })
+            : done ? Promise.resolve({ value: undefined, done: true }) : new Promise((r) => waits.push(r))),
+          cancel: async () => {
+            done = true;
+            track.sinks.delete(sink);
+            while (queue.length) queue.shift().close();
+            while (waits.length) waits.shift()({ value: undefined, done: true });
+          },
+        }),
+      };
+    }
+  }
+  // The next write takes this long (ms of the page's clock), set by slowNext().
+  let slow = 0;
+  class MediaStreamTrackGenerator {
+    constructor({ kind }) {
+      Object.assign(this, { kind, readyState: 'live', sinks: new Set(), written: 0, closed: false });
+      const gen = this;
+      const take = (f) => { gen.written += 1; for (const s of [...gen.sinks]) s(f); f.close(); };
+      this.writable = new WritableStream({
+        write(f) {
+          if (gen.readyState !== 'live') throw new TypeError('Stream closed');
+          if (!slow) { take(f); return undefined; }
+          const ms = slow;
+          slow = 0;
+          return new Promise((r) => { world.setTimeout(() => { take(f); r(); }, ms); });
+        },
+        close() { gen.closed = true; },
+      });
+      generators.push(this);
+    }
+    getSettings() { return {}; }
+    addEventListener() {}
+    stop() { this.readyState = 'ended'; }
+  }
+  class MediaStream {
+    constructor(list) { this.list = [...(list || [])]; }
+    getTracks() { return [...this.list]; }
+    getVideoTracks() { return this.list.filter((t) => t.kind === 'video'); }
+  }
+  const world = {
+    console: { log() {}, warn() {}, error() {} },
+    // Whole milliseconds, as Date.now() is.
+    Date: { now: () => Math.floor(WALL0 + clock.ms) },
+    performance: { now: () => clock.ms },
+    setTimeout: (fn, ms) => { tid += 1; timers.set(tid, { at: clock.ms + Math.max(0, Number(ms) || 0), fn }); return tid; },
+    clearTimeout: (id) => { timers.delete(id); },
+    setInterval: (fn, ms) => { tid += 1; timers.set(tid, { at: clock.ms + ms, fn, every: ms }); return tid; },
+    clearInterval: (id) => { timers.delete(id); },
+    addEventListener() {},
+    OffscreenCanvas: class {
+      constructor(w, hh) { this.width = w; this.height = hh; }
+      getContext() { return { drawImage() {}, fillRect() {}, beginPath() {}, arc() {}, fill() {}, getImageData: (x, y, w, hh) => ({ data: new Uint8ClampedArray(w * hh * 4).fill(100) }) }; }
+      convertToBlob() { return Promise.resolve({ arrayBuffer: async () => new ArrayBuffer(8) }); }
+    },
+    VideoEncoder: { isConfigSupported: async () => ({ supported: true }) },
+    MediaStream, MediaStreamTrackProcessor, MediaStreamTrackGenerator,
+    MediaRecorder: class {
+      static isTypeSupported(m) { return /avc1|h264/.test(m); }
+      constructor(stream, options) {
+        Object.assign(this, { stream, options, state: 'inactive', mimeType: options.mimeType, videoBitsPerSecond: options.videoBitsPerSecond, frames: [], pending: 0, timer: null });
+        this.track = stream.getVideoTracks()[0];
+        this.sink = (f) => { if (this.state === 'recording') { this.frames.push(f.timestamp); this.pending += 1; } f.close(); };
+        recorders.push(this);
+      }
+      start(timeslice) { this.state = 'recording'; this.track.sinks.add(this.sink); this.timer = world.setInterval(() => this.flush(), timeslice); }
+      flush() {
+        const size = this.pending * 1000;
+        this.pending = 0;
+        if (this.ondataavailable) this.ondataavailable({ data: { size, arrayBuffer: async () => new ArrayBuffer(size) } });
+      }
+      stop() {
+        if (this.state === 'inactive') return;
+        this.state = 'inactive';
+        world.clearInterval(this.timer);
+        this.track.sinks.delete(this.sink);
+        this.flush();
+        Promise.resolve().then(() => { if (this.onstop) this.onstop(); });
+      }
+    },
+    navigator: { mediaDevices: { getUserMedia: async (c) => { out.asked = c; return new MediaStream([new Track({ width: 1920, height: 1080, frameRate: 60 })]); } } },
+    occlaraRecorder: {
+      onCommand: (fn) => { command = fn; },
+      status: (m) => out.status.push(m), chunk: (m) => out.chunks.push(m), reply: (m) => out.replies.push(m),
+    },
+  };
+  world.window = world;
+  vm.createContext(world);
+  for (const f of scripts) vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), world, { filename: path.join(dir, f) });
+  const pg = {
+    WALL0, clock, out, buffers, tracks, processors, generators, recorders, scripts, Generator: MediaStreamTrackGenerator,
+    send: (cmd) => command(cmd),
+    /** The generator's next write takes `ms`, as a write in flight does. */
+    slowNext: (ms) => { slow = ms; },
+    /** The page's clock on to `ms`, every timer due on the way run in order. */
+    async to(ms) {
+      for (;;) {
+        await settle();
+        let next = null;
+        for (const [id, t] of timers) if (t.at <= ms && (!next || t.at < next.t.at)) next = { id, t };
+        if (!next) break;
+        clock.ms = Math.max(clock.ms, next.t.at);
+        if (next.t.every) next.t.at += next.t.every; else timers.delete(next.id);
+        next.t.fn();
+      }
+      clock.ms = ms;
+      await settle();
+    },
+    /** One frame of the capture at `ms` of the page's clock, stamped `ts` µs (that moment unless given). */
+    async frameAt(ms, ts) {
+      await pg.to(ms);
+      const b = { refs: 0 };
+      buffers.made += 1;
+      const stamp = ts === undefined ? Math.round(ms * 1000) : ts;
+      for (const t of capture) for (const s of [...t.sinks]) s(frameOn(b, stamp));
+      await settle();
+    },
+  };
+  return pg;
 }
 
 const ROOT = path.resolve('/occlara-test/userData/recording');
@@ -508,21 +715,25 @@ function readerAfter(frames, menus) {
   // last two minutes with no line saying why, and at 57 its pages ran about
   // twice the 6 Mbps asked, a constant 24 KB a frame. So the line once a
   // minute names the track's own settings beside the frames delivered, and
-  // what was written since the last line against the bitrate asked. Logging
-  // only: the same seconds give up as before.
-  await section('the minute line names the track\'s own settings and what was written against the bitrate asked:', async () => {
+  // what was written since the last line against the bitrate asked; since
+  // 8.4.2 the frames recorded beside the frames delivered, the capture's 57
+  // recorded as 30. Logging only: the same seconds give up as before.
+  await section('the minute line names the track\'s own settings, the frames delivered and recorded, and what was written against the bitrate asked:', async () => {
     const lines = [];
     const h = harness({ prefsInit: { recordingRes: '1080' }, log: (...a) => lines.push(a.join(' ')) });
     h.env.inMatch = true;
     const p = await h.start();
     const started = lines.find((l) => l.startsWith('[recorder] recording '));
-    ok(started && started.endsWith("; the track's own settings 60 fps, MediaRecorder at 6 Mbps"),
-      'the start line says the track\'s own frame rate and the bitrate MediaRecorder took', started);
+    ok(started && / asked 1920x1080 at up to 60 fps, recorded at up to 30, 6 Mbps, /.test(started)
+      && started.endsWith("; the track's own settings 60 fps, MediaRecorder at 6 Mbps"),
+    'the start line says the capture is asked for up to 60 a second and recorded at up to 30, the track\'s own frame rate and the bitrate MediaRecorder took', started);
+    // A second of it: the capture delivered `fps`, the recording kept 30 of
+    // them, written as 30 frames of 24 KB.
     const second = async (fps, frameRate) => {
-      const data = p.n === 0 ? Buffer.concat([SYNTH_INIT, sizedCluster(0, fps, 24 * 1024)]) : sizedCluster(p.n * 1000, fps, 24 * 1024);
+      const data = p.n === 0 ? Buffer.concat([SYNTH_INIT, sizedCluster(0, 30, 24 * 1024)]) : sizedCluster(p.n * 1000, 30, 24 * 1024);
       p.emit('chunk', { seq: p.n, wall: h.clock.now(), data: toAB(data) });
       p.n += 1;
-      p.health({ fps, track: { width: 1920, height: 1080, frameRate } });
+      p.health({ fps, recordedFps: 30, track: { width: 1920, height: 1080, frameRate } });
       await h.clock.advance(1000);
     };
     const minuteLines = () => lines.filter((l) => l.startsWith('[recorder] fps p50 '));
@@ -534,18 +745,238 @@ function readerAfter(frames, menus) {
     const rate = (l) => num(/ \(([\d.]+) a second, /, l);
     const mbps = (l) => num(/ a second, ([\d.]+) Mbps against the 6 Mbps asked, /, l);
     const kb = (l) => num(/ Mbps asked, (\d+) KB a frame\)/, l);
-    ok(minuteLines().length === 2 && /^\[recorder\] fps p50 57, the track's own settings 1920x1080 at 60 fps, \d+ frames and [\d.]+ MB written in the last 60 s \(/.test(one || ''),
-      'the first minute: 57 frames a second delivered, the track\'s own settings 1920x1080 at 60 fps, and what was written in the last 60 s', one);
-    ok(rate(one) >= 55 && rate(one) <= 57.5 && mbps(one) >= 10.8 && mbps(one) <= 11.6 && kb(one) === 24,
-      `written at about 57 a second, 11 Mbps against the 6 asked, 24 KB a frame (${rate(one)} a second, ${mbps(one)} Mbps, ${kb(one)} KB)`);
-    ok(/^\[recorder\] fps p50 (32|57), the track's own settings 1920x1080 at 30 fps, /.test(two || '') && rate(two) >= 31 && rate(two) <= 33.5
-      && mbps(two) >= 6 && mbps(two) <= 6.7 && kb(two) === 24,
-    `the second minute says the track was asked for 30 and wrote 32 a second at 24 KB a frame (${rate(two)} a second, ${mbps(two)} Mbps)`, two);
+    ok(rate('x (57.5 a second, ') === 57.5 && Number.isNaN(rate('x 57 a second ')) && mbps(' a second, 5.9 Mbps against the 6 Mbps asked, ') === 5.9
+      && kb(' Mbps asked, 24 KB a frame)') === 24 && Number.isNaN(kb(' Mbps asked, no KB a frame)')),
+    'the line\'s numbers are read by patterns that take a line of its shape and nothing else');
+    ok(minuteLines().length === 2 && /^\[recorder\] fps p50 57 delivered and 30 recorded, the track's own settings 1920x1080 at 60 fps, \d+ frames and [\d.]+ MB written in the last 60 s \(/.test(one || ''),
+      'the first minute: 57 frames a second delivered and 30 recorded, the track\'s own settings 1920x1080 at 60 fps, and what was written in the last 60 s', one);
+    ok(rate(one) >= 29.5 && rate(one) <= 30.5 && mbps(one) >= 5.7 && mbps(one) <= 6.1 && kb(one) === 24,
+      `written at 30 a second, 5.9 Mbps against the 6 asked, 24 KB a frame (${rate(one)} a second, ${mbps(one)} Mbps, ${kb(one)} KB)`);
+    ok(/^\[recorder\] fps p50 (32|57) delivered and 30 recorded, the track's own settings 1920x1080 at 30 fps, /.test(two || '') && rate(two) >= 29.5 && rate(two) <= 30.5
+      && mbps(two) >= 5.7 && mbps(two) <= 6.1 && kb(two) === 24,
+    `the second minute says the track was asked for 30, the capture delivered 32, and 30 a second were written at 24 KB a frame (${rate(two)} a second, ${mbps(two)} Mbps)`, two);
     ok(h.rec.state === 'recording' && !h.notices.length && h.rec.session && !h.rec.session.gaveUp,
       'and nothing is judged by it: still recording, no notice');
     await h.stop();
     ok(R.trackText(null) === "the track's own settings not reported" && R.trackText({ width: 1280, height: 720 }) === "the track's own settings 1280x720 at no frame rate",
       'a page that reported no settings, or no frame rate, says so');
+  });
+
+  // THIRTY FRAMES A SECOND (8.4.2). The capture is asked for 60, and
+  // MediaRecorder gives each frame it is handed the bits of a thirtieth of a
+  // second: the player's match, recorded at 57 a second, wrote twice the 6
+  // Mbps asked. So the page hands it 30 a second, chosen by grid.js.
+  await section('the recording\'s frames, thirty a second by each frame\'s own timestamp (grid.js, as the page loads it):', () => {
+    const Grid = require('../src/renderer/recorder/grid.js');
+    ok(Grid.RECORD_FPS === SPEC.recordFps && R.RECORD_FPS === SPEC.recordFps && R.ASK_FPS === SPEC.askFps,
+      'the capture asked for 60 a second, the recording 30, in the page and in main');
+    // A seeded generator, so every run is the same run.
+    const rng = (seed) => { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+    // A capture's timestamps (µs): `fps` a second for `seconds`, each up to `jitterMs` early or late.
+    const capture = (fps, seconds, jitterMs, seed) => {
+      const r = rng(seed || 1);
+      const out = [];
+      for (let k = 0; k * 1000 / fps < seconds * 1000; k++) out.push(Math.round((k * 1000 / fps + (r() * 2 - 1) * (jitterMs || 0)) * 1000) + 5e6);
+      return out.sort((a, b) => a - b);
+    };
+    const kept = (times, nows) => { const g = Grid.createGrid(SPEC.recordFps); return times.filter((t, i) => g.take(t, nows ? nows[i] : NaN)); };
+    // The most kept in any one second, and the gaps between the kept, in ms.
+    const most = (xs) => { let m = 0; for (let i = 0, j = 0; i < xs.length; i++) { while (j < xs.length && xs[j] - xs[i] < 1e6) j++; m = Math.max(m, j - i); } return m; };
+    const gaps = (xs) => xs.slice(1).map((x, i) => (x - xs[i]) / 1000);
+    const q = (xs, p) => { const v = xs.slice().sort((a, b) => a - b); return v[Math.min(v.length - 1, Math.floor(p * v.length))]; };
+    for (const [fps, jitter, what] of [[60, 0.3, 'a capture at 60 a second'], [57, 0.3, '57 a second, the player\'s match'], [45, 0.5, '45 a second'], [32, 0.8, '32 a second, its last two minutes']]) {
+      const src = capture(fps, 10, jitter, fps);
+      const k = kept(src);
+      ok(k.length >= 299 && k.length <= 301 && most(k) <= 31,
+        `${what}, ten seconds: ${k.length} of ${src.length} frames recorded, ${most(k)} in any one second at most`);
+    }
+    const sixty = gaps(kept(capture(60, 10, 0.3, 6)));
+    ok(q(sixty, 0.01) >= 32 && q(sixty, 0.99) <= 35, `at 60 a second, every other frame: ${q(sixty, 0.01).toFixed(1)} to ${q(sixty, 0.99).toFixed(1)} ms apart, a steady 30`);
+    // A capture at 30 or under is recorded whole, jittered as Windows' timers
+    // jitter it, the generated picture's 31 and 47 ms steps included: the
+    // first frame of each slot of a fixed grid recorded 22 to 27 a second of
+    // a capture at an even 30 whose frames sat on the slots' edges.
+    for (const [fps, jitter, what] of [[30, 1, 'an even 30 a second, a millisecond either way'], [30, 5, 'an even 30, five milliseconds either way'], [29.97, 1, '29.97 a second'], [21.4, 1, '21 a second, asked for 30']]) {
+      const src = capture(fps, 20, jitter, Math.round(fps * 10));
+      const k = kept(src);
+      ok(k.length === src.length, `${what}: every frame recorded (${k.length} of ${src.length})`);
+    }
+    const timer = [];
+    for (let t = 5e6, i = 0; timer.length < 600; i++) { timer.push(t); t += (i % 3 === 2 ? 46800 : 31200); }
+    ok(kept(timer).length === timer.length, `the generated picture on Windows' 15.6 ms timer, 31.2 and 46.8 ms apart: every frame of ${timer.length} recorded`);
+    // A still screen saves up at most two slots: the motion after it records
+    // at most 32 in its first second and 30 a second after.
+    const still = capture(2, 10, 50, 3);
+    const motion = capture(60, 10, 0.3, 4).map((t) => t + 10e6);
+    const k = kept(still.concat(motion));
+    const after = k.filter((t) => t >= motion[0]);
+    const firstSecond = after.filter((t) => t < motion[0] + 1e6).length;
+    ok(k.length - after.length === still.length && firstSecond <= 32 && after.length <= 302,
+      `a still screen, every frame of it recorded (${still.length}), then 60 a second: ${firstSecond} in its first second, ${after.length} in ten`);
+    // Timestamps that never move on: the page's own clock keeps it at 30.
+    const flat = new Array(600).fill(777);
+    const nows = flat.map((x, i) => i * 1000 / 60);
+    ok(kept(flat, nows).length >= 299 && kept(flat, nows).length <= 301, `a capture that stamps every frame alike, ten seconds at 60 a second: ${kept(flat, nows).length} recorded by the page's own clock`);
+    // A clock that goes back (a new timestamp origin) does not stop it.
+    const back = capture(60, 5, 0, 7).concat(capture(60, 5, 0, 8).map((t) => t - 4e6));
+    const kb = kept(back);
+    ok(kb.length >= 296 && kb.length <= 302, `timestamps that jump back four seconds halfway: ${kb.length} of ${back.length} recorded, ten seconds' worth`);
+    // Each stretch of time counted once: what the page's clock counted while
+    // the timestamps stood still, stepped back a little or were missing opens
+    // no slot again once they move on. Counted on both clocks, these recorded
+    // 45, 31 and 0.1 frames a second.
+    const sixtyNows = Array.from({ length: 600 }, (_, i) => i * 1000 / 60);
+    const repeated = sixtyNows.map((x, i) => 5e6 + Math.round(Math.floor(i / 2) * 2e6 / 60));
+    const kr = kept(repeated, sixtyNows).length;
+    ok(kr >= 299 && kr <= 301, `60 a second, every other frame repeating the last one's timestamp: ${kr} recorded in ten seconds, 30 a second`);
+    const stepBack = sixtyNows.map((x, i) => 5e6 + Math.round(i * 1e6 / 60) - (i % 60 === 30 ? 5e5 : 0));
+    const ks = kept(stepBack, sixtyNows).length;
+    ok(ks >= 299 && ks <= 301, `60 a second, one timestamp half a second back each second: ${ks} recorded in ten seconds, none more for it`);
+    const ku = kept(sixtyNows.map(() => NaN), sixtyNows).length;
+    ok(ku >= 299 && ku <= 301, `60 a second with no timestamps at all: ${ku} recorded in ten seconds, by the page's own clock`);
+  });
+
+  await section('the pump: a frame the writer cannot take now is closed at once, never queued, and nothing it held is left open (grid.js pump):', async () => {
+    const Grid = require('../src/renderer/recorder/grid.js');
+    const made = [];
+    const frame = (ts) => { const f = { timestamp: ts, closed: false, close() { this.closed = true; } }; made.push(f); return f; };
+    // A reader the test feeds: read() waits for the next frame.
+    const queue = [];
+    const waits = [];
+    let done = false;
+    const reader = {
+      read: () => (queue.length ? Promise.resolve({ value: queue.shift(), done: false })
+        : done ? Promise.resolve({ done: true }) : new Promise((r) => waits.push(r))),
+      cancel: async () => { done = true; while (queue.length) queue.shift().close(); while (waits.length) waits.shift()({ done: true }); },
+    };
+    const push = async (f) => { if (waits.length) waits.shift()({ value: f, done: false }); else queue.push(f); await settle(); };
+    let open = 0;
+    const hold = (f) => { open += 1; return f; };
+    const release = (f) => { f.close(); open -= 1; };
+    // A writer whose readiness the test sets: a write while it is not ready
+    // is a frame queued.
+    const writer = { desiredSize: 1, writes: [], queued: 0, write(f) { if (!(this.desiredSize > 0)) this.queued += 1; this.writes.push(f); f.close(); return Promise.resolve(); } };
+    let closedCount = 0;
+    const pumping = Grid.pump({ reader, writer, grid: Grid.createGrid(SPEC.recordFps), hold, release, now: () => NaN, closed: () => { closedCount += 1; } });
+    let ts = 0;
+    for (let i = 0; i < 120; i++) { await push(frame(ts)); ts += Math.round(1e6 / 60); }
+    ok(writer.writes.length === 60 && closedCount === 60 && made.every((f) => f.closed) && open === 0,
+      `two seconds at 60 a second: ${writer.writes.length} written, ${closedCount} closed at once, none left open (${open})`);
+    // A write in flight: the writer can take none for half a second.
+    writer.desiredSize = 0;
+    const before = writer.writes.length;
+    for (let i = 0; i < 30; i++) { await push(frame(ts)); ts += Math.round(1e6 / 60); }
+    ok(writer.writes.length === before && writer.queued === 0 && made.every((f) => f.closed) && open === 0,
+      'the writer busy for half a second: every frame closed at once, none written, none queued, none left open');
+    // Ready again: the first frame is taken, its slot kept open meanwhile.
+    writer.desiredSize = 1;
+    await push(frame(ts));
+    ts += Math.round(1e6 / 60);
+    ok(writer.writes.length === before + 1, 'ready again: the very next frame is written, its slot kept open while the writer could take none');
+    // A write the generator refuses (it stopped): its frame is handed back all the same.
+    const refused = [];
+    writer.write = (f) => { refused.push(f); return Promise.reject(new TypeError('Stream closed')); };
+    await push(frame(ts + 1e6));
+    ts += 1e6 + Math.round(1e6 / 60);
+    ok(refused.length === 1 && refused[0].closed && open === 0, 'a write the generator refuses: its frame closed, none left open');
+    // A write still in flight when the stop comes: the pump ends only once
+    // it has settled and its frame is closed.
+    let settleWrite = null;
+    writer.write = (f) => new Promise((r) => { settleWrite = () => { f.close(); r(); }; });
+    await push(frame(ts + 1e6));
+    let ended = false;
+    pumping.then(() => { ended = true; });
+    await reader.cancel();
+    await settle();
+    ok(!ended && open === 1, 'the stop with a write in flight: the pump waits for it, its frame still held');
+    settleWrite();
+    await settle();
+    ok(ended && open === 0 && made.every((f) => f.closed), 'once it settles the pump ends, and every frame it was handed is closed');
+  });
+
+  await section('the real recorder page, run with stand ins for Chromium: thirty frames a second of the capture recorded, and nothing left open:', async () => {
+    const pg = recorderPage();
+    ok(pg.scripts.join() === 'health.js,grid.js,recorder.js', `its scripts, as its index.html loads them: ${pg.scripts.join(', ')}`);
+    pg.send({
+      type: 'start', fake: null, sourceId: 'screen:0:0', width: 1920, height: 1080, fps: SPEC.askFps, recordFps: SPEC.recordFps,
+      bitrate: SPEC.res1080.bitrate, codec: 'avc1.42E028', mimeTypes: R.MIME_TYPES, keyframeMs: SPEC.keyframeMs, timesliceMs: SPEC.timesliceMs,
+    });
+    await pg.to(0);
+    const started = pg.out.status.find((m) => m.type === 'started');
+    ok(started && started.ok && pg.out.asked && pg.out.asked.video.mandatory.maxFrameRate === SPEC.askFps,
+      'it starts, the capture asked for up to 60 frames a second', JSON.stringify(started));
+    const mr = pg.recorders[0];
+    ok(mr && mr.track instanceof pg.Generator && pg.generators.length === 1 && !pg.tracks.includes(mr.track),
+      'MediaRecorder records the track generator, never the capture track or its clone');
+    ok(pg.processors.length === 2 && pg.processors.every((p) => p.max === 1) && pg.processors[0].track !== pg.processors[1].track
+      && pg.processors.some((p) => p.track === pg.tracks[0]),
+    'two processors, a frame of buffer each: one on the capture track for the recording, one on its clone for the read');
+    // Ten seconds of a capture delivering 60 a second.
+    for (let i = 1; i <= 600; i++) await pg.frameAt(i * 1000 / 60);
+    const health = pg.out.status.filter((m) => m.type === 'health');
+    const steady = health.slice(1);
+    ok(mr.frames.length >= 299 && mr.frames.length <= 301,
+      `ten seconds of a capture at 60 a second: MediaRecorder is handed ${mr.frames.length} of its 600 frames, 30 a second`);
+    ok(steady.length >= 8 && steady.every((x) => x.fps >= 59 && x.fps <= 61 && x.recordedFps >= 29 && x.recordedFps <= 31),
+      `each second says both, what the capture delivered and what was recorded: ${steady.map((x) => `${x.fps}/${x.recordedFps}`).join(' ')}`);
+    ok(health.length && health.every((x) => x.framesOpen <= 2) && pg.buffers.open <= 2,
+      `while recording, at most the read's newest frame and a clone open (${health.map((x) => x.framesOpen).join(',')}), ${pg.buffers.open} of the capture's buffers held`);
+    ok(health.every((x) => x.firstWall === pg.WALL0 + Math.floor(1000 / 60)),
+      'and the wall clock its first frame was handed over at, the recording\'s 0');
+    ok(health.length && health.every((x) => Number.isFinite(x.mono) && Math.abs(x.at - x.mono - pg.WALL0) <= 1),
+      'and its monotonic clock beside the wall clock, read together, for main to follow the one against the other (Segment AND IT DRIFTS)');
+    // The generator slow to take a frame for a second and a half, across a
+    // second's account: that frame is counted open while it is in flight, and
+    // every frame meanwhile closed at once, none queued behind it.
+    const written0 = pg.generators[0].written;
+    const t0 = pg.clock.ms;
+    pg.slowNext(1500);
+    for (let i = 1; i <= 120; i++) await pg.frameAt(t0 + i * 1000 / 60);
+    const stall = pg.out.status.filter((m) => m.type === 'health' && m.at > pg.WALL0 + t0);
+    const written = pg.generators[0].written - written0;
+    ok(stall.length === 2 && stall[0].framesOpen === 2 && stall[1].framesOpen === 1,
+      `a frame in flight to the generator is counted open: ${stall.map((m) => m.framesOpen).join(', ')} (the read's newest, and it)`);
+    // 1 in flight, then from 11.5 s on 30 a second and the two slots the stall left open: 17.
+    ok(written >= 13 && written <= 18 && pg.buffers.open <= 2,
+      `and the frames that came while it was in flight were closed, never queued: ${written} written in those two seconds, ${pg.buffers.open} of the capture's buffers held`);
+    pg.send({ type: 'stop' });
+    await pg.to(pg.clock.ms + 100);
+    const stopped = pg.out.status.find((m) => m.type === 'stopped');
+    ok(stopped && stopped.chunks === pg.out.chunks.length && stopped.chunks >= 10 && pg.out.chunks.every((c, i) => c.seq === i),
+      `Stop: every chunk handed over, in order, before it says so (${stopped && stopped.chunks} of ${pg.out.chunks.length})`);
+    ok(stopped && stopped.framesOpen === 0 && stopped.tracksLive === 0 && pg.buffers.open === 0 && stopped.recorded === pg.generators[0].written,
+      `then nothing left open: ${stopped && stopped.framesOpen} frames, ${pg.buffers.open} of the capture's ${pg.buffers.made} buffers, ${stopped && stopped.recorded} recorded`);
+    ok(pg.tracks.every((t) => t.readyState === 'ended') && pg.generators[0].readyState === 'ended' && pg.generators[0].closed,
+      'the capture track and its clone stopped, the generator closed and stopped: torn down whole, for the next recording to build again');
+  });
+
+  await section('what main says of it: Settings and the counts give the frames recorded, and the busy rule still judges the frames delivered:', async () => {
+    const h = harness({ prefsInit: { recordingRes: '1080' } });
+    h.env.inMatch = true;
+    const p = await h.start();
+    ok(p.started.fps === SPEC.askFps && p.started.recordFps === SPEC.recordFps,
+      `the page is told to ask the capture for up to 60 a second and to record 30 (${p.started.fps}, ${p.started.recordFps})`);
+    await h.run(40, () => ({ health: { fps: 57, recordedFps: 30 } }));
+    ok(h.rec.liveView().fps === 30, `Settings: "about 30 fps", the frames recorded, never the 57 delivered (${h.rec.liveView().fps})`);
+    const b = await h.stop();
+    ok(b && b.fpsP50 === 30, `the session's counts: fps p50 30, the frames recorded (${b && b.fpsP50})`);
+    // Delivered 57, recorded 5 (a thing that cannot be, saying which number
+    // the rule reads): never given up.
+    const fine = harness();
+    fine.env.inMatch = true;
+    await fine.start();
+    await fine.run(45, () => ({ health: { fps: 57, recordedFps: 5 } }));
+    ok(fine.rec.state === 'recording' && !fine.notices.length, 'the busy rule reads the frames delivered: 57 delivered for 45 s, recording on');
+    await fine.stop();
+    const slow = harness();
+    slow.env.inMatch = true;
+    await slow.start();
+    await slow.run(5);
+    let n = 0;
+    while (slow.rec.state === 'recording' && n < 40) { await slow.run(1, () => ({ health: { fps: 9, recordedFps: 30 } })); n += 1; }
+    ok(slow.rec.state !== 'recording' && n >= SPEC.sustainS && n <= SPEC.sustainS + 2 && slow.notices.length === 1 && slow.notices[0].text === SPEC.busyText,
+      `and 9 delivered while the picture changes gives up as busy after ${n} s, the 20 s rule, unchanged`);
+    await slow.stop();
   });
 
   await section('a recording that cannot cover the read\'s frame leaves the read on GDI, and records on:', async () => {
@@ -587,9 +1018,14 @@ function readerAfter(frames, menus) {
     const FILE = fs.readFileSync(FIXTURE);
     // The recorder started two seconds before its first frame (a still screen
     // sends its first when something changes): the start is only a floor.
-    const h = harness({ pageMs: 4000, startEarly: 2000 });
+    const lines = [];
+    const h = harness({ pageMs: 4000, startEarly: 2000, log: (...a) => lines.push(a.join(' ')) });
     const p = await h.start();
     const wall0 = h.clock.now();
+    // The page says when it handed the recording its first frame, which is
+    // the recording's 0 (MediaRecorder stamps a generator's frame when it is
+    // written): main holds its own reckoning against it at the stop.
+    p.health({ firstWall: wall0 });
     let off = 0;
     for (const c of META.chunks) {
       // Each chunk at the wall time it came, as the page stamps it.
@@ -620,9 +1056,26 @@ function readerAfter(frames, menus) {
     }
     const want = pagesWanted.map((n, k) => truth.clusters.filter((c) => Math.floor(c.timecode / 4000) === Number(n.slice(-9, -4))).length);
     ok(whole && same(counts, want), `each page, after the init segment, reads as whole Clusters opening on keyframes (${counts.join(', ')})`, `want ${want.join(', ')}`);
+    const chunksZero = seg ? seg.chunksZero() : null;
+    ok(chunksZero !== null && chunksZero >= wall0 && chunksZero - wall0 <= 40,
+      `the recording's 0 on the wall clock as the chunks reckon it, by the newest frame each carried, is within 40 ms of its first frame: +${chunksZero - wall0} ms (the start said -2000)`);
+    // And the page's own word for it (8.4.2), which lies within those bounds: the 0.
     const zero = seg ? seg.zero() : null;
-    ok(zero !== null && zero >= wall0 && zero - wall0 <= 40,
-      `the recording's 0 on the wall clock, set by the newest frame each chunk carried, is within 40 ms of its first frame: +${zero - wall0} ms (the start said -2000)`);
+    ok(zero === wall0, `the 0 is the moment the page said it handed over its first frame (+${zero - wall0} ms)`);
+    const stopLine = lines.find((l) => l.startsWith('[recorder] stopped: '));
+    ok(seg && seg.firstWall === wall0 && seg.pageFramesOpen === 0 && seg.pageTracksLive === 0 && seg.pageRecorded === META.chunks.length * 30
+      && stopLine === `[recorder] stopped: ${META.chunks.length} chunks handed over and ${META.chunks.length} came, ${META.chunks.length * 30} frames recorded`
+        + ` and ${META.read.frames} written, 0 frames left open and 0 tracks live; the chunks put its 0 ${chunksZero - wall0} ms after the moment its first frame was handed over`,
+    'the stop says every chunk came, the frames recorded against those written, none left open, and the chunks\' 0 against the page\'s', stopLine);
+    ok(R.stoppedText({ chunksZero: () => null, chunks: 3, firstWall: null }, { chunks: 3 })
+      === '3 chunks handed over and 3 came, uncounted frames recorded and uncounted written, uncounted frames left open and uncounted tracks live; the chunks put its 0 with nothing to hold it against'
+      && / 4 ms before the moment its first frame/.test(R.stoppedText({ chunksZero: () => 996, chunks: 1, firstWall: 1000, framesWritten: 1 }, { chunks: 1, framesOpen: 0, recorded: 1 })),
+    'a page that counted nothing, or the chunks\' 0 before the first frame, is said as it is');
+    // The page's word is taken only where the chunks say the 0 can be.
+    const at = (startWall, hi, firstWall) => Object.assign(new R.Segment('/x', memFiles(), 4000), { startWall, hi, firstWall }).zero();
+    ok(at(1000, 1030, 1003) === 1003 && at(1000, 1030, 1032) === 1032 && at(1000, 1030, 1040) === 1030 && at(1000, 1030, 990) === 1030
+      && at(1000, Infinity, 1004) === 1004 && at(1000, 1030, null) === 1030 && at(1000, Infinity, null) === 1000 && at(null, Infinity, null) === null,
+    'the 0: the page\'s first frame between the start and the chunks\' latest (a clock\'s tick either way), else the chunks\', else the start');
     // A clip cut out of the pages by wall clock is the clip webm.js cuts out of
     // the whole recording at the same moments.
     const clip = h.rec.cutClip(wall0 + 5000, wall0 + 9000);
@@ -633,6 +1086,62 @@ function readerAfter(frames, menus) {
     ok(block && block.outcome === 'recorded' && block.minutes === 0.2 && block.encoderOk === true && block.mode === 'auto' && block.res === '720',
       'the session ends recorded, 0.2 minutes, the hardware encoder found', JSON.stringify(block));
     ok(p.closed && h.capture.stream === null && same(h.running, [true, false]), 'stopped cleanly: the page closed, the reads on GDI, running true then false');
+  });
+
+  // AND IT DRIFTS (8.4.2). The recording's timeline is the page's monotonic
+  // clock, the one MediaRecorder stamps by, and the moments a clip is cut for
+  // are the wall clock's, which Windows moved 75 ppm ahead of it on this PC
+  // as it kept the time: with one offset taken at the 0, a moment forty
+  // minutes in was cut 0.18 s out, and with the wall clock falling behind,
+  // the chunks' bounds took the 0 itself off the page's first frame.
+  await section('the wall clock drifts from the recording\'s own: a clip forty minutes in is cut where its moment is (Segment.zeroAt):', async () => {
+    for (const ppm of [75, -75]) {
+      // Started two seconds before its first frame, so the start alone is no 0.
+      const h = harness({ startEarly: 2000 });
+      const p = await h.start();
+      const wall0 = h.clock.now();
+      const k = ppm * 1e-6;
+      // The page's monotonic clock at a wall moment, the wall clock gaining `ppm` on it.
+      const M0 = 123456.75;
+      const mono = (w) => M0 + (w - wall0) / (1 + k);
+      // The wall moment of a moment of the recording's own timeline.
+      const wallOf = (tc) => wall0 + tc * (1 + k);
+      const N = 40 * 60 + 30;
+      for (let n = 0; n < N; n++) {
+        // Second n of the recording, handed over 20 ms after its last frame
+        // (synthCluster's 30 frames run to 966 ms), on the wall clock.
+        await h.clock.advance(Math.round(wallOf(n * 1000 + 986)) - h.clock.now());
+        const data = n === 0 ? Buffer.concat([SYNTH_INIT, synthCluster(0)]) : synthCluster(n * 1000);
+        p.emit('chunk', { seq: p.n, wall: h.clock.now(), data: toAB(data) });
+        p.n += 1;
+        p.health({ firstWall: wall0, mono: mono(h.clock.now()) });
+      }
+      const seg = h.rec.seg;
+      // A death forty minutes into the recording's own timeline, and its clip.
+      const tc = 40 * 60 * 1000;
+      const at = Math.round(wallOf(tc));
+      const clip = h.rec.cutClip(at - 11000, at + 4000, at);
+      const plan = webm.planClip(seg.clusters(), tc - 11000, tc + 4000);
+      const truth = wallOf(plan.start);
+      const off = clip ? clip.startWall - truth : null;
+      ok(seg.zero() === wall0 && seg.hi < wall0 === (ppm < 0) && seg.clock.length >= N / 6 - 2 && seg.clock.length <= N / 5 + 2,
+        `${ppm > 0 ? 'gaining' : 'losing'} ${Math.abs(ppm)} ppm: the 0 the page's first frame still (the chunks' tightest ${Math.round(seg.hi - wall0)} ms from it), a reading of the clocks every five seconds or six (${seg.clock.length} in ${N} s)`);
+      ok(clip && Math.abs(off) <= 2,
+        `${ppm > 0 ? 'gaining' : 'losing'} ${Math.abs(ppm)} ppm, a clip forty minutes in opens where its first frame is on the wall clock: ${off === null ? 'no clip' : Math.round(off * 10) / 10} ms off (one offset put it ${Math.round(wall0 + plan.start - truth)} ms off)`);
+      await h.stop();
+    }
+    // The 0 a moment sees: the readings either side of it, and zero() itself
+    // where the 0 is the chunks' or nothing says how the clocks went.
+    const seg = (o) => Object.assign(new R.Segment('/x', memFiles(), 4000), { startWall: 1000, hi: 1030, hiFirst: 1030 }, o);
+    const readings = [{ wall: 2000, off: 500 }, { wall: 7000, off: 500.4 }, { wall: 12000, off: 501.4 }];
+    ok(seg({ firstWall: 1003, clock: readings }).zeroAt(9500) === 1004 && seg({ firstWall: 1003, clock: readings }).zeroAt(60000) === 1004
+      && seg({ firstWall: 1003, clock: readings.slice(0, 1) }).zeroAt(9500) === 1003 && seg({ firstWall: null, clock: readings }).zeroAt(9500) === 1030
+      && seg({ firstWall: 1003, clock: readings }).zeroAt(NaN) === 1003,
+    'the 0 a moment sees: the first frame moved on by the clocks\' parting between the readings either side (0.9 ms by 9.5 s, 1.4 after the last), unmoved with one reading, the chunks\' or no moment');
+    const thin = new R.Segment('/x', memFiles(), 4000);
+    for (let w = 0; w < 30000; w += 1000) thin.clockAt(w, w - 7);
+    thin.clockAt(31000, NaN);
+    ok(thin.clock.length === 6 && thin.clock.every((r) => r.off === 7), `a reading kept every five seconds, none without both clocks (${thin.clock.length} of 31)`);
   });
 
   await section('nothing recorded stays in memory: ten minutes of 3 Mbps Clusters (375 KB a second):', async () => {
@@ -1298,6 +1807,11 @@ function readerAfter(frames, menus) {
     const p2 = h.page();
     ok(p1.closed && p1.count('stop') === 1 && p2 !== p1 && p2.started && p2.started.sourceId === 'screen:222:0' && h.rec.segments.length === 2,
       'the recording of 111 stopped cleanly, and a new one opened on 222, the primary display');
+    // The recording's thirty a second is built again with it, on its own page:
+    // the old page answered its stop with every chunk and nothing open.
+    const [old] = h.rec.segments;
+    ok(old.pageChunks === old.chunks && old.chunks === 5 && old.pageFramesOpen === 0 && old.pageTracksLive === 0 && p2.started.recordFps === SPEC.recordFps && p2.started.fps === SPEC.askFps,
+      `and the recording built again on the new page, asked for 60 and recording 30; the old one ended with all ${old.chunks} chunks and ${old.pageFramesOpen} frames open`);
     ok(h.capture.stream === null && h.rec.displaysChanged(222) === false, 'compared before it serves, and 222 is already what it records');
     await h.run(4);
     ok(h.capture.stream && h.rec.state === 'recording', 'then served, from the primary display');
