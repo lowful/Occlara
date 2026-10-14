@@ -127,7 +127,12 @@ app.on('before-quit', () => { appQuitting = true; });
 // into recording a canvas instead of the screen, or into giving up early:
 //   OCCLARA_FAKE_CAPTURE=1      record a generated canvas, and make every GDI
 //                               frame a flat grey one: nothing touches the screen
-//                               (=black draws the canvas black)
+//                               (=black draws the canvas black, =busy draws
+//                               blocks that move every frame, a picture the
+//                               encoder spends its whole budget on)
+//   OCCLARA_DEV_FAKE_FPS        how many frames a second the canvas is drawn
+//                               at (30 unless set; a capture asked for 60
+//                               delivers up to 60)
 //   OCCLARA_DEV_RECORDER_MIN_FPS, OCCLARA_DEV_RECORDER_BUSY_MS
 //                               the busy rule's frame floor and how long it holds
 //   OCCLARA_DEV_RECORDER_PAGE_MS a page's length
@@ -139,7 +144,7 @@ const devNumber = (name) => {
 // Read at each recording's start, so one check can draw black for a session.
 const fakeCapture = () => {
   const v = RECORDER_DEV ? process.env.OCCLARA_FAKE_CAPTURE : '';
-  return v ? (v === 'black' ? 'black' : 'canvas') : null;
+  return v ? (v === 'black' || v === 'busy' ? v : 'canvas') : null;
 };
 if (fakeCapture()) capture.setFake(true);
 // A match the watch ended can resume within five minutes (match-end.js
@@ -184,6 +189,7 @@ const recorder = new Recorder({
   limits: () => ({ minFps: devNumber('OCCLARA_DEV_RECORDER_MIN_FPS'), sustainMs: devNumber('OCCLARA_DEV_RECORDER_BUSY_MS') }),
   pageMs: () => devNumber('OCCLARA_DEV_RECORDER_PAGE_MS'),
   fake: fakeCapture,
+  fakeFps: () => devNumber('OCCLARA_DEV_FAKE_FPS'),
   // The app's own version, as api-client.js reads it: run any way but as the
   // app (a check), app.getVersion() is Electron's.
   version: (() => { try { return require('../../package.json').version; } catch { return app.getVersion(); } })(),

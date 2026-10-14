@@ -11,19 +11,25 @@
  * prefer-hardware answer told the GPU's encoder apart in the 8.3 spike (yes
  * for H.264, no for VP9, which then took a whole core in software).
  *
- * ONE STREAM, TWO USES. MediaRecorder records it, a chunk a second with the
- * page's wall clock, and a clone of the track feeds a MediaStreamTrackProcessor
- * whose newest VideoFrame is kept for the live read and every other one closed
- * at once: a frame left open holds one of the capture's few buffers, which
- * stalls the capture. The processor lives in the page because this Chromium
- * has none in a worker, and a frame a second costs a few milliseconds here.
+ * ONE CAPTURE, TWO USES. The capture is asked for up to 60 frames a second,
+ * and the recording is handed 30 of them (8.4.2): a MediaStreamTrackProcessor
+ * on the capture track hands this page every frame, grid.js keeps thirty a
+ * second by each frame's own timestamp and writes them to a track generator,
+ * and MediaRecorder records the generator, a chunk a second with the page's
+ * wall clock; every other frame is closed at once. Handed the capture track
+ * itself, MediaRecorder gave each frame the bits of a thirtieth of a second
+ * however many came, and the player's match ran at twice the bitrate asked
+ * (grid.js says it whole). A clone of the capture track feeds a second
+ * processor, whose newest VideoFrame is kept for the live read. A frame left
+ * open holds one of the capture's few buffers, which stalls the capture. The
+ * processors live in the page because this Chromium has none in a worker.
  *
  * Once a second it tells main how the capture is coping: frames delivered,
- * whether the picture changed since the second before (a still screen delivers
- * a couple of frames a second by design, and is not a busy PC), how old the
- * newest frame is, and how late the next chunk is. The first three are
- * health.js's, loaded before this file, so test:recorder runs that account
- * itself through the health rules.
+ * frames recorded, whether the picture changed since the second before (a
+ * still screen delivers a couple of frames a second by design, and is not a
+ * busy PC), how old the newest frame is, and how late the next chunk is. The
+ * first four are health.js's, loaded before this file as grid.js is, so
+ * test:recorder runs that account and that grid themselves.
  *
  * With `fake` set (OCCLARA_FAKE_CAPTURE, unpackaged builds only) it records
  * frames it draws itself instead of the screen, so a check never records the
@@ -35,6 +41,8 @@
   // The once a second account (health.js): fps, whether the picture changed,
   // and the brightness difference the comparison with GDI uses too.
   const account = window.OcclaraRecorderHealth;
+  // The recording's thirty frames a second (grid.js).
+  const thirty = window.OcclaraRecorderGrid;
 
   const THUMB_W = 64;
   const THUMB_H = 36;
@@ -46,11 +54,14 @@
   let rec = null;            // the recording in progress
   let newest = null;         // the newest VideoFrame, kept open for the read
   let newestAt = 0;
-  let frames = 0;            // frames the processor handed over, ever
-  // VideoFrames open right now, clones included: the newest, and for a few
-  // milliseconds the clone a read or a thumbnail draws from. Reported each
-  // second, because a frame never closed is the capture's buffer never given
-  // back, and a screen capture has only a few before it stalls.
+  let frames = 0;            // frames the read's processor handed over, ever
+  let recorded = 0;          // frames handed to the recording, ever
+  let firstWall = null;      // the wall clock when the first of them was
+  // VideoFrames open right now, clones included: the newest, for a few
+  // milliseconds the clone a read or a thumbnail draws from, and the frame
+  // the grid is handing on or closing. Reported each second and at the stop,
+  // because a frame never closed is the capture's buffer never given back,
+  // and a screen capture has only a few before it stalls.
   let open = 0;
   const hold = (f) => { open += 1; return f; };
   const release = (f) => { if (f) { f.close(); open -= 1; } };
@@ -102,6 +113,11 @@
    * captureStream was tried first and is not that: measured here, with the
    * main window open, a second recorder page's canvas delivered one frame a
    * second, then none, while its timers and animation frames ran on.
+   *
+   * `fakeFps` draws it that many times a second instead (a capture asked for
+   * 60 delivers up to 60), and 'busy' draws four hundred blocks that move
+   * every frame, a picture the encoder has to spend its whole budget on, as
+   * it does on a game; the flat picture asks it for less (8.4.2).
    */
   function fakeStream(cmd) {
     const W = cmd.width;
@@ -112,9 +128,22 @@
     const writer = track.writable.getWriter();
     const t0 = performance.now();
     const black = cmd.fake === 'black';
+    const busy = cmd.fake === 'busy';
+    const fps = Number(cmd.fakeFps) > 0 ? Math.min(240, Number(cmd.fakeFps)) : 30;
     let writing = false;
+    let drawn = 0;
     const draw = (ms) => {
+      drawn += 1;
       if (black) { g.fillStyle = '#000000'; g.fillRect(0, 0, W, H); return; }
+      if (busy) {
+        g.fillStyle = 'hsl(' + ((ms / 10) % 360) + ', 60%, 45%)';
+        g.fillRect(0, 0, W, H);
+        for (let i = 0; i < 400; i++) {
+          g.fillStyle = 'rgb(' + ((i * 37 + drawn * 11) % 255) + ',' + ((i * 91 + drawn * 5) % 255) + ',' + ((i * 13 + drawn * 3) % 255) + ')';
+          g.fillRect((i * 97 + drawn * 23) % W, (i * 61 + drawn * 17) % H, W / 18, H / 14);
+        }
+        return;
+      }
       g.fillStyle = 'hsl(' + ((ms / 40) % 360) + ', 55%, 45%)';
       g.fillRect(0, 0, W, H);
       g.fillStyle = '#ffffff';
@@ -131,11 +160,44 @@
       draw(ms);
       const f = new VideoFrame(oc, { timestamp: Math.round(ms * 1000) });
       writer.write(f).catch(() => {}).finally(() => { f.close(); writing = false; });
-    }, 1000 / 30);
+    }, 1000 / fps);
     return {
       stream: new MediaStream([track]),
       size: { width: W, height: H },
       stopFake: () => { clearInterval(timer); writer.close().catch(() => {}); },
+    };
+  }
+
+  /**
+   * What MediaRecorder records: a track generator, written by the grid
+   * (grid.js) from a processor on the capture track, thirty frames a second.
+   * start() begins the pump once the recorder has started; end() cancels the
+   * processor, waits for the pump to hand back every frame it held, then
+   * closes the generator. Built again for every recording: a page records
+   * once (recorder-window.js), and a display change is a stop and a new page.
+   */
+  function recordingTrack(track, cmd) {
+    const reader = new MediaStreamTrackProcessor({ track, maxBufferSize: 1 }).readable.getReader();
+    const gen = new MediaStreamTrackGenerator({ kind: 'video' });
+    const writer = gen.writable.getWriter();
+    let pumping = null;
+    return {
+      stream: new MediaStream([gen]),
+      /** Whether the generator is still live: once end() is done, no. */
+      live: () => gen.readyState === 'live',
+      start() {
+        pumping = thirty.pump({
+          reader, writer, grid: thirty.createGrid(cmd.recordFps), hold, release, now: () => performance.now(),
+          kept: () => { recorded += 1; if (firstWall === null) firstWall = Date.now(); },
+        });
+      },
+      async end() {
+        try { await reader.cancel(); } catch { /* closed already */ }
+        // Every frame the pump held, a write in flight's included, closed.
+        if (pumping) await pumping;
+        try { await writer.close(); } catch { /* closed already */ }
+        try { gen.stop(); } catch { /* stopped already */ }
+      },
     };
   }
 
@@ -212,10 +274,15 @@
     // A generated track has no size in its settings; it is the canvas's.
     const s0 = track.getSettings() || {};
     const settings = { ...s0, width: s0.width || (src.size && src.size.width), height: s0.height || (src.size && src.size.height) };
+    // What is recorded: thirty frames a second of the capture, never the
+    // capture track itself (recordingTrack, grid.js).
+    let recording;
     let recorder;
     try {
-      recorder = new MediaRecorder(src.stream, { mimeType, videoBitsPerSecond: cmd.bitrate, videoKeyFrameIntervalDuration: cmd.keyframeMs });
+      recording = recordingTrack(track, cmd);
+      recorder = new MediaRecorder(recording.stream, { mimeType, videoBitsPerSecond: cmd.bitrate, videoKeyFrameIntervalDuration: cmd.keyframeMs });
     } catch (e) {
+      if (recording) await recording.end();
       src.stream.getTracks().forEach((t) => t.stop());
       if (src.stopFake) src.stopFake();
       bridge.status({ type: 'started', ok: false, outcome: 'error', encoderOk: true, why: 'MediaRecorder refused: ' + errText(e) });
@@ -243,9 +310,10 @@
     track.addEventListener('ended', () => bridge.status({ type: 'error', where: 'track', message: 'the capture ended by itself' }));
     const startWall = Date.now();
     recorder.start(cmd.timesliceMs);
+    recording.start();
     rec = {
-      src, track, clone, reader, draining, recorder, stopped, state, timeslice: cmd.timesliceMs,
-      tally: account.createTally({ now: performance.now(), frames }), healthTimer: null,
+      src, track, clone, reader, draining, recorder, recording, stopped, state, timeslice: cmd.timesliceMs,
+      tally: account.createTally({ now: performance.now(), frames, recorded }), healthTimer: null,
     };
     rec.healthTimer = setInterval(health, 1000);
     bridge.status({
@@ -275,15 +343,26 @@
     };
   }
 
-  /** Once a second, how the capture is coping (health.js keeps the account). */
+  /**
+   * Once a second, how the capture is coping (health.js keeps the account):
+   * `fps` what it delivered, which the busy rule judges, and `recordedFps`
+   * what the recording kept of it, which Settings and the counts say;
+   * `firstWall` the wall clock its first frame was handed over at, which the
+   * recording's 0 is (MediaRecorder stamps a generator's frame when it is
+   * written), for main to hold its own reckoning of that 0 against; and
+   * `mono`, this page's monotonic clock at `at`, the clock MediaRecorder
+   * stamps by, so main can follow the wall clock as Windows moves it against
+   * that one (recorder.js Segment.zeroAt).
+   */
   function health() {
     const r = rec;
     if (!r) return;
-    const a = r.tally.second({ now: performance.now(), frames, newestAt: newest ? newestAt : null, thumb: newestThumb });
+    const a = r.tally.second({ now: performance.now(), frames, recorded, newestAt: newest ? newestAt : null, thumb: newestThumb });
     bridge.status({
-      type: 'health', at: Date.now(), fps: a.fps, changing: a.changing, luma: a.luma, frameAgeMs: a.frameAgeMs,
+      type: 'health', at: Date.now(), mono: performance.now(), fps: a.fps, recordedFps: a.recordedFps, changing: a.changing, luma: a.luma, frameAgeMs: a.frameAgeMs,
       lagMs: Math.max(0, Date.now() - r.state.lastChunkAt - r.timeslice),
       framesOpen: open,
+      firstWall,
       track: trackSettings(r),
     });
   }
@@ -321,12 +400,18 @@
     bridge.reply(out);
   }
 
-  /** A clean stop: the last chunk handed over before main is told. */
+  /**
+   * A clean stop: the last chunk handed over, then the recording's track torn
+   * down and the read's, before main is told, with how many frames are still
+   * open (none, or a capture buffer was never given back), how many tracks
+   * are still live (none: the capture, its clone and the generator all
+   * ended), and how many frames were recorded.
+   */
   async function stop() {
     const r = rec;
     if (!r) {
       if (starting) cancelled = true;
-      bridge.status({ type: 'stopped', chunks: 0 });
+      bridge.status({ type: 'stopped', chunks: 0, framesOpen: open, tracksLive: 0, recorded });
       return;
     }
     rec = null;
@@ -334,6 +419,7 @@
     try { if (r.recorder.state !== 'inactive') r.recorder.stop(); } catch { /* stopped already */ }
     await Promise.race([r.stopped, sleep(5000)]);
     await r.state.queue;
+    await r.recording.end();
     try { await r.reader.cancel(); } catch { /* closed already */ }
     await r.draining;
     release(newest);
@@ -341,7 +427,8 @@
     r.clone.stop();
     r.src.stream.getTracks().forEach((t) => t.stop());
     if (r.src.stopFake) r.src.stopFake();
-    bridge.status({ type: 'stopped', chunks: r.state.seq });
+    const tracksLive = [r.track, r.clone].filter((t) => t.readyState === 'live').length + (r.recording.live() ? 1 : 0);
+    bridge.status({ type: 'stopped', chunks: r.state.seq, framesOpen: open, tracksLive, recorded });
   }
 
   /** The gate's answer alone, for a codec and size main asks about (check:recorder asks it of VP9). */

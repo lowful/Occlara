@@ -626,7 +626,7 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     const idle = mk();
     ok(idle.view().session === null && idle.view().live === null && idle.view().last.outcome === 'black',
       'no session: no live line, and the last session\'s outcome for Settings to say');
-    // Recording, and the frames a second the capture delivered while the picture changed.
+    // Recording, and the frames a second recorded while the picture changed (8.4.2: 30 of the capture's up to 60).
     const rec = mk();
     rec.state = 'recording';
     rec.seg = { session: { res: '1080' } };

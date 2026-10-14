@@ -256,7 +256,11 @@ const pick = (r) => `${r.tier} ${r.mode} ${r.res} ${r.recordable ? 'recordable' 
     };
     page.window = page;
     vm.createContext(page);
-    for (const f of ['health.js', 'recorder.js']) {
+    // The page's scripts as its index.html loads them, in that order.
+    const html = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'recorder', 'index.html'), 'utf8');
+    const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
+    ok(scripts.length >= 2 && scripts[scripts.length - 1] === 'recorder.js', `the recorder page's scripts, read off its index.html: ${scripts.join(', ')}`);
+    for (const f of scripts) {
       const file = path.join(ROOT, 'src', 'renderer', 'recorder', f);
       vm.runInContext(fs.readFileSync(file, 'utf8'), page, { filename: file });
     }

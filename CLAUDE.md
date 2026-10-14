@@ -1081,7 +1081,7 @@ never written, and every number carries its sample:
 ```
 src/main/services/recorder.js        pages, holds, the sweep, the disk guard, health, the fallback, the counts
 src/main/windows/recorder-window.js  a window nobody sees, the primary display's source, the CPU sample
-src/renderer/recorder/               the page: the gate, MediaRecorder, the read's frame, health each second
+src/renderer/recorder/               the page: the gate, MediaRecorder fed 30 frames a second (grid.js), the read's frame, health each second
 src/main/services/capture.js         the read's frame: from the stream while it serves one, else the GDI helper
 src/shared/webm.js                   the chunks read as they come, whole Clusters out, clips cut by them
 src/shared/clips.js                  a clip's name, its seconds, when a look's death was, the cap's choices
@@ -1118,7 +1118,8 @@ PC coped, never what was on it.
   'off', `recordingRes` '720' or '1080'. Judged only while a match is in
   progress, the recorder gives up for the session ('busy') when for 20 s
   straight the capture delivers under 12 frames a second while the picture
-  changes (or stops delivering), a chunk is over 4 s late, the page's process
+  changes (or stops delivering; what the capture delivers, never the 30 a
+  second recorded of it), a chunk is over 4 s late, the page's process
   is over 60% of ONE core, or the PC is over 95% (`HEALTH`, first guesses to be
   tuned from the counts below). The reads go back to the GDI helper at the same
   cadence, one notice says so, and two busy sessions within 7 days turn Auto
@@ -1142,9 +1143,48 @@ PC coped, never what was on it.
   then took a whole core in software). MediaRecorder, Matroska first, 3 Mbps at
   720p and 6 at 1080p (more for a recording bigger than its box, in proportion
   to its pixels, twice the box's at most: `bitrateFor`), a keyframe and a chunk
-  every second, asked for 60 fps because asked for 30 with the whole screen
-  moving it delivered 21. The level is by macroblocks (`codecFor`): 3.1 up to
-  3600 (1280x720), 4.0 past it.
+  every second. The capture is asked for 60 fps, because asked for 30 with the
+  whole screen moving it delivered 21, and the recording is handed 30 of them
+  (8.4.2, `src/renderer/recorder/grid.js`, `RECORD_FPS`): Chromium sets
+  MediaRecorder's encoder for 30 frames a second whatever it is handed, so
+  every frame got a thirtieth of a second's bits however many came. On the
+  player's Fracture swiftplay at 1080p the capture delivered 57 a second, the
+  pages ran 74 to 91 MB a minute where 6 Mbps is 43, a constant 24 KB a
+  frame, then 45 to 47 MB at 32 a second, and the clips came out at 56.5,
+  55.6 and 32 frames a second: the disk guard, the hold, the clip cap and
+  what Settings implies are all sized on the bitrate asked. So MediaRecorder
+  records a track generator, and a processor on the capture track hands the
+  page every frame: the grid keeps 30 a second by each frame's own timestamp
+  (thirty slots a second open on the capture's clock, a frame takes the
+  oldest open, one opening within a quarter of a slot included, and a still
+  screen leaves at most two open; the page's clock counts only what the
+  timestamps do not, each stretch of time once, since counted on both a
+  capture at 60 whose every other timestamp repeated recorded 45 a second),
+  writes them to the generator, and closes every other frame at once. A
+  frame the generator cannot take now is closed too, never queued, its slot
+  left open for the next. A frame written is the
+  capture's own, passed on, never copied, and keeps the bits it had, which is
+  what the look's stills need, each a single decoded frame. The first frame
+  of each slot of a fixed grid was simulated first: a capture at an even 30
+  whose frames sat on the slots' edges recorded 22 to 27 a second, two frames
+  in one slot and none in the next. Measured on this PC's real screen, a full
+  screen pattern at 240 Hz through the real page at 1080p: before, 56.7
+  delivered, 52.1 a second recorded, 10.45 Mbps (74.7 MB a minute) against
+  the 6 asked, 24.5 KB a frame; after, 55.9 delivered, 29.9 recorded, 6.05
+  Mbps (43.3 MB a minute), 24.7 KB a frame. On the busy generated picture at
+  60 a second, 6.09 Mbps against 3 at 720p and 12.58 against 6 at 1080p
+  before, 3.52 and 6.37 after (the encoder runs a little over the asked on
+  a picture that busy), and the page and the GPU process, measured back to
+  back on a quiet PC, fell with the frames encoded: the page from 17 to 11%
+  of a core at 720p and from 54 to 20 at 1080p, the GPU process from 19 to 11
+  and from 41 to 18; at 30 a second delivered nothing changed (7.7 and 7.6,
+  17.5 and 17.7), so the grid itself costs nothing measured. On the real
+  screen the page went from 7.3 to 3.8% of a core and the GPU process from
+  18.9 to 8.5, the PC busier during the run before (50% against 20). No frame
+  was held open but the read's newest, in any run. The read's clone and its
+  processor are as they were.
+  The level is by macroblocks (`codecFor`): 3.1 up to 3600 (1280x720), 4.0
+  past it.
 - **Never cropped, and never fewer rows than the read.** The display's own
   shape (`fitSize`): asked a box of another shape, this Chromium hands back
   exactly the box (a 1280x600 ask on a 1920x1080 display came back 1280x600).
@@ -1173,8 +1213,13 @@ PC coped, never what was on it.
   (no frame for 2 s, a page that did not answer) is taken by the helper; three
   unanswered in a row, or a page whose renderer went away, and it is broken
   ('error'). The page reports each second how many VideoFrames it holds open
-  (`framesOpen`, the newest and for a moment a clone): a frame never closed is
-  a capture buffer never given back, and a screen capture has only a few.
+  (`framesOpen`, the newest, for a moment a clone, and a frame the grid is
+  handing on), and at its stop how many are left once it has torn its tracks
+  down, and how many of those tracks are still live (`tracksLive`: the
+  capture, its clone, the generator), none of either: a frame never closed is
+  a capture buffer never given back, and a screen capture has only a few. Each second it says what the
+  capture delivered (`fps`, the busy rule's) and what was recorded
+  (`recordedFps`, Settings' and the counts').
   A recording is of the display that was primary when it opened, Chromium's
   source being tied to that monitor, while GDI reads whichever is primary at
   each frame: when screen's events say another display is primary now (the
@@ -1206,8 +1251,29 @@ PC coped, never what was on it.
   moment's own estimate: a recording that stopped 2 s before the death still
   overlapped its window, and gave the 10 s before its end as the death's clip.
   The page's wall clock maps onto the recording's timeline from the newest
-  frame each chunk carries, within a few ms on the fixture. A Valorant match in
-  progress is kept from its start once a read has landed, menus or not (one
+  frame each chunk carries, within a few ms on the fixture. Since 8.4.2 the
+  page also says the moment it handed over its first frame (`firstWall`), and
+  as MediaRecorder stamps a generator's frame when it is written, that moment
+  is the recording's 0, taken wherever it lies between the start and the
+  latest its first twenty chunks allow (`Segment.zero`, `hiFirst`): the chunks
+  alone put it 15 to 42 ms late on the generated picture and 29 on the real
+  screen, an encoder's latency. The stop's line says both, and how many frames
+  were handed over against how many the recording holds: in every run
+  measured all of them, the first included, or all but the one written as it
+  stopped. AND THE TWO CLOCKS PART (8.4.2): the recording's timeline is the
+  page's monotonic clock, the one MediaRecorder stamps by, and the moments a
+  clip is cut for are the wall clock's, which Windows moves against it as it
+  keeps the time. On this PC, synced with time.windows.com every 34 minutes,
+  the wall clock gained 40 to 75 ppm, in steps of about 5 ms, and one offset
+  taken at the 0 (8.4.1's chunks did no better) put frames three to five
+  minutes into a recording 8 to 15 ms out, so a death forty minutes in 0.1 to
+  0.2 s, measured through the real page recording a generated picture that
+  carries the wall clock it was drawn at. So each second's report carries
+  both clocks (`at`, `mono`), a reading is kept every five seconds
+  (`clockAt`), and a clip is cut with the page's first frame moved on by how
+  far the two had parted by its moment (`zeroAt`): 98% of the frames of those
+  five minutes within 3 ms, the first hundred seconds as the last. A Valorant
+  match in progress is kept from its start once a read has landed, menus or not (one
   menu read mid round must not cost it its pages), ninety minutes back at most
   (`valorantKeepSince`): before, a session whose reads failed from Start kept
   every page, about 1.3 GB an hour, with no ledger to clip. Nothing recorded
@@ -1324,8 +1390,9 @@ PC coped, never what was on it.
   read, League's while its own record is, never saying its screen is read),
   and one status line: "Recording now at 720p, about 30 fps" (`liveView`: the
   track's own height when it gives one, so a 1280x1024 display at 1080p says
-  1024p, else the setting; the median of the last ten seconds whose picture
-  changed, to the nearest five), or why it
+  1024p, else the setting; the frames recorded a second, the median of the
+  last ten seconds whose picture changed, to the nearest five: since 8.4.2
+  30 where it said the 57 the capture delivered), or why it
   is not, this session's reason before the last session's: no hardware video
   encoder, the PC busy (two sessions in a week turned it off, with Try again,
   which sets it back On), not enough disk, Windowed Fullscreen needed, an
@@ -1378,9 +1445,9 @@ PC coped, never what was on it.
 - **Counts for the developer**: one block a session to
   `POST /api/coach/session-report` (`reportBlock`): version, the game
   (valorant or lol), mode, res, the outcome from a closed list (recorded, off,
-  no-hw-encoder, busy, disk, black, error), minutes recorded, fps p50 (in a
-  match, picture changing), the recorder's CPU p50 and the PC's p90, whether
-  the gate passed. Nothing else; `server/services/telemetry.js` keeps only
+  no-hw-encoder, busy, disk, black, error), minutes recorded, fps p50 (the
+  frames recorded, in a match, picture changing), the recorder's CPU p50 and
+  the PC's p90, whether the gate passed. Nothing else; `server/services/telemetry.js` keeps only
   those words or 'other' (a block from before the game counts its game as
   'other'), clamps every number, splits the summary by game, and counts the
   tip era's reports as before. A session ends with its block however it ends,
@@ -1395,38 +1462,70 @@ PC coped, never what was on it.
   launch sends what one left, once (`sendPendingReport`, at launch with the
   key kept, or in `launchMainApp` once one is activated).
 - **debug.log says what the recording did** (8.4.1, `recorder.js logStatus`).
-  Once a minute, beside the frames the capture delivered (fps p50), the
-  track's own settings as the page reads them each second (`getSettings()`,
-  its size and frame rate), and the frames and MB written since the last line
-  against the bitrate asked ("3363 frames and 78.9 MB written in the last 60 s
-  (56.1 a second, 11 Mbps against the 6 Mbps asked, 24 KB a frame)"); the
-  start line adds the track's frame rate and the bitrate MediaRecorder took.
-  On the player's Fracture swiftplay the recording fell from 57 to 32 frames a
+  Once a minute, beside the frames the capture delivered and the frames
+  recorded (8.4.2, "fps p50 55.1 delivered and 30 recorded"), the track's own
+  settings as the page reads them each second (`getSettings()`, its size and
+  frame rate), and the frames and MB written since the last line against the
+  bitrate asked ("1770 frames and 42.7 MB written in the last 61 s (29 a
+  second, 5.9 Mbps against the 6 Mbps asked, 25 KB a frame)", the real
+  screen after; before, "3034 frames and 71.7 MB ... (50.2 a second, 9.9
+  Mbps ...)"); the start line adds the track's frame rate, that it is
+  recorded at up to 30, and the bitrate MediaRecorder took, and the stop's
+  line the chunks and frames handed over against those that came, the frames
+  left open and the tracks still live, and the chunks' 0 against the page's
+  (`stoppedText`). On the
+  player's Fracture swiftplay the recording fell from 57 to 32 frames a
   second for its last two minutes with no line saying why, and at 57 its
-  pages ran about twice the 6 Mbps asked, a constant 24 KB a frame: the disk
-  guard, the hold and the clip cap are sized on the bitrate asked. Counts in a
-  log line only, no rule reads them and nothing leaves the PC.
+  pages ran about twice the 6 Mbps asked, a constant 24 KB a frame. Counts in
+  a log line only, no rule reads them and nothing leaves the PC.
 - **The dev switches work unpackaged only**: `OCCLARA_FAKE_CAPTURE=1` records
   frames the page draws (written to a track generator: a canvas's own
   captureStream stalled in a second recorder page with the main window open)
   and makes every GDI frame flat grey, so no check touches the screen; `=black`
-  draws black. `OCCLARA_DEV_RECORDER_MIN_FPS`, `_BUSY_MS` and `_PAGE_MS` force
-  the busy rule and shorten pages.
+  draws black, and `=busy` four hundred blocks that move every frame, which
+  the encoder spends its whole budget on (the flat picture asks it for less,
+  so twice the bitrate never showed on it). `OCCLARA_DEV_FAKE_FPS` draws it
+  that many times a second (30 unless set). `OCCLARA_DEV_RECORDER_MIN_FPS`,
+  `_BUSY_MS` and `_PAGE_MS` force the busy rule and shorten pages.
 
 `npm run test:recorder` holds every rule above on a fake clock and fake files
 with the real fixture, the Valorant rules on the real reader replaying the
 real Split match, the page's account through the real rules, ten minutes
 of 3 Mbps Clusters held to under 30 MB of memory, and the minute line on two
-minutes at 57 and then 32 frames a second; `npm run check:recorder`
-boots the app and runs the real page on generated frames: paged, served, the
-gate (H.264 yes, VP9 no on this PC), the track's settings reported each second
-and the bitrate MediaRecorder took, no frame held open, stopped cleanly with
-every chunk the page said it handed over on disk, held at a match's end, not
-judged before a read lands, busy back to GDI with its notice, black stopped,
-the displays' events reaching the recorder, Windows ending its session and an
-update's restart deleting everything in the call, a quit leaving nothing, none
-of the three posting its counts into the exit, and counts one kept sent at the
-next launch.
+minutes at 57 and then 32 frames a second delivered, 30 recorded. And 8.4.2's
+thirty a second: grid.js as the page loads it (30 a second of a capture at
+32 to 60, every frame of one at 30 or under, jittered as Windows' timers
+jitter it or not, at most two more after a still screen, a capture whose
+timestamps stand still, jump back, repeat every other frame, step half a
+second back once a second or are missing, 30 a second each), its pump (a
+frame the writer cannot take closed at once, none queued, the stop waiting
+on a write in flight, nothing left open), and the real page run with stand
+ins for Chromium (the
+generator recorded and never the capture, 300 of 600 frames in ten seconds,
+a frame in flight counted open, every chunk handed over then no frame and no
+buffer of the capture left open, its tracks torn down); Settings and the
+counts saying the frames recorded and the busy rule the frames delivered;
+the 0 the page's first frame where the first chunks allow it, and a clip
+forty minutes in cut within 2 ms of its moment with the wall clock gaining
+or losing 75 ppm on the recording's own, where one offset put it 179 ms out
+(a second's Cluster early, losing). `npm run
+check:recorder` boots the app and runs the real page on generated frames,
+the busy picture drawn 60 times a second: paged, served, the gate (H.264
+yes, VP9 no on this PC), the track's settings reported each second and the
+bitrate MediaRecorder took, 30 a second recorded on disk and in a clip cut
+from it, and said so where the page and Settings say it, within 1.4 times
+the bitrate asked (twice it before), no frame held open while recording and
+none, nor any track live, at the stop, the 0 the
+first frame's moment with the chunks' own within 50 ms after it, the page's
+two clocks read together and kept every five seconds, stopped
+cleanly with every chunk the page said it handed over on disk, held at a
+match's end, not judged before a read lands, busy back to GDI with its
+notice, black stopped, a display change stopping the page with nothing open
+and building the 30 a second again on a new one, the displays' events
+reaching the recorder, Windows ending its session and an update's restart
+deleting everything in the call, a quit leaving nothing, none of the three
+posting its counts into the exit, and counts one kept sent at the next
+launch.
 `npm run test:clips` holds the names, the seconds, the moments on the real
 Abyss match, and on the real Split and Abyss sessions through the real reader
 (`scripts/fixtures/replay-session.js`), the cut and only from a recording
@@ -1443,7 +1542,13 @@ generated frames hold the GPU process at 50 to 80% of a core on their own
 screen in full motion), and with a clip seeked in the review page the
 recorder page froze for 4 to 19 s in 10 of 12 runs, and in none of 4 without
 one, so the check stops recording before any clip plays. Watching a clip
-between matches while recording is the game test's to measure.
+between matches while recording is the game test's to measure. check:clips
+draws its picture 30 times a second, as it always did, where check:recorder
+draws 60: drawn at 60, its stills held against a `<video>` seeked to the
+same second failed, a still and a seek a frame apart (the recorded frames up
+to 50 ms apart) differing by 4.6 of 255 where the check allows 4, and one seek
+a second early presenting no new frame. The stills are WebCodecs' own frames;
+it is the seek that lands a frame either side.
 
 ## Layout
 
