@@ -750,6 +750,46 @@ setTimeout(async () => {
     lines.push(`held, a page opened: shown=${mainWindow.current().shown} sealed=${mainWindow.current().sealed}`);
     if (!lifted) return report(false, 'a page opened from the sidebar did not lift the held seal');
 
+    // 6b. HOME'S RANK JOURNEY OPENS THE JOURNEY (8.4.1), through the real
+    // register-ipc.js and index.js: OPEN_STATS with 'journey' shows Stats with
+    // the journey open under the Rank tile, as the page loads, and kept from
+    // before, as it is about to show (its arm) or as it comes back called off
+    // a switch that never arrived (an enter alone). Shown plainly, it is as
+    // the player left it.
+    const statsJs = (s) => mainWindow.pageViews().get('stats').webContents.executeJavaScript(s);
+    const notesOpen = "document.getElementById('rank-reveal').classList.contains('open')";
+    const fold = () => statsJs("document.querySelector('#cards .card.clickable').click(); true");
+    // On screen, not only asked for: the page it replaced is out of sight.
+    const settledOn = (to, from) => until(() => mainWindow.current().shown === to
+      && !!mainWindow.pageViews().get(from) && !mainWindow.pageViews().get(from).getVisible(), 4000);
+    ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');
+    const firstOpen = await until(async () => mainWindow.current().shown === 'stats' && mainWindow.pageViews().get('stats')
+      && await statsJs(notesOpen), 8000);
+    await fold();
+    mainWindow.show('home');
+    await settledOn('home', 'stats');
+    mainWindow.show('stats');
+    await settledOn('stats', 'home');
+    await wait(400);
+    const plainFolded = !(await statsJs(notesOpen));
+    mainWindow.show('home');
+    await settledOn('home', 'stats');
+    ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');
+    const armOpen = await until(async () => mainWindow.current().shown === 'stats' && await statsJs(notesOpen), 5000);
+    await fold();
+    await wait(300);
+    mainWindow.show('home');           // and before Home has come in,
+    ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');   // Stats is called back
+    const enterOpen = await until(async () => mainWindow.current().shown === 'stats' && await statsJs(notesOpen), 5000);
+    lines.push(`Rank journey: opened=${!!firstOpen} shown plainly after it is folded=${plainFolded ? 'folded' : 'open'}`
+      + ` from Home again=${!!armOpen} called back mid switch=${!!enterOpen}`);
+    if (!firstOpen) return report(false, 'Home\'s Rank journey opened Stats with the journey folded in the Rank tile');
+    if (!plainFolded) return report(false, 'Stats shown plainly opened the journey the player had folded');
+    if (!armOpen) return report(false, 'Home\'s Rank journey, with Stats kept from before, did not open the journey');
+    if (!enterOpen) return report(false, 'Home\'s Rank journey, Stats called back before Home came in, did not open the journey');
+    mainWindow.show('patterns');
+    await until(() => mainWindow.current().shown === 'patterns', 3000);
+
     // 7. CLOSING QUITS (8.4.1). Its X and Alt+F4 (the taskbar's Close is the
     // same 'close') quit by the tray's own path, cleanupAndQuit, and with no
     // match being recorded and no review being built (step 5b's is whole)

@@ -25,6 +25,41 @@
 
 const FIELDS = `STATE: {"side":null,"phase":null,"round":null,"clock":null,"team":null,"enemy":null,"credits":null,"hp":null,"alive":null,"aliveTell":null,"mates":null,"foes":null,"weapon":null,"ult":null,"map":null,"mode":null,"mmPos":null,"locLabel":null,"playerSpot":null,"enemySpot":null,"push":null,"pushOnSite":null,"spike":null,"spikeSpot":null,"killFeed":null,"teamRead":null,"note":null}`;
 
+/*
+ * VARIANT B (8.4.1), FOR THE BENCH ONLY. routes/coach.js serves it when an
+ * admin bench names it (readVariant, beside the admin password as a bench
+ * model is) and never to a player, so the live prompt below is the one every
+ * install reads with, byte for byte as it was. It becomes the default only
+ * once npm run verify:ai has passed it live, plain and with --lag 4.
+ *
+ * On the player's Fracture swiftplay of 14 Oct the live prompt registered two
+ * deaths of a living player, one of them filed in a round Riot has them
+ * surviving:
+ *   - it offers "the word Spectating" as a dead tell and hands the model a
+ *     sentence to copy, "a teammate's portrait and name above SWITCH PLAYER",
+ *     which came back word for word on frames of a living player whose only
+ *     cue was the SPECTATORS 1 counter, and it never says what that counter is
+ *   - it says a planted spike has a timer, and Valorant prints none: the
+ *     round timer gives way to the spike icon
+ * B drops the word, says what the counter is, asks for the death screen's
+ * words only when they are printed on the frame, with no sentence to copy,
+ * and says there is no clock after a plant. Only these two entries differ,
+ * b's alive one a line longer for the counter (three lines of the prompt in
+ * all); the STATE line is the same, so mapState() reads either reply alike.
+ */
+const VARIANTS = ['b'];
+const LINES = {
+  alive: {
+    live: `- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"). No: alive false, and aliveTell names the dead tell: the word "Spectating", a teammate's portrait and name above "SWITCH PLAYER" bottom-left, "KILLED BY" upper right, a "COMBAT REPORT", a killcam, or no own health number at all. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. A flash, a smoke or a scope is not death.`,
+    b: `- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"). No: alive false, and aliveTell names the evidence on THIS frame. The death screen prints SWITCH PLAYER at the bottom-left, KILLED BY at the upper right and a COMBAT REPORT panel: write those words in aliveTell only when they are printed on this frame, never because you expect them there. With none of them printed, aliveTell names what you see in place of the player's own health and loadout. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. A flash, a smoke or a scope is not death.
+- SPECTATORS and a number at the top right counts the people watching the player on screen. A living player sees it, so it is never a sign of death, and it is no sign of life either: decide alive from the health number and the death screen, never from it, and never write it in aliveTell.`,
+  },
+  clock: {
+    live: `- clock: the round timer at the top-center exactly as shown ("1:12"). After a plant it is the spike timer.`,
+    b: `- clock: the round timer at the top-center exactly as shown ("1:12"). Once the spike is planted the game shows the spike icon there and no timer at all: clock null.`,
+  },
+};
+
 function contextLine(ctx) {
   const c = ctx || {};
   const bits = [];
@@ -41,7 +76,12 @@ function contextLine(ctx) {
     : '';
 }
 
-function buildReadPrompt(ctx) {
+/**
+ * @param ctx      what the last applied read showed (contextLine)
+ * @param variant  'b' for the bench's variant, anything else the live prompt
+ */
+function buildReadPrompt(ctx, variant) {
+  const v = VARIANTS.includes(variant) ? variant : 'live';
   return `You are reading one Valorant screenshot for a match recorder. You do not coach and you do not advise. You report what the screen shows.
 
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match, end of match screen), reply with exactly LOBBY and nothing else.
@@ -53,11 +93,11 @@ Every field is null unless you can READ it on screen. A guess is worse than a nu
 
 ${contextLine(ctx)}
 
-- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"). No: alive false, and aliveTell names the dead tell: the word "Spectating", a teammate's portrait and name above "SWITCH PLAYER" bottom-left, "KILLED BY" upper right, a "COMBAT REPORT", a killcam, or no own health number at all. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. A flash, a smoke or a scope is not death.
+${LINES.alive[v]}
 - hp: the player's OWN health number at the bottom-center, else null. Never estimate, never carry over.
 - team, enemy, round: read the TWO SCORE DIGITS at the top-center, team is your side's score. round = team + enemy + 1. NEVER infer the round from a banner like "LAST ROUND BEFORE SWAP" or "MATCH POINT"; if the digits are unreadable all three are null.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating).
-- clock: the round timer at the top-center exactly as shown ("1:12"). After a plant it is the spike timer.
+${LINES.clock[v]}
 - side: in the buy phase read the ATTACKING or DEFENDING banner at the top, it is authoritative. Otherwise "attack" if your team has the spike, "defense" if you see a defuser, else null.
 - mode: only when printed on screen (SWIFTPLAY, COMPETITIVE, UNRATED), else null.
 - locLabel: the location text the game prints beside the top-left of the minimap ("Mid Top", "A Lobby"). Copy it EXACTLY, never substitute a callout you think fits better.
@@ -78,4 +118,4 @@ ${contextLine(ctx)}
 Use commas, never dashes. No markdown, no preamble, no second line.`;
 }
 
-module.exports = { buildReadPrompt, FIELDS };
+module.exports = { buildReadPrompt, FIELDS, VARIANTS };

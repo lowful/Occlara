@@ -28,6 +28,10 @@ const CHANNELS = {
   STATS_MATCHES:    'stats:matches',       // (mode) → { matches, fetchedAt, mode } cached fetch for mode switching
   CHAT_SEED:        'chat:seed',         // () → pending session context for Ask Coach, cleared on read
   STATS_RANK_HISTORY: 'stats:rankHistory', // () → { points: [{date, elo, change, tier}], current }
+  // What the Stats page was opened to show (8.4.1): 'journey' when Home's
+  // Rank journey opened it (OPEN_STATS), else null. Cleared on read, as
+  // CHAT_SEED is; the page asks as it loads and each time it is about to show.
+  STATS_OPENED_FOR: 'stats:openedFor',   // () → 'journey' | null
   WEEKLY_GET:       'weekly:get',        // () → the week's report (stat movement, strengths, what to fix)
   LEARN_GET:        'learn:get',         // () → { curriculum, progress, champions }
   LEARN_PROGRESS:   'learn:progress',    // ({ lessonId, done }) → { ok, progress }
@@ -52,7 +56,7 @@ const CHANNELS = {
   OPEN_SETTINGS:   'window:openSettings',
   OPEN_HISTORY:    'window:openHistory',
   OPEN_CHAT:       'window:openChat',    // the Ask Coach chat window
-  OPEN_STATS:      'window:openStats',   // the extended stats dashboard window
+  OPEN_STATS:      'window:openStats',   // (what?) the Stats page; 'journey' opens it with the rank journey open
   OPEN_WEEKLY:     'window:openWeekly',  // the weekly report popup
   OPEN_AILOG:      'window:openAiLog',   // (sessionId?) the AI decision-log viewer
   OPEN_LEARN:      'window:openLearn',   // the League learning surface

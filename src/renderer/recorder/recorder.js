@@ -251,7 +251,28 @@
     bridge.status({
       type: 'started', ok: true, encoderOk: true, mime: recorder.mimeType, startWall,
       settings: { width: settings.width, height: settings.height, frameRate: settings.frameRate, aspectRatio: settings.aspectRatio, resizeMode: settings.resizeMode },
+      // The bitrate MediaRecorder took, which can differ from the one asked.
+      videoBitsPerSecond: Number.isFinite(recorder.videoBitsPerSecond) ? recorder.videoBitsPerSecond : null,
     });
+  }
+
+  /**
+   * The track's own settings as Chromium reports them now, its frame rate and
+   * size, the canvas's size for a generated track (which reports none). Read
+   * each second for main's minute line (recorder.js logStatus), beside the
+   * frames that came: on the player's Fracture swiftplay the recording fell
+   * from 57 to 32 frames a second for its last two minutes, and nothing in the
+   * log said whether the capture had been asked for less (8.4.1).
+   */
+  function trackSettings(r) {
+    let s = {};
+    try { s = r.track.getSettings() || {}; } catch { s = {}; }
+    const size = r.src && r.src.size;
+    return {
+      width: s.width || (size && size.width) || null,
+      height: s.height || (size && size.height) || null,
+      frameRate: Number.isFinite(s.frameRate) ? r1(s.frameRate) : null,
+    };
   }
 
   /** Once a second, how the capture is coping (health.js keeps the account). */
@@ -263,6 +284,7 @@
       type: 'health', at: Date.now(), fps: a.fps, changing: a.changing, luma: a.luma, frameAgeMs: a.frameAgeMs,
       lagMs: Math.max(0, Date.now() - r.state.lastChunkAt - r.timeslice),
       framesOpen: open,
+      track: trackSettings(r),
     });
   }
 

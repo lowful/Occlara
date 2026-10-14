@@ -42,7 +42,11 @@ let deathAt = -1;       // which death is on screen, an index into `deaths`
 let tipEra = false;
 const recordedTips = (recs) => recs.some((r) => r && Object.prototype.hasOwnProperty.call(r, 'shown'));
 
-/** "an Outlaw", "an Odin", "a Vandal": the kill line names Riot's weapon. */
+/**
+ * "an Outlaw", "an Odin", "a Vandal": the kill line names Riot's weapon, and
+ * none when Riot's record names none (death-reconcile.js keeps a name only,
+ * never a type such as "Weapon", 8.4.1).
+ */
 const withWeapon = (w) => (w ? ` with ${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}` : '');
 
 // The STATE fields worth surfacing, in a sensible reading order, with the
@@ -258,6 +262,8 @@ function paintDeathNav() {
   const bits = [];
   if (d.round) bits.push(`round ${d.round}`);
   if (d.killedBy) bits.push(`killed by ${d.killedBy}`);
+  // Riot's check found no death in its round (confirmDeaths).
+  if (d.refuted) bits.push('Riot has no death in this round');
   if (!tipEra) {
     why.textContent = bits.join(', ');
     why.className = 'deathnav-why';
@@ -685,18 +691,32 @@ function confirmDeaths(forSession, forScope) {
     box.appendChild(el('span', 'dot'));
     box.appendChild(el('span', null, rec.summary));
 
-    // When the counts agree the pairing is trustworthy, so each mark can carry
-    // the real round, killer and weapon instead of the model's reading of them.
-    if (rec.pairs && rec.pairs.length) {
-      const marks = [...document.querySelectorAll('#marks .mark-death')];
-      rec.pairs.forEach((p, i) => {
-        const d = deaths[i];
-        if (!d || !marks[i]) return;
-        d.round = p.round; d.killedBy = p.killer; d.weapon = p.weapon; d.confirmed = true;
-        const said = !tipEra ? '' : d.reviewed ? ', reviewed by the coach' : ', no review was shown';
-        marks[i].title = `Round ${p.round}: killed by ${p.killer}${withWeapon(p.weapon)}${said}. Confirmed by Riot.`;
-      });
+    // Each mark Riot's record pairs carries the real round, killer and weapon
+    // instead of the model's reading of them. Checked round by round (8.4.1),
+    // a pair names its death's frame (`at`), and a death in a round Riot has
+    // none in is said to be one; checked by counts, in an older log, the
+    // deaths are paired in order, and only when the counts agree.
+    const marks = [...document.querySelectorAll('#marks .mark-death')];
+    (rec.pairs || []).forEach((p, i) => {
+      const k = typeof p.at === 'number' ? deaths.findIndex((x) => x.at === p.at) : i;
+      const d = deaths[k];
+      if (!d || !marks[k]) return;
+      d.round = p.round; d.killedBy = p.killer; d.weapon = p.weapon; d.confirmed = true;
+      const said = !tipEra ? '' : d.reviewed ? ', reviewed by the coach' : ', no review was shown';
+      // A killer Riot's record does not name is none (the server answers null
+      // for one its roster lacks, never a name, 8.4.1), and the mark says no
+      // killer rather than "killed by null".
+      const by = p.killer ? `: killed by ${p.killer}${withWeapon(p.weapon)}` : '';
+      marks[k].title = `Round ${p.round}${by}${said}. Confirmed by Riot.`;
+    });
+    for (const x of Array.isArray(rec.refuted) ? rec.refuted : []) {
+      const k = deaths.findIndex((d) => d.at === x.at);
+      if (k === -1 || !marks[k]) continue;
+      deaths[k].refuted = true;
+      marks[k].classList.add('refuted');
+      marks[k].title = `Round ${x.round}: Riot has no death in this round. Frame ${x.at + 1}.`;
     }
+    paintDeathNav();
   }).catch(() => { /* a confirmation that does not arrive changes nothing */ });
 }
 

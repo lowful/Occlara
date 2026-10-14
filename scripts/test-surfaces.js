@@ -2000,6 +2000,185 @@ async function openShell(cfg, state, opts) {
     ok(!turned(), 'and a repaint while they are closed leaves it closed');
   });
 
+  // HOME'S RANK JOURNEY OPENS THE JOURNEY (8.4.1). It opened Stats with the
+  // journey folded in the Rank tile. Main keeps what the page was opened for
+  // until the page asks (STATS_OPENED_FOR, taken once, stood in for here as
+  // main answers it), as it loads and each time it is about to show.
+  await section('Stats, opened from Home\'s Rank journey, opens with the journey open:', async () => {
+    const pt = (elo, change) => ({ date: Date.UTC(2026, 9, 1), elo, change, tier: 'Gold 2' });
+    const history = { points: [pt(1180, -21), pt(1218, 18), pt(1203, -15)] };
+    let pending = null;   // what main was last asked to open Stats for
+    const asked = [];
+    const statsOpened = () => loadSurface('stats', {
+      handlers: {
+        [C.STATS_DASHBOARD]: (mode) => ({ game: 'valorant', statsSupported: true, categories: {},
+          rank: { value: 'Gold 2', direction: 'flat' }, winRate: { value: 52, direction: 'up' }, topAgents: [],
+          sessions: [], sessionCount: 0, matches: { matches: [], fetchedAt: 0, mode: mode || 'competitive' }, grading: null, riotId: 'Me#EUW' }),
+        [C.STATS_MATCHES]: () => ({ matches: [] }),
+        [C.STATS_RANK_HISTORY]: () => history,
+        [C.STATS_OPENED_FOR]: () => { const w = pending; asked.push(w); pending = null; return w; },
+      },
+    });
+    const isOpen = (st) => !st.$('rank-reveal').hidden && st.$('rank-reveal').classList.contains('open')
+      && !!rankTileOf(st) && rankTileOf(st).classList.contains('notes-open');
+    pending = 'journey';
+    const st = statsOpened();
+    await repainted(st);
+    await repainted(st);
+    ok(isOpen(st) && !!st.document.querySelector('#rank-notes .rank-graph path.rg-line') && /About Gold/.test(st.$('rank-notes').textContent),
+      'opened for the journey, the page loads with it open under the Rank tile, the journey drawn',
+      `open ${isOpen(st)}, notes "${st.$('rank-notes').textContent.slice(0, 60)}"`);
+    ok(same(asked, ['journey']), 'asked once as the page loads, which takes it', JSON.stringify(asked));
+    // Kept between visits: shown again from the sidebar, it asks and nothing opens.
+    rankTileOf(st).click();
+    st.clock.advance(220);
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'arm', dir: 'forward' });
+    await repainted(st);
+    ok(!isOpen(st) && same(asked, ['journey', null]), 'closed by the player and shown again from the sidebar, it asks as it arms, and stays closed');
+    // From Home again: open, the overview scrolled to, and never toggled shut.
+    let scrolled = 0;
+    st.$('sec-overview').scrollIntoView = () => { scrolled++; };
+    pending = 'journey';
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'arm', dir: 'forward' });
+    await repainted(st);
+    ok(isOpen(st) && scrolled === 1, 'from Home again, the arm asks and the journey opens, the overview scrolled to');
+    pending = 'journey';
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'arm', dir: 'forward' });
+    await repainted(st);
+    ok(isOpen(st), 'asked for again while it is open, it stays open, never toggled shut');
+    // Called back mid switch (Home asked for, then Stats again before Home came
+    // in), the page on screen is told to enter with no arm: that asks too.
+    rankTileOf(st).click();
+    st.clock.advance(220);
+    pending = 'journey';
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'none' });
+    await repainted(st);
+    ok(isOpen(st) && asked[asked.length - 1] === 'journey', 'and called back mid switch, an enter with no arm before it asks as well, and it opens');
+    // Opened plainly, it loads closed.
+    pending = null;
+    const plain = statsOpened();
+    await repainted(plain);
+    await repainted(plain);
+    ok(!isOpen(plain) && plain.$('rank-reveal').hidden, 'opened any other way, it loads with the journey closed, as before');
+  });
+
+  // And main's half: its own two lines in a sandbox (index.js openStats and
+  // takeStatsOpen), and the wiring to them (register-ipc.js, electron stood in for).
+  await section('Main keeps what Stats was opened for until the page asks, once:', async () => {
+    const vm = require('vm');
+    const idxSrc = fs.readFileSync(path.join(ROOT, 'src', 'main', 'index.js'), 'utf8');
+    const at = idxSrc.indexOf('  openStats(what) {');
+    const end = at < 0 ? -1 : idxSrc.indexOf('\n', idxSrc.indexOf('takeStatsOpen() {', at));
+    const CTL = end < 0 ? '' : idxSrc.slice(at, end);
+    const opened = [];
+    const box = { state: {}, openPage: (id) => opened.push(id) };
+    vm.createContext(box);
+    const ctl = CTL ? vm.runInContext(`({\n${CTL}\n})`, box) : null;
+    ok(!!ctl && typeof ctl.openStats === 'function' && typeof ctl.takeStatsOpen === 'function',
+      'main\'s two lines are found and run in the sandbox', CTL.slice(0, 120));
+    if (ctl) {
+      ctl.openStats('journey');
+      ok(same(opened, ['stats']) && ctl.takeStatsOpen() === 'journey' && ctl.takeStatsOpen() === null,
+        'Home\'s Rank journey opens Stats, and the page that asks is told the journey, once');
+      ctl.openStats('journey');
+      ctl.openStats(null);
+      ok(ctl.takeStatsOpen() === null && same(opened, ['stats', 'stats', 'stats']), 'opened plainly after it, Stats is told nothing');
+    }
+    const Module = require('module');
+    const file = require.resolve('../src/main/ipc/register-ipc');
+    const on = {};
+    const handled = {};
+    const electron = {
+      ipcMain: { handle: (ch, fn) => { handled[ch] = fn; }, on: (ch, fn) => { on[ch] = fn; } },
+      shell: { openExternal: () => Promise.resolve() },
+    };
+    const stubs = { '../services/store': { get: () => undefined, set() {} }, '../updater': {}, '../services/pc-check': {} };
+    const calls = [];
+    const controller = { openStats: (w) => { calls.push(['open', w]); }, takeStatsOpen: () => { calls.push(['take']); return 'journey'; } };
+    const realLoad = Module._load;
+    Module._load = function stand(request, parent, ...rest) {
+      if (request === 'electron') return electron;
+      if (parent && parent.filename === file && Object.prototype.hasOwnProperty.call(stubs, request)) return stubs[request];
+      return realLoad.call(this, request, parent, ...rest);
+    };
+    try {
+      delete require.cache[file];
+      require(file)({ controller, license: {} });
+    } finally {
+      Module._load = realLoad;
+      delete require.cache[file];
+    }
+    if (on[C.OPEN_STATS]) { on[C.OPEN_STATS]({}, 'journey'); on[C.OPEN_STATS]({}); on[C.OPEN_STATS]({}, 'https://evil.example'); }
+    const told = handled[C.STATS_OPENED_FOR] ? await handled[C.STATS_OPENED_FOR]({}) : undefined;
+    ok(same(calls, [['open', 'journey'], ['open', null], ['open', null], ['take']]) && told === 'journey',
+      'OPEN_STATS hands main the journey and nothing else a page sends, and STATS_OPENED_FOR is main\'s take', JSON.stringify(calls));
+  });
+
+  // NEVER ANOTHER PLAYER'S NAME OR TAG (8.4.1). "Your team" showed every
+  // teammate's full Riot ID; Valorant lets a player hide theirs, and Riot's
+  // policy is that no product shows a player's identity to others without
+  // their opt in. The server sends none since, and a name an older server
+  // still sends is never painted.
+  await section('Stats, a match\'s team: agents and numbers, never another player\'s name or tag:', async () => {
+    const team = [
+      { name: 'Fade#EUW', agent: 'Sova', kills: 20, deaths: 12, assists: 6, acs: 260, me: false },   // as an 8.4.0 server sends it
+      { agent: 'Jett', kills: 18, deaths: 10, assists: 3, acs: 240, me: true },
+      { agent: null, kills: 5, deaths: 14, assists: 9, acs: 110, me: false },
+    ];
+    const match = { id: 'tm1', map: 'Fracture', agent: 'Jett', queue: 'Swiftplay', result: 'Victory', score: '5-1',
+      kills: 18, deaths: 10, assists: 3, kd: 1.8, acs: 240, adr: 150, headshotPct: 25, kpr: 1, dpr: 0.5, apr: 0.2,
+      dmgDelta: 30, rating: 86, startedAt: Date.UTC(2026, 9, 14), mvp: null, team };
+    const st = loadSurface('stats', {
+      handlers: {
+        [C.STATS_DASHBOARD]: () => ({ game: 'valorant', statsSupported: true, categories: {},
+          rank: { value: null, direction: 'flat' }, winRate: { value: null, direction: 'flat' }, topAgents: [],
+          sessions: [], sessionCount: 0, matches: { matches: [match], fetchedAt: 1, mode: 'competitive' }, grading: null, riotId: 'Me#EUW' }),
+        [C.STATS_MATCHES]: () => ({ matches: [match] }),
+        [C.STATS_RANK_HISTORY]: () => ({ points: [] }),
+      },
+    });
+    await repainted(st);
+    const rows = st.document.querySelectorAll('#match-list .team-row');
+    const read = rows.map((r) => r.children.map((c) => c.textContent));
+    ok(same(read, [['Sova', '', '20/12/6  ACS 260'], ['Jett', 'You', '18/10/3  ACS 240'], ['Unknown agent', '', '5/14/9  ACS 110']]),
+      'each teammate is their agent and their numbers, the player\'s own row "You"', JSON.stringify(read));
+    ok(rows.length === 3 && rows[1].classList.contains('me') && !rows[0].classList.contains('me'), 'the player\'s own row is the one marked');
+    ok(/Your team/.test(st.$('match-list').textContent) && !/Fade|#EUW/.test(st.$('match-list').textContent),
+      'and no name or tag is painted, not even one an older server still sends');
+  });
+
+  // THE RANK JOURNEY IN THE TOKENS (8.4.1): it was the retired cyan over a
+  // gradient fill, written into stats.js's markup, which check:palette never
+  // read. Now its colours are stats.css's, as Home draws the same journey.
+  await section('Stats\' rank journey is drawn in the tokens over one solid fill:', async () => {
+    const pt = (elo, change) => ({ date: Date.UTC(2026, 9, 1), elo, change, tier: 'Gold 2' });
+    const st = statsWithRank(() => ({ points: [pt(1180, -21), pt(1218, 18), pt(1203, -15)] }));
+    await repainted(st);
+    rankTileOf(st).click();
+    await repainted(st);
+    const graph = st.document.querySelector('#rank-notes .rank-graph');
+    const svg = graph ? graph.innerHTML : '';
+    ok(!!graph && !!graph.querySelector('svg path.rg-area') && !!graph.querySelector('svg path.rg-line') && !!graph.querySelector('.rg-plot > span.rg-dot')
+      && !graph.querySelector('circle'), 'the journey is drawn: the area under it, its line and the newest game\'s dot, a span over the line as Home\'s is');
+    ok(/stroke="#00F0FF"/.test('<path stroke="#00F0FF"/>') && /gradient/i.test('<linearGradient id="rgFill">'),
+      'the markup check finds the cyan and the gradient it replaced');
+    ok(svg.length > 200 && !/gradient/i.test(svg) && !/#[0-9a-f]{3,8}\b/i.test(svg) && !/\b(?:fill|stroke|stop-color)="/.test(svg),
+      'with no gradient and no colour of its own in the markup', svg.slice(0, 160));
+    const css = fs.readFileSync(path.join(RENDERER, 'stats', 'stats.css'), 'utf8');
+    const rule = (sel) => {
+      const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return (css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
+    };
+    const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
+    ok(prop(rule('.rank-graph svg'), 'height') === '96px', 'the rule reader finds a known rule');
+    ok(prop(rule('.rank-graph .rg-line'), 'stroke') === 'var(--text-dim)' && prop(rule('.rank-graph .rg-dot'), 'background') === 'var(--text)'
+      && prop(rule('.rank-graph .rg-area'), 'fill') === 'rgba(var(--cyan-rgb),0.06)',
+    'its line is --text-dim, its dot --text, over one solid tint of the accent');
+    const home = fs.readFileSync(path.join(RENDERER, 'home', 'home.css'), 'utf8');
+    ok(/\.rank-line path \{[^}]*stroke: var\(--text-dim\)/.test(home) && /\.rank-dot \{[^}]*background: var\(--text\)/.test(home),
+      'the line and the dot Home draws the same journey with');
+  });
+
   // ── Home (8.2.1) ─────────────────────────────────────────────────────────
   // A library of five Valorant matches, newest first as main lists them,
   // three of them Competitive, the newest with its AI log still kept; and a
@@ -2206,7 +2385,10 @@ async function openShell(cfg, state, opts) {
     ok(same(rowRR(h), ['+24 RR:gain', '-16 RR:loss', '', '+21 RR:gain', '']),
       'each Competitive match shows the RR its own game moved; Unrated and Swiftplay none', JSON.stringify(rowRR(h)));
     h.$('rank-more').click();
-    ok(same(h.bridge.sent.filter((s) => s[0] === C.SHELL_NAV), [[C.SHELL_NAV, 'stats']]), 'Rank journey opens Stats, where the journey is drawn');
+    // With the journey open (8.4.1): it opened Stats with the journey folded
+    // in the Rank tile. Stats' half is 'Stats, opened from Home's Rank journey'.
+    ok(same(h.bridge.sent.filter((s) => s[0] === C.SHELL_NAV || s[0] === C.OPEN_STATS), [[C.OPEN_STATS, 'journey']]),
+      'Rank journey asks main for Stats with the journey open (OPEN_STATS, \'journey\')', JSON.stringify(h.bridge.sent));
     ok(h.bridge.invoked.filter((x) => x[0] === C.STATS_RANK_HISTORY).every((x) => x[1] === false),
       'read from the history main keeps, never forced past its cache');
     // Where it sits: under the focus, in the room the last match leaves; with
@@ -2982,6 +3164,98 @@ async function openShell(cfg, state, opts) {
     }
   });
 
+  // THE ENGINE'S DEATHS, AND RIOT'S CHECK OF THEM ROUND BY ROUND (8.4.1), on
+  // the shape of the player's Fracture swiftplay: one SWITCH PLAYER frame the
+  // engine never registered, then a false round 1 death it kept and the real
+  // round 2 one, a weak tell's withdrawn between them, and Riot has round 2
+  // alone, with no weapon name. Main's check stood in for by the real
+  // reconcile it runs (index.js confirmDeaths).
+  await section('the AI log opens a match on the death the engine kept, and Riot\'s check says each by its round:', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-surfaces-engine-'));
+    try {
+      const dr = require('../src/main/services/death-reconcile');
+      const jpeg = Buffer.from('ffd8ffe000104a464946', 'hex');
+      const M = Date.UTC(2026, 9, 14, 0, 24, 51);
+      const sid = 'session-2026-10-14T00-24-51-000Z';
+      const dir = path.join(root, sid);
+      fs.mkdirSync(dir, { recursive: true });
+      const OWN = { map: 'Fracture', playerAlive: true, playerHp: 100, aliveTell: 'own HP 100 and Classic bottom left', teamScore: 0, enemyScore: 0 };
+      const SWITCH = { map: 'Fracture', playerAlive: false, aliveTell: 'Spectating, teammate portrait and SWITCH PLAYER bottom left', teamScore: 0, enemyScore: 0 };
+      const WEAK = { map: 'Fracture', playerAlive: false, aliveTell: 'Spectating teammate, own HP not shown', teamScore: 1, enemyScore: 0 };
+      const KILLED = { map: 'Fracture', playerAlive: false, aliveTell: 'KILLED BY CHAMBER and COMBAT REPORT visible, no own health number', teamScore: 1, enemyScore: 0 };
+      const rows = [[OWN, 1], [SWITCH, 1], [OWN, 1], [SWITCH, 1, true], [SWITCH, 1], [{ ...OWN, teamScore: 1 }, 2], [WEAK, 2], [{ ...OWN, teamScore: 1 }, 2],
+        [KILLED, 2, true], [KILLED, 2]];
+      const records = rows.map(([state, round, died], i) => {
+        const frame = `frame-${String(i).padStart(5, '0')}.jpg`;
+        fs.writeFileSync(path.join(dir, frame), jpeg);
+        return { i, at: M + 60000 + i * 1000, frame, state, round, died: died === true, match: M };
+      });
+      fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify({ startedAt: M, records }));
+      const scope = aiLogStore.placeOf(dir, M, M + 600000);
+      const riot = { rounds: 2, total: 1, deaths: [{ round: 2, killer: 'Chamber', weapon: 'Weapon', atMs: 3000 }] };
+      const a = loadSurface('ailog', {
+        handlers: {
+          [C.AILOG_GET]: (id, sc) => aiLogStore.read(root, id, null, sc),
+          [C.AILOG_CONFIRM]: (id, sc) => {
+            const log = aiLogStore.read(root, id, null, sc);
+            const rec = dr.reconcile(log.deaths, riot, log.records);
+            rec.summary = dr.summarise(rec);
+            return rec;
+          },
+          [C.CONFIG_GET]: () => ({ ailogHintSeen: 3 }),
+        },
+        window: { location: { hash: `#${encodeURIComponent(JSON.stringify({ scope }))}`, search: '' } },
+      });
+      await settle();
+      const marks = a.document.querySelectorAll('#marks .mark-death');
+      ok(Number(a.$('slider').value) === 3 && a.$('death-pos').textContent === 'Death 1 of 2' && marks.length === 2,
+        'the eye opens on the match\'s first death the engine kept, not a SWITCH PLAYER frame it never registered, the withdrawn read no death',
+        `${a.$('slider').value} | ${a.$('death-pos').textContent} | ${marks.length}`);
+      ok(a.$('confirm').textContent === "Checked against Riot's record of the match: the screen read 2 deaths and Riot has 1, with none in round 1."
+        && a.$('confirm').classList.contains('overcounted') && !DASHES.test(a.$('confirm').textContent),
+      'Riot\'s check says it as the review says it', `read "${a.$('confirm').textContent}"`);
+      ok(marks[0] && marks[0].classList.contains('refuted') && marks[0].title === 'Round 1: Riot has no death in this round. Frame 4.'
+        && a.$('death-why').textContent === 'round 1, Riot has no death in this round',
+      'the death in a round Riot has none in is marked so, dimmed', `read "${marks[0] && marks[0].title}" | "${a.$('death-why').textContent}"`);
+      ok(marks[1] && !marks[1].classList.contains('refuted') && marks[1].title === 'Round 2: killed by Chamber. Confirmed by Riot.',
+        'and the one Riot has carries its killer, and no "with a Weapon" for a kill Riot named no weapon for', `read "${marks[1] && marks[1].title}"`);
+      // A killer Riot's record does not name: the server answers null for one
+      // its roster lacks, never a name (8.4.1), and the mark says no killer.
+      // And a server from before 8.4.1, which still sends the killer's Riot
+      // ID: main's check keeps a killer only as an agent, so none is painted.
+      const openWith = async (killer) => {
+        riot.deaths[0] = { round: 2, killer, weapon: 'Vandal', atMs: 3000 };
+        const b = loadSurface('ailog', {
+          handlers: {
+            [C.AILOG_GET]: (id, sc) => aiLogStore.read(root, id, null, sc),
+            [C.AILOG_CONFIRM]: (id, sc) => {
+              const log = aiLogStore.read(root, id, null, sc);
+              const rec = dr.reconcile(log.deaths, riot, log.records);
+              rec.summary = dr.summarise(rec);
+              return rec;
+            },
+            [C.CONFIG_GET]: () => ({ ailogHintSeen: 3 }),
+          },
+          window: { location: { hash: `#${encodeURIComponent(JSON.stringify({ scope }))}`, search: '' } },
+        });
+        await settle();
+        const mark = b.document.querySelectorAll('#marks .mark-death')[1];
+        b.$('death-next').click();
+        return { title: mark ? mark.title : null, why: b.$('death-why').textContent, text: b.document.body.textContent };
+      };
+      const unnamed = await openWith(null);
+      ok(unnamed.title === 'Round 2. Confirmed by Riot.' && unnamed.why === 'round 2' && !/null|undefined/.test(`${unnamed.title} ${unnamed.why}`),
+        'and one whose killer Riot\'s record does not name says no killer, never "killed by null"',
+        `read "${unnamed.title}" | "${unnamed.why}"`);
+      const named = await openWith('Foe#NA1');
+      ok(named.title === 'Round 2. Confirmed by Riot.' && named.why === 'round 2' && !/Foe|NA1/.test(`${named.title} ${named.why} ${named.text}`),
+        'and a server from before, sending the killer\'s Riot ID, has no name painted: the killer is an agent or none',
+        `read "${named.title}" | "${named.why}"`);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   // ONE MATCH, from a review's eye (8.2): the AI log opens on that match's
   // frames alone, in death review mode, with no picker and "Whole session" in
   // its place; gone, it says so plainly; sealed mid match, it shows nothing.
@@ -2998,10 +3272,11 @@ async function openShell(cfg, state, opts) {
       const write = (name, recs, mtime) => {
         const dir = path.join(root, name);
         fs.mkdirSync(dir, { recursive: true });
-        const records = recs.map(([at, state, match], i) => {
+        // `died` as the engine writes it, on the frame it registered a death on.
+        const records = recs.map(([at, state, match, died], i) => {
           const frame = `frame-${String(i).padStart(5, '0')}.jpg`;
           fs.writeFileSync(path.join(dir, frame), jpeg);
-          return { i, at, frame, state, round: 4, died: false, match };
+          return { i, at, frame, state, round: 4, died: died === true, match };
         });
         fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify({ startedAt: records[0].at, records }));
         fs.utimesSync(dir, mtime / 1000, mtime / 1000);
@@ -3014,7 +3289,7 @@ async function openShell(cfg, state, opts) {
       const M0 = M1 - 1800000;
       const dir = write(sid, [
         [M0 + 60000, alive, M0], [M0 + 70000, alive, M0],
-        [M1 + 60000, alive, M1], [M1 + 70000, alive, M1], [M1 + 80000, dead, M1], [M1 + 90000, dead, M1], [E1 - 30000, alive, M1],
+        [M1 + 60000, alive, M1], [M1 + 70000, alive, M1], [M1 + 80000, dead, M1, true], [M1 + 90000, dead, M1], [E1 - 30000, alive, M1],
         [M2 + 60000, alive, M2], [M2 + 70000, alive, M2], [M2 + 80000, alive, M2],
       ], M2 + 80000);
       write('session-2026-09-30T10-00-00-000Z', [[M1 - 86400000, alive, M1 - 86400000], [M1 - 86000000, alive, M1 - 86400000]], M1 - 86000000);

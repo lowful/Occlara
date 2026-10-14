@@ -148,16 +148,18 @@ const sessionName = (at) => 'session-' + new Date(at).toISOString().replace(/[:.
 function logSession(at, recs) {
   const dir = path.join(ud, 'ai-log', sessionName(at));
   fs.mkdirSync(dir, { recursive: true });
-  const records = recs.map(([t, state, match], i) => {
+  // `died` as the engine writes it, true on the frame it registered a death on:
+  // the AI log's deaths are the engine's (ai-log-timeline.js engineDeaths).
+  const records = recs.map(([t, state, match, died], i) => {
     const frame = `frame-${String(i).padStart(5, '0')}.jpg`;
     fs.writeFileSync(path.join(dir, frame), Buffer.from('frame'));
-    return { i, at: t, frame, state, round: 3, died: false, match };
+    return { i, at: t, frame, state, round: 3, died: died === true, match };
   });
   fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify({ startedAt: records[0].at, records }));
   return dir;
 }
 const frameRun = (match, n, deathAt) => Array.from({ length: n },
-  (_v, k) => [match + 60000 + k * 10000, k === deathAt || k === deathAt + 1 ? DEAD : ALIVE, match]);
+  (_v, k) => [match + 60000 + k * 10000, k === deathAt || k === deathAt + 1 ? DEAD : ALIVE, match, k === deathAt]);
 const BEFORE = now - 90 * 60000;               // the match before the newest one
 const OLDEST = now - 2 * 3600000 - 40 * 60000; // the oldest, ending two hours ago
 const newestFrames = frameRun(NEWEST, 6, 2);   // one death, frames 2 and 3; frame 1 is LOOK_AT

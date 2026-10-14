@@ -174,6 +174,11 @@ function markRankCard() {
 }
 
 // ── Rank journey graph: competitive RR movement, drawn as an SVG line ────────
+// Its colours are stats.css's (.rg-area, .rg-line, .rg-dot), tokens over one
+// solid fill, the line and its dot as Home draws the same journey (8.4.1). It
+// was the retired cyan over a gradient fill, written into the markup. The dot
+// is a span over the line, as Home's is: a circle in a box stretched to the
+// card (preserveAspectRatio none) is drawn as an ellipse.
 async function renderRankGraph(host, opts) {
   const old = host.querySelector('.rank-graph');
   if (old) old.remove();
@@ -212,17 +217,13 @@ async function renderRankGraph(host, opts) {
       <span class="rg-title">Rank journey · last ${points.length} comp games</span>
       <span class="rg-net ${net >= 0 ? 'up' : 'down'}">${net >= 0 ? '+' : ''}${net} RR</span>
     </div>
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="rgFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="rgba(var(--cyan-rgb),0.25)"/>
-          <stop offset="1" stop-color="rgba(var(--cyan-rgb),0)"/>
-        </linearGradient>
-      </defs>
-      <path d="${path} L ${x(points.length - 1).toFixed(1)} ${H - PAD} L ${x(0).toFixed(1)} ${H - PAD} Z" fill="url(#rgFill)" stroke="none"/>
-      <path d="${path}" fill="none" stroke="#00F0FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${x(points.length - 1).toFixed(1)}" cy="${y(last.elo).toFixed(1)}" r="4" fill="#00F0FF"/>
-    </svg>
+    <div class="rg-plot">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+        <path class="rg-area" d="${path} L ${x(points.length - 1).toFixed(1)} ${H - PAD} L ${x(0).toFixed(1)} ${H - PAD} Z"/>
+        <path class="rg-line" d="${path}"/>
+      </svg>
+      <span class="rg-dot" style="left: ${((x(points.length - 1) / W) * 100).toFixed(2)}%; top: ${((y(last.elo) / H) * 100).toFixed(2)}%"></span>
+    </div>
     <div class="rg-foot">
       <span>${points[0].tier || ''}</span>
       <span>${last.tier || ''}${last.change != null ? ' · last game ' + (last.change >= 0 ? '+' : '') + last.change + 'RR' : ''}</span>
@@ -256,6 +257,36 @@ function toggleRankNotes(rankValue) {
     rankNotesEl.append(title, body, label, ul);
   }
   openRankNotes();
+}
+
+/*
+ * OPENED FOR THE JOURNEY (8.4.1). Home's Rank journey opened this page with
+ * the journey folded in the Rank tile, one more click from what the button
+ * names. Main keeps what the page was opened to show until the page asks
+ * (STATS_OPENED_FOR, taken once): as it loads, since a page still loading
+ * misses what main sends it, and each time it is about to be shown again
+ * (PUSH_PAGE's arm) or comes in (its enter: a page called back before the one
+ * replacing it arrived comes back with an enter and no arm). The journey then
+ * opens, never toggles, once the tile it opens under is painted with this
+ * account's rank, and the overview is scrolled to, for a page kept between
+ * visits further down.
+ */
+let shownRank;               // the rank the tile shows, undefined until it is painted
+let journeyWanted = false;   // asked for before the tile was there to open it under
+function showJourney() {
+  if (!journeyWanted || shownRank === undefined) return;
+  journeyWanted = false;
+  if (!rankOpen) toggleRankNotes(shownRank);
+  const overview = document.getElementById('sec-overview');
+  if (overview && typeof overview.scrollIntoView === 'function') overview.scrollIntoView({ block: 'start' });
+}
+async function askOpenedFor() {
+  if (typeof window.occlara.openedFor !== 'function') return;
+  let what = null;
+  try { what = await window.occlara.openedFor(); } catch { return; }
+  if (what !== 'journey') return;
+  journeyWanted = true;
+  showJourney();
 }
 
 /*
@@ -312,6 +343,8 @@ function renderCards(d) {
     rankCard,
     card('Win Rate',    d.winRate?.value != null ? d.winRate.value + '%' : null, d.winRate?.direction),
   );
+  shownRank = (d.rank && d.rank.value) || null;
+  showJourney();   // Home asked for the journey before the tile was painted
 }
 
 // ── Recent matches ────────────────────────────────────────────────────────────
@@ -425,10 +458,16 @@ function matchRow(m) {
     statTile('Assists/Rd', m.apr,         grade('apr', m.apr)),
     statTile('Dmg +/- Rd', dmgVal,        grade('dmg', m.dmgDelta)),
   );
-  // WHO THEY PLAYED WITH. A match is remembered by its people as much as its
-  // score, and "the Sova" means nothing three games later while a Riot ID does.
-  // Ordered by combat score like the in-game scoreboard, with the player marked
-  // rather than removed so the row they are looking for is where they expect it.
+  // HOW THE TEAM PLAYED: each teammate by agent, with their numbers, ordered
+  // by combat score like the in-game scoreboard, the player's own row marked
+  // "You" rather than removed, so the row they are looking for is where they
+  // expect it.
+  //
+  // NEVER ANOTHER PLAYER'S NAME OR TAG (8.4.1). This list showed every
+  // teammate's full Riot ID, and Valorant lets a player hide theirs from
+  // anyone outside their party; Riot's policy is that a product shows no
+  // player's identity to others without their opt in. The server sends none
+  // since, and a name an older server still sends is never read here.
   let teamEl = null;
   if (Array.isArray(m.team) && m.team.length) {
     const team = document.createElement('div');
@@ -440,16 +479,16 @@ function matchRow(m) {
     for (const p of m.team) {
       const row = document.createElement('div');
       row.className = 'team-row' + (p.me ? ' me' : '');
-      const who = document.createElement('span');
-      who.className = 'team-name';
-      who.textContent = p.name;
       const agent = document.createElement('span');
       agent.className = 'team-agent';
-      agent.textContent = p.agent || '';
+      agent.textContent = p.agent || 'Unknown agent';
+      const you = document.createElement('span');
+      you.className = 'team-you';
+      you.textContent = p.me ? 'You' : '';
       const line = document.createElement('span');
       line.className = 'team-line';
       line.textContent = `${p.kills}/${p.deaths}/${p.assists}${p.acs != null ? '  ACS ' + p.acs : ''}`;
-      row.append(who, agent, line);
+      row.append(agent, you, line);
       team.append(row);
     }
     teamEl = team;
@@ -1168,8 +1207,16 @@ window.occlara.onGame(() => {
   matchMode = 'competitive';
   for (const b of modeSeg.querySelectorAll('button')) b.classList.toggle('active', b.dataset.mode === 'competitive');
   closeRankNotes(true);
+  journeyWanted = false;   // the journey asked for was the last game's
+  shownRank = undefined;
   load();
 });
 
+// What Home opened this page for: asked as it loads, and as it is about to
+// be shown again or comes in (showJourney, above).
+if (typeof window.occlara.onPage === 'function') {
+  window.occlara.onPage((m) => { if (m && (m.phase === 'arm' || m.phase === 'enter')) askOpenedFor(); });
+}
+askOpenedFor();
 load();
 console.log('[stats] ready');

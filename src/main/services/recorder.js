@@ -363,6 +363,12 @@ function quantile(xs, q) {
 
 const round1 = (x) => (Number.isFinite(x) ? Math.round(x * 10) / 10 : null);
 
+/** The track's own settings as the page last read them (its health report), for the minute line. */
+function trackText(t) {
+  if (!t || !(t.width > 0) || !(t.height > 0)) return "the track's own settings not reported";
+  return `the track's own settings ${t.width}x${t.height} at ${Number.isFinite(t.frameRate) ? `${round1(t.frameRate)} fps` : 'no frame rate'}`;
+}
+
 /**
  * "up to once a second", or "up to once every 3 seconds" when the read is
  * pinned slower. UP TO since 8.3.2: the gap is the live round's, and menus, a
@@ -505,6 +511,12 @@ class Segment {
     this.startedAt = null;
     this.hi = Infinity;
     this.bytesOnDisk = 0;
+    // Every byte and frame written since it began, a page pruned or not, for
+    // the minute line (Recorder logStatus): what it ran at against what it
+    // was asked for (`bitrate`).
+    this.bytesWritten = 0;
+    this.framesWritten = 0;
+    this.bitrate = null;
     this.session = null;
     this.displayId = null;      // the display it records, which was the primary one
     this.track = null;          // the track's own size, from the page's 'started'
@@ -560,6 +572,8 @@ class Segment {
       });
       p.bytes += size;
       this.bytesOnDisk += size;
+      this.bytesWritten += size;
+      this.framesWritten += Number(c.frames) || 0;
       // On disk now, and read back from there: not held here too.
       delete c.data;
       return true;
@@ -718,6 +732,8 @@ class Recorder extends EventEmitter {
     this.lastChunkAt = null;
     this.lastDiskAt = 0;
     this.lastStatusAt = 0;
+    // What the recording had written at the last minute line: { seg, at, bytes, frames }.
+    this.statusMark = null;
     this.lastSample = null;
     this.lastMemoryMB = null;
     this.health = null;
@@ -1151,6 +1167,7 @@ class Recorder extends EventEmitter {
     const seg = new Segment(dir, this.files, pageMs);
     seg.session = s;
     seg.display = display;
+    seg.bitrate = bitrate;
     seg.displayId = source && source.displayId !== undefined && source.displayId !== null ? source.displayId : null;
     this.segments.push(seg);
     this.resetSegmentState();
@@ -1180,14 +1197,18 @@ class Recorder extends EventEmitter {
     this.lastChunkAt = this.now();
     this.lastDiskAt = this.now();
     this.lastStatusAt = this.now();
+    this.statusMark = { seg, at: this.now(), bytes: seg.bytesWritten, frames: seg.framesWritten };
     this.nextCompareAt = this.now() + COMPARE_FIRST_MS;
     const st = started.settings || {};
     // The size the track really is, for Settings (liveView) and for the read.
     seg.track = st.width > 0 && st.height > 0 ? { width: st.width, height: st.height } : { ...size };
     const kept = aspectKept(st, display);
+    const took = Number(started.videoBitsPerSecond);
     this.log(`[recorder] recording ${st.width}x${st.height} of a ${display.width}x${display.height} display`
       + ` (${kept ? 'its own shape' : 'NOT its own shape'}), asked ${size.width}x${size.height} at up to ${ASK_FPS} fps,`
-      + ` ${round1(bitrate / 1e6)} Mbps, ${started.mime || 'H.264'}${fake ? ', from a generated canvas' : ''}`);
+      + ` ${round1(bitrate / 1e6)} Mbps, ${started.mime || 'H.264'}${fake ? ', from a generated canvas' : ''};`
+      + ` the track's own settings ${Number.isFinite(st.frameRate) ? `${round1(st.frameRate)} fps` : 'with no frame rate'},`
+      + ` MediaRecorder at ${took > 0 ? `${round1(took / 1e6)} Mbps` : 'a bitrate it did not say'}`);
     // A track that cannot cover the read's frame (fitSize stopped at H.264
     // level 4.0's frame on a very wide display) would hand the read fewer rows
     // than GDI: the read stays on GDI for this recording, which goes on.
@@ -1549,17 +1570,43 @@ class Recorder extends EventEmitter {
     }
   }
 
-  /** Once a minute: how the PC is coping, in counts, for anyone reading debug.log. */
+  /**
+   * Once a minute: how the PC is coping, in counts, for anyone reading
+   * debug.log. Beside the frames the capture delivered (the fps p50, of the
+   * seconds in a match whose picture changed), the track's own settings as
+   * the page last read them, and what the recording wrote since the last
+   * line against what it was asked for (8.4.1): on the player's Fracture
+   * swiftplay it fell from 57 to 32 frames a second for its last two minutes
+   * with no line saying why, and its pages ran 74 to 91 MB a minute at 57,
+   * about twice the 6 Mbps asked, a constant 24 KB a frame. Counts only, and
+   * no rule reads them.
+   */
   logStatus(now, s) {
     this.lastStatusAt = now;
     const last = (xs) => xs.slice(-60);
     const st = this.stats();
     const l = this.lastSample || {};
     const h = this.health || {};
-    this.log(`[recorder] fps p50 ${quantile(last(s.fps), 0.5)}, recorder CPU p50 ${round1(quantile(last(s.recorderCpu), 0.5))}% of a core,`
+    this.log(`[recorder] fps p50 ${quantile(last(s.fps), 0.5)}, ${trackText(h.track)}, ${this.writtenSince(now)},`
+      + ` recorder CPU p50 ${round1(quantile(last(s.recorderCpu), 0.5))}% of a core,`
       + ` PC CPU p90 ${round1(quantile(last(s.systemCpu), 0.9))}%, page memory ${this.lastMemoryMB === null ? 'n/a' : this.lastMemoryMB + ' MB'},`
       + ` frames held open ${Number.isFinite(h.framesOpen) ? h.framesOpen : 'n/a'}, lag ${Math.round(l.lagMs || 0)} ms,`
       + ` ${st.pages} pages on disk (${Math.round(st.bytes / 1048576)} MB), ${st.holds} held`);
+  }
+
+  /** What the recording wrote since the last minute line, against the bitrate it was asked for. */
+  writtenSince(now) {
+    const seg = this.seg;
+    const m = this.statusMark;
+    if (!seg || !m || m.seg !== seg) return 'nothing written to count yet';
+    const secs = Math.max(1, (now - m.at) / 1000);
+    const bytes = seg.bytesWritten - m.bytes;
+    const frames = seg.framesWritten - m.frames;
+    this.statusMark = { seg, at: now, bytes: seg.bytesWritten, frames: seg.framesWritten };
+    const asked = Number.isFinite(seg.bitrate) ? `the ${round1(seg.bitrate / 1e6)} Mbps asked` : 'no bitrate asked';
+    return `${frames} frames and ${round1(bytes / 1048576)} MB written in the last ${Math.round(secs)} s`
+      + ` (${round1(frames / secs)} a second, ${round1((bytes * 8) / 1e6 / secs)} Mbps against ${asked},`
+      + ` ${frames > 0 ? `${Math.round(bytes / frames / 1024)} KB` : 'no'} a frame)`;
   }
 
   /**
@@ -1588,7 +1635,7 @@ module.exports = {
   current: () => current,
   Recorder, Segment, fitSize, covers, bitrateFor, macroblocks, aspectKept, codecFor, compareVerdict, createHealth,
   strikeOut, reportBlock, valorantInMatch, valorantKeepSince,
-  everyText, quantile, realFreeBytes, NOTICE, OUTCOMES, GAMES, HEALTH, STRIKES, RES, READ_SIZE, MB_LEVEL_31, MB_LEVEL_40,
+  everyText, quantile, trackText, realFreeBytes, NOTICE, OUTCOMES, GAMES, HEALTH, STRIKES, RES, READ_SIZE, MB_LEVEL_31, MB_LEVEL_40,
   BITRATE_MAX_SCALE, MIME_TYPES, ASK_FPS,
   PAGE_MS, KEEP_RECENT_MS, KEEP_MATCH_MS, HOLD_MAX_MS, DISK_START_BYTES, DISK_STOP_BYTES, DISK_CHECK_MS, BLACK_LUMA,
   COMPARE_FIRST_MS, COMPARE_EVERY_MS, CONFIRM_MS, STALE_FRAME_MS, GRAB_TIMEOUT_MS, GRAB_MISSES,

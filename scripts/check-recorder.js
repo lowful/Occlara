@@ -329,6 +329,7 @@ setTimeout(async () => {
     app.getAppMetrics();
     const reads = [];
     const framesOpen = [];
+    const tracks = [];
     while (Date.now() - started < 11000) {
       await wait(1000);
       const m = app.getAppMetrics().find((x) => x.pid === pid);
@@ -338,7 +339,12 @@ setTimeout(async () => {
       reads.push({ ms: Date.now() - t0, source: capture.source() });
       const hl = recorderModule.current().health;
       if (hl && Number.isFinite(hl.framesOpen)) framesOpen.push(hl.framesOpen);
+      if (hl && hl.track) tracks.push(hl.track);
     }
+    // The track's own settings, each second, for the minute line (8.4.1): a
+    // generated track reports no size of its own, so the canvas's.
+    ok(tracks.length >= 5 && tracks.every((t) => t.width === 1280 && t.height === 720 && (t.frameRate === null || Number.isFinite(t.frameRate))),
+      `the page reports the track's own settings each second: ${JSON.stringify(tracks[tracks.length - 1] || null)}`);
     ok(reads.length >= 5 && reads.every((x) => x.source === 'stream'), `every read while recording came from the stream (${reads.length})`);
     // What Settings paints from: the state, with the track's own size in it.
     const live = (await invoke(C.STATE_GET)).recording.live;
@@ -478,6 +484,12 @@ setTimeout(async () => {
     try { logText = fs.readFileSync(path.join(ud, 'debug.log'), 'utf8'); } catch { /* said below */ }
     const shape = /\[recorder\] recording (\d+)x(\d+) of a 1920x1080 display \(its own shape\)/.exec(logText);
     ok(shape && shape[1] === '1280' && shape[2] === '720', `the track came back ${shape ? shape[1] + 'x' + shape[2] : 'unknown'}, the display's own shape`);
+    // And the bitrate MediaRecorder took beside the one asked (8.4.1).
+    const TOOK = /\[recorder\] recording \d+x\d+ of a [^\n]*; the track's own settings [^\n,]+, MediaRecorder at ([\d.]+) Mbps/;
+    const tookSample = TOOK.test("[recorder] recording 1280x720 of a 1920x1080 display (its own shape), asked 1280x720 at up to 60 fps, 3 Mbps, x; the track's own settings 60 fps, MediaRecorder at 3 Mbps")
+      && !TOOK.test("[recorder] recording 1280x720 of a 1920x1080 display (its own shape), asked 1280x720 at up to 60 fps, 3 Mbps, x; the track's own settings 60 fps, MediaRecorder at a bitrate it did not say");
+    const took = TOOK.exec(logText);
+    ok(tookSample && took && Number(took[1]) > 0, `the start line says the bitrate MediaRecorder took: ${took ? took[1] + ' Mbps, 3 asked' : 'not said'}`);
     ok(cpu.length >= 5, `measured while recording: the recorder page's CPU p50 ${r1(quantile(cpu, 0.5))}%, p90 ${r1(quantile(cpu, 0.9))}% of one core;`
       + ` its private memory ${mem[0]} MB at first, ${mem[mem.length - 1]} MB after ${mem.length} s;`
       + ` a read's frame from the stream p50 ${quantile(reads.map((x) => x.ms), 0.5)} ms, p90 ${quantile(reads.map((x) => x.ms), 0.9)} ms`);
