@@ -37,7 +37,7 @@
  * dependency injected, so test-backfill.js drives it against a fake server.
  */
 
-const { verifyCoachedMatch, endedEarly, mayGoOn, sameName, matchEndEstimate, ROUND_MS, CLOCK_SLACK_MS } = require('./match-link');
+const { verifyCoachedMatch, endedEarly, mayGoOn, sameName, matchEndEstimate, linkAgentOf, ROUND_MS, CLOCK_SLACK_MS } = require('./match-link');
 const { newId } = require('./review-store');
 const riotReview = require('../../shared/riot-review');
 const valorantReview = require('../../shared/valorant-review');
@@ -98,9 +98,11 @@ function windowOf(entry) {
     endedAt,
     mctx: {
       map: lc.map || g.map || null,
-      // Only an agent the player confirmed, the rule linkRiotRecord keeps. A
-      // review saved before the ledger existed cannot say, so it offers none.
-      agent: l && lc.agentConfirmed ? lc.agent || null : null,
+      // Only an agent the player confirmed, the rule linkRiotRecord keeps
+      // (linkAgentOf): one the engine read off the player's own HUD agrees
+      // with any match. A review saved before the ledger existed cannot say,
+      // so it offers none.
+      agent: l ? linkAgentOf(lc) : null,
       score: { team, enemy, final: ((l && l.endedBy) || r.endedBy) === 'score' },
     },
   };

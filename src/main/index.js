@@ -37,7 +37,8 @@ const capture  = require('./services/capture');
 const { Recorder, valorantInMatch, valorantKeepSince } = require('./services/recorder');
 const recorderWindow = require('./windows/recorder-window');
 const CoachingEngine = require('./services/coaching-engine');
-const { verifyCoachedMatch, pickCoachedMatch, linkEarly, mayGoOn, linkRetries, RIOT_ROUNDS_RETRY_MS } = require('./services/match-link');
+const { cropAgentBar } = require('./services/agent-crop');
+const { verifyCoachedMatch, pickCoachedMatch, linkEarly, mayGoOn, linkRetries, linkAgentOf, RIOT_ROUNDS_RETRY_MS } = require('./services/match-link');
 const { normalize: normalizeLang } = require('../shared/i18n');
 const registry = require('./windows/registry');
 // THE ONE WINDOW (8.1): the shell and every page beside it, replacing the
@@ -103,7 +104,8 @@ const state = {
   isCoaching: false,
   isPaused:   false,
   status:     'idle',   // idle | coaching | paused | stopped
-  agent:      { agent: null, confirmed: false, role: null }, // detected/confirmed agent
+  // No agent here (8.4.4): the engine reads it off the player's own HUD and
+  // keeps it with the match, and nothing of it is pushed to a window.
   notice:     null,     // the window's one notice line, never about the match
   cadence:    null,     // the current gap between reads, in ms
   lastGrade:  null,     // { score, letter, game } of the latest reviewed match
@@ -272,16 +274,6 @@ function sendPendingReport() {
   sendReport(kept);
 }
 
-// The player's 4 most-played agent names, for the one-tap agent-select bubble.
-// Four is what the bubble's width actually fits on one row.
-// Guarded by Riot ID so a switched account never offers the old player's mains.
-function topAgentNames() {
-  const ps = store.get('playerStats');
-  const rid = (store.get('riotId') || '').trim();
-  if (!ps || ps._riotId !== rid || !Array.isArray(ps.topAgents)) return [];
-  return ps.topAgents.slice(0, 4).map((a) => a && a.name).filter(Boolean);
-}
-
 function buildState() {
   return {
     isCoaching: state.isCoaching,
@@ -299,11 +291,11 @@ function buildState() {
     cadence:    state.cadence,
     captureSpeed: store.get('captureSpeed') || 'auto',
     lastGrade:  state.lastGrade,
-    agent:      state.agent,
+    // No agent and no mains to pick from (8.4.4): nothing asks the player for
+    // one, and the agent of a match in progress is the engine's alone.
     licenseActive: state.licenseActive,
     licenseReason: state.licenseReason,
     riotId:          (store.get('riotId') || '').trim(),
-    topAgents:       topAgentNames(),   // player's 3 most-played, for one-tap agent select
     sounds:          store.get('sounds'),
     licensePlan:     store.get('licensePlan'),
     licenseStatus:   store.get('licenseStatus'),
@@ -669,6 +661,8 @@ function present(review) {
   return reviewClips.presentClips(out, {
     has: (name) => reviewStore.hasClip(review.id, name),
     url: (name) => clipScheme.urlFor(review.id, name),
+    // Each frame's own time, for the clip's player to step by (8.4.4), read once a file.
+    frames: (name) => reviewClips.frameTimes(reviewStore.clipFile(review.id, name)),
   });
 }
 
@@ -696,7 +690,16 @@ function showReview(review) {
 function buildValorantReview(snap, tracker, extra) {
   const valorantReview = require('../shared/valorant-review');
   const ai = snap.ai || {};
-  const agent = snap.context && snap.context.agent;
+  // THE ROLE IS RIOT'S AGENT'S once its record names one, the scoreboard's or
+  // Riot's own line, as the review's agent is (game.agent), and the screen's
+  // only before it. Since 8.4.4 the screen's agent is the engine's look at the
+  // HUD, which no link holds to Riot's (match-link.js linkAgentOf): a Sova
+  // locked where Riot has Jett graded the match on an Initiator's curves and
+  // gave its baseline row an Initiator's role (historyEntry), so a Duelist's
+  // next matches were held to the wrong average. With no agent locked, the
+  // row had no role at all.
+  const agent = (tracker && tracker.agent) || (extra && extra.riotMe && extra.riotMe.agent)
+    || (snap.context && snap.context.agent);
   const role = agent ? agentData.getRole(agent) : null;
   const built = valorantReview.build({
     rounds: snap.rounds,
@@ -870,8 +873,9 @@ async function askForensics(looks, stills, snap, source, log) {
   if (!deaths.length) return empty;
   try {
     const body = {
-      // From the screen, only an agent the player confirmed, the rule the
-      // engine keeps: one detected while spectating names a teammate, and the
+      // From the screen, only an agent the engine locked off the player's own
+      // HUD, two answers on buy phase frames (lookForAgent), the rule every
+      // guard keeps: one detected while spectating named a teammate, and the
       // ability gate would then pass that teammate's kit as the player's.
       // Riot's look is handed Riot's agent.
       agent: source === 'screen' && !snap.context.agentConfirmed ? null : snap.context.agent,
@@ -1017,9 +1021,15 @@ function screenLook(job) {
 async function lookFromScreen(job) {
   if (job.cancelled || job.riotLooked) return;
   const snap = job.snap;
+  // Told Riot's agent once the scoreboard has linked and only its rounds never
+  // came, the agent the review names (game.agent): since 8.4.4 the screen's is
+  // the engine's look at the HUD, which no link holds to Riot's, and the
+  // look's ability gate would pass that agent's kit as the player's.
+  const riotAgent = job.tracker && typeof job.tracker.agent === 'string' && job.tracker.agent ? job.tracker.agent : null;
+  const seen = riotAgent ? { ...snap, context: { ...snap.context, agent: riotAgent, agentConfirmed: true } } : snap;
   // Its clips are cut and kept by the look itself, never over Riot's look,
   // which is the one kept whenever it lands.
-  const looked = await forensicsFor(snap.rounds, snap,
+  const looked = await forensicsFor(snap.rounds, seen,
     { source: 'screen', job, stale: () => job.cancelled || job.riotBusy || job.riotLooked });
   // Riot's rounds landed while this look was out. Theirs is painted, and if it
   // fails after all, the link's end looks again.
@@ -1159,7 +1169,8 @@ function keepLookClips(job, looked, cut) {
   const off = !clips.cutsClips(store);
   for (const [n, f] of Object.entries((looked && looked.byRound) || {})) {
     const c = off ? null : cut.get(Number(n));
-    if (c && f) { f.clip = c.name; names.push(c.name); }
+    // And where in it the moment the look's frames are timed against falls, for its player (8.4.4).
+    if (c && f) { f.clip = c.name; f.clipDeath = reviewClips.lookDeathInClip(f, c.startWall); names.push(c.name); }
   }
   try { reviewStore.keepClips(job.id, names); } catch (e) { console.log('[clips] keepClips:', e.message); }
   if (names.length) applyClipCap();
@@ -1503,9 +1514,11 @@ function linkRiotRecord(job) {
   const c = snap.context || {};
   const mctx = {
     map: c.map,
-    // Only an agent the player confirmed: a detection taken while spectating
-    // names a teammate, and the link then refused the real match.
-    agent: c.agentConfirmed ? c.agent : null,
+    // Only an agent the player confirmed (linkAgentOf): a detection taken
+    // while spectating named a teammate, and the link then refused the real
+    // match. One the engine read off the player's own HUD agrees with any
+    // match, and Riot's agent, once its record is in, is the review's.
+    agent: linkAgentOf(c),
     score: { team: c.teamScore | 0, enemy: c.enemyScore | 0, final: snap.endedBy === 'score' },
   };
   // THE LINK IS DONE: linked and looked at, given up, or withdrawn. When
@@ -1857,6 +1870,11 @@ const controller = {
       }),
       // AI decision log: per-frame screenshot + parsed STATE + tip, to disk.
       diagnostics: (rec) => recordAiFrame(rec),
+      // The look at the agent is sent the player's bar alone, cut out of the
+      // read's frame and scaled up, a JPEG of the read's own quality, and
+      // nothing when it cannot be cut (agent-crop.js): never the whole frame.
+      cropAgent: (shot) => cropAgentBar(shot,
+        CAPTURE.profiles[store.get('captureQuality') === 'performance' ? 'performance' : 'standard'].jpegQuality),
     });
     // A notice with no text is the engine saying the problem it reported is
     // over (reads or capture work again); it clears only that kind of notice.
@@ -1879,11 +1897,11 @@ const controller = {
     engine.on('match-ended', (snap) => onValorantMatchEnded(snap));
     engine.on('match-review', (reviewText, snap) => onValorantMatchReview(reviewText, snap));
     engine.on('match-resumed', (r) => withdrawReview(r && r.startedAt));
-    engine.on('agent', (info) => {
-      state.agent = info || { agent: null, confirmed: false, role: null };
-      registry.broadcast(C.PUSH_AGENT, state.agent);
-      registry.broadcast(C.PUSH_STATE, buildState());
-    });
+    // NO AGENT CHECK AT START (8.4.4). The record card asked "Playing <X>?" off
+    // a frame taken three seconds in, usually agent select, which named a
+    // teammate's agent; the engine now reads the agent off the player's own
+    // HUD in the match (lookForAgent), and Riot's record names it once the
+    // match is linked. Nothing of it reaches a window.
     // The server rejected our license key (401/403), confirm with an immediate
     // re-validation so a genuinely ended subscription locks fast (and a transient
     // server error does not, since revalidate is authoritative).
@@ -1893,13 +1911,8 @@ const controller = {
     state.isPaused   = false;
     state.sessionStartedAt = Date.now();   // drives the 5-minute grading gate
     store.set('coachStartCount', (store.get('coachStartCount') || 0) + 1);
-    state.agent      = { agent: null, confirmed: false, role: null };
     state.notice     = null;
     engine.start();
-    if (state.pendingAgent) {           // player typed their agent before starting
-      engine.setAgent(state.pendingAgent);
-      state.pendingAgent = null;
-    }
     // A fresh tracker profile for the stats view and the review's baseline.
     fetchTrackerStats(true).catch(() => {});
     startAiLog();   // fresh AI decision-log folder for this session
@@ -1932,8 +1945,6 @@ const controller = {
     if (engine) { engine.stop(); engine = null; }
     recorder.stopSession();
     flushAiLog(true);
-    state.agent = { agent: null, confirmed: false, role: null };
-    registry.broadcast(C.PUSH_AGENT, state.agent); // hide the panel bubble/chip
     setStatus('stopped');
     console.log('[coach] stopped');
   },
@@ -1944,18 +1955,6 @@ const controller = {
     if (state.isPaused) engine.resume();
     else                { engine.pause(); }
     // state.isPaused + status pushes are driven by the engine 'status' event.
-  },
-  confirmAgent() { if (engine) engine.confirmAgent(); },
-  setAgent(name) {
-    if (engine) return engine.setAgent(name);
-    // Not coaching yet: remember the choice and apply it when the engine starts,
-    // so typing an agent never bounces with a confusing "not found".
-    const canonical = agentData.resolveName(name);
-    if (!canonical) return { ok: false, error: 'unknown agent' };
-    state.pendingAgent = canonical;
-    state.agent = { agent: canonical, confirmed: true, role: agentData.getRole(canonical) };
-    registry.broadcast(C.PUSH_AGENT, state.agent);
-    return { ok: true, ...state.agent };
   },
   getState() { return buildState(); },
 
@@ -2562,7 +2561,10 @@ const controller = {
     const seededAgent = seeded && seeded.review && seeded.review.game && seeded.review.game.agent;
     const context = {
       game:         gameId,
-      agent:        valorant ? (seeded ? seededAgent || null : state.agent && state.agent.agent) : null,
+      // The agent of the review asked about. Asked plainly there is none: the
+      // agent the engine holds is the match in progress's, which the chat is
+      // never told (the seal), and it goes with the match (8.4.4).
+      agent:        valorant ? (seeded ? seededAgent || null : null) : null,
       sessionTips:  [],
       // The League recorder keeps no match memory; reading it threw on every message.
       matchMemory:  engine && !midMatch && Array.isArray(engine.matchMemory) ? engine.matchMemory.slice(-8) : [],
@@ -3042,7 +3044,8 @@ async function clipLolDeaths(built, record) {
     if (!r.kept.length) return;
     for (const k of r.kept) {
       const d = deaths.find((x) => x.n === k.key);
-      if (d) d.clip = k.name;
+      // And where in it the death is, by the game's clock on the wall clock, for its player (8.4.4).
+      if (d) Object.assign(d, { clip: k.name, clipDeath: clips.deathInClip(k.moment, k.startWall) });
     }
     saveReview(built, 'lol');
     if (lastReviewShown && lastReviewShown.id === built.id) showReview(built);
@@ -3737,7 +3740,6 @@ function teardownSession() {
   state.isCoaching = false;
   state.isPaused   = false;
   state.status     = 'idle';
-  state.agent      = { agent: null, confirmed: false, role: null };
   surfacesUp       = false;   // a fresh login rebuilds the surfaces
 }
 

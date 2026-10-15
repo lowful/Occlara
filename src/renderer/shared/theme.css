@@ -178,7 +178,8 @@
 
 /* The hidden attribute must ALWAYS win, even over display:flex/grid rules.
    Without this, any styled element with `hidden` still renders (the exact bug
-   that made all agent-bubble states show at once). */
+   that once made every state of the agent check, gone since 8.4.4, show at
+   once). */
 [hidden] { display: none !important; }
 
 html, body {

@@ -204,6 +204,47 @@ function menu(e) {
     Date.now = realNow;
   }
 
+  // ── A resumed match keeps where its agent came from (8.4.4) ───────────────
+  // The agent the engine read off the player's own HUD (lookForAgent, source
+  // 'hud') comes back with the match, and so does its source: back as a bare
+  // confirmed agent it read as the player's tick, and the link refused the
+  // match whose Riot agent was not it (match-link.js linkAgentOf).
+  {
+    const realNow = Date.now;
+    let clock = Date.parse('2026-10-04T23:00:00Z');
+    Date.now = () => clock;
+    const link = require('../src/main/services/match-link');
+    const e = engine();
+    const reviews = [];
+    e.on('match-review', (text, snap) => reviews.push(snap));
+    e.lockAgent('Sova', 'hud');
+    const at = (sec) => { clock = Date.parse('2026-10-04T23:00:00Z') + sec * 1000; };
+    at(0);  frame(e, { team: 3, enemy: 3, phase: 'buy', clock: '0:20', mode: 'swiftplay' });
+    at(30); frame(e, { team: 3, enemy: 3, clock: '1:10', mode: 'swiftplay' });
+    at(60); frame(e, { team: 3, enemy: 4, phase: 'buy', clock: '0:20', mode: 'swiftplay' });
+    at(90); frame(e, { team: 3, enemy: 4, died: true, clock: '1:00', mode: 'swiftplay' });
+    at(120); frame(e, { team: 3, enemy: 5, phase: 'dead', clock: '0:01', mode: 'swiftplay' });
+    at(122); menu(e);
+    at(124); menu(e);
+    await new Promise((r) => setTimeout(r, 20));
+    const early = reviews[0] && reviews[0].context;
+    ok(e.endWatch.ended && e.matchContext.agent === null && early && early.agent === 'Sova' && early.agentSource === 'hud',
+      'a HUD agent goes with the match the watch ended, its review\'s context saying where it came from');
+    at(130); frame(e, { team: 3, enemy: 5, phase: 'buy', clock: '0:20', mode: 'swiftplay' });
+    at(132); frame(e, { team: 3, enemy: 5, phase: 'buy', clock: '0:18', mode: 'swiftplay' });
+    const c = e.matchContext;
+    ok(c.agent === 'Sova' && c.agentConfirmed === true && c.agentSource === 'hud',
+      `the match resumed, its agent is back, still the HUD's (${c.agent}, ${c.agentConfirmed}, ${c.agentSource})`);
+    at(200); frame(e, { team: 4, enemy: 5, phase: 'buy', clock: '0:20', mode: 'standard' });
+    at(260); frame(e, { team: 13, enemy: 5, clock: '0:02', mode: 'standard' });
+    at(262); menu(e);
+    await new Promise((r) => setTimeout(r, 20));
+    const last = reviews[reviews.length - 1];
+    ok(reviews.length === 2 && last.context.agentSource === 'hud' && link.linkAgentOf(last.context) === null,
+      'and the whole match\'s review offers the link no agent to refuse a match over, as one the HUD found never does');
+    Date.now = realNow;
+  }
+
   // ── A resume that lands while the review is still being written ───────────
   {
     const realNow = Date.now;

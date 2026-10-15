@@ -3480,17 +3480,61 @@ function detectAgentName(reply) {
   return hits.size === 1 ? [...hits][0] : null;
 }
 
-// POST /api/coach/detect-agent, JSON body: { image: base64 }
-// Cheap one-shot agent detection. Used at session start to lock the agent.
-router.post('/detect-agent', async (req, res) => {
-  try {
-    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!await admit(res, licenseKey)) return;
+/*
+ * THE AGENT LOOK'S PROMPT, AND ITS VARIANT B (8.4.4), FOR THE BENCH ONLY. The
+ * live prompt below is what every install is answered with, byte for byte as
+ * it was; b is served only when the request names it AND carries the admin
+ * password, as a read prompt variant is (readVariant), and the reply says
+ * which prompt answered (`variant`, null for the live one) whenever one was
+ * asked for. b becomes the default only once a bench has run both over the
+ * frames the 8.4.4 client sends.
+ *
+ * Those frames changed in 8.4.4. The client asked three seconds after Start
+ * and every 30 seconds after, so the frame was usually agent select, where on
+ * the player's Fracture swiftplay the live prompt named a teammate's KAY/O.
+ * Now it is sent only a read's own frame of the player's own HUD in a buy
+ * phase (coaching-engine.js lookForAgent), and the live prompt was written
+ * for neither:
+ *   - it puts the four icons "just above their HP bar". On the player's round
+ *     1 buy phase as Jett they are beside it, in one bar at the bottom center:
+ *     the health number at its left, the four icons with their keys under
+ *     them (C, Q, MB4 and X: the player has E on a mouse button), the ammo
+ *     count at its right
+ *   - it says nothing of the faces, names and other kits on every such frame:
+ *     the ten agent portraits along the top bar, both teams, and in a buy
+ *     phase the cards over teammates with each one's portrait and ability
+ *     icons, and the COMBAT REPORT of the round before, KILLED BY ASTRA over
+ *     Astra's face (round 3 of the Fracture swiftplay at 0:23, read "own HP
+ *     100 and Classic", a frame ownHudFrame takes while no agent is locked)
+ * b says where the bar is and what is in it, to answer from the four icons
+ * alone and from no face or name, and UNKNOWN for a spectated teammate's bar.
+ * Its kit lines and its one word answer are the live prompt's, so
+ * detectAgentName reads either reply alike.
+ */
+const DETECT_VARIANTS = new Set(['b']);
+function detectVariant(req) {
+  const v = String((req.body && req.body.variant) || '').trim().toLowerCase();
+  return v && DETECT_VARIANTS.has(v) && isAdmin(req) ? v : null;
+}
 
-    const image = req.body && req.body.image;
-    if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image' });
+/** The look's prompt: the live one unless an admin bench named b. */
+function detectPrompt(variant) {
+  if (variant === 'b') {
+    return `You are looking at one Valorant screenshot from a match, to name the agent the player on this PC is playing.
 
-    const prompt = `Look at this Valorant screenshot. The player has 4 ability icons at the BOTTOM-CENTER of the screen, just above their HP bar.
+The player's own HUD bar is at the BOTTOM-CENTER of the screen: their health number at its left, then four ability icons in a row with the key each is bound to printed under it (C, Q, E and X unless the player rebound one, as MB4 for a mouse button; the last is the ultimate, its points shown as small pips), then the ammo count at its right.
+
+Name the agent whose kit those four icons are, from this list:
+
+${AGENT_KIT_LINES}
+
+Answer from those four icons alone, never from a face, a name or any other icons: the ten portraits along the top bar are both teams, the cards over teammates in the buy phase carry each teammate's own portrait and ability icons, and the kill feed at the top right, a COMBAT REPORT or KILLED BY panel, the scoreboard and the weapon and skin names at the right name other players and agents.
+
+If the bottom-left shows a teammate's portrait and name, or SWITCH PLAYER, the player is dead and the bar is that teammate's: respond with UNKNOWN. If you cannot clearly see all four icons, or are not sure, respond with UNKNOWN.
+
+Respond with ONLY the agent name, one word, with no explanation and no punctuation, or UNKNOWN.`;
+  }
+  return `Look at this Valorant screenshot. The player has 4 ability icons at the BOTTOM-CENTER of the screen, just above their HP bar.
 
 Identify the player's agent by matching those 4 ability icons to one of these agents:
 
@@ -3499,6 +3543,25 @@ ${AGENT_KIT_LINES}
 Respond with ONLY the agent name. Just one word. No explanation. No punctuation.
 
 If you cannot clearly see all 4 ability icons or are not 100% sure, respond with: UNKNOWN`;
+}
+
+// POST /api/coach/detect-agent, JSON body: { image: base64, variant? }
+// One look at the player's agent. Since 8.4.4 the client sends a read's own
+// frame of the player's own HUD in a buy phase, two looks that agree locking
+// the agent for the match; before, a frame taken at session start.
+router.post('/detect-agent', async (req, res) => {
+  // Which prompt: the live one unless an admin bench named a variant.
+  const asksVariant = !!(req.body && req.body.variant);
+  const variant = detectVariant(req);
+  const told = asksVariant ? { variant } : {};
+  try {
+    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+    if (!await admit(res, licenseKey)) return;
+
+    const image = req.body && req.body.image;
+    if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image' });
+
+    const prompt = detectPrompt(variant);
 
     const text = await withTimeout(visionInfer(image, prompt, 20, false, undefined, { abortMs: 23000 }),
       22000, 'timeout');
@@ -3507,11 +3570,12 @@ If you cannot clearly see all 4 ability icons or are not 100% sure, respond with
     const cleanText = String(text || '').trim();
     const detected  = detectAgentName(cleanText);
 
-    console.log('[coach] Agent detection - raw:', cleanText.slice(0, 40), 'matched:', detected);
-    res.json({ agent: detected || null });
+    if (variant) console.log('[coach] Agent detection - raw:', cleanText.slice(0, 40), 'matched:', detected, `(variant ${variant})`);
+    else console.log('[coach] Agent detection - raw:', cleanText.slice(0, 40), 'matched:', detected);
+    res.json({ agent: detected || null, ...told });
   } catch (e) {
     console.error('[coach] detect-agent error:', e.message);
-    res.json({ agent: null });
+    res.json({ agent: null, ...told });
   }
 });
 
@@ -3769,6 +3833,8 @@ module.exports.buildContextPrompt = buildContextPrompt;
 module.exports.__test = {
   checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,
   benchModel, readVariant, TELL_MAX, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,
+  // The agent look's prompt and who may ask for its variant (8.4.4).
+  detectPrompt, detectVariant, DETECT_VARIANTS,
   // The spectate vocabulary's mirror, which test-spectate.js holds equal to
   // src/shared/spectate-tells.js.
   affirms, SPECTATE_TELL, DEATH_SCREEN_WORDS,

@@ -39,35 +39,11 @@
            player's ask. What state it is in is the button's word (Start, Stop,
            Subscription ended), the pause button's icon and the card's live
            colour while recording; what the line under them said when there
-           was something to say is the top strip's notice line now. -->
+           was something to say is the top strip's notice line now. And
+           nothing over them (8.4.4): the agent check that asked which agent
+           was being played at Start is gone, the agent read off the player's
+           own HUD in the match and named by Riot's record after it. -->
       <section id="rec" class="rec" aria-label="Recording">
-        <!-- Agent check: once when Valorant recording starts, then gone. -->
-        <div id="agent-bubble" class="agent-bubble" hidden>
-          <div class="ab-row" id="ab-detect">
-            <span class="ab-spin" aria-hidden="true"></span>
-            <span class="ab-q">Reading your agent...</span>
-          </div>
-          <div class="ab-row" id="ab-ask" hidden>
-            <span class="ab-q">Playing <b id="ab-name">your agent</b>?</span>
-            <div class="ab-btns">
-              <button id="ab-yes" class="ab-btn ok" type="button" title="Yes, that's right" aria-label="Yes"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 7"/></svg></button>
-              <button id="ab-no" class="ab-btn no" type="button" title="No, let me pick" aria-label="No"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
-            </div>
-          </div>
-          <form class="ab-row" id="ab-form" hidden>
-            <label class="sr-only" for="ab-input">Your agent</label>
-            <input id="ab-input" class="ab-input" type="text" placeholder="Type your agent" maxlength="16" autocomplete="off" spellcheck="false" />
-            <button id="ab-go" class="ab-btn ok" type="submit" title="Set agent">Set</button>
-          </form>
-          <div class="ab-row" id="ab-done" hidden>
-            <span class="ab-q"><b id="ab-done-name"></b> locked in</span>
-          </div>
-          <div id="ab-quick" class="ab-quick" hidden>
-            <span class="ab-quick-label">Your mains:</span>
-            <div id="ab-quick-btns" class="ab-quick-btns"></div>
-          </div>
-        </div>
-
         <div class="rec-controls">
           <button id="toggle" class="btn btn-primary toggle" type="button">
             <span class="t-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg></span><span class="t-label">Start</span>

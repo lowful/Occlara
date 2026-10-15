@@ -17,7 +17,8 @@
  *   three failed reads in a row step it down, two do not
  *   a 429 steps it down once and stops sending for ten seconds
  *   a pinned speed is never stepped, and still waits out a 429
- *   a read gives up at 12 seconds, agent detection still waits 30
+ *   a read gives up at 12 seconds; the agent look sends a read's own frame,
+ *     off the read path, and waits 30
  *   the capture helper's time logged as a p50 and a p90
  *
  * Run: npm run test:cadence
@@ -75,11 +76,14 @@ function scenario({ plan, capture = () => 100, speed = 'auto' }) {
     reads: [], other: [], answered: [], sends: [], applied: [], cadence: [], notices: [], lines: [],
     out: 0, maxOut: 0, maxInFlight: 0, maxUnmeasured: 0, measured: false,
     later(ms, fn) { this.events.push({ at: clock + ms, fn, n: this.eventN++ }); },
+    // How long the agent look's answer takes (8.4.4).
+    detectMs: 300,
     post(p, body, timeoutMs) {
       if (p !== API.READ) {
-        this.other.push({ path: p, at: clock, timeoutMs });
+        this.other.push({ path: p, at: clock, timeoutMs, image: body && body.image });
         const data = p === API.DETECT_AGENT ? { agent: 'jett' } : {};
-        return new Promise((resolve) => this.later(300, () => resolve({ ok: true, status: 200, data })));
+        return new Promise((resolve) => this.later(p === API.DETECT_AGENT ? this.detectMs : 300,
+          () => resolve({ ok: true, status: 200, data })));
       }
       const n = this.reads.length;
       const { ms, status = 200, data } = plan(n);
@@ -109,6 +113,9 @@ function scenario({ plan, capture = () => 100, speed = 'auto' }) {
       s.sends.push(clock);
       s.later(capture(k), () => resolve(`frame-${k}`));
     }),
+    // The agent look's crop of a frame (agent-crop.js on Electron's
+    // nativeImage), stood in for: the bar of frame-k is bar:frame-k.
+    cropAgent: (shot) => `bar:${shot}`,
     // The AI log's sink, which sees every read at the moment it is applied,
     // and the second its frame was captured.
     diagnostics: (rec) => s.applied.push({ k: Number(String(rec.image).slice(6)), at: clock, captured: rec.at }),
@@ -320,15 +327,52 @@ const inOrder = (list) => list.every((k, i) => i === 0 || k > list[i - 1]);
     ok(held >= 10, `all at once (${held})`);
     const meanwhile = hung ? s.sends.filter((t) => t > hung.at && t < hung.at + 12000).length : 0;
     ok(meanwhile >= 11, `while reading carried on every second (${meanwhile} sent)`);
-    // Agent detection is one call, off the read path, past the server's own
-    // 22 second race: it keeps its 30.
-    while (s.engine.isCapturing) await run(s, 50);
-    s.engine.detectAgent();
-    await run(s, 2000);
-    const detect = s.other.find((o) => o.path === API.DETECT_AGENT);
-    ok(!!detect && detect.timeoutMs === 30000, `agent detection still waits 30 seconds (${detect && detect.timeoutMs})`);
-    ok(s.engine.matchContext.agent === 'Jett' && !s.engine.matchContext.agentConfirmed,
-      `and still takes the agent it answers, for the player to confirm (${s.engine.matchContext.agent})`);
+    // THE AGENT LOOK (8.4.4) reads no live round frame of round 1: nothing
+    // went to detect-agent, and every frame captured was a read's, but the
+    // one still being captured as the run stops.
+    ok(!s.other.some((o) => o.path === API.DETECT_AGENT) && s.sends.length - s.reads.length <= 1,
+      `no live round frame goes to detect-agent, and nothing is captured for it (${s.other.length} other calls, ${s.sends.length} captures for ${s.reads.length} reads)`);
+  }
+
+  // ── The agent look, off the read path, on the read's own frames ───────────
+  // (8.4.4, coaching-engine.js lookForAgent): a buy phase read a second, its
+  // timer counting down from 0:44 on the clock the frame was captured on, and
+  // detect-agent answering in six seconds. It used to capture a frame of its
+  // own, holding every read back for the capture, three seconds after Start.
+  // The look is off (AGENT_LOOKS_PER_MATCH 0, its crop's bench locked the
+  // wrong agent), so the reader as it ships sends none, and turned on by hand,
+  // eight looks a match, it is the look a passed bench would ship.
+  const buyScenario = () => {
+    const t0 = clock;
+    const buyClock = () => `0:${String(Math.max(0, 44 - Math.floor((clock - t0) / 1000))).padStart(2, '0')}`;
+    const s = scenario({ plan: () => ({ ms: 500, data: { lobby: false, context: {
+      phase: 'buy', clock: buyClock(), teamScore: 0, enemyScore: 0, side: 'attacking',
+      playerAlive: true, playerHp: 100, playerWeapon: 'Classic', aliveTell: 'own HP 100 and Classic bottom left' } } }) });
+    s.detectMs = 6000;
+    return s;
+  };
+  {
+    const s = buyScenario();
+    await run(s, 30000);
+    const c = s.engine.matchContext;
+    ok(!s.other.some((o) => o.path === API.DETECT_AGENT) && s.sends.length === s.reads.length && c.agent === null && !c.agentConfirmed,
+      `the reader as it ships sends no look over thirty seconds of the player's own buy phase, captures nothing for one and locks no agent (${s.other.length} other calls, ${c.agent})`);
+  }
+  {
+    const s = buyScenario();
+    s.engine.agentLooksPerMatch = 8;
+    await run(s, 30000);
+    const looks = s.other.filter((o) => o.path === API.DETECT_AGENT);
+    ok(looks.length === 2 && looks.every((o) => o.timeoutMs === 30000),
+      `turned on, two looks for the agent, each waiting 30 seconds past the server's own 22 (${looks.length}, ${looks.map((o) => o.timeoutMs)})`);
+    const frames = new Set(s.applied.map((a) => `bar:frame-${a.k}`));
+    ok(looks.every((o) => frames.has(o.image)) && s.sends.length === s.reads.length,
+      `each sent the bar cut from a read's own frame, and nothing was captured for them (${looks.map((o) => o.image)}, ${s.sends.length} captures for ${s.reads.length} reads)`);
+    const during = looks.map((o) => s.reads.filter((r) => r.at > o.at && r.at < o.at + s.detectMs).length);
+    ok(during.every((n) => n >= 1), `reads went on while each look was out (${during.join(', ')} sent)`);
+    const c = s.engine.matchContext;
+    ok(c.agent === 'Jett' && c.agentConfirmed === true && c.agentSource === 'hud',
+      `and the two answers that agree lock the agent, confirmed and found by the HUD (${c.agent}, ${c.agentConfirmed}, ${c.agentSource})`);
   }
 
   Date.now = realNow;

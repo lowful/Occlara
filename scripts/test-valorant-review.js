@@ -875,6 +875,69 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   `so the card and what the model is sent leave it out, by the agent the player confirmed or Riot's (${sentReads({ agent: 'Jett', agentConfirmed: true })})`);
   ok(JSON.parse(kitReads({ agent: 'Jett', agentConfirmed: false })).length === 3,
     'and an agent the player never confirmed holds no read to its kit, the engine\'s rule');
+  // THE AGENT THE ENGINE READ OFF THE PLAYER'S OWN HUD (8.4.4), two answers
+  // on buy phase frames that agree, nothing asked of the player: confirmed for
+  // the reads as a tick was, the review's agent until Riot's record names one,
+  // and Riot's from then on, every read held to Riot's agent's kit.
+  const HUD = { agent: 'Jett', agentConfirmed: true, agentSource: 'hud' };
+  ok(kitReads(HUD) === KEPT && sentReads(HUD) === KEPT, 'a HUD agent holds the reads to its kit, as a confirmed one does', kitReads(HUD));
+  const hudBuilt = review.build({ rounds: kit, context: { map: 'Fracture', ...HUD }, endedBy: 'stop', ai: {} });
+  ok(hudBuilt.game.agent === 'Jett', `the review names the HUD's agent while Riot's record is not in (${hudBuilt.game.agent})`);
+  const riotTracker = { matchId: 'm', agent: 'Killjoy', map: 'Fracture', result: 'Victory', score: '5-1', kills: 12, deaths: 3, assists: 2,
+    acs: 260, adr: 160, kd: 4, headshotPct: 30, startedAt: 1000 };
+  const riotBuilt = review.build({ rounds: kit, context: { map: 'Fracture', ...HUD }, endedBy: 'score', ai: {}, tracker: riotTracker });
+  ok(riotBuilt.game.agent === 'Killjoy' && JSON.parse(JSON.stringify(riotBuilt.rounds.find((c) => c.n === 2).reads)).length === 3,
+    `and Riot's agent replaces it once the record is in, the reads held to Riot's agent's kit (${riotBuilt.game.agent}, `
+    + `${JSON.stringify(riotBuilt.rounds.find((c) => c.n === 2).reads)})`);
+  ok(JSON.parse(sentReads(HUD, { agent: 'Killjoy', map: 'Fracture' })).length === 3
+    && review.requestBody({ rounds: kit, context: { map: 'Fracture', ...HUD }, endedBy: 'stop', riot: { agent: 'Killjoy' } }).context.agent === 'Killjoy',
+  'what the model is sent with Riot\'s record names Riot\'s agent and holds the reads to its kit');
+  const noAgent = review.build({ rounds: kit, context: { map: 'Fracture' }, endedBy: 'stop', ai: {} });
+  ok(noAgent.game.agent === null && JSON.parse(JSON.stringify(noAgent.rounds.find((c) => c.n === 2).reads)).length === 3,
+    'a match neither the HUD nor Riot named an agent for says nothing of one, and holds no read to a kit');
+
+  // AND THE ROLE AND THE LOOK ARE RIOT'S AGENT'S TOO, in main (index.js):
+  // buildValorantReview's role, which grades the match and goes on its
+  // baseline row (historyEntry), and the look from the screen once the
+  // scoreboard has linked and only Riot's rounds never came. No link holds a
+  // HUD agent to Riot's (match-link.js linkAgentOf), so a Sova the look locked
+  // where Riot has Jett was graded on an Initiator's curves, its row an
+  // Initiator's, and the look's ability gate was handed Sova's kit.
+  {
+    const vm = require('vm');
+    const mainText = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8').replace(/\r\n/g, '\n');
+    const fnOf = (head) => { const i = mainText.indexOf(head); const j = i < 0 ? -1 : mainText.indexOf('\n}\n', i); return j < 0 ? '' : mainText.slice(i, j + 3); };
+    const built = fnOf('\nfunction buildValorantReview(');
+    const screen = fnOf('\nasync function lookFromScreen(');
+    ok(!!built && !!screen, 'main\'s buildValorantReview and lookFromScreen are found');
+    const looked = [];
+    const box = vm.createContext({
+      console: { log() {} }, Date, Math, Number, JSON, Object, Array, String, Promise,
+      require: (m) => { if (m !== '../shared/valorant-review') throw new Error(`${m} is not in the sandbox`); return review; },
+      agentData: require('../src/main/services/agent-data'),
+      store: { get: () => null },
+      forensicsFor: async (rounds, snap) => { looked.push(snap.context); return { byRound: {}, frames: {} }; },
+      repaintReview() {},
+    });
+    const main = vm.runInContext(`${built}\n${screen}\n;({ buildValorantReview, lookFromScreen })`, box);
+    const snap = { rounds: kit, context: { map: 'Fracture', agent: 'Sova', agentConfirmed: true, agentSource: 'hud' }, endedBy: 'score' };
+    const jett = { ...riotTracker, agent: 'Jett' };
+    const linked = main.buildValorantReview(snap, jett, { history: [] });
+    const fromLine = main.buildValorantReview(snap, null, { history: [], riotMe: { agent: 'Jett' } });
+    const screenOnly = main.buildValorantReview(snap, null, { history: [] });
+    ok(linked.role === 'Duelist' && linked.built.game.agent === 'Jett' && review.historyEntry(jett, linked.role).role === 'Duelist'
+      && fromLine.role === 'Duelist' && screenOnly.role === 'Initiator',
+    `the role is Riot's agent's once its record names one, the scoreboard's or Riot's own line, and its baseline row a Duelist's; the HUD's only before (${linked.role}, ${fromLine.role}, ${screenOnly.role})`);
+    const noLock = main.buildValorantReview({ ...snap, context: { map: 'Fracture' } }, jett, { history: [] });
+    ok(noLock.role === 'Duelist' && review.historyEntry(jett, noLock.role).role === 'Duelist',
+      `and a match the look locked no agent in still gets Riot's role on its row (${noLock.role})`);
+    // The look is asked for as lookFromScreen begins, before its first await.
+    main.lookFromScreen({ snap, tracker: jett, cancelled: false }).catch(() => {});
+    main.lookFromScreen({ snap, tracker: null, cancelled: false }).catch(() => {});
+    ok(looked.length === 2 && looked[0].agent === 'Jett' && looked[0].agentConfirmed === true && looked[1].agent === 'Sova'
+      && snap.context.agent === 'Sova',
+    `the look from the screen after the scoreboard linked is told Riot's agent, before it the HUD's, the review's own context left as it was (${looked.map((c) => c && c.agent).join(', ')})`);
+  }
   // One round won on each side is no stronger side.
   const pats = review.patterns(rows);
   const side = pats.find((p) => p.key === 'sides');
@@ -1494,6 +1557,14 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(again.checks.watched === live.checks.watched && again.checks.agreed === live.checks.agreed
     && again.checks.invented.join() === live.checks.invented.join(), 'and reconciles exactly as the live ledger does');
   ok(review.ledgerOf(null) === null, 'no snapshot, no ledger');
+  // Where the agent came from (8.4.4), which the late link and the backfill
+  // weigh (match-link.js linkAgentOf): the HUD's, kept as 'hud'; one the
+  // player confirmed, and every snapshot before, as none.
+  const hudLedger = review.ledgerOf({ ...played, context: { ...played.context, agent: 'Jett', agentConfirmed: true, agentSource: 'hud' } });
+  const tickLedger = review.ledgerOf({ ...played, context: { ...played.context, agent: 'Jett', agentConfirmed: true } });
+  ok(hudLedger.context.agent === 'Jett' && hudLedger.context.agentConfirmed === true && hudLedger.context.agentSource === 'hud'
+    && tickLedger.context.agentSource === null,
+  'the ledger keeps where its agent came from: the HUD look, or none for one the player confirmed', JSON.stringify([hudLedger.context, tickLedger.context]));
 
   ok(metaOf('valorant-1-abcd', 'valorant', { source: 'riot' }, 1).source === 'riot'
     && metaOf('valorant-1-abcd', 'valorant', {}, 1).source === null, 'the library row keeps where a review came from');

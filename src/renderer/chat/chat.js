@@ -5,7 +5,6 @@ const introEl  = document.getElementById('intro');
 const composer = document.getElementById('composer');
 const inputEl  = document.getElementById('input');
 const sendBtn  = document.getElementById('send');
-const agentChip = document.getElementById('agent-chip');
 
 const history = [];   // { role: 'user'|'assistant', content }
 let busy = false;
@@ -69,15 +68,8 @@ for (const btn of document.querySelectorAll('.starter')) {
   });
 }
 
-// Agent chip in the header for context.
-function applyState(s) {
-  if (s && s.agent && s.agent.agent) {
-    agentChip.textContent = s.agent.agent;
-    agentChip.hidden = false;
-  }
-}
-window.occlara.getState().then(applyState).catch(() => {});
-window.occlara.onState(applyState);
+// No agent chip in the header (8.4.4): the agent the app holds is the match in
+// progress's, read off the player's own HUD, and nothing of it is shown.
 
 // "Ask Coach about this" from the stats dashboard: a pending session seed is
 // auto-sent as the opening question so the AI speaks to that exact session.

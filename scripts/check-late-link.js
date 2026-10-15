@@ -206,8 +206,6 @@ class StandInValorant extends EventEmitter {
   }
   start() { this.emit('status', 'coaching'); }
   stop() { this.emit('status', 'stopped'); }
-  setAgent() { return { ok: true }; }
-  confirmAgent() {}
   pause() {}
   resume() {}
 }

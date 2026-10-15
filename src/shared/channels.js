@@ -20,7 +20,8 @@ const CHANNELS = {
   CONFIG_GET:       'config:get',        // () → full config snapshot
   CONFIG_SET:       'config:set',        // (partial) → { ok }
   STATE_GET:        'state:get',         // () → current coaching state snapshot
-  AGENT_SET:        'agent:set',         // (name) → { ok, agent, confirmed, role }
+  // No agent channels since 8.4.4 (agent:set, agent:confirm, push:agent): the
+  // engine reads the agent off the player's own HUD and asks nobody for it.
   CHAT_SEND:        'chat:send',         // (messages) → { ok, reply }
   STATS_TEST:       'stats:test',        // () → { ok, stats?, error? } tracker connect test
   STATS_DASHBOARD:  'stats:dashboard',   // () → { categories, rank, winRate, sessions, sessionCount, matches, riotConnected }
@@ -52,7 +53,6 @@ const CHANNELS = {
   COACH_START:     'coach:start',
   COACH_STOP:      'coach:stop',
   COACH_PAUSE:     'coach:pauseResume',
-  AGENT_CONFIRM:   'agent:confirm',      // player tapped ✓ on the detected agent
   OPEN_SETTINGS:   'window:openSettings',
   OPEN_HISTORY:    'window:openHistory',
   OPEN_CHAT:       'window:openChat',    // the Ask Coach chat window
@@ -105,7 +105,6 @@ const CHANNELS = {
   // ── main → renderer pushes (webContents.send ⇄ ipcRenderer.on) ────────────
   PUSH_STATUS:       'push:status',       // { status: 'coaching'|'paused'|'stopped'|'idle' }
   PUSH_STATE:        'push:state',        // full state snapshot (panel + settings)
-  PUSH_AGENT:        'push:agent',        // { agent, confirmed, role }, drives the confirm bubble
   // EDGE TRIGGERED, not a state snapshot: fired only when the selected game
   // actually changed. PUSH_STATE already carries gameId, but it fires on every
   // config write and every status tick, so a surface that wanted to reload on a
@@ -173,7 +172,6 @@ const CHANNELS = {
 CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_STATUS,
   CHANNELS.PUSH_STATE,
-  CHANNELS.PUSH_AGENT,
   CHANNELS.PUSH_GAME,
   CHANNELS.PUSH_REVIEWS,
   CHANNELS.PUSH_BACKFILL,

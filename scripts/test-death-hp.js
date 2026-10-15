@@ -186,7 +186,8 @@ console.log('\nthe SPECTATORS counter is a living player\'s HUD:');
   // Where another signal says the HUD is somebody else's, the counter still
   // proves nothing: the death waits for a read that does.
   const f = new CoachingEngine({});
-  f.setAgent('Jett');
+  // Locked off the player's own HUD (8.4.4), as the player's tick locked it before.
+  f.lockAgent('Jett', 'hud');
   f.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal', roundNumber: 4 });
   f.updateMatchContext({ phase: 'dead', playerAlive: false, aliveTell: 'SPECTATORS 1 top right and Sova abilities' });
   check('  beside a teammate\'s kit, the counter is no proof on one frame', f.lastDeathAt === 0);
@@ -270,7 +271,7 @@ function weakDeath() {
   // WHOSE HUD IS IT, asked of the read that would withdraw the death: the
   // spectated teammate's kit called "own", at the player's health and gun.
   const kit = new CoachingEngine({});
-  kit.setAgent('Jett');
+  kit.lockAgent('Jett', 'hud');
   kit.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal', teamScore: 2, enemyScore: 2 });
   kit.updateMatchContext({ phase: 'active', playerAlive: false, teamScore: 2, enemyScore: 2, aliveTell: 'Spectating teammate, own HP not shown' });
   kit.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal', teamScore: 2, enemyScore: 2,

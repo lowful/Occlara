@@ -444,9 +444,10 @@ async function openShell(cfg, state, opts) {
     const top = p.document.querySelector('.top');
     ok(!p.$('status-text') && !p.$('dot') && !rec.querySelector('.rec-state') && !/\bReady\b/.test(rec.textContent)
       && !/id="status-text"|id="dot"|rec-state/.test(html), 'no status row: no dot, no Ready, in the markup or on the card');
-    ok(rec.children.map((c) => c.id || c.className).join() === 'agent-bubble,rec-controls' && !p.$('line') && !rec.querySelector('p')
+    ok(rec.children.map((c) => c.id || c.className).join() === 'rec-controls' && !p.$('line') && !rec.querySelector('p')
       && rec.querySelector('.rec-controls').children.map((c) => c.id).join() === 'toggle,pause',
-    'the card holds the agent check and the two buttons, and no line of text', rec.children.map((c) => c.id || c.className).join());
+    'the card holds the two buttons and nothing else, no agent check over them and no line of text under them',
+    rec.children.map((c) => c.id || c.className).join());
     ok(note && top.children.map((c) => c.id || c.className).join() === 'notice,win-controls no-drag' && top.classList.contains('drag')
       && note.classList.contains('no-drag') && note.getAttribute('aria-live') === 'polite',
     'the notice line is in the top strip, left of the window\'s buttons, a polite live region, out of the drag region the strip still is',
@@ -609,13 +610,51 @@ async function openShell(cfg, state, opts) {
     ok(p.sfx.length === 6, 'and a config with no sounds key reads as on, the default', p.sfx.join(','));
   });
 
-  await section('the agent bubble asks only a Valorant session:', async () => {
-    const l = await openShell({ language: 'en' }, { gameId: 'lol' });
-    l.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
-    ok(l.$('agent-bubble').hidden, 'a League start never opens "Reading your agent", which nothing would answer');
-    const v = await openShell({ language: 'en' }, { gameId: 'valorant' });
-    v.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
-    ok(!v.$('agent-bubble').hidden && !v.$('ab-detect').hidden, 'a Valorant start still asks for the agent');
+  // NO AGENT CHECK, AT START OR IN THE MATCH, IN ANY GAME (8.4.4). The card
+  // asked "Playing" and the agent with a tick, off a frame taken three seconds
+  // after Start, usually agent select (a teammate's KAY/O on the player's
+  // Fracture swiftplay), nine seconds in it offered a field to type the agent
+  // and the player's mains, and it asked mid match as readily. The engine
+  // reads the agent off the player's own HUD in the match now
+  // (coaching-engine.js lookForAgent), Riot's record names it after, and
+  // nothing of it reaches the screen: the card is its two buttons throughout.
+  await section('nothing asks for the agent, at Start or in the match, in any game:', async () => {
+    const html = fs.readFileSync(path.join(RENDERER, 'shell', 'index.html'), 'utf8');
+    const js = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.js'), 'utf8');
+    const css = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8');
+    ok(!/agent-bubble|id="ab-|Reading your agent|Type your agent|locked in|Your mains/.test(html)
+      && !/agent-bubble|\bab-|setAgent|confirmAgent|onAgent/.test(js) && !/\.agent-bubble|\.ab-/.test(css),
+    'the shell has no agent check: no bubble, no field, no quick picks, in its markup, its script or its styles');
+    for (const gameId of ['valorant', 'lol']) {
+      const p = await openShell({ language: 'en' }, { gameId });
+      const rec = p.$('rec');
+      const card = () => ({ kids: rec.children.map((c) => c.id || c.className).join(), text: rec.textContent.replace(/\s+/g, ' ').trim(),
+        notice: p.notice() });
+      const plain = (c) => c.kids === 'rec-controls' && c.text === 'Stop' && !/agent/i.test(`${c.text} ${c.notice || ''}`);
+      p.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
+      p.bridge.emit(C.PUSH_STATE, { ...BASE, gameId, isCoaching: true, status: 'coaching', cadence: 1000, sounds: false });
+      // Past the nine seconds the old card waited before asking.
+      p.clock.advance(10000);
+      await settle();
+      const started = card();
+      p.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: null, sealed: true });
+      p.clock.advance(60000);
+      await settle();
+      const sealed = card();
+      p.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: 'home', sealed: false });
+      p.bridge.emit(C.PUSH_STATUS, { status: 'stopped' });
+      p.bridge.emit(C.PUSH_STATE, { ...BASE, gameId, status: 'stopped' });
+      await settle();
+      const stopped = card();
+      ok(plain(started) && plain(sealed) && stopped.kids === 'rec-controls' && stopped.text === 'Start',
+        `${gameId === 'lol' ? 'League' : 'Valorant'}: recording, mid match and after it the card is its two buttons and says nothing of an agent`,
+        JSON.stringify({ started, sealed, stopped }));
+    }
+    const bridge = loadPreload('shell', {}).api;
+    ok(!('setAgent' in bridge) && !('confirmAgent' in bridge) && !('onAgent' in bridge),
+      'and the shell\'s bridge can neither set nor confirm an agent, nor hear of one', Object.keys(bridge).join(', '));
+    ok(!Object.keys(C).some((k) => /AGENT/.test(k)) && !C.PUSH_LIST.some((ch) => /agent/i.test(ch)),
+      'no channel carries an agent to a window or from one', Object.keys(C).filter((k) => /AGENT/.test(k)).join(', '));
   });
 
   // THE GAMES' OWN LOGOS (8.2.1), the player's decision of 2026-10-10 after
@@ -3102,6 +3141,499 @@ async function openShell(cfg, state, opts) {
       'and a League game with no death after it takes the window back, with no such list');
   });
 
+  // THE CLIP PLAYER (8.4.4): every clip a review shows, both games, with play
+  // and pause, back to the start, a second and a frame either way, a timeline
+  // read out as the seconds from the death with the death in --red and the
+  // coach's stills marked, and the speed. A step lands on the clip's own
+  // frames, one seek is in flight at a time, the keyboard works only while
+  // the player has focus, and a still under its clip is a place in it. A
+  // review saved before has no marks, and one with no clip times steps a
+  // thirtieth of a second.
+  await section('the clip player: its controls and their names, its marks, its words and its steps:', async () => {
+    const CT = require('../src/renderer/review/clip-time');
+    const ID = 'valorant-1759341600000-play01';
+    // A clip's frames as main reads them: a frame a thirtieth of a second, and
+    // a dropped one after frame 60, as a clip recorded unevenly has.
+    const TIMES = Array.from({ length: 120 }, (_v, i) => Math.round((i * 1000) / 30) + (i > 60 ? 15 : 0));
+    const FR = { times: TIMES, end: TIMES[TIMES.length - 1] + 33 };
+    const F = CT.framesOf(FR);
+    const DEATH = TIMES[90] + 12;
+    // The stills' seconds from the death, each its own frame's, to the hundredth.
+    const STILL_FRAMES = [15, 45, 69, 81, 111];
+    const AT = STILL_FRAMES.map((k) => Math.round((TIMES[k] - DEATH) / 10) / 100);
+    const names = AT.map((a, k) => `r2-rec${k + 1}-${a < 0 ? 'before' : 'after'}.jpg`);
+    const look = { cause: 'dry-peek', what: 'You swung wide.', better: 'Wait for the flash.', frames: names, frameAt: AT, framesFrom: 'recording',
+      source: 'riot', at: Date.UTC(2026, 9, 1, 18, 4, 0), clip: 'r2-clip.mkv', clipUrl: `occlara-clip://review/${ID}/r2-clip.mkv`, clipFrames: FR, clipDeath: DEATH };
+    const card = (n, forensics) => ({ n, side: 'Defence', result: 'lost', died: true, facts: ['Died at A Site'], reads: [], why: null, forensics });
+    const base = {
+      id: ID, kind: 'valorant', source: 'watched', aiLog: null, game: { map: 'Abyss', agent: 'Jett', result: 'Defeat', score: '11-13' },
+      rounds: [card(2, look)],
+      frameData: Object.fromEntries(names.map((n, k) => [n, `data:image/jpeg;base64,AAA2s${k}`])),
+    };
+    class FakeIO { constructor() { this.seen = new Set(); } observe(e) { this.seen.add(e); } unobserve(e) { this.seen.delete(e); } disconnect() {} }
+    // The browser's half of a <video>: play and pause fire what the page
+    // listens to, a seek is recorded and lands when the test says so, and the
+    // clip's length is known once its metadata is "loaded".
+    const media = (v) => {
+      let at = 0;
+      Object.assign(v, { paused: true, calls: [], seeks: [], readyState: 0, duration: NaN, playbackRate: 1, defaultPlaybackRate: 1 });
+      Object.defineProperty(v, 'currentTime', { configurable: true, get: () => at, set: (x) => { at = x; v.seeks.push(x); } });
+      v.play = () => { v.calls.push('play'); if (v.paused) { v.paused = false; v.dispatchEvent({ type: 'play' }); } return Promise.resolve(); };
+      v.pause = () => { v.calls.push('pause'); if (!v.paused) { v.paused = true; v.dispatchEvent({ type: 'pause' }); } };
+      v.load = () => { v.calls.push('load'); };
+      return v;
+    };
+    const loaded = (v, sec) => { v.readyState = 4; v.duration = sec; v.dispatchEvent({ type: 'loadedmetadata' }); };
+    const land = (v) => v.dispatchEvent({ type: 'seeked' });
+    const open = async (r, handler, also) => {
+      const p = loadSurface('review', { handlers: { [handler || C.LOL_REVIEW_GET]: () => r }, window: { IntersectionObserver: FakeIO } });
+      const make = p.document.createElement.bind(p.document);
+      p.document.createElement = (tag) => {
+        const e = make(tag);
+        if (String(tag).toLowerCase() !== 'video') return e;
+        media(e);
+        if (also) also(e);
+        return e;
+      };
+      await settle();
+      return p;
+    };
+    const p = await open(base);
+    const fig = p.$('moment-2').querySelector('.v-clip');
+    const vid = fig.querySelector('video.v-clip-video');
+    const range = fig.querySelector('.cp-seek');
+    const time = fig.querySelector('.cp-time');
+    const btn = (act) => fig.querySelector(`.cp-btn[data-act="${act}"]`);
+    const playBtn = fig.querySelector('.v-clip-play');
+    const words = (t) => CT.timeWords(t, { death: DEATH, frames: F, duration: FR.end / 1000 });
+
+    // ── The markup, and every control's name ──
+    ok(fig.getAttribute('role') === 'group' && fig.getAttribute('aria-label') === 'The clip of round 2' && fig.getAttribute('tabindex') === '-1'
+      && fig.querySelector(`#${fig.getAttribute('aria-describedby')}`)
+      && fig.querySelector(`#${fig.getAttribute('aria-describedby')}`).textContent
+        === 'Space or K plays and pauses, comma and full stop step one frame, the arrows one second, and Home goes back to the start.',
+    'the player is a group named for its round, focusable out of the tab order, and says its keys to a screen reader');
+    ok(same(fig.children.map((c) => c.className.split(' ')[0]), ['v-clip-frame', 'cp-bar', 'sr-only', 'sr-only'])
+      && same(fig.querySelector('.cp-bar').children.map((c) => c.className), ['cp-line', 'cp-row'])
+      && same(fig.querySelector('.v-clip-frame').children.map((c) => c.className), ['v-clip-video', 'v-clip-big'])
+      && fig.querySelector('.v-clip-big').getAttribute('aria-hidden') === 'true' && fig.querySelector('.v-clip-big').tagName === 'SPAN',
+    'the picture with its mark over it, a picture and no button, then the timeline and one row of controls under it');
+    const row = fig.querySelector('.cp-row').children;
+    const controls = row.filter((c) => c.tagName === 'BUTTON');
+    ok(same(controls.map((b) => b.getAttribute('aria-label')),
+      ['Play the clip', 'Back to the start', 'Back one second', 'Back one frame', 'Forward one frame', 'Forward one second'])
+      && controls.every((b) => b.getAttribute('type') === 'button' || b.type === 'button')
+      && same(controls.map((b) => b.title), ['Play the clip (K)', 'Back to the start (Home)', 'Back one second (←)', 'Back one frame (,)',
+        'Forward one frame (.)', 'Forward one second (→)'])
+      && same(controls.map((b) => b.getAttribute('aria-keyshortcuts')), ['Space K', 'Home', 'ArrowLeft', ',', '.', 'ArrowRight'])
+      && controls.every((b) => b.classList.contains('icon-btn') && b.querySelector('svg')),
+    'play, back to the start, a second and a frame each way: each a button with its name, the key that does the same and its mark',
+    controls.map((b) => b.getAttribute('aria-label')).join(' | '));
+    ok(range.tagName === 'INPUT' && range.getAttribute('type') === 'range' && range.getAttribute('aria-label') === 'Time in the clip'
+      && range.getAttribute('min') === '0' && range.getAttribute('max') === String(Math.round(FR.end)) && range.getAttribute('step') === '1'
+      && range.getAttribute('aria-valuetext') === words(0).label && /s before the death$/.test(range.getAttribute('aria-valuetext')),
+    `the timeline is an input of type range, the clip's length in ms, read out as the seconds from the death ("${range.getAttribute('aria-valuetext')}")`);
+    const speed = fig.querySelector('.cp-speed');
+    const rates = speed.querySelectorAll('button');
+    ok(speed.getAttribute('role') === 'group' && speed.getAttribute('aria-label') === 'Playback speed'
+      && same(rates.map((b) => b.textContent), ['1x', '0.5x', '0.25x']) && same(rates.map((b) => b.getAttribute('aria-pressed')), ['true', 'false', 'false']),
+    'the speed, 1x, 0.5x and 0.25x, each a button that says whether it is the one');
+    ok(time.getAttribute('aria-hidden') === 'true' && time.textContent === words(0).text
+      && fig.querySelectorAll('.sr-only').some((s) => s.getAttribute('aria-live') === 'polite'),
+    `the time beside them in the stills' words ("${time.textContent}"), the timeline saying it to a screen reader, and a polite line for each move`);
+    ok(vid.getAttribute('preload') === 'none' && vid.getAttribute('poster') === base.frameData[names[3]] && vid.muted === true
+      && ['muted', 'loop', 'playsinline'].every((a) => vid.hasAttribute(a)) && !vid.calls.length && !vid.seeks.length,
+    'nothing loads until it is played or moved, the frame nearest the death from before it its picture');
+
+    // ── The marks ──
+    const marks = fig.querySelectorAll('.cp-track .cp-mark');
+    const pOf = (ms) => String(ms / Math.round(FR.end));
+    const death = marks.filter((x) => x.classList.contains('death'));
+    const stills = marks.filter((x) => x.classList.contains('still'));
+    ok(death.length === 1 && death[0].style['--p'] === pOf(DEATH) && !death[0].hidden && fig.querySelector('.cp-track').getAttribute('aria-hidden') === 'true',
+      `the death marked on the timeline where it falls in the clip (${death[0] && death[0].style['--p']})`);
+    ok(stills.length === 5 && same(stills.map((x) => x.style['--p']), AT.map((a) => pOf(DEATH + a * 1000))) && stills.every((x) => !x.hidden),
+      'and the coach\'s five stills where they were taken, by their seconds from it', stills.map((x) => x.style['--p']).join(' '));
+    ok(range.title === 'The red mark is the death, the white ones the coach\'s stills', 'the timeline says what its marks are', range.title);
+    const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
+    ok(/\.cp-mark\.death \{[^}]*background: var\(--red\);/.test(rcss) && /\.cp-fill \{[^}]*background: var\(--text-dim\);[^}]*transform: scaleX\(var\(--p\)\);/.test(rcss)
+      && !/gradient/.test(rcss),
+    'the death in --red, the timeline filled with a solid fill scaled to its place, and no gradient');
+    ok(/@media \(prefers-reduced-motion: reduce\) \{\s*\.v-clip-big, \.cp-btn, \.cp-rate \{ transition: none; \}/.test(rcss),
+      'and nothing of the player moves when asked for reduced motion');
+
+    // ── A step before the clip was ever played ──
+    btn('forwardFrame').click();
+    ok(vid.getAttribute('preload') === 'auto' && !vid.seeks.length && time.textContent === words(CT.insideOf(F, 1)).text,
+      'a step before it ever played loads the clip and waits for its length, the time already the next frame\'s', `${vid.getAttribute('preload')} ${vid.seeks}`);
+    loaded(vid, FR.end / 1000);
+    ok(same(vid.seeks, [CT.insideOf(F, 1)]) && range.getAttribute('max') === String(Math.round(FR.end)),
+      `loaded, it lands on the next frame's own time, just inside it (${vid.seeks[0]} s, the frame at ${TIMES[1]} ms)`);
+    land(vid);
+    // ONE SEEK IN FLIGHT: three steps while the first is on its way are one
+    // seek after it, to the newest.
+    btn('forwardFrame').click();
+    btn('forwardFrame').click();
+    btn('forwardFrame').click();
+    ok(same(vid.seeks, [CT.insideOf(F, 1), CT.insideOf(F, 2)]), 'a step while none is on its way seeks at once', JSON.stringify(vid.seeks));
+    land(vid);
+    ok(same(vid.seeks, [CT.insideOf(F, 1), CT.insideOf(F, 2), CT.insideOf(F, 4)]) && time.textContent === words(CT.insideOf(F, 4)).text,
+      'and the two asked while it was on its way are one seek once it landed, to the frame they came to: one seek in flight at a time',
+      JSON.stringify(vid.seeks));
+    land(vid);
+    btn('backFrame').click();
+    land(vid);
+    ok(vid.seeks[vid.seeks.length - 1] === CT.insideOf(F, 3), 'a step back lands on the frame before');
+    // Across the dropped frame, a step is the next frame and not a thirtieth of a second.
+    vid.currentTime = CT.insideOf(F, 60);
+    land(vid);
+    btn('forwardFrame').click();
+    land(vid);
+    ok(vid.seeks[vid.seeks.length - 1] === CT.insideOf(F, 61) && TIMES[61] - TIMES[60] > 45,
+      `across a dropped frame, the next frame's own time (${TIMES[61]} ms), not a thirtieth of a second on`);
+
+    // ── Play, pause, and a step pauses first ──
+    playBtn.click();
+    ok(vid.paused === false && fig.classList.contains('playing') && playBtn.getAttribute('aria-label') === 'Pause the clip' && playBtn.title === 'Pause the clip (K)',
+      'play plays it, and the button says pause');
+    btn('backFrame').click();
+    ok(vid.paused === true && vid.calls[vid.calls.length - 1] === 'pause' && playBtn.getAttribute('aria-label') === 'Play the clip',
+      'a frame step pauses it first: a frame is studied paused');
+    land(vid);
+    // ── A second either way, and the start ──
+    const t0 = vid.currentTime;
+    btn('forwardSecond').click();
+    land(vid);
+    const oneOn = vid.seeks[vid.seeks.length - 1];
+    ok(oneOn === CT.landOn(F, t0 + 1) && Math.abs(oneOn - (t0 + 1)) < 0.034, 'forward one second is a second on, inside the frame there');
+    btn('backSecond').click();
+    land(vid);
+    const oneBack = vid.seeks[vid.seeks.length - 1];
+    for (let i = 0; i < 4 && vid.seeks[vid.seeks.length - 1] > CT.startOf(F); i++) { btn('backSecond').click(); land(vid); }
+    const backs = vid.seeks.slice(vid.seeks.lastIndexOf(oneOn) + 1);
+    ok(oneBack === CT.landOn(F, oneOn - 1) && Math.abs(oneBack - t0) < 0.034 && t0 > 1
+      && backs.slice(1).every((x, i) => x === (backs[i] - 1 > 0 ? CT.landOn(F, backs[i] - 1) : CT.startOf(F)))
+      && backs[backs.length - 1] === CT.startOf(F) && (btn('backSecond').click(), land(vid), vid.seeks[vid.seeks.length - 1] === CT.startOf(F)),
+    'back one second a second back, and no further than the start', JSON.stringify(vid.seeks.slice(-4)));
+    btn('start').click();
+    land(vid);
+    ok(vid.seeks[vid.seeks.length - 1] === CT.startOf(F), 'back to the start is its first frame');
+    // AT THE LAST FRAME, NO SEEK TO WHERE IT ALREADY STANDS: Chromium answers
+    // one there by looping the clip back to its start (check:webmplay holds
+    // it in the browser), and a step on at the end was frame 0.
+    const LAST = CT.insideOf(F, TIMES.length - 1);
+    range.value = String(Math.round(FR.end));
+    p.fire(range, 'input');
+    land(vid);
+    const atEnd = vid.seeks.length;
+    btn('forwardFrame').click();
+    btn('forwardSecond').click();
+    p.fire(range, 'input');
+    ok(vid.seeks[atEnd - 1] === LAST && vid.seeks.length === atEnd && time.textContent === words(LAST).text,
+      'at the last frame, a step on, a second on and the timeline at its end again seek nowhere: none to where it already stands',
+      JSON.stringify(vid.seeks.slice(atEnd - 1)));
+    btn('backFrame').click();
+    land(vid);
+    btn('forwardFrame').click();
+    land(vid);
+    ok(vid.seeks.length === atEnd + 2 && vid.seeks[vid.seeks.length - 1] === LAST, 'and a step back, then on again, are two seeks, back onto it');
+
+    // ── The words at the death ──
+    vid.currentTime = CT.insideOf(F, 90);
+    land(vid);
+    ok(time.textContent === 'At the death' && time.classList.contains('at-death') && range.getAttribute('aria-valuetext') === 'At the death',
+      'the frame the death falls in reads "At the death", the timeline too');
+    btn('forwardFrame').click();
+    land(vid);
+    ok(/^0\.0\d s after$/.test(time.textContent) && !time.classList.contains('at-death') && range.getAttribute('aria-valuetext') === `${time.textContent} the death`
+      && fig.querySelectorAll('.sr-only').find((s) => s.getAttribute('aria-live')).textContent === `${time.textContent} the death`,
+    `the frame after it to the hundredth ("${time.textContent}"), said once it is moved to`);
+
+    // ── The keyboard, only while the player has focus ──
+    const key = (target, k, extra) => p.fire(target, 'keydown', { key: k, ...(extra || {}) });
+    const before = vid.seeks.length;
+    ok(!key(fig, '.') && vid.seeks.length === before + 1 && vid.seeks[vid.seeks.length - 1] === CT.insideOf(F, 92), 'full stop steps a frame on');
+    land(vid);
+    ok(!key(fig, ',') && vid.seeks[vid.seeks.length - 1] === CT.insideOf(F, 91), 'comma a frame back');
+    land(vid);
+    ok(!key(fig, 'Home') && vid.seeks[vid.seeks.length - 1] === CT.startOf(F), 'Home the start');
+    land(vid);
+    const tk = vid.currentTime;
+    ok(!key(fig, 'ArrowRight') && vid.seeks[vid.seeks.length - 1] === CT.landOn(F, tk + 1), 'the right arrow a second on');
+    land(vid);
+    const tk2 = vid.seeks[vid.seeks.length - 1];
+    ok(!key(fig, 'ArrowLeft') && vid.seeks[vid.seeks.length - 1] === CT.landOn(F, tk2 - 1), 'the left arrow a second back');
+    land(vid);
+    ok(!key(fig, 'k') && vid.paused === false && !key(fig, 'K') && vid.paused === true && !key(fig, ' ') && vid.paused === false,
+      'K plays and pauses, and so does Space');
+    key(fig, ' ');
+    const seeksNow = vid.seeks.length;
+    ok(key(fig, 'ArrowDown') && key(fig, 'ArrowUp') && key(fig, 'PageDown') && key(fig, ',', { ctrlKey: true }) && vid.seeks.length === seeksNow,
+      'the page\'s own scroll keys, and a key with Ctrl, are left to the page');
+    const tr = vid.currentTime;
+    const upOk = !key(range, 'ArrowUp') && vid.seeks[vid.seeks.length - 1] === CT.landOn(F, tr + 1) && vid.seeks.length === seeksNow + 1;
+    const up = vid.seeks[vid.seeks.length - 1];
+    land(vid);
+    const downOk = !key(range, 'ArrowDown') && vid.seeks[vid.seeks.length - 1] === CT.landOn(F, up - 1) && Math.abs(vid.seeks[vid.seeks.length - 1] - tr) < 0.034
+      && vid.seeks.length === seeksNow + 2;
+    land(vid);
+    ok(upOk && downOk, 'on the timeline, up and down are a second each way, as its arrows are, never the range\'s own millisecond step');
+    ok(key(btn('backFrame'), ' ') && vid.paused === true, 'Space on a control reached by Tab presses that control, as a button\'s Space does');
+    const strayKey = p.fire(p.$('v-summary'), 'keydown', { key: '.' });
+    ok(strayKey && vid.seeks.length === seeksNow + 2, 'and a key anywhere else on the page does nothing to the clip');
+    // A control pressed with the pointer hands the keyboard to the player.
+    const down = p.fire(btn('forwardFrame'), 'mousedown');
+    ok(!down && p.document.activeElement === fig, 'a control pressed with the pointer hands the keyboard to the player, not to itself');
+
+    // ── The speed ──
+    rates[2].click();
+    ok(vid.playbackRate === 0.25 && vid.defaultPlaybackRate === 0.25 && same(rates.map((b) => b.getAttribute('aria-pressed')), ['false', 'false', 'true']),
+      'a quarter speed, and the button says it is the one');
+    rates[1].click();
+    ok(vid.playbackRate === 0.5 && same(rates.map((b) => b.getAttribute('aria-pressed')), ['false', 'true', 'false']), 'half');
+    rates[0].click();
+    ok(vid.playbackRate === 1, 'and back to 1x');
+
+    // ── The timeline dragged ──
+    vid.play();
+    p.fire(range, 'pointerdown');
+    ok(vid.paused === true, 'dragged while it plays, it waits paused');
+    range.value = '2500';
+    p.fire(range, 'input');
+    ok(vid.seeks[vid.seeks.length - 1] === CT.landOn(F, 2.5) && time.textContent === words(CT.landOn(F, 2.5)).text, 'at the place dragged to, inside the frame there, the time with it');
+    range.value = '2600';
+    p.fire(range, 'input');
+    range.value = '2700';
+    p.fire(range, 'input');
+    const mid = vid.seeks.length;
+    land(vid);
+    ok(vid.seeks.length === mid + 1 && vid.seeks[vid.seeks.length - 1] === CT.landOn(F, 2.7), 'the places dragged past while a seek was on its way are one seek, to the newest');
+    land(vid);
+    p.fire(range, 'pointerup');
+    ok(vid.paused === false, 'and let go, it plays on');
+    vid.pause();
+    // LET GO OFF THE TIMELINE, its place unchanged: the range hears neither
+    // its pointerup nor a change, and the page's own pointerup lets go.
+    vid.play();
+    p.fire(range, 'pointerdown');
+    const ups = (p.window._listeners.pointerup || []).slice();
+    for (const fn of ups) fn({ type: 'pointerup' });
+    ok(vid.paused === false && ups.length === 1 && !(p.window._listeners.pointerup || []).length,
+      'grabbed, dragged off the timeline and let go there, it plays on: the page\'s own pointerup lets go, and is listened for no longer');
+    vid.currentTime = 3.2;
+    p.fire(vid, 'timeupdate');
+    ok(range.value === '3200', 'and the timeline follows it as it plays again', range.value);
+    vid.pause();
+
+    // ── A still under its clip is a place in it ──
+    const gos = p.$('moment-2').querySelectorAll('.v-shot .v-shot-go');
+    ok(gos.length === 5 && gos.every((g) => g.tagName === 'BUTTON' && g.querySelector('img'))
+      && same(gos.map((g) => g.getAttribute('aria-label')), AT.map((a) => (a < 0 ? `Show the clip at ${CT.secondsOf(a)} s before the death` : a <= 1 ? 'Show the clip at just after the death' : `Show the clip at ${CT.secondsOf(a)} s after the death`)))
+      && same(p.$('moment-2').querySelectorAll('.v-shot figcaption').map((c) => c.textContent).slice(0, 4), AT.slice(0, 4).map((a) => `${Math.round(Math.abs(a) * 10) / 10} s before`)),
+    'under its clip each still is a button named for its moment, its caption as it was', gos.map((g) => g.getAttribute('aria-label')).join(' | '));
+    vid.play();
+    gos[2].click();
+    ok(vid.paused === true && vid.seeks[vid.seeks.length - 1] === CT.stillAt(F, DEATH, AT[2]) && CT.frameIndex(TIMES, vid.seeks[vid.seeks.length - 1] * 1000) === STILL_FRAMES[2]
+      && gos[2].getAttribute('aria-current') === 'true' && gos[2].parentNode.classList.contains('shown') && !gos[1].hasAttribute('aria-current'),
+    'a click on one moves the clip to that still\'s own frame and pauses it there, the still marked as the one shown');
+    land(vid);
+    // The still keeps the focus it was clicked with, and the player's keys work from it.
+    const fromStill = vid.seeks.length;
+    ok(!p.fire(gos[2], 'keydown', { key: '.' }) && vid.seeks.length === fromStill + 1
+      && vid.seeks[vid.seeks.length - 1] === CT.insideOf(F, STILL_FRAMES[2] + 1),
+    'full stop pressed on the still clicked steps the clip on from that still\'s frame: the stills hear the player\'s keys');
+    land(vid);
+    btn('forwardFrame').click();
+    ok(!gos[2].hasAttribute('aria-current') && !gos[2].parentNode.classList.contains('shown'), 'and once the clip moves on, it no longer is');
+    land(vid);
+    const fig0 = gos[0].parentNode;
+    gos[0].querySelector('img').click();
+    ok(!fig0.classList.contains('zoom'), 'a still under its clip shows in the clip, the clip at the width a zoomed frame takes');
+
+    // ── SEEN, NOT ASSUMED: a step checked against the frame presented ──
+    // Beside a capture stall Chromium shows the frame before the one a step
+    // lands in (check:webmplay holds it on a clip with one). The compositor
+    // says which frame it presented (requestVideoFrameCallback, stood in for
+    // here), and the seek goes again by what it saw.
+    let shownCbs = [];
+    const sp = await open(base, undefined, (e) => { e.requestVideoFrameCallback = (cb) => { shownCbs.push(cb); return shownCbs.length; }; });
+    const present = (ms) => { const cbs = shownCbs; shownCbs = []; for (const cb of cbs) cb(0, { mediaTime: ms / 1000 }); };
+    const sfig = sp.$('moment-2').querySelector('.v-clip');
+    const sv = sfig.querySelector('video');
+    const sbtn = (act) => sfig.querySelector(`.cp-btn[data-act="${act}"]`);
+    const stime = sfig.querySelector('.cp-time');
+    const sRange = sfig.querySelector('.cp-seek');
+    const shows = (k) => { land(sv); present(TIMES[k]); sp.clock.flushFrames(); };
+    const lastSeek = () => sv.seeks[sv.seeks.length - 1];
+    loaded(sv, FR.end / 1000);
+    sRange.value = String(TIMES[40] + 1);
+    sp.fire(sRange, 'input');
+    shows(40);
+    ok(sv.seeks.length === 1 && stime.textContent === words(CT.insideOf(F, 40)).text, 'moved to frame 40 and seen there: one seek, and its words');
+    sbtn('forwardFrame').click();
+    const firstTry = lastSeek();
+    shows(40);
+    const margin41 = Math.min(CT.INSIDE_MS, (TIMES[42] - TIMES[41]) / 4);
+    const secondTry = lastSeek();
+    ok(firstTry === CT.insideOf(F, 41) && sv.seeks.length === 3 && secondTry > firstTry
+      && Math.abs(secondTry * 1000 - (TIMES[41] + (firstTry * 1000 - TIMES[40]) - margin41)) < 1e-6,
+    'a step forward shown the frame before it goes again, as far past frame 41\'s own start as frame 40 was taken to last',
+    JSON.stringify([firstTry, secondTry]));
+    shows(41);
+    ok(sv.seeks.length === 3 && stime.textContent === words(CT.insideOf(F, 41)).text && sRange.value === String(Math.round(CT.insideOf(F, 41) * 1000)),
+      `shown frame 41 then, the time beside the clip and the timeline are frame 41's, the clock at ${secondTry} s or not`);
+    sbtn('forwardFrame').click();
+    ok(lastSeek() === CT.insideOf(F, 42), 'and the next step counts on from the frame on screen, frame 42, never from where the clock stood');
+    shows(42);
+    sbtn('backFrame').click();
+    ok(lastSeek() === secondTry, 'a frame once seen shown by another time is gone back to by that time: back to 41 as it was shown');
+    shows(41);
+    // A frame never shown for any time tried: six tries, then the frame on
+    // screen is said, and the next step goes on past the one that would not show.
+    const before42 = sv.seeks.length;
+    sbtn('forwardFrame').click();
+    for (let i = 0; i < 9; i++) shows(41);
+    ok(sv.seeks.length === before42 + 7 && stime.textContent === words(CT.insideOf(F, 41)).text,
+      'a frame shown for no time tried: six tries after the first, and the time beside the clip is the frame on screen\'s', String(sv.seeks.length - before42));
+    sbtn('forwardFrame').click();
+    ok(lastSeek() === CT.insideOf(F, 43), 'and the next step goes on past the frame that would not show, never stuck behind it');
+    shows(43);
+    // Shown a later frame than the one aimed at, the seek goes back toward its start.
+    sbtn('forwardFrame').click();
+    const late = lastSeek();
+    shows(45);
+    ok(lastSeek() < late && lastSeek() * 1000 > TIMES[44], 'shown a later frame, the seek goes again earlier, still inside the frame aimed at', JSON.stringify([late, lastSeek()]));
+    shows(44);
+    ok(stime.textContent === words(CT.insideOf(F, 44)).text, 'and once shown, its words');
+    // Shown a later frame, then an earlier one: the next try goes between the two times seen.
+    sbtn('forwardFrame').click();
+    const b1 = lastSeek();
+    shows(46);
+    const b2 = lastSeek();
+    shows(44);
+    const b3 = lastSeek();
+    ok(b2 < b1 && b3 > b2 && b3 < b1 && Math.abs(b3 - (b1 + b2) / 2) < 1e-9,
+      'shown a later frame and then an earlier one, the next try goes halfway between the two times seen', JSON.stringify([b1, b2, b3]));
+    shows(45);
+    // Every try showed another frame, never the one aimed at: back to the try
+    // that showed the nearest, one on the way the move goes before one behind,
+    // as beside a real stall, where the last try stood nine frames back.
+    const startKept = sv.seeks.length;
+    sbtn('forwardFrame').click();
+    const kept = [];
+    for (const k of [43, 48, 47, 45, 48, 45, 43]) { kept.push([lastSeek(), k]); shows(k); }
+    const nearest = kept.find(([, k]) => k === 47)[0];
+    ok(Math.abs(kept[1][0] - (kept[0][0] + (TIMES[47] - TIMES[46]) / 1000)) < 1e-9,
+      'shown a frame three before the one aimed at, the next try is a frame\'s length later, never as far again as the frame shown was taken to last',
+      JSON.stringify(kept.slice(0, 2)));
+    ok(sv.seeks.length === startKept + kept.length + 1 && lastSeek() === nearest,
+      'none of seven tries showed frame 46: the clip goes back to the time that showed 47, the nearest on the way on',
+      JSON.stringify(kept.map(([at, k]) => `${at}:${k}`)));
+    shows(47);
+    ok(stime.textContent === words(CT.insideOf(F, 47)).text, 'and says frame 47, the frame on screen');
+    sbtn('forwardFrame').click();
+    ok(lastSeek() === CT.insideOf(F, 47) || CT.frameIndex(TIMES, lastSeek() * 1000) === 47,
+      'the next step goes on from 46, the frame that would not show, to 47', String(lastSeek()));
+    shows(47);
+    // THE SAME FRAME, NOT ONLY THE SAME TIME. On these frames (gaps of 17, 15
+    // and 15 ms after 33s, as a real clip had them) the time that showed frame
+    // 31 is frame 32's own landing to the ms: taken for the same place, the
+    // step to 32 set no seek, and every step after it stayed on 31.
+    const T2 = [];
+    for (let i = 0, t = 0; i < 60; i++) { T2.push(t); t += i === 30 ? 17 : i === 31 || i === 32 ? 15 : 33; }
+    const FR2 = { times: T2, end: T2[T2.length - 1] + 33 };
+    const F2 = CT.framesOf(FR2);
+    shownCbs = [];
+    const sp2 = await open({ ...base, rounds: [card(2, { ...look, clipFrames: FR2, clipDeath: T2[50] })] }, undefined,
+      (e) => { e.requestVideoFrameCallback = (cb) => { shownCbs.push(cb); return shownCbs.length; }; });
+    const s2fig = sp2.$('moment-2').querySelector('.v-clip');
+    const s2v = s2fig.querySelector('video');
+    const s2shows = (k) => { land(s2v); present(T2[k]); sp2.clock.flushFrames(); };
+    loaded(s2v, FR2.end / 1000);
+    const s2range = s2fig.querySelector('.cp-seek');
+    s2range.value = String(T2[30] + 1);
+    sp2.fire(s2range, 'input');
+    s2shows(30);
+    s2fig.querySelector('.cp-btn[data-act="forwardFrame"]').click();
+    s2shows(30);
+    const shown31 = s2v.seeks[s2v.seeks.length - 1];
+    s2shows(31);
+    const before32 = s2v.seeks.length;
+    s2fig.querySelector('.cp-btn[data-act="forwardFrame"]').click();
+    ok(Math.abs(shown31 - CT.insideOf(F2, 32)) < 0.0005 && s2v.seeks.length === before32 + 1,
+      'the time that showed frame 31 is frame 32\'s own, and the step to frame 32 seeks all the same: the same frame, never only the same time',
+      JSON.stringify([shown31, CT.insideOf(F2, 32), s2v.seeks.length - before32]));
+    s2shows(31);
+    s2shows(32);
+    ok(s2fig.querySelector('.cp-time').textContent === CT.timeWords(CT.insideOf(F2, 32), { death: T2[50], frames: F2 }).text,
+      'and shown frame 31 for it, it goes again and shows 32');
+
+    // ── A review saved before: no place for the death ──
+    const older = await open({ ...base, rounds: [card(2, { ...look, clipDeath: null })] });
+    const of = older.$('moment-2').querySelector('.v-clip');
+    ok(!of.querySelectorAll('.cp-mark').length && !of.querySelector('.cp-seek').title
+      && of.querySelector('.cp-time').textContent === `0 s of ${Math.round(FR.end / 100) / 10} s`
+      && of.querySelector('.cp-seek').getAttribute('aria-valuetext') === `0 s into the clip, of ${Math.round(FR.end / 100) / 10} s`,
+    `a review saved before 8.4.4 marks nothing and times the clip by its own seconds ("${of.querySelector('.cp-time').textContent}")`);
+    const oldShot = older.$('moment-2').querySelectorAll('.v-shot')[0];
+    ok(!older.$('moment-2').querySelectorAll('.v-shot-go').length && oldShot.querySelector('img').parentNode === oldShot,
+      'and its stills, with no place in the clip, are frames as they were');
+    oldShot.querySelector('img').click();
+    ok(oldShot.classList.contains('zoom'), 'a click zooms one, as before');
+
+    // ── A review with no clip times: a thirtieth of a second a step ──
+    const bare = await open({ ...base, rounds: [card(2, { ...look, clipFrames: undefined })] });
+    const bf = bare.$('moment-2').querySelector('.v-clip');
+    const bv = bf.querySelector('video');
+    const bMarks = bf.querySelectorAll('.cp-mark');
+    ok(bf.querySelector('.cp-seek').getAttribute('max') === '0' && bMarks.length === 6 && bMarks.every((x) => x.hidden),
+      'with no frames handed with it, its length is not known until it loads, and its marks wait for it');
+    loaded(bv, 4);
+    ok(bf.querySelector('.cp-seek').getAttribute('max') === '4000' && bMarks.every((x) => !x.hidden)
+      && bf.querySelector('.cp-mark.death').style['--p'] === String(DEATH / 4000),
+    'loaded, the timeline is the clip\'s length and the marks are placed on it');
+    bf.querySelector('[data-act="forwardFrame"]').click();
+    ok(Math.abs(bv.seeks[0] - 1 / 30) < 1e-9, 'and a step is a thirtieth of a second', JSON.stringify(bv.seeks));
+    land(bv);
+    bf.querySelector('[data-act="backFrame"]').click();
+    ok(bv.seeks[1] === 0, 'back to the start, no further');
+
+    // ── A League death's clip: the same player, the death marked, no stills ──
+    const LID = 'lol-1759341600000-play02';
+    const lol = {
+      id: LID, kind: 'lol', game: { champion: 'Ahri', role: 'Middle', mode: 'CLASSIC', duration: '31:04' },
+      scoreline: { kills: 4, deaths: 1, assists: 6, cs: 210, csAt10: 70, ward: 14 }, deaths: { headline: 'You died once.', detail: 'Alone.' },
+      deathList: [{ n: 1, atSec: 210, at: '3:30', fact: 'No ally died within 20 seconds of it.', clip: 'd1-clip.mkv',
+        clipUrl: `occlara-clip://review/${LID}/d1-clip.mkv`, clipFrames: FR, clipDeath: DEATH }],
+      moments: [], objectives: { dragonsFor: 1, dragonsAgainst: 2, baronsFor: 0, baronsAgainst: 1, turretsFor: 3, turretsAgainst: 5 },
+      scored: [], unmeasured: [], next: null, gamesRecorded: 0,
+    };
+    const l = await open(lol);
+    const lf = l.$('death-1').querySelector('.v-clip');
+    const lMarks = lf.querySelectorAll('.cp-mark');
+    ok(lf && lf.getAttribute('aria-label') === 'The clip of death 1' && lMarks.length === 1 && lMarks[0].classList.contains('death')
+      && lMarks[0].style['--p'] === pOf(DEATH) && lf.querySelector('.cp-seek').title === 'The red mark is the death'
+      && same(lf.querySelectorAll('.cp-row .cp-btn').map((b) => b.getAttribute('aria-label')),
+        ['Play the clip', 'Back to the start', 'Back one second', 'Back one frame', 'Forward one frame', 'Forward one second'])
+      && lf.querySelectorAll('.cp-rate').length === 3 && !lf.querySelector('video').hasAttribute('poster'),
+    'a League death\'s clip has the same player, its death marked where the game\'s clock put it, and no stills');
+    lf.querySelector('[data-act="forwardFrame"]').click();
+    loaded(lf.querySelector('video'), FR.end / 1000);
+    ok(lf.querySelector('video').seeks[0] === CT.insideOf(F, 1), 'and it steps on its own frames too');
+
+    // ── A look from the screen counts from its read ──
+    const sc = await open({ ...base, rounds: [card(2, { ...look, source: 'screen' })] });
+    const sf = sc.$('moment-2').querySelector('.v-clip');
+    sf.querySelector('video').currentTime = CT.insideOf(F, 90);
+    loaded(sf.querySelector('video'), FR.end / 1000);
+    land(sf.querySelector('video'));
+    ok(sf.querySelector('.cp-time').textContent === 'Read as dead' && sf.querySelector('.cp-seek').getAttribute('aria-valuetext') === 'The frame the screen read the death on'
+      && sf.querySelector('.cp-seek').title === 'The red mark is where the screen read the death, the white ones the coach\'s stills',
+    'a look from the screen counts from its read of the death, that frame "Read as dead", as its stills are named');
+    ok(!DASHES.test(p.$('v-rounds').textContent + l.$('r-deaths').textContent + controls.map((b) => b.title + b.getAttribute('aria-label')).join(' ')),
+      'no dash in the player\'s words');
+  });
+
   await section('the AI log describes deaths, and only a tip era log counts reviews:', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-surfaces-'));
     try {
@@ -3862,11 +4394,11 @@ async function openShell(cfg, state, opts) {
     p.bridge.emit(C.PUSH_SHELL, { page: 'review', shown: 'review', sealed: false });
     ok(marker.classList.contains('on') && marker.classList.contains('still') && marker.style.transform === `translate(12px, ${top('matches')}px)`,
       'unsealed on the review, it appears on Matches, put there rather than slid');
-    // THE RECORD CARD CHANGES HEIGHT on its own, and with the sidebar
-    // overflowing (the window's minimum height) Settings, below it, moves
-    // with it. Layout again: Settings under a card as tall as what it shows,
-    // which since 8.3 is the agent check and the two buttons, and no line.
-    const settingsAt = () => 520 + (p.$('agent-bubble').hidden ? 0 : 48 + (p.$('ab-quick').hidden ? 0 : 36))
+    // THE MARKER FOLLOWS THE RECORD CARD, and with the sidebar overflowing
+    // (the window's minimum height) Settings, below it, moves with it. Layout
+    // again: Settings under a card as tall as what it shows, which since 8.3
+    // is no line and since 8.4.4 no agent check, its two buttons alone.
+    const settingsAt = () => 520 + p.$('rec').children.filter((c) => c.className !== 'rec-controls' && !c.hidden).length * 48
       + (p.$('rec').querySelector('p') ? 18 : 0);
     Object.defineProperty(p.$('nav-settings'), 'offsetTop', { get: settingsAt, configurable: true });
     const onSettings = () => marker.style.transform === `translate(12px, ${settingsAt()}px)`;
@@ -3880,21 +4412,16 @@ async function openShell(cfg, state, opts) {
       'a notice is the top strip\'s (8.3): the card stays as it was, and so do Settings and the marker on it', where());
     p.bridge.emit(C.PUSH_STATE, { ...BASE, notice: null });
     ok(p.notice() === null && settingsAt() === before && onSettings(), 'and stay when it clears', where());
-    // Recording Valorant: the agent check opens in the card with the player's
-    // mains, is answered, and closes itself 1.6 seconds later, and nothing but
-    // the card's own size says so.
+    // Recording Valorant: nothing opens in the card (8.4.4), so Settings
+    // stays where it was and so does the marker on it, and a resize of the
+    // card still puts the marker back after layout.
     p.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
-    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching', topAgents: ['Jett', 'Omen', 'Sova'] });
-    ok(!p.$('agent-bubble').hidden && !p.$('ab-quick').hidden && onSettings(), 'the agent check up with its quick picks, the marker is on Settings', where());
-    p.bridge.emit(C.PUSH_AGENT, { agent: 'Jett', confirmed: true });
+    p.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching' });
+    p.clock.advance(10000);
     p.resized(p.$('rec'));
-    ok(p.$('ab-quick').hidden && onSettings(), 'the agent locked in and the picks gone, the card is shorter and the marker follows Settings up', where());
-    p.clock.advance(1600);
-    p.resized(p.$('rec'));
-    ok(p.$('agent-bubble').hidden && onSettings(), 'and again once the check has closed itself', where());
-    ok(prop(rule(shellCss, '.sealed'), 'animation') === 'riseIn var(--t-slow) var(--ease-expo) both'
-      && prop(rule(shellCss, '.agent-bubble'), 'animation') === 'riseIn var(--t-med) var(--ease-expo) both',
-    'the Recording screen and the agent bubble rise in as they appear');
+    ok(settingsAt() === before && onSettings(), 'recording, the card opens nothing and Settings and the marker on it stay put', where());
+    ok(prop(rule(shellCss, '.sealed'), 'animation') === 'riseIn var(--t-slow) var(--ease-expo) both',
+      'the Recording screen rises in as it appears');
 
     // A dropdown closes as it opened.
     const se = loadSurface('settings', {

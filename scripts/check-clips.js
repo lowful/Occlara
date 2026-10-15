@@ -26,7 +26,9 @@
  *     before its read of the death, kept beside the review, never the grey
  *     frames the AI log holds; each still the clip's own frame at its second
  *     (a <video> seeked there, once nothing records), not one a second either
- *     side; and with Off chosen, the look is sent the AI log's two frames
+ *     side; the read's place in the clip kept on its card (8.4.4), where its
+ *     stills count from; and with Off chosen, the look is sent the AI log's
+ *     two frames
  *   Clear clips while that review is still being improved: its clip goes, the
  *     version saved after (the link giving up) still says it was cleared, the
  *     page says so with its frames kept, and the hold is let go once the
@@ -40,6 +42,15 @@
  *     the poster; played from the page's button it loads with the clip's own
  *     length and advances, a click on the picture pauses it, and a seek
  *     presents the frame at that time (requestVideoFrameCallback)
+ *   and its player (8.4.4), in the real page: every control by its name, the
+ *     screen's read of the death marked where it falls in the clip and the
+ *     five stills; the timeline moved, and frame steps forward and back
+ *     across the fixture's dropped frames, each judged by the frame the
+ *     <video> presents once it lands; each still clicked presents its own
+ *     frame, paused and marked; the words at the read; 0.5x and 0.25x played;
+ *     the keys pressed as trusted input, the page never scrolled by them; the
+ *     timeline clicked with the mouse; and a League death's player with its
+ *     death marked where the game's clock put it
  *   the scheme, through net.fetch: a range is 206 with its Content-Range and
  *     video/x-matroska, the bytes those of the file; a frame, a clip not
  *     there, an id that is not a review's are 404
@@ -112,7 +123,7 @@ if (!process.versions.electron) {
   if (rec.fatal) console.log('FAIL  ' + rec.fatal);
   const bad = rec.lines.filter((l) => !l.ok).length + (rec.fatal ? 1 : 0);
   if (bad) { console.error(`\nFAIL: ${bad} of ${rec.lines.length} clip checks failed`); process.exit(1); }
-  console.log(`\nPASS: all ${rec.lines.length} checks: a death recorded live is clipped beside its review while its recording is held, a clip cleared stays said to be, nothing is clipped once Off is chosen, a review's moment plays its clip through occlara-clip and seeks to its frame, a League death is clipped by the game's own clock and plays, closing while it is cut asks first, and a late link keeps only the clips its cards name`);
+  console.log(`\nPASS: all ${rec.lines.length} checks: a death recorded live is clipped beside its review while its recording is held, a clip cleared stays said to be, nothing is clipped once Off is chosen, a review's moment plays its clip through occlara-clip and seeks to its frame, its player steps it frame by frame, slows it and answers the keys, a League death is clipped by the game's own clock and plays, closing while it is cut asks first, and a late link keeps only the clips its cards name`);
   process.exit(0);
 }
 
@@ -122,6 +133,8 @@ const { app, ipcMain, nativeImage, net } = require('electron');
 const C = require(path.join(REPO, 'src/shared/channels'));
 const webm = require(path.join(REPO, 'src/shared/webm'));
 const clipsModule = require(path.join(REPO, 'src/shared/clips'));
+const clipFrames = require(path.join(REPO, 'src/shared/clip-frames'));
+const ClipTime = require(path.join(REPO, 'src/renderer/review/clip-time'));
 const valorantReview = require(path.join(REPO, 'src/shared/valorant-review'));
 const recorderModule = require(path.join(REPO, 'src/main/services/recorder'));
 const { ReviewStore, newId } = require(path.join(REPO, 'src/main/services/review-store'));
@@ -169,8 +182,6 @@ class StandInValorant extends EventEmitter {
   }
   start() { this.emit('status', 'coaching'); }
   stop() { this.emit('status', 'stopped'); }
-  setAgent() { return { ok: true }; }
-  confirmAgent() {}
   pause() {}
   resume() {}
   setCaptureSpeed() {}
@@ -196,6 +207,8 @@ const stubApi = {
   },
 };
 const same = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+// Two lists alike, item for item.
+const sameList = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const realLoad = Module._load;
 Module._load = function patched(request, parent, isMain) {
   if (parent && parent.filename && same(parent.filename, INDEX)) {
@@ -296,6 +309,93 @@ async function stillsAgainstClip(job) {
   return { out };
 }
 
+/**
+ * In the review page, serialized into executeJavaScript: the clip's player
+ * driven as a player would, each move judged by the frame the <video>
+ * presents after it (requestVideoFrameCallback's mediaTime, that frame's own
+ * time), never by where currentTime was set.
+ *
+ *   job.box     the moment, '#moment-2'
+ *   job.times   the clip's frames, ms, as main read them off its blocks
+ *   job.from    the frame the timeline is first moved to
+ *   job.steps   how many frame steps each way
+ *   job.death   the death's place in the clip, ms
+ */
+async function playerDrill(job) {
+  const root = document.querySelector(job.box);
+  const fig = root && root.querySelector('.v-clip');
+  if (!fig) return { error: 'no player in ' + job.box };
+  root.scrollIntoView({ block: 'center' });
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const v = fig.querySelector('video');
+  const range = fig.querySelector('.cp-seek');
+  const time = fig.querySelector('.cp-time');
+  const btn = (act) => fig.querySelector('.cp-btn[data-act="' + act + '"]');
+  const T = job.times;
+  const out = {
+    names: [...fig.querySelectorAll('.cp-row button')].map((b) => b.getAttribute('aria-label') || b.textContent),
+    range: { type: range.type, label: range.getAttribute('aria-label'), max: Number(range.max), title: range.title },
+    marks: [...fig.querySelectorAll('.cp-mark')].map((m) => ({ death: m.classList.contains('death'), p: Number(m.style.getPropertyValue('--p')), shown: !m.hidden,
+      left: Math.round(m.getBoundingClientRect().left + m.getBoundingClientRect().width / 2) })),
+    track: (() => { const r = fig.querySelector('.cp-track').getBoundingClientRect(); return { left: r.left, width: r.width }; })(),
+    duration: v.duration,
+  };
+  const wait = (name, ms) => new Promise((res) => {
+    let t = null;
+    const on = () => { clearTimeout(t); v.removeEventListener(name, on); res(true); };
+    v.addEventListener(name, on);
+    t = setTimeout(() => { v.removeEventListener(name, on); res(false); }, ms);
+  });
+  const presented = (ms) => new Promise((res) => {
+    if (typeof v.requestVideoFrameCallback !== 'function') { res(null); return; }
+    const t = setTimeout(() => res(null), ms);
+    v.requestVideoFrameCallback((_n, m) => { clearTimeout(t); res(m.mediaTime); });
+  });
+  const indexOf = (mt) => (typeof mt === 'number' ? T.findIndex((x) => Math.abs(x / 1000 - mt) < 0.0006) : -1);
+  const move = async (fn) => {
+    const frame = presented(5000);
+    const s = wait('seeked', 5000);
+    fn();
+    const seeked = await s;
+    const mt = await frame;
+    await new Promise((r) => setTimeout(r, 80));
+    return { seeked, frame: indexOf(mt), mediaTime: mt, t: v.currentTime, text: time.textContent, paused: v.paused };
+  };
+  const drag = (ms) => () => { range.value = String(Math.round(ms)); range.dispatchEvent(new Event('input', { bubbles: true })); };
+  if (!v.paused) v.pause();
+  out.timeline = await move(drag(T[job.from] + 10));
+  out.forward = [];
+  for (let i = 0; i < job.steps; i++) out.forward.push((await move(() => btn('forwardFrame').click())).frame);
+  out.back = [];
+  for (let i = 0; i < job.steps; i++) out.back.push((await move(() => btn('backFrame').click())).frame);
+  const gos = [...root.querySelectorAll('.v-shot-go')];
+  out.stills = [];
+  for (const go of gos) {
+    const r = await move(() => go.click());
+    out.stills.push({ frame: r.frame, current: go.getAttribute('aria-current'), paused: r.paused, text: r.text });
+  }
+  out.death = await move(drag(job.death));
+  out.afterDeath = await move(() => btn('forwardFrame').click());
+  const rates = [...fig.querySelectorAll('.cp-rate')];
+  out.speeds = [];
+  for (const i of [1, 2, 0]) {
+    rates[i].click();
+    await move(() => btn('start').click());
+    const playing = wait('playing', 5000);
+    fig.querySelector('.v-clip-play').click();
+    await playing;
+    const t0 = v.currentTime;
+    const w0 = performance.now();
+    await new Promise((r) => setTimeout(r, 1500));
+    out.speeds.push({ text: rates[i].textContent, rate: v.playbackRate, pressed: rates[i].getAttribute('aria-pressed'),
+      perSecond: Math.round(((v.currentTime - t0) / ((performance.now() - w0) / 1000)) * 1000) / 1000 });
+    fig.querySelector('.v-clip-play').click();
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  out.endPaused = v.paused;
+  return out;
+}
+
 setTimeout(async () => {
   const registry = require(path.join(REPO, 'src/main/windows/registry'));
   const mainWindow = require(path.join(REPO, 'src/main/windows/main-window'));
@@ -370,6 +470,20 @@ setTimeout(async () => {
     out.currentTime = v.currentTime;
     return out;
   })()`);
+  /** With OCCLARA_SHOTS, a picture of one part of the review page (`box`), to look at. */
+  const rwShot = async (box, name) => {
+    const w = surfaces.find('/review/');
+    if (!w) return;
+    const r = await inPage(`(() => { const e = document.querySelector('${box}'); if (!e) return null; e.scrollIntoView({ block: 'center' });
+      const b = e.getBoundingClientRect(); return { x: Math.max(0, Math.floor(b.left) - 8), y: Math.max(0, Math.floor(b.top) - 8),
+      width: Math.ceil(b.width) + 16, height: Math.ceil(b.height) + 16 }; })()`);
+    if (!r) return;
+    await wait(400);
+    const img = await w.webContents.capturePage(r);
+    const dir = path.join(REPO, 'dist-surface-shots');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${name}.png`), img.toPNG());
+  };
   /** A recording in progress, once its page has handed over its first frames. */
   const recording = () => until(() => {
     const r = recorderModule.current();
@@ -474,6 +588,13 @@ setTimeout(async () => {
       clip: fs.readFileSync(clipFile).toString('base64'),
       stills: inTime.map((s) => ({ t: (died + s.at * 1000 - (segZero + segPlan.start)) / 1000, at: s.at, jpeg: s.jpeg })),
     } : null;
+    // AND THE READ'S PLACE IN THE CLIP, kept on its card for the player to
+    // mark (8.4.4): the moment its stills count from, less the clip's own 0,
+    // so the red mark stands where the stills say the read was.
+    const placeKept = named && named.forensics ? named.forensics.clipDeath : null;
+    const placeWant = segPlan ? died - (segZero + segPlan.start) : NaN;
+    ok(Number.isInteger(placeKept) && Math.abs(placeKept - placeWant) <= 20,
+      `and the read of the death's place in that clip kept on its card, where its stills count from: ${placeKept} ms into it, ${Math.round(placeWant)} wanted`);
     const livePlayer = await until(async () => {
       const p = await playerOf('#moment-2');
       return p && p.src && p.src.includes(liveId) ? p : null;
@@ -577,10 +698,22 @@ setTimeout(async () => {
     const rounds = played.rounds.map((r) => ({ ...r }));
     const two = rounds.find((r) => r.n === 2);
     const frameB64 = nativeImage.createFromBitmap(Buffer.alloc(64 * 36 * 4, 90), { width: 64, height: 36 }).toJPEG(80).toString('base64');
-    two.forensics = { cause: 'dry-peek', what: 'You swung wide.', better: 'Wait for the flash.', frames: ['r2-before.jpg'], source: 'screen', at: SEED_AT - 600000, clip: 'r2-clip.mkv' };
+    // Its look is the screen's, with five stills of the clip at the screen's
+    // seconds before its read of the death (clips.LOOK_AT), each the clip's
+    // own frame there to the hundredth as look-stills.js takes them, and the
+    // read's place in the clip kept beside its name (8.4.4), as main keeps it.
+    const seedTimes = clipFrames.indexClip(seedClip).frames.map((f) => f.ms);
+    const SEED_DEATH = seedTimes[150] + 12;
+    const onScreen = (ms) => { let k = 0; while (k + 1 < seedTimes.length && seedTimes[k + 1] <= ms) k++; return k; };
+    const seedStills = clipsModule.LOOK_AT.screen.map((s) => onScreen(SEED_DEATH + s * 1000));
+    const seedAt = seedStills.map((k) => (seedTimes[k] < SEED_DEATH ? -1 : 1) * Math.round(Math.abs(seedTimes[k] - SEED_DEATH) / 10) / 100);
+    const seedNames = seedAt.map((a, k) => clipsModule.stillName(2, k + 1, a));
+    two.forensics = { cause: 'dry-peek', what: 'You swung wide.', better: 'Wait for the flash.', frames: seedNames, frameAt: seedAt, framesFrom: 'recording',
+      source: 'screen', at: SEED_AT - 600000, clip: 'r2-clip.mkv', clipDeath: SEED_DEATH };
     const built = valorantReview.build({ rounds, context: { ...played.context, agent: 'Jett' }, endedBy: 'score', ai: {}, role: 'Duelist', history: [] });
     const library = new ReviewStore(REVIEWS);
-    library.save({ id: SEED_ID, game: 'valorant', at: SEED_AT, review: { ...built, id: SEED_ID, at: SEED_AT, kind: 'valorant' }, frames: { 'r2-before.jpg': frameB64 } });
+    library.save({ id: SEED_ID, game: 'valorant', at: SEED_AT, review: { ...built, id: SEED_ID, at: SEED_AT, kind: 'valorant' },
+      frames: { 'r2-before.jpg': frameB64, ...Object.fromEntries(seedNames.map((n) => [n, frameB64])) } });
     ok(library.saveClip(SEED_ID, 'r2-clip.mkv', seedClip) === seedClip.length,
       `a clip of the canvas fixture, ${SEED_FROM} to ${SEED_TO} ms, kept beside a saved review (${seedClip.length} bytes, never a screen)`);
     send(C.REVIEW_OPEN, SEED_ID);
@@ -604,6 +737,98 @@ setTimeout(async () => {
     ok(p && p.paused && p.figPaused, 'a click on the picture pauses it');
     ok(p && p.seeked && typeof p.mediaTime === 'number' && p.mediaTime <= seekTo + 0.001 && seekTo - p.mediaTime < 0.08 && Math.abs(p.currentTime - seekTo) < 0.001,
       `a seek to ${seekTo} s lands and presents the frame there: the frame at ${p && p.mediaTime} s (a frame is about 33 ms)`);
+
+    // ── 2a. The clip's player (8.4.4), in the real page ────────────────────
+    // Driven by its own controls, each move judged by the frame the <video>
+    // presents once it lands, against the frames main read off the clip's
+    // blocks: the fixture's came unevenly (31 ms apart mostly, 46 and 47 where
+    // the canvas dropped one, a gap of 62 to 77), the case a step by its own
+    // frames is for (test:clips counts a thirtieth of a second a step wrong on
+    // more than 20 of them), and the case where a frame a long gap follows
+    // showed an earlier frame here when asked for just before the next one.
+    const gapAt = seedTimes.findIndex((x, i) => i > 20 && i + 1 < seedTimes.length && seedTimes[i + 1] - x >= 44);
+    const FROM = Math.max(1, gapAt - 3);
+    const STEPS = 7;
+    const drill = await inPage('(' + String(playerDrill) + ')(' + JSON.stringify({ box: '#moment-2', times: seedTimes, from: FROM, steps: STEPS, death: SEED_DEATH }) + ')');
+    const dr = drill || {};
+    ok(dr && !dr.error && sameList(dr.names, ['Play the clip', 'Back to the start', 'Back one second', 'Back one frame', 'Forward one frame', 'Forward one second', '1x', '0.5x', '0.25x'])
+      && dr.range && dr.range.type === 'range' && dr.range.label === 'Time in the clip' && Math.abs(dr.range.max - clipLen * 1000) < 2,
+    `its player, in the real page: ${dr.names ? dr.names.join(', ') : dr.error}, and a timeline of the clip's ${dr.range && dr.range.max} ms`);
+    const dmarks = dr.marks || [];
+    const deathMark = dmarks.find((m) => m.death);
+    const wantLeft = dr.track ? dr.track.left + (SEED_DEATH / (dr.range.max || 1)) * dr.track.width : NaN;
+    ok(deathMark && deathMark.shown && Math.abs(deathMark.p - SEED_DEATH / dr.range.max) < 1e-6 && Math.abs(deathMark.left - wantLeft) <= 2
+      && dmarks.filter((m) => !m.death && m.shown).length === 5,
+    `the screen's read of the death marked on the timeline where it falls in the clip (${deathMark ? deathMark.left : '?'} px, ${Math.round(wantLeft)} wanted), and the five stills`);
+    ok(dr.timeline && dr.timeline.seeked && dr.timeline.frame === FROM, `the timeline moved lands on the frame there: frame ${dr.timeline && dr.timeline.frame}, ${FROM} asked`);
+    const wantFwd = Array.from({ length: STEPS }, (_v, i) => FROM + i + 1);
+    const wantBack = Array.from({ length: STEPS }, (_v, i) => FROM + STEPS - i - 1);
+    ok(sameList(dr.forward, wantFwd), `a frame step forward presents the next frame each time, across the dropped one after frame ${gapAt}: ${JSON.stringify(dr.forward)}`);
+    ok(sameList(dr.back, wantBack), `and a step back the one before: ${JSON.stringify(dr.back)}`);
+    ok(Array.isArray(dr.stills) && dr.stills.length === 5 && sameList(dr.stills.map((s) => s.frame), seedStills)
+      && dr.stills.every((s) => s.current === 'true' && s.paused),
+    `a click on a still under the clip presents that still's own frame, paused, and marks it: ${JSON.stringify(dr.stills && dr.stills.map((s) => s.frame))}, ${JSON.stringify(seedStills)} wanted`);
+    ok(dr.death && dr.death.text === 'Read as dead' && dr.afterDeath && /^0\.0\d s after$/.test(dr.afterDeath.text),
+      `at the read of the death the time says "${dr.death && dr.death.text}", and a frame on "${dr.afterDeath && dr.afterDeath.text}"`);
+    const sp = dr.speeds || [];
+    ok(sp.length === 3 && sameList(sp.map((s) => s.rate), [0.5, 0.25, 1]) && sp.every((s) => s.pressed === 'true')
+      && Math.abs(sp[0].perSecond - 0.5) <= 0.12 && Math.abs(sp[1].perSecond - 0.25) <= 0.08 && Math.abs(sp[2].perSecond - 1) <= 0.2 && dr.endPaused,
+    `slow motion: ${sp.map((s) => `${s.text} played ${s.perSecond} s of clip a second`).join(', ')}`);
+
+    // THE KEYBOARD, AS A PLAYER PRESSES IT: trusted keys through the page's
+    // own view, with the player given the keyboard as a click on it gives it.
+    // The page scrolls by none of them.
+    const rw = surfaces.find('/review/');
+    const F = ClipTime.framesOf({ times: seedTimes });
+    const pageState = () => inPage(`(() => { const f = document.querySelector('#moment-2 .v-clip'); const v = f.querySelector('video');
+      return { t: v.currentTime, paused: v.paused, focus: document.activeElement === f, scroll: document.querySelector('.body').scrollTop,
+        text: f.querySelector('.cp-time').textContent }; })()`);
+    const press = async (code) => {
+      win.focus();
+      rw.webContents.focus();
+      rw.webContents.sendInputEvent({ type: 'keyDown', keyCode: code });
+      rw.webContents.sendInputEvent({ type: 'keyUp', keyCode: code });
+      await wait(700);
+      return pageState();
+    };
+    await inPage(`(() => { const f = document.querySelector('#moment-2 .v-clip'); f.querySelector('video').pause();
+      const r = f.querySelector('.cp-seek'); r.value = String(${Math.round(seedTimes[40] + 10)}); r.dispatchEvent(new Event('input', { bubbles: true }));
+      f.focus({ preventScroll: true }); return true; })()`);
+    await wait(700);
+    const k0 = await pageState();
+    const kDot = await press('.');
+    const kComma = await press(',');
+    const kRight = await press('Right');
+    const kLeft = await press('Left');
+    const kHome = await press('Home');
+    const kSpace = await press('Space');
+    const kK = await press('K');
+    const inside = (s, k) => s && Math.abs(s.t - ClipTime.insideOf(F, k)) < 0.0015;
+    ok(k0.focus && inside(kDot, 41) && inside(kComma, 40), `full stop and comma step a frame each way (${kDot && kDot.t}, ${kComma && kComma.t} s, frames 41 and 40)`);
+    ok(kRight && Math.abs(kRight.t - ClipTime.landOn(F, kComma.t + 1)) < 0.0015 && kLeft && Math.abs(kLeft.t - ClipTime.landOn(F, kRight.t - 1)) < 0.0015,
+      `the arrows a second each way, inside the frame there (${kRight && kRight.t}, ${kLeft && kLeft.t} s)`);
+    ok(inside(kHome, 0) && kSpace && kSpace.paused === false && kK && kK.paused === true, `Home the start, Space plays and K pauses (${kHome && kHome.t} s, ${kSpace && kSpace.paused}, ${kK && kK.paused})`);
+    ok([kDot, kComma, kRight, kLeft, kHome, kSpace, kK].every((s) => s && s.scroll === k0.scroll && s.focus),
+      `and the page scrolls by none of them, the player keeping the keyboard (scroll ${k0.scroll})`);
+    // The timeline clicked with the mouse, trusted, at three fifths of it.
+    const seekRect = await inPage("(() => { const r = document.querySelector('#moment-2 .cp-seek').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()");
+    const cx = Math.round(seekRect.x + 6 + 0.6 * (seekRect.w - 12));
+    const cy = Math.round(seekRect.y + seekRect.h / 2);
+    rw.webContents.sendInputEvent({ type: 'mouseDown', x: cx, y: cy, button: 'left', clickCount: 1 });
+    rw.webContents.sendInputEvent({ type: 'mouseUp', x: cx, y: cy, button: 'left', clickCount: 1 });
+    await wait(900);
+    const clicked = await pageState();
+    ok(clicked && Math.abs(clicked.t - 0.6 * clipLen) < 0.03 * clipLen && clicked.paused,
+      `the timeline clicked at three fifths of it moves the clip there, paused: ${clicked && clicked.t} s of ${clipLen.toFixed(2)}`);
+    if (process.env.OCCLARA_SHOTS) {
+      await rwShot('#moment-2', 'clip-player-timeline');
+      await inPage("document.querySelectorAll('#moment-2 .v-shot-go')[3].click(); true");
+      await wait(900);
+      await rwShot('#moment-2', 'clip-player-still');
+      await inPage(`(() => { const r = document.querySelector('#moment-2 .cp-seek'); r.value = String(${Math.round(SEED_DEATH)}); r.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      await wait(900);
+      await rwShot('#moment-2', 'clip-player-death');
+    }
 
     // The scheme itself, through net.fetch, which goes through protocol.handle.
     const url = `occlara-clip://review/${SEED_ID}/r2-clip.mkv`;
@@ -713,6 +938,19 @@ setTimeout(async () => {
     const lp = await playIn('#death-1', 5);
     ok(lp && !lp.error && Number.isFinite(lp.duration) && Math.abs(lp.duration - lolLen) < 0.2 && lp.playing && lp.advanced > 0.5 && lp.seeked,
       `and it plays, a clip recorded live: ${lp && lp.duration} s long, ${lp && lp.advanced} s on after 1.5 s, seeked${lp && lp.error ? ', error ' + lp.error : ''}`);
+    // Its player (8.4.4): the death kept beside the clip's name where the
+    // game's clock put it, 11 s into a clip that opens on the keyframe at or
+    // before 11 s before it, and marked there on its timeline.
+    const lolDeath = lolNamed ? (new ReviewStore(REVIEWS).get(lolId).review.deathList || [])[0] : null;
+    const lolMark = await inPage(`(() => { const f = document.querySelector('#death-1 .v-clip'); if (!f) return null;
+      const m = f.querySelectorAll('.cp-mark'); const v = f.querySelector('video');
+      return { label: f.getAttribute('aria-label'), marks: m.length, death: m[0] && m[0].classList.contains('death'), p: m[0] ? Number(m[0].style.getPropertyValue('--p')) : null,
+        max: Number(f.querySelector('.cp-seek').max), buttons: f.querySelectorAll('.cp-row .cp-btn').length, duration: v.duration }; })()`);
+    ok(lolDeath && Number.isInteger(lolDeath.clipDeath) && lolDeath.clipDeath >= 10900 && lolDeath.clipDeath <= 12600
+      && lolMark && lolMark.label === 'The clip of death 1' && lolMark.marks === 1 && lolMark.death && lolMark.buttons === 6
+      && Math.abs(lolMark.p - lolDeath.clipDeath / lolMark.max) < 1e-6,
+    `the League death's clip has the same player, its death kept ${lolDeath && lolDeath.clipDeath} ms into the clip and marked there (${lolMark && lolMark.p})`);
+    if (process.env.OCCLARA_SHOTS && rwShot) await rwShot('#death-1', 'clip-player-league');
 
     // ── 4. Clear clips, from Settings' channel ─────────────────────────────
     const before = await invoke(C.CLIPS_USAGE);

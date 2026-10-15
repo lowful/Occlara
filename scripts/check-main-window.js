@@ -16,7 +16,8 @@
  * event itself, a quit Electron would cancel, Ctrl+Shift+M hides the window
  * to the corner mark and brings it back, and a window made again mid match
  * keeps the seal while the pages of the one that went are closed with it.
- * And the record card is its two buttons (8.3), with
+ * And the record card is its two buttons (8.3), and stays them recording,
+ * between matches and in one, with no agent check over them (8.4.4), with
  * the notice line in the top strip instead: empty with nothing to say, one
  * line in the strip when there is a notice, cut and whole in its title when
  * it is long, out of the drag region the strip around it still is.
@@ -63,7 +64,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: one window: the sidebar lists the pages and its record card is its two buttons, a notice is one line in the top strip and empty, never hidden, with none, Home paints the last match, pages show beside the sidebar and move in only once painted out of sight, forward and back, minimised or loaded again, the seal hides them all at once mid match and holds after a stop until a page is opened, a recent match opens its review, a review still being built is a loading screen and its grade on Home and in Matches says it is being checked until it is whole, closing quits with nothing asked when nothing is at stake, on the turn after its close event and never inside it, Ctrl+Shift+M hides the window to the corner mark, and a window made again keeps the seal');
+  console.log('PASS: one window: the sidebar lists the pages and its record card is its two buttons, recording between matches and mid match too with no agent check over them, a notice is one line in the top strip and empty, never hidden, with none, Home paints the last match, pages show beside the sidebar and move in only once painted out of sight, forward and back, minimised or loaded again, the seal hides them all at once mid match and holds after a stop until a page is opened, a recent match opens its review, a review still being built is a loading screen and its grade on Home and in Matches says it is being checked until it is whole, closing quits with nothing asked when nothing is at stake, on the turn after its close event and never inside it, Ctrl+Shift+M hides the window to the corner mark, and a window made again keeps the seal');
   process.exit(0);
 }
 
@@ -111,8 +112,6 @@ class StandInValorant extends EventEmitter {
   }
   start() { this.emit('status', 'coaching'); }
   stop() { this.emit('status', 'stopped'); }
-  setAgent() { return { ok: true }; }
-  confirmAgent() {}
   pause() {}
   resume() {}
 }
@@ -652,6 +651,34 @@ setTimeout(async () => {
     ipc.emit(CH5.COACH_START, { sender: null });
     const reader = readers[readers.length - 1];
     if (!reader) return report(false, 'recording did not start a reader for the review still being built');
+    // NO AGENT CHECK ON THE RECORD CARD (8.4.4), on the real layout. Start
+    // opened "Reading your agent..." over its buttons in a Valorant session,
+    // then "Playing" and the agent with a tick, or a field to type one, and
+    // mid match as readily. Recording, between matches and in one, the card
+    // is its two buttons at the height it had before Start, Stop for Start.
+    const CARD_NOW = `(() => {
+      const rec = document.getElementById('rec');
+      return { kids: [...rec.children].map((c) => c.id || c.className).join(), text: rec.innerText.replace(/\\s+/g, ' ').trim(),
+        buttons: rec.querySelectorAll('button').length, height: Math.round(rec.getBoundingClientRect().height),
+        agent: !!rec.querySelector('[id*="agent"], [class*="agent"], [id^="ab-"]') || /agent/i.test(rec.innerText) };
+    })()`;
+    await wait(1500);
+    const recCard = await sjs(CARD_NOW);
+    reader.inLobby = false;
+    ipc.emit(CH5.SHELL_NAV, { sender: null }, 'home');
+    const inMatch = await until(() => mainWindow.current().sealed, 3000);
+    await wait(600);
+    const matchCard = await sjs(CARD_NOW);
+    lines.push(`recording: card ${JSON.stringify(recCard)} | mid match: sealed=${!!inMatch} card ${JSON.stringify(matchCard)}`);
+    const twoButtons = (c) => c.kids === 'rec-controls' && c.buttons === 2 && c.text === 'Stop' && !c.agent && c.height === card.height;
+    if (!inMatch) return report(false, 'recording, a match in progress did not seal the window');
+    if (!twoButtons(recCard) || !twoButtons(matchCard)) {
+      return report(false, `recording, the record card is not its two buttons alone: ${JSON.stringify({ recCard, matchCard, before: card.height })}`);
+    }
+    await shot('recording', mainWindow, win);
+    reader.inLobby = true;
+    ipc.emit(CH5.SHELL_NAV, { sender: null }, 'home');
+    if (!await until(() => !mainWindow.current().sealed, 3000)) return report(false, 'recording, the match over, the seal did not lift');
     const endedAt = Date.now();
     const snap = { rounds: played.rounds, tips: [], notes: [], context: { ...played.context, agent: 'Jett', language: 'en' },
       startedAt: endedAt - 40 * 60000, endedAt, endedBy: 'score' };

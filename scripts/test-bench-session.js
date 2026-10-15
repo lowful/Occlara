@@ -275,7 +275,6 @@ function engineSent(lag) {
   console.error = () => {};
   try {
     const e = new Engine({ licenseKey: 'TEST', captureFunction: async () => null, experiments: () => ({}) });
-    e.armAgentDetection = () => {};
     e.start();
     clearInterval(e.loopTimer);
     const at = (k) => SCRIPT_T0 + SCRIPTED[k][0] * 1000;

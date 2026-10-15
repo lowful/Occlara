@@ -22,7 +22,7 @@
  */
 const path = require('path');
 const { verifyCoachedMatch, pickCoachedMatch, roundsPlayed, matchEndEstimate, scoreAfter, endedEarly, earlyCandidates,
-  linkEarly, mayGoOn, linkRetries, ROUND_MS, CLOCK_SLACK_MS, MIN_ROUND_MS, EARLY_ASKS_PER_TRY, LINK_RETRY_MS, LINK_RETRY_LONG_MS } =
+  linkEarly, mayGoOn, linkRetries, linkAgentOf, ROUND_MS, CLOCK_SLACK_MS, MIN_ROUND_MS, EARLY_ASKS_PER_TRY, LINK_RETRY_MS, LINK_RETRY_LONG_MS } =
   require(path.join(__dirname, '..', 'src', 'main', 'services', 'match-link.js'));
 
 let pass = 0, fail = 0;
@@ -70,6 +70,30 @@ check('  a different agent is refused', !wrongAgent.ok, wrongAgent.why);
 const nothingToCheck = verifyCoachedMatch({ startedAt: T(-10), score: '13-11' },
   SESSION_START, SESSION_END, {});
 check('  timing alone is never enough', !nothingToCheck.ok, nothingToCheck.why);
+
+// AN AGENT THE SCREEN FOUND BY ITSELF AGREES WITH ANY MATCH (8.4.4). The
+// engine reads the agent off the player's own HUD now, never asking the
+// player: two answers that agree lock it, source 'hud', and a misread icon
+// must never cost the review its scoreboard, which Riot's record then names
+// the agent of. One the player confirmed, every review saved before 8.4.4,
+// still refuses a match on another agent.
+console.log('\nthe agent the link weighs (linkAgentOf):');
+{
+  const hud = { map: 'Breeze', agent: 'Iso', agentConfirmed: true, agentSource: 'hud' };
+  const ticked = { map: 'Breeze', agent: 'Iso', agentConfirmed: true };
+  const jettMatch = { startedAt: T(-10), map: 'Breeze', agent: 'Jett', score: '13-11' };
+  check('  a HUD agent is no agent to the link, a confirmed one is, an unconfirmed one is not',
+    linkAgentOf(hud) === null && linkAgentOf(ticked) === 'Iso' && linkAgentOf({ ...ticked, agentConfirmed: false }) === null
+    && linkAgentOf(null) === null && linkAgentOf({ agentConfirmed: true, agent: '' }) === null,
+  JSON.stringify([linkAgentOf(hud), linkAgentOf(ticked)]));
+  const fromHud = verifyCoachedMatch(jettMatch, SESSION_START, SESSION_END, { map: hud.map, agent: linkAgentOf(hud) });
+  check('  the link takes a match whose agent is not the one the HUD look locked', fromHud.ok, fromHud.why);
+  const fromTick = verifyCoachedMatch(jettMatch, SESSION_START, SESSION_END, { map: ticked.map, agent: linkAgentOf(ticked) });
+  check('  and still refuses one on another agent than the player confirmed', !fromTick.ok && /agent mismatch/.test(fromTick.why), fromTick.why);
+  const hudOnly = verifyCoachedMatch({ startedAt: T(-10), agent: 'Jett', score: '13-11' }, SESSION_START, SESSION_END,
+    { map: null, agent: linkAgentOf(hud) });
+  check('  a HUD agent alone confirms nothing either: with no map, timing alone is still not enough', !hudOnly.ok, hudOnly.why);
+}
 
 const later = verifyCoachedMatch({ startedAt: T(40), map: 'Breeze', agent: 'Iso', score: '13-11' },
   SESSION_START, SESSION_END, COACHED);
@@ -188,6 +212,10 @@ console.log('\na match the watch ended early is that match, on Riot\'s round rec
     JSON.stringify(riotAgent));
   check('  a confirmed Jett agrees, and an agent never confirmed agrees with anything',
     endedEarly(ROW, RIOT, START, END, { ...ENDED, agent: 'Jett' }).ok && early.ok);
+  // 8.4.4: one the HUD look locked agrees with anything too, Sova though Riot has Jett.
+  const hudSova = endedEarly(ROW, RIOT, START, END,
+    { ...ENDED, agent: linkAgentOf({ agent: 'Sova', agentConfirmed: true, agentSource: 'hud' }) });
+  check('  and so does one the HUD look locked, Sova where Riot has Jett', hudSova.ok, JSON.stringify(hudSova));
   const after = endedEarly(ROW, RIOT, START, RIOT_END + CLOCK_SLACK_MS + 60000, ENDED);
   check('  a recording that ended after Riot says the match was over is refused',
     !after.ok && /outside the time/.test(after.why), JSON.stringify(after));
