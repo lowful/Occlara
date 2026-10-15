@@ -466,13 +466,18 @@ const PW = 'correct horse battery staple';
     'the check finds the old trend line and its order, and not the tracker profile');
     ok(r.status === 200 && prompt.length > 500 && !TOLD.test(prompt),
       `Ask Coach is never told Stats' four scores are a coached-session trend, nor to drill the weakest, whatever a client sends (${r.status})`);
-    const indexSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8');
+    // Ask Coach's chat() is services/ask-coach.js's since 8.5.0, its context the
+    // old shape (oldShape) beside v2's (src/shared/chat-context.js).
+    const srcOf = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+    const askSrc = srcOf('src', 'main', 'services', 'ask-coach.js');
     // Line ends as git checks the file out on this PC (CRLF) or as it is stored (LF).
-    const chatFn = (indexSrc.match(/\r?\n {2}async chat\(messages\) \{[\s\S]*?\r?\n {2}\},\r?\n/) || [''])[0];
+    const chatFn = (askSrc.match(/\r?\n {2}async chat\(messages, opts\) \{[\s\S]*?\r?\n {2}\}\r?\n/) || [''])[0];
+    const oldShape = (askSrc.match(/\r?\n {2}async oldShape\([^)]*\) \{[\s\S]*?\r?\n {2}\}\r?\n/) || [''])[0];
     ok(/coachTrend\s*:/.test('      coachTrend:   valorant ? trend : null,') && !/coachTrend\s*:/.test('      // No coachTrend (8.4.1): Stats'),
       'the app check finds a coachTrend field, and not a comment naming it');
-    ok(chatFn.length > 1000 && /api\.post\('\/api\/coach\/chat'/.test(chatFn) && !/coachTrend\s*:/.test(chatFn),
-      `and the app sends none: chat()'s context has no coachTrend (${chatFn.length} characters of chat() read)`);
+    ok(chatFn.length > 1000 && /api\.post\('\/api\/coach\/chat'/.test(chatFn) && oldShape.length > 500
+      && ![chatFn, oldShape, srcOf('src', 'shared', 'chat-context.js')].some((s) => /coachTrend\s*:/.test(s)),
+      `and the app sends none: chat()'s context, the old shape and v2's, has no coachTrend (${chatFn.length} and ${oldShape.length} characters read)`);
   }
 
   // ── Client errors are 4xx and stay out of Recent errors ──────────────────
@@ -674,7 +679,7 @@ const PW = 'correct horse battery staple';
     for (const [k, v] of Object.entries(process.env)) {
       if (!/^(AI_|STRIPE_|SUPABASE_|ADMIN_|GEMINI|OPENROUTER|HENRIKDEV|TRACKER|RIOT)/i.test(k)) env[k] = v;
     }
-    Object.assign(env, { PORT: String(port), SUPABASE_URL: 'http://localhost:54321', SUPABASE_SERVICE_KEY: 'stand-in-guards-1',
+    Object.assign(env, { PRIMER_LIVE_CHECK: 'off', PORT: String(port), SUPABASE_URL: 'http://localhost:54321', SUPABASE_SERVICE_KEY: 'stand-in-guards-1',
       AI_API_KEY: 'sk-or-v1-stand-in-guards-2', AI_BASE_URL: 'https://openrouter.ai/api/v1', STRIPE_SECRET_KEY: 'sk_test_stand_in_guards_3' });
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-guards-'));
     const child = spawn(process.execPath, [path.join(SERVER, 'server.js')], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
@@ -731,6 +736,9 @@ const PW = 'correct horse battery staple';
     ok(results.read && results.read.status === 400 && results.nothing && results.nothing.status === 404,
       `while the coach routes beside it answer as before, and a path nobody serves is still 404 (${results.read && results.read.status}, ${results.nothing && results.nothing.status})`);
   }
+
+  // ── The server core of 8.5.0: scripts/server-guards-core.js ─────────────
+  await require('./server-guards-core.js')({ ok, call, coach, PW, SERVER });
 
   console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' server guard checks passed'}`);
   process.exit(fails ? 1 : 0);

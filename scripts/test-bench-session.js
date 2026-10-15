@@ -472,6 +472,11 @@ async function sessionsRuns() {
   fs.writeFileSync(path.join(tmp, 'Occlara', 'occlara-config.json'), JSON.stringify({ licenseKey: KEY }));
   const PRICE = { live: 0.0003, c: 0.000315 };
   const book = { calls: 0, cost: 0 };
+  // Since 8.5.0 the server books a read naming a variant beside the admin
+  // password under 'bench', with no licence (coach.js benchCall): booking85
+  // makes the stand in do the same, and shows that route in its spend.
+  const benchBook = { calls: 0, cost: 0 };
+  let booking85 = false;
   const reads = [];
   const other = [];
   let refuseAt = 0;
@@ -490,7 +495,9 @@ async function sessionsRuns() {
         other.push({ url: req.url, admin: req.headers['x-admin-password'] || null });
         if (req.headers['x-admin-password'] !== ADMIN) return json(401, { error: 'Unauthorized' });
         const view = { calls: book.calls, cost: book.cost, routes: { read: { calls: book.calls, priced: book.calls, real: book.cost, estimated: 0, cost: book.cost } } };
-        return json(200, { since: '2026-10-14T09:00:00.000Z', asOf: new Date().toISOString(), topUsers: [{ user: HASH, spendToday: view, spendMonth: view }] });
+        const benchView = { routes: { bench: { calls: benchBook.calls, priced: benchBook.calls, real: benchBook.cost, estimated: 0, cost: benchBook.cost } } };
+        return json(200, { since: '2026-10-14T09:00:00.000Z', asOf: new Date().toISOString(), topUsers: [{ user: HASH, spendToday: view, spendMonth: view }],
+          ...(booking85 ? { spend: { today: benchView, month: benchView } } : {}) });
       }
       if (req.url !== '/api/coach/read') { other.push({ url: req.url }); return json(404, { error: 'Not found' }); }
       let j = {};
@@ -504,8 +511,9 @@ async function sessionsRuns() {
         && Buffer.from(String(j.image || ''), 'base64').toString('utf8').includes(`${vanish.id} frame 0,`)) {
         fs.rmSync(path.join(tmp, 'Occlara', 'bench', vanish.id, 'frame-1.jpg'), { force: true });
       }
-      book.calls++;
-      book.cost = Math.round((book.cost + PRICE[variant || 'live']) * 1e9) / 1e9;
+      const into = booking85 && variant ? benchBook : book;
+      into.calls++;
+      into.cost = Math.round((into.cost + PRICE[variant || 'live']) * 1e9) / 1e9;
       return json(200, { lobby: false, context: { phase: 'buy', clock: '0:30', teamScore: 0, enemyScore: 0, playerAlive: true, playerHp: 100 },
         parsed: true, ms: 3, ...(j.variant ? { variant } : {}) });
     });
@@ -556,6 +564,22 @@ async function sessionsRuns() {
     ok(quiet(go.out) && quiet(fs.readFileSync(path.join(out1, 'results.json'), 'utf8'))
       && fs.readdirSync(out1).every((f) => quiet(fs.readFileSync(path.join(out1, f), 'utf8'))),
     'and neither the admin password nor the licence key is printed or written anywhere');
+
+    // Against an 8.5.0 server the candidate's reads are booked under 'bench'
+    // with no licence: counted there, each run is still what was booked for
+    // its reads, and the budget's spend with it (read off the licence alone,
+    // a candidate run was $0 spent, and --max-usd never stopped one).
+    reads.length = 0;
+    booking85 = true;
+    const out6 = path.join(tmp, 'out6');
+    const go85 = await run(['--go', '--sessions', 'fracture', '--runs', '1', '--out', out6]);
+    const res6 = fs.existsSync(path.join(out6, 'results.json')) ? resultsOf(out6) : { done: [] };
+    booking85 = false;
+    ok(go85.status === 0 && benchBook.calls === 9 && res6.done.length === 4
+      && res6.done.every((d, k) => d.cost && d.cost.known && d.cost.calls === 3 && Math.abs(d.cost.usd - want[k]) < 1e-9)
+      && Math.abs(res6.spent - want.reduce((a, b) => a + b, 0)) < 1e-9,
+    'against a server that books a bench apart, each run is still what was booked for its reads, the candidate\'s under bench, and the spend with it',
+    `${go85.status}, bench ${benchBook.calls}: ${JSON.stringify(res6.done.map((d) => ({ i: d.i, prompt: d.prompt, cost: d.cost })))} spent ${res6.spent}\n${go85.out}`);
 
     reads.length = 0;
     refuseAt = 8;
@@ -609,12 +633,95 @@ async function sessionsRuns() {
   }
 }
 
+/*
+ * NPM RUN BENCH:REVIEW --costs (8.5.0), offline: a stand in for the review
+ * route and the cost view, which books a review naming a bench model beside
+ * the admin password under 'bench' with no licence, as coach.js benchCall
+ * does, and any other under the licence's review route. Each review's printed
+ * cost is what was booked for it: a bench model's off the bench route (read
+ * off the review route alone it was $0 in 0 calls), a plain one's off the
+ * licence's.
+ */
+async function reviewRuns() {
+  const http = require('http');
+  const crypto = require('crypto');
+  const { spawn } = require('child_process');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-bench-review-'));
+  const KEY = 'GC-REVIEW-TEST-0000-0000';
+  const ADMIN = 'offline-review-test';
+  const HASH = crypto.createHash('sha256').update(KEY).digest('hex').slice(0, 8);
+  fs.mkdirSync(path.join(tmp, 'Occlara'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'Occlara', 'occlara-config.json'), JSON.stringify({ licenseKey: KEY }));
+  const PRICE = 0.0123;
+  const mine = { calls: 0, cost: 0 };
+  const benched = { calls: 0, cost: 0 };
+  const seen = [];
+  const view = (b) => ({ calls: b.calls, priced: b.calls, real: b.cost, estimated: 0, cost: b.cost });
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      const json = (status, o) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+      const admin = req.headers['x-admin-password'] === ADMIN;
+      if (req.url === '/api/admin/costs') {
+        if (!admin) return json(401, { error: 'Unauthorized' });
+        const own = { routes: { review: view(mine) } };
+        return json(200, { topUsers: mine.calls ? [{ user: HASH, spendToday: own, spendMonth: own }] : [],
+          spend: { today: { routes: { review: view(mine), bench: view(benched) } } } });
+      }
+      if (req.url !== '/api/coach/match-review') return json(404, { error: 'Not found' });
+      let j = {};
+      try { j = JSON.parse(body); } catch (e) { /* not JSON */ }
+      seen.push({ model: j.benchModel || null, admin, key: req.headers['x-license-key'] === KEY });
+      const into = admin && j.benchModel ? benched : mine;
+      into.calls++;
+      into.cost = Math.round((into.cost + PRICE) * 1e9) / 1e9;
+      return json(200, { review: 'You won the rounds you traded.', summary: 'You won the rounds you traded.', rounds: {},
+        focus: 'Trade first.', study: [], variant: j.variant });
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  const run = (a) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [path.join(__dirname, 'bench-review.js'), ...a], {
+      env: { ...process.env, APPDATA: tmp, OCCLARA_SERVER: `http://127.0.0.1:${port}`, ADMIN_PASSWORD: ADMIN }, windowsHide: true,
+    });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { out += d; });
+    const timer = setTimeout(() => child.kill(), 180000);
+    child.on('exit', (status) => { clearTimeout(timer); resolve({ status, out }); });
+  });
+  try {
+    const model = await run(['--variants', 'C', '--models', 'google/gemini-3-flash-preview', '--costs']);
+    const costLines = (text) => (text.match(/latency [\d.]+s {2}cost [^\n]*/g) || []).map((l) => l.replace(/^latency [\d.]+s {2}/, ''));
+    ok(model.status === 0 && seen.length === 2 && seen.every((s) => s.model === 'google/gemini-3-flash-preview' && s.admin && s.key)
+      && benched.calls === 2 && mine.calls === 0
+      && JSON.stringify(costLines(model.out)) === JSON.stringify(['cost $0.012300 (1 call, booked under bench)', 'cost $0.012300 (1 call, booked under bench)']),
+    'bench:review --costs prints each bench model\'s review at what was booked for it, off the bench route where the server books it',
+    `${model.status}: ${JSON.stringify(costLines(model.out))}\n${model.out.slice(-600)}`);
+    seen.length = 0;
+    const plain = await run(['--variants', 'C', '--costs']);
+    ok(plain.status === 0 && seen.length === 2 && seen.every((s) => !s.model && !s.admin && s.key) && mine.calls === 2 && benched.calls === 2
+      && JSON.stringify(costLines(plain.out)) === JSON.stringify(['cost $0.012300 (1 call)', 'cost $0.012300 (1 call)']),
+    'and a review with no model named, sent without the password, at what the licence\'s own review route booked',
+    `${plain.status}: ${JSON.stringify(costLines(plain.out))}\n${plain.out.slice(-600)}`);
+    ok(!model.out.includes(ADMIN) && !model.out.includes(KEY) && !plain.out.includes(ADMIN) && !plain.out.includes(KEY),
+      'and neither run prints the admin password or the licence key');
+  } finally {
+    server.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 variantRuns()
   .catch((e) => ok(false, 'the variant runs ran to the end', (e && e.stack) || String(e)))
   .then(() => scriptedRuns())
   .catch((e) => ok(false, 'the scripted runs ran to the end', (e && e.stack) || String(e)))
   .then(() => sessionsRuns())
   .catch((e) => ok(false, 'the bench:sessions runs ran to the end', (e && e.stack) || String(e)))
+  .then(() => reviewRuns())
+  .catch((e) => ok(false, 'the bench:review runs ran to the end', (e && e.stack) || String(e)))
   .then(() => {
     console.log(fails ? `\nFAIL: ${fails} problem(s)` : '\nPASS: the benches read the bench copy first, say where they looked, read with a variant only '
       + 'when the server says so, send, print and trace on the default run what 8.4.2 did, with --engine send what the engine\'s readContext() gives, '

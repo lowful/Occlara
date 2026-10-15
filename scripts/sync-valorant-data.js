@@ -8,197 +8,44 @@
  * ability names, the map pool + which maps have three sites, and the distinctive
  * map callouts, into valorant-data.generated.json.
  *
+ * And, since 8.5.0, what the Valorant primer (server/services/game-primer.js)
+ * prints and computes from: every gun's head, body and leg damage by band, its
+ * fire rate, magazine, reload, draw, running speed, first bullet spread, aimed
+ * burst, pellets, alt fire and wall penetration; the armour (cost, the share of
+ * each hit it takes, what it absorbs before it breaks, the Regen Shield's
+ * pool); each agent's kit on its default keys in the game's own words; Riot's
+ * description of each role; Standard's and Swiftplay's own rules; the live
+ * patch; and each map's minimap transform.
+ *
+ * THE EXTRACTION IS server/services/valorant-extract.js, not this file, so the
+ * server's live version check reads the live data with exactly the code that
+ * wrote the synced copy. This script fetches, extracts, prints what changed and
+ * writes. It FAILS CLOSED: fewer than 15 guns, a missing armour, an agent
+ * missing a used slot or a description, a gun or gear item the primer does not
+ * know, a field the API renamed, and nothing is written.
+ *
  * What stays hand-authored (coaching flavor, not facts): the per-agent casual
  * tip, the generic ability kit categories, and community callout names the game
  * files do not use (Hookah, Showers). Those live in code and are merged on top.
  *
  * Run:  npm run sync:valorant
- * Then commit the regenerated json files. The client (src/) and server (server/)
- * deploy separately, so an identical copy is written to each.
+ *       npm run sync:valorant -- --out <dir>   writes both copies under <dir>
+ *                                              instead, to compare before a write
+ * Then run npm run check:primer (a changed number reaches no player before it
+ * has), and commit the regenerated json files. The client (src/) and server
+ * (server/) deploy separately, so an identical copy is written to each.
  */
 
 const fs = require('fs');
 const path = require('path');
-
-const AGENTS_URL = 'https://valorant-api.com/v1/agents?isPlayableCharacter=true';
-const MAPS_URL   = 'https://valorant-api.com/v1/maps';
-const WEAPONS_URL = 'https://valorant-api.com/v1/weapons';
-
-// Ability slots that a player actively USES (a tip can tell them to). Passive is
-// never a "use your X" instruction, so it is excluded.
-const USED_SLOTS = new Set(['Ability1', 'Ability2', 'Grenade', 'Ultimate']);
-
-// Generic or ambiguous region names that must NOT gate a tip: common English
-// words (a tip may use them non-locationally) and spots on so many maps they
-// carry no map signal. The callout->map assignments still come from the API.
-const CALLOUT_DENY = new Set([
-  'site', 'spawn', 'main', 'top', 'bottom', 'hall', 'lobby', 'link', 'window',
-  'tower', 'cubby', 'back', 'ramp', 'ramps', 'stairs', 'door', 'doors', 'exit',
-  'short', 'long', 'box', 'angle box', 'flat box', 'pit', 'yard', 'drop', 'bend',
-  'wall', 'bridge', 'screen', 'screens', 'connector', 'secret', 'rafters', 'gate',
-  'bench', 'pillar', 'pillars', 'arches', 'arch', 'water', 'alley', 'garden',
-  'courtyard', 'fountain', 'generator', 'elbow', 'plaza', 'shops', 'shop', 'hut',
-  'upper', 'tiles', 'pocket', 'danger', 'security', 'cave', 'rope', 'ropes',
-  'belt', 'blue', 'green', 'orange', 'yellow', 'fence', 'pallet', 'pipes',
-  'snow pile', 'wood doors', 'boat house', 'art', 'club', 'records', 'restaurant',
-  'gym', 'trophy', 'sandbags', 'horseshoe', 'root',
-]);
-
-// Famous community callouts the game files name differently. Kept so the gate
-// still catches the real terms players (and the coach) use.
-const COMMUNITY_CALLOUTS = { hookah: ['bind'], showers: ['bind'] };
-
-// Only a callout on this few standard maps is distinctive enough to gate on.
-const MAX_MAPS_FOR_DISTINCTIVE = 3;
-
-// Super-regions that are spawn areas, not places a tip should ever send the
-// player. Kept in the geometry (so the locator can still NAME them when the
-// player is standing there) but never offered as a destination.
-const SPAWN_SUPERS = new Set(['attacker side', 'defender side']);
-
-// Places the game files name one thing and every player calls another. Stored
-// as an alias ON the real callout (never a second entry at the same point, that
-// would make the location read ambiguous and lose the precision), so the coach
-// can say the word the player actually uses.
-// Keyed by map, then by the game's own callout name.
-const COMMUNITY_ALIASES = {
-  bind: { 'B Window': 'Hookah', 'A Bath': 'Showers' },
-};
+const extract = require(path.join(__dirname, '..', 'server', 'services', 'valorant-extract.js'));
 
 async function fetchJson(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
   const j = await res.json();
-  if (!j || !Array.isArray(j.data)) throw new Error(`${url} -> no data array`);
+  if (!j || j.data === undefined || j.data === null) throw new Error(`${url} -> no data`);
   return j.data;
-}
-
-function buildAgents(rows) {
-  const agents = {};
-  for (const a of rows) {
-    if (!a.displayName || !a.role || !Array.isArray(a.abilities)) continue;
-    const abilities = a.abilities
-      .filter((ab) => USED_SLOTS.has(ab.slot) && ab.displayName)
-      .map((ab) => String(ab.displayName).toLowerCase().trim())
-      .filter(Boolean);
-    agents[a.displayName] = { role: a.role.displayName, abilities };
-  }
-  return agents;
-}
-
-// No agent art is downloaded. The kill feed portraits this used to write into
-// assets/agents/ drew the tip cards, which went in 8.0, and nothing has read
-// them since: 8.3.2 deleted them, so the installer ships none of Riot's art.
-
-// A standard plant/defuse map has a tacticalDescription ("A/B Sites" or
-// "A/B/C Sites"); Team Deathmatch and tutorial maps have null.
-function isStandardMap(m) {
-  return !!(m.displayName && m.tacticalDescription && Array.isArray(m.callouts) && m.callouts.length);
-}
-
-function buildMaps(rows) {
-  const standard = rows.filter(isStandardMap);
-  const maps = standard.map((m) => m.displayName).sort();
-  const threeSite = standard
-    .filter((m) => /\bc\b/i.test(m.tacticalDescription))   // "A/B/C Sites"
-    .map((m) => m.displayName).sort();
-  return { maps, threeSiteMaps: threeSite, standardRows: standard };
-}
-
-function buildCallouts(standardRows) {
-  const byCallout = {};
-  for (const m of standardRows) {
-    const map = m.displayName.toLowerCase();
-    const seen = new Set();
-    for (const c of m.callouts) {
-      const n = (c.regionName || '').toLowerCase().trim();
-      if (!n || CALLOUT_DENY.has(n) || seen.has(n)) continue;
-      seen.add(n);
-      (byCallout[n] = byCallout[n] || new Set()).add(map);
-    }
-  }
-  const out = {};
-  for (const [n, set] of Object.entries(byCallout)) {
-    if (set.size <= MAX_MAPS_FOR_DISTINCTIVE) out[n] = [...set].sort();
-  }
-  for (const [n, maps] of Object.entries(COMMUNITY_CALLOUTS)) out[n] = maps.slice();
-  // Stable key order for clean diffs.
-  return Object.fromEntries(Object.keys(out).sort().map((k) => [k, out[k]]));
-}
-
-/**
- * Convert a callout's world location to a position on the minimap as the player
- * sees it: 0..1 across (left to right) and 0..1 down (top to bottom).
- *
- * This is the game's own transform, shipped in the map data. Note the axis
- * swap, it is not a typo: the world Y drives the minimap X and the world X
- * drives the minimap Y.
- */
-function worldToMinimap(loc, m) {
-  return {
-    x: loc.y * m.xMultiplier + m.xScalarToAdd,
-    y: loc.x * m.yMultiplier + m.yScalarToAdd,
-  };
-}
-
-const r3 = (n) => Math.round(n * 1000) / 1000;
-
-/** "top left", "center", "bottom right", ... from a normalized minimap point. */
-function describeSpot(x, y) {
-  const col = x < 0.34 ? 'left' : x > 0.66 ? 'right' : 'center';
-  const row = y < 0.34 ? 'top'  : y > 0.66 ? 'bottom' : 'middle';
-  if (row === 'middle' && col === 'center') return 'dead center';
-  if (col === 'center') return row + ' center';
-  if (row === 'middle') return 'middle ' + col;
-  return row + ' ' + col;
-}
-
-/**
- * Per-map minimap geometry: every real callout placed on the minimap, plus the
- * centroid of each super-region (A, B, C, Mid). This is what lets the coach
- * turn "the yellow arrow is 40% across, 70% down" into a callout that is
- * guaranteed to exist on THIS map, instead of guessing a name from memory.
- */
-function buildGeometry(standardRows) {
-  const out = {};
-  for (const m of standardRows) {
-    if (typeof m.xMultiplier !== 'number' || typeof m.yMultiplier !== 'number') continue;
-
-    const aliases = COMMUNITY_ALIASES[m.displayName.toLowerCase()] || {};
-    const callouts = [];
-    const superPts = {};
-    for (const c of m.callouts) {
-      if (!c.location || !c.regionName || !c.superRegionName) continue;
-      const p = worldToMinimap(c.location, m);
-      if (!isFinite(p.x) || !isFinite(p.y)) continue;
-      const sup    = String(c.superRegionName).trim();
-      const region = String(c.regionName).trim();
-      // "A" + "Main" -> "A Main"; avoid "Mid Mid" style doubles.
-      const name = region.toLowerCase() === sup.toLowerCase() ? region : `${sup} ${region}`;
-      const entry = { n: name, s: sup, x: r3(p.x), y: r3(p.y) };
-      if (aliases[name]) entry.a = aliases[name];   // what players actually call it
-      callouts.push(entry);
-      (superPts[sup] = superPts[sup] || []).push(p);
-    }
-    if (!callouts.length) continue;
-
-    // Where each site sits on the minimap, straight from the callout centroids.
-    const sites = {};
-    for (const [sup, pts] of Object.entries(superPts)) {
-      if (SPAWN_SUPERS.has(sup.toLowerCase())) continue;
-      const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-      const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-      sites[sup] = { x: r3(cx), y: r3(cy), where: describeSpot(cx, cy) };
-    }
-
-    callouts.sort((a, b) => a.n.localeCompare(b.n));
-    out[m.displayName.toLowerCase()] = {
-      hasMid: Object.keys(sites).some((s) => /^mid$/i.test(s)),
-      sites,
-      callouts,
-    };
-  }
-  return out;
 }
 
 function diff(label, prev, next) {
@@ -215,68 +62,23 @@ function diff(label, prev, next) {
   return lines;
 }
 
-/**
- * Per weapon damage by range, which is what turns range advice into a fact.
- *
- * "Position for the range your gun works at" is a platitude until you can say
- * that a Bucky does 17 a pellet inside 8m and 9 past 12m. THIRTEEN OF TWENTY
- * weapons have a damage cliff, so for most of the buy this is real, checkable
- * advice rather than a feel.
- *
- * The Phantom line is the one pros actually talk about: 39 to the body inside
- * 20m and 35 past it, against a Vandal that is 40 everywhere, so past 20m the
- * Phantom needs a fifth bullet the Vandal never does.
- *
- * Only body damage and the range bounds are kept. Head and leg numbers are in
- * the source but the coach has no use for them, and an unused number in a
- * generated file is one more thing that can go stale unnoticed.
- */
-function buildWeapons(rows) {
-  const out = {};
-  for (const w of rows || []) {
-    const stats = w.weaponStats;
-    if (!stats || !Array.isArray(stats.damageRanges) || !stats.damageRanges.length) continue;
-    const name = String(w.displayName || '').trim();
-    if (!name) continue;
-    const ranges = stats.damageRanges.map((r) => ({
-      from: Number(r.rangeStartMeters),
-      to: Number(r.rangeEndMeters),
-      body: Number(r.bodyDamage),
-    })).filter((r) => isFinite(r.from) && isFinite(r.to) && isFinite(r.body));
-    if (!ranges.length) continue;
-    out[name.toLowerCase()] = {
-      category: String((w.shopData && w.shopData.categoryText) || '').replace('Weapon', '').trim() || null,
-      cost: (w.shopData && Number(w.shopData.cost)) || null,
-      ranges,
-      // A weapon with one tier does the same damage at every range, which is
-      // itself worth knowing: it is why the Vandal can hold any angle.
-      fallsOff: ranges.length > 1,
-    };
-  }
-  return out;
-}
-
 async function main() {
+  const outAt = process.argv.indexOf('--out');
+  const outDir = outAt > 0 ? process.argv[outAt + 1] : null;
+  if (outAt > 0 && !outDir) throw new Error('--out needs a directory');
+
   console.log('Fetching valorant-api.com ...');
-  const [agentRows, mapRows, weaponRows] = await Promise.all([
-    fetchJson(AGENTS_URL), fetchJson(MAPS_URL), fetchJson(WEAPONS_URL),
-  ]);
+  const names = Object.keys(extract.ENDPOINTS);
+  const replies = await Promise.all(names.map((n) => fetchJson(extract.ENDPOINTS[n])));
+  const raw = Object.fromEntries(names.map((n, i) => [n, replies[i]]));
 
-  const agents = buildAgents(agentRows);
-  const { maps, threeSiteMaps, standardRows } = buildMaps(mapRows);
-  const mapCallouts = buildCallouts(standardRows);
-  const mapGeometry = buildGeometry(standardRows);
-
-  const weapons = buildWeapons(weaponRows);
-  if (Object.keys(weapons).length < 15) {
-    throw new Error(`only ${Object.keys(weapons).length} weapons parsed a damage table, `
-      + 'expected at least 15. Refusing to write.');
-  }
+  // Throws, naming every problem, when the data fails closed. Nothing written.
+  const built = extract.extract(raw);
 
   const data = {
     generatedAt: new Date().toISOString(),
     source: 'valorant-api.com',
-    agents, maps, threeSiteMaps, mapCallouts, mapGeometry, weapons,
+    ...built,
   };
 
   // Diff against the current client copy so per-patch changes are visible.
@@ -284,26 +86,38 @@ async function main() {
   let prev = {};
   try { prev = JSON.parse(fs.readFileSync(clientPath, 'utf8')); } catch {}
   const changes = [
-    ...diff('agent', prev.agents, agents),
-    ...diff('callout', prev.mapCallouts, mapCallouts),
-    ...diff('map', Object.fromEntries((prev.maps || []).map((m) => [m, 1])), Object.fromEntries(maps.map((m) => [m, 1]))),
-    // Damage changes every patch and playbook notes quote these numbers, so a
-    // silent rebalance is exactly the drift worth printing.
-    ...diff('weapon', prev.weapons, weapons),
+    ...diff('patch', { patch: prev.patch, version: prev.version }, { patch: data.patch, version: data.version }),
+    ...diff('agent', prev.agents, data.agents),
+    ...diff('role', prev.roles, data.roles),
+    ...diff('callout', prev.mapCallouts, data.mapCallouts),
+    ...diff('map', Object.fromEntries((prev.maps || []).map((m) => [m, 1])), Object.fromEntries(data.maps.map((m) => [m, 1]))),
+    // Damage changes every patch and the primer and playbook notes quote these
+    // numbers, so a silent rebalance is exactly the drift worth printing.
+    ...diff('weapon', prev.weapons, data.weapons),
+    ...diff('gear', prev.gear, data.gear),
+    ...diff('mode', prev.modes, data.modes),
   ];
 
   const json = JSON.stringify(data, null, 2) + '\n';
-  const serverPath = path.join(__dirname, '..', 'server', 'valorant-data.generated.json');
-  fs.writeFileSync(clientPath, json);
-  fs.writeFileSync(serverPath, json);
+  const targets = outDir
+    ? [path.join(outDir, 'src', 'shared', 'valorant-data.generated.json'), path.join(outDir, 'server', 'valorant-data.generated.json')]
+    : [clientPath, path.join(__dirname, '..', 'server', 'valorant-data.generated.json')];
+  for (const t of targets) {
+    fs.mkdirSync(path.dirname(t), { recursive: true });
+    fs.writeFileSync(t, json);
+  }
 
-  const geoTotal = Object.values(mapGeometry).reduce((s, g) => s + g.callouts.length, 0);
-  console.log(`\nAgents: ${Object.keys(agents).length} | Maps: ${maps.length} (3-site: ${threeSiteMaps.join(', ')}) | Callouts: ${Object.keys(mapCallouts).length}`);
-  console.log(`Minimap geometry: ${Object.keys(mapGeometry).length} maps, ${geoTotal} placed callouts`);
-  const fallers = Object.values(weapons).filter((w) => w.fallsOff).length;
-  console.log(`Weapons: ${Object.keys(weapons).length} with damage tables, ${fallers} with falloff`);
+  const geoTotal = Object.values(data.mapGeometry).reduce((s, g) => s + g.callouts.length, 0);
+  console.log(`\nPatch ${data.patch} (${data.version}, built ${data.buildDate})`);
+  console.log(`Agents: ${Object.keys(data.agents).length} | Maps: ${data.maps.length} (3-site: ${data.threeSiteMaps.join(', ')}) | Callouts: ${Object.keys(data.mapCallouts).length}`);
+  console.log(`Minimap geometry: ${Object.keys(data.mapGeometry).length} maps, ${geoTotal} placed callouts`);
+  const fallers = Object.values(data.weapons).filter((w) => w.fallsOff).length;
+  console.log(`Weapons: ${Object.keys(data.weapons).length} with damage tables, ${fallers} with falloff`);
+  console.log(`Gear: ${Object.keys(data.gear).join(', ')} | Modes: standard first to ${data.modes.standard.win}, `
+    + `swiftplay first to ${data.modes.swiftplay.win} in halves of ${data.modes.swiftplay.roundsPerHalf}`);
   console.log(changes.length ? '\nChanges since last sync:\n' + changes.join('\n') : '\nNo changes since last sync.');
-  console.log(`\nWrote:\n  ${clientPath}\n  ${serverPath}`);
+  console.log(`\nWrote:\n  ${targets.join('\n  ')}`);
+  console.log('\nNext: npm run check:primer, then commit both copies.');
 }
 
 main().catch((e) => { console.error('sync failed:', e.message); process.exit(1); });

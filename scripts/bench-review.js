@@ -36,8 +36,10 @@
  *                  and the combat score a round
  *   --out <file>   every request and reply as JSON, to read them again later
  *   --costs        what EACH review cost, read from /api/admin/costs before and
- *                  after it (this licence's review route, and the server's),
- *                  printed on its line and kept with it in --out. The proof a
+ *                  after it (this licence's review route, and the server's; a
+ *                  --models review the server's bench route, where an 8.5.0
+ *                  server books it), printed on its line and kept with it in
+ *                  --out. The proof a
  *                  named model answered that review: a call that failed and
  *                  was answered by the server's fallback costs the fallback's
  *                  price, or books two calls. Needs ADMIN_PASSWORD.
@@ -48,8 +50,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const https = require('https');
 const crypto = require('crypto');
+// The live server is https; a stand in for it (test:benchsession) is http on a port.
+const client = (u) => (u.protocol === 'http:' ? http : https);
 const { replay, load } = require('./fixtures/replay-match');
 const review = require('../src/shared/valorant-review');
 
@@ -77,13 +82,17 @@ if (COSTS && !ADMIN) {
 }
 
 /**
- * The review route's spend so far today, this licence's and the server's, or
- * null when it cannot be read. The password goes only in the header.
+ * The review route's spend so far today, this licence's and the server's, and
+ * the server's bench route, or null when it cannot be read. The password goes
+ * only in the header. Since 8.5.0 a review naming a bench model beside the
+ * password is booked under 'bench' with no licence (coach.js benchCall), so a
+ * --models run moves the bench route alone: read off the review route, it cost
+ * $0 in 0 calls.
  */
 function reviewSpend() {
   return new Promise((resolve) => {
     const u = new URL('/api/admin/costs', SERVER);
-    const req = https.request({ hostname: u.hostname, path: u.pathname, method: 'GET', timeout: 20000,
+    const req = client(u).request({ hostname: u.hostname, port: u.port || undefined, path: u.pathname, method: 'GET', timeout: 20000,
       headers: { 'X-Admin-Password': ADMIN } }, (res) => {
       let out = '';
       res.on('data', (c) => { out += c; });
@@ -93,8 +102,9 @@ function reviewSpend() {
           const pick = (r) => ({ calls: (r && r.calls) || 0, real: (r && r.real) || 0, estimated: (r && r.estimated) || 0 });
           // A licence with nothing booked today is not listed: nothing spent.
           const mine = (j.topUsers || []).find((x) => x.user === LICENCE);
-          const routes = (b) => (b && b.routes && b.routes.review) || null;
+          const routes = (b, route = 'review') => (b && b.routes && b.routes[route]) || null;
           resolve({ mine: pick(mine && routes(mine.spendToday)), all: pick(routes(j.spend && j.spend.today)),
+            bench: pick(routes(j.spend && j.spend.today, 'bench')),
             listed: !!mine || !(j.topUsers || []).length || j.topUsers.length < 10 });
         } catch {
           resolve(null);
@@ -114,7 +124,7 @@ function spendOf(before, after) {
   const part = (k) => ({ calls: after[k].calls - before[k].calls, real: d(before[k].real, after[k].real),
     estimated: d(before[k].estimated, after[k].estimated) });
   // Off the top ten in both, this licence's own spend cannot be told: only the server's.
-  return { mine: before.listed && after.listed ? part('mine') : null, all: part('all') };
+  return { mine: before.listed && after.listed ? part('mine') : null, all: part('all'), bench: part('bench') };
 }
 
 /** The models the server will bench, read from its BENCH_MODELS list, or null when the list cannot be read. */
@@ -158,8 +168,8 @@ function post(body) {
     // Only a request naming a model carries the password, and it is never printed.
     if (body.benchModel) headers['X-Admin-Password'] = ADMIN;
     const started = Date.now();
-    const req = https.request({
-      hostname: u.hostname, path: u.pathname, method: 'POST',
+    const req = client(u).request({
+      hostname: u.hostname, port: u.port || undefined, path: u.pathname, method: 'POST',
       headers,
       timeout: 60000,
     }, (res) => {
@@ -288,9 +298,11 @@ function grade(res, body) {
             ...(COSTS ? { spend } : {}) });
           // Written after every review, so a run stopped early keeps what it had.
           if (OUT) fs.writeFileSync(OUT, JSON.stringify(saved, null, 1));
-          const own = spend ? (spend.mine || spend.all) : null;
+          // A bench model's review is the bench route's since 8.5.0, the licence's before.
+          const benched = !!(spend && spend.bench && spend.bench.calls > 0);
+          const own = spend ? (benched ? spend.bench : (spend.mine || spend.all)) : null;
           const paid = !COSTS ? '' : own
-            ? `  cost $${(own.real + own.estimated).toFixed(6)} (${own.calls} call${own.calls === 1 ? '' : 's'}${own.estimated ? ', part estimated' : ''}${spend.mine ? '' : ', server wide'})`
+            ? `  cost $${(own.real + own.estimated).toFixed(6)} (${own.calls} call${own.calls === 1 ? '' : 's'}${own.estimated ? ', part estimated' : ''}${benched ? ', booked under bench' : spend.mine ? '' : ', server wide'})`
             : '  cost unread';
           if (res.error) { console.log(`\n[${tag}] ERROR ${res.error} (HTTP ${res._status || 'none'}, ${secs})${paid}`); continue; }
           if (v !== 'A' && !res.variant) console.log(`\n[${tag}] WARNING the live server ignored the variant, it has not deployed yet`);

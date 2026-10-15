@@ -67,6 +67,8 @@ const SYNTHETIC = [
   { agent: 'Killjoy', side: 'defending', phase: 'active', playerWeapon: 'Bucky', roundNumber: 5 },
   { agent: 'Omen', side: 'defending', phase: 'buy', playerCredits: 4500, roundNumber: 8 },
   { agent: 'Sage', side: 'defending', phase: 'postplant', playerWeapon: 'Spectre', roundNumber: 11 },
+  // Swiftplay's second pistol round, which the pistol flag missed until 8.5.0.
+  { agent: 'Jett', side: 'attacking', phase: 'buy', mode: 'swiftplay', playerCredits: 800, roundNumber: 5 },
 ];
 
 /*
@@ -173,6 +175,45 @@ ok(onPct >= 50, `and shifts it decisively, not marginally (${onPct}%)`);
     ok(sided > 0, `advanced mode still serves ${side} specific notes`);
     ok(wrong === 0, `and never a note from the other side while ${side}`);
   }
+}
+
+// ── What the primer changed in retrieval (8.5.0) ────────────────────────────
+// B IS NOT INERT: the flags and four notes changed for every live review and
+// chat, so the change is pinned here, on the same contexts as the A/B above.
+{
+  const primer = require(path.join(__dirname, '..', 'server', 'services', 'game-primer.js'));
+  const flags = (ctx) => knowledge.situationOf(ctx).flags;
+  console.log('');
+  ok(flags({ roundNumber: 5, mode: 'swiftplay' }).has('pistol') && flags({ roundNumber: 5, gameMode: 'swiftplay' }).has('pistol'),
+    "Swiftplay's round 5 is a pistol round, by the match's mode or the live engine's gameMode");
+  ok(!flags({ roundNumber: 13, mode: 'swiftplay' }).has('pistol') && flags({ roundNumber: 13 }).has('pistol') && !flags({ roundNumber: 5 }).has('pistol'),
+    'round 13 is a pistol round only outside Swiftplay, and a context with no mode is Competitive, as before');
+  ok(flags({ roundNumber: 6, mode: 'swiftplay', teamScore: 3, enemyScore: 2 }).has('antieco') && flags({ roundNumber: 14, teamScore: 5, enemyScore: 8 }).has('lostpistol'),
+    'the round after each pistol round reads the score, in either mode');
+  const lines = primer.buyLines();
+  const buy = (c) => [...flags({ phase: 'buy', roundNumber: 3, playerCredits: c })].filter((f) => /eco|buy/.test(f)).join();
+  ok(lines.eco === 2000 && lines.full === 3900 && buy(lines.eco - 1) === 'eco' && buy(lines.eco) === 'forcebuy'
+    && buy(lines.full - 1) === 'forcebuy' && buy(lines.full) === 'fullbuy',
+  `the eco and full buy lines are computed from the prices: a Spectre with Light Armor (${lines.eco}), a rifle with Heavy Armor (${lines.full})`);
+  // And never typed again: a credits comparison against a written number in
+  // situationOf is the old 2000 and 3900 coming back.
+  const TYPED = /\bcredits\s*<=?\s*\d/;
+  ok(TYPED.test('    if (credits < 2000) flags.add(\'eco\');') && !TYPED.test('    if (credits < BUY.eco) flags.add(\'eco\');'),
+    'the typed buy line pattern catches "credits < 2000" and passes "credits < BUY.eco" (control)');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'knowledge.js'), 'utf8');
+  const body = src.slice(src.indexOf('function situationOf('), src.indexOf('function retrieve('));
+  ok(body.length > 200 && !TYPED.test(body), 'situationOf compares credits with no typed number');
+  const swiftPistol = knowledge.retrieve({ agent: 'Jett', side: 'attacking', phase: 'buy', mode: 'swiftplay', playerCredits: 800, roundNumber: 5 }, 40);
+  const pistolNotes = new Set(knowledge.all().filter((n) => (n.situations || []).includes('pistol')).map((n) => n.text));
+  ok(swiftPistol.some((t) => pistolNotes.has(t)), "and a Swiftplay round 5 now draws pistol round notes");
+  const text = (re) => (knowledge.all().find((n) => re.test(n.text)) || {}).text || '';
+  ok(/running steps/.test(text(/running steps/)) && !/\d/.test(text(/running steps/)), 'the footsteps note has lost its unsourced 20 meters');
+  ok(text(/defuse math/).includes(`full defuse is ${primer.stated('spike.defuse')} seconds and half is ${primer.stated('spike.checkpoint')}`),
+    "the defuse note's seconds are the spike's confirmed timings");
+  ok(text(/melts inside/).includes(`inside ${primer.bandEnd('frenzy')} meters`) && primer.bandEnd('frenzy') === 20,
+    "the Frenzy note's band is the damage table's (20 m, where it was typed as 10)");
+  ok(!knowledge.all().some((n) => /accurate on the move/.test(n.text)) && text(/force fights inside/).includes(`inside ${primer.bandEnd('spectre')} meters`),
+    "the Spectre's accuracy claim is gone, and its range note reads the table");
 }
 
 console.log(`\n${fails ? fails + ' failure(s)' : 'all advanced tip checks passed'}`);

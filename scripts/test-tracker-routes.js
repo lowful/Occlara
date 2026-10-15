@@ -458,6 +458,133 @@ const V4 = {
     ok(r.body.startedAt === null && r.body.lengthMs === null, 'and are null when Riot leaves them out');
   }
 
+  // ── 8.5.0: Riot's record grows by agent and gun, never by a name ─────────
+  const riotRounds = require(path.join(__dirname, '..', 'server', 'services', 'riot-rounds.js'));
+  const { henrikKey, FILL_MAX, matchMvpCache } = coach.__test;
+  regionCache.clear();
+  henrik.account = async () => ({ status: 200, json: { data: { region: 'eu' } } });
+  const GROWN = {
+    ...V4,
+    metadata: { ...V4.metadata, Foe: 1 },
+    players: [
+      { name: 'Me', tag: 'EUW', puuid: 'puuid-me-0001', team_id: 'Red', agent: { name: 'Jett' }, stats: { kills: 1, deaths: 1, assists: 0, score: 300 },
+        economy: { loadout_value: { overall: 3900 }, spent: { overall: 3900 } } },
+      { name: 'Foe', tag: 'NA1', puuid: 'puuid-foe-0002', team_id: 'Blue', agent: { name: 'Omen' }, stats: { kills: 1, deaths: 1, assists: 0, score: 280 } },
+      { name: 'Hidden Friend', tag: 'ZZ9', puuid: 'puuid-friend-0003', team_id: 'Red', agent: { name: 'Sova' }, stats: {} },
+    ],
+    rounds: [
+      { winning_team: 'Red', plant: { round_time_in_ms: 20000, site: 'A', player: { puuid: 'puuid-me-0001' } },
+        stats: [{ player: { puuid: 'puuid-me-0001' }, economy: { loadout_value: 3900, remaining: 100, weapon: { name: 'Vandal' } },
+          damage_events: [{ player: { puuid: 'puuid-foe-0002' }, damage: 150, headshots: 1 }], ability_casts: { grenade: 1 } }] },
+      { winning_team: 'Blue', defuse: { round_time_in_ms: 60000 } },
+    ],
+    kills: [
+      { round: 0, time_in_round_in_ms: 30000, killer: { puuid: 'puuid-me-0001', name: 'Me', tag: 'EUW' }, victim: { puuid: 'puuid-foe-0002', name: 'Foe', tag: 'NA1' },
+        weapon: { id: 'v', name: 'Vandal', type: 'Weapon' }, location: { x: 1, y: 2 }, player_locations: [{ player: { puuid: 'puuid-foe-0002' }, view_radians: 1, location: { x: 3, y: 4 } }] },
+      { round: 1, time_in_round_in_ms: 20000, killer: { puuid: 'puuid-foe-0002', name: 'Foe', tag: 'NA1' }, victim: { puuid: 'puuid-me-0001', name: 'Me', tag: 'EUW' },
+        weapon: { id: 'p', name: 'Phantom', type: 'Weapon' } },
+      { round: 1, time_in_round_in_ms: 21000, killer: { puuid: 'puuid-friend-0003' }, victim: { puuid: 'puuid-foe-0002' },
+        weapon: { id: 'x', name: null, type: 'Ability' } },
+    ],
+  };
+  const MID = '0c1d2e3f-aaaa-4bbb-8ccc-1234567890ab';
+  henrik.match = async () => ({ status: 200, json: { data: GROWN } });
+  {
+    const r = await call(coach, 'GET', `/match-rounds?matchId=${MID}&username=${ME}`, { headers: H });
+    const text = JSON.stringify(r.body || {});
+    const feed = (r.body.perRound || []).map((p) => p.feed);
+    ok(r.status === 200 && JSON.stringify(r.body.comps) === JSON.stringify({
+      us: [{ agent: 'Jett', role: 'Duelist' }, { agent: 'Sova', role: 'Initiator' }], them: [{ agent: 'Omen', role: 'Controller' }] }),
+    `both team comps come back, agents and roles sorted by agent (${JSON.stringify(r.body.comps)})`);
+    ok(JSON.stringify(feed) === JSON.stringify([
+      [{ ms: 30000, by: 'me', on: 'enemy', ka: 'Jett', va: 'Omen', w: 'Vandal' }],
+      [{ ms: 20000, by: 'enemy', on: 'me', ka: 'Omen', va: 'Jett', w: 'Phantom' }, { ms: 21000, by: 'mate', on: 'enemy', ka: 'Sova', va: 'Omen', w: null }]]),
+    `each kill of the feed says both ends by agent and its gun by name, never its type (${JSON.stringify(feed)})`);
+    const s = r.body.shape || {};
+    ok(JSON.stringify(s['rounds[0].stats[0]']) === '["player","economy","damage_events","ability_casts"]'
+      && JSON.stringify(s['rounds[0].stats[0].economy']) === '["loadout_value","remaining","weapon"]'
+      && JSON.stringify(s['rounds[0].stats[0].damage_events[0]']) === '["player","damage","headshots"]'
+      && JSON.stringify(s['rounds[0].stats[0].ability_casts']) === '["grenade"]' && JSON.stringify(s['rounds[].plant']) === '["round_time_in_ms","site","player"]'
+      && JSON.stringify(s['rounds[].defuse']) === '["round_time_in_ms"]' && JSON.stringify(s['kills[0].weapon']) === '["id","name","type"]'
+      && JSON.stringify(s['kills[0].location']) === '["x","y"]' && JSON.stringify(s['kills[0].player_locations[0]']) === '["player","view_radians","location"]'
+      && JSON.stringify(s['players[0].economy']) === '["loadout_value","spent"]' && JSON.stringify(s['teams[0]']) === '["team_id","rounds"]'
+      && JSON.stringify(s.metadata) === '["map","queue"]' && JSON.stringify(s.top) === JSON.stringify(Object.keys(GROWN)),
+    'the shape goes one level deeper, key names only, and a key that is a player\'s name is left out of it');
+    ok(!/Foe|NA1|Hidden|Friend|ZZ9|puuid-/.test(text), `and no other player's name, tag or id is anywhere in the reply (${text.length} characters)`);
+    const names = riotRounds.nameSetOf(MID);
+    ok(names && names.has('a teammate called Friend') && names.has('FOE') && names.has('the NA1 tag') && !names.has('Hold the angle with Jett')
+      && JSON.stringify(names) === '{}' && Object.keys(names).join() === 'has',
+    "the match's name set is held on the server, hashed, answering has() and printing nothing");
+    ok(riotRounds.nameSetOf('another-match') === null && riotRounds.nameSetOf('') === null && riotRounds.nameSetOf(MID.toUpperCase()) !== null,
+      'and only for its own match, by id in any case');
+    const realNow = Date.now;
+    const later = realNow() + riotRounds.NAME_SET_MS + 1000;
+    Date.now = () => later;
+    try {
+      ok(riotRounds.nameSetOf(MID) === null, 'a day on, the set is gone, and only the gates\' own rule runs');
+    } finally { Date.now = realNow; }
+  }
+
+  // ── 8.5.0: the MVP badge and the roster are each player's own ────────────
+  matchMvpCache.clear();
+  henrik.stored = async (u) => ({ status: 200, json: { data: /mode=competitive/.test(u) ? [row('duo1', 'Competitive', 13, 7, 30)] : [] } });
+  henrik.match = async () => ({ status: 200, json: { data: { ...V4,
+    players: [
+      { name: 'Carry', tag: 'EUW', team_id: 'Red', agent: { name: 'Jett' }, stats: { kills: 20, deaths: 10, assists: 4, score: 6000 } },
+      { name: 'Duo', tag: 'EUW', team_id: 'Red', agent: { name: 'Sova' }, stats: { kills: 15, deaths: 12, assists: 9, score: 4800 } },
+      { name: 'Foe', tag: 'NA1', team_id: 'Blue', agent: { name: 'Reyna' }, stats: { kills: 12, deaths: 15, assists: 2, score: 4000 } },
+    ],
+    teams: [{ team_id: 'Red', won: true, rounds: { won: 13 } }, { team_id: 'Blue', won: false, rounds: { won: 7 } }] } } });
+  {
+    const one = await call(coach, 'GET', `/matches?mode=competitive&username=${encodeURIComponent('Carry#EUW')}`, { headers: H });
+    const two = await call(coach, 'GET', `/matches?mode=competitive&username=${encodeURIComponent('Duo#EUW')}`, { headers: H });
+    const a = (one.body.matches || [])[0] || {};
+    const b = (two.body.matches || [])[0] || {};
+    const mine = (m) => ((m.team || []).find((p) => p.me) || {}).agent;
+    ok(a.mvp === 'match' && mine(a) === 'Jett' && b.mvp === null && mine(b) === 'Sova',
+      `two Occlara players of one match each get their own badge and their own row marked (${a.mvp}/${mine(a)}, ${b.mvp}/${mine(b)})`);
+    ok(matchMvpCache.has('duo1|carry#euw') && matchMvpCache.has('duo1|duo#euw') && !matchMvpCache.has('duo1'),
+      'the badge cache is keyed by match and player, lower case');
+  }
+
+  // ── 8.5.0: a fill waits its turn on the shared HenrikDev key ─────────────
+  regionCache.clear();
+  henrikKey.throttledAt = 0;
+  henrikKey.fills.length = 0;
+  henrik.account = async () => ({ status: 200, json: { data: { region: 'eu' } } });
+  henrik.match = async () => ({ status: 200, json: { data: V4 } });
+  {
+    const rounds = (id, extra) => call(coach, 'GET', `/match-rounds?matchId=${id}&username=${ME}${extra || ''}`, { headers: H });
+    const first = await rounds('fill-1', '&purpose=fill');
+    ok(first.status === 200 && first.body.perRound && henrikKey.fills.length === 1, 'a fill on a quiet key is served, and counted');
+    henrik.match = async () => ({ status: 429, json: {} });
+    const throttled = await rounds('live-429');
+    ok(throttled.status === 503 && henrikKey.throttledAt > 0, 'a live link turned away with a 429 marks the key throttled');
+    henrik.match = async () => ({ status: 200, json: { data: V4 } });
+    calls.length = 0;
+    const held = await rounds('fill-2', '&purpose=fill');
+    const live = await rounds('live-2');
+    ok(held.status === 503 && held.body.retry === true && live.status === 200 && calls.filter((u) => u.includes('fill-2')).length === 0,
+      `within two minutes of a 429 a fill is a 503 to ask again, without a call, while a live link goes on (${held.status}, ${live.status})`);
+    const realNow = Date.now;
+    const at = realNow() + coach.__test.FILL_HOLD_MS + 1000;
+    Date.now = () => at;
+    try {
+      const after = await rounds('fill-3', '&purpose=fill');
+      ok(after.status === 200, 'two minutes on, a fill is served again');
+      henrikKey.fills.length = 0;
+      const burst = [];
+      for (let i = 0; i < FILL_MAX + 1; i++) burst.push((await rounds(`burst-${i}`, '&purpose=fill')).status);
+      ok(burst.slice(0, FILL_MAX).every((s) => s === 200) && burst[FILL_MAX] === 503,
+        `ten fills a minute go upstream, server wide, and the eleventh waits (${burst.join(', ')})`);
+      const cached = await rounds('burst-0', '&purpose=fill');
+      const liveNow = await rounds('live-3');
+      ok(cached.status === 200 && liveNow.status === 200, 'while a fill the reply cache answers is served, and a live link never waits');
+    } finally { Date.now = realNow; }
+    henrikKey.fills.length = 0;
+    henrikKey.throttledAt = 0;
+  }
+
   // ── every tracker call can time out ──────────────────────────────────────
   ok(signals.length > 0 && signals.every((s) => s && typeof s.aborted === 'boolean'),
     'every HenrikDev request carries an abort signal, so a hung one ends instead of holding the route');

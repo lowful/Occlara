@@ -1,6 +1,9 @@
 {
-  "generatedAt": "2026-10-13T20:26:26.298Z",
+  "generatedAt": "2026-10-15T12:18:20.755Z",
   "source": "valorant-api.com",
+  "patch": "13.08",
+  "version": "13.08.00.5627607",
+  "buildDate": "2026-10-01T20:58:39Z",
   "agents": {
     "Gekko": {
       "role": "Initiator",
@@ -9,6 +12,32 @@
         "dizzy",
         "mosh pit",
         "thrash"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Mosh Pit",
+          "description": "EQUIP Mosh. FIRE to throw Mosh like a grenade. ALT FIRE to lob. Upon landing Mosh duplicates across a large area that deals a small amount of damage over time then after a short delay explodes. INTERACT to reclaim the globule and gain another Mosh charge after a short cooldown."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Wingman",
+          "description": "EQUIP Wingman. FIRE to send Wingman forward seeking enemies. Wingman unleashes a concussive blast toward the first enemy he sees. ALT FIRE when targeting a Spike site or planted Spike to have Wingman defuse or plant the Spike. To plant, Gekko must have the Spike in his inventory. When Wingman expires he reverts into a dormant globule. INTERACT to reclaim the globule and gain another Wingman charge after a short cooldown."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Dizzy",
+          "description": "EQUIP Dizzy. FIRE to send Dizzy soaring forward through the air. Dizzy charges then unleashes plasma blasts at enemies in line of sight. Enemies hit by her plasma are Blinded. When Dizzy expires she reverts into a dormant globule. INTERACT to reclaim the globule and gain another Dizzy charge after a short cooldown."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Thrash",
+          "description": "EQUIP Thrash. FIRE to link with Thrash’s mind and steer her through enemy territory. ACTIVATE to lunge forward and explode, Detaining any players in a small radius. When Thrash expires she reverts into a dormant globule. INTERACT to reclaim the globule and gain another Thrash charge after a short cooldown. Thrash can be reclaimed once."
+        }
       ]
     },
     "Fade": {
@@ -18,6 +47,32 @@
         "haunt",
         "prowler",
         "nightfall"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Prowler",
+          "description": "EQUIP a prowler. FIRE to send the prowler forward. HOLD FIRE to steer the prowler towards your crosshair. The prowler will chase down the first enemy or terror trail it sees, and Nearsight the enemy on impact."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Seize",
+          "description": "EQUIP a knot of raw fear. FIRE to throw. The knot drops down after a set time. RE-USE to drop the knot early. The knot ruptures on impact, holding nearby enemies in place. Held enemies are Deafened, and Decayed."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Haunt",
+          "description": "EQUIP a haunting watcher. FIRE to throw. The watcher drops down after a set time. RE-USE to drop the watcher early. The watcher lashes out on impact, Revealing enemies in its line of sight and creating terror trails to them. Enemies can destroy the watcher."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Nightfall",
+          "description": "EQUIP the power of nightmare itself. FIRE to unleash a wave of unstoppable nightmare energy. Enemies caught in the wave are Marked by terror trails, Deafened, and Decayed."
+        }
       ]
     },
     "Breach": {
@@ -27,6 +82,32 @@
         "fault line",
         "aftershock",
         "rolling thunder"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Aftershock",
+          "description": "EQUIP a fusion charge. FIRE the charge to set a slow-acting burst through the wall. The burst does heavy damage to anyone caught in its area."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Flashpoint",
+          "description": "EQUIP a Blinding charge. FIRE the charge to set a fast-acting burst through the wall. The charge detonates to Blind all players looking at it."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Fault Line",
+          "description": "EQUIP a Seismic Blast. HOLD FIRE to increase the distance. RELEASE to set off the quake, Concussing all players in its zone and in a line up to the zone."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Rolling Thunder",
+          "description": "EQUIP a Seismic Charge. FIRE to send a cascading quake through all terrain in a large zone. The quake Concusses and knocks up anyone caught in it."
+        }
       ]
     },
     "Deadlock": {
@@ -36,6 +117,32 @@
         "barrier mesh",
         "gravnet",
         "annihilation"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Barrier Mesh",
+          "description": "EQUIP a Barrier Mesh disc. FIRE to throw forward. Upon landing, the disc generates barriers from the origin point that block character movement."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Sonic Sensor",
+          "description": "EQUIP a Sonic Sensor. FIRE to deploy. The sensor monitors an area for enemies making sound. It concusses that area if footsteps, weapons fire, or significant noise are detected. This ability can be picked up to be REDEPLOYED."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "GravNet",
+          "description": "EQUIP a GravNet grenade. FIRE to throw. ALT FIRE to lob. The GravNet detonates upon landing, forcing any characters caught within to crouch and move slowly."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Annihilation",
+          "description": "EQUIP a Nanowire Accelerator. FIRE to unleash a pulse of nanowires that captures the first enemy contacted. The cocooned enemy is pulled along a nanowire path and will die unless they are freed. The nanowire cocoon is destructible."
+        }
       ]
     },
     "Tejo": {
@@ -45,6 +152,32 @@
         "special delivery",
         "armageddon",
         "stealth drone"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Stealth Drone",
+          "description": "EQUIP a stealth drone. FIRE to throw the drone forward, assuming direct control of its movement. FIRE again to trigger a pulse that Suppresses and Reveals enemies hit."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Special Delivery",
+          "description": "EQUIP a sticky grenade. FIRE to launch. The grenade sticks to the first surface it hits and explodes, Concussing and dealing damage to any targets caught in the blast. ALT FIRE to launch the grenade with a single bounce instead."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Guided Salvo",
+          "description": "EQUIP an AR targeting system. FIRE to select up to two target locations on the map. ALT FIRE to launch missiles that autonomously navigate to target locations, detonating repeatedly for damage on arrival."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Armageddon",
+          "description": "EQUIP a tactical strike targeting map. FIRE to select the origin point of the strike. FIRE again to set the end point and launch the attack, unleashing a wave of lethal damaging explosions along the strike path. ALT FIRE during map targeting to cancel the origin point."
+        }
       ]
     },
     "Raze": {
@@ -54,6 +187,32 @@
         "paint shells",
         "boom bot",
         "showstopper"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Boom Bot",
+          "description": "EQUIP a Boom Bot. FIRE will deploy the bot, causing it to travel in a straight line on the ground, bouncing off walls. The Boom Bot will lock on to any enemies in its frontal cone and chase them, exploding for heavy damage if it reaches them."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Blast Pack",
+          "description": "INSTANTLY throw a Blast Pack that will stick to surfaces. RE-USE the ability after deployment to detonate, moving anything hit and dealing damage if fully armed."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Paint Shells",
+          "description": "EQUIP a cluster grenade. FIRE to throw the grenade, which does damage and creates sub-munitions, each doing damage to anyone in their range. ALT FIRE to lob. Paint Shells charge resets every two kills."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Showstopper",
+          "description": "EQUIP a rocket launcher. FIRE to shoot a rocket that does massive area damage on contact with anything."
+        }
       ]
     },
     "Chamber": {
@@ -63,6 +222,32 @@
         "trademark",
         "headhunter",
         "tour de force"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Trademark",
+          "description": "EQUIP a trap that scans for enemies. FIRE to place it on the ground. When a visible enemy comes in range, the trap counts down and then destabilizes the terrain around them, creating a lingering field that Slows players caught inside of it. The trap can be picked up to be REDEPLOYED."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Headhunter",
+          "description": "ACTIVATE to equip a heavy pistol. ALT FIRE with the pistol equipped to aim down sights."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Rendezvous",
+          "description": "EQUIP a teleport anchor. FIRE to place it on the ground. While on the ground and in range of the anchor, REACTIVATE to quickly teleport to the anchor. The anchor can be picked up to be REDEPLOYED."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Tour De Force",
+          "description": "ACTIVATE to summon a powerful, custom sniper rifle that will kill an enemy with any direct hit to the upper body. ALT FIRE to aim down sights. Killing an enemy creates a lingering field that Slows players caught inside of it."
+        }
       ]
     },
     "KAY/O": {
@@ -72,6 +257,32 @@
         "flash/drive",
         "zero/point",
         "null/cmd"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "FRAG/ment",
+          "description": "EQUIP an explosive fragment. FIRE to throw. ALT FIRE to lob. The fragment sticks to the floor and explodes multiple times, dealing near lethal damage at the center with each explosion."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "FLASH/drive",
+          "description": "EQUIP a flash grenade. FIRE to overhand throw. ALT FIRE to lob a weaker version that explodes quickly. The flash grenade explodes after a short fuse, Blinding anyone in line of sight."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "ZERO/point",
+          "description": "EQUIP a suppression blade. FIRE to throw. The blade sticks to the first surface it hits, winds up, and Suppresses anyone in the radius of the explosion. Enemies can destroy this blade."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "NULL/cmd",
+          "description": "INSTANTLY overload with polarized radianite energy that pulses from KAY/O in a massive radius. Enemies hit with pulses are Suppressed for a short duration. While overloaded, KAY/O gains Combat Stim and can be re-stabilized if downed."
+        }
       ]
     },
     "Skye": {
@@ -81,6 +292,32 @@
         "guiding light",
         "regrowth",
         "seekers"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Regrowth",
+          "description": "EQUIP a healing trinket. HOLD FIRE to channel, Healing allies in range and line of sight. Can be reused until her healing pool is depleted. Skye cannot heal herself."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Trailblazer",
+          "description": "EQUIP a Tasmanian tiger trinket. FIRE to send out and take control of the predator. While in control, FIRE to leap forward, exploding in a Concussive blast on impact and damaging directly hit enemies."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Guiding Light",
+          "description": "EQUIP a hawk trinket. FIRE to send it forward. HOLD FIRE to guide the hawk in the direction of your crosshair. RE-USE while the hawk is in flight to transform it into a flash. The flash reaches max potency after a short duration during the hawk's flight."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Seekers",
+          "description": "EQUIP a Seeker trinket. FIRE to send out three Seekers to track down the three closest enemies. If a Seeker reaches its target, it Nearsights and slows them. Enemies can destroy the Seekers."
+        }
       ]
     },
     "Cypher": {
@@ -90,6 +327,32 @@
         "spycam",
         "trapwire",
         "neural theft"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Trapwire",
+          "description": "EQUIP a trapwire. FIRE to place a destructible and covert trapwire at the targeted location, creating a line that spans between the placed location and the wall opposite. Enemy players who cross a trapwire will be Slowed and Revealed after a short period if they do not destroy the device in time. This ability can be picked up to be REDEPLOYED."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Cyber Cage",
+          "description": "INSTANTLY toss the cyber cage in front of Cypher. ACTIVATE to create a zone that blocks vision and plays an audio cue when enemies pass through it."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Spycam",
+          "description": "EQUIP a spycam. FIRE to place the spycam at the targeted location. RE-USE this ability to take control of the camera's view. While in control of the camera, FIRE to shoot a marking dart. This dart will Reveal the location of any player struck by the dart. This ability can be picked up to be REDEPLOYED."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Neural Theft",
+          "description": "INSTANTLY use on a targeted dead enemy to download information on their team. After a brief delay, the location of all living enemy players will be Revealed twice."
+        }
       ]
     },
     "Sova": {
@@ -99,6 +362,38 @@
         "recon bolt",
         "owl drone",
         "hunter's fury"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Owl Drone",
+          "description": "EQUIP an owl drone. FIRE to deploy and take control of movement of the drone. While in control of the drone, FIRE to shoot a marking dart. This dart will Reveal the location of any player struck by the dart. Enemies can destroy the Owl Drone."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Shock Bolt",
+          "description": "EQUIP a bow with a shock bolt. FIRE to send the explosive bolt forward, detonating upon collision and damaging players nearby. HOLD FIRE to extend the range of the projectile. ALT FIRE to add up to two bounces to this arrow."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Recon Bolt",
+          "description": "EQUIP a bow with recon bolt. FIRE to send the recon bolt forward, activating upon collision and Revealing the location of nearby enemies caught in the line of sight of the bolt. Enemies can destroy this bolt. HOLD FIRE to extend the range of the projectile. ALT FIRE to add up to two bounces to this arrow."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Hunter's Fury",
+          "description": "EQUIP a bow with three long-range, wall-piercing energy blasts. FIRE to release an energy blast in a line in front of Sova, dealing damage and Revealing the location of enemies caught in the line. This ability can be RE-USED up to two more times while the ability timer is active."
+        },
+        {
+          "slot": "Passive",
+          "key": null,
+          "name": "Uncanny Marksman",
+          "description": "Sova's custom bow can fire his arrows and bounce them off terrain. Holding fire charges the bow's power, and the bolt is loosed when released. Press alt fire to change the number of bounces.Your arrows can bounce off terrain. Holding left click increases the bow's range trajectory. Right clicking Toggle through the desired number of terrain bounces by right clicking. The arrow is loosed when left click is released."
+        }
       ]
     },
     "Miks": {
@@ -108,6 +403,32 @@
         "waveform",
         "harmonize",
         "bassquake"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "M-pulse",
+          "description": "EQUIP M-pulse. ALT-FIRE to toggle between Concuss and Healing outputs. FIRE to throw the device. Upon landing, M-pulse sends out sound waves, either Concussing or Healing players."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Harmonize",
+          "description": "EQUIP Harmonize. Target an ally and FIRE to activate a Combat Stim and a speed boost on yourself and the ally that refreshes with each kill. ALT-FIRE to grant Combat Stim and speed boost to yourself."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Waveform",
+          "description": "EQUIP a Map Targeter. FIRE to set locations. ALT-FIRE to spawn Smokes at selected locations."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Bassquake",
+          "description": "EQUIP Bassquake. FIRE to build up and unleash Sonic Radiance forward, knocking back, Deafening, and Slowing players."
+        }
       ]
     },
     "Killjoy": {
@@ -117,6 +438,32 @@
         "alarmbot",
         "turret",
         "lockdown"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Nanoswarm",
+          "description": "EQUIP a Nanoswarm grenade. FIRE to throw the grenade. Upon landing, the Nanoswarm goes covert. ALT FIRE to lob. ACTIVATE the Nanoswarm to deploy a damaging swarm of nanobots."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "ALARMBOT",
+          "description": "EQUIP a covert Alarmbot. FIRE to deploy a bot that hunts down enemies that get in range. After reaching its target, the bot explodes and applies Vulnerable to enemies in the area. HOLD EQUIP to recall a deployed bot."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "TURRET",
+          "description": "EQUIP a Turret. FIRE to deploy a turret that fires at enemies in a 100 degree cone. While targeting, EQUIP again to swap turret direction, HOLD ALT FIRE to rotate. HOLD EQUIP to recall the deployed turret."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Lockdown",
+          "description": "EQUIP the Lockdown device. FIRE to deploy the device. After a long windup, the device Detains all enemies caught in the radius. The device can be destroyed by enemies."
+        }
       ]
     },
     "Harbor": {
@@ -126,6 +473,32 @@
         "storm surge",
         "cove",
         "reckoning"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Storm Surge",
+          "description": "EQUIP Storm Surge. FIRE to throw, creating an explosive whirlpool that Slows and Nearsights players within it after a short duration."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "High Tide",
+          "description": "EQUIP High Tide. FIRE to send water forward along the ground. HOLD FIRE to guide the water towards your crosshair spawning a vision blocking Screen along the path. ALT FIRE to stop the water early. All players crossing High Tide are Slowed."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Cove",
+          "description": "EQUIP Cove. ACTIVATE to form a water Smoke in the select location. HOLD FIRE while targeting to move the marker further away and HOLD ALT FIRE to move it closer. RELOAD to toggle targeting view. REACTIVATE to Shield the water Smoke, blocking any bullets that hit it. The Shielded water Smoke can be destroyed."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Reckoning",
+          "description": "EQUIP Reckoning. FIRE to unleash the full power of your artifact, releasing a surge of water that barrels forward to Nearsight and Slow enemies that are hit."
+        }
       ]
     },
     "Vyse": {
@@ -135,6 +508,32 @@
         "arc rose",
         "razorvine",
         "steel garden"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Razorvine",
+          "description": "EQUIP a nest of liquid metal. FIRE to launch. Upon landing, the nest becomes invisible. When ACTIVATED, it sprawls out into a large razorvine nest which slows and damages all players who move through it."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Shear",
+          "description": "EQUIP filaments of liquid metal. FIRE to place a hidden wall trap. When an enemy crosses, an indestructible wall bursts from the ground behind them. The wall lasts for a brief time before dissipating."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Arc Rose",
+          "description": "EQUIP an Arc Rose. Target a surface and FIRE to place a stealthed Arc Rose, or ALT FIRE to place the Arc Rose through it. REUSE to blind all players looking at it. This ability can be picked up to be REDEPLOYED."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Steel Garden",
+          "description": "EQUIP a bramble of liquid metal. FIRE to send the metal erupting from you as a torrent of metal thorns, JAMMING enemy primary weapons after a brief windup."
+        }
       ]
     },
     "Viper": {
@@ -144,6 +543,38 @@
         "toxic screen",
         "snake bite",
         "viper's pit"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Snake Bite",
+          "description": "EQUIP a chemical launcher. FIRE to launch a canister that shatters upon hitting the floor, creating a lingering chemical zone that damages and applies Vulnerable."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Poison Cloud",
+          "description": "EQUIP a gas emitter. FIRE to throw the emitter that perpetually remains throughout the round. ALT FIRE to lob. RE-USE the ability to create a toxic gas cloud that Decays opponents inside it at the cost of fuel. This ability can be picked up to be REDEPLOYED before the round starts and can be RE-USED more than once throughout the round."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Toxic Screen",
+          "description": "EQUIP a gas emitter launcher that penetrates terrain. FIRE to deploy a long line of gas emitters. RE-USE the ability to create a tall wall of toxic gas that Decays opponents that cross it at the cost of fuel. This ability can be RE-USED more than once."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Viper's Pit",
+          "description": "EQUIP a chemical sprayer. FIRE to spray a chemical cloud in all directions around Viper, creating a large cloud that Nearsights players and Decays the health of enemies inside of it. HOLD the ability key to disperse the cloud early."
+        },
+        {
+          "slot": "Passive",
+          "key": null,
+          "name": "Toxic",
+          "description": "You gradually generate and replenish the toxin that fuels your abilities. Enemies that cross through Viper's Poison Cloud, Toxic Screen, or Viper's Pit are instantly inflicted with at least 30 Decay. Their Decay level increases the longer they remain in contact with it."
+        }
       ]
     },
     "Phoenix": {
@@ -153,6 +584,38 @@
         "hot hands",
         "curveball",
         "run it back"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Blaze",
+          "description": "EQUIP a flame wall. FIRE to create a line of flame that moves forward, passing through the world and creating a wall of fire that blocks vision and damages players passing through it. The fire wall heals Phoenix instead of dealing damage. HOLD FIRE to bend the wall in the direction of your crosshair."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Hot Hands",
+          "description": "EQUIP a fireball. FIRE to throw a fireball that explodes after a set amount of time or upon hitting the ground, creating a lingering fire zone that damages enemies. The fire zone heals Phoenix instead of dealing damage. ALT FIRE to lob."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Curveball",
+          "description": "EQUIP a flare orb that takes a curving path and detonates shortly after throwing. FIRE to curve the flare orb to the left, detonating and Blinding any player who sees the orb. ALT FIRE to curve the flare orb to the right. Curveball resets a charge every two kills."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Run it Back",
+          "description": "INSTANTLY place a marker at Phoenix's location. While this ability is active, dying or allowing the timer to expire will end this ability and bring Phoenix back to this location with full health and the amount of armor he had when the ability was cast."
+        },
+        {
+          "slot": "Passive",
+          "key": null,
+          "name": "Heating Up",
+          "description": "PASSIVELY Heal Phoenix instead of taking damage after standing in Phoenix's own fire"
+        }
       ]
     },
     "Veto": {
@@ -162,6 +625,32 @@
         "crosscut",
         "evolution",
         "chokehold"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Crosscut",
+          "description": "EQUIP a vortex. FIRE to place on the ground. While in range and looking at the vortex, ACTIVATE to teleport to the vortex. During the BUY PHASE, the vortex can be reclaimed to be REDEPLOYED."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Chokehold",
+          "description": "EQUIP a viscous fragment of your mutation. FIRE to throw. The fragment deploys upon hitting the ground, creating a trap to hold enemies in place. Held enemies are Deafened, and Decayed. Enemies can destroy the trap before activation."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Interceptor",
+          "description": "EQUIP the Interceptor. FIRE to place the Interceptor at projected location. Once placed, RE-USE to activate. Once active, it will destroy any utility that would BOUNCE off a player and/or be destroyed naturally by gunfire. Enemies can destroy the Interceptor."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Evolution",
+          "description": "INSTANTLY begin to fully mutate, gaining a combat stim, regeneration, and becoming IMMUNE to all forms of debuffs."
+        }
       ]
     },
     "Astra": {
@@ -171,6 +660,38 @@
         "nebula  / dissipate",
         "gravity well",
         "astral form / cosmic divide"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Gravity Well",
+          "description": "Place Stars in Astral Form (Ultimate Key). ACTIVATE a Star to form a Gravity Well. Players in the area are pulled toward the center before it explodes, making all players still trapped inside Vulnerable."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Nova Pulse",
+          "description": "Place Stars in Astral Form (Ultimate Key). ACTIVATE a Star to detonate a Nova Pulse. The Nova Pulse charges briefly then strikes, Concussing all players in its area."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Nebula  / Dissipate",
+          "description": "Place Stars in Astral Form (Ultimate Key). ACTIVATE a Star to transform it into a Nebula (smoke). USE a Star to Dissipate it, returning the Star to be placed in a new location after a delay. Dissipate briefly forms a fake Nebula at the Star's location before returning."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Astral Form / Cosmic Divide",
+          "description": "ACTIVATE to enter Astral Form where you can place Stars with FIRE. Stars can be reactivated later, transforming them into a Nova Pulse, Nebula, or Gravity Well. When Cosmic Divide is charged, use ALT FIRE in Astral Form to begin aiming it, then FIRE to select two locations. An infinite Cosmic Divide connects the two points you select. Cosmic Divide blocks bullets and sound."
+        },
+        {
+          "slot": "Passive",
+          "key": null,
+          "name": "Astral Form",
+          "description": "ACTIVATE Ultimate to enter Astral Form and PRIMARY FIRE to place Stars. Target Stars with your Nova Pulse, Nebula, or Gravity Well to use those abilities."
+        }
       ]
     },
     "Brimstone": {
@@ -180,6 +701,32 @@
         "incendiary",
         "sky smoke",
         "orbital strike"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Stim Beacon",
+          "description": "INSTANTLY toss down a stim beacon. Upon landing, it creates a field that grants players a Combat Stim and a Speed Boost."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Incendiary",
+          "description": "EQUIP an incendiary grenade launcher. FIRE to launch a grenade that detonates as it comes to a rest on the floor, creating a lingering fire zone that damages players within the zone."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Sky Smoke",
+          "description": "EQUIP a tactical map. FIRE to set locations where Brimstone's smoke clouds will land. ALT FIRE to confirm, launching long-lasting smoke clouds that block vision in the selected area."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Orbital Strike",
+          "description": "EQUIP a tactical map. FIRE to launch a lingering orbital strike laser at the selected location, dealing high damage-over-time to players caught in the selected area."
+        }
       ]
     },
     "Iso": {
@@ -189,6 +736,32 @@
         "kill contract",
         "double tap",
         "contingency"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Contingency",
+          "description": "EQUIP to assemble prismatic energy. FIRE to push an indestructible wall of energy forward that blocks bullets. ALT FIRE to push out a slower version of the wall."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Undercut",
+          "description": "EQUIP a molecular bolt. FIRE to throw it forward, briefly applying Vulnerable & Suppress to all players it touches. The bolt can pass through solid objects, including walls."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Double Tap",
+          "description": "INSTANTLY start channeling your focus. Once focused: gain a shield which absorbs one instance of damage from any source, reload more quickly, and enter a flow state during which downed enemies you kill or damage spawn an energy orb. Shooting this orb refreshes your flow state and your existing shield, or grants another."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Kill Contract",
+          "description": "EQUIP an interdimensional arena. FIRE to hurl a column of energy through the battlefield, pulling and healing both you and the first enemy hit into the arena to duel to the death."
+        }
       ]
     },
     "Clove": {
@@ -198,6 +771,32 @@
         "ruse",
         "not dead yet",
         "meddle"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Pick-me-up",
+          "description": "ACTIVATE to absorb the life force of a fallen enemy that Clove damaged or killed, gaining haste and temporary health."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Meddle",
+          "description": "EQUIP a fragment of immortality essence. FIRE to throw the fragment, which upon landing on the floor, erupts after a short delay and temporarily Decays all targets caught inside."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Ruse",
+          "description": "EQUIP a view of the battlefield. FIRE to set the locations where Clove’s clouds will settle. ALT FIRE to confirm, launching clouds that block vision in the chosen areas. Clove can use this ability after death."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Not Dead Yet",
+          "description": "After dying, ACTIVATE to resurrect. Once resurrected, Clove must earn a kill or a damaging assist within a set time or they will die. REACTIVATE to cancel early."
+        }
       ]
     },
     "Neon": {
@@ -207,6 +806,32 @@
         "relay bolt",
         "fast lane",
         "overdrive"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Fast Lane",
+          "description": "FIRE two energy lines forward on the ground that extend a short distance or until they hit a surface. The lines rise into walls of static electricity that block vision."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Relay Bolt",
+          "description": "INSTANTLY throw an energy bolt that bounces once. Upon hitting each surface, the bolt electrifies the ground below with a Concussive blast."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "High Gear",
+          "description": "INSTANTLY channel Neon’s power for Increased Speed. When charged, ALT FIRE to trigger an electric slide dash. Slide charge resets every two kills."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Overdrive",
+          "description": "Unleash Neon’s full power and speed for a short duration, regaining all her fuel and a slide charge. FIRE to channel the power into a deadly lightning beam with high movement accuracy. Kills reset the duration of the effect."
+        }
       ]
     },
     "Yoru": {
@@ -216,6 +841,32 @@
         "blindside",
         "gatecrash",
         "dimensional drift"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "FAKEOUT",
+          "description": "EQUIP an echo that transforms into a mirror image of Yoru when activated. FIRE to instantly activate the mirror image and send it forward. ALT FIRE to place an inactive echo. USE to transform an inactive echo into a mirror image and send it forward. Mirror images explode in a Blinding flash when destroyed by enemies."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "BLINDSIDE",
+          "description": "EQUIP to rip an unstable dimensional fragment from reality. FIRE to throw the fragment, activating a flash that winds up once it collides with a hard surface."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "GATECRASH",
+          "description": "EQUIP a rift tether FIRE to send the tether forward. ALT FIRE to place a stationary tether. ACTIVATE to teleport to the tether's location. USE to trigger a fake teleport. GATECRASH resets a charge every two kills."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "DIMENSIONAL DRIFT",
+          "description": "EQUIP a mask that can see between dimensions. FIRE to drift into Yoru's dimension, unable to be affected or seen by enemies from the outside. REACTIVATE to exit Yoru's dimension early."
+        }
       ]
     },
     "Waylay": {
@@ -225,6 +876,32 @@
         "saturate",
         "lightspeed",
         "convergent paths"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Saturate",
+          "description": "EQUIP a cluster of light. FIRE to throw the cluster, which upon contact with the ground explodes, Hindering nearby players with a powerful movement and weapon slow."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Lightspeed",
+          "description": "EQUIP to prepare for a burst of speed. FIRE to dash forward twice. ALT FIRE to dash once. Only your first dash can send you upward."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Refract",
+          "description": "INSTANTLY create a beacon of light on the floor. REACTIVATE to speed back to your beacon as a mote of pure light. You are invulnerable as you travel. Refract resets a charge every two kills."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Convergent Paths",
+          "description": "EQUIP to focus your prismatic power. FIRE to create an afterimage of yourself that projects a beam of light. After a brief delay, you gain a powerful speed boost and the beam expands, Hindering other players in the area."
+        }
       ]
     },
     "Sage": {
@@ -234,6 +911,32 @@
         "healing orb",
         "barrier orb",
         "resurrection"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Barrier Orb",
+          "description": "EQUIP a barrier orb. FIRE places a wall that fortifies after a few seconds. ALT FIRE rotates the targeter."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Slow Orb",
+          "description": "EQUIP a slowing orb. FIRE to throw a slowing orb forward that detonates upon landing, creating a lingering field that Slows and reduces the dash speed of players caught inside of it."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Healing Orb",
+          "description": "EQUIP a healing orb. FIRE with your crosshairs over a damaged ally to activate a Heal-Over-Time on them. ALT FIRE while Sage is damaged to activate a self Heal-Over-Time."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Resurrection",
+          "description": "EQUIP a resurrection ability. FIRE with your crosshairs placed over a dead ally to begin resurrecting them. After a brief channel, the ally will be brought back to life with full health."
+        }
       ]
     },
     "Reyna": {
@@ -243,6 +946,32 @@
         "dismiss",
         "leer",
         "empress"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Leer",
+          "description": "EQUIP an ethereal, destructible eye. ACTIVATE to cast the eye a short distance forward. The eye will Nearsight all enemies who look at it."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Devour",
+          "description": "Soul Harvest: Enemies that die within 3 seconds of taking damage from Reyna leave behind Soul Orbs that last 3 seconds. Devour: INSTANTLY consume a soul orb, rapidly gaining Temporary Health. If EMPRESS is active then Devour automatically casts, does not consume the Soul Orb, and Healing is permanent."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Dismiss",
+          "description": "INSTANTLY consume a nearby Soul Orb, becoming Intangible for a short duration. If EMPRESS is active, also become Invisible."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Empress",
+          "description": "INSTANTLY enter a frenzy, gaining a Combat Stim that increases firing, equip and reload speed dramatically. Gain infinite charges of Soul Harvest abilities."
+        }
       ]
     },
     "Omen": {
@@ -252,6 +981,32 @@
         "dark cover",
         "shrouded step",
         "from the shadows"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Shrouded Step",
+          "description": "EQUIP a shrouded step ability and see its range indicator. FIRE to begin a brief channel, then teleport to the marked location."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Paranoia",
+          "description": "EQUIP a blinding orb. FIRE to throw it forward, briefly Nearsighting and Deafening all players it touches. This projectile can pass straight through walls."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Dark Cover",
+          "description": "EQUIP a shadow orb, entering a phased world to place and target the orbs. PRESS the ability key to throw the shadow orb to the marked location, creating a long-lasting shadow sphere that blocks vision. HOLD FIRE while targeting to move the marker further away. HOLD ALT FIRE while targeting to move the marker closer. PRESS RELOAD to toggle normal targeting view."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "From the Shadows",
+          "description": "EQUIP a tactical map. FIRE to begin teleporting to the selected location. While teleporting, Omen will appear as a Shade that can be destroyed by an enemy to cancel his teleport, or PRESS EQUIP for Omen to cancel his teleport."
+        }
       ]
     },
     "Jett": {
@@ -261,8 +1016,46 @@
         "tailwind",
         "cloudburst",
         "blade storm"
+      ],
+      "kit": [
+        {
+          "slot": "Grenade",
+          "key": "C",
+          "name": "Cloudburst",
+          "description": "INSTANTLY throw a projectile that expands into a brief vision-blocking cloud on impact with a surface. HOLD the ability key to curve the smoke in the direction of your crosshair."
+        },
+        {
+          "slot": "Ability1",
+          "key": "Q",
+          "name": "Updraft",
+          "description": "INSTANTLY propel Jett high into the air."
+        },
+        {
+          "slot": "Ability2",
+          "key": "E",
+          "name": "Tailwind",
+          "description": "ACTIVATE to prepare a gust of wind for a limited time. RE-USE the wind to propel Jett in the direction she is moving. If Jett is standing still, she propels forward. Tailwind charge resets every two kills."
+        },
+        {
+          "slot": "Ultimate",
+          "key": "X",
+          "name": "Blade Storm",
+          "description": "EQUIP a set of highly accurate throwing knives. FIRE to throw a single knife and recharge knives on a kill. ALT FIRE to throw all remaining daggers but does not recharge on a kill."
+        },
+        {
+          "slot": "Passive",
+          "key": null,
+          "name": "Drift",
+          "description": "Holding the jump button while falling allows you to glide through the air."
+        }
       ]
     }
+  },
+  "roles": {
+    "Controller": "Controllers are experts in slicing up dangerous territory to set their team up for success.",
+    "Duelist": "Duelists are self-sufficient fraggers who their team expects, through abilities and skills, to get high frags and seek out engagements first.",
+    "Initiator": "Initiators challenge angles by setting up their team to enter contested ground and push defenders away.",
+    "Sentinel": "Sentinels are defensive experts who can lock down areas and watch flanks, both on attacker and defender rounds."
   },
   "maps": [
     "Abyss",
@@ -552,7 +1345,13 @@
           "x": 0.665,
           "y": 0.38
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.00007,
+        "yMultiplier": -0.00007,
+        "xScalarToAdd": 0.813895,
+        "yScalarToAdd": 0.573242
+      }
     },
     "split": {
       "hasMid": true,
@@ -718,7 +1517,13 @@
           "x": 0.426,
           "y": 0.451
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.000078,
+        "yMultiplier": -0.000078,
+        "xScalarToAdd": 0.842188,
+        "yScalarToAdd": 0.697578
+      }
     },
     "fracture": {
       "hasMid": false,
@@ -867,7 +1672,13 @@
           "x": 0.504,
           "y": 0.442
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.000078,
+        "yMultiplier": -0.000078,
+        "xScalarToAdd": 0.556952,
+        "yScalarToAdd": 1.155886
+      }
     },
     "bind": {
       "hasMid": false,
@@ -1030,7 +1841,13 @@
           "x": 0.517,
           "y": 0.104
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.000059,
+        "yMultiplier": -0.000059,
+        "xScalarToAdd": 0.576941,
+        "yScalarToAdd": 0.967566
+      }
     },
     "breeze": {
       "hasMid": true,
@@ -1190,7 +2007,13 @@
           "x": 0.644,
           "y": 0.495
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.00007,
+        "yMultiplier": -0.00007,
+        "xScalarToAdd": 0.465123,
+        "yScalarToAdd": 0.833078
+      }
     },
     "abyss": {
       "hasMid": true,
@@ -1350,7 +2173,13 @@
           "x": 0.308,
           "y": 0.437
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.000081,
+        "yMultiplier": -0.000081,
+        "xScalarToAdd": 0.5,
+        "yScalarToAdd": 0.5
+      }
     },
     "lotus": {
       "hasMid": false,
@@ -1540,7 +2369,13 @@
           "x": 0.577,
           "y": 0.22
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.000072,
+        "yMultiplier": -0.000072,
+        "xScalarToAdd": 0.454789,
+        "yScalarToAdd": 0.917752
+      }
     },
     "sunset": {
       "hasMid": true,
@@ -1664,7 +2499,13 @@
           "x": 0.344,
           "y": 0.36
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.000078,
+        "yMultiplier": -0.000078,
+        "xScalarToAdd": 0.5,
+        "yScalarToAdd": 0.515625
+      }
     },
     "pearl": {
       "hasMid": true,
@@ -1842,7 +2683,13 @@
           "x": 0.537,
           "y": 0.754
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.000078,
+        "yMultiplier": -0.000078,
+        "xScalarToAdd": 0.480469,
+        "yScalarToAdd": 0.916016
+      }
     },
     "summit": {
       "hasMid": true,
@@ -2008,7 +2855,13 @@
           "x": 0.484,
           "y": 0.326
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.000075,
+        "yMultiplier": -0.000075,
+        "xScalarToAdd": 0.047401,
+        "yScalarToAdd": 0.978891
+      }
     },
     "icebox": {
       "hasMid": true,
@@ -2180,7 +3033,13 @@
           "x": 0.588,
           "y": 0.625
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.000072,
+        "yMultiplier": -0.000072,
+        "xScalarToAdd": 0.460214,
+        "yScalarToAdd": 0.304687
+      }
     },
     "corrode": {
       "hasMid": true,
@@ -2328,7 +3187,13 @@
           "x": 0.309,
           "y": 0.491
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.00007,
+        "yMultiplier": -0.00007,
+        "xScalarToAdd": 0.526158,
+        "yScalarToAdd": 0.5
+      }
     },
     "haven": {
       "hasMid": true,
@@ -2481,7 +3346,13 @@
           "x": 0.676,
           "y": 0.496
         }
-      ]
+      ],
+      "transform": {
+        "xMultiplier": 0.000075,
+        "yMultiplier": -0.000075,
+        "xScalarToAdd": 1.09345,
+        "yScalarToAdd": 0.642728
+      }
     }
   },
   "weapons": {
@@ -2492,15 +3363,35 @@
         {
           "from": 0,
           "to": 30,
-          "body": 38
+          "body": 38,
+          "head": 95,
+          "leg": 32.3
         },
         {
           "from": 30,
           "to": 50,
-          "body": 31
+          "body": 31,
+          "head": 77.5,
+          "leg": 26.35
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 12,
+      "magazine": 100,
+      "reload": 5,
+      "equip": 1.25,
+      "runSpeed": 0.76,
+      "spread": {
+        "hip": 0.8,
+        "ads": 0.79
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "High",
+      "feature": "ROFIncrease"
     },
     "ares": {
       "category": "Heavy s",
@@ -2509,15 +3400,35 @@
         {
           "from": 0,
           "to": 30,
-          "body": 30
+          "body": 30,
+          "head": 75,
+          "leg": 25.5
         },
         {
           "from": 30,
           "to": 50,
-          "body": 28
+          "body": 28,
+          "head": 70,
+          "leg": 23.800001
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 13,
+      "magazine": 50,
+      "reload": 3.25,
+      "equip": 1.25,
+      "runSpeed": 0.76,
+      "spread": {
+        "hip": 1,
+        "ads": 0.9
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "High",
+      "feature": null
     },
     "vandal": {
       "category": "Assault Rifles",
@@ -2526,10 +3437,28 @@
         {
           "from": 0,
           "to": 50,
-          "body": 40
+          "body": 40,
+          "head": 160,
+          "leg": 34
         }
       ],
-      "fallsOff": false
+      "fallsOff": false,
+      "fireRate": 9.75,
+      "magazine": 25,
+      "reload": 2.5,
+      "equip": 1,
+      "runSpeed": 0.8,
+      "spread": {
+        "hip": 0.25,
+        "ads": 0.1575
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Medium",
+      "feature": null
     },
     "warden": {
       "category": "Rifles",
@@ -2538,10 +3467,28 @@
         {
           "from": 0,
           "to": 50,
-          "body": 50
+          "body": 50,
+          "head": 200,
+          "leg": 42
         }
       ],
-      "fallsOff": false
+      "fallsOff": false,
+      "fireRate": 6.5,
+      "magazine": 18,
+      "reload": 2.5,
+      "equip": 1,
+      "runSpeed": 0.8,
+      "spread": {
+        "hip": 0.15,
+        "ads": 0.04
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Medium",
+      "feature": null
     },
     "bulldog": {
       "category": "Assault Rifles",
@@ -2550,10 +3497,28 @@
         {
           "from": 0,
           "to": 50,
-          "body": 35
+          "body": 35,
+          "head": 115.5,
+          "leg": 29.75
         }
       ],
-      "fallsOff": false
+      "fallsOff": false,
+      "fireRate": 10,
+      "magazine": 24,
+      "reload": 2.5,
+      "equip": 1,
+      "runSpeed": 0.8,
+      "spread": {
+        "hip": 0.3,
+        "ads": 0.3
+      },
+      "adsBurst": 3,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Medium",
+      "feature": null
     },
     "phantom": {
       "category": "Assault Rifles",
@@ -2562,15 +3527,35 @@
         {
           "from": 0,
           "to": 20,
-          "body": 39
+          "body": 39,
+          "head": 156,
+          "leg": 33.15
         },
         {
           "from": 20,
           "to": 50,
-          "body": 35
+          "body": 35,
+          "head": 140,
+          "leg": 29.75
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 11,
+      "magazine": 30,
+      "reload": 2.5,
+      "equip": 1,
+      "runSpeed": 0.8,
+      "spread": {
+        "hip": 0.2,
+        "ads": 0.11000001
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Medium",
+      "feature": "Silenced"
     },
     "judge": {
       "category": "Shotguns",
@@ -2579,20 +3564,42 @@
         {
           "from": 0,
           "to": 10,
-          "body": 17
+          "body": 17,
+          "head": 34,
+          "leg": 14.450001
         },
         {
           "from": 10,
           "to": 15,
-          "body": 10
+          "body": 10,
+          "head": 20,
+          "leg": 8.5
         },
         {
           "from": 15,
           "to": 50,
-          "body": 7
+          "body": 7,
+          "head": 14,
+          "leg": 5.9500003
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 3.5,
+      "magazine": 5,
+      "reload": 2.2,
+      "equip": 1,
+      "runSpeed": 0.75,
+      "spread": {
+        "hip": 2.5,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": 12,
+      "altFire": null,
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Low",
+      "feature": null
     },
     "bucky": {
       "category": "Shotguns",
@@ -2601,20 +3608,45 @@
         {
           "from": 0,
           "to": 8,
-          "body": 17
+          "body": 17,
+          "head": 34,
+          "leg": 14
         },
         {
           "from": 8,
           "to": 12,
-          "body": 13
+          "body": 13,
+          "head": 26,
+          "leg": 11.05
         },
         {
           "from": 12,
           "to": 50,
-          "body": 9
+          "body": 9,
+          "head": 18,
+          "leg": 7.65
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 1.1,
+      "magazine": 5,
+      "reload": 2.5,
+      "equip": 1,
+      "runSpeed": 0.75,
+      "spread": {
+        "hip": 3,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": 15,
+      "altFire": "AirBurst",
+      "altPellets": null,
+      "airBurst": {
+        "pellets": 5,
+        "distance": 7.5
+      },
+      "penetration": "Low",
+      "feature": null
     },
     "frenzy": {
       "category": "Sidearms",
@@ -2623,15 +3655,35 @@
         {
           "from": 0,
           "to": 20,
-          "body": 26
+          "body": 26,
+          "head": 78,
+          "leg": 22.1
         },
         {
           "from": 20,
           "to": 50,
-          "body": 21
+          "body": 21,
+          "head": 63,
+          "leg": 17.85
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 10,
+      "magazine": 15,
+      "reload": 1.5,
+      "equip": 1,
+      "runSpeed": 0.85,
+      "spread": {
+        "hip": 0.65,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": null,
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Low",
+      "feature": null
     },
     "classic": {
       "category": "Sidearms",
@@ -2640,15 +3692,35 @@
         {
           "from": 0,
           "to": 30,
-          "body": 26
+          "body": 26,
+          "head": 78,
+          "leg": 22.1
         },
         {
           "from": 30,
           "to": 50,
-          "body": 22
+          "body": 22,
+          "head": 66,
+          "leg": 18.7
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 6.75,
+      "magazine": 12,
+      "reload": 1.75,
+      "equip": 0.75,
+      "runSpeed": 0.85,
+      "spread": {
+        "hip": 0.4,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "Shotgun",
+      "altPellets": 3,
+      "airBurst": null,
+      "penetration": "Low",
+      "feature": null
     },
     "bandit": {
       "category": "Sidearms",
@@ -2657,20 +3729,42 @@
         {
           "from": 0,
           "to": 10,
-          "body": 39
+          "body": 39,
+          "head": 152,
+          "leg": 33
         },
         {
           "from": 10,
           "to": 30,
-          "body": 39
+          "body": 39,
+          "head": 128,
+          "leg": 33
         },
         {
           "from": 30,
           "to": 50,
-          "body": 34
+          "body": 34,
+          "head": 112,
+          "leg": 28
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 5.1,
+      "magazine": 8,
+      "reload": 1.5,
+      "equip": 0.75,
+      "runSpeed": 0.85,
+      "spread": {
+        "hip": 0.275,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": null,
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Medium",
+      "feature": null
     },
     "ghost": {
       "category": "Sidearms",
@@ -2679,15 +3773,35 @@
         {
           "from": 0,
           "to": 30,
-          "body": 30
+          "body": 30,
+          "head": 105,
+          "leg": 25.5
         },
         {
           "from": 30,
           "to": 50,
-          "body": 25
+          "body": 25,
+          "head": 87.5,
+          "leg": 21.25
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 6.75,
+      "magazine": 13,
+      "reload": 1.5,
+      "equip": 0.75,
+      "runSpeed": 0.85,
+      "spread": {
+        "hip": 0.3,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": null,
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Medium",
+      "feature": "Silenced"
     },
     "sheriff": {
       "category": "Sidearms",
@@ -2696,15 +3810,35 @@
         {
           "from": 0,
           "to": 30,
-          "body": 55
+          "body": 55,
+          "head": 159.5,
+          "leg": 46.75
         },
         {
           "from": 30,
           "to": 50,
-          "body": 50
+          "body": 50,
+          "head": 145,
+          "leg": 42.5
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 4,
+      "magazine": 6,
+      "reload": 2.25,
+      "equip": 1,
+      "runSpeed": 0.8,
+      "spread": {
+        "hip": 0.25,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": null,
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "High",
+      "feature": null
     },
     "shorty": {
       "category": "Sidearms",
@@ -2713,20 +3847,42 @@
         {
           "from": 0,
           "to": 7,
-          "body": 11
+          "body": 11,
+          "head": 22,
+          "leg": 9.35
         },
         {
           "from": 7,
           "to": 15,
-          "body": 6
+          "body": 6,
+          "head": 12,
+          "leg": 5.1
         },
         {
           "from": 15,
           "to": 50,
-          "body": 3
+          "body": 3,
+          "head": 6,
+          "leg": 2.5500002
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 3,
+      "magazine": 2,
+      "reload": 1.75,
+      "equip": 0.75,
+      "runSpeed": 0.8,
+      "spread": {
+        "hip": 4,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": 15,
+      "altFire": null,
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Low",
+      "feature": null
     },
     "operator": {
       "category": "Sniper Rifles",
@@ -2735,10 +3891,28 @@
         {
           "from": 0,
           "to": 50,
-          "body": 150
+          "body": 150,
+          "head": 255,
+          "leg": 120
         }
       ],
-      "fallsOff": false
+      "fallsOff": false,
+      "fireRate": 0.6,
+      "magazine": 5,
+      "reload": 3.7,
+      "equip": 1.5,
+      "runSpeed": 0.76,
+      "spread": {
+        "hip": 5,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "High",
+      "feature": "DualZoom"
     },
     "guardian": {
       "category": "Assault Rifles",
@@ -2747,10 +3921,28 @@
         {
           "from": 0,
           "to": 50,
-          "body": 65
+          "body": 65,
+          "head": 195,
+          "leg": 48.75
         }
       ],
-      "fallsOff": false
+      "fallsOff": false,
+      "fireRate": 5.25,
+      "magazine": 12,
+      "reload": 2.5,
+      "equip": 1,
+      "runSpeed": 0.8,
+      "spread": {
+        "hip": 0.1,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "High",
+      "feature": null
     },
     "outlaw": {
       "category": "Sniper Rifles",
@@ -2759,10 +3951,28 @@
         {
           "from": 0,
           "to": 50,
-          "body": 140
+          "body": 140,
+          "head": 238,
+          "leg": 119
         }
       ],
-      "fallsOff": false
+      "fallsOff": false,
+      "fireRate": 2.75,
+      "magazine": 2,
+      "reload": 3.8,
+      "equip": 1.25,
+      "runSpeed": 0.8,
+      "spread": {
+        "hip": 3.5,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "High",
+      "feature": null
     },
     "marshal": {
       "category": "Sniper Rifles",
@@ -2771,10 +3981,28 @@
         {
           "from": 0,
           "to": 50,
-          "body": 101
+          "body": 101,
+          "head": 202,
+          "leg": 85.850006
         }
       ],
-      "fallsOff": false
+      "fallsOff": false,
+      "fireRate": 1.5,
+      "magazine": 5,
+      "reload": 2.5,
+      "equip": 1.25,
+      "runSpeed": 0.8,
+      "spread": {
+        "hip": 1,
+        "ads": null
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Medium",
+      "feature": null
     },
     "spectre": {
       "category": "SMGs",
@@ -2783,20 +4011,42 @@
         {
           "from": 0,
           "to": 15,
-          "body": 26
+          "body": 26,
+          "head": 78,
+          "leg": 22.1
         },
         {
           "from": 15,
           "to": 30,
-          "body": 22
+          "body": 22,
+          "head": 66,
+          "leg": 18.7
         },
         {
           "from": 30,
           "to": 50,
-          "body": 20
+          "body": 20,
+          "head": 60,
+          "leg": 17
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 13.333,
+      "magazine": 30,
+      "reload": 2.25,
+      "equip": 0.75,
+      "runSpeed": 0.85,
+      "spread": {
+        "hip": 0.4,
+        "ads": 0.25
+      },
+      "adsBurst": null,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Low",
+      "feature": "Silenced"
     },
     "stinger": {
       "category": "SMGs",
@@ -2805,15 +4055,67 @@
         {
           "from": 0,
           "to": 15,
-          "body": 27
+          "body": 27,
+          "head": 67.5,
+          "leg": 22.95
         },
         {
           "from": 15,
           "to": 50,
-          "body": 23
+          "body": 23,
+          "head": 57,
+          "leg": 19
         }
       ],
-      "fallsOff": true
+      "fallsOff": true,
+      "fireRate": 16,
+      "magazine": 20,
+      "reload": 2.25,
+      "equip": 0.75,
+      "runSpeed": 0.85,
+      "spread": {
+        "hip": 0.65,
+        "ads": 0.35
+      },
+      "adsBurst": 4,
+      "pellets": null,
+      "altFire": "ADS",
+      "altPellets": null,
+      "airBurst": null,
+      "penetration": "Low",
+      "feature": null
+    }
+  },
+  "gear": {
+    "Light Armor": {
+      "cost": 400,
+      "absorbed": 0.66,
+      "capacity": 25,
+      "pool": null
+    },
+    "Regen Shield": {
+      "cost": 650,
+      "absorbed": 1,
+      "capacity": null,
+      "pool": 50
+    },
+    "Heavy Armor": {
+      "cost": 1000,
+      "absorbed": 0.66,
+      "capacity": 50,
+      "pool": null
+    }
+  },
+  "modes": {
+    "standard": {
+      "win": 13,
+      "description": "Plant/defuse mode. Unranked matches, full map pool, attack and defend, classic gameplay. First to 13 wins."
+    },
+    "swiftplay": {
+      "win": 5,
+      "roundsPerHalf": 4,
+      "overtimeWinByTwo": false,
+      "description": "Plant/defuse mode. Quicker matches, same core rules, same objectives, accelerated economy. First to 5 wins."
     }
   }
 }

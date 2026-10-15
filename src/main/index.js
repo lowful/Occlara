@@ -723,6 +723,8 @@ function buildValorantReview(snap, tracker, extra) {
     queue: (extra && extra.queue) || (tracker && tracker.mode) || null,
     riotIdSet: (store.get('riotId') || '').includes('#'),
     linkMissing: (extra && extra.linkMissing) || false,
+    // Both team comps from Riot's round record (8.5.0), agents only.
+    comps: (extra && extra.comps) || null,
   });
   // narrativeComing: the first version, saved before the narrative call, says
   // nothing about the narrative rather than that it failed.
@@ -757,6 +759,13 @@ async function riotRoundsFor(lm) {
     if (!ok || !data || data.error || !Array.isArray(data.perRound) || !data.perRound.length) {
       console.log('[review] no Riot round record:', (data && data.error) || 'no answer');
       return null;
+    }
+    // THE RECORD'S SHAPE, key names only (8.5.0, riot-rounds.js deeperShape),
+    // to the debug log on each link: below the top level the only live
+    // evidence of what HenrikDev's v4 record holds was four key lists, and the
+    // next linked match shows the live keys with no call of its own.
+    if (data.shape && typeof data.shape === 'object') {
+      try { console.log(`[review] Riot round record shape: ${JSON.stringify(data.shape).slice(0, 4000)}`); } catch { /* the log only */ }
     }
     return data;
   } catch (e) {
@@ -810,14 +819,24 @@ async function forensicsFor(rounds, snap, opts) {
   if (job && source === 'riot') recordingCut(job, cut);
   const stills = cut.size ? await recordingStills(job, looks, cut, source, stale) : new Map();
   if (stale()) return empty;
-  const looked = await askForensics(looks, stills, snap, source, log);
+  // Riot's match id (8.5.0), the key to the match's own name set on the
+  // server, for the look's name gate alone: Riot's look's, else the scoreboard's.
+  const matchId = (opts && opts.matchId) || (job && job.tracker && job.tracker.matchId) || null;
+  const looked = await askForensics(looks, stills, snap, source, log, matchId);
   if (stale()) return empty;
   if (job) keepLookClips(job, looked, cut);
   return looked;
 }
 
-/** The look's call to the server, from the stills of the recording where there are some and the read's frames elsewhere. */
-async function askForensics(looks, stills, snap, source, log) {
+/**
+ * The look's call to the server, from the stills of the recording where there
+ * are some and the read's frames elsewhere. Since 8.5.0 it sends Riot's match
+ * id, for the server's name gate (the match's own name set), and keeps what a
+ * look asked with variant b also says: its judgement of the fight, the one
+ * thing its better play changes, and the prompt it was asked with
+ * (valorant-review.js lookJudgement), which a cause's trend is held to.
+ */
+async function askForensics(looks, stills, snap, source, log, matchId) {
   const empty = { byRound: {}, frames: {} };
   const deaths = [];
   const kept = {};
@@ -881,6 +900,7 @@ async function askForensics(looks, stills, snap, source, log) {
       agent: source === 'screen' && !snap.context.agentConfirmed ? null : snap.context.agent,
       map: snap.context.map, language: snap.context.language || 'en',
       source,
+      ...(typeof matchId === 'string' && matchId ? { matchId } : {}),
       deaths: deaths.map(({ names, at, moment, frames, frameAt, framesFrom, ...d }) => {
         if (!frameAt) return { ...d, frames };
         // The last frame before the death and the first after it lead, as the
@@ -902,6 +922,10 @@ async function askForensics(looks, stills, snap, source, log) {
         cause: f.cause, what: f.what || null, better: f.better || null, frames: d.names,
         ...(d.frameAt ? { frameAt: d.frameAt } : {}), framesFrom: d.framesFrom,
         source, at: typeof d.at === 'number' ? d.at : null, moment: typeof d.moment === 'number' ? d.moment : null,
+        // The fight, the change and the prompt (8.5.0): the look's own, the
+        // reply's variant where the look names none. A server from before
+        // names none, and its looks were asked with a.
+        ...require('../shared/valorant-review').lookJudgement({ ...f, variant: f.variant || data.variant }),
       };
       for (const name of d.names) out.frames[name] = kept[name];
     }
@@ -1578,7 +1602,7 @@ function linkRiotRecord(job) {
     const vsnap = { ...snap, rounds, context };
     const verification = verify.describe(checks);
     console.log(`[review] ${verification}`);
-    const extra = { verification, riotMe: riot.me, queue: riot.queue, history: job.history };
+    const extra = { verification, riotMe: riot.me, queue: riot.queue, history: job.history, comps: riot.comps || null };
     repaintReview(job, buildValorantReview({ ...vsnap, ai: null }, lm, { ...extra, narrativePending: true }).built,
       null, { transient: true });
 
@@ -1589,7 +1613,7 @@ function linkRiotRecord(job) {
     job.stage = 'look';
     noteWork(job);
     const looked = await forensicsFor(deathFrames.withRiotTimes(rounds, riot), { ...snap, context },
-      { job, stale: () => job.cancelled });
+      { job, stale: () => job.cancelled, matchId: lm.matchId });
     if (job.cancelled) return false;
     for (const r of rounds) if (looked.byRound[r.n]) r.forensics = looked.byRound[r.n];
 
@@ -1606,6 +1630,9 @@ function linkRiotRecord(job) {
         },
       });
       body.context = { ...body.context, proPlaybook: snap.context.proPlaybook };
+      // Riot's match id (8.5.0): the key to the match's own name set, which the
+      // server holds for its review's name gate and never sends back.
+      if (lm.matchId) body.matchId = lm.matchId;
       const res = await api.post(API.MATCH_REVIEW, body, store.get('licenseKey'), 60000);
       ai = res && res.ok ? res.data : null;
     } catch (e) {
@@ -1719,41 +1746,54 @@ function linkRiotRecord(job) {
   })();
 }
 
-/**
- * One saved review as plain text for Ask Coach: the facts, the grade, and what
- * repeated, so the chat talks about THIS match rather than the player in general.
- * The newest review when no id was chosen.
+/*
+ * ASK COACH (8.5.0): which match a question is about, the hold of a match a
+ * Stop may have left being played, the context sent and the one time fill
+ * are services/ask-coach.js's, handed what they read from here. The review's
+ * old text for a server from before (chatReviewContext until 8.4.4) is
+ * shared/chat-context.js oldText, sent beside the v2 context.
  */
-function chatReviewContext(id, game) {
-  const newest = reviewStore.list(game || null)[0];
-  const e = id ? reviewStore.get(id) : (newest && reviewStore.get(newest.id));
-  if (!e) return null;
-  // As a window is shown it (present()), so a match graded from Riot's record
-  // alone gives the chat its facts, never a mistake Riot does not record.
-  const r = present(e.review) || {};
-  const g = r.game || {};
-  const lines = [];
-  lines.push(`${e.game} match on ${new Date(e.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}: `
-    + [g.map, g.agent || g.champion, g.mode, g.result, g.score].filter(Boolean).join(', ') + '.');
-  const sl = r.scoreline || {};
-  if (typeof sl.kills === 'number') lines.push(`Scoreline ${sl.kills}/${sl.deaths}/${sl.assists}${sl.acs ? `, ACS ${sl.acs}` : ''}.`);
-  const gr = r.grade;
-  if (gr && gr.score !== null && gr.score !== undefined) {
-    lines.push(`Grade ${gr.score} (${gr.letter})${gr.provisional ? ', provisional' : ''}: `
-      + (gr.categories || []).filter((c) => c.score !== null).map((c) => `${c.label} ${c.score} (${c.evidence.join('; ')})`).join('. ') + '.');
-  }
-  const ins = r.insights || {};
-  const list = (xs, n = 3) => (xs || []).slice(0, n).map((x) => `${x.title}: ${x.detail}`).join(' ');
-  if ((ins.mistakes || []).length) lines.push(`Repeated mistakes: ${list(ins.mistakes)}`);
-  if ((ins.strengths || []).length) lines.push(`Went well: ${list(ins.strengths)}`);
-  if ((ins.missed || []).length) lines.push(`Missed: ${list(ins.missed)}`);
-  if ((ins.facts || []).length) lines.push(`What Riot's record shows: ${list(ins.facts, 6)}`);
-  for (const card of (r.rounds || []).filter((c) => c.forensics && c.forensics.what).slice(0, 4)) {
-    lines.push(`Round ${card.n} death, the coach looked at the frame: ${card.forensics.what}${card.forensics.better ? ' Better: ' + card.forensics.better : ''}`);
-  }
-  if (r.summary) lines.push(`Review summary: ${r.summary}`);
-  if (r.focus) lines.push(`Focus given: ${r.focus}`);
-  return lines.join('\n').slice(0, 2400);
+let askCoachOne = null;
+function askCoach() {
+  if (askCoachOne) return askCoachOne;
+  const { AskCoach } = require('./services/ask-coach');
+  askCoachOne = new AskCoach({
+    store,
+    api,
+    reviews: {
+      list: (game) => reviewStore.list(game || null),
+      get: (id) => reviewStore.get(id),
+      recent: (game, n) => reviewStore.recent(game, n),
+      // The fill's save: the same review, its feed, plant and comps added,
+      // and every surface told, as any save is (PUSH_REVIEWS).
+      saveFilled: (entry) => {
+        reviewStore.save(entry);
+        breakdownCache.clear();
+        registry.broadcast(C.PUSH_REVIEWS, { id: entry.id, game: entry.game });
+      },
+    },
+    present,
+    matchInProgress,
+    game: () => gameRegistry.get(store.get('game')).id,
+    patterns: (game) => controller.getPatterns(game),
+    breakdown: (game) => controller.getBreakdown(game),
+    tracker: () => fetchTrackerStats(),
+    recentMatches: async () => (await controller.getMatches(false)).matches,
+    countable: (review) => insightsOf.countable(review),
+    playbookMode,
+    connectedRiotId,
+    // The backfill or a review's own link at work: the fill yields to them.
+    busy: () => !!backfill.running || [...reviewJobs.values()].some((j) => j && !j.cancelled && !j.finished),
+    lastHenrikAt: () => backfill.lastCall || 0,
+    language: () => normalizeLang(store.get('language')),
+    advanced: () => store.get('advancedTips') === true,
+    failureText: chatFailureText,
+    lastShownKind: () => (lastReviewShown ? lastReviewShown.kind : null),
+    now: () => Date.now(),
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    log: (...a) => console.log(...a),
+  });
+  return askCoachOne;
 }
 
 /** { name: base64 } to { name: data URL }, for the window. */
@@ -2322,6 +2362,14 @@ const controller = {
     const i = Math.max(0, Math.min(recs.length - 1, Number(p.index) || 0));
     const target = recs[i];
     if (!target) return { error: 'That frame is no longer in the log.' };
+    // A FRAME OF A HELD MATCH IS REFUSED (8.5.0): one a Stop may have left
+    // being played (shared/chat-context.js held), as Ask Coach refuses it. A
+    // frame of a match Riot's record linked takes its round's facts along.
+    const frame = askCoach().frame(p.session, target);
+    if (frame.held) {
+      const { HELD_FRAME } = require('./services/ask-coach');
+      return { error: HELD_FRAME };
+    }
 
     // ONE frame of run-up, then the frame in question.
     //
@@ -2341,7 +2389,8 @@ const controller = {
         question,
         images,
         state: target.state || {},
-        shown: target.shown ? target.shown.text : '',
+        // No tip since 8.0, so no `shown`: the round's Riot facts instead, when linked.
+        ...(frame.riot ? { riot: frame.riot } : {}),
         history: Array.isArray(p.history) ? p.history.slice(-8) : [],
       }, licenseKey, 35000);
       if (ok && data && data.reply) return { reply: data.reply };
@@ -2370,8 +2419,8 @@ const controller = {
     }
     return report;
   },
-  // Opened plainly, the chat talks about the newest reviewed match.
-  openChat()      { state.chatReviewId = null; openPage('coach'); },
+  // Opened plainly, the chat talks about the newest reviewed match, never a held one.
+  openChat()      { askCoach().plain(); openPage('coach'); },
   // Home's Rank journey (8.4.1) opens Stats with the journey open, where it
   // opened Stats with the journey folded in the Rank tile: kept here until the
   // page asks (STATS_OPENED_FOR, taken once), as it loads or as it is about to
@@ -2379,42 +2428,21 @@ const controller = {
   openStats(what) { state.statsOpenFor = what === 'journey' ? 'journey' : null; openPage('stats'); },
   takeStatsOpen() { const w = state.statsOpenFor || null; state.statsOpenFor = null; return w; },
 
-  /** "Ask Coach about this" from the stats dashboard: stash the session's
-   *  context, then open chat; the chat window collects the seed via CHAT_SEED
-   *  and auto-sends it as the opening question. */
+  /** "Ask about this match" from a review, the library or Stats ({ reviewId,
+   *  round? }): the chat opens on that match and asks its opening question,
+   *  taken once by the page (CHAT_SEED). A match a Stop may have left being
+   *  played is refused, and the page says why (services/ask-coach.js seed). */
   openChatSeeded(seed) {
-    // "Ask about this match" from a review or the library: the chat is handed
-    // that review as context, and opens by asking about it.
-    if (seed && typeof seed === 'object' && typeof seed.reviewId === 'string') {
-      const e = reviewStore.get(seed.reviewId);
-      if (e) {
-        state.chatReviewId = seed.reviewId;
-        const g = e.review.game || {};
-        state.chatSeed = { reviewId: seed.reviewId,
-          title: [g.map, g.agent || g.champion, g.score].filter(Boolean).join(' ') || 'last' };
-      }
-      // The Ask Coach page is kept between visits, so it is loaded again to
-      // take this seed (CHAT_SEED) and open on this match.
-      openPage('coach', { reload: true });
-      return;
-    }
-    if (seed && typeof seed === 'object') {
-      const n = (v) => (typeof v === 'number' && isFinite(v) ? Math.round(v) : null);
-      state.chatSeed = {
-        date:       String(seed.date || '').slice(0, 40),
-        map:        seed.map ? String(seed.map).slice(0, 24) : null,
-        overall:    n(seed.overall),
-        scores:     seed.scores && typeof seed.scores === 'object' ? {
-          impact: n(seed.scores.impact != null ? seed.scores.impact : seed.scores.economy),
-          positioning: n(seed.scores.positioning),
-          utility: n(seed.scores.utility), aim: n(seed.scores.aim),
-        } : null,
-        strengths:  String(seed.strengths  || '').slice(0, 400),
-        weaknesses: String(seed.weaknesses || '').slice(0, 400),
-      };
-    }
+    state.chatSeed = seed && typeof seed === 'object' && typeof seed.reviewId === 'string'
+      ? askCoach().seed(seed) : null;
+    if (!state.chatSeed) askCoach().plain();
+    // The Ask Coach page is kept between visits, so it is loaded again to
+    // take this seed and open on this match.
     openPage('coach', { reload: !!state.chatSeed });
   },
+  /** Ask Coach's match list and its chip (CHAT_MATCHES, CHAT_MATCH). */
+  chatMatches()   { return askCoach().matches(); },
+  chatMatch(id)   { return askCoach().choose(id); },
   takeChatSeed() {
     const s = state.chatSeed || null;
     state.chatSeed = null;
@@ -2536,84 +2564,12 @@ const controller = {
     }
   },
 
-  /** Ask Coach: one conversation turn. Text-only: the coach works from the
-   *  session's tips, match memory, and tracker stats, no screenshots. With no
-   *  session played yet the AI is told not to invent gameplay observations. */
-  async chat(messages) {
-    const licenseKey = store.get('licenseKey');
-    if (!licenseKey) return { ok: false, error: 'No license active.' };
-
-    // MID MATCH, the chat gets nothing about the match in progress. Ask Coach
-    // is a window the player can keep open on a second monitor, and a chat that
-    // knows "died round 5 at A Site" answers "where should I play" with exactly
-    // the live advice Occlara does not give.
-    const midMatch = matchInProgress();
-    // ONE GAME'S DATA IS NEVER SHOWN UNDER ANOTHER GAME'S NAME. The tracker
-    // profile and match list are Valorant's, so with League chosen the chat
-    // was answering about the player's Valorant rank.
-    // Asked about one saved review, that review's game, whatever Settings says.
-    const seeded = state.chatReviewId ? reviewStore.get(state.chatReviewId) : null;
-    const gameId = (seeded && seeded.game) || gameRegistry.get(store.get('game')).id;
-    const valorant = gameId === 'valorant';
-    // Played this game before: a review of THIS game, or the one on screen.
-    const hasSessionData = reviewStore.list(gameId).length > 0
-      || !!(lastReviewShown && lastReviewShown.kind === gameId);
-    const seededAgent = seeded && seeded.review && seeded.review.game && seeded.review.game.agent;
-    const context = {
-      game:         gameId,
-      // The agent of the review asked about. Asked plainly there is none: the
-      // agent the engine holds is the match in progress's, which the chat is
-      // never told (the seal), and it goes with the match (8.4.4).
-      agent:        valorant ? (seeded ? seededAgent || null : null) : null,
-      sessionTips:  [],
-      // The League recorder keeps no match memory; reading it threw on every message.
-      matchMemory:  engine && !midMatch && Array.isArray(engine.matchMemory) ? engine.matchMemory.slice(-8) : [],
-      stats:        valorant ? await fetchTrackerStats() : null,
-      noSessionYet: !hasSessionData,
-      // No coachTrend (8.4.1): Stats' four Overview scores are sums over the
-      // tracker profile in `stats`, and went to the coach as a "coached-session
-      // trend" to drill the weakest of. The server ignores them from any client.
-      // The chat works WITH the stats dashboard: it sees the same recent
-      // matches (with ratings) and coached sessions the player is looking at.
-      recentMatches: !valorant ? [] : (await this.getMatches(false)).matches.slice(0, 5).map((m) => ({
-        map: m.map, agent: m.agent, result: m.result, score: m.score,
-        kills: m.kills, deaths: m.deaths, assists: m.assists,
-        kd: m.kd, acs: m.acs, adr: m.adr, headshotPct: m.headshotPct, rating: m.rating,
-        // WHEN it was played, so the coach can name the match it is talking
-        // about instead of saying "your last game". With five matches in the
-        // list and two of them on the same map, the map alone does not identify
-        // one, and the player cannot tell which game is being discussed.
-        queue: m.queue,
-        when: m.startedAt
-          ? new Date(m.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-          : null,
-      })),
-      // The last graded matches from the library, and what keeps repeating.
-      // A match graded from Riot's record alone has a grade and no strength or
-      // weakness to name (insights.countable).
-      recentSessions: midMatch ? [] : reviewStore.recent(gameId, 3).map((e) => ({
-        date: new Date(e.at).toLocaleDateString([], { month: 'short', day: 'numeric' }),
-        map: e.review.game && e.review.game.map, overall: e.review.grade && e.review.grade.score,
-        scores: Object.fromEntries(((e.review.grade && e.review.grade.categories) || []).map((c) => [c.key, c.score])),
-        strengths: insightsOf.countable(e.review).strengths.slice(0, 2).map((x) => x.title).join('. '),
-        weaknesses: insightsOf.countable(e.review).mistakes.slice(0, 2).map((x) => x.title).join('. '),
-      })),
-      matchReview: midMatch ? null : chatReviewContext(state.chatReviewId, gameId),
-      // The playbook is Valorant's: its notes would ground a League answer in
-      // Valorant tactics.
-      proPlaybook:  valorant ? playbookMode() : 'off',
-    };
-    try {
-      const { ok, status, data } = await api.post('/api/coach/chat', { messages, context }, licenseKey, 30000);
-      if (ok && data && data.reply) return { ok: true, reply: data.reply };
-      // Same defect as the frame chat: this used to return the error and log
-      // nothing, so a chat that failed all session was invisible in debug.log.
-      console.error(`[chat] status=${status} ${(data && (data.error || data.message)) || 'no reply'}`);
-      return { ok: false, error: chatFailureText(status, data) };
-    } catch (e) {
-      console.error('[chat] failed:', e.message);
-      return { ok: false, error: 'Could not reach the coach server.' };
-    }
+  /** Ask Coach: one question about the match on the page's chip (8.5.0,
+   *  services/ask-coach.js chat). Refused mid match before any request, and
+   *  for a match a Stop may have left being played. `opts.reviewId` is the
+   *  chip's match, or 'none' for general questions. */
+  async chat(messages, opts) {
+    return askCoach().chat(messages, opts);
   },
 
   /** Settings and onboarding "Connect": test the tracker link right now, and
@@ -3074,6 +3030,14 @@ let lastReviewShown = null;
  * of them is "try again".
  */
 function chatFailureText(status, data) {
+  // THE DAY'S QUESTIONS ARE USED (8.5.0): Ask Coach's cap, which frame chat
+  // shares, and when it is back, by the player's own clock.
+  if (status === 429 && data && data.error === 'chat-daily') {
+    const at = Date.parse(data.resetsAt);
+    return Number.isFinite(at)
+      ? `You've used today's questions. Ask Coach is back at ${new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`
+      : "You've used today's questions. Ask Coach is back tomorrow.";
+  }
   const said = String((data && (data.error || data.message)) || '').toLowerCase();
   if (status === 402 || said.includes('credit')) {
     return 'The coach is out of credits on the server. This is not your connection, and it comes back when the balance does.';

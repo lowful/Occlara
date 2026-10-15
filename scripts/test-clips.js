@@ -1182,6 +1182,8 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       matchInProgress: () => { asked++; return playing; },
       applyClipCap() {},
       require: (m) => {
+        // The look's own words (8.5.0, askForensics keeps what variant b says).
+        if (m === '../shared/valorant-review') return require('../src/shared/valorant-review');
         if (m !== './windows/frames-window') throw new Error(`${m} is not in the sandbox`);
         return { open: async () => ({ decode: async (j) => ({ ok: true, frames: j.picks.map(() => Buffer.from('a still')) }), close() {} }) };
       },

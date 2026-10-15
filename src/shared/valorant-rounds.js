@@ -139,8 +139,9 @@ function notPlay(text) {
 
 /*
  * NO READ NAMES A PERSON. The model copies the name tags it sees: "teammate
- * Siyho ahead", "player watching Slycho walk through B Site", "teammate Jax
- * runs up the steps" are three of that match's reads, and the review is saved,
+ * ... ahead", "player watching ... walk through B Site", "teammate ... runs up
+ * the steps" are three of that match's reads, each with a player's in game
+ * name where the dots are (left out here), and the review is saved,
  * shown, and sent to the review model. The game's own names are fine: an
  * agent, a weapon, a callout, an ability, and the words its HUD prints. So a
  * capitalised word none of those lists know is a name, and so is any word

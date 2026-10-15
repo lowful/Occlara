@@ -114,19 +114,34 @@ function trackCall(key, units = 1) {           // units: frame-memory calls send
  * below sets them for every coach route, so a model call made deep in a
  * prompt helper is booked without being told. In memory like the rest of
  * this file, so a restart clears it; the admin view says since when.
+ *
+ * A BENCH IS BOOKED APART (8.5.0): a request carrying the admin password and
+ * naming a bench model or a prompt variant (benchCall) is booked under
+ * 'bench' with no licence, whatever route it went to, so a licence's own
+ * figures and Ask Coach's daily cap never count a bench run, and a bench
+ * reads its own cost off the bench route.
  */
 const costScope = new AsyncLocalStorage();
-const COST_ROUTES = ['read', 'forensics', 'review', 'chat', 'other'];
+const COST_ROUTES = ['read', 'forensics', 'review', 'chat', 'bench', 'other'];
 const ROUTE_OF_PATH = { '/read': 'read', '/death-forensics': 'forensics', '/match-review': 'review', '/chat': 'chat', '/frame-chat': 'chat' };
 const COSTS_SINCE = new Date().toISOString();
 const costBuckets = () => Object.fromEntries(COST_ROUTES.map((r) => [r, { calls: 0, priced: 0, real: 0, estimated: 0 }]));
 const costPeriods = () => ({ day: '', month: '', today: costBuckets(), monthly: costBuckets() });
 const costLedger = { all: costPeriods(), keys: new Map() };
 
+/** A bench run: the admin password beside a bench model or a prompt variant named. */
+function benchCall(req) {
+  const b = (req && req.body) || {};
+  return !!(b.benchModel || b.variant) && isAdmin(req);
+}
+
 router.use((req, res, next) => {
   const pathName = req.path || String(req.url || '').split('?')[0];
   const key = String((req.headers && req.headers['x-license-key']) || '').trim().toUpperCase() || null;
-  costScope.run({ route: ROUTE_OF_PATH[pathName] || 'other', key }, next);
+  const bench = benchCall(req);
+  // `entry` is an Ask Coach question's own line in the daily cap, when there
+  // is one: every call booked under this request adds its cost to it.
+  costScope.run({ route: bench ? 'bench' : (ROUTE_OF_PATH[pathName] || 'other'), key: bench ? null : key, bench, entry: null }, next);
 });
 
 /** What the provider said a call cost, in dollars, or null when it said nothing. */
@@ -160,6 +175,28 @@ function bookCost(cost, images) {
       if (priced) { b.priced += 1; b.real += amount; } else b.estimated += amount;
     }
   }
+  // An Ask Coach question's own cost, for the licence's daily cap (8.8): what
+  // was booked, a call aborted at its deadline included, whenever it lands.
+  if (scope.entry && typeof scope.entry.cost === 'number') scope.entry.cost += amount;
+}
+
+/*
+ * THE TOKENS A BENCH'S CALLS USED (8.5.0): the provider's own usage, the
+ * cached part of the prompt beside the rest, added up for a request that asked
+ * to be told (an admin bench of Ask Coach v2 sets `scope.usage`), so bench:chat
+ * can see whether the static prefix is served from the provider's cache, which
+ * decides where the gun table goes (CHAT_PRIMER_GUNS). Counts only; nothing
+ * else of the reply is kept.
+ */
+function noteUsage(body) {
+  const scope = costScope.getStore();
+  const u = body && body.usage;
+  if (!scope || !scope.usage || !u || typeof u !== 'object') return;
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
+  scope.usage.prompt += n(u.prompt_tokens);
+  scope.usage.completion += n(u.completion_tokens);
+  scope.usage.cached += n(u.prompt_tokens_details && u.prompt_tokens_details.cached_tokens);
+  scope.usage.calls += 1;
 }
 
 /** One period's buckets as the admin view shows them: each route, and the sum. */
@@ -239,7 +276,20 @@ const AI = {
   // switched off per request in chatCall and textInfer retries any empty reply on
   // a different model, because the previous safety net keyed on the model NAME
   // containing "thinking" and therefore missed qwen3.7-flash entirely.
+  //
+  // THIS IS ASK COACH'S MODEL FOR EVERY CLIENT BEFORE 8.5.0, and the one that
+  // grades a tip era session. The code default is Gemini 3 Flash; /health
+  // naming qwen/qwen3.7-flash here means AI_TEXT_MODEL says so on Railway.
+  // npm run bench:review measured the two on the review's facts, 13 Oct 2026
+  // (the table beside reviewModel): google/gemini-3-flash-preview 4 wrong
+  // facts in 84 lines, qwen/qwen3.7-flash 10 or more with 14 of 84 lines lost.
   textModel:   process.env.AI_TEXT_MODEL || 'google/gemini-3-flash-preview',
+  // ASK COACH V2 (8.5.0): pinned on every v2 answer, with no other model ever
+  // answering one (fallback: false). Its default is bench:chat's winner, whose
+  // table goes here once it has run; until then openai/gpt-6-sol, the first
+  // candidate, which v2 is not served with until CHAT_PROMPT=v2 is set on
+  // Railway after that bench passes. Clients before 8.5.0 stay on textModel.
+  chatModel:   process.env.AI_CHAT_MODEL || 'openai/gpt-6-sol',
   // The live READ (facts only, every one to five seconds) and the post match
   // REVIEW are different jobs with different budgets, so each has its own
   // switch.
@@ -654,6 +704,7 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
     let body = null;
     try { body = await r.json(); } catch (e) { bookCost(null, images.length); throw e; }
     bookCost(costOf(body), images.length);
+    noteUsage(body);
     return body;
   };
 
@@ -975,6 +1026,119 @@ function readVariant(req) {
   return v && READ_VARIANTS.has(v) && isAdmin(req) ? v : null;
 }
 
+/*
+ * WHAT A CLIENT IS BUILT FOR, BY ITS VERSION (8.5.0). Every request carries
+ * X-Occlara-Version, as routes/license.js knowsGrace reads it, and one
+ * function reads it for every gate by version here: a shape or a prompt an
+ * install was not built against goes only to one from the version that was.
+ * A client before it gets today's request and reply, byte for byte.
+ */
+const V85 = [8, 5, 0];
+function clientAtLeast(req, from) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String((req && req.headers && req.headers['x-occlara-version']) || ''));
+  if (!m) return false;
+  for (let i = 0; i < from.length; i++) {
+    const d = Number(m[i + 1]) - from[i];
+    if (d !== 0) return d > 0;
+  }
+  return true;
+}
+
+/*
+ * THE DEATH LOOK'S VARIANT B (8.5.0), the fight judged first and the label
+ * last (death-forensics.js VARIANTS). Before its bench (bench A) it is an
+ * admin bench's alone, as a read prompt's variant is; once promoted
+ * (FORENSICS_PROMPT=b on Railway, no deploy) it goes to a client of 8.5.0 or
+ * later, which carries the short match rule, and never to one before it,
+ * which is looked at with today's prompt and parse exactly. An admin bench may
+ * name 'a' for the live prompt, the control, whatever FORENSICS_PROMPT says.
+ */
+const lookVariants = () => (Array.isArray(deathForensics.VARIANTS) ? deathForensics.VARIANTS : []);
+function forensicsVariant(req) {
+  const asked = String((req.body && req.body.variant) || '').trim().toLowerCase();
+  if (asked && isAdmin(req) && (asked === 'a' || lookVariants().includes(asked))) return asked === 'a' ? null : asked;
+  const promoted = String(process.env.FORENSICS_PROMPT || '').trim().toLowerCase();
+  return promoted && lookVariants().includes(promoted) && clientAtLeast(req, V85) ? promoted : null;
+}
+
+/*
+ * THE SERVICES OTHER PARTS OF 8.5.0 WRITE, loaded when first needed: Ask
+ * Coach v2's prompt and reply gates (chat-prompt.js, with fact-gates.js
+ * beneath it) and the server's name gate (name-gate.js). A deploy without one
+ * keeps every route it does not serve, and says so once: v2 then answers as
+ * today, and the review and frame chat keep the match's own name set. The
+ * paths are literal, so check:server sees each stay inside server/.
+ */
+const LAZY = {
+  chatPrompt: () => require('../services/chat-prompt'),
+  nameGate: () => require('../services/name-gate'),
+};
+const lazyLoaded = {};
+function service(name) {
+  if (!(name in lazyLoaded)) {
+    try {
+      lazyLoaded[name] = LAZY[name]();
+    } catch (e) {
+      if (!e || e.code !== 'MODULE_NOT_FOUND') throw e;
+      lazyLoaded[name] = null;
+      console.warn(`[coach] ${name} is not deployed (${e.message.split('\n')[0]}), so what needs it answers without it`);
+    }
+  }
+  return lazyLoaded[name];
+}
+
+// One sentence per item, its stop kept: what a gate weighs and drops whole. A
+// point between two digits ends nothing: split there, a review whose name
+// sentence went came back "a 1. 48 K/D, and your ACS of 245. 5", each half of
+// a number joined to the other by a space.
+const sentencesOf = (text) => String(text || '').match(/(?:[^.!?]|(?<=\d)\.(?=\d))+(?:[.!?]+["')\]]*|$)/g) || [];
+
+/*
+ * NO PLAYER IS NAMED IN WHAT THE MODEL WRITES BACK (8.5.0): the review's
+ * summary, round lines and focus, and frame chat's answer, a sentence at a
+ * time, dropped whole, never repaired. A word of a player's name or tag in
+ * that match's name set (riot-rounds.js nameSetOf, held on this server only)
+ * names someone in any language, and so does what the server's name gate
+ * (name-gate.js namesSomeone) says: in any language a Riot ID or a handle's
+ * shape, and in English its capital rule (the client's namesSomeone with each
+ * sentence's first word exempt), since every noun may be capitalised
+ * elsewhere. A gate that is missing or throws decides nothing.
+ */
+// THE REVIEW'S AND FRAME CHAT'S OWN WORDS, which a look never says and the
+// capital rule took for names: the scoreboard's (MVP, ACS, ADR, K/D, HS), the
+// result's and the sides' ("a Victory 13 to 7", "on Attack"), Riot's round
+// banners, and what the HUD prints in capitals, which frame chat reads off its
+// frame ("the COMBAT REPORT shows", "SWITCH PLAYER at the bottom left"). They
+// reach the gate in lower case, so "You were the match MVP with 31 kills"
+// keeps its sentence. A player named one of them is no name the gate can see.
+// And frame chat's own: the first person its prompt asks for ("I cannot tell
+// from this frame", which the capital rule took for a name past a sentence's
+// first word), the gear by the game's names (Light, Heavy and Regen, Armor or
+// Shields), the knife as Riot names its kill (Melee), and HEADSHOT, CREDITS
+// and ADS: an old client's frame chat answer came back "5 seconds before it."
+const REVIEW_WORDS = /\b(?:MVP|ACS|ADR|KAST|KDA|K\/D(?:\/A)?|HS|KPR|DPR|APR|victory|defeat|draw|attack|defen[cs]e|overtime|thrifty|flawless|clutch|ace|combat report|switch player|spectators?|spectating|buy phase|match point|round ongoing|last round before swap|sudden death|eliminated|detonated|defused|planted|ultimate|I|(?:light|heavy|regen)\s+(?:armou?r|shields?)|melee|headshots?|credits|ADS)\b/gi;
+
+function namesSomeoneHere(sentence, { names = null, language = 'en' } = {}) {
+  if (names && names.has(sentence)) return true;
+  const gate = service('nameGate');
+  if (!gate || typeof gate.namesSomeone !== 'function') return false;
+  try {
+    return !!gate.namesSomeone(String(sentence).replace(REVIEW_WORDS, (w) => w.toLowerCase()), { names, language });
+  } catch (e) {
+    console.warn('[coach] the name gate threw, so it decided nothing:', e.message);
+    return false;
+  }
+}
+
+/** A text with every sentence that names someone taken out, and how many went. */
+function withoutNames(text, opts) {
+  if (!text) return { text, dropped: 0 };
+  const all = sentencesOf(text).map((s) => s.trim()).filter(Boolean);
+  const kept = all.filter((s) => !namesSomeoneHere(s, opts));
+  if (kept.length === all.length) return { text, dropped: 0 };
+  return { text: kept.join(' ').trim() || null, dropped: all.length - kept.length };
+}
+
 /**
  * Wait for `p` at most `ms`, then reject with Error(label). The timer is
  * cleared either way, rather than left pending for the full wait after every
@@ -1014,9 +1178,29 @@ async function visionInfer(imageB64, prompt, maxTokens, jsonMode, model, opts) {
  * changing an environment variable to recover.
  *
  * jsonMode skips the tip sanitiser, which is meant for prose, not JSON.
+ *
+ * A PINNED CALL NEVER FALLS BACK TO ANOTHER MODEL (8.5.0, `fallback: false`):
+ * the review (Sol, chosen by bench:review) came back written by the vision
+ * model whenever Sol hiccuped, a model the bench had measured at 10 wrong
+ * facts or more. Now a failure there is no narrative, a 503 or an empty
+ * reply, which every client already handles, and Riot's repaint asks again.
+ * Ask Coach v2 passes false too. And a STRIKE IS ITS OWN MODEL'S: one strike
+ * anywhere used to move every unpinned text call for the life of the
+ * process, so a review's Sol timing out moved Ask Coach. Strikes are counted
+ * per model, and textModelNow() moves the configured text model only after
+ * that model's own. An empty wallet strikes nobody, and NEITHER DOES A PINNED
+ * CALL, even one pinned to the configured text model itself: bench:review and
+ * bench:chat bench Gemini 3 Flash, the text model's own default, and one
+ * bench answer empty or cut off at v2's deadline moved every old client's Ask
+ * Coach to the backstop until a restart. A strike is an unpinned call's.
  */
-let thinkingTextStrikes = 0;
+const textStrikes = new Map();   // model -> failures to answer text
 const THINKING_TEXT_LIMIT = 1;   // one failure is enough, do not keep paying for it
+function strikeText(model) {
+  const n = (textStrikes.get(model) || 0) + 1;
+  cacheSet(textStrikes, model, n, 50);
+  return n;
+}
 
 // The fallback has to be a DIFFERENT model, which used to be assumed rather than
 // checked. It derived from the vision model, and once vision and text were both
@@ -1032,34 +1216,37 @@ function instructFallbackModel(failed) {
 }
 function textModelNow() {
   const configured = AI.textModel;
-  if (thinkingTextStrikes >= THINKING_TEXT_LIMIT) return instructFallbackModel(configured);
+  if ((textStrikes.get(configured) || 0) >= THINKING_TEXT_LIMIT) return instructFallbackModel(configured);
   return configured;
 }
 
+/**
+ * opts: json (the raw text, no sanitiser), timeoutMs (the race, and the
+ * upstream abort a second after it), model (pinned), fallback (default true:
+ * an unpinned path's empty reply or timeout is asked again of the instruct
+ * backstop; false: never another model), temperature (default 0.5).
+ */
 async function textInfer(prompt, maxTokens, opts) {
   if (AI.provider === 'gemini') {
     const out = await geminiTextCall(prompt, maxTokens);
     bookCost(null, 0);
     return out;
   }
-  const { json = false, timeoutMs = 0, model: pinned = null } = opts || {};
+  const { json = false, timeoutMs = 0, model: pinned = null, fallback: fallsBack = true, temperature = 0.5 } = opts || {};
   const finish = (t) => (json ? String(t || '') : sanitize(t));
   const run = (model) => {
     // The upstream request is cancelled a second after the race gives up on
     // it, so a model that timed out stops holding a socket while the fallback
     // runs. Only with timeoutMs: without one there is no race in here, and an
     // abort would read as a failure and fall back on its own.
-    const call = chatCall({ prompt, maxTokens, temperature: 0.5, model,
+    const call = chatCall({ prompt, maxTokens, temperature, model,
       abortMs: timeoutMs ? timeoutMs + 1000 : 0 });
     if (!timeoutMs) return call;
-    return Promise.race([
-      call,
-      new Promise((_, rej) => setTimeout(() => rej(new Error('text timeout')), timeoutMs)),
-    ]);
+    return withTimeout(call, timeoutMs, 'text timeout');
   };
 
   const model = pinned || textModelNow();
-  const fallback = instructFallbackModel(model);
+  const fallback = fallsBack ? instructFallbackModel(model) : null;
   // THE SYMPTOM IS THE EMPTY REPLY, NOT THE MODEL'S NAME.
   //
   // This recovery used to run only when the model id matched /thinking/, which
@@ -1072,18 +1259,24 @@ async function textInfer(prompt, maxTokens, opts) {
   try {
     out = await run(model);
   } catch (e) {
-    if (model === fallback) throw e;   // nothing left to try, that is a real error
-    failure = e.message;
+    // An empty wallet is no model's failure, and no other model can answer it.
+    if (e && e.credits) throw e;
+    failure = e;
   }
-  if (out && out.trim()) return finish(out);
-  if (model === fallback) return finish(out);
+  if (!failure && out && out.trim()) return finish(out);
 
-  // Nothing came back, or it timed out. Either way this model is not answering
-  // text right now, so record the strike and let later calls skip straight past
-  // it rather than paying for the same silence every time.
-  thinkingTextStrikes++;
-  console.warn(`[coach] ${model} unusable for text (${failure || 'empty reply'}), `
-    + `strike ${thinkingTextStrikes}/${THINKING_TEXT_LIMIT}, retrying on ${fallback}`);
+  // Nothing came back, or it failed. Either way this model is not answering
+  // text right now, so record the strike, its own, and let later calls of the
+  // configured text model skip straight past it rather than paying for the
+  // same silence every time. Only an unpinned call's: a pinned one (a route's
+  // own model, a bench's) moves nothing textModelNow() routes.
+  const strikes = pinned ? 0 : strikeText(model);
+  if (!fallback || model === fallback) {   // pinned with no fallback, or nothing left to try
+    if (failure) throw failure;
+    return finish(out);
+  }
+  console.warn(`[coach] ${model} unusable for text (${failure ? failure.message : 'empty reply'}), `
+    + `${pinned ? 'pinned, so no strike' : `strike ${strikes}/${THINKING_TEXT_LIMIT} of its own`}, retrying on ${fallback}`);
   return finish(await run(fallback));
 }
 
@@ -2119,9 +2312,34 @@ async function henrikGet(pathPart, timeoutMs = TRACKER_TIMEOUT_MS) {
     headers: { Authorization: process.env.HENRIKDEV_API_KEY, 'User-Agent': 'Occlara/4.0' },
     signal: AbortSignal.timeout(timeoutMs),
   });
+  // The shared key was turned away: a fill holds back for a while (fillRefused).
+  if (r.status === 429) henrikKey.throttledAt = Date.now();
   const text = await r.text();
   let json = null; try { json = JSON.parse(text); } catch {}
   return { status: r.status, ok: r.ok, json };
+}
+
+/*
+ * A RESERVE ON THE ONE HENRIKDEV KEY (8.5.0). Every player's live link, the
+ * backfill and Stats share it, and a 429 there is a review that keeps the
+ * screen's unverified rounds for a while. A /match-rounds request marked
+ * `purpose=fill` (Ask Coach's one time fill of a review saved before the
+ * reply carried the feed, and later Phase D's) can wait, so it is served only
+ * when no HenrikDev request was turned away with a 429 in the last two minutes
+ * and fewer than ten fills went upstream in the last minute, server wide;
+ * otherwise it is answered 503 with retry, which the fill asks again on the
+ * next open. A fill the reply cache answers costs the key nothing and is
+ * served. Live links and the backfill are unchanged.
+ */
+const FILL_HOLD_MS = 2 * 60 * 1000;
+const FILL_WINDOW_MS = 60 * 1000;
+const FILL_MAX = 10;
+const henrikKey = { throttledAt: 0, fills: [] };
+/** Why a fill must wait now, or null when it may go upstream. */
+function fillRefused(now) {
+  if (henrikKey.throttledAt && now - henrikKey.throttledAt < FILL_HOLD_MS) return 'throttled';
+  while (henrikKey.fills.length && now - henrikKey.fills[0] >= FILL_WINDOW_MS) henrikKey.fills.shift();
+  return henrikKey.fills.length >= FILL_MAX ? 'busy' : null;
 }
 
 /*
@@ -2383,7 +2601,13 @@ router.get('/rank-history', async (req, res) => {
 // from the same match-detail call. Fetching that detail twice for two features
 // would double the upstream calls against a rate limit that has already caused
 // queues to vanish from the stats view.
-const matchMvpCache = new Map();   // matchId -> { mvp, team } | null
+//
+// KEYED BY MATCH AND PLAYER (8.5.0), `matchId|name#tag` in lower case. Both
+// the badge and the roster are one player's (their MVP or not, their own row
+// marked `me`, their own team), and keyed by the match alone a duo partner who
+// also uses Occlara was handed the first requester's badge and roster.
+const matchMvpCache = new Map();   // matchId|name#tag (lower) -> { mvp, team }
+const mvpKey = (matchId, name, tag) => `${matchId}|${name}#${tag}`.toLowerCase();
 
 /** Total rounds from a "13-10" scoreline; ACS is per round. */
 function roundsOf(score) {
@@ -2407,7 +2631,8 @@ function roundsOf(score) {
  */
 async function matchDetail(region, matchId, name, tag, rounds = 0) {
   if (!matchId) return null;
-  if (matchMvpCache.has(matchId)) return matchMvpCache.get(matchId);
+  const cacheKey = mvpKey(matchId, name, tag);
+  if (matchMvpCache.has(cacheKey)) return matchMvpCache.get(cacheKey);
   try {
     const md = await henrikGet(`/valorant/v4/match/${region}/${encodeURIComponent(matchId)}`);
     const d = md.json && md.json.data;
@@ -2478,7 +2703,7 @@ async function matchDetail(region, matchId, name, tag, rounds = 0) {
       .sort((a, b) => (b.acs || 0) - (a.acs || 0));
 
     const detail = { mvp, team };
-    cacheSet(matchMvpCache, matchId, detail, 600);
+    cacheSet(matchMvpCache, cacheKey, detail, 600);
     return detail;
   } catch (e) {
     console.log('[coach] match detail lookup failed:', matchId, e.message);
@@ -2628,6 +2853,13 @@ router.get('/match-rounds', async (req, res) => {
   const cacheKey = matchId + '|' + username.toLowerCase();
   if (matchRoundsCache.has(cacheKey)) return res.json(matchRoundsCache.get(cacheKey));
 
+  // A fill waits its turn on the shared key (fillRefused); a live link never does.
+  if (req.query.purpose === 'fill') {
+    const now = Date.now();
+    if (fillRefused(now)) return roundsRetry(res, 'The tracker is busy with live links, try again shortly.');
+    henrikKey.fills.push(now);
+  }
+
   try {
     const enc = encodeURIComponent;
     const acct = await regionOf(name, tag);
@@ -2647,7 +2879,11 @@ router.get('/match-rounds', async (req, res) => {
     const d = md.json && md.json.data;
     if (!d) return roundsRetry(res, 'The tracker returned no match detail.');
     const out = { matchId, ...riotRounds.parse(d, name, tag) };
-    if (!out.error) cacheSet(matchRoundsCache, cacheKey, out, 200);
+    if (!out.error) {
+      cacheSet(matchRoundsCache, cacheKey, out, 200);
+      // The match's name set, for its name gates and nothing else (5.6).
+      riotRounds.noteNames(matchId, d);
+    }
     res.json(out);
   } catch (e) {
     // A timeout or a dropped connection to the tracker: worth another try.
@@ -3230,25 +3466,61 @@ router.post('/read', async (req, res) => {
 // services/death-forensics.js for why the cause is a label and not a sentence.
 // `source: 'screen'` (8.2) is a review Riot's record never reached: its facts
 // are the screen's, and no killer may be named. No source is Riot's record.
+//
+// WHICH PROMPT LOOKS (8.5.0, forensicsVariant): today's for every client
+// before 8.5.0, byte for byte; variant b for 8.5.0 and later once
+// FORENSICS_PROMPT=b, or for an admin bench naming it. The route hands the
+// look its variant (normalise's opts.variant, 'a' or 'b'), and on the input
+// the client's version and the match's id and name set (input.version,
+// input.matchId, input.names, the last for the name gate alone); its room is
+// tokensFor(input), its log logLines(out) and each look replyOf(out). The
+// reply carries `variant` ('b', or 'a' for today's prompt) to a client of
+// 8.5.0 or later and to any request that named one, and to no other client.
+//
+// AN ADMIN BENCH IS SENT EACH REPLY'S LABEL WORDS RAW (bench A, `raw: true`
+// beside the admin password): death-forensics.js rawLabels, the fight, cause,
+// alt and change as the model wrote them, each its key or "unknown", and
+// whether it wrote a what, scored before parse() enforces the families, since
+// a parse that enforces them cannot show a contradiction. Never a sentence or
+// a word off a list: a name in one would leave the server. No other request
+// is ever sent `raw`.
 router.post('/death-forensics', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
   if (!await admit(res, licenseKey)) return;
-  const input = deathForensics.normalise(req.body);
+  const rawWanted = !!(req.body && req.body.raw === true) && isAdmin(req) && typeof deathForensics.rawLabels === 'function';
+  const variant = forensicsVariant(req);
+  const input = deathForensics.normalise(req.body, { variant: variant || 'a' });
   if (!input.deaths.length) return res.json({ deaths: [] });
   const model = benchModel(req) || AI.forensicsModel;
+  const told = (req.body && req.body.variant) || clientAtLeast(req, V85) ? { variant: variant || 'a' } : {};
+  if (!input.variant) input.variant = variant || 'a';
+  input.version = String(req.headers['x-occlara-version'] || '').slice(0, 24) || null;
+  if (!input.matchId) {
+    input.matchId = typeof (req.body && req.body.matchId) === 'string' ? req.body.matchId.trim().slice(0, 80) || null : null;
+  }
+  // The match's own names, for the look's name gate alone (5.6): never in a prompt.
+  input.names = riotRounds.nameSetOf(input.matchId);
+  // The longer reply variant b asks for (what, fight, better, change, cause, alt).
+  const tokens = typeof deathForensics.tokensFor === 'function' ? deathForensics.tokensFor(input) : (variant === 'b' ? 400 : 320);
   const one = async (death) => {
     try {
       const raw = await withTimeout(
-        visionInfer(death.frames, deathForensics.buildPrompt(input, death), 320, true, model, { abortMs: 26000 }),
+        visionInfer(death.frames, deathForensics.buildPrompt(input, death), tokens, true, model, { abortMs: 26000 }),
         25000, 'forensics timeout');
       const out = deathForensics.parse(raw, input, death);
-      if (out.dropped.length) {
-        console.log(`[forensics] R${death.n} dropped:`, out.dropped.map((d) => `${d.field} (${d.why})`).join(', '));
+      // By round and keys only: a conflict, a sentence dropped and why (a name
+      // only as "a name", never the word), a lost duel's better play logged.
+      if (typeof deathForensics.logLines === 'function') {
+        for (const line of deathForensics.logLines(out)) console.log(line);
+      } else if (out.dropped && out.dropped.length) {
+        console.log(`[forensics] R${death.n} dropped:`, out.dropped.map((d) => `${d.field} (${gateWord(d)})`).join(', '));
       }
-      out.what = out.what && matchReview.roundDigits(out.what);
-      out.better = out.better && matchReview.roundDigits(out.better);
-      delete out.dropped;
-      return out;
+      const look = typeof deathForensics.replyOf === 'function' ? deathForensics.replyOf(out) : out;
+      delete look.dropped;
+      look.what = look.what && matchReview.roundDigits(look.what);
+      look.better = look.better && matchReview.roundDigits(look.better);
+      if (rawWanted) look.raw = deathForensics.rawLabels(raw);
+      return look;
     } catch (e) {
       console.log(`[forensics] R${death.n} failed:`, e.message);
       return { n: death.n, cause: 'unclear', what: null, better: null, failed: true };
@@ -3257,12 +3529,37 @@ router.post('/death-forensics', async (req, res) => {
   try {
     const deaths = await Promise.all(input.deaths.map(one));
     trackCall(licenseKey, input.deaths.length);
-    res.json({ deaths, model });
+    res.json({ deaths, model, ...told });
   } catch (e) {
     console.error('[forensics] error:', e.message);
     res.status(503).json({ error: 'forensics-unavailable' });
   }
 });
+
+/*
+ * WHAT A DROPPED LOOK SENTENCE IS LOGGED AS: the word a gate caught when it
+ * is the game's own (another map's callout, another agent's ability, the
+ * wrong agent as the killer), and never the word otherwise, since the name
+ * gate's word is a player's name, which no log line ever carries.
+ */
+const GAME_WORDS = (() => {
+  const out = new Set();
+  let data = {};
+  try { data = require('../valorant-data.generated.json'); } catch { data = {}; }
+  const add = (s) => { const w = String(s || '').toLowerCase().trim(); if (w) out.add(w); };
+  for (const [agent, a] of Object.entries(data.agents || {})) {
+    add(agent);
+    for (const ab of (a && a.abilities) || []) add(ab);
+  }
+  for (const w of Object.keys(data.weapons || {})) add(w);
+  for (const w of Object.keys(data.mapCallouts || {})) add(w);
+  for (const g of Object.values(data.mapGeometry || {})) for (const c of (g && g.callouts) || []) add(c && c.n);
+  return out;
+})();
+function gateWord(d) {
+  const why = String((d && d.why) || '').trim();
+  return GAME_WORDS.has(why.toLowerCase()) ? why : (d && d.gate ? String(d.gate).slice(0, 20) : 'a word that is not the game\'s');
+}
 
 // POST /api/coach/match-review, JSON body: { rounds, ... }, or { tips: string[] } from older clients
 //
@@ -3292,6 +3589,9 @@ router.post('/match-review', async (req, res) => {
      */
     if (req.body && Array.isArray(req.body.rounds) && req.body.rounds.length) {
       const input = matchReview.normalise(req.body);
+      // Study by cause (8.5.0, match-review.js CAUSE_TOPICS) for a client built
+      // for it; one before it is listed its study notes as today.
+      if (clientAtLeast(req, V85)) input.byCause = true;
       // UNDER THREE ROUNDS THERE IS NOTHING TO SAY, and the model says it
       // anyway: probed with a one round ledger it wrote "this match was decided
       // by a failure to establish consistent tactical control". The computed
@@ -3304,9 +3604,13 @@ router.post('/match-review', async (req, res) => {
       // json: true returns the RAW text. sanitize() collapses newlines, and the
       // first live bench got every labelled line back as one, so it is applied
       // per field after parsing instead, which keeps its dash removal.
+      //
+      // fallback: false (8.5.0). Sol was chosen by bench:review; a hiccup is no
+      // narrative now (an empty reply parses to summary null, a failure is a
+      // 503), never one written by a model that bench rejected.
       const text = await Promise.race([
         // 1600: variant C was cut off mid focus line at 1100 on the bench.
-        textInfer(prompt, 1600, { json: true, model: benchModel(req) || AI.reviewModel }),
+        textInfer(prompt, 1600, { json: true, model: benchModel(req) || AI.reviewModel, fallback: false }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 45000)),
       ]);
       trackCall(licenseKey);
@@ -3314,6 +3618,22 @@ router.post('/match-review', async (req, res) => {
       if (parsed.dropped.length) {
         console.log('[review] dropped round lines that named the wrong killer:',
           parsed.dropped.map((d) => `R${d.n} said ${d.said}, Riot says ${d.riot}`).join('; '));
+      }
+      // NO PLAYER NAMED (8.5.0, namesSomeoneHere): a summary or focus sentence
+      // naming someone goes, and a round line naming someone goes whole. The
+      // match's name set when an 8.5.0 client sends Riot's match id and this
+      // server fetched it. Logged by place only, never the word.
+      {
+        const opts = { names: riotRounds.nameSetOf(req.body.matchId), language: input.context.language };
+        const gone = [];
+        for (const field of ['summary', 'focus']) {
+          const g = withoutNames(parsed[field], opts);
+          if (g.dropped) { parsed[field] = g.text; gone.push(`${field} (${g.dropped})`); }
+        }
+        for (const n of Object.keys(parsed.rounds)) {
+          if (withoutNames(parsed.rounds[n], opts).dropped) { delete parsed.rounds[n]; gone.push(`R${n}`); }
+        }
+        if (gone.length) console.log(`[review] dropped what named a player: ${gone.join(', ')}`);
       }
       const clean = (t) => (t ? matchReview.roundDigits(sanitize(t)) : t);
       const rounds = {};
@@ -3511,14 +3831,43 @@ function detectAgentName(reply) {
  * Its kit lines and its one word answer are the live prompt's, so
  * detectAgentName reads either reply alike.
  */
-const DETECT_VARIANTS = new Set(['b']);
+/*
+ * AND ITS VARIANT CROP (8.5.0), FOR THE BENCH ONLY, served exactly as b is.
+ * The 8.4.4 client sends no frame at all but the player's own bar cut out of
+ * it (agent-crop.js): x 340 to 940 and y 636 to the foot of a 1280x720 frame,
+ * scaled up three times, so the health number, the four ability icons with
+ * their keys and the ammo count, and nothing else. Every word b spends on the
+ * faces, cards and panels elsewhere on the screen describes nothing in that
+ * picture. The look is off in the client (AGENT_LOOKS_PER_MATCH 0) because the
+ * route's model misread the bar on frames whose icons are plain to the eye, so
+ * the next step is a stronger vision model on these crops: an admin bench may
+ * name one from BENCH_MODELS, as on every other route, and is told which
+ * answered. The live prompt and AI_VISION_MODEL answer every install as they
+ * did.
+ */
+const DETECT_VARIANTS = new Set(['b', 'crop']);
 function detectVariant(req) {
   const v = String((req.body && req.body.variant) || '').trim().toLowerCase();
   return v && DETECT_VARIANTS.has(v) && isAdmin(req) ? v : null;
 }
 
-/** The look's prompt: the live one unless an admin bench named b. */
+/** The look's prompt: the live one unless an admin bench named b or crop. */
 function detectPrompt(variant) {
+  if (variant === 'crop') {
+    return `This picture is a crop of one Valorant screenshot, enlarged three times: the bar at the bottom center of the player's own screen, and nothing else of it.
+
+From left to right it shows the player's health number, then four ability icons in a row with the key each is bound to printed under it (C, Q, E and X unless the player rebound one, as MB4 for a mouse button; X is the ultimate, its points shown as small pips beside it), then the ammo count.
+
+Name the agent whose kit those four icons are, from this list:
+
+${AGENT_KIT_LINES}
+
+Answer from the shapes of the four icons alone. The health number, the ammo count and the keys say nothing about the agent. An icon may be dimmed, greyed or show charge pips when the ability is used or not bought yet: its shape still says which ability it is.
+
+If you cannot clearly see all four icons, or are not sure, respond with UNKNOWN.
+
+Respond with ONLY the agent name, one word, with no explanation and no punctuation, or UNKNOWN.`;
+  }
   if (variant === 'b') {
     return `You are looking at one Valorant screenshot from a match, to name the agent the player on this PC is playing.
 
@@ -3550,10 +3899,14 @@ If you cannot clearly see all 4 ability icons or are not 100% sure, respond with
 // frame of the player's own HUD in a buy phase, two looks that agree locking
 // the agent for the match; before, a frame taken at session start.
 router.post('/detect-agent', async (req, res) => {
-  // Which prompt: the live one unless an admin bench named a variant.
+  // Which prompt: the live one unless an admin bench named a variant. Which
+  // model: the configured vision model unless an admin bench named one
+  // (8.5.0), and a bench is told which answered, as on /read.
   const asksVariant = !!(req.body && req.body.variant);
   const variant = detectVariant(req);
-  const told = asksVariant ? { variant } : {};
+  const benching = !!(req.body && req.body.benchModel);
+  const model = benchModel(req) || AI.visionModel;
+  const told = { ...(benching ? { model } : {}), ...(asksVariant ? { variant } : {}) };
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
     if (!await admit(res, licenseKey)) return;
@@ -3563,7 +3916,7 @@ router.post('/detect-agent', async (req, res) => {
 
     const prompt = detectPrompt(variant);
 
-    const text = await withTimeout(visionInfer(image, prompt, 20, false, undefined, { abortMs: 23000 }),
+    const text = await withTimeout(visionInfer(image, prompt, 20, false, model, { abortMs: 23000 }),
       22000, 'timeout');
     trackCall(licenseKey);
 
@@ -3593,6 +3946,375 @@ function chatReplyOk(t) {
   if (/\b(as an ai|i cannot assist|i can.?t help with|language model|i am unable to|no puedo)\b/i.test(t)) return false;
   if (/^\s*[{[]/.test(t) || /"(tip|role|content|reply)"\s*:/.test(t)) return false;   // raw JSON
   return true;
+}
+
+/*
+ * ASK COACH V2 (8.5.0), THE ROUTE'S HALF. The prompt and the reply gates are
+ * chat-prompt.js's (normalise, buildPrompt, parseReply, over fact-gates.js);
+ * this decides who gets it, which model answers, how long it may take, what a
+ * question costs a licence and what goes back.
+ *
+ *   WHO. A request whose context is v2 (`context.v: 2`), from a client of
+ *   8.5.0 or later once CHAT_PROMPT=v2 is set on Railway, or from an admin
+ *   bench naming `variant: 'v2'` or 'v2-noprimer' (bench:chat's control,
+ *   without the primer). Every other request, every client before 8.5.0
+ *   above all, is answered as today, byte for byte, and an 8.5.0 client sends
+ *   today's fields beside its v2 context for exactly that.
+ *   THE MODEL. AI_CHAT_MODEL, pinned, fallback: false: no other model ever
+ *   answers a v2 question. An admin bench may name one from BENCH_MODELS and
+ *   is told which answered.
+ *   THE TIME. One 40 s budget across both calls (CHAT_TIMES): the first call is
+ *   abandoned at 28 s, the gates' one retry runs only with 15 s left and at
+ *   most 500 tokens, and otherwise the honest line goes out. The client waits
+ *   50 s. 900 tokens, temperature 0.4, the raw text kept in paragraphs (the
+ *   bubble is pre-line) and cut at 4,000 characters.
+ *   THE GATES. Every sentence of the reply is checked by parseReply, and a
+ *   reply whose first sentence was dropped, or that keeps fewer than two, is
+ *   asked for once more with the reasons named, inside the budget; if that
+ *   fails too the answer is HONEST_LINE, with `honest: true` so a client may
+ *   say it in the player's language. The match's name set (riot-rounds.js,
+ *   this server's only) goes to the gates, and any sentence it still finds is
+ *   dropped here. `dropped` (counts by gate) goes back, counts only.
+ *   THE CAP. Per licence, one rolling 24 hour list of (time, booked cost):
+ *   CHAT_DAY_USD (default $0.15) or CHAT_DAY_QUESTIONS (default 40) reached,
+ *   the question is answered 429 { error: 'chat-daily', resetsAt }, the moment
+ *   enough of the list leaves the window, before any model is called. It
+ *   covers v2 questions and, from 8.5.0, frame chat. A bench is never counted
+ *   (5.7), and a client before 8.5.0 is never capped and keeps the chat
+ *   limiter's 25 messages in 5 minutes. In memory, so a deploy resets it,
+ *   which a ceiling can afford.
+ *   THE COUNTS. Today's questions, drops by gate, retries, honest lines and
+ *   cap refusals go to /api/admin/chat (chatReport), never to /health.
+ */
+const CHAT_VARIANTS = new Set(['v2', 'v2-noprimer']);
+const CHAT_TIMES = { budgetMs: 40000, firstMs: 28000, retryMinMs: 15000 };
+const CHAT_TOKENS = 900;
+const CHAT_RETRY_TOKENS = 500;
+const CHAT_TEMPERATURE = 0.4;
+const CHAT_MAX_CHARS = 4000;
+const CHAT_MESSAGES = 8;
+const CHAT_DAY_MS = 24 * 60 * 60 * 1000;
+const HONEST_LINE = "I couldn't give you an answer I can stand behind for that one. Ask me about a round, a death or your agent in this match.";
+
+/** The v2 prompt a request is answered with ('v2' or 'v2-noprimer'), or null for today's. */
+function chatVariant(req) {
+  const ctx = req.body && req.body.context;
+  if (!ctx || typeof ctx !== 'object' || ctx.v !== 2) return null;
+  const asked = String((req.body && req.body.variant) || '').trim().toLowerCase();
+  if (asked && isAdmin(req)) return CHAT_VARIANTS.has(asked) ? asked : null;
+  return String(process.env.CHAT_PROMPT || '').trim().toLowerCase() === 'v2' && clientAtLeast(req, V85) ? 'v2' : null;
+}
+
+/** The cap as Railway sets it, read on every question. */
+function chatCap() {
+  const usd = Number(process.env.CHAT_DAY_USD);
+  const questions = Number(process.env.CHAT_DAY_QUESTIONS);
+  return { usd: Number.isFinite(usd) && usd > 0 ? usd : 0.15, questions: Number.isInteger(questions) && questions > 0 ? questions : 40 };
+}
+const chatLedger = new Map();   // licence -> [{ at, cost }], oldest first, the last 24 hours
+
+/** Whether a licence may ask now: { ok } or { ok: false, resetsAt } (ms). */
+function chatRoom(key, now) {
+  const cap = chatCap();
+  const list = (chatLedger.get(key) || []).filter((e) => now - e.at < CHAT_DAY_MS);
+  if (list.length) chatLedger.set(key, list); else chatLedger.delete(key);
+  // A millionth of a cent of slack, so dollars added up as floats compare as written.
+  const under = (spent, asked) => spent < cap.usd - 1e-9 && asked < cap.questions;
+  let spent = list.reduce((s, e) => s + e.cost, 0);
+  let asked = list.length;
+  if (under(spent, asked)) return { ok: true };
+  let resetsAt = now;
+  for (const e of list) {
+    spent -= e.cost;
+    asked -= 1;
+    resetsAt = e.at + CHAT_DAY_MS;
+    if (under(spent, asked)) break;
+  }
+  return { ok: false, resetsAt };
+}
+
+/** A question's line in its licence's list: its cost is what bookCost books for it. */
+function chatEntry(key, now) {
+  const entry = { at: now, cost: 0 };
+  const list = chatLedger.get(key) || [];
+  list.push(entry);
+  while (list.length > 500) list.shift();
+  cacheSet(chatLedger, key, list, 5000);
+  return entry;
+}
+
+const chatDay = () => ({ day: new Date().toISOString().slice(0, 10), asked: { v1: 0, v2: 0, frame: 0 },
+  answered: 0, retried: 0, honest: 0, capped: 0, failed: 0, sentences: 0, dropped: {}, logged: {} });
+let chatToday = chatDay();
+function chatCounts() {
+  if (chatToday.day !== new Date().toISOString().slice(0, 10)) chatToday = chatDay();
+  return chatToday;
+}
+/** Today's Ask Coach counts, for /api/admin/chat. Counts and the cap, nothing else. */
+function chatReport() {
+  const c = chatCounts();
+  const now = Date.now();
+  let atCap = 0;
+  for (const key of chatLedger.keys()) if (!chatRoom(key, now).ok) atCap++;
+  return { day: c.day, asked: { ...c.asked }, answered: c.answered, retried: c.retried, honest: c.honest,
+    capped: c.capped, failed: c.failed, sentences: c.sentences, dropped: { ...c.dropped }, logged: { ...c.logged },
+    licencesAtCap: atCap, cap: chatCap(),
+    model: AI.chatModel, served: String(process.env.CHAT_PROMPT || '').trim().toLowerCase() === 'v2' ? 'v2' : 'v1',
+    since: COSTS_SINCE };
+}
+
+// "round #12" names round 12, and the Riot ID scrub read it as a player
+// ("what happened in a player?"): the round is read first, then the scrub.
+const ROUND_HASH = /\bround\s*#\s*(\d{1,2})\b/gi;
+const scrubAsked = (t) => String(t || '').replace(ROUND_HASH, 'round $1').replace(RIOT_ID, 'a player');
+
+/** The conversation as v2 hands it on: the last eight, each clipped, Riot IDs scrubbed after the round is read. */
+function chatMessagesV2(raw) {
+  return (Array.isArray(raw) ? raw : []).slice(-CHAT_MESSAGES).map((m) => ({
+    role: m && m.role === 'assistant' ? 'assistant' : 'user',
+    content: scrubAsked(String((m && m.content) || '').slice(0, 1200)).trim(),
+  })).filter((m) => m.content);
+}
+
+/** The reply's paragraphs, each sanitised on its own, so they survive; no markdown, no list marks. */
+// An em or en dash with the spaces around it is one comma: "5 , you" read badly.
+const SPACED_DASH = new RegExp(`\\s*[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]\\s*`, 'g');
+function chatParagraphs(text) {
+  return String(text || '').replace(/\r\n?/g, '\n').split(/\n+/)
+    .map((p) => sanitize(p.replace(ROUND_HASH, 'round $1').replace(SPACED_DASH, ', '))
+      .replace(/```[\s\S]*?```/g, ' ').replace(/\*\*|__|`/g, '')
+      .replace(/^#{1,6}\s+/, '').replace(/^(?:[-*]|\d{1,2}[.)])\s+/, '')
+      .replace(/\s{2,}/g, ' ').trim())
+    .filter(Boolean).join('\n\n');
+}
+
+/** At most `max` characters, cut at the last sentence that fits. */
+function cutReply(text, max) {
+  if (text.length <= max) return text;
+  const head = text.slice(0, max);
+  const stop = Math.max(head.lastIndexOf('. '), head.lastIndexOf('.\n'), head.lastIndexOf('? '), head.lastIndexOf('! '));
+  return (stop > max / 2 ? head.slice(0, stop + 1) : head).trim();
+}
+
+/** Every sentence a word of the match's name set is in, taken out of the paragraphs. */
+function chatWithoutNames(text, names) {
+  if (!names || !text) return { text, dropped: 0 };
+  let dropped = 0;
+  const paras = text.split('\n\n').map((p) => {
+    const all = sentencesOf(p).map((s) => s.trim()).filter(Boolean);
+    const kept = all.filter((s) => !names.has(s));
+    dropped += all.length - kept.length;
+    return kept.join(' ');
+  }).filter(Boolean);
+  return { text: paras.join('\n\n'), dropped };
+}
+
+/**
+ * parseReply's answer, read the one way the route reads it: the reply, whether
+ * to ask again and why, the drops by gate, what a rule in log mode would have
+ * dropped (`logged`, the name rule's until bench:chat measures it) and how
+ * many sentences were weighed, counts only.
+ */
+function gatedReply(out) {
+  const o = out && typeof out === 'object' ? out : {};
+  const reply = typeof o.reply === 'string' ? o.reply : (typeof o.text === 'string' ? o.text : '');
+  const counts = (x) => (x && typeof x === 'object' ? x : {});
+  return {
+    reply,
+    retry: typeof o.retry === 'boolean' ? o.retry : !reply.trim(),
+    reasons: Array.isArray(o.reasons) ? o.reasons.map((r) => String(r).slice(0, 200)).slice(0, 6) : [],
+    dropped: counts(o.dropped),
+    logged: counts(o.logged),
+    sentences: Number.isInteger(o.sentences) && o.sentences >= 0 ? o.sentences : 0,
+  };
+}
+
+/** The gates' one retry: the prompt again, with what was wrong named. */
+function chatRetryPrompt(chatPrompt, prompt, reasons) {
+  if (typeof chatPrompt.retryPrompt === 'function') return chatPrompt.retryPrompt(prompt, reasons);
+  const why = reasons.length ? ` ${reasons.join(' ')}` : '';
+  return `${prompt}\n\nYOUR LAST REPLY COULD NOT BE USED.${why} Answer the player's last message again from the facts above alone, the answer in your first sentence, in short plain paragraphs.`;
+}
+
+/*
+ * WHAT AN ADMIN BENCH IS SENT OF THE MODEL'S OWN TEXT (bench:chat, `raw: true`
+ * beside the admin password): the reply as the model wrote it, before the
+ * gates, since bench:chat scores raw replies and what the gates dropped cannot
+ * show what the model said; and the retry's, when the gates asked again. Even
+ * so no player's name leaves the server: a sentence carrying a word of the
+ * match's name set is replaced by name-gate.js WITHHELD, which bench:chat
+ * counts as a name. A player's own request is never sent either.
+ */
+function withheldMark() {
+  const gate = service('nameGate');
+  return (gate && typeof gate.WITHHELD === 'string' && gate.WITHHELD) || '(withheld: a sentence naming a player of this match)';
+}
+function rawForBench(text, names) {
+  const t = String(text == null ? '' : text);
+  if (!names || !t) return t;
+  // A sentence as sentencesOf matches it carries its leading space, which stays.
+  return t.replace(/\r\n?/g, '\n').split('\n').map((line) => sentencesOf(line)
+    .map((s) => (names.has(s) ? `${/^\s*/.exec(s)[0]}${withheldMark()}` : s)).join('')).join('\n');
+}
+
+/** The name set of the match a v2 question is about, by whichever id the client sent. */
+function chatNames(body) {
+  const ctx = (body && body.context) || {};
+  const match = (ctx.match && typeof ctx.match === 'object') ? ctx.match : {};
+  for (const id of [match.matchId, match.riotMatchId, match.id, body && body.matchId]) {
+    const set = typeof id === 'string' ? riotRounds.nameSetOf(id) : null;
+    if (set) return set;
+  }
+  return null;
+}
+
+/**
+ * One v2 question, answered: true once a reply is sent, false when v2 cannot
+ * be served here (its module not deployed, or a context it could not take),
+ * and today's answer goes out instead.
+ */
+async function chatV2(req, res, { licenseKey, variant, t0 }) {
+  const chatPrompt = service('chatPrompt');
+  if (!chatPrompt || ['normalise', 'buildPrompt', 'parseReply'].some((f) => typeof chatPrompt[f] !== 'function')) return false;
+  const body = req.body || {};
+  const messages = chatMessagesV2(body.messages);
+  if (!messages.length) { res.status(400).json({ error: 'No messages' }); return true; }
+  const names = chatNames(body);
+  let input;
+  let prompt;
+  try {
+    input = chatPrompt.normalise(body.context);
+    prompt = chatPrompt.buildPrompt(input, messages, { variant });
+  } catch (e) {
+    console.warn('[chat] a v2 context could not be taken, answered as today:', e.message);
+    return false;
+  }
+  if (typeof prompt !== 'string' || !prompt.trim()) return false;
+  const language = (input && typeof input.language === 'string' && input.language)
+    || (typeof body.context.language === 'string' ? body.context.language.slice(0, 8) : 'en');
+
+  const scope = costScope.getStore() || {};
+  const counts = chatCounts();
+  if (!scope.bench) {
+    const room = chatRoom(licenseKey, Date.now());
+    if (!room.ok) {
+      counts.capped++;
+      res.status(429).json({ error: 'chat-daily', resetsAt: new Date(room.resetsAt).toISOString() });
+      return true;
+    }
+    scope.entry = chatEntry(licenseKey, Date.now());
+  }
+  counts.asked.v2++;
+  // An admin bench asking for the model's own text, and its calls' usage (rawForBench, noteUsage).
+  const rawWanted = body.raw === true && isAdmin(req);
+  if (rawWanted && costScope.getStore()) scope.usage = { prompt: 0, completion: 0, cached: 0, calls: 0 };
+  const said = { first: null, retry: null };
+
+  const model = benchModel(req) || AI.chatModel;
+  const deadline = t0 + CHAT_TIMES.budgetMs;
+  const ask = (p, tokens, ms) => textInfer(p, tokens,
+    { json: true, model, fallback: false, temperature: CHAT_TEMPERATURE, timeoutMs: Math.max(1, Math.round(ms)) });
+  // A reply the gates could not weigh is not one to stand behind: the honest line.
+  const gate = (raw) => {
+    try {
+      // The match's name set under both the names the gates read it by.
+      return gatedReply(chatPrompt.parseReply(raw, input, { messages, names, nameSet: names, language, variant }));
+    } catch (e) {
+      console.warn('[chat] the v2 reply gates threw, so the reply goes unsaid:', e.message);
+      return { reply: '', retry: false, reasons: [], dropped: { gates: 1 }, logged: {}, sentences: 0 };
+    }
+  };
+  // Counts across both attempts: what the gates dropped, what a rule in log
+  // mode would have, and the sentences weighed, for the bench's rates.
+  const dropped = {};
+  const logged = {};
+  let sentences = 0;
+  const tally = (g) => {
+    for (const [k, v] of Object.entries(g.dropped)) if (Number(v) > 0) dropped[k] = (dropped[k] || 0) + Number(v);
+    for (const [k, v] of Object.entries(g.logged)) if (Number(v) > 0) logged[k] = (logged[k] || 0) + Number(v);
+    sentences += g.sentences;
+  };
+
+  let g = null;
+  try {
+    said.first = await ask(prompt, CHAT_TOKENS, Math.min(CHAT_TIMES.firstMs, deadline - Date.now()));
+    g = gate(said.first);
+    tally(g);
+  } catch (e) {
+    // Abandoned at its deadline: billed all the same, and no time left to ask again.
+    if (!e || e.message !== 'text timeout') throw e;
+  }
+  trackCall(licenseKey);
+  let retried = false;
+  if (g && g.retry && deadline - Date.now() >= CHAT_TIMES.retryMinMs) {
+    retried = true;
+    try {
+      said.retry = await ask(chatRetryPrompt(chatPrompt, prompt, g.reasons), CHAT_RETRY_TOKENS, deadline - Date.now() - 250);
+      g = gate(said.retry);
+      tally(g);
+    } catch (e) {
+      if (e && (e.credits || e.status === 402)) throw e;
+      g = null;   // the first reply failed the gates already: the honest line
+    }
+    trackCall(licenseKey);
+  }
+
+  let reply = g && !g.retry ? chatParagraphs(g.reply) : '';
+  const net = chatWithoutNames(reply, names);
+  if (net.dropped) { dropped.nameSet = (dropped.nameSet || 0) + net.dropped; reply = net.text; }
+  reply = cutReply(reply, CHAT_MAX_CHARS);
+  const honest = !reply;
+  if (honest) reply = HONEST_LINE;
+
+  counts.answered++;
+  if (retried) counts.retried++;
+  if (honest) counts.honest++;
+  counts.sentences += sentences;
+  for (const [k, v] of Object.entries(dropped)) counts.dropped[k] = (counts.dropped[k] || 0) + v;
+  for (const [k, v] of Object.entries(logged)) counts.logged[k] = (counts.logged[k] || 0) + v;
+  // Counts only, never a word of the reply.
+  if (retried || honest || Object.keys(dropped).length) {
+    console.log(`[chat] v2: ${Object.entries(dropped).map(([k, v]) => `${k} ${v}`).join(', ') || 'nothing'} dropped`
+      + `${retried ? ', asked again' : ''}${honest ? ', the honest line' : ''}`);
+  }
+  const bench = rawWanted ? {
+    raw: rawForBench(said.first, names),
+    ...(retried ? { rawRetry: rawForBench(said.retry, names) } : {}),
+    ...(scope.usage ? { usage: { prompt: scope.usage.prompt, completion: scope.usage.completion, cached: scope.usage.cached, calls: scope.usage.calls } } : {}),
+  } : {};
+  res.json({ reply, v: 2, honest, retried, dropped, logged, sentences,
+    ...(body.benchModel ? { model } : {}), ...(body.variant ? { variant } : {}), ...bench });
+  return true;
+}
+
+/*
+ * RIOT'S RECORD OF A FRAME'S ROUND (8.5.0): an 8.5.0 client asking about a
+ * frame of a linked match sends that round's facts as its review keeps them
+ * (`riot`), and they go in the facts line, each one bounded: the killer an
+ * agent the game knows, the gun a word the game knows, numbers in range.
+ */
+function riotFrameFacts(r) {
+  if (!r || typeof r !== 'object') return null;
+  const n = Number.isInteger(r.round) && r.round > 0 && r.round <= 40 ? r.round : null;
+  const parts = [];
+  if (r.won === true) parts.push('your team won the round');
+  if (r.won === false) parts.push('your team lost the round');
+  const sec = Number.isFinite(r.sec) && r.sec >= 0 && r.sec < 300 ? Math.round(r.sec) : null;
+  const killer = typeof r.killer === 'string' ? DETECTABLE_AGENTS.find((a) => a.toLowerCase() === r.killer.trim().toLowerCase()) : null;
+  const weapon = typeof r.weapon === 'string' && GAME_WORDS.has(r.weapon.trim().toLowerCase()) ? r.weapon.trim() : null;
+  if (r.died === true || sec !== null) {
+    parts.push(`the player died${sec !== null ? ` ${sec} s in` : ''}${killer ? `, to ${killer}${weapon ? ` with ${/^[aeiou]/i.test(weapon) ? 'an' : 'a'} ${weapon}` : ''}` : ''}`);
+  } else if (r.died === false) parts.push('the player survived the round');
+  if (r.firstDeath === true) parts.push('the first death of the round');
+  if (r.traded === true) parts.push('traded by a teammate within five seconds');
+  if (r.traded === false) parts.push('not traded');
+  const a = r.alive;
+  if (a && Number.isInteger(a.mates) && Number.isInteger(a.enemies) && a.mates >= 1 && a.mates <= 5 && a.enemies >= 0 && a.enemies <= 5) {
+    parts.push(`${a.mates} against ${a.enemies} standing`);
+  }
+  const site = typeof r.plantSite === 'string' && /^[ABC]$/.test(r.plantSite) ? r.plantSite : null;
+  if (r.afterPlant === true) parts.push(`after the spike was planted${site ? ` at ${site}` : ''}`);
+  return parts.length ? `${n ? `round ${n}: ` : ''}${parts.join(', ')}.` : null;
 }
 
 // POST /api/coach/chat, JSON body: { messages: [{role,content}], context: {...} }
@@ -3626,8 +4348,24 @@ router.post('/frame-chat', async (req, res) => {
       .slice(-3);
     if (!images.length) return res.status(400).json({ error: 'No frame' });
 
+    // FROM 8.5.0 A FRAME'S QUESTION COUNTS IN ASK COACH'S DAILY CAP (chatRoom),
+    // as a v2 question does; a client before 8.5.0 is never capped.
+    const scope = costScope.getStore() || {};
+    if (clientAtLeast(req, V85) && !scope.bench) {
+      const room = chatRoom(licenseKey, Date.now());
+      if (!room.ok) {
+        chatCounts().capped++;
+        return res.status(429).json({ error: 'chat-daily', resetsAt: new Date(room.resetsAt).toISOString() });
+      }
+      scope.entry = chatEntry(licenseKey, Date.now());
+    }
+    chatCounts().asked.frame++;
+
+    // THE TIP IT GAVE THEN went (8.5.0): no tip has been shown since 8.0, and
+    // what a client still sends as `shown` is not read. A frame of a match
+    // Riot's record linked carries its round's facts instead (riotFrameFacts).
     const st = body.state || {};
-    const shown = String(body.shown || '').slice(0, 300);
+    const riotLine = riotFrameFacts(body.riot);
     const history = (Array.isArray(body.history) ? body.history : [])
       .slice(-8)
       .map((m) => `${m && m.role === 'assistant' ? 'Coach' : 'Player'}: ${String((m && m.content) || '').slice(0, 600)}`)
@@ -3649,7 +4387,7 @@ router.post('/frame-chat', async (req, res) => {
     const prompt = `You are the player's Valorant coach, looking back at a saved moment from their match WITH them. ${images.length > 1 ? 'Several frames are attached in time order; the LAST one is the moment being asked about, the earlier ones are the seconds leading up to it.' : 'One frame is attached: the moment being asked about.'}
 
 WHAT THE APP RECORDED AT THE TIME: ${known.length ? known.join(', ') : 'very little, so rely on the image'}.
-${shown ? `THE TIP IT GAVE THEN: "${shown}"` : ''}
+${riotLine ? `RIOT'S RECORD OF THIS ROUND, exact, it wins over the recorded facts: ${riotLine}` : ''}
 ${history.length ? `\nTHE CONVERSATION SO FAR:\n${history.join('\n')}` : ''}
 
 THE PLAYER ASKS: ${question}
@@ -3657,14 +4395,21 @@ THE PLAYER ASKS: ${question}
 Answer as their coach, talking about this exact moment.
 - Look at the frame properly before answering: the minimap, the HUD, the kill feed at the top right, their health, what is in their hands, where enemies are marked.
 - Ground every claim in what is actually visible or in the recorded facts above. If the frame does not show why something happened, say so plainly instead of inventing a reason. "I cannot tell from this frame" is a good answer when it is the true one.
-- Be specific and practical: what happened, why it happened, and what to do differently. Do not lecture, and do not repeat the tip above word for word.
+- Be specific and practical: what happened, why it happened, and what to do differently. Do not lecture.
 - 2 to 5 sentences, plain conversational English, no markdown, no lists. Use commas and periods, never dashes.`;
 
     const raw = await withTimeout(visionInfer(images, prompt, 420, false, AI.visionModel, { abortMs: 31000 }),
       30000, 'timeout');
     trackCall(licenseKey, images.length);
 
-    const reply = sanitize(stripThinking(String(raw || ''))).trim();
+    // NO PLAYER NAMED (8.5.0): the frame shows names, the kill feed's and the
+    // spectated teammate's, and a sentence carrying one goes (namesSomeoneHere).
+    let reply = sanitize(stripThinking(String(raw || ''))).trim();
+    const unnamed = withoutNames(reply, { names: null, language: 'en' });
+    if (unnamed.dropped) {
+      console.log(`[coach] frame-chat dropped ${unnamed.dropped} sentence(s) that named a player`);
+      reply = unnamed.text || '';
+    }
     if (!reply) return res.json({ error: 'The coach had no answer for that frame. Try asking differently.' });
     res.json({ reply: reply.slice(0, 1200) });
   } catch (e) {
@@ -3677,9 +4422,17 @@ Answer as their coach, talking about this exact moment.
 });
 
 router.post('/chat', async (req, res) => {
+  // The v2 budget runs from here, the licence check inside it.
+  const t0 = Date.now();
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
     if (!await admit(res, licenseKey)) return;
+
+    // ASK COACH V2 (8.5.0): served by chatV2 when this request may have it,
+    // today's answer otherwise, which is everything below, byte for byte.
+    const variant = chatVariant(req);
+    if (variant && await chatV2(req, res, { licenseKey, variant, t0 })) return;
+    chatCounts().asked.v1++;
 
     const body     = req.body || {};
     const messages = (Array.isArray(body.messages) ? body.messages : [])
@@ -3707,10 +4460,16 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
     // The chat works WITH the stats dashboard: it sees the same recent matches
     // and coached sessions the player sees, so "why did my last game rate 58"
     // or "what happened on Lotus" gets a real answer.
+    // NO RATING WHERE NONE CAME (8.5.0): a client from 8.5.0 sends its matches
+    // without the 0 to 100 rating, which is not the grade and read as one, and
+    // this prompt, which answers it until CHAT_PROMPT=v2, said "rating
+    // undefined" on every line. A client before it sends one on every match, so
+    // its prompt is today's, byte for byte.
+    const rated = Array.isArray(ctx.recentMatches) && ctx.recentMatches.some((m) => m && m.rating !== undefined);
     const matchesBlock = Array.isArray(ctx.recentMatches) && ctx.recentMatches.length
-      ? 'Their recent matches (newest first, rating is 0-100):\n'
+      ? `Their recent matches (newest first${rated ? ', rating is 0-100' : ''}):\n`
         + ctx.recentMatches.slice(0, 5).map((m) =>
-            `- ${m.when ? m.when + ', ' : ''}${m.map || '?'} (${m.agent || '?'}${m.queue ? ', ' + m.queue : ''}): ${m.result || '?'} ${m.score || ''}, ${m.kills}/${m.deaths}/${m.assists}, ACS ${m.acs}, ADR ${m.adr}, HS ${m.headshotPct}%, rating ${m.rating}`).join('\n')
+            `- ${m.when ? m.when + ', ' : ''}${m.map || '?'} (${m.agent || '?'}${m.queue ? ', ' + m.queue : ''}): ${m.result || '?'} ${m.score || ''}, ${m.kills}/${m.deaths}/${m.assists}, ACS ${m.acs}, ADR ${m.adr}, HS ${m.headshotPct}%${m && m.rating !== undefined ? `, rating ${m.rating}` : ''}`).join('\n')
         + '\nALWAYS SAY WHICH MATCH YOU MEAN. When you refer to one of these games, name it: the map, the agent, and the result, for example "your Sunset loss on Jett" or "the 13-9 win on Bind this afternoon". "Your last game" and "that match" are useless to someone who has played five, and if two share a map the agent or the time tells them apart. If you are talking about a pattern ACROSS matches, say that explicitly instead ("across your last five, on defence you...").\n'
       : '';
     const sessionsBlock = Array.isArray(ctx.recentSessions) && ctx.recentSessions.length
@@ -3816,6 +4575,7 @@ ${valorant ? `- COACH LIKE THE BEST, in the second half of your reply: diagnose 
         retryInSec: creditsRetryIn() });
     }
     console.error('[coach] chat error:', e.message);
+    chatCounts().failed++;
     // Same reasoning as analyze: without the provider's status this is not
     // diagnosable from outside Railway.
     res.status(500).json({ error: 'Chat failed', upstream: (e && e.status) || null, detail: (e && e.message) || null });
@@ -3844,7 +4604,24 @@ module.exports.__test = {
   // as a route's own, under that route and licence (costScope).
   visionInfer, textInfer,
   asRoute: (route, key, fn) => costScope.run({ route, key: key || null }, fn),
+  // 8.5.0: the version gate, the look's variant, the text model and its
+  // strikes, the name gate as the review and frame chat use it, the fill's
+  // reserve, the MVP cache, and Ask Coach v2's route half: its gates, its
+  // times (a test scales them down), its cap and its counts. `services` puts
+  // a stand in for a lazily loaded service (chatPrompt, nameGate), or null to
+  // load it again: a test of the route's half, never the services'.
+  clientAtLeast, V85, forensicsVariant, chatVariant, textModelNow, textStrikes, AI,
+  namesSomeoneHere, withoutNames, sentencesOf, gateWord, fillRefused, henrikKey, FILL_MAX, FILL_HOLD_MS, FILL_WINDOW_MS,
+  matchMvpCache, mvpKey, CHAT_TIMES, CHAT_TOKENS, CHAT_RETRY_TOKENS, CHAT_TEMPERATURE, CHAT_MAX_CHARS, HONEST_LINE,
+  chatRoom, chatCap, chatLedger, chatReport, chatParagraphs, cutReply, scrubAsked, ROUND_HASH, riotFrameFacts, benchCall,
+  services: (stand) => {
+    for (const [name, mod] of Object.entries(stand || {})) {
+      if (mod === null) delete lazyLoaded[name]; else lazyLoaded[name] = mod;
+    }
+  },
 };
+// Ask Coach's counts for /api/admin/chat (server.js): today's, counts only.
+module.exports.chatReport = chatReport;
 // The models actually in use, so /health reports THIS rather than keeping its
 // own copy of the defaults. It kept a separate copy and they drifted, which
 // turned the one endpoint whose job is answering "what is live" into a thing
@@ -3862,6 +4639,12 @@ module.exports.liveModels = () => ({
   reviewModel:    AI.reviewModel,
   visionModel: AI.visionModel,
   textModel:   AI.textModel,
+  // The text model unpinned calls go to now (8.5.0): textModel until that
+  // model's own strike moves it to the backstop (textModelNow).
+  textModelNow: textModelNow(),
+  // Ask Coach v2's model, pinned on every v2 answer (8.5.0). The counts are
+  // /api/admin/chat's, never here.
+  chatModel:   AI.chatModel,
   // The data policy the calls carry, and the calls sent again without it
   // (dataPolicyReport): /health spreads this whole object.
   dataPolicy:  dataPolicyReport(),

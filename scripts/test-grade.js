@@ -91,15 +91,17 @@ ok(rounds.every((r) => r.feedKnown === true), "every round of the real record ca
   const none = verify.reconcile([], { perRound: per([]) }).rounds;
   const g0 = grade.valorant({ rounds: none, scoreline: { kills: 14, deaths: 0, assists: 3, acs: 300 }, role: 'Duelist', history: [] });
   const dec = g0.categories.find((c) => c.key === 'decisions');
-  ok(dec.score >= 90 && dec.evidence.join() === 'no avoidable death on record',
-    `no deaths: Decisions scores the top of its curve rather than going unmeasured (${dec.score})`);
+  // Seven rounds are a short match (8.5.0): nothing flagged is judged over
+  // twelve, the five rounds unplayed at the typical share, so 89, not 96.
+  ok(dec.score === 89 && dec.evidence.join(' | ') === 'no avoidable death on record | judged as a short match, over 12 rounds',
+    `no deaths: Decisions scores the top its short match rule allows rather than going unmeasured (${dec.score}: ${dec.evidence.join(' | ')})`);
   // Graded from Riot's record alone, the same count is not a judgement on
   // every death: it counted the deaths with the team ahead in a lost round.
   const g0r = grade.valorant({ rounds: none, scoreline: { kills: 14, deaths: 0, assists: 3, acs: 300 }, role: 'Duelist',
     history: [], riotOnly: true });
   const decR = g0r.categories.find((c) => c.key === 'decisions');
-  ok(decR.score === dec.score && decR.evidence.join() === 'no death with your team ahead in a lost round',
-    `and from Riot's record alone it says what it counted, at the same score (${decR.evidence.join()})`);
+  ok(decR.score === dec.score && decR.evidence.join(' | ') === 'no death with your team ahead in a lost round | judged as a short match, over 12 rounds',
+    `and from Riot's record alone it says what it counted, at the same score (${decR.evidence.join(' | ')})`);
   ok(!g0.provisional && g0.categories.every((c) => c.score !== null) && g0.score !== null,
     `and a complete Riot record is not provisional (${g0.score} ${g0.letter})`);
 
@@ -559,6 +561,176 @@ ok(conceded({ dragonsAgainst: 1, baronsAgainst: 2 }) === 'The enemy took 1 drago
     `a week's repeat carries no one match's place (${w.toImprove.join(' | ')})`);
   const one = assembleReport({ riotId: '', stats: null, reviews: [week(1, 'B Main')], patterns: null, now });
   ok(one.toImprove.some((x) => x.startsWith('Dying at B Main.')), `while one match keeps its own title (${one.toImprove.join(' | ')})`);
+}
+
+// ── A short match is judged over twelve rounds (8.5.0) ──────────────────────
+// The player's Fracture swiftplay (5 to 1, Jett) and Pearl swiftplay (1 to 5,
+// Raze), six rounds each, as the grade reads them: every fact the four
+// categories count, round by round, and the scoreboard with the player's
+// Duelist average, none of the players or the match. The grade they were
+// saved with is today's rule; the short match rule is the player's choice,
+// and the numbers are the ones put to them.
+{
+  const R = (n, o) => ({ n, verified: true, feedKnown: true, died: false, firstDeath: false, firstKill: false, kills: 0, traded: null,
+    trades: 0, aliveAtDeath: null, clutch: null, result: 'won', ...o });
+  const look = (cause) => ({ cause, what: 'You held the angle.', better: 'Take the next fight from somewhere else.', source: 'riot' });
+  const fracture = (r5, r6) => [
+    R(1, { side: 'defending', kills: 1, trades: 1 }),
+    R(2, { side: 'defending', died: true, firstKill: true, kills: 3, traded: true, aliveAtDeath: { mates: 5, enemies: 1 }, forensics: look('repeek') }),
+    R(3, { side: 'defending', kills: 2, trades: 1 }),
+    R(4, { side: 'defending', firstKill: true, kills: 4 }),
+    R(5, { side: 'attacking', result: 'lost', died: true, firstKill: true, kills: 2, traded: false, aliveAtDeath: { mates: 4, enemies: 3 }, forensics: look(r5) }),
+    R(6, { side: 'attacking', died: true, firstDeath: true, kills: 0, traded: false, aliveAtDeath: { mates: 5, enemies: 5 }, forensics: look(r6) }),
+  ];
+  const pearl = (r1, r5) => [
+    R(1, { side: 'attacking', result: 'lost', died: true, traded: false, aliveAtDeath: { mates: 2, enemies: 2 }, forensics: look(r1) }),
+    R(2, { side: 'attacking', firstKill: true, kills: 3, clutch: { vs: 2, won: true } }),
+    R(3, { side: 'attacking', result: 'lost', died: true, traded: true, aliveAtDeath: { mates: 4, enemies: 5 } }),
+    R(4, { side: 'attacking', result: 'lost', died: true, traded: false, aliveAtDeath: { mates: 4, enemies: 5 }, forensics: look('unclear') }),
+    R(5, { side: 'defending', result: 'lost', died: true, firstDeath: true, traded: true, aliveAtDeath: { mates: 5, enemies: 5 }, forensics: look(r5) }),
+    R(6, { side: 'defending', result: 'lost', died: true, kills: 1, traded: false, aliveAtDeath: { mates: 3, enemies: 4 }, forensics: look('unclear') }),
+  ];
+  const fracGrade = (r5, r6) => grade.valorant({ rounds: fracture(r5, r6), scoreline: { kills: 12, deaths: 3, assists: 2, acs: 569 },
+    role: 'Duelist', history: [380, 386, 392].map((acs) => ({ role: 'Duelist', acs })) });
+  const pearlGrade = (r1, r5) => grade.valorant({ rounds: pearl(r1, r5), scoreline: { kills: 4, deaths: 5, assists: 2, acs: 241 },
+    role: 'Duelist', history: [380, 385, 390].map((acs) => ({ role: 'Duelist', acs })) });
+  const sc = (g, k) => g.categories.find((c) => c.key === k).score;
+  // Today's rule, flags over rounds, on the same categories: what each was saved with.
+  const today = (g, flags) => {
+    const cats = g.categories.map((c) => (c.key === 'decisions'
+      ? { ...c, score: grade.curve(flags / 6, grade.DECISIONS_CURVE) + (c.evidence.some((e) => /won 1 clutch/.test(e)) ? 4 : 0) } : c));
+    const score = grade.combine(cats);
+    return `${Math.round(Math.min(100, cats.find((c) => c.key === 'decisions').score))}, ${score} ${grade.letter(score)}`;
+  };
+  const shown = (g) => `${sc(g, 'decisions')}, ${g.score} ${g.letter}`;
+  const frac = fracGrade('lost-duel', 'lost-duel');
+  const fracRe = fracGrade('repeek', 'repeek');
+  const pea = pearlGrade('lost-duel', 'lost-duel');
+  const peaAv = pearlGrade('dry-peek', 'dry-peek');
+  ok(sc(frac, 'survival') === 97 && sc(frac, 'impact') === 100 && sc(frac, 'teamplay') === 87
+    && sc(pea, 'survival') === 66 && sc(pea, 'impact') === 46 && sc(pea, 'teamplay') === 89,
+  'the two matches read as they were saved: Survival, Impact and Teamplay 97, 100, 87 and 66, 46, 89');
+  ok(today(frac, 2) === '50, 84 A' && today(pea, 0) === '100, 73 B' && today(fracRe, 3) === '42, 82 A' && today(peaAv, 2) === '54, 62 C',
+    `under the rule before, flags over rounds, they are what they were saved with, 84 A and 73 B, and their relabelled copies 82 A and 62 C (${[today(frac, 2), today(fracRe, 3), today(pea, 0), today(peaAv, 2)].join('; ')})`);
+  ok(shown(frac) === '63, 87 A' && shown(fracRe) === '53, 85 A' && shown(pea) === '92, 71 B' && shown(peaAv) === '67, 65 C',
+    `judged over twelve rounds they are the numbers put to the player: Fracture 63, 87 A, with rounds 5 and 6 Repeeks 53, 85 A; Pearl 92, 71 B, with rounds 1 and 5 avoidable 67, 65 C (${[shown(frac), shown(fracRe), shown(pea), shown(peaAv)].join('; ')})`);
+  // One label, the first: Pearl with round 1 avoidable and round 5 a lost duel.
+  const peaOne = pearlGrade('dry-peek', 'lost-duel');
+  const swingToday = 100 - Math.round(grade.curve(1 / 6, grade.DECISIONS_CURVE) + 4);
+  ok(swingToday === 25 && sc(pea, 'decisions') - sc(peaOne, 'decisions') === 13,
+    `so one label in six rounds moves Decisions about half as far as it did: 25 points then, ${sc(pea, 'decisions') - sc(peaOne, 'decisions')} now`);
+  const line = (g) => g.categories.find((c) => c.key === 'decisions').evidence;
+  ok(line(frac).slice(-1)[0] === 'judged as a short match, over 12 rounds' && grade.SHORT_MATCH_LINE === 'judged as a short match, over 12 rounds'
+    && line(frac).length === 3, `and its evidence says how it was judged (${line(frac).join(' | ')})`);
+  ok(Math.round(grade.curve(grade.TYPICAL_SHARE, grade.DECISIONS_CURVE)) === 79 && grade.TYPICAL_SHARE === 0.12 && grade.SHORT_MATCH_ROUNDS === 12,
+    'the typical share, 0.12, is the one the curve gives 79 for, the median of the player\'s twelve saved Decisions grades');
+  ok(grade.decisionsShare(2, 6) === (2 + 0.12 * 6) / 12 && grade.decisionsShare(1, 11) === (1 + 0.12) / 12
+    && grade.decisionsShare(3, 12) === 3 / 12 && grade.decisionsShare(6, 24) === 6 / 24,
+  'a match under twelve rounds is filled up to twelve at it, and twelve or more is flags over rounds as it was');
+  // Twelve rounds and more as they always were: the real Abyss 13 to 11.
+  const abyssDec = g.categories.find((c) => c.key === 'decisions');
+  const flagged = new Set(rounds.filter((r) => r.died && r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies && r.result === 'lost').map((r) => r.n));
+  ok(abyssDec.score === Math.round(grade.curve(flagged.size / 24, grade.DECISIONS_CURVE)) && !abyssDec.evidence.includes(grade.SHORT_MATCH_LINE),
+    `a 24 round match is judged on its own rounds, with no such line (${abyssDec.score}: ${abyssDec.evidence.join(' | ')})`);
+  const twelve = grade.valorant({ rounds: Array.from({ length: 12 }, (_, i) => R(i + 1, { side: 'defending' })), scoreline: null, role: 'Duelist', history: [] });
+  const eleven = grade.valorant({ rounds: Array.from({ length: 11 }, (_, i) => R(i + 1, { side: 'defending' })), scoreline: null, role: 'Duelist', history: [] });
+  ok(!line(twelve).includes(grade.SHORT_MATCH_LINE) && line(eleven).includes(grade.SHORT_MATCH_LINE) && sc(twelve, 'decisions') === 96,
+    'twelve rounds are no short match, eleven are');
+
+  // A grade already saved is shown as it was saved: the review page, the
+  // library and the patterns read it, nothing grades it again.
+  const saved = { kind: 'valorant', source: 'watched', game: { map: 'Fracture', agent: 'Jett', mode: 'Swiftplay' },
+    grade: { score: 84, letter: 'A', provisional: false, categories: [
+      { key: 'survival', label: 'Survival', weight: 25, score: 97, evidence: ['3 deaths in 6 rounds'] },
+      { key: 'impact', label: 'Impact', weight: 30, score: 100, evidence: ['569 combat score a round'] },
+      { key: 'teamplay', label: 'Teamplay', weight: 20, score: 87, evidence: ['1 of 3 deaths traded by a teammate'] },
+      { key: 'decisions', label: 'Decisions', weight: 25, score: 50, evidence: ['1 of the 3 deaths the coach looked at was avoidable'] }], notes: [] },
+    rounds: [], insights: { mistakes: [], strengths: [], missed: [] } };
+  const before = JSON.stringify(saved.grade);
+  const served = review.served(saved);
+  const lib = patterns.summarise([{ id: 'valorant-1791938248922-shrt01', at: 1791938248922, game: 'valorant', review: saved },
+    { id: 'valorant-1791938248000-shrt02', at: 1791938248000, game: 'valorant', review: saved }]);
+  ok(JSON.stringify(served.grade) === before && JSON.stringify(saved.grade) === before
+    && lib.grades.every((x) => x.score === 84) && lib.categories.find((c) => c.key === 'decisions').last === 50,
+  'a review saved with a grade is shown and counted with that grade, never judged again');
+}
+
+// ── Repeek, widened: one lesson counted as one (8.5.0) ──────────────────────
+// The Fracture swiftplay's rounds 2, 5 and 6 had the same better play, to
+// get out of sight after the first shots, under three labels. Looked at with
+// variant b they can be one cause, and counted, with its fix, in the review,
+// in what the narrative is told and across matches. The chip and the titles
+// are as they were.
+{
+  const causes = require('../src/shared/death-causes');
+  ok(causes.CAUSES.repeek.detail === 'fought again from the same angle after the first exchange'
+    && causes.CAUSES.repeek.one === 'Repeek' && causes.CAUSES.repeek.title === 'Repeeks' && causes.isAvoidable('repeek'),
+  "repeek's words are widened, its chip and titles kept");
+  const R = (n, o) => ({ n, side: 'defending', result: 'won', died: false, verified: true, kills: 1, firstKill: false, firstDeath: false,
+    traded: null, trades: 0, deathSpot: null, early: false, planted: false, afterPlant: false, reads: [], ...o });
+  const lookAt = (n, what) => ({ cause: 'repeek', what, better: 'After the first exchange, get out of their sight.', fight: 'wrong-time', change: 'timing', variant: 'b' });
+  const six = [R(1), R(2, { died: true, traded: true, forensics: lookAt(2, 'You stayed on the A Main angle after the first exchange.') }), R(3), R(4),
+    R(5, { side: 'attacking', result: 'lost', died: true, traded: false, forensics: lookAt(5, 'You stayed on the A Site angle after your first shots.') }),
+    R(6, { side: 'attacking', died: true, traded: false, forensics: lookAt(6, 'You took the next shot from the same open spot at B Tree.') })];
+  const ins = insights.valorant(six, { role: 'Duelist' });
+  const rep = ins.mistakes.find((e) => e.key === 'cause:repeek');
+  ok(rep && rep.title === 'Repeeks' && rep.count === 3 && rep.rounds.join() === '2,5,6' && rep.judged
+    && rep.detail === 'The coach looked at the moment before 3 deaths and saw the same thing: fought again from the same angle after the first exchange, rounds 2, 5 and 6.',
+  `three looks at one lesson are one repeated mistake, "Repeeks, rounds 2, 5 and 6" (${rep && rep.detail})`);
+  ok(rep && rep.fix === 'After the first exchange or a kill, get out of their sight and take the next fight from somewhere else.',
+    `with the widened fix (${rep && rep.fix})`);
+  const body = review.requestBody({ rounds: six, context: { agent: 'Jett', map: 'Fracture', teamScore: 5, enemyScore: 1 }, endedBy: 'score' });
+  ok(body.mistakes[0] && body.mistakes[0].key === 'cause:repeek' && body.mistakes[0].rounds.join() === '2,5,6' && body.mistakes[0].title === 'Repeeks',
+    `the narrative is told it, its first counted mistake, so the summary and the focus name it (${body.mistakes.map((m) => m.key).join(', ')})`);
+  ok(!ins.missed.some((e) => e.key === 'cause:repeek'), 'and it is not listed again as a single miss');
+  // An old repeek, "peeked it again", reads true under the same words.
+  const old = insights.valorant(six.map((r) => (r.forensics ? { ...r, forensics: { cause: 'repeek', what: 'You peeked the same angle again after your kill.',
+    better: 'Change angle.' } } : r)), { role: 'Duelist' });
+  ok(old.mistakes.find((e) => e.key === 'cause:repeek').title === 'Repeeks', 'a repeek looked at by today\'s prompt counts the same, under the same key');
+}
+
+// ── A cause's trend is one prompt's (8.5.0) ─────────────────────────────────
+// Variant b widened what a repeek is, so a repeek counted across the two
+// prompts would read as rising for its definition's growth. Its newer and
+// older halves are compared only across the matches the newest look's prompt
+// looked at, and it shows no trend before four of them. Its counts are every
+// match's.
+{
+  const at0 = 1792000000000;
+  let k = 0;
+  const match = (variant, repeek, extra) => {
+    k++;
+    const id = `valorant-${at0 - k * 3600000}-trv${String(k).padStart(3, '0')}`;
+    const look = (n) => ({ cause: repeek ? 'repeek' : 'lost-duel', what: 'x.', better: 'y.', ...(variant ? { variant } : {}) });
+    return { id, at: at0 - k * 3600000, game: 'valorant', review: { kind: 'valorant', source: 'watched', game: { map: 'Fracture' },
+      rounds: [{ n: 2, forensics: look(2) }, { n: 5, forensics: look(5) }],
+      insights: { strengths: [], missed: [], mistakes: [
+        ...(repeek ? [{ key: 'cause:repeek', title: 'Repeeks', detail: 'x', rounds: [2, 5], count: 2, weight: 2, judged: true }] : []),
+        ...(extra || []),
+      ] } } };
+  };
+  const untraded = [{ key: 'untraded', title: 'Died where nobody could trade', detail: 'x', rounds: [1, 2, 3], count: 3, weight: 2 }];
+  // Newest first: four looked at by b, every one a repeek; four by a before them, none.
+  const lib = [match('b', true, untraded), match('b', true, untraded), match('b', true, untraded), match('b', true, untraded),
+    match(null, false), match(null, false), match(null, false), match(null, false)];
+  const p = patterns.summarise(lib);
+  const rep = p.mistakes.find((m) => m.key === 'cause:repeek');
+  const unt = p.mistakes.find((m) => m.key === 'untraded');
+  ok(rep && rep.matches === 4 && rep.trend === 'steady' && unt.trend === 'rising',
+    `four b matches all with repeeks read steady, where counted against the a matches before them they read rising, as a key of no prompt still does (repeek ${rep && rep.trend}, untraded ${unt && unt.trend})`);
+  ok(patterns.lookVariant(lib[0].review) === 'b' && patterns.lookVariant(lib[4].review) === 'a'
+    && patterns.lookVariant({ rounds: [{ n: 1, forensics: null }] }) === null
+    && patterns.lookVariant({ rounds: [{ n: 1, forensics: { cause: 'repeek', variant: 'b' } }, { n: 2, forensics: { cause: 'isolated' } }] }) === null,
+  'a look saved with no variant was asked with a; a match never looked at, or by both, is no prompt\'s');
+  const three = patterns.summarise([match('b', true), match('b', true), match('b', true), match(null, true), match(null, true), match(null, true)]);
+  const rep3 = three.mistakes.find((m) => m.key === 'cause:repeek');
+  ok(rep3 && rep3.matches === 6 && rep3.total === 12 && rep3.trend === null,
+    `three b matches are no trend yet, and its count is all six matches' (${rep3 && `${rep3.matches} matches, ${rep3.total} times, trend ${rep3.trend}`})`);
+  const fewer = patterns.summarise([match('b', true), match('b', false), match('b', false), match('b', false), match('b', false), match('b', false)]);
+  ok(fewer.mistakes.length === 0 || !fewer.mistakes.some((m) => m.key === 'cause:repeek'), 'one sighting is no pattern, whatever its prompt');
+  const falling = patterns.summarise([match('b', false), match('b', false), match('b', true), match('b', true), match(null, true), match(null, true)]);
+  ok(falling.mistakes.find((m) => m.key === 'cause:repeek').trend === 'falling', 'and within b it can fall, the newer two without it, the older two with');
+  ok(patterns.TREND_MATCHES === 4, 'four matches before a trend, for any key');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' grade and library checks passed'}`);

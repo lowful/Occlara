@@ -371,6 +371,42 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     `a note that arrives with a source is kept as its text alone (${JSON.stringify(built.study)})`);
 }
 
+// ── Study by cause (8.5.0, match-review.js CAUSE_TOPICS) ────────────────────
+// A death's cause sends the study list to its topics: a counted `cause:`
+// mistake as a pattern does (+5), a single looked at death by +2, for a
+// client of 8.5.0 or later (byCause, which the route sets by the version
+// gate). A client before it is listed its notes as today. And every topic a
+// pattern or a cause names is one a note carries (check:playbook), which a
+// planted topic nobody carries must fail.
+{
+  const knowledge = require('../server/services/knowledge');
+  const topicOf = (text) => { const n = knowledge.all().find((x) => x.text === text); return n && n.source ? n.source.topic : null; };
+  const topics = (notes) => notes.map((x) => topicOf(x.text));
+  const dry = { n: 2, side: 'attacking', result: 'lost', died: true, cause: 'dry-peek' };
+  const body = { rounds: [dry, { ...dry, n: 5 }], patterns: [], context: { agent: 'Omen', map: 'Pearl' },
+    mistakes: [{ key: 'cause:dry-peek', title: 'Dry peeks', detail: 'Died 2 times', rounds: [2, 5], count: 2 }] };
+  const input = matchReview.normalise(body);
+  const today = topics(matchReview.study(input, 3));
+  const counted = topics(matchReview.study({ ...input, byCause: true }, 3));
+  ok(matchReview.CAUSE_TOPICS['dry-peek'].includes('planning the peek') && counted.includes('planning the peek') && !today.includes('planning the peek'),
+    `a counted dry peek sends the study list to planning the peek, for a client of 8.5.0 or later (${counted.join(', ')}, where today it is ${today.join(', ')})`);
+  ok(JSON.stringify(matchReview.study(input, 3)) === JSON.stringify(matchReview.study(matchReview.normalise(body), 3)) && input.byCause === undefined,
+    'and without byCause the list is today\'s, which normalise never sets');
+  const single = topics(matchReview.study({ ...matchReview.normalise({ ...body, mistakes: [], rounds: [dry] }), byCause: true }, 3));
+  ok(single.includes('planning the peek'), `one death the coach looked at moves its cause's topics up too (${single.join(', ')})`);
+  const carried = new Set(knowledge.all().map((n) => n.source && n.source.topic).filter(Boolean));
+  const named = [...Object.values(matchReview.PATTERN_TOPICS), ...Object.values(matchReview.CAUSE_TOPICS)].flat();
+  ok(named.every((t) => carried.has(t)) && Object.keys(matchReview.CAUSE_TOPICS).sort().join() === 'crossfire,dry-peek,exposed,isolated,overextend,repeek,rotating',
+    'every topic a pattern or a cause names is one a note carries, and the seven avoidable causes have topics');
+  const { spawnSync } = require('child_process');
+  const playbook = (env) => spawnSync(process.execPath, [require('path').join(__dirname, 'check-playbook.js')],
+    { encoding: 'utf8', env: { ...process.env, ...env } });
+  const clean = playbook({});
+  const planted = playbook({ CHECK_PLAYBOOK_TOPIC: 'a topic nobody carries' });
+  ok(clean.status === 0 && planted.status === 1 && /CAUSE_TOPICS\.planted sends the player to "a topic nobody carries"/.test(planted.stdout + planted.stderr),
+    `and check:playbook fails a topic no note carries (${clean.status}, ${planted.status})`);
+}
+
 // ── The side study leans to is the side the patterns name (8.3.1) ──────────
 // The sides pattern names a stronger side only on a gap of two rounds, and
 // study() leaned on any gap: the player's Sunset swiftplay, 1 of 4 on attack
@@ -937,6 +973,7 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     ok(looked.length === 2 && looked[0].agent === 'Jett' && looked[0].agentConfirmed === true && looked[1].agent === 'Sova'
       && snap.context.agent === 'Sova',
     `the look from the screen after the scoreboard linked is told Riot's agent, before it the HUD's, the review's own context left as it was (${looked.map((c) => c && c.agent).join(', ')})`);
+
   }
   // One round won on each side is no stronger side.
   const pats = review.patterns(rows);
@@ -1506,6 +1543,62 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const clutch = full([K(5000, 'r1', 'b2'), K(6000, 'r1', 'b3'), K(7000, 'r2', 'b4'), K(8000, 'r2', 'b5'),
     K(20000, 'me', 'r1'), K(25000, 'me', 'r2')], 'Blue');
   ok(clutch.clutch && clutch.clutch.vs === 5 && clutch.clutch.won === true, 'last one standing against five, and won it');
+}
+
+// ── Riot's record by agent and gun, and the name set kept on the server (8.5.0) ─
+// Both comps and each kill's agents and gun reach the reply, so Ask Coach can
+// tell a round in order; the players' names go into the match's name set,
+// hashed on the server, and into nothing the parse returns.
+{
+  const riotRounds = require('../server/services/riot-rounds');
+  const P = (id, team, agent) => ({ name: `Name${id}`, tag: `T${id}`, puuid: `puuid-${id}-x`, team_id: team, agent: { name: agent }, stats: {} });
+  const players = [P('me', 'Blue', 'Jett'), P('b2', 'Blue', 'Omen'), P('b3', 'Blue', 'Sova'), P('b4', 'Blue', 'Killjoy'), P('b5', 'Blue', 'Raze'),
+    P('r1', 'Red', 'Reyna'), P('r2', 'Red', 'Viper'), P('r3', 'Red', 'Fade'), P('r4', 'Red', 'Cypher'), { ...P('r5', 'Red', 'Neon'), agent: null }];
+  const K = (round, ms, killer, victim, weapon) => ({ round, time_in_round_in_ms: ms, killer: { puuid: `puuid-${killer}-x` },
+    victim: { puuid: `puuid-${victim}-x` }, weapon });
+  const d = {
+    metadata: { map: { name: 'Bind' }, queue: { id: 'competitive' } },
+    players,
+    teams: [{ team_id: 'Blue', rounds: { won: 1 } }, { team_id: 'Red', rounds: { won: 1 } }],
+    rounds: [{ winning_team: 'Red' }, { winning_team: 'Blue' }],
+    kills: [K(0, 9000, 'r1', 'me', { name: 'Sheriff', type: 'Weapon' }), K(0, 12000, 'b2', 'r1', { name: 'Vandal' }),
+      K(1, 7000, 'me', 'r3', { name: null, type: 'Ability' }), K(1, 8000, 'r5', 'b4', { name: 'Phantom' })],
+  };
+  const out = riotRounds.parse(d, 'Nameme', 'Tme');
+  ok(JSON.stringify(out.comps) === JSON.stringify({
+    us: [{ agent: 'Jett', role: 'Duelist' }, { agent: 'Killjoy', role: 'Sentinel' }, { agent: 'Omen', role: 'Controller' },
+      { agent: 'Raze', role: 'Duelist' }, { agent: 'Sova', role: 'Initiator' }],
+    them: [{ agent: 'Cypher', role: 'Sentinel' }, { agent: 'Fade', role: 'Initiator' }, { agent: 'Reyna', role: 'Duelist' }, { agent: 'Viper', role: 'Controller' }] }),
+  `both comps by agent and role, sorted by agent, a player the payload names no agent for left out (${JSON.stringify(out.comps)})`);
+  const [r1, r2] = out.perRound.map((r) => r.feed);
+  ok(JSON.stringify(r1) === JSON.stringify([{ ms: 9000, by: 'enemy', on: 'me', ka: 'Reyna', va: 'Jett', w: 'Sheriff' },
+    { ms: 12000, by: 'mate', on: 'enemy', ka: 'Omen', va: 'Reyna', w: 'Vandal' }])
+    && JSON.stringify(r2) === JSON.stringify([{ ms: 7000, by: 'me', on: 'enemy', ka: 'Jett', va: 'Fade', w: null },
+      { ms: 8000, by: 'enemy', on: 'mate', ka: null, va: 'Killjoy', w: 'Phantom' }]),
+  'each kill says both ends by agent, a player with no agent none, and its gun by name or none, never its type');
+  ok(out.perRound[0].traded === true && out.perRound[0].killerAgent === 'Reyna' && out.perRound[0].weapon === 'Sheriff',
+    'and the round facts every client reads are as they were');
+  ok(!/Name(me|b\d|r\d)|\bT(me|b\d|r\d)\b|puuid-/.test(JSON.stringify(out)), 'nothing the parse returns carries a name, a tag or an id');
+  const older = riotRounds.parse({ ...d, players: { all_players: players }, teams: { blue: { rounds_won: 1 }, red: { rounds_won: 1 } } }, 'Nameme', 'Tme');
+  ok(JSON.stringify(older.comps) === JSON.stringify(out.comps), 'an older payload\'s shape gives the same comps');
+  const replication = riotRounds.compsOf([P('a', 'Blue', 'Jett'), P('b', 'Blue', 'Jett'), P('c', 'Red', 'Sage')], 'blue');
+  ok(JSON.stringify(replication) === '{"us":[{"agent":"Jett","role":"Duelist"},{"agent":"Jett","role":"Duelist"}],"them":[{"agent":"Sage","role":"Sentinel"}]}',
+    'a Replication team is five of one agent, each listed');
+  const ID = '6f1e2d3c-bbbb-4ccc-8ddd-abcdefabcdef';
+  riotRounds.noteNames(ID, { players: [...players, { name: 'Hold Phantom', tag: '1234' }, { name: 'xo', tag: 'EUW' }] });
+  const set = riotRounds.nameSetOf(ID);
+  ok(set && set.has('nice shot nameb2') && set.has('the tr3 tag') && set.has('EUW') && !set.has('Hold the angle with your Phantom')
+    && !set.has('1234 damage') && !set.has('xo') && JSON.stringify(set) === '{}',
+  "the match's name set holds every word of the names and tags but the game's, plain English, digits and words under three letters, and prints nothing");
+  // The name gate's own words are no word of a name to the set either: a
+  // player called "Behind Cover" with the tag "Angle" took every look line
+  // saying "fall back behind cover" or "staying on the angle" with them.
+  const PLAY = 'c0ffee00-1111-4222-8333-444455556666';
+  riotRounds.noteNames(PLAY, { players: [{ name: 'Behind Cover', tag: 'Angle' }, { name: 'Tessik', tag: 'Crosshair' }] });
+  const play = riotRounds.nameSetOf(PLAY);
+  ok(play && play.has('Your teammate Tessik was ahead of you.') && !play.has('Fall back behind cover after the first exchange.')
+    && !play.has('You stayed on the angle with your crosshair low.'),
+  "and the name gate's plain words of play are none of its words, while the rest of a name is");
 }
 
 // ── The real swiftplay match ────────────────────────────────────────────────

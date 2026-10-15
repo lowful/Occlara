@@ -23,6 +23,7 @@ const grader = require('./grade');
 const { CLIP_RE, LOOK_AT } = require('./clips');
 const { roleOf } = require('./agent-roles');
 const { weaponName } = require('./valorant-verify');
+const { FIGHTS, CHANGES } = require('./death-causes');
 
 let DATA = {};
 try {
@@ -196,6 +197,62 @@ function lookFrames(f) {
     ...(at ? { frameAt: at } : {}),
     ...(f.framesFrom === 'recording' || f.framesFrom === 'reads' ? { framesFrom: f.framesFrom } : {}),
   };
+}
+
+/*
+ * WHAT A LOOK ASKED WITH VARIANT B ALSO SAYS (8.5.0): its judgement of the
+ * fight, the one thing its better play changes most, each from its closed list
+ * (death-causes.js FIGHTS, CHANGES), and the prompt it was asked with. Kept
+ * only where the look carries them; a look saved without a variant was asked
+ * with a (death-causes.js variantOf).
+ */
+function lookJudgement(f) {
+  const out = {};
+  if (FIGHTS.includes(f && f.fight)) out.fight = f.fight;
+  if (CHANGES.includes(f && f.change)) out.change = f.change;
+  if (f && (f.variant === 'a' || f.variant === 'b')) out.variant = f.variant;
+  return out;
+}
+
+/*
+ * BOTH TEAM COMPS, AGENTS ONLY (8.5.0): Riot's record of the match names
+ * every player's agent, and the server sends them sorted by agent, so nothing
+ * in them says which player was which (riot-rounds.js compsOf). Kept on the
+ * review from the link (here) or Ask Coach's one time fill, each an agent the
+ * game data knows with its role from that data, whatever arrived, and sorted
+ * again: a name that reached here would be shown on the review page, and an
+ * order could say who was who.
+ */
+function compsOf(c) {
+  if (!c || typeof c !== 'object') return null;
+  const agents = Object.keys(DATA.agents || {});
+  const team = (xs) => (Array.isArray(xs) ? xs : []).slice(0, 5).map((x) => {
+    const name = x && typeof x.agent === 'string' ? agents.find((a) => a.toLowerCase() === x.agent.trim().toLowerCase()) : null;
+    return name ? { agent: name, role: roleOf(name) || null } : null;
+  }).filter(Boolean).sort((a, b) => a.agent.localeCompare(b.agent));
+  const us = team(c.us);
+  const them = team(c.them);
+  return us.length || them.length ? { us, them } : null;
+}
+
+/*
+ * THE COMPS LINE (8.5.0, the player's choice: one line under the round
+ * strip), computed when a review is shown, never kept on disk: "Your team:
+ * Breach, Jett (you), Killjoy, Omen, Sova. Theirs: Cypher, Fade, Reyna, Sage,
+ * Viper." Both teams must be known, each by agents the game data knows, and
+ * "(you)" marks the player's own agent where the review names it. Null with
+ * no comps, as every review saved before the link or the fill kept them.
+ */
+function compsLine(review) {
+  const c = compsOf(review && review.comps);
+  if (!c || !c.us.length || !c.them.length) return null;
+  const mine = review.game && typeof review.game.agent === 'string' ? review.game.agent.toLowerCase() : null;
+  let marked = false;
+  const us = c.us.map((x) => {
+    if (!marked && mine && x.agent.toLowerCase() === mine) { marked = true; return `${x.agent} (you)`; }
+    return x.agent;
+  });
+  return `Your team: ${us.join(', ')}. Theirs: ${c.them.map((x) => x.agent).join(', ')}.`;
 }
 
 /*
@@ -534,6 +591,13 @@ function build(input) {
       alive: r.aliveAtDeath && typeof r.aliveAtDeath.mates === 'number'
         ? { mates: r.aliveAtDeath.mates, enemies: r.aliveAtDeath.enemies } : null,
       afterPlant: !!r.afterPlant,
+      // The round in order (8.5.0, valorant-verify.js): Riot's kill feed by
+      // side and agent, never a name, and the plant's moment and site, so Ask
+      // Coach tells it with no fill (chat-context.js needsFill). Only where the
+      // record had them, so a review built before keeps its shape.
+      ...(Array.isArray(r.feed) ? { feed: r.feed } : {}),
+      ...(typeof r.riotPlantMs === 'number' ? { plantSec: Math.round(r.riotPlantMs / 100) / 10 } : {}),
+      ...(r.plantSite ? { plantSite: r.plantSite } : {}),
     } : null,
     facts: roundFacts(r, { riotOnly }),
     reads: readsOf(r, mapName, kitAgent),
@@ -561,6 +625,13 @@ function build(input) {
       // that never timed its frames: a number, never the wall clock.
       clipDeath: typeof r.forensics.clip === 'string' && CLIP_RE.test(r.forensics.clip)
         && typeof r.forensics.clipDeath === 'number' && Number.isFinite(r.forensics.clipDeath) ? r.forensics.clipDeath : null,
+      // What a look asked with variant b also says (8.5.0, death-causes.js):
+      // its judgement of the fight, the one thing its better play changes, and
+      // the prompt it was asked with, which a cause's trend is held to
+      // (patterns.js lookVariant). Data for Ask Coach and the trend, never the
+      // grade, and only where the look said it, so a card saved before keeps
+      // its keys: a look with no variant was asked with a.
+      ...lookJudgement(r.forensics),
     } : null,
   }));
 
@@ -709,6 +780,10 @@ function build(input) {
     rounds: cards,
     against: vs,
     refused,
+    // Both team comps from Riot's record (8.5.0, compsOf), where the link had
+    // them: agents and roles only. The page's comps line is computed from it
+    // when shown (compsLine), and Ask Coach is told it.
+    ...(compsOf(input.comps) ? { comps: compsOf(input.comps) } : {}),
   };
 }
 
@@ -745,10 +820,16 @@ function riotOnlyNote(grade, riotOnly) {
 function served(review) {
   if (!review || review.kind !== 'valorant') return review;
   if (review.source === 'riot') {
-    return weaponsInTodaysWords({ ...review, insights: insights.asFacts(review.insights), grade: grader.riotWords(review.grade) });
+    return withCompsLine(weaponsInTodaysWords({ ...review, insights: insights.asFacts(review.insights), grade: grader.riotWords(review.grade) }));
   }
   const out = review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review;
-  return weaponsInTodaysWords(aboutNotesInTodaysWords(out));
+  return withCompsLine(weaponsInTodaysWords(aboutNotesInTodaysWords(out)));
+}
+
+/** The review as shown, with its comps line (8.5.0) where it has comps, never on disk. */
+function withCompsLine(review) {
+  const line = compsLine(review);
+  return line ? { ...review, compsLine: line } : review;
 }
 
 /*
@@ -979,4 +1060,5 @@ function against(tracker, role, history) {
 }
 
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
-  queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, BASELINE_GAMES, BASELINE_MIN };
+  queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, lookJudgement,
+  BASELINE_GAMES, BASELINE_MIN };

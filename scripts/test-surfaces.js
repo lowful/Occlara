@@ -1581,6 +1581,22 @@ async function openShell(cfg, state, opts) {
       && advice(m2).querySelector('.v-look-better').textContent === 'BetterWait for the flash.',
     'the cause, marked as the coach\'s look, what happened and the better play', classes(advice(m2)).join(' | '));
     ok(!rc(2).querySelector('.v-why'), 'and Riot\'s look that speaks takes its round\'s why\'s place, the why being written from that look');
+    // THE CHIPS ARE AS THEY WERE (8.5.0): a look asked with variant b carries
+    // its fight, change and variant beside its cause, and draws the chip and
+    // the words a look of the same cause always drew, none of the three shown.
+    const chipOf = async (forensics) => {
+      const page = await open({ ...base, rounds: [{ ...base.rounds[1], forensics: { ...base.rounds[1].forensics, ...forensics } }] });
+      const a = advice(page.$('moment-2'));
+      return { tag: a.querySelector('.v-look-tag').textContent, tone: a.querySelector('.v-cause').className, text: page.$('vreview').textContent };
+    };
+    const repA = await chipOf({ cause: 'repeek' });
+    const repB = await chipOf({ cause: 'repeek', fight: 'wrong-time', change: 'timing', variant: 'b' });
+    const duelB = await chipOf({ cause: 'lost-duel', fight: 'right', change: 'aim', variant: 'b' });
+    ok(repA.tag === "Coach's lookRepeek" && repB.tag === repA.tag && repB.tone === repA.tone && /\bbad\b/.test(repB.tone)
+      && duelB.tag === "Coach's lookLost the duel" && /\bneutral\b/.test(duelB.tone)
+      && !/wrong-time|wrong time|timing|variant/i.test(repB.text.replace(repA.text, '')),
+    'a look asked with variant b draws the chip its cause always had, Repeek and Lost the duel, and none of its fight, change or variant',
+    `${repB.tag} | ${duelB.tag}`);
     // The screen's look lands after the narrative wrote the round's why
     // (screenLook in src/main/index.js), so that why was written without it:
     // both are shown, the look's block first, then the why's, set apart.
@@ -1846,6 +1862,35 @@ async function openShell(cfg, state, opts) {
     ok(v.$('v-summary').hidden && !v.$('v-summary-wrap').hidden && !v.$('v-focus-wrap').hidden
       && !read.$('v-summary').hidden && read.$('v-summary').textContent === 'You lost 2 to 5.',
     'the coach\'s read with only a focus shows the focus under its heading, and no empty line for the read');
+  });
+
+  // BOTH TEAM COMPS, ONE LINE UNDER THE STRIP (8.5.0, the player's choice),
+  // as main presents the review (valorant-review.js served, compsLine):
+  // agents the game data knows and nothing else, the player's own marked, set
+  // by textContent, and no line at all for a review that kept no comps.
+  await section('the review names both team comps in one line under the strip:', async () => {
+    const vr = require('../src/shared/valorant-review');
+    const open = async (r) => {
+      const v = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => vr.served(r) } });
+      await settle();
+      return v;
+    };
+    const base = { id: 'valorant-1759341600000-comps1', kind: 'valorant', source: 'watched', aiLog: null,
+      game: { map: 'Fracture', agent: 'Jett', result: 'Victory', score: '5-1' },
+      rounds: [{ n: 1, side: 'Attack', result: 'won', died: false, facts: ['Survived'], reads: [], why: null, forensics: null }],
+      patterns: [], insights: { mistakes: [], strengths: [], missed: [] },
+      comps: { us: [{ agent: 'Breach', role: 'Initiator' }, { agent: 'Jett', role: 'Duelist' }, { agent: 'Killjoy', role: 'Sentinel' },
+        { agent: 'Omen', role: 'Controller' }, { agent: 'Sova', role: 'Initiator' }],
+      them: [{ agent: 'Cypher' }, { agent: 'Fade' }, { agent: 'Reyna' }, { agent: 'Sage' }, { agent: 'Morvane#EUW' }] } };
+    const v = await open(base);
+    const line = v.$('v-comps');
+    ok(!line.hidden && line.textContent === 'Your team: Breach, Jett (you), Killjoy, Omen, Sova. Theirs: Cypher, Fade, Reyna, Sage.'
+      && line.parentNode === v.$('v-rounds-wrap') && !/Morvane/.test(v.$('vreview').textContent),
+    'one line of agents under the strip, the player\'s own marked, and nothing that is no agent', line.textContent);
+    const none = await open({ ...base, comps: undefined });
+    ok(none.$('v-comps').hidden && none.$('v-comps').textContent === '', 'and a review that kept no comps has no line at all');
+    const oneSide = await open({ ...base, comps: { us: base.comps.us, them: [] } });
+    ok(oneSide.$('v-comps').hidden, 'nor one with only its own team known');
   });
 
   await section('Stats, graded matches:', async () => {
@@ -4603,6 +4648,129 @@ async function openShell(cfg, state, opts) {
       }
     }
     ok(seen >= 3, `found the surfaces that translate themselves (${seen})`);
+  });
+
+  // ── Ask Coach (8.5.0): the chip, the starters, the switch, its own lines ───
+  // The chip names the match the thread is about, the starters are that
+  // match's, a switch starts a thread under a divider, a reply keeps its
+  // paragraphs, and the cap, the hold and a match in progress are lines of
+  // their own, never a coach's bubble. Main decides all of it (CHAT_MATCHES,
+  // CHAT_MATCH, CHAT_SEND); the page names it in the player's language.
+  await section('Ask Coach, the chip, the starters, the switch and its own lines:', async () => {
+    const LIST = [
+      { id: 'valorant-1790000000002-frac01', map: 'Fracture', agent: 'Jett', mode: 'Swiftplay', result: 'Victory', score: '5-1', day: '13 Oct', at: 2 },
+      { id: 'valorant-1790000000001-split1', map: 'Split', agent: 'Jett', mode: 'Competitive', result: 'Victory', score: '13-7', day: '4 Oct', at: 1 },
+    ];
+    const open = async (o) => {
+      const sent = [];
+      const moves = [];
+      const replies = (o && o.replies) || [];
+      const answer = (id) => {
+        const cur = LIST.find((r) => r.id === id) || null;
+        return { game: 'valorant', list: LIST, chosen: id === 'none' ? { id: null, how: 'none' } : { id: (cur || LIST[0]).id, how: id ? 'picked' : 'newest' },
+          current: id === 'none' ? null : (cur || LIST[0]), starters: id === 'none' ? null : { walk: cur && cur.map === 'Split' ? 4 : 5, agent: 'Jett', map: (cur || LIST[0]).map, riotOnly: false, lol: false } };
+      };
+      const ch = loadSurface('chat', {
+        handlers: {
+          [C.CONFIG_GET]: () => ({ language: 'en', game: 'valorant' }),
+          [C.CHAT_MATCHES]: () => answer((o && o.chosen) || null),
+          [C.CHAT_MATCH]: (id) => { moves.push(id); return answer(id); },
+          [C.CHAT_SEED]: () => (o && o.seed) || null,
+          [C.CHAT_SEND]: (messages, opts) => { sent.push({ messages, opts }); return replies.shift() || { ok: true, reply: 'A reply.' }; },
+        },
+      });
+      await settle(12);
+      ch.sent = sent;
+      ch.moves = moves;
+      ch.bubbles = () => ch.document.querySelectorAll('.msg').map((m) => ({ who: m.classList.contains('user') ? 'user' : 'coach', text: m.textContent }));
+      ch.lines = () => ch.document.querySelectorAll('.chat-line').map((l) => ({ kind: l.className, text: l.textContent }));
+      ch.dividers = () => ch.document.querySelectorAll('.chat-divider').map((d) => d.textContent);
+      ch.starters = () => ch.document.querySelectorAll('#starters .starter').map((b) => b.textContent);
+      return ch;
+    };
+    const page = await open();
+    ok(page.document.querySelector('#match-pick .dd-text').textContent === 'Fracture, Jett, won 5 to 1, 13 Oct', 'THE CHIP NAMES ITS MATCH: map, agent, result and day');
+    page.document.querySelector('#match-pick .dd-btn').click();
+    const opts = page.document.querySelectorAll('.dd-opt').map((x) => [x.getAttribute('data-value'), x.textContent]);
+    ok(JSON.stringify(opts) === JSON.stringify([[LIST[0].id, 'Fracture, Jett, won 5 to 1, 13 Oct'], [LIST[1].id, 'Split, Jett, won 13 to 7, 4 Oct'], ['none', 'No match, general questions']]),
+      'its list is the ten newest and "No match, general questions"', JSON.stringify(opts));
+    ok(JSON.stringify(page.starters()) === JSON.stringify(['Walk me through round 5', 'What should I change on Jett?', 'Where am I losing rounds?']),
+      'THE STARTERS ARE THE MATCH\'S', JSON.stringify(page.starters()));
+    // The switch: a new thread under a divider naming the match.
+    page.fire(page.document.querySelector(`.dd-opt[data-value="${LIST[1].id}"]`), 'mousedown');
+    await settle(8);
+    page.clock.advance(300);
+    ok(page.moves[0] === LIST[1].id && JSON.stringify(page.dividers()) === JSON.stringify(['Now about your Split win, 4 Oct']),
+      'THE SWITCH STARTS A NEW THREAD UNDER ONE LINE', JSON.stringify(page.dividers()));
+    ok(page.starters()[0] === 'Walk me through round 4', 'and the starters follow the match');
+    // A reply in paragraphs, kept as text.
+    const two = await open({ replies: [{ ok: true, reply: 'First paragraph.\n\nSecond paragraph.', match: LIST[0] }] });
+    two.document.querySelectorAll('#starters .starter')[0].click();
+    await settle(8);
+    const coach = two.bubbles().find((b) => b.who === 'coach');
+    ok(coach && coach.text === 'First paragraph.\n\nSecond paragraph.', 'a reply\'s paragraphs reach the bubble whole, as text');
+    const css = fs.readFileSync(path.join(RENDERER, 'chat', 'chat.css'), 'utf8');
+    ok(/\.msg\s*\{[^}]*white-space:\s*pre-line/.test(css), 'AND THE BUBBLE IS PRE-LINE');
+    ok(two.sent[0] && two.sent[0].opts.reviewId === LIST[0].id && two.sent[0].messages.length === 1, 'the question goes with the chip\'s match');
+    // The cap, the hold and a match in progress: lines of their own.
+    const capped = await open({ replies: [{ ok: false, kind: 'chat-daily', resetsAt: Date.UTC(2026, 9, 16, 4, 40) }] });
+    capped.document.querySelectorAll('#starters .starter')[1].click();
+    await settle(8);
+    const cap = capped.lines().find((l) => /cap/.test(l.kind));
+    ok(cap && /^You've used today's questions\. Ask Coach is back at .+\.$/.test(cap.text) && capped.bubbles().every((b) => b.who === 'user'),
+      'THE CAP IS A LINE OF ITS OWN, IN THE PLAYER\'S CLOCK, never a coach bubble', JSON.stringify(capped.lines()));
+    const held = await open({ seed: { reviewId: 'valorant-1790000000003-stop01', held: true, until: 5 } });
+    ok(held.lines().some((l) => /held/.test(l.kind) && l.text === "This match may still be going on. Ask Coach can talk about it once Riot's record has it, or in 90 minutes.")
+      && !held.sent.length, 'THE HELD LINE, and no question is asked about it');
+    // The opening questions.
+    const riot = await open({ seed: { reviewId: LIST[1].id, title: 'Sunset Iso 2-5', map: 'Sunset', riotOnly: true } });
+    ok(riot.sent[0] && riot.sent[0].messages[0].content === "Go through my Sunset match with me. What does Riot's record show, and where would you start?",
+      'A RIOT ONLY REVIEW OPENS WITH ITS OWN QUESTION');
+    const rec = await open({ seed: { reviewId: LIST[0].id, title: 'Fracture Jett 5-1', map: 'Fracture', riotOnly: false } });
+    ok(rec.sent[0] && /What was my most costly mistake/.test(rec.sent[0].messages[0].content), 'a recorded one with "what was my most costly mistake"');
+    // A question that named another match: the divider goes above it.
+    const moved = await open({ replies: [{ ok: true, reply: 'About Split.', moved: true, match: LIST[1], from: LIST[0] }] });
+    moved.document.getElementById('input').value = 'Why did I die in round 2 on Split?';
+    moved.fire(moved.document.getElementById('composer'), 'submit');
+    await settle(10);
+    const kids = moved.document.getElementById('thread').children.map((k) => k.className);
+    const dIdx = kids.findIndex((k) => /chat-divider/.test(k));
+    const uIdx = kids.findIndex((k) => /msg user/.test(k));
+    ok(dIdx >= 0 && dIdx < uIdx && /Split win/.test(moved.dividers()[0]), 'a question that moved the chip starts its thread above itself', kids.join(' | '));
+    // The chip moved while a reply was on its way: the answer stays in the
+    // thread that asked it, above the new divider, and out of the new thread.
+    let release = null;
+    const late = await open({ replies: [new Promise((r) => { release = r; })] });
+    late.document.querySelectorAll('#starters .starter')[0].click();
+    await settle(4);
+    late.document.querySelector('#match-pick .dd-btn').click();
+    late.fire(late.document.querySelector(`.dd-opt[data-value="${LIST[1].id}"]`), 'mousedown');
+    await settle(8);
+    late.clock.advance(300);
+    release({ ok: true, reply: 'About Fracture round 5.', match: LIST[0] });
+    await settle(8);
+    const order = late.document.getElementById('thread').children.map((k) => (/msg coach/.test(k.className) ? 'reply'
+      : /chat-divider/.test(k.className) ? 'divider' : /msg user/.test(k.className) ? 'question' : 'other'));
+    late.document.getElementById('input').value = 'Walk me through round 4';
+    late.fire(late.document.getElementById('composer'), 'submit');
+    await settle(8);
+    ok(order.indexOf('question') < order.indexOf('reply') && order.indexOf('reply') < order.indexOf('divider')
+      && late.sent[1] && late.sent[1].messages.length === 1,
+    'AN ANSWER ON ITS WAY WHEN THE CHIP MOVES STAYS IN THE THREAD THAT ASKED IT', `${order.join(' | ')}; ${late.sent[1] && late.sent[1].messages.length}`);
+    // Two matches on a map: asked which, in the page's words.
+    const which = await open({ replies: [{ ok: true, which: { map: 'Split', count: 2 } }] });
+    which.document.querySelectorAll('#starters .starter')[0].click();
+    await settle(8);
+    ok(which.bubbles().some((b) => b.who === 'coach' && b.text === '2 of your last ten matches are on Split. Which one do you mean? Pick it from the match list above.'),
+      'two matches on a map: the reply asks which');
+    // No match: the general starters.
+    const none = await open({ chosen: 'none' });
+    ok(JSON.stringify(none.starters()) === JSON.stringify(["How should I use my agent's kit?", 'When should my team save?', 'How do I win more duels with a Sheriff?']),
+      'with no match, the general starters', JSON.stringify(none.starters()));
+    // Nothing of the tip era.
+    const html = fs.readFileSync(path.join(RENDERER, 'chat', 'index.html'), 'utf8') + fs.readFileSync(path.join(RENDERER, 'chat', 'chat.js'), 'utf8');
+    ok(!/this session|coached session|tips/i.test(html), 'NO "THIS SESSION", no coached session, no tips');
+    ok(!DASHES.test(html), 'and no dash in the page');
   });
 
   // ── Onboarding: How Occlara watches (8.3.1) ────────────────────────────────

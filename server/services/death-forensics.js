@@ -51,9 +51,47 @@
  * Riot's record come with `frameAt` too ('reads'). A body without frameAt is
  * a client from before, and gets at most two frames and the words it always
  * did.
+ *
+ * TWO GATES FOR EVERY CLIENT (8.5.0). A what or better sentence that names a
+ * player is dropped, as one naming another map's callout is (name-gate.js:
+ * the client's read rule with its first word exempt, a handle's shape, and
+ * the match's own names when the client sent its match id and this server
+ * holds them). And a look labelled isolated on a death Riot records as
+ * traded is unclear with no sentences: "too far from teammates to be traded"
+ * beside Riot's own trade is the screen's word over Riot's. Both are logged
+ * by round, never with the name.
+ *
+ * VARIANT B: THE FIGHT FIRST, THE LABEL LAST (8.5.0, admin only until bench
+ * A). On the player's Fracture and Pearl matches four of the five looks that
+ * spoke were "Lost the duel", a fair fight with nothing to fix, while the
+ * better play under them said to fall back after the first shots: the reply
+ * asked for the cause first and the advice after it. Variant b asks for what
+ * happened, then a judgement of the fight (FIGHTS: right, wrong-spot,
+ * wrong-time, not-needed, unclear), then the better play, the one thing it
+ * changes (CHANGES), and only then a cause from that judgement's family, with
+ * a second choice from the same family (`alt`). parse() holds the result in
+ * code: a cause outside its fight's family gives way to `alt`, failing both
+ * the look is unclear with no sentences and the conflict is logged by its
+ * keys alone; a change outside its fight's set is saved as null and the label
+ * kept; and a lost duel whose better play reads like a move (PHRASES) is only
+ * logged, never relabelled, because the words cannot tell a hedge ("be ready
+ * to step back if your first shots miss") from a lesson. No key is added and
+ * none renamed: repeek is widened in b's words to staying on the angle as
+ * well as coming back to it, so a match like the Fracture swiftplay can count
+ * its one lesson in one key.
+ *
+ * WHO GETS WHICH is the route's to say (coach.js forensicsVariant, the one
+ * version gate, clientAtLeast): b to 8.5.0 and later only once promoted
+ * (FORENSICS_PROMPT=b), or to an admin bench naming it with the password, and
+ * `input.variant` 'b' then. Anything else is a: a client before 8.5.0 is
+ * answered with today's prompt and parse exactly, but for the two gates
+ * above, and never sees b's words or fields. test:forensics holds variant a
+ * to the look as 8.4.4 shipped it (scripts/fixtures/death-forensics-844.js),
+ * byte for byte.
  */
 
 const { promptName } = require('./languages');
+const nameGate = require('./name-gate');
 
 // "a Vandal", "an Outlaw". The prompt's own grammar is what the model copies,
 // and "with a Outlaw" came back in its sentences.
@@ -74,6 +112,64 @@ const CAUSES = {
   'unclear':     'the frame does not show enough to say',
 };
 const AVOIDABLE = new Set(['dry-peek', 'isolated', 'repeek', 'crossfire', 'rotating', 'overextend', 'exposed']);
+
+/*
+ * VARIANT B'S WORDS FOR TWO OF THEM, the keys the same. Repeek widened to
+ * staying on the angle, the Fracture swiftplay's lesson three times over;
+ * lost-duel to a fight the player was right to take from where they took it.
+ * The review quotes CAUSES (match-review.js), so today's words stay there.
+ */
+const CAUSES_B = {
+  ...CAUSES,
+  'repeek':    'fought again from the same angle after the first exchange or a kill, by staying on it or by peeking it again',
+  'lost-duel': 'a fight you were right to take, from where you took it, lost on the shot: only the aim, the first shot or the movement in the duel could have changed it',
+};
+
+/*
+ * THE FIGHT, JUDGED FIRST (variant b), and what each judgement allows: the
+ * causes its label may be, and the one thing its better play may change most.
+ */
+const FIGHTS = {
+  'right':      { causes: ['lost-duel'], changes: ['aim', 'none'] },
+  'wrong-spot': { causes: ['isolated', 'crossfire', 'overextend', 'exposed', 'rotating'], changes: ['position', 'team', 'utility'] },
+  'wrong-time': { causes: ['repeek', 'dry-peek', 'rotating'], changes: ['timing', 'utility', 'team'] },
+  'not-needed': { causes: ['overextend', 'repeek', 'exposed', 'dry-peek'], changes: ['decision'] },
+  'unclear':    { causes: ['unclear'], changes: ['none'] },
+};
+const CHANGES = ['aim', 'position', 'timing', 'decision', 'utility', 'team', 'none'];
+
+/*
+ * THE PHRASE LISTS: what a better play says it changes, in English, the
+ * lists as they were first written (decision, team, reset and timing,
+ * utility, aim). They set no label in any variant. A lost duel whose better
+ * play trips one but aim is logged for the bench to read; Ask Coach is not
+ * given a saved look's label when its better play trips one; and they are
+ * Ask Coach's fair fight check. They cannot tell a hedge from a lesson, which
+ * is why they only ever log: "be ready to step back if your first shots
+ * miss" is a right fight's better play, and trips reset. One list, four
+ * copies (this one, the client's in src/shared/death-causes.js, and Ask
+ * Coach's in fact-gates.js and chat-context.js), which test:forensics holds
+ * equal regex for regex.
+ */
+const PHRASES = {
+  decision: /\b(let them come|let the clock|play for time|make them come to you|no need to|do not take the fight|don't take the fight|hold the spike)\b/i,
+  team: /\b(teammates?|trade|swing with|with your team|together)\b/i,
+  reset: /\b(fall back|step back|back behind cover|back into cover|reset|disengage|pull back|after your first shots|after the first exchange|after the first burst|instead of staying|stop firing and)\b/i,
+  utility: /\b(smoke|flash|drone|recon|utility|information first)\b/i,
+  aim: /\b(crosshair|aim|head level|counter ?strafe|tap|burst|first bullet|spray)\b/i,
+};
+const PHRASE_ORDER = ['decision', 'team', 'reset', 'utility', 'aim'];
+
+/*
+ * THE PROMPTS BESIDE THE LIVE ONE, which the route serves only to an admin
+ * bench naming one, or once promoted (FORENSICS_PROMPT) only to a client of
+ * 8.5.0 or later (coach.js forensicsVariant, by clientAtLeast). The live one,
+ * a, is today's, and is what this module answers with for any variant it is
+ * not given as 'b'. The reply each is given room for: b's is longer by its
+ * judgement, change and alt.
+ */
+const VARIANTS = ['b'];
+const TOKENS = { a: 320, b: 400 };
 
 const clip = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
 const lower = (s) => String(s || '').toLowerCase();
@@ -181,6 +277,28 @@ function wrongKiller(text, killer, source, opts) {
   return null;
 }
 
+/**
+ * Which phrase lists a better play trips, in PHRASE_ORDER: decision, team,
+ * reset (and timing), utility (the player's own abilities by name among them)
+ * and aim. English only; [] for nothing.
+ */
+function phraseHits(text, agent) {
+  const t = String(text || '');
+  if (!t.trim()) return [];
+  const kit = kitOf(agent).map(lower);
+  const out = [];
+  for (const k of PHRASE_ORDER) {
+    const kitSaid = k === 'utility' && kit.some((ab) => new RegExp(`\\b${ab.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t));
+    if (PHRASES[k].test(t) || kitSaid) out.push(k);
+  }
+  return out;
+}
+
+/** Whether a better play moves the player (any list but aim): never a fair fight's to the chat. */
+function movesPlayer(text, agent) {
+  return phraseHits(text, agent).some((k) => k !== 'aim');
+}
+
 // "3 s", "0.7 s": a frame's distance from the death as the prompt says it.
 const secs = (at) => {
   const s = Math.abs(at);
@@ -263,6 +381,18 @@ function buildPrompt(input, death) {
   const late = screen
     ? '- The screen can read a death a few seconds late, and once the player is dead Valorant shows a teammate\'s view. If the first frame already shows the player dead or watching a teammate, the cause is unclear.\n'
     : '';
+  // Variant b judges the fight before it writes the better play, and names the
+  // cause last, from that judgement's family. Variant a is today's, word for word.
+  const b = input.variant === 'b';
+  const many = timed && death.frames.length > 1;
+  const pick = b ? 'The causes, one of which you pick last, from the group your judgement of the fight allows:'
+    : `Pick the ONE cause that best fits what the ${many ? 'frames show' : 'frame shows'}:`;
+  const judge = b ? `\n\n${judgement(many)}` : '';
+  const fairRule = b ? '' : '- A fair fight from a sound position is lost-duel. Do not invent a positioning error to have something to say.\n';
+  const language = !otherLanguage(input) ? ''
+    : b ? `Write "what" and "better" in ${promptName(input.language)}. Keep "fight", "change", "cause" and "alt" as the English words from their lists, and keep callouts and agent names exactly as the game prints them.\n\n`
+      : `Write "what" and "better" in ${promptName(input.language)}. Keep "cause" as the English label from the list, and keep callouts and agent names exactly as the game prints them.\n\n`;
+  const reply = b ? REPLY_B : REPLY_A;
 
   return `You are reviewing one death of a Valorant player after the match, as their coach. ${frames}
 
@@ -272,39 +402,161 @@ ${facts.join('\n')}
 Player's agent: ${input.agent || 'unknown'}. Their abilities: ${kit.length ? kit.join(', ') : 'unknown, so name no abilities'}.
 Map: ${input.map || 'unknown'}. Callouts that exist on it: ${callouts.length ? callouts.join(', ') : 'unknown, so name no callouts'}.
 
-Pick the ONE cause that best fits what the ${timed && death.frames.length > 1 ? 'frames show' : 'frame shows'}:
-${Object.entries(CAUSES).map(([k, v]) => `${k}: ${v}`).join('\n')}
+${pick}
+${Object.entries(b ? CAUSES_B : CAUSES).map(([k, v]) => `${k}: ${v}`).join('\n')}${judge}
 
 Rules:
-- Describe only what is visible in the ${timed && death.frames.length > 1 ? 'frames' : 'frame'} and stated in the facts. If the frame does not show the moment (a menu, a death screen only, a blur), the cause is unclear.
+- Describe only what is visible in the ${many ? 'frames' : 'frame'} and stated in the facts. If the frame does not show the moment (a menu, a death screen only, a blur), the cause is unclear.
 ${sees}${late}- Where the player is: read the location name printed above the minimap in the top left. Do not guess a place from the scenery.
 - Ignore any text boxes or cards drawn over the game by other apps. Judge from the game itself.
 - Weapons and health are in the bottom HUD. Do not call a pistol a knife or an Operator a rifle.
-- A fair fight from a sound position is lost-duel. Do not invent a positioning error to have something to say.
-- Speak to the player as "you". Name no ability they do not have and no callout that is not in the list. ${killerRule}
+${fairRule}- Speak to the player as "you". Name no ability they do not have and no callout that is not in the list. ${killerRule}
 - No dashes. Plain sentences, each ending with a period.
 
-${otherLanguage(input) ? `Write "what" and "better" in ${promptName(input.language)}. Keep "cause" as the English label from the list, and keep callouts and agent names exactly as the game prints them.\n\n` : ''}Reply with JSON only, no other text:
-{"cause": "<one label from the list>", "what": "<one sentence, what happened>", "better": "<one sentence, the play that keeps you alive>"}`;
+${language}${reply}`;
 }
 
-/** The model's reply for one death, parsed and gated. Never throws. */
+const REPLY_A = `Reply with JSON only, no other text:
+{"cause": "<one label from the list>", "what": "<one sentence, what happened>", "better": "<one sentence, the play that keeps you alive>"}`;
+// Its fields in the order they are decided: what happened, the fight, the
+// better play, what it changes, and only then the label and a second choice.
+const REPLY_B = `Reply with JSON only, its fields in this order, no other text:
+{"what": "<one sentence, what happened>", "fight": "<right, wrong-spot, wrong-time, not-needed or unclear>", "better": "<one sentence, the play that keeps you alive>", "change": "<aim, position, timing, decision, utility, team or none>", "cause": "<one label from the group your judgement allows>", "alt": "<a second label from the same group, or none>"}`;
+
+/** "isolated, crossfire, overextend, exposed or rotating" */
+const either = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} or ${xs[xs.length - 1]}` : xs.join(''));
+
+/**
+ * VARIANT B'S JUDGEMENT, beside the cause list, in place of variant a's "a
+ * fair fight from a sound position is lost-duel". Its families are FIGHTS',
+ * written from them, so the prompt and parse() cannot drift.
+ */
+function judgement(many) {
+  const groups = Object.entries(FIGHTS).map(([fight, f]) => `${fight} is ${either(f.causes)}`).join('; ');
+  return `First write what happened. Then judge the fight in one word:
+right: a fight to take, from where you took it. Only the shot, the first bullet or the movement in the duel could have changed it.
+wrong-spot: a fight to take, but not from there: too far from a teammate to be traded, open to a second enemy, in the open on the spike, or past your team.
+wrong-time: the right place at the wrong moment: before any utility or information, while rotating, or again after the first exchange or a kill instead of getting out of sight.
+not-needed: a fight the round did not need: your team was ahead, the spike was down and the clock was on your side, or the kill was not worth chasing.
+unclear: the ${many ? 'frames do' : 'frame does'} not show the fight.
+Then write the better play, the play that keeps you alive. For a right fight it is about the duel itself: the crosshair, the first shot, stopping before you shoot, how you peek. It may tell you to be ready to step back if the first shots miss. A better play that moves you, delays you, gets you out after the first exchange, adds a teammate or an ability, or says not to fight belongs to another judgement.
+Then say the one thing the better play changes most: ${CHANGES.slice(0, -1).join(', ')}, or none.
+Then pick the cause that fits your judgement: ${groups}. alt is your second choice from the same group, or none.
+A Duelist taking first contact with a teammate close enough to trade is doing the job, which is not a wrong spot on its own. A death the facts call traded is never isolated. Do not invent a mistake to have something to say: a fair fight lost is right, and lost-duel.`;
+}
+
+/** A word of the model's reply as a key: "Dry Peek" is dry-peek, "wrong spot" wrong-spot. */
+const asKey = (v) => lower(v).trim().replace(/\s+/g, '-');
+const isCause = (k) => Object.prototype.hasOwnProperty.call(CAUSES, k);
+// What a conflict names of a reply's word: its key, 'unknown' for a word off
+// the list, 'none' for no word. Never the word itself.
+const named = (v, key) => key || (lower(v).trim() && lower(v).trim() !== 'none' ? 'unknown' : 'none');
+
+/** The model's reply as the JSON it wrote, or null: for parse() and for the bench, which scores it before parse. */
+function replyJson(text) {
+  const m = String(text || '').match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try {
+    const j = JSON.parse(m[0]);
+    return j && typeof j === 'object' ? j : null;
+  } catch { return null; }
+}
+
+/**
+ * WHAT A BENCH IS SENT OF A REPLY, RAW (bench A, an admin's alone): the label
+ * words as the model wrote them, before parse() enforced anything, each read
+ * as its key, 'unknown' for a word off its list and null for none, and
+ * whether it wrote a what at all. Never one of its sentences, nor a word off
+ * a list: what the model writes can carry a player's name ("Bad luck from
+ * Morvane" as a cause), and no name leaves the server, a bench's reply
+ * included. bench-look-score.js scores it as it would the reply's text.
+ */
+function rawLabels(text) {
+  const j = replyJson(text);
+  if (!j) return { json: false, fight: null, cause: null, alt: null, change: null, what: false };
+  const read = (v, keys) => {
+    const k = asKey(v);
+    return keys.includes(k) ? k : k && k !== 'none' ? 'unknown' : null;
+  };
+  const causes = Object.keys(CAUSES);
+  return { json: true, fight: read(j.fight, Object.keys(FIGHTS)), cause: read(j.cause, causes), alt: read(j.alt, causes),
+    change: read(j.change, CHANGES), what: !!clip(j.what, 240) };
+}
+
+// The language a look's sentences were asked for in, as the name gate reads
+// it: English for 'en' and for a code the prompt does not know, which is
+// asked in English (languages.js promptName), so the capital rule reads it.
+const gateLanguage = (input) => (promptName(input && input.language) === 'English' ? 'en' : input.language);
+
+/**
+ * The model's reply for one death, parsed and gated. Never throws.
+ *
+ * Variant a's look is { n, cause, what, better } as it always was, and b's
+ * adds { fight, change, variant }. `dropped` is what the route logs and takes
+ * out, and `notes` (not enumerable, so never in a reply) what is only logged:
+ * logLines() gives both, replyOf() the reply.
+ */
 function parse(text, input, death) {
-  const out = { n: death.n, cause: 'unclear', what: null, better: null, dropped: [] };
-  let j = null;
-  const raw = String(text || '');
-  const m = raw.match(/\{[\s\S]*\}/);
-  if (m) { try { j = JSON.parse(m[0]); } catch { j = null; } }
-  if (!j || typeof j !== 'object') return out;
-  const cause = lower(j.cause).trim().replace(/\s+/g, '-');
-  out.cause = Object.prototype.hasOwnProperty.call(CAUSES, cause) ? cause : 'unclear';
+  const b = !!(input && input.variant === 'b');
+  const out = { n: death.n, cause: 'unclear', what: null, better: null };
+  if (b) Object.assign(out, { fight: 'unclear', change: null, variant: 'b' });
+  out.dropped = [];
+  Object.defineProperty(out, 'notes', { value: [], enumerable: false });
+  const j = replyJson(text);
+  if (!j) return out;
+  if (b) {
+    // THE CAUSE MUST BE IN ITS FIGHT'S FAMILY, else its second choice, else
+    // nothing: a reply that judged a fight right and labelled it a repeek has
+    // contradicted itself, and the look says nothing rather than pick a side.
+    const fight = Object.prototype.hasOwnProperty.call(FIGHTS, asKey(j.fight)) ? asKey(j.fight) : null;
+    const cause = isCause(asKey(j.cause)) ? asKey(j.cause) : null;
+    const alt = isCause(asKey(j.alt)) ? asKey(j.alt) : null;
+    const family = fight ? FIGHTS[fight].causes : [];
+    const label = family.includes(cause) ? cause : family.includes(alt) ? alt : null;
+    if (label) {
+      out.cause = label;
+      out.fight = fight;
+      // What the better play changes is data for the chat and the bench,
+      // never the grade: outside its fight's set it is kept as nothing, and
+      // the label stands.
+      const change = asKey(j.change);
+      if (FIGHTS[fight].changes.includes(change)) out.change = change;
+      else if (change) {
+        out.dropped.push({ field: 'change', why: `${CHANGES.includes(change) ? change : 'unknown'} is not a ${fight} fight's`, gate: 'change' });
+      }
+    } else {
+      out.dropped.push({ field: 'cause', gate: 'conflict',
+        why: `conflict: fight ${named(j.fight, fight)}, cause ${named(j.cause, cause)}, alt ${named(j.alt, alt)}` });
+    }
+  } else {
+    const cause = asKey(j.cause);
+    out.cause = isCause(cause) ? cause : 'unclear';
+  }
   for (const field of ['what', 'better']) {
     let s = clip(j[field], 240).replace(/[\u2013\u2014]/g, ',').replace(/\s+-\s+/g, ', ');
     if (!s) continue;
     if (!/[.!?]$/.test(s)) s += '.';
     const bad = wrongMap(s, input.map) || foreignAbility(s, input.agent) || wrongKiller(s, death.killer, input.source, input);
     if (bad) { out.dropped.push({ field, why: bad }); continue; }
+    // NO PLAYER NAMED (8.5.0, every client): the look sees KILLED BY and the
+    // kill feed, and a name it copies is saved, shown and handed on. The
+    // match's own names come with the input (the route's `names`, from the
+    // match id an 8.5.0 client sends). Logged as a name, never as the name;
+    // a check that throws drops the sentence, the safe direction.
+    let person = null;
+    try { person = nameGate.namesSomeone(s, { names: input.names || null, language: gateLanguage(input) }); } catch { person = 'unchecked'; }
+    if (person) {
+      out.dropped.push({ field, why: 'a name', gate: 'name' });
+      continue;
+    }
     out[field] = s;
+  }
+  // ISOLATED IS "too far from teammates to be traded", and a death Riot
+  // records as traded was not (8.5.0, every client): Riot's facts win, and the
+  // look says nothing rather than the screen's word over Riot's.
+  if (out.cause === 'isolated' && death.traded === true) {
+    out.cause = 'unclear';
+    out.dropped.push({ field: 'cause', why: 'isolated on a death Riot records traded', gate: 'traded' });
   }
   // A cause the model could not explain in a single surviving sentence is not
   // one the review should count against the player.
@@ -313,8 +565,39 @@ function parse(text, input, death) {
   // with a sentence about the frame itself ("this frame does not show what
   // caused your death", "use this frame only to reset"), which is the model
   // talking about its own input. The label and the picture say it better.
-  if (out.cause === 'unclear') { out.what = null; out.better = null; }
+  if (out.cause === 'unclear') {
+    out.what = null;
+    out.better = null;
+    if (b) { out.fight = 'unclear'; out.change = null; }
+  }
+  // A LOST DUEL WHOSE BETTER PLAY READS LIKE A MOVE is logged, never
+  // relabelled (PHRASES): in English, for the bench to read.
+  if (out.cause === 'lost-duel' && out.better && gateLanguage(input) === 'en') {
+    const moves = phraseHits(out.better, input.agent).filter((k) => k !== 'aim');
+    if (moves.length) out.notes.push(`lost-duel better play trips ${moves.join(', ')}`);
+  }
   return out;
+}
+
+/**
+ * The lines the route logs for one look, by round and keys only: a conflict,
+ * what was dropped and why (a name only as "a name"), and a lost duel whose
+ * better play trips a phrase list.
+ */
+function logLines(out) {
+  const dropped = (out && out.dropped) || [];
+  const conflicts = dropped.filter((d) => d.field === 'cause' && /^conflict: /.test(d.why));
+  const rest = dropped.filter((d) => !conflicts.includes(d));
+  const lines = conflicts.map((d) => `[forensics] R${out.n} ${d.why}`);
+  if (rest.length) lines.push(`[forensics] R${out.n} dropped: ${rest.map((d) => `${d.field} (${d.why})`).join(', ')}`);
+  for (const note of (out && out.notes) || []) lines.push(`[forensics] R${out.n} ${note}`);
+  return lines;
+}
+
+/** One look as the reply carries it: without what is only logged. */
+function replyOf(out) {
+  const { dropped, ...reply } = out || {};
+  return reply;
 }
 
 // A frame as the look sends it: one JPEG, base64, of a sane size.
@@ -362,8 +645,13 @@ function framesOf(d) {
  * weapon, first death, trade, numbers standing or timing against the plant.
  * Its frames' seconds are from the moment the screen read the death, the
  * screen's own, and are kept.
+ *
+ * `opts.variant` is the prompt the route chose (coach.js forensicsVariant),
+ * never the body's word: 'a' unless it is 'b'. `matchId` (8.5.0 and later)
+ * is only ever the key to the match's own names (the route's `names`), never
+ * in a prompt.
  */
-function normalise(body) {
+function normalise(body, opts) {
   const b = body || {};
   const screen = b.source === 'screen';
   const riot = (v) => (screen ? null : v);
@@ -385,10 +673,18 @@ function normalise(body) {
   })).filter((d) => d.n > 0 && d.frames.length).slice(0, 4);
   return { agent: clip(b.agent, 24) || null, map: clip(b.map, 24) || null,
     language: typeof b.language === 'string' ? clip(b.language, 8) : 'en',
-    source: screen ? 'screen' : 'riot', deaths };
+    source: screen ? 'screen' : 'riot', deaths,
+    variant: opts && opts.variant === 'b' ? 'b' : 'a',
+    matchId: typeof b.matchId === 'string' && b.matchId.trim() ? clip(b.matchId, 80) : null };
+}
+
+/** The reply's room for one look: b's is longer by its judgement, change and alt. */
+function tokensFor(input) {
+  return TOKENS[input && input.variant === 'b' ? 'b' : 'a'];
 }
 
 module.exports = {
-  CAUSES, AVOIDABLE, MAX_FRAMES, MAX_TIMED_FRAMES, MAX_FRAME_AT,
+  CAUSES, CAUSES_B, AVOIDABLE, FIGHTS, CHANGES, PHRASES, PHRASE_ORDER, VARIANTS, TOKENS, MAX_FRAMES, MAX_TIMED_FRAMES, MAX_FRAME_AT,
   buildPrompt, parse, normalise, wrongMap, foreignAbility, wrongKiller, calloutsOf,
+  phraseHits, movesPlayer, replyJson, rawLabels, logLines, replyOf, tokensFor, judgement,
 };

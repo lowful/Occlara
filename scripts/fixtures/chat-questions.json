@@ -1,0 +1,257 @@
+{
+  "note": "bench:chat's questions on the repo's own fixtures (spec 8.13): the Abyss 13 to 11, built offline as test:valorantreview builds it and filled from its own Riot record, and the Split 13 to 7, asked of the player's upgraded review where their library has it (found by its map, score and mode, filled as 8.10 fills it) and otherwise built offline as test:riotreview upgrades the repo's 8.0.1 review, filled from Riot's record; and the lists every sheet's keys may name. The player's other matches have their own sheet in userData/bench/chat/questions.json, in the same shape. A key is written by hand from Riot's record of the round, beside its question, and checks the answer independently of the gates: `must` is what a right answer states, `mustNot` a claim it must not make (each one a wrong fact). A check is `any` (phrases, whole words, any case), `list` (a list below by name) or `re` (a regular expression with the samples it must and must not match, `pos` and `neg`, asserted before anything is sent). `atLeast` asks for that many of the phrases. `tag` puts a wrong fact under its bar: relabel, economy, meta, kit, map. `open` is how the page is on the match: picked on the chip, newest (opened from the sidebar) or none (a general question). `expect` is the match the question must be answered on, and whether it moved the chip.",
+  "lists": {
+    "notTraded": ["not traded", "untraded", "nobody traded", "no one traded", "wasn't traded", "was not traded", "went untraded", "went unanswered", "no teammate traded", "without a trade", "nobody could trade", "no one could trade", "no trade"],
+    "tradedClaim": {
+      "re": "(?:\\b(?:was|were|got|been|get)\\s+(?:quickly\\s+|instantly\\s+|immediately\\s+)?traded\\b)|(?:(?<!\\b(?:no|nobody|not|never)\\s+(?:\\w+\\s+)?)\\b(?:teammates?|ally|allies|someone|somebody)\\s+(?:quickly\\s+|instantly\\s+|immediately\\s+|then\\s+)?traded\\s+(?:you|your death|your killer|for you)\\b)|(?:(?<!\\b(?:no|nobody|not|never|none)\\s+(?:\\w+\\s+)?)\\btraded\\s+(?:your\\s+death|your\\s+killer)\\b)",
+      "flags": "i",
+      "pos": ["Your death was traded by Sova.", "a teammate traded you", "You got traded quickly.", "Someone traded your killer."],
+      "neg": ["Your death was not traded.", "Nobody traded you.", "no teammate traded you", "No one traded your death.", "You traded your teammate in round 5."]
+    },
+    "noRecord": ["doesn't show", "does not show", "doesn't record", "does not record", "doesn't hold", "does not hold", "doesn't include", "does not include", "doesn't have", "does not have", "don't have", "do not have", "can't see", "cannot see", "can't tell", "cannot tell", "no record of", "isn't recorded", "is not recorded", "not in the record", "isn't in the record", "doesn't say", "does not say", "doesn't track", "does not track", "isn't tracked", "is not tracked"],
+    "creditClaim": {
+      "re": "\\b(?:you|your team|the team|you'd|you would|they)\\s+(?:only\\s+)?(?:had|have|were on|was on|banked|saved|kept)\\s+(?:only\\s+|about\\s+|around\\s+|roughly\\s+|just\\s+)?\\d{3,5}\\b",
+      "flags": "i",
+      "pos": ["You had 2400 credits.", "your team had about 1900"],
+      "neg": ["A loss pays 1900 credits.", "The record does not show your credits."]
+    },
+    "buyBlame": ["standing in spawn", "idle in spawn", "standing idle", "waiting in spawn", "opening menus", "menus in spawn", "pistol in spawn"],
+    "rank": {
+      "re": "\\b(?:is|are|was)\\s+(?:the\\s+|a\\s+)?(?:best|strongest|top|most picked)\\s+(?:agents?|picks?|duelists?|choices?|controllers?|sentinels?|initiators?)\\b|\\b[SA]\\s*-?\\s*tier\\b|\\btier\\s+lists?\\b|\\bmeta\\s+(?:picks?|agents?|comps?|duelists?)\\b|\\b(?:in|of|fits|suits|for|dominating|dominates)\\s+the\\s+(?:current\\s+)?meta\\b|\\boverpowered\\b|\\bpick\\s+rates?\\b|\\bmost\\s+picked\\b",
+      "flags": "i",
+      "pos": ["Jett is the best agent on Abyss.", "Clove is S tier right now.", "Omen is a meta pick.", "Jett fits the current meta."],
+      "neg": ["There is no single best agent.", "I don't rank agents or name a meta.", "Jett is your best agent by grade."]
+    },
+    "jettKit": ["Updraft", "Tailwind", "Cloudburst", "Blade Storm"],
+    "razeKit": ["Blast Pack", "Paint Shells", "Boom Bot", "Showstopper"],
+    "otherDuelistKits": ["Fast Lane", "High Gear", "Relay Bolt", "Leer", "Devour", "Dismiss", "Curveball", "Hot Hands", "Run It Back", "Gatecrash"],
+    "firstDeath": ["first death", "died first", "first to die", "first one to die", "first player down", "first player to die", "first one down"],
+    "fourKills": ["4 kills", "four kills", "4 enemies", "four enemies", "four of them", "4 of them"],
+    "won5": {
+      "re": "\\b(?:you|your team|you guys|the team)\\b[^.?!]{0,25}\\b(?:won|win)\\b|\\bround 5\\b[^.?!]{0,40}\\b(?:won|win|victory)\\b|\\b(?:didn't|did not|never)\\s+lose\\b",
+      "flags": "i",
+      "pos": ["Your team won round 5.", "You didn't lose round 5.", "Round 5 was actually a win.", "You actually won that round."],
+      "neg": ["You lost round 5 because you died first.", "Round 5 went badly for you."]
+    },
+    "lost5": {
+      "re": "\\byou\\s+lost\\s+(?:round 5|that round|the round)\\b",
+      "flags": "i",
+      "pos": ["You lost round 5 because you died first."],
+      "neg": ["You did not lose round 5.", "Your team won round 5."]
+    }
+  },
+  "library": "repo",
+  "matches": {
+    "abyss": { "fixture": "valorant-match-abyss-13-11.json", "riot": "riot-abyss-13-11.json", "at": "2026-09-22T05:10:00.000Z",
+      "agent": "Jett", "queue": "unrated", "scoreline": { "kills": 31, "deaths": 21, "assists": 4, "acs": 382, "adr": 210, "headshotPct": 24, "kd": 1.48 } },
+    "split": { "player": { "map": "Split", "score": "13-7", "mode": "Competitive" },
+      "saved": "valorant-review-split-801.json", "riot": "riot-split-13-7.json",
+      "row": { "matchId": "bench-split", "agent": "Jett", "mode": "Competitive", "result": "Victory", "score": "13-7",
+        "kills": 17, "deaths": 16, "assists": 8, "kd": 1.06, "acs": 279, "adr": 181, "headshotPct": 22 } }
+  },
+  "questions": [
+    {
+      "id": "abyss-r13-why", "kind": "round why, lost, no look", "match": "abyss", "open": "picked", "language": "en", "advanced": false,
+      "ask": "Why did I lose round 13?",
+      "expect": { "match": "abyss", "moved": false },
+      "facts": "R13 attack, the second pistol round, lost. First kill of the round, then died 17 s in to Viper with a Ghost, 5 against 4, not traded. The spike went down after the death.",
+      "must": [
+        { "what": "names Viper, Riot's killer", "any": ["Viper"] },
+        { "what": "says the death was not traded", "list": "notTraded" }
+      ],
+      "mustNot": [
+        { "what": "says the death was traded", "list": "tradedClaim" },
+        { "what": "names another killer", "any": ["killed by Cypher", "killed by Skye", "killed by Phoenix", "Cypher killed you", "Skye killed you", "Phoenix killed you"] },
+        { "what": "calls the round won", "re": "\\b(?:you|your team)\\s+won\\s+(?:round 13|the round|that round)\\b", "flags": "i",
+          "pos": ["Your team won the round."], "neg": ["Your team lost the round.", "You won round 12."] }
+      ]
+    },
+    {
+      "id": "abyss-r11-walk", "kind": "round walk, won", "match": "abyss", "open": "picked", "language": "en", "advanced": false,
+      "ask": "Walk me through round 11.",
+      "expect": { "match": "abyss", "moved": false },
+      "facts": "R11 defence, won. First kill of the round and 4 kills, then died 23 s in to Phoenix with a Vandal, 5 against 1, not traded.",
+      "must": [
+        { "what": "says the 4 kills", "list": "fourKills" },
+        { "what": "says the round was won", "any": ["won", "win"] }
+      ],
+      "mustNot": [
+        { "what": "says the death was traded", "list": "tradedClaim" },
+        { "what": "calls the round lost", "re": "\\b(?:you|your team)\\s+lost\\s+(?:round 11|the round|that round)\\b", "flags": "i",
+          "pos": ["You lost round 11."], "neg": ["You won round 11.", "You lost round 10."] },
+        { "what": "names another killer", "any": ["killed by Viper", "killed by Skye", "killed by Cypher", "Viper killed you", "Skye killed you", "Cypher killed you"] }
+      ]
+    },
+    {
+      "id": "abyss-r3-killer", "kind": "false premise, the killer", "match": "abyss", "open": "picked", "language": "en", "advanced": false, "premise": true,
+      "ask": "Did Phoenix kill me in round 3?",
+      "expect": { "match": "abyss", "moved": false },
+      "facts": "R3 defence, lost. 2 kills, then died 19 s in to Cypher with a Spectre, 4 against 3, not traded.",
+      "must": [
+        { "what": "corrects it: Cypher killed the player", "any": ["Cypher"] }
+      ],
+      "mustNot": [
+        { "what": "agrees that Phoenix killed the player", "re": "\\bPhoenix\\s+(?:did\\s+)?(?:killed|kill|got|took)\\s+you\\b|\\byes\\b[^.?!]{0,40}\\bPhoenix\\b", "flags": "i",
+          "pos": ["Yes, Phoenix killed you with a Sheriff.", "Phoenix got you at 19 seconds."], "neg": ["No, Cypher killed you, not Phoenix.", "Phoenix did not kill you; Cypher did."] },
+        { "what": "names the wrong gun", "any": ["with a Vandal", "with a Phantom", "with a Sheriff", "with an Operator", "with a Ghost"] }
+      ]
+    },
+    {
+      "id": "abyss-r22-hash", "kind": "round #N", "match": "abyss", "open": "picked", "language": "en", "advanced": false,
+      "ask": "What happened in round #22?",
+      "expect": { "match": "abyss", "moved": false },
+      "facts": "R22 attack, lost. First kill of the round, then died 16 s in to Skye with a Vandal, 5 against 4, not traded. The spike went down after the death.",
+      "must": [
+        { "what": "names Skye, Riot's killer", "any": ["Skye"] },
+        { "what": "says the first kill", "any": ["first kill", "opened the round", "opening kill", "got the first", "first blood"] }
+      ],
+      "mustNot": [
+        { "what": "reads the round as a player", "any": ["in a player", "which player"] },
+        { "what": "says the death was traded", "list": "tradedClaim" }
+      ]
+    },
+    {
+      "id": "abyss-pistol-attack", "kind": "the pistol round, by side", "match": "abyss", "open": "picked", "language": "en", "advanced": false,
+      "ask": "How did my attack pistol round go?",
+      "expect": { "match": "abyss", "moved": false, "round": 13 },
+      "facts": "Unrated swaps sides after round 12, so the attack pistol is R13: lost, first kill, died 17 s in to Viper with a Ghost, not traded.",
+      "must": [
+        { "what": "tells round 13", "any": ["round 13", "R13"] }
+      ],
+      "mustNot": [
+        { "what": "calls round 1 the attack pistol", "re": "\\battack(?:ing)?\\s+pistol(?:\\s+round)?\\s+(?:was\\s+)?(?:in\\s+)?round\\s+1\\b(?!\\d)", "flags": "i",
+          "pos": ["Your attack pistol round was round 1."], "neg": ["Your attack pistol round was round 13."] },
+        { "what": "calls it won", "re": "\\b(?:you|your team)\\s+won\\s+(?:round 13|the round|that round|the pistol)", "flags": "i",
+          "pos": ["Your team won the pistol round."], "neg": ["Your team lost the pistol round."] }
+      ]
+    },
+    {
+      "id": "abyss-change-jett", "kind": "what should I change on my agent", "match": "abyss", "open": "picked", "language": "en", "advanced": false,
+      "ask": "What should I change on Jett?",
+      "expect": { "match": "abyss", "moved": false },
+      "facts": "Counted: 20 of 21 deaths not traded, 16 of 21 in the first 30 seconds, an advantage given back in 6 lost rounds, first to die in 4 rounds, 6 deaths at A Site, Skye 7 times. Opened 8 rounds.",
+      "must": [
+        { "what": "names a counted mistake", "any": ["trade", "traded", "first 30 seconds", "advantage", "first to die", "A Site", "Skye"] }
+      ],
+      "mustNot": [
+        { "what": "names Raze's kit as Jett's", "list": "razeKit", "tag": "kit" },
+        { "what": "names another duelist's kit as Jett's", "list": "otherDuelistKits", "tag": "kit" }
+      ]
+    },
+    {
+      "id": "abyss-econ-r4", "kind": "economy", "match": "abyss", "open": "picked", "language": "en", "advanced": false,
+      "ask": "Should I have saved my gun in round 4?",
+      "expect": { "match": "abyss", "moved": false },
+      "facts": "R4 defence, lost. Died 13 s in to Viper with a Vandal, 4 against 5, not traded. Riot's record as the review keeps it holds no buys or credits.",
+      "must": [
+        { "what": "says the record does not hold what was bought", "list": "noRecord" }
+      ],
+      "mustNot": [
+        { "what": "states the player's credits", "list": "creditClaim", "tag": "economy" }
+      ]
+    },
+    {
+      "id": "general-meta", "kind": "meta, general", "match": null, "open": "none", "language": "en", "advanced": false,
+      "ask": "What's the best agent on Abyss right now?",
+      "expect": { "match": null, "moved": false },
+      "facts": "A general question. Ask Coach never ranks agents or names a meta.",
+      "must": [],
+      "mustNot": [
+        { "what": "ranks agents or names a meta", "list": "rank", "tag": "meta" }
+      ]
+    },
+    {
+      "id": "split-r5-premise", "kind": "false premise, the result", "match": "split", "open": "picked", "language": "en", "advanced": false, "premise": true,
+      "ask": "Why did I lose round 5?",
+      "expect": { "match": "split", "moved": false, "round": 5 },
+      "facts": "R5 attack, WON. Died 12 s in to Phoenix with a Phantom, the first death of the round, 5 against 5, not traded.",
+      "must": [
+        { "what": "says round 5 was won", "list": "won5" },
+        { "what": "says the player died first", "list": "firstDeath" }
+      ],
+      "mustNot": [
+        { "what": "accepts the loss", "list": "lost5" },
+        { "what": "says the death was traded", "list": "tradedClaim" }
+      ]
+    },
+    {
+      "id": "split-r3-es", "kind": "Spanish", "match": "split", "open": "picked", "language": "es", "advanced": false,
+      "ask": "¿Por qué perdí la ronda 3?",
+      "expect": { "match": "split", "moved": false, "round": 3 },
+      "facts": "R3 attack, lost. Died 19 s in to Clove with a Phantom, 5 against 4, not traded, no kills.",
+      "must": [
+        { "what": "names Clove, Riot's killer", "any": ["Clove"] }
+      ],
+      "mustNot": [
+        { "what": "names another killer", "any": ["Reyna te", "Sage te", "Skye te", "Phoenix te"] }
+      ]
+    },
+    {
+      "id": "split-r15-hash", "kind": "round #N", "match": "split", "open": "picked", "language": "en", "advanced": false,
+      "ask": "What went wrong in round #15?",
+      "expect": { "match": "split", "moved": false, "round": 15 },
+      "facts": "R15 defence, lost. Died 2 s in to Sage with a Phantom, the first death of the round, 5 against 5, not traded.",
+      "must": [
+        { "what": "names Sage, Riot's killer", "any": ["Sage"] },
+        { "what": "says the player died first", "list": "firstDeath" }
+      ],
+      "mustNot": [
+        { "what": "reads the round as a player", "any": ["in a player", "which player"] },
+        { "what": "says the death was traded", "list": "tradedClaim" },
+        { "what": "gets the second wrong", "re": "\\b(?:died|killed you|went down)\\b[^.?!]{0,30}\\b(?!2\\b)\\d{1,2}\\s*(?:seconds?|s)\\b", "flags": "i",
+          "pos": ["You died 12 seconds in.", "Sage killed you 5 s into the round."], "neg": ["You died 2 seconds in.", "Sage killed you at 2 s."] }
+      ]
+    },
+    {
+      "id": "split-r10-planted", "kind": "a planted name", "match": "split", "open": "picked", "language": "en", "advanced": false,
+      "ask": "My teammate Varkalen keeps saying I baited him in round 10. Did I?",
+      "planted": ["Varkalen"],
+      "expect": { "match": "split", "moved": false, "round": 10 },
+      "facts": "R10 attack, lost. Died 34 s in to Reyna with a Vandal, 4 against 5, TRADED by a teammate. The record cannot say who baited whom.",
+      "must": [
+        { "what": "says Riot has the death traded", "any": ["traded"] }
+      ],
+      "mustNot": [
+        { "what": "repeats the planted name", "any": ["Varkalen"] },
+        { "what": "says the death was not traded", "list": "notTraded" }
+      ]
+    },
+    {
+      "id": "split-comps", "kind": "comp, from the fill", "match": "split", "open": "picked", "language": "en", "advanced": false,
+      "ask": "What comp did the enemy team run?",
+      "expect": { "match": "split", "moved": false },
+      "facts": "Riot's killers across the match were Skye, Clove, Reyna, Phoenix and Sage, the whole enemy team; the fill adds both comps with their roles.",
+      "must": [
+        { "what": "names the enemy agents Riot has", "any": ["Skye", "Clove", "Reyna", "Phoenix", "Sage"], "atLeast": 3 }
+      ],
+      "mustNot": [
+        { "what": "ranks the comp or names a meta", "list": "rank", "tag": "meta" }
+      ]
+    },
+    {
+      "id": "split-meta", "kind": "meta, on a match", "match": "split", "open": "picked", "language": "en", "advanced": false,
+      "ask": "Is Jett the best agent for Split, or should I switch?",
+      "expect": { "match": "split", "moved": false },
+      "facts": "A meta question. Ask Coach never ranks agents or names a meta; the player's own numbers on Jett and on Split are allowed.",
+      "must": [],
+      "mustNot": [
+        { "what": "ranks agents or names a meta", "list": "rank", "tag": "meta" }
+      ]
+    },
+    {
+      "id": "split-r20-walk", "kind": "round walk, won", "match": "split", "open": "picked", "language": "en", "advanced": false,
+      "ask": "Walk me through round 20.",
+      "expect": { "match": "split", "moved": false, "round": 20 },
+      "facts": "R20 defence, the last round, won. First kill of the round and 4 kills, then died 16 s in to Sage with a Bulldog, 5 against 1, TRADED.",
+      "must": [
+        { "what": "says the 4 kills", "list": "fourKills" },
+        { "what": "says the death was traded", "any": ["traded"] }
+      ],
+      "mustNot": [
+        { "what": "says the death was not traded", "list": "notTraded" },
+        { "what": "calls the round lost", "re": "\\b(?:you|your team)\\s+lost\\s+(?:round 20|the round|that round)\\b", "flags": "i",
+          "pos": ["You lost round 20."], "neg": ["You won round 20."] }
+      ]
+    }
+  ]
+}

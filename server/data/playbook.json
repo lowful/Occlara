@@ -252,7 +252,7 @@
     "tier": "core"
   },
   {
-    "text": "Your rifle does 39 to the body inside 20 meters and 35 past it, so a long hold costs you a fifth bullet the Vandal never needs.",
+    "text": "Your rifle does 39 to the body inside 20 meters and 35 past it, so a long hold against Heavy Armor costs you a fifth bullet the Vandal never needs.",
     "weapons": [
       "phantom"
     ],
@@ -260,7 +260,11 @@
     "source": {
       "kind": "computed",
       "topic": "phantom falloff",
-      "numbers": "valorant-api.com damage table"
+      "numbers": "valorant-api.com damage table",
+      "claims": [
+        { "weapon": "phantom", "part": "body", "armor": "heavy", "band": "far", "hits": 5 },
+        { "weapon": "vandal", "part": "body", "armor": "heavy", "hits": 4 }
+      ]
     },
     "tier": "advanced"
   },
@@ -605,7 +609,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Your rifle does 65 to the body at any range and two taps a full shield, so it punishes a long hold on a half buy.",
+    "text": "Your rifle does 65 to the body at any range, so 2 body hits kill through Light Armor and 3 through Heavy Armor, which punishes a long hold on a half buy.",
     "weapons": [
       "guardian"
     ],
@@ -613,12 +617,16 @@
     "source": {
       "kind": "computed",
       "topic": "guardian flat",
-      "numbers": "valorant-api.com damage table"
+      "numbers": "valorant-api.com damage table",
+      "claims": [
+        { "weapon": "guardian", "part": "body", "armor": "light", "hits": 2 },
+        { "weapon": "guardian", "part": "body", "armor": "heavy", "hits": 3 }
+      ]
     }
   },
   {
     "tier": "advanced",
-    "text": "Your sniper does 101 to the body at every range, so one body and one pistol shot is a kill and you do not need the head.",
+    "text": "Your sniper does 101 to the body at every range, so 1 body hit kills a player with no armour and 2 kill through any armour, and you do not need the head.",
     "weapons": [
       "marshal"
     ],
@@ -626,12 +634,17 @@
     "source": {
       "kind": "computed",
       "topic": "marshal flat",
-      "numbers": "valorant-api.com damage table"
+      "numbers": "valorant-api.com damage table",
+      "claims": [
+        { "weapon": "marshal", "part": "body", "armor": "none", "hits": 1 },
+        { "weapon": "marshal", "part": "body", "armor": "light", "hits": 2 },
+        { "weapon": "marshal", "part": "body", "armor": "heavy", "hits": 2 }
+      ]
     }
   },
   {
     "tier": "advanced",
-    "text": "Your sniper fires two shots before reloading and does 140 a body at any range, so it wins a double peek an Operator cannot.",
+    "text": "Your sniper fires 2 shots before reloading and does 140 a body at any range, so it wins a double peek an Operator cannot.",
     "weapons": [
       "outlaw"
     ],
@@ -639,7 +652,10 @@
     "source": {
       "kind": "computed",
       "topic": "outlaw flat",
-      "numbers": "valorant-api.com damage table"
+      "numbers": "valorant-api.com damage table",
+      "claims": [
+        { "weapon": "outlaw", "field": "magazine", "value": 2 }
+      ]
     }
   },
   {

@@ -186,7 +186,7 @@ const IMG = 'x'.repeat(4000);
   const policyNow = () => coach.liveModels().dataPolicy || {};
   const counts = () => policyNow().fellBack || {};
   const refused = () => policyNow().refusedAgain || {};
-  const zero = { read: 0, forensics: 0, review: 0, chat: 0, other: 0 };
+  const zero = { read: 0, forensics: 0, review: 0, chat: 0, bench: 0, other: 0 };
   ok(JSON.stringify(counts()) === JSON.stringify(zero) && JSON.stringify(refused()) === JSON.stringify(zero) && policyNow().mode === 'deny',
     `a server just started counts nothing, every route listed, asking deny (${JSON.stringify(coach.liveModels().dataPolicy)})`);
   {
@@ -213,6 +213,8 @@ const IMG = 'x'.repeat(4000);
       forensics: () => coach.__test.asRoute('forensics', null, () => coach.__test.visionInfer([IMG, IMG], 'look at this death', 50, true)),
       review: () => coach.__test.asRoute('review', null, () => coach.__test.textInfer('write the review', 50, { json: true })),
       chat: () => coach.__test.asRoute('chat', null, () => coach.__test.textInfer('answer the player', 50)),
+      // An admin bench's call, booked apart since 8.5.0, is counted apart too.
+      bench: () => coach.__test.asRoute('bench', null, () => coach.__test.textInfer('a bench call', 50, { json: true })),
       other: () => coach.__test.textInfer('say ok', 5),
     };
     const answered = {};
@@ -223,9 +225,9 @@ const IMG = 'x'.repeat(4000);
       answered[route] = !out.error && sent.length === 2 && denies(sent[0]) && !('provider' in sent[1].body);
     }
     ok(Object.values(answered).every(Boolean), `the death look, the review, Ask Coach and the rest fall back the same (${JSON.stringify(answered)})`);
-    ok(JSON.stringify(counts()) === JSON.stringify({ read: 1, forensics: 1, review: 1, chat: 1, other: 1 }),
+    ok(JSON.stringify(counts()) === JSON.stringify({ read: 1, forensics: 1, review: 1, chat: 1, bench: 1, other: 1 }),
       `each counted under its own route, and no other route is kept (${JSON.stringify(counts())})`);
-    ok(['forensics', 'review', 'chat', 'other'].every((r) => policyLines(r).length === 1),
+    ok(['forensics', 'review', 'chat', 'bench', 'other'].every((r) => policyLines(r).length === 1),
       'and each route says so in a line of its own');
   }
   {
@@ -463,7 +465,7 @@ const IMG = 'x'.repeat(4000);
     for (const [k, v] of Object.entries(process.env)) {
       if (!/^(AI_|STRIPE_|SUPABASE_|ADMIN_|GEMINI|OPENROUTER|HENRIKDEV|TRACKER|RIOT)/i.test(k)) env[k] = v;
     }
-    Object.assign(env, SECRETS, { PORT: String(port), SUPABASE_URL: 'http://localhost:54321', AI_BASE_URL: 'https://openrouter.ai/api/v1' });
+    Object.assign(env, SECRETS, { PRIMER_LIVE_CHECK: 'off', PORT: String(port), SUPABASE_URL: 'http://localhost:54321', AI_BASE_URL: 'https://openrouter.ai/api/v1' });
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-health-'));
     const started = Date.now();
     const child = spawn(process.execPath, [path.join(__dirname, '..', 'server', 'server.js')],
@@ -509,7 +511,7 @@ const IMG = 'x'.repeat(4000);
     ok(!!health && Object.values(SECRETS).every((s) => !shown.includes(s)), 'with no secret in either: no provider, database, Stripe or admin key');
     ok(!!health && !!apiHealth && JSON.stringify(Object.keys((dp && dp.fellBack) || {})) === JSON.stringify(Object.keys(zero))
       && JSON.stringify(Object.keys((dp && dp.refusedAgain) || {})) === JSON.stringify(Object.keys(zero)) && !/rivals/i.test(shown),
-    `and the routes it lists are read, forensics, review, chat and other, none of a game Occlara no longer coaches (${dp && Object.keys(dp.fellBack || {}).join(', ')})`);
+    `and the routes it lists are read, forensics, review, chat, bench and other, none of a game Occlara no longer coaches (${dp && Object.keys(dp.fellBack || {}).join(', ')})`);
   }
 
   finished = true;

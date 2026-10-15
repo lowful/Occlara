@@ -23,6 +23,16 @@
  * falling mistake is progress and a falling strength is not, and "getting
  * better" never rests on the latest match alone happening to be clean.
  *
+ * A CAUSE'S TREND IS ONE PROMPT'S (8.5.0). The coach's look at a death names
+ * a cause, and variant b of its prompt widened what a repeek is: compared
+ * across the two, a repeek would read as "rising" because its definition
+ * grew, not because the player changed. So a `cause:` key's newer and older
+ * halves are compared only across the recorded matches looked at by the same
+ * prompt as the newest one looked at (death-causes.js variantOf: a look saved
+ * with none was variant a), and it shows no trend until four such matches
+ * exist. A match the coach never looked at is no evidence either way. Its
+ * counts, in how many matches and how many times, are every match's.
+ *
  * THE GRADES COUNT EVERY MATCH, THE LISTS ONLY THE RECORDED ONES. A match
  * graded from Riot's record alone has a grade like any other and nothing to
  * count in a list (insights.countable): counted, its lists made Home's "most
@@ -35,6 +45,7 @@
  */
 
 const { repeatTitle, specificOf, countable } = require('./insights');
+const { variantOf } = require('./death-causes');
 
 const MIN_MATCHES = 2;
 const WINDOW = 10;
@@ -42,9 +53,30 @@ const WINDOW = 10;
 // WINDOW recorded ones are found behind the matches graded from Riot's record:
 // Connect grades ten of those in one run.
 const LOOK_BACK = 40;
+// The matches a trend needs, a cause's of one prompt as any other's of all.
+const TREND_MATCHES = 4;
+
+/** The prompt a review's looks were asked with, 'a' or 'b'; null for one never looked at, or looked at by both. */
+function lookVariant(review) {
+  const looks = ((review && review.rounds) || []).map((c) => c && c.forensics).filter((f) => f && f.cause);
+  const asked = new Set(looks.map(variantOf));
+  return asked.size === 1 ? [...asked][0] : null;
+}
+
+/** 'rising', 'falling' or 'steady': seen in `newer` of the first `n / 2` matches and `older` of the rest. */
+function trendOf(newer, older, n) {
+  if (n < TREND_MATCHES) return null;
+  const half = n / 2;
+  const newerRate = newer / Math.max(1, Math.ceil(half));
+  const olderRate = older / Math.max(1, Math.floor(half));
+  return newerRate > olderRate + 0.15 ? 'rising' : newerRate < olderRate - 0.15 ? 'falling' : 'steady';
+}
 
 function tally(reviews, list) {
   const map = new Map();
+  // A cause's trend: the matches looked at by the newest look's prompt, newest first.
+  const current = reviews.map((rv) => lookVariant(rv.review)).find(Boolean) || null;
+  const byPrompt = current ? reviews.filter((rv) => lookVariant(rv.review) === current) : [];
   reviews.forEach((rv, i) => {
     const seen = new Set();
     for (const e of countable(rv.review)[list]) {
@@ -52,9 +84,10 @@ function tally(reviews, list) {
       seen.add(e.key);
       const t = map.get(e.key) || {
         key: e.key, title: e.title, weight: e.weight || 1, matches: 0, total: 0,
-        newer: 0, older: 0, examples: [], judged: !!e.judged, fix: e.fix || null, specifics: new Set(),
+        newer: 0, older: 0, examples: [], judged: !!e.judged, fix: e.fix || null, specifics: new Set(), seenIn: new Set(),
       };
       t.specifics.add(specificOf(e, rv.review.game && rv.review.game.map));
+      t.seenIn.add(rv);
       t.matches++;
       t.total += e.count || 1;
       if (i < reviews.length / 2) t.newer++; else t.older++;
@@ -64,18 +97,19 @@ function tally(reviews, list) {
       map.set(e.key, t);
     }
   });
-  const half = reviews.length / 2;
   return [...map.values()]
     .filter((t) => t.matches >= MIN_MATCHES)
     .map((t) => {
-      const newerRate = t.newer / Math.max(1, Math.ceil(half));
-      const olderRate = t.older / Math.max(1, Math.floor(half));
-      const trend = reviews.length < 4 ? null
-        : newerRate > olderRate + 0.15 ? 'rising' : newerRate < olderRate - 0.15 ? 'falling' : 'steady';
+      let trend = trendOf(t.newer, t.older, reviews.length);
+      if (String(t.key).startsWith('cause:')) {
+        const n = byPrompt.length;
+        const at = byPrompt.map((rv) => t.seenIn.has(rv));
+        trend = trendOf(at.filter((x, i) => x && i < n / 2).length, at.filter((x, i) => x && i >= n / 2).length, n);
+      }
       // The title and fix the count may carry (insights.repeatTitle): the
       // newest one's only when every sighting named the same place or agent.
       const { title, fix } = repeatTitle(t.key, list, t, t.specifics);
-      const { specifics, ...rest } = t;
+      const { specifics, seenIn, ...rest } = t;
       return { ...rest, title, fix, share: t.matches / reviews.length, trend };
     });
 }
@@ -131,4 +165,4 @@ function summarise(saved) {
   return out;
 }
 
-module.exports = { summarise, MIN_MATCHES, WINDOW, LOOK_BACK };
+module.exports = { summarise, lookVariant, MIN_MATCHES, WINDOW, LOOK_BACK, TREND_MATCHES };

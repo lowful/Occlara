@@ -119,6 +119,8 @@ function fromRiot({ row, riot, history, account }) {
     queue: (riot && riot.queue) || (row && row.mode) || null,
     riotIdSet: true,
     source: 'riot',
+    // Both team comps, agents only (8.5.0), as a review linked live keeps them.
+    comps: (riot && riot.comps) || null,
   });
   Object.assign(review, {
     account: account || null,
@@ -255,6 +257,8 @@ function upgradeWatched({ saved, row, riot, history, account }) {
     riotMe: (riot && riot.me) || null,
     queue: (riot && riot.queue) || (row && row.mode) || null,
     riotIdSet: true,
+    // Both team comps (8.5.0): Riot's record's, else what Ask Coach's fill kept.
+    comps: (riot && riot.comps) || old.comps || null,
   });
   if (old.summary || old.focus) {
     review.refused.push("The coach's written read of this match was taken down. It was written before Riot's "

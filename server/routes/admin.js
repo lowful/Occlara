@@ -36,6 +36,26 @@ router.get('/coaching', (req, res) => {
   }
 });
 
+/**
+ * GET /api/admin/primer
+ *
+ * The Valorant primer's live version check (8.5.0, game-primer.js
+ * liveStatus): the synced patch and version, the live game's as last read,
+ * when that read was and whether it succeeded, what is withheld until the next
+ * sync and deploy, and the stated facts the deploy wide gate holds back. After
+ * a deploy, `live.lastOkAt` set and `withheld` and `statedGate` empty say the
+ * primer states everything it has; `running` false on Railway says the check
+ * never started.
+ */
+router.get('/primer', (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    res.json(require('../services/game-primer').liveStatus());
+  } catch (e) {
+    res.status(500).json({ error: 'Primer status unavailable' });
+  }
+});
+
 // GET /api/admin/costs
 // Protected by ADMIN_PASSWORD env var, sent as the X-Admin-Password header
 // Returns cost tracking data from the coach module
