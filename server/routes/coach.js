@@ -891,9 +891,9 @@ function benchModel(req) {
 
 /*
  * A READ PROMPT VARIANT IS AN ADMIN ACT TOO (8.4.1). The live read prompt is
- * what every install reads with; a variant (read-prompt.js VARIANTS, 'b') is
- * served only when the request names it AND carries the admin password, as a
- * bench model is, so no player's read is ever an experiment and no licence
+ * what every install reads with; a variant (read-prompt.js VARIANTS, b and c)
+ * is served only when the request names it AND carries the admin password, as
+ * a bench model is, so no player's read is ever an experiment and no licence
  * can switch its own. Named without the password, or unknown, it is ignored
  * rather than refused, so it can never break a client's read. The reply says
  * which prompt answered (`variant`, null for the live one) whenever one was
@@ -902,9 +902,13 @@ function benchModel(req) {
 const READ_VARIANTS = new Set(readPrompt.VARIANTS);
 // How much of aliveTell a read keeps, per prompt. 60 on the live one cut
 // frame-00186's "SPECTATORS 1" to "SPE", where the counter would have dropped
-// the death outright (SPECTATOR_COUNT); 90 on the variant, the killFeed's and
-// the note's room. The live cap moves only with the live prompt.
-const TELL_MAX = { live: 60, b: 90 };
+// the death outright (SPECTATOR_COUNT); 90 on b, the killFeed's and the note's
+// room. 120 on c: at 90, 19 to 45% of b's dead tells were still cut, and the
+// Sunset swiftplay's frame-00309 "SPECTATORS 1" came out "SPECTATOR", which
+// the counter rule does not know and the spectator tell does. Every variant
+// has its own, since a missing one would quietly be the live 60. The live cap
+// moves only with the live prompt.
+const TELL_MAX = { live: 60, b: 90, c: 120 };
 function readVariant(req) {
   const v = String((req.body && req.body.variant) || '').trim().toLowerCase();
   return v && READ_VARIANTS.has(v) && isAdmin(req) ? v : null;
@@ -1724,7 +1728,8 @@ function staticHabits() {
  * Everything is validated and clamped; null/garbage fields are dropped.
  *
  * @param opts.tellMax  how much of aliveTell to keep, 60 unless a read prompt
- *                      variant says otherwise (TELL_MAX, beside readVariant)
+ *                      variant says otherwise (TELL_MAX, beside readVariant:
+ *                      90 on b, 120 on c)
  */
 function mapState(s, opts) {
   if (!s || typeof s !== 'object') return {};

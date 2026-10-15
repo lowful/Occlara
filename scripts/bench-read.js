@@ -59,6 +59,8 @@
  *
  *   npm run verify:ai -- --variant b               the read prompt's variant b
  *   npm run verify:ai -- --lag 4 --variant b
+ *   npm run verify:ai -- --variant c               and c, written from b's judging
+ *   npm run verify:ai -- --lag 4 --variant c
  *
  * --variant NAME READS WITH A VARIANT OF THE READ PROMPT (8.4.1,
  * server/services/read-prompt.js), on the live model or any other, and needs
@@ -84,7 +86,8 @@ const LIMIT = Number(flag('frames', 0)) || Infinity;
 const LAG = Math.max(1, Math.floor(Number(flag('lag', 1))) || 1);
 const TRACE = flag('trace', '');
 const MIN_GAP = Math.max(0, Number(flag('min-gap', 0)) || 0);
-// The read prompt's variant to read with ('b'), or none: the live prompt.
+// The read prompt's variant to read with ('b', 'c'), or none: the live prompt.
+// Any name is sent; the server serves only one it has, and says which.
 const VARIANT = String(flag('variant', '') || '').trim().toLowerCase();
 // A flag's value is never a model, though a trace path has slashes in it.
 const VALUED = new Set(['session', 'frames', 'lag', 'parallel', 'trace', 'min-gap', 'variant']);

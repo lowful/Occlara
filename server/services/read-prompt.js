@@ -46,17 +46,58 @@ const FIELDS = `STATE: {"side":null,"phase":null,"round":null,"clock":null,"team
  * and says there is no clock after a plant. Only these two entries differ,
  * b's alive one a line longer for the counter (three lines of the prompt in
  * all); the STATE line is the same, so mapState() reads either reply alike.
+ *
+ * VARIANT C, FOR THE BENCH ONLY AS B IS, and served the same way. b's bench
+ * of 14 Oct, judged frame by frame against Riot's record over four real
+ * sessions, did not replace the live prompt: on the three current sessions
+ * the live prompt caught 24 of Riot's 24 deaths and b 21, and where the two
+ * disagreed on dead or alive the frames sided with the live prompt 74 times
+ * to 22. Nearly all of it was the buy phase, where the COMBAT REPORT of the
+ * round before, KILLED BY at its top, is still on screen over a living
+ * player: 111 buy frames read dead on b, 59 on the live prompt. c keeps b's
+ * one clean win, no "Spectating" and no sentence to copy (the live prompt's
+ * "portrait" tell came back 36 times, five of them on a living player), and:
+ *   - is dead only on SWITCH PLAYER, a COMBAT REPORT with ROUND ONGOING at its
+ *     foot, or no health number at all: every dead frame judged printed one of
+ *     them, and no buy phase frame did (its report lists the abilities)
+ *   - says the buy phase is never death, banner by banner
+ *   - names what is no sign of death, each a frame read dead on a living
+ *     player: the SPECTATORS counter, the skull of the player's own kill
+ *     banner, the kill feed, the scoreboard, a WON, LOST or FLAWLESS banner
+ *   - asks for no word the frame does not print and none saying a word is
+ *     absent: each of b's nine tells saying one was not there ("SWITCH PLAYER
+ *     not shown") was a death to the server, whose tell rule reads the words
+ *     and not the negation
+ *   - says alive null when it cannot tell, where b's "what you see in place of
+ *     the health" wrote "no own HP shown" on a living player and cost a round
+ *   - keeps the printed timer until the spike icon takes its place: b's "no
+ *     timer after a plant" dropped round clocks of 0:19 and 0:06 and called
+ *     both a plant, and the engine refuses a plant only on a running clock
+ * and keeps 120 characters of the tell (TELL_MAX in routes/coach.js), where
+ * 90 cut "SPECTATORS 1" to "SPECTATOR", which reads as a spectator screen.
+ * c's alive entry is three lines where the live one is one, its clock entry
+ * one, and nothing else of the prompt or the STATE line moves. It replaces
+ * the live prompt only once three runs of each, interleaved over the four
+ * sessions on one upstream, each frame sent the engine's own context
+ * (readContext) and scored by time against Riot, show it missing no death the
+ * live prompt caught, inventing no more deaths or plants, reading fewer buy
+ * frames dead in every session and no more LOBBY, and passing verify:ai plain
+ * and at --lag 4, its cost a read within a tenth of the live prompt's.
  */
-const VARIANTS = ['b'];
+const VARIANTS = ['b', 'c'];
 const LINES = {
   alive: {
     live: `- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"). No: alive false, and aliveTell names the dead tell: the word "Spectating", a teammate's portrait and name above "SWITCH PLAYER" bottom-left, "KILLED BY" upper right, a "COMBAT REPORT", a killcam, or no own health number at all. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. A flash, a smoke or a scope is not death.`,
     b: `- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"). No: alive false, and aliveTell names the evidence on THIS frame. The death screen prints SWITCH PLAYER at the bottom-left, KILLED BY at the upper right and a COMBAT REPORT panel: write those words in aliveTell only when they are printed on this frame, never because you expect them there. With none of them printed, aliveTell names what you see in place of the player's own health and loadout. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. A flash, a smoke or a scope is not death.
 - SPECTATORS and a number at the top right counts the people watching the player on screen. A living player sees it, so it is never a sign of death, and it is no sign of life either: decide alive from the health number and the death screen, never from it, and never write it in aliveTell.`,
+    c: `- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"), however low or red the number is. The player is dead only when this frame prints SWITCH PLAYER at the bottom-left, or a COMBAT REPORT panel with KILLED BY at its top and ROUND ONGOING at its foot, or shows no health number at the bottom-center at all. Then alive false, and aliveTell names which of these is on this frame, never a word the frame does not print and never a word to say it is absent. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. If you cannot tell, alive null.
+- THE BUY PHASE IS NEVER DEATH. Each round opens with the COMBAT REPORT of the round before still on screen, KILLED BY at its top when the player died in it, beside a BUY PHASE, LAST ROUND BEFORE SWAP or MATCH POINT banner with PRESS B TO BUY: the player is alive, so alive true, and aliveTell names the own health and loadout, never that panel.
+- None of these is a sign of death, and none goes in aliveTell: SPECTATORS and a number at the top right (it counts who is watching the player), a skull icon at the bottom-center (the player's own kill banner), a name in the kill feed, the scoreboard, the map, the buy menu, a WON, LOST or FLAWLESS banner, a flash, a smoke or a scope.`,
   },
   clock: {
     live: `- clock: the round timer at the top-center exactly as shown ("1:12"). After a plant it is the spike timer.`,
     b: `- clock: the round timer at the top-center exactly as shown ("1:12"). Once the spike is planted the game shows the spike icon there and no timer at all: clock null.`,
+    c: `- clock: the timer at the top-center exactly as shown ("1:12"). When the spike icon stands in its place there is no timer: clock null. A timer still counting there means the spike is not down: then phase is not "postplant" and spike is not "planted".`,
   },
 };
 
@@ -78,7 +119,7 @@ function contextLine(ctx) {
 
 /**
  * @param ctx      what the last applied read showed (contextLine)
- * @param variant  'b' for the bench's variant, anything else the live prompt
+ * @param variant  'b' or 'c' for a bench's variant, anything else the live prompt
  */
 function buildReadPrompt(ctx, variant) {
   const v = VARIANTS.includes(variant) ? variant : 'live';

@@ -16,6 +16,10 @@
  *   bench's alone, the same way: a player naming it is read with the live
  *   prompt, which is byte for byte the one every install has read with, and
  *   the variant says what the player's Fracture swiftplay showed it must.
+ *   Variant c, written from the judging of b's bench, is served the same way:
+ *   it is the live prompt with its alive and clock lines given the judge's
+ *   lines word for word, nothing else moved, and keeps 120 characters of the
+ *   tell.
  *
  *   ASK COACH'S CONTEXT (8.4.1). It was told Stats' four Overview scores were
  *   a coached-session trend and to drill the weakest of them. They are sums
@@ -298,6 +302,39 @@ const PW = 'correct horse battery staple';
     ok(plain.body.context.playerAlive === false && plain.body.context.playerHp === undefined
       && bench.body.context.playerAlive === true && bench.body.context.playerHp === 89,
     'and the counter it keeps is seen for what it is (SPECTATOR_COUNT): the living player\'s 89 stands, where the cut tell read them dead');
+
+    // Variant c, asked for the same way, and served the same way.
+    ok(readVariant({ body: { variant: 'c' }, headers: {} }) === null
+      && readVariant({ body: { variant: 'c' }, headers: { 'x-admin-password': 'guess' } }) === null
+      && readVariant({ body: { variant: 'c' }, headers: {}, query: { password: PW } }) === null,
+    'a licence alone cannot switch its read to variant c, nor with a wrong admin password, nor with it in the query string');
+    ok(readVariant({ body: { variant: 'c' }, headers: { 'x-admin-password': PW } }) === 'c'
+      && readVariant({ body: { variant: ' C ' }, headers: { 'x-admin-password': PW } }) === 'c', 'an admin bench naming c gets it');
+    const { TELL_MAX } = coach.__test;
+    ok(readPrompt.VARIANTS.every((v) => Number.isInteger(TELL_MAX[v]) && TELL_MAX[v] > TELL_MAX.live)
+      && TELL_MAX.live === 60 && TELL_MAX.b === 90 && TELL_MAX.c === 120,
+    `every variant keeps its own length of the tell, 120 on c, 90 on b, 60 on the live prompt (${JSON.stringify(TELL_MAX)})`);
+    // A tell naming the counter past its 90th character, as the Sunset
+    // swiftplay's frame-00309 did, on a living player at 99.
+    const TELL_C = 'own HP 99 and Classic bottom left, WON banner at the top center, round 4 is won, SPECTATORS 1 top right, the kill feed shows the player killed Reyna';
+    model.reply = `STATE: ${JSON.stringify({ phase: 'active', alive: true, hp: 99, aliveTell: TELL_C, weapon: 'Classic' })}`;
+    const playerC = await read({ variant: 'c' });
+    ok(playerC.r.status === 200 && playerC.prompt === live && playerC.body.variant === null
+      && playerC.body.context.aliveTell === TELL_C.slice(0, 60),
+    'a player naming variant c is read with the live prompt and its cap, and told it was (variant null)');
+    const benchC = await read({ variant: 'c' }, { 'X-Admin-Password': PW });
+    const promptC = readPrompt.buildReadPrompt(CTX, 'c');
+    ok(benchC.r.status === 200 && benchC.prompt === promptC && promptC !== live && promptC !== readPrompt.buildReadPrompt(CTX, 'b')
+      && benchC.body.variant === 'c', 'an admin bench naming c is read with variant c, neither the live prompt nor b, and told so');
+    const benchB = await read({ variant: 'b' }, { 'X-Admin-Password': PW });
+    const tellC = benchC.body.context.aliveTell || '';
+    const tellB = benchB.body.context.aliveTell || '';
+    ok(TELL_C.length > 120 && tellC === TELL_C.slice(0, 120) && /SPECTATORS 1/.test(tellC)
+      && tellB === TELL_C.slice(0, 90) && /SPECTATOR$/.test(tellB),
+    `on c the tell keeps 120 characters, so "SPECTATORS 1" past the 90th survives, where b's 90 cut it to "${tellB.slice(-9)}"`);
+    ok(benchC.body.context.playerAlive === true && benchC.body.context.playerHp === 99
+      && benchB.body.context.playerAlive === false && benchB.body.context.playerHp === undefined,
+    'and the living player\'s 99 stands on c, where the tell cut to "SPECTATOR" read them dead on b');
     model.reply = null;
 
     // What b says, against what the live prompt says.
@@ -316,6 +353,47 @@ const PW = 'correct horse battery staple';
       && !/portrait and name above/.test(B), 'with nothing quoted for the model to copy, where the live prompt handed it the sentence it copied');
     ok(/After a plant it is the spike timer/.test(A) && !/spike timer/i.test(B) && /spike icon there and no timer at all: clock null/.test(B),
       'and b says a planted spike shows no timer, where the live prompt said it had one');
+
+    // What c says: the judge's lines, word for word, each change for the
+    // frames b's bench was judged on.
+    const SAYS = {
+      ask: '- alive and aliveTell: CHECK THIS FIRST. Is the player\'s OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left?',
+      low: 'Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"), however low or red the number is.',
+      dead: 'The player is dead only when this frame prints SWITCH PLAYER at the bottom-left, or a COMBAT REPORT panel with KILLED BY at its top and ROUND ONGOING at its foot, or shows no health number at the bottom-center at all.',
+      absent: 'Then alive false, and aliveTell names which of these is on this frame, never a word the frame does not print and never a word to say it is absent.',
+      spectating: 'WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false.',
+      unsure: 'If you cannot tell, alive null.',
+      buy: '- THE BUY PHASE IS NEVER DEATH. Each round opens with the COMBAT REPORT of the round before still on screen, KILLED BY at its top when the player died in it, beside a BUY PHASE, LAST ROUND BEFORE SWAP or MATCH POINT banner with PRESS B TO BUY: the player is alive, so alive true, and aliveTell names the own health and loadout, never that panel.',
+      notDeath: '- None of these is a sign of death, and none goes in aliveTell: SPECTATORS and a number at the top right (it counts who is watching the player), a skull icon at the bottom-center (the player\'s own kill banner), a name in the kill feed, the scoreboard, the map, the buy menu, a WON, LOST or FLAWLESS banner, a flash, a smoke or a scope.',
+      clock: '- clock: the timer at the top-center exactly as shown ("1:12"). When the spike icon stands in its place there is no timer: clock null. A timer still counting there means the spike is not down: then phase is not "postplant" and spike is not "planted".',
+    };
+    const C = readPrompt.buildReadPrompt({}, 'c');
+    const clockOf = (p) => p.split('\n').find((l) => l.startsWith('- clock:')) || '';
+    const OWN = [[SAYS.ask, SAYS.low, SAYS.dead, SAYS.absent, SAYS.spectating, SAYS.unsure].join(' '), SAYS.buy, SAYS.notDeath];
+    const rebuilt = A.split('\n').flatMap((l) => (l === aliveOf(A) ? OWN : (l === clockOf(A) ? [SAYS.clock] : [l]))).join('\n');
+    const cOnly = C.split('\n').filter((l) => !A.split('\n').includes(l));
+    ok(C.includes(readPrompt.FIELDS) && rebuilt === C && aliveOf(A).length > 200 && clockOf(A).length > 40,
+      `c keeps the STATE line and is the live prompt with its alive line given three lines and its clock line one, word for word, nothing else moved (${cOnly.length} lines its own)`);
+    // Quoted in c's own alive lines, whatever they say.
+    const quotedC = cOnly.filter((l) => !l.startsWith('- clock:')).join('\n').match(/"[^"]*"/g) || [];
+    ok(!/"Spectating"/.test(C) && /the word "Spectating"/.test(A) && !/portrait and name above/.test(C)
+      && quotedC.length === 1 && quotedC[0] === '"own HP 87 and Vandal bottom left"',
+    'c never offers "Spectating" as a dead tell, and quotes nothing for the model to copy but the living example, where the live prompt handed it the portrait sentence');
+    ok(C.includes(SAYS.dead) && !/"KILLED BY" upper right|a "COMBAT REPORT"/.test(C) && /"KILLED BY" upper right/.test(A)
+      && !/KILLED BY at the upper right and a COMBAT REPORT panel/.test(C) && /KILLED BY at the upper right and a COMBAT REPORT panel/.test(B),
+    'c is dead only on SWITCH PLAYER, a COMBAT REPORT with ROUND ONGOING at its foot, or no health number, never on KILLED BY or a COMBAT REPORT alone as the live prompt and b have it');
+    ok(C.split('\n').includes(SAYS.buy) && !/BUY PHASE IS NEVER DEATH/.test(A + B),
+      'c says the buy phase is never death, the round before\'s COMBAT REPORT and its KILLED BY over it included, where neither the live prompt nor b says it');
+    ok(C.split('\n').includes(SAYS.notDeath) && !/A flash, a smoke or a scope is not death/.test(C)
+      && /A flash, a smoke or a scope is not death/.test(A),
+      'c names what is no sign of death and stays out of the tell: the SPECTATORS counter, the own kill banner\'s skull, the kill feed, the scoreboard, the map, the buy menu, a round\'s banner, a flash, a smoke, a scope');
+    ok(C.includes(SAYS.absent), 'c asks for no word the frame does not print and none to say a word is absent, as b\'s "SWITCH PLAYER not shown" was');
+    ok(C.includes(SAYS.unsure) && C.includes(SAYS.low) && !/in place of the player's own health and loadout/.test(C)
+      && /in place of the player's own health and loadout/.test(B),
+    'c says alive null when it cannot tell, and alive however low the health, where b had the model name what it saw in place of the health');
+    ok(C.split('\n').includes(SAYS.clock) && !/spike timer/i.test(C) && /spike timer/i.test(A)
+      && !/no timer at all/.test(C) && /no timer at all/.test(B),
+      'c reads the timer until the spike icon takes its place and a timer still counting is no plant, where the live prompt had a spike timer and b no timer after a plant');
   }
 
   // ── Ask Coach's context (8.4.1) ───────────────────────────────────────────

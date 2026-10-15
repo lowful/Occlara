@@ -2074,6 +2074,35 @@ with another prompt. It becomes the default only once both pass live; until
 then `test:serverguards` holds the live prompt byte for byte, who may ask for
 b and what b says, and `test:benchsession` the bench's flag.
 
+**Variant c** came from judging b's bench frame by frame against Riot's
+record over four real sessions, and b did not replace the live prompt: on the
+three current sessions the live prompt caught 24 of Riot's 24 deaths and b
+21, and where the two disagreed on dead or alive the frames sided with the
+live prompt 74 times to 22, nearly all in the buy phase, where the round
+before's COMBAT REPORT, KILLED BY at its top, is on screen over a living
+player (111 such frames read dead on b, 59 on the live prompt). c keeps b's
+one clean win, no "Spectating" and nothing quoted to copy, and: the player is
+dead only on SWITCH PLAYER, a COMBAT REPORT with ROUND ONGOING at its foot,
+or no health number; the buy phase is never death; the SPECTATORS counter,
+the skull of the player's own kill banner, the kill feed, the scoreboard, the
+map, the buy menu and a WON, LOST or FLAWLESS banner are no sign of death and
+stay out of the tell; no word the frame does not print and none saying a word
+is absent (each of b's "SWITCH PLAYER not shown" was a death to the server);
+alive null when it cannot tell; and the timer is read as printed until the
+spike icon takes its place, a timer still counting being no plant. It keeps
+120 characters of aliveTell (`TELL_MAX`), since 90 cut "SPECTATORS 1" to
+"SPECTATOR", which the spectator tell reads and the counter rule does not.
+Served exactly as b is, `npm run verify:ai -- --variant c` benches it. It
+replaces the live prompt only when three runs of each, interleaved over the
+four sessions on one upstream, each frame sent the engine's own context
+(`readContext()`) and scored by time against Riot, show it missing no death
+the live prompt caught, inventing no more deaths or plants, reading fewer buy
+frames dead in every session and no more LOBBY, and passing verify:ai plain
+and at `--lag 4`, its cost a read within a tenth. `test:serverguards` holds c as
+the live prompt with its alive and clock lines given the judge's word for
+word, who may ask for it and its cap, and `test:benchsession` the bench's
+flag for c.
+
 ## Do not simplify the guards
 
 `coaching-engine.js` contains deterministic checks that **deliberately override

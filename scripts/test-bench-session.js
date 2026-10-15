@@ -18,7 +18,8 @@
  * And the read bench's --variant (8.4.1), against a stand in for the server
  * on this machine over three stand in frames: the variant asked for beside the
  * admin password on every frame, nothing of it without the flag, and a run the
- * server did not read with it stopped at its first frame.
+ * server did not read with it stopped at its first frame: b and c alike, and
+ * a run read with b never passing for one on c.
  *
  * Run: npm run test:benchsession
  */
@@ -108,9 +109,11 @@ async function variantRuns() {
   for (const r of records) fs.writeFileSync(path.join(dir, r.frame), Buffer.from('a stand in, not a frame'));
   fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify({ records }));
   fs.writeFileSync(path.join(tmp, 'Occlara', 'occlara-config.json'), JSON.stringify({ licenseKey: 'GC-BENCH-TEST-0000-0000' }));
-  // What each read asked for, and whether the stand in honours a variant.
+  // What each read asked for, whether the stand in honours a variant, and the
+  // one it says it read with in place of the one asked for, if any.
   const seen = [];
   let honour = true;
+  let answerAs = null;
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (c) => { body += c; });
@@ -121,7 +124,7 @@ async function variantRuns() {
       const admin = req.headers['x-admin-password'] || null;
       seen.push({ url: req.url, admin, asked, variant: j.variant });
       const out = { lobby: false, context: { phase: 'buy' }, parsed: true, ms: 3,
-        ...(asked ? { variant: honour && admin ? j.variant : null } : {}) };
+        ...(asked ? { variant: honour && admin ? (answerAs || j.variant) : null } : {}) };
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(out));
     });
@@ -155,6 +158,27 @@ async function variantRuns() {
     const refused = await bench(['live', '--variant', 'b']);
     ok(seen.length === 1 && /the server read with the live prompt, not variant b/.test(refused.out),
       'and a server that read with the live prompt stops the run at its first frame, saying so', refused.out.trim());
+    // Variant c, the judge's, the same way.
+    honour = true;
+    seen.length = 0;
+    const c = await bench(['live', '--variant', 'c']);
+    ok(c.status === 0 && seen.length === 3 && seen.every((s) => s.variant === 'c' && s.admin === 'offline-test')
+      && /read with the read prompt's variant c/.test(c.out) && !/not variant c/.test(c.out),
+    'with --variant c every frame asks for variant c beside the admin password, and the run says it read with it', c.out.trim());
+    honour = false;
+    seen.length = 0;
+    const refusedC = await bench(['live', '--variant', 'c']);
+    ok(seen.length === 1 && /the server read with the live prompt, not variant c/.test(refusedC.out),
+      'and a server that read c\'s frames with the live prompt stops the run at its first frame, saying so', refusedC.out.trim());
+    // A server that knows b and not c yet can only answer the live prompt, but
+    // a run on b must never pass for one on c either.
+    honour = true;
+    answerAs = 'b';
+    seen.length = 0;
+    const asB = await bench(['live', '--variant', 'c']);
+    ok(seen.length === 1 && /the server read with variant b, not variant c/.test(asB.out),
+      'nor does a run the server read with b pass for c: it stops at its first frame, saying so', asB.out.trim());
+    answerAs = null;
   } finally {
     server.close();
     fs.rmSync(tmp, { recursive: true, force: true });
