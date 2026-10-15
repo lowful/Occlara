@@ -19,6 +19,7 @@
  *                                or picked one, else the newest, and a map the
  *                                question names moves it only by the map rule
  *   roundOf(question, review)    the round a question names, or null
+ *   roundsOf(question, review)   every round it names, three at most
  *   build(review, library, tracker, question, opts)
  *                                the v2 context
  *   needsFill(review), applyRoundRecord(review, record, now)
@@ -200,6 +201,41 @@ function roundOf(question, review) {
     return ot.length ? ot[0] : null;
   }
   return null;
+}
+
+/*
+ * EVERY ROUND A QUESTION NAMES (bench:chat, 15 Oct). roundOf reads one, and
+ * "How do I win more Sheriff duels like rounds 5 and 6?" gave it none, so
+ * neither round went to the server in full and round 6 was told as one line,
+ * its look left out, which both wrong facts of the person's read came from.
+ * "rounds 5 and 6", "rounds 5, 6 and 7", "round 5 and round 6", "R5 or R6",
+ * "rounds 5 to 7", in the app's other languages' words for a round too, and
+ * roundOf's own round first, MAX_ROUNDS at most, every one the match has. The
+ * server reads the question the same way (chat-prompt.js askedRounds), so a
+ * client that sends only `round` loses nothing there.
+ */
+const MAX_ROUNDS = 3;
+const ROUND_LIST = /\b(?:rounds?|rondas?|runden?|rodadas?|manches?)\s*#?\s*(\d{1,2})((?:\s*(?:,|and|or|&|y|o|und|oder|e|ou|et|to|through|-)\s*#?\s*\d{1,2}\b)*)/gi;
+const R_LABELS = /\bR(\d{1,2})\b/g;
+function roundsOf(question, review) {
+  const q = String(question || '');
+  const cards = (review && Array.isArray(review.rounds) ? review.rounds : []).filter(Boolean);
+  const has = (n) => Number.isInteger(n) && cards.some((c) => c.n === n);
+  const out = [];
+  const add = (n) => { if (has(n) && !out.includes(n)) out.push(n); };
+  add(roundOf(question, review));
+  for (const m of q.matchAll(ROUND_LIST)) {
+    let last = Number(m[1]);
+    add(last);
+    for (const step of String(m[2] || '').matchAll(/(to|through|-)?\s*#?\s*(\d{1,2})\b/gi)) {
+      const n = Number(step[2]);
+      if (step[1] && n > last) for (let k = last + 1; k < n && out.length < MAX_ROUNDS; k++) add(k);
+      add(n);
+      last = n;
+    }
+  }
+  for (const m of q.matchAll(R_LABELS)) add(Number(m[1]));
+  return out.slice(0, MAX_ROUNDS);
 }
 
 // ── The phrase lists (the server's, fact-gates.js PHRASES, held equal) ──────
@@ -571,6 +607,8 @@ function build(review, library, tracker, question, opts) {
     },
     ask: {
       round: game === 'valorant' && r ? roundOf(question, r) : null,
+      // Every round it names, each told in full by a server that reads them (roundsOf).
+      rounds: game === 'valorant' && r ? roundsOf(question, r) : [],
       switchedFrom: sw ? { map: sw.map, agent: sw.agent, result: sw.result, score: sw.score, day: sw.day } : null,
     },
   };
@@ -696,7 +734,7 @@ function oldStats(st) {
 }
 
 module.exports = {
-  HOLD_MS, LIST_SIZE, held, holdEndsAt, chatList, pickMatch, mapNamed, roundOf, pistolsOf, build, startersOf,
+  HOLD_MS, LIST_SIZE, MAX_ROUNDS, ROUND_LIST, held, holdEndsAt, chatList, pickMatch, mapNamed, roundOf, roundsOf, pistolsOf, build, startersOf,
   needsFill, applyRoundRecord, fillRefused, oldText, oldStats, labelOf, dayOf, phraseHit, lookDigits, feedOf, derivedOf,
   trackerOf, oldFacts, PHRASES, MATCH_WORDS, ROUND_DIGITS, R_LABEL, ROUND_SPELLED, PISTOL, LOOK_DIGIT,
   DEATH_LINE, ALIVE_LINE, KILLS_LINE, TRADES_LINE, CLUTCH_LINE,

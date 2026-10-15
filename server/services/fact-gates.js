@@ -43,6 +43,21 @@ try { DATA = require('../valorant-data.generated.json'); } catch { DATA = {}; }
 
 const lower = (s) => String(s == null ? '' : s).toLowerCase();
 const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+
+/*
+ * CURLY QUOTES ARE STRAIGHTENED BEFORE EVERY GATE (bench:chat, 15 Oct). GPT-6
+ * Sol writes its apostrophe as U+2019, and every rule here spells "didn't",
+ * "can't" and "Tejo's" with the straight one: on the Sunset swiftplay "You
+ * didn't lose round 5", curly, read as a loss of the round it won and went,
+ * the first sentence of a corrected premise, and on Split "I can't tell you
+ * whether Jett is the best agent", curly, read as a ranking. check() hands
+ * every gate the straightened sentence; the reply keeps it as the model wrote
+ * it. Built from the codes, so no curly character is typed here.
+ */
+const CURLY_SINGLE = new RegExp(`[${String.fromCharCode(0x2018, 0x2019, 0x201a, 0x201b, 0x2032, 0x02bc)}]`, 'g');
+const CURLY_DOUBLE = new RegExp(`[${String.fromCharCode(0x201c, 0x201d, 0x201e, 0x201f, 0x2033, 0x00ab, 0x00bb)}]`, 'g');
+/** A text with its curly apostrophes and quotes made straight, for the gates to read. */
+const straighten = (s) => String(s == null ? '' : s).replace(CURLY_SINGLE, "'").replace(CURLY_DOUBLE, '"');
 const fin = (v) => typeof v === 'number' && Number.isFinite(v);
 const near = (a, b, tol) => fin(a) && fin(b) && Math.abs(a - b) <= tol + 1e-9;
 
@@ -215,19 +230,43 @@ const isInstruction = (s) => {
 // match does not have is no round of it in any of them.
 const ROUND_WORD = /\b(?:rounds?|rondas?|runden?|rodadas?|manches?)\s*#?\s*(\d{1,2})\b/gi;
 const R_LABEL = /\bR(\d{1,2})\b/g;
-const PISTOL_ROUND = /\b(?:the\s+)?(?:(attack|attacking|defence|defense|defending)\s+)?pistol\s+round\b/i;
+/*
+ * A PISTOL ROUND NAMES A ROUND ONLY AS ONE: "the pistol round", "your attack
+ * pistol round", "the second pistol round". Read wherever the words stood
+ * (bench:chat, 15 Oct), "Round 5 was a pistol round your team won" on the
+ * Sunset swiftplay named round 1 as well, which it lost, and Gemini's "round
+ * 5 was your second pistol round and one of the two rounds you survived" had
+ * the player survive round 1, where they died. So a determiner must open it, a
+ * second or last pistol round (or the one after the swap) is the match's
+ * second, and "round 5 was the pistol round" describes round 5, which the
+ * timeline gate holds to its own pistol flag.
+ */
+const PISTOL_ROUND = /\b(the|your|my|this|that|our)\s+(?:(first|second|1st|2nd|opening|last)\s+)?(?:(attack|attacking|offensive|defence|defense|defending|defensive)\s+)?pistol\s+round\b/gi;
+const PISTOL_DESCRIBED = /\b(?:rounds?\s*#?\s*\d{1,2}|it|this|that)\s+(?:was|is|were)\s+$/i;
+const PISTOL_SECOND_AFTER = /^\s+(?:after|of|in)\s+(?:the\s+)?(?:swap|switch|side switch|half|halftime|second half)\b/i;
 // And "rounds 5, 11 and 2 more", as the prompt's own lists end, names no round 2.
 const ROUND_TIMES = /\brounds?\s+\d{1,2}\s+(?:times|x)\b|\band\s+\d{1,2}\s+more\b/gi;
+// "Your teammate finished the round 33 s in" names no round 33: a time, which
+// the round gate dropped as a round the match does not have (bench:chat).
+const ROUND_SECONDS = /\brounds?\s+\d{1,3}(?=\s*(?:s|secs?|seconds?)\b)/gi;
 
 /** The round numbers a sentence names, in any of its ways, given the match. */
 function roundsNamed(s, facts) {
   // "The first kill of the round 8 times" names no round 8: it is the counted
   // line the prompt gives, quoted, and it was dropped as a claim about round
-  // 8 (the verifier's probe, 15 Oct). Its digits are masked before reading.
-  const text = String(s || '').replace(ROUND_TIMES, (w) => w.replace(/\d/g, '#'));
+  // 8 (the verifier's probe, 15 Oct). Its digits are masked before reading,
+  // and so are a time's after "the round".
+  const text = String(s || '').replace(ROUND_TIMES, (w) => w.replace(/\d/g, '#'))
+    .replace(ROUND_SECONDS, (w) => w.replace(/\d/g, '#'));
   const out = new Set();
+  // The review's reader takes a run of numbers after the word "round", spelled
+  // ones included, so "your second pistol round and one of the two rounds you
+  // survived" named round 1 (bench:chat, 15 Oct, Gemini on the Sunset). A
+  // pistol round is read below, as one, and "one of" counts nothing.
+  const forReader = text.replace(new RegExp(PISTOL_ROUND.source, 'gi'), (w) => w.replace(/round\b/i, 'rnd'))
+    .replace(/\b(and|or)\s+one\s+of\b/gi, '$1 #ne of');
   try {
-    for (const n of review().namedRounds(text)) out.add(n);
+    for (const n of review().namedRounds(forReader)) out.add(n);
   } catch { /* the review's reader, when it loads; the words below either way */ }
   let m;
   const re = new RegExp(ROUND_WORD.source, 'gi');
@@ -239,11 +278,14 @@ function roundsNamed(s, facts) {
     const all = [...f.rounds.keys()].sort((a, b) => a - b);
     if (/\bthe first round\b/i.test(text)) out.add(all[0]);
     if (/\bthe (?:last|final) round\b/i.test(text)) out.add(all[all.length - 1]);
-    const p = PISTOL_ROUND.exec(text);
-    if (p) {
-      const side = p[1] ? (/^att/i.test(p[1]) ? 'attacking' : 'defending') : null;
+    for (const p of text.matchAll(new RegExp(PISTOL_ROUND.source, 'gi'))) {
+      if (PISTOL_DESCRIBED.test(text.slice(Math.max(0, p.index - 32), p.index))) continue;
+      const side = p[3] ? (/^(?:att|off)/i.test(p[3]) ? 'attacking' : 'defending') : null;
+      const second = /^(?:second|2nd|last)$/i.test(p[2] || '') || PISTOL_SECOND_AFTER.test(text.slice(p.index + p[0].length, p.index + p[0].length + 40));
       const pistols = all.filter((n) => f.rounds.get(n).pistol && (!side || f.rounds.get(n).side === side));
-      if (pistols.length) out.add(pistols[0]);
+      // A side names its own pistol round; without one, the second is the match's second.
+      const pick = second && !side ? pistols[1] : pistols[0];
+      if (pick) out.add(pick);
     }
     if (/\bovertime\b/i.test(text) && f.overtimeFrom) {
       for (const n of all) if (n >= f.overtimeFrom) { out.add(n); break; }
@@ -260,19 +302,25 @@ function roundsNamed(s, facts) {
 // round"), and a trade with the player as its object ("nobody traded you", "a
 // teammate traded you"): the verifier's probes found each passing as a
 // sentence about no round, so the economy and trade gates never read them.
-const PAST_ABOUT_YOU = /\b(?:you|your team|your teammates?)\s+(?:were|was|had|did|didn't|got|went|took|died|peeked|stayed|held|pushed|played|lost|won|made|stood|walked|ran|swung|killed|traded|used|missed|fired|shot|tried|kept|moved|opened|survived|planted|defused|rotated|fell|left|came|saw|hit|gave|chose|decided|bought|saved|forced|spent|dealt|purchased)\b|\b(?:killed|shot|got|caught|picked|beat|dropped|finished|traded) you\b|\btrad(?:e|ed|ing) your death\b|\byour\s+(?:death|kills?|duel|fight|trade|plant)\s+(?:was|were|went|came|had|happened|didn't|wasn't)\b/i;
+// And how the player fought it (bench:chat, 15 Oct): "You fought Clove from
+// beside cover with a Classic", in a reply about the Pearl round 1 asked
+// about, gave the player the killer's gun and was read as about no round, so
+// the weapon gate never saw it. Said of the player alone: "your teammates
+// fought back, but the defenders won" is theirs to tell.
+const PAST_ABOUT_YOU = /\b(?:you|your team|your teammates?)\s+(?:were|was|had|did|didn't|got|went|took|died|peeked|stayed|held|pushed|played|lost|won|made|stood|walked|ran|swung|killed|traded|used|missed|fired|shot|tried|kept|moved|opened|survived|planted|defused|rotated|fell|left|came|saw|hit|gave|chose|decided|bought|saved|forced|spent|dealt|purchased)\b|\byou\s+(?:fought|drew|faced|challenged|contested|engaged|entered|waited|reloaded|threw)\b|\b(?:killed|shot|got|caught|picked|beat|dropped|finished|traded) you\b|\btrad(?:e|ed|ing) your death\b|\byour\s+(?:death|kills?|duel|fight|trade|plant)\s+(?:was|were|went|came|had|happened|didn't|wasn't)\b/i;
 
 /**
  * Whether a sentence is a round sentence, and of which rounds. A sentence that
  * names no round is one of the asked round when the question named one and it
  * speaks in the past tense about the player.
  */
-function roundSentence(s, facts) {
+function roundSentence(sentence, facts) {
+  const s = straighten(sentence);
   if (isHypothetical(s) || isInstruction(s)) return { round: false, rounds: [] };
   const named = roundsNamed(s, facts);
   if (named.length) return { round: true, rounds: named };
   const f = facts || {};
-  const t = String(s || '');
+  const t = s;
   // A counted line quoted is about the match, never the asked round alone.
   if (f.asked && f.oneRound && (PAST_ABOUT_YOU.test(t) || YOUR_GUN_PAST.test(t)) && !quotesCounted(digitsOf(t), f.counted)) {
     return { round: true, rounds: [f.asked], implied: true };
@@ -499,25 +547,89 @@ const RESULT_VERBS = [
 ];
 const THEY_BEFORE = /\b(?:they|the enemy|the enemies|the other team|their team)\s+(?:[a-z']+\s+){0,1}$/i;
 
-/**
- * What a sentence says happened to the player or the team in a round: won,
- * lost, died, survived. A negation reverses the verb it governs and no other
- * ("You didn't lose round 5, you won it" is two claims of a win), and what
- * the other team did is the player's opposite ("they won round 5" is a loss).
+/*
+ * THE MATCH'S OWN RESULT IS NO ROUND'S (bench:chat, 15 Oct). The rules ask the
+ * coach to name the match the first time, with its result, and Sol did it in
+ * the sentence about the round: "In the Abyss match on Jett, which you won 13
+ * to 11, round 22 was an attack you lost" had its "won" read as round 22's and
+ * went. That reading dropped 20 of Sol's 456 sentences and caused 6 of its 9
+ * retries and both its honest lines. A result is the match's when what it is
+ * said of is the match: the final score after it ("which you won 13 to 11",
+ * "a win, 5 to 1"), the match or the game after it ("you won the match") or
+ * before it ("the Split match you won", "the match on Jett, which you won"),
+ * the match's map after it ("you won Fracture"), "overall", or, said as the
+ * noun "win", the final score, a map, an agent or a mode before it ("a 13 to
+ * 11 win", "the Abyss Jett win", "a 5 to 1 Swiftplay win"). A round named
+ * after the verb is the round's whatever else the sentence says ("in this
+ * match you lost round 5"). A claim of the match is held to the match's own
+ * result, and one the record contradicts drops ("you lost the match" on a
+ * Victory); never to a round's.
  */
-function resultClaims(s) {
-  const t = String(s || '');
+const OBJECT_IS_ROUND = /^\s+(?:(?:the|that|this|your|their)\s+)?(?:(?:first|last|final|pistol|opening|second|next)\s+)?(?:rounds?\b|r\d{1,2}\b)|^\s+it\b/i;
+const MATCH_AFTER = /^\s+(?:(?:the|that|this|your|our)\s+)?(?:whole\s+|entire\s+)?(?:match|game|series)\b(?!\s*point)|^\s+overall\b|^\s+in the end\b/i;
+const SCORE_AFTER = /^\s*,?\s*(?:it\s+|them\s+|by\s+)?(\d{1,2})\s*(?:to|-)\s*(\d{1,2})\b/i;
+const SCORE_BEFORE = /\b(\d{1,2})\s*(?:to|-)\s*(\d{1,2})\s+(?:[A-Za-z]+\s+){0,2}$/;
+const MATCH_BEFORE = /\b(?:match|game)\s+(?:that\s+|which\s+)?(?:you|your team|we)\s+(?:[a-z]+\s+){0,2}$|\b(?:match|game)\b(?:(?!\bround\b)[^.;:]){0,50}?\b(?:which|that)\s+(?:you|your team|we)\s+(?:[a-z]+\s+){0,2}$|\b(?:the|this|that|your)\s+(?:whole\s+)?(?:match|game)\s+$/i;
+const MODE_NAMES = 'Competitive|Unrated|Swiftplay|Premier|Standard|Deathmatch|Spike Rush|Escalation|Replication|Custom';
+const MAP_ALT = MAPS.map(esc).sort((a, b) => b.length - a.length).join('|') || 'NO_MAP';
+const NAMED_WIN_BEFORE = new RegExp(`\\b(?:[Tt]he|[Aa]n?|[Yy]our|[Tt]his|[Tt]hat|[Tt]heir)\\s+(?:(?:${MAP_ALT}|${AGENT_ALT}|${MODE_NAMES}|match|game)[\\s,]+){1,3}$`);
+const MAP_AFTER = new RegExp(`^\\s+(?:on\\s+)?(${MAP_ALT})\\b`);
+/*
+ * And what was won is no round when it stands before the verb: "reach the
+ * space you won", "the duel you lost", and "What you lost was your opening
+ * fight" (bench:chat, 15 Oct: two true sentences of Sol's, dropped as round 22
+ * and round 5 won and lost).
+ */
+const OBJECT_BEFORE = /\b(?:the|that|this|your|their|an?|every|each)\s+(?:[a-z]+\s+)?(?:space|ground|angles?|duels?|fights?|gunfights?|trades?|position|advantage|info|information|control|opening|lead|numbers?|time)\s+(?:that\s+|which\s+)?(?:you|your team|we)\s+(?:had\s+|have\s+|just\s+|already\s+)?$/i;
+const CLEFT_BEFORE = /\bwhat\s+(?:you|your team)\s+(?:[a-z]+\s+)?$/i;
+const CLEFT_AFTER = /^\s+(?:was|were)\s+(?:(?:the|a|an|your|their|that|this)\s+)?(?:[a-z]+\s+)?(?:duels?|fights?|gunfights?|opening|trades?|space|angles?|position|advantage)\b/i;
+
+/** Whether a won or lost at [at, end) is said of the match: true, false, or null for a map that is another match's. */
+function ofTheMatch(t, at, end, f) {
+  const after = t.slice(end, end + 48);
+  const before = t.slice(Math.max(0, at - 72), at);
+  const fs = f && Array.isArray(f.finalScore) ? f.finalScore : null;
+  const final = (sc) => !!(sc && fs && ((Number(sc[1]) === fs[0] && Number(sc[2]) === fs[1]) || (Number(sc[1]) === fs[1] && Number(sc[2]) === fs[0])));
+  if (final(SCORE_AFTER.exec(after))) return true;
+  if (OBJECT_IS_ROUND.test(after)) return false;
+  if (MATCH_AFTER.test(after)) return true;
+  const map = MAP_AFTER.exec(after);
+  if (map) return f && f.map && lower(map[1]) === lower(f.map) ? true : null;
+  if (MATCH_BEFORE.test(before)) return true;
+  if (/^win$/i.test(t.slice(at, end)) && (final(SCORE_BEFORE.exec(before)) || NAMED_WIN_BEFORE.test(before))) return true;
+  return false;
+}
+
+/**
+ * What a sentence says happened to the player or the team: won, lost, died,
+ * survived, each { claim, match } with match true when it is said of the
+ * match, not a round (ofTheMatch). A negation reverses the verb it governs
+ * and no other ("You didn't lose round 5, you won it" is two claims of a
+ * win), and what the other team did is the player's opposite ("they won round
+ * 5" is a loss). What was won or lost before the verb ("the space you won")
+ * is no claim at all.
+ */
+function claimsOf(s, facts) {
+  const t = straighten(s);
   const out = [];
   for (const [re, claim, opposite] of RESULT_VERBS) {
     for (const m of t.matchAll(new RegExp(re.source, re.flags))) {
       const before = t.slice(Math.max(0, m.index - 48), m.index);
+      const result = claim === 'won' || claim === 'lost';
+      if (result && (OBJECT_BEFORE.test(before) || (CLEFT_BEFORE.test(before) && CLEFT_AFTER.test(t.slice(m.index + m[0].length))))) continue;
+      const match = result ? ofTheMatch(t, m.index, m.index + m[0].length, facts) : false;
+      if (match === null) continue;
       let c = NEG_BEFORE.test(before) ? opposite : claim;
-      if ((claim === 'won' || claim === 'lost') && THEY_BEFORE.test(before.replace(NEG_BEFORE, ''))) c = c === 'won' ? 'lost' : 'won';
-      out.push(c);
+      if (result && THEY_BEFORE.test(before.replace(NEG_BEFORE, ''))) c = c === 'won' ? 'lost' : 'won';
+      out.push({ claim: c, match });
     }
   }
   return out;
 }
+/** The claims a sentence makes of a round (claimsOf, the match's own left out), as words. */
+const resultClaims = (s, facts) => claimsOf(s, facts).filter((x) => !x.match).map((x) => x.claim);
+/** The claims a sentence makes of the match itself. */
+const matchClaims = (s, facts) => claimsOf(s, facts).filter((x) => x.match).map((x) => x.claim);
 
 function gateRoundResult(s, facts, rs) {
   const f = facts || {};
@@ -526,7 +638,12 @@ function gateRoundResult(s, facts, rs) {
   const bad = named.filter((n) => !f.rounds.has(n));
   if (bad.length) return drop('round', `your reply named round ${bad[0]}, which this match does not have; it has ${f.rounds.size} rounds`);
   if (!rs || !rs.round || f.language !== 'en') return null;
-  for (const claim of resultClaims(s)) {
+  for (const claim of matchClaims(s, f)) {
+    if ((f.matchResult === 'won' || f.matchResult === 'lost') && claim !== f.matchResult) {
+      return drop('result', `your reply said the match was ${claim}, and the record has it ${f.matchResult}`);
+    }
+  }
+  for (const claim of resultClaims(s, f)) {
     for (const n of rs.rounds) {
       const r = f.rounds.get(n);
       if (!r) continue;
@@ -607,7 +724,10 @@ const WAS_TRADED = /\b(?:you were|you got|was|got|were) traded\b|\btraded by (?:
 const TRADE_AS_HARM = /\bget(?:s|ting)? you traded\b|\b(?:leads? to|ends? in|means) (?:you )?(?:being|getting) traded\b/i;
 
 // And as a chat says it, which the review's words do not cover: "a teammate traded you".
-const TRADED_YOU = /\b(?:a |your )?(?:teammates?|ally|allies|team)\s+(?:quickly\s+|instantly\s+|then\s+)?traded you\b/i;
+// Never under a negation (bench:chat, 15 Oct): "no teammate traded you", true
+// of the Abyss round 3 asked about, read as "teammate traded you" and went,
+// with it the only sentence left that named Cypher as the killer.
+const TRADED_YOU = /(?<!\b(?:no|not|never|nor|without)\s+(?:a\s+|an\s+|your\s+|one\s+|single\s+)?|\b(?:nobody|no one|none|neither)\s+(?:on|of|from|in)\s+(?:your\s+|the\s+)?)\b(?:a |your )?(?:teammates?|ally|allies|team)\s+(?:quickly\s+|instantly\s+|then\s+)?traded you\b/i;
 
 const STANDING = /\b([1-5])\s*(?:against|versus|vs\.?|v|on)\s*([1-5])\b/i;
 const ADVANTAGE = /\b(?:a player up|up a player|(?:man|player|numbers) advantage|numbers up|up in numbers|ahead in numbers|outnumbered them)\b/i;
@@ -622,6 +742,9 @@ const ATTACK_SIDE = /\b(?:on attack|attacking|as an attacker|on the attacking si
 const DEFENCE_SIDE = /\b(?:on defen[cs]e|defending|as a defender|on the defending side)\b/i;
 const ABOUT_THEM = /\b(?:their|the enemy|the enemies|the other team)\b/i;
 const THEIRS_FIRST = /\b(?:they|them|their|the enemy|the enemies|the other team|the defenders|the attackers)\b/i;
+
+/** Whether a negation governs the words at `at`: within two words before them, no comma between (NEG_BEFORE). */
+const negatedAt = (t, at) => NEG_BEFORE.test(String(t || '').slice(Math.max(0, at - 48), at));
 
 function gateStanding(s, facts, rs) {
   const f = facts || {};
@@ -648,8 +771,20 @@ function gateStanding(s, facts, rs) {
     if (DISADVANTAGE.test(t) && !neg && !states.some(([m, e]) => m < e)) return say('a man disadvantage');
     if (CLUTCH.test(t) && !neg && !r.clutch) return say('a clutch');
     if (AFTER_PLANT.test(t) && !neg && !r.planted) return say('a plant');
-    if (FIRST_DEATH.test(t) && r.verified && (neg ? r.firstDeath : !r.firstDeath)) return say(neg ? 'no first death' : 'the first death');
-    if (OPENING_KILL.test(t) && r.verified && (neg ? r.firstKill : !r.firstKill)) return say(neg ? 'no first kill' : 'the first kill');
+    // Only the negation that governs it turns a first death or a first kill
+    // round: in "you opened the round strong, but the team could not hold the
+    // site" (bench:chat, 15 Oct) the "not" is the team's, and a round the player
+    // opened with the first kill was dropped as one they never opened.
+    const fd = FIRST_DEATH.exec(t);
+    if (fd && r.verified) {
+      const no = negatedAt(t, fd.index);
+      if (no ? r.firstDeath : !r.firstDeath) return say(no ? 'no first death' : 'the first death');
+    }
+    const ok = OPENING_KILL.exec(t);
+    if (ok && r.verified) {
+      const no = negatedAt(t, ok.index);
+      if (no ? r.firstKill : !r.firstKill) return say(no ? 'no first kill' : 'the first kill');
+    }
     if (MATCH_POINT.test(t) && !neg && !r.matchPoint) return say('match point');
     if (PISTOL_CLAIM.test(t) && !neg && !r.pistol) return say('a pistol round');
     if (ATTACK_SIDE.test(t) && r.side === 'defending' && !ABOUT_THEM.test(t)) return say('attack');
@@ -733,14 +868,51 @@ function gateMapAndKit(s, facts, rs) {
  * player's own only where the feed has their kill with it that round, or the
  * round's look names it.
  */
+/*
+ * WHOSE GUN A SENTENCE SAYS IT IS: the player's after "your", "you had", "you
+ * held" and the like, or after "with a" or "using a" in a clause whose own
+ * subject is the player ("You fought Clove from beside cover with a
+ * Classic"), never one where the player is killed ("Clove killed you with a
+ * Classic", "you were killed by Clove with a Classic") or fights toward
+ * someone named ("you lost the duel to Clove with a Classic"); the enemy's
+ * after "their", "his", "her" or a possessive; else nobody's in particular.
+ * Read with "with a" alone as nobody's, that Pearl round 1 sentence gave the
+ * player the killer's Classic (bench:chat, 15 Oct), the only Classic the
+ * round's record has.
+ */
+const GUN_MINE_BEFORE = /\b(?:your|you had|you held|you were holding|you bought|you used|you drew|you pulled out|you carried|you picked up)\s+(?:a |an |the )?$/;
+const GUN_THEIRS_BEFORE = /(?:\btheir|\bhis|\bher|\bthe enemy's|\benemy|\bkiller's|'s)\s+$/;
+const GUN_WITH_BEFORE = /\b(?:with|using)\s+(?:a|an|the|your)\s+$/i;
+const YOU_KILLED_PASSIVE = /^\s*you\s+(?:were|got)\s+(?:[a-z]+\s+)?(?:killed|shot|picked|caught|beaten|dropped|finished|traded|taken out)\b/i;
+const TOWARD_SOMEONE = new RegExp(`\\b(?:to|by|against|from)\\s+(?:their\\s+|the enemy\\s+|an?\\s+|the\\s+)?(?:${AGENT_ALT}|enemy|enemies|them|him|her|defenders?|attackers?)(?![A-Za-z0-9])`, 'i');
+// A clause ends at a comma or a semicolon, and at a word that starts another
+// one: in "you got the first kill but Cypher took you down with a Phantom" the
+// Phantom is Cypher's.
+const CLAUSE_START = /[,;:]|\b(?:and|but|while|when|whereas|before|after|until|then|so|because|as)\s/gi;
+function playerUses(t, at) {
+  const head = t.slice(0, at);
+  let cut = 0;
+  for (const m of head.matchAll(CLAUSE_START)) cut = m.index + m[0].length;
+  const clause = head.slice(cut).replace(/^\s*(?:then|so|later|first|now)\s+/i, '');
+  return GUN_WITH_BEFORE.test(clause) && /^\s*you\b/i.test(clause) && !YOU_KILLED_PASSIVE.test(clause) && !TOWARD_SOMEONE.test(clause);
+}
+/** 'mine', 'theirs' or null: whose a gun gunsIn() found is, as the sentence says it. */
+function gunOwner(text, g) {
+  const t = straighten(text);
+  const before = lower(t.slice(Math.max(0, g.at - 28), g.at));
+  if (GUN_MINE_BEFORE.test(before) || playerUses(t, g.at)) return 'mine';
+  if (GUN_THEIRS_BEFORE.test(before)) return 'theirs';
+  return null;
+}
+
 function gateWeapon(s, facts, rs) {
   const f = facts || {};
   if (!rs || !rs.round || !(f.rounds instanceof Map)) return null;
   const t = String(s || '');
   for (const g of gunsIn(t)) {
-    const before = lower(t.slice(Math.max(0, g.at - 28), g.at));
-    const mine = /\b(?:your|you had|you held|you were holding|you bought|you used)\s+(?:a |an |the )?$/.test(before);
-    const theirs = !mine && /(?:\btheir|\bhis|\bher|\bthe enemy's|\benemy|\bkiller's|'s)\s+$/.test(before);
+    const owner = gunOwner(t, g);
+    const mine = owner === 'mine';
+    const theirs = owner === 'theirs';
     for (const n of rs.rounds) {
       const r = f.rounds.get(n);
       if (!r || !r.weapons) continue;
@@ -777,7 +949,9 @@ function econStem(w) {
  * claim: "I cannot tell you what you bought, because this match's record
  * does not hold it." "You didn't buy armour" is still a claim, and drops.
  */
-const ECON_REFUSAL = /\b(?:record|facts|data)\b[^.]{0,60}?\b(?:does not|doesn't|do not|don't|did not|didn't|never)\s+(?:hold|show|have|say|record|keep|include|tell)\b|\b(?:can't|cannot|can not|won't|will not|couldn't|could not)\s+(?:tell|say|guess|know|see)\b|\bi\s+(?:do not|don't)\s+(?:have|know|see)\b/i;
+// "I cannot confirm from the record what gun you carried or what you bought"
+// is that answer too, and went as an economy claim (bench:chat, 15 Oct).
+const ECON_REFUSAL = /\b(?:record|facts|data)\b[^.]{0,60}?\b(?:does not|doesn't|do not|don't|did not|didn't|never)\s+(?:hold|show|have|say|record|keep|include|tell)\b|\b(?:can't|cannot|can not|won't|will not|couldn't|could not)\s+(?:tell|say|guess|know|see|confirm|establish)\b|\bi\s+(?:do not|don't)\s+(?:have|know|see)\b/i;
 function gateEconomy(s, facts, rs) {
   const f = facts || {};
   if (!rs || !rs.round || f.language !== 'en' || !(f.rounds instanceof Map)) return null;
@@ -862,10 +1036,25 @@ function gateCount(s, facts) {
     const named = roundsNamed(t, f);
     const ok = pairs.some((p) => pairsOk.has(p))
       || (named.length >= 2 && (counted.roundSets || []).some((set) => named.every((n) => set.includes(n))))
-      || (counted.titles || []).some((title) => title && lower(t).includes(title));
+      || (counted.titles || []).some((title) => title && lower(t).includes(title))
+      || repeekSaid(t, repeatText, REPEAT, named.length ? named : (f.asked && f.oneRound ? [f.asked] : []), f);
     if (!ok) return drop('count', 'your reply said the player did something again and again, which no counted mistake or pattern says');
   }
   return null;
+}
+/*
+ * A REPEEK IS ONE PEEK AGAIN, INSIDE ITS ROUND: "you peeked the same A Main
+ * angle again after being seen" of a round whose look is labelled repeek is
+ * that label in words, no repeat across the match (bench:chat, 15 Oct: Sol's
+ * Fracture round 2 answer lost the sentence, and with it the support of its
+ * "Yes."). Only "again", said with a peek, of rounds that are all repeeks.
+ */
+const PEEK_AGAIN = /\b(?:re-?)?peek(?:ed|ing|s)?\b[^.;]{0,48}\bagain\b/i;
+function repeekSaid(t, repeatText, REPEAT, rounds, f) {
+  if (!PEEK_AGAIN.test(t) || !rounds.length || !(f.rounds instanceof Map)) return false;
+  const words = repeatText.match(new RegExp(REPEAT.source, 'gi')) || [];
+  return words.every((w) => /^again$/i.test(w))
+    && rounds.every((n) => { const r = f.rounds.get(n); return !!(r && r.look && r.look.cause === 'repeek'); });
 }
 
 /** A clock written m:ss, about the match, reads as the time left. */
@@ -1311,12 +1500,14 @@ const GATES = [
  * @returns { drop: { gate, reason } | null, logged: ['name-log'] | [] }
  */
 function check(sentence, facts, opts) {
-  const rs = roundSentence(sentence, facts);
+  // Every gate reads the sentence with its quotes straightened (straighten).
+  const s = straighten(sentence);
+  const rs = roundSentence(s, facts);
   for (const [, gate] of GATES) {
-    const out = gate(sentence, facts, rs, opts);
+    const out = gate(s, facts, rs, opts);
     if (out) return { drop: out, logged: [] };
   }
-  const heur = nameHeuristic(sentence, facts, opts);
+  const heur = nameHeuristic(s, facts, opts);
   return { drop: null, logged: heur ? [heur] : [] };
 }
 
@@ -1334,4 +1525,9 @@ module.exports = {
   lowerGameWords, GAME_CAPS, REVIEW_CAPS, AGENT_RANKED, TIER, RATE_RANKED, MOST_PICKED, PATCH_NOW, META_REFUSED,
   RESULT_NOUN_LOST, RESULT_NOUN_WON, YOUR_GUN_PAST, THEIRS_FIRST, ABS_TIME, DEATH_CLAIM, OTHER_EVENT, OWN_COUNT_BEFORE,
   ECON_REFUSAL, ROUND_TIMES, CHAMPION_RANKED, CHAMPION_META, quotesCounted,
+  // The bench:chat run of 15 Oct, each asserted in test:chatgates.
+  straighten, CURLY_SINGLE, CURLY_DOUBLE, claimsOf, matchClaims, ofTheMatch, gunOwner, playerUses,
+  PISTOL_ROUND, PISTOL_DESCRIBED, PISTOL_SECOND_AFTER, ROUND_SECONDS, OBJECT_IS_ROUND, MATCH_AFTER, SCORE_AFTER, SCORE_BEFORE,
+  MATCH_BEFORE, NAMED_WIN_BEFORE, MAP_AFTER, OBJECT_BEFORE, CLEFT_BEFORE, CLEFT_AFTER,
+  GUN_MINE_BEFORE, GUN_THEIRS_BEFORE, GUN_WITH_BEFORE, YOU_KILLED_PASSIVE, TOWARD_SOMEONE, CLAUSE_START, PEEK_AGAIN, negatedAt,
 };

@@ -23,9 +23,10 @@
  *   unclear      unclear wherever the key says unclear, every run
  *   contradict   raw self contradictions (a cause outside its fight's family,
  *                a right fight changing anything but the aim) in at most 5% of
- *                the looks that spoke (variant b only)
+ *                the looks that spoke (the variants that judge the fight, b
+ *                and b2, death-forensics.js judgesFight)
  *   conflicts    the looks that spoke and fell to unclear in parse, at most 10%
- *                (variant b only)
+ *                (b and b2)
  *   fracture     the Fracture swiftplay's three deaths all inside their
  *                acceptable sets in 4 runs of 5
  *   p90          the five still body's p90 at most 4 s
@@ -120,7 +121,7 @@ function percentile(xs, p) {
  * @param o.set      set.json: { deaths: [{ key, match, body }] }
  * @param o.key      key.json: { deaths: [{ key, fair, unclear, acceptable, forbidden }] }, or null
  * @param o.looks    [{ key, run, raw, parsed, ms }]: raw the model's reply text, parsed the server's look
- * @param o.variant  'a' or 'b'
+ * @param o.variant  'a', 'b' or 'b2' (VARIANTS)
  * @param o.runs     the runs asked for, 5 for bench A
  */
 function score(o) {
@@ -159,7 +160,7 @@ function score(o) {
     bar('fracture', `${fracRuns} of ${runIds.length} runs`, `all three acceptable in ${needRuns} of ${runs}`, fracture.length === 3 && fracRuns >= needRuns,
       fracture.length === 3 ? '' : `${fracture.length} Fracture deaths in the set`);
   }
-  if (o.variant === 'b') {
+  if (df.judgesFight(o.variant)) {
     const contra = spoke.filter((l) => contradicts(l.read)).length;
     bar('contradict', `${contra} of ${spoke.length} that spoke`, 'at most 5%', !spoke.length || contra / spoke.length <= 0.05);
     const conf = spoke.filter((l) => conflicts(l.read)).length;
@@ -210,4 +211,8 @@ const estimate = (d) => LOOK_COST[d.body] || LOOK_COST.recording;
 const BENCH_A_USD = 3;
 const RUN_USD = BENCH_A_USD / 2;
 
-module.exports = { rawLook, speaks, contradicts, conflicts, keyOf, keyProblems, percentile, score, bodyDeath, estimate, LOOK_COST, BENCH_A_USD, RUN_USD };
+// The prompts a bench may name: the live one, a (the control), and every
+// variant the server serves beside it (death-forensics.js VARIANTS).
+const VARIANTS = ['a', ...df.VARIANTS];
+
+module.exports = { rawLook, speaks, contradicts, conflicts, keyOf, keyProblems, percentile, score, bodyDeath, estimate, LOOK_COST, BENCH_A_USD, RUN_USD, VARIANTS };

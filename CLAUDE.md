@@ -799,6 +799,30 @@ the look as 8.4.4 shipped it, frozen in `scripts/fixtures/death-forensics-844.js
 (150 bodies' prompts, 4,740 replies). The module asks with b only when
 `input.variant` is 'b'.
 
+**Variant b2: b with the evidence each judgement rests on** (8.5.0, admin
+only until bench A passes, then `FORENSICS_PROMPT=b2`). Bench A of 15 Oct ran b
+five times on 16 of the player's deaths against a key three agent panels
+wrote from the stills and Riot's facts, merged 2 of 3 and frozen before the
+first run: b held its families (no look contradicted itself) and beat a on
+forbidden labels, 5 in 80 against 13, but called Fracture round 6 (a Sheriff
+fight opened from the open against a Chamber holding the far end, three
+missed shots, no damage) right four runs of five, round 5 (the key's one fair
+duel) "stayed on the angle" three of five, and two read frames of round 1 a
+lost duel every run. b2 writes the judgement out (`judgementB2`): first a
+check that the frames are of this death at all, against Riot's facts (the
+frame after the death still alive, the spike down before its plant, another
+round's score); then what to read (where the player stood, who held the
+angle, health and ammo frame by frame, the damage each side dealt); then the
+judgements by that evidence: right is set at the edge of cover with the enemy
+coming into the angle, or a meeting with neither set, in one exchange; a held
+angle walked into, or a long fight opened from the open with no utility
+first, is a dry peek even when the player shot first; a repeek needs an
+exchange the frames show ending and the same angle again, and a new place
+after a kill is never one. Unclear is asked for empty (`REPLY_B2`). Its
+causes, families and parse are b's, and its looks carry b's labels as 'b'
+(`LABELS`), the word an 8.5.0 client keeps and a cause's trend is held to;
+the reply's own `variant` says b2.
+
 **The phrase lists set no label, in any variant** (`death-forensics.js
 PHRASES`; one list in four copies, the client's in `death-causes.js` and Ask
 Coach's in `fact-gates.js` and `chat-context.js`, held equal regex for regex):
@@ -3653,6 +3677,25 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   measures it. A reply whose first sentence was dropped, or that keeps fewer
   than two, is asked for once more with the reasons named (`retryPrompt`),
   else the honest line.
+- **What bench:chat's panel found the gates dropping true, 15 Oct** (Sol v2,
+  30 answers read by three agents; each fix pinned in test:chatgates from the
+  run's own replies). The match's own result beside a round ("which you won
+  13 to 11, round 22 was an attack you lost") was taken for the round's; a
+  curly apostrophe (Sol's "didn’t") broke the negation, so the gates read every
+  sentence straightened (`straighten`) and the reply keeps it as written;
+  "pistol round" named round 1 wherever it stood, so it names a round only as
+  one ("the pistol round", "your second pistol round", the second the match's
+  second), and the review's run reader never sees it, nor "and one of", which
+  read "pistol round and one of the two rounds you survived" as round 1. A
+  question naming two rounds sent neither in full, the cause of both wrong
+  facts the panel found: every round a question names is told in full, three
+  at most (`MAX_ASKED_ROUNDS`). A bare "Yes." or "No." whose claim was dropped
+  goes with it and the reply is asked for again. A gun said to be the
+  player's must be one the round's facts give them ("you fought Clove with a
+  Classic" where the Classic was the killer's drops). The prompt's static
+  prefix and the match's facts come first, byte for byte the same for every
+  question of a match (`buildParts`), and the gun table is in the slices by
+  default (`CHAT_PRIMER_GUNS=core` puts it back), since Sol cached 0 tokens.
 - **What an independent probe of the gates found, 15 Oct** (each pinned in
   test:chatgates, each pin failing with its rule reverted). Passed: "Neon is
   better than Jett right now", "Jett is S tier", "the highest win rate on

@@ -80,14 +80,45 @@
  * well as coming back to it, so a match like the Fracture swiftplay can count
  * its one lesson in one key.
  *
+ * VARIANT B2: B, WITH THE EVIDENCE EACH JUDGEMENT RESTS ON (8.5.0, admin
+ * only until its bench). Bench A ran b five times on 16 of the player's
+ * deaths against a key three panels wrote from the stills and Riot's facts.
+ * b's families held (no look contradicted itself), but three judgements were
+ * left to the model's sense of the words: a long Sheriff fight opened from
+ * the open grass against a Chamber holding the far end, three missed shots
+ * and no damage, was "right" four runs of five; four missed Bandit shots from
+ * a pillar's edge while the plant went in, the enemy Jett coming into the
+ * angle, one exchange, were "stayed on the angle" three runs of five; and a
+ * push through a smoke to a new place after a kill was a repeek once. And
+ * two read frames of round 1, the score 0 to 0 and the spike down, sent for a
+ * round 2 death before its plant, were a lost duel every run. So b2 is b's
+ * prompt with its judgement written out (judgementB2): first a check that
+ * the frames are of this death at all, against Riot's facts (the frame after
+ * the death still alive, the spike down before its plant, another round's
+ * score); then what to read (where the player stood, who was holding the
+ * angle, health and ammo frame by frame, the damage each side dealt); then
+ * the judgements by that evidence: right is set at the edge of cover with the
+ * enemy coming into the angle, or a meeting with neither set, in one
+ * exchange, missed shots and damage inside it the duel itself; a held angle
+ * walked into, or a long fight opened from the open, with no utility first
+ * is a dry peek even when the player shot first; a repeek needs an exchange
+ * the frames show ending and then the same angle again, judged before the
+ * rest, and a new place after a kill is never one. Unclear carries no
+ * sentences, and is asked for empty (REPLY_B2), which is shorter too. Its
+ * causes, families, changes and parse are b's: b2 judges by b's labels, so
+ * its looks carry 'b' (LABELS), the word an 8.5.0 client keeps and a cause's
+ * trend is held to (death-causes.js variantOf, valorant-review.js
+ * lookJudgement, which drop any other), while the reply's own `variant`, the
+ * route's, says b2.
+ *
  * WHO GETS WHICH is the route's to say (coach.js forensicsVariant, the one
- * version gate, clientAtLeast): b to 8.5.0 and later only once promoted
- * (FORENSICS_PROMPT=b), or to an admin bench naming it with the password, and
- * `input.variant` 'b' then. Anything else is a: a client before 8.5.0 is
- * answered with today's prompt and parse exactly, but for the two gates
- * above, and never sees b's words or fields. test:forensics holds variant a
- * to the look as 8.4.4 shipped it (scripts/fixtures/death-forensics-844.js),
- * byte for byte.
+ * version gate, clientAtLeast): b or b2 to 8.5.0 and later only once
+ * promoted (FORENSICS_PROMPT=b or b2), or to an admin bench naming it with
+ * the password, and `input.variant` 'b' or 'b2' then (VARIANTS). Anything
+ * else is a: a client before 8.5.0 is answered with today's prompt and parse
+ * exactly, but for the two gates above, and never sees b's words or fields.
+ * test:forensics holds variant a to the look as 8.4.4 shipped it
+ * (scripts/fixtures/death-forensics-844.js), byte for byte.
  */
 
 const { promptName } = require('./languages');
@@ -165,11 +196,22 @@ const PHRASE_ORDER = ['decision', 'team', 'reset', 'utility', 'aim'];
  * bench naming one, or once promoted (FORENSICS_PROMPT) only to a client of
  * 8.5.0 or later (coach.js forensicsVariant, by clientAtLeast). The live one,
  * a, is today's, and is what this module answers with for any variant it is
- * not given as 'b'. The reply each is given room for: b's is longer by its
- * judgement, change and alt.
+ * not given as 'b' or 'b2'. Both judge the fight first (judgesFight). The
+ * reply each is given room for: b's and b2's are longer by the judgement,
+ * change and alt.
  */
-const VARIANTS = ['b'];
-const TOKENS = { a: 320, b: 400 };
+const VARIANTS = ['b', 'b2'];
+const TOKENS = { a: 320, b: 400, b2: 400 };
+/** Whether a variant judges the fight first and names the cause last: b and b2. */
+const judgesFight = (variant) => VARIANTS.includes(variant);
+/*
+ * THE LABELS A VARIANT'S LOOKS CARRY, as a client keeps them: b's for both.
+ * An 8.5.0 client keeps a look's variant only as 'a' or 'b', reading any
+ * other as a (death-causes.js variantOf), and a cause's trend is held to it
+ * (patterns.js), so a b2 look named 'b2' would be counted beside a's narrower
+ * repeek. b2 gives b's labels by b's words, judged with more care.
+ */
+const LABELS = { b: 'b', b2: 'b' };
 
 const clip = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
 const lower = (s) => String(s || '').toLowerCase();
@@ -381,18 +423,27 @@ function buildPrompt(input, death) {
   const late = screen
     ? '- The screen can read a death a few seconds late, and once the player is dead Valorant shows a teammate\'s view. If the first frame already shows the player dead or watching a teammate, the cause is unclear.\n'
     : '';
-  // Variant b judges the fight before it writes the better play, and names the
-  // cause last, from that judgement's family. Variant a is today's, word for word.
-  const b = input.variant === 'b';
+  // Variants b and b2 judge the fight before they write the better play, and
+  // name the cause last, from that judgement's family; b2 with the evidence
+  // each judgement rests on written out (judgementB2). Variant a is today's,
+  // word for word.
+  const b = judgesFight(input.variant);
+  const b2 = input.variant === 'b2';
   const many = timed && death.frames.length > 1;
   const pick = b ? 'The causes, one of which you pick last, from the group your judgement of the fight allows:'
     : `Pick the ONE cause that best fits what the ${many ? 'frames show' : 'frame shows'}:`;
-  const judge = b ? `\n\n${judgement(many)}` : '';
+  // b2's checks against the facts are Riot's alone (the screen's round can be
+  // a round out), and the frame after the death is one only when it exists.
+  const judge = !b ? '' : `\n\n${b2 ? judgementB2({
+    many: death.frames.length > 1,
+    after: timed ? death.frameAt.some((at) => at > 0) : death.frames.length > 1,
+    riot: !screen, round: death.n, plantedLater: !!death.planted && !death.afterPlant,
+  }) : judgement(many)}`;
   const fairRule = b ? '' : '- A fair fight from a sound position is lost-duel. Do not invent a positioning error to have something to say.\n';
   const language = !otherLanguage(input) ? ''
     : b ? `Write "what" and "better" in ${promptName(input.language)}. Keep "fight", "change", "cause" and "alt" as the English words from their lists, and keep callouts and agent names exactly as the game prints them.\n\n`
       : `Write "what" and "better" in ${promptName(input.language)}. Keep "cause" as the English label from the list, and keep callouts and agent names exactly as the game prints them.\n\n`;
-  const reply = b ? REPLY_B : REPLY_A;
+  const reply = !b ? REPLY_A : b2 ? REPLY_B2 : REPLY_B;
 
   return `You are reviewing one death of a Valorant player after the match, as their coach. ${frames}
 
@@ -445,6 +496,64 @@ Then pick the cause that fits your judgement: ${groups}. alt is your second choi
 A Duelist taking first contact with a teammate close enough to trade is doing the job, which is not a wrong spot on its own. A death the facts call traded is never isolated. Do not invent a mistake to have something to say: a fair fight lost is right, and lost-duel.`;
 }
 
+// b2's reply: b's fields in b's order, its two sentences asked for empty when
+// the fight is unclear, which parse() drops then anyway.
+const REPLY_B2 = `Reply with JSON only, its fields in this order, no other text:
+{"what": "<one sentence, what happened, or empty when the fight is unclear>", "fight": "<right, wrong-spot, wrong-time, not-needed or unclear>", "better": "<one sentence, the play that keeps you alive, or empty when the fight is unclear>", "change": "<aim, position, timing, decision, utility, team or none>", "cause": "<one label from the group your judgement allows>", "alt": "<a second label from the same group, or none>"}`;
+
+/**
+ * VARIANT B2'S JUDGEMENT (the header's VARIANT B2), in the place of b's: b's
+ * judgements, families and words for the better play, the change and the
+ * label, with what each judgement rests on written out from the frames' own
+ * evidence. Its families are FIGHTS', written from them as b's are.
+ *
+ *   o.many          more than one frame
+ *   o.after         a frame after the death (from the screen, the one it
+ *                   read the death on)
+ *   o.riot          the facts are Riot's: the frames are checked against them
+ *                   only then, since the screen's round can be a round out
+ *   o.round         the round, whose score the frames before the death show
+ *   o.plantedLater  the facts say the spike was planted later in the round
+ *
+ * THE SPECTATORS COUNT IS NAMED AS THE PLAYER'S OWN (CLAUDE.md, the false
+ * friend): it is on a living player's HUD, and read as spectating it would
+ * call a fight unclear that the frames show.
+ */
+function judgementB2(o) {
+  const x = o || {};
+  const groups = Object.entries(FIGHTS).map(([fight, f]) => `${fight} is ${either(f.causes)}`).join('; ');
+  const frames = x.many ? 'frames' : 'frame';
+  const show = x.many ? 'frames show' : 'frame shows';
+  const dont = x.many ? 'frames do' : 'frame does';
+  const before = x.many ? 'the frames before the death' : 'the frame';
+  const other = !x.riot ? [] : [
+    x.after ? 'the frame after the death still shows you alive and playing, with no death screen' : null,
+    x.plantedLater ? `the spike is already planted in ${x.many ? 'them' : 'it'} while the facts say it was planted later` : null,
+    Number.isInteger(x.round) && x.round > 0 ? `the two scores at the top of ${before} do not add up to ${x.round - 1}, as they must in round ${x.round}` : null,
+  ].filter(Boolean);
+  const when = other.length > 1 ? `${other.slice(0, -1).join('; when ')}; or when ${other[other.length - 1]}` : other.join('');
+  const none = `none of it: only the time before any contact, the death screen, or a teammate's view (SWITCH PLAYER at the bottom left, another agent's abilities in the HUD; the SPECTATORS count at the top right is how many watch you, on your own HUD)`;
+  const check = other.length
+    ? `First check that the ${x.many ? 'frames are' : 'frame is'} of this death. ${x.many ? 'They are' : 'It is'} of another moment, and the fight is unclear, when ${when}. The fight is unclear too when ${before} ${x.many ? 'show' : 'shows'} ${none}.`
+    : `First check that ${before} ${x.many ? 'show' : 'shows'} the fight. It is unclear when ${x.many ? 'they show' : 'it shows'} ${none}.`;
+  const afterSaid = x.after ? ' After the death, a frame should show the death screen or a teammate\'s view.' : '';
+  const read = `Then read the fight in the ${frames}, which decides the judgement: where you stood, at the edge of cover you could step back behind or in the open; whether an enemy was already holding the angle you came into, or came into yours; your health and ammo in the HUD${x.many ? ', frame by frame, which show when the shooting started and what it cost' : ''}${x.after ? '; and on the death screen, the damage each side dealt' : ''}. Then write what happened, in one sentence.`;
+  return `${check}${afterSaid}
+${read}
+Then judge the fight in one word:
+right: a fight worth taking, from a sound spot, lost on the shots. Either you were set at the edge of cover and the enemy came into your sight, or you met at the same moment with neither of you set; both of you were exposed to each other, and it was one exchange. Only the aim, the first shot or the movement in the duel could have changed it. Shots that missed and damage you took inside that one exchange are the duel itself, not another judgement.
+wrong-spot: a fight to take, but not from there: too far from a teammate to be traded, open to a second enemy, in the open on the spike, or past your team.
+wrong-time: the right place at the wrong moment, in one of three ways. You walked or swung into an angle an enemy was already holding, or opened a long fight from the open with no cover beside you, before any utility or information: dry-peek, even if you saw them first or shot first. You were caught moving between areas, not set for a fight: rotating. Or the ${show} an exchange of shots end, with your kill or with one of you going out of sight, and then you fought on the same angle again, by staying in the spot they had just seen you in or by peeking it again: repeek.
+not-needed: a fight you went looking for that the round did not need: your team was ahead, the spike was down and the clock was on your side, or the kill was not worth chasing. A fight that came to you where you were set is never not-needed.
+unclear: the ${dont} not show the fight, or ${x.many ? 'show' : 'shows'} another moment.
+Look for a repeek before the other judgements: a second fight on the same angle after an exchange the ${show} ending is a repeek however the shots went. Seeing an enemy before any shot is no exchange, and a kill earlier in the round that the ${dont} not show starts no repeek. Moving on to a new place after a kill is no repeek either: pushing on into their ground is overextend, and meeting two enemies there is crossfire.
+Then write the better play, the play that keeps you alive. For a right fight it is about the duel itself: the crosshair, the first shot, stopping before you shoot, how you peek. It may tell you to be ready to step back if the first shots miss. A better play that moves you, delays you, gets you out after the first exchange, adds a teammate or an ability, or says not to fight belongs to another judgement.
+Then say the one thing the better play changes most: ${CHANGES.slice(0, -1).join(', ')}, or none.
+Then pick the cause that fits your judgement: ${groups}. alt is your second choice from the same group, or none.
+When the fight is unclear, what and better stay empty, and change and alt are none.
+A Duelist taking first contact with a teammate close enough to trade is doing the job, which is not a wrong spot on its own. A death the facts call traded is never isolated. Do not invent a mistake to have something to say: a fair fight lost is right, and lost-duel.`;
+}
+
 /** A word of the model's reply as a key: "Dry Peek" is dry-peek, "wrong spot" wrong-spot. */
 const asKey = (v) => lower(v).trim().replace(/\s+/g, '-');
 const isCause = (k) => Object.prototype.hasOwnProperty.call(CAUSES, k);
@@ -492,14 +601,15 @@ const gateLanguage = (input) => (promptName(input && input.language) === 'Englis
  * The model's reply for one death, parsed and gated. Never throws.
  *
  * Variant a's look is { n, cause, what, better } as it always was, and b's
- * adds { fight, change, variant }. `dropped` is what the route logs and takes
- * out, and `notes` (not enumerable, so never in a reply) what is only logged:
- * logLines() gives both, replyOf() the reply.
+ * adds { fight, change, variant }, as b2's does: the same families, and the
+ * labels it gave as a client keeps them (LABELS, 'b' for both). `dropped` is
+ * what the route logs and takes out, and `notes` (not enumerable, so never in
+ * a reply) what is only logged: logLines() gives both, replyOf() the reply.
  */
 function parse(text, input, death) {
-  const b = !!(input && input.variant === 'b');
+  const b = judgesFight(input && input.variant);
   const out = { n: death.n, cause: 'unclear', what: null, better: null };
-  if (b) Object.assign(out, { fight: 'unclear', change: null, variant: 'b' });
+  if (b) Object.assign(out, { fight: 'unclear', change: null, variant: LABELS[input.variant] });
   out.dropped = [];
   Object.defineProperty(out, 'notes', { value: [], enumerable: false });
   const j = replyJson(text);
@@ -647,7 +757,7 @@ function framesOf(d) {
  * screen's own, and are kept.
  *
  * `opts.variant` is the prompt the route chose (coach.js forensicsVariant),
- * never the body's word: 'a' unless it is 'b'. `matchId` (8.5.0 and later)
+ * never the body's word: 'a' unless it is 'b' or 'b2'. `matchId` (8.5.0 and later)
  * is only ever the key to the match's own names (the route's `names`), never
  * in a prompt.
  */
@@ -674,17 +784,17 @@ function normalise(body, opts) {
   return { agent: clip(b.agent, 24) || null, map: clip(b.map, 24) || null,
     language: typeof b.language === 'string' ? clip(b.language, 8) : 'en',
     source: screen ? 'screen' : 'riot', deaths,
-    variant: opts && opts.variant === 'b' ? 'b' : 'a',
+    variant: opts && judgesFight(opts.variant) ? opts.variant : 'a',
     matchId: typeof b.matchId === 'string' && b.matchId.trim() ? clip(b.matchId, 80) : null };
 }
 
-/** The reply's room for one look: b's is longer by its judgement, change and alt. */
+/** The reply's room for one look: b's and b2's are longer by the judgement, change and alt. */
 function tokensFor(input) {
-  return TOKENS[input && input.variant === 'b' ? 'b' : 'a'];
+  return TOKENS[input && judgesFight(input.variant) ? input.variant : 'a'];
 }
 
 module.exports = {
-  CAUSES, CAUSES_B, AVOIDABLE, FIGHTS, CHANGES, PHRASES, PHRASE_ORDER, VARIANTS, TOKENS, MAX_FRAMES, MAX_TIMED_FRAMES, MAX_FRAME_AT,
+  CAUSES, CAUSES_B, AVOIDABLE, FIGHTS, CHANGES, PHRASES, PHRASE_ORDER, VARIANTS, TOKENS, LABELS, MAX_FRAMES, MAX_TIMED_FRAMES, MAX_FRAME_AT,
   buildPrompt, parse, normalise, wrongMap, foreignAbility, wrongKiller, calloutsOf,
-  phraseHits, movesPlayer, replyJson, rawLabels, logLines, replyOf, tokensFor, judgement,
+  phraseHits, movesPlayer, replyJson, rawLabels, logLines, replyOf, tokensFor, judgement, judgementB2, judgesFight,
 };

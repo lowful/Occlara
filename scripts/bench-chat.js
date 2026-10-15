@@ -135,7 +135,53 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
-/** One check of a key, compiled: { what, tag, atLeast, count(text) }, or a problem. */
+/*
+ * WHAT A KEY READS (bench:chat, 15 Oct, where the keys' own hits were the
+ * keys misfiring). A check marked `about: 'round'`, on the check or on its
+ * list, reads only what is said of the round asked (roundText): never a
+ * clause quoting the match's counts ("dying where nobody could trade, which
+ * happened 14 times", "14 of your 16 deaths went unanswered", "the counted
+ * mistake"), unless it points at the round too ("including this one",
+ * "round 10"), nor a hypothetical, an instruction or "without you dying
+ * untraded". Most of Gemini's and Qwen's "not traded" hits were those quotes.
+ * A check marked `otherMatch` is a marker of another match, and a phrase
+ * naming an agent the question's own match has is no marker: "Clove" stood
+ * for the Pearl match where Clove was the player's teammate on Fracture.
+ */
+const SPELLED_COUNT = 'one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty';
+const MATCH_COUNT = new RegExp(`\\b(?:\\d+|${SPELLED_COUNT})\\s+(?:times\\b|out of\\b|of\\s+(?:your|the|those|these|their)\\b)|\\bcounted\\b|\\bacross the match\\b|\\b(?:this|the|that)\\s+match\\b|\\b(?:your|those|these|their)\\s+(?:[a-z]+\\s+)?deaths\\b`, 'i');
+const NOT_A_CLAIM = /\bwithout\s+(?:you\s+|your\s+[a-z]+\s+)?(?:dying|being|getting)\b|\bnot\s+(?:one|among)\s+of\b/i;
+const CLAUSE_SPLIT = /,\s*but\s+|;\s*|\s+but\s+/i;
+/** What a text says of the round asked, clause by clause: the counts of the match, hypotheticals and advice left out. */
+function roundText(text, round) {
+  const thisRound = new RegExp(`\\bthis one\\b|\\b(?:this|that) (?:round|death)\\b${Number.isInteger(round) ? `|\\bround\\s+${round}\\b` : ''}`, 'i');
+  const out = [];
+  for (const s of nameGate.sentencesOf(norm(text))) {
+    for (const clause of s.split(CLAUSE_SPLIT)) {
+      if (!clause.trim() || gates.isHypothetical(clause) || gates.isInstruction(clause) || NOT_A_CLAIM.test(clause)) continue;
+      if (MATCH_COUNT.test(clause) && !thisRound.test(clause)) continue;
+      out.push(clause);
+    }
+  }
+  return out.join(' | ');
+}
+
+/** The agents a question's own match has, from the context sent: both comps, the killers, the feed. */
+function ownAgents(context) {
+  const m = context && context.match;
+  const out = new Set();
+  if (!m) return out;
+  for (const side of ['us', 'them']) for (const x of (m.comps && m.comps[side]) || []) if (x && x.agent) out.add(String(x.agent).toLowerCase());
+  for (const c of m.cards || []) {
+    const r = c && c.riot;
+    if (!r) continue;
+    if (r.killer) out.add(String(r.killer).toLowerCase());
+    for (const k of r.feed || []) for (const a of [k && k.ka, k && k.va]) if (a) out.add(String(a).toLowerCase());
+  }
+  return out;
+}
+
+/** One check of a key, compiled: { what, tag, atLeast, about, otherMatch, phrases, count(text, opts) }, or a problem. */
 function compileCheck(c, lists, where, problems) {
   if (!c || typeof c !== 'object' || typeof c.what !== 'string' || !c.what) {
     problems.push(`${where}: a check needs its "what"`);
@@ -147,10 +193,20 @@ function compileCheck(c, lists, where, problems) {
     src = Array.isArray(lists[c.list]) ? { any: lists[c.list] } : lists[c.list];
   }
   const atLeast = posInt(c.atLeast, 1);
+  const about = c.about || src.about || null;
+  if (about !== null && about !== 'round') { problems.push(`${where}: "${c.what}" has an about other than "round"`); return null; }
+  const otherMatch = c.otherMatch === true;
+  // The text a check reads: the round asked's alone for `about: 'round'`.
+  const scope = (t, o) => (about === 'round' ? roundText(t, o && o.round) : norm(t));
   if (Array.isArray(src.any)) {
     if (!src.any.length || src.any.some((p) => typeof p !== 'string' || !p.trim())) { problems.push(`${where}: "${c.what}" has an empty phrase`); return null; }
-    const res = src.any.map(phraseRe);
-    return { what: c.what, tag: c.tag || null, atLeast, count: (t) => res.filter((re) => re.test(norm(t))).length };
+    const res = src.any.map((p) => ({ p, re: phraseRe(p) }));
+    return { what: c.what, tag: c.tag || null, atLeast, about, otherMatch, phrases: src.any.slice(),
+      count: (t, o) => {
+        const own = otherMatch && o && o.agents instanceof Set ? o.agents : null;
+        const text = scope(t, o);
+        return res.filter(({ p, re }) => !(own && own.has(p.toLowerCase())) && re.test(text)).length;
+      } };
   }
   if (typeof src.re === 'string') {
     let re = null;
@@ -162,10 +218,21 @@ function compileCheck(c, lists, where, problems) {
     for (const s of pos) if (!re.test(norm(s))) problems.push(`${where}: "${c.what}" misses its own sample "${s}"`);
     for (const s of neg) if (re.test(norm(s))) problems.push(`${where}: "${c.what}" matches its own counter sample "${s}"`);
     const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`);
-    return { what: c.what, tag: c.tag || null, atLeast, count: (t) => [...norm(t).matchAll(g)].length };
+    return { what: c.what, tag: c.tag || null, atLeast, about, otherMatch, phrases: null, count: (t, o) => [...scope(t, o).matchAll(g)].length };
   }
   problems.push(`${where}: "${c.what}" is neither any, list nor re`);
   return null;
+}
+
+/** A marker of another match that names an agent the question's own match has: a problem --dry prints. */
+function markerClashes(q, context) {
+  const own = ownAgents(context);
+  const out = [];
+  for (const c of (q.keys && q.keys.mustNot) || []) {
+    if (!c.otherMatch || !c.phrases) continue;
+    for (const p of c.phrases) if (own.has(p.toLowerCase())) out.push(`${q.id}: "${c.what}" names ${p}, whom its own match has too`);
+  }
+  return out;
 }
 
 /** Both sheets, every key compiled, and what is wrong with them. */
@@ -351,20 +418,31 @@ function built(body, variant) {
   const messages = serverMessages(body.messages);
   const input = chatPrompt.normalise(body.context);
   const prompt = chatPrompt.buildPrompt(input, messages, { variant });
-  const round = input.ask && input.ask.round;
-  return { input, messages, chars: prompt.length, hash: hashOf(prompt), round, inFull: round ? prompt.includes(`ROUND ${round} IN FULL`) : null };
+  // Every round the server tells in full, as it reads them (chat-prompt.js askedRounds); the first is the one a sheet expects.
+  const rounds = typeof chatPrompt.askedRounds === 'function' ? chatPrompt.askedRounds(input, messages) : (input.ask && input.ask.round ? [input.ask.round] : []);
+  const round = rounds[0] || null;
+  return { input, messages, chars: prompt.length, hash: hashOf(prompt), round, rounds,
+    inFull: rounds.length ? rounds.every((n) => prompt.includes(`ROUND ${n} IN FULL`)) : null };
 }
 
 // ── Scoring ─────────────────────────────────────────────────────────────────
 
-/** The keys on a text: the facts it missed and the wrong facts it states. */
-function keyed(q, text) {
+/**
+ * The keys on a text: the facts it missed and the wrong facts it states.
+ * `opts.round` is the round asked (a check about the round reads what is said
+ * of it), `opts.agents` the agents of the question's own match (ownAgents),
+ * which no marker of another match stands for.
+ */
+function keyed(q, text, opts) {
   const t = norm(text);
+  const o = opts || {};
   return {
-    missing: q.keys.must.filter((c) => c.count(t) < c.atLeast).map((c) => c.what),
-    wrong: q.keys.mustNot.filter((c) => c.count(t) > 0).map((c) => ({ what: c.what, tag: c.tag })),
+    missing: q.keys.must.filter((c) => c.count(t, o) < c.atLeast).map((c) => c.what),
+    wrong: q.keys.mustNot.filter((c) => c.count(t, o) > 0).map((c) => ({ what: c.what, tag: c.tag })),
   };
 }
+/** What keyed() is told of a question's context: the round asked and its match's agents. */
+const keyOpts = (context, round) => ({ round: Number.isInteger(round) ? round : (context && context.ask && context.ask.round) || null, agents: ownAgents(context) });
 
 /**
  * A planted name or a handle's shape in a text, and a sentence the server
@@ -380,24 +458,22 @@ function namesIn(q, text) {
   return { planted, shapes, withheld, count: planted.length + shapes + withheld };
 }
 
-/** The gates, run here on a text sentence by sentence, as parseReply runs them. */
+/** The gates, run here on a text sentence by sentence, as parseReply runs them (chat-prompt.js gateReply). */
 function gatedHere(text, input, messages) {
   const facts = chatPrompt.factsOf(input, messages);
   const out = { sentences: 0, kept: 0, dropped: {}, logged: {}, rows: [], firstDropped: false };
-  let first = true;
-  for (const p of chatPrompt.cleanReply(text)) {
-    for (const s of gates.sentencesOf(p)) {
-      out.sentences++;
-      const r = gates.check(s, facts, { nameSet: null });
-      for (const l of r.logged || []) out.logged[l] = (out.logged[l] || 0) + 1;
-      if (r.drop) {
-        out.dropped[r.drop.gate] = (out.dropped[r.drop.gate] || 0) + 1;
-        if (first) out.firstDropped = true;
-      } else out.kept++;
-      out.rows.push({ s, gate: r.drop ? r.drop.gate : null, logged: r.logged || [] });
-      first = false;
-    }
-  }
+  const rows = typeof chatPrompt.gateReply === 'function'
+    ? chatPrompt.gateReply(chatPrompt.cleanReply(text), facts, { nameSet: null })
+    : chatPrompt.cleanReply(text).flatMap((p, i) => gates.sentencesOf(p).map((s) => ({ p: i, s, ...gates.check(s, facts, { nameSet: null }) })));
+  rows.forEach((r, i) => {
+    out.sentences++;
+    for (const l of r.logged || []) out.logged[l] = (out.logged[l] || 0) + 1;
+    if (r.drop) {
+      out.dropped[r.drop.gate] = (out.dropped[r.drop.gate] || 0) + 1;
+      if (i === 0) out.firstDropped = true;
+    } else out.kept++;
+    out.rows.push({ s: r.s, gate: r.drop ? r.drop.gate : null, logged: r.logged || [] });
+  });
   return out;
 }
 
@@ -426,8 +502,9 @@ function inSpanish(text) {
 function scoreAnswer(q, a, ctx) {
   if (!a.called || typeof a.raw !== 'string') return null;
   const b = built({ messages: a.messages, context: ctx }, a.variant);
-  const raw = { ...keyed(q, a.raw), names: namesIn(q, a.raw), gates: gatedHere(a.raw, b.input, b.messages) };
-  const final = { ...keyed(q, a.reply), names: namesIn(q, a.reply), gates: gatedHere(a.reply || '', b.input, b.messages) };
+  const ko = keyOpts(ctx, b.round);
+  const raw = { ...keyed(q, a.raw, ko), names: namesIn(q, a.raw), gates: gatedHere(a.raw, b.input, b.messages) };
+  const final = { ...keyed(q, a.reply, ko), names: namesIn(q, a.reply), gates: gatedHere(a.reply || '', b.input, b.messages) };
   // What slipped: a wrong fact the raw reply stated that the shown one still states.
   const slipped = final.wrong.filter((w) => raw.wrong.some((x) => x.what === w.what)).map((w) => w.what);
   const caught = raw.wrong.filter((w) => !final.wrong.some((x) => x.what === w.what)).map((w) => w.what);
@@ -674,12 +751,13 @@ function writeSheet(run, sheets, stamp) {
   for (const a of shown) {
     const q = byId[a.q] || {};
     const ctx = run.contexts[a.q] || {};
-    const round = ctx.ask && ctx.ask.round;
-    const card = round && ctx.match ? (ctx.match.cards || []).find((c) => c.n === round) : null;
+    // Every round the server told in full, each with its line (built's rounds, kept on the answer).
+    const rounds = Array.isArray(a.rounds) && a.rounds.length ? a.rounds : (ctx.ask && ctx.ask.round ? [ctx.ask.round] : []);
+    const cards = ctx.match ? rounds.map((n) => (ctx.match.cards || []).find((c) => c.n === n)).filter(Boolean) : [];
     lines.push(`== ${a.id}`);
     lines.push(`Question (${q.match || 'no match'}, ${q.kind || ''}${q.advanced ? ', Advanced coaching on' : ''}): ${q.ask}`);
     if (q.facts) lines.push(`Facts: ${q.facts}`);
-    if (card) lines.push(`Riot's record of the round: ${cardLine(card)}`);
+    for (const card of cards) lines.push(`Riot's record of the round: ${cardLine(card)}`);
     lines.push('Answer:', a.reply || '(none)');
     if (a.raw && norm(a.raw) !== norm(a.reply)) lines.push('Before the gates:', a.raw);
     const sc = a.score;
@@ -828,6 +906,7 @@ async function ask(q, libs, keyOf, cur, plan) {
   if (!sent) return { ...rec, error: out.error || 'nothing was sent' };
   const b = built(sent, cur.variant);
   rec.round = b.round || null;
+  rec.rounds = b.rounds;
   rec.inFull = b.inFull;
   rec.prompt = { chars: b.chars, hash: b.hash };
   rec.messages = sent.messages;
@@ -876,11 +955,17 @@ function selfTest(sheets, contexts) {
     ['split-r5-premise', 'You lost round 5 because you died first to Phoenix with a Phantom.', ['accepts the loss']],
     ['pearl-r5-look', 'You dealt 104 damage before Cypher killed you with a Classic, and your death was traded.', ['changes the 105 damage']],
     ['abyss-r13-why', 'You got the first kill, then Viper killed you with a Ghost 17 seconds in, and nobody traded you.', []],
+    // The keys' misfires of 15 Oct, each a true sentence of the run: a refusal,
+    // the plant's time, the counted list quoted, a teammate of this match.
+    ['split-meta', "I can't tell you whether Jett is the best agent for Split from these facts.", []],
+    ['split-r15-hash', 'The spike went down at A at 28 s in, and their Phoenix killed your last teammate at 33 s in.', []],
+    ['split-r20-walk', 'While this was a great multi kill round, your largest counted mistake across the match was dying where nobody could trade 14 times.', []],
+    ['sidebar-fracture', 'Astra then killed your KAY/O, and Phoenix killed your Clove.', []],
   ];
   for (const [id, text, wrong] of canned) {
     const q = byId[id];
     if (!q || !contexts[id]) continue;
-    const got = keyed(q, text).wrong.map((w) => w.what);
+    const got = keyed(q, text, keyOpts(contexts[id])).wrong.map((w) => w.what);
     if (JSON.stringify(got) !== JSON.stringify(wrong)) out.push(`the keys of ${id} on "${text}" found [${got.join('; ')}], expected [${wrong.join('; ')}]`);
   }
   const q = byId['split-r10-planted'];
@@ -896,7 +981,7 @@ function selfTest(sheets, contexts) {
 
 function printQuestion(q, rec, problems) {
   const landed = rec.which ? `asks which ${rec.which} (no model call)` : rec.none ? `says no ${rec.none} match (no model call)`
-    : `${rec.matchKey || 'no match'}${rec.moved ? ' (moved)' : ''}${rec.round ? `, round ${rec.round}${rec.inFull ? ' in full' : ''}` : ''}`
+    : `${rec.matchKey || 'no match'}${rec.moved ? ' (moved)' : ''}${rec.round ? `, ${(rec.rounds || []).length > 1 ? `rounds ${rec.rounds.join(', ')}` : `round ${rec.round}`}${rec.inFull ? ' in full' : ''}` : ''}`
       + `${rec.prompt ? `, prompt ${rec.prompt.chars.toLocaleString('en')} chars` : ''}`;
   console.log(`  ${problems.length ? 'FAIL' : 'ok  '}  ${q.id.padEnd(22)} ${String(q.open).padEnd(7)} ${landed}${problems.length ? `: ${problems.join('; ')}` : ''}`);
 }
@@ -1024,6 +1109,8 @@ async function dryRun(sheets, questions, plan) {
     if (rec.context) contexts[q.id] = rec.context;
     const exp = expectProblems(q, rec);
     if (rec.error && !rec.which && !rec.none) exp.push(rec.error);
+    // A marker of another match must be no agent this match has.
+    if (rec.context) exp.push(...markerClashes(q, rec.context));
     printQuestion(q, rec, exp);
     bad += exp.length ? 1 : 0;
   }
@@ -1059,5 +1146,6 @@ if (require.main === module) {
 }
 
 // The parts, for a run scored on stand in answers.
-module.exports = { compileCheck, loadSheets, keyed, namesIn, inSpanish, rateOf, upperBound, lowerBound, planOf, expectProblems, serverMessages,
+module.exports = { compileCheck, loadSheets, keyed, keyOpts, roundText, ownAgents, markerClashes, MATCH_COUNT, NOT_A_CLAIM, CLAUSE_SPLIT,
+  namesIn, inSpanish, rateOf, upperBound, lowerBound, planOf, expectProblems, serverMessages, built, gatedHere,
   setUp, ask, dryNet, scoreAnswer, summarise, barsOf, report, writeSheet, OPTS };

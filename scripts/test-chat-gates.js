@@ -597,21 +597,24 @@ HOW TO ANSWER
       ok(keeps('Two body shots kill an unarmoured player with a Sheriff.', f) && drops('Two body shots from a Sheriff kill through Heavy Armor.', f, 'number'),
         'and its hits to kill decide the armour cases');
     } else console.log('skip  the primer prints no Sheriff hits to kill today');
-    // CHAT_PRIMER_GUNS=slices: the gun table leaves the core for the guns the
-    // question and the match name, and the roster stays (game-primer.js renderCore).
+    // Slices, the default since bench:chat of 15 Oct (CHAT_PRIMER_GUNS unset):
+    // the gun table leaves the core for the guns the question and the match
+    // name, and the roster stays (game-primer.js renderCore); core puts it back.
     const before = process.env.CHAT_PRIMER_GUNS;
-    process.env.CHAT_PRIMER_GUNS = 'slices';
+    const msgs = [{ role: 'user', content: 'How many body shots does a Vandal need?' }];
     let sliced = '';
+    let whole = '';
     try {
-      const msgs = [{ role: 'user', content: 'How many body shots does a Vandal need?' }];
+      delete process.env.CHAT_PRIMER_GUNS;
       sliced = cp.buildPrompt(inputFor(ABYSS, msgs[0].content), msgs, { variant: 'v2' });
+      process.env.CHAT_PRIMER_GUNS = 'core';
+      whole = cp.buildPrompt(inputFor(ABYSS, msgs[0].content), msgs, { variant: 'v2' });
     } finally {
       if (before === undefined) delete process.env.CHAT_PRIMER_GUNS; else process.env.CHAT_PRIMER_GUNS = before;
     }
-    const whole = cp.buildPrompt(inputFor(ABYSS, 'How many body shots does a Vandal need?'), [{ role: 'user', content: 'How many body shots does a Vandal need?' }], { variant: 'v2' });
     ok(!/\nGUNS \(/.test(sliced) && /\nAGENTS \(/.test(sliced) && /Vandal\. Price/.test(sliced) && !/Bucky\. Price/.test(sliced)
       && /\nGUNS \(/.test(whole) && /Bucky\. Price/.test(whole),
-    'CHAT_PRIMER_GUNS=slices moves the gun table to the guns named and keeps the roster in the core');
+    'slices, the default, moves the gun table to the guns named and keeps the roster in the core, and CHAT_PRIMER_GUNS=core keeps the table whole');
   }
 }
 
@@ -647,6 +650,296 @@ HOW TO ANSWER
   const n = bench.namesIn({ planted: ['Varkalen'] }, raw);
   ok(typeof ng.WITHHELD === 'string' && n.withheld === 1 && n.planted.length === 1 && n.count === 2 && bench.namesIn({ planted: [] }, 'Hold the angle.').count === 0,
     'bench:chat counts a sentence withheld from a raw reply as a name, beside a planted one', JSON.stringify(n));
+}
+
+// ── The bench:chat run of 15 Oct (Sol v2), each case from its raw replies ───
+// The person's read found the gates and the context, not the model, behind
+// most of what failed. Every sentence below in quotes from the run is the
+// model's own; the matches are the repo's Abyss and Split and the Riot records
+// of the Sunset and Fracture swiftplays (riot-sunset-2-5.json,
+// riot-fracture-5-1.json), with the few facts of a round the case needs.
+{
+  console.log('\nthe bench:chat run of 15 Oct:');
+  const RQ = String.fromCharCode(0x2019);
+  // Each new regex on a known positive and a known negative.
+  const cases = [
+    ['CURLY_SINGLE', gates.CURLY_SINGLE, `didn${RQ}t`, "didn't"],
+    ['CURLY_DOUBLE', gates.CURLY_DOUBLE, `${String.fromCharCode(0x201c)}Died where nobody could trade${String.fromCharCode(0x201d)}`, '"Died where nobody could trade"'],
+    ['PISTOL_ROUND', gates.PISTOL_ROUND, 'your attack pistol round', 'a pistol round your team won'],
+    ['PISTOL_DESCRIBED', gates.PISTOL_DESCRIBED, 'Round 5 was ', 'Why was '],
+    ['PISTOL_SECOND_AFTER', gates.PISTOL_SECOND_AFTER, ' after the swap', ' on attack'],
+    ['ROUND_SECONDS', gates.ROUND_SECONDS, 'finished the round 33 s in', 'finished round 3 alive'],
+    ['OBJECT_IS_ROUND', gates.OBJECT_IS_ROUND, ' round 22', ' 13 to 11'],
+    ['MATCH_AFTER', gates.MATCH_AFTER, ' the match 5 to 1', ' the match point round'],
+    ['SCORE_AFTER', gates.SCORE_AFTER, ' 13 to 11, round 22', ' round 22'],
+    ['SCORE_BEFORE', gates.SCORE_BEFORE, 'In your Abyss match on Jett, a 13 to 11 ', 'In round 13 '],
+    ['MATCH_BEFORE', gates.MATCH_BEFORE, 'In the Split match you ', 'In this round you '],
+    ['NAMED_WIN_BEFORE', gates.NAMED_WIN_BEFORE, 'in the Abyss Jett ', 'in the round '],
+    ['MAP_AFTER', gates.MAP_AFTER, ' Fracture with Jett', ' round 5 on Fracture'],
+    ['OBJECT_BEFORE', gates.OBJECT_BEFORE, 'time to reach the space you ', 'that was the round you '],
+    ['CLEFT_BEFORE', gates.CLEFT_BEFORE, 'What you ', 'Why you '],
+    ['CLEFT_AFTER', gates.CLEFT_AFTER, ' was your opening fight', ' was round 5'],
+    ['GUN_MINE_BEFORE', gates.GUN_MINE_BEFORE, 'you drew your ', 'his '],
+    ['GUN_THEIRS_BEFORE', gates.GUN_THEIRS_BEFORE, 'before his ', 'you drew your '],
+    ['GUN_WITH_BEFORE', gates.GUN_WITH_BEFORE, 'from beside cover with a ', 'from beside cover '],
+    ['YOU_KILLED_PASSIVE', gates.YOU_KILLED_PASSIVE, 'you were killed by Clove with a ', 'you fought Clove with a '],
+    ['TOWARD_SOMEONE', gates.TOWARD_SOMEONE, 'the first death against a Viper with a ', 'You fought Clove from beside cover with a '],
+    ['CLAUSE_START', gates.CLAUSE_START, 'the first kill but Cypher', 'the first kill of Cypher'],
+    ['PEEK_AGAIN', gates.PEEK_AGAIN, 'you peeked the same A Main angle again', 'you kept peeking alone'],
+    ['TRADED_YOU (negated)', gates.TRADED_YOU, 'a teammate traded you', 'and no teammate traded you'],
+    ['ECON_REFUSAL (confirm)', gates.ECON_REFUSAL, 'I cannot confirm from the record what gun you carried', 'I confirm you bought a Vandal'],
+    ['VERDICT', cp.VERDICT, 'Yes.', 'Yes, save when the round is gone.'],
+  ];
+  for (const [name, re, pos, neg] of cases) {
+    const r = re && new RegExp(re.source, re.flags.replace('g', ''));
+    ok(!!r && r.test(pos) && !r.test(neg), `${name} matches "${pos}" and not "${neg}"`);
+  }
+
+  // The matches the cases need, as the gates see them.
+  const asking = (rv, q, extra) => { const ms = [{ role: 'user', content: q }]; const input = inputFor(rv, q, extra); return { input, ms, f: factsFor(input, ms, STAND_IN) }; };
+  const riotOnly = (file, row, edit) => {
+    const riot = load(file);
+    const per = riot.perRound.map((r) => (edit && edit[r.n] ? { ...r, ...edit[r.n] } : r));
+    const rv = riotReview.fromRiot({ row: { matchId: `${riot.map.toLowerCase()}-0015-test`, map: riot.map, agent: riot.me.agent,
+      mode: riot.queue === 'swiftplay' ? 'Swiftplay' : 'Competitive', result: riot.result, score: riot.score,
+      kills: 9, deaths: 6, assists: 2, acs: 200, adr: 130, headshotPct: 18, startedAt: AT, ...(row || {}) }, riot: { ...riot, perRound: per }, history: [] }).review;
+    return review.served({ ...rv, id: `valorant-1790000000${riot.rounds}15-${riot.map.toLowerCase().slice(0, 6)}`, at: AT });
+  };
+  const SUNSET = riotOnly('riot-sunset-2-5.json', null, { 5: { kills: 1, feed: [{ ms: 52000, by: 'me', on: 'enemy' }] } });
+  // Fracture's rounds 5 and 6 with the facts Riot's record of them has: round 5
+  // the first kill and two, the spike down at A, the player killed by their
+  // Jett's Sheriff; round 6 a death to Chamber 3 s in, and the coach's look at it.
+  const FRACTURE = (() => {
+    const rv = riotOnly('riot-fracture-5-1.json', null, {
+      5: { kills: 2, firstKill: true, traded: false, plantMs: 32000, plantSite: 'A', weapon: 'Sheriff', aliveAtDeath: { mates: 4, enemies: 3 },
+        feed: [{ ms: 9000, by: 'me', on: 'enemy', ka: 'Jett', va: 'Deadlock', w: 'Bandit' }, { ms: 11000, by: 'me', on: 'enemy', ka: 'Jett', va: 'Chamber', w: 'Bandit' },
+          { ms: 27000, by: 'enemy', on: 'mate', ka: 'Phoenix', va: 'Chamber' }, { ms: 33000, by: 'enemy', on: 'me', ka: 'Jett', va: 'Jett', w: 'Sheriff' }] },
+      6: { firstDeath: true, traded: false, plantSite: 'B' },
+    });
+    return { ...rv, rounds: rv.rounds.map((c) => (c.n !== 6 ? c : { ...c, forensics: { cause: 'lost-duel', source: 'riot',
+      what: 'You fought Chamber from B Tree with a Sheriff and fired three shots before he killed you.', better: 'Keep your crosshair at head level and tap.' } })) };
+  })();
+
+  // 1a. THE MATCH'S OWN RESULT BESIDE A ROUND.
+  const A22 = asking(ABYSS, 'What happened in round 22?');
+  ok(A22.f.asked === 22 && A22.f.rounds.get(22).result === 'lost' && A22.f.matchResult === 'won' && JSON.stringify(A22.f.finalScore) === '[13,11]',
+    'round 22 of the Abyss was lost, the match won 13 to 11');
+  ok(keeps('In the Abyss match on Jett, which you won 13 to 11, round 22 was an attack you lost.', A22.f) && keeps('Round 22 was an attack you lost.', A22.f),
+    '"IN THE ABYSS MATCH ON JETT, WHICH YOU WON 13 TO 11, ROUND 22 WAS AN ATTACK YOU LOST" STAYS, as "Round 22 was an attack you lost" does',
+    why('In the Abyss match on Jett, which you won 13 to 11, round 22 was an attack you lost.', A22.f));
+  const A13 = asking(ABYSS, 'Why did I lose round 13?');
+  const A3 = asking(ABYSS, 'Did Phoenix kill me in round 3?');
+  for (const [s, at] of [
+    ['In your Abyss match on Jett, a 13 to 11 win, this was the attack pistol round.', A13.f],
+    ['Your attack pistol round in the Abyss Jett win, 13 to 11, started with an opening kill but ended in a loss.', A13.f],
+    ['Round 22 was a lost attack round in your Abyss match on Jett, which you won 13 to 11.', A22.f],
+    ['In your Abyss match on Jett, which you won 13 to 11, Cypher killed you in round 3 with a Spectre.', A3.f],
+    ['You were playing Jett on Abyss in a match you eventually won 13 to 11, and that specific death happened 19 seconds into the round.', A3.f],
+    ['In the match on Abyss as Jett, you won 13 to 11, but round 22 was a missed opportunity where you gave back the advantage.', A22.f],
+  ]) ok(keeps(s, at), `the match's result is the match's: "${s}" stays`, why(s, at));
+  ok(drops('You won round 22.', A22.f, 'result') && drops('In this match you won round 22.', A22.f, 'result')
+    && drops('In the Abyss match on Jett, which you lost 11 to 13, round 22 was an attack you lost.', A22.f, 'result')
+    && drops('You lost the match, and round 22 was an attack.', A22.f, 'result'),
+  'and every claim of the round is still the round\'s, and a match result the record contradicts drops', why('In the Abyss match on Jett, which you lost 11 to 13, round 22 was an attack you lost.', A22.f));
+  const F5 = asking(FRACTURE, 'Why did I lose round 5 on Fracture?');
+  for (const s of ['You lost round 5 of the Fracture, Jett match you won 5 to 1 because the team gave up its post plant advantage.',
+    'In your Fracture Jett match, a 5 to 1 Swiftplay win, round 5 was your attacking pistol round.',
+    'You won the match on Fracture as Jett with a 5 to 1 result, but you lost round 5 because an advantage was given back after the plant.']) {
+    ok(keeps(s, F5.f), `and on the Fracture swiftplay: "${s}" stays`, why(s, F5.f));
+  }
+  // 1b. A CURLY APOSTROPHE.
+  const S5 = asking(SUNSET, 'Why did I lose round 5?');
+  ok(S5.f.asked === 5 && S5.f.rounds.get(5).result === 'won' && S5.f.rounds.get(5).pistol === true, 'Sunset round 5 was won, the swiftplay\'s second pistol round');
+  ok(keeps(`You didn${RQ}t lose round 5.`, S5.f) && keeps("You didn't lose round 5.", S5.f),
+    `"YOU DIDN${RQ}T LOSE ROUND 5", CURLY AS SOL WRITES IT, STAYS AS THE STRAIGHT ONE DOES`, why(`You didn${RQ}t lose round 5.`, S5.f));
+  ok(drops(`You didn${RQ}t win round 5.`, S5.f, 'result') && drops('You lost round 5.', S5.f, 'result'), 'and a claim of a loss drops, curly or not');
+  ok(keeps('In the Sunset Swiftplay match on Jett, which you lost 2 to 5, round 5 was a defensive pistol round your team won, and you survived it.', S5.f),
+    'Sol\'s whole correction of the Sunset premise stays', why('In the Sunset Swiftplay match on Jett, which you lost 2 to 5, round 5 was a defensive pistol round your team won, and you survived it.', S5.f));
+  const SM = asking(ABYSS, 'Is Jett the best agent for Split, or should I switch?');
+  ok(keeps(`I can${RQ}t tell you whether Jett is the best agent for Split from these facts.`, SM.f) && drops('Jett is the best agent for Split.', SM.f, 'meta'),
+    `A CURLY "I CAN${RQ}T TELL YOU WHETHER JETT IS THE BEST AGENT" IS A REFUSAL, and the ranking still drops`, why(`I can${RQ}t tell you whether Jett is the best agent for Split from these facts.`, SM.f));
+  ok(gates.straighten(`Tejo${RQ}s Outlaw`) === "Tejo's Outlaw" && gates.check(`You didn${RQ}t lose round 5.`, S5.f).drop === null, 'the gates read the sentence straightened, and the reply keeps it as written');
+  // 1c. "PISTOL ROUND" IS NO ROUND 1.
+  ok(keeps('Round 5 was a pistol round your team won.', S5.f), '"ROUND 5 WAS A PISTOL ROUND YOUR TEAM WON" STAYS ON THE SUNSET SWIFTPLAY', why('Round 5 was a pistol round your team won.', S5.f));
+  ok(keeps('In that match on Sunset as Jett, which ended in a 2 to 5 loss, round 5 was your second pistol round and one of the two rounds you survived.', S5.f),
+    'and "your second pistol round" is the match\'s second, which the player survived', why('In that match on Sunset as Jett, which ended in a 2 to 5 loss, round 5 was your second pistol round and one of the two rounds you survived.', S5.f));
+  ok(keeps('Round 5 was the pistol round after the swap, on attack, and your team lost it.', F5.f), 'the spec\'s own answer, "the pistol round after the swap", stays', why('Round 5 was the pistol round after the swap, on attack, and your team lost it.', F5.f));
+  const A1 = asking(ABYSS, 'How did my pistol round go?');
+  ok(A1.f.rounds.get(1).result === 'won' && drops('You lost the pistol round.', A1.f, 'result') && keeps('Your team won the pistol round.', A1.f)
+    && drops('Round 5 was a pistol round your team won.', A3.f, 'timeline'),
+  'and the pistol round, named as one, is still round 1, and a round said to be one that is not drops', why('You lost the pistol round.', A1.f));
+  // The rest of what the run shows the gates dropping true.
+  ok(keeps('Cypher killed you at 19 s in, bringing it back to three against three, and no teammate traded you.', A3.f) && drops('A teammate traded you.', A3.f, 'timeline'),
+    '"NO TEAMMATE TRADED YOU" IS NOT "TEAMMATE TRADED YOU": Abyss round 3, untraded', why('Cypher killed you at 19 s in, bringing it back to three against three, and no teammate traded you.', A3.f));
+  const A11 = asking(ABYSS, 'Walk me through round 11.');
+  ok(keeps('Phoenix killed you 23 s in, and your teammate finished the round 33 s in.', A11.f) && drops('Round 33 was the turning point.', A11.f, 'round'),
+    '"THE ROUND 33 S IN" IS A TIME, NO ROUND 33', why('Phoenix killed you 23 s in, and your teammate finished the round 33 s in.', A11.f));
+  ok(keeps('That gives your team time to reach the space you won, rather than making the next fight yours alone.', A22.f)
+    && drops('That was the round you won.', A22.f, 'result'), 'what was won before the verb is no round: "the space you won" stays, "the round you won" is still one');
+  const A5 = asking(ABYSS, 'Why did I lose round 5?');
+  ok(keeps('What you lost was your opening fight.', A5.f) && drops('What you lost was round 5.', A5.f, 'result'), '"WHAT YOU LOST WAS YOUR OPENING FIGHT" STAYS on the won round 5');
+  const A4 = asking(ABYSS, 'Should I have saved my gun in round 4?');
+  // A purchase the record never shows drops: by the weapon gate since it holds
+  // the player's gun to the round's facts, else by the economy gate.
+  ok(keeps('I cannot confirm from the record what gun you carried or what you bought.', A4.f)
+    && (drops('You bought a Vandal in round 4.', A4.f, 'economy') || drops('You bought a Vandal in round 4.', A4.f, 'weapon')),
+    '"I CANNOT CONFIRM FROM THE RECORD WHAT YOU BOUGHT" IS THE ANSWER THE RULES ASK FOR, and a purchase the record never shows drops',
+    why('You bought a Vandal in round 4.', A4.f));
+  ok(keeps('This was an attacker pistol round where you opened the round strong, but the team could not hold the site once the spike was down.', F5.f)
+    && drops('You did not get the first kill in round 5.', F5.f, 'timeline'),
+  'ONLY THE NEGATION THAT GOVERNS IT TURNS A FIRST KILL: the team\'s "could not hold" is not the player\'s', why('This was an attacker pistol round where you opened the round strong, but the team could not hold the site once the spike was down.', F5.f));
+  const FR2 = (() => {
+    const rv = riotOnly('riot-fracture-5-1.json', null, { 2: { kills: 3, firstKill: true, traded: true } });
+    return { ...rv, rounds: rv.rounds.map((c) => (c.n !== 2 ? c : { ...c, forensics: { cause: 'repeek', source: 'riot',
+      what: 'You stayed on the same A Main angle after trading shots and killing one enemy, then Astra killed you with a Sheriff.', better: 'Fall back after the first exchange.' } })) };
+  })();
+  const R2 = asking(FR2, 'Was my round 2 death a mistake?');
+  const repeek = `In your Fracture Jett win, 5 to 1, your round 2 death was the avoidable mistake the coach${RQ}s look identified: you peeked the same A Main angle again after being seen or getting a kill.`;
+  ok(keeps(repeek, R2.f) && drops('You kept peeking the same angle in round 2.', R2.f, 'count'),
+    'A REPEEK SAID IN WORDS ("you peeked the same A Main angle again") IS THE ROUND\'S LOOK, NO REPEAT ACROSS THE MATCH, and "kept" still needs a count', why(repeek, R2.f));
+
+  // 3. A BARE VERDICT NEVER GOES OUT ALONE.
+  const econ = 'Yes. In the Abyss match on Jett, which you won 13 to 11, saving was the better choice in round 4 once your teammate fell. I cannot confirm from the record what gun you carried or what you bought.\n\n'
+    + 'You were defending. A teammate died 11 s in, leaving you four against five. At 13 s in, Viper killed you with a Vandal at Mid Top, leaving your team three against five, and nobody traded you.';
+  const pe = cp.parseReply(econ, A4.input, { messages: A4.ms });
+  ok(pe.dropped.verdict === 1 && pe.dropped.economy === 1 && pe.retry && pe.firstDropped && !/^Yes\b/.test(pe.reply)
+    && pe.reasons.includes(cp.VERDICT_REASON) && /I cannot confirm from the record/.test(pe.reply),
+  'ABYSS-ECON-R4: "YES." GOES WITH THE SAVE CLAIM AFTER IT, AND THE REPLY IS ASKED FOR AGAIN, the true disclaimer kept', JSON.stringify({ dropped: pe.dropped, retry: pe.retry, reply: pe.reply.slice(0, 60) }));
+  const premise = 'No. In your Abyss match on Jett, which you won 13 to 11, Cypher killed you in round 3 with a Spectre.\n\n'
+    + 'You were defending. A teammate fell first at 10 s in, then you got kills at 15 s and 18 s in to put your team ahead, four against three. Cypher killed you at 19 s in, bringing it back to three against three, and no teammate traded you.';
+  const pp = cp.parseReply(premise, A3.input, { messages: A3.ms });
+  ok(!pp.retry && /^No\. In your Abyss match on Jett, which you won 13 to 11, Cypher killed you in round 3/.test(pp.reply) && !pp.dropped.verdict,
+    'ABYSS-R3-KILLER: "NO." KEEPS ITS CORRECTION, CYPHER NAMED, and nothing is asked again', JSON.stringify(pp.dropped));
+  ok(cp.parseReply('Yes. You were defending round 4 when Viper killed you 13 s in.', A4.input, { messages: A4.ms }).reply.startsWith('Yes.'),
+    'and a verdict whose sentence stands stays');
+
+  // 4. THE PLAYER'S GUN IS ONE THE ROUND'S FACTS GIVE THEM.
+  const pearl = (n, card) => cp.normalise({ v: 2, game: 'valorant', language: 'en', advanced: false,
+    match: { id: 'valorant-1790000000000-pearl1', map: 'Pearl', agent: 'Raze', mode: 'Swiftplay', result: 'Defeat', score: '1-5', rounds: 6, verified: true, at: AT,
+      cards: [{ n, side: n === 1 ? 'attacking' : 'defending', result: 'lost', died: true, verified: true, watched: true, pistol: true, ...card }] },
+    player: {}, ask: { round: n } });
+  const P1 = pearl(1, { riot: { sec: 26, killer: 'Clove', weapon: 'Classic', traded: false, kills: 0, alive: { mates: 2, enemies: 2 } },
+    look: { cause: 'lost-duel', source: 'riot', what: 'On B Site, you fired at Clove from beside cover but lost the pistol duel without damaging them.', better: 'Keep your crosshair at head level.' } });
+  const P1f = factsFor(P1, [{ role: 'user', content: "Was it a player's fault that we lost round 1?" }], STAND_IN);
+  ok(drops('You fought Clove from beside cover with a Classic and did not damage them.', P1f, 'weapon'),
+    'PEARL-R1-RIOTID: "YOU FOUGHT CLOVE FROM BESIDE COVER WITH A CLASSIC" DROPS, the round\'s only Classic the killer\'s', why('You fought Clove from beside cover with a Classic and did not damage them.', P1f));
+  ok(keeps('Clove killed you with a Classic.', P1f) && keeps('You were killed by Clove with a Classic.', P1f) && keeps('You lost the pistol duel to Clove with a Classic.', P1f),
+    'and the killer\'s Classic stays the killer\'s');
+  const P5 = pearl(5, { riot: { sec: 9, killer: 'Cypher', weapon: 'Classic', traded: true, kills: 0, firstDeath: true },
+    look: { cause: 'lost-duel', source: 'riot', what: 'You drew your Ghost and fought Cypher at close range in Mid Plaza, dealing 105 damage before his Classic killed you.', better: 'Keep your crosshair at head level.' } });
+  const P5f = factsFor(P5, [{ role: 'user', content: 'Why did I die in round 5?' }], STAND_IN);
+  ok(P5f.rounds.get(5).weapons.mine.has('Ghost') && !P5f.rounds.get(5).weapons.mine.has('Classic') && P5f.rounds.get(5).weapons.theirs.has('Classic'),
+    'A LOOK\'S "HIS CLASSIC" IS THE KILLER\'S, its "your Ghost" the player\'s', JSON.stringify([...P5f.rounds.get(5).weapons.mine]));
+  ok(keeps('You drew your Ghost as you met Cypher at the Mid Plaza doorway.', P5f) && drops('You fought Cypher with a Classic.', P5f, 'weapon') && keeps('His Classic killed you before you finished the fight.', P5f),
+    'so the player fought with the Ghost, never the Classic');
+  ok(keeps('In round 2 on defense, you were the first death only 15 seconds in against a Viper with a Marshal while the teams were even at five standing.', asking(ABYSS, 'What should I change on Jett?').f),
+    'and "against a Viper with a Marshal" is the Viper\'s Marshal, as Riot has it in round 2');
+
+  // 2. EVERY ROUND A QUESTION NAMES, IN FULL.
+  const QS = 'How do I win more Sheriff duels like rounds 5 and 6?';
+  const ctxS = chatContext.build(FRACTURE, { rows: [] }, null, QS, { game: 'valorant', language: 'en', now: Date.now() });
+  const inS = cp.normalise(ctxS);
+  const msS = [{ role: 'user', content: QS }];
+  const pS = cp.buildPrompt(inS, msS, { variant: 'v2' });
+  const fS = cp.factsOf(inS, msS);
+  ok(ctxS.ask.round === null && JSON.stringify(ctxS.ask.rounds) === '[5,6]' && JSON.stringify(inS.ask.rounds) === '[5,6]',
+    'the client sends both rounds of "like rounds 5 and 6", where it sent none', JSON.stringify(ctxS.ask));
+  ok(/ROUND 5 IN FULL/.test(pS) && /ROUND 6 IN FULL/.test(pS) && /You fought Chamber from B Tree with a Sheriff/.test(pS) && !fS.oneRound && JSON.stringify(fS.askedRounds) === '[5,6]',
+    'FRACTURE-ADV-OFF: BOTH ROUNDS ARE TOLD IN FULL, ROUND 6\'S LOOK AND ITS SHERIFF WITH THEM, and a sentence naming no round is about neither', JSON.stringify(fS.askedRounds));
+  const old = cp.normalise({ ...ctxS, ask: { round: null } });
+  const pOld = cp.buildPrompt(old, msS, { variant: 'v2' });
+  ok(/ROUND 5 IN FULL/.test(pOld) && /ROUND 6 IN FULL/.test(pOld), 'AND FROM AN 8.5.0 CLIENT, WHICH SENDS NO ROUND FOR IT, THE SERVER READS BOTH FROM THE QUESTION');
+  const QR = 'Walk me through rounds 1 to 24';
+  const inR = inputFor(ABYSS, QR);
+  const pR = cp.buildPrompt(inR, [{ role: 'user', content: QR }], { variant: 'v2' });
+  ok(JSON.stringify(cp.askedRounds(inR, [{ role: 'user', content: QR }])) === '[1,2,3]' && (pR.match(/ IN FULL\n/g) || []).length === cp.MAX_ASKED_ROUNDS
+    && pR.length - pR.indexOf('THE PLAYER') <= cp.DYNAMIC_MAX_CHARS,
+  `and three at most (cp.MAX_ASKED_ROUNDS), under the budget (${pR.length - pR.indexOf('THE PLAYER')} of ${cp.DYNAMIC_MAX_CHARS})`);
+  ok(!gates.roundSentence('You died to a Sheriff.', fS).round && gates.roundSentence('You died to a Sheriff.', factsFor(inputFor(FRACTURE, 'Why did I lose round 5?'), [{ role: 'user', content: 'Why did I lose round 5?' }], STAND_IN)).round,
+    'one round asked makes a sentence about the player its round\'s; two make it about neither');
+
+  // 5. THE STABLE PARTS FIRST, BYTE FOR BYTE ACROSS A MATCH'S QUESTIONS.
+  const long = Array.from({ length: 8 }, (_v, i) => ({ role: i % 2 ? 'assistant' : 'user', content: i % 2 ? 'Hold the angle. '.repeat(120) : `Why did I lose round ${i + 3}?` }));
+  const asks = ['Why did I die in round 3?', 'Walk me through round 13', 'What should I change on Jett?', 'How do I win more duels like rounds 5 and 6?'];
+  const built = asks.map((q) => cp.buildParts(inputFor(ABYSS, q), [{ role: 'user', content: q }], { variant: 'v2' }));
+  built.push(cp.buildParts(inputFor(ABYSS, long[long.length - 2].content), long, { variant: 'v2' }));
+  const p0 = built[0].parts;
+  ok(built.every((b) => b.parts.length === 3 && b.parts[0] === p0[0] && b.parts[1] === p0[1]) && new Set(built.map((b) => b.parts[2])).size === built.length,
+    'THE STATIC PREFIX AND THE MATCH\'S OWN FACTS ARE THE SAME BYTE FOR BYTE FOR EVERY QUESTION OF THE MATCH, a long conversation\'s too, and only the question\'s part differs',
+    built.map((b) => `${b.parts[0].length}/${b.parts[1].length}/${b.parts[2].length}`).join(' '));
+  // The notes a question gets are drawn with Math.random among equal scores,
+  // so both builds are drawn from one seed for the comparison.
+  const seeded = (fn) => {
+    const random = Math.random;
+    let s = 20261015;
+    Math.random = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  ok(asks.every((q) => {
+    const ms = [{ role: 'user', content: q }];
+    const joined = seeded(() => cp.buildParts(inputFor(ABYSS, q), ms, { variant: 'v2' }).parts.join(''));
+    return joined === seeded(() => cp.buildPrompt(inputFor(ABYSS, q), ms, { variant: 'v2' }));
+  }), 'and the three parts joined are the prompt');
+  ok(/\nR3 defence/.test(p0[1]) && /\nR13 attack/.test(p0[1]) && !/IN FULL/.test(p0[1]) && /^ROUND 3 IN FULL/.test(built[0].parts[2]),
+    'every round is a line of the match\'s part, the asked ones too, and the rounds asked are told in full in the question\'s');
+  const rq = 'Walk me through round 15';
+  const splitOnly = chatContext.applyRoundRecord(riotReview.fromRiot({ row: { matchId: 'split-0015-test', map: 'Split', agent: 'Jett', mode: 'Competitive',
+    result: 'Victory', score: '13-7', kills: 17, deaths: 16, assists: 8, acs: 279, adr: 181, headshotPct: 22, startedAt: AT }, riot: load('riot-split-13-7.json'), history: [] }).review, load('riot-split-13-7.json'), AT);
+  const sp = cp.buildParts(inputFor({ ...splitOnly, id: 'valorant-1790000000002-split2', at: AT }, rq), [{ role: 'user', content: rq }], { variant: 'v2' });
+  ok(sp.parts[0] === p0[0] && sp.parts[1] !== p0[1], 'and the static prefix is the same for another match of the mode, the match\'s part its own');
+  const before = process.env.CHAT_PRIMER_GUNS;
+  let tableBack = '';
+  try {
+    delete process.env.CHAT_PRIMER_GUNS;
+    const q = 'How many body shots does a Vandal need?';
+    const dflt = cp.buildParts(inputFor(ABYSS, q), [{ role: 'user', content: q }], { variant: 'v2' }).parts;
+    process.env.CHAT_PRIMER_GUNS = 'core';
+    tableBack = cp.buildPrompt(inputFor(ABYSS, q), [{ role: 'user', content: q }], { variant: 'v2' });
+    ok(!cp.gunsInCore() || true, 'CHAT_PRIMER_GUNS=core puts the gun table back');
+    const real = require('../server/services/game-primer');
+    if (real && typeof real.core === 'function' && /\nGUNS \(/.test(tableBack)) {
+      ok(!/\nGUNS \(/.test(dflt[0]) && /\nAGENTS \(/.test(dflt[0]) && /Vandal\. Price/.test(dflt[2]) && /\nGUNS \(/.test(tableBack),
+        'THE GUN TABLE IS IN THE SLICES BY DEFAULT, the roster kept in the core, and CHAT_PRIMER_GUNS=core puts it back');
+    } else console.log('skip  the primer prints no gun table today');
+  } finally {
+    if (before === undefined) delete process.env.CHAT_PRIMER_GUNS; else process.env.CHAT_PRIMER_GUNS = before;
+  }
+  ok(JSON.stringify(cp.retryParts(['a\n\n', 'b\n\n', 'c'], ['your reply said X'])) === JSON.stringify(['a\n\n', 'b\n\n', cp.retryPrompt('c', ['your reply said X'])])
+    && cp.retryParts(['a\n\n', 'b\n\n', 'c'], ['r']).join('') === cp.retryPrompt('a\n\nb\n\nc', ['r']), 'the retry keeps the stable parts as sent, and joined it is retryPrompt\'s');
+}
+
+// ── bench:chat's own keys (bench-chat.js, the repo's sheet) ────────────────
+// The keys' three shown hits on Sol v2 were the keys misfiring, by all three
+// readers, and most of Gemini's and Qwen's "not traded" hits quoted the
+// match's counted list. Each on the run's own sentence.
+{
+  console.log('\nbench:chat\'s keys:');
+  const bench = require('./bench-chat');
+  const sheets = bench.loadSheets({ sheet: path.join(__dirname, 'fixtures', 'no-player-sheet-here.json') });
+  ok(!sheets.problems.length && sheets.missing, 'the repo\'s sheet compiles, every regex on its own samples', sheets.problems.join('; '));
+  const by = Object.fromEntries(sheets.questions.map((q) => [q.id, q]));
+  const wrong = (id, text, round) => bench.keyed(by[id], text, { round }).wrong.map((w) => w.what);
+  const RQ = String.fromCharCode(0x2019);
+  ok(!wrong('split-meta', `I can${RQ}t tell you whether Jett is the best agent for Split from these facts.`).length
+    && !wrong('general-meta', "You asked about the best agent, but that depends on your team's composition and the enemy's strategy, not a universal tier list.").length
+    && wrong('split-meta', 'Jett is the best agent for Split.').length === 1,
+  'SPLIT-META: A REFUSAL IS NO RANKING TO THE KEY, and a ranking still is');
+  ok(!wrong('split-r15-hash', 'The spike went down at A at 28 s in, and their Phoenix killed your last teammate at 33 s in.', 15).length
+    && wrong('split-r15-hash', 'Sage killed you 5 s into the round.', 15).length === 1,
+  'SPLIT-R15-HASH: "THE SPIKE WENT DOWN 28 S IN" IS NO DEATH SECOND, and a wrong one still is');
+  ok(!wrong('split-r20-walk', 'While this was a great multi kill round, your largest counted mistake across the match was dying where nobody could trade 14 times.', 20).length
+    && !wrong('split-r10-planted', 'While you did not bait them there, your biggest struggle in this 13 to 7 win was dying where nobody could trade you, which happened 14 times.', 10).length
+    && !wrong('split-r10-planted', 'Across the match, the bigger issue was that 14 of your 16 deaths went unanswered.', 10).length
+    && JSON.stringify(wrong('split-r10-planted', 'Your death was not traded.', 10)) === '["says the death was not traded"]'
+    && wrong('split-r10-planted', 'The counted mistakes highlight that you died where nobody could trade in three of those rounds, including this one.', 10).length === 1,
+  'THE MATCH\'S COUNTED LIST QUOTED IS NO CLAIM OF THE ROUND\'S TRADE, and the round\'s own, "including this one" too, still is');
+  // A marker of another match: no agent the question's own match has.
+  const q = { id: 'marker', keys: { must: [], mustNot: [bench.compileCheck({ what: 'tells it as the Pearl match', any: ['Clove', 'Cypher', 'Mid Plaza'], otherMatch: true }, {}, 'test', [])] } };
+  const ctx = { match: { comps: { us: [{ agent: 'Clove' }, { agent: 'Jett' }], them: [{ agent: 'Phoenix' }] }, cards: [] } };
+  const ko = bench.keyOpts(ctx, 5);
+  ok(!bench.keyed(q, 'Astra then killed your KAY/O, and Phoenix killed your Clove.', ko).wrong.length && bench.keyed(q, 'Cypher killed you in Mid Plaza.', ko).wrong.length === 1
+    && JSON.stringify(bench.markerClashes(q, ctx)) === JSON.stringify(['marker: "tells it as the Pearl match" names Clove, whom its own match has too']),
+  'SIDEBAR-FRACTURE: CLOVE, THE PLAYER\'S FRACTURE TEAMMATE, IS NO MARKER OF THE PEARL MATCH, and --dry names a key that says otherwise');
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');
