@@ -289,17 +289,28 @@ and only a running window could see the bug.
 
 ```
 npm start                 run it
-npm test                  40 offline checks, the gate (check:release is a
-                          preflight and is excluded by the runner on purpose)
+npm test                  every check:* and test:* script, the gate
+                          (check:release is a preflight and is excluded by
+                          the runner on purpose)
 npm run release           build + publish + refresh the public download
 npm run verify:ai         AI regression gate, costs money, needs a real profile
 npm run sync:valorant     regenerate valorant-data.generated.json
 npx electron scripts/shot-surface.js <surface>   screenshot a surface
 ```
 
-Release: bump `package.json`, `npm test`, commit, push, then `npm run release`
-with a `GH_TOKEN`. electron-builder publishes to **GhostCoach-releases** (that
-is what electron-updater reads), then `scripts/publish-download.js` refreshes
+CI (`.github/workflows/ci.yml`) runs `npm test` on every push, the window
+checks included, on a virtual screen with openbox. A runner has no GPU, so it
+sets `OCCLARA_NO_GPU=1` and the runner skips check:clips and check:recorder,
+which need the hardware H.264 encoder the recorder insists on; they are proved
+on a PC alone. A new window check that loads `src/main` requires
+`./fixtures/electron-version` right after `require('electron')`, because on
+Linux Electron reports "0.0" for a bare script and electron-updater throws on
+it. CLAUDE.md, "CI runs every check", has the reasons.
+
+Release: bump `package.json`, `npm test` on a PC, commit, push, then
+`npm run release` with a `GH_TOKEN`. electron-builder publishes to
+**GhostCoach-releases** (that is what electron-updater reads), then
+`scripts/publish-download.js` refreshes
 the main repo's single release, id **296500148**, tag **`Release`**, publishing
 the same bytes under **two** names: `Occlara-Setup.exe` for every new link and
 `GhostCoach.2.0.Setup.exe`, which must never be removed.
