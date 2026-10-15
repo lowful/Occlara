@@ -460,33 +460,113 @@ header {
 #insights-host:empty { display: none; }
 
 /* The clip of a moment (8.3): the recording's own seconds around the death,
-   the frame the coach looked at as its picture until it plays. The mark in
-   the middle says play while it is paused, and pause while it plays, shown
-   then only on hover or focus so it never sits over the fight. */
-.v-clip { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+   the frame the coach looked at as its picture until it plays, and its player
+   under it (8.4.4, clip-player.js): a timeline, then one row of controls, the
+   time as seconds from the death and the speed. The picture keeps its mark in
+   the middle until the clip is first played or moved, a picture of the play
+   button below, so it never sits over a frame being studied. */
+.v-clip { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); border-radius: var(--r-sm); }
+.v-clip:focus { outline: none; }
+.v-clip:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 .v-clip-frame { position: relative; }
 .v-clip-video {
   display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain;
   border-radius: var(--r-sm); border: 1px solid var(--glass-border);
   background: #000; cursor: pointer;
 }
-.v-clip-play {
+.v-clip-big {
   position: absolute; left: 50%; top: 50%;
-  width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0;
+  width: 44px; height: 44px; margin: -22px 0 0 -22px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.35);
   background: rgba(0, 0, 0, 0.55); color: var(--text);
-  cursor: pointer;
-  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
 }
-.v-clip-play:hover { transform: scale(1.06); }
-.v-clip-play:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-.v-clip-mark { width: 18px; height: 18px; }
-.v-clip-mark.pause { display: none; }
-.v-clip.playing .v-clip-mark.play { display: none; }
-.v-clip.playing .v-clip-mark.pause { display: block; }
-.v-clip.playing .v-clip-play { opacity: 0; }
-.v-clip.playing .v-clip-frame:hover .v-clip-play,
-.v-clip.playing .v-clip-play:focus-visible { opacity: 1; }
+.v-clip-big .v-clip-mark { width: var(--icon-md); height: var(--icon-md); }
+.v-clip.started .v-clip-big { opacity: 0; }
+
+/* The timeline. The range lies over a track drawn under it, so the filled
+   part is a solid fill of its own, scaled from the left (--p, the place in
+   the clip, set by the player), and the marks sit on the track where the
+   thumb's centre passes them: the track is inset by half the thumb. */
+.cp-bar { display: flex; flex-direction: column; gap: var(--space-1); }
+.cp-line { position: relative; height: 20px; --p: 0; }
+.cp-track {
+  position: absolute; left: 6px; right: 6px; top: 8px; height: 4px;
+  border-radius: var(--r-sm); background: rgba(255, 255, 255, 0.14);
+}
+.cp-fill {
+  position: absolute; inset: 0; border-radius: inherit;
+  background: var(--text-dim);
+  transform-origin: 0 50%; transform: scaleX(var(--p));
+}
+/* The coach's stills, white, and the death, --red and taller than the thumb,
+   so it shows past it when the clip is at the death, and never told by its
+   colour alone: the time beside the row says "At the death" on its frame. */
+.cp-mark {
+  position: absolute; top: -4px; bottom: -4px; left: calc(var(--p) * 100%);
+  width: 2px; margin-left: -1px; border-radius: 1px;
+  background: rgba(255, 255, 255, 0.55);
+}
+.cp-mark.death { top: -7px; bottom: -7px; width: 3px; margin-left: -1.5px; background: var(--red); }
+.cp-mark[hidden] { display: none; }
+.cp-seek {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  -webkit-appearance: none; appearance: none;
+  background: transparent; cursor: pointer;
+}
+.cp-seek::-webkit-slider-runnable-track { height: 100%; background: transparent; border: 0; }
+.cp-seek::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 12px; height: 12px; margin-top: 4px; border-radius: 50%; border: 0;
+  background: var(--text);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.45);
+}
+.cp-seek:focus-visible { outline: none; }
+.cp-seek:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(var(--cyan-rgb), 0.35); }
+
+/* The row: play and the five moves, the time, the speed at the far end. It
+   wraps the speed under the rest where the clip is narrow. */
+.cp-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); }
+.cp-btn { width: 28px; height: 28px; padding: 0; border-radius: var(--r-sm); }
+.cp-btn .v-clip-mark { width: var(--icon-sm); height: var(--icon-sm); }
+.v-clip-play .v-clip-mark.pause { display: none; }
+.v-clip.playing .v-clip-play .v-clip-mark.play { display: none; }
+.v-clip.playing .v-clip-play .v-clip-mark.pause { display: block; }
+.cp-time {
+  margin-left: var(--space-2); min-width: 12ch;
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 500;
+  color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.cp-time.at-death { color: var(--red); }
+.cp-speed {
+  margin-left: auto; display: flex; gap: 2px; padding: 2px;
+  border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--glass-border);
+}
+.cp-rate {
+  font: 600 11px var(--font); color: var(--text-dim);
+  padding: 3px 8px; border: 0; border-radius: calc(var(--r-sm) - 2px);
+  background: transparent; cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.cp-rate:hover { color: var(--text); }
+.cp-rate[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.cp-rate:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+
+/* A still under its clip is a place in it: a click shows it there. */
+.v-shot-go {
+  display: block; width: 100%; padding: 0; border: 0; background: none;
+  border-radius: var(--r-sm); cursor: pointer;
+}
+.v-shot-go img { cursor: pointer; }
+.v-shot-go:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+.v-shot.shown img { border-color: var(--text); }
+.v-shot.shown figcaption { color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .v-clip-big, .cp-btn, .cp-rate { transition: none; }
+}
+
 /* A clip the cap or Settings took: said where it was, quietly. */
 .v-clip-gone { font-size: 11px; line-height: 1.45; color: var(--text-mute); margin: 0; }

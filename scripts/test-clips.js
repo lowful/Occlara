@@ -42,7 +42,14 @@
  *   the review as a page is shown it: a clip on disk played from its URL, one
  *     cleared said to be, one merely missing left out, the review handed in
  *     unchanged
- *   valorant-review.js carries a look's clip onto its card, and never a path
+ *   valorant-review.js carries a look's clip onto its card, and never a path,
+ *     and the death's place in it (8.4.4), a number of ms and never a wall clock
+ *   the death's place in a look's clip: only where its frames are timed
+ *   main reads a clip's frames once a file, for its player, and hands them over
+ *   the clip player's arithmetic (src/renderer/review/clip-time.js) on the
+ *     fixture's uneven frames: a step lands inside the next frame every time,
+ *     where Chromium shows it; a still on its own frame; the time in the
+ *     stills' words, to the hundredth beside the death
  *   the scheme: the URL, ranges as HTTP reads them, 206 and 416 and the
  *     clip's type, and a 404 for anything that is not a clip of a review
  *
@@ -496,6 +503,10 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     });
     ok(same(started.kept.map((k) => k.startWall), [T0 - SPEC.beforeMs - 700, T0 + 60000 - SPEC.beforeMs - 700]),
       "each clip kept says where its own 0 is on the wall clock, as the recorder cut it, for the look's stills");
+    ok(same(started.kept.map((k) => k.moment), [T0, T0 + 60000])
+      && same(started.kept.map((k) => clips.deathInClip(k.moment, k.startWall)), [SPEC.beforeMs + 700, SPEC.beforeMs + 700]),
+    "and the moment it was cut around, so a League death's place in its clip is that less the clip's 0 (8.4.4)",
+    JSON.stringify(started.kept.map((k) => k.moment - T0)));
     let stop = false;
     const written = [];
     const s = await reviewClips.cutClips({
@@ -818,6 +829,28 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       { has: (n) => n === 'd1-clip.mkv', url: (n) => scheme.urlFor(id, n) });
     ok(lol.deathList[0].clipUrl === `occlara-clip://review/${id}/d1-clip.mkv` && !lol.deathList[1].clipUrl, 'and a League review\'s deaths the same way');
     ok(same(reviewClips.namedClips(rv), ['r2-clip.mkv', 'r9-clip.mkv']), 'every clip a review names, from its cards');
+    // FOR ITS PLAYER (8.4.4): the clip's frames, read by main (io.frames), and
+    // the death's place in it from the card, left out when it is outside.
+    const FR = { times: [0, 33, 66, 100], end: 133 };
+    const asked = [];
+    const withFrames = { ...io, frames: (n) => { asked.push(n); return FR; } };
+    const placed = { ...rv, rounds: rv.rounds.map((c) => (c.forensics ? { ...c, forensics: { ...c.forensics, clipDeath: c.n === 2 ? 70 : 500 } } : c)) };
+    const p = reviewClips.presentClips(placed, withFrames);
+    ok(same(f(p, 2).clipFrames, FR) && f(p, 2).clipDeath === 70 && same(asked, ['r2-clip.mkv']),
+      'a clip on disk is handed its frames and the death\'s place in it, and only a clip on disk is read', JSON.stringify(asked));
+    ok(!('clipFrames' in f(p, 9)) && f(p, 9).clipDeath === 500 && !f(p, 9).clipUrl, 'one not there is not, its card as it was');
+    const outside = reviewClips.presentClips({ ...placed, rounds: placed.rounds.map((c) => (c.n === 2 ? { ...c, forensics: { ...c.forensics, clipDeath: 140 } } : c)) }, withFrames);
+    const negative = reviewClips.presentClips({ ...placed, rounds: placed.rounds.map((c) => (c.n === 2 ? { ...c, forensics: { ...c.forensics, clipDeath: -5 } } : c)) }, withFrames);
+    ok(f(outside, 2).clipDeath === null && f(negative, 2).clipDeath === null && f(outside, 2).clipUrl,
+      'a death that falls outside its clip is no place in it: the player marks nothing');
+    const older = reviewClips.presentClips(rv, withFrames);
+    ok(f(older, 2).clipDeath === null && same(f(older, 2).clipFrames, FR), 'and a review saved before 8.4.4 has its frames and no place for the death');
+    const broken = reviewClips.presentClips(rv, { ...io, frames: () => { throw new Error('unreadable'); } });
+    const empty = reviewClips.presentClips(rv, { ...io, frames: () => ({ times: [] }) });
+    ok(f(broken, 2).clipUrl && !('clipFrames' in f(broken, 2)) && !('clipFrames' in f(empty, 2)), 'frames that cannot be read are none, and the clip still plays');
+    const lolPlaced = reviewClips.presentClips({ kind: 'lol', deathList: [{ n: 1, atSec: 300, clip: 'd1-clip.mkv', clipDeath: 100 }] },
+      { has: () => true, url: (n) => scheme.urlFor(id, n), frames: () => FR });
+    ok(lolPlaced.deathList[0].clipDeath === 100 && same(lolPlaced.deathList[0].clipFrames, FR), 'a League death the same way');
   });
 
   await section('the review carries a look\'s clip onto its card:', () => {
@@ -832,6 +865,177 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     ok(card(two.n).forensics.clip === `r${two.n}-clip.mkv`, `round ${two.n}'s card names its clip`);
     ok(card(other.n).forensics.clip === null, 'and one named like a path is never carried');
     ok(!('moment' in card(two.n).forensics), 'the moment it was cut at stays with the look and out of the saved review');
+    // THE DEATH'S PLACE IN THE CLIP (8.4.4), on the card beside the clip's
+    // name, a number of ms on the clip's own timeline and never a wall clock.
+    ok(card(two.n).forensics.clipDeath === null, 'a look that kept no place for its death in its clip carries none');
+    two.forensics = { ...two.forensics, clipDeath: 10650 };
+    other.forensics = { ...other.forensics, clipDeath: 9000 };
+    const placed = valorantReview.build({ rounds: rows, context: abyss.context, endedBy: 'score', ai: {} });
+    const pc = (n) => placed.rounds.find((c) => c.n === n).forensics;
+    ok(pc(two.n).clipDeath === 10650 && pc(other.n).clipDeath === null && !('moment' in pc(two.n)),
+      'one that did carries it onto its card, and no clip carries no place', JSON.stringify([pc(two.n).clipDeath, pc(other.n).clipDeath]));
+    two.forensics = { ...two.forensics, clipDeath: 'soon' };
+    ok(valorantReview.build({ rounds: rows, context: abyss.context, endedBy: 'score', ai: {} }).rounds.find((c) => c.n === two.n).forensics.clipDeath === null,
+      'and a place that is no number is none');
+  });
+
+  await section('the death\'s place in its clip, kept beside the clip\'s name (8.4.4):', () => {
+    ok(clips.deathInClip(T0 + 10650.4, T0) === 10650 && clips.deathInClip(null, T0) === null && clips.deathInClip(T0, NaN) === null,
+      'the moment on the wall clock less the clip\'s own 0, to the ms, and nothing when either is unknown');
+    const W = T0 - 11000;
+    // A look whose frames carry their seconds took them around the moment it
+    // keeps: Riot's own, from the recording or the read's frames, or the
+    // screen's read. Its clip is marked there.
+    ok(reviewClips.lookDeathInClip({ moment: T0, frameAt: [-3, -1.5, -0.7, -0.3, 0.7], framesFrom: 'recording', source: 'riot' }, W) === 11000
+      && reviewClips.lookDeathInClip({ moment: T0, frameAt: [-4.5, -3, -2, -1, 0], framesFrom: 'recording', source: 'screen' }, W) === 11000
+      && reviewClips.lookDeathInClip({ moment: T0 + 250, frameAt: [-2.1, 0.4], framesFrom: 'reads', source: 'riot' }, W) === 11250,
+    'a look whose frames are timed: its moment\'s place in the clip, Riot\'s own or the screen\'s read');
+    // One with no seconds on its frames was timed by a clock read to the
+    // second (clips.momentOf), and its clip marks nothing rather than a guess.
+    ok(reviewClips.lookDeathInClip({ moment: T0, framesFrom: 'reads', source: 'riot' }, W) === null
+      && reviewClips.lookDeathInClip({ moment: T0, frameAt: [], source: 'riot' }, W) === null
+      && reviewClips.lookDeathInClip({ moment: T0, frameAt: [-3, null], source: 'riot' }, W) === null
+      && reviewClips.lookDeathInClip({ moment: null, frameAt: [-3], source: 'riot' }, W) === null
+      && reviewClips.lookDeathInClip({ moment: T0, frameAt: [-3] }, null) === null,
+    'a look whose frames carry no seconds, a clip whose 0 is not known, or no moment: no place');
+  });
+
+  await section('main reads a clip\'s frames once, for its player (8.4.4):', () => {
+    const bytes = webm.cutClip({ init: reader.init, clusters: reader.clusters, from: 2000, to: 8000 });
+    const clip = clipFrames.indexClip(bytes);
+    const dir = freshDir();
+    const file = path.join(dir, 'r2-clip.mkv');
+    fs.writeFileSync(file, bytes);
+    let reads = 0;
+    const counted = { statSync: (f) => fs.statSync(f), readFileSync: (f) => { reads++; return fs.readFileSync(f); } };
+    const times = reviewClips.createFrameTimes({ fs: counted });
+    const got = times(file);
+    ok(got && same(got.times, clip.frames.map((f) => f.ms)) && got.end === Math.round(clip.endMs * 1000) / 1000 && got.times.length === 211,
+      `every frame's own time, off the clip's blocks as the stills were decoded by, and where the last one ends (${got && got.times.length} frames, to ${got && got.end} ms)`);
+    ok(times(file) === got && reads === 1, 'read once: shown again, the clip is not read again');
+    const other = path.join(dir, 'r9-clip.mkv');
+    fs.writeFileSync(other, webm.cutClip({ init: reader.init, clusters: reader.clusters, from: 6000, to: 9000 }));
+    times(other);
+    fs.writeFileSync(file, webm.cutClip({ init: reader.init, clusters: reader.clusters, from: 9000, to: 12000 }));
+    const again = times(file);
+    ok(reads === 3 && again && again !== got && again.times.length !== got.times.length,
+      'a newer clip under the same name, its size or its time changed, is read again', `${reads} reads, ${again && again.times.length} frames`);
+    ok(times(path.join(dir, 'r5-clip.mkv')) === null && times(null) === null, 'and a clip not there is none');
+    fs.writeFileSync(path.join(dir, 'r6-clip.mkv'), Buffer.from('not a clip'));
+    ok(times(path.join(dir, 'r6-clip.mkv')) === null && times(path.join(dir, 'r6-clip.mkv')) === null && reads === 4,
+      'nor a file that is not one, read once all the same');
+    const few = reviewClips.createFrameTimes({ max: 2 });
+    for (const n of ['r2-clip.mkv', 'r9-clip.mkv', 'r6-clip.mkv']) few(path.join(dir, n));
+    ok(few.size() === 2 && reviewClips.MAX_FRAME_FILES >= 6, 'and only the last few files are kept, a review\'s six at the least');
+  });
+
+  await section('the clip player steps on the clip\'s own frames, and says its time as the stills do (8.4.4):', () => {
+    const CT = require('../src/renderer/review/clip-time');
+    // THE FIXTURE'S FRAMES CAME UNEVENLY, as a clip recorded before 8.4.2
+    // does: 31 ms apart mostly, 46 and 47 where the canvas dropped one, 62 to
+    // 77 at a gap, and 15 once.
+    const bytes = webm.cutClip({ init: reader.init, clusters: reader.clusters, from: 2000, to: 8000 });
+    const clip = clipFrames.indexClip(bytes);
+    const F = CT.framesOf({ times: clip.frames.map((f) => f.ms), end: clip.endMs });
+    const T = F.times;
+    const gaps = T.slice(1).map((x, i) => x - T[i]);
+    ok(Math.min(...gaps) <= 16 && Math.max(...gaps) >= 60 && gaps.filter((g) => g >= 44).length >= 20,
+      `the fixture clip's frames are uneven: ${Math.min(...gaps)} to ${Math.max(...gaps)} ms apart, ${gaps.filter((g) => g >= 44).length} gaps of 44 ms or more`);
+    const inFrame = (t, k) => CT.frameIndex(T, t * 1000) === k && t * 1000 > T[k] && t * 1000 < (k + 1 < T.length ? T[k + 1] : F.end);
+    let t = CT.startOf(F);
+    const ahead = [];
+    for (let k = 1; k < T.length; k++) { t = CT.stepFrom(F, t, 1); if (!inFrame(t, k)) ahead.push(k); }
+    ok(inFrame(CT.startOf(F), 0) && !ahead.length,
+      `a step forward lands inside the next frame, every one of ${T.length - 1}, from its own time${ahead.length ? `: missed ${ahead.slice(0, 5).join(', ')}` : ''}`);
+    const back = [];
+    for (let k = T.length - 2; k >= 0; k--) { t = CT.stepFrom(F, t, -1); if (!inFrame(t, k)) back.push(k); }
+    ok(!back.length, `and a step back inside the one before, all the way to the first${back.length ? `: missed ${back.slice(0, 5).join(', ')}` : ''}`);
+    ok(inFrame(CT.stepFrom(F, CT.startOf(F), -1), 0) && inFrame(CT.stepFrom(F, CT.insideOf(F, T.length - 1), 1), T.length - 1),
+      'and the first and last frames are the ends: no step past either');
+    // WHERE IN THE FRAME: paused, Chromium shows the first frame whose end it
+    // estimates with a running average reaches the time, so a step lands
+    // where the frame before is over by that estimate and this one is not
+    // (clip-time.js). Measured in the review page: 1 ms or 4 ms into a frame
+    // showed the frame before on 145 and 25 of the fixture's frames, and 2 ms
+    // before frame 27 showed an earlier frame than 26, which a 47 ms gap
+    // follows (check:webmplay and check:clips hold it in the browser).
+    const mean = (k, n) => { const a = Math.max(1, k - n + 1); return k < 1 ? null : (T[k] - T[a - 1]) / (k - a + 1); };
+    const inside = [];
+    const windowed = [];
+    for (let k = 0; k < T.length; k++) {
+      const x = CT.insideOf(F, k) * 1000;
+      const next = k + 1 < T.length ? T[k + 1] : F.end;
+      const margin = Math.min(CT.INSIDE_MS, (next - T[k]) / 4);
+      if (!(x >= T[k] + margin - 1e-9 && x <= next - margin + 1e-9)) inside.push(k);
+      const ms = [6, 16].map((n) => mean(k, n)).filter((v) => v !== null);
+      const lo = ms.length ? Math.max(T[k] + margin, T[k - 1] + Math.max(...ms) + margin) : T[k] + margin;
+      const hi = ms.length ? Math.min(next - margin, T[k] + Math.min(...ms) - margin) : next - margin;
+      if (lo < hi && !(x >= lo - 1e-9 && x <= hi + 1e-9)) windowed.push(k);
+    }
+    const x26 = CT.insideOf(F, 26) * 1000;
+    ok(!inside.length && !windowed.length && CT.INSIDE_MS === 2,
+      `every frame's step lands inside it by ${CT.INSIDE_MS} ms or more, where the frame before is over by the average and it is not${inside.length + windowed.length ? `: ${inside.concat(windowed).slice(0, 6).join(', ')}` : ''}`);
+    ok(T[26] === 857 && T[27] === 904 && x26 > T[25] + 33 && x26 < T[26] + 33 && x26 < T[27] - 2 - 10,
+      `frame 26, a 47 ms gap after it, lands at ${x26.toFixed(1)} ms: over its frame before by a 33 ms average, short of its own end, far from 2 ms before 904`);
+    ok(CT.landOn(F, (T[40] + 1) / 1000) === CT.insideOf(F, 40) && CT.landOn(F, (T[41] - 1) / 1000) === CT.insideOf(F, 40)
+      && CT.landOn(F, -1) === CT.insideOf(F, 0) && CT.landOn(F, 999) === CT.insideOf(F, T.length - 1) && CT.landOn(null, 1.234) === 1.234,
+    'a move to any time lands inside the end of the frame on screen then, so the time said is the frame shown; with no frames, at the time');
+    // From a time the clip played to, between two frames: the frame after the one on screen.
+    const mid = (T[40] + T[41]) / 2000;
+    ok(inFrame(CT.stepFrom(F, mid, 1), 41) && inFrame(CT.stepFrom(F, mid, -1), 39),
+      'played to a time between two frames, a step goes from the frame on screen then');
+    // A thirtieth of a second at a time, the fallback, lands twice on one
+    // frame and skips others on this clip: the reason the frames are read.
+    let fixed = CT.startOf(F);
+    let wrong = 0;
+    for (let k = 1; k < T.length; k++) { fixed += 1 / 30; if (CT.frameIndex(T, fixed * 1000) !== k) wrong++; }
+    ok(wrong > 20, `stepped a thirtieth of a second at a time instead, ${wrong} of ${T.length - 1} steps land on another frame than the next`);
+    ok(CT.stepFrom(null, 1, 1, 5) === 1 + CT.FALLBACK_S && CT.stepFrom(null, 1, -1, 5) === 1 - CT.FALLBACK_S && CT.FALLBACK_S === 1 / 30
+      && CT.stepFrom(null, 0.01, -1, 5) === 0 && CT.stepFrom(null, 4.99, 1, 5) === 5 && CT.stepFrom(null, 2, 1) === 2 + 1 / 30,
+    'with no frames handed with the clip, a step is a thirtieth of a second, inside the clip');
+    ok(CT.framesOf(null) === null && CT.framesOf({ times: [] }) === null && CT.framesOf({ times: [0, 33, 33, 66] }) === null
+      && CT.framesOf({ times: [0, 33, NaN] }) === null && CT.framesOf({ times: [0, 66, 33] }) === null
+      && CT.framesOf({ times: [0, 33, 66] }).end === 66 + 1000 / 30 && CT.framesOf({ times: [0, 33, 66], end: 99 }).end === 99,
+    'a list of frames out of order, repeated or not numbers is none, and a missing end is a frame after the last');
+    ok(CT.frameIndex(T, T[7]) === 7 && CT.frameIndex(T, T[7] - 0.001) === 6 && CT.frameIndex(T, -1) === -1 && CT.frameIndex(T, 1e9) === T.length - 1,
+      'the frame on screen at a time is the last that began at or before it');
+    // THE DEATH, in a frame with frames 31 ms or so either side of it, 10 ms in.
+    const J = T.findIndex((x, i) => i > 140 && i + 1 < T.length && x - T[i - 1] <= 35 && T[i + 1] - x <= 35);
+    const D = T[J] + 10;
+    // A still's own frame: its seconds are kept to the hundredth (look-stills.js).
+    const stillFrame = (at) => CT.frameIndex(T, CT.stillAt(F, D, at) * 1000);
+    const at100 = Math.round((T[100] - D) / 10) / 100;
+    const atNext = Math.round((T[J + 1] - D) / 10) / 100;
+    ok(stillFrame(at100) === 100 && stillFrame(atNext) === J + 1 && inFrame(CT.stillAt(F, D, at100), 100),
+      `a still is shown on its own frame, from its seconds to the hundredth (${at100} s and ${atNext} s from the death)`);
+
+    // THE TIME, AS THE STILLS SAY IT.
+    const words = (sec, extra) => CT.timeWords(sec, { death: D, frames: F, ...(extra || {}) });
+    ok(CT.frameIndex(T, D) === J && words(CT.insideOf(F, J)).text === 'At the death' && words(CT.insideOf(F, J)).death === true
+      && words(CT.insideOf(F, J)).label === 'At the death',
+    `the frame the death falls in is "At the death" (frame ${J})`);
+    const after = words(CT.insideOf(F, J + 1));
+    const before = words(CT.insideOf(F, J - 1));
+    ok(after.text === `${Math.round((T[J + 1] - D) / 10) / 100} s after` && /^0\.0\d s after$/.test(after.text)
+      && before.text === `${Math.round((D - T[J - 1]) / 10) / 100} s before` && /^0\.0\d s before$/.test(before.text) && before.label === `${before.text} the death`,
+    `the frames either side of it to the hundredth, where a tenth says nothing: "${before.text}", "${after.text}"`);
+    const early = words(CT.insideOf(F, 70));
+    ok(early.text === `${Math.round(((D - T[70]) / 1000) * 10) / 10} s before` && early.label === `${early.text} the death` && !early.death,
+      `further off, to the tenth, as the stills' captions are: "${early.text}"`);
+    ok(CT.timeWords(1.2, { death: 3600 }).text === '2.4 s before' && CT.timeWords(3.9, { death: 3600 }).text === '0.3 s after'
+      && CT.timeWords(3.61, { death: 3600 }).text === 'At the death' && CT.timeWords(3.63, { death: 3600 }).text === '0.03 s after'
+      && CT.timeWords(0.6, { death: 3600 }).text === '3 s before',
+    'with no frames: "2.4 s before", "0.3 s after", "At the death" within half a thirtieth of a second, "3 s before"');
+    const screen = (sec) => CT.timeWords(sec, { death: D, frames: F, screen: true });
+    ok(screen(CT.insideOf(F, J)).text === 'Read as dead' && screen(CT.insideOf(F, J)).label === 'The frame the screen read the death on'
+      && screen(CT.insideOf(F, 70)).text === early.text && screen(CT.insideOf(F, 70)).label === `${early.text} the screen read the death`,
+    'a look from the screen counts from its read of the death, that frame "Read as dead", as its stills do');
+    const unknown = CT.timeWords(4.24, { frames: F, duration: 7.1 });
+    ok(unknown.text === '4.2 s of 7.1 s' && unknown.label === '4.2 s into the clip, of 7.1 s' && unknown.death === false
+      && CT.timeWords(4.24, {}).text === '4.2 s' && CT.timeWords(4.24, {}).label === '4.2 s into the clip',
+    `a clip whose death's place is not known is timed by its own seconds: "${unknown.text}"`);
+    const said = [early, after, before, unknown, screen(CT.insideOf(F, 70)), words(CT.insideOf(F, J))].map((w) => w.text + w.label).join(' ');
+    ok(!DASHES.test(said), 'with no dash in any of it');
   });
 
   await section('the scheme serves a clip by range, and nothing else:', async () => {
@@ -960,12 +1164,13 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     let mode = 'auto';
     const cutsAt = [];
     const cutArgs = [];
+    const cutGot = [];
     const sent = [];
     const box = vm.createContext({
       console: { log() {}, warn() {}, error() {} }, fs, path, Buffer, Map, Set, Promise, Date, Math, Number, JSON, Object, Array, String,
       setTimeout: (f, ms) => setTimeout(f, Math.min(ms, 20)),
       deathFrames, clips, reviewClips, lookStills, reviewStore: library,
-      recorder: { cutClip: (...a) => { cutsAt.push(rec.holds.length); cutArgs.push(a); return rec.cutClip(...a); } },
+      recorder: { cutClip: (...a) => { cutsAt.push(rec.holds.length); cutArgs.push(a); const got = rec.cutClip(...a); cutGot.push(got); return got; } },
       releaseRecording: (h) => rec.release(h),
       store: { get: (k) => ({ recordingMode: mode, licenseKey: 'TEST' })[k] },
       CAPTURE: { profiles: { standard: { targetW: 1280, targetH: 720, jpegQuality: 70 } } },
@@ -1002,6 +1207,15 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     const d2 = sent[0] && sent[0].deaths.find((x) => x.n === 2);
     ok(sent.length === 1 && d2 && d2.framesFrom === 'recording' && d2.frames.length === 5 && looked.byRound[2] && looked.byRound[2].clip === 'r2-clip.mkv',
       `its stills were still taken once that match was over, from the clip beside the review (${d2 ? `${d2.frames.length} from the ${d2.framesFrom}` : 'none sent'})`);
+    // AND WHERE IN THE CLIP RIOT'S DEATH IS (8.4.4), named beside the clip by
+    // main's own keepLookClips: the moment its stills count from, less the
+    // clip's own 0 as the recorder cut it.
+    const lookedAt = looked.byRound[2] || {};
+    const wantDeath = cutGot[0] && Number.isFinite(cutGot[0].startWall) ? Math.round(lookedAt.moment - cutGot[0].startWall) : NaN;
+    ok(Number.isFinite(wantDeath) && lookedAt.clipDeath === wantDeath && Math.abs(lookedAt.moment - M) <= 1000 && wantDeath > 0 && wantDeath < 15000
+      && Array.isArray(lookedAt.frameAt) && lookedAt.frameAt.length === 5,
+    `and the death's place in that clip beside its name, Riot's moment less the clip's 0: ${lookedAt.clipDeath} ms into it`,
+    JSON.stringify({ clipDeath: lookedAt.clipDeath, wantDeath, fromM: lookedAt.moment - M, frameAt: lookedAt.frameAt, start: cutGot[0] && cutGot[0].startWall }));
     const again = await main.forensicsFor(riotRows, snap, { job, stale: () => job.cancelled });
     ok(cutsAt.length === 1 && again.byRound[2] && again.byRound[2].clip === 'r2-clip.mkv' && sent[1] && sent[1].deaths[0].framesFrom === 'recording'
       && library.hasClip(job.id, 'r2-clip.mkv'),
@@ -1040,7 +1254,7 @@ const b64 = (s) => Buffer.from(s).toString('base64');
   await section('the words:', () => {
     const own = ['src/shared/clips.js', 'src/main/services/clip-scheme.js', 'src/main/services/review-clips.js', 'src/shared/clip-frames.js',
       'src/main/services/look-stills.js', 'src/main/windows/frames-window.js', 'src/preload/frames-preload.js', 'src/renderer/frames/frames.js',
-      'src/renderer/frames/index.html', 'src/shared/death-frames.js'];
+      'src/renderer/frames/index.html', 'src/shared/death-frames.js', 'src/renderer/review/clip-time.js', 'src/renderer/review/clip-player.js'];
     ok(own.every((f) => !DASHES.test(fs.readFileSync(path.join(__dirname, '..', f), 'utf8')))
       && DASHES.test(String.fromCharCode(0x2014)) && DASHES.test(String.fromCharCode(0x2013)) && !DASHES.test('a-b'),
     'no dash in the clips\' modules (the detector matches both dashes and not a hyphen)');

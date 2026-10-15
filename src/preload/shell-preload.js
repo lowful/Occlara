@@ -9,8 +9,9 @@ const { PAGES } = require('../shared/shell-nav');
 /**
  * Bridge for the shell, the main window's own document (8.1): the sidebar,
  * the top strip and the Recording screen. It carries what the panel used to:
- * Start, Stop and Pause, the agent check, the notice line and the sounds,
- * plus the pages, the game and the window's own buttons.
+ * Start, Stop and Pause, the notice line and the sounds, plus the pages, the
+ * game and the window's own buttons. No agent check since 8.4.4: the agent is
+ * read off the player's own HUD in the match, and nothing asks for it.
  */
 function subscribe(channel, cb) {
   if (!C.PUSH_LIST.includes(channel)) return () => {};
@@ -34,8 +35,6 @@ contextBridge.exposeInMainWorld('occlara', {
   startCoaching: () => ipcRenderer.send(C.COACH_START),
   stopCoaching:  () => ipcRenderer.send(C.COACH_STOP),
   pauseResume:   () => ipcRenderer.send(C.COACH_PAUSE),
-  confirmAgent:  () => ipcRenderer.send(C.AGENT_CONFIRM),
-  setAgent:      (name) => ipcRenderer.invoke(C.AGENT_SET, name),
   setGame:       (id) => ipcRenderer.invoke(C.CONFIG_SET, { game: id }),
   getState:      () => ipcRenderer.invoke(C.STATE_GET),
   getConfig:     () => ipcRenderer.invoke(C.CONFIG_GET),
@@ -51,6 +50,5 @@ contextBridge.exposeInMainWorld('occlara', {
   onShell:  (cb) => subscribe(C.PUSH_SHELL, cb),
   onStatus: (cb) => subscribe(C.PUSH_STATUS, cb),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),
-  onAgent:  (cb) => subscribe(C.PUSH_AGENT, cb),
   onGame:   (cb) => subscribe(C.PUSH_GAME, cb),
 });

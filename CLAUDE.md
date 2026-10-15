@@ -503,7 +503,8 @@ over a match lost on untraded deaths. So:
   naming a person (`namesSomeone`), never one naming a place this map does
   not have (`valorant-review.js foreignPlace`: the Haven lock put "A Long" in
   round 2's reads on Sunset), and never one naming another agent's ability
-  (8.4.1, `foreignKit`, by the agent the player confirmed or Riot's): round 2
+  (8.4.1, `foreignKit`, by Riot's agent or the one the engine locked, off the
+  player's own HUD since 8.4.4): round 2
   of the player's Fracture swiftplay, on Jett, sent "holding A Main with
   alarmbot deployed" to the model as what the player was doing. Whole words,
   so "behind cover" is never Harbor's Cove (the engine's `foreignAgentInTell`
@@ -679,8 +680,10 @@ which wins whether it lands first or while the screen's is out.
   words are English, and the look is written in the player's language, so in
   any other language it drops every sentence naming an agent but the player's
   own: "Una Sova te mató" matched none of them. The agent goes
-  only once the player confirmed it, the engine's rule, so the ability gate
-  never passes a spectated teammate's kit as the player's.
+  only once the engine locked it, since 8.4.4 off the player's own HUD (two
+  answers on buy phase frames, `lookForAgent`; the player's tick before it),
+  the rule every guard keeps, so the ability gate never passes a spectated
+  teammate's kit as the player's.
 - **It reaches the lists, never the grade.** A cause from the screen is counted
   like any other (`cause:` keys, judged), but Decisions skips it (`grade.js`):
   its frames were chosen by the screen's own timing, and with it a review Riot
@@ -705,7 +708,10 @@ which wins whether it lands first or while the screen's is out.
   the death": the screen read the player's Sunset deaths 0.7 to 2.7 s late,
   so those frames can show the player already dead. Frames with no `frameAt`
   (a look saved before, the screen's read frames) are labelled by their
-  names. A click zooms one. Unclear keeps its frames and no
+  names. A click zooms one; under its clip, where the card says where the
+  death falls in it, a click on a still moves the clip to that still's own
+  frame and pauses it there instead, the clip at the width a zoomed frame
+  takes (8.4.4, "The clip's player" below). Unclear keeps its frames and no
   sentence, and its round's why, marked "Coach's read", is the advice it has.
   A look that speaks takes the why's place for Riot's look only, which is
   sent to the narrative that writes the why, so the two are one account of
@@ -958,8 +964,9 @@ server falls back to `/last-match`.
   Home said "From what the screen read" for good. So the score the watch ended
   on may disagree with Riot's final, and the mode with Riot's queue, only when:
   the map is the same on both sides (never merely unknown on one); the agent is
-  Riot's when the recording's was confirmed (one never confirmed agrees with
-  anything); the moment the watch ended the match lies inside Riot's own span,
+  Riot's when the player confirmed the recording's (one never confirmed agrees
+  with anything, and so since 8.4.4 does one the engine read off the HUD,
+  `linkAgentOf`); the moment the watch ended the match lies inside Riot's own span,
   its start to start plus length with the clock allowance, because that is
   what an early end is; and the screen's last score, team against enemy, is
   Riot's score after round team + enemy, with more rounds after it, and the
@@ -1421,12 +1428,113 @@ PC coped, never what was on it.
   clip plays above the frames, a filmstrip under it: muted, inline, looping,
   the frame the coach looked at nearest before the death as its poster, with
   no caption (its row says what it is), nothing loaded until it is
-  played (preload none: measured, a clip loading its metadata took about 40%
-  of a core in the GPU process for a second, a 640x360 one playing about 8%,
-  one paused nothing), a click plays or pauses it, and out of view or with
-  the page hidden it pauses.
+  played or moved (preload none: measured, a clip loading its metadata took
+  about 40% of a core in the GPU process for a second, a 640x360 one playing
+  about 8%, one paused nothing), a click on the picture plays or pauses it,
+  and out of view or with the page hidden it pauses.
   Whether a clip is there is asked of the disk each time a review is shown
   (`present()`, `presentClips`).
+- **The clip's player** (8.4.4, `renderer/review/clip-player.js`, its
+  arithmetic `clip-time.js`, one pure file the page loads and `test:clips`
+  runs), the player's ask: "control for the clips ... like pausing, rewinding,
+  and controlling the time and going in step by step". Every clip a review
+  shows has it, a round's and a League death's alike. Under the picture a
+  timeline, an input of type range read out as the seconds from the death,
+  the death on it in --red and the coach's stills where they were taken
+  (their `frameAt`), and one row: play and pause, back to the start, back and
+  forward a second, back and forward one frame (pausing first), the time in
+  the stills' words ("2.4 s before", "0.3 s after", "At the death" on the
+  frame the death falls in, to the hundredth within a twentieth of a second
+  of it, where a tenth says nothing; a look from the screen counts from its
+  read, that frame "Read as dead"), and the speed, 1x, 0.5x and 0.25x. A
+  still under its clip is a place in it: a click moves the clip to that
+  still's own frame, paused, and marks the still. The keyboard only while
+  the player has focus, which a click on the picture or a control gives its
+  root (out of the tab order): Space or K plays and pauses, comma and full
+  stop step a frame, the arrows a second, Home the start; Space on a control
+  reached by Tab presses that control, and the page's own scroll keys stay
+  the page's. The stills under the clip hear the same keys (`keysFrom`): a
+  still clicked keeps the focus, and full stop pressed then did nothing; now
+  it steps on from the still's frame. One seek in flight at a time, the
+  newest asked waiting for `seeked` (a seek decodes from the keyframe before
+  it), and none to where the clip already stands for the same frame: paused
+  at the last frame, Chromium answers a seek to the same time by looping the
+  clip back to its start, and a step on at the end, a second on there and
+  the timeline at its end twice each showed frame 0. The timeline lets go on
+  the page's own pointerup too: grabbed, dragged off it and let go there
+  with its place unchanged, the range heard neither its pointerup nor a
+  change, and the clip stayed paused with its timeline and its time stopped.
+  - **A step lands on a real frame.** Main reads each clip's frames off its
+    blocks (`clip-frames.js indexClip`, the reading the stills are decoded
+    by), once a file by its path, size and time written (`review-clips.js
+    frameTimes`), and `presentClips` hands them over with the clip
+    (`clipFrames`, `{ times, end }`); without them a step is a thirtieth of a
+    second, which on the fixture's uneven frames (15 to 77 ms apart) lands
+    on another frame than the next on 165 of 210 steps, drifting as it goes.
+    WHERE IN THE FRAME was measured, each frame read off its
+    pixels against the one WebCodecs decodes at that index: paused, Chromium
+    shows the first frame it decodes whose end it ESTIMATES, its time plus a
+    running average of frame lengths, reaches the time asked for. 1 ms into
+    each frame showed the frame before on 145 of 199, 4 ms in on 25, and 2 ms
+    before the next frame showed an earlier frame on frame 26, which a 47 ms
+    gap follows, in the review page some of the time: the player stepping to
+    frames' starts lost frame 30, then stepping to their ends lost frame 26.
+    So a step lands where the frame before is over by that estimate and this
+    one is not (`insideOf`), and every one of the clip's 420 steps, each
+    frame forward and back, then showed its frame in the review page, twice
+    over. A second either way and the timeline land the same way (`landOn`).
+  - **And the frame is seen, not assumed** (`clip-player.js`). That estimate
+    takes in the frames decoded ahead of the one shown, so beside a capture
+    stall, or short frames after long ones, no landing inside a frame is
+    sure. Walked frame by frame on this PC's own clips, each step judged by
+    its pixels against WebCodecs and by the compositor's own frame time, a
+    clip with a 313 ms stall showed another frame than the one stepped to on
+    35 of 946 steps, up to six frames back (frames after the stall shown for
+    none of their own times), one with a 64 ms gap on 3 of 976, and the 57 a
+    second clip on none of 1,822. So the frame a seek of ours presents is
+    read off the compositor (`requestVideoFrameCallback`), and a seek that
+    showed another goes again by what it saw, six times at most, halving
+    between the times seen too early and too late once it has both: shown
+    the frame before for a time, Chromium takes that frame to last that
+    long, and the frame wanted shows up to as far past its own start. The
+    time beside the clip and the next step count from the frame on screen,
+    which can stand a frame or two before the clock; a time seen to show a
+    frame is gone back to; and a frame shown for no time tried goes back to
+    the try that showed the frame nearest it, one on the way the move goes
+    first (kept to the last try, a step on beside the stall stood nine
+    frames back), is said as the frame on screen and stepped past, never
+    stuck behind. A time that showed one frame can be the next frame's own
+    landing, so "already there" is the same frame, never only the same
+    time: taken for the same place, it held a real clip's steps still for
+    good. Without the callback or the clip's frames nothing is checked, and
+    a window never shown presents no frame (check:webmplay walks the stall
+    on screen). Walked again, six of those clips, 7,364 steps, showed their
+    own frame on every step but 4 or 5 of the stalled clip's (two walks),
+    each then the frame beside the one stepped to, said as the frame on
+    screen.
+  - **The death's place** is kept on the card beside the clip's name when
+    the clip is cut (`clipDeath`, ms on the clip's own timeline, never a wall
+    clock): a Valorant look's moment less the clip's own 0, only where the
+    look's frames carry their seconds from it (`review-clips.js
+    lookDeathInClip`, in `keepLookClips`; a look timed by a clock read to the
+    second marks nothing rather than a guess), League's death by the game's
+    clock on the wall clock less the clip's 0 (`clips.deathInClip`, in
+    `clipLolDeaths`). `presentClips` drops a place outside the clip, and a
+    review saved before 8.4.4 has none: nothing is marked, the time is the
+    clip's own seconds ("4.2 s of 15 s"), and its stills zoom.
+  - `test:surfaces` holds the markup and every name, the marks, the words,
+    the steps with a clip's frames and without them, one seek in flight, the
+    last frame, the timeline let go off it, the keyboard and the stills' keys,
+    the speed, the filmstrip, a League death, a review saved before, and the
+    frame shown checked on a stood in compositor (the frame before shown, a
+    later one, both, a frame never shown, the same time for the next frame);
+    `test:clips` the arithmetic on the fixture's frames, main's read and its
+    cache, the place kept and handed over; `check:webmplay` each step by the
+    frame's pixels, the last frame stepped at, and the fixture clip with a
+    300 ms stall put in it stepped across it, the case shown real by the same
+    walk unchecked; `check:clips` the player in the real review page by the
+    frame the <video> presents, the keys as trusted input with the page never
+    scrolled, slow motion, the timeline clicked and the stills.
 - **The cap** (`clipCapGB`, 5, 10, 20 or 50 GB, 10 by default). After every
   clip kept, at launch, and when the cap is lowered, the clips past it go a
   review at a time, the oldest first and a folder no review owns before any
@@ -1788,7 +1896,9 @@ but as it is. `npm run test:shellnav` holds the order of a switch, and
 reload's old ready refused, the shell's strip kept at TOP_H with its notice
 line on one line), and `check:mainwindow` the same on real views,
 the seal, a page that never answers, a minimised window and a page loading
-again included, and measures the record card and the notice line.
+again included, and measures the record card (its two buttons alone at its
+height before Start, recording between matches and mid match too) and the
+notice line.
 
 Everything else that opens moves too, on the tokens and transform, opacity or
 a grid row only: the sidebar's marker is ONE element slid to the current page
@@ -1801,7 +1911,7 @@ breakdown row open by height in place (`.reveal`, one grid row from 0fr to
 frame zoom scales from
 where the frame was (`zoomShot`); Home's cards arrive one after another on its
 first paint and on a change of game, once it is on screen (`occlaraOnShown`);
-the Recording screen and the agent bubble rise in; the AI log and the weekly
+the Recording screen rises in; the AI log and the weekly
 report ease in. `npm run test:surfaces` pins each.
 
 Separate windows, because they are not pages:
@@ -1890,12 +2000,19 @@ library or the rank history, nothing invented (`src/shared/home-model.js`):
 `test:surfaces` holds Home's and Stats' answers to the same history equal,
 and `check:mainwindow` measures the trend on the real layout.
 
-**The record card is its two buttons** (8.2.1, 8.3): the dot and "Ready",
-"Recording", "Paused" over the buttons went in 8.2.1, and the line under them
-in 8.3, the player's ask ("remove any text under it just leave it with the
-two buttons"). Start fills the width beside the square pause button, both
-48px, one padding all round; the agent check still opens above them in a
-Valorant session. The state is the button's word (Start, Stop, "Subscription
+**The record card is its two buttons** (8.2.1, 8.3, 8.4.4): the dot and
+"Ready", "Recording", "Paused" over the buttons went in 8.2.1, the line under
+them in 8.3, the player's ask ("remove any text under it just leave it with
+the two buttons"), and the agent check over them in 8.4.4, the player's ask
+too: "Reading your agent...", then "Playing" and the agent with a tick, or a
+field to type it with the player's mains when detection found none, in a
+Valorant session from Start and mid match as readily. The agent is read off
+the player's own HUD in the match now (below, "The agent is read off the
+player's own HUD"), so nothing opens on the card, at Start, in a match or
+after it, and no channel carries an agent to a window (`AGENT_SET`,
+`AGENT_CONFIRM` and `PUSH_AGENT` went, and Ask Coach's agent chip with
+them). Start fills the width beside the square pause button, both
+48px, one padding all round. The state is the button's word (Start, Stop, "Subscription
 ended"), the pause button's icon and the live colour while recording. What
 the line said when there was something to say is **the notice line** in the
 top strip, left of the window's buttons (`shell.js noticeLine`), empty
@@ -2066,7 +2183,10 @@ default where it is not: `AI_READ_MODEL` (default deepseek/deepseek-v4.1-flash),
 coach.js). Two rounds of benches on 13 Oct 2026 kept the read on DeepSeek: the
 one model that agreed with one more of Riot's deaths, Gemini 3.5 Flash Lite,
 cost 4 to 5.6 times as much, and every other candidate agreed with fewer at
-2.3 to 8 times the price. `AI_VISION_MODEL` serves agent detection and frame chat;
+2.3 to 8 times the price. `AI_VISION_MODEL` serves the look at the agent
+(`/detect-agent`, the player's bar off their own HUD since 8.4.4, a look the
+client keeps off until a reader passes its bench: "And the look is off",
+below) and frame chat;
 the tip era routes it also served to installs before 8.0 (`/analyze`,
 `/recap`, `/summary/*`, `/suggest-library-tip`) answer 410 with an "update
 Occlara" sentence, no licence checked and no model called, as every
@@ -2166,8 +2286,10 @@ scores every session against the Abyss record. `--engine` sends each frame
 what the real engine's `readContext()` gives and applies each reply through
 the engine in capture order as `drain()` does (a failed read skipped, a LOBBY
 a menu), its network stubbed and its clock the frame's capture time
-(`AppReader`, started as the app starts it, no heartbeat, no agent detection,
-so no agent, as for a player who never confirms one); `--lag N` sends frame k
+(`AppReader`, started as the app starts it, no heartbeat, and no frame for the
+look at the agent, so no agent, as in a match whose look never locked one,
+where the app's context carries the agent the look locked from its round 1
+buy phase on, since 8.4.4 for every player); `--lag N` sends frame k
 the context once the replies up to k - N are applied; each trace line keeps
 the reply as sent and what the frame was `sent`; `--gate` is refused beside
 it. Without the flag nothing moves: `test:benchsession` holds the default run,
@@ -2390,6 +2512,209 @@ as it did; the live prompt wrote no such tell. `test:spectate` holds the two
 copies equal on the nine and on every committed fixture's tell,
 `test:serverguards` the read route, `test:deathhp` the engine's proof, its
 trial and the read that judges it, and `test:readpolicy` the cadence.
+
+### The agent is read off the player's own HUD
+
+Nothing asks the player which agent they are on (8.4.4, the player's ask).
+Until 8.4.3 the engine captured a frame of its own three seconds after Start
+and every 30 seconds until detect-agent named one, and the record card asked
+"Playing" and the agent with a tick nine seconds in, or for it to be typed with
+the player's mains offered. Start is pressed in the menus or in agent select,
+so that first frame was usually agent select: on the player's 8.4.0 Fracture
+swiftplay it named a teammate's KAY/O, and the player typed Jett by hand. The
+abilities on the player's own HUD say the agent during the match, and Riot's
+record says exactly which one it was after it. The tour's first page says so
+("Just play: nothing asks which agent you are on", `onboarding/index.html`),
+where it had kept telling the player to confirm the agent when the sidebar
+asked.
+
+So `lookForAgent` (coaching-engine.js) sends detect-agent the player's bar cut
+out of a read's OWN frame (below, "The call carries the bar"), once its reply
+is applied, and only a frame that surely shows the player's own ability bar
+(`ownHudFrame`). It is off for now (below, "And the look is off"):
+
+- **A buy phase**, where nobody spectates. The read saw the player alive with
+  their own health number, nothing of the death screen or the spectator camera
+  in its tell or its kill feed, and no doubt (the buy phase is where Valorant
+  shows the COMBAT REPORT of the round before, KILLED BY ASTRA over Astra's
+  face); a buy timer read on the frame from 0:45 down to 0:08, since the round
+  end countdown reads like one (0:07 to 0:00 on that Fracture match, the TAB
+  scoreboard's ten portraits open over it), begun after the last frame of
+  play (`beganAfterPlay`); and the guards left it a buy phase with the player
+  alive and no sign of anyone else's HUD (`hudRead`). And its timer is the
+  ledger's: the end its own clock gives (its capture time plus its timer)
+  within 3 s of the ledger's `buyEndsAt` once the frame is filed
+  (`AGENT_BUY_END_MS`), when the ledger has one. The ledger sets that end from
+  a buy frame it takes, so one it did not take is a buy read that was not: on
+  the bench sessions the Abyss round 19's 0:00 as its barriers dropped, read
+  "buy 0:10", a live round at 1:39 read "buy 0:08", each the clock a buy frame
+  read seconds before, and the Sunset round 5's post plant read "buy 0:39" off
+  the ammo counter, six frames of the 187 the look took (five on the Abyss).
+  Each showed the player alive on their own bar, but a reader that reads the
+  bar would read a spectated teammate's as well, and a buy read with a misread
+  clock while dead would lock the teammate. And never after a death until a
+  round has ended (`look.deathRounds`): the score, as the frame printed it or
+  as the guards hold it, past the rounds it had when the look saw the player
+  die. Dead, the player is on a teammate's camera until the round is over, and
+  the ledger takes a buy read there for the next buy phase, the spectator
+  camera's frames being no play to it, so that read's own timer sets the very
+  end the rule before holds it to: offline, "buy 0:39" read off a spectated
+  teammate's ammo counter twenty seconds into the camera, the teammate's HUD
+  called own, passed that rule, and so did "buy 0:36" three seconds later, the
+  round clock read as a buy timer late in a round and a post plant's camera,
+  each pair two answers that lock the teammate. A death seen before its match
+  began is the last match's (`beginMatch`, the watch's new match keeping the
+  look). On the bench sessions it leaves out five more frames, each the first
+  buy frame after a death with no score yet read past the death's, so the look
+  takes 176 of the 181, and the app's own sequence on their answers locks what
+  it did in all five.
+- **A live round, as the fallback**, from round 4 of a match no buy phase
+  frame has shown the HUD in (a player who stays in the shop, every buy read a
+  LOBBY): its first 20 seconds, the tell claiming the player's own HUD, the
+  spectate guard seeing no signal at all, no death in the last 30 seconds, and
+  only in a round read as it began (`look.startAt`, `seesRoundBegin`: its
+  first seven seconds on its clock, or a buy phase read in the ten seconds
+  before its barriers dropped). Start pressed mid match, or a pause lifted,
+  finds a round nobody saw begin and a death in it nobody registered: Start
+  pressed while dead in round 6's first 20 seconds sent the spectated
+  teammate's HUD, read as "own HP 100 and Ghost" on frames no sign flagged,
+  and two answers naming the teammate's Sova locked it as the player's. A
+  LOBBY is no round beginning, since Start is pressed in Occlara's own window
+  and its frames read as one.
+- Never a LOBBY (menus, agent select, a loading screen), the end screen or what
+  is played after it until the next match shows itself, nor the next match's
+  frames while the wait for it counts (`newMatchRun`).
+
+**Two answers that agree lock it**, on two frames at least three seconds apart
+with no answer naming another between them: a disagreement keeps looking, the
+newer answer the one the next must agree with, and an answer naming no agent is
+no evidence either way. A name the game data does not know, or one only near a
+real one, locks nothing (`exactAgent`). Locked (`lockAgent`), it is
+`agentConfirmed` with `agentSource: 'hud'`: the agent every guard holds the HUD
+to (the spectate guard's teammate's kit called "own", the trial of a weak death,
+`foreignKit` on the round notes, the screen look's ability gate) and the read's
+context, as only a tick's ever was. One call out at a time, off the read path
+(no capture of its own, nothing waiting on it, 30 seconds for its answer), three
+a round and eight a match at most, none once locked; the look starts again with
+every match (`beginMatch`) and drops an answer about the last one, and a match
+that resumes after the watch ended it too early gets its own agent back.
+
+**Two calls a match, once it is on.** Replayed through the real engine over the
+five committed sessions, detect-agent stood in for and answering in two seconds,
+every one locked in round 1's buy phase in two calls, 12 to 16 seconds after the
+first frame it sent; with three answers in ten naming no agent and one in seven
+the wrong one, two to five calls, every lock right; with every buy read a LOBBY
+the fallback locked each in round 4, 5 or 6, in two (the Sunset's in round 6:
+its AI log is thinned to a frame every ten seconds, and no frame of round 5 was
+read in its first seven seconds). Before, a capture every 30 seconds until an
+answer came.
+
+**The call carries the bar, never the frame** (`agent-crop.js`, handed to the
+engine by index.js as `cropAgent`, Electron's nativeImage in main). Benched
+live on the four Jett sessions with the route's live prompt
+(qwen/qwen3.7-flash), the whole frame was read Neon on 86 of its 163 accepted
+frames and on 34 of 36 round 1 samples, so the look locked Neon in four
+sessions of four. Every one of those frames shows the player's own Jett bar,
+its icons about 30 pixels across, and eleven more answers came off the rest of
+the frame: an agent named in chat, the killer's panel, a teammate standing in
+front. So the look sends x 340 to 940 and y 636 to the foot of the 1280x720
+frame, the health number to the ammo count, as fractions (the performance
+profile's 854x480 gives the same bar), scaled up three times to 1800x252, a
+JPEG of the read's own quality, about 29 KB. A crop that cannot be cut (a
+frame that does not decode, a crop or a scale of another size, no encoder)
+sends nothing, never the whole frame, and spends no look. No chat line, kill
+feed, teammate's card or top bar of portraits leaves the PC for the look.
+
+**And the look is off** (`AGENT_LOOKS_PER_MATCH` 0): nothing is sent and
+nothing locks, and the agent waits for Riot's record, as for a player who never
+ticked in 8.4.3. The crop was benched live, 198 calls one at a time and two
+seconds apart at least, every one a 200, $0.006896 as OpenRouter priced them
+($0.0000348 a call, the whole frame's $0.0000487), over five sessions: the four
+Jett ones and the player's Pearl swiftplay as Raze, each AI log replayed
+through the real engine with the route's answers taken live, and every frame
+the look accepts sent once. The bar read the Jett right on 107 of its 157
+frames (68%, the whole frame's 37%), Neon on 47, and round 1's twelve 8 Jett
+and 4 Neon. The app's own sequence locked Jett on the Abyss (two calls), the
+Split and the Sunset (three), but Neon on the Fracture (eight calls, round 4),
+and Killjoy on the Pearl in five: not one of the Raze's 24 frames was read as
+Raze (Killjoy 18, KAY/O 4, Miks 2). In random orders of each session's frames
+two agreeing answers lock the wrong agent 6.7% (Abyss), 15.9% (Split), 10.7%
+(Sunset), 53.5% (Fracture) and 99.6% (Pearl) of the time, where the gate was
+under 1 in 100. Leaving out the pistol rounds (round 1, and the first round
+after the swap) did no better: on the same answers Neon locked on the Split and
+the Fracture and Killjoy on the Pearl, 10.4% to 99.8% wrong in random orders,
+and with fresh answers KAY/O on the Pearl. On the crops read by eye, thirteen
+from all five sessions with the misread ones among them, the four icons are
+plain: it is the reader that fails. So the next step is a stronger vision
+model pinned for this route (it shares `AI_VISION_MODEL` with frame chat),
+which needs a deploy and the same bench over the same crops, and the look
+goes back to eight a match only once the app's own sequence locks Riot's agent
+or nothing in every session and random orders lock a wrong one under 1 in 100.
+
+**A HUD agent never costs a match its Riot link** (`match-link.js
+linkAgentOf`). The live link, the late link and the backfill (`backfill.js
+windowOf`, through the ledger, which keeps `agentSource`) see no agent in one
+the screen found by itself, as in one never confirmed: it refuses no match and
+confirms none either, so a match with no map read still needs one. One the
+player confirmed, every review saved before 8.4.4, is checked as it always was.
+Riot's agent, once its record is in, is the review's (`game.agent`,
+`kitAgentOf`, Riot's look, the narrative), and so is the role the match is
+graded on and its baseline row takes (`index.js buildValorantReview`, the
+scoreboard's agent or Riot's own line before the screen's: on the HUD's, a
+Sova locked where Riot has Jett was graded on an Initiator's curves and its
+row was an Initiator's), and the agent the look from the screen is told once
+the scoreboard has linked and only Riot's rounds never came (`lookFromScreen`).
+A match neither the HUD nor Riot named an agent for says nothing of one. A
+match that resumes gets its agent back with its source (`resumeMatch`): back
+as a bare confirmed agent, it read to the link as the player's tick.
+
+**A wrong lock is worse than none for the spectate guard**: on the wrong agent
+a tell naming the player's real kit reads as a teammate's, a strong signal. So
+the route's prompt is the thing to bench. The live one, which every install is
+answered with byte for byte, asks for the four ability icons at the bottom
+center "just above their HP bar"; on the player's round 1 buy phase as Jett
+they sit beside the health number in one bar, their keys under them (C, Q, MB4
+and X: the player has E on a mouse button), and every in game frame carries
+the ten agent portraits along the top bar. From round 2 a buy phase frame can
+carry far more: the cards over teammates, each with its portrait and ability
+icons, and the COMBAT REPORT of the round before, KILLED BY ASTRA over Astra's
+face, which the read need not mention: round 3 of the Fracture swiftplay at
+0:23 was read "own HP 100 and Classic" with all of it on screen, a frame
+`ownHudFrame` takes while no agent is locked. Variant
+b (`detectPrompt('b')`, `detectVariant`, an admin bench's alone as the read
+prompt's variants are, and told back as `variant`) says where the bar is and
+what is in it, a key under an icon perhaps rebound, answers from the four icons
+and from no face, name or other icons (the teammates' cards named), and says
+UNKNOWN for a spectated teammate's bar. It replaces the live prompt only once
+a bench over the buy phase frames this client sends has measured both against
+Riot's agent.
+
+Nothing of it reaches the screen, at any time. `npm run test:agentdetect`
+holds the look through the real engine on a fake clock, turned on by hand at
+eight a match (Start and agent select, one answer, two agreeing, a
+disagreement, spectating, the death screen and the combat report, the
+countdown, a timer begun in play, a buy timer ending away from the ledger's,
+a buy read on the spectator camera before its round ended (a teammate's ammo,
+the round clock late in a round, a post plant's camera), the buy phase once it
+has, and a death before a match began, the caps, a new match, the fallback,
+and no fallback in a round never read as it began: Start pressed while dead, a
+pause lifted while dead), the call
+carrying the crop and nothing when the crop cannot be cut, the crop itself
+(its bounds on both profiles, its scale, the read's quality, null and never
+the frame when it cannot be made), the look off in the engine as it ships (two
+buy phases of the player's own HUD send nothing, cut nothing and lock
+nothing), no page telling the player to confirm, pick or type an agent, and
+the prompt byte for byte beside b (b taking a key under an icon as perhaps
+rebound, and the teammates' cards as no kit of the player's);
+`test:serverguards` the route answering a player with the live prompt and an
+admin bench with b; `test:cadence` the reader as it ships sending no look, and
+turned on, the look off the read path on the bar cut from the read's own
+frames; `test:matchlink` and
+`test:backfill` the link's rule; `test:valorantreview` Riot's agent over the
+HUD's, the ledger's source, and main's role and look from the screen on Riot's
+agent; `test:matchlifecycle` a resumed match's HUD agent keeping its source;
+`test:surfaces` and `check:mainwindow` the card, its two buttons alone
+recording and mid match.
 
 ## League records in silence and coaches afterwards
 

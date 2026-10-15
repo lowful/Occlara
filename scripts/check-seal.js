@@ -128,8 +128,6 @@ class StandInValorant extends EventEmitter {
     this.emit('status', 'stopped');
     if (this.stopWith) this.emit('match-ended', this.stopWith);
   }
-  setAgent() { return { ok: true }; }
-  confirmAgent() {}
   pause() {}
   resume() {}
 }

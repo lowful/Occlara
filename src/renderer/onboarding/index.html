@@ -31,7 +31,10 @@
       </div>
       <ol class="steps">
         <li><span class="n">1</span><div><b>Press Start before your match</b><span>Set your game to Windowed Fullscreen and press the red button. Nothing appears on screen while you play.</span></div></li>
-        <li><span class="n">2</span><div><b>Confirm your agent</b><span>When the sidebar asks who you are playing, confirm it, so the review can talk about your abilities.</span></div></li>
+        <!-- No agent to confirm since 8.4.4: the engine reads it off the
+             player's own ability bar in the match (coaching-engine.js
+             lookForAgent), and nothing on the sidebar asks for it. -->
+        <li><span class="n">2</span><div><b>Just play</b><span>Nothing asks which agent you are on. Occlara reads it off your own ability bar during the match.</span></div></li>
         <li><span class="n">3</span><div><b>Read your graded review</b><span>It opens when the match ends: a grade out of 100, your repeated mistakes, what went well and what you missed.</span></div></li>
       </ol>
     </section>

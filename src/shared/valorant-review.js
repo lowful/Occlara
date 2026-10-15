@@ -123,9 +123,10 @@ function foreignPlace(text, map) {
  * with its owner ("a Killjoy alarmbot at A Main") it is about that agent, not
  * the player. Matched as whole words, where foreignAgentInTell matches inside
  * them: that way Harbor's Cove is in every "from cover". Only with an agent
- * the player confirmed or Riot's record names, the engine's rule, and an
- * agent the game data does not know (one released after the last sync) has
- * no kit to hold a read to, so every read stays.
+ * Riot's record names or the engine locked (since 8.4.4 off the player's own
+ * HUD, two answers on buy phase frames, before it the player's tick), the
+ * engine's rule, and an agent the game data does not know (one released after
+ * the last sync) has no kit to hold a read to, so every read stays.
  */
 const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const KITS = (() => {
@@ -164,7 +165,11 @@ function readsOf(r, map, agent) {
     .filter((t) => typeof t === 'string' && t && !foreignPlace(t, map) && !foreignKit(t, agent));
 }
 
-/** The agent a round's reads are held to: Riot's, else the one the player confirmed, else none. */
+/**
+ * The agent a round's reads are held to: Riot's, else the one the engine
+ * confirmed (locked off the player's own HUD since 8.4.4, the player's tick
+ * before it), else none.
+ */
 function kitAgentOf(riotAgent, ctx) {
   const c = ctx || {};
   return (typeof riotAgent === 'string' && riotAgent) || (c.agentConfirmed && typeof c.agent === 'string' ? c.agent : null);
@@ -550,6 +555,12 @@ function build(input) {
       // name and nothing else, never a path. Played from the library, or null
       // when the match was not recorded.
       clip: typeof r.forensics.clip === 'string' && CLIP_RE.test(r.forensics.clip) ? r.forensics.clip : null,
+      // Where in that clip the moment its frames are timed against falls, in
+      // ms on the clip's own timeline, for its player to mark (8.4.4,
+      // review-clips.js lookDeathInClip). Null with no clip, and for a look
+      // that never timed its frames: a number, never the wall clock.
+      clipDeath: typeof r.forensics.clip === 'string' && CLIP_RE.test(r.forensics.clip)
+        && typeof r.forensics.clipDeath === 'number' && Number.isFinite(r.forensics.clipDeath) ? r.forensics.clipDeath : null,
     } : null,
   }));
 
@@ -910,6 +921,12 @@ function ledgerOf(snap) {
     context: {
       agent: c.agent || null,
       agentConfirmed: !!c.agentConfirmed,
+      // Where the agent came from (8.4.4): 'hud' when the engine read it off
+      // the player's own HUD, which the late link and the backfill never
+      // refuse a match over (match-link.js linkAgentOf), as the live link
+      // does not. Null for one the player confirmed, and for every review
+      // saved before.
+      agentSource: typeof c.agentSource === 'string' && c.agentSource ? c.agentSource : null,
       map: c.map || null,
       teamScore: typeof c.teamScore === 'number' ? c.teamScore : null,
       enemyScore: typeof c.enemyScore === 'number' ? c.enemyScore : null,

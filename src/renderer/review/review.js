@@ -69,7 +69,8 @@ function paintObjectives(o) {
  *
  * Drawn as a Valorant review draws its rounds (8.3.1): one list, a death with
  * its clip a row with the clip beside its fact, and one with nothing but its
- * fact a single line.
+ * fact a single line. Its clip has the player a round's has (8.4.4), the death
+ * marked where the game's clock put it (index.js clipLolDeaths), and no stills.
  */
 function paintLolDeaths(r) {
   const host = $('r-deaths');
@@ -88,7 +89,9 @@ function paintLolDeaths(r) {
     if (d.clipUrl) {
       const moment = el('div', 'v-moment');
       const side = el('div', 'v-media');
-      side.append(clipPlayer(d, null));
+      side.append(window.ClipPlayer.create({
+        url: d.clipUrl, label: `The clip of death ${d.n}`, frames: d.clipFrames, death: d.clipDeath,
+      }).el);
       const advice = el('div', 'v-advice');
       if (fact) advice.append(fact);
       moment.append(side, advice);
@@ -537,11 +540,17 @@ function posterOf(shots) {
  * moment has to show, the two read frames two a row and the recording's five
  * stills, their clip gone (the cap, Clear clips), three: two a row stacked
  * them three frames tall, 520px beside four lines of words.
+ *
+ * UNDER ITS CLIP A STILL IS A PLACE IN IT (8.4.4): a click on one moves the
+ * clip to that still's own frame and pauses it there, the clip at the width a
+ * zoomed frame takes, so the click is the zoom with the frames either side of
+ * it a step away. A still the clip cannot show (its place in the clip not
+ * known, or outside it) zooms as before, as every frame does with no clip.
  */
-function shotStrip(shots, underClip, screen) {
+function shotStrip(shots, player, screen) {
   const strip = el('div', 'v-shots');
-  strip.style.setProperty('--n', String(underClip ? Math.max(4, shots.length) : Math.min(3, shots.length)));
-  for (const s of shots) {
+  strip.style.setProperty('--n', String(player ? Math.max(4, shots.length) : Math.min(3, shots.length)));
+  shots.forEach((s, k) => {
     const label = frameLabel(s, screen);
     const fig = el('figure', 'v-shot');
     const img = document.createElement('img');
@@ -552,11 +561,33 @@ function shotStrip(shots, underClip, screen) {
     img.alt = timedRead ? (label === READ_AS_DEAD ? 'The frame the screen read the death on' : `${label} the screen read the death`)
       : label === 'At the death' ? label : `${label} the death`;
     img.loading = 'lazy';
-    img.addEventListener('click', () => zoomShot(strip, fig));
-    fig.append(img, el('figcaption', null, label));
+    if (player && player.canShow(s.at)) {
+      const go = el('button', 'v-shot-go');
+      go.type = 'button';
+      go.setAttribute('aria-label', `Show the clip at ${img.alt === 'At the death' ? 'the death' : img.alt.charAt(0).toLowerCase() + img.alt.slice(1)}`);
+      go.title = 'Show this moment in the clip';
+      go.append(img);
+      go.addEventListener('click', () => player.showStill(s.at, k));
+      fig.append(go, el('figcaption', null, label));
+    } else {
+      img.addEventListener('click', () => zoomShot(strip, fig));
+      fig.append(img, el('figcaption', null, label));
+    }
     strip.append(fig);
-  }
+  });
   return strip;
+}
+
+/** The still the clip now shows, marked in its strip; none once the clip moves on. */
+function markShown(strip, i) {
+  strip.querySelectorAll('.v-shot').forEach((fig, k) => {
+    const on = i === k;
+    fig.classList.toggle('shown', on);
+    const go = fig.querySelector('.v-shot-go');
+    if (!go) return;
+    if (on) go.setAttribute('aria-current', 'true');
+    else go.removeAttribute('aria-current');
+  });
 }
 
 /**
@@ -572,15 +603,30 @@ function look(c, frames, why) {
   box.id = `moment-${c.n}`;
   const shots = shotsOf(f, frames);
   const media = el('div', 'v-media');
+  let strip = null;
+  let player = null;
   if (f.clipUrl) {
     box.classList.add('has-clip');
-    media.append(clipPlayer(f, posterOf(shots)));
+    // Its player (8.4.4): the death and the stills marked on its timeline
+    // where the card says the death falls in the clip (clipDeath), stepped by
+    // the clip's own frames (clipFrames, main's reading of them).
+    player = window.ClipPlayer.create({
+      url: f.clipUrl, poster: posterOf(shots), label: `The clip of round ${c.n}`,
+      frames: f.clipFrames, death: f.clipDeath, screen: f.source === 'screen', stills: shots.map((s) => s.at),
+      onStill: (i) => { if (strip) markShown(strip, i); },
+    });
+    media.append(player.el);
   }
   const gone = !f.clipUrl && f.clipGone ? el('p', 'v-clip-gone', clipGoneText(f.clipGone, 'The frames and facts stay.')) : null;
   // Where a cleared clip was, above the frames that stay, or with the words
   // when no frame stayed either.
   if (gone && shots.length) media.append(gone);
-  if (shots.length) media.append(shotStrip(shots, !!f.clipUrl, f.source === 'screen'));
+  if (shots.length) {
+    strip = shotStrip(shots, player, f.source === 'screen');
+    // A still is a place in the clip: the player's keys work from it too.
+    if (player) player.keysFrom(strip);
+    media.append(strip);
+  }
   const advice = el('div', 'v-advice');
   const tag = el('div', 'v-look-tag');
   tag.append(el('span', 'gv-fix-label', "Coach's look"), causeChip(f));
@@ -610,10 +656,15 @@ function look(c, frames, why) {
  * THE CLIP OF A MOMENT (8.3): the seconds around the death, from the match's
  * own recording, played from occlara-clip:// (main serves it by range,
  * clip-scheme.js). Muted, inline and looping, the frame the coach looked at
- * as its picture until it plays. A click plays or pauses it; out of view, or
- * with the page hidden, it pauses, so a review of six never decodes a clip
- * nobody is watching. The frames stay under it: they are what the coach
- * looked at, and what the moment shows once its clip is gone.
+ * as its picture until it plays, and since 8.4.4 a player of its own under
+ * it (clip-player.js): played and paused, back to the start, a second and a
+ * frame either way, the timeline as seconds from the death with the death and
+ * the stills marked, and the speed. Out of view, or with the page hidden, it
+ * pauses, so a review of six never decodes a clip nobody is watching. The
+ * frames stay under it: they are what the coach looked at, a click on one
+ * moves the clip there, and they are what the moment shows once its clip is
+ * gone. No caption: the clip sits in its own death's row, and saying what it
+ * is under it was a line on every death saying what the row already said.
  */
 const CLIP_GONE = {
   space: 'Its clip was cleared to keep your clips under the space set in Settings.',
@@ -622,93 +673,9 @@ const CLIP_GONE = {
 /** Why a moment's clip is gone, and what it still has: its frames and facts, or its facts. */
 const clipGoneText = (why, stays) => `${CLIP_GONE[why] || CLIP_GONE.cleared} ${stays}`;
 const SVG_NS = 'http://www.w3.org/2000/svg';
-let clipWatch = null;
-
-/** Out of view, a clip pauses (IntersectionObserver), where the page has one. */
-function watchClip(v) {
-  if (typeof IntersectionObserver !== 'function') return;
-  if (!clipWatch) {
-    clipWatch = new IntersectionObserver((entries) => {
-      for (const e of entries) if (!e.isIntersecting && e.target.paused === false) e.target.pause();
-    }, { threshold: 0 });
-  }
-  clipWatch.observe(v);
-}
 
 /** Every clip in `host` stopped and let go, so a repaint leaves no decoder running behind it. */
-function releaseClips(host) {
-  for (const v of host.querySelectorAll('video')) {
-    if (clipWatch) clipWatch.unobserve(v);
-    if (typeof v.pause === 'function') v.pause();
-    v.removeAttribute('src');
-    if (typeof v.load === 'function') v.load();
-  }
-}
-
-/** A play or a pause mark, drawn on the 24 unit grid the app's icons use. */
-function clipMark(kind) {
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('class', `v-clip-mark ${kind}`);
-  const p = document.createElementNS(SVG_NS, 'path');
-  p.setAttribute('d', kind === 'play' ? 'M8 5.5v13l10.5-6.5z' : 'M7.5 5.5h3v13h-3zM13.5 5.5h3v13h-3z');
-  p.setAttribute('fill', 'currentColor');
-  svg.append(p);
-  return svg;
-}
-
-function clipPlayer(f, poster) {
-  const fig = el('figure', 'v-clip');
-  const v = document.createElement('video');
-  v.className = 'v-clip-video';
-  // The attributes are what a reader of the markup sees; muted is set as the
-  // property too, since the attribute alone only sets where muted starts.
-  v.muted = true;
-  for (const a of ['muted', 'loop', 'playsinline']) v.setAttribute(a, '');
-  // NOTHING LOADS UNTIL IT IS PLAYED: the poster is the frame, and a review of
-  // six clips open between matches, with the next match being recorded, sets
-  // up no decoder at all. Measured, a clip loading its metadata took about
-  // 40% of a core in the GPU process for a second, a 640x360 one playing
-  // about 8%, and one paused nothing.
-  v.setAttribute('preload', 'none');
-  if (poster) v.setAttribute('poster', poster);
-  v.setAttribute('src', f.clipUrl);
-  const btn = el('button', 'v-clip-play');
-  btn.type = 'button';
-  btn.append(clipMark('play'), clipMark('pause'));
-  const sync = () => {
-    const playing = v.paused === false;
-    fig.classList.toggle('playing', playing);
-    const label = playing ? 'Pause the clip' : 'Play the clip';
-    btn.setAttribute('aria-label', label);
-    btn.title = label;
-  };
-  const toggle = () => {
-    if (v.paused === false) { v.pause(); return; }
-    const started = typeof v.play === 'function' ? v.play() : null;
-    if (started && typeof started.catch === 'function') started.catch(() => sync());
-  };
-  v.addEventListener('click', toggle);
-  btn.addEventListener('click', toggle);
-  v.addEventListener('play', sync);
-  v.addEventListener('pause', sync);
-  sync();
-  // The mark sits over the picture, so the two share a frame of their own.
-  // No caption: the clip sits in its own death's row, and saying what it is
-  // under it was a line on every death saying what the row already said.
-  const frame = el('div', 'v-clip-frame');
-  frame.append(v, btn);
-  fig.append(frame);
-  watchClip(v);
-  return fig;
-}
-
-// A page hidden (another page, the seal) pauses every clip on it.
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) return;
-  for (const v of document.querySelectorAll('video')) if (v.paused === false) v.pause();
-});
+const releaseClips = (host) => window.ClipPlayer.release(host);
 
 /*
  * A FRAME ZOOMS BY SCALING (8.2), in and out. Zoomed, a frame takes the whole

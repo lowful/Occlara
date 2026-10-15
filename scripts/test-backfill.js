@@ -239,6 +239,37 @@ function watched(store, startedAt, over = {}) {
     h.done();
   }
   {
+    // AN AGENT THE HUD LOOK LOCKED IS NO REASON TO REFUSE (8.4.4). The engine
+    // reads the agent off the player's own HUD now, and its ledger says so
+    // (agentSource 'hud'): Sova read there where Riot has the player on Jett,
+    // the recording is still the match's, upgraded in place, its agent Riot's.
+    const hudSova = (store) => {
+      const w = watched(store, T0 + 1 * HOUR - 60000);
+      const r = store.get(w.id).review;
+      r.ledger.context = { ...r.ledger.context, agent: 'Sova', agentConfirmed: true, agentSource: 'hud' };
+      store.save({ id: w.id, game: 'valorant', at: w.at, review: r });
+      return w;
+    };
+    const h = harness({ rows: [row('a', 1)] });
+    const w = hudSova(h.store);
+    const s = await h.run();
+    const up = h.store.get(w.id).review;
+    ok(s.upgraded === 1 && up.verified && up.matchId === 'a' && up.game.agent === 'Jett' && h.store.list('valorant').length === 1,
+      `a recording whose HUD look locked Sova is upgraded to Riot's match on Jett, the agent Riot's (${s.upgraded} upgraded, ${up.game.agent})`);
+    h.done();
+    // The same Sova confirmed by the player, as every review before 8.4.4 was:
+    // the match is refused for it, as it always was.
+    const h2 = harness({ rows: [row('a', 1)] });
+    const w2 = hudSova(h2.store);
+    const r2 = h2.store.get(w2.id).review;
+    delete r2.ledger.context.agentSource;
+    h2.store.save({ id: w2.id, game: 'valorant', at: w2.at, review: r2 });
+    const s2 = await h2.run();
+    ok(s2.upgraded === 0 && !h2.store.get(w2.id).review.verified && s2.ambiguous === 1,
+      `one the player confirmed Sova on is still refused for it (${s2.upgraded} upgraded, ${s2.ambiguous} left alone)`);
+    h2.done();
+  }
+  {
     const h = harness({ rows: [row('a', 1)] });
     watched(h.store, T0 + 1 * HOUR - 60000);
     watched(h.store, T0 + 1 * HOUR - 30000);

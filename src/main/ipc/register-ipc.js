@@ -39,8 +39,6 @@ function registerIpc(deps) {
   safeHandle(C.STATE_GET, async () => controller.getState());
   safeHandle(C.SHELL_GET, async () => controller.getShell());
 
-  safeHandle(C.AGENT_SET, async (_e, name) => controller.setAgent(name));
-
   safeHandle(C.CHAT_SEND, async (_e, messages) => controller.chat(messages));
 
   safeHandle(C.STATS_TEST, async () => controller.testTracker());
@@ -80,7 +78,6 @@ function registerIpc(deps) {
   ipcMain.on(C.COACH_START,    () => guard('start',    () => controller.start()));
   ipcMain.on(C.COACH_STOP,     () => guard('stop',     () => controller.stop()));
   ipcMain.on(C.COACH_PAUSE,    () => guard('pause',    () => controller.pauseResume()));
-  ipcMain.on(C.AGENT_CONFIRM,  () => guard('agentConfirm', () => controller.confirmAgent()));
   // The one window (8.1): a page by its id, and the top strip's buttons.
   ipcMain.on(C.SHELL_NAV,      (_e, page) => guard('nav', () => controller.showPage(String(page || ''))));
   ipcMain.on(C.SHELL_WINDOW,   (_e, action) => guard('window', () => controller.windowAction(String(action || ''))));

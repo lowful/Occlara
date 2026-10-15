@@ -173,6 +173,17 @@ function stillsMomentOf(look, source) {
 }
 
 /**
+ * WHERE A MOMENT FALLS IN ITS CLIP (8.4.4), in ms on the clip's own timeline:
+ * the moment on the wall clock less where the clip's own 0 is on it
+ * (recorder.cutClip's startWall), to the ms. The clip's player marks the death
+ * there. Null when either is unknown, and the player then marks nothing,
+ * rather than a death placed by a guess.
+ */
+function deathInClip(moment, startWall) {
+  return Number.isFinite(moment) && Number.isFinite(startWall) ? Math.round(moment - startWall) : null;
+}
+
+/**
  * The name a look's still from the recording is kept under, beside the review
  * (8.3.1): round n's k-th of them in time order, before or after the death,
  * r6-rec1-before.jpg to r6-rec5-after.jpg. The read frames keep their names,
@@ -223,5 +234,5 @@ function pickSpread(list, max) {
 
 module.exports = {
   CLIP_RE, BEFORE_MS, AFTER_MS, LEAD_MS, DROP_LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME, LOOK_AT,
-  roundClip, deathClip, capGB, windowOf, lookWindow, momentOf, stillsMomentOf, stillName, cutsClips, pickSpread,
+  roundClip, deathClip, capGB, windowOf, lookWindow, momentOf, stillsMomentOf, deathInClip, stillName, cutsClips, pickSpread,
 };

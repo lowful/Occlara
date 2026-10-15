@@ -3,7 +3,7 @@
 const EventEmitter = require('events');
 const api = require('./api-client');
 const agentData = require('./agent-data');
-const { API, TIMING, CAPTURE_TIERS } = require('../../shared/config');
+const { API, CAPTURE_TIERS } = require('../../shared/config');
 
 // Reads allowed in flight at once: two until the read's latency is measured,
 // then as many as its p90 needs to keep the gap (inFlightLimit), never past
@@ -19,7 +19,7 @@ const MAX_IN_FLIGHT = 4;
 // that long.
 const READ_TIMEOUT_MS = 12000;
 const spectate = require('../../shared/spectate-tells');
-const { RoundLedger, clockSeconds, isBuyPhase, BUY_MAX_LEFT } = require('../../shared/valorant-rounds');
+const { RoundLedger, clockSeconds, isBuyPhase, BUY_MAX_LEFT, ROUND_SECONDS } = require('../../shared/valorant-rounds');
 const { MatchEndWatch, isFinalScore } = require('../../shared/match-end');
 const { ReadCadence } = require('../../shared/read-cadence');
 const valorantReview = require('../../shared/valorant-review');
@@ -36,7 +36,6 @@ const valorantReview = require('../../shared/valorant-review');
  *   'status'       'coaching' | 'paused' | 'stopped'
  *   'notice'       { kind, text } a problem worth one line on the panel
  *   'cadence'      the current gap between reads, in ms
- *   'agent'        the detected or confirmed agent
  *   'match-ended'  snapshot, the moment a match is over or recording stops
  *   'match-review' (reviewText, snapshot) once the narrative is written
  *   'match-resumed' { startedAt, from } the last end was wrong, its review is void
@@ -80,6 +79,14 @@ class CoachingEngine extends EventEmitter {
     // AI decision log: gets { at, image, state, tip, shown } per analyzed frame,
     // for the "what did the coach see and say" viewer. No-op when not provided.
     this.diagnostics = typeof opts.diagnostics === 'function' ? opts.diagnostics : null;
+    // The look at the agent's own image of a frame (lookForAgent): the
+    // player's bar cut out of the read's frame and scaled up, a base64 JPEG or
+    // null (agent-crop.js, Electron's nativeImage, which index.js hands in and
+    // a test stands in for). Without one the look sends nothing.
+    this.cropAgent = typeof opts.cropAgent === 'function' ? opts.cropAgent : null;
+    // How many looks a match may send (AGENT_LOOKS_PER_MATCH, 0: the look is
+    // off), held here so a test can run the look as it runs once it is on.
+    this.agentLooksPerMatch = AGENT_LOOKS_PER_MATCH;
 
     this.matchContext = freshContext();
 
@@ -137,10 +144,13 @@ class CoachingEngine extends EventEmitter {
     // resumed match loses nothing.
     this.endedMatch = null;
     this.afterEnd = [];
+    // The look for the match's agent on the player's own HUD (lookForAgent),
+    // and this frame's spectate read, which the look weighs.
+    this.agentLook = freshLook();
+    this.hudRead = null;
 
     this.timers = [];
     this.loopTimer = null;
-    this.agentTimer = null;
   }
 
   // ── lifecycle ───────────────────────────────────────────────────────────────
@@ -207,8 +217,10 @@ class CoachingEngine extends EventEmitter {
     this.matchStartedAt = Date.now();
     this.endedMatch = null;
     this.afterEnd = [];
-
-    this.armAgentDetection();
+    // No agent is asked for at Start: it is read off the player's own HUD as
+    // the match is played (lookForAgent).
+    this.agentLook = freshLook();
+    this.hudRead = null;
 
     // A short heartbeat decides when the next read goes out; the gap and the
     // in-flight limit live in tick(), so the cadence can change mid match.
@@ -224,7 +236,6 @@ class CoachingEngine extends EventEmitter {
     this.shouldAbort = true;
     this.timers.forEach(clearTimeout); this.timers = [];
     if (this.loopTimer)  { clearInterval(this.loopTimer);  this.loopTimer = null; }
-    if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
     this.pending.clear();
     // A death still on trial has no next read coming: it stands.
     this.settleTrial(true);
@@ -261,28 +272,6 @@ class CoachingEngine extends EventEmitter {
       if (snap) this.requestMatchReview(snap);
     }
     console.log('[engine] stopped');
-  }
-
-  /**
-   * Find the player's agent: a detection shortly after the match is seen, a
-   * retry until one locks, and a prompt to the player if none has after nine
-   * seconds. At session start, and again after every match, because the next
-   * match is usually on a different agent.
-   */
-  armAgentDetection() {
-    if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
-    this.timers.push(setTimeout(() => this.isRunning && this.detectAgent(), TIMING.agentDetectFirst));
-    this.agentTimer = setInterval(() => {
-      if (!this.isRunning) return;
-      if (this.matchContext.agent) { clearInterval(this.agentTimer); this.agentTimer = null; return; }
-      this.detectAgent();
-    }, TIMING.agentDetectRetry);
-
-    // If detection hasn't locked an agent shortly after the first attempt, ask
-    // the player directly (panel switches the bubble to a "type your agent" field).
-    this.timers.push(setTimeout(() => {
-      if (this.isRunning && !this.matchContext.agent) this.emit('agent', this.agentInfo());
-    }, 9000));
   }
 
   // ── the match, for the review ──────────────────────────────────────────────
@@ -347,8 +336,8 @@ class CoachingEngine extends EventEmitter {
       return;
     }
     if (w && w.kind === 'resume') this.resumeMatch(w.from);
-    // The agent is NOT reset here: endMatch already did, and the player may
-    // have confirmed the new one in the panel before this first frame landed.
+    // The agent is NOT reset here: endMatch already did, and started the look
+    // for the new one again (lookForAgent).
     if (w && w.kind === 'new-match') {
       this.endedMatch = null;
       this.afterEnd = [];
@@ -493,7 +482,7 @@ class CoachingEngine extends EventEmitter {
     this.endedMatch = {
       ledger: this.ledger, startedAt: this.matchStartedAt,
       notes: this.playerNotes.slice(), memory: this.matchMemory.slice(),
-      agent: c.agent, agentConfirmed: c.agentConfirmed, snap,
+      agent: c.agent, agentConfirmed: c.agentConfirmed, agentSource: c.agentSource || null, snap,
     };
     this.afterEnd = [];
     this.beginMatch(true);
@@ -566,15 +555,14 @@ class CoachingEngine extends EventEmitter {
     this.playerNotes = m.notes.concat(this.playerNotes).slice(-25);
     this.matchMemory = m.memory.concat(this.matchMemory).slice(-16);
     for (const seen of since) this.ledger.observe(seen);
-    // The match's own agent, unless the player confirmed another since. The
-    // false end reset it and armed detection, and a detection in the gap left
-    // the resumed match on an unconfirmed (or wrong) agent for the rest of it.
+    // The match's own agent, when the gap locked none. The false end let it go
+    // and the look started again, and the resumed match went on with no agent,
+    // or looked for one it had already found.
     const ctx = this.matchContext;
-    if (m.agent && (!ctx.agent || (m.agentConfirmed && !ctx.agentConfirmed))) {
+    if (m.agent && !ctx.agent) {
       ctx.agent = m.agent;
       ctx.agentConfirmed = m.agentConfirmed;
-      if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
-      this.emit('agent', this.agentInfo());
+      ctx.agentSource = m.agentSource || null;
     }
     this.emit('match-resumed', { startedAt: m.startedAt, from });
   }
@@ -585,7 +573,10 @@ class CoachingEngine extends EventEmitter {
    * The agent goes too. It used to survive for the whole session, which was
    * harmless while one session was one match, and wrong now that the app
    * sits running between matches: the second match's review would name the
-   * first match's agent, and the ability gate would check the wrong kit.
+   * first match's agent, and the ability gate would check the wrong kit. And
+   * the look starts again (lookForAgent), its frames, its count and an answer
+   * still out all left behind with the match: an answer about the last match's
+   * HUD never lands in this one.
    */
   beginMatch(resetAgent) {
     this.ledger = new RoundLedger();
@@ -593,11 +584,15 @@ class CoachingEngine extends EventEmitter {
     this.playerNotes = [];
     this.matchMemory = [];
     this.newMatchRun = null;   // a wait for the next match weighed the last one's ledger
-    if (resetAgent && this.matchContext.agent) {
+    if (resetAgent) {
       this.matchContext.agent = null;
       this.matchContext.agentConfirmed = false;
-      this.emit('agent', this.agentInfo());
-      if (this.isRunning) this.armAgentDetection();
+      this.matchContext.agentSource = null;
+      this.agentLook = freshLook();
+    } else if (this.agentLook) {
+      // A death the look saw before this match began is the last match's
+      // (ownHudFrame): kept, it held this match's buy frames to its score.
+      this.agentLook.deathRounds = null;
     }
   }
 
@@ -796,6 +791,9 @@ class CoachingEngine extends EventEmitter {
     // The score this read printed, before the guards take it (read-cadence.js).
     const printed = data && !data.lobby && data.context
       ? { team: data.context.teamScore, enemy: data.context.enemyScore } : {};
+    // And the read as it came, before the guards take anything from it, for
+    // the look at the agent (lookForAgent): what the model saw on this frame.
+    const read = data && !data.lobby && data.context ? { ...data.context } : null;
     const deathBefore = this.lastDeathAt;
     this.processRead(data, now);
     const died = this.lastDeathAt !== deathBefore;
@@ -804,6 +802,11 @@ class CoachingEngine extends EventEmitter {
     try {
       this.recordFrame({ lobby: this.inLobby, died, at: now });
     } catch (e) { console.log('[engine] round ledger error:', e.message); }
+    // The agent, off this frame when it shows the player's own HUD. Guarded
+    // the same way: the look must never cost the reader a frame.
+    try {
+      this.lookForAgent(read, shot, now, died);
+    } catch (e) { console.log('[engine] agent look error:', e.message); }
     // The AI decision log keeps the frame and what was read from it. The post
     // match review goes back to these frames for the moments before a death,
     // matched on the round the ledger filed the frame under and the clock on it.
@@ -863,7 +866,8 @@ class CoachingEngine extends EventEmitter {
     this.expireStalePlan();
     const c = this.matchContext;
     return {
-      // Only once the player confirmed it, the rule the old context had too.
+      // Only once the match's agent is locked, off the player's own HUD
+      // (lookForAgent), as only a confirmed agent ever was.
       agent: c.agentConfirmed ? c.agent : null,
       map: c.map, side: c.side, phase: c.phase, gameMode: c.gameMode,
       teamScore: c.teamScore, enemyScore: c.enemyScore, roundNumber: c.roundNumber,
@@ -989,71 +993,217 @@ class CoachingEngine extends EventEmitter {
       + '(Windows Security, Virus and threat protection, Exclusions), then start again.' });
   }
 
-  async detectAgent() {
-    // Not while spectating: the ability bar on screen is then a teammate's,
-    // and a detection taken from it named the wrong agent for the whole match.
-    if (this.matchContext.agent || this.isCapturing || this.paused || this.isSpectating()) return;
-    // The capture is the only part that has to keep reads out. Holding the
-    // flag through the server call as well stopped every read for the call's
-    // whole round trip, every 30 seconds until an agent locked.
-    let shot = null;
-    this.isCapturing = true;
-    try { shot = await this.captureFunction(); }
-    catch (e) { console.error('[engine] detect-agent capture error:', e.message); }
-    finally { this.isCapturing = false; }
-    if (!shot || this.shouldAbort || !this.isRunning) return;
-    try {
-      const { data } = await this.callServer(API.DETECT_AGENT, { image: shot });
-      // Stopped, or an agent set by hand, while the call was out.
-      if (this.shouldAbort || !this.isRunning || this.matchContext.agent) return;
-      // Normalise whatever the server returns ("reyna", "KAY/O", "Jett ") to a
-      // canonical name so detection reliably fires the confirm bubble.
-      const detected = data && data.agent ? agentData.resolveName(data.agent) : null;
-      if (detected) {
-        this.matchContext.agent = detected;
-        this.matchContext.agentConfirmed = false; // ask the player to confirm
-        console.log('[engine] agent detected:', detected, '(raw:', data.agent + ')');
-        if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
-        this.emit('agent', this.agentInfo());
-      }
-    } catch (e) {
-      console.error('[engine] detect-agent error:', e.message);
+  // ── the agent, off the player's own HUD ─────────────────────────────────────
+  /**
+   * THE AGENT IS READ OFF THE PLAYER'S OWN HUD, NEVER ASKED FOR (8.4.4). Until
+   * 8.4.3 a frame went to detect-agent three seconds after Start and every 30
+   * seconds until one named an agent, and nine seconds in the record card
+   * asked "Playing <X>?" with a tick, or for the agent to be typed. Start is
+   * pressed in the menus or in agent select, so the first frame was usually
+   * agent select: on the player's Fracture swiftplay it named a teammate's
+   * KAY/O, and the player had to type Jett. And the card asked mid match.
+   *
+   * So the frames are the read's own, after its reply is applied, and only one
+   * that surely shows the player's own ability bar (ownHudFrame): no capture of
+   * its own, and no frame of a menu, agent select, a loading screen, a death or
+   * the spectator camera. The match's agent is one two answers agree on, from
+   * two frames at least AGENT_PAIR_GAP_MS apart (look.lastAt keeps every frame
+   * sent that far from the one before it), with no answer naming another
+   * between them; an answer naming another keeps looking, and is the one the
+   * next must agree with. An answer naming none is no evidence either way.
+   * Locked so (lockAgent, source 'hud'), it is the confirmed agent every guard
+   * holds the HUD to, and the read's context: the spectate guard's teammate's
+   * kit called "own", the trial of a weak death, the ability gate on the round
+   * notes and on the screen's look at a death. Never the Riot link's: a HUD
+   * agent agrees with any match (match-link.js linkAgentOf), and Riot's agent,
+   * once its record is in, is the review's.
+   *
+   * At most AGENT_LOOKS_PER_ROUND calls in a round and AGENT_LOOKS_PER_MATCH in
+   * a match, one out at a time, none once locked, and the look starts again
+   * with every match (beginMatch). Two calls a match when the first two agree.
+   * Nothing of it reaches the screen, at any time.
+   *
+   * AND THE CALL CARRIES THE PLAYER'S BAR, NEVER THE FRAME (agent-crop.js,
+   * this.cropAgent): the health number to the ammo count, scaled up three
+   * times. Sent whole, the frame's 30 pixel icons read as another agent, and
+   * chat, the kill feed and a teammate standing in front named others. A crop
+   * that cannot be made sends nothing.
+   *
+   * THE LOOK IS OFF: AGENT_LOOKS_PER_MATCH is 0 (this.agentLooksPerMatch), so
+   * nothing is sent and nothing locks until a reader pinned for the route
+   * passes the crop's bench, which the route's reader failed.
+   */
+  lookForAgent(read, shot, at, died) {
+    const look = this.agentLook;
+    if (!look || this.matchContext.agent || !this.isRunning || this.paused || this.shouldAbort) return;
+    // When the look last read a round beginning, which the fallback needs.
+    if (seesRoundBegin(read)) look.startAt = at;
+    // A death this frame registered, and the rounds the score had then, which
+    // a buy frame after it must be past (ownHudFrame).
+    if (died) look.deathRounds = (this.matchContext.teamScore | 0) + (this.matchContext.enemyScore | 0);
+    const kind = this.ownHudFrame(read, at);
+    if (!kind) return;
+    if (kind === 'buy') look.buyFrames++;
+    if (look.inFlight || typeof shot !== 'string' || !shot) return;
+    if (!(look.sent < this.agentLooksPerMatch)) return;
+    if (look.lastAt !== null && at - look.lastAt < AGENT_PAIR_GAP_MS) return;
+    const round = (this.ledger && this.ledger.current()) || 0;
+    if ((look.byRound[round] || 0) >= AGENT_LOOKS_PER_ROUND) return;
+    let image = null;
+    try { image = this.cropAgent ? this.cropAgent(shot) : null; } catch { image = null; }
+    if (typeof image !== 'string' || !image) {
+      if (!look.cropFailed) console.log('[engine] agent look: the bar could not be cut out of the frame, nothing sent');
+      look.cropFailed = true;
+      return;
     }
+    look.byRound[round] = (look.byRound[round] || 0) + 1;
+    look.sent++;
+    look.lastAt = at;
+    look.inFlight = true;
+    // Off the read path: nothing waits for it, and nothing is captured for it.
+    this.callServer(API.DETECT_AGENT, { image })
+      .then((res) => this.takeAgentRead(look, res && res.data, at, kind))
+      .catch((e) => {
+        look.inFlight = false;
+        console.log('[engine] agent look error:', e.message);
+      });
   }
 
-  // ── agent confirmation ────────────────────────────────────────────────────
-  // The panel shows a bubble asking "Playing <X>?". A ✓ confirms the detection;
-  // an ✗ lets the player type their agent. Until an agent is known, AI tips that
-  // name a specific ability are held back (we can't verify they apply).
-  agentInfo() {
-    const agent = this.matchContext.agent;
-    return {
-      agent,
-      confirmed: !!this.matchContext.agentConfirmed,
-      role: agentData.getRole(agent),
-    };
+  /**
+   * Whether this frame surely shows the PLAYER'S OWN ability bar: 'buy', 'live'
+   * (the fallback below) or null. `read` is the reply as it came, before the
+   * guards, which have their say through the context they left.
+   *
+   * THE BUY PHASE. Nobody spectates in it, and everyone is alive: the read saw
+   * the player's own health and nothing of the death screen, a buy timer read
+   * on this frame from 0:45 down to AGENT_BUY_MIN_LEFT, begun after the last
+   * frame of play (valorant-rounds.js beganAfterPlay), and the guards left it
+   * a buy phase with the player alive. The buy phase is where Valorant shows
+   * the COMBAT REPORT of the round before, KILLED BY ASTRA over Astra's face,
+   * so a frame whose tell or kill feed prints any of it is no frame to read
+   * the player's agent off. And the round end countdown reads like a buy timer
+   * (0:07 down to 0:00 on the player's Fracture swiftplay, the TAB scoreboard
+   * with every agent's portrait open over one of them), which the two clock
+   * rules leave out.
+   *
+   * AND ITS TIMER IS THE LEDGER'S: the buy phase the frame's own clock puts
+   * its end at (its capture time plus its timer) agrees to AGENT_BUY_END_MS
+   * with the round ledger's buyEndsAt once this frame is filed, when the
+   * ledger has one. A frame the ledger took as its buy phase set that end
+   * itself; one it did not is a buy read that was not: on the bench sessions
+   * the 0:00 of Abyss round 19 as its barriers dropped, read "buy 0:10", a
+   * live round at 1:39 read "buy 0:08", and Sunset round 5's post plant read
+   * "buy 0:39" off the ammo counter. Each showed the player's own bar alive,
+   * but a reader that reads the bar well reads a spectated teammate's as well,
+   * and a buy read with a misread clock while dead would lock the teammate.
+   *
+   * AND NEVER AFTER A DEATH UNTIL A ROUND HAS ENDED (look.deathRounds): the
+   * score, as the frame printed it or as the guards hold it, past the rounds
+   * it had when the look saw the player die. Dead, the player is on a
+   * teammate's camera until the round is over, and the ledger takes a buy read
+   * there for the next buy phase, the spectator camera's frames being no play
+   * to it, so that read's own timer sets the end the rule above holds it to:
+   * "buy 0:39" read off a spectated teammate's ammo counter as "own HP 100 and
+   * Vandal", twenty seconds into the spectator camera, passed it, and so did a
+   * second three seconds later, two answers that lock the teammate. On the
+   * bench sessions it leaves out five first buy frames after a death, of 181,
+   * each with no score read past the death's yet.
+   *
+   * THE FALLBACK, a live round, only from round AGENT_LIVE_FROM_ROUND of a
+   * match no buy phase frame has shown the HUD in (a player who stays in the
+   * shop, every buy read a LOBBY): its first 20 seconds, the tell claiming the
+   * player's own HUD, the spectate guard seeing no sign at all of someone
+   * else's, and no death in the last AGENT_LIVE_AFTER_DEATH_MS. A dead player's
+   * HUD is the spectated teammate's, and that is how detection named the wrong
+   * agent for a whole match.
+   *
+   * AND ONLY IN A ROUND READ AS IT BEGAN (look.startAt, seesRoundBegin): its
+   * first seven seconds on the clock, or a buy phase read in the ten seconds
+   * before its barriers dropped. Start pressed mid match, or a pause lifted,
+   * finds a round the engine never saw begin, and a death in it nobody
+   * registered: Start pressed while dead in round 6's first 20 seconds, the
+   * spectated teammate's HUD read as "own HP 100 and Ghost" on frames no sign
+   * flagged, sent those frames, and two answers naming the teammate's Sova
+   * locked it as the player's. A LOBBY read is no round beginning: Start is
+   * pressed in Occlara's own window, read as one.
+   *
+   * Never the end screen or what is played after it until the next match shows
+   * itself, and never the next match's frames while the wait for it counts.
+   */
+  ownHudFrame(read, at) {
+    const r = read || null;
+    if (!r || this.inLobby) return null;
+    if (this.endWatch && this.endWatch.ended) return null;
+    if (this.newMatchHeld || (this.newMatchRun && this.newMatchRun.from !== null)) return null;
+    const c = this.matchContext;
+    const tell = String(r.aliveTell || '');
+    const sawOwn = r.playerAlive === true && typeof r.playerHp === 'number' && r.playerHp > 0
+      && !spectate.affirms(DEATH_SCREEN, tell) && !spectate.tellSaysSpectating(tell) && !UNSURE_TELL.test(tell)
+      && !spectate.affirms(DEATH_SCREEN, String(r.killFeed || ''));
+    const guarded = c.playerAlive === true && !this.isSpectating() && c.spectateSuspected !== true
+      && !(this.hudRead && this.hudRead.spectating);
+    if (!sawOwn || !guarded) return null;
+    const left = clockSeconds(r.clock);
+    const ends = this.ledger && Number.isFinite(this.ledger.buyEndsAt) ? this.ledger.buyEndsAt : null;
+    const look = this.agentLook;
+    const printed = typeof r.teamScore === 'number' && typeof r.enemyScore === 'number' ? r.teamScore + r.enemyScore : -1;
+    const roundOver = !(look && Number.isFinite(look.deathRounds))
+      || Math.max(printed, (c.teamScore | 0) + (c.enemyScore | 0)) > look.deathRounds;
+    if (r.phase === 'buy' && c.phase === 'buy' && left !== null && left >= AGENT_BUY_MIN_LEFT && left <= BUY_MAX_LEFT
+        && !!this.ledger && this.ledger.beganAfterPlay(at, left)
+        && (ends === null || Math.abs(at + left * 1000 - ends) <= AGENT_BUY_END_MS) && roundOver) {
+      return 'buy';
+    }
+    const round = this.ledger ? this.ledger.current() : null;
+    if (look && look.buyFrames === 0 && round !== null && round >= AGENT_LIVE_FROM_ROUND
+        && r.phase === 'active' && c.phase === 'active' && left !== null && left >= AGENT_LIVE_MIN_LEFT
+        && spectate.OWN_HUD.test(tell) && !!this.hudRead && this.hudRead.signals.length === 0
+        && !(this.lastDeathAt > 0 && at - this.lastDeathAt < AGENT_LIVE_AFTER_DEATH_MS)
+        && look.startAt !== null && look.startAt >= at - (ROUND_SECONDS - left) * 1000 - AGENT_START_SLACK_MS) {
+      return 'live';
+    }
+    return null;
   }
 
-  /** Player tapped ✓, trust the detected agent and stop re-detecting. */
-  confirmAgent() {
-    if (!this.matchContext.agent) return this.agentInfo();
-    this.matchContext.agentConfirmed = true;
-    if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
-    console.log('[engine] agent confirmed:', this.matchContext.agent);
-    this.emit('agent', this.agentInfo());
-    return this.agentInfo();
+  /** One answer of the look, for the frame captured at `at`. */
+  takeAgentRead(look, data, at, kind) {
+    look.inFlight = false;
+    // Stopped, or the match that frame was of is over, while the call was out.
+    if (look !== this.agentLook || this.shouldAbort || !this.isRunning || this.matchContext.agent) return;
+    const name = exactAgent(data && data.agent);
+    const where = kind === 'buy' ? 'a buy phase frame' : 'a live round frame';
+    if (!name) {
+      console.log(`[engine] agent look: no agent read off ${where}`);
+      return;
+    }
+    const c = look.candidate;
+    if (c && c.agent === name) {
+      if (at - c.at < AGENT_PAIR_GAP_MS) return;
+      this.lockAgent(name, 'hud');
+      console.log(`[engine] agent locked off the player's own HUD: ${name}, read on two frames`
+        + ` ${((at - c.at) / 1000).toFixed(1)} s apart, ${look.sent} looks`);
+      return;
+    }
+    if (c) console.log(`[engine] agent look: ${c.agent}, then ${name} off ${where}: nothing locked, looking again`);
+    else console.log(`[engine] agent look: ${name} off ${where}, waiting for a second frame to agree`);
+    look.candidate = { agent: name, at };
   }
 
-  /** Player typed their agent, override detection and lock it in. */
-  setAgent(name) {
-    const canonical = agentData.resolveName(name);
-    if (!canonical) return { ok: false, error: 'unknown agent', agent: this.matchContext.agent };
-    this.matchContext.agent = canonical;
-    this.matchContext.agentConfirmed = true;
-    if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
-    console.log('[engine] agent set by player:', canonical);
-    this.emit('agent', this.agentInfo());
-    return { ok: true, ...this.agentInfo() };
+  /**
+   * The match's agent, from now on the one every guard holds the HUD to and
+   * the read is told. `source` 'hud' is the only one this engine makes: an
+   * agent the screen found by itself, which the Riot link never refuses a
+   * match over (match-link.js linkAgentOf). False for a name the game data
+   * does not know.
+   */
+  lockAgent(name, source) {
+    const agent = exactAgent(name);
+    if (!agent) return false;
+    const c = this.matchContext;
+    c.agent = agent;
+    c.agentConfirmed = true;
+    c.agentSource = source || 'hud';
+    return true;
   }
 
   /**
@@ -1846,8 +1996,9 @@ class CoachingEngine extends EventEmitter {
 
     const hud = spectate.readHudOwner({
       tell:        updates.aliveTell,
-      // Only an agent the player CONFIRMED. A detection taken while dead names
-      // a teammate, and the player's own abilities then read as somebody else's.
+      // Only the match's locked agent, two answers off the player's own HUD
+      // (lookForAgent). A detection taken while dead names a teammate, and the
+      // player's own abilities then read as somebody else's.
       agent:       this.matchContext.agentConfirmed ? this.matchContext.agent : null,
       weapon:      updates.playerWeapon,
       prevWeapon:  this.matchContext.playerWeapon,
@@ -1862,6 +2013,9 @@ class CoachingEngine extends EventEmitter {
       phase:       updates.phase,
     });
     this.matchContext.spectateSuspected = hud.spectating;
+    // Kept for the look at the agent, which reads no frame the guard saw any
+    // sign of someone else's HUD on (ownHudFrame).
+    this.hudRead = hud;
 
     if (hud.spectating) {
       // The tell wins and the health number is DROPPED rather than reassigned,
@@ -2067,10 +2221,10 @@ class CoachingEngine extends EventEmitter {
         }
         continue;
       }
-      if (key === 'agent') {                              // locked once set
-        if (!this.matchContext.agent) this.matchContext.agent = v;
-        continue;
-      }
+      // The agent is the look's alone (lookForAgent): two answers off the
+      // player's own HUD. A read never names one, and one that did locks
+      // nothing.
+      if (key === 'agent' || key === 'agentConfirmed' || key === 'agentSource') continue;
       // Map locks only after TWO agreeing reads. A single misread (Haven seen
       // as Bind) used to lock for the whole match and let foreign callouts
       // ("go to Hookah" on Haven) pass, since the callout gate trusts the lock.
@@ -2441,7 +2595,9 @@ class CoachingEngine extends EventEmitter {
 // ── helpers ──────────────────────────────────────────────────────────────────
 function freshContext() {
   return {
-    agent: null, agentConfirmed: false, map: null, side: null, teammates: null,
+    // The match's agent once the look has locked it (lockAgent): confirmed for
+    // every guard, and 'hud' as its source, which the Riot link never weighs.
+    agent: null, agentConfirmed: false, agentSource: null, map: null, side: null, teammates: null,
     gameMode: null,   // 'swiftplay' (4-round halves) | 'standard' (12) | null; locked by 2 agreeing reads or score math
     roundNumber: 0, teamScore: 0, enemyScore: 0, clock: null,   // round timer (mm:ss) for stage-aware coaching
     phase: 'unknown', playerCredits: null, playerWeapon: null, playerAlive: true,
@@ -2460,6 +2616,36 @@ function freshContext() {
     playerSpotVerified: false, // true when the spot came from minimap coordinates, not the model's wording
     consecutiveDeaths: 0, consecutiveWins: 0, roundsPlayed: 0,
   };
+}
+
+/** The look at the agent as a match begins (lookForAgent). */
+function freshLook() {
+  return { candidate: null, sent: 0, lastAt: null, inFlight: false, byRound: {}, buyFrames: 0, startAt: null, cropFailed: false,
+    deathRounds: null };
+}
+
+/**
+ * A read of a round beginning, on the frame's own clock (lookForAgent, for the
+ * fallback in ownHudFrame): a buy phase, its timer read, or a live round's
+ * first seconds. Never a LOBBY: Start is pressed in Occlara's own window, and
+ * the frames of it read as one, the player dead in the game behind it or not.
+ */
+function seesRoundBegin(r) {
+  const left = r ? clockSeconds(r.clock) : null;
+  if (left === null) return false;
+  return (r.phase === 'buy' && left <= BUY_MAX_LEFT) || (r.phase === 'active' && left >= AGENT_ROUND_START_LEFT);
+}
+
+/**
+ * The game's own name for an agent the server named, or null: the same name,
+ * case and punctuation aside ("KAYO" is KAY/O), never a near one. A name the
+ * game data does not know locks nothing, since its kit cannot be checked.
+ */
+function exactAgent(name) {
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+  const want = norm(name);
+  if (!want) return null;
+  return agentData.allNames().find((n) => norm(n) === want) || null;
 }
 
 /**
@@ -2573,6 +2759,33 @@ const DEATH_SCREEN = /killed by|combat report|switch player|kill ?cam|death ?rec
 const TRIAL_MS = 15000;
 // A read the model itself was not sure about never counts as proof.
 const UNSURE_TELL = /unreadable|kept previous|unclear|not sure|cannot tell|can.?t tell|assum/i;
+
+// THE LOOK AT THE AGENT (lookForAgent). Two answers on two frames at least this
+// far apart lock it; at most this many calls a round and a match.
+const AGENT_PAIR_GAP_MS = 3000;
+const AGENT_LOOKS_PER_ROUND = 3;
+// THE LOOK IS OFF (8.4.4): no call a match, so nothing is sent and nothing
+// locks, and the agent waits for Riot's record. The route's reader
+// (qwen/qwen3.7-flash, its live prompt), sent the bar alone, locked Neon on the
+// player's Fracture Jett and Killjoy on the Pearl Raze in the app's own
+// sequence, and named Raze on none of the Pearl's 24 frames. Eight, as it
+// was, once a reader pinned for the route passes the same bench.
+const AGENT_LOOKS_PER_MATCH = 0;
+// A buy timer with less left than this can be the round end countdown, which
+// ran from 0:07 to 0:00 on the player's Fracture swiftplay.
+const AGENT_BUY_MIN_LEFT = 8;
+// How far the end a buy frame's own timer gives may be from the ledger's.
+const AGENT_BUY_END_MS = 3000;
+// The fallback (ownHudFrame): from this round, when no buy phase frame has
+// shown the HUD, a live round's first 20 seconds, never this soon after a death.
+const AGENT_LIVE_FROM_ROUND = 4;
+const AGENT_LIVE_MIN_LEFT = 80;
+const AGENT_LIVE_AFTER_DEATH_MS = 30000;
+// And only in a round read as it began (seesRoundBegin): a live round's first
+// seven seconds on its clock, or a buy phase read no more than this long
+// before its barriers dropped.
+const AGENT_ROUND_START_LEFT = 93;
+const AGENT_START_SLACK_MS = 10000;
 
 // Which maps contain a given printed location label. Built from the game's own
 // callout data, so it stays correct as maps are added or renamed.

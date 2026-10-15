@@ -19,7 +19,8 @@
  *   Variant c, written from the judging of b's bench, is served the same way:
  *   it is the live prompt with its alive and clock lines given the judge's
  *   lines word for word, nothing else moved, and keeps 120 characters of the
- *   tell.
+ *   tell. And the agent look's variant b (8.4.4), the same way again: a
+ *   player's look is answered with the live prompt, an admin bench's with b.
  *
  *   ASK COACH'S CONTEXT (8.4.1). It was told Stats' four Overview scores were
  *   a coached-session trend and to drill the weakest of them. They are sums
@@ -394,6 +395,31 @@ const PW = 'correct horse battery staple';
     ok(C.split('\n').includes(SAYS.clock) && !/spike timer/i.test(C) && /spike timer/i.test(A)
       && !/no timer at all/.test(C) && /no timer at all/.test(B),
       'c reads the timer until the spike icon takes its place and a timer still counting is no plant, where the live prompt had a spike timer and b no timer after a plant');
+  }
+
+  // ── The agent look's prompt, and its variant b (8.4.4) ───────────────────
+  // Through the route, the fake model answering one word, as the prompt asks.
+  // The live prompt is the one every install is answered with; b is an admin
+  // bench's alone, as the read prompt's variants are, and told back.
+  {
+    const { detectPrompt } = coach.__test;
+    model.reply = 'Jett';
+    const look = async (body, headers) => {
+      model.sent.length = 0;
+      const r = await call(coach, 'POST', '/detect-agent', { headers: { 'X-License-Key': 'GC-READ-TEST-AAAA-BBBB', ...(headers || {}) },
+        body: { image: 'aGVsbG8=', ...body } });
+      return { r, body: r.body || {}, prompt: promptOf(model.sent[0]) };
+    };
+    const plain = await look({});
+    ok(plain.r.status === 200 && plain.prompt === detectPrompt(null) && plain.body.agent === 'Jett' && !('variant' in plain.body),
+      `a client's look is the live prompt, and its reply the shape it always was (${JSON.stringify(plain.body)})`);
+    const player = await look({ variant: 'b' });
+    ok(player.r.status === 200 && player.prompt === detectPrompt(null) && player.body.variant === null && player.body.agent === 'Jett',
+      'a player naming b is answered with the live prompt, and told it was (variant null)');
+    const bench = await look({ variant: 'b' }, { 'X-Admin-Password': PW });
+    ok(bench.r.status === 200 && bench.prompt === detectPrompt('b') && bench.prompt !== detectPrompt(null)
+      && bench.body.variant === 'b' && bench.body.agent === 'Jett', 'an admin bench naming b is answered with b, and told so');
+    model.reply = null;
   }
 
   // ── A death word its own clause negates is no death word (8.4.3) ──────────

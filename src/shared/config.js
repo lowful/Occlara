@@ -12,7 +12,7 @@ const API = {
   ACTIVATE:     '/api/license/activate',
   ANALYZE:      '/api/coach/analyze',   // older clients only; this one reads
   READ:         '/api/coach/read',      // facts only, one frame, every one to five seconds
-  DETECT_AGENT: '/api/coach/detect-agent',
+  DETECT_AGENT: '/api/coach/detect-agent', // the agent, off a read's own frame of the player's HUD
   MATCH_REVIEW: '/api/coach/match-review',
   DEATH_FORENSICS: '/api/coach/death-forensics',   // the frame before each teachable death
 };
@@ -62,9 +62,9 @@ const CAPTURE = {
 };
 
 // ── Engine timing (ms) ──────────────────────────────────────────────────────
+// No timer looks for the agent any more (8.4.4): it is read off the read's own
+// frames of the player's HUD (coaching-engine.js lookForAgent).
 const TIMING = {
-  agentDetectFirst:    3000,   // detect early so the agent is known by the first round
-  agentDetectRetry:    30000,
   serverTimeout:       8000,
 };
 

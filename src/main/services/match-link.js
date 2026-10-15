@@ -39,6 +39,23 @@ function sameName(a, b) {
   return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 }
 
+/**
+ * THE AGENT THE LINK MAY REFUSE A MATCH OVER (8.4.4), from a match's context
+ * (the engine's, or the one a saved review's ledger kept): one the player
+ * confirmed, the rule since agent detection began. An agent the screen found
+ * by itself (agentSource 'hud', the engine's look at the player's own HUD,
+ * coaching-engine.js lookForAgent) agrees with any match, as one never
+ * confirmed always has: the HUD agent is the coach's best reading, Riot's
+ * record says exactly which agent it was, and a misread icon must never cost
+ * the review its scoreboard. So every check here (verifyCoachedMatch,
+ * endedEarly) and the backfill's claims see no agent from it. A review saved
+ * before 8.4.4 keeps its agentConfirmed and is checked as it always was.
+ */
+function linkAgentOf(ctx) {
+  const c = ctx || {};
+  return c.agentConfirmed && c.agentSource !== 'hud' && typeof c.agent === 'string' && c.agent ? c.agent : null;
+}
+
 // Queues with no rounds to them. The tracker's teams there are not a round
 // score, so a deathmatch reads as a 0-0 draw at 0 combat score, and a warm-up
 // one played just before Start passed every other check and was graded as the
@@ -200,8 +217,10 @@ function scoreAfter(riot, n) {
  * with Riot's queue, only when all of this holds:
  *
  *   the map     the same on both sides, never merely unknown on one
- *   the agent   Riot's, when the recording's agent was confirmed; one never
- *               confirmed agrees with anything, the rule the link keeps
+ *   the agent   Riot's, when the recording's agent was confirmed by the
+ *               player; one never confirmed, or one the screen found by
+ *               itself (linkAgentOf), agrees with anything, the rule the link
+ *               keeps
  *   the end     the moment the watch ended the match lies inside Riot's own
  *               span, its start to its start plus its length, with the clock
  *               allowance either side. That is what an early end is: Riot's
@@ -228,7 +247,7 @@ function scoreAfter(riot, n) {
  *                   { map, me: { agent }, startedAt, lengthMs, perRound: [{ n, won }] }
  * @param startedAt  when the recording started
  * @param endedAt    when the watch ended the match
- * @param mctx       { map, agent (confirmed only), score: { team, enemy, final } }
+ * @param mctx       { map, agent (linkAgentOf's only), score: { team, enemy, final } }
  * @returns { ok: true } | { ok: false, why: string }
  */
 function endedEarly(lm, riot, startedAt, endedAt, mctx) {
@@ -394,7 +413,7 @@ function linkRetries(endedBy, score) {
 }
 
 module.exports = {
-  verifyCoachedMatch, pickCoachedMatch, matchSummary, sameName,
+  verifyCoachedMatch, pickCoachedMatch, matchSummary, sameName, linkAgentOf,
   matchEndEstimate, roundsPlayed, scoreAfter, endedEarly, earlyCandidates, linkEarly, mayGoOn, linkRetries,
   MATCH_LINK_LEAD_MS, MATCH_LINK_TRAIL_MS, ROUND_MS, CLOCK_SLACK_MS, MIN_ROUND_MS, EARLY_ASKS_PER_TRY,
   LINK_RETRY_MS, LINK_RETRY_LONG_MS, RIOT_ROUNDS_RETRY_MS,

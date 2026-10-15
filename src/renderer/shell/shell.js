@@ -4,11 +4,12 @@
  * The shell: the main window's sidebar, top strip and Recording screen (8.1).
  *
  * It carries what the panel window used to, ported with the same rules: Start,
- * Stop and Pause, the agent check once a Valorant recording starts, one line
- * of notices (since 8.3 in the top strip, and only when there is one: never
- * anything about the match), the start and stop sounds, and the licence
- * ending. Plus what the one window adds: the pages, the game, and the seal,
- * which during a match shows the Recording screen and no page at all.
+ * Stop and Pause, one line of notices (since 8.3 in the top strip, and only
+ * when there is one: never anything about the match), the start and stop
+ * sounds, and the licence ending. Plus what the one window adds: the pages,
+ * the game, and the seal, which during a match shows the Recording screen and
+ * no page at all. No agent check (8.4.4): the agent is read off the player's
+ * own HUD in the match, and nothing here asks for it or says it.
  */
 
 const $ = (id) => document.getElementById(id);
@@ -22,7 +23,6 @@ const ICO = {
   play: '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg>',
   stop: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>',
   pause: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5v14"/><path d="M15 5v14"/></svg>',
-  check: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 7"/></svg>',
 };
 // The page icons. App authored markup, never user or model text.
 const PAGE_ICO = {
@@ -138,14 +138,13 @@ function placeMarker() {
   markerOn = id;
 }
 window.addEventListener('resize', placeMarker);
-// THE RECORD CARD CHANGES HEIGHT on its own: the agent check opening, its
-// quick picks, its locked in row, and none 1.6 seconds later. (A notice no
-// longer does: since 8.3 it is the top strip's, outside the sidebar.) Once the
-// sidebar overflows (at the window's minimum height, or with the agent check
-// up at the default one) nothing above Settings gives way, so Settings, below
-// the card, moves with it, and the marker left where it had been painted over
-// the account line. So the marker follows the card, whatever changed it,
-// after layout and before the frame is painted.
+// THE MARKER FOLLOWS THE RECORD CARD, whatever changes its height. Once the
+// sidebar overflows (at the window's minimum height) nothing above Settings
+// gives way, so Settings, below the card, moves with it, and a marker left
+// where it had been was painted over the account line. The card is its two
+// buttons since the agent check went (8.4.4) and a notice is the top strip's
+// (8.3), so nothing it shows changes its height today; the marker is put
+// back after layout all the same, before the frame is painted.
 new ResizeObserver(() => placeMarker()).observe(recEl);
 
 // ── The game ───────────────────────────────────────────────────────────────
@@ -293,95 +292,6 @@ toggleBtn.addEventListener('click', () => {
 });
 pauseBtn.addEventListener('click', () => window.occlara.pauseResume());
 
-// ── The agent check (as the panel had it) ─────────────────────────────────
-const agentBubble = $('agent-bubble');
-const AB_ROWS = { detect: $('ab-detect'), ask: $('ab-ask'), form: $('ab-form'), done: $('ab-done') };
-const abInput = $('ab-input');
-const abQuick = $('ab-quick');
-let topAgents = [];
-let sessionActive = false;
-let agentAnswered = false;
-let formActive = false;
-let doneTimer = null;
-
-function showRow(which) {
-  agentBubble.hidden = false;
-  for (const [k, node] of Object.entries(AB_ROWS)) node.hidden = (k !== which);
-}
-function hideAgentUI() {
-  formActive = false;
-  if (doneTimer) { clearTimeout(doneTimer); doneTimer = null; }
-  agentBubble.hidden = true;
-  abQuick.hidden = true;
-}
-function renderQuickPicks() {
-  if (agentAnswered || !topAgents.length) { abQuick.hidden = true; return; }
-  const host = $('ab-quick-btns');
-  host.replaceChildren();
-  for (const name of topAgents) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'ab-quick-btn';
-    b.textContent = name;
-    b.title = name;
-    b.addEventListener('click', () => { window.occlara.setAgent(name).catch(() => {}); });
-    host.append(b);
-  }
-  abQuick.hidden = false;
-}
-function showDetecting() { if (!agentAnswered) { formActive = false; showRow('detect'); renderQuickPicks(); } }
-function showConfirm(name) {
-  if (agentAnswered) return;
-  formActive = false;
-  $('ab-name').textContent = name;
-  showRow('ask');
-  renderQuickPicks();
-}
-function showForm() {
-  if (agentAnswered) return;
-  formActive = true;
-  showRow('form');
-  abInput.classList.remove('bad');
-  abInput.value = '';
-  abInput.placeholder = 'Type your agent';
-  renderQuickPicks();
-  setTimeout(() => abInput.focus(), 30);
-}
-function showDoneAndHide(name) {
-  agentAnswered = true;
-  formActive = false;
-  abQuick.hidden = true;
-  const done = $('ab-done-name');
-  done.innerHTML = ICO.check + ' ';
-  done.append(name);
-  showRow('done');
-  if (doneTimer) clearTimeout(doneTimer);
-  doneTimer = setTimeout(hideAgentUI, 1600);
-}
-$('ab-yes').addEventListener('click', () => window.occlara.confirmAgent());
-$('ab-no').addEventListener('click', showForm);
-$('ab-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const val = abInput.value.trim();
-  if (!val) return;
-  window.occlara.setAgent(val).then((res) => {
-    if (!res || !res.ok) {
-      abInput.classList.add('bad');
-      abInput.value = '';
-      abInput.placeholder = 'Not found, try again';
-      setTimeout(() => abInput.focus(), 20);
-    }
-  }).catch(() => {});
-});
-window.occlara.onAgent((info) => {
-  if (!isCoaching || agentAnswered || gameId !== 'valorant') return;
-  const i = info || {};
-  if (i.agent && i.confirmed) { showDoneAndHide(i.agent); return; }
-  if (formActive) return;
-  if (i.agent) showConfirm(i.agent);
-  else showForm();
-});
-
 // ── Sounds, on real transitions only (the panel's rule) ──────────────────
 const SFX_VOLUME = 0.9;
 let soundsOn = true;
@@ -410,37 +320,25 @@ function applyState(s) {
   if ('sounds' in s) soundsOn = s.sounds !== false;
   if (s.captureSpeed) captureSpeed = s.captureSpeed;
   if (typeof s.licenseActive === 'boolean') licenseActive = s.licenseActive;
-  if (Array.isArray(s.topAgents)) {
-    topAgents = s.topAgents.slice(0, 3);
-    if (!agentBubble.hidden && !agentAnswered) renderQuickPicks();
-  }
   $('learn').hidden = gameId !== 'lol';
   render();
   // Measured once the state is painted, as the card's ResizeObserver measures
-  // it again after layout: the state's quick picks can open the agent check
-  // taller, and Settings below the card moves with it. (A notice no longer
-  // can: it is the top strip's.)
+  // it again after layout: the Learn entry above shows or goes with the game.
   placeMarker();
   soundCue();
-  if (!isCoaching) { sessionActive = false; agentAnswered = false; hideAgentUI(); }
   if (gameChanged || wasCoaching !== isCoaching) { paintGames(); paintAccount(); }
 }
 
 window.occlara.onState(applyState);
 window.occlara.onStatus(({ status }) => {
+  // Recording starts on the button alone, in every game: nothing opens over
+  // the card to ask which agent is being played (8.4.4).
   if (status === 'coaching') {
     isCoaching = true; isPaused = false;
-    if (!sessionActive) {
-      sessionActive = true; agentAnswered = false;
-      // A Valorant question: the other games' engines never answer it.
-      if (gameId === 'valorant') showDetecting();
-    }
   } else if (status === 'paused') {
     isCoaching = true; isPaused = true;
   } else if (status === 'stopped' || status === 'idle') {
     isCoaching = false; isPaused = false;
-    sessionActive = false; agentAnswered = false;
-    hideAgentUI();
   }
   render();
   soundCue();

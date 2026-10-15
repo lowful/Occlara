@@ -136,9 +136,10 @@ function engineClass() {
 
 /**
  * THE APP'S READER, ON THE CAPTURE CLOCK. One coaching-engine.js, started as
- * the app starts it, its heartbeat stopped (no read is sent by it) and its
- * agent detection off (a network call, and only the player confirms an agent,
- * so the context carries none, as for a player who never answers the bubble).
+ * the app starts it, its heartbeat stopped (no read is sent by it) and no
+ * agent looked for: since 8.4.4 the look sends a read's own frame of the
+ * player's HUD to detect-agent, a network call, and no frame is given here, so
+ * the context carries no agent, as in a match whose look never locked one.
  * Every call runs with Date.now at the frame's capture time and the engine's
  * log kept apart, synchronously, so two readers in one process never see each
  * other's clock or lines.
@@ -160,7 +161,6 @@ class AppReader {
       const e = new Engine({ licenseKey: 'BENCH', captureFunction: async () => null, experiments: () => ({}),
         diagnostics: (d) => this.records.push({ at: d.at, state: d.state || {}, round: typeof d.round === 'number' ? d.round : null,
           died: !!d.died, match: d.match || null }) });
-      e.armAgentDetection = () => {};
       e.on('match-ended', (snap) => this.ended.push({ at: this.clock, snap }));
       e.on('match-resumed', (r) => this.resumed.push({ at: this.clock, ...r }));
       e.start();
