@@ -1,0 +1,91 @@
+{
+ "note": "Riot record of the swiftplay Sunset match the AI log session session-2026-10-12T03-13-18-396Z recorded (valorant-session-sunset-swiftplay.json), as the app saved it once Riot's record was laid over the watched rounds. Defeat 2 to 5 over 7 rounds, Jett. A death is Riot's second, rounded as reconcile keeps it (deathMs is that second times 1000, good to half a second either way, so wholeSeconds). Rounds, sides, results, death seconds, agents and plants only: no player names, no match id, no kill feed.",
+ "map": "Sunset",
+ "queue": "swiftplay",
+ "rounds": 7,
+ "score": "2-5",
+ "result": "Defeat",
+ "wholeSeconds": true,
+ "me": {
+  "agent": "Jett"
+ },
+ "perRound": [
+  {
+   "n": 1,
+   "won": false,
+   "side": "attacking",
+   "died": true,
+   "deathMs": 26000,
+   "killerAgent": "KAY/O",
+   "planted": true,
+   "plantMs": null,
+   "afterPlant": false
+  },
+  {
+   "n": 2,
+   "won": false,
+   "side": "attacking",
+   "died": true,
+   "deathMs": 27000,
+   "killerAgent": "Jett",
+   "planted": true,
+   "plantMs": null,
+   "afterPlant": true
+  },
+  {
+   "n": 3,
+   "won": false,
+   "side": "attacking",
+   "died": true,
+   "deathMs": 20000,
+   "killerAgent": "Clove",
+   "planted": false,
+   "plantMs": null,
+   "afterPlant": false
+  },
+  {
+   "n": 4,
+   "won": true,
+   "side": "attacking",
+   "died": false,
+   "deathMs": null,
+   "killerAgent": null,
+   "planted": true,
+   "plantMs": null,
+   "afterPlant": false
+  },
+  {
+   "n": 5,
+   "won": true,
+   "side": "defending",
+   "died": false,
+   "deathMs": null,
+   "killerAgent": null,
+   "planted": true,
+   "plantMs": null,
+   "afterPlant": false
+  },
+  {
+   "n": 6,
+   "won": false,
+   "side": "defending",
+   "died": true,
+   "deathMs": 20000,
+   "killerAgent": "KAY/O",
+   "planted": true,
+   "plantMs": null,
+   "afterPlant": false
+  },
+  {
+   "n": 7,
+   "won": false,
+   "side": "defending",
+   "died": true,
+   "deathMs": 12000,
+   "killerAgent": "Neon",
+   "planted": true,
+   "plantMs": null,
+   "afterPlant": false
+  }
+ ]
+}
