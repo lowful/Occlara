@@ -56,6 +56,19 @@
  * switch every read to a dearer model. Set ADMIN_PASSWORD in the environment
  * or in server/.env (the value Railway has). 'live', which is all verify:ai
  * runs, needs nothing.
+ *
+ *   npm run verify:ai -- --variant b               the read prompt's variant b
+ *   npm run verify:ai -- --lag 4 --variant b
+ *   npm run verify:ai -- --variant c               and c, written from b's judging
+ *   npm run verify:ai -- --lag 4 --variant c
+ *
+ * --variant NAME READS WITH A VARIANT OF THE READ PROMPT (8.4.1,
+ * server/services/read-prompt.js), on the live model or any other, and needs
+ * the admin password too: the server serves a variant only beside it, so no
+ * player's read is ever an experiment. The server says which prompt answered,
+ * and a run it did not honour (no password, or a server that has not deployed
+ * the variant yet) stops rather than report the live prompt's numbers under
+ * the variant's name. Without the flag nothing is sent and nothing changes.
  */
 
 const fs = require('fs');
@@ -73,8 +86,11 @@ const LIMIT = Number(flag('frames', 0)) || Infinity;
 const LAG = Math.max(1, Math.floor(Number(flag('lag', 1))) || 1);
 const TRACE = flag('trace', '');
 const MIN_GAP = Math.max(0, Number(flag('min-gap', 0)) || 0);
+// The read prompt's variant to read with ('b', 'c'), or none: the live prompt.
+// Any name is sent; the server serves only one it has, and says which.
+const VARIANT = String(flag('variant', '') || '').trim().toLowerCase();
 // A flag's value is never a model, though a trace path has slashes in it.
-const VALUED = new Set(['session', 'frames', 'lag', 'parallel', 'trace', 'min-gap']);
+const VALUED = new Set(['session', 'frames', 'lag', 'parallel', 'trace', 'min-gap', 'variant']);
 const valueAt = new Set(args.map((a, i) => (a.startsWith('--') && VALUED.has(a.slice(2)) ? i + 1 : -1)).filter((i) => i >= 0));
 // 'live' is whatever the server runs with no override, which is what a player
 // gets: npm run verify:ai measures that and fails below the gate.
@@ -98,11 +114,17 @@ function adminPassword() {
   return process.env.ADMIN_PASSWORD || '';
 }
 const BENCHING = MODELS.some((m) => m !== 'live');
-const ADMIN = BENCHING ? adminPassword() : '';
+const ADMIN = BENCHING || VARIANT ? adminPassword() : '';
 if (BENCHING && !ADMIN) {
   console.log('A bench model needs the admin password: the server ignores benchModel without it, and every '
     + 'frame would quietly run on the live model under the name you asked for.\n'
     + 'Set ADMIN_PASSWORD in the environment or in server/.env (the same value Railway has), or bench "live" only.');
+  process.exit(1);
+}
+if (VARIANT && !ADMIN) {
+  console.log(`The read prompt's variant ${VARIANT} needs the admin password: the server serves the live prompt `
+    + 'without it, and every frame would quietly be read with that under the variant\'s name.\n'
+    + 'Set ADMIN_PASSWORD in the environment or in server/.env (the same value Railway has).');
   process.exit(1);
 }
 
@@ -134,8 +156,8 @@ async function read(model, image, context) {
   const resp = await fetch(`${SERVER}/api/coach/read`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-license-key': cfg.licenseKey,
-      ...(bench ? { 'x-admin-password': ADMIN } : {}) },
-    body: JSON.stringify({ image, context, benchModel: bench ? model : undefined }),
+      ...(bench || VARIANT ? { 'x-admin-password': ADMIN } : {}) },
+    body: JSON.stringify({ image, context, benchModel: bench ? model : undefined, variant: VARIANT || undefined }),
   });
   const ms = Date.now() - t0;
   if (!resp.ok) return { err: `${resp.status} ${(await resp.text()).slice(0, 80)}`, ms };
@@ -143,7 +165,9 @@ async function read(model, image, context) {
   // The server names the model that answered a bench request. Anything else
   // means benchModel was not honoured, and the numbers would belong to the
   // live model, so the run stops rather than reporting them under this name.
-  return { ...j, ms, serverMs: j.ms, ignored: bench && j.model !== model };
+  // The same for a variant of the prompt: the server names the one it read with.
+  return { ...j, ms, serverMs: j.ms, ignored: bench && j.model !== model,
+    ignoredVariant: !!VARIANT && j.variant !== VARIANT };
 }
 
 async function run(model) {
@@ -177,6 +201,13 @@ async function run(model) {
     if (j.ignored) {
       r.errs = frames.length;
       r.firstErr = `the server ran ${j.model || 'the live model'}, not ${model}: check ADMIN_PASSWORD`;
+      console.log(`  ${model}: ${r.firstErr}`);
+      break;
+    }
+    if (j.ignoredVariant) {
+      r.errs = frames.length;
+      r.firstErr = `the server read with ${j.variant ? `variant ${j.variant}` : 'the live prompt'}, not variant ${VARIANT}: `
+        + 'check ADMIN_PASSWORD, or the server has not deployed it yet';
       console.log(`  ${model}: ${r.firstErr}`);
       break;
     }
@@ -214,7 +245,7 @@ async function run(model) {
   }
   r.deaths = d;
   r.finalRead = finalRead;
-  trace({ model, summary: true, lag: LAG, n: r.n, errs: r.errs, firstErr: r.firstErr, lobby: r.lobby, parsed: r.parsed,
+  trace({ model, summary: true, lag: LAG, ...(VARIANT ? { variant: VARIANT } : {}), n: r.n, errs: r.errs, firstErr: r.firstErr, lobby: r.lobby, parsed: r.parsed,
     labels: r.labels, labelsOk: r.labelsOk, hp: r.hp, finalRead, deaths: d,
     rounds: ledger.list(finalRead ? 24 : null).map((x) => ({ n: x.n, died: !!x.died, side: x.side, spot: x.deathSpot || null })) });
   return r;
@@ -225,6 +256,7 @@ const q = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s.le
 
 (async () => {
   console.log(`${frames.length} frames from ${SESSION}; Riot has ${riot.perRound.filter((x) => x.died).length} deaths in ${riot.rounds} rounds\n`);
+  if (VARIANT) console.log(`read with the read prompt's variant ${VARIANT}, not the live prompt\n`);
   // TWO MODELS AT A TIME. The read limiter is per licence, and nine models at
   // once spent it in seconds: the first sweep came back 90% "slow down".
   const CONC = Number(flag('parallel', 2));
@@ -253,6 +285,7 @@ const q = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s.le
   console.log('\ndeaths is the number that matters: agreed with Riot / invented / missed, out of Riot\'s real deaths.');
   console.log('gap is the read cadence auto holds at that p90, with up to four requests in flight.');
   if (LAG > 1) console.log(`each frame was sent with the context of ${LAG} reads earlier (--lag ${LAG}).`);
+  if (VARIANT) console.log(`every frame was read with the read prompt's variant ${VARIANT} (--variant ${VARIANT}).`);
 
   // THE GATE, for npm run verify:ai. Every model or prompt change runs this
   // before it ships: the read must parse, must not invent deaths Riot does

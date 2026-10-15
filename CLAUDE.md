@@ -99,7 +99,7 @@ it. But every guard, the ledger and the match-end watch reckon on when a frame
 was CAPTURED (`applyRead`'s `at`), never when its reply was applied: on
 application time the same session read differently from run to run, the
 Sunset post plant filed under round 6 and the Abyss swiftplay's round 1 death
-lost at a read p90 of 2.7 seconds (`test:sessionreplay` replays four sessions
+lost at a read p90 of 2.7 seconds (`test:sessionreplay` replays five sessions
 with latency drawn, `test:cadence` holds the ledger to capture time).
 
 **The cadence is measured, not chosen.** `captureSpeed` is `auto` or a pinned
@@ -204,10 +204,11 @@ on a round's banner while dead, outside match point, can leave that round
 without a result. The capture log's line every 60 frames ends with what the
 phase held back ("347 reads skipped by phase (idle 203, menus 144)").
 `npm run test:readpolicy` holds every rule at its boundary, the edge cases on
-the 200 ms heartbeat, and the four real sessions through the real engine at
+the 200 ms heartbeat, and the real sessions through the real engine at
 the cadence's own capture times (the fixtures' `thinned` counts put back the
 LOBBY replies the log never writes), the latency drawn per frame; each rule
-reverted fails it.
+reverted fails it. The Fracture swiftplay joined them in 8.4.1: 28.9% fewer
+reads, with only the menu path's end moved.
 
 **The score lags the round in both directions**, measured on a real 24 round
 match in `scripts/fixtures/`: a buy phase starts while the score still reads the
@@ -252,6 +253,32 @@ inference: on a real competitive match it read the side flipped twice in two
 seconds, locked swiftplay, and the wrong lock went back to the model as context,
 so rounds 5 to 9 all read as defence. It is now a fallback (buy phase reads
 only, four in a row), and a buy phase with a team on 5 proves standard.
+And round 5's money and timer count only from a buy read whose own clock puts
+its buy phase's start after the ledger's last play frame, to within 2 s (8.4.1,
+`beganAfterPlay`, buyVerdict's start, `PLAY_SLACK_MS`), because the round end
+countdown reads like a buy timer: on the player's Fracture swiftplay the TAB
+scoreboard was open over round 4's, "buy 0:01" and "buy 0:00" with round 4's
+4,550 credits, after the banner's 4 to 0 had moved the ledger to round 5. Those
+two locked standard, nothing could take it back, rounds 5 and 6 went to
+defence by the halftime math, 4 to 1 was no match point, so round 6's dead
+phase was read every 3 s and the final 5 to 1 fell between two reads, and the
+review waited for Stop. A timer at 0:01 began 29 s before it was read, inside
+round 4; the real buy phase's 0:43 and 0:42 lock swiftplay, and the four other
+sessions lock on the same read as before (`test:sessionreplay`, on
+`valorant-session-fracture-swiftplay.json`). A buy read with no clock of its
+own counts for nothing. The 2 s are the whole second the clock shows and the
+countdown's own 0:00: its frames carry the "postplant" of a read on it, so on
+the player's Sunset swiftplay its 0:00 was the last frame of play, a tenth
+before the start round 5's 0:43 gave. Taken exactly, as buyVerdict takes it,
+that 0:43 read 0.1 s earlier counted for nothing, and with every frame moved
+up to 0.3 s the pistol timer locked swiftplay in 16 of 30 runs, the side swap
+in the rest; in a standard match the side swap is then free of the economy
+that holds it back. With the 2 s it is 30 of 30, and the countdown, begun by
+its clock half a minute before the buy phase, stays refused. Known exposure:
+the last play frame is the last one the player was alive in, so a player dead
+through the end of round 4 leaves it early (50 s before round 5's buy phase on
+the Abyss swiftplay, 17 s on the Split), and a countdown read as a buy timer
+there would still count.
 
 **A match ends** on a score no mode can continue from, confirmed by the game
 stopping: a menu frame (the end of match screen reads as one), or twenty seconds
@@ -271,7 +298,7 @@ session ended a competitive match at 3 to 5 in round 9, ignored the rest as the
 end screen, and stopping at 12 to 7 reviewed nothing. A new match the watch
 never saw the last one end (a remake, an unrated 13-12 with no menus read)
 closes the last one into the library, never opened over the new one.
-`npm run test:sessionreplay` replays that session and two others through the
+`npm run test:sessionreplay` replays that session and four others through the
 real engine, deaths checked against Riot's record. A match ended early that
 never resumed, that 8.0.1 review among them, is Riot's record's to put right
 ("Ended early by the watch", under "Matches graded from Riot's record").
@@ -282,9 +309,9 @@ says so, a spawn is never a death spot, and every insight and pattern must clear
 its stated floor. The review is SAVED the moment the match ends, before the
 narrative call (`match-ended`), because a quit or a Stop then Start in that
 minute lost it or pointed its death frames at the next session's empty log. The
-review page opens at once and repaints when Riot publishes the scoreboard, 90 seconds
-to four minutes later, and every version is saved to the same review id, except
-the corrected numbers shown while the summary is rewritten. It never opens over
+review page opens at once, on its loading screen while the review is built
+(below), and every version is saved to the same review id as it lands, except
+the corrected numbers held while the summary is rewritten. It never opens over
 a match in progress: one already under way, or the one recording was stopped in
 the middle of, which is saved to Matches with a notice. Each review keeps its
 own Riot retries, and stopping recording does not cancel them: each try is
@@ -293,14 +320,60 @@ match. The link checks the newest match and the four before it, and refuses a
 deathmatch, a match with fewer rounds than the coach watched, and a match
 already linked to another review.
 
+**A review still being built is a loading screen, not a half review** (8.4.1,
+the player's ask: "if the match review is not complete, loading and verifying
+from Riot, have it as a loading screen until everything is complete"). The page
+used to paint the screen's review at the end and repaint it three times as the
+rest landed. Now each job says what is left of its work (`src/shared/review-work.js
+workOf`, from flags the steps set: `byRiot` and `narrated` as the narrative
+comes back, `tracker`, `riotBusy` and `stage` while Riot's record is laid over,
+`screenLooked`, `finished`), it goes with the review (`present()`) and every
+library row, and it is pushed on every change (`PUSH_REVIEW_WORK`), at each
+step and by a second's tick while any review waits. The page shows the steps in
+the Recording screen's shape: with Riot's record, the match saved, waiting for
+Riot's record (usually 1 to 4 minutes, with the time since the end and how long
+it waits), checking the deaths, the coach's look, the review written; from the
+screen alone, saved, written, the look. NOTHING ON IT MOVES FOR LONG, nor on
+the pill below: with its mark turning and its dot breathing the page was
+composited every frame, and the look's stills, decoded from the clip on the GPU
+while it waits, timed out in check:clips in three runs of three (0.7 s with it
+still), so it rises in once and its ticking clock says the work goes on. It
+holds every version meanwhile and paints the last one whole once the work is
+null: Riot's look landed and the read rewritten, the link given up, or from the
+screen alone the narrative and the screen's look done. IT NEVER WAITS FOREVER: Riot's record not in six minutes after the end,
+the screen's review is painted with the note it carries already (the scoreboard
+fills in once the match is published) and repaints when the record lands;
+nothing is a loading screen past twelve; and a job once painted whole is done
+for good (`released`), so a record landing late never turns it back. Never for
+a part of a match (a stop mid match, the next match begun over it), a review
+saved before, or League, whose reviews are whole at the end. Home's last match
+and its recent row, and its row in Matches, show `GradeView.checking` where the
+grade, result and score would be (the Matches header counts no result for it),
+and repaint on the push. `test:surfaces` holds `workOf` and the three pages,
+and main's own tick and latch (`workOfJob`, `noteWork`, `watchWork`) in a
+sandbox on a fake clock: Riot's record not in, the page told at six minutes
+with nothing else happening, and Riot's rounds landing at seven never a loading
+screen again. `test:homemodel` holds the rows, `check:mainwindow` the loading
+screen through the real index.js with a stand-in reader, and Home and Matches
+beside it.
+
 **Variant C won the review bench** (`npm run bench:review`, live, spends money)
 by making fewer unsupported claims than B; the numbers are in `match-review.js`.
 The model's reply is RAW text from `textInfer(..., { json: true })`, sanitized
 per field after parsing, because `sanitize()` collapses newlines and the first
 bench got every labelled line back as one. Spelled round numbers are turned into
 digits in code (`roundDigits`), because the prompt asking was ignored about half
-the time. The review is written in the player's language (`languageRule`); the
-labels stay English because `parse()` reads them.
+the time, and the ledger's own labels are written out (8.4.1, `roundLabels`):
+the prompt names each round R1, R2, and the player's Fracture swiftplay summary
+said "survived R1, R3 and R4", so a run of them is "rounds 1, 3 and 4" in the
+summary, the focus and the round lines, before any gate reads a sentence's
+rounds. In an English review only: the words are English, and written out in
+a Spanish one "R1, R3 y R4" read "rounds 1, 3 y round 4", so a review in the
+player's own language keeps the label. It runs on the server as the reply is
+parsed, so a review saved before keeps the labels it was written with, the
+Fracture swiftplay's "survived R1, R3 and R4" among them: a saved review does
+not say which language it is in. The review is written in the player's
+language (`languageRule`); the labels stay English because `parse()` reads them.
 
 `npm run test:valorantreview` replays both real fixtures through all of it.
 
@@ -319,8 +392,18 @@ fetches `/api/coach/match-rounds` (parsed in `server/services/riot-rounds.js`)
 and `valorant-verify.js` reconciles: deaths, the second, the killer and weapon,
 first death, first kill, kills and round results are Riot's; the screen keeps
 only the location, the ult icon and what the coach noted. Reads Riot contradicts
-are dropped. Since 8.3.1 the plant's site is Riot's too (`plantSite`, A, B or
-C), the screen's callout kept only where it names that site: the player's
+are dropped. A weapon is Riot's name for it, never its type (8.4.1,
+`riot-rounds.js weaponOf`, in the round record and the AI log's death check):
+HenrikDev gives a kill it cannot name (an ability, most likely Chamber's
+Headhunter there) a type of "Weapon" or "Ability", and the player's Fracture
+round 6 read "to Chamber with a Weapon" on the card, the strip and both
+prompts. With no name
+the line is "to Chamber". The client reads a type word as no weapon too
+(`valorant-verify.js weaponName`, the list held equal to the server's), since
+a server from before still sends one, and a review saved with one is shown
+without it (`served()`), never rewritten. Since 8.3.1 the plant's site is
+Riot's too (`plantSite`, A, B or C), the screen's callout kept only where it
+names that site: the player's
 Sunset round 5 read "planted at B Boba", round 4's plant filed a round ahead,
 where Riot has A. And a death is Riot's only at Riot's moment: given the
 match's AI log frames, one the screen registered more than five seconds
@@ -330,10 +413,11 @@ Riot's, and the line says it in numbers alone ("one in round 6 the screen read
 59 s before Riot's"). One registered after Riot's is never counted so: that
 is the spectator trap, the same death read late, up to 50 s on the Abyss
 session read every nine seconds.
-The corrected review repaints at once with the summary marked as
-updating, the coach looks at the teachable deaths, then the model writes the
-summary again from all of it, including Riot's scoreboard line, because a 31/21
-match MVP reviewed from its deaths alone reads as a struggling player.
+The corrected review goes to the page at once with the summary marked as
+updating (held behind the loading screen while that is up, above), the coach
+looks at the teachable deaths, then the model writes the summary again from all
+of it, including Riot's scoreboard line, because a 31/21 match MVP reviewed from
+its deaths alone reads as a struggling player.
 
 **The kill feed gives teamwork** (`teamworkOf`): whether a death was traded (a
 teammate killed the killer within five seconds, generous on purpose), trades the
@@ -364,9 +448,15 @@ over a match lost on untraded deaths. So:
   the combat report, a vote, a banner or the spectator camera (`notPlay`; the
   server mirrors it in `match-review.js` and drops those from an older
   client's reads, `test:valorantreview` holding the two equal), never one
-  naming a person (`namesSomeone`), and never one naming a place this map does
+  naming a person (`namesSomeone`), never one naming a place this map does
   not have (`valorant-review.js foreignPlace`: the Haven lock put "A Long" in
-  round 2's reads on Sunset).
+  round 2's reads on Sunset), and never one naming another agent's ability
+  (8.4.1, `foreignKit`, by the agent the player confirmed or Riot's): round 2
+  of the player's Fracture swiftplay, on Jett, sent "holding A Main with
+  alarmbot deployed" to the model as what the player was doing. Whole words,
+  so "behind cover" is never Harbor's Cove (the engine's `foreignAgentInTell`
+  matches inside words, and would have dropped two of that match's notes),
+  and allowed with its owner named, the look's own rule.
 - **The model is told what was counted.** `requestBody` sends the counted
   mistakes and strengths, the summary's repeated mistake is the first of them
   with its count, the line format is unchanged, and a line is asked for only
@@ -375,8 +465,19 @@ over a match lost on untraded deaths. So:
   line, a summary sentence or a focus sentence that blames the buy phase, the
   spawn or a menu (`BUY_BLAME`), a summary sentence calling something a
   repeated mistake whose rounds are no counted mistake's, and any "N of M" but
-  a counted mistake's own. A round line is ONE lesson: what to do differently,
-  with the one fact that makes it the lesson, because the card shows the facts
+  a counted mistake's own. With nothing counted, only a sentence saying a
+  mistake came back goes (8.4.1, `REPEAT_WORDS`: repeated, again, kept, every,
+  most rounds, twice, and how often, "your most common mistake", often,
+  usually, always, or two rounds named): every sentence saying "mistake"
+  went, and the player's Fracture swiftplay, won 5 to 1, lost the summary's
+  middle sentence, "Your one costly mistake came in round 5, dying after the
+  plant with your team up 4 against 3.", the round the match was lost in.
+  Known exposure, the safe way: those words inside the one round ("where you
+  kept holding the angle", "peeked the same angle again") and a number after
+  its round ("round 5, 33 seconds in", which `namedRounds` reads as two) still
+  drop a one round sentence, and the summary is two sentences again. A
+  round line is ONE lesson: what to do differently, with the one fact that
+  makes it the lesson, because the card shows the facts
   beside it. Live on the first 8.3.1 server the review model (Railway's
   qwen3.7-flash) restated every fact line, wrote "No one traded the death" for
   a round Riot has traded, and opened with "Riot lost 2 to 5"; so code drops a
@@ -657,12 +758,54 @@ carry sat: clicked, that was the row's click too.
   sessions and the review keeps the frames the coach looked at. Frame chat and
   Riot's death check read the same match, and a frame's conversation is keyed
   by its file, since its place differs between the match and the session.
-- `npm run test:ailog` holds the strict read, `locate` and `scopeFor`, and
-  main's own keep rules run in a sandbox (a round change's frames kept, and
-  lost to the cap before a death's, after a held match's other frames);
-  `test:surfaces` the row, the header and the log's scoped mode;
-  `check:matches` clicks row eyes through to the real window, for a review
-  that kept its place and one found by its end, and finds the header's.
+- **Its deaths are the engine's** (8.4.1, `ai-log-timeline.js engineDeaths`),
+  so the death it opens on is one the engine kept. Every record since 8.0
+  carries `died`, true on the frame the engine registered a death on, and a
+  death on trial is written with its verdict, false once withdrawn; the log
+  takes those, one a round, the first, as the ledger does, in the round the
+  record is filed under (`death-reconcile.js filedRounds`: the ledger's, or
+  for a frame read after the watch ended a match, the round its score says,
+  where that ledger files it on a resume). A death on the banner that already
+  printed the next score, registered on a round's first frames before any buy
+  or play, is the round before's when that round has none, as the ledger
+  files it, though its record carries the new round (`death-frames.js
+  borrowedInto`, the review's frame picker's own rule): on the real 24 round
+  Abyss match rounds 6 and 24 died so, and taken at their records' rounds the
+  log listed 21 deaths where the ledger has 22, round 7's own refused as a
+  second and a round 25 the match never had. It used to find its own in runs of
+  frames, and on the player's Fracture swiftplay listed 6 where the engine
+  registered 5, its ledger kept 4 and Riot has 3: every real death a frame
+  or two late ("no own health number" read as the player's own HUD), one
+  SWITCH PLAYER frame the engine never registered and round 6 twice; any of
+  those first in a match was where its eye opened. The runs are kept for a
+  log from before 8.0, which carries no verdict, and refuse a negation of the
+  HUD now ("no own HP", "own HP not visible"), and a dead flag on the
+  SPECTATORS counter alone is no evidence, as the engine drops that read.
+- **Riot's death check is the review's own check, in its own words**
+  (`death-reconcile.js`): the engine's deaths, of one match, are checked round
+  by round against Riot's over the rounds the log was filed under, and said by
+  `valorant-verify.js describe`, so the log's line is the review's: "Checked
+  against Riot's record of the match: the screen read 4 deaths and Riot has 3,
+  with none in round 1." It said "Riot recorded 3 deaths, the coach marked 6,
+  so 3 is not real." Each death Riot has carries Riot's killer and weapon (the
+  killer's agent, never their Riot ID, and the weapon's name, never its type),
+  one in a round Riot has none in is dimmed and says so, and a log from before
+  8.0, or a session of several matches, is checked by its counts in the same
+  words with no round named. Never timed: the review's
+  "read 59 s before Riot's" needs Riot's plant (`deathMoment`), and the deaths
+  the log's check is sent (`/api/coach/match-deaths`) carry none, so on such a
+  match the log pairs the death the review calls early.
+- `npm run test:ailog` holds the strict read, `locate` and `scopeFor`, the
+  match's first death the engine's, and main's own keep rules run in a sandbox
+  (a round change's frames kept, and lost to the cap before a death's, after a
+  held match's other frames); `test:ailog-timeline` the engine's deaths, equal
+  to the ledger's round for round on the five committed sessions through the
+  real engine, a banner death driven through it and the real Abyss match, whose
+  check says what its review says, and the negation; `test:deathreconcile` the
+  check round by round and its sentence equal to the review's; `test:surfaces`
+  the row, the header, the log's scoped mode and a check's marks;
+  `check:matches` clicks row eyes through to the real window, for a review that
+  kept its place and one found by its end, and finds the header's.
 
 ### The grade, and the lists under it
 
@@ -688,7 +831,15 @@ Decisions.
 
 `src/shared/insights.js` makes the three lists from the same facts, each entry
 with a floor, a stable `key` (the library counts by it, so renaming one orphans
-every saved review that used it) and, for mistakes, a one line `fix`.
+every saved review that used it) and, for mistakes, a one line `fix`. A
+cause's title is in the singular for one and the plural for two or more
+(8.4.1, `death-causes.js causeTitle`): one look's miss read "Repeeks" beside
+its round's "Repeek" chip, and a count across matches is always the plural
+(`repeatTitle`). The trades line says its count first, "Twice you killed an
+enemy right after they killed a teammate.", where 8.4.0's "You killed the
+player who had just killed a teammate twice." read as the enemy killing
+twice. A review saved before is shown in today's words, its facts and the
+patterns included (`inTodaysWords`, `factsView`), never rewritten on disk.
 `patterns.js` counts those keys across the last ten recorded reviews of a game
 (one graded from Riot's record alone has a grade and no list to count, below);
 **a pattern needs two matches**, and its trend compares the newer half of the
@@ -930,7 +1081,7 @@ never written, and every number carries its sample:
 ```
 src/main/services/recorder.js        pages, holds, the sweep, the disk guard, health, the fallback, the counts
 src/main/windows/recorder-window.js  a window nobody sees, the primary display's source, the CPU sample
-src/renderer/recorder/               the page: the gate, MediaRecorder, the read's frame, health each second
+src/renderer/recorder/               the page: the gate, MediaRecorder fed 30 frames a second (grid.js), the read's frame, health each second
 src/main/services/capture.js         the read's frame: from the stream while it serves one, else the GDI helper
 src/shared/webm.js                   the chunks read as they come, whole Clusters out, clips cut by them
 src/shared/clips.js                  a clip's name, its seconds, when a look's death was, the cap's choices
@@ -967,7 +1118,8 @@ PC coped, never what was on it.
   'off', `recordingRes` '720' or '1080'. Judged only while a match is in
   progress, the recorder gives up for the session ('busy') when for 20 s
   straight the capture delivers under 12 frames a second while the picture
-  changes (or stops delivering), a chunk is over 4 s late, the page's process
+  changes (or stops delivering; what the capture delivers, never the 30 a
+  second recorded of it), a chunk is over 4 s late, the page's process
   is over 60% of ONE core, or the PC is over 95% (`HEALTH`, first guesses to be
   tuned from the counts below). The reads go back to the GDI helper at the same
   cadence, one notice says so, and two busy sessions within 7 days turn Auto
@@ -991,9 +1143,48 @@ PC coped, never what was on it.
   then took a whole core in software). MediaRecorder, Matroska first, 3 Mbps at
   720p and 6 at 1080p (more for a recording bigger than its box, in proportion
   to its pixels, twice the box's at most: `bitrateFor`), a keyframe and a chunk
-  every second, asked for 60 fps because asked for 30 with the whole screen
-  moving it delivered 21. The level is by macroblocks (`codecFor`): 3.1 up to
-  3600 (1280x720), 4.0 past it.
+  every second. The capture is asked for 60 fps, because asked for 30 with the
+  whole screen moving it delivered 21, and the recording is handed 30 of them
+  (8.4.2, `src/renderer/recorder/grid.js`, `RECORD_FPS`): Chromium sets
+  MediaRecorder's encoder for 30 frames a second whatever it is handed, so
+  every frame got a thirtieth of a second's bits however many came. On the
+  player's Fracture swiftplay at 1080p the capture delivered 57 a second, the
+  pages ran 74 to 91 MB a minute where 6 Mbps is 43, a constant 24 KB a
+  frame, then 45 to 47 MB at 32 a second, and the clips came out at 56.5,
+  55.6 and 32 frames a second: the disk guard, the hold, the clip cap and
+  what Settings implies are all sized on the bitrate asked. So MediaRecorder
+  records a track generator, and a processor on the capture track hands the
+  page every frame: the grid keeps 30 a second by each frame's own timestamp
+  (thirty slots a second open on the capture's clock, a frame takes the
+  oldest open, one opening within a quarter of a slot included, and a still
+  screen leaves at most two open; the page's clock counts only what the
+  timestamps do not, each stretch of time once, since counted on both a
+  capture at 60 whose every other timestamp repeated recorded 45 a second),
+  writes them to the generator, and closes every other frame at once. A
+  frame the generator cannot take now is closed too, never queued, its slot
+  left open for the next. A frame written is the
+  capture's own, passed on, never copied, and keeps the bits it had, which is
+  what the look's stills need, each a single decoded frame. The first frame
+  of each slot of a fixed grid was simulated first: a capture at an even 30
+  whose frames sat on the slots' edges recorded 22 to 27 a second, two frames
+  in one slot and none in the next. Measured on this PC's real screen, a full
+  screen pattern at 240 Hz through the real page at 1080p: before, 56.7
+  delivered, 52.1 a second recorded, 10.45 Mbps (74.7 MB a minute) against
+  the 6 asked, 24.5 KB a frame; after, 55.9 delivered, 29.9 recorded, 6.05
+  Mbps (43.3 MB a minute), 24.7 KB a frame. On the busy generated picture at
+  60 a second, 6.09 Mbps against 3 at 720p and 12.58 against 6 at 1080p
+  before, 3.52 and 6.37 after (the encoder runs a little over the asked on
+  a picture that busy), and the page and the GPU process, measured back to
+  back on a quiet PC, fell with the frames encoded: the page from 17 to 11%
+  of a core at 720p and from 54 to 20 at 1080p, the GPU process from 19 to 11
+  and from 41 to 18; at 30 a second delivered nothing changed (7.7 and 7.6,
+  17.5 and 17.7), so the grid itself costs nothing measured. On the real
+  screen the page went from 7.3 to 3.8% of a core and the GPU process from
+  18.9 to 8.5, the PC busier during the run before (50% against 20). No frame
+  was held open but the read's newest, in any run. The read's clone and its
+  processor are as they were.
+  The level is by macroblocks (`codecFor`): 3.1 up to 3600 (1280x720), 4.0
+  past it.
 - **Never cropped, and never fewer rows than the read.** The display's own
   shape (`fitSize`): asked a box of another shape, this Chromium hands back
   exactly the box (a 1280x600 ask on a 1920x1080 display came back 1280x600).
@@ -1022,8 +1213,13 @@ PC coped, never what was on it.
   (no frame for 2 s, a page that did not answer) is taken by the helper; three
   unanswered in a row, or a page whose renderer went away, and it is broken
   ('error'). The page reports each second how many VideoFrames it holds open
-  (`framesOpen`, the newest and for a moment a clone): a frame never closed is
-  a capture buffer never given back, and a screen capture has only a few.
+  (`framesOpen`, the newest, for a moment a clone, and a frame the grid is
+  handing on), and at its stop how many are left once it has torn its tracks
+  down, and how many of those tracks are still live (`tracksLive`: the
+  capture, its clone, the generator), none of either: a frame never closed is
+  a capture buffer never given back, and a screen capture has only a few. Each second it says what the
+  capture delivered (`fps`, the busy rule's) and what was recorded
+  (`recordedFps`, Settings' and the counts').
   A recording is of the display that was primary when it opened, Chromium's
   source being tied to that monitor, while GDI reads whichever is primary at
   each frame: when screen's events say another display is primary now (the
@@ -1055,8 +1251,29 @@ PC coped, never what was on it.
   moment's own estimate: a recording that stopped 2 s before the death still
   overlapped its window, and gave the 10 s before its end as the death's clip.
   The page's wall clock maps onto the recording's timeline from the newest
-  frame each chunk carries, within a few ms on the fixture. A Valorant match in
-  progress is kept from its start once a read has landed, menus or not (one
+  frame each chunk carries, within a few ms on the fixture. Since 8.4.2 the
+  page also says the moment it handed over its first frame (`firstWall`), and
+  as MediaRecorder stamps a generator's frame when it is written, that moment
+  is the recording's 0, taken wherever it lies between the start and the
+  latest its first twenty chunks allow (`Segment.zero`, `hiFirst`): the chunks
+  alone put it 15 to 42 ms late on the generated picture and 29 on the real
+  screen, an encoder's latency. The stop's line says both, and how many frames
+  were handed over against how many the recording holds: in every run
+  measured all of them, the first included, or all but the one written as it
+  stopped. AND THE TWO CLOCKS PART (8.4.2): the recording's timeline is the
+  page's monotonic clock, the one MediaRecorder stamps by, and the moments a
+  clip is cut for are the wall clock's, which Windows moves against it as it
+  keeps the time. On this PC, synced with time.windows.com every 34 minutes,
+  the wall clock gained 40 to 75 ppm, in steps of about 5 ms, and one offset
+  taken at the 0 (8.4.1's chunks did no better) put frames three to five
+  minutes into a recording 8 to 15 ms out, so a death forty minutes in 0.1 to
+  0.2 s, measured through the real page recording a generated picture that
+  carries the wall clock it was drawn at. So each second's report carries
+  both clocks (`at`, `mono`), a reading is kept every five seconds
+  (`clockAt`), and a clip is cut with the page's first frame moved on by how
+  far the two had parted by its moment (`zeroAt`): 98% of the frames of those
+  five minutes within 3 ms, the first hundred seconds as the last. A Valorant
+  match in progress is kept from its start once a read has landed, menus or not (one
   menu read mid round must not cost it its pages), ninety minutes back at most
   (`valorantKeepSince`): before, a session whose reads failed from Start kept
   every page, about 1.3 GB an hour, with no ledger to clip. Nothing recorded
@@ -1088,7 +1305,12 @@ PC coped, never what was on it.
   Valorant review's look lands (the screen's, `screenLook`, or Riot's, in
   `withRiot`), each looked at death is cut out of the recording while the
   match's hold still keeps it, from 11 s before the death to 4 s after
-  (`clips.js windowOf`), six a review at most, and kept beside the review as
+  (`clips.js windowOf`), but from no earlier than a second before its round's
+  barriers dropped where the look knows them (8.4.1, the look's `drop`,
+  `lookWindow`), and never after the first still the look takes from it: the
+  player's Fracture round 6 died 3 s in, and its clip spent its first 8 of
+  15 s in the buy phase (on the real Split match rounds 6, 15 and 17 are cut
+  so). Six a review at most, and kept beside the review as
   `r<n>-clip.mkv` (`review-store.js saveClip`, written by path, never through
   the review's JSON as frames are), its name on the card (`forensics.clip`).
   Then the hold is let go with the AI log's (`releaseMatchHolds`). Since 8.3.1
@@ -1168,8 +1390,9 @@ PC coped, never what was on it.
   read, League's while its own record is, never saying its screen is read),
   and one status line: "Recording now at 720p, about 30 fps" (`liveView`: the
   track's own height when it gives one, so a 1280x1024 display at 1080p says
-  1024p, else the setting; the median of the last ten seconds whose picture
-  changed, to the nearest five), or why it
+  1024p, else the setting; the frames recorded a second, the median of the
+  last ten seconds whose picture changed, to the nearest five: since 8.4.2
+  30 where it said the 57 the capture delivered), or why it
   is not, this session's reason before the last session's: no hardware video
   encoder, the PC busy (two sessions in a week turned it off, with Try again,
   which sets it back On), not enough disk, Windowed Fullscreen needed, an
@@ -1222,9 +1445,9 @@ PC coped, never what was on it.
 - **Counts for the developer**: one block a session to
   `POST /api/coach/session-report` (`reportBlock`): version, the game
   (valorant or lol), mode, res, the outcome from a closed list (recorded, off,
-  no-hw-encoder, busy, disk, black, error), minutes recorded, fps p50 (in a
-  match, picture changing), the recorder's CPU p50 and the PC's p90, whether
-  the gate passed. Nothing else; `server/services/telemetry.js` keeps only
+  no-hw-encoder, busy, disk, black, error), minutes recorded, fps p50 (the
+  frames recorded, in a match, picture changing), the recorder's CPU p50 and
+  the PC's p90, whether the gate passed. Nothing else; `server/services/telemetry.js` keeps only
   those words or 'other' (a block from before the game counts its game as
   'other'), clamps every number, splits the summary by game, and counts the
   tip era's reports as before. A session ends with its block however it ends,
@@ -1238,25 +1461,71 @@ PC coped, never what was on it.
   and the next launch sent it again, the session counted twice. The next
   launch sends what one left, once (`sendPendingReport`, at launch with the
   key kept, or in `launchMainApp` once one is activated).
+- **debug.log says what the recording did** (8.4.1, `recorder.js logStatus`).
+  Once a minute, beside the frames the capture delivered and the frames
+  recorded (8.4.2, "fps p50 55.1 delivered and 30 recorded"), the track's own
+  settings as the page reads them each second (`getSettings()`, its size and
+  frame rate), and the frames and MB written since the last line against the
+  bitrate asked ("1770 frames and 42.7 MB written in the last 61 s (29 a
+  second, 5.9 Mbps against the 6 Mbps asked, 25 KB a frame)", the real
+  screen after; before, "3034 frames and 71.7 MB ... (50.2 a second, 9.9
+  Mbps ...)"); the start line adds the track's frame rate, that it is
+  recorded at up to 30, and the bitrate MediaRecorder took, and the stop's
+  line the chunks and frames handed over against those that came, the frames
+  left open and the tracks still live, and the chunks' 0 against the page's
+  (`stoppedText`). On the
+  player's Fracture swiftplay the recording fell from 57 to 32 frames a
+  second for its last two minutes with no line saying why, and at 57 its
+  pages ran about twice the 6 Mbps asked, a constant 24 KB a frame. Counts in
+  a log line only, no rule reads them and nothing leaves the PC.
 - **The dev switches work unpackaged only**: `OCCLARA_FAKE_CAPTURE=1` records
   frames the page draws (written to a track generator: a canvas's own
   captureStream stalled in a second recorder page with the main window open)
   and makes every GDI frame flat grey, so no check touches the screen; `=black`
-  draws black. `OCCLARA_DEV_RECORDER_MIN_FPS`, `_BUSY_MS` and `_PAGE_MS` force
-  the busy rule and shorten pages.
+  draws black, and `=busy` four hundred blocks that move every frame, which
+  the encoder spends its whole budget on (the flat picture asks it for less,
+  so twice the bitrate never showed on it). `OCCLARA_DEV_FAKE_FPS` draws it
+  that many times a second (30 unless set). `OCCLARA_DEV_RECORDER_MIN_FPS`,
+  `_BUSY_MS` and `_PAGE_MS` force the busy rule and shorten pages.
 
 `npm run test:recorder` holds every rule above on a fake clock and fake files
 with the real fixture, the Valorant rules on the real reader replaying the
-real Split match, the page's account through the real rules, and ten minutes
-of 3 Mbps Clusters held to under 30 MB of memory; `npm run check:recorder`
-boots the app and runs the real page on generated frames: paged, served, the
-gate (H.264 yes, VP9 no on this PC), no frame held open, stopped cleanly with
-every chunk the page said it handed over on disk, held at a match's end, not
-judged before a read lands, busy back to GDI with its notice, black stopped,
-the displays' events reaching the recorder, Windows ending its session and an
-update's restart deleting everything in the call, a quit leaving nothing, none
-of the three posting its counts into the exit, and counts one kept sent at the
-next launch.
+real Split match, the page's account through the real rules, ten minutes
+of 3 Mbps Clusters held to under 30 MB of memory, and the minute line on two
+minutes at 57 and then 32 frames a second delivered, 30 recorded. And 8.4.2's
+thirty a second: grid.js as the page loads it (30 a second of a capture at
+32 to 60, every frame of one at 30 or under, jittered as Windows' timers
+jitter it or not, at most two more after a still screen, a capture whose
+timestamps stand still, jump back, repeat every other frame, step half a
+second back once a second or are missing, 30 a second each), its pump (a
+frame the writer cannot take closed at once, none queued, the stop waiting
+on a write in flight, nothing left open), and the real page run with stand
+ins for Chromium (the
+generator recorded and never the capture, 300 of 600 frames in ten seconds,
+a frame in flight counted open, every chunk handed over then no frame and no
+buffer of the capture left open, its tracks torn down); Settings and the
+counts saying the frames recorded and the busy rule the frames delivered;
+the 0 the page's first frame where the first chunks allow it, and a clip
+forty minutes in cut within 2 ms of its moment with the wall clock gaining
+or losing 75 ppm on the recording's own, where one offset put it 179 ms out
+(a second's Cluster early, losing). `npm run
+check:recorder` boots the app and runs the real page on generated frames,
+the busy picture drawn 60 times a second: paged, served, the gate (H.264
+yes, VP9 no on this PC), the track's settings reported each second and the
+bitrate MediaRecorder took, 30 a second recorded on disk and in a clip cut
+from it, and said so where the page and Settings say it, within 1.4 times
+the bitrate asked (twice it before), no frame held open while recording and
+none, nor any track live, at the stop, the 0 the
+first frame's moment with the chunks' own within 50 ms after it, the page's
+two clocks read together and kept every five seconds, stopped
+cleanly with every chunk the page said it handed over on disk, held at a
+match's end, not judged before a read lands, busy back to GDI with its
+notice, black stopped, a display change stopping the page with nothing open
+and building the 30 a second again on a new one, the displays' events
+reaching the recorder, Windows ending its session and an update's restart
+deleting everything in the call, a quit leaving nothing, none of the three
+posting its counts into the exit, and counts one kept sent at the next
+launch.
 `npm run test:clips` holds the names, the seconds, the moments on the real
 Abyss match, and on the real Split and Abyss sessions through the real reader
 (`scripts/fixtures/replay-session.js`), the cut and only from a recording
@@ -1273,7 +1542,13 @@ generated frames hold the GPU process at 50 to 80% of a core on their own
 screen in full motion), and with a clip seeked in the review page the
 recorder page froze for 4 to 19 s in 10 of 12 runs, and in none of 4 without
 one, so the check stops recording before any clip plays. Watching a clip
-between matches while recording is the game test's to measure.
+between matches while recording is the game test's to measure. check:clips
+draws its picture 30 times a second, as it always did, where check:recorder
+draws 60: drawn at 60, its stills held against a `<video>` seeked to the
+same second failed, a still and a seek a frame apart (the recorded frames up
+to 50 ms apart) differing by 4.6 of 255 where the check allows 4, and one seek
+a second early presenting no new frame. The stills are WebCodecs' own frames;
+it is the seek that lands a frame either side.
 
 ## Layout
 
@@ -1358,13 +1633,57 @@ Valorant path alone, a held seal kept every page and the League review behind
 seals first (`withdrawReview`), so its switch to Home never runs unsealed.
 `npm run check:seal` boots the app with stand-in engines and holds both.
 
-**Closing hides the window.** Its X, Alt+F4 and the taskbar's Close put it out
-of sight like Ctrl+Shift+M, with the dock mark in the corner, and Occlara keeps
-running in the tray: a review still being checked against Riot's record,
-minutes after the match, would lose that check to a quit. The tray and
-Settings quit, and `before-quit` is what lets the window close for real, an
-update's restart included. A match that resumes after its review opened
-minimises the window if it is in front, as the review window used to close.
+**Closing quits** (8.4.1, the player's ask: "when the user closes it, just
+close it fully dont minimize it"). Its X, Alt+F4 and the taskbar's Close used
+to put the window out of sight like Ctrl+Shift+M, Occlara running on in the
+tray, so a review still being checked against Riot's record kept its check.
+Each is now the window's `close`, held in `main-window.js` and handed to
+index.js on the next turn (`onCloseAsk`, `quitFromClose`), NEVER INSIDE THE
+CLOSE EVENT: Electron takes a close its handler prevented for a quit cancelled
+(it clears its quitting flag as the handler returns), so the quit decided in
+that same turn with nothing to ask closed every window and never quit, and the
+real app ran on with no window and no tray (index.js's `window-all-closed`
+keeps it alive for a tray its cleanup had taken down). It quits by the tray's
+own path, `cleanupAndQuit`, and first asks only when quitting would lose
+something: a match being recorded right now (the seal's live test), a review
+still being built (`review-work.js leftOf`), and a League game's death clips in
+the seconds after its review opens, before they are cut (`clipLolDeaths`,
+`lolClipping`).
+Each question is a native dialog, asked once, whose default and whose Escape
+keep Occlara as it is, and a close while one is up asks nothing more. What
+they say is `src/shared/quit-ask.js`, checked against what the code does: a
+match quit in the middle of keeps the rounds read so far in Matches as a part,
+with no read and no clips (a League game stopped part way is never graded),
+counted as a stop files them (the ledger's `list()`, never `size()`, which
+counts a round only begun off the loading screen or a banner, and said a round
+was kept when nothing was); and a review being checked is checked at a later
+launch only with a Riot ID connected and once Riot has the match, BY THE LATE
+LINK, WHICH DOES NOT FINISH IT AS THE LIVE LINK WOULD: it lays Riot's record
+over it with no model call, so no look at the deaths Riot times and no read
+(the screen's is taken down), and the recording its clips would be cut from is
+deleted as the app quits. A typed and never connected Riot ID runs no late
+link, so that one says Grade my recent matches is what checks it. The tray's
+Quit and Settings' quit with no question as they always did, and an update's
+Restart now and Windows ending its session close the window as the app goes
+(`before-quit`, `session-end`) and never ask. Ctrl+Shift+M still hides the
+window to the corner mark. `test:shellnav` holds every wording and the close
+held and handed over on the next turn on stand-in windows, `check:seal` the
+match's and the review's questions through the real index.js (the dialog and
+`app.quit` stood in for), a round only begun included, `check:clips` the
+League clips' question on a real League review, and `check:mainwindow` the X
+and Alt+F4 quitting with nothing asked when nothing is at stake, and never
+inside their close event. A match that
+resumes after its review opened minimises the window if it is in front, as the
+review window used to close.
+
+**The tray icon opens the app** (8.4.1). It had a double click alone, which
+toggled the window, so a single click did nothing and a double click on a
+window behind the game hid it. A click and a double click now bring the window
+up and to the front on the page it was on (`tray.js`, `controller.showWindow`),
+the seal settled first, so mid match it shows the Recording screen; the context
+menu is as it was, its Show or Hide still a toggle. `test:shellnav` holds
+`tray.js` on a stand-in Tray, `check:seal` the click from hidden, minimised and
+mid match.
 
 A WebContentsView's page is NOT closed with the window it is laid on, and
 once closed its `webContents` reads undefined rather than destroyed, so
@@ -1469,7 +1788,11 @@ library or the rank history, nothing invented (`src/shared/home-model.js`):
   point's tier, the last game's RR (+24 in `--good`, -15 in `--red`, 0 dim)
   and the rank journey as a line, by Stats' own rules (`rankModel`: rated
   points only, cut at the newest jump over 300, a game's RR 60 or less), with
-  Rank journey opening Stats. It is asked for through `STATS_RANK_HISTORY`
+  Rank journey opening Stats with the journey open (8.4.1: `OPEN_STATS` with
+  'journey', which main keeps until the Stats page asks, `STATS_OPENED_FOR`,
+  as it loads, arms and enters, an enter alone coming to a page called back
+  mid switch; it opened Stats with the journey folded in the Rank tile;
+  `test:surfaces`, `check:mainwindow`). It is asked for through `STATS_RANK_HISTORY`
   only once Home is painted, so a slow history never holds Home back, and
   Home listens for a change of game, a saved review and the Riot ID from
   before its first paint: the first load waits for the rank, and a game
@@ -1619,7 +1942,15 @@ Settled decisions that keep getting reintroduced by accident:
   corners: over a light desktop the centre measured rgb(11,12,12) while all four
   corners measured exactly the desktop behind them, so a square window rendered
   as an oval blob. `.stage` is now a solid `--bg` card with an 18px radius and a
-  10px gutter, the same shape as every other surface.
+  10px gutter, the same shape as every other surface. Stats' rank journey was
+  a fourth until 8.4.1, the retired cyan over a gradient fill written into its
+  markup from stats.js, which `check:palette` never read: it read stylesheets
+  alone. It reads every renderer script and page now, counts every gradient
+  against the shimmers and the share card's two (left for the Stats revamp),
+  and holds `stats.css` to tokens and the glass's neutral black and white
+  (`TOKENS_ONLY`, which a stylesheet joins once it is clean, and a stylesheet
+  in it that the scan no longer reads, renamed or moved, fails the check
+  rather than being held to nothing).
 - **The Start button stays red.** It is the one control a player must find
   without looking, and the only place the accent earns full saturation in an
   otherwise white-on-black interface.
@@ -1645,10 +1976,12 @@ Renderers have no Node access. Everything crosses through a preload via
 `REVIEW_AILOG` (the eye: the AI log on that review's match, or at one moment
 of it from the eye on a death the coach looked at), `PATTERNS_GET`,
 `BREAKDOWN_GET`, and `PUSH_REVIEWS` fires whenever a review is saved or
-improved. Grading from Riot's record is `BACKFILL_START` and
+improved. `PUSH_REVIEW_WORK` carries `{ id, work }` for a review still being
+built, the step it is on or null once it is whole, to the review page, Home
+and Matches (8.4.1). Grading from Riot's record is `BACKFILL_START` and
 `BACKFILL_STATUS`, and `PUSH_BACKFILL` carries its status on every change to
 onboarding, Settings and Matches. The main window is `SHELL_NAV` (go to a
-page), `SHELL_WINDOW` (minimise, maximise, close) and `SHELL_GET`, and
+page), `SHELL_WINDOW` (minimise, maximise, close, which quits) and `SHELL_GET`, and
 `PUSH_SHELL` carries its navigation state, sealed or not, on every change.
 Moving between pages is `PUSH_PAGE` to one page (arm, enter, leave) and
 `PAGE_READY` back from it, taken from that page's own view only; every page
@@ -1719,6 +2052,57 @@ sessions and prunes the rest at every Start; keep the fixture copied to
 reads it the same way, and `test:benchsession` holds the order). It spends
 real money, so it is a manual pre-flight, never CI.
 
+**A read prompt changes as a variant first** (8.4.1, `read-prompt.js
+VARIANTS`, `coach.js readVariant`). On the player's Fracture swiftplay of 14
+Oct the live prompt registered two deaths of a living player: it offers "the
+word Spectating" as a dead tell and hands the model "a teammate's portrait and
+name above SWITCH PLAYER", which came back word for word on frames whose only
+cue was the SPECTATORS 1 counter, it never says what that counter is, and it
+says a planted spike has a timer, which Valorant does not print. Variant b
+drops the word, says the counter counts who watches the player on screen and
+is no sign of death (nor of life), asks for SWITCH PLAYER, KILLED BY or COMBAT
+REPORT only when they are printed on the frame, with nothing quoted to copy,
+and says there is no clock after a plant; the STATE line is the same. It is
+served only to a request that names it (`variant: 'b'`) beside the admin
+password, as a bench model is: a player naming it is read with the live
+prompt, and the reply says which prompt answered whenever one was named. b
+keeps 90 characters of aliveTell where the live prompt keeps 60 (`TELL_MAX`),
+which cut frame-00186's "SPECTATORS 1" to "SPE", where `SPECTATOR_COUNT`
+would have seen the counter. `npm run verify:ai -- --variant b` and `-- --lag
+4 --variant b` bench it, with the admin password, and stop if the server read
+with another prompt. It becomes the default only once both pass live; until
+then `test:serverguards` holds the live prompt byte for byte, who may ask for
+b and what b says, and `test:benchsession` the bench's flag.
+
+**Variant c** came from judging b's bench frame by frame against Riot's
+record over four real sessions, and b did not replace the live prompt: on the
+three current sessions the live prompt caught 24 of Riot's 24 deaths and b
+21, and where the two disagreed on dead or alive the frames sided with the
+live prompt 74 times to 22, nearly all in the buy phase, where the round
+before's COMBAT REPORT, KILLED BY at its top, is on screen over a living
+player (111 such frames read dead on b, 59 on the live prompt). c keeps b's
+one clean win, no "Spectating" and nothing quoted to copy, and: the player is
+dead only on SWITCH PLAYER, a COMBAT REPORT with ROUND ONGOING at its foot,
+or no health number; the buy phase is never death; the SPECTATORS counter,
+the skull of the player's own kill banner, the kill feed, the scoreboard, the
+map, the buy menu and a WON, LOST or FLAWLESS banner are no sign of death and
+stay out of the tell; no word the frame does not print and none saying a word
+is absent (each of b's "SWITCH PLAYER not shown" was a death to the server);
+alive null when it cannot tell; and the timer is read as printed until the
+spike icon takes its place, a timer still counting being no plant. It keeps
+120 characters of aliveTell (`TELL_MAX`), since 90 cut "SPECTATORS 1" to
+"SPECTATOR", which the spectator tell reads and the counter rule does not.
+Served exactly as b is, `npm run verify:ai -- --variant c` benches it. It
+replaces the live prompt only when three runs of each, interleaved over the
+four sessions on one upstream, each frame sent the engine's own context
+(`readContext()`) and scored by time against Riot, show it missing no death
+the live prompt caught, inventing no more deaths or plants, reading fewer buy
+frames dead in every session and no more LOBBY, and passing verify:ai plain
+and at `--lag 4`, its cost a read within a tenth. `test:serverguards` holds c as
+the live prompt with its alive and clock lines given the judge's word for
+word, who may ask for it and its cap, and `test:benchsession` the bench's
+flag for c.
+
 ## Do not simplify the guards
 
 `coaching-engine.js` contains deterministic checks that **deliberately override
@@ -1776,6 +2160,41 @@ these away.
   screen: on the Abyss swiftplay the withdrawn round 7 death was followed
   eight seconds later by "SWITCH PLAYER" read on the living player, and a
   death screen let past the cooldown filed it again (`test:sessionreplay`).
+- **A return from the dead waits for a second read** (8.4.1). Nobody comes
+  back mid round but by a revive, and one read saying so is likelier the death
+  screen read wrong: on the player's Fracture swiftplay, 34 seconds after round
+  6's death, a frame of SWITCH PLAYER, a teammate's portrait and the COMBAT
+  REPORT read "own HP 50 and Sheriff". Believed, it was the "coming back from
+  spectating" boundary, which switches off every weak signal (the gun gone from
+  Ghost to Sheriff among them), the player was alive again, and the next read's
+  SWITCH PLAYER registered a second death in the round, which the ledger's one
+  death a round refused and the AI log kept. So while a registered death
+  stands, an alive read whose round clock carries on the clock at the death
+  (within 3 s) is held for one more read: the next such read is believed (a
+  revive costs one read, and Riot's record puts it back), a dead or buy read
+  starts it again, and a buy read, a score that moved or a clock that does not
+  carry on is never held. `judgeTrial` runs first and is untouched. On the
+  committed sessions it takes away one duplicate round 10 registration on the
+  Abyss unrated, which the ledger had refused already (`test:sessionreplay`).
+- **No spike is down while the round clock runs** (8.4.1). After a plant the
+  spike icon takes the timer's place, so a read of the live round (phase
+  active) whose own round clock still counts, over 45 s or carrying on the
+  round clock in play, has its "planted" dropped before the merge, and the
+  context never holds it: on the player's Fracture swiftplay round 3 at 0:51
+  read "planted at B" off the chat line "spotted the SPIKE in B", the clock
+  running on to 0:41 and 0:32, and Riot has no plant. A read held as a return
+  from the dead is weighed by the phase it claimed. A plant the context already
+  holds stays, and the frame of the plant itself, read post plant with the
+  timer's last second on it, plants: it is the only planted read of the
+  Split's round 2, which Riot has, at 1:12. Checked against every committed
+  session's plants: the same rounds and sites, the Abyss unrated's round 14
+  set on its next read, its "active 1:22, planted" having come 7 s before
+  Riot's plant, which moves that death's moment 0.4 s (`test:valorantreview`'s
+  "R14 5.5 s after" is 5.1). Known exposure: the Fracture round 3 countdown,
+  read "postplant 0:00, planted at B Site", still credits round 3 a plant, the
+  ledger filing a plant read before the new round's first buy or play into the
+  round that ended, and no clock rule tells it from a plant seen only on a
+  banner.
 - **Spectating** (`isSpectating`, `spectate-tells.js`), below.
 
 The governing principle: **the coach reports what is actually on screen and
@@ -1947,6 +2366,41 @@ npm run check:gameswitch   switching game repaints Stats, and back again
 npm run check:splash       the launch animation is always actually seen
 npm run check:learnrole    a support never sees the CS lesson
 ```
+
+**Stats and Riot's death check show no other player's name, and Ask Coach is
+not told the Overview is a trend** (8.4.1):
+
+- **A match's team is agents and numbers** (`coach.js matchDetail`,
+  `stats.js matchRow`). "Your team" showed every teammate's full Riot ID, and
+  Valorant lets a player hide theirs from anyone outside their party, while
+  Riot's policy is that a product shows no player's identity to others
+  without their opt in. The server sends no name or tag on any row, the page
+  paints none an older server still sends, and the player's own row says
+  "You", as the review's kill feed carries no name (`test:trackerroutes`,
+  `test:surfaces`).
+- **Riot's death check names the killer by agent** (`coach.js
+  killerAgentOf`, `/match-deaths`). It answered the killer's full Riot ID,
+  and the AI log painted it on every death Riot confirmed, a name its owner
+  may have hidden as much as a teammate's. It is the killer's agent from the
+  match's roster now, as in the review's facts (`riot-rounds.js
+  killerAgent`), and a killer the roster does not have is none, never a name,
+  which the AI log's mark says as no killer ("Round 2. Confirmed by Riot."),
+  where it read "killed by null". And the app keeps a killer only as an agent
+  the game data knows (`valorant-verify.js agentName`, where the check enters
+  it in `death-reconcile.js`), so a server from before, which still sends the
+  Riot ID or a puuid, has no name painted either, only no killer; the server
+  deploys first all the same, or the log names no killer at all
+  (`test:trackerroutes`, `test:deathreconcile`, `test:surfaces`).
+- **The four Overview scores are sums over the tracker profile**
+  (`trackerCategoryScores`: Positioning is 140 less a hundred times the deaths
+  a round), no recorded match goes into them, and their arrows compare the
+  profile with a copy of itself. They went to Ask Coach as "their
+  coached-session trend" with "Target the weakest or falling category when
+  giving drills": for a player dying 0.78 times a round, drills on
+  positioning. The app sends them no more, the server ignores them from an
+  older install, and the profile's own numbers are in the prompt already
+  (`test:serverguards`). The 0 to 100 match rating on each row, and the share
+  card built on it, wait for the Stats revamp.
 
 ## The Pro Playbook, and how to grow it
 
@@ -2251,6 +2705,23 @@ known-positive string.
 
 **Secrets come from the environment.** `.env` and `server/.env` are gitignored
 and this repo is public. Never commit a key.
+
+**A session reaches the repo only through `scripts/fixtures/make-session-fixture.js`**,
+and never a frame, a still, a clip or a screenshot of it. It keeps the engine's
+inputs, its free text cut to an allowlist, and since 8.4.1 each run of dropped
+words leaves one placeholder, "someone": dropped outright, "<name> killed by
+Chamber" became "killed by Chamber", which the spectate guard reads as the
+player's own death banner, and the Fracture replay lost the read that let round
+6 register a second death. It writes nothing while the fixture holds a word of
+the Riot ID in Settings, which nothing accepts, or a word the session wrote that
+neither the allowlist nor the game data knows, until a person has checked it is
+no name and passed it with `--accept` (`leaks`, `strangeWords`;
+`test:sessionreplay` holds the Fracture fixture to the same lists). The four fixtures before it were cut by the old
+scrubber and are not regenerated, since numbers were measured on them:
+regenerated, the text of 81 to 260 frames each changes and the anchored KILLED
+BY flips on 5 to 15 kill feed lines, the guarded state of 2 frames (the Abyss
+swiftplay) and 6 (the Abyss unrated) changes, and every test passes with the
+same lines, the same deaths, rounds, modes and reads.
 
 `src/shared/valorant-data.generated.json` is generated by
 `npm run sync:valorant` from valorant-api.com. Do not hand-edit it.

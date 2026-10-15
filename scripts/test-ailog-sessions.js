@@ -207,7 +207,8 @@ function writeSession(name, recs, mtime, opts) {
   const records = recs.map((r, i) => {
     const frame = `frame-${String(i).padStart(5, '0')}.jpg`;
     if (!(opts && opts.noFrames)) fs.writeFileSync(path.join(dir, frame), jpeg);
-    return { i, at: r.at, frame, state: r.state, round: 4, died: false, match: r.match };
+    // `died` as the engine writes it: true on the one frame it registered a death on.
+    return { i, at: r.at, frame, state: r.state, round: 4, died: r.died === true, match: r.match };
   });
   fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify({ startedAt: records[0].at, records }));
   fs.utimesSync(dir, mtime / 1000, mtime / 1000);
@@ -220,7 +221,7 @@ const aDir = writeSession(A, [
   // frame under its own stamp is half a minute before it ended.
   { at: M1 + 60000, state: ALIVE, match: M1 },
   { at: M1 + 70000, state: ALIVE, match: M1 },
-  { at: M1 + 80000, state: DEAD, match: M1 },
+  { at: M1 + 80000, state: DEAD, match: M1, died: true },
   { at: M1 + 90000, state: DEAD, match: M1 },
   { at: E1 - 30000, state: ALIVE, match: M1 },
   // Read as match 1 ended, logged under match 2's stamp.
@@ -250,6 +251,36 @@ ok(JSON.stringify(ats(one)) === JSON.stringify([M1 + 60000, M1 + 70000, M1 + 800
 ok(one.records.every((r) => String(r.frameData).startsWith('data:image/jpeg;base64,')), 'each one inlined');
 ok(one.deaths.length === 1 && one.deaths[0].at === 2 && one.records[2].at === M1 + 80000,
   'its deaths are its own, indexed into its own frames');
+// THE EYE OPENS ON A DEATH THE ENGINE KEPT (8.4.1): its match's first death,
+// and the deaths are the ones the engine registered. Before it, a weak tell's
+// death the next read withdrew (written false with its verdict) and a lone
+// SWITCH PLAYER frame the engine never registered, both of which the log's own
+// runs of frames counted; after it, the round's second registration.
+{
+  const eyeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-ailog-eye-'));
+  const sid = 'session-2026-10-14T00-24-51-649Z';
+  const dir = path.join(eyeRoot, sid);
+  fs.mkdirSync(dir, { recursive: true });
+  const M = Date.UTC(2026, 9, 14, 0, 24, 51);
+  const SWITCH = { playerAlive: false, aliveTell: 'Spectating, teammate portrait and SWITCH PLAYER bottom left' };
+  const KILLED = { playerAlive: false, aliveTell: 'KILLED BY ASTRA and COMBAT REPORT panel visible, no own health number' };
+  const OWN = { playerAlive: true, playerHp: 89, aliveTell: 'own HP 89 and knife bottom center' };
+  // Round 2 seen in play before its death: one registered on a round's first
+  // frames before any is the round before's, the banner (ai-log-timeline.js).
+  const rows = [[OWN, 1], [{ playerAlive: false, aliveTell: 'Spectating teammate, own HP not shown' }, 1], [OWN, 1], [SWITCH, 1], [OWN, 1],
+    [{ ...OWN, phase: 'active', clock: '1:20' }, 2], [KILLED, 2, true], [KILLED, 2], [OWN, 2], [SWITCH, 2, true], [SWITCH, 2]];
+  const records = rows.map(([state, round, died], i) => {
+    const frame = `frame-${String(i).padStart(5, '0')}.jpg`;
+    fs.writeFileSync(path.join(dir, frame), jpeg);
+    return { i, at: M + 60000 + i * 1000, frame, state, round, died: died === true, match: M };
+  });
+  fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify({ startedAt: M, records }));
+  const eye = store.read(eyeRoot, sid, null, store.placeOf(dir, M, M + 600000));
+  ok(eye.deaths.length === 1 && eye.deaths[0].at === 6 && eye.deaths[0].round === 2 && eye.deaths[0].killedBy === 'Astra',
+    `the match's first death is the one the engine registered, not a frame it withdrew or never registered (${eye.deaths.map((d) => d.at).join(', ')})`);
+  ok(store.sessions(eyeRoot, null)[0].deaths === 1, 'and the picker counts the deaths the engine kept');
+  fs.rmSync(eyeRoot, { recursive: true, force: true });
+}
 ok(Array.isArray(one.sessions) && !one.sessions.length, 'and it lists no sessions, since the picker is not shown');
 
 const two = store.read(scopeRoot, A, null, store.placeOf(aDir, M2, E2));

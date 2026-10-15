@@ -889,6 +889,31 @@ function benchModel(req) {
   return m && BENCH_MODELS.has(m) && isAdmin(req) ? m : null;
 }
 
+/*
+ * A READ PROMPT VARIANT IS AN ADMIN ACT TOO (8.4.1). The live read prompt is
+ * what every install reads with; a variant (read-prompt.js VARIANTS, b and c)
+ * is served only when the request names it AND carries the admin password, as
+ * a bench model is, so no player's read is ever an experiment and no licence
+ * can switch its own. Named without the password, or unknown, it is ignored
+ * rather than refused, so it can never break a client's read. The reply says
+ * which prompt answered (`variant`, null for the live one) whenever one was
+ * asked for, so a bench that was not honoured cannot pass for a run on it.
+ */
+const READ_VARIANTS = new Set(readPrompt.VARIANTS);
+// How much of aliveTell a read keeps, per prompt. 60 on the live one cut
+// frame-00186's "SPECTATORS 1" to "SPE", where the counter would have dropped
+// the death outright (SPECTATOR_COUNT); 90 on b, the killFeed's and the note's
+// room. 120 on c: at 90, 19 to 45% of b's dead tells were still cut, and the
+// Sunset swiftplay's frame-00309 "SPECTATORS 1" came out "SPECTATOR", which
+// the counter rule does not know and the spectator tell does. Every variant
+// has its own, since a missing one would quietly be the live 60. The live cap
+// moves only with the live prompt.
+const TELL_MAX = { live: 60, b: 90, c: 120 };
+function readVariant(req) {
+  const v = String((req.body && req.body.variant) || '').trim().toLowerCase();
+  return v && READ_VARIANTS.has(v) && isAdmin(req) ? v : null;
+}
+
 /**
  * Wait for `p` at most `ms`, then reject with Error(label). The timer is
  * cleared either way, rather than left pending for the full wait after every
@@ -1701,9 +1726,14 @@ function staticHabits() {
  * actually shows. This is the feedback loop that keeps the client's match
  * context real: side, phase, round, score, credits, weapon, map, enemy spots.
  * Everything is validated and clamped; null/garbage fields are dropped.
+ *
+ * @param opts.tellMax  how much of aliveTell to keep, 60 unless a read prompt
+ *                      variant says otherwise (TELL_MAX, beside readVariant:
+ *                      90 on b, 120 on c)
  */
-function mapState(s) {
+function mapState(s, opts) {
   if (!s || typeof s !== 'object') return {};
+  const tellMax = (opts && opts.tellMax) || TELL_MAX.live;
   const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
   const str = (v) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 40) : null);
   const out = {};
@@ -1731,7 +1761,7 @@ function mapState(s) {
   // The evidence behind the alive read. A named dead tell (a spectate label, a
   // teammate's name bottom-left, a killcam) is strong enough for the client to
   // register the death from ONE frame instead of waiting for a second one.
-  if (str(s.aliveTell)) out.aliveTell = String(s.aliveTell).trim().slice(0, 60);
+  if (str(s.aliveTell)) out.aliveTell = String(s.aliveTell).trim().slice(0, tellMax);
 
   // THE HEALTH NUMBER ON SCREEN IS NOT ALWAYS THE PLAYER'S OWN.
   //
@@ -2337,11 +2367,16 @@ async function matchDetail(region, matchId, name, tag, rounds = 0) {
     }
     const mvp = topOfTeam ? (won ? 'match' : 'team') : null;
 
-    // The player's own side, so the stats view can show who they actually
-    // played with. Riot ID and agent are what identifies a teammate to a
-    // player: "the Sova" means nothing three games later, "Fade#EUW" does.
-    // The player themselves is marked rather than removed, so the roster reads
-    // like the in-game scoreboard.
+    // The player's own side, so the stats view can show how the team played:
+    // each teammate's agent and numbers, the player's own row marked rather
+    // than removed, so the roster reads like the in-game scoreboard.
+    //
+    // NEVER ANOTHER PLAYER'S NAME OR TAG (8.4.1). The roster carried every
+    // teammate's full Riot ID, and Valorant lets a player hide theirs from
+    // anyone outside their party, while Riot's policy is that a product shows
+    // no player's identity to others without their opt in. The review's kill
+    // feed leaves every name out for the same reason (riot-rounds.js). So a
+    // row is its agent and its numbers, and `me`.
     // Rounds played, taken from THIS payload rather than threaded in from the
     // caller. The scoreline was being passed down and arriving as 0, and rather
     // than chase why through two layers, the number is derived where the data
@@ -2361,8 +2396,9 @@ async function matchDetail(region, matchId, name, tag, rounds = 0) {
     const team = players
       .filter((p) => teamOf(p) === teamOf(me))
       .map((p) => ({
-        name:  [p.name, p.tag].filter(Boolean).join('#') || 'Unknown',
-        agent: (p.agent && p.agent.name) || p.character || (p.character && p.character.name) || null,
+        // An agent object's name, or the older payload's agent as a string.
+        agent: (p.agent && p.agent.name) || (p.character && p.character.name)
+          || (typeof p.character === 'string' ? p.character : null),
         kills: (p.stats && p.stats.kills) | 0,
         deaths: (p.stats && p.stats.deaths) | 0,
         assists: (p.stats && p.stats.assists) | 0,
@@ -2413,9 +2449,32 @@ function killEventsOf(d) {
   return out;
 }
 
-const whoIs = (x) => (x && typeof x === 'object')
-  ? [x.name, x.tag].filter(Boolean).join('#') || x.puuid || null
-  : (typeof x === 'string' ? x : null);
+/*
+ * THE KILLER BY AGENT, NEVER BY RIOT ID (8.4.1). This answered the killer's
+ * full Riot ID, which the AI log's death check painted ("killed by Foe#NA1"),
+ * and Valorant lets a player hide theirs from anyone outside their party,
+ * while Riot's policy is that a product shows no player's identity to others
+ * without their opt in. The roster (matchDetail, above) and the review's
+ * facts (riot-rounds.js killerAgent) name the agent, and so does this. A
+ * killer the roster does not have is no killer, never a name.
+ */
+function killerAgentOf(d) {
+  const agents = new Map();
+  for (const p of riotRounds.playersOf(d)) {
+    const agent = (p.agent && p.agent.name) || (p.character && p.character.name)
+      || (typeof p.character === 'string' ? p.character : null);
+    if (!agent) continue;
+    if (p.puuid) agents.set(String(p.puuid), agent);
+    const id = [p.name, p.tag].filter(Boolean).join('#').toLowerCase();
+    if (id) agents.set(id, agent);
+  }
+  return (x) => {
+    if (!x) return null;
+    if (typeof x === 'string') return agents.get(x) || agents.get(x.toLowerCase()) || null;
+    return (x.puuid && agents.get(String(x.puuid)))
+      || agents.get([x.name, x.tag].filter(Boolean).join('#').toLowerCase()) || null;
+  };
+}
 
 // GET /api/coach/match-deaths?matchId=...&username=Name%23TAG
 router.get('/match-deaths', async (req, res) => {
@@ -2446,13 +2505,15 @@ router.get('/match-deaths', async (req, res) => {
       && String((p && p.tag) || '').toLowerCase() === tag.toLowerCase();
 
     const events = killEventsOf(d);
+    const killerAgent = killerAgentOf(d);
     const deaths = events
       .filter((k) => mine(k.victim))
       .map((k) => ({
         round: typeof k.round === 'number' ? k.round + 1 : null,   // Riot counts from 0
         atMs: k.time_in_round_in_ms != null ? k.time_in_round_in_ms : null,
-        killer: whoIs(k.killer),
-        weapon: (k.weapon && (k.weapon.name || k.weapon.type)) || null,
+        killer: killerAgent(k.killer || k.killer_puuid),
+        // Its name or none, never its type (riot-rounds.js weaponOf, 8.4.1).
+        weapon: riotRounds.weaponOf(k),
       }))
       .sort((a, b) => (a.round || 0) - (b.round || 0));
 
@@ -3039,7 +3100,7 @@ router.get('/recent-matches', async (req, res) => {
   }
 });
 
-// POST /api/coach/read, JSON body: { image: base64, context: {...}, benchModel? }
+// POST /api/coach/read, JSON body: { image: base64, context: {...}, benchModel?, variant? }
 //
 // THE LIVE READ, facts only. Occlara shows nothing during a match, so a frame
 // has one job: report the HUD. Same STATE shape as /analyze, parsed by the same
@@ -3061,24 +3122,28 @@ router.post('/read', async (req, res) => {
   // honoured (no admin password) cannot pass for a run on that model.
   const benching = !!(req.body && req.body.benchModel);
   const model = benchModel(req) || AI.readModel;
+  // And which prompt: the live one unless an admin bench named a variant.
+  const asksVariant = !!(req.body && req.body.variant);
+  const variant = readVariant(req);
+  const told = { ...(benching ? { model } : {}), ...(asksVariant ? { variant } : {}) };
   try {
     const raw = await withTimeout(
-      visionInfer(image, readPrompt.buildReadPrompt(context), 420, false, model, { abortMs: READ_TIMEOUT_MS + 1000 }),
+      visionInfer(image, readPrompt.buildReadPrompt(context, variant), 420, false, model, { abortMs: READ_TIMEOUT_MS + 1000 }),
       READ_TIMEOUT_MS, 'read timeout');
     trackCall(licenseKey, 1);
     const text = String(raw || '').replace(/```(?:json)?/gi, '').trim();
     if (/^LOBBY\b/i.test(text)) {
-      return res.json({ lobby: true, context: {}, ms: Date.now() - t0, ...(benching ? { model } : {}) });
+      return res.json({ lobby: true, context: {}, ms: Date.now() - t0, ...told });
     }
 
     let outCtx = {};
     const m = text.match(/STATE\s*:\s*(\{[\s\S]*\})/i) || text.match(/(\{[\s\S]*\})/);
     if (m) {
-      try { outCtx = mapState(JSON.parse(m[1])); } catch { outCtx = {}; }
+      try { outCtx = mapState(JSON.parse(m[1]), { tellMax: TELL_MAX[variant || 'live'] }); } catch { outCtx = {}; }
     }
     resolveLocation(outCtx, context);
     delete outCtx.mmPos;
-    res.json({ lobby: false, context: outCtx, parsed: !!m, ms: Date.now() - t0, ...(benching ? { model } : {}) });
+    res.json({ lobby: false, context: outCtx, parsed: !!m, ms: Date.now() - t0, ...told });
   } catch (e) {
     // Out of credits is reported honestly, exactly as /analyze does, so the
     // client backs off instead of hammering an empty wallet.
@@ -3535,17 +3600,18 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
         + ctx.matchReview.slice(0, 2400)
       : '';
 
-    // Coached-session trends (the stats dashboard overview) so the chat can
-    // speak to how the player is developing, not just this one session.
-    const cTr = ctx.coachTrend;
-    const trendLine = cTr && ['impact', 'positioning', 'utility', 'aim'].some((k) => cTr[k] && cTr[k].avg != null)
-      ? 'Their coached-session trend (0-100 per category, last 10 sessions vs the 10 before): '
-        + ['impact', 'positioning', 'utility', 'aim'].map((k) => {
-            const c = cTr[k] || {};
-            return k + ' ' + (c.avg == null ? 'n/a' : c.avg + ' ' + (c.direction || 'flat'));
-          }).join(', ')
-        + '. Target the weakest or falling category when giving drills.'
-      : '';
+    // NOT STATS' FOUR OVERVIEW SCORES (8.4.1), whatever a client sends as
+    // ctx.coachTrend. They went in as "their coached-session trend (last 10
+    // sessions vs the 10 before)" with "Target the weakest or falling category
+    // when giving drills", and none of it was true: each is a sum over the
+    // tracker profile above (Positioning is 140 less a hundred times the deaths
+    // a round), no recorded match goes into them (the app hands its blend
+    // none), and their arrows compared the profile with a copy of itself. For
+    // a player dying 0.78 times a round that was drills on "positioning". The
+    // profile's own numbers are in statsLine already, and the review's
+    // categories, which share the names, in sessionsBlock; an 8.4.0 install
+    // still sends them, so they are ignored here rather than only no longer
+    // sent.
 
     // Pro Playbook (experimental): pull the player-relevant habits into the
     // conversation so drills and fixes come from the curated knowledge base.
@@ -3569,7 +3635,6 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
     const prompt = `You are Occlara, a ${valorant ? 'Radiant-level ' : 'high level '}${gameName} coach talking directly with your player after (or during) a session. Be honest, specific, and encouraging, like a real coach in a VOD review. Casual tone, no fluff.
 
 ${statsLine}
-${trendLine}
 ${reviewBlock}
 ${matchesBlock}
 ${sessionsBlock}
@@ -3640,7 +3705,7 @@ module.exports.buildContextPrompt = buildContextPrompt;
 // For the offline tests of the guards above, nothing else reads these.
 module.exports.__test = {
   checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,
-  benchModel, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,
+  benchModel, readVariant, TELL_MAX, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,
   // The provider calls themselves, for the tests of what a call sends, what it
   // is booked at and how its data policy falls back. Made outside a request a
   // call is booked and counted under 'other' with no licence; asRoute runs one

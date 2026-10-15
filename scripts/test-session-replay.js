@@ -65,10 +65,11 @@ function latencies(seed, p90) {
  * before it is, as drain() applies them: the clock then reads the second it was
  * APPLIED, and `at` the second its frame was captured, as a live session has it.
  */
-function replay(file, { menusAfter = 0, latency = null, cadence = true, edit = null } = {}) {
+function replay(file, { menusAfter = 0, latency = null, cadence = true, edit = null, then = [] } = {}) {
   // `edit` reads the session otherwise: the frames copied, never the cached fixture changed.
+  // `then` is read after it, a read each: { t, lobby: true } or { t, ...the read's context }.
   const real = require(path.join(__dirname, 'fixtures', file)).frames;
-  const frames = edit ? real.map((f) => edit({ ...f })) : real;
+  const frames = (edit ? real.map((f) => edit({ ...f })) : real).concat(then);
   const t0 = Date.parse('2026-10-04T20:00:00Z');
   let clock = t0;
   Date.now = () => clock;
@@ -92,6 +93,9 @@ function replay(file, { menusAfter = 0, latency = null, cadence = true, edit = n
   // The second of each frame a death registered on, and the map held after each.
   const deaths = [];
   const maps = [];
+  // The rounds planted after each frame, and the read cadence's ask a second on.
+  const plants = [];
+  const gaps = [];
   let registered = 0;
   const lag = latency ? latencies(latency.seed, latency.p90) : null;
   let applied = 0;
@@ -100,12 +104,15 @@ function replay(file, { menusAfter = 0, latency = null, cadence = true, edit = n
       const captured = t0 + f.t * 1000;
       applied = lag ? Math.max(applied, captured + lag()) : captured;
       clock = Math.round(applied);
-      const { t, ...context } = f;
+      const { t, lobby, ...context } = f;
       const before = e.matchContext.gameMode;
       const deathBefore = e.lastDeathAt;
-      e.applyRead({ data: { context: { ...context } }, shot: null, at: captured });
+      e.applyRead(lobby ? { data: { lobby: true }, shot: null, at: captured }
+        : { data: { context: { ...context } }, shot: null, at: captured });
       filed.push({ t, n: e.ledger.current() });
       maps.push({ t, map: e.matchContext.map || null });
+      plants.push({ t, rounds: [...e.ledger.rounds.values()].filter((r) => r.planted).map((r) => r.n) });
+      gaps.push({ t, ...e.phaseGap(captured + 1000) });
       if (e.lastDeathAt !== deathBefore) { registered++; deaths.push(t); }
       if (e.matchContext.gameMode !== before) {
         modes.push({ t, mode: e.matchContext.gameMode, score: `${e.matchContext.teamScore}-${e.matchContext.enemyScore}` });
@@ -119,7 +126,7 @@ function replay(file, { menusAfter = 0, latency = null, cadence = true, edit = n
   } finally {
     console.log = realLog;
   }
-  return { e, reviews, resumed, modes, lines, registered, deaths, maps, logged, filed, restore: () => { Date.now = realNow; } };
+  return { e, reviews, resumed, modes, lines, registered, deaths, maps, logged, filed, plants, gaps, restore: () => { Date.now = realNow; } };
 }
 
 /** What the review is built from, a replay at a time: each round, its death and where. */
@@ -328,6 +335,153 @@ function againstRiot(rounds, truth) {
     run.restore();
   }
 
+  // ── Round 5's first buy timer, a tenth from the countdown's last frame ────
+  // The Sunset round 4 countdown read "postplant 0:04" at 345.6 s, the frames
+  // after it carry that phase to its 0:00 at 349.6 s, the last frame of play,
+  // and round 5's 0:43 at 351.7 s puts its timer's start at 349.7 s, a tenth
+  // after it. Taken exactly (8.4.1's first round 5 check), the 0:43 read 0.2 s
+  // earlier counted for nothing, the 0:33 was the one pistol timer left, and
+  // the side swap, the model's inference, locked swiftplay at 382.1 s.
+  {
+    for (const shift of [0, -0.2]) {
+      const early = (f) => (f.t === 351.7 ? Object.assign(f, { t: Math.round((351.7 + shift) * 10) / 10 }) : f);
+      const run = replay('valorant-session-sunset-swiftplay.json', { edit: early });
+      const sp = run.modes.find((m) => m.mode === 'swiftplay');
+      ok(sp && sp.t === 361.8 && run.lines.some((l) => /pistol round's buy timer, 0:33/.test(l)),
+        `round 5's 0:43 read ${shift ? `${-shift} s earlier` : 'as it was'} counts: swiftplay is locked on the pistol timer at 361.8 s (${JSON.stringify(run.modes)})`);
+      run.restore();
+    }
+  }
+
+  // ── The Fracture swiftplay, won 5 to 1, read a second (8.4.0) ─────────────
+  // Riot's record of it, from its verified review: rounds 1 to 4 won on
+  // defence, round 5 lost and round 6 won on attack, the deaths 31, 33 and 3
+  // seconds into rounds 2, 5 and 6.
+  //
+  // 8.4.0 LOCKED STANDARD ON THE ROUND 4 END COUNTDOWN: the TAB scoreboard open
+  // over it, "buy 0:01" and "buy 0:00" at 334.4 and 335.4 s with round 4's
+  // 4,550 credits, after the banner's 4 to 0 had moved the ledger to round 5.
+  // Rounds 5 and 6 were then defence by the halftime math, 4 to 1 was no match
+  // point, so round 6's dead phase was read every 3 s and the final 5 to 1 fell
+  // between two reads, and the review waited for Stop. The AI log keeps each
+  // read as the guards left them, and they took out the step's first read of 4
+  // to 0 (at 330.4 s, or the read before it: 331.4 s was its second): put back,
+  // the replay is the live run. Kept as it was, round 4's money counts once,
+  // which blocked both swiftplay tells and left the mode unknown.
+  {
+    const RIOT = { 1: { won: true, side: 'defending' }, 2: { won: true, side: 'defending', died: 31 },
+      3: { won: true, side: 'defending' }, 4: { won: true, side: 'defending' },
+      5: { won: false, side: 'attacking', died: 33 }, 6: { won: true, side: 'attacking', died: 3 } };
+    const live = (f) => (f.t === 330.4 ? Object.assign(f, { teamScore: 4, enemyScore: 0 }) : f);
+    // What the match point cadence reads after the last frame: the banner's 5
+    // to 1 twice, spectating, then the end screen, which reads as a menu.
+    const banner = (t) => ({ t, phase: 'dead', playerAlive: false, teamScore: 5, enemyScore: 1, side: 'attacking',
+      aliveTell: 'Spectating someone with SWITCH PLAYER bottom left' });
+    const run = replay('valorant-session-fracture-swiftplay.json',
+      { edit: live, then: [banner(550.1), banner(551.1), { t: 552.1, lobby: true }, { t: 553.1, lobby: true }] });
+    const { e, modes, lines, reviews } = run;
+    const sp = modes.find((m) => m.mode === 'swiftplay');
+    ok(sp && sp.t === 338.6 && sp.score === '4-0' && lines.some((l) => /pistol round's buy timer, 0:42/.test(l)),
+      `swiftplay is locked in round 5 on the pistol round's buy timer, 0:43 then 0:42 (${JSON.stringify(modes)})`);
+    ok(!modes.some((m) => m.mode === 'standard') && !lines.some((l) => /bought with 4550 credits/.test(l)),
+      'and never standard: the round end countdown\'s 0:01 and 0:00 began inside round 4, and its 4,550 credits count for nothing');
+    const plain = replay('valorant-session-fracture-swiftplay.json');
+    ok(plain.modes.map((m) => `${m.mode}@${m.t}`).join() === 'swiftplay@338.6',
+      `the session as the AI log kept it locks swiftplay on the same read (${JSON.stringify(plain.modes)})`);
+    plain.restore();
+    // THE MATCH ENDS ON ITS SCORE, WITH NO STOP: 4 to 1 is match point in a
+    // swiftplay, so round 6's dead phase is read at the gap, and its 5 to 1
+    // with the end screen read twice ends it.
+    const dead6 = run.gaps.filter((g) => g.t > 480.4 && g.t <= 549.1);
+    ok(dead6.length >= 20 && dead6.every((g) => g.why === 'match point' && g.ms === 1000),
+      `round 6's dead phase at 4 to 1 is read at the gap, match point (${[...new Set(dead6.map((g) => `${g.why} ${g.ms}`))].join(', ')})`);
+    await new Promise((r) => setTimeout(r, 30));
+    const snap = reviews[0] && reviews[0].snap;
+    ok(reviews.length === 1 && snap.endedBy === 'score' && e.isRunning,
+      `the watch ends it on its score, with recording still on (${reviews.length} review, ended by ${snap && snap.endedBy})`);
+    ok(snap && snap.rounds.length === 6 && snap.context.gameMode === 'swiftplay',
+      `with its 6 rounds, as a swiftplay match (${snap && snap.rounds.length}, ${snap && snap.context.gameMode})`);
+    const rounds = snap ? snap.rounds : [];
+    ok(rounds.map((r) => `${r.n}${r.side ? r.side[0] : '?'}`).join(' ') === '1d 2d 3d 4d 5a 6a',
+      `rounds 1 to 4 on defence and rounds 5 and 6 on attack, Riot's sides (${rounds.map((r) => `${r.n}${r.side ? r.side[0] : '?'}`).join(' ')})`);
+    ok(rounds.length === 6 && rounds.every((r) => RIOT[r.n] && r.result !== null && (r.result === 'won') === RIOT[r.n].won),
+      `and every round's result is Riot's (${rounds.map((r) => `${r.n}${r.result ? r.result[0] : '?'}`).join(' ')})`);
+    // THE DEATHS. Rounds 2, 5 and 6 register on the first frame of their death
+    // screens, "KILLED BY <agent> and COMBAT REPORT", and round 3's weak tell
+    // at 264.3 s is withdrawn by the read after it, the player's own 89 health
+    // and knife. Round 1's at 74.8 s is the model's: the WON banner forming at
+    // 0:06 over a living player, read as the read prompt's own example
+    // sentence ("Spectating, teammate's portrait and name above SWITCH
+    // PLAYER"). The replies are fixed, so it stays here; the read prompt's fix
+    // is what takes it away, and Riot's record takes it off the review.
+    const at = (t) => run.logged.find((x) => x.t === t);
+    ok(run.deaths.join() === '74.8,143.1,264.3,415.2,475.4' && at(264.3) && at(264.3).died === false,
+      `deaths register at 74.8, 143.1, 415.2 and 475.4 s, and at 264.3 s on a weak tell the next read withdraws (${run.deaths.join(', ')} s)`);
+    const truth = {};
+    for (const [n, r] of Object.entries(RIOT)) if (r.died !== undefined) truth[n] = r.died;
+    const vs = againstRiot(rounds, truth);
+    ok(vs.agree === 3 && vs.missed === 0 && vs.invented === 1 && rounds[0].died,
+      `against Riot: rounds 2, 5 and 6 agree, and round 1's is the prompt's invention (${JSON.stringify(vs)})`);
+    // A RETURN FROM THE DEAD, ONE READ LONG. 34 s after round 6's death, at
+    // 509.9 s, a frame showing SWITCH PLAYER and the COMBAT REPORT read "own HP
+    // 50 and Sheriff", and the next, at 511.7 s, SWITCH PLAYER again: believed,
+    // the first made the player alive and the second a second death.
+    ok(!run.deaths.includes(511.7) && at(511.7) && at(511.7).died === false
+      && lines.some((l) => /holding a return from the dead/.test(l)),
+      'round 6\'s one read "back alive" at 509.9 s is held, and the SWITCH PLAYER read after it is no second death');
+    // NO PLANT WHILE THE ROUND CLOCK RUNS. Round 3 at 0:51 read "planted at B"
+    // off the chat line "spotted the SPIKE in B", its clock running on, and
+    // Riot has no plant. Its round end countdown, at 276.3 s, read "postplant
+    // 0:00, planted at B Site" too, which the banner rule still credits to
+    // round 3: no clock rule can tell that read from a plant seen only on the
+    // banner, and the read prompt's fix is what can.
+    ok(run.plants.filter((p) => p.t < 276.3).every((p) => !p.rounds.includes(3))
+      && lines.some((l) => /ignoring "planted" on a live round read, its round clock 0:51/.test(l)),
+      `round 3's play plants nothing, the chat line at 0:51 with its round clock running included (${run.plants.find((p) => p.rounds.includes(3)) ? run.plants.find((p) => p.rounds.includes(3)).t : 'never'} s)`);
+    run.restore();
+  }
+
+  // ── The fixture maker keeps a word where it drops one ─────────────────────
+  // make-session-fixture.js cut a name out of a kill feed line and moved the
+  // rest up: "<name> killed by Chamber" became "killed by Chamber", which the
+  // spectate guard reads as the player's own death banner, and the Fracture
+  // replay above lost its round 6 return. And the repo is public: every word
+  // of its fixture is one the scrubber allows, the game's own, a number or
+  // the placeholder, but two the maker was told were no names.
+  {
+    const maker = require(path.join(__dirname, 'fixtures', 'make-session-fixture.js'));
+    const spectate = require(path.join(__dirname, '..', 'src', 'shared', 'spectate-tells.js'));
+    const feed = maker.scrub('Xyzzy killed by Chamber');
+    ok(feed === 'someone killed by Chamber' && !spectate.KILLED_BY_PLAYER.test(feed)
+      && spectate.KILLED_BY_PLAYER.test(maker.scrub('KILLED BY CHAMBER')) && maker.scrub('Xyzzy') === undefined,
+      `a dropped name leaves a placeholder ("${feed}"), so a line about somebody else is never the player's banner`);
+    const strange = Object.keys(maker.strangeWords(require('./fixtures/valorant-session-fracture-swiftplay.json').frames))
+      .map((w) => w.toLowerCase()).sort();
+    ok(strange.join() === 'aide,m4a1',
+      `the Fracture fixture holds no word the lists do not know but the model's "Aide" label and its "M4A1" (${strange.join(', ')})`);
+    // And what the maker refuses on: a session of made up names in a profile
+    // folder of its own, a name in a raw field and the Riot ID in another.
+    const fs = require('fs');
+    const os = require('os');
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-fixture-'));
+    try {
+      const dir = path.join(home, 'ai-log', 'session-x');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(home, 'occlara-config.json'), JSON.stringify({ riotId: 'Zorblax#Q7Z' }));
+      fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify({ records: [
+        { i: 0, at: 1000, state: { phase: 'dead', playerAlive: false, aliveTell: 'Spectating Quuxly with SWITCH PLAYER', killFeed: 'Zorblax killed by Sage' } },
+        { i: 1, at: 2000, state: { phase: 'active', playerSpot: 'near Quuxly', spikeSpot: 'Zorblax', clock: '1:20' } },
+      ] }));
+      const frames = maker.build(dir);
+      const leak = maker.leaks(dir, frames);
+      ok(frames[0].aliveTell === 'Spectating someone with SWITCH PLAYER' && leak.riotId.join() === 'zorblax'
+        && leak.session.includes('quuxly') && leak.session.includes('zorblax'),
+      `a name left in a field the maker keeps as it is, and the Riot ID, are what it refuses to write (Riot ID ${leak.riotId.length}, others ${leak.session.length})`);
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  }
+
   // ── The 24 round Abyss match, against Riot's record of it ─────────────────
   {
     const riot = require('./fixtures/riot-abyss-13-11.json');
@@ -363,6 +517,7 @@ function againstRiot(rounds, truth) {
       ['valorant-session-abyss-swiftplay.json', [16, 21]],
       ['valorant-session-split-competitive.json', [6, 15]],
       ['valorant-session-abyss-unrated.json', [17, 25]],
+      ['valorant-session-fracture-swiftplay.json', [3, 9]],
     ];
     for (const [file, seeds] of CASES) {
       const base = replay(file);
@@ -386,7 +541,8 @@ function againstRiot(rounds, truth) {
   // them, and have followed the reads to the last.
   {
     for (const file of ['valorant-session-sunset-swiftplay.json', 'valorant-session-abyss-swiftplay.json',
-      'valorant-session-split-competitive.json', 'valorant-session-abyss-unrated.json']) {
+      'valorant-session-split-competitive.json', 'valorant-session-abyss-unrated.json',
+      'valorant-session-fracture-swiftplay.json']) {
       const on = replay(file);
       const off = replay(file, { cadence: false });
       const of = (r) => ({ ledger: ledgerOf(r), filed: r.filed.map((x) => x.n).join(), deaths: r.deaths.join(),
@@ -454,6 +610,137 @@ function againstRiot(rounds, truth) {
     } finally { console.log = realLog; Date.now = realNow; }
     ok(logged.length === 2 && logged[1].died === true && e.ledger.list().some((r) => r.died),
       `a death on trial when recording stops stands, and its frame is logged as one (${logged.map((r) => r.died).join(', ')})`);
+  }
+
+  // ── The Fracture guards at their boundaries, on reads written by hand ─────
+  const readBy = (reads) => {
+    const t0 = Date.parse('2026-10-04T20:00:00Z');
+    const lines = [];
+    const deaths = [];
+    const e = new CoachingEngine({ licenseKey: 'TEST', captureFunction: async () => null, experiments: () => ({}) });
+    e.isRunning = true;
+    console.log = (...a) => lines.push(a.join(' '));
+    try {
+      for (const r of reads) {
+        const at = t0 + r.t * 1000;
+        Date.now = () => at;
+        const { t, ...context } = r;
+        const before = e.lastDeathAt;
+        e.applyRead({ data: { context }, shot: null, at });
+        if (e.lastDeathAt !== before) deaths.push(t);
+      }
+    } finally { console.log = realLog; Date.now = realNow; }
+    return { e, lines, deaths };
+  };
+  const clockOf = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  {
+    // When a buy timer began: buyVerdict's start, to within the two seconds
+    // a whole second clock and the countdown's last second leave.
+    const { RoundLedger } = require(path.join(__dirname, '..', 'src', 'shared', 'valorant-rounds.js'));
+    const L = new RoundLedger();
+    L.lastPlayAt = 100000;
+    ok(!L.beganAfterPlay(100000, 43) && L.beganAfterPlay(100001, 43) && !L.beganAfterPlay(98000, 30) && L.beganAfterPlay(98001, 30)
+      && !L.beganAfterPlay(112000, 31) && L.beganAfterPlay(112001, 31) && !L.beganAfterPlay(200000, null)
+      && !L.beganAfterPlay(101000, 0) && !L.beganAfterPlay(128000, 0) && new RoundLedger().beganAfterPlay(5000, 0),
+    'a buy timer began after the last play when its clock puts its start no more than 2 s before it: 45 s past 0:30, 30 s to it, never with no clock, and a 0:00 a second on never');
+
+    // Rounds 1 to 4 won on defence: a buy phase, play read every 10 s down to
+    // 0:49, and the won banner's score read twice. Round 4's last play is at
+    // 381 s, its banner's 4 to 0 is taken at 393 s, and round 5 is read after.
+    const fourWon = (after) => {
+      const out = [];
+      for (let n = 0; n < 4; n++) {
+        const t = n * 100;
+        const at = { teamScore: n, enemyScore: 0, side: 'defending', playerAlive: true, playerHp: 100 };
+        out.push({ ...at, t, phase: 'buy', clock: n ? '0:29' : '0:43', playerCredits: 800 + n * 1000, playerWeapon: 'Classic' });
+        out.push({ ...at, t: t + 1, phase: 'buy', clock: n ? '0:28' : '0:42', playerWeapon: 'Classic' });
+        for (let k = 0; k < 6; k++) out.push({ ...at, t: t + 31 + k * 10, phase: 'active', clock: clockOf(99 - k * 10), playerWeapon: 'Vandal' });
+        out.push({ ...at, t: t + 92, phase: 'active', clock: '0:06', teamScore: n + 1, playerWeapon: 'Vandal' });
+        out.push({ ...at, t: t + 93, phase: 'active', clock: '0:05', teamScore: n + 1, playerWeapon: 'Vandal' });
+      }
+      return out.concat(after.map((r) => ({ teamScore: 4, enemyScore: 0, side: 'defending', playerAlive: true, playerHp: 100,
+        playerWeapon: 'Knife', ...r })));
+    };
+    const countdown = [{ t: 397, phase: 'buy', clock: '0:01', playerCredits: 4550 }, { t: 398, phase: 'buy', clock: '0:00', playerCredits: 4550 }];
+    const pistol = [{ t: 401, phase: 'buy', clock: '0:43', playerCredits: 800, side: 'attacking' },
+      { t: 402, phase: 'buy', clock: '0:42', playerCredits: 800, side: 'attacking' }];
+    const swift = readBy(fourWon([...countdown, ...pistol]));
+    ok(swift.e.matchContext.gameMode === 'swiftplay' && !swift.lines.some((l) => /bought with/.test(l)),
+      `round 4's end countdown, "buy 0:01" and "0:00" with its 4,550 credits, counts for nothing, and 0:43 then 0:42 with 800 lock swiftplay (${swift.e.matchContext.gameMode})`);
+    const comp = readBy(fourWon([...countdown, { t: 401, phase: 'buy', clock: '0:29', playerCredits: 3550 },
+      { t: 402, phase: 'buy', clock: '0:28', playerCredits: 3550 }]));
+    ok(comp.e.matchContext.gameMode === 'standard' && comp.lines.some((l) => /bought with 3550 credits/.test(l)),
+      `and a standard round 5 bought at 0:29 with 3,550 locks standard (${comp.e.matchContext.gameMode})`);
+    const blind = readBy(fourWon([{ t: 401, phase: 'buy', playerCredits: 3550 }, { t: 402, phase: 'buy', playerCredits: 3550 }]));
+    ok(blind.e.matchContext.gameMode === null,
+      `a buy read with no clock of its own says nothing of when its buy phase began, so its money counts for nothing (${blind.e.matchContext.gameMode})`);
+    // Round 4 ended after a plant: its countdown read "postplant 0:04", the
+    // frames after it carry that phase, and its 0:00 at 397.8 s is the last
+    // frame of play. A standard round 5 at 0:29 with 3,550 read at 398.7 s
+    // began by its clock at 397.7 s at the earliest, a tenth before it, and so
+    // does every read a second after it. Taken exactly they counted for
+    // nothing, and the side misread as attacking on five of them locked
+    // swiftplay on a standard match by the side swap.
+    const postCountdown = [{ t: 394, phase: 'postplant', clock: '0:04' }, { t: 395.8, clock: '0:02' },
+      { t: 396.8, clock: '0:01' }, { t: 397.8, clock: '0:00' }];
+    const misread = [0, 1, 2, 3, 4].map((k) => ({ t: 398.7 + k, phase: 'buy', clock: `0:${29 - k}`, playerCredits: 3550, side: 'attacking' }));
+    const tight = readBy(fourWon([...postCountdown, ...misread]));
+    ok(tight.e.matchContext.gameMode === 'standard' && tight.lines.some((l) => /bought with 3550 credits/.test(l))
+      && tight.e.ledger.lastPlayAt === Date.parse('2026-10-04T20:00:00Z') + 397800,
+      `and one whose timer began a tenth before the countdown's last frame is standard's money, never a side swap (${tight.e.matchContext.gameMode})`);
+    // The two proofs nothing outranks, after a swiftplay lock from round 5's
+    // timer: a team on 5 buying another round, and a sixth round won.
+    const round5 = [...pistol];
+    for (let k = 0; k < 6; k++) round5.push({ t: 431 + k * 10, phase: 'active', clock: clockOf(99 - k * 10), side: 'attacking' });
+    round5.push({ t: 492, phase: 'active', clock: '0:06', teamScore: 5, side: 'attacking' }, { t: 493, phase: 'active', clock: '0:05', teamScore: 5, side: 'attacking' });
+    const buyAt5 = readBy(fourWon([...round5, { t: 501, phase: 'buy', clock: '0:29', teamScore: 5 }, { t: 502, phase: 'buy', clock: '0:28', teamScore: 5 }]));
+    ok(buyAt5.e.matchContext.gameMode === 'standard' && buyAt5.lines.some((l) => /mode corrected to standard \(a buy phase at 5-0/.test(l)),
+      `a buy phase with a team on 5 proves standard over it (${buyAt5.e.matchContext.gameMode})`);
+    const round6 = [];
+    for (let k = 0; k < 6; k++) round6.push({ t: 531 + k * 10, phase: 'active', clock: clockOf(99 - k * 10), teamScore: 5, side: 'attacking' });
+    round6.push({ t: 592, phase: 'active', clock: '0:06', teamScore: 6, side: 'attacking' }, { t: 593, phase: 'active', clock: '0:05', teamScore: 6, side: 'attacking' },
+      { t: 594, phase: 'active', clock: '0:04', teamScore: 6, side: 'attacking' });
+    const six = readBy(fourWon([...round5, ...round6]));
+    ok(six.e.matchContext.gameMode === 'standard' && six.lines.some((l) => /mode corrected to standard \(score\/round past swiftplay limits/.test(l)),
+      `and so does a score past swiftplay's (${six.e.matchContext.gameMode})`);
+  }
+  {
+    // A RETURN FROM THE DEAD. Round 3, the death on its death screen at 1:20.
+    const alive = { phase: 'active', teamScore: 1, enemyScore: 1, side: 'defending', playerAlive: true, playerHp: 100,
+      playerWeapon: 'Vandal', aliveTell: 'own HP 100 and Vandal bottom left' };
+    const dead = { phase: 'dead', teamScore: 1, enemyScore: 1, playerAlive: false, aliveTell: 'Spectating someone with SWITCH PLAYER bottom left' };
+    const died = [{ t: 0, ...alive, clock: '1:30' }, { t: 5, ...alive, clock: '1:25' },
+      { t: 10, ...dead, clock: '1:20', aliveTell: 'KILLED BY Jett and COMBAT REPORT shown' }, { t: 15, ...dead, clock: '1:15' }];
+    const back = (t, o) => ({ t, ...alive, playerHp: 50, playerWeapon: 'Sheriff', aliveTell: 'own HP 50 and Sheriff bottom right', ...o });
+    const once = readBy([...died, back(40, { clock: '0:50' }), { t: 41, ...dead, clock: '0:49' }]);
+    ok(once.deaths.join() === '10' && once.lines.some((l) => /holding a return from the dead/.test(l)) && once.e.matchContext.playerAlive === false,
+      `one "own HP" read 30 s on, its round clock carrying on the death's, is held, and the SWITCH PLAYER read after it is no second death (deaths at ${once.deaths.join(', ')} s)`);
+    const twice = readBy([...died, back(40, { clock: '0:50' }), back(41, { clock: '0:49' })]);
+    ok(twice.e.matchContext.playerAlive === true, 'two in a row are believed: a revive costs one read');
+    const elsewhere = readBy([...died, back(40, { clock: '0:20' })]);
+    const moved = readBy([...died, back(40, { clock: '0:50', teamScore: 2 })]);
+    const bought = readBy([...died, back(40, { phase: 'buy', clock: '0:28' })]);
+    ok([elsewhere, moved, bought].every((r) => r.e.matchContext.playerAlive === true && !r.lines.some((l) => /holding a return/.test(l))),
+      'and none is held whose clock does not carry on the death\'s, whose score moved on, or that is a buy read');
+    const heldPlant = readBy([...died, back(40, { clock: '0:50', spike: 'planted', spikeSpot: 'B' })]);
+    ok(heldPlant.lines.some((l) => /holding a return/.test(l)) && heldPlant.e.matchContext.spike !== 'planted',
+      'a held read saying "planted" on the live round, its round clock running, plants nothing either');
+  }
+  {
+    // NO SPIKE IS DOWN WHILE THE ROUND CLOCK RUNS.
+    const at = { teamScore: 2, enemyScore: 0, side: 'defending', playerAlive: true, playerHp: 89, playerWeapon: 'Knife' };
+    const planted = (r) => r.e.matchContext.spike === 'planted' || r.e.ledger.list().some((x) => x.planted);
+    const chat = readBy([{ t: 0, ...at, phase: 'active', clock: '1:02' }, { t: 10, ...at, phase: 'active', clock: '0:52', spike: 'planted', spikeSpot: 'B' },
+      { t: 20, ...at, phase: 'active', clock: '0:42' }]);
+    const early = readBy([{ t: 0, ...at, phase: 'active', clock: '1:22', spike: 'planted', spikeSpot: 'A Site' }]);
+    ok(!planted(chat) && !planted(early),
+      'a live round read saying "planted" plants nothing while its round clock runs on, or reads over 45 s');
+    const moment = readBy([{ t: 0, ...at, phase: 'active', clock: '1:22' }, { t: 10, ...at, phase: 'postplant', clock: '1:12', spike: 'planted', spikeSpot: 'B site' }]);
+    const held = readBy([{ t: 0, ...at, phase: 'active', clock: '1:22' }, { t: 5, ...at, phase: 'postplant', spike: 'planted', spikeSpot: 'B site' },
+      { t: 7, ...at, phase: 'active', clock: '1:15', spike: 'planted' }]);
+    const banner = readBy([{ t: 0, ...at, phase: 'active', clock: '1:22' }, { t: 60, ...at, phase: 'active', clock: '0:01', spike: 'planted', spikeSpot: 'B Site' }]);
+    ok(planted(moment) && planted(held) && planted(banner),
+      'the frame of the plant read post plant, the timer\'s last second on it, plants; a plant already held stays; a banner\'s still counts');
   }
 
   console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' session replay checks passed'}`);

@@ -28,8 +28,10 @@ const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
 /**
  * Cut and keep a clip of each moment, in the order given, `max` at most.
  *
- *   looks    [{ key, name, moment }]: what the clip is of (a round number, a
- *            death), the name it is kept under, and when the death was (ms)
+ *   looks    [{ key, name, moment, window? }]: what the clip is of (a round
+ *            number, a death), the name it is kept under, when the death was
+ *            (ms), and the seconds to cut when the look knows them better than
+ *            its moment does (clips.lookWindow, 8.4.1)
  *   cut      (from, to, at) => { bytes, startWall } | null   recorder.cutClip
  *   save     (name, bytes) => true once kept       review-store.js saveClip
  *   stopped  () => true when the review was withdrawn meanwhile
@@ -47,7 +49,10 @@ async function cutClips(opts) {
   for (const look of Array.isArray(o.looks) ? o.looks : []) {
     if (out.kept.length >= max) break;
     if (typeof o.stopped === 'function' && o.stopped()) break;
-    const w = look ? clips.windowOf(look.moment) : null;
+    // The look's own window where it has one (clips.lookWindow: an early
+    // death's clip starts at its round), else the moment's.
+    const w = look ? (look.window && Number.isFinite(look.window.from) && Number.isFinite(look.window.to)
+      ? look.window : clips.windowOf(look.moment)) : null;
     if (!w || !clips.CLIP_RE.test(String(look.name || ''))) continue;
     out.tried += 1;
     let got = null;

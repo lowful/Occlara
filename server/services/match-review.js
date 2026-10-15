@@ -543,6 +543,19 @@ const BUY_BLAME = /\b(buy|buys|buying|bought|spawn|spawns|menu|menus|scoreboard|
 // A summary sentence that names a repeated mistake.
 const MISTAKE_WORDS = /\b(mistake|mistakes|repeated|repeating)\b/i;
 
+/*
+ * WHAT SAYS A MISTAKE CAME BACK (8.4.1): the words for it, "most rounds", or
+ * a count of times. With nothing counted, a sentence naming a mistake goes
+ * only when it says this or names two rounds: before, any sentence saying
+ * "mistake" went, and the player's Fracture swiftplay, nothing counted, lost
+ * the summary's middle sentence, "Your one costly mistake came in round 5,
+ * dying after the plant with your team up 4 against 3.", the round the match
+ * was lost in and the one thing the summary had to say. And the words for how
+ * often: "your most common mistake", "you often made the mistake" claim one
+ * the review never counted as surely as "repeated" does.
+ */
+const REPEAT_WORDS = /\b(?:repeated(?:ly)?|repeating|repeats?|again|kept|keeps?|keeping|every|each time|each round|most rounds|many rounds|multiple rounds|several rounds|over and over|recurring|consistently|habit(?:s|ual|ually)?|same mistake|twice|(?:\d+|two|three|four|five|six|seven|eight|nine|ten) times|common(?:ly)?|frequent(?:ly)?|often|usual(?:ly)?|typical(?:ly)?|always|constantly|throughout|tend(?:s|ed)? to|tendency|patterns?)\b/i;
+
 /** "4 of your 5" and "four of five", as "4/5", every one in the text. */
 function countPairs(text) {
   const num = (w) => {
@@ -619,6 +632,16 @@ function parse(text, input) {
   // Variant A has no labels at all: the whole reply is the summary.
   if (input.variant === 'A' && !out.summary) out.summary = String(text || '').trim() || null;
 
+  // R<n> IS THE LEDGER'S LABEL, NEVER PROSE (roundLabels), written out before
+  // any gate below reads a sentence's rounds. In an English review only: the
+  // words it writes are English, and a review in the player's own language
+  // keeps the label, which reads in any of them (languageRule).
+  if (promptName(input.context && input.context.language) === 'English') {
+    if (out.summary) out.summary = roundLabels(out.summary);
+    if (out.focus) out.focus = roundLabels(out.focus);
+    for (const n of Object.keys(out.rounds)) out.rounds[n] = roundLabels(out.rounds[n]);
+  }
+
   // NO COUNTS IN THE SUMMARY. The prompt said to quote a pattern's numbers
   // exactly or not at all, and the model still wrote "six of twelve attack
   // rounds after spike plant" on the real Abyss match, merging 6 of 12 on
@@ -631,7 +654,9 @@ function parse(text, input) {
   // AND A REPEATED MISTAKE IS ONE THE REVIEW COUNTED. A sentence calling
   // something the repeated mistake must name its rounds, and they must all be
   // one counted mistake's: "rounds 1, 2, 3 and 4" were no counted mistake's
-  // rounds on that Sunset match. With no mistake counted there is none to name.
+  // rounds on that Sunset match. With no mistake counted there is none to name,
+  // and only a claim that one came back goes (REPEAT_WORDS, or two rounds): one
+  // mistake in one round is what the prompt asks the second sentence for then.
   if (out.summary) {
     const allowed = new Set((input.mistakes || []).flatMap((m) => countPairs(m.detail)));
     const counted = (input.mistakes || []).filter((m) => m.rounds.length);
@@ -642,7 +667,9 @@ function parse(text, input) {
       if (blame) { out.blamed.push({ n: null, said: blame[0] }); return false; }
       if (MISTAKE_WORDS.test(s)) {
         const ns = namedRounds(s);
-        if (!ns.length || !counted.some((m) => ns.every((n) => m.rounds.includes(n)))) return false;
+        if (counted.length) {
+          if (!ns.length || !counted.some((m) => ns.every((n) => m.rounds.includes(n)))) return false;
+        } else if (REPEAT_WORDS.test(s) || ns.length > 1) return false;
       }
       return true;
     });
@@ -806,5 +833,32 @@ function roundDigits(text) {
   return words.join('');
 }
 
-module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, teachable, lineWorthy,
-  namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS };
+/*
+ * "R1, R3 AND R4" IS THE LEDGER'S LABEL, NEVER PROSE (8.4.1). The prompt names
+ * each round R1, R2 (roundLine, the round lines asked for), and the model
+ * copied it: the player's Fracture swiftplay summary said "You also traded
+ * teammates and survived R1, R3 and R4." where the rest of the page says
+ * rounds. roundDigits() turns spelled numbers after "round" into digits and
+ * never saw these, and the summary's gates find a sentence's rounds by the
+ * word "round" (namedRounds). So a run of them is written out, "rounds 1, 3
+ * and 4", "round 5", "Round 5" opening a sentence, "R1 to R3" and "R1-R3" as
+ * "rounds 1 to 3"; one already after "round" or "rounds" keeps that word,
+ * made to agree with the count. Only a capital R, a word of its own, one or
+ * two digits: "AR15", "R2D2" and "R100" are left alone.
+ */
+const ROUND_LABELS = /(\b[Rr]ounds?\s+)?\bR(\d{1,2})\b((?:(?:\s*,\s*(?:(?:and|or)\s+)?|\s*&\s*|\s*-\s*|\s+(?:and|or|to|through)\s+)R\d{1,2}\b)*)/g;
+
+function roundLabels(text) {
+  if (!text) return text;
+  return String(text).replace(ROUND_LABELS, (run, said, first, rest, at, whole) => {
+    const count = 1 + (rest.match(/R\d/g) || []).length;
+    const word = count === 1 ? 'round' : 'rounds';
+    const before = whole.slice(0, at).trim();
+    const opens = said ? said[0] === 'R' : !before || /[.!?]$/.test(before);
+    const tail = rest.replace(/\s*-\s*R/g, ' to R').replace(/R(\d{1,2})/g, '$1');
+    return `${opens ? 'R' + word.slice(1) : word} ${first}${tail}`;
+  });
+}
+
+module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, roundLabels, teachable, lineWorthy,
+  namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, REPEAT_WORDS, ROUND_LABELS, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS };

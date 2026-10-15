@@ -1215,6 +1215,220 @@ async function openShell(cfg, state, opts) {
     ok(v.bridge.api.openAiLog && typeof v.bridge.api.askAbout === 'function', 'the review\'s bridge opens the AI log and still asks about a match');
   });
 
+  // A REVIEW STILL BEING BUILT IS A LOADING SCREEN (8.4.1): "if the match
+  // review is not complete, loading and verifying from Riot, have it as a
+  // loading screen until everything is complete". What is left of a job's
+  // work (shared/review-work.js workOf), then the page: the steps while it is
+  // built, and the review whole once main says the work is done.
+  await section('a review still being built is a loading screen, painted whole once its work is done:', async () => {
+    const reviewWork = require('../src/shared/review-work');
+    const { workOf, RIOT_WAIT_MS, BUILD_MAX_MS, STEPS } = reviewWork;
+    const END = Date.UTC(2026, 9, 13, 20, 0, 0);
+    const job = (extra, snap) => ({ id: 'valorant-1792000000000-build1', snap: { endedAt: END, endedBy: 'score', ...(snap || {}) }, ...(extra || {}) });
+    const at = (j, ms, riot) => workOf(j, END + ms, riot === undefined ? true : riot);
+    const w0 = at(job({ byRiot: true }), 30000);
+    ok(w0 && w0.path === 'riot' && w0.step === 'riot' && same(w0.steps, ['saved', 'riot', 'deaths', 'look', 'writing'])
+      && w0.endedAt === END && w0.until === END + RIOT_WAIT_MS && w0.scoreboard === false,
+    'with a Riot ID, a match just over waits for Riot\'s record, and says until when', JSON.stringify(w0));
+    ok(RIOT_WAIT_MS === 6 * 60000 && BUILD_MAX_MS === 12 * 60000 && same(STEPS.screen, ['saved', 'writing', 'look']),
+      'Riot\'s record waited for six minutes, nothing a loading screen past twelve, and from the screen alone the review written before the look');
+    ok(at(job({ byRiot: true, tracker: { matchId: 'm1' } }), 90000).scoreboard === true, 'the scoreboard linked, still waiting for the rounds');
+    const busy = at(job({ byRiot: true, riotBusy: true, stage: 'look' }), 7 * 60000);
+    ok(busy && busy.step === 'look' && busy.until === null, 'Riot\'s rounds in at the last moment, the look and the review still come after six minutes', JSON.stringify(busy));
+    ok(at(job({ byRiot: true, riotBusy: true }), 60000).step === 'deaths' && at(job({ byRiot: true, riotBusy: true, stage: 'nope' }), 60000).step === 'deaths',
+      'its rounds in with no step said yet, or one it does not know: laying them over the screen\'s');
+    ok(at(job({ byRiot: true }), RIOT_WAIT_MS) === null && at(job({ byRiot: true }), RIOT_WAIT_MS - 1) !== null,
+      'Riot\'s record not in after six minutes: the review is painted from the screen');
+    ok(at(job({ byRiot: true, riotBusy: true }), BUILD_MAX_MS) === null, 'and past twelve nothing is a loading screen, whatever is still going on');
+    ok([{ riotLooked: true }, { linkMissing: true }, { linkMissing: 'later' }, { finished: true }, { cancelled: true }, { released: true }]
+      .every((x) => at(job({ byRiot: true, ...x }), 60000) === null),
+    'none once Riot\'s look has landed and the read is written, the link has given up, the work is over, it was withdrawn, or it was once painted whole');
+    ok(at(job({ byRiot: false }), 10000).step === 'writing' && at(job({ byRiot: false, narrated: true }), 10000).step === 'look'
+      && at(job({ byRiot: false, narrated: true, screenLooked: true }), 10000) === null && at(job({ byRiot: false }), 10000).until === null,
+    'from the screen alone: the review written, then the look from the screen, then whole');
+    ok(at(job({}), 10000, false).path === 'screen' && at(job({}), 10000, true).path === 'riot'
+      && at(job({ byRiot: false }), 10000, true).path === 'screen' && at(job({ byRiot: true }), 10000, false).path === 'riot',
+    'which way, decided as the narrative comes back, and the Riot ID in Settings until then');
+    ok(at(job({ byRiot: true }, { stoppedLive: true }), 10000) === null && at(job({ byRiot: true }, { endedBy: 'next-match' }), 10000) === null,
+      'never for a part of a match, saved and not shown: one recording was stopped in, or the next began over');
+    ok(at(job({ byRiot: true }), -60000).step === 'riot' && workOf(null, END, true) === null && workOf(job({}, { endedAt: null }), END, true) === null,
+      'a clock set back counts from the end, and no job or no end is no loading screen');
+
+    // The page.
+    const BUILT = { id: 'valorant-1792000000000-build1', kind: 'valorant', source: 'watched', aiLog: 'kept', rounds: [],
+      game: { map: 'Abyss', agent: 'Jett', result: 'Defeat', score: '3-5' },
+      grade: { score: 61, letter: 'C', provisional: false, categories: [], notes: [] },
+      summary: 'The screen\'s read of the match.', insights: { mistakes: [], strengths: [], missed: [] } };
+    const ended = Date.now() - 100000;
+    const RIOT_WORK = { path: 'riot', steps: ['saved', 'riot', 'deaths', 'look', 'writing'], step: 'riot', endedAt: ended, until: ended + RIOT_WAIT_MS, scoreboard: false };
+    const v = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => ({ ...BUILT, work: RIOT_WORK }) } });
+    await settle();
+    const steps = () => v.document.querySelectorAll('#b-steps .b-step').map((li) => `${li.dataset.step}:${li.className.split(' ')[1]}`);
+    ok(!v.$('building').hidden && v.$('vreview').hidden && v.$('review').hidden && v.$('empty').hidden && v.$('common').hidden,
+      'a review still being built arrives as its loading screen, nothing of the review behind it');
+    ok(same(steps(), ['saved:done', 'riot:now', 'deaths:next', 'look:next', 'writing:next']), 'its steps in order, the one it is on marked', steps().join(' '));
+    ok(v.$('b-title').textContent === 'Checking your match'
+      && v.$('b-sub').textContent === "Your review opens here once Riot's record is laid over what the coach read and the coach has looked at your deaths.",
+    'it says what it is waiting for', v.$('b-sub').textContent);
+    const now = v.document.querySelector('#b-steps .b-step.now');
+    ok(now && now.getAttribute('aria-current') === 'step' && /Riot publishes a match 1 to 4 minutes after it ends/.test(now.textContent)
+      && /^1:4\d$/.test((now.querySelector('.b-time') || {}).textContent || ''),
+    'the wait for Riot\'s record says how long it usually takes, and how long since the match ended', now && now.textContent);
+    ok(/^If Riot's record is not out within 4:\d\d, the review opens with what the screen read, and fills in when the record comes\.$/.test(v.$('b-foot').textContent),
+      'and how long the page waits for it before painting what the screen read', v.$('b-foot').textContent);
+    ok(v.$('b-now').getAttribute('aria-live') === 'polite' && v.$('b-now').textContent === "Waiting for Riot's record"
+      && (now.querySelector('.b-time') || {}).getAttribute('aria-hidden') === 'true',
+    'the step is said once to a screen reader, the ticking clock never');
+    ok(v.$('ask').hidden && !v.$('eye-host').hidden, 'Ask about this match waits for the whole review; the eye on its frames does not');
+    // A minute on, by the page's own clock: its second's tick says so.
+    v.window.Date = class extends Date { static now() { return Date.now() + 60000; } };
+    v.clock.advance(1000);
+    ok(/^2:4\d$/.test((v.document.querySelector('#b-steps .b-step.now .b-time') || {}).textContent || ''), 'the clock goes on ticking, a second at a time');
+    // The record lands: the steps move on, said once.
+    v.bridge.emit(C.PUSH_REVIEW_WORK, { id: BUILT.id, work: { ...RIOT_WORK, step: 'look', until: null } });
+    await settle();
+    ok(same(steps(), ['saved:done', 'riot:done', 'deaths:done', 'look:now', 'writing:next']) && v.$('b-now').textContent === "The coach's look at your deaths"
+      && v.$('b-foot').textContent === "Riot's record is in.",
+    'Riot\'s record in, the steps move on to the coach\'s look', steps().join(' '));
+    v.bridge.emit(C.PUSH_REVIEW_WORK, { id: 'valorant-1792000000000-other1', work: null });
+    await settle();
+    ok(!v.$('building').hidden, 'another review\'s work is not this page\'s business');
+    // A newer version arrives while it is still being built: held, not painted.
+    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...BUILT, summary: "Riot's read of the match.", work: { ...RIOT_WORK, step: 'writing', until: null } });
+    await settle();
+    ok(!v.$('building').hidden && v.$('vreview').hidden && same(steps().slice(-1), ['writing:now']), 'a newer version of it while it is built is held, the loading screen on');
+    // Whole: the version held is painted.
+    v.bridge.emit(C.PUSH_REVIEW_WORK, { id: BUILT.id, work: null });
+    await settle();
+    ok(v.$('building').hidden && !v.$('vreview').hidden && v.$('v-summary').textContent === "Riot's read of the match."
+      && (v.document.querySelector('#grade-host .gv-score') || {}).textContent === '61' && !v.$('ask').hidden,
+    'its work done, the review is painted whole from the version the page holds, its grade, its read and Ask with it');
+    ok(v.$('vreview').classList.contains('v-arrive'), 'and it rises in where the loading screen was');
+
+    // From the screen alone.
+    const s = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => ({ ...BUILT,
+      work: { path: 'screen', steps: ['saved', 'writing', 'look'], step: 'writing', endedAt: Date.now() - 20000, until: null, scoreboard: false } }) } });
+    await settle();
+    const sSteps = s.document.querySelectorAll('#b-steps .b-step').map((li) => `${li.dataset.step}:${li.className.split(' ')[1]}`);
+    ok(!s.$('building').hidden && s.$('b-title').textContent === 'Writing your review' && same(sSteps, ['saved:done', 'writing:now', 'look:next'])
+      && s.$('b-foot').hidden && s.$('b-sub').textContent === 'Your review opens here once it is whole, usually in a minute or two.',
+    'with no Riot ID, the review written, then the coach\'s look, and no wait for Riot', sSteps.join(' '));
+    // A review with no work, saved before or done long ago, is never one.
+    const done = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => ({ ...BUILT, work: null }) } });
+    await settle();
+    const plain = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => ({ ...BUILT }) } });
+    await settle();
+    ok(done.$('building').hidden && !done.$('vreview').hidden && plain.$('building').hidden && !plain.$('vreview').hidden,
+      'a review with no work, or saved before there was any, is painted whole at once');
+    // The page is kept between reviews: another one shown over the loading screen takes it away.
+    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...BUILT, work: RIOT_WORK });
+    await settle();
+    v.bridge.emit(C.PUSH_LOL_REVIEW, { id: 'lol-1759348800000-lol002', kind: 'lol', aiLog: null,
+      game: { champion: 'Ahri', role: 'Middle', mode: 'CLASSIC', duration: '31:04' },
+      scoreline: { kills: 10, deaths: 5, assists: 20, cs: 210, csAt10: 70, ward: 14 },
+      deaths: { headline: '', detail: '' }, deathList: [], moments: [], objectives: {}, scored: [], unmeasured: [], next: null, gamesRecorded: 0 });
+    await settle();
+    ok(v.$('building').hidden && !v.$('review').hidden, 'another review painted over a loading screen takes it away');
+    ok(v.bridge.listening(C.PUSH_REVIEW_WORK) === 1 && C.PUSH_LIST.includes(C.PUSH_REVIEW_WORK), 'over PUSH_REVIEW_WORK, a channel from channels.js');
+
+    // In the app's own design: tokens, no gradient, and still asked for less motion.
+    const css = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
+    const part = css.slice(css.indexOf('A review still being built (8.4.1)'), css.indexOf('Every game: the grade, the lists'));
+    ok(part.length > 200 && !/gradient/i.test(part) && !/#[0-9a-f]{3,8}\b/i.test(part) && /var\(--bg-2\)/.test(part) && /var\(--r-md\)/.test(part),
+      'its rules use the theme\'s tokens and no gradient');
+    // NOTHING ON IT MOVES FOR LONG: an animation that never ends kept the page
+    // composited every frame, and the look's stills, decoded on the GPU while
+    // it waits, timed out in check:clips. Its arrival alone moves, and not
+    // when asked for less motion.
+    ok(!/infinite/.test(part) && /\.building \{[^}]*animation: riseIn/.test(part)
+      && /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.building, #vreview\.v-arrive \{ animation: none; \}/.test(part),
+    'nothing on it moves for long, its arrival alone, and that not when asked for less motion; the clock ticking is what says it goes on');
+  });
+
+  // THE CLOCK THAT ENDS A LOADING SCREEN, and the latch that keeps it ended,
+  // are main's (index.js workOfJob, noteWork, watchWork), run here in a
+  // sandbox on a fake clock. workOf() alone says when the work is null; it is
+  // main's second's tick that tells the page so at six minutes, when nothing
+  // else happens, and main's `released` that keeps Riot's rounds landing at
+  // seven minutes from turning a review painted whole back into a loading
+  // screen. Neither was held by any check.
+  await section('main ends a review\'s loading screen by the clock, and never brings it back:', async () => {
+    const vm = require('vm');
+    const reviewWork = require('../src/shared/review-work');
+    const { RIOT_WAIT_MS, BUILD_MAX_MS } = reviewWork;
+    const idx = fs.readFileSync(path.join(ROOT, 'src', 'main', 'index.js'), 'utf8').replace(/\r\n/g, '\n');
+    const head = '\nconst riotIdSet = ';
+    const from = idx.indexOf(head);
+    const to = from < 0 ? -1 : idx.indexOf('\n/**\n * The engine says the last end was wrong', from);
+    const WIRING = to < 0 ? '' : idx.slice(from, to);
+    ok(/function workOfJob\(/.test(WIRING) && /function noteWork\(/.test(WIRING) && /function watchWork\(/.test(WIRING),
+      'main\'s work wiring is found in index.js');
+    const END = Date.UTC(2026, 9, 13, 21, 0, 0);
+    let clock = END + 30000;
+    const timers = new Map();
+    let seq = 0;
+    const pushes = [];
+    const box = {
+      console: { log() {}, warn() {}, error() {} },
+      Date: { now: () => clock },
+      setInterval: (fn, ms) => { const id = ++seq; timers.set(id, { fn, ms, next: clock + ms }); return id; },
+      clearInterval: (id) => { timers.delete(id); },
+      store: { get: (k) => (k === 'riotId' ? 'Player#EUW' : null) },
+      reviewWork, reviewJobs: new Map(), C,
+      registry: { broadcast: (ch, msg) => pushes.push({ ch, ...msg }) },
+    };
+    // Each timer due by then runs in order, the clock at its moment.
+    const advance = (ms) => {
+      const until = clock + ms;
+      for (;;) {
+        let due = null;
+        for (const t of timers.values()) if (t.next <= until && (!due || t.next < due.next)) due = t;
+        if (!due) break;
+        clock = due.next;
+        due.next += due.ms;
+        due.fn();
+      }
+      clock = until;
+    };
+    vm.createContext(box);
+    const w = WIRING ? vm.runInContext(`${WIRING}\n;({ workOfJob, workForId, noteWork })`, box) : null;
+    if (!w) return;
+    const job = { id: 'valorant-1792000000000-wire1', snap: { endedAt: END, endedBy: 'score' }, byRiot: true, narrated: true };
+    box.reviewJobs.set(END - 40 * 60000, job);
+    w.noteWork(job);
+    ok(pushes.length === 1 && pushes[0].ch === C.PUSH_REVIEW_WORK && pushes[0].id === job.id
+      && pushes[0].work && pushes[0].work.step === 'riot' && timers.size === 1,
+    'a review waiting for Riot\'s record says so, once, and main\'s second\'s tick starts', JSON.stringify(pushes));
+    advance(60000);
+    ok(pushes.length === 1, 'the tick says nothing while nothing has changed');
+    advance(RIOT_WAIT_MS - 90000 - 1000);
+    ok(pushes.length === 1 && !job.released, 'still waiting a second before six minutes');
+    advance(1000);
+    ok(pushes.length === 2 && pushes[1].id === job.id && pushes[1].work === null && job.released === true && timers.size === 0,
+      'Riot\'s record not in at six minutes: the tick says the work is done, once, with nothing else happening, and stops', JSON.stringify(pushes[1]));
+    advance(60000);
+    job.riotBusy = true;
+    job.stage = 'deaths';
+    w.noteWork(job);
+    ok(pushes.length === 2 && w.workForId(job.id) === null && timers.size === 0,
+      'Riot\'s rounds landing at seven minutes never turn the review painted whole back into a loading screen', JSON.stringify(pushes.slice(2)));
+    // Riot's rounds in at the last moment: the look and the read still come,
+    // and twelve minutes after the end the page is painted whatever is left.
+    const late = { id: 'valorant-1792000000000-wire2', snap: { endedAt: clock - (BUILD_MAX_MS - 2000), endedBy: 'score' },
+      byRiot: true, narrated: true, riotBusy: true, stage: 'look' };
+    box.reviewJobs.set(END - 20 * 60000, late);
+    w.noteWork(late);
+    ok(pushes.length === 3 && pushes[2].work && pushes[2].work.step === 'look' && timers.size === 1, 'its look still out, the page is told the step');
+    advance(3000);
+    ok(pushes.length === 4 && pushes[3].id === late.id && pushes[3].work === null && timers.size === 0,
+      'and twelve minutes after the end the tick paints it, whatever is still going on');
+    // Withdrawn, a review is said nothing more about, and no review it is not is ever one.
+    const gone = { id: 'valorant-1792000000000-wire3', snap: { endedAt: clock, endedBy: 'score' }, byRiot: true, cancelled: true };
+    box.reviewJobs.set(END - 10 * 60000, gone);
+    w.noteWork(gone);
+    ok(pushes.length === 4 && w.workForId('valorant-1792000000000-none') === null, 'a withdrawn review is said nothing more about, and an id with no job has no work');
+  });
+
   // EVERY ROUND, ONCE (8.3.1): one list of rounds, and a death the coach looked
   // at inside its own round, where it was a section of its own at the bottom of
   // the page ("Where you died, and how") with the round's facts said again. A
@@ -1786,6 +2000,185 @@ async function openShell(cfg, state, opts) {
     ok(!turned(), 'and a repaint while they are closed leaves it closed');
   });
 
+  // HOME'S RANK JOURNEY OPENS THE JOURNEY (8.4.1). It opened Stats with the
+  // journey folded in the Rank tile. Main keeps what the page was opened for
+  // until the page asks (STATS_OPENED_FOR, taken once, stood in for here as
+  // main answers it), as it loads and each time it is about to show.
+  await section('Stats, opened from Home\'s Rank journey, opens with the journey open:', async () => {
+    const pt = (elo, change) => ({ date: Date.UTC(2026, 9, 1), elo, change, tier: 'Gold 2' });
+    const history = { points: [pt(1180, -21), pt(1218, 18), pt(1203, -15)] };
+    let pending = null;   // what main was last asked to open Stats for
+    const asked = [];
+    const statsOpened = () => loadSurface('stats', {
+      handlers: {
+        [C.STATS_DASHBOARD]: (mode) => ({ game: 'valorant', statsSupported: true, categories: {},
+          rank: { value: 'Gold 2', direction: 'flat' }, winRate: { value: 52, direction: 'up' }, topAgents: [],
+          sessions: [], sessionCount: 0, matches: { matches: [], fetchedAt: 0, mode: mode || 'competitive' }, grading: null, riotId: 'Me#EUW' }),
+        [C.STATS_MATCHES]: () => ({ matches: [] }),
+        [C.STATS_RANK_HISTORY]: () => history,
+        [C.STATS_OPENED_FOR]: () => { const w = pending; asked.push(w); pending = null; return w; },
+      },
+    });
+    const isOpen = (st) => !st.$('rank-reveal').hidden && st.$('rank-reveal').classList.contains('open')
+      && !!rankTileOf(st) && rankTileOf(st).classList.contains('notes-open');
+    pending = 'journey';
+    const st = statsOpened();
+    await repainted(st);
+    await repainted(st);
+    ok(isOpen(st) && !!st.document.querySelector('#rank-notes .rank-graph path.rg-line') && /About Gold/.test(st.$('rank-notes').textContent),
+      'opened for the journey, the page loads with it open under the Rank tile, the journey drawn',
+      `open ${isOpen(st)}, notes "${st.$('rank-notes').textContent.slice(0, 60)}"`);
+    ok(same(asked, ['journey']), 'asked once as the page loads, which takes it', JSON.stringify(asked));
+    // Kept between visits: shown again from the sidebar, it asks and nothing opens.
+    rankTileOf(st).click();
+    st.clock.advance(220);
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'arm', dir: 'forward' });
+    await repainted(st);
+    ok(!isOpen(st) && same(asked, ['journey', null]), 'closed by the player and shown again from the sidebar, it asks as it arms, and stays closed');
+    // From Home again: open, the overview scrolled to, and never toggled shut.
+    let scrolled = 0;
+    st.$('sec-overview').scrollIntoView = () => { scrolled++; };
+    pending = 'journey';
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'arm', dir: 'forward' });
+    await repainted(st);
+    ok(isOpen(st) && scrolled === 1, 'from Home again, the arm asks and the journey opens, the overview scrolled to');
+    pending = 'journey';
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'arm', dir: 'forward' });
+    await repainted(st);
+    ok(isOpen(st), 'asked for again while it is open, it stays open, never toggled shut');
+    // Called back mid switch (Home asked for, then Stats again before Home came
+    // in), the page on screen is told to enter with no arm: that asks too.
+    rankTileOf(st).click();
+    st.clock.advance(220);
+    pending = 'journey';
+    st.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'none' });
+    await repainted(st);
+    ok(isOpen(st) && asked[asked.length - 1] === 'journey', 'and called back mid switch, an enter with no arm before it asks as well, and it opens');
+    // Opened plainly, it loads closed.
+    pending = null;
+    const plain = statsOpened();
+    await repainted(plain);
+    await repainted(plain);
+    ok(!isOpen(plain) && plain.$('rank-reveal').hidden, 'opened any other way, it loads with the journey closed, as before');
+  });
+
+  // And main's half: its own two lines in a sandbox (index.js openStats and
+  // takeStatsOpen), and the wiring to them (register-ipc.js, electron stood in for).
+  await section('Main keeps what Stats was opened for until the page asks, once:', async () => {
+    const vm = require('vm');
+    const idxSrc = fs.readFileSync(path.join(ROOT, 'src', 'main', 'index.js'), 'utf8');
+    const at = idxSrc.indexOf('  openStats(what) {');
+    const end = at < 0 ? -1 : idxSrc.indexOf('\n', idxSrc.indexOf('takeStatsOpen() {', at));
+    const CTL = end < 0 ? '' : idxSrc.slice(at, end);
+    const opened = [];
+    const box = { state: {}, openPage: (id) => opened.push(id) };
+    vm.createContext(box);
+    const ctl = CTL ? vm.runInContext(`({\n${CTL}\n})`, box) : null;
+    ok(!!ctl && typeof ctl.openStats === 'function' && typeof ctl.takeStatsOpen === 'function',
+      'main\'s two lines are found and run in the sandbox', CTL.slice(0, 120));
+    if (ctl) {
+      ctl.openStats('journey');
+      ok(same(opened, ['stats']) && ctl.takeStatsOpen() === 'journey' && ctl.takeStatsOpen() === null,
+        'Home\'s Rank journey opens Stats, and the page that asks is told the journey, once');
+      ctl.openStats('journey');
+      ctl.openStats(null);
+      ok(ctl.takeStatsOpen() === null && same(opened, ['stats', 'stats', 'stats']), 'opened plainly after it, Stats is told nothing');
+    }
+    const Module = require('module');
+    const file = require.resolve('../src/main/ipc/register-ipc');
+    const on = {};
+    const handled = {};
+    const electron = {
+      ipcMain: { handle: (ch, fn) => { handled[ch] = fn; }, on: (ch, fn) => { on[ch] = fn; } },
+      shell: { openExternal: () => Promise.resolve() },
+    };
+    const stubs = { '../services/store': { get: () => undefined, set() {} }, '../updater': {}, '../services/pc-check': {} };
+    const calls = [];
+    const controller = { openStats: (w) => { calls.push(['open', w]); }, takeStatsOpen: () => { calls.push(['take']); return 'journey'; } };
+    const realLoad = Module._load;
+    Module._load = function stand(request, parent, ...rest) {
+      if (request === 'electron') return electron;
+      if (parent && parent.filename === file && Object.prototype.hasOwnProperty.call(stubs, request)) return stubs[request];
+      return realLoad.call(this, request, parent, ...rest);
+    };
+    try {
+      delete require.cache[file];
+      require(file)({ controller, license: {} });
+    } finally {
+      Module._load = realLoad;
+      delete require.cache[file];
+    }
+    if (on[C.OPEN_STATS]) { on[C.OPEN_STATS]({}, 'journey'); on[C.OPEN_STATS]({}); on[C.OPEN_STATS]({}, 'https://evil.example'); }
+    const told = handled[C.STATS_OPENED_FOR] ? await handled[C.STATS_OPENED_FOR]({}) : undefined;
+    ok(same(calls, [['open', 'journey'], ['open', null], ['open', null], ['take']]) && told === 'journey',
+      'OPEN_STATS hands main the journey and nothing else a page sends, and STATS_OPENED_FOR is main\'s take', JSON.stringify(calls));
+  });
+
+  // NEVER ANOTHER PLAYER'S NAME OR TAG (8.4.1). "Your team" showed every
+  // teammate's full Riot ID; Valorant lets a player hide theirs, and Riot's
+  // policy is that no product shows a player's identity to others without
+  // their opt in. The server sends none since, and a name an older server
+  // still sends is never painted.
+  await section('Stats, a match\'s team: agents and numbers, never another player\'s name or tag:', async () => {
+    const team = [
+      { name: 'Fade#EUW', agent: 'Sova', kills: 20, deaths: 12, assists: 6, acs: 260, me: false },   // as an 8.4.0 server sends it
+      { agent: 'Jett', kills: 18, deaths: 10, assists: 3, acs: 240, me: true },
+      { agent: null, kills: 5, deaths: 14, assists: 9, acs: 110, me: false },
+    ];
+    const match = { id: 'tm1', map: 'Fracture', agent: 'Jett', queue: 'Swiftplay', result: 'Victory', score: '5-1',
+      kills: 18, deaths: 10, assists: 3, kd: 1.8, acs: 240, adr: 150, headshotPct: 25, kpr: 1, dpr: 0.5, apr: 0.2,
+      dmgDelta: 30, rating: 86, startedAt: Date.UTC(2026, 9, 14), mvp: null, team };
+    const st = loadSurface('stats', {
+      handlers: {
+        [C.STATS_DASHBOARD]: () => ({ game: 'valorant', statsSupported: true, categories: {},
+          rank: { value: null, direction: 'flat' }, winRate: { value: null, direction: 'flat' }, topAgents: [],
+          sessions: [], sessionCount: 0, matches: { matches: [match], fetchedAt: 1, mode: 'competitive' }, grading: null, riotId: 'Me#EUW' }),
+        [C.STATS_MATCHES]: () => ({ matches: [match] }),
+        [C.STATS_RANK_HISTORY]: () => ({ points: [] }),
+      },
+    });
+    await repainted(st);
+    const rows = st.document.querySelectorAll('#match-list .team-row');
+    const read = rows.map((r) => r.children.map((c) => c.textContent));
+    ok(same(read, [['Sova', '', '20/12/6  ACS 260'], ['Jett', 'You', '18/10/3  ACS 240'], ['Unknown agent', '', '5/14/9  ACS 110']]),
+      'each teammate is their agent and their numbers, the player\'s own row "You"', JSON.stringify(read));
+    ok(rows.length === 3 && rows[1].classList.contains('me') && !rows[0].classList.contains('me'), 'the player\'s own row is the one marked');
+    ok(/Your team/.test(st.$('match-list').textContent) && !/Fade|#EUW/.test(st.$('match-list').textContent),
+      'and no name or tag is painted, not even one an older server still sends');
+  });
+
+  // THE RANK JOURNEY IN THE TOKENS (8.4.1): it was the retired cyan over a
+  // gradient fill, written into stats.js's markup, which check:palette never
+  // read. Now its colours are stats.css's, as Home draws the same journey.
+  await section('Stats\' rank journey is drawn in the tokens over one solid fill:', async () => {
+    const pt = (elo, change) => ({ date: Date.UTC(2026, 9, 1), elo, change, tier: 'Gold 2' });
+    const st = statsWithRank(() => ({ points: [pt(1180, -21), pt(1218, 18), pt(1203, -15)] }));
+    await repainted(st);
+    rankTileOf(st).click();
+    await repainted(st);
+    const graph = st.document.querySelector('#rank-notes .rank-graph');
+    const svg = graph ? graph.innerHTML : '';
+    ok(!!graph && !!graph.querySelector('svg path.rg-area') && !!graph.querySelector('svg path.rg-line') && !!graph.querySelector('.rg-plot > span.rg-dot')
+      && !graph.querySelector('circle'), 'the journey is drawn: the area under it, its line and the newest game\'s dot, a span over the line as Home\'s is');
+    ok(/stroke="#00F0FF"/.test('<path stroke="#00F0FF"/>') && /gradient/i.test('<linearGradient id="rgFill">'),
+      'the markup check finds the cyan and the gradient it replaced');
+    ok(svg.length > 200 && !/gradient/i.test(svg) && !/#[0-9a-f]{3,8}\b/i.test(svg) && !/\b(?:fill|stroke|stop-color)="/.test(svg),
+      'with no gradient and no colour of its own in the markup', svg.slice(0, 160));
+    const css = fs.readFileSync(path.join(RENDERER, 'stats', 'stats.css'), 'utf8');
+    const rule = (sel) => {
+      const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return (css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
+    };
+    const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
+    ok(prop(rule('.rank-graph svg'), 'height') === '96px', 'the rule reader finds a known rule');
+    ok(prop(rule('.rank-graph .rg-line'), 'stroke') === 'var(--text-dim)' && prop(rule('.rank-graph .rg-dot'), 'background') === 'var(--text)'
+      && prop(rule('.rank-graph .rg-area'), 'fill') === 'rgba(var(--cyan-rgb),0.06)',
+    'its line is --text-dim, its dot --text, over one solid tint of the accent');
+    const home = fs.readFileSync(path.join(RENDERER, 'home', 'home.css'), 'utf8');
+    ok(/\.rank-line path \{[^}]*stroke: var\(--text-dim\)/.test(home) && /\.rank-dot \{[^}]*background: var\(--text\)/.test(home),
+      'the line and the dot Home draws the same journey with');
+  });
+
   // ── Home (8.2.1) ─────────────────────────────────────────────────────────
   // A library of five Valorant matches, newest first as main lists them,
   // three of them Competitive, the newest with its AI log still kept; and a
@@ -1879,6 +2272,85 @@ async function openShell(cfg, state, opts) {
       'labelled() follows button(): no word from main, no eye');
   });
 
+  // A REVIEW STILL BEING BUILT (8.4.1), where its grade would show half done:
+  // Home's last match and its recent row, and its row in Matches, say it is
+  // being checked, until main says its work is done.
+  await section('Home and Matches say a review still being built is being checked, where its grade would be:', async () => {
+    const WORK = { path: 'riot', steps: ['saved', 'riot', 'deaths', 'look', 'writing'], step: 'riot', endedAt: HOME_AT, until: HOME_AT + 360000, scoreboard: false };
+    let building = true;
+    const rowsNow = () => [{ ...HOME_ROWS[0], work: building ? WORK : null }, ...HOME_ROWS.slice(1)];
+    const h = await openHome({ list: () => rowsNow() });
+    const last = h.$('last');
+    const card = last.querySelector('.gv-checking-card');
+    ok(card && !last.querySelector('.gv-grade') && !last.querySelector('.result') && !last.querySelector('.score'),
+      'Home\'s last match: the checking card in place of its grade, and the screen\'s result and score unsaid', last.textContent);
+    ok(card && card.getAttribute('role') === 'status' && /Being checked against Riot's record/.test(card.textContent)
+      && /Riot publishes a match 1 to 4 minutes after it ends\. Its grade shows here once the review is complete\./.test(card.textContent)
+      && card.querySelector('.gv-checking').textContent === 'Checking',
+    'saying what it waits for and how long that usually takes', card && card.textContent);
+    ok(last.querySelector('.last-foot') && last.querySelector('.last-foot').textContent === 'View matchOpen review',
+      'its foot is as it was: the review opens on its loading screen');
+    const first = h.$('recent-list').querySelector('.r-row');
+    const second = h.$('recent-list').querySelectorAll('.r-row')[1];
+    ok(first.querySelector('.gv-checking') && !first.querySelector('.r-score') && !first.querySelector('.gv-letter') && !first.querySelector('.r-res'),
+      'its recent row: the pill where the grade and the result were');
+    ok(second.querySelector('.r-score') && second.querySelector('.gv-letter') && !second.querySelector('.gv-checking'), 'and every other row its grade');
+    const asks = () => h.bridge.invoked.filter((x) => x[0] === C.REVIEWS_LIST).length;
+    const before = asks();
+    building = false;
+    h.bridge.emit(C.PUSH_REVIEW_WORK, { id: HOME_ROWS[0].id, work: null });
+    await settle();
+    ok(asks() > before && h.$('last').querySelector('.gv-grade') && !h.$('last').querySelector('.gv-checking-card')
+      && h.$('last').querySelector('.score').textContent === '13 : 9' && h.$('recent-list').querySelector('.r-row .r-score'),
+    'its work done, Home reads the library again and shows the grade, the result and the score');
+    ok(h.bridge.listening(C.PUSH_REVIEW_WORK) === 1, 'Home listens on PUSH_REVIEW_WORK');
+
+    // From the screen alone, the words are its own.
+    const s = await openHome({ rows: [{ ...HOME_ROWS[0], work: { path: 'screen', step: 'writing' } }, ...HOME_ROWS.slice(1)] });
+    const sCard = s.$('last').querySelector('.gv-checking-card');
+    ok(sCard && /The review is being written/.test(sCard.textContent) && sCard.querySelector('.gv-checking').textContent === 'Writing'
+      && !/Riot/.test(sCard.textContent), 'from the screen alone it says it is being written, and nothing of Riot', sCard && sCard.textContent);
+
+    // Matches.
+    let mBuilding = true;
+    const mRows = () => [{ id: 'valorant-1759348800000-homea', at: HOME_AT, title: 'Jett', map: 'Ascent', mode: 'Competitive',
+      result: 'Victory', score: '13-9', topMistake: 'Died where nobody could trade', grade: { score: 83, letter: 'A' }, aiLog: 'kept',
+      work: mBuilding ? WORK : null },
+    { id: 'valorant-1759344300000-homeb', at: HOME_AT - 75 * MIN, title: 'Jett', map: 'Bind', mode: 'Competitive',
+      result: 'Defeat', score: '10-13', grade: { score: 64, letter: 'C' }, aiLog: 'gone', work: null }];
+    const m = loadSurface('matches', {
+      handlers: {
+        [C.STATE_GET]: () => ({ gameId: 'valorant' }),
+        [C.REVIEWS_LIST]: () => mRows(),
+        [C.PATTERNS_GET]: () => ({ matches: 2, enough: false, grades: [], categories: [], average: null, mistakes: [], strengths: [], missed: [] }),
+      },
+    });
+    await settle();
+    const mFirst = m.document.querySelector('#list .m-row');
+    ok(mFirst && mFirst.querySelector('.m-grade .gv-checking') && !mFirst.querySelector('.m-score') && !mFirst.querySelector('.m-letter')
+      && !mFirst.querySelector('.m-res') && !mFirst.querySelector('.m-top-mistake'),
+    'its row in Matches: the pill where its grade was, and neither the screen\'s result nor its top mistake');
+    const mSecond = m.document.querySelectorAll('#list .m-row')[1];
+    ok(mSecond && mSecond.querySelector('.m-score').textContent === '64' && !mSecond.querySelector('.gv-checking'), 'every other row as it was');
+    mBuilding = false;
+    m.bridge.emit(C.PUSH_REVIEW_WORK, { id: 'valorant-1759348800000-homea', work: null });
+    await settle();
+    const mAfter = m.document.querySelector('#list .m-row');
+    ok(mAfter && mAfter.querySelector('.m-score') && mAfter.querySelector('.m-score').textContent === '83' && !mAfter.querySelector('.gv-checking')
+      && mAfter.querySelector('.m-top-mistake'), 'its work done, the row shows its grade, its result and its top mistake');
+    ok(m.bridge.listening(C.PUSH_REVIEW_WORK) === 1, 'Matches listens on PUSH_REVIEW_WORK');
+
+    // One drawing of it, shared/grade-view.js's, as every grade is.
+    const GV = h.window.GradeView;
+    ok(GV.checking(null) === null && GV.checking({ path: 'other' }) === null && GV.checking({ path: 'riot' }).className === 'gv-checking'
+      && GV.checking({ path: 'riot' }, { full: true }).className === 'gv-checking-card',
+    'GradeView.checking draws the pill and the card, and nothing for no work');
+    const gvCss = fs.readFileSync(path.join(RENDERER, 'shared', 'grade-view.css'), 'utf8');
+    const gvPart = gvCss.slice(gvCss.indexOf('A review still being checked'), gvCss.indexOf('@media (max-width: 520px)'));
+    ok(gvPart.length > 200 && /\.gv-checking-dot \{/.test(gvPart) && !/animation|infinite|gradient/.test(gvPart),
+      'its dot is still, as the loading screen is, and nothing of it is a gradient');
+  });
+
   // "Bring the bars lower so it's balanced and there's no dead space."
   await section('Home\'s grade trend fills its card, each bar its grade of the whole height:', async () => {
     const h = await openHome();
@@ -1913,7 +2385,10 @@ async function openShell(cfg, state, opts) {
     ok(same(rowRR(h), ['+24 RR:gain', '-16 RR:loss', '', '+21 RR:gain', '']),
       'each Competitive match shows the RR its own game moved; Unrated and Swiftplay none', JSON.stringify(rowRR(h)));
     h.$('rank-more').click();
-    ok(same(h.bridge.sent.filter((s) => s[0] === C.SHELL_NAV), [[C.SHELL_NAV, 'stats']]), 'Rank journey opens Stats, where the journey is drawn');
+    // With the journey open (8.4.1): it opened Stats with the journey folded
+    // in the Rank tile. Stats' half is 'Stats, opened from Home's Rank journey'.
+    ok(same(h.bridge.sent.filter((s) => s[0] === C.SHELL_NAV || s[0] === C.OPEN_STATS), [[C.OPEN_STATS, 'journey']]),
+      'Rank journey asks main for Stats with the journey open (OPEN_STATS, \'journey\')', JSON.stringify(h.bridge.sent));
     ok(h.bridge.invoked.filter((x) => x[0] === C.STATS_RANK_HISTORY).every((x) => x[1] === false),
       'read from the history main keeps, never forced past its cache');
     // Where it sits: under the focus, in the room the last match leaves; with
@@ -2689,6 +3164,98 @@ async function openShell(cfg, state, opts) {
     }
   });
 
+  // THE ENGINE'S DEATHS, AND RIOT'S CHECK OF THEM ROUND BY ROUND (8.4.1), on
+  // the shape of the player's Fracture swiftplay: one SWITCH PLAYER frame the
+  // engine never registered, then a false round 1 death it kept and the real
+  // round 2 one, a weak tell's withdrawn between them, and Riot has round 2
+  // alone, with no weapon name. Main's check stood in for by the real
+  // reconcile it runs (index.js confirmDeaths).
+  await section('the AI log opens a match on the death the engine kept, and Riot\'s check says each by its round:', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-surfaces-engine-'));
+    try {
+      const dr = require('../src/main/services/death-reconcile');
+      const jpeg = Buffer.from('ffd8ffe000104a464946', 'hex');
+      const M = Date.UTC(2026, 9, 14, 0, 24, 51);
+      const sid = 'session-2026-10-14T00-24-51-000Z';
+      const dir = path.join(root, sid);
+      fs.mkdirSync(dir, { recursive: true });
+      const OWN = { map: 'Fracture', playerAlive: true, playerHp: 100, aliveTell: 'own HP 100 and Classic bottom left', teamScore: 0, enemyScore: 0 };
+      const SWITCH = { map: 'Fracture', playerAlive: false, aliveTell: 'Spectating, teammate portrait and SWITCH PLAYER bottom left', teamScore: 0, enemyScore: 0 };
+      const WEAK = { map: 'Fracture', playerAlive: false, aliveTell: 'Spectating teammate, own HP not shown', teamScore: 1, enemyScore: 0 };
+      const KILLED = { map: 'Fracture', playerAlive: false, aliveTell: 'KILLED BY CHAMBER and COMBAT REPORT visible, no own health number', teamScore: 1, enemyScore: 0 };
+      const rows = [[OWN, 1], [SWITCH, 1], [OWN, 1], [SWITCH, 1, true], [SWITCH, 1], [{ ...OWN, teamScore: 1 }, 2], [WEAK, 2], [{ ...OWN, teamScore: 1 }, 2],
+        [KILLED, 2, true], [KILLED, 2]];
+      const records = rows.map(([state, round, died], i) => {
+        const frame = `frame-${String(i).padStart(5, '0')}.jpg`;
+        fs.writeFileSync(path.join(dir, frame), jpeg);
+        return { i, at: M + 60000 + i * 1000, frame, state, round, died: died === true, match: M };
+      });
+      fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify({ startedAt: M, records }));
+      const scope = aiLogStore.placeOf(dir, M, M + 600000);
+      const riot = { rounds: 2, total: 1, deaths: [{ round: 2, killer: 'Chamber', weapon: 'Weapon', atMs: 3000 }] };
+      const a = loadSurface('ailog', {
+        handlers: {
+          [C.AILOG_GET]: (id, sc) => aiLogStore.read(root, id, null, sc),
+          [C.AILOG_CONFIRM]: (id, sc) => {
+            const log = aiLogStore.read(root, id, null, sc);
+            const rec = dr.reconcile(log.deaths, riot, log.records);
+            rec.summary = dr.summarise(rec);
+            return rec;
+          },
+          [C.CONFIG_GET]: () => ({ ailogHintSeen: 3 }),
+        },
+        window: { location: { hash: `#${encodeURIComponent(JSON.stringify({ scope }))}`, search: '' } },
+      });
+      await settle();
+      const marks = a.document.querySelectorAll('#marks .mark-death');
+      ok(Number(a.$('slider').value) === 3 && a.$('death-pos').textContent === 'Death 1 of 2' && marks.length === 2,
+        'the eye opens on the match\'s first death the engine kept, not a SWITCH PLAYER frame it never registered, the withdrawn read no death',
+        `${a.$('slider').value} | ${a.$('death-pos').textContent} | ${marks.length}`);
+      ok(a.$('confirm').textContent === "Checked against Riot's record of the match: the screen read 2 deaths and Riot has 1, with none in round 1."
+        && a.$('confirm').classList.contains('overcounted') && !DASHES.test(a.$('confirm').textContent),
+      'Riot\'s check says it as the review says it', `read "${a.$('confirm').textContent}"`);
+      ok(marks[0] && marks[0].classList.contains('refuted') && marks[0].title === 'Round 1: Riot has no death in this round. Frame 4.'
+        && a.$('death-why').textContent === 'round 1, Riot has no death in this round',
+      'the death in a round Riot has none in is marked so, dimmed', `read "${marks[0] && marks[0].title}" | "${a.$('death-why').textContent}"`);
+      ok(marks[1] && !marks[1].classList.contains('refuted') && marks[1].title === 'Round 2: killed by Chamber. Confirmed by Riot.',
+        'and the one Riot has carries its killer, and no "with a Weapon" for a kill Riot named no weapon for', `read "${marks[1] && marks[1].title}"`);
+      // A killer Riot's record does not name: the server answers null for one
+      // its roster lacks, never a name (8.4.1), and the mark says no killer.
+      // And a server from before 8.4.1, which still sends the killer's Riot
+      // ID: main's check keeps a killer only as an agent, so none is painted.
+      const openWith = async (killer) => {
+        riot.deaths[0] = { round: 2, killer, weapon: 'Vandal', atMs: 3000 };
+        const b = loadSurface('ailog', {
+          handlers: {
+            [C.AILOG_GET]: (id, sc) => aiLogStore.read(root, id, null, sc),
+            [C.AILOG_CONFIRM]: (id, sc) => {
+              const log = aiLogStore.read(root, id, null, sc);
+              const rec = dr.reconcile(log.deaths, riot, log.records);
+              rec.summary = dr.summarise(rec);
+              return rec;
+            },
+            [C.CONFIG_GET]: () => ({ ailogHintSeen: 3 }),
+          },
+          window: { location: { hash: `#${encodeURIComponent(JSON.stringify({ scope }))}`, search: '' } },
+        });
+        await settle();
+        const mark = b.document.querySelectorAll('#marks .mark-death')[1];
+        b.$('death-next').click();
+        return { title: mark ? mark.title : null, why: b.$('death-why').textContent, text: b.document.body.textContent };
+      };
+      const unnamed = await openWith(null);
+      ok(unnamed.title === 'Round 2. Confirmed by Riot.' && unnamed.why === 'round 2' && !/null|undefined/.test(`${unnamed.title} ${unnamed.why}`),
+        'and one whose killer Riot\'s record does not name says no killer, never "killed by null"',
+        `read "${unnamed.title}" | "${unnamed.why}"`);
+      const named = await openWith('Foe#NA1');
+      ok(named.title === 'Round 2. Confirmed by Riot.' && named.why === 'round 2' && !/Foe|NA1/.test(`${named.title} ${named.why} ${named.text}`),
+        'and a server from before, sending the killer\'s Riot ID, has no name painted: the killer is an agent or none',
+        `read "${named.title}" | "${named.why}"`);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   // ONE MATCH, from a review's eye (8.2): the AI log opens on that match's
   // frames alone, in death review mode, with no picker and "Whole session" in
   // its place; gone, it says so plainly; sealed mid match, it shows nothing.
@@ -2705,10 +3272,11 @@ async function openShell(cfg, state, opts) {
       const write = (name, recs, mtime) => {
         const dir = path.join(root, name);
         fs.mkdirSync(dir, { recursive: true });
-        const records = recs.map(([at, state, match], i) => {
+        // `died` as the engine writes it, on the frame it registered a death on.
+        const records = recs.map(([at, state, match, died], i) => {
           const frame = `frame-${String(i).padStart(5, '0')}.jpg`;
           fs.writeFileSync(path.join(dir, frame), jpeg);
-          return { i, at, frame, state, round: 4, died: false, match };
+          return { i, at, frame, state, round: 4, died: died === true, match };
         });
         fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify({ startedAt: records[0].at, records }));
         fs.utimesSync(dir, mtime / 1000, mtime / 1000);
@@ -2721,7 +3289,7 @@ async function openShell(cfg, state, opts) {
       const M0 = M1 - 1800000;
       const dir = write(sid, [
         [M0 + 60000, alive, M0], [M0 + 70000, alive, M0],
-        [M1 + 60000, alive, M1], [M1 + 70000, alive, M1], [M1 + 80000, dead, M1], [M1 + 90000, dead, M1], [E1 - 30000, alive, M1],
+        [M1 + 60000, alive, M1], [M1 + 70000, alive, M1], [M1 + 80000, dead, M1, true], [M1 + 90000, dead, M1], [E1 - 30000, alive, M1],
         [M2 + 60000, alive, M2], [M2 + 70000, alive, M2], [M2 + 80000, alive, M2],
       ], M2 + 80000);
       write('session-2026-09-30T10-00-00-000Z', [[M1 - 86400000, alive, M1 - 86400000], [M1 - 86000000, alive, M1 - 86400000]], M1 - 86000000);

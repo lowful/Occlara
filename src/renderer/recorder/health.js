@@ -35,18 +35,23 @@
   }
 
   /**
-   * One recording's account, from `start` { now, frames }: the page's clock
-   * (ms) and its count of frames handed over when the recording began.
+   * One recording's account, from `start` { now, frames, recorded }: the
+   * page's clock (ms), its count of frames the capture handed over, and of
+   * frames handed to the recording (grid.js), when the recording began.
    *
-   * second({ now, frames, newestAt, thumb }) is one second's: the clock, the
-   * frames handed over so far, when the newest came (null before any), and
-   * thumb(), which draws the newest frame small ({ luma, mean }) and is called
-   * only when a frame came since the last account. Returns { fps, changing,
-   * luma, frameAgeMs }, luma null when no frame came.
+   * second({ now, frames, recorded, newestAt, thumb }) is one second's: the
+   * clock, the frames the capture handed over so far, the frames recorded so
+   * far, when the newest came (null before any), and thumb(), which draws the
+   * newest frame small ({ luma, mean }) and is called only when a frame came
+   * since the last account. Returns { fps, recordedFps, changing, luma,
+   * frameAgeMs }: fps what the capture delivered (the busy rule's), and
+   * recordedFps what was recorded of it (Settings' and the counts', 8.4.2),
+   * null when not counted; luma null when no frame came.
    */
   function createTally(start) {
     const s = start || {};
     let lastFrames = Number(s.frames) || 0;
+    let lastRecorded = Number(s.recorded) || 0;
     let lastAt = Number(s.now) || 0;
     let thumbAt = 0;
     let prev = null;
@@ -55,7 +60,10 @@
       second(x) {
         const elapsed = Math.max(0.25, (x.now - lastAt) / 1000);
         const fps = r1((x.frames - lastFrames) / elapsed);
+        const counted = Number.isFinite(x.recorded);
+        const recordedFps = counted ? r1((x.recorded - lastRecorded) / elapsed) : null;
         lastFrames = x.frames;
+        if (counted) lastRecorded = x.recorded;
         lastAt = x.now;
         let luma = null;
         if (x.newestAt !== null && x.newestAt > thumbAt) {
@@ -66,7 +74,7 @@
           thumbAt = x.now;
         }
         // No new frame: `changing` is still the verdict the last one gave.
-        return { fps, changing, luma, frameAgeMs: x.newestAt === null ? null : Math.round(x.now - x.newestAt) };
+        return { fps, recordedFps, changing, luma, frameAgeMs: x.newestAt === null ? null : Math.round(x.now - x.newestAt) };
       },
     };
   }

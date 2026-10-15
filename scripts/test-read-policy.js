@@ -10,7 +10,7 @@
  *      capture with the screen at that second: the same deaths, rounds,
  *      results and match end as reading everything, and no second of a live
  *      round left unread
- *   3. the four real sessions in scripts/fixtures, through the real engine at
+ *   3. the five real sessions in scripts/fixtures, through the real engine at
  *      the cadence's own capture times, the read latency drawn: the reads
  *      saved, phase by phase, and the deaths, rounds, results, mode, map,
  *      plants, match end and the frames every look picks against reading
@@ -670,6 +670,12 @@ const SWIFT_SEC = { 1: 51, 2: 13, 4: 18, 6: 34, 8: 10 };
 const SWIFT_RIOT = { perRound: swiftRef.rounds.map((r) => ({ n: r.n, won: r.result === 'won', died: SWIFT_SEC[r.n] !== undefined,
   deathMs: SWIFT_SEC[r.n] !== undefined ? SWIFT_SEC[r.n] * 1000 : null, planted: !!r.planted, plantMs: null, afterPlant: false,
   traded: false, firstDeath: false })), map: 'Abyss', queue: 'swiftplay' };
+// The Fracture swiftplay's from its verified review (8.4.1): won but round 5,
+// the deaths 31, 33 and 3 s into rounds 2, 5 and 6, rounds 5 and 6 planted.
+const FRACTURE_SEC = { 2: 31, 5: 33, 6: 3 };
+const FRACTURE_RIOT = { perRound: [1, 2, 3, 4, 5, 6].map((n) => ({ n, won: n !== 5, died: FRACTURE_SEC[n] !== undefined,
+  deathMs: FRACTURE_SEC[n] !== undefined ? FRACTURE_SEC[n] * 1000 : null, planted: n >= 5, plantMs: null, afterPlant: n === 5,
+  traded: n === 2, firstDeath: n === 6 })), map: 'Fracture', queue: 'swiftplay' };
 async function main() {
   // ══ 1. Every rule at its boundary ══════════════════════════════════════════
   // The engine's state as cadenceState() hands it: a live round by default.
@@ -1113,6 +1119,7 @@ async function main() {
     { name: 'abyss swiftplay', file: 'valorant-session-abyss-swiftplay.json', riot: SWIFT_RIOT, after: 80 },
     { name: 'split', file: 'valorant-session-split-competitive.json', riot: FIX('riot-split-13-7.json'), after: 0 },
     { name: 'abyss unrated', file: 'valorant-session-abyss-unrated.json', riot: FIX('riot-abyss-13-11.json'), after: 80 },
+    { name: 'fracture', file: 'valorant-session-fracture-swiftplay.json', riot: FRACTURE_RIOT, after: 80 },
   ];
   {
     // The accepted list, held to known differences and known refusals.

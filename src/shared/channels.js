@@ -28,6 +28,10 @@ const CHANNELS = {
   STATS_MATCHES:    'stats:matches',       // (mode) → { matches, fetchedAt, mode } cached fetch for mode switching
   CHAT_SEED:        'chat:seed',         // () → pending session context for Ask Coach, cleared on read
   STATS_RANK_HISTORY: 'stats:rankHistory', // () → { points: [{date, elo, change, tier}], current }
+  // What the Stats page was opened to show (8.4.1): 'journey' when Home's
+  // Rank journey opened it (OPEN_STATS), else null. Cleared on read, as
+  // CHAT_SEED is; the page asks as it loads and each time it is about to show.
+  STATS_OPENED_FOR: 'stats:openedFor',   // () → 'journey' | null
   WEEKLY_GET:       'weekly:get',        // () → the week's report (stat movement, strengths, what to fix)
   LEARN_GET:        'learn:get',         // () → { curriculum, progress, champions }
   LEARN_PROGRESS:   'learn:progress',    // ({ lessonId, done }) → { ok, progress }
@@ -52,13 +56,13 @@ const CHANNELS = {
   OPEN_SETTINGS:   'window:openSettings',
   OPEN_HISTORY:    'window:openHistory',
   OPEN_CHAT:       'window:openChat',    // the Ask Coach chat window
-  OPEN_STATS:      'window:openStats',   // the extended stats dashboard window
+  OPEN_STATS:      'window:openStats',   // (what?) the Stats page; 'journey' opens it with the rank journey open
   OPEN_WEEKLY:     'window:openWeekly',  // the weekly report popup
   OPEN_AILOG:      'window:openAiLog',   // (sessionId?) the AI decision-log viewer
   OPEN_LEARN:      'window:openLearn',   // the League learning surface
   OPEN_REVIEW:     'window:openReview',  // the last post-match review, any game
   // The match library: every saved review, for every game.
-  REVIEWS_LIST:    'reviews:list',       // (game?) -> [{ id, at, game, title, result, score, grade, aiLog: 'kept' | 'gone' | null }]
+  REVIEWS_LIST:    'reviews:list',       // (game?) -> [{ id, at, game, title, result, score, grade, aiLog: 'kept' | 'gone' | null, work: null | { path, step, ... } }]
   REVIEW_GET:      'reviews:get',        // (id) -> the saved review
   REVIEW_OPEN:     'reviews:open',       // (id) open the review window on one saved review
   // The eye on a library row and on the review page (8.2): the AI log, opened
@@ -123,6 +127,12 @@ const CHANNELS = {
   // rather than sniffing for fields. It also means the League path is
   // untouched: that surface has a boot check of its own (check:lolreview).
   PUSH_VALORANT_REVIEW: 'push:valorantReview',
+  // A review still being built (8.4.1, src/shared/review-work.js): { id, work },
+  // work the step it is on or null once it is done, on every change. The
+  // review page shows its loading screen until then, and Home and Matches say
+  // it is being checked where its grade would be. The review itself arrives
+  // with its work too (index.js present()), and every library row (REVIEWS_LIST).
+  PUSH_REVIEW_WORK:  'push:reviewWork',
   // The main window's page and seal, to the shell: { page, shown, sealed, maximized }.
   PUSH_SHELL:        'push:shell',
   // Moving between pages (8.2, src/shared/shell-nav.js createMotion), to one
@@ -169,6 +179,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_BACKFILL,
   CHANNELS.PUSH_LOL_REVIEW,
   CHANNELS.PUSH_VALORANT_REVIEW,
+  CHANNELS.PUSH_REVIEW_WORK,
   CHANNELS.PUSH_SHELL,
   CHANNELS.PUSH_PAGE,
   CHANNELS.PUSH_RECORDER,

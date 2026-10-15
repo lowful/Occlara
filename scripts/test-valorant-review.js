@@ -853,6 +853,28 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const body = review.requestBody({ rounds: rows, context: { map: 'Sunset', teamScore: 2, enemyScore: 5 }, endedBy: 'score' });
   ok(JSON.stringify(body.rounds.find((r) => r.n === 2).reads) === '["player standing at B Site holding knife"]',
     'and so does what the model is sent');
+  // ANOTHER AGENT'S KIT (8.4.1). The player's Fracture swiftplay, on Jett,
+  // kept "holding A Main with alarmbot deployed" for round 2, Killjoy's, and
+  // sent it as what the player was seen doing. Its own notes from that match:
+  // the two "behind cover" ones are the player's, though Harbor has a Cove.
+  const fk = review.foreignKit;
+  ok(fk('holding A Main with alarmbot deployed', 'Jett') === 'alarmbot' && fk('holding B with recon bolt ready', 'Jett') === 'recon bolt'
+    && fk('player holding A Dish behind cover', 'Jett') === null && fk('player alone on A Site holding an off angle behind cover', 'Jett') === null
+    && fk('peeking with blade storm out', 'Jett') === null && fk('holding A Main with a Killjoy alarmbot ahead', 'Jett') === null
+    && fk('holding A Main with alarmbot deployed', null) === null && fk('holding A Main with alarmbot deployed', 'Agent Released Later') === null,
+  "a read naming another agent's ability is not the player's, as a whole word, unless its owner is named; none is judged without the player's agent");
+  const kit = [mk(1, { result: 'won', died: false }), mk(2, { result: 'won', reads: [{ text: 'holding A Main alone, one enemy spotted in A' },
+    { text: 'holding A Main with alarmbot deployed' }, { text: 'player holding A Dish behind cover' }] }), mk(3), mk(4)];
+  const kitReads = (o) => JSON.stringify(review.build({ rounds: kit, context: { map: 'Fracture', ...o }, endedBy: 'stop', ai: {} })
+    .rounds.find((c) => c.n === 2).reads);
+  const sentReads = (o, riot) => JSON.stringify(review.requestBody({ rounds: kit, context: { map: 'Fracture', ...o }, endedBy: 'stop', riot })
+    .rounds.find((r) => r.n === 2).reads);
+  const KEPT = '["holding A Main alone, one enemy spotted in A","player holding A Dish behind cover"]';
+  ok(kitReads({ agent: 'Jett', agentConfirmed: true }) === KEPT && sentReads({ agent: 'Jett', agentConfirmed: true }) === KEPT
+    && sentReads({ agent: 'Killjoy', agentConfirmed: false }, { agent: 'Jett', map: 'Fracture' }) === KEPT,
+  `so the card and what the model is sent leave it out, by the agent the player confirmed or Riot's (${sentReads({ agent: 'Jett', agentConfirmed: true })})`);
+  ok(JSON.parse(kitReads({ agent: 'Jett', agentConfirmed: false })).length === 3,
+    'and an agent the player never confirmed holds no read to its kit, the engine\'s rule');
   // One round won on each side is no stronger side.
   const pats = review.patterns(rows);
   const side = pats.find((p) => p.key === 'sides');
@@ -968,6 +990,100 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     && /never restate them/.test(prompt) && /starting with You won or You lost/.test(prompt)
     && /Being traded means a teammate killed your killer within five seconds, which is good/.test(prompt),
   'the model is asked for one lesson a round, never the facts again, the summary from the player\'s own result');
+  // The ledger's own labels, R2 and R7, are rounds to the gates (8.4.1): the
+  // counted mistake named by them stays, written out, and one the review never
+  // counted named by them still goes.
+  const labelled = matchReview.parse('SUMMARY: You lost 2 to 5. Your most repeated mistake was dying where nobody could '
+    + 'trade, 4 of your 5 deaths, in R2, R3, R6 and R7. The repeated mistake was holding one angle too long in R1, R4 and R5.', input);
+  ok(labelled.summary === 'You lost 2 to 5. Your most repeated mistake was dying where nobody could trade, 4 of your 5 '
+    + 'deaths, in rounds 2, 3, 6 and 7.',
+  `a counted mistake named by its labels stays as rounds, one never counted goes (${labelled.summary})`);
+}
+
+// ── With nothing counted, one mistake in one round is no repeated mistake ──
+// The player's Fracture swiftplay (8.4.1): won 5 to 1, nothing counted as a
+// mistake, and the summary lost its middle sentence, the one about round 5,
+// the round the match was lost in, because the gate dropped every sentence
+// with "mistake" in it. And the model copied the ledger's labels into prose,
+// "survived R1, R3 and R4", where the page says rounds.
+{
+  const R = (n, o) => ({ n, side: n <= 4 ? 'defending' : 'attacking', result: 'won', died: false, verified: true, kills: 1, ...o });
+  const body = {
+    rounds: [R(1), R(2, { died: true, sec: 31, killer: 'Astra', weapon: 'Sheriff', kills: 3, firstKill: true, traded: true,
+      alive: { mates: 5, enemies: 1 }, deathSpot: 'A Main', cause: 'repeek' }), R(3, { kills: 2 }), R(4, { kills: 4, firstKill: true }),
+    R(5, { result: 'lost', died: true, sec: 33, killer: 'Jett', weapon: 'Sheriff', kills: 2, firstKill: true, traded: false,
+      alive: { mates: 4, enemies: 3 }, deathSpot: 'A Site', planted: true, cause: 'lost-duel' }),
+    R(6, { died: true, sec: 3, killer: 'Chamber', kills: 0, firstDeath: true, traded: false, alive: { mates: 5, enemies: 5 },
+      deathSpot: 'B Tree', planted: true, cause: 'lost-duel' })],
+    patterns: [{ key: 'firstkill', text: 'You got the first kill of the round 3 times, rounds 2, 4 and 5.' }],
+    mistakes: [],
+    strengths: [{ key: 'first-kill', title: 'Opened rounds', detail: 'You got the first kill of the round 3 times, rounds 2, 4 and 5.', rounds: [2, 4, 5], count: 3 }],
+    context: { agent: 'Jett', map: 'Fracture', language: 'en' },
+    final: { team: 5, enemy: 1, result: 'Victory', verified: true, scoreline: { kills: 12, deaths: 3, assists: 2, acs: 569 } },
+  };
+  const input = matchReview.normalise(body);
+  const MIDDLE = 'Your one costly mistake came in round 5, dying after the plant with your team up 4 against 3.';
+  const p = matchReview.parse('SUMMARY: You won 5 to 1 by opening rounds and turning fights into multikills. '
+    + `${MIDDLE} You also traded teammates and survived R1, R3 and R4.\n`
+    + 'R5: After the plant, take a position a teammate can trade rather than holding alone; nobody traded your death.\n'
+    + 'FOCUS: After the plant, check where your teammates are before taking another duel, as in R5.', input);
+  ok(p.summary === `You won 5 to 1 by opening rounds and turning fights into multikills. ${MIDDLE} `
+    + 'You also traded teammates and survived rounds 1, 3 and 4.',
+  `the player's summary keeps its three sentences, round 5's among them, and says rounds (${p.summary})`);
+  ok(p.focus === 'After the plant, check where your teammates are before taking another duel, as in round 5.',
+    `and so does the focus (${p.focus})`);
+  const claims = [
+    'Your repeated mistake was dying after the plant in round 5.',
+    'You made the same mistake again in round 6.',
+    'Your mistakes in rounds 5 and 6 cost you the fights.',
+    'You kept making the mistake of holding the angle alone.',
+    'Your mistake in most rounds was holding the angle after the first shots.',
+    'The mistake came twice, in R5 and R6.',
+  ];
+  const left = claims.filter((s) => matchReview.parse(`SUMMARY: You won 5 to 1. ${s}`, input).summary !== 'You won 5 to 1.');
+  ok(!left.length, `but with nothing counted, a sentence saying a mistake came back still goes, by its words or its two rounds (kept: ${left.join(' | ') || 'none'})`);
+  // HOW OFTEN IS A COUNT TOO: "your most common mistake" with nothing counted
+  // claims one the review never counted, and went before 8.4.1 as every
+  // "mistake" sentence did.
+  const often = [
+    'Your most common mistake was dying untraded, as in round 5.',
+    'Your most frequent mistake was peeking without utility.',
+    'You often made the mistake of holding the angle alone.',
+    'Your usual mistake was taking the duel after the first shots.',
+    'You always made the mistake of staying on the angle.',
+    'Throughout the match your mistake was staying exposed.',
+    'Your habitual mistake was peeking first.',
+  ];
+  const stayed = often.filter((s) => matchReview.parse(`SUMMARY: You won 5 to 1. ${s}`, input).summary !== 'You won 5 to 1.');
+  ok(!stayed.length && matchReview.parse(`SUMMARY: You won 5 to 1. ${MIDDLE}`, input).summary === `You won 5 to 1. ${MIDDLE}`,
+    `and so does one saying how often, its most common or its usual, while the one round's mistake stays (kept: ${stayed.join(' | ') || 'none'})`);
+  // The labels, as text: a run of them, one alone, one at a sentence's start,
+  // one already after "round", a range; and the words they must never touch.
+  const L = matchReview.roundLabels;
+  ok(L('You also traded teammates and survived R1, R3 and R4.') === 'You also traded teammates and survived rounds 1, 3 and 4.'
+    && L('R5 was lost after the plant. In R6 you died first.') === 'Round 5 was lost after the plant. In round 6 you died first.'
+    && L('in round R5 you peeked') === 'in round 5 you peeked' && L('Round R1 and R3') === 'Rounds 1 and 3'
+    && L('R1 to R3 were won') === 'Rounds 1 to 3 were won' && L('R1-R3 were won') === 'Rounds 1 to 3 were won'
+    && L("R10 and R12's plants") === "Rounds 10 and 12's plants",
+  'R<n> written out: a run as rounds, one as round, capital at a sentence\'s start, a range with "to"');
+  const untouched = ['an AR15 and R2D2 and R100', 'Raze ulted in B Main', 'You won 5 to 1.', 'rounds 2 and 5', 'r5 lower case'];
+  ok(untouched.every((t) => L(t) === t) && new RegExp(matchReview.ROUND_LABELS.source).test('survived R1, R3 and R4')
+    && !new RegExp(matchReview.ROUND_LABELS.source).test(untouched.join(' ')),
+  'and nothing else: not a word with R and digits in it, a capital R word, a score, rounds already written, a lower case r');
+  // IN AN ENGLISH REVIEW ONLY: the words written out are English, and a review
+  // the player reads in Spanish or German must be natural Spanish or German
+  // (languageRule). Written out there, "Sobreviviste las R1, R3 y R4" read
+  // "Sobreviviste las rounds 1, 3 y round 4". The label reads in any language.
+  const inLang = (code) => matchReview.normalise({ ...body, context: { ...body.context, language: code } });
+  const es = matchReview.parse('SUMMARY: Ganaste 5 a 1. Sobreviviste las R1, R3 y R4.\n'
+    + 'R5: Tras la plant, juega donde un aliado pueda cambiar tu muerte.\nFOCUS: Mira a tus aliados antes del duelo, como en la R5.', inLang('es'));
+  const de = matchReview.parse('SUMMARY: Du hast 5 zu 1 gewonnen. In R2 und R5 bist du gestorben.', inLang('de'));
+  const xx = matchReview.parse('SUMMARY: You won 5 to 1. You survived R1 and R3.', inLang('xx'));
+  ok(es.summary === 'Ganaste 5 a 1. Sobreviviste las R1, R3 y R4.' && es.focus === 'Mira a tus aliados antes del duelo, como en la R5.'
+    && es.rounds[5] === 'Tras la plant, juega donde un aliado pueda cambiar tu muerte.'
+    && de.summary === 'Du hast 5 zu 1 gewonnen. In R2 und R5 bist du gestorben.'
+    && xx.summary === 'You won 5 to 1. You survived rounds 1 and 3.',
+  `and only in an English review: one in Spanish or German keeps its labels, a code the prompt writes English for is English (${es.summary} | ${de.summary} | ${xx.summary})`);
 }
 
 // ── The round after the last one ────────────────────────────────────────────
@@ -1193,6 +1309,73 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(a('Vandal') === 'a Vandal' && a('Marshal') === 'a Marshal' && a('Sheriff') === 'a Sheriff', 'a Vandal, a Marshal, a Sheriff');
   const card = review.roundFacts({ verified: true, died: true, deathSpot: 'B Site', deathSec: 28, killerAgent: 'Cypher', weapon: 'Outlaw' });
   ok(card[0] === 'Died at B Site, 28s in, to Cypher with an Outlaw', `the round card (${card[0]})`);
+}
+
+// ── A weapon is a name, never a type (8.4.1) ────────────────────────────────
+// The player's Fracture swiftplay, round 6: Riot's record gave the kill no
+// weapon name (most likely Chamber's Headhunter), the server took HenrikDev's
+// type for one, and the card, the strip and both prompts read "to Chamber with
+// a Weapon".
+{
+  const riotRounds = require('../server/services/riot-rounds');
+  const me = { name: 'Me', tag: 'EUW', puuid: 'p1', team_id: 'Blue', agent: { name: 'Jett' }, stats: { kills: 0, deaths: 2, assists: 0 } };
+  const foe = { name: 'Foe', tag: 'EUW', puuid: 'p2', team_id: 'Red', agent: { name: 'Chamber' }, stats: {} };
+  const d = {
+    metadata: { map: { name: 'Fracture' }, queue: { id: 'swiftplay' } },
+    players: [me, foe],
+    teams: [{ team_id: 'Blue', rounds: { won: 0 } }, { team_id: 'Red', rounds: { won: 3 } }],
+    rounds: [{ winning_team: 'Red' }, { winning_team: 'Red' }, { winning_team: 'Red' }],
+    kills: [
+      { round: 0, time_in_round_in_ms: 3000, killer: { puuid: 'p2' }, victim: { puuid: 'p1' }, weapon: { id: 'x', name: null, type: 'Weapon' } },
+      { round: 1, time_in_round_in_ms: 9000, killer: { puuid: 'p2' }, victim: { puuid: 'p1' }, weapon: { id: 'Ultimate', name: null, type: 'Ability' } },
+      { round: 2, time_in_round_in_ms: 9000, killer: { puuid: 'p2' }, victim: { puuid: 'p1' }, weapon: { id: 'y', name: 'Marshal', type: 'Weapon' } },
+    ],
+  };
+  const per = riotRounds.parse(d, 'Me', 'EUW').perRound;
+  ok(per[0].weapon === null && per[1].weapon === null && per[2].weapon === 'Marshal',
+    `the server names a kill's weapon by its name alone: none for "Weapon" or "Ability", "Marshal" for the Marshal (${per.map((r) => r.weapon).join(', ')})`);
+  ok(riotRounds.weaponOf({ damage_weapon_name: 'Spectre' }) === 'Spectre' && riotRounds.weaponOf({ weapon: { name: 'Ability' } }) === null
+    && riotRounds.weaponOf({ weapon: { name: 'Melee', type: 'Melee' } }) === 'Melee' && riotRounds.weaponOf({}) === null,
+  "an older payload's own name still counts, a type word in the name field is none, and the knife's name stays");
+  const { weaponName, NOT_A_WEAPON } = verify;
+  ok(JSON.stringify(NOT_A_WEAPON) === JSON.stringify(riotRounds.NOT_A_WEAPON),
+    'the client and the server hold the same words that name no weapon');
+  ok(weaponName('Weapon') === null && weaponName('ability') === null && weaponName('Grenade Ability') === null && weaponName('') === null
+    && weaponName(null) === null && weaponName(' Sheriff ') === 'Sheriff' && weaponName('Headhunter') === 'Headhunter',
+  'and the client reads a type word as no weapon, a server from before still sending one');
+  const fromOld = verify.reconcile([], { perRound: [
+    { n: 6, won: true, side: 'attacking', kills: 0, died: true, deathMs: 3000, killerAgent: 'Chamber', weapon: 'Weapon', firstDeath: true },
+    { n: 2, won: true, side: 'defending', kills: 3, died: true, deathMs: 31000, killerAgent: 'Astra', weapon: 'Sheriff' },
+  ] }).rounds;
+  ok(fromOld.find((r) => r.n === 6).weapon === null && fromOld.find((r) => r.n === 2).weapon === 'Sheriff',
+    "where Riot's record enters the client, so neither prompt is told one");
+  const six = review.roundFacts(fromOld.find((r) => r.n === 6));
+  ok(six[0] === 'Died 3s in, to Chamber', `the round card says "to Chamber" (${six[0]})`);
+  // SAVED WITH ONE, shown without it, never rewritten: the player's own card,
+  // one from before 8.0.3 with no Riot fields, and a review graded from Riot's
+  // record alone.
+  const saved = {
+    kind: 'valorant', source: 'watched',
+    rounds: [
+      { n: 2, facts: ['Died at A Main, 31s in, to Astra with a Sheriff', '5 against 1 when you died'], riot: { sec: 31, killer: 'Astra', weapon: 'Sheriff' } },
+      { n: 6, facts: ['Died at B Tree, 3s in, to Chamber with a Weapon', 'First death of the round', 'Not traded'], riot: { sec: 3, killer: 'Chamber', weapon: 'Weapon' } },
+      { n: 9, facts: ['Died at A Site, 20s in, to Raze with an Ability'] },
+    ],
+    insights: { mistakes: [], strengths: [], missed: [] },
+  };
+  const before = JSON.stringify(saved);
+  const shown = review.served(saved);
+  const at = (rv, n) => rv.rounds.find((c) => c.n === n);
+  ok(at(shown, 6).facts[0] === 'Died at B Tree, 3s in, to Chamber' && at(shown, 6).riot.weapon === null
+    && at(shown, 6).facts.slice(1).join() === 'First death of the round,Not traded',
+  `a review saved with "with a Weapon" is shown "to Chamber", its Riot facts with no weapon (${at(shown, 6).facts[0]})`);
+  ok(at(shown, 9).facts[0] === 'Died at A Site, 20s in, to Raze' && at(shown, 2).facts[0] === 'Died at A Main, 31s in, to Astra with a Sheriff'
+    && at(shown, 2).riot.weapon === 'Sheriff',
+  'a card from before 8.0.3 is read off its death line alone, and a real weapon stays');
+  ok(JSON.stringify(saved) === before, 'and the review handed in is not changed: on disk it stays as it was saved');
+  const riotOnly = review.served({ ...JSON.parse(before), source: 'riot', grade: { notes: [], categories: [] } });
+  ok(at(riotOnly, 6).facts[0] === 'Died at B Tree, 3s in, to Chamber' && at(riotOnly, 6).riot.weapon === null,
+    "and so is one graded from Riot's record alone");
 }
 
 // ── The v4 parser, on a small synthetic match ───────────────────────────────

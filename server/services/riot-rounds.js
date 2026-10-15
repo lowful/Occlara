@@ -138,6 +138,27 @@ function plantSiteOf(plant) {
   return m ? m[1].toUpperCase() : null;
 }
 
+/*
+ * THE WEAPON IS RIOT'S NAME FOR IT, NEVER ITS TYPE (8.4.1). HenrikDev's kill
+ * carries weapon { id, name, type }, and a kill whose item it cannot name has
+ * no name and a type of "Weapon" or "Ability": the player's Fracture round 6,
+ * most likely Chamber's Headhunter, read "to Chamber with a Weapon" on the
+ * card, in the strip and in both prompts. With no name there is no weapon,
+ * and the line is "to Chamber". Riot's damage types and ability slots are the
+ * words that name none ("Melee" is the knife's own name, and stays); the
+ * client's copy of the list is valorant-verify.js's, held equal to this one
+ * by test:valorantreview, because a server from before keeps sending them.
+ */
+const NOT_A_WEAPON = ['weapon', 'ability', 'bomb', 'fall', 'invalid', 'ultimate', 'primary', 'ability1', 'ability2',
+  'grenadeability', 'passive'];
+
+/** A kill's weapon by name, or null: never its type, never a word that names no weapon. */
+function weaponOf(k) {
+  const named = (k && k.weapon && typeof k.weapon === 'object' ? k.weapon.name : null) || (k && k.damage_weapon_name) || null;
+  const s = typeof named === 'string' ? named.trim() : '';
+  return s && !NOT_A_WEAPON.includes(s.toLowerCase().replace(/\s+/g, '')) ? s : null;
+}
+
 /**
  * @param d     the v4 `data` object
  * @param name  Riot name
@@ -174,7 +195,7 @@ function parse(d, name, tag) {
       : (typeof k.kill_time_in_round === 'number' ? k.kill_time_in_round : null),
     killer: k.killer || (k.killer_puuid ? { puuid: k.killer_puuid } : null),
     victim: k.victim || (k.victim_puuid ? { puuid: k.victim_puuid } : null),
-    weapon: (k.weapon && (k.weapon.name || k.weapon.type)) || k.damage_weapon_name || null,
+    weapon: weaponOf(k),
   })).filter((k) => k.n);
 
   // Which side a player in the kill feed is on, relative to the player. Kill
@@ -267,4 +288,4 @@ function parse(d, name, tag) {
   };
 }
 
-module.exports = { parse, attackersOf, killsOf, playersOf, teamworkOf, plantSiteOf, TRADE_MS };
+module.exports = { parse, attackersOf, killsOf, playersOf, teamworkOf, plantSiteOf, weaponOf, NOT_A_WEAPON, TRADE_MS };
