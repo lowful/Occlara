@@ -27,7 +27,12 @@
  * phrase it must catch and one it must not, and never changing a label on
  * any of the 23 lost duels on record. And a client before 8.5.0 answered
  * byte for byte as 8.4.4 answered it (scripts/fixtures/death-forensics-844.js),
- * but for those two gates.
+ * but for those two gates. Variant b2, b with the evidence each judgement
+ * rests on written out from bench A: b's prompt but for its judgement and its
+ * reply's two sentences, b's judgement as bench A ran it, its checks against
+ * Riot's facts where they apply and never from the screen, its rules, b's
+ * parse, b's labels on its looks, and the route's gate on its own source:
+ * served only beside the admin password, or promoted to 8.5.0 and later.
  *
  * Run: npm run test:forensics
  */
@@ -520,7 +525,7 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
     'no key is added and none renamed, in either copy');
   ok(!DASH.test(pb) && !DASH.test(df.judgement(true)), 'no dashes in b');
   ok(df.tokensFor(a) === 320 && df.tokensFor(b) === 400 && df.TOKENS.b === 400, 'the reply is given 400 tokens in b, 320 as before in a');
-  ok(Array.isArray(df.VARIANTS) && df.VARIANTS.join() === 'b', 'the variants beside the live prompt, as the route reads them: b');
+  ok(Array.isArray(df.VARIANTS) && df.VARIANTS.join() === 'b,b2', 'the variants beside the live prompt, as the route reads them: b and b2');
   const es = { ...df.normalise({ ...body, language: 'es' }), variant: 'b' };
   ok(/Keep "fight", "change", "cause" and "alt" as the English words from their lists/.test(df.buildPrompt(es, es.deaths[0])),
     'in another language, its four words stay English, as the label always has');
@@ -569,6 +574,173 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
   ok([null, undefined, 'a', 'c', 'B ', ''].every(asA) && df.buildPrompt(b, d5) === pb, "only 'b' asks with b: the route's null, and any other word, is a");
 }
 
+// ── Variant b2: b, with the evidence each judgement rests on (8.5.0) ───────
+// Bench A ran b on 16 of the player's deaths against a key three panels
+// wrote. b's families held, and its judgements wandered where it left the
+// evidence to the model: a long fight opened from the open grass was right,
+// one exchange from a pillar's edge a repeek, a push to a new place a
+// repeek, two frames of another round a lost duel. b2 is b's prompt with that
+// judgement written out (judgementB2) and nothing else moved: its causes,
+// families, changes, room and parse are b's, and its looks carry b's labels.
+{
+  const crypto = require('crypto');
+  const vm = require('vm');
+  const sha = (s) => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');
+  const AT = [-3, -1.5, -0.7, -0.3, 0.7];
+  // Round 6 on attack, a first death 3 s in, the spike planted later: Riot's facts, five recording stills.
+  const death = (extra) => ({ n: 6, side: 'attacking', sec: 3, killer: 'Chamber', firstDeath: true, traded: false,
+    alive: { mates: 5, enemies: 5 }, planted: true, afterPlant: false, spot: 'B Tree',
+    frames: AT.map((s) => frame + s), frameAt: AT, framesFrom: 'recording', ...(extra || {}) });
+  const body = (extra, top) => ({ agent: 'Jett', map: 'Fracture', ...(top || {}), deaths: [death(extra)] });
+  const asked = (b, variant) => { const x = df.normalise(b, { variant }); return df.buildPrompt(x, x.deaths[0]); };
+  const swap = (s, from, to) => { const i = s.indexOf(from); return i < 0 ? s : s.slice(0, i) + to + s.slice(i + from.length); };
+  const part = (p) => p.slice(p.indexOf('\n\nFirst '), p.indexOf('\n\nRules:'));
+  const tail = (p) => p.slice(p.lastIndexOf('Reply with JSON'));
+  const p2 = asked(body(), 'b2');
+  const pb = asked(body(), 'b');
+
+  // Served as b is: the route's word alone, its room b's.
+  ok(df.normalise(body(), { variant: 'b2' }).variant === 'b2' && ['B2', 'b2 ', 'b3', 'B', '', null, undefined].every((v) => df.normalise(body(), { variant: v }).variant === 'a')
+    && df.normalise({ ...body(), variant: 'b2' }).variant === 'a',
+  "b2 is asked only when the route chose it, never on the body's word, and any other word is a");
+  ok(df.TOKENS.b2 === 400 && df.tokensFor(df.normalise(body(), { variant: 'b2' })) === 400 && df.tokensFor({ variant: 'constructor' }) === 320
+    && df.judgesFight('b') && df.judgesFight('b2') && !df.judgesFight('a') && !df.judgesFight(null),
+  "its reply is given b's 400 tokens, and it judges the fight first as b does");
+
+  // Nothing else moved: b's prompt, but for its judgement and its reply's two sentences.
+  ok(swap(swap(p2, part(p2), part(pb)), tail(p2), tail(pb)) === pb && part(pb) === `\n\n${df.judgement(true)}`
+    && tail(p2) === tail(pb).replace('what happened>', 'what happened, or empty when the fight is unclear>')
+      .replace('keeps you alive>', 'keeps you alive, or empty when the fight is unclear>'),
+  "b2's prompt is b's but for its judgement and its reply's two sentences, asked for empty when the fight is unclear");
+  ok(sha(df.judgement(true) + df.judgement(false)) === '706e601f6db67995baa24a7a6c521547799a9f9f3164e1fc6434c72385eac132',
+    "and b's judgement is the one bench A ran, byte for byte");
+  const json = p2.slice(p2.lastIndexOf('{'));
+  const at = (k) => json.indexOf(`"${k}":`);
+  ok(['what', 'fight', 'better', 'change', 'cause', 'alt'].every((k, i, ks) => at(k) >= 0 && (i === 0 || at(ks[i - 1]) < at(k))),
+    `its reply comes in b's order: what, fight, better, change, cause, alt (${json})`);
+  const kept = df.judgement(true).split('\n').filter((l) => /^(Then write the better play|Then say the one thing|Then pick the cause|A Duelist)/.test(l));
+  ok(kept.length === 4 && kept.every((l) => part(p2).includes(`\n${l}`)),
+    "b's better play, its change, its families written from FIGHTS and its Duelist line stand in b2 word for word");
+
+  // First, whether the frames are of this death at all, against Riot's facts.
+  const CHECK = 'First check that the frames are of this death. They are of another moment, and the fight is unclear, when the frame after the death '
+    + 'still shows you alive and playing, with no death screen; when the spike is already planted in them while the facts say it was planted later; '
+    + 'or when the two scores at the top of the frames before the death do not add up to 5, as they must in round 6.';
+  ok(p2.includes(CHECK), 'b2 first checks the frames are of this death: alive after it, the spike down before its plant, another round\'s score');
+  ok(!asked(body({ afterPlant: true }), 'b2').includes('planted later') && !asked(body({ planted: false }), 'b2').includes('planted later')
+    && /alive and playing, with no death screen; or when the two scores at the top of the frames before the death do not add up to 5/.test(asked(body({ afterPlant: true }), 'b2')),
+  'the spike is weighed only where the facts say it went down later in the round: not after it, and not in a round with none');
+  const one = asked(body({ frames: [frame], frameAt: undefined, framesFrom: undefined }), 'b2');
+  ok(one.includes('First check that the frame is of this death. It is of another moment, and the fight is unclear, when the spike is already planted in it while the facts say it was planted later; '
+    + 'or when the two scores at the top of the frame do not add up to 5, as they must in round 6.') && !one.includes('frame after the death') && !one.includes('frame by frame'),
+  'one frame is one frame: no frame after the death is said to exist, and nothing is read frame by frame');
+  const pair = asked(body({ frames: [frame, frame], frameAt: undefined, framesFrom: undefined }), 'b2');
+  const reads = asked(body({ frames: [frame + 1, frame + 2], frameAt: [-2.3, 0.7], framesFrom: 'reads' }), 'b2');
+  const beforeOnly = asked(body({ frames: [frame + 1, frame + 2], frameAt: [-4.5, -1], framesFrom: 'reads' }), 'b2');
+  ok(/when the frame after the death still shows you alive and playing/.test(pair) && /when the frame after the death still shows you alive and playing/.test(reads)
+    && !/frame after the death/.test(beforeOnly) && /do not add up to 9, as they must in round 10\./.test(asked(body({ n: 10 }), 'b2')),
+  "the frame after the death is checked where there is one, the read's second frame of a client before 8.3.1 among them, and the score is the round's own");
+  const scr = asked(body({}, { source: 'screen' }), 'b2');
+  ok(!/another moment, and the fight is unclear|scores at the top|planted later/.test(scr)
+    && scr.includes('First check that the frames before the death show the fight. It is unclear when they show none of it:'),
+  "from the screen alone nothing is checked against its facts, whose round can be a round out: only whether the frames show the fight");
+  ok(p2.includes("The fight is unclear too when the frames before the death show none of it: only the time before any contact, the death screen, or a teammate's view "
+    + '(SWITCH PLAYER at the bottom left, another agent\'s abilities in the HUD; the SPECTATORS count at the top right is how many watch you, on your own HUD).')
+    && p2.includes("After the death, a frame should show the death screen or a teammate's view.")
+    && p2.includes('\nunclear: the frames do not show the fight, or show another moment.')
+    && p2.includes('\nWhen the fight is unclear, what and better stay empty, and change and alt are none.'),
+  "and the fight is unclear when the frames show none of it, before contact, the death screen, a teammate's view, the SPECTATORS count no such view, with no sentences");
+
+  // What to read, and the judgements by it.
+  ok(p2.includes('\nThen read the fight in the frames, which decides the judgement: where you stood, at the edge of cover you could step back behind or in the open; '
+    + 'whether an enemy was already holding the angle you came into, or came into yours; your health and ammo in the HUD, frame by frame, which show when the shooting '
+    + 'started and what it cost; and on the death screen, the damage each side dealt. Then write what happened, in one sentence.\nThen judge the fight in one word:\n'),
+  "it reads the fight from the frames' own evidence before it writes what happened: where you stood, who held the angle, health and ammo, the damage dealt");
+  ok(p2.includes('\nright: a fight worth taking, from a sound spot, lost on the shots. Either you were set at the edge of cover and the enemy came into your sight, '
+    + 'or you met at the same moment with neither of you set; both of you were exposed to each other, and it was one exchange.')
+    && p2.includes('Shots that missed and damage you took inside that one exchange are the duel itself, not another judgement.'),
+  'a right fight: set at the edge of cover with the enemy coming into sight, or a meeting with neither set, both exposed, one exchange, missed shots inside it the duel');
+  ok(p2.includes('You walked or swung into an angle an enemy was already holding, or opened a long fight from the open with no cover beside you, before any utility '
+    + 'or information: dry-peek, even if you saw them first or shot first.'),
+  'a held angle walked into, or a long fight opened from the open, with no utility first is a dry peek, even shooting first');
+  ok(p2.includes('Or the frames show an exchange of shots end, with your kill or with one of you going out of sight, and then you fought on the same angle again, '
+    + 'by staying in the spot they had just seen you in or by peeking it again: repeek.')
+    && p2.includes('\nLook for a repeek before the other judgements: a second fight on the same angle after an exchange the frames show ending is a repeek however the shots went. '
+      + 'Seeing an enemy before any shot is no exchange, and a kill earlier in the round that the frames do not show starts no repeek. Moving on to a new place '
+      + 'after a kill is no repeek either: pushing on into their ground is overextend, and meeting two enemies there is crossfire.'),
+  'a repeek needs an exchange the frames show ending, is judged before the rest, and a new place after a kill is never one');
+  ok(p2.includes('\nnot-needed: a fight you went looking for that the round did not need: your team was ahead, the spike was down and the clock was on your side, '
+    + 'or the kill was not worth chasing. A fight that came to you where you were set is never not-needed.'),
+  'a fight the round did not need is one you went looking for, never one that came to you where you were set');
+  const timeLine = part(p2).split('\n').find((l) => l.startsWith('wrong-time: '));
+  const named = Object.keys(df.CAUSES).filter((c) => new RegExp(`(^|[^a-z-])${c}([^a-z-]|$)`).test(timeLine));
+  ok(named.join() === 'dry-peek,repeek,rotating' && named.every((c) => df.FIGHTS['wrong-time'].causes.includes(c))
+    && new RegExp('(^|[^a-z-])repeek([^a-z-]|$)').test('it was a repeek.') && !new RegExp('(^|[^a-z-])repeek([^a-z-]|$)').test('a repeeks lesson'),
+  `every cause the wrong-time line names is of its own family, so the label still comes from the judgement (${named.join(', ')})`);
+  ok(!DASH.test(p2) && !DASH.test(one) && !DASH.test(scr) && !DASH.test(df.judgementB2({ many: true, after: true, riot: true, round: 2, plantedLater: true })), 'no dashes in b2');
+  const es = df.normalise(body({}, { language: 'es' }), { variant: 'b2' });
+  ok(/Keep "fight", "change", "cause" and "alt" as the English words from their lists/.test(df.buildPrompt(es, es.deaths[0])),
+    'in another language its four words stay English, as b\'s do');
+
+  // Its parse is b's, and its looks carry b's labels, the word an 8.5.0 client keeps.
+  const b2 = df.normalise(body(), { variant: 'b2' });
+  const d6 = b2.deaths[0];
+  const reply = (o) => JSON.stringify({ what: 'You fired at the Chamber from the open grass at B Tree.', better: 'Stop before you shoot and aim at head level.', ...o });
+  const look = df.parse(reply({ fight: 'right', change: 'aim', cause: 'lost-duel', alt: 'none' }), b2, d6);
+  ok(look.cause === 'lost-duel' && look.fight === 'right' && look.change === 'aim' && look.variant === 'b' && df.LABELS.b2 === 'b'
+    && Object.keys(df.replyOf(look)).join() === 'n,cause,what,better,fight,change,variant',
+  `a b2 look carries b's fields, its variant b's labels (${JSON.stringify(df.replyOf(look))})`);
+  const { lookJudgement } = require('../src/shared/valorant-review');
+  ok(lookJudgement({ ...df.replyOf(look), variant: look.variant || 'b2' }).variant === 'b' && !('variant' in lookJudgement({ ...df.replyOf(look), variant: 'b2' }))
+    && clientCauses.variantOf({ variant: 'b2' }) === 'a',
+  "which an 8.5.0 client keeps, where a look named b2 would be kept with none and read as a, beside a's narrower repeek");
+  const viaAlt = df.parse(reply({ fight: 'wrong-time', change: 'utility', cause: 'lost-duel', alt: 'dry-peek' }), b2, d6);
+  const conflict = df.parse(reply({ fight: 'right', change: 'timing', cause: 'repeek', alt: 'none' }), b2, d6);
+  const outside = df.parse(reply({ fight: 'right', change: 'position', cause: 'lost-duel', alt: 'none' }), b2, d6);
+  const emptyUnclear = df.parse(JSON.stringify({ what: '', fight: 'unclear', better: '', change: 'none', cause: 'unclear', alt: 'none' }), b2, d6);
+  const said = df.parse(reply({ fight: 'unclear', change: 'position', cause: 'unclear', alt: 'none' }), b2, d6);
+  const noWhat = df.parse(JSON.stringify({ what: '', fight: 'wrong-time', better: 'Wait for the flash.', change: 'utility', cause: 'dry-peek', alt: 'none' }), b2, d6);
+  ok(viaAlt.cause === 'dry-peek' && viaAlt.fight === 'wrong-time'
+    && conflict.cause === 'unclear' && conflict.what === null && df.logLines(conflict).join(' ') === '[forensics] R6 conflict: fight right, cause repeek, alt none'
+    && outside.cause === 'lost-duel' && outside.change === null && outside.dropped.some((d) => d.gate === 'change')
+    && emptyUnclear.cause === 'unclear' && emptyUnclear.what === null && !emptyUnclear.dropped.length
+    && said.cause === 'unclear' && said.what === null && said.better === null && said.change === null
+    && noWhat.cause === 'unclear' && noWhat.better === null,
+  "b's parse holds it: a second choice inside the family, a conflict unclear and logged by its keys, a change outside kept as none, unclear with no sentences");
+  const tr = df.normalise(body({ traded: true }), { variant: 'b2' });
+  ok(df.parse(reply({ fight: 'wrong-spot', change: 'team', cause: 'isolated', alt: 'crossfire' }), tr, tr.deaths[0]).cause === 'unclear',
+    "and isolated on a death Riot records traded is unclear, its second choice not taken in its place");
+
+  // The route, on its own source (coach.js forensicsVariant, run in a sandbox):
+  // b2 only beside the admin password, or promoted only to 8.5.0 and later.
+  const coachText = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'coach.js'), 'utf8').replace(/\r\n/g, '\n');
+  const lineOf = (head) => { const i = coachText.indexOf(head); const j = i < 0 ? -1 : coachText.indexOf('\n', i + head.length); return j < 0 ? '' : coachText.slice(i, j + 1); };
+  const fnOf = (head) => { const i = coachText.indexOf(head); const j = i < 0 ? -1 : coachText.indexOf('\n}\n', i); return j < 0 ? '' : coachText.slice(i, j + 3); };
+  const env = {};
+  try {
+    const src = [lineOf('\nconst V85 = '), fnOf('\nfunction clientAtLeast('), lineOf('\nconst lookVariants = '), fnOf('\nfunction forensicsVariant(')];
+    if (src.some((s) => !s)) throw new Error('the route gate is not where test:forensics reads it in coach.js');
+    const box = vm.createContext({ deathForensics: df, process: { env }, String, Number, Array,
+      isAdmin: (req) => !!(req && req.headers && req.headers['x-admin-password'] === 'stand-in-admin') });
+    const gate = vm.runInContext(`${src.join('\n')}\n;({ forensicsVariant })`, box).forensicsVariant;
+    const req = (variant, headers) => ({ body: variant === undefined ? {} : { variant }, headers: headers || {} });
+    const admin = { 'x-admin-password': 'stand-in-admin' };
+    ok(gate(req('b2')) === null && gate(req('b2', { 'x-admin-password': 'guess' })) === null && gate(req('b2', { 'x-occlara-version': '8.5.0' })) === null
+      && gate(req('b2', admin)) === 'b2' && gate(req(' B2 ', admin)) === 'b2' && gate(req('b3', admin)) === null && gate(req('b', admin)) === 'b',
+    'the route serves b2 only beside the admin password: a licence naming it, a wrong password or a version alone is looked at with a');
+    env.FORENSICS_PROMPT = 'b2';
+    ok(gate(req(undefined, { 'x-occlara-version': '8.5.0' })) === 'b2' && gate(req(undefined, { 'x-occlara-version': '8.6.1' })) === 'b2'
+      && gate(req(undefined, { 'x-occlara-version': '8.4.4' })) === null && gate(req(undefined)) === null
+      && gate(req('a', { ...admin, 'x-occlara-version': '8.5.0' })) === null,
+    'promoted, b2 goes to 8.5.0 and later alone, never to a client before it, and an admin bench naming a still gets the control');
+    const input = df.normalise(body(), { variant: gate(req(undefined, { 'x-occlara-version': '8.5.0' })) || 'a' });
+    ok(input.variant === 'b2' && df.tokensFor(input) === 400 && df.buildPrompt(input, input.deaths[0]) === p2,
+      'and what the route hands the look is b2, its room and its prompt');
+  } catch (e) {
+    ok(false, `the route's gate in its sandbox threw: ${e.message}`);
+  }
+}
+
 // ── The phrase lists: what a better play says it changes ────────────────────
 {
   for (const [list, yes, no] of [
@@ -588,7 +760,7 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
     'a better play moves the player when it trips any list but aim');
 
   // THEY SET NO LABEL, on any of the 23 lost duels on record: each one parsed
-  // as it came, and as variant b's right fight, is still a lost duel.
+  // as it came, and as variant b's and b2's right fight, is still a lost duel.
   ok(ANSWERS.length === 23 && ANSWERS.filter((a) => a.from === 'bench').length === 18, `the lost duels on record: ${ANSWERS.length}, 18 the bench's own words`);
   let moved = 0;
   let logged = 0;
@@ -598,9 +770,12 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
     const at = df.normalise({ agent: ans.agent, map: ans.map, deaths: [{ n: ans.round, side: 'defending', sec: 14, killer: ans.killer,
       weapon: ans.weapon, traded: false, frames: [frame] }] });
     const bt = { ...at, variant: 'b' };
+    const b2t = { ...at, variant: 'b2' };
     const ra = df.parse(JSON.stringify({ cause: 'lost-duel', what: ans.what, better: ans.better }), at, at.deaths[0]);
     const rb = df.parse(JSON.stringify({ what: ans.what, fight: 'right', better: ans.better, change: 'aim', cause: 'lost-duel', alt: 'none' }), bt, bt.deaths[0]);
+    const rb2 = df.parse(JSON.stringify({ what: ans.what, fight: 'right', better: ans.better, change: 'aim', cause: 'lost-duel', alt: 'none' }), b2t, b2t.deaths[0]);
     if (ra.cause !== 'lost-duel' || rb.cause !== 'lost-duel' || ra.better !== rb.better) moved++;
+    if (JSON.stringify(df.replyOf(rb2)) !== JSON.stringify(df.replyOf(rb)) || df.logLines(rb2).join() !== df.logLines(rb).join()) moved++;
     if (df.movesPlayer(ans.better, ans.agent)) {
       logged += df.logLines(rb).some((l) => /lost-duel better play trips/.test(l)) ? 1 : 0;
     } else still++;
@@ -658,6 +833,21 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
     return df.buildPrompt(now, now.deaths[0]) !== shipped.buildPrompt(then, then.deaths[0]);
   });
   ok(bodies.length === 150 && !differ.length, `every one of ${bodies.length} bodies is asked with 8.4.4's prompt, byte for byte (${differ.length} differ)`);
+  // And on the same bodies b2, beside it, is b's prompt but for its judgement
+  // and its reply's two sentences, with no dash: from the screen, in every
+  // language, on one frame, two, the read's and the recording's.
+  {
+    const asked = (body, variant) => { const x = df.normalise(body, { variant }); return df.buildPrompt(x, x.deaths[0]); };
+    const swap = (s, from, to) => { const i = s.indexOf(from); return i < 0 ? s : s.slice(0, i) + to + s.slice(i + from.length); };
+    const part = (p) => p.slice(p.indexOf('\n\nFirst '), p.indexOf('\n\nRules:'));
+    const tail = (p) => p.slice(p.lastIndexOf('Reply with JSON'));
+    const off = bodies.filter((body) => {
+      const pb = asked(body, 'b');
+      const p2 = asked(body, 'b2');
+      return p2 === pb || swap(swap(p2, part(p2), part(pb)), tail(p2), tail(pb)) !== pb || DASH.test(p2) || !/\n\nFirst check that /.test(p2);
+    });
+    ok(!off.length, `and b2's, beside it on every one of them, is b's but for its judgement and its reply's two sentences, with no dash (${off.length} otherwise)`);
+  }
 
   // The replies: every answer on record and the cases above, as each body's look.
   const replies = [
@@ -749,6 +939,8 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
   ok(b('p90').value === '2.50 s' && b('p90').pass === true && !r.pass, `the p90 is the five still body's alone, the read frames' 9 s left out (${b('p90').value}), and the bench does not pass`);
   const control = S.score({ set, key, looks, variant: 'a', runs: 5 });
   ok(!control.bars.some((x) => x.name === 'contradict' || x.name === 'conflicts'), 'the control, variant a, has no judgement to contradict');
+  ok(S.VARIANTS.join() === 'a,b,b2' && JSON.stringify(S.score({ set, key, looks, variant: 'b2', runs: 5 }).bars) === JSON.stringify(r.bars),
+    "b2, which judges the fight as b does, is scored on b's bars, its contradictions and conflicts among them; a bench may name a, b or b2");
   const bd = S.bodyDeath({ facts: { n: 2, side: 'defending' }, frames: ['x1', 'x2', 'x3'], frameAt: [-3, -0.3, 0.7], framesFrom: 'recording' },
     (rel) => Buffer.from(rel));
   ok(bd.frameAt.join() === '-0.3,0.7,-3' && Buffer.from(bd.frames[0], 'base64').toString() === 'x2' && bd.framesFrom === 'recording' && bd.n === 2,
@@ -939,6 +1131,20 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
     'the label words are scored raw, a cause off the list read as unknown though parse took its second choice, and the bars printed');
     ok(!/STAND-IN-LICENCE/.test(file) && !/Klumpf/.test(file) && !/Bad luck/.test(file),
       'and the run it writes holds no licence, no word off a list, and of the model\'s sentences only those the gates let pass');
+    // --variant b2 is a run the bench will make, and a word off the list one it refuses, before anything is sent.
+    const dry = (variant) => new Promise((resolve) => {
+      const child = spawn(process.execPath, [path.join(__dirname, 'bench-forensics.js'), '--own', '--dry', '--variant', variant], { cwd: path.join(__dirname, '..'), env });
+      let out = '';
+      child.stdout.on('data', (c) => { out += c; });
+      child.stderr.on('data', (c) => { out += c; });
+      const timer = setTimeout(() => child.kill(), 30000);
+      child.on('close', (code) => { clearTimeout(timer); resolve({ code, out }); });
+    });
+    const asB2 = await dry('b2');
+    const asB3 = await dry('b3');
+    ok(asB2.code === 0 && /variant b2: 3 looks/.test(asB2.out) && /--dry: nothing sent\./.test(asB2.out)
+      && asB3.code === 1 && /--variant is a, b or b2, not b3/.test(asB3.out),
+    `the bench names b2, and refuses a variant the server does not serve before anything is sent (${asB2.code}, ${asB3.code})`);
   } catch (e) {
     ok(false, `bench A's offline run crashed: ${e.stack || e.message}`);
   } finally {

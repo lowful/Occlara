@@ -100,6 +100,8 @@ const causes = () => {
   return (f && f.CAUSES) || {};
 };
 const DAY = /^\d{1,2} [A-Z][a-z]{2}$/;
+// The rounds of a question told in full at most (askedRounds).
+const MAX_ASKED_ROUNDS = 3;
 
 // ── Free text, gated before the model sees it ──────────────────────────────
 
@@ -406,6 +408,7 @@ function normalise(context) {
   const a = c.ask && typeof c.ask === 'object' ? c.ask : {};
   const sw = a.switchedFrom && typeof a.switchedFrom === 'object' ? a.switchedFrom : null;
   const asked = int(a.round, 1, 40);
+  const inMatch = (n) => n !== null && !!match && match.kind === 'valorant' && match.cards.some((x) => x.n === n);
   return {
     v: 2,
     game,
@@ -414,7 +417,9 @@ function normalise(context) {
     match,
     player: playerOf(c.player, language),
     ask: {
-      round: asked !== null && match && match.kind === 'valorant' && match.cards.some((x) => x.n === asked) ? asked : null,
+      round: inMatch(asked) ? asked : null,
+      // Every round the question names, from a client that reads them (chat-context.js roundsOf).
+      rounds: [...new Set(list(a.rounds, MAX_ASKED_ROUNDS * 2).map((n) => int(n, 1, 40)).filter(inMatch))].slice(0, MAX_ASKED_ROUNDS),
       switchedFrom: sw ? { map: mapOf(sw.map), agent: agentOf(sw.agent), result: ['Victory', 'Defeat', 'Draw'].includes(sw.result) ? sw.result : null,
         score: /^\d{1,2}-\d{1,2}$/.test(String(sw.score || '')) ? sw.score : null, day: DAY.test(String(sw.day || '')) ? sw.day : null } : null,
     },
@@ -623,6 +628,40 @@ function echoOf(messages) {
   return out;
 }
 
+/*
+ * THE ROUNDS A QUESTION IS ABOUT, EACH TOLD IN FULL (bench:chat, 15 Oct). The
+ * client sent the one round its question named (chat-context.js roundOf),
+ * and "How do I win more Sheriff duels like rounds 5 and 6?" named none to it:
+ * neither round reached the model in full, round 6 went as one line with no
+ * look in it, and both wrong facts the person's read found were round 6's
+ * ("Round 6 was also on attack, but it was not a confirmed Sheriff duel",
+ * where its look has the player fighting Chamber from B Tree with a Sheriff).
+ * So the question's own words are read here as the gates read a sentence
+ * (fact-gates.js roundsNamed: "rounds 5 and 6", "rounds 5 to 7", "R5", "the
+ * attack pistol round"), beside the client's round and its list, and every
+ * one the match has is told in full, MAX_ASKED_ROUNDS at most, the client's
+ * first. One round asked is the gates' asked round (`oneRound`); with two or
+ * more, a sentence naming no round is about none of them.
+ */
+function askedRounds(input, messages) {
+  const inp = input || {};
+  const m = inp.match;
+  if (!m || m.kind !== 'valorant' || !Array.isArray(m.cards) || !m.cards.length) return [];
+  const has = new Set(m.cards.map((c) => c.n));
+  const out = [];
+  const add = (n) => { if (Number.isInteger(n) && has.has(n) && !out.includes(n)) out.push(n); };
+  const a = inp.ask || {};
+  add(a.round);
+  for (const n of Array.isArray(a.rounds) ? a.rounds : []) add(n);
+  const lastAsk = [...(Array.isArray(messages) ? messages : [])].reverse().find((x) => x && x.role !== 'assistant');
+  const q = String((lastAsk && lastAsk.content) || '');
+  if (q) {
+    const light = { rounds: new Map(m.cards.map((c) => [c.n, { n: c.n, pistol: c.pistol, side: c.side }])), overtimeFrom: REGULATION[modeKey(m)] + 1 };
+    for (const n of gates.roundsNamed(q, light)) add(n);
+  }
+  return out.slice(0, MAX_ASKED_ROUNDS);
+}
+
 const factsCache = new WeakMap();
 
 /**
@@ -639,6 +678,8 @@ function factsOf(input, messages, opts) {
   const mode = valorant ? modeKey(m) : null;
   const lastAsk = [...(Array.isArray(messages) ? messages : [])].reverse().find((x) => x && x.role !== 'assistant');
   const asked = String((lastAsk && lastAsk.content) || '');
+  const askedList = askedRounds(inp, messages);
+  const final = m && /^(\d{1,2})-(\d{1,2})$/.exec(String(m.score || ''));
   const f = {
     game: valorant ? 'valorant' : 'lol',
     language: inp.language || 'en',
@@ -649,8 +690,13 @@ function factsOf(input, messages, opts) {
     source: m ? m.source : null,
     verified: !!(m && m.verified),
     rounds: new Map(),
-    asked: inp.ask && inp.ask.round ? inp.ask.round : null,
-    oneRound: !!(inp.ask && inp.ask.round),
+    // The match's own result and final score, which a claim of the match is
+    // held to and never a round's (fact-gates.js claimsOf).
+    matchResult: m ? ({ Victory: 'won', Defeat: 'lost', Draw: 'drew' })[m.result] || null : null,
+    finalScore: final ? [Number(final[1]), Number(final[2])] : null,
+    asked: askedList[0] || null,
+    askedRounds: askedList,
+    oneRound: askedList.length === 1,
     overtimeFrom: valorant ? REGULATION[mode] + 1 : null,
     numbers: [],
     counted: { pairs: new Set(), counts: new Set(), titles: [], roundSets: [], texts: [] },
@@ -666,7 +712,8 @@ function factsOf(input, messages, opts) {
   // distance or game number (fact-gates.js matchHas).
   const harvest = (text) => {
     if (!text) return;
-    const t = gates.digitsOf(String(text));
+    // With its quotes straightened, as the gates read the sentence that quotes it.
+    const t = gates.digitsOf(gates.straighten(String(text)));
     // The text itself too, for a sentence that quotes it (fact-gates.js quotesCounted).
     f.counted.texts.push(lower(t).replace(/\s+/g, ' '));
     const rev = reviewMod();
@@ -720,7 +767,7 @@ function factsOf(input, messages, opts) {
         harvest(e.detail); harvest(e.title);
         if (fin(e.count)) { f.counted.counts.add(e.count); addNum('*', e.count); }
         if (e.rounds.length) f.counted.roundSets.push(e.rounds);
-        f.counted.titles.push(lower(e.title));
+        f.counted.titles.push(lower(gates.straighten(e.title)));
       }
     }
     for (const p of m.patterns) harvest(p.text);
@@ -754,8 +801,12 @@ function factsOf(input, messages, opts) {
         else if (k.by === 'enemy') weapons.theirs.add(k.w);
         else if (k.by === 'mate') weapons.mates.add(k.w);
       }
-      for (const g of gates.gunsIn(`${(c.look && c.look.what) || ''} ${(c.look && c.look.better) || ''}`)) {
-        weapons.mine.add(g.name); weapons.all.add(g.name);
+      // A gun the look names is the player's unless the look says whose it
+      // was: "before his Classic killed you" is the killer's (fact-gates.js gunOwner).
+      const lookText = `${(c.look && c.look.what) || ''} ${(c.look && c.look.better) || ''}`;
+      for (const g of gates.gunsIn(lookText)) {
+        if (gates.gunOwner(lookText, g) === 'theirs') weapons.theirs.add(g.name); else weapons.mine.add(g.name);
+        weapons.all.add(g.name);
       }
       f.rounds.set(c.n, {
         n: c.n, side: c.side, result: c.result, died: c.died, verified: c.verified, watched: c.watched,
@@ -793,7 +844,7 @@ function factsOf(input, messages, opts) {
       addNum('practice', Math.round(m.durationSec / 60)); addNum('practice', Math.floor(m.durationSec / 60));
     }
     if (m.grade) { addNum('grade', m.grade.score); for (const c of m.grade.categories) { addNum('grade', c.score); for (const e of c.evidence) harvest(e); } }
-    for (const k of ['mistakes', 'strengths', 'missed']) for (const e of m.lists[k]) { harvest(e.detail); harvest(e.title); f.counted.titles.push(lower(e.title)); }
+    for (const k of ['mistakes', 'strengths', 'missed']) for (const e of m.lists[k]) { harvest(e.detail); harvest(e.title); f.counted.titles.push(lower(gates.straighten(e.title))); }
     // Each death by the game's clock as the prompt writes it, "12 minutes 34
     // seconds in": both of its numbers, which the gate dropped as tied to nothing.
     for (const d of m.deaths) {
@@ -803,7 +854,7 @@ function factsOf(input, messages, opts) {
     for (const x of m.facts) harvest(x);
   }
   const pl = inp.player || {};
-  for (const p of pl.patterns || []) { addNum('matches', p.matches); addNum('matches', p.of); f.counted.titles.push(lower(p.title)); }
+  for (const p of pl.patterns || []) { addNum('matches', p.matches); addNum('matches', p.of); f.counted.titles.push(lower(gates.straighten(p.title))); }
   for (const row of [pl.agentRow, pl.mapRow]) {
     if (!row) continue;
     addNum('matches', row.matches); addNum('*', row.won); addNum('*', row.lost); addNum('*', row.known);
@@ -912,6 +963,18 @@ function languageLine(language) {
   return name === 'English' ? '' : `Write the whole reply in ${name}. Keep agent, ability, weapon and map names exactly as the game prints them.`;
 }
 
+/*
+ * THE GUN TABLE GOES TO THE SLICES BY DEFAULT (bench:chat, 15 Oct). Spec 8.8's
+ * switch: where the provider serves no part of the prompt from its cache, the
+ * gun table leaves the core, which every question repeats, for a slice of the
+ * guns the question names, the asked rounds' and every gun that killed the
+ * player in the match, about 1,300 tokens a question less, the roster of the
+ * agents on their keys kept in the core. Sol reported 0 cached tokens on every
+ * call of the run, so it is what v2 does unless CHAT_PRIMER_GUNS=core puts the
+ * table back ('table' says the same; 'slices' is the default it names).
+ */
+const gunsInCore = () => /^(?:core|table)$/i.test(String(process.env.CHAT_PRIMER_GUNS || '').trim());
+
 function primerCore(input, variant) {
   if (input.game === 'lol' || variant === 'v2-noprimer') return '';
   const p = primerMod();
@@ -919,7 +982,7 @@ function primerCore(input, variant) {
   const m = input.match;
   try {
     // The gun table moved to slices keeps the roster in the core (game-primer.js renderCore).
-    const guns = process.env.CHAT_PRIMER_GUNS !== 'slices';
+    const guns = gunsInCore();
     return String(p.core(modeKey(m), { ...(m && fin(m.at) ? { matchAt: m.at } : {}), guns, ...(guns ? {} : { roster: true }) }) || '').trim();
   } catch { return ''; }
 }
@@ -1066,10 +1129,6 @@ function renderMatch(input, facts, trim) {
   const lines = [];
   lines.push(`THE MATCH (${matchName(m) || 'a match'}${m.mode ? `, ${m.mode}` : ''}${m.rounds ? `, ${m.rounds} rounds` : ''})`);
   if (m.source === 'riot') lines.push(RIOT_ONLY);
-  if (input.ask && input.ask.switchedFrom) {
-    const s = input.ask.switchedFrom;
-    lines.push(`The player's question named this match, so the conversation moved to it from ${[s.map, s.agent].filter(Boolean).join(', ') || 'another match'}: open by naming this one.`);
-  }
   if (m.endedEarly) lines.push("The coach thought this match was over before it was, and it went on: Riot's record has all of it.");
   if (m.verification) lines.push(m.verification);
   else if (!m.verified) lines.push("Not checked against Riot's record: the rounds are what the screen read, and a round can be a round off.");
@@ -1094,15 +1153,27 @@ function renderMatch(input, facts, trim) {
   for (const p of m.patterns) counted.push(`- Pattern: ${p.text}`);
   if (counted.length) lines.push(`COUNTED (code counted these from the record, so they are true; quote their numbers exactly)\n${counted.join('\n')}`);
 
-  const asked = input.ask && input.ask.round;
-  const ledger = [];
-  for (const c of m.cards) {
-    if (c.n === asked) continue;
-    ledger.push(trim ? cardLine(c, m).replace(/ Coach's look: [^.]*\./, '') : cardLine(c, m));
-  }
+  // EVERY ROUND A LINE, the asked ones too, so the match's part of the prompt
+  // is the same for every question of it (buildParts); the rounds a question
+  // is about are told in full after it (renderAsked).
+  const ledger = m.cards.map((c) => (trim ? cardLine(c, m).replace(/ Coach's look: [^.]*\./, '') : cardLine(c, m)));
   if (ledger.length) lines.push(`ROUNDS (Riot's record unless marked; times are seconds into the round)\n${ledger.join('\n')}`);
-  const c = m.cards.find((x) => x.n === asked);
-  if (c) {
+  return lines.join('\n');
+}
+
+/**
+ * The rounds a question is about, each in full (askedRounds): its line, the
+ * kill feed in order with the plant among it, the numbers computed from it,
+ * what the screen read and the coach's look, and, when the match's part left
+ * the coach's earlier lines of its rounds out (`withWhy`), its own.
+ */
+function renderAsked(input, rounds, withWhy) {
+  const m = input.match;
+  if (!m || m.kind !== 'valorant') return '';
+  const out = [];
+  for (const n of rounds || []) {
+    const c = m.cards.find((x) => x.n === n);
+    if (!c) continue;
     const full = [`ROUND ${c.n} IN FULL`, cardLine(c, m)];
     const feed = feedLines(c, m);
     if (feed) full.push(feed);
@@ -1123,21 +1194,21 @@ function renderMatch(input, facts, trim) {
     }
     const look = lookLines(c);
     if (look) full.push(look);
-    lines.push(full.join('\n'));
+    if (withWhy && c.why) full.push(`The coach's earlier line for it (written by a model from the same facts; use it only where the facts agree): ${c.why}`);
+    out.push(full.join('\n'));
   }
-  return lines.join('\n');
+  return out.join('\n\n');
 }
 
+/** The coach's earlier words: the summary, the focus and every round's line, or with `trim` the first two alone. */
 function renderEarlier(input, trim) {
   const m = input.match;
   if (!m || m.kind !== 'valorant') return '';
   const lines = [];
   if (m.coach.summary) lines.push(`Summary: ${m.coach.summary}`);
   if (m.coach.focus) lines.push(`Focus: ${m.coach.focus}`);
-  const asked = input.ask && input.ask.round;
   for (const c of m.cards) {
-    if (!c.why) continue;
-    if (trim && c.n !== asked) continue;
+    if (!c.why || trim) continue;
     lines.push(`R${c.n}: ${c.why}`);
   }
   return lines.length ? `THE COACH'S EARLIER WORDS (written by a model from the same facts; use them only where the facts agree)\n${lines.join('\n')}` : '';
@@ -1155,19 +1226,27 @@ function renderSlices(input, facts, messages) {
   const agents = new Set();
   if (m && m.agent) agents.add(m.agent);
   for (const a of facts.askedAgents) agents.add(a);
-  const asked = m && input.ask && input.ask.round ? m.cards.find((c) => c.n === input.ask.round) : null;
-  if (asked && asked.riot) {
-    if (asked.riot.killer) agents.add(asked.riot.killer);
-    for (const k of asked.riot.feed || []) if (k.on === 'me' && k.ka) agents.add(k.ka);
+  // Every round the question is about: its killer and the agents in its feed who killed the player.
+  const asked = m ? (facts.askedRounds || []).map((n) => m.cards.find((c) => c.n === n)).filter(Boolean) : [];
+  for (const c of asked) {
+    if (!c.riot) continue;
+    if (c.riot.killer) agents.add(c.riot.killer);
+    for (const k of c.riot.feed || []) if (k.on === 'me' && k.ka) agents.add(k.ka);
   }
   const out = [];
   for (const a of [...agents].slice(0, 4)) {
     try { const t = typeof p.kit === 'function' ? String(p.kit(a, o) || '').trim() : ''; if (t) out.push(t); } catch { /* a kit the primer cannot render is left out */ }
   }
-  if (process.env.CHAT_PRIMER_GUNS === 'slices') {
+  if (!gunsInCore()) {
+    // The guns the question names, every gun of the asked rounds' feeds, and
+    // every gun that killed the player in the match (gunsInCore).
     const lastAsk = [...(messages || [])].reverse().find((x) => x && x.role !== 'assistant');
     const guns = new Set(gates.gunsIn(String((lastAsk && lastAsk.content) || '')).map((g) => g.name));
-    if (asked && asked.riot && asked.riot.weapon) guns.add(asked.riot.weapon);
+    for (const c of asked) {
+      if (!c.riot) continue;
+      if (c.riot.weapon) guns.add(c.riot.weapon);
+      for (const k of c.riot.feed || []) if (k.w) guns.add(k.w);
+    }
     for (const c of (m && m.cards) || []) if (c.riot && c.riot.weapon) guns.add(c.riot.weapon);
     try { const t = typeof p.guns === 'function' ? String(p.guns([...guns], o) || '').trim() : ''; if (t) out.push(t); } catch { /* none */ }
   }
@@ -1239,9 +1318,10 @@ function pickNotes(input, messages) {
     out.push(n.text);
     seen.add(n.text);
   }
-  // The asked round as the situation, and the question's own words.
+  // The asked round as the situation (the first of them), and the question's own words.
   const ctx = { agent, map };
-  const asked = m && input.ask && input.ask.round ? m.cards.find((c) => c.n === input.ask.round) : null;
+  const first = askedRounds(input, messages)[0];
+  const asked = m && first ? m.cards.find((c) => c.n === first) : null;
   if (asked) {
     ctx.side = asked.side;
     ctx.roundNumber = asked.pistol ? 1 : asked.n;
@@ -1282,42 +1362,79 @@ function renderConversation(messages) {
 }
 
 /*
- * THE BUDGET. The dynamic part of a prompt (everything after the static
- * prefix) stays under DYNAMIC_MAX_CHARS, about 4,700 tokens: a 20 round match
- * with its feed, eight notes and eight messages fits. Over it, the trim goes
- * in this order, and the asked round always stays in full: the conversation
- * to its last four messages, the notes to five, the other rounds' looks and
- * the coach's earlier lines but the asked round's, THE PLAYER's lists to three.
+ * THE PROMPT IN THREE PARTS, THE STABLE ONES FIRST (bench:chat, 15 Oct). Sol
+ * reported 0 cached tokens on every call of the bench, every prompt token
+ * billed at its cache write price, though consecutive questions shared 19,000
+ * to 24,000 characters from the start: the provider wrote the whole prompt,
+ * one block, and never read a part of it back, and where two questions of a
+ * match parted was the round ledger, which left out the round asked. So the
+ * prompt is three parts, each the same byte for byte wherever it can be:
+ *   1. the static prefix, the rules and the primer's core for the mode, the
+ *      same for every match of the mode on the patch;
+ *   2. the match's own facts, THE PLAYER, THE MATCH with every round a line,
+ *      and the coach's earlier words, the same for every question of the match;
+ *   3. the question's: the move to this match when the question made one, the
+ *      rounds it is about in full (askedRounds), the slices, the coaching
+ *      notes, the conversation, the language line and the reply line.
+ * buildParts gives the three, each of the first two ending in its blank line,
+ * and buildPrompt is them joined; the route sends the first two as blocks a
+ * provider may cache (coach.js chatV2, chatCall's `parts`).
+ *
+ * THE BUDGET. Everything after the static prefix stays under
+ * DYNAMIC_MAX_CHARS, about 4,700 tokens: a 20 round match with its feed, three
+ * rounds in full, eight notes and eight messages fits. The match's part keeps
+ * under MATCH_MAX_CHARS by its own length alone, so that a long conversation
+ * never moves it: the coach's earlier round lines out (the rounds asked then
+ * carry their own), then the rounds' looks out of their lines, then THE
+ * PLAYER's lists to three. The question's part takes the rest: the
+ * conversation to its last four messages, the notes to five, then the
+ * conversation to two and the notes to three. The rounds asked always stay in
+ * full.
  */
 const DYNAMIC_MAX_CHARS = 19000;
+const MATCH_MAX_CHARS = 11000;
 
 /**
- * The prompt, a string. `opts.variant` 'v2-noprimer' leaves the primer's core
- * out (bench:chat's control); the gates check its numbers the same.
+ * The prompt in its three parts: { parts: [static prefix, the match's, the
+ * question's] }, joined the prompt buildPrompt gives. `opts.variant`
+ * 'v2-noprimer' leaves the primer's core out (bench:chat's control); the gates
+ * check its numbers the same.
  */
-function buildPrompt(input, messages, opts) {
+function buildParts(input, messages, opts) {
   const inp = input && input.v === 2 ? input : normalise(input);
   const msgs = Array.isArray(messages) ? messages : [];
   const variant = opts && opts.variant;
   const facts = factsOf(inp, msgs);
   const head = staticPrefix(inp, variant);
+  const ofMatch = (lvl) => [renderPlayer(inp, lvl >= 3), renderMatch(inp, facts, lvl >= 2), renderEarlier(inp, lvl >= 1)]
+    .filter(Boolean).join('\n\n');
+  let matchLvl = 0;
+  let match = ofMatch(0);
+  while (matchLvl < 3 && match.length > MATCH_MAX_CHARS) match = ofMatch(++matchLvl);
   const notes = pickNotes(inp, msgs);
+  const rounds = facts.askedRounds || [];
+  const sw = inp.ask && inp.ask.switchedFrom;
   const reply = ['Reply as the coach to the player\'s last message.', languageLine(inp.language)].filter(Boolean).join(' ');
-  const assemble = (lvl) => {
-    const parts = [
-      renderPlayer(inp, lvl >= 4),
-      renderMatch(inp, facts, lvl >= 3),
+  const ofQuestion = (lvl) => {
+    const kept = lvl >= 3 ? notes.slice(0, 3) : lvl >= 2 ? notes.slice(0, 5) : notes;
+    return [
+      sw ? `The player's question named this match, so the conversation moved to it from ${[sw.map, sw.agent].filter(Boolean).join(', ') || 'another match'}: open by naming this one.` : '',
+      renderAsked(inp, rounds, matchLvl >= 1),
       renderSlices(inp, facts, msgs),
-      (lvl >= 2 ? notes.slice(0, 5) : notes).length ? `COACHING NOTES\n${(lvl >= 2 ? notes.slice(0, 5) : notes).map((t) => `- ${t}`).join('\n')}` : '',
-      renderEarlier(inp, lvl >= 3),
-      renderConversation(lvl >= 1 ? msgs.slice(-4) : msgs),
+      kept.length ? `COACHING NOTES\n${kept.map((t) => `- ${t}`).join('\n')}` : '',
+      renderConversation(lvl >= 3 ? msgs.slice(-2) : lvl >= 1 ? msgs.slice(-4) : msgs),
       reply,
-    ].filter(Boolean);
-    return parts.join('\n\n');
+    ].filter(Boolean).join('\n\n');
   };
-  let body = assemble(0);
-  for (let lvl = 1; lvl <= 4 && body.length > DYNAMIC_MAX_CHARS; lvl++) body = assemble(lvl);
-  return `${head}\n\n${body}`;
+  const room = DYNAMIC_MAX_CHARS - match.length - 2;
+  let question = ofQuestion(0);
+  for (let lvl = 1; lvl <= 3 && question.length > room; lvl++) question = ofQuestion(lvl);
+  return { parts: [`${head}\n\n`, `${match}\n\n`, question] };
+}
+
+/** The prompt, a string: buildParts' three parts joined. */
+function buildPrompt(input, messages, opts) {
+  return buildParts(input, messages, opts).parts.join('');
 }
 
 // ── The reply ──────────────────────────────────────────────────────────────
@@ -1347,13 +1464,48 @@ function cleanReply(raw) {
   return paras.map((p) => p.replace(DASHES, ', ').replace(/\s+-\s+/g, ', ').replace(/\s{2,}/g, ' ').trim()).filter(Boolean);
 }
 
+/*
+ * A BARE YES OR NO GOES WITH THE SENTENCE THAT SAID WHY (bench:chat, 15 Oct).
+ * "Should I have saved my gun in round 4?" was answered "Yes." and nothing
+ * more of it: the economy gate rightly dropped the save claim after it, and
+ * the verdict, which makes the same claim in one word, went out alone, read
+ * by the person as an economy claim. A bare verdict whose next sentence was
+ * dropped is dropped too, and as the reply's first sentence it asks for the
+ * reply again.
+ */
+const VERDICT = /^(?:yes|yeah|yep|no|nope|nah|correct|right|exactly|absolutely|definitely|not really|not quite|s[ií]|oui|non|ja|nein|sim|n[ãa]o)(?:,?\s+(?:it|that|you|they|he|she|we)\s+(?:was|were|did|is|are|should|had|could|would)(?:n't|\s+not)?(?:\s+have)?)?\s*[.!]?$/i;
+const VERDICT_REASON = 'your reply answered yes or no, and the sentence that said why could not be shown; answer with the fact itself, in a full sentence';
+
 /**
- * The reply, every sentence through the gates (fact-gates.js check). A
- * sentence that fails is dropped, never repaired. The reply is asked for
- * again (retry) when its first sentence was dropped, or fewer than two
- * survive, with the reasons named for the model; `dropped` counts by gate,
- * `logged` what the name rule in log mode would have dropped. Production
- * logs counts only, never text.
+ * Every sentence of a reply's paragraphs through the gates, in order: { p
+ * (its paragraph), s, drop, logged }, and a bare verdict whose next sentence
+ * was dropped dropped with it (VERDICT). parseReply's reading of a reply, and
+ * bench:chat's.
+ */
+function gateReply(paras, facts, nameOpts) {
+  const rows = [];
+  (Array.isArray(paras) ? paras : []).forEach((p, i) => {
+    for (const s of gates.sentencesOf(p)) {
+      const res = gates.check(s, facts, nameOpts);
+      rows.push({ p: i, s, drop: res.drop, logged: res.logged });
+    }
+  });
+  for (let i = 0; i + 1 < rows.length; i++) {
+    if (!rows[i].drop && rows[i + 1].drop && VERDICT.test(gates.straighten(rows[i].s).trim())) {
+      rows[i].drop = { gate: 'verdict', reason: VERDICT_REASON };
+      rows[i].logged = [];
+    }
+  }
+  return rows;
+}
+
+/**
+ * The reply, every sentence through the gates (gateReply, over fact-gates.js
+ * check). A sentence that fails is dropped, never repaired. The reply is
+ * asked for again (retry) when its first sentence was dropped, or fewer than
+ * two survive, with the reasons named for the model; `dropped` counts by
+ * gate, `logged` what the name rule in log mode would have dropped.
+ * Production logs counts only, never text.
  *
  * @param opts.messages  the conversation, for the echo of a name the player typed
  * @param opts.nameSet   the match's own names, has(text) (opts.names the same)
@@ -1377,26 +1529,19 @@ function parseReply(raw, input, opts) {
     return out;
   }
   const kept = [];
-  let first = true;
-  for (const p of paras) {
-    const ks = [];
-    for (const s of gates.sentencesOf(p)) {
-      out.sentences += 1;
-      const res = gates.check(s, facts, nameOpts);
-      for (const l of res.logged) out.logged[l] = (out.logged[l] || 0) + 1;
-      if (res.drop) {
-        out.dropped[res.drop.gate] = (out.dropped[res.drop.gate] || 0) + 1;
-        if (!out.reasons.includes(res.drop.reason)) out.reasons.push(res.drop.reason);
-        if (first) out.firstDropped = true;
-      } else {
-        ks.push(s);
-        out.kept += 1;
-      }
-      first = false;
+  gateReply(paras, facts, nameOpts).forEach((row, i) => {
+    out.sentences += 1;
+    for (const l of row.logged || []) out.logged[l] = (out.logged[l] || 0) + 1;
+    if (row.drop) {
+      out.dropped[row.drop.gate] = (out.dropped[row.drop.gate] || 0) + 1;
+      if (!out.reasons.includes(row.drop.reason)) out.reasons.push(row.drop.reason);
+      if (i === 0) out.firstDropped = true;
+    } else {
+      (kept[row.p] = kept[row.p] || []).push(row.s);
+      out.kept += 1;
     }
-    if (ks.length) kept.push(ks.join(' '));
-  }
-  let reply = kept.join('\n\n');
+  });
+  let reply = kept.filter(Boolean).map((ks) => ks.join(' ')).join('\n\n');
   if (reply.length > MAX_CHARS) {
     const head = reply.slice(0, MAX_CHARS);
     const stop = Math.max(head.lastIndexOf('. '), head.lastIndexOf('.\n'), head.lastIndexOf('? '), head.lastIndexOf('! '));
@@ -1417,10 +1562,17 @@ function retryPrompt(prompt, reasons) {
   return `${String(prompt || '')}\n\nYOUR LAST REPLY COULD NOT BE SHOWN TO THE PLAYER.${said.length ? ` ${said.join(' ')}` : ''} Write the reply again from the facts above alone: answer the question in your first sentence, leave out anything the facts do not hold, and keep to short paragraphs of plain text.`;
 }
 
+/** buildParts' parts again for the retry: the stable ones as they were, the reasons after the question's, so joined it is retryPrompt's. */
+function retryParts(parts, reasons) {
+  const ps = Array.isArray(parts) ? parts.map(String) : [];
+  if (!ps.length) return [retryPrompt('', reasons)];
+  return [...ps.slice(0, -1), retryPrompt(ps[ps.length - 1], reasons)];
+}
+
 module.exports = {
-  normalise, buildPrompt, parseReply, retryPrompt, HONEST_LINE,
+  normalise, buildPrompt, buildParts, parseReply, retryPrompt, retryParts, HONEST_LINE,
   // The parts, for the tests and bench:chat.
-  factsOf, cleanReply, matchName, pickNotes, primerFacts, normEntry, echoOf, gateText, stated, standingsOf,
-  renderPlayer, renderMatch, renderEarlier, renderSlices, staticPrefix, languageLine,
-  VALORANT_RULES, LEAGUE_RULES, RIOT_ONLY, NO_MATCH, DYNAMIC_MAX_CHARS, MAX_CHARS,
+  factsOf, cleanReply, gateReply, askedRounds, matchName, pickNotes, primerFacts, normEntry, echoOf, gateText, stated, standingsOf,
+  renderPlayer, renderMatch, renderAsked, renderEarlier, renderSlices, staticPrefix, languageLine, gunsInCore,
+  VALORANT_RULES, LEAGUE_RULES, RIOT_ONLY, NO_MATCH, DYNAMIC_MAX_CHARS, MATCH_MAX_CHARS, MAX_CHARS, MAX_ASKED_ROUNDS, VERDICT, VERDICT_REASON,
 };

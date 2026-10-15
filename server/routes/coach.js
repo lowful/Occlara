@@ -575,7 +575,9 @@ function creditsRetryIn() {
 // pile up by the dozen per player, on a server that has died of memory
 // before. Aborting frees them. It does not save the money, which is why /read
 // still counts a read that timed out.
-async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinnedModel, abortMs }) {
+// The models that refused a prompt in cached parts this process, each said once (chatCall).
+const partsRefused = new Set();
+async function chatCall({ prompt, parts, imageB64, maxTokens, temperature, model: pinnedModel, abortMs }) {
   // Fail fast while the credits breaker is open: the provider would only 402
   // again, and every attempt costs a round trip and another identical log line.
   if (creditsLookExhausted()) {
@@ -585,12 +587,20 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
     throw err;
   }
   const images  = Array.isArray(imageB64) ? imageB64 : (imageB64 ? [imageB64] : []);
-  const content = images.length
+  // ASK COACH V2'S PROMPT IN CACHED PARTS (8.5.0, chat-prompt.js buildParts):
+  // a text call handed `parts` sends them as one message's text blocks, every
+  // block but the last marked for the provider's prompt cache, their text the
+  // prompt's own, joined. Every other call sends its prompt as it always has.
+  const cached = !images.length && Array.isArray(parts) && parts.length > 1
+    && parts.every((p) => typeof p === 'string' && p) && parts.join('') === prompt ? parts : null;
+  let content = images.length
     ? [
         { type: 'text', text: prompt },
         ...images.map((img) => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${img}` } })),
       ]
-    : prompt;
+    : cached
+      ? cached.map((text, i) => (i < cached.length - 1 ? { type: 'text', text, cache_control: { type: 'ephemeral' } } : { type: 'text', text }))
+      : prompt;
 
   // The caller can pin a model (the hybrid runs the deep reasoning model on
   // buy-phase reads and the fast model on live action); otherwise use the
@@ -709,6 +719,19 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
   };
 
   let resp = await send(budget, isThinking);
+
+  // A PROVIDER THAT REFUSES THE CACHED PARTS (a 400) is asked once more with
+  // the same text as one prompt, the reasoning switch kept: the cache marks are
+  // a saving, never a reason for no answer. Said once a model.
+  if (resp.status === 400 && cached) {
+    const first = await resp.text();
+    if (!partsRefused.has(model)) {
+      partsRefused.add(model);
+      console.warn(`[coach] ${model} rejected the prompt in cached parts (400), sending it as one: ${first.slice(0, 120)}`);
+    }
+    content = prompt;
+    resp = await send(budget, isThinking);
+  }
 
   // SOME PROVIDERS REJECT THE REASONING SWITCH ITSELF with a 400, rather than
   // ignoring it as the others do. Found benchmarking the live read: Gemini 3.5
@@ -1053,6 +1076,9 @@ function clientAtLeast(req, from) {
  * later, which carries the short match rule, and never to one before it,
  * which is looked at with today's prompt and parse exactly. An admin bench may
  * name 'a' for the live prompt, the control, whatever FORENSICS_PROMPT says.
+ * Variant b2, b with the evidence each judgement rests on written out from
+ * bench A, is in that list and rides this gate the same way, to its own
+ * bench first and FORENSICS_PROMPT=b2 after it.
  */
 const lookVariants = () => (Array.isArray(deathForensics.VARIANTS) ? deathForensics.VARIANTS : []);
 function forensicsVariant(req) {
@@ -1225,7 +1251,8 @@ function textModelNow() {
  * opts: json (the raw text, no sanitiser), timeoutMs (the race, and the
  * upstream abort a second after it), model (pinned), fallback (default true:
  * an unpinned path's empty reply or timeout is asked again of the instruct
- * backstop; false: never another model), temperature (default 0.5).
+ * backstop; false: never another model), temperature (default 0.5), parts
+ * (the prompt in its parts, joined the prompt, for the provider's cache).
  */
 async function textInfer(prompt, maxTokens, opts) {
   if (AI.provider === 'gemini') {
@@ -1233,14 +1260,15 @@ async function textInfer(prompt, maxTokens, opts) {
     bookCost(null, 0);
     return out;
   }
-  const { json = false, timeoutMs = 0, model: pinned = null, fallback: fallsBack = true, temperature = 0.5 } = opts || {};
+  const { json = false, timeoutMs = 0, model: pinned = null, fallback: fallsBack = true, temperature = 0.5, parts = null } = opts || {};
   const finish = (t) => (json ? String(t || '') : sanitize(t));
   const run = (model) => {
     // The upstream request is cancelled a second after the race gives up on
     // it, so a model that timed out stops holding a socket while the fallback
     // runs. Only with timeoutMs: without one there is no race in here, and an
-    // abort would read as a failure and fall back on its own.
-    const call = chatCall({ prompt, maxTokens, temperature, model,
+    // abort would read as a failure and fall back on its own. `parts` (Ask
+    // Coach v2's) go to chatCall as the prompt in cached blocks.
+    const call = chatCall({ prompt, parts, maxTokens, temperature, model,
       abortMs: timeoutMs ? timeoutMs + 1000 : 0 });
     if (!timeoutMs) return call;
     return withTimeout(call, timeoutMs, 'text timeout');
@@ -3469,14 +3497,16 @@ router.post('/read', async (req, res) => {
 // are the screen's, and no killer may be named. No source is Riot's record.
 //
 // WHICH PROMPT LOOKS (8.5.0, forensicsVariant): today's for every client
-// before 8.5.0, byte for byte; variant b for 8.5.0 and later once
-// FORENSICS_PROMPT=b, or for an admin bench naming it. The route hands the
-// look its variant (normalise's opts.variant, 'a' or 'b'), and on the input
-// the client's version and the match's id and name set (input.version,
-// input.matchId, input.names, the last for the name gate alone); its room is
-// tokensFor(input), its log logLines(out) and each look replyOf(out). The
-// reply carries `variant` ('b', or 'a' for today's prompt) to a client of
-// 8.5.0 or later and to any request that named one, and to no other client.
+// before 8.5.0, byte for byte; variant b or b2 for 8.5.0 and later once
+// FORENSICS_PROMPT names it, or for an admin bench naming it. The route hands
+// the look its variant (normalise's opts.variant, 'a', 'b' or 'b2'), and on
+// the input the client's version and the match's id and name set
+// (input.version, input.matchId, input.names, the last for the name gate
+// alone); its room is tokensFor(input), its log logLines(out) and each look
+// replyOf(out). The reply carries `variant` ('b', 'b2', or 'a' for today's
+// prompt) to a client of 8.5.0 or later and to any request that named one,
+// and to no other client; each look of b2 carries b's labels as 'b', the word
+// an 8.5.0 client keeps (death-forensics.js LABELS).
 //
 // AN ADMIN BENCH IS SENT EACH REPLY'S LABEL WORDS RAW (bench A, `raw: true`
 // beside the admin password): death-forensics.js rawLabels, the fight, cause,
@@ -4136,6 +4166,12 @@ function chatRetryPrompt(chatPrompt, prompt, reasons) {
   const why = reasons.length ? ` ${reasons.join(' ')}` : '';
   return `${prompt}\n\nYOUR LAST REPLY COULD NOT BE USED.${why} Answer the player's last message again from the facts above alone, the answer in your first sentence, in short plain paragraphs.`;
 }
+/** The retry in the prompt's parts: the stable ones as sent, the reasons after the question's (chat-prompt.js retryParts). */
+function chatRetryParts(chatPrompt, parts, reasons) {
+  const out = typeof chatPrompt.retryParts === 'function' ? chatPrompt.retryParts(parts, reasons)
+    : [...parts.slice(0, -1), chatRetryPrompt(chatPrompt, parts[parts.length - 1], reasons)];
+  return Array.isArray(out) && out.length > 1 && out.every((p) => typeof p === 'string') ? out : null;
+}
 
 /*
  * WHAT AN ADMIN BENCH IS SENT OF THE MODEL'S OWN TEXT (bench:chat, `raw: true`
@@ -4183,9 +4219,16 @@ async function chatV2(req, res, { licenseKey, variant, t0 }) {
   const names = chatNames(body);
   let input;
   let prompt;
+  // THE PROMPT IN ITS PARTS (chat-prompt.js buildParts): the static prefix and
+  // the match's own facts first, each the same byte for byte across the
+  // match's questions, sent as blocks the provider may cache (chatCall), the
+  // question's last. A chat-prompt.js without them sends the prompt whole.
+  let parts = null;
   try {
     input = chatPrompt.normalise(body.context);
-    prompt = chatPrompt.buildPrompt(input, messages, { variant });
+    const built = typeof chatPrompt.buildParts === 'function' ? chatPrompt.buildParts(input, messages, { variant }) : null;
+    if (built && Array.isArray(built.parts) && built.parts.length > 1 && built.parts.every((p) => typeof p === 'string')) parts = built.parts;
+    prompt = parts ? parts.join('') : chatPrompt.buildPrompt(input, messages, { variant });
   } catch (e) {
     console.warn('[chat] a v2 context could not be taken, answered as today:', e.message);
     return false;
@@ -4213,8 +4256,8 @@ async function chatV2(req, res, { licenseKey, variant, t0 }) {
 
   const model = benchModel(req) || AI.chatModel;
   const deadline = t0 + CHAT_TIMES.budgetMs;
-  const ask = (p, tokens, ms) => textInfer(p, tokens,
-    { json: true, model, fallback: false, temperature: CHAT_TEMPERATURE, timeoutMs: Math.max(1, Math.round(ms)) });
+  const ask = (p, tokens, ms, ps) => textInfer(p, tokens,
+    { json: true, model, fallback: false, temperature: CHAT_TEMPERATURE, timeoutMs: Math.max(1, Math.round(ms)), ...(ps ? { parts: ps } : {}) });
   // A reply the gates could not weigh is not one to stand behind: the honest line.
   const gate = (raw) => {
     try {
@@ -4238,7 +4281,7 @@ async function chatV2(req, res, { licenseKey, variant, t0 }) {
 
   let g = null;
   try {
-    said.first = await ask(prompt, CHAT_TOKENS, Math.min(CHAT_TIMES.firstMs, deadline - Date.now()));
+    said.first = await ask(prompt, CHAT_TOKENS, Math.min(CHAT_TIMES.firstMs, deadline - Date.now()), parts);
     g = gate(said.first);
     tally(g);
   } catch (e) {
@@ -4250,7 +4293,9 @@ async function chatV2(req, res, { licenseKey, variant, t0 }) {
   if (g && g.retry && deadline - Date.now() >= CHAT_TIMES.retryMinMs) {
     retried = true;
     try {
-      said.retry = await ask(chatRetryPrompt(chatPrompt, prompt, g.reasons), CHAT_RETRY_TOKENS, deadline - Date.now() - 250);
+      // The retry keeps the stable parts as they were, so it is served from the cache too.
+      const again = parts ? chatRetryParts(chatPrompt, parts, g.reasons) : null;
+      said.retry = await ask(again ? again.join('') : chatRetryPrompt(chatPrompt, prompt, g.reasons), CHAT_RETRY_TOKENS, deadline - Date.now() - 250, again);
       g = gate(said.retry);
       tally(g);
     } catch (e) {
@@ -4615,6 +4660,7 @@ module.exports.__test = {
   namesSomeoneHere, withoutNames, sentencesOf, gateWord, fillRefused, henrikKey, FILL_MAX, FILL_HOLD_MS, FILL_WINDOW_MS,
   matchMvpCache, mvpKey, CHAT_TIMES, CHAT_TOKENS, CHAT_RETRY_TOKENS, CHAT_TEMPERATURE, CHAT_MAX_CHARS, HONEST_LINE,
   chatRoom, chatCap, chatLedger, chatReport, chatParagraphs, cutReply, scrubAsked, ROUND_HASH, riotFrameFacts, benchCall,
+  chatRetryParts, partsRefused,
   services: (stand) => {
     for (const [name, mod] of Object.entries(stand || {})) {
       if (mod === null) delete lazyLoaded[name]; else lazyLoaded[name] = mod;

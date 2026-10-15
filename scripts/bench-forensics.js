@@ -56,8 +56,8 @@
  * userData/bench/looks/ (set.json), the player's own deaths as the live
  * client sends them, mostly five recording stills a death, and the Abyss 13
  * to 11's four, each sent alone so its time is its own, with the variant of
- * the look's prompt asked for (--variant a or b, admin only on the server),
- * --runs times. Every reply is kept RAW beside the server's parsed look
+ * the look's prompt asked for (--variant a, b or b2, admin only on the
+ * server; bench-look-score.js VARIANTS), --runs times. Every reply is kept RAW beside the server's parsed look
  * (bench-look-score.js reads the raw ones: a parse that enforces the families
  * cannot show a contradiction), and the server must send the raw reply to an
  * admin bench, or the bench stops at its first answer. --key scores it
@@ -73,6 +73,7 @@
  * Everything is written to userData/bench/looks/runs/, never the repo.
  *
  *   npm run bench:forensics -- openai/gpt-6-sol --own --key --variant b --runs 5 --costs
+ *   npm run bench:forensics -- openai/gpt-6-sol --own --key --variant b2 --runs 5 --costs
  *   npm run bench:forensics -- openai/gpt-6-sol --own --key --variant a --runs 5 --costs   (the control)
  *   npm run bench:forensics -- --own --dry
  */
@@ -245,7 +246,10 @@ async function ownBench() {
   const BUDGET = Number(flag('budget', score.RUN_USD));
   const GAP_MS = Math.max(0, Number(flag('gap', 2)) * 1000);
   const LOOKS = path.resolve(flag('looks', path.join(ROOT, 'bench', 'looks')));
-  if (!['a', 'b'].includes(VARIANT)) { console.log(`--variant is a or b, not ${VARIANT}`); return 1; }
+  if (!score.VARIANTS.includes(VARIANT)) {
+    console.log(`--variant is ${score.VARIANTS.slice(0, -1).join(', ')} or ${score.VARIANTS[score.VARIANTS.length - 1]}, not ${VARIANT}`);
+    return 1;
+  }
   if (!(BUDGET > 0)) { console.log('--budget is the dollars the run may spend, more than 0'); return 1; }
 
   let set = null;

@@ -1,8 +1,9 @@
 {
-  "note": "bench:chat's questions on the repo's own fixtures (spec 8.13): the Abyss 13 to 11, built offline as test:valorantreview builds it and filled from its own Riot record, and the Split 13 to 7, asked of the player's upgraded review where their library has it (found by its map, score and mode, filled as 8.10 fills it) and otherwise built offline as test:riotreview upgrades the repo's 8.0.1 review, filled from Riot's record; and the lists every sheet's keys may name. The player's other matches have their own sheet in userData/bench/chat/questions.json, in the same shape. A key is written by hand from Riot's record of the round, beside its question, and checks the answer independently of the gates: `must` is what a right answer states, `mustNot` a claim it must not make (each one a wrong fact). A check is `any` (phrases, whole words, any case), `list` (a list below by name) or `re` (a regular expression with the samples it must and must not match, `pos` and `neg`, asserted before anything is sent). `atLeast` asks for that many of the phrases. `tag` puts a wrong fact under its bar: relabel, economy, meta, kit, map. `open` is how the page is on the match: picked on the chip, newest (opened from the sidebar) or none (a general question). `expect` is the match the question must be answered on, and whether it moved the chip.",
+  "note": "bench:chat's questions on the repo's own fixtures (spec 8.13): the Abyss 13 to 11, built offline as test:valorantreview builds it and filled from its own Riot record, and the Split 13 to 7, asked of the player's upgraded review where their library has it (found by its map, score and mode, filled as 8.10 fills it) and otherwise built offline as test:riotreview upgrades the repo's 8.0.1 review, filled from Riot's record; and the lists every sheet's keys may name. The player's other matches have their own sheet in userData/bench/chat/questions.json, in the same shape. A key is written by hand from Riot's record of the round, beside its question, and checks the answer independently of the gates: `must` is what a right answer states, `mustNot` a claim it must not make (each one a wrong fact). A check is `any` (phrases, whole words, any case), `list` (a list below by name) or `re` (a regular expression with the samples it must and must not match, `pos` and `neg`, asserted before anything is sent). `atLeast` asks for that many of the phrases. `tag` puts a wrong fact under its bar: relabel, economy, meta, kit, map. `about: \"round\"`, on a check or on its list, reads only what is said of the round asked, never a clause quoting the match's counts, a hypothetical or advice (bench-chat.js roundText). `otherMatch: true` marks a check as markers of another match, and a phrase naming an agent the question's own match has is no marker of it (--dry names such a phrase). `open` is how the page is on the match: picked on the chip, newest (opened from the sidebar) or none (a general question). `expect` is the match the question must be answered on, and whether it moved the chip.",
   "lists": {
-    "notTraded": ["not traded", "untraded", "nobody traded", "no one traded", "wasn't traded", "was not traded", "went untraded", "went unanswered", "no teammate traded", "without a trade", "nobody could trade", "no one could trade", "no trade"],
+    "notTraded": { "about": "round", "any": ["not traded", "untraded", "nobody traded", "no one traded", "wasn't traded", "was not traded", "went untraded", "went unanswered", "no teammate traded", "without a trade", "nobody could trade", "no one could trade", "no trade"] },
     "tradedClaim": {
+      "about": "round",
       "re": "(?:\\b(?:was|were|got|been|get)\\s+(?:quickly\\s+|instantly\\s+|immediately\\s+)?traded\\b)|(?:(?<!\\b(?:no|nobody|not|never)\\s+(?:\\w+\\s+)?)\\b(?:teammates?|ally|allies|someone|somebody)\\s+(?:quickly\\s+|instantly\\s+|immediately\\s+|then\\s+)?traded\\s+(?:you|your death|your killer|for you)\\b)|(?:(?<!\\b(?:no|nobody|not|never|none)\\s+(?:\\w+\\s+)?)\\btraded\\s+(?:your\\s+death|your\\s+killer)\\b)",
       "flags": "i",
       "pos": ["Your death was traded by Sova.", "a teammate traded you", "You got traded quickly.", "Someone traded your killer."],
@@ -17,10 +18,10 @@
     },
     "buyBlame": ["standing in spawn", "idle in spawn", "standing idle", "waiting in spawn", "opening menus", "menus in spawn", "pistol in spawn"],
     "rank": {
-      "re": "\\b(?:is|are|was)\\s+(?:the\\s+|a\\s+)?(?:best|strongest|top|most picked)\\s+(?:agents?|picks?|duelists?|choices?|controllers?|sentinels?|initiators?)\\b|\\b[SA]\\s*-?\\s*tier\\b|\\btier\\s+lists?\\b|\\bmeta\\s+(?:picks?|agents?|comps?|duelists?)\\b|\\b(?:in|of|fits|suits|for|dominating|dominates)\\s+the\\s+(?:current\\s+)?meta\\b|\\boverpowered\\b|\\bpick\\s+rates?\\b|\\bmost\\s+picked\\b",
+      "re": "(?<!\\b(?:not|no|never|whether|if|can't|cannot|don't|do not|won't|wouldn't|without|chase|chasing|rather than|instead of|asked|ask)\\b[^.?!,;:]*)(?:\\b(?:is|are|was)\\s+(?:the\\s+|a\\s+)?(?:best|strongest|top|most picked)\\s+(?:agents?|picks?|duelists?|choices?|controllers?|sentinels?|initiators?)\\b|\\b[SA]\\s*-?\\s*tier\\b|\\btier\\s+lists?\\b|\\bmeta\\s+(?:picks?|agents?|comps?|duelists?)\\b|\\b(?:in|of|fits|suits|for|dominating|dominates)\\s+the\\s+(?:current\\s+)?meta\\b|\\boverpowered\\b|\\bpick\\s+rates?\\b|\\bmost\\s+picked\\b)",
       "flags": "i",
-      "pos": ["Jett is the best agent on Abyss.", "Clove is S tier right now.", "Omen is a meta pick.", "Jett fits the current meta."],
-      "neg": ["There is no single best agent.", "I don't rank agents or name a meta.", "Jett is your best agent by grade."]
+      "pos": ["Jett is the best agent on Abyss.", "Clove is S tier right now.", "Omen is a meta pick.", "Jett fits the current meta.", "No, Jett is the best agent on Abyss."],
+      "neg": ["There is no single best agent.", "I don't rank agents or name a meta.", "Jett is your best agent by grade.", "I can't tell you whether Jett is the best agent for Split from these facts.", "You asked if Jett is the best agent for Split.", "That depends on your team, not a universal tier list.", "Do not chase a meta pick."]
     },
     "jettKit": ["Updraft", "Tailwind", "Cloudburst", "Blade Storm"],
     "razeKit": ["Blast Pack", "Paint Shells", "Boom Bot", "Showstopper"],
@@ -198,8 +199,9 @@
       "mustNot": [
         { "what": "reads the round as a player", "any": ["in a player", "which player"] },
         { "what": "says the death was traded", "list": "tradedClaim" },
-        { "what": "gets the second wrong", "re": "\\b(?:died|killed you|went down)\\b[^.?!]{0,30}\\b(?!2\\b)\\d{1,2}\\s*(?:seconds?|s)\\b", "flags": "i",
-          "pos": ["You died 12 seconds in.", "Sage killed you 5 s into the round."], "neg": ["You died 2 seconds in.", "Sage killed you at 2 s."] }
+        { "what": "gets the second wrong", "re": "\\b(?:you\\s+(?:[a-z]+\\s+){0,2}?(?:died|went down|were killed|got killed)|killed you)\\b[^.?!]{0,30}?\\b(?!2\\b)\\d{1,2}\\s*(?:seconds?|s)\\b", "flags": "i",
+          "pos": ["You died 12 seconds in.", "Sage killed you 5 s into the round.", "You went down 9 s in."],
+          "neg": ["You died 2 seconds in.", "Sage killed you at 2 s.", "The spike went down at A at 28 s in, and their Phoenix killed your last teammate at 33 s in.", "Your Skye died 19 s in."] }
       ]
     },
     {
