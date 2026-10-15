@@ -35,6 +35,22 @@
     <main class="body">
       <p id="empty" class="empty" hidden>No match has been reviewed yet. Press Start, play a match, and the review opens here when it ends.</p>
 
+      <!-- A REVIEW STILL BEING BUILT (8.4.1): the steps it is on, until it is
+           whole, in place of a review that would change under the player as
+           Riot's record, the coach's look and the review written again land
+           (review.js paintBuilding, shared/review-work.js). The Recording
+           screen's shape: the mark, a title, a line, then one card a step. -->
+      <section id="building" class="building" aria-labelledby="b-title" hidden>
+        <img class="b-mark" src="../../../assets/logo-mark.svg" alt="" width="56" height="56" />
+        <h3 id="b-title" class="b-title">Checking your match</h3>
+        <p id="b-sub" class="b-sub"></p>
+        <ol id="b-steps" class="b-steps"></ol>
+        <p id="b-foot" class="b-foot"></p>
+        <!-- The step it is on, said once each time it changes; the clock
+             beside it ticks every second and is not read out. -->
+        <p id="b-now" class="sr-only" aria-live="polite"></p>
+      </section>
+
       <!-- EVERY GAME: the grade and the three lists. Moved by the painter to
            sit under whichever game's header is showing, so there is one copy
            of this markup and not two that drift apart. A Valorant review

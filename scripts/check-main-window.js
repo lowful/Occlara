@@ -6,11 +6,17 @@
  * that page's view beside it at the sidebar's edge, the seal hides every page
  * and paints the Recording screen while a match is in progress, a page asked
  * for while sealed shows when the seal lifts, and a recent match on Home opens
- * its review in the same window. Then the window itself: the seal a stop mid
- * match holds keeps the sidebar open and lifts on a page opened, the X and
- * Alt+F4 hide the window and leave the corner mark rather than quit, and a
- * window made again mid match keeps the seal while the pages of the one that
- * went are closed with it. And the record card is its two buttons (8.3), with
+ * its review in the same window. A review still being built (8.4.1) opens on
+ * its loading screen, Home's last match and its row in Matches say it is being
+ * checked where its grade would be, and once its work is done the review is
+ * painted whole and the grade is back. Then the window itself: the seal a
+ * stop mid match holds keeps the sidebar open and lifts on a page opened, the
+ * X and Alt+F4 quit by the tray's own path, asking nothing with nothing at
+ * stake (8.4.1, check:seal asks the questions) and never inside the close
+ * event itself, a quit Electron would cancel, Ctrl+Shift+M hides the window
+ * to the corner mark and brings it back, and a window made again mid match
+ * keeps the seal while the pages of the one that went are closed with it.
+ * And the record card is its two buttons (8.3), with
  * the notice line in the top strip instead: empty with nothing to say, one
  * line in the strip when there is a notice, cut and whole in its title when
  * it is long, out of the drag region the strip around it still is.
@@ -57,7 +63,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: one window: the sidebar lists the pages and its record card is its two buttons, a notice is one line in the top strip and empty, never hidden, with none, Home paints the last match, pages show beside the sidebar and move in only once painted out of sight, forward and back, minimised or loaded again, the seal hides them all at once mid match and holds after a stop until a page is opened, a recent match opens its review, closing hides the window, and a window made again keeps the seal');
+  console.log('PASS: one window: the sidebar lists the pages and its record card is its two buttons, a notice is one line in the top strip and empty, never hidden, with none, Home paints the last match, pages show beside the sidebar and move in only once painted out of sight, forward and back, minimised or loaded again, the seal hides them all at once mid match and holds after a stop until a page is opened, a recent match opens its review, a review still being built is a loading screen and its grade on Home and in Matches says it is being checked until it is whole, closing quits with nothing asked when nothing is at stake, on the turn after its close event and never inside it, Ctrl+Shift+M hides the window to the corner mark, and a window made again keeps the seal');
   process.exit(0);
 }
 
@@ -80,12 +86,47 @@ function report(ok, detail) {
 }
 
 // A profile with two saved Valorant reviews built from the real match.
+// Recording Off: step 5b records a match with a stand-in reader, and a check
+// never records the desktop. No Riot ID, so nothing is asked of the network.
 const ud = path.join(os.tmpdir(), 'occlara-check-main-window');
 fs.rmSync(ud, { recursive: true, force: true });
 fs.mkdirSync(ud, { recursive: true });
 fs.writeFileSync(path.join(ud, 'occlara-config.json'), JSON.stringify({
-  game: 'valorant', onboardingCompleted: true, licenseKey: '', language: 'en',
+  game: 'valorant', onboardingCompleted: true, licenseKey: '', language: 'en', recordingMode: 'off',
 }, null, 2));
+
+// THE READER, a stand-in (as check:seal has it), for step 5b's review still
+// being built: what matchInProgress() reads and what the real one emits when
+// its watch ends a match, nothing more: no capture, no model, no network.
+const Module = require('module');
+const { EventEmitter } = require('events');
+const INDEX = path.join(REPO, 'src', 'main', 'index.js');
+const readers = [];
+class StandInValorant extends EventEmitter {
+  constructor() {
+    super();
+    this.endWatch = { ended: false };
+    this.ledger = { size: () => 0 };
+    this.inLobby = true;
+    readers.push(this);
+  }
+  start() { this.emit('status', 'coaching'); }
+  stop() { this.emit('status', 'stopped'); }
+  setAgent() { return { ok: true }; }
+  confirmAgent() {}
+  pause() {}
+  resume() {}
+}
+{
+  // Asked for by index.js alone. Compared without case: Windows paths can
+  // come back with the drive letter in either.
+  const same = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+  const realLoad = Module._load;
+  Module._load = function patched(request, parent, isMain) {
+    if (parent && parent.filename && same(parent.filename, INDEX) && request === './services/coaching-engine') return StandInValorant;
+    return realLoad(request, parent, isMain);
+  };
+}
 const played = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
 const { rounds } = verify.reconcile(played.rounds, load('riot-abyss-13-11.json'));
 const built = valorantReview.build({ rounds, context: { ...played.context, agent: 'Jett' }, endedBy: 'score',
@@ -600,6 +641,99 @@ setTimeout(async () => {
       }
     }
 
+    // 5b. A REVIEW STILL BEING BUILT IS A LOADING SCREEN (8.4.1), through the
+    // real index.js: a match the stand-in reader's watch ends opens the review
+    // page on its loading screen, Home's last match and its row in Matches say
+    // it is being checked where its grade would be, and once its work is done
+    // (with no Riot ID, the narrative back and the coach's look from the
+    // screen, which with no frame to look at ends at once) the review is
+    // painted whole, and the grade is back on Home and in Matches.
+    const { ipcMain: ipc } = require('electron');
+    const CH5 = require(path.join(REPO, 'src/shared/channels'));
+    ipc.emit(CH5.COACH_START, { sender: null });
+    const reader = readers[readers.length - 1];
+    if (!reader) return report(false, 'recording did not start a reader for the review still being built');
+    const endedAt = Date.now();
+    const snap = { rounds: played.rounds, tips: [], notes: [], context: { ...played.context, agent: 'Jett', language: 'en' },
+      startedAt: endedAt - 40 * 60000, endedAt, endedBy: 'score' };
+    reader.endWatch.ended = true;
+    reader.emit('match-ended', snap);
+    if (!await until(settled('review'), 6000)) return report(false, 'the review of the match that ended never came in');
+    const rpage = surfaces.find('/review/');
+    const rjs5 = (s) => rpage.webContents.executeJavaScript(s);
+    const BUILDING = `(() => {
+      const b = document.getElementById('building');
+      return { building: !b.hidden && getComputedStyle(b).display !== 'none', vreview: !document.getElementById('vreview').hidden,
+        title: document.getElementById('b-title').textContent, ask: !document.getElementById('ask').hidden,
+        steps: [...document.querySelectorAll('#b-steps .b-step')].map((li) => li.dataset.step + ':' + li.className.split(' ')[1]).join(' '),
+        font: getComputedStyle(document.getElementById('b-title')).fontFamily.split(',')[0], weight: getComputedStyle(document.getElementById('b-title')).fontWeight };
+    })()`;
+    const loading = await until(async () => { const s = await rjs5(BUILDING); return s.building ? s : null; }, 6000) || await rjs5(BUILDING);
+    lines.push(`a review still being built: ${JSON.stringify(loading)}`);
+    if (!loading.building || loading.vreview || loading.ask || loading.title !== 'Writing your review'
+      || loading.steps !== 'saved:done writing:now look:next') {
+      return report(false, `the review still being built is not its loading screen: ${JSON.stringify(loading)}`);
+    }
+    if (!/Geist/.test(loading.font) || !['600', '700', '800'].includes(String(loading.weight))) {
+      return report(false, `the loading screen is drawn in ${loading.font} ${loading.weight}, not a Geist weight that ships`);
+    }
+    await shot('review-building', mainWindow, win);
+    const CHECKING_HOME = `(() => {
+      const last = document.getElementById('last');
+      const row = document.querySelector('#recent-list .r-row');
+      return { card: !!last.querySelector('.gv-checking-card'), grade: !!last.querySelector('.gv-grade'), score: !!last.querySelector('.score'),
+        text: (last.querySelector('.gv-checking-card') || {}).textContent || '', pill: !!(row && row.querySelector('.gv-checking')),
+        rowScore: !!(row && row.querySelector('.r-score')) };
+    })()`;
+    mainWindow.show('home');
+    await until(settled('home'), 4000);
+    const homeCheck = await until(async () => { const s = await hjs(CHECKING_HOME); return s.card ? s : null; }, 6000) || await hjs(CHECKING_HOME);
+    lines.push(`Home while it is built: ${JSON.stringify(homeCheck)}`);
+    if (!homeCheck.card || homeCheck.grade || homeCheck.score || !homeCheck.pill || homeCheck.rowScore) {
+      return report(false, `Home shows the grade of a review still being built: ${JSON.stringify(homeCheck)}`);
+    }
+    await shot('home-checking', mainWindow, win);
+    mainWindow.show('matches');
+    await until(settled('matches'), 4000);
+    const mjs = (s) => mainWindow.pageViews().get('matches').webContents.executeJavaScript(s);
+    const ROW = "(() => { const r = document.querySelector('#list .m-row'); return r ? { pill: !!r.querySelector('.m-grade .gv-checking'), score: (r.querySelector('.m-score') || {}).textContent || null } : null; })()";
+    const rowCheck = await until(async () => { const s = await mjs(ROW); return s && s.pill ? s : null; }, 6000) || await mjs(ROW);
+    lines.push(`its row in Matches while it is built: ${JSON.stringify(rowCheck)}`);
+    if (!rowCheck || !rowCheck.pill || rowCheck.score) return report(false, `the Matches row shows the grade of a review still being built: ${JSON.stringify(rowCheck)}`);
+    // Opened again from its row (REVIEW_OPEN), it arrives with its work
+    // (index.js present()), with nothing pushed meanwhile: still loading.
+    await mjs("document.querySelector('#list .m-row').click(); true");
+    if (!await until(settled('review'), 4000)) return report(false, 'the row of the review still being built did not open it');
+    await wait(600);
+    const reopened = await rjs5(BUILDING);
+    lines.push(`opened again from its row while it is built: ${JSON.stringify(reopened)}`);
+    if (!reopened.building || reopened.vreview) return report(false, `opened from its row, the review still being built was painted half done: ${JSON.stringify(reopened)}`);
+    // The narrative comes back; the look from the screen, with no frame of
+    // the match in the AI log, ends at once; the review is whole.
+    reader.emit('match-review', null, { ...snap, ai: { summary: 'The coach read the match from the screen.', rounds: {}, focus: 'Trade your entries.', study: [] } });
+    const WHOLE = `(() => ({ building: !document.getElementById('building').hidden, vreview: !document.getElementById('vreview').hidden,
+      summary: document.getElementById('v-summary').textContent, ask: !document.getElementById('ask').hidden }))()`;
+    const whole = await until(async () => { const s = await rjs5(WHOLE); return !s.building && s.vreview ? s : null; }, 8000) || await rjs5(WHOLE);
+    lines.push(`its work done: ${JSON.stringify(whole)}`);
+    if (whole.building || !whole.vreview || whole.summary !== 'The coach read the match from the screen.' || !whole.ask) {
+      return report(false, `once its work was done the review was not painted whole: ${JSON.stringify(whole)}`);
+    }
+    await shot('review-whole', mainWindow, win);
+    // Its grade back where the pill was, whatever the screen alone could
+    // grade: a number, or "--" with no grade card where it measured too
+    // little (one category is not a grade, grade.js).
+    const newest = store.list('valorant')[0];
+    const graded = !!(newest && newest.grade && typeof newest.grade.score === 'number');
+    const want = graded ? String(newest.grade.score) : '--';
+    const homeBack = await until(async () => { const s = await hjs(CHECKING_HOME); return !s.card && s.score ? s : null; }, 6000) || await hjs(CHECKING_HOME);
+    const rowBack = await until(async () => { const s = await mjs(ROW); return s && !s.pill && s.score ? s : null; }, 6000) || await mjs(ROW);
+    lines.push(`and then Home: ${JSON.stringify(homeBack)} | Matches: ${JSON.stringify(rowBack)} | its grade ${want}`);
+    if (!newest || newest.at !== endedAt) return report(false, 'the review of the match that ended is not the newest in the library');
+    if (homeBack.card || !homeBack.score || homeBack.grade !== graded || !homeBack.rowScore || !rowBack || rowBack.pill || rowBack.score !== want) {
+      return report(false, `the review whole, Home or Matches still say it is being checked: ${JSON.stringify({ homeBack, rowBack, want })}`);
+    }
+    ipc.emit(CH5.COACH_STOP, { sender: null });
+
     // 6. Held: a stop in the middle of a match leaves the seal on with the
     // sidebar open, and a page the player opens lifts it.
     mainWindow.setSealed(true, { held: true });
@@ -617,17 +751,97 @@ setTimeout(async () => {
     lines.push(`held, a page opened: shown=${mainWindow.current().shown} sealed=${mainWindow.current().sealed}`);
     if (!lifted) return report(false, 'a page opened from the sidebar did not lift the held seal');
 
-    // 7. Its X, and Alt+F4, hide the window and leave the corner mark: Occlara
-    // keeps running. Ctrl+Shift+M brings it back and the mark goes.
+    // 6b. HOME'S RANK JOURNEY OPENS THE JOURNEY (8.4.1), through the real
+    // register-ipc.js and index.js: OPEN_STATS with 'journey' shows Stats with
+    // the journey open under the Rank tile, as the page loads, and kept from
+    // before, as it is about to show (its arm) or as it comes back called off
+    // a switch that never arrived (an enter alone). Shown plainly, it is as
+    // the player left it.
+    const statsJs = (s) => mainWindow.pageViews().get('stats').webContents.executeJavaScript(s);
+    const notesOpen = "document.getElementById('rank-reveal').classList.contains('open')";
+    const fold = () => statsJs("document.querySelector('#cards .card.clickable').click(); true");
+    // On screen, not only asked for: the page it replaced is out of sight.
+    const settledOn = (to, from) => until(() => mainWindow.current().shown === to
+      && !!mainWindow.pageViews().get(from) && !mainWindow.pageViews().get(from).getVisible(), 4000);
+    ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');
+    const firstOpen = await until(async () => mainWindow.current().shown === 'stats' && mainWindow.pageViews().get('stats')
+      && await statsJs(notesOpen), 8000);
+    await fold();
+    mainWindow.show('home');
+    await settledOn('home', 'stats');
+    mainWindow.show('stats');
+    await settledOn('stats', 'home');
+    await wait(400);
+    const plainFolded = !(await statsJs(notesOpen));
+    mainWindow.show('home');
+    await settledOn('home', 'stats');
+    ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');
+    const armOpen = await until(async () => mainWindow.current().shown === 'stats' && await statsJs(notesOpen), 5000);
+    await fold();
+    await wait(300);
+    mainWindow.show('home');           // and before Home has come in,
+    ipc.emit(CH5.OPEN_STATS, { sender: null }, 'journey');   // Stats is called back
+    const enterOpen = await until(async () => mainWindow.current().shown === 'stats' && await statsJs(notesOpen), 5000);
+    lines.push(`Rank journey: opened=${!!firstOpen} shown plainly after it is folded=${plainFolded ? 'folded' : 'open'}`
+      + ` from Home again=${!!armOpen} called back mid switch=${!!enterOpen}`);
+    if (!firstOpen) return report(false, 'Home\'s Rank journey opened Stats with the journey folded in the Rank tile');
+    if (!plainFolded) return report(false, 'Stats shown plainly opened the journey the player had folded');
+    if (!armOpen) return report(false, 'Home\'s Rank journey, with Stats kept from before, did not open the journey');
+    if (!enterOpen) return report(false, 'Home\'s Rank journey, Stats called back before Home came in, did not open the journey');
+    mainWindow.show('patterns');
+    await until(() => mainWindow.current().shown === 'patterns', 3000);
+
+    // 7. CLOSING QUITS (8.4.1). Its X and Alt+F4 (the taskbar's Close is the
+    // same 'close') quit by the tray's own path, cleanupAndQuit, and with no
+    // match being recorded and no review being built (step 5b's is whole)
+    // they ask nothing first. Nothing is hidden in the tray any more. app.quit
+    // and the dialog are stood in for, so the check goes on. Ctrl+Shift+M
+    // still hides the window to the corner mark, and brings it back.
     const registry = require(path.join(REPO, 'src/main/windows/registry'));
     const markShown = () => { const d = registry.get('dock'); return !!(d && d.isVisible()); };
+    const { dialog } = require('electron');
+    const realBox = dialog.showMessageBox;
+    const realQuit = app.quit;
+    let boxes = 0;
+    let quits = 0;
+    dialog.showMessageBox = async () => { boxes++; return { response: 0 }; };
+    app.quit = () => { quits++; };
+    const putBack = () => { dialog.showMessageBox = realBox; app.quit = realQuit; };
+    if (dialog.showMessageBox === realBox || app.quit === realQuit) { putBack(); return report(false, 'the dialog or app.quit could not be stood in for'); }
+    // NEVER INSIDE THE CLOSE EVENT. Electron takes a close its handler
+    // prevented for a quit cancelled, so app.quit() called in that same event,
+    // as it was with nothing to ask, closed every window and never quit: the
+    // real app ran on with no window and no tray. Heard after main-window.js's
+    // own listener, this says how many quits that event had already asked for.
+    let quitsInEvent = null;
+    const inEvent = () => { quitsInEvent = quits; };
+    win.on('close', inEvent);
+    if (!win.isVisible()) mainWindow.toggleHidden();
+    await until(() => win.isVisible(), 3000);
     await sjs("document.getElementById('w-close').click(); true");
+    await until(() => quits >= 1, 3000);
+    await wait(500);
+    lines.push(`X: quit=${quits} (in its close event ${quitsInEvent}) asked=${boxes} window alive=${!win.isDestroyed()} visible=${win.isVisible()} corner mark=${markShown()}`);
+    if (quits !== 1 || boxes) { win.removeListener('close', inEvent); putBack(); return report(false, `the X did not quit by itself with nothing at stake: quit ${quits}, asked ${boxes}`); }
+    if (quitsInEvent !== 0) { win.removeListener('close', inEvent); putBack(); return report(false, 'the X quit inside its own close event, which Electron then cancels: the app would run on with no window'); }
+    if (markShown()) { win.removeListener('close', inEvent); putBack(); return report(false, 'the X put the window out of sight to the tray, the corner mark up'); }
+    quitsInEvent = null;
+    win.close();
+    await until(() => quits >= 2, 3000);
+    await wait(300);
+    lines.push(`Alt+F4: quit=${quits} (in its close event ${quitsInEvent}) asked=${boxes} window alive=${!win.isDestroyed()}`);
+    win.removeListener('close', inEvent);
+    putBack();
+    if (quits !== 2 || boxes) return report(false, `Alt+F4 did not quit by itself with nothing at stake: quit ${quits}, asked ${boxes}`);
+    if (quitsInEvent !== 1) return report(false, 'Alt+F4 quit inside its own close event, which Electron then cancels: the app would run on with no window');
+    // Ctrl+Shift+M: out of sight, the corner mark up, and back.
+    mainWindow.toggleHidden();
     await until(() => !win.isVisible(), 3000);
     // Waited for: the mark goes up a turn after the window hides (index.js
     // placeMark), never in the same moment.
     const markUp = await until(markShown, 3000);
-    lines.push(`X: window alive=${!win.isDestroyed()} visible=${win.isVisible()} corner mark=${!!markUp}`);
-    if (win.isDestroyed() || win.isVisible()) return report(false, 'the X did not hide the window, or closed it');
+    lines.push(`Ctrl+Shift+M: window alive=${!win.isDestroyed()} visible=${win.isVisible()} corner mark=${!!markUp}`);
+    if (win.isDestroyed() || win.isVisible()) return report(false, 'Ctrl+Shift+M did not put the window out of sight');
     if (!markUp) return report(false, 'hidden, the corner mark did not show');
     // The mark sits over Valorant's kill feed while the game is played, so it
     // is kept out of every capture, Occlara's own included (dock-window.js).
@@ -640,12 +854,6 @@ setTimeout(async () => {
     mainWindow.toggleHidden();
     await until(() => win.isVisible(), 3000);
     if (!win.isVisible() || markShown()) return report(false, 'Ctrl+Shift+M did not bring the window back and drop the mark');
-    win.close();
-    await until(() => !win.isVisible(), 3000);
-    lines.push(`Alt+F4: window alive=${!win.isDestroyed()} visible=${win.isVisible()}`);
-    if (win.isDestroyed() || win.isVisible()) return report(false, 'closing the window quit it instead of hiding it');
-    mainWindow.toggleHidden();
-    await until(() => win.isVisible(), 3000);
 
     // 8. A window made again mid match keeps the seal, and the pages of the
     // one that went go with it.

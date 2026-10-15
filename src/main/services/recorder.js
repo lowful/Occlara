@@ -6,8 +6,9 @@
  * WHAT IT IS. One capture of the primary display, taken the way OBS's Display
  * Capture takes it: a hidden page (src/renderer/recorder, opened by
  * src/main/windows/recorder-window.js) opens the screen with getUserMedia and
- * records it with MediaRecorder, H.264 on the GPU's own encoder, a keyframe
- * every second and a chunk every second. The same stream hands the live read
+ * records thirty frames a second of it (RECORD_FPS, 8.4.2) with MediaRecorder,
+ * H.264 on the GPU's own encoder, a keyframe every second and a chunk every
+ * second. The same stream hands the live read
  * its frame once a second (capture.js useStream), so while it runs the GDI
  * helper is not launched for every read. Never the game's memory, never its
  * files, never a hook into it: the pixels the display already shows.
@@ -83,8 +84,14 @@ const MB_LEVEL_40 = 8160;
 const BITRATE_MAX_SCALE = 2;
 // Asked for 30 with the whole screen moving, the capturer delivered about 21
 // frames a second, waiting a full frame period after each grab; asked for 60
-// it delivered about 31. So it is asked for 60 to record about 30.
+// it delivered about 31 in the 8.3 spike, and 57 on the player's own match.
+// So it is asked for 60, and the page RECORDS 30 of them (8.4.2,
+// src/renderer/recorder/grid.js): Chromium sets MediaRecorder's encoder for 30
+// frames a second whatever comes, so every frame past 30 was a frame's worth
+// of bits more. The player's Fracture swiftplay, recorded at 57 a second,
+// wrote 74 to 91 MB a minute where its 6 Mbps is 43, a constant 24 KB a frame.
 const ASK_FPS = 60;
+const RECORD_FPS = 30;
 // Every Cluster then opens on a keyframe that carries its own SPS and PPS
 // (measured in the spike), so a clip can begin at any Cluster.
 const KEYFRAME_MS = 1000;
@@ -96,6 +103,17 @@ const MIME_TYPES = ['video/x-matroska;codecs=avc1', 'video/webm;codecs=h264', 'v
 // What the reads get when the recorder runs on a generated canvas
 // (OCCLARA_FAKE_CAPTURE): a 1920x1080 display, so 720p is 1280x720.
 const FAKE_DISPLAY = { width: 1920, height: 1080 };
+
+// Date.now() is a whole millisecond, and the page's and main's clocks are read
+// a moment apart: the page's moment for the recording's 0 is held to the
+// chunks' bounds within this (Segment.zero).
+const CLOCK_TICK_MS = 2;
+// Those bounds from a recording's first chunks alone, read before the wall
+// clock can have moved far from the recording's own (AND IT DRIFTS).
+const FIRST_CHUNKS = 20;
+// How often a recording keeps a reading of the wall clock against the page's
+// monotonic clock (Segment.clockAt).
+const CLOCK_SAMPLE_MS = 5000;
 
 // ── What is kept, and for how long ─────────────────────────────────────────
 const PAGE_MS = 60 * 1000;
@@ -364,6 +382,32 @@ function quantile(xs, q) {
 const round1 = (x) => (Number.isFinite(x) ? Math.round(x * 10) / 10 : null);
 
 /**
+ * A recording's stop, for debug.log (8.4.2): the chunks the page said it
+ * handed over against those that came, the frames it recorded against those
+ * the recording holds, the frames it still held open and the tracks still
+ * live once its tracks were torn down (none of either: a frame open is one of
+ * the capture's buffers never given back), and how far the 0 the chunks
+ * reckon (Segment.chunksZero) lies from the moment the page handed over its
+ * first frame, which is the 0 (Segment.zero): MediaRecorder stamps a
+ * generator's frame when it is written.
+ */
+function stoppedText(seg, stopped) {
+  const z = typeof seg.chunksZero === 'function' ? seg.chunksZero() : null;
+  const off = z !== null && Number.isFinite(seg.firstWall) ? Math.round(z - seg.firstWall) : null;
+  const n = (x, none) => (Number.isFinite(x) ? x : none);
+  return `${stopped.chunks} chunks handed over and ${seg.chunks} came, ${n(stopped.recorded, 'uncounted')} frames recorded`
+    + ` and ${n(seg.framesWritten, 'uncounted')} written, ${n(stopped.framesOpen, 'uncounted')} frames left open`
+    + ` and ${n(stopped.tracksLive, 'uncounted')} tracks live; the chunks put its 0 `
+    + (off === null ? 'with nothing to hold it against' : `${Math.abs(off)} ms ${off >= 0 ? 'after' : 'before'} the moment its first frame was handed over`);
+}
+
+/** The track's own settings as the page last read them (its health report), for the minute line. */
+function trackText(t) {
+  if (!t || !(t.width > 0) || !(t.height > 0)) return "the track's own settings not reported";
+  return `the track's own settings ${t.width}x${t.height} at ${Number.isFinite(t.frameRate) ? `${round1(t.frameRate)} fps` : 'no frame rate'}`;
+}
+
+/**
  * "up to once a second", or "up to once every 3 seconds" when the read is
  * pinned slower. UP TO since 8.3.2: the gap is the live round's, and menus, a
  * buy phase two reads have confirmed and the time spent dead are read less
@@ -396,7 +440,8 @@ const NOTICE = {
  * every number rounded, the outcome from OUTCOMES and the game from GAMES.
  * Frame rates and CPU are of the seconds recorded while a match was in
  * progress, the frame rate only of those whose picture changed (a still
- * screen delivers few frames by design).
+ * screen delivers few frames by design), and it is the frames RECORDED a
+ * second (8.4.2), 30 of a capture that delivers 60.
  */
 function reportBlock(s, version) {
   return {
@@ -477,8 +522,38 @@ const stamp = (ms) => new Date(ms).toISOString().replace(/[:.]/g, '-');
  * its wall time is at least `startWall`; and every chunk was handed over after
  * the frames in it were captured, so it is at most the chunk's wall time less
  * the newest frame the chunk carried. The tightest of those (`hi`) is within a
- * frame or so of it, and the spike measured no drift between the two clocks
- * over five minutes, so one offset serves the whole recording.
+ * frame or so of it. The spike measured no drift between the two clocks over
+ * five minutes, and one offset was taken to serve the whole recording: it does
+ * not (AND IT DRIFTS, below).
+ *
+ * AND THE PAGE SAYS IT (8.4.2). The recording is a track generator's, and
+ * MediaRecorder stamps a generator's frame when it is written, so its 0 is the
+ * moment the page handed over its first frame, which the page says
+ * (`firstWall`, from its health report). That is taken for the 0 wherever it
+ * lies where its first chunks say the 0 can be, from the start to their
+ * tightest bound (FIRST_CHUNKS, `hiFirst`; the later ones carry the drift,
+ * AND IT DRIFTS below): the chunks alone put it 15 to 42 ms late on the
+ * generated picture and 29 on the real screen, an encoder's latency, about a
+ * frame; the page's moment is the 0 to the millisecond (in every run
+ * measured, the recording held every frame the page handed over, its first
+ * included, or all but the one written as it stopped). One outside those
+ * bounds, which cannot be, is passed over for the chunks' own reckoning.
+ *
+ * AND IT DRIFTS (8.4.2). The recording's timeline is the page's monotonic
+ * clock, the one MediaRecorder stamps by, and the moments asked for are the
+ * wall clock's, which Windows moves against it as it keeps the PC's time.
+ * Measured on this PC, synced with time.windows.com every 34 minutes, the
+ * wall clock gained 40 to 75 ppm on the monotonic one, in steps of about 5
+ * ms, and through the real page and Segment, recording a generated picture
+ * that carries the wall clock it was drawn at, frames three to five minutes
+ * in were 8 to 15 ms from where one offset put them: forty minutes in, a
+ * death would be 0.1 to 0.2 s out. The chunks' bounds follow it no better
+ * (8.4.1's 0, the same 15 ms): with the wall clock gaining, their tightest is
+ * the first. So the page reads both clocks in each second's report (`at`,
+ * `mono`), a reading is kept every five seconds (clockAt), and a clip is cut
+ * with the page's first frame moved on by how far the two had parted by its
+ * moment (zeroAt): 98% of the frames of those five minutes within 3 ms of
+ * it, the first hundred seconds as the last.
  *
  * NOTHING RECORDED STAYS IN MEMORY. A Cluster's bytes go to its page and are
  * dropped, and the reader keeps no list of the Clusters it closed (webm.js
@@ -501,10 +576,22 @@ class Segment {
     this.error = null;
     this.chunks = 0;
     this.pageChunks = null;     // the chunks the page said it handed over, at its stop
+    this.pageFramesOpen = null; // the frames it still held open then (none, or a buffer never given back)
+    this.pageTracksLive = null; // its tracks still live then (none: the capture, its clone, the generator)
+    this.pageRecorded = null;   // the frames it handed to the recording (grid.js)
+    this.firstWall = null;      // the wall clock the first of them was handed over at, its 0
     this.startWall = null;
     this.startedAt = null;
     this.hi = Infinity;
+    this.hiFirst = Infinity;    // the same bound from its first chunks alone (FIRST_CHUNKS)
+    this.clock = [];            // the wall clock against the page's monotonic clock: { wall, off }
     this.bytesOnDisk = 0;
+    // Every byte and frame written since it began, a page pruned or not, for
+    // the minute line (Recorder logStatus): what it ran at against what it
+    // was asked for (`bitrate`).
+    this.bytesWritten = 0;
+    this.framesWritten = 0;
+    this.bitrate = null;
     this.session = null;
     this.displayId = null;      // the display it records, which was the primary one
     this.track = null;          // the track's own size, from the page's 'started'
@@ -528,7 +615,10 @@ class Segment {
     let newest = null;
     const open = this.reader.open;
     for (const c of closed.concat(open ? [open] : [])) if (Number.isFinite(c.last) && (newest === null || c.last > newest)) newest = c.last;
-    if (newest !== null && Number.isFinite(wall)) this.hi = Math.min(this.hi, wall - newest);
+    if (newest !== null && Number.isFinite(wall)) {
+      this.hi = Math.min(this.hi, wall - newest);
+      if (this.chunks <= FIRST_CHUNKS) this.hiFirst = Math.min(this.hiFirst, wall - newest);
+    }
     return true;
   }
 
@@ -560,6 +650,8 @@ class Segment {
       });
       p.bytes += size;
       this.bytesOnDisk += size;
+      this.bytesWritten += size;
+      this.framesWritten += Number(c.frames) || 0;
       // On disk now, and read back from there: not held here too.
       delete c.data;
       return true;
@@ -571,6 +663,57 @@ class Segment {
 
   /** The wall time of the recording's 0 (see THE WALL CLOCK), or null before it is known. */
   zero() {
+    const lo = Number.isFinite(this.startWall) ? this.startWall : null;
+    // Held to the bounds its first chunks set: the later ones carry the drift.
+    const bound = Number.isFinite(this.hiFirst) ? this.hiFirst : this.hi;
+    const hi = Number.isFinite(bound) ? bound : null;
+    const first = Number.isFinite(this.firstWall) ? this.firstWall : null;
+    // The page's word for it (AND THE PAGE SAYS IT), within a clock's tick of the bounds.
+    if (first !== null && (lo === null || first >= lo - CLOCK_TICK_MS) && (hi === null || first <= hi + CLOCK_TICK_MS)) return first;
+    return this.chunksZero();
+  }
+
+  /**
+   * One reading of the wall clock against the page's monotonic clock, the
+   * one MediaRecorder stamps by (a health report's `at` and `mono`), kept
+   * every CLOCK_SAMPLE_MS at most (AND IT DRIFTS).
+   */
+  clockAt(wall, mono) {
+    if (!Number.isFinite(wall) || !Number.isFinite(mono)) return;
+    const last = this.clock[this.clock.length - 1];
+    if (last && wall - last.wall < CLOCK_SAMPLE_MS) return;
+    this.clock.push({ wall, off: wall - mono });
+  }
+
+  /** How far the wall clock leads the monotonic one at `wall`, between the readings either side of it. */
+  offAt(wall) {
+    const c = this.clock;
+    if (!c.length) return null;
+    if (wall <= c[0].wall) return c[0].off;
+    for (let i = 1; i < c.length; i++) {
+      if (wall <= c[i].wall) {
+        const a = c[i - 1];
+        const b = c[i];
+        return a.off + ((b.off - a.off) * (wall - a.wall)) / (b.wall - a.wall);
+      }
+    }
+    return c[c.length - 1].off;
+  }
+
+  /**
+   * The wall time of the recording's 0 as a moment `wall` of it sees it: the
+   * page's first frame moved on by how far the wall clock had parted from the
+   * recording's own by then (AND IT DRIFTS). zero() itself where the 0 is the
+   * chunks' or the start's, or with fewer than two readings to tell by.
+   */
+  zeroAt(wall) {
+    const z = this.zero();
+    if (z === null || z !== this.firstWall || !Number.isFinite(wall) || this.clock.length < 2) return z;
+    return Math.round(z + this.offAt(wall) - this.offAt(z));
+  }
+
+  /** The 0 as the start and the chunks alone reckon it, the latest it can be. */
+  chunksZero() {
     const lo = Number.isFinite(this.startWall) ? this.startWall : null;
     if (Number.isFinite(this.hi)) return lo === null ? this.hi : Math.max(lo, this.hi);
     return lo;
@@ -645,6 +788,7 @@ let current = null;
  *   limits      () => health limits to lay over HEALTH (dev only)
  *   pageMs      () => a page's length (dev only)
  *   fake        null, or what the page draws instead of the screen
+ *   fakeFps     () => how many frames a second it draws that at (dev only)
  *   files, now, timers, version, log
  *
  * Events: 'notice' { kind, text } (text null clears its kind), 'report' (the
@@ -676,6 +820,8 @@ class Recorder extends EventEmitter {
     this.devPageMs = d.pageMs || (() => null);
     // Read at each recording's start, so a check can draw black for one.
     this.devFake = typeof d.fake === 'function' ? d.fake : () => d.fake || null;
+    // How many frames a second the generated picture is drawn at (dev only).
+    this.devFakeFps = typeof d.fakeFps === 'function' ? d.fakeFps : () => d.fakeFps || null;
     this.files = d.files || realFiles;
     this.now = d.now || Date.now;
     this.timers = d.timers || { setTimeout, clearTimeout, setInterval, clearInterval };
@@ -718,6 +864,8 @@ class Recorder extends EventEmitter {
     this.lastChunkAt = null;
     this.lastDiskAt = 0;
     this.lastStatusAt = 0;
+    // What the recording had written at the last minute line: { seg, at, bytes, frames }.
+    this.statusMark = null;
     this.lastSample = null;
     this.lastMemoryMB = null;
     this.health = null;
@@ -747,12 +895,14 @@ class Recorder extends EventEmitter {
    * (`res`), the size the track really is (`width`, `height`, from the page's
    * 'started': a 1366x768 laptop on 1080p records 1366x768, and a 3440x1440
    * display on 720p 1720x720, neither of them "1080p" or "720p"), and the
-   * frames a second the capture delivers, about. That is the median of the
-   * last ten seconds whose picture changed, to the nearest five (so the line
-   * does not flicker between 29 and 31), or null while the screen has been
-   * still: a still screen delivers a couple a second by design, which says
-   * nothing about the recording. Null when not recording. The size is there
-   * whenever the track's is known, which is from 'started' on.
+   * frames a second the recording keeps, about (8.4.2: 30 of a capture that
+   * delivers 60, where it said the 57 the capture delivered). That is the
+   * median of the last ten seconds whose picture changed, to the nearest five
+   * (so the line does not flicker between 29 and 31), or null while the
+   * screen has been still: a still screen delivers a couple a second by
+   * design, which says nothing about the recording. Null when not recording.
+   * The size is there whenever the track's is known, which is from 'started'
+   * on.
    */
   liveView() {
     const seg = this.seg;
@@ -835,7 +985,7 @@ class Recorder extends EventEmitter {
     if (this.session) return;
     const s = {
       at: this.now(), game: GAMES.includes(game) ? game : GAMES[0], mode: this.mode(), res: this.res(), outcome: null, encoderOk: null,
-      recordedMs: 0, fps: [], recorderCpu: [], systemCpu: [],
+      recordedMs: 0, fps: [], captureFps: [], recorderCpu: [], systemCpu: [],
       gaveUp: false, paused: false, ended: false, finished: false, limits: this.devLimits() || {},
     };
     this.session = s;
@@ -1039,7 +1189,9 @@ class Recorder extends EventEmitter {
     const timed = Number.isFinite(at);
     const spans = [];
     for (const g of this.segments) {
-      const z = g.zero();
+      // The 0 as the moment the clip is of sees it: the wall clock drifts
+      // from the recording's own (Segment AND IT DRIFTS).
+      const z = g.zeroAt(timed ? at : (fromWall + toWall) / 2);
       // Off chosen by hand: nothing recorded before it becomes a clip (discard).
       if (z === null || !g.init || g.discarded) continue;
       const clusters = g.clusters();
@@ -1151,6 +1303,7 @@ class Recorder extends EventEmitter {
     const seg = new Segment(dir, this.files, pageMs);
     seg.session = s;
     seg.display = display;
+    seg.bitrate = bitrate;
     seg.displayId = source && source.displayId !== undefined && source.displayId !== null ? source.displayId : null;
     this.segments.push(seg);
     this.resetSegmentState();
@@ -1158,9 +1311,11 @@ class Recorder extends EventEmitter {
     this.page = page;
     this.seg = seg;
     page.onMessage((kind, m) => this.fromPage(page, kind, m));
+    let fakeFps = null;
+    if (fake) { try { fakeFps = Number(this.devFakeFps()) > 0 ? Number(this.devFakeFps()) : null; } catch { fakeFps = null; } }
     page.send({
-      type: 'start', fake, sourceId: source ? source.sourceId : null,
-      width: size.width, height: size.height, fps: ASK_FPS, bitrate, codec: codecFor(size),
+      type: 'start', fake, fakeFps, sourceId: source ? source.sourceId : null,
+      width: size.width, height: size.height, fps: ASK_FPS, recordFps: RECORD_FPS, bitrate, codec: codecFor(size),
       mimeTypes: MIME_TYPES, keyframeMs: KEYFRAME_MS, timesliceMs: TIMESLICE_MS,
     });
     const started = await this.waitFor(page, 'started', START_TIMEOUT_MS);
@@ -1180,14 +1335,18 @@ class Recorder extends EventEmitter {
     this.lastChunkAt = this.now();
     this.lastDiskAt = this.now();
     this.lastStatusAt = this.now();
+    this.statusMark = { seg, at: this.now(), bytes: seg.bytesWritten, frames: seg.framesWritten };
     this.nextCompareAt = this.now() + COMPARE_FIRST_MS;
     const st = started.settings || {};
     // The size the track really is, for Settings (liveView) and for the read.
     seg.track = st.width > 0 && st.height > 0 ? { width: st.width, height: st.height } : { ...size };
     const kept = aspectKept(st, display);
+    const took = Number(started.videoBitsPerSecond);
     this.log(`[recorder] recording ${st.width}x${st.height} of a ${display.width}x${display.height} display`
       + ` (${kept ? 'its own shape' : 'NOT its own shape'}), asked ${size.width}x${size.height} at up to ${ASK_FPS} fps,`
-      + ` ${round1(bitrate / 1e6)} Mbps, ${started.mime || 'H.264'}${fake ? ', from a generated canvas' : ''}`);
+      + ` recorded at up to ${RECORD_FPS}, ${round1(bitrate / 1e6)} Mbps, ${started.mime || 'H.264'}${fake ? ', from a generated canvas' : ''};`
+      + ` the track's own settings ${Number.isFinite(st.frameRate) ? `${round1(st.frameRate)} fps` : 'with no frame rate'},`
+      + ` MediaRecorder at ${took > 0 ? `${round1(took / 1e6)} Mbps` : 'a bitrate it did not say'}`);
     // A track that cannot cover the read's frame (fitSize stopped at H.264
     // level 4.0's frame on a very wide display) would hand the read fewer rows
     // than GDI: the read stays on GDI for this recording, which goes on.
@@ -1206,20 +1365,30 @@ class Recorder extends EventEmitter {
     if (!page && !seg) { if (this.state !== 'idle') this.state = 'idle'; this.running(false); return; }
     this.unserve();
     this.state = 'stopping';
+    let said = null;
     if (page) {
       if (this.deadPage !== page) {
         try { page.send({ type: 'stop' }); } catch { /* it is closed below either way */ }
         const stopped = await this.waitFor(page, 'stopped', STOP_TIMEOUT_MS);
         // What the page says it handed over, held against what came
         // (check:recorder): a chunk lost between Stop and its answer is the
-        // last second of a match.
-        if (seg && stopped && Number.isFinite(stopped.chunks)) seg.pageChunks = stopped.chunks;
+        // last second of a match. And what it still held open once its tracks
+        // were torn down, which is nothing (8.4.2).
+        if (seg && stopped && Number.isFinite(stopped.chunks)) {
+          seg.pageChunks = stopped.chunks;
+          if (Number.isFinite(stopped.framesOpen)) seg.pageFramesOpen = stopped.framesOpen;
+          if (Number.isFinite(stopped.tracksLive)) seg.pageTracksLive = stopped.tracksLive;
+          if (Number.isFinite(stopped.recorded)) seg.pageRecorded = stopped.recorded;
+          said = stopped;
+        }
       }
       try { page.close(); } catch { /* gone already */ }
     }
     if (seg) {
       seg.finish();
       if (seg.startedAt !== null && seg.session) seg.session.recordedMs += Math.max(0, this.now() - seg.startedAt);
+      // Once its last Cluster is in, so what it holds is all of it.
+      if (said) this.log(`[recorder] stopped: ${stoppedText(seg, said)}`);
     }
     if (this.page === page) this.page = null;
     if (this.seg === seg) this.seg = null;
@@ -1290,7 +1459,13 @@ class Recorder extends EventEmitter {
     if (kind === 'chunk') { this.onChunk(m); return; }
     if (kind === 'reply') { this.answer(m && m.id, m); return; }
     if (kind !== 'status' || !m) return;
-    if (m.type === 'health') { this.health = { ...m, receivedAt: this.now() }; return; }
+    if (m.type === 'health') {
+      this.health = { ...m, receivedAt: this.now() };
+      if (this.seg && this.seg.firstWall === null && Number.isFinite(m.firstWall)) this.seg.firstWall = m.firstWall;
+      // The wall clock against the page's monotonic one (Segment AND IT DRIFTS).
+      if (this.seg) this.seg.clockAt(Number(m.at), Number(m.mono));
+      return;
+    }
     if (m.type === 'error') {
       if (this.state === 'stopping') return;
       this.giveUp(s, 'error', { why: `the page failed in ${m.where || 'a step'}: ${m.message || 'no reason given'}` });
@@ -1460,7 +1635,10 @@ class Recorder extends EventEmitter {
     const sample = {
       at: now,
       inMatch: !!this.inMatch(),
+      // What the capture delivered: the busy rule's.
       fps: fresh && Number.isFinite(h.fps) ? h.fps : 0,
+      // What the recording kept of it (grid.js): Settings' and the counts'.
+      recordedFps: fresh && Number.isFinite(h.recordedFps) ? h.recordedFps : null,
       changing: fresh && !!h.changing,
       stalled: !fresh || (Number.isFinite(h.frameAgeMs) && h.frameAgeMs > STALE_FRAME_MS),
       lagMs: Math.max(0, sinceChunk - TIMESLICE_MS, pageLag),
@@ -1469,11 +1647,13 @@ class Recorder extends EventEmitter {
     };
     this.lastSample = sample;
     this.lastMemoryMB = Number.isFinite(m.memoryMB) ? m.memoryMB : null;
-    // Settings' "about 30 fps" (liveView), in a match or not.
-    if (sample.changing) { this.liveFps.push(sample.fps); if (this.liveFps.length > 10) this.liveFps.shift(); }
+    // Settings' "about 30 fps" (liveView), in a match or not: what is recorded.
+    if (sample.changing && sample.recordedFps !== null) { this.liveFps.push(sample.recordedFps); if (this.liveFps.length > 10) this.liveFps.shift(); }
     if (sample.inMatch) {
       const keep = (xs, v) => { xs.push(v); if (xs.length > MAX_SAMPLES) xs.shift(); };
-      if (sample.changing) keep(s.fps, sample.fps);
+      // The counts' fps p50 is what was recorded; the minute line says both.
+      if (sample.changing && sample.recordedFps !== null) keep(s.fps, sample.recordedFps);
+      if (sample.changing) keep(s.captureFps, sample.fps);
       if (sample.recorderCpu !== null) keep(s.recorderCpu, sample.recorderCpu);
       if (sample.systemCpu !== null) keep(s.systemCpu, sample.systemCpu);
     }
@@ -1549,17 +1729,43 @@ class Recorder extends EventEmitter {
     }
   }
 
-  /** Once a minute: how the PC is coping, in counts, for anyone reading debug.log. */
+  /**
+   * Once a minute: how the PC is coping, in counts, for anyone reading
+   * debug.log. Beside the frames the capture delivered and the frames the
+   * recording kept of them (the fps p50s, of the seconds in a match whose
+   * picture changed; 8.4.2), the track's own settings as the page last read
+   * them, and what the recording wrote since the last line against what it
+   * was asked for (8.4.1): on the player's Fracture swiftplay it fell from 57
+   * to 32 frames a second for its last two minutes with no line saying why,
+   * and its pages ran 74 to 91 MB a minute at 57, about twice the 6 Mbps
+   * asked, a constant 24 KB a frame. Counts only, and no rule reads them.
+   */
   logStatus(now, s) {
     this.lastStatusAt = now;
     const last = (xs) => xs.slice(-60);
     const st = this.stats();
     const l = this.lastSample || {};
     const h = this.health || {};
-    this.log(`[recorder] fps p50 ${quantile(last(s.fps), 0.5)}, recorder CPU p50 ${round1(quantile(last(s.recorderCpu), 0.5))}% of a core,`
+    this.log(`[recorder] fps p50 ${quantile(last(s.captureFps), 0.5)} delivered and ${quantile(last(s.fps), 0.5)} recorded, ${trackText(h.track)}, ${this.writtenSince(now)},`
+      + ` recorder CPU p50 ${round1(quantile(last(s.recorderCpu), 0.5))}% of a core,`
       + ` PC CPU p90 ${round1(quantile(last(s.systemCpu), 0.9))}%, page memory ${this.lastMemoryMB === null ? 'n/a' : this.lastMemoryMB + ' MB'},`
       + ` frames held open ${Number.isFinite(h.framesOpen) ? h.framesOpen : 'n/a'}, lag ${Math.round(l.lagMs || 0)} ms,`
       + ` ${st.pages} pages on disk (${Math.round(st.bytes / 1048576)} MB), ${st.holds} held`);
+  }
+
+  /** What the recording wrote since the last minute line, against the bitrate it was asked for. */
+  writtenSince(now) {
+    const seg = this.seg;
+    const m = this.statusMark;
+    if (!seg || !m || m.seg !== seg) return 'nothing written to count yet';
+    const secs = Math.max(1, (now - m.at) / 1000);
+    const bytes = seg.bytesWritten - m.bytes;
+    const frames = seg.framesWritten - m.frames;
+    this.statusMark = { seg, at: now, bytes: seg.bytesWritten, frames: seg.framesWritten };
+    const asked = Number.isFinite(seg.bitrate) ? `the ${round1(seg.bitrate / 1e6)} Mbps asked` : 'no bitrate asked';
+    return `${frames} frames and ${round1(bytes / 1048576)} MB written in the last ${Math.round(secs)} s`
+      + ` (${round1(frames / secs)} a second, ${round1((bytes * 8) / 1e6 / secs)} Mbps against ${asked},`
+      + ` ${frames > 0 ? `${Math.round(bytes / frames / 1024)} KB` : 'no'} a frame)`;
   }
 
   /**
@@ -1588,9 +1794,10 @@ module.exports = {
   current: () => current,
   Recorder, Segment, fitSize, covers, bitrateFor, macroblocks, aspectKept, codecFor, compareVerdict, createHealth,
   strikeOut, reportBlock, valorantInMatch, valorantKeepSince,
-  everyText, quantile, realFreeBytes, NOTICE, OUTCOMES, GAMES, HEALTH, STRIKES, RES, READ_SIZE, MB_LEVEL_31, MB_LEVEL_40,
-  BITRATE_MAX_SCALE, MIME_TYPES, ASK_FPS,
+  everyText, quantile, trackText, stoppedText, realFreeBytes, NOTICE, OUTCOMES, GAMES, HEALTH, STRIKES, RES, READ_SIZE, MB_LEVEL_31, MB_LEVEL_40,
+  BITRATE_MAX_SCALE, MIME_TYPES, ASK_FPS, RECORD_FPS,
   PAGE_MS, KEEP_RECENT_MS, KEEP_MATCH_MS, HOLD_MAX_MS, DISK_START_BYTES, DISK_STOP_BYTES, DISK_CHECK_MS, BLACK_LUMA,
   COMPARE_FIRST_MS, COMPARE_EVERY_MS, CONFIRM_MS, STALE_FRAME_MS, GRAB_TIMEOUT_MS, GRAB_MISSES,
   START_TIMEOUT_MS, STOP_TIMEOUT_MS, REPORT_STALE_MS, FAKE_DISPLAY, KEYFRAME_MS, TIMESLICE_MS,
+  CLOCK_TICK_MS, FIRST_CHUNKS, CLOCK_SAMPLE_MS,
 };

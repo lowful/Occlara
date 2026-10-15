@@ -18,6 +18,14 @@
  * on a keyframe, and a clip starts on the one at or before its first second,
  * so it can open up to a second early.
  *
+ * AND NO EARLIER THAN ITS ROUND (8.4.1). The player's Fracture round 6 death
+ * came 3 s after the barriers dropped, and its clip spent its first 8 of 15 s
+ * in the buy phase: the spawn, the scoreboard, the round before's combat
+ * report. Where the round's barriers dropping is known (the look's `drop`,
+ * death-frames.js barrierDrop), a clip starts no earlier than a second before
+ * them, and never after the first still its look takes from it (LOOK_AT), so
+ * every still stays inside the clip (lookWindow).
+ *
  * WHEN THE DEATH WAS. Riot's look carries it (8.3.1, `moment`): its round's
  * barriers dropping, read off every clocked frame of the round, plus Riot's
  * own milliseconds (death-frames.js deathMoment). On the real Sunset match,
@@ -60,6 +68,8 @@ const CLIP_RE = /^[rd]\d{1,3}-clip\.mkv$/;
 
 const BEFORE_MS = 11000;
 const AFTER_MS = 4000;
+// A clip of an early death opens this long before its round's barriers drop.
+const DROP_LEAD_MS = 1000;
 // The frame picker keeps two seconds between the frame and the death.
 const LEAD_MS = 2000;
 // A review keeps at most this many. A Valorant review looks at four deaths.
@@ -99,10 +109,32 @@ function capGB(value) {
   return CAPS_GB.includes(n) ? n : DEFAULT_CAP_GB;
 }
 
-/** The seconds a clip of a death at `moment` (wall clock ms) covers. */
-function windowOf(moment) {
+/**
+ * The seconds a clip of a death at `moment` (wall clock ms) covers. With its
+ * round's barriers dropping at `drop` (wall clock ms), from no earlier than a
+ * second before them, and never after the first still taken from the clip
+ * (`firstStill`, seconds from the moment; the earliest either look takes when
+ * none is given). A drop after the death is no drop of its round.
+ */
+function windowOf(moment, drop, firstStill) {
   if (!Number.isFinite(moment)) return null;
-  return { from: moment - BEFORE_MS, to: moment + AFTER_MS };
+  let from = moment - BEFORE_MS;
+  if (Number.isFinite(drop) && drop <= moment) {
+    const still = moment + (Number.isFinite(firstStill) ? firstStill : Math.min(LOOK_AT.riot[0], LOOK_AT.screen[0])) * 1000;
+    from = Math.max(from, Math.min(drop - DROP_LEAD_MS, still));
+  }
+  return { from, to: moment + AFTER_MS };
+}
+
+/**
+ * The seconds a look's clip covers: around its moment (momentOf), from its
+ * round's barriers where it knows them (`drop`), holding its own first still:
+ * Riot's look takes them around Riot's moment (`moment`), the screen's around
+ * its read of the death (stillsMomentOf).
+ */
+function lookWindow(look) {
+  const first = look && Number.isFinite(look.moment) ? LOOK_AT.riot[0] : LOOK_AT.screen[0];
+  return windowOf(momentOf(look), look ? look.drop : null, first);
 }
 
 /**
@@ -190,6 +222,6 @@ function pickSpread(list, max) {
 }
 
 module.exports = {
-  CLIP_RE, BEFORE_MS, AFTER_MS, LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME, LOOK_AT,
-  roundClip, deathClip, capGB, windowOf, momentOf, stillsMomentOf, stillName, cutsClips, pickSpread,
+  CLIP_RE, BEFORE_MS, AFTER_MS, LEAD_MS, DROP_LEAD_MS, MAX_CLIPS, CAPS_GB, DEFAULT_CAP_GB, GB, MIME, LOOK_AT,
+  roundClip, deathClip, capGB, windowOf, lookWindow, momentOf, stillsMomentOf, stillName, cutsClips, pickSpread,
 };

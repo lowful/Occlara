@@ -48,6 +48,13 @@ const BUY_AGREE_MS = 2000;
 // A buy phase whose clock says it began this long after the last frame that
 // could only be play needs no second read to be believed.
 const BUY_CLEAR_MS = 3000;
+// How far before the last frame of play the round 5 check (beganAfterPlay)
+// still takes a buy timer's start as after it: the clock shows whole seconds,
+// so a timer began up to a second after the start its clock gives, and the
+// round end countdown's 0:00, which a frame can carry as play, runs out as the
+// buy timer starts. On the player's Sunset swiftplay that frame, carrying the
+// countdown's "postplant", came 0.1 s before the start round 5's 0:43 gave.
+const PLAY_SLACK_MS = 2000;
 // The ultimate read ready while alive, on reads this far apart at least,
 // before a death can be said to have held it (see the ultimate, below).
 const ULT_HELD_MS = 6000;
@@ -70,6 +77,15 @@ function isBuyPhase(phase, clock) {
   if (phase !== 'buy') return false;
   const left = clockSeconds(clock);
   return left === null || left <= BUY_MAX_LEFT;
+}
+
+/**
+ * When a buy timer reading `left` seconds at `at` began, at the earliest: a
+ * 45 second buy phase (a pistol round's) runs past 0:30, a 30 second one never
+ * does. buyVerdict and the engine's round 5 check take the same start.
+ */
+function buyStartOf(at, left) {
+  return at - ((left > BUY_SECONDS ? BUY_MAX_LEFT : BUY_SECONDS) - left) * 1000;
 }
 
 function cleanSpot(v) {
@@ -575,7 +591,7 @@ class RoundLedger {
     if (at === null) return 'new';
     if (this.buyEndsAt && at < this.buyEndsAt + 1000) return 'running';
     if (left === null) return 'misread';
-    const start = at - ((left > BUY_SECONDS ? BUY_MAX_LEFT : BUY_SECONDS) - left) * 1000;
+    const start = buyStartOf(at, left);
     const last = typeof this.lastPlayAt === 'number' ? this.lastPlayAt : -Infinity;
     if (start <= last) {
       this.buyCandidate = null;
@@ -587,6 +603,32 @@ class RoundLedger {
     if (c && Math.abs(c.start - start) <= BUY_AGREE_MS) return 'new';
     this.buyCandidate = { start, text };
     return 'misread';
+  }
+
+  /**
+   * Whether a buy timer reading `left` seconds at `at` began after the last
+   * frame that could only be play: buyVerdict's start, and nothing it keeps.
+   * A read with no clock of its own says nothing (false). The engine counts
+   * round 5's money and its pistol timer only from such a read
+   * (coaching-engine.js, THE BUY PHASE OF ROUND 5).
+   *
+   * TO WITHIN PLAY_SLACK_MS, where buyVerdict has none. Its exact test was a
+   * coin toss at the start of a buy phase: the round end countdown's frames
+   * carry the "postplant" of a read on it, so its 0:00 is the last frame of
+   * play, the second before the timer starts, and a real buy timer's start, to
+   * the second its clock shows, falls on either side of that frame by tenths.
+   * On the player's Sunset swiftplay round 5's 0:43 was taken by 0.1 s; read
+   * 0.1 s earlier it counted for nothing, the 0:33 was the one pistol timer
+   * left, and the side swap, the model's inference, locked swiftplay 20 s
+   * later. In a standard match the same refusal leaves the economy nothing to
+   * hold the swap fallback back with (test:sessionreplay). The countdown
+   * itself began, by its clock, half a minute before the buy phase, and stays
+   * refused.
+   */
+  beganAfterPlay(at, left) {
+    if (typeof at !== 'number' || typeof left !== 'number') return false;
+    const last = typeof this.lastPlayAt === 'number' ? this.lastPlayAt : -Infinity;
+    return buyStartOf(at, left) > last - PLAY_SLACK_MS;
   }
 
   /**

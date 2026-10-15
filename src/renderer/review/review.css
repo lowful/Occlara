@@ -385,6 +385,69 @@ header {
   .v-cell, .v-round.flash, .v-shot img { transition: none; animation: none; }
 }
 
+/* ── A review still being built (8.4.1) ─────────────────────────────────────
+   The Recording screen's shape (shell.css .sealed): the mark, a title, a line,
+   then one card a step, centred in the page. Each step says its state by its
+   mark as well as its colour (a check, a dot, a ring), and the one under way
+   carries the time since the match ended, ticking once a second: that clock
+   is what says the work goes on.
+
+   NOTHING ON IT MOVES FOR LONG. The mark turned and the step's dot breathed,
+   and while it did the page was composited every frame, and the look at the
+   deaths, whose stills are decoded from the clip on the GPU while this screen
+   waits for it, got none: in check:clips the decode answered nothing in 30 s
+   in three runs of three, the dot's breathing alone in one of them, where with
+   this screen still it took 0.7 s. So the screen rises in once, as every
+   page's content does, and is still after that. */
+.building {
+  flex: 1 0 auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-8) 0;
+  text-align: center;
+  animation: riseIn var(--t-slow) var(--ease-expo) both;
+}
+.b-mark { width: 56px; height: 56px; margin-bottom: var(--space-1); }
+.b-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+.b-sub { max-width: 480px; margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text-dim); }
+.b-steps {
+  list-style: none; margin: var(--space-2) 0 0; padding: 0;
+  width: 100%; max-width: 480px;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  text-align: left;
+}
+.b-step {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--glass-border); border-radius: var(--r-md); background: var(--bg-2);
+  font-size: 13px; line-height: 1.45; color: var(--text-mute);
+}
+.b-step.done { color: var(--text-dim); }
+.b-step.now { color: var(--text); border-color: rgba(255, 255, 255, 0.18); }
+.b-state { flex: none; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; }
+.b-state svg { width: 16px; height: 16px; color: var(--good); }
+.b-step.now .b-state::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--text);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+.b-step.next .b-state::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%;
+  border: 1.5px solid var(--text-mute);
+}
+.b-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.b-text b { font-weight: 600; }
+.b-text small { font-size: 11.5px; line-height: 1.4; color: var(--text-mute); }
+.b-time {
+  flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+  color: var(--text-dim); font-variant-numeric: tabular-nums;
+}
+.b-foot { max-width: 480px; margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-mute); }
+/* Whole at last, the review rises in where the loading screen was. */
+#vreview.v-arrive { animation: riseIn var(--t-slow) var(--ease-expo) both; }
+@media (prefers-reduced-motion: reduce) {
+  .building, #vreview.v-arrive { animation: none; }
+}
+
 /* ── Every game: the grade, the lists, the header actions ───────────────── */
 .h-actions { display: flex; align-items: center; gap: var(--space-1); }
 .btn.sm { padding: 6px 10px; font-size: 12px; border-radius: var(--r-sm); }

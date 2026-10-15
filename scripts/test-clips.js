@@ -139,6 +139,21 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     const w = clips.windowOf(T0);
     ok(w && w.from === T0 - SPEC.beforeMs && w.to === T0 + SPEC.afterMs && clips.windowOf(NaN) === null,
       'a clip covers 11 seconds before the death to 4 after it');
+    // AN EARLY DEATH'S CLIP STARTS AT ITS ROUND (8.4.1): the player's Fracture
+    // round 6, 3 s after the barriers dropped, spent its first 8 of 15 s in the
+    // buy phase. From a second before the barriers, never after the first still.
+    const at3 = clips.windowOf(T0, T0 - 3000, -3);
+    const at1 = clips.windowOf(T0, T0 - 1000, -3);
+    ok(at3.from === T0 - 4000 && at3.to === T0 + SPEC.afterMs && at1.from === T0 - 3000 && clips.DROP_LEAD_MS === 1000,
+      `a death 3 s after its barriers dropped is clipped from a second before them, one 1 s after from its first still at 3 s before (${(at3.from - T0) / 1000} s, ${(at1.from - T0) / 1000} s)`);
+    ok(clips.windowOf(T0, T0 - 20000, -3).from === T0 - SPEC.beforeMs && clips.windowOf(T0, T0 + 5000, -3).from === T0 - SPEC.beforeMs
+      && clips.windowOf(T0, NaN, -3).from === T0 - SPEC.beforeMs && clips.windowOf(T0, T0 - 3000).from === T0 - 4500,
+    "a death well into its round keeps its 11 s, a drop after the death is no drop of its round, and with no still named the earliest either look takes holds");
+    const riotLook = { moment: T0, at: T0 - 2000, gap: 2, frames: [{ at: T0 - 2000 }], drop: T0 - 3000 };
+    const screenLook = { at: T0 - 1000, gap: null, frames: [{ at: T0 - 1000 }, { at: T0 }], drop: T0 - 3000 };
+    ok(clips.lookWindow(riotLook).from === T0 - 4000 && clips.lookWindow(screenLook).from === T0 - 4500
+      && clips.lookWindow({ moment: T0, at: T0 - 2000 }).from === T0 - SPEC.beforeMs,
+    "a look's own window: Riot's stills from 3 s before its moment, the screen's from 4.5 s before its read, none of its round without a drop");
     const nums = (n) => Array.from({ length: n }, (_v, i) => i + 1);
     ok(same(clips.pickSpread(nums(3), 6), [1, 2, 3]) && same(clips.pickSpread(nums(10), 6), [1, 3, 5, 6, 8, 10])
       && same(clips.pickSpread(nums(7), 6), [1, 2, 3, 5, 6, 7]) && same(clips.pickSpread(nums(10), 1), [1]) && same(clips.pickSpread(null, 6), []),
@@ -241,6 +256,17 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       && r15.frames[0].at < r15.moment && r15.frames[1].at > r15.moment,
     `round 15, its frames the buy phase's last and the death's, is timed by the round's clock after it: ${sec(r15.moment)} s, by the buy timer ${sec(riotDeath(15, 1547.4))} s (${shown(r15)}; the rule before put it at its registering frame, 1550.4 s, and before that at 1518.1 to 1533.1 s, inside the buy phase)`);
     ok(r15 && holds(r15, riotDeath(15, 1547.4)), 'and its clip\'s 15 seconds hold the death');
+    // FROM ITS ROUND (8.4.1): 2 s into the round, 11 s before the death is 9 s
+    // of the buy phase. Cut from a second before the barriers, it holds the
+    // death and every still Riot's look takes from it; so do the match's other
+    // early deaths, and a death well into its round keeps its 11 s.
+    const early = (l) => { const w = clips.lookWindow(l); return w && Number.isFinite(l.drop) && w.from === Math.min(l.drop - 1000, l.moment - 3000)
+      && w.from <= l.moment && l.moment <= w.to && clips.LOOK_AT.riot.every((s) => l.moment + s * 1000 >= w.from); };
+    const clamped = every.filter((l) => clips.lookWindow(l).from > clips.windowOf(clips.momentOf(l)).from);
+    ok(r15 && early(r15) && Math.abs(clips.lookWindow(r15).from - (dropAt(1547.4) - 1000)) <= 500
+      && clamped.map((l) => l.round.n).join() === '6,15,17' && clamped.every(early)
+      && every.filter((l) => !clamped.includes(l)).every((l) => clips.lookWindow(l).from === clips.windowOf(clips.momentOf(l)).from),
+    `on the real Split match the early deaths' clips start a second before their round, holding the death and every still (${clamped.map((l) => `R${l.round.n} ${((l.moment - l.drop) / 1000).toFixed(1)} s in, from ${((clips.lookWindow(l).from - l.moment) / 1000).toFixed(2)} s`).join('; ')})`);
     // Round 1, a post plant death: the clock on its frames after the plant is
     // the spike's, and the clock before it times the death.
     const r1 = of(every, 1);
@@ -352,6 +378,23 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     "Riot's death is the drop plus its milliseconds, or its second from an older record, and a round with no death or no time has none");
     ok(deathFrames.deathMoment(steady, { n: 4, died: true, deathMs: 90000 }, {}) === null,
       "and none outside the round's own frames: one frame of the next round filed under this one would put its death there");
+    // THE LOOK CARRIES ITS ROUND'S BARRIERS (8.4.1), for its clip: the drop
+    // Riot's moment was read from, and for a look from the screen the one its
+    // round's clock gives. A death 3 s in is clipped from a second before them,
+    // every still Riot's look takes inside the clip.
+    const early = steady.map((r) => (r.at > DROP + 3000 ? { ...r, died: true, state: { phase: 'dead' } } : r));
+    const [riotEarly] = deathFrames.looksFor(early, [{ n: 4, verified: true, died: true, result: 'lost', firstDeath: true,
+      deathMs: 3000, deathSec: 3, afterPlant: false, screenDied: true }], {}, 'riot');
+    const ew = riotEarly && clips.lookWindow(riotEarly);
+    ok(riotEarly && Number.isFinite(riotEarly.moment) && riotEarly.drop === riotEarly.moment - 3000 && Math.abs(riotEarly.drop - DROP) <= 500
+      && ew.from === riotEarly.drop - 1000 && clips.LOOK_AT.riot.every((s) => riotEarly.moment + s * 1000 >= ew.from),
+    `Riot's look of a death 3 s in carries the drop its moment came from, and its clip opens a second before it with every still inside (${riotEarly && (riotEarly.moment - riotEarly.drop) / 1000} s in, clip from ${ew && (ew.from - riotEarly.moment) / 1000} s)`);
+    const [screenEarly] = deathFrames.looksFor(early, [{ n: 4, verified: false, died: true, result: 'lost' }], {}, 'screen');
+    const earlyDrop = deathFrames.barrierDrop(early, 4, {});
+    const sw = screenEarly && clips.lookWindow(screenEarly);
+    ok(screenEarly && earlyDrop && screenEarly.drop === earlyDrop.at
+      && sw.from === Math.min(earlyDrop.at - 1000, clips.momentOf(screenEarly) - 4500),
+    `and the screen's look carries the drop its round's clock gives, its clip from a second before it or its first still, the earlier (${sw && (sw.from - clips.momentOf(screenEarly)) / 1000} s)`);
     const riotIn = { perRound: [{ n: 4, deathMs: 12345, plantMs: 25000 }, { n: 5, deathMs: 999 }] };
     const rows = [{ n: 4, died: true, deathSec: 12 }, { n: 5, died: false, deathSec: null }];
     const timed = deathFrames.withRiotTimes(rows, riotIn);
@@ -471,6 +514,23 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     const bad = await reviewClips.cutClips({ looks: [{ key: 1, name: '../x.mkv', moment: T0 }, { key: 2, name: 'r2-clip.mkv', moment: NaN }],
       cut: () => { throw new Error('never asked'); }, save: () => true, stopped: () => false, yieldTo: async () => {} });
     ok(bad.tried === 0 && !bad.kept.length, 'a look with no clip name or no moment is not cut at all');
+    const own = [];
+    const windowed = await reviewClips.cutClips({
+      looks: [{ key: 6, name: 'r6-clip.mkv', moment: T0, window: clips.windowOf(T0, T0 - 3000, -3) }, { key: 7, name: 'r7-clip.mkv', moment: T0 + 60000 }],
+      cut: (from, to, at) => { own.push([from, to, at]); return { bytes: Buffer.from('x') }; },
+      save: () => true, stopped: () => false, yieldTo: async () => {},
+    });
+    ok(windowed.kept.length === 2 && same(own, [[T0 - 4000, T0 + SPEC.afterMs, T0], [T0 + 60000 - SPEC.beforeMs, T0 + 60000 + SPEC.afterMs, T0 + 60000]])
+      && windowed.kept[0].from === T0 - 4000,
+    `a look that knows its window is cut by it (an early death from a second before its round), any other by its moment (${JSON.stringify(own.map((a) => (a[0] - a[2]) / 1000))})`);
+    const broken = [];
+    await reviewClips.cutClips({
+      looks: [{ key: 8, name: 'r8-clip.mkv', moment: T0, window: { from: NaN, to: T0 + SPEC.afterMs } }, { key: 9, name: 'r9-clip.mkv', moment: T0, window: null }],
+      cut: (from, to, at) => { broken.push([from, to, at]); return { bytes: Buffer.from('x') }; },
+      save: () => true, stopped: () => false, yieldTo: async () => {},
+    });
+    ok(same(broken, [[T0 - SPEC.beforeMs, T0 + SPEC.afterMs, T0], [T0 - SPEC.beforeMs, T0 + SPEC.afterMs, T0]]),
+      `and a window with no number in it, or none, is no window: the moment's is cut (${JSON.stringify(broken.map((a) => (a[0] - a[2]) / 1000))})`);
 
     // One cut from the real recording of a canvas: a death 6 s in.
     let realBytes = null;
@@ -566,7 +626,7 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     const idle = mk();
     ok(idle.view().session === null && idle.view().live === null && idle.view().last.outcome === 'black',
       'no session: no live line, and the last session\'s outcome for Settings to say');
-    // Recording, and the frames a second the capture delivered while the picture changed.
+    // Recording, and the frames a second recorded while the picture changed (8.4.2: 30 of the capture's up to 60).
     const rec = mk();
     rec.state = 'recording';
     rec.seg = { session: { res: '1080' } };
@@ -899,12 +959,13 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     let asked = 0;
     let mode = 'auto';
     const cutsAt = [];
+    const cutArgs = [];
     const sent = [];
     const box = vm.createContext({
       console: { log() {}, warn() {}, error() {} }, fs, path, Buffer, Map, Set, Promise, Date, Math, Number, JSON, Object, Array, String,
       setTimeout: (f, ms) => setTimeout(f, Math.min(ms, 20)),
       deathFrames, clips, reviewClips, lookStills, reviewStore: library,
-      recorder: { cutClip: (...a) => { cutsAt.push(rec.holds.length); return rec.cutClip(...a); } },
+      recorder: { cutClip: (...a) => { cutsAt.push(rec.holds.length); cutArgs.push(a); return rec.cutClip(...a); } },
       releaseRecording: (h) => rec.release(h),
       store: { get: (k) => ({ recordingMode: mode, licenseKey: 'TEST' })[k] },
       CAPTURE: { profiles: { standard: { targetW: 1280, targetH: 720, jpegQuality: 70 } } },
@@ -932,6 +993,10 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     playing = false;
     const looked = await out;
     ok(cutsAt.length === 1 && cutsAt[0] === 1, `Riot's look cut its clip while the match's recording was held (${cutsAt.join(', ')} hold at the cut)`);
+    // The death came 7.4 s after the barriers dropped: main cuts it from a
+    // second before them, not 11 s before the death (8.4.1, clips.lookWindow).
+    ok(cutArgs[0] && Math.abs(cutArgs[0][0] - (DROP - 1000)) <= 500 && cutArgs[0][0] > M - SPEC.beforeMs && cutArgs[0][1] === cutArgs[0][2] + SPEC.afterMs,
+      `and cut it from a second before the round's barriers dropped (${cutArgs[0] ? ((cutArgs[0][0] - DROP) / 1000).toFixed(2) : '?'} s from them, ${cutArgs[0] ? ((cutArgs[0][0] - cutArgs[0][2]) / 1000).toFixed(2) : '?'} s from the death)`);
     ok(waited && clipped && heldWhileWaiting === 0 && rec.stats().holds === 0,
       `and let it go once the clip was cut: while the look waited for the match in progress, ${heldWhileWaiting} hold, the clip ${clipped ? 'beside the review' : 'missing'}`);
     const d2 = sent[0] && sent[0].deaths.find((x) => x.n === 2);

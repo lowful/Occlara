@@ -402,13 +402,30 @@ function framesFor(records, death, window = {}) {
   return usable(at) ? [at] : [];
 }
 
+/*
+ * WHEN THE LOOK'S ROUND BEGAN, for its clip (8.4.1, clips.js lookWindow): the
+ * drop Riot's moment was read from (deathMoment), else the one the round's own
+ * clock gives (barrierDrop), else null. The player's Fracture round 6 death
+ * came 3 s after its barriers dropped, and the clip cut 11 s before it opened
+ * on 8 s of the buy phase.
+ */
+function dropOf(inMatch, r, window, moment) {
+  const ms = Number.isFinite(r.deathMs) ? r.deathMs : typeof r.deathSec === 'number' ? r.deathSec * 1000 : null;
+  if (Number.isFinite(moment) && ms !== null) return moment - ms;
+  const w = window || {};
+  const d = barrierDrop(inMatch, r.n, { from: w.from, to: w.to });
+  return d ? d.at : null;
+}
+
 /**
  * One look: the death, its frames, the names they are kept under, and when the
  * first was taken. With Riot's death on the wall clock (`moment`, deathMoment)
  * it carries that moment too, and each frame's seconds against it (frameAt).
+ * And when its round's barriers dropped (`drop`), where that is known.
  */
-function lookAt(r, recs, moment) {
+function lookAt(r, recs, moment, drop) {
   const first = recs[0] && typeof recs[0].at === 'number' ? recs[0].at : null;
+  const began = Number.isFinite(drop) ? { drop } : {};
   if (Number.isFinite(moment) && first !== null) {
     // To the hundredth, the same either side of the death.
     const secs = (ms) => (ms < 0 ? -1 : 1) * Math.round(Math.abs(ms) / 10) / 100;
@@ -422,6 +439,7 @@ function lookAt(r, recs, moment) {
       at: first,
       moment,
       frameAt: recs.map((f) => secs(f.at - moment)),
+      ...began,
     };
   }
   const t = recs[0] ? secondsIn(recs[0]) : null;
@@ -448,6 +466,7 @@ function lookAt(r, recs, moment) {
     // When the first frame was captured, so the review's eye can open the AI
     // log at that moment.
     at: recs[0] && typeof recs[0].at === 'number' ? recs[0].at : null,
+    ...began,
   };
 }
 
@@ -468,12 +487,15 @@ function lookAt(r, recs, moment) {
  * @returns [{ round, frames: [record...], names, gap, at }]
  */
 function looksFor(records, rounds, window, source, limit = 4) {
+  const w = window || {};
+  const inMatch = (records || []).filter((r) => r && r.frame
+    && (!w.from || r.at >= w.from) && (!w.to || r.at <= w.to + 5000));
   if (source !== 'screen') {
-    const w = window || {};
-    const inMatch = (records || []).filter((r) => r && r.frame
-      && (!w.from || r.at >= w.from) && (!w.to || r.at <= w.to + 5000));
     return teachableDeaths(rounds, limit)
-      .map((r) => lookAt(r, framesFor(records, r, window), deathMoment(inMatch, r, window)))
+      .map((r) => {
+        const moment = deathMoment(inMatch, r, window);
+        return lookAt(r, framesFor(records, r, window), moment, dropOf(inMatch, r, window, moment));
+      })
       .filter((x) => x.frames.length);
   }
   const framed = new Map();
@@ -482,10 +504,12 @@ function looksFor(records, rounds, window, source, limit = 4) {
     const recs = framesFor(records, r, window);
     if (recs.length && !recs[0].died) framed.set(r, recs);
   }
-  return teachableScreenDeaths([...framed.keys()], limit).map((r) => lookAt(r, framed.get(r)));
+  return teachableScreenDeaths([...framed.keys()], limit)
+    .map((r) => lookAt(r, framed.get(r), null, dropOf(inMatch, r, window, null)));
 }
 
 module.exports = {
-  teachableDeaths, teachableScreenDeaths, framesFor, looksFor, secondsIn, barrierDrop, deathMoment, withRiotTimes,
+  teachableDeaths, teachableScreenDeaths, framesFor, looksFor, secondsIn, barrierDrop, deathMoment, withRiotTimes, dropOf,
+  borrowedInto,
   BEFORE_MS, AFTER_MS, FRAME_MARGIN_MS, CLOCK_SLACK_MS,
 };

@@ -30,11 +30,24 @@
  * seal lifts with the window still out of sight, and never flashed up as a
  * page opened over a held seal brings the window back.
  *
+ * THE TRAY ICON OPENS THE APP (8.4.1). Its click, the action index.js hands
+ * the tray, brings the window up from hidden and from minimised on the page it
+ * was on, never hides it, and mid match shows the Recording screen.
+ *
+ * CLOSING QUITS (8.4.1), by the tray's own path (cleanupAndQuit), asking first
+ * only when quitting would lose something: here a match being recorded and a
+ * review still being built, each question once, over the window, keeping
+ * Occlara as it is by default; a close while a question is up asks nothing
+ * more. The match's question counts the rounds a stop keeps, so a round only
+ * begun is no round kept. app.quit and the native dialog are stood in for, so
+ * nothing quits and nothing is shown.
+ *
  * The engines that would read the screen and call the server are stand-ins
  * that emit what the real ones emit, nothing more: no capture, no model, no
- * network, and no League client asked. The 1 second seal tick is not running
- * (the app's surfaces are never built here), so SHELL_GET, which settles the
- * seal as the tick does, stands in for it.
+ * network, and no League client asked. So is the tray, which keeps the actions
+ * it is handed. The 1 second seal tick is not running (the app's surfaces are
+ * never built here), so SHELL_GET, which settles the seal as the tick does,
+ * stands in for it.
  *
  * Results travel through a FILE, not stdout: an Electron main process on Windows
  * does not reliably flush a piped stdout.
@@ -64,7 +77,7 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: a held seal is taken over by a League recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, and the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts');
+  console.log('PASS: a held seal is taken over by a League recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts, the tray icon brings the window up, the Recording screen mid match, and closing quits by the tray\'s path, asking first, once each, when a match is being recorded (counting only the rounds a stop keeps) and when a review is still being built');
   process.exit(0);
 }
 
@@ -97,7 +110,14 @@ class StandInValorant extends EventEmitter {
     super();
     this.endWatch = { ended: false };
     this.rounds = 0;
-    this.ledger = { size: () => this.rounds };
+    // size() every round filed, list() the ones a stop keeps (the real
+    // ledger's list() leaves out a last round only begun): `kept` below
+    // `rounds` is a round filed off a banner or the loading screen.
+    this.kept = null;
+    this.ledger = {
+      size: () => this.rounds,
+      list: () => Array.from({ length: this.kept === null ? this.rounds : this.kept }, (_, i) => ({ n: i + 1 })),
+    };
     this.inLobby = true;
     this.stopWith = null;   // the snap a stop mid match emits, as the real stop() does
     engines.push(this);
@@ -105,6 +125,7 @@ class StandInValorant extends EventEmitter {
   // startsInMatch: as the real reader, which clears inLobby as it starts.
   start() { if (StandInValorant.startsInMatch) this.inLobby = false; this.emit('status', 'coaching'); }
   stop() {
+    this.stops = (this.stops || 0) + 1;
     this.emit('status', 'stopped');
     if (this.stopWith) this.emit('match-ended', this.stopWith);
   }
@@ -122,6 +143,18 @@ class StandInLeague extends EventEmitter {
   stop() {}
 }
 
+// THE TRAY, as a stand-in that keeps the actions index.js hands it (8.4.1):
+// its icon's click is actions.show, which the check presses as the icon
+// would. index.js hands them over on every status change (setStatus), so a
+// recording started is enough, with no surfaces built. tray.js itself, the
+// click and double click wired to show, is test:shellnav's.
+const trayStandIn = { actions: null, destroyed: 0 };
+const StandInTray = {
+  create(actions) { trayStandIn.actions = actions; return {}; },
+  update(_recording, actions) { trayStandIn.actions = actions; },
+  destroy() { trayStandIn.destroyed++; },
+};
+
 // Asked for by index.js alone. Compared without case: Windows paths can come
 // back with the drive letter in either.
 const same = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
@@ -130,6 +163,7 @@ Module._load = function patched(request, parent, isMain) {
   if (parent && parent.filename && same(parent.filename, INDEX)) {
     if (request === './services/coaching-engine') return StandInValorant;
     if (request === './services/lol-recorder') return { LolRecorder: StandInLeague };
+    if (request === './tray') return StandInTray;
   }
   return realLoad(request, parent, isMain);
 };
@@ -390,6 +424,140 @@ setTimeout(async () => {
     if (!liftedMark) return report(false, 'the seal lifted with the window hidden, and the corner mark did not come back');
     await bringWin();
     dock.showAt = realShowAt;
+
+    // 5. THE TRAY ICON OPENS THE APP (8.4.1). Its click (actions.show, as
+    // index.js hands the tray it) brings the window up from hidden and from
+    // minimised, on the page it was on, and mid match on the Recording
+    // screen the seal decides. The focus is asked for and not held to: the
+    // player may have another window in front of this check.
+    const tray = trayStandIn.actions;
+    if (!tray || typeof tray.show !== 'function') return report(false, 'index.js hands the tray no way to bring the window up');
+    send(C.SHELL_NAV, 'matches');
+    if (!await until(settled('matches'), 4000)) return report(false, 'Matches would not come in for the tray');
+    if (!await hideWin()) return report(false, 'the window would not hide for the tray');
+    tray.show();
+    const trayUp = await until(() => win.isVisible(), 3000);
+    lines.push(`tray: the window hidden, its icon clicked: shown=${!!trayUp} focused=${win.isFocused()} page=${mainWindow.current().shown} mark up=${markShown()}`);
+    if (!trayUp || mainWindow.current().shown !== 'matches') return report(false, 'the tray icon, clicked with the window hidden, did not bring it up on its page');
+    if (await until(markShown, 800)) return report(false, 'the window brought up by the tray left the corner mark up');
+    win.minimize();
+    await until(() => win.isMinimized(), 3000);
+    tray.show();
+    const restored = await until(() => !win.isMinimized() && win.isVisible(), 3000);
+    lines.push(`tray: the window minimised, its icon clicked: restored=${!!restored}`);
+    if (!restored) return report(false, 'the tray icon, clicked with the window minimised, did not restore it');
+    tray.show();
+    if (!win.isVisible() || win.isMinimized()) return report(false, 'the tray icon clicked again over the window shown hid it, as the old toggle did');
+    await invoke(C.CONFIG_SET, { game: 'valorant' });
+    send(C.COACH_START);
+    const midTray = latest();
+    midTray.inLobby = false;
+    await invoke(C.SHELL_GET);
+    if (!await hideWin()) return report(false, 'mid match, the window would not hide for the tray');
+    tray.show();
+    const sealedUp = await until(() => win.isVisible(), 3000);
+    const recScreen = await sjs("!document.getElementById('sealed').hidden");
+    lines.push(`tray: mid match, its icon clicked: shown=${!!sealedUp} sealed=${mainWindow.current().sealed} pages shown=${shownViews().join(',') || 'none'} Recording screen=${recScreen}`);
+    if (!sealedUp || !mainWindow.current().sealed || shownViews().length || !recScreen) {
+      return report(false, 'mid match, the tray brought the window up on a page, not the Recording screen');
+    }
+
+    // 6. CLOSING QUITS (8.4.1), by the tray's own path, cleanupAndQuit, and
+    // asks first only when quitting would lose something: here a match being
+    // recorded (the stand-in mid match, four rounds filed) and the reviews
+    // earlier steps left being built. Each question a native dialog over the
+    // window, its first button, the default and Escape, keeping Occlara as it
+    // is. app.quit and the dialog are stood in for, so the check can see them.
+    const { dialog } = require('electron');
+    const realBox = dialog.showMessageBox;
+    const realQuit = app.quit;
+    const asked = [];
+    let answers = [];
+    let hold = null;
+    dialog.showMessageBox = (...a) => {
+      const opts = a.length > 1 ? a[1] : a[0];
+      asked.push({ parent: a.length > 1 && a[0] === win, ...opts });
+      if (hold) return new Promise((r) => { hold.release = () => r({ response: 0 }); });
+      return Promise.resolve({ response: answers.length ? answers.shift() : 0 });
+    };
+    let quits = 0;
+    app.quit = () => { quits++; };
+    if (dialog.showMessageBox === realBox || app.quit === realQuit) return report(false, 'the dialog or app.quit could not be stood in for');
+    const restore = () => { dialog.showMessageBox = realBox; app.quit = realQuit; };
+    const close = async (how) => {
+      const n = asked.length;
+      if (how === 'x') await sjs("document.getElementById('w-close').click(); true");
+      else win.close();
+      await until(() => asked.length > n || quits, 3000);
+      await wait(300);
+      return asked.slice(n);
+    };
+    // A round only begun (filed off the loading screen, never bought or
+    // played) is no round a stop keeps (coaching-engine.js matchSnapshot):
+    // the question says nothing of the match is kept, as nothing is.
+    midTray.rounds = 1;
+    midTray.kept = 0;
+    answers = [0];
+    const begun = await close('x');
+    const q0 = begun[0] || {};
+    lines.push(`closing with only a round begun: asked ${begun.length}: "${q0.detail}" | quit=${quits}`);
+    if (begun.length !== 1 || q0.detail !== 'No round of it has been recorded yet, so nothing of it is kept. Keep recording and the match is reviewed when it ends.') {
+      restore();
+      return report(false, `closing with only a round begun said a round of it is kept: ${JSON.stringify(begun)}`);
+    }
+    if (quits) { restore(); return report(false, 'kept recording with only a round begun, Occlara quit anyway'); }
+    midTray.kept = null;
+    midTray.rounds = 4;
+    // Kept recording: nothing else asked, nothing quit, the window as it was.
+    answers = [0];
+    const kept = await close('x');
+    const q1 = kept[0] || {};
+    lines.push(`closing mid match with its X: asked ${kept.length}: "${q1.message}" | "${q1.detail}" | [${(q1.buttons || []).join(', ')}] default=${q1.defaultId} cancel=${q1.cancelId} over the window=${q1.parent} | quit=${quits} window shown=${win.isVisible()}`);
+    if (kept.length !== 1 || q1.message !== 'A match is being recorded. Quit and stop recording?'
+      || q1.detail !== "The 4 rounds recorded so far are kept in Matches as part of a match, as the screen read them, with no coach's read. Keep recording and the whole match is reviewed when it ends."
+      || (q1.buttons || []).join('|') !== 'Keep recording|Quit' || q1.defaultId !== 0 || q1.cancelId !== 0 || !q1.parent) {
+      restore();
+      return report(false, `closing mid match did not ask the one question it should, with keeping on as the default: ${JSON.stringify(kept)}`);
+    }
+    if (quits || !win.isVisible() || !(await invoke(C.STATE_GET)).isCoaching) { restore(); return report(false, 'kept recording, Occlara quit or stopped anyway'); }
+    // Quit chosen for the match, kept open for the review still being built.
+    answers = [1, 0];
+    const both = await close('altf4');
+    const q2 = both[1] || {};
+    lines.push(`closing with Alt+F4: asked ${both.length}: then "${q2.message}" | "${q2.detail}" | [${(q2.buttons || []).join(', ')}] | quit=${quits}`);
+    if (both.length !== 2 || both[0].message !== q1.message || q2.message !== "Your last match's review is still being written. Quit now?"
+      || q2.detail !== "Quit now and it is kept as the screen read it, without the coach's read or its look at your deaths. Keep Occlara open and it finishes by itself, usually in a minute or two."
+      || (q2.buttons || []).join('|') !== 'Keep Occlara open|Quit now' || q2.defaultId !== 0 || q2.cancelId !== 0) {
+      restore();
+      return report(false, `Alt+F4 did not ask both questions, the match first, each once: ${JSON.stringify(both)}`);
+    }
+    if (quits || !(await invoke(C.STATE_GET)).isCoaching) { restore(); return report(false, 'kept open at the second question, Occlara quit anyway'); }
+    // A second close while a question is up asks nothing more.
+    hold = {};
+    const n0 = asked.length;
+    win.close();
+    await until(() => asked.length > n0, 3000);
+    win.close();
+    await sjs("document.getElementById('w-close').click(); true");
+    await wait(600);
+    const stacked = asked.length - n0;
+    hold.release();
+    hold = null;
+    await wait(300);
+    lines.push(`two more closes while a question was up: asked ${stacked} | quit=${quits}`);
+    if (stacked !== 1 || quits) { restore(); return report(false, `closes while a question was up asked ${stacked} questions, or quit`); }
+    // Quit chosen for both: quits by the tray's path, the session ended and the tray gone with it.
+    answers = [1, 1];
+    const stopsBefore = midTray.stops || 0;
+    const trayGone = trayStandIn.destroyed;
+    const gone = await close('x');
+    await until(() => quits, 3000);
+    lines.push(`quit chosen for both: asked ${gone.length} | quit=${quits} the session stopped=${(midTray.stops || 0) > stopsBefore} tray destroyed=${trayStandIn.destroyed > trayGone}`);
+    restore();
+    if (gone.length !== 2 || quits !== 1) return report(false, `quitting at both questions asked ${gone.length} and quit ${quits} times`);
+    if (!((midTray.stops || 0) > stopsBefore) || !(trayStandIn.destroyed > trayGone)) {
+      return report(false, 'the close quit without cleanupAndQuit: the session or the tray was left as it was');
+    }
     report(true, 'ok');
   } catch (e) {
     report(false, 'threw: ' + e.message);

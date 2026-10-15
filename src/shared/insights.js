@@ -28,10 +28,16 @@
  * Pure, no Electron, so the tests build them from the real fixtures.
  */
 
-const { CAUSES, isAvoidable } = require('./death-causes');
+const { CAUSES, isAvoidable, causeTitle } = require('./death-causes');
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
 const times = (n) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
+/*
+ * THE TRADES LINE, ITS COUNT FIRST (8.4.1). "You killed the player who had
+ * just killed a teammate twice." read as the enemy killing a teammate twice,
+ * the count landing on the last verb. Said first, it can only be the player's.
+ */
+const tradesDetail = (n) => `${n === 1 ? 'Once,' : n === 2 ? 'Twice' : `${n} times`} you killed an enemy right after they killed a teammate.`;
 /** The last one standing, against how many: "alone against one", "alone against 3". */
 const alone = (vs) => `alone against ${Number(vs) === 1 ? 'one' : vs}`;
 
@@ -209,7 +215,7 @@ function valorant(rounds, opts = {}) {
   for (const [cause, ns] of byCause) {
     if (ns.length < 2) continue;
     push(out.mistakes, {
-      key: `cause:${cause}`, title: CAUSES[cause].title,
+      key: `cause:${cause}`, title: causeTitle(cause, ns.length),
       detail: `The coach looked at the moment before ${plural(ns.length, 'death')} and saw the same thing: `
         + `${CAUSES[cause].detail}, ${roundList(ns)}.`,
       rounds: ns, weight: CAUSE_WEIGHT, judged: true, fix: CAUSE_FIX[cause] || null,
@@ -251,7 +257,7 @@ function valorant(rounds, opts = {}) {
   if (tradeCount >= shareFloor(verified.length)) {
     push(out.strengths, {
       key: 'trades', title: 'Traded your teammates',
-      detail: `You killed the player who had just killed a teammate ${times(tradeCount)}.`,
+      detail: tradesDetail(tradeCount),
       rounds: tradeRounds.map((r) => r.n), count: tradeCount,
     });
   }
@@ -357,8 +363,9 @@ function valorant(rounds, opts = {}) {
     if ((byCause.get(f.cause) || []).length >= 2) continue;   // already a repeated mistake
     push(out.missed, {
       // The title is the cause alone, never the round: the library counts this
-      // key across matches, and "Round 3" means nothing in the next one.
-      key: `cause:${f.cause}`, title: CAUSES[f.cause].title,
+      // key across matches, and "Round 3" means nothing in the next one. One
+      // death, so the cause in the singular (8.4.1), as its round's chip says it.
+      key: `cause:${f.cause}`, title: causeTitle(f.cause, 1),
       detail: `Round ${r.n}: ${f.what || f.better}`, fix: f.better, rounds: [r.n], judged: true,
     });
   }
@@ -432,6 +439,10 @@ function repeatTitle(key, list, newest, specifics) {
     return { title: 'One enemy agent kept winning',
       fix: 'Track where their strongest player plays, then fight them with a teammate or with utility, never alone.' };
   }
+  // A cause counted across matches is two of it at least, so its plural
+  // (8.4.1), whatever the newest match's own count: one look's miss is "Repeek".
+  const cause = String(key || '').startsWith('cause:') ? String(key).slice('cause:'.length) : null;
+  if (cause && CAUSES[cause]) return { title: causeTitle(cause, 2), fix: newest.fix || null };
   return { title: newest.title, fix: newest.fix || null };
 }
 
@@ -492,6 +503,17 @@ const FACT_ORDER = FACTS.map(([key]) => key);
  */
 const CLUTCH_RE = /\bone against (\d+)/;
 const clutchWords = (text) => String(text).replace(new RegExp(CLUTCH_RE.source, 'g'), (_m, n) => alone(n));
+/*
+ * THE TRADES LINE AS IT WAS WRITTEN BEFORE 8.4.1, "You killed the player who
+ * had just killed a teammate twice.", which read as the enemy killing a
+ * teammate twice (tradesDetail). A saved review keeps it, so it is put in
+ * today's words wherever one is shown, its facts and the patterns included.
+ */
+const TRADES_RE = /^You killed the player who had just killed a teammate (once|twice|(\d+) times)\.$/;
+const tradesWords = (text) => {
+  const m = TRADES_RE.exec(String(text));
+  return m ? tradesDetail(m[1] === 'once' ? 1 : m[1] === 'twice' ? 2 : Number(m[2])) : text;
+};
 // "Won only 1 of 4" is a miss's verdict on a number, and the fact is the number.
 const ONLY_RE = /\bWon only (\d+)/;
 
@@ -506,6 +528,7 @@ function factsView(e) {
   if (!title) return null;
   let detail = String(e.detail || '');
   if (e.key === 'clutch') detail = clutchWords(detail);
+  if (e.key === 'trades') detail = tradesWords(detail);
   if (e.key === 'postplant-lost') detail = detail.replace(ONLY_RE, 'Won $1');
   const rounds = Array.isArray(e.rounds) ? e.rounds.slice() : [];
   return {
@@ -554,14 +577,32 @@ function countable(review) {
   return inTodaysWords({ mistakes: ins.mistakes || [], strengths: ins.strengths || [], missed: ins.missed || [] });
 }
 
-/** A recorded review's three lists in today's words: its clutch line. Nothing else changes. */
+/**
+ * A recorded review's three lists in today's words: its clutch line, its
+ * trades line (8.4.1), and a cause's title by its own count, "Repeek" for one
+ * look's miss where 8.4.0 saved "Repeeks". Nothing else changes.
+ */
 function inTodaysWords(ins) {
   if (!ins || typeof ins !== 'object') return ins;
-  const fix = (list) => (Array.isArray(list)
-    ? list.map((e) => (e && e.key === 'clutch' && CLUTCH_RE.test(String(e.detail || '')) ? { ...e, detail: clutchWords(e.detail) } : e))
-    : list);
+  const fix = (list) => (Array.isArray(list) ? list.map(todaysEntry) : list);
   return { ...ins, mistakes: fix(ins.mistakes), strengths: fix(ins.strengths), missed: fix(ins.missed) };
 }
 
+function todaysEntry(e) {
+  if (!e || typeof e !== 'object') return e;
+  let out = e;
+  const detail = String(e.detail || '');
+  if (e.key === 'clutch' && CLUTCH_RE.test(detail)) out = { ...out, detail: clutchWords(detail) };
+  if (e.key === 'trades' && TRADES_RE.test(detail)) out = { ...out, detail: tradesWords(detail) };
+  const cause = typeof e.key === 'string' && e.key.startsWith('cause:') ? e.key.slice('cause:'.length) : null;
+  const c = cause ? CAUSES[cause] : null;
+  const count = typeof e.count === 'number' ? e.count : Array.isArray(e.rounds) ? e.rounds.length : null;
+  // Only a title the list itself wrote: either form of this cause's.
+  if (c && count && (e.title === c.title || e.title === c.one) && causeTitle(cause, count) !== e.title) {
+    out = { ...out, title: causeTitle(cause, count) };
+  }
+  return out;
+}
+
 module.exports = { valorant, lol, roundList, repeatTitle, specificOf, WEIGHT, aliveAtPlant, shareFloor,
-  factsView, asFacts, countable, inTodaysWords, CLUTCH_RE, ONLY_RE };
+  factsView, asFacts, countable, inTodaysWords, tradesDetail, CLUTCH_RE, ONLY_RE, TRADES_RE };

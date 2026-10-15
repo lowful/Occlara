@@ -28,10 +28,17 @@ const { pageOf, createNav, createMotion } = require('../../shared/shell-nav');
  * middle of a match leaves (index.js): the same screen, but the sidebar stays
  * open, because only the player can say when that match is over.
  *
- * CLOSING HIDES IT. Its X, Alt+F4 and the taskbar's Close put it out of sight
- * as Ctrl+Shift+M does, and Occlara keeps running in the tray: the review that
- * just opened is still being checked against Riot's record, minutes after the
- * match, and quitting would end that. The tray and Settings quit.
+ * CLOSING QUITS (8.4.1). Its X, Alt+F4 and the taskbar's Close used to put it
+ * out of sight as Ctrl+Shift+M does, Occlara running on in the tray, and the
+ * player asked for closing to close it. Each is the window's 'close', which is
+ * held here and handed to index.js on the next turn (onCloseAsk, and never
+ * inside the event: a quit there is one Electron cancels): it quits by the
+ * tray's own path, and first asks, only when quitting would lose a match being
+ * recorded, a review still being built or a League game's death clips still
+ * being cut. Kept open, the window stays as it was. A
+ * quit already under way (before-quit: the tray's Quit, Settings', an update's
+ * Restart now) and Windows ending its session let it close for real.
+ * Ctrl+Shift+M still hides it to the corner mark.
  *
  * Not always on top and in the taskbar, unlike the panel it replaces: it sits
  * behind the game like any app, and nothing on it can catch a click mid aim.
@@ -91,6 +98,7 @@ let quitting = false;      // the app is quitting: closing the window closes it
 let maximizeOnShow = false;
 let onChange = null;       // index.js: the corner mark and the tray follow the window
 let onEnd = null;          // index.js: what must be done before Windows ends its session
+let onClose = null;        // index.js: a close asked for, which quits, asking first if it would lose something
 let staged = null;         // the page shown out of sight at the page area's edge
 const reloading = new Set();   // pages loading again, until their new document commits
 
@@ -217,10 +225,31 @@ function create(opts) {
   self.on('moved', save);
   self.on('maximize', () => { layout(); save(); push(); });
   self.on('unmaximize', () => { layout(); save(); push(); });
+  // Its X, Alt+F4 and the taskbar's Close: held, and handed to index.js, which
+  // quits once nothing would be lost by it or the player says so. Never hidden
+  // in the tray any more.
+  //
+  // HANDED OVER ON THE NEXT TURN, NEVER INSIDE THIS EVENT. Electron takes a
+  // close prevented here for a quit cancelled: once this handler returns it
+  // clears its quitting flag (Browser::OnWindowCloseCancelled). So a quit
+  // called in the same turn, as closing with nothing at stake did, closed
+  // every window and then never quit, index.js's window-all-closed keeping the
+  // app alive for a tray its cleanup had already taken down: the process ran
+  // on with no window and no tray (measured on Electron 41, the real index.js
+  // closed by Alt+F4 and by the X: still running 5 s on, with 0 windows).
   self.on('close', (e) => {
     if (quitting) return;
     e.preventDefault();
-    self.hide();
+    setImmediate(() => {
+      // A quit begun meanwhile (the tray's Quit, Windows ending its session)
+      // closes the window by itself, and nothing is left to ask.
+      if (quitting) return;
+      if (onClose) {
+        try { onClose(); } catch (err) { console.warn('[main-window] close hook:', err.message); }
+      } else if (typeof app.quit === 'function') {
+        app.quit();
+      }
+    });
   });
   // Windows is shutting down, restarting or logging off: no before-quit comes,
   // and the process can be ended as soon as this returns, so what must not be
@@ -487,8 +516,14 @@ function reveal() {
 
 function minimize() { const w = get(); if (w) w.minimize(); }
 
-/** Out of sight, as its X does: the tray and Ctrl+Shift+M bring it back. */
+/** Out of sight, as Ctrl+Shift+M puts it: the tray and the shortcut bring it back. */
 function hide() { const w = get(); if (w && w.isVisible()) w.hide(); }
+
+/**
+ * Closed, as Alt+F4 and the taskbar's Close close it: the top strip's X. The
+ * window's 'close' is what decides (onCloseAsk), so the three are one path.
+ */
+function close() { const w = get(); if (w) w.close(); }
 
 function toggleMaximize() {
   const w = get();
@@ -524,6 +559,14 @@ function onWindowChange(fn) { onChange = typeof fn === 'function' ? fn : null; }
 /** fn() runs, synchronously, when Windows ends its session (shutdown, restart, logoff). */
 function onSessionEnd(fn) { onEnd = typeof fn === 'function' ? fn : null; }
 
+/**
+ * fn() runs on the turn after the window is asked to close (its X, Alt+F4,
+ * the taskbar's Close) while no quit is under way, the close held: index.js
+ * quits, asking first when that would lose something. With none set, a close
+ * quits.
+ */
+function onCloseAsk(fn) { onClose = typeof fn === 'function' ? fn : null; }
+
 /** The page views by id, for the boot checks. */
 function pageViews() { return new Map(views); }
 
@@ -531,6 +574,6 @@ function pageViews() { return new Map(views); }
 function motionState() { return { ...motion.state(), staged, reloading: [...reloading] }; }
 
 module.exports = {
-  create, get, reveal, show, setSealed, current, shellState, minimize, hide, toggleMaximize, isHidden, toggleHidden,
-  onWindowChange, onSessionEnd, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, STAGE_PX,
+  create, get, reveal, show, setSealed, current, shellState, minimize, hide, close, toggleMaximize, isHidden, toggleHidden,
+  onWindowChange, onSessionEnd, onCloseAsk, pageReady, pageViews, motionState, SIDEBAR_W, TOP_H, STAGE_PX,
 };

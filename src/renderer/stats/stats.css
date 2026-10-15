@@ -32,7 +32,7 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
   background: transparent; border: none; border-radius: 6px; padding: 3px 8px; cursor: pointer;
   transition: all var(--t-fast) var(--ease);
 }
-.mode-seg button.active { color: #fff; background: var(--red); }
+.mode-seg button.active { color: var(--on-accent); background: var(--red); }
 
 /* ── Overview cards: 3x2 symmetric grid ── */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -58,7 +58,7 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .card .value.small { font-size: 14px; }
 .card .arrow { font-size: 11px; font-weight: 800; }
 .arrow.up   { color: var(--good); }
-.arrow.down { color: #ff8a95; }
+.arrow.down { color: var(--red); }
 .arrow.flat { color: var(--text-mute); }
 /* The rank tile's RR from the last rated game (paintRankDelta in stats.js). */
 .arrow.rr { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -96,7 +96,7 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 }
 .agent-chip.good { color: var(--good); background: rgba(var(--good-rgb),0.10); border: 1px solid rgba(var(--good-rgb),0.28); }
 .agent-chip.bad  { color: var(--bad); background: rgba(var(--red-rgb),0.10);  border: 1px solid rgba(var(--red-rgb),0.28); }
-.agent-chip.mid  { color: #e8d27a; background: rgba(232,210,122,0.08); border: 1px solid rgba(232,210,122,0.25); }
+.agent-chip.mid  { color: var(--warn); background: rgba(var(--warn-rgb),0.08); border: 1px solid rgba(var(--warn-rgb),0.25); }
 
 /* rank card expands into per-rank insights */
 .card.clickable { cursor: pointer; transition: border-color var(--t-fast) var(--ease); }
@@ -136,15 +136,17 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .res.win  { color: var(--good); background: rgba(var(--good-rgb),0.12); border: 1px solid rgba(var(--good-rgb),0.3); }
 .res.loss { color: var(--bad); background: rgba(var(--red-rgb),0.12); border: 1px solid rgba(var(--red-rgb),0.3); }
 
-/* Match MVP gold, Team MVP silver, same pill language as the result chip */
+/* Match MVP bright, Team MVP dim, same pill language as the result chip. They
+   were a gold and a silver of their own (8.4.1): the palette is white on black
+   with one red, and the word says which MVP it is. */
 .mvp { font-size: 10px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
-.mvp.match { color: #ffd76a; background: rgba(255,199,64,0.12); border: 1px solid rgba(255,199,64,0.35); }
-.mvp.team  { color: #cfd8e3; background: rgba(200,215,235,0.10); border: 1px solid rgba(200,215,235,0.30); }
+.mvp.match { color: var(--text); background: rgba(var(--cyan-rgb),0.10); border: 1px solid rgba(var(--cyan-rgb),0.35); }
+.mvp.team  { color: var(--text-dim); background: rgba(var(--cyan-rgb),0.04); border: 1px solid rgba(var(--cyan-rgb),0.18); }
 
 .rating { font-size: 12px; font-weight: 800; min-width: 34px; text-align: center; border-radius: 8px; padding: 3px 0; }
 .rating.great { color: var(--good); background: rgba(var(--good-rgb),0.10); border: 1px solid rgba(var(--good-rgb),0.3); }
 .rating.good  { color: var(--cyan); background: rgba(var(--cyan-rgb),0.08); border: 1px solid rgba(var(--cyan-rgb),0.25); }
-.rating.mid   { color: var(--warn); background: rgba(245,196,81,0.10); border: 1px solid rgba(245,196,81,0.3); }
+.rating.mid   { color: var(--warn); background: rgba(var(--warn-rgb),0.10); border: 1px solid rgba(var(--warn-rgb),0.3); }
 .rating.low   { color: var(--bad); background: rgba(var(--red-rgb),0.10); border: 1px solid rgba(var(--red-rgb),0.3); }
 
 /* ── Expandable rows (matches + sessions share the pattern) ── */
@@ -170,7 +172,7 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .tile .t-val { font-size: 14px; font-weight: 800; color: var(--text); }
 .tile .t-val.g { color: var(--good); }
 .tile .t-val.y { color: var(--warn); }
-.tile .t-val.r { color: #ff8a95; }
+.tile .t-val.r { color: var(--bad); }
 .detail .d-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
 .detail .d-label.r { color: var(--cyan); }
 .detail .d-label.s { color: var(--good); }
@@ -188,12 +190,12 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 /* The confirmed match scoreboard. Separated from the category chips by a rule
    so it reads as fact from the tracker rather than another graded number. */
 .detail .matchline { padding-bottom: 10px; border-bottom: 1px solid var(--glass-border); }
-.detail .sc.won  { color: #4ade80; border-color: rgba(74,222,128,0.30); background: rgba(74,222,128,0.08); }
-.detail .sc.won b  { color: #4ade80; }
+.detail .sc.won  { color: var(--good); border-color: rgba(var(--good-rgb),0.30); background: rgba(var(--good-rgb),0.08); }
+.detail .sc.won b  { color: var(--good); }
 .detail .sc.lost { color: var(--red); border-color: rgba(var(--red-rgb),0.30); background: rgba(var(--red-rgb),0.08); }
 .detail .sc.lost b { color: var(--red); }
 .ask-btn {
-  font-family: var(--font); font-size: 11.5px; font-weight: 700; color: #fff;
+  font-family: var(--font); font-size: 11.5px; font-weight: 700; color: var(--on-accent);
   background: var(--red); border: none; border-radius: 9px;
   padding: 7px 12px; cursor: pointer; transition: filter var(--t-fast) var(--ease);
 }
@@ -209,9 +211,15 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 }
 .share-btn:hover { background: rgba(var(--cyan-rgb),0.16); border-color: rgba(var(--cyan-rgb),0.5); }
 
-/* Rank journey graph inside the rank drop-down */
+/* Rank journey graph inside the rank drop-down. Tokens over one solid fill
+   (8.4.1), the line and its dot as Home draws the same journey (home.css
+   .rank-line); it was the retired cyan over a gradient, written in stats.js. */
 .rank-graph { margin-bottom: 12px; animation: rowIn 240ms var(--ease) both; }
 .rank-graph svg { width: 100%; height: 96px; display: block; border-radius: 8px; background: rgba(0,0,0,0.22); border: 1px solid var(--glass-border); }
+.rank-graph .rg-plot { position: relative; }
+.rank-graph .rg-area { fill: rgba(var(--cyan-rgb),0.06); stroke: none; }
+.rank-graph .rg-line { fill: none; stroke: var(--text-dim); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.rank-graph .rg-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--text); }
 .rg-loading { font-size: 11px; color: var(--text-mute); padding: 8px 0; }
 .rg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
 .rg-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-mute); }
@@ -238,9 +246,10 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 /* The window settles in rather than snapping on. */
 .sheet { animation: sheetIn 420ms var(--ease-expo) both; }
 
-/* Your team for a match. Ordered by combat score like the in-game scoreboard,
-   with the player's own row marked rather than removed, so the row they are
-   looking for sits where they expect it. */
+/* Your team for a match: each teammate by agent with their numbers, ordered
+   by combat score like the in-game scoreboard, the player's own row marked
+   "You" rather than removed, so the row they are looking for sits where they
+   expect it. No teammate's name or tag (8.4.1, stats.js matchRow). */
 .team-list { margin-top: 10px; }
 .team-head {
   font-size: 10px; font-weight: 800; text-transform: uppercase;
@@ -257,10 +266,9 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
   border: 1px solid rgba(var(--cyan-rgb),0.22);
   color: var(--text);
 }
-.team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.team-row.me .team-name { font-weight: 700; }
-.team-agent { color: var(--text-mute); font-size: 11px; }
-.team-row.me .team-agent { color: var(--cyan); }
+.team-agent { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-row.me .team-agent { font-weight: 700; }
+.team-you { color: var(--cyan); font-size: 11px; font-weight: 700; }
 .team-line { font-variant-numeric: tabular-nums; color: var(--text-mute); }
 
 /* Graded matches: the letter beside the number, and the row's two actions.
