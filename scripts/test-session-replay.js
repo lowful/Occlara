@@ -441,6 +441,49 @@ function againstRiot(rounds, truth) {
     run.restore();
   }
 
+  // ── The Fracture's round 5 read as 0 to 0, three times in two seconds ─────
+  // On the bench of 14 Oct the live read prompt read round 5's first seconds
+  // of play, 4 to 0 printed plainly and the round clock at 1:38, as 0 to 0 on
+  // frames 00269 to 00271, the first with 4 to 0 in its context, then 4 to 0 once, then
+  // 0 to 0 three times more. From round 5 two such reads in a row were a new
+  // match: the match closed into the library at round 5, its rounds 5 and 6
+  // filed as the next one's. A new match needs ten seconds of them with none
+  // of the held score between (coaching-engine.js newMatchRun), and these are
+  // two. The live prompt's replies to those frames, their score, phase, clock
+  // and HUD as it wrote them, laid over the AI log's reads of the same frames.
+  {
+    const said = (phase, roundNumber, team, clock, aliveTell, playerWeapon) => ({ side: 'attacking', phase, roundNumber,
+      teamScore: team, enemyScore: 0, playerHp: 100, playerAlive: true, aliveTell, playerWeapon, locLabel: 'A Hall', clock });
+    const BENCH = {
+      382.9: { ...said('buy', 1, 0, '1:38', 'own HP 100 and Ghost bottom left', 'Ghost'), playerCredits: 800 },
+      383.9: said('buy', 1, 0, '1:37', 'own HP 100 and Ghost bottom center', 'Ghost'),
+      384.9: said('buy', 1, 0, '1:36', 'own HP 100 and Ghost bottom left', 'Ghost'),
+      385.9: said('buy', 5, 4, '1:35', 'own HP 100 and Bandit bottom left', 'Bandit'),
+      386.9: said('active', 1, 0, '1:34', 'own HP 100 and Ghost bottom left', 'Ghost'),
+      387.9: said('buy', 1, 0, '1:33', 'own HP 100 and Ghost bottom left', 'Ghost'),
+      388.9: said('buy', 1, 0, '1:32', 'own HP 100 and Bandit bottom left', 'Bandit'),
+      389.9: said('buy', 5, 4, '1:31', 'own HP 100 bottom center with own abilities bottom left', 'Bandit'),
+    };
+    const live = (f) => (f.t === 330.4 ? Object.assign(f, { teamScore: 4, enemyScore: 0 }) : f);
+    const bench = (f) => (BENCH[f.t] ? { t: f.t, ...BENCH[f.t] } : live(f));
+    const banner = (t) => ({ t, phase: 'dead', playerAlive: false, teamScore: 5, enemyScore: 1, side: 'attacking',
+      aliveTell: 'Spectating someone with SWITCH PLAYER bottom left' });
+    const then = [banner(550.1), banner(551.1), { t: 552.1, lobby: true }, { t: 553.1, lobby: true }];
+    const ref = replay('valorant-session-fracture-swiftplay.json', { edit: live, then });
+    ref.restore();
+    const run = replay('valorant-session-fracture-swiftplay.json', { edit: bench, then });
+    await new Promise((r) => setTimeout(r, 30));
+    run.restore();
+    const resets = run.lines.filter((l) => /new match detected|never seen ending/.test(l));
+    const refused = (r) => r.lines.filter((l) => /ignoring backwards scoreboard read: round 5 -> 1$/.test(l)).length;
+    ok(!resets.length && refused(run) === 6 && refused(ref) === 0,
+      `round 5 read as 0 to 0 three times in two seconds, twice, is six reads refused and no new match (${refused(run)} refused; ${resets.join('; ') || 'no reset'})`);
+    const rows = (rv) => (rv && rv.snap ? rv.snap.rounds : []).map((r) => `${r.n}${r.side ? r.side[0] : '?'}${r.result ? r.result[0] : '?'}${r.died ? 'D' : ''}`).join(' ');
+    ok(run.reviews.length === 1 && run.reviews[0].snap.endedBy === 'score' && rows(run.reviews[0]) === rows(ref.reviews[0])
+      && rows(ref.reviews[0]).split(' ').length === 6 && run.deaths.join() === ref.deaths.join(),
+      `and the match is the one the AI log's reads give: ended on its score, the same 6 rounds and deaths (${run.reviews.map((r) => `${r.snap.endedBy}: ${rows(r)}`).join('; ')})`);
+  }
+
   // ── The fixture maker keeps a word where it drops one ─────────────────────
   // make-session-fixture.js cut a name out of a kill feed line and moved the
   // rest up: "<name> killed by Chamber" became "killed by Chamber", which the
@@ -501,6 +544,30 @@ function againstRiot(rounds, truth) {
     ok(!run.deaths.includes(939.1) && run.deaths.includes(957.1),
       `a dead read in the buy phase is no first read of two (deaths at ${run.deaths.filter((t) => t > 900 && t < 1000).join(', ')} s)`);
     run.restore();
+  }
+
+  // ── 0 to 0 misread now and then, over the Abyss match's long stretch ─────
+  // From 812.9 s to 957.1 s, two rounds and fifteen reads, the AI log has no
+  // score read: the player dead and spectating, then a buy phase. A read with
+  // no score of its own never ends a wait for a new match, so 0 to 0 laid over
+  // five of those reads, each 24 to 31 s after the one before, was a new
+  // match on the third: the match closed into the library at round 10 and its
+  // last 14 rounds filed as the next one's. The three reads and ten seconds
+  // fall within thirty of the wait's first (coaching-engine.js
+  // NEW_MATCH_WITHIN_MS), and these never do.
+  {
+    const MIS = [821.6, 848.8, 879.1, 905.8, 930];
+    const base = replay('valorant-session-abyss-unrated.json');
+    const want = { ledger: ledgerOf(base), deaths: base.deaths.join() };
+    base.restore();
+    const run = replay('valorant-session-abyss-unrated.json',
+      { edit: (f) => (MIS.includes(f.t) ? Object.assign(f, { teamScore: 0, enemyScore: 0 }) : f) });
+    run.restore();
+    const resets = run.lines.filter((l) => /new match detected|never seen ending/.test(l));
+    const refused = run.lines.filter((l) => /ignoring backwards scoreboard read: round 10 -> 1$/.test(l)).length;
+    ok(!resets.length && refused === MIS.length && ledgerOf(run) === want.ledger && run.deaths.join() === want.deaths,
+      `five 0 to 0 misreads over its 144 s with no score read, 24 to 31 s apart, are five reads refused and no new match: `
+      + `its 24 rounds and their deaths as the AI log's reads give them (${refused} refused; ${resets.join('; ') || 'no reset'})`);
   }
 
   // ── Read latency changes nothing ──────────────────────────────────────────

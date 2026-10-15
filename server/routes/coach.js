@@ -390,7 +390,13 @@ BEFORE you name one, check the ability bar in THIS frame: bright means ready, di
 // the player's genuine first death was rejected twice: the tells on those frames
 // were "own HP 19 and Sova abilities bottom center" and "LOST TEAM ELIMINATED
 // and KILLED BY SAGE top right", and the old pattern matched neither.
-const SPECTATE_TELL = /\bspectat(e|es|ing|or)\b|\bswitch player\b|\bkill ?cam\b|\bdeath ?recap\b|\bcombat report\b|\bobserver\b|\byou died\b|\bkilled by\b|\bteam eliminated\b|\bteammate\b[^.]{0,24}\bhp\b|\bwatching (a |your )?teammate\b|\bteammate'?s? (name|loadout)\b/i;
+//
+// "spectat" carries no word boundary, as the client's does not (8.4.3): with
+// them this copy read "spectating" and "spectator" and missed "spectated",
+// which variant b of the read prompt wrote on four reads ("belongs to the
+// spectated teammate") that the client counted. test-spectate.js holds every
+// form of the word alike on both copies, the counter's among them.
+const SPECTATE_TELL = /spectat(?:e|es|ing|or)|\bswitch player\b|\bkill ?cam\b|\bdeath ?recap\b|\bcombat report\b|\bobserver\b|\byou died\b|\bkilled by\b|\bteam eliminated\b|\bteammate\b[^.]{0,24}\bhp\b|\bwatching (a |your )?teammate\b|\bteammate'?s? (name|loadout)\b/i;
 
 // THE ONE SCREEN A LIVING PLAYER ALSO OPENS. Everything else the model reports
 // spectating is a person or the spectator interface itself, which is exactly the
@@ -409,8 +415,63 @@ const SPECTATE_FALSE_FRIEND = /\bspectat(?:e|es|ing|or)\s+(?:the\s+)?(?:score\s?
 // Sunset swiftplay the model wrote it as "Spectating 1 top right" on a round
 // won banner, and a death registered in a round Riot has the player surviving.
 // Taken for a spectator tell here, it drops a health number the player's own
-// HUD printed beside it.
-const SPECTATOR_COUNT = /\bspectators\b|\bspectat(?:e|es|ing|or)\s*:?\s*\d{1,2}(?![\w/])|\b\d{1,2}\s+spectators?\b|\bspectators?\s+(?:count|counter|number|icon)\b/i;
+// HUD printed beside it. "Spectated 1" and "spectated by 1" are the counter too
+// (8.4.3), as the client reads them.
+const SPECTATOR_COUNT = /\bspectators\b|\bspectat(?:e|es|ing|or)\s*:?\s*\d{1,2}(?![\w/])|\bspectated(?:\s+by)?\s*:?\s*\d{1,2}(?![\w/])|\b\d{1,2}\s+spectators?\b|\bspectators?\s+(?:count|counter|number|icon)\b/i;
+
+// What only the death screen prints, which outranks both false friends above.
+const DEATH_SCREEN_WORDS = /\bswitch player\b|\bkill ?cam\b|\bcombat report\b|\bkilled by\b|\bteam eliminated\b/i;
+
+// A DEATH WORD ITS OWN CLAUSE NEGATES IS NO DEATH WORD (8.4.3), mirrored the
+// same way from spectate-tells.js affirms, which says why. Variant b of the
+// read prompt wrote "SWITCH PLAYER not shown" and "no SWITCH PLAYER or KILLED
+// BY printed" on living players in a buy phase, and the spectator rule in
+// mapState took each for the death screen and dropped the health their own
+// HUD printed. A death word counts only where its own clause (to a comma, a
+// full stop, a semicolon or a bar) does not negate it: "no", "not", "without",
+// "never", "neither" or "nor" right before it, or "not shown", "not printed",
+// "not visible", "not on screen", "absent", "missing" or "hidden" right after
+// it, at most two words for what it is or "is" between; two joined by "or" or
+// "nor" share one negation. "SWITCH PLAYER bottom left, no own HP" and "KILLED
+// BY Sage, no own health" still say it: that "no" is the health's.
+const DEATH_WORD = /^(?:spectat|switch player|kill ?cam|death ?recap|combat report|killed by|observer|you died|team eliminated|respawn)/i;
+const NEGATED_BEFORE = /\b(?:no|not|without|never|neither|nor)\s+$/i;
+const NEGATED_AFTER = /^\s+(?:(?:text|prompt|panel|banner|label|button|message|screen|is|are|was|were)\s+){0,2}(?:not\s+(?:shown|printed|visible|on\s+screen)|absent|missing|hidden)\b/i;
+const OR_JOINED = /^\s+(?:or|nor)\s+$/i;
+const EVERY = new WeakMap();   // each word list's global twin, made once
+
+/** Does the tell say one of re's words, a death word its own clause negates left out? */
+function affirms(re, tell) {
+  const t = String(tell || '');
+  if (!t || t.search(re) < 0) return false;
+  let every = EVERY.get(re);
+  if (!every) {
+    every = new RegExp(re.source, `${re.flags.replace('g', '')}g`);
+    EVERY.set(re, every);
+  }
+  const words = [];
+  for (const m of t.matchAll(every)) {
+    if (!m[0]) continue;
+    if (!DEATH_WORD.test(m[0])) return true;
+    const from = m.index;
+    const to = from + m[0].length;
+    const head = t.slice(0, from);
+    const before = head.slice(Math.max(head.lastIndexOf(','), head.lastIndexOf('.'), head.lastIndexOf(';'), head.lastIndexOf('|')) + 1);
+    // To the end of its own clause, the rest of a cut word ("spectat|ing") left out.
+    const tail = t.slice(to).replace(/^\w+/, '');
+    const end = tail.search(/[,.;|]/);
+    const after = end < 0 ? tail : tail.slice(0, end);
+    words.push({ from, to, neg: NEGATED_BEFORE.test(before) ? 1 : (NEGATED_AFTER.test(after) ? -1 : 0) });
+  }
+  // "or" and "nor" carry a negation on: forwards from one before, back from one after.
+  for (let i = 1; i < words.length; i++) {
+    if (!words[i].neg && words[i - 1].neg === 1 && OR_JOINED.test(t.slice(words[i - 1].to, words[i].from))) words[i].neg = 1;
+  }
+  for (let i = words.length - 2; i >= 0; i--) {
+    if (!words[i].neg && words[i + 1].neg === -1 && OR_JOINED.test(t.slice(words[i].to, words[i + 1].from))) words[i].neg = -1;
+  }
+  return words.some((w) => !w.neg);
+}
 
 // A RATE LIMIT IS NOT AN EMPTY WALLET, and it says so in words that overlap.
 // Rate-limit bodies routinely mention "quota", which the wording test above
@@ -1779,9 +1840,11 @@ function mapState(s, opts) {
   // So when the tell says spectating, the tell wins and the health number is
   // DROPPED rather than reassigned, because it belongs to somebody else and a
   // teammate's health passed off as the player's is worse than no reading.
-  if (out.aliveTell && SPECTATE_TELL.test(out.aliveTell)
+  // A death word the tell's own clause negates ("SWITCH PLAYER not shown")
+  // says nothing (affirms, 8.4.3).
+  if (out.aliveTell && affirms(SPECTATE_TELL, out.aliveTell)
       && !((SPECTATE_FALSE_FRIEND.test(out.aliveTell) || SPECTATOR_COUNT.test(out.aliveTell))
-           && !/\bswitch player\b|\bkill ?cam\b|\bcombat report\b|\bkilled by\b|\bteam eliminated\b/i.test(out.aliveTell))) {
+           && !affirms(DEATH_SCREEN_WORDS, out.aliveTell))) {
     if (out.playerAlive !== false || out.playerHp != null) {
       console.log(`[coach] spectator tell beats the health number: "${out.aliveTell}"`
         + ` (reported alive:${out.playerAlive} hp:${out.playerHp})`);
@@ -3706,6 +3769,9 @@ module.exports.buildContextPrompt = buildContextPrompt;
 module.exports.__test = {
   checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,
   benchModel, readVariant, TELL_MAX, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,
+  // The spectate vocabulary's mirror, which test-spectate.js holds equal to
+  // src/shared/spectate-tells.js.
+  affirms, SPECTATE_TELL, DEATH_SCREEN_WORDS,
   // The provider calls themselves, for the tests of what a call sends, what it
   // is booked at and how its data policy falls back. Made outside a request a
   // call is booked and counted under 'other' with no licence; asRoute runs one

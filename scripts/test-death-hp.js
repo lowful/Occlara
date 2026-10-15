@@ -190,6 +190,15 @@ console.log('\nthe SPECTATORS counter is a living player\'s HUD:');
   f.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal', roundNumber: 4 });
   f.updateMatchContext({ phase: 'dead', playerAlive: false, aliveTell: 'SPECTATORS 1 top right and Sova abilities' });
   check('  beside a teammate\'s kit, the counter is no proof on one frame', f.lastDeathAt === 0);
+  // In another form of the word (8.4.3): the player being watched, at 99 with
+  // their own gun. Read as a spectator screen, the spectate guard dropped the
+  // health and the tell proved a death on one frame.
+  for (const tell of ['Spectated 1 top right', 'spectated by 1 top right']) {
+    const g = alivePlayer();
+    g.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 99, playerWeapon: 'Vandal', aliveTell: tell });
+    check(`  "${tell}" is the counter too: no death, the health kept`, g.lastDeathAt === 0 && g.matchContext.playerAlive === true
+      && g.matchContext.playerHp === 99, `death ${g.lastDeathAt > 0}, alive ${g.matchContext.playerAlive}, hp ${g.matchContext.playerHp}`);
+  }
 }
 
 console.log('\na death on a weak tell is judged by the read after it:');
@@ -279,6 +288,54 @@ function weakDeath() {
   late.updateMatchContext({ phase: 'active', playerAlive: true, playerHp: 100, playerWeapon: 'Vandal',
     aliveTell: 'own HP 100 and Vandal bottom left' }, t + 181000);
   check('  a read three minutes after the death judges nothing: it stands', stands(late));
+}
+
+// Variant b of the read prompt wrote "SWITCH PLAYER not shown" and "no SWITCH
+// PLAYER or KILLED BY printed" on living players in a buy phase (8.4.3).
+console.log('\na death word its own clause negates is no death word:');
+{
+  const e = alivePlayer();
+  e.updateMatchContext({ phase: 'active', playerAlive: false, aliveTell: 'SWITCH PLAYER not shown, own HP not visible' });
+  check('  "SWITCH PLAYER not shown" is no proof: the dead read waits for a second', e.lastDeathAt === 0 && e.matchContext.playerAlive === true,
+    'the negated word proved a death on one frame');
+  const n = alivePlayer();
+  n.updateMatchContext({ phase: 'active', playerAlive: false, aliveTell: 'no SWITCH PLAYER or KILLED BY printed, COMBAT' });
+  check('  nor is "no SWITCH PLAYER or KILLED BY printed"', n.lastDeathAt === 0 && n.matchContext.playerAlive === true);
+  const s = alivePlayer();
+  s.updateMatchContext({ phase: 'active', playerAlive: false, aliveTell: 'SWITCH PLAYER bottom left, no own HP' });
+  check('  where the "no" is the health\'s, SWITCH PLAYER proves it at once', s.lastDeathAt > 0 && s.matchContext.playerAlive === false);
+  const k = alivePlayer();
+  k.updateMatchContext({ phase: 'active', playerAlive: false, aliveTell: 'KILLED BY Sage, no own health' });
+  check('  and so does KILLED BY', k.lastDeathAt > 0 && k.matchContext.playerAlive === false);
+  // The proof's "spectat" ends inside the word, so its clause is read past the
+  // rest of it, as the spectator rule reads "spectator": both call this none.
+  const c = alivePlayer();
+  c.updateMatchContext({ phase: 'active', playerAlive: false, aliveTell: 'spectator screen not shown, own HP not visible' });
+  check('  nor is "spectator screen not shown", read past the rest of the word', c.lastDeathAt === 0 && c.matchContext.playerAlive === true,
+    'the proof read "or screen not shown" after its "spectat" and proved a death on one frame');
+
+  // Proven by "Spectating", it is on trial: what the death screen prints is
+  // negated, so the read after it can withdraw it.
+  const stands = (x) => x.matchMemory.some((l) => /Player died/.test(l));
+  const w = new CoachingEngine({});
+  w.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3 });
+  w.updateMatchContext({ phase: 'postplant', playerAlive: false, teamScore: 1, enemyScore: 3,
+    aliveTell: 'Spectating teammate, SWITCH PLAYER not shown' });
+  check('  a death read on "Spectating" beside a negated SWITCH PLAYER registers', w.lastDeathAt > 0);
+  w.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3,
+    aliveTell: 'own HP 100 bottom center and Ghost bottom right' });
+  check('  on a weak tell: the player\'s own HUD as it stood withdraws it', !stands(w) && w.matchContext.playerAlive === true,
+    'the negated SWITCH PLAYER was taken for the death screen, which no read can withdraw');
+  // And the read that judges a weak death says "SWITCH PLAYER not shown"
+  // beside the player's own HUD as it stood: their HUD, not the spectator's.
+  const j = new CoachingEngine({});
+  j.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3 });
+  j.updateMatchContext({ phase: 'postplant', playerAlive: false, teamScore: 1, enemyScore: 3,
+    aliveTell: 'Spectating teammate, own HP not shown, Ghost and abilities b' });
+  j.updateMatchContext({ phase: 'postplant', playerAlive: true, playerHp: 100, playerWeapon: 'Ghost', teamScore: 1, enemyScore: 3,
+    aliveTell: 'own HP 100 and Ghost bottom right, SWITCH PLAYER not shown' });
+  check('  the read after it, its own HUD as it stood and SWITCH PLAYER not shown, withdraws it', !stands(j) && j.matchContext.playerAlive === true,
+    'the negated SWITCH PLAYER read as the spectator screen and the death stood');
 }
 
 console.log(`\n${fail ? 'FAIL' : 'PASS'}: ${pass} passed, ${fail} failed`);

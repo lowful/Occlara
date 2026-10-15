@@ -297,7 +297,59 @@ the review it opened is withdrawn from the review page and the library. A real
 session ended a competitive match at 3 to 5 in round 9, ignored the rest as the
 end screen, and stopping at 12 to 7 reviewed nothing. A new match the watch
 never saw the last one end (a remake, an unrated 13-12 with no menus read)
-closes the last one into the library, never opened over the new one.
+closes the last one into the library, never opened over the new one. It is
+believed on time, not reads (8.4.3, `newMatchRun`): 0 to 0, 1 to 0 or 0 to 1
+read over ten seconds, first such read to the latest, on three reads at least,
+with no read of the held score or a higher one between them; once the watch
+has ended the match, one read. Two reads in a row from round 5 were enough,
+and at a read a second they are one moment read twice: on the bench the live
+read prompt read the Fracture's round 5, 4 to 0 printed plainly, as 0 to 0
+three times in two seconds, which closed the match into the library at round 5
+and filed the rest of it as a new match (`test:sessionreplay` lays those
+replies over the AI log's reads of the same frames). A real new match spends
+45 seconds in its first buy phase at 0 to 0, and what the wait filed into the
+old match's ledger (the new match's reads with no score of their own, at the
+old one's held score) comes off it again: filed, a buy read there was a round
+bought at 13 to 12 that nobody played (`test:newmatch`, `test:scoreguards`).
+The frames of the count that is believed are the new match's, and they are
+filed into its ledger then, each at the low score it read (or the last one
+read before it) and with no side, since the old match's side lock held their
+side meanwhile: held and filed nowhere, a death read in them was lost, and a
+remake whose reads began in its round 1, its buy phase paused through, lost
+the death seven seconds in at a read every 1, 2 and 3 seconds
+(`test:readpolicy`). Frames from before the wait last started again are not
+among them, a death of the old match included (`test:scoreguards`). Their AI
+log records were written as they came, under the old match's stamp and its
+last round, so a look at a death among them finds no frame of that round
+before the belief. And the closed match is reviewed on its context as the wait
+began, its map, mode and agent: the next match's reads go on landing in the
+live context meanwhile, two of another map correct a map the model's reads
+hold, and the closed match took the next one's map, which the link then
+refused its own match for. A Stop while the wait counts reviews the old match
+the same way, its own rounds (none bought by the low reads the wait held) on
+its context as the wait began, and only its score the live one, the guards'
+own, which no read of the next match moves and a final adopted at the Stop
+sets: reviewed on the live context, a Stop two reads into the next match took
+that match's map (`test:scoreguards`). And all of it within thirty seconds of
+the wait's first read (`NEW_MATCH_WITHIN_MS`): the first read past that
+starts the wait again when it is a low one, and ends it when it is not. A
+read with no score of its own never ends a wait, and a real session goes
+minutes without one: over the Abyss match's 144 seconds with
+none, two rounds and fifteen reads, 0 to 0 laid on five of them 24 to 31
+seconds apart was a new match on the third, the match closed into the library
+at round 10 (`test:sessionreplay`). What the wait kept of the old match stays
+when it starts again, until the held score is read again: a shop held half a
+minute splits a real new match's first low reads, and taken again there, the
+old match was reviewed on the next one's map with a round 27 bought at 13 to
+12 (`test:scoreguards`). A new match's first buy phase is read every 5 seconds
+at the slowest (the slowest capture speed, or the buy phase asleep), so it is
+believed on its third read, ten seconds after its first: `test:readpolicy`
+runs its remake at every capture speed through the real engine and its
+cadence, believed 10 to 12 seconds after its first low read (12 at a read
+every 3 seconds) with its own round 1 in its ledger; the remake, the unrated
+13-12 and every new match `test:newmatch` held before the bound are believed
+on the same read as without it; and `test:newmatch` holds both edges, 30
+seconds inside it and 31 past it.
 `npm run test:sessionreplay` replays that session and four others through the
 real engine, deaths checked against Riot's record. A match ended early that
 never resumed, that 8.0.1 review among them, is Riot's record's to put right
@@ -2103,6 +2155,62 @@ the live prompt with its alive and clock lines given the judge's word for
 word, who may ask for it and its cap, and `test:benchsession` the bench's
 flag for c.
 
+**The bench that decides it reads as the app reads** (8.4.3,
+`bench-read.js --engine`, `scripts/read-score.js`, `npm run bench:sessions`).
+verify:ai sends each frame the server's own replies merged raw, so a misread
+fed back stays fed back: on both Fracture runs of b's bench a 0 to 0 read
+dropped the score line from the next prompt and the engine's new match rule
+reset the match, and buy frames sent "the player was DEAD on the last frame"
+were read dead 35 to 50% of the time against 11 to 19% without it. And it
+scores every session against the Abyss record. `--engine` sends each frame
+what the real engine's `readContext()` gives and applies each reply through
+the engine in capture order as `drain()` does (a failed read skipped, a LOBBY
+a menu), its network stubbed and its clock the frame's capture time
+(`AppReader`, started as the app starts it, no heartbeat, no agent detection,
+so no agent, as for a player who never confirms one); `--lag N` sends frame k
+the context once the replies up to k - N are applied; each trace line keeps
+the reply as sent and what the frame was `sent`; `--gate` is refused beside
+it. Without the flag nothing moves: `test:benchsession` holds the default run,
+verify:ai and `--lag 4` to 8.4.2's requests, table and trace byte for byte over
+a scripted session, and `--engine` to an engine of the test's own. It reads
+every frame the log kept, where the app's read cadence would skip some.
+`read-score.js` is the judge's scorer made reusable: each round's barrier
+drop from every run's clocked reads of its frames (one vote a frame and clock),
+numbered by the score most runs read there; Riot's death the drop plus Riot's
+milliseconds, or the whole second the Sunset's and the Fracture's reviews kept
+(`riot-sunset-2-5.json`, `riot-fracture-5-1.json`: rounds, sides, results,
+death seconds, agents and plants, `wholeSeconds`); a death caught from 5 s
+before it to the next buy phase and still standing, one the next read withdrew
+no catch, the rest invented; and per run the false plants, LOBBY replies, buy
+frames read dead of those judged, parse, labels, p50, p90 and the rounds one
+by one. Every run is replayed on the guards of the day, so its numbers move
+with them. On b's traces of 14 Oct it gives the judge's numbers exactly, ten
+runs and three AI logs, and from the AI log's reads alone it puts Riot's deaths
+within 0.6 s of the Sunset's clips and the Fracture's recording looks
+(`test:readscore`, which also scans every Riot record here for a player name,
+a puuid or a tag). `npm run bench:sessions` SPENDS MONEY and spends nothing
+without `--go`: it prints every run, its reads, the cost at the two prices seen
+($0.00033 a read, $0.00012 after OpenRouter moved the read at about 23:08 UTC
+on 14 Oct) and the time. With it the candidates' verify:ai goes first, plain
+and at `--lag 4` (its verdict read off its printed line), then runs of live
+and c in turn over the sessions, `--engine` each, every run its own process
+costed exactly from the licence's read spend in `/api/admin/costs` before and
+after, stopping before the next run on a prompt not served, a refused read
+(401, 402, 403, 429), over 5% failed, a run that read fewer frames than its
+session has (it died part way, and is scored as no run), a data policy
+fallback, a restart or the `--max-usd` cap; then every whole run is scored
+together and the judge's terms are checked and printed (`acceptance`: the
+judge's bench first, three whole runs of each prompt on each of the four
+sessions with every run done, so a bench that stopped, on its last run as
+on any other, or ran fewer replaces nothing; then no death live caught in
+most runs caught in half or fewer of the candidate's, invented deaths,
+plants and LOBBY at or under live's mean, buy frames read dead under live's
+in every session, both gates passed, a read's cost within a tenth). The
+default, three runs of each on the
+four sessions, is 26 runs and 9,576 reads: about $3.16 and 6.4 hours at the
+first price, $1.15 and 2.7 hours at the second. `test:benchsession` runs it
+offline against a stand in for the server.
+
 ## Do not simplify the guards
 
 `coaching-engine.js` contains deterministic checks that **deliberately override
@@ -2235,6 +2343,53 @@ one. The counter is no spectator screen and no proof, and a dead read whose
 only evidence it is is dropped, not waited on, unless the death screen or
 another strong signal (a teammate's kit, the kill feed's KILLED BY) is beside
 it.
+
+**Every form of the word reads alike on both copies** (8.4.3). The client
+reads "spectat" with no word boundary; the server's copy, between word
+boundaries, read "spectating" and "spectator" but not "spectated", which
+variant b of the read prompt wrote on four reads of the bench ("belongs to the
+spectated teammate"), a spectator screen to the client and none to the server.
+It reads the word as the client does now, and `test:spectate` holds a tell of
+every form equal on both copies (spectate, spectated, spectates, spectating,
+spectator, spectators, b's four verbatim), the counter's forms the counter on
+both, and each copy's own list word for word over every tell it holds, so a
+word one list reads and the other does not fails it even where the counter
+hides the difference. The counter's number follows any form of the word:
+"Spectated 1 top right" and "spectated by 1" are the player being watched,
+and with the number read only after "spectate", "spectates", "spectating" and
+"spectator", both copies took them for a spectator screen and the client's own
+guard dropped a living player's 99 and proved a death on one frame
+(`test:spectate`, `test:deathhp`). "The spectated teammate" with a number
+further on is still the screen. No read the bench or the AI logs kept writes
+"spectated" before a number; every one is the dead player's view of a
+teammate.
+
+**A death word the tell's own clause negates is no death word** (8.4.3,
+`affirms`, in both copies; the engine's `DEAD_TELL` and `DEATH_SCREEN` and the
+cadence's are read through it). On the bench of the player's four sessions,
+variant b of the read prompt wrote "SWITCH PLAYER not shown", "SWITCH PLAYER
+not printed" and "no SWITCH PLAYER or KILLED BY printed", nine reads, eight of
+them a living player in a buy phase, and both copies took the words for the
+screen. So a death word (spectating, SWITCH PLAYER, KILLED BY, the COMBAT
+REPORT, a killcam, a death recap, YOU DIED, TEAM ELIMINATED, observer,
+respawn) counts only where its own clause, to a comma, a full stop, a
+semicolon or a bar, does not negate it: "no", "not", "without", "never",
+"neither" or "nor" right before it, or "not shown", "not printed", "not
+visible", "not on screen", "absent", "missing" or "hidden" right after it, at
+most two words for what it is ("text", "prompt", "panel") or "is" between; two
+joined by "or" or "nor" share one negation. The "no" of "SWITCH PLAYER bottom
+left, no own HP" and "KILLED BY Sage, no own health" is the health's, and the
+word stands. A tell is weighed word by word, never dropped whole for one
+negated word: seven of the nine still print KILLED BY and the COMBAT REPORT,
+which stand, and one of them, "KILLED BY PHOENIX and COMBAT REPORT panel
+printed, SWITCH PLAYER not visible", is the Abyss match's round 20 death. Over
+the bench's ten runs, the AI logs and the committed session fixtures, 6,797
+reads with a tell, the rule moves two, both b's on the Split, and replayed
+through the real engine every run and AI log registers and files each frame
+as it did; the live prompt wrote no such tell. `test:spectate` holds the two
+copies equal on the nine and on every committed fixture's tell,
+`test:serverguards` the read route, `test:deathhp` the engine's proof, its
+trial and the read that judges it, and `test:readpolicy` the cadence.
 
 ## League records in silence and coaches afterwards
 
