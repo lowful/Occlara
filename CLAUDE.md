@@ -2781,6 +2781,48 @@ sidebar with saved reviews in it. A dropped colour declaration, an unshipped
 font weight and a stretched logo all pass every automated check in this repo
 and are obvious in a picture.
 
+## CI runs every check, the window checks included
+
+`.github/workflows/ci.yml` runs `npm test` on every push and pull request on
+ubuntu-latest. Until 13 Oct 2026 it skipped the Electron download, on the
+belief that the suite only require()s plain modules, so the twelve check:*
+scripts that boot the real app all failed on "Electron failed to install
+correctly" and the job was red on every push from at least 27 Sep, which hid
+whatever else broke. Each thing the job now gives the window checks was found
+by a red run:
+
+- **The Electron binary**: `npm ci` with no `ELECTRON_SKIP_BINARY_DOWNLOAD`.
+- **Chromium's sandbox**: Ubuntu 24.04's AppArmor refuses unprivileged user
+  namespaces, which the sandbox needs, so the job sets
+  `kernel.apparmor_restrict_unprivileged_userns=0`.
+- **A screen and a window manager**: the suite runs under `xvfb-run` at
+  1920x1080x24 with openbox started inside it, because without a window
+  manager a window cannot be minimised and check:mainwindow minimises one.
+- **A version electron-updater accepts.** A check boots Electron on a bare
+  script, so the app reports its executable's own version: Electron's release
+  on Windows and macOS, "0.0" on Linux. electron-updater throws on "0.0" as
+  `src/main/updater.js` loads, and on Linux the app stopped at index.js's
+  require of it, before a single handler was registered: six checks failed on
+  that alone ("LEARN_GET never registered", `ipcMain._invokeHandlers.get(...)
+  is not a function`, a stored game of Marvel Rivals still "rivals" after
+  launch). `scripts/fixtures/electron-version.js` gives Linux what the other two
+  report. **A new window check that loads anything from `src/main` requires
+  `./fixtures/electron-version` in its Electron half, right after
+  `require('electron')`**, or it fails in CI only.
+- **No GPU, so two checks are skipped there.** The recorder records only on a
+  hardware H.264 encoder, by design (the gate in
+  `src/renderer/recorder/recorder.js`), and a runner has none, so the job sets
+  `OCCLARA_NO_GPU=1` and `run-all.js` skips check:clips and check:recorder,
+  printing the reason with every other skip before the first check runs. On a
+  PC nothing is skipped, so those two are proved on a PC alone: run `npm test`
+  on one before a release.
+- **A 30 minute cap**, so a check that never quits cannot hold the runner for
+  the six hour default.
+
+A test that hard codes one platform's paths fails there too: test:pccheck
+asserted Windows drive letters on every platform, and now asserts them on
+Windows and the null `driveOf` really returns on macOS and Linux.
+
 ## Releases
 
 Built with electron-builder and updated via electron-updater. Installers are
