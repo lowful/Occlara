@@ -265,6 +265,10 @@ header {
 }
 .v-focus-text { font-size: 13.5px; font-weight: 600; line-height: 1.5; color: var(--text); margin: 0; }
 
+/* Both team comps (8.5.0): one quiet line under the legend, agents only. */
+.v-comps { margin: var(--space-1) 0 0; font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+.v-comps[hidden] { display: none; }
+
 /* What the numbers say about the rounds, under the strip they describe:
    plain lines, since the rows under them are the list. */
 .v-patterns { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }

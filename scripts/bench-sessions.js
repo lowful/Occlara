@@ -178,31 +178,44 @@ async function getJson(url, headers) {
   return resp.json();
 }
 
-/** The read route's spend of one period's view, or zeros. */
-const readOf = (v) => {
-  const r = v && v.routes && v.routes.read;
+/** One route's spend of one period's view, or zeros. */
+const routeOf = (v, route) => {
+  const r = v && v.routes && v.routes[route];
   return { calls: r ? r.calls : 0, real: r ? r.real : 0, estimated: r ? r.estimated : 0, cost: r ? r.cost : 0 };
 };
+const readOf = (v) => routeOf(v, 'read');
 
-/** /health and /api/admin/costs as one snapshot: the licence's own read spend, the data policy, the boot. */
+/**
+ * /health and /api/admin/costs as one snapshot: the licence's own read spend,
+ * the server's bench spend, the data policy, the boot. Since 8.5.0 a read
+ * naming a variant or a bench model beside the admin password, the
+ * candidate's, is booked under 'bench' with no licence (coach.js benchCall),
+ * so the licence's row holds only the live prompt's reads; a server from
+ * before has no bench route, and its zeros change nothing.
+ */
 async function snapshot() {
   const health = await getJson(`${SERVER}/health`);
   const costs = await getJson(`${SERVER}/api/admin/costs`, { 'x-admin-password': ADMIN });
   const mine = (costs.topUsers || []).find((u) => u.user === licenceHash) || null;
   const sum = (o) => Object.values(o || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+  const spend = costs.spend || null;
   return {
     asOf: costs.asOf || new Date().toISOString(), since: costs.since, startedAt: health.startedAt || null,
     readModel: health.readModel || null,
     dataPolicy: { mode: health.dataPolicy ? health.dataPolicy.mode : null, fellBack: sum(health.dataPolicy && health.dataPolicy.fellBack),
       refusedAgain: sum(health.dataPolicy && health.dataPolicy.refusedAgain) },
     own: mine ? { today: readOf(mine.spendToday), month: readOf(mine.spendMonth) } : null,
+    bench: spend ? { today: routeOf(spend.today, 'bench'), month: routeOf(spend.month, 'bench') } : null,
   };
 }
 
 /**
  * What one run cost, from the snapshots either side of it: the licence's month
  * when both have its row in the same month, else its day (a licence with no
- * call yet today has no row, which is a day of zeros), else unknown.
+ * call yet today has no row, which is a day of zeros), else unknown; and the
+ * server's bench route over the same period beside it, where a run naming a
+ * variant or a bench model is booked since 8.5.0. Read off the licence alone,
+ * such a run cost $0 and the --max-usd stop never came.
  */
 function costBetween(a, b) {
   const r6 = (x) => Math.round(x * 1e6) / 1e6;
@@ -216,8 +229,12 @@ function costBetween(a, b) {
   if (a.own && month(a) === month(b)) { from = a.own.month; to = b.own.month; basis = 'month'; }
   else if (day(a) === day(b)) { from = a.own ? a.own.today : readOf(null); to = b.own.today; basis = a.own ? 'day' : 'day, from no row'; }
   if (!from || restarted) return { known: false, restarted, why: restarted ? 'the server restarted, its ledger with it' : 'the run crossed a month with no row before it' };
-  return { known: true, restarted, basis, calls: to.calls - from.calls, real: r6(to.real - from.real), estimated: r6(to.estimated - from.estimated),
-    usd: r6(to.cost - from.cost), fellBack: b.dataPolicy.fellBack - a.dataPolicy.fellBack, refusedAgain: b.dataPolicy.refusedAgain - a.dataPolicy.refusedAgain };
+  const period = basis === 'month' ? 'month' : 'today';
+  const benchFrom = (a.bench && a.bench[period]) || routeOf(null, 'bench');
+  const benchTo = (b.bench && b.bench[period]) || routeOf(null, 'bench');
+  const both = (k) => (to[k] - from[k]) + (benchTo[k] - benchFrom[k]);
+  return { known: true, restarted, basis, calls: both('calls'), real: r6(both('real')), estimated: r6(both('estimated')),
+    usd: r6(both('cost')), fellBack: b.dataPolicy.fellBack - a.dataPolicy.fellBack, refusedAgain: b.dataPolicy.refusedAgain - a.dataPolicy.refusedAgain };
 }
 
 /** One bench-read.js process, its output to a file beside its trace. */

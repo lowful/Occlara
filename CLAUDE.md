@@ -41,7 +41,10 @@ What still counts as "reaching the screen", and is sealed mid match:
   played.
 - The AI log seals the live session (`liveLogSealed`), because an open log on a
   second monitor is a live feed of the match by another name. Frame chat refuses
-  it, and Ask Coach gets no match memory and no review context mid match. A
+  it, and Ask Coach answers nothing mid match: the question is refused before
+  any request is made (8.5.0, `ask-coach.js`, `MID_MATCH`), its one time fill
+  waits, and a review saved after a stop mid match is held from it (below,
+  "Ask Coach knows the match it is asked about"). A
   review's eye (below) does nothing mid match, and its read of one match is
   sealed the same way when that match is in the live session. The seal is
   decided on the session a read would serve, never the id asked for, and an id
@@ -478,6 +481,61 @@ The feed that leaves the server carries sides and times and never a name. On
 the real Abyss match: traded once in 21 deaths, and six rounds lost after the
 player died with the team ahead in numbers.
 
+**Since 8.5.0 it says who by agent, still never by name** (`riot-rounds.js`).
+Each kill of the feed carries the killer's agent, the victim's and the gun
+(`ka`, `va`, `w`: the roster's agent by puuid or name and tag, none for a
+player the roster lacks, the gun by `weaponOf`, never its type), the reply
+carries both team comps (`comps: { us, them }`, each `{ agent, role }` with the
+role from the game data, sorted by agent, a player with no agent left out),
+and its `shape` goes one level deeper, key names only: a round's per player
+stats and their economy, damage events and ability casts, the plant and the
+defuse, a kill's weapon, location and players' locations, a player's economy
+and stats, the metadata and a team, any key that is a word of a player's name,
+tag or id left out. A client from 8.5.0 writes the shape to its debug log on
+each link (`index.js riotRoundsFor`): below the top level the only live
+evidence of HenrikDev's v4 record was four key lists. Every client ignores what
+it does not read (`test:trackerroutes`, `test:valorantreview`).
+
+**And a review linked by 8.5.0 keeps the round in order** (`valorant-verify.js
+reconcile` and `killFeedOf`, `valorant-review.js build`, `riot-review.js`):
+each card's Riot facts gain the round's kill feed (`{ ms, by, on }`, with `ka`,
+`va` and `w` only where they are an agent the game data knows and what it says
+can kill, a gun, the knife or an ability by its kit name, so a name a server
+sent in their place is kept as none), the plant's time (`plantSec`) and its
+site, and the review both comps (`comps`, the game data's agents and roles,
+sorted again), from the live link, Riot's record alone and the backfill's
+upgrade in place, which keeps the comps Ask Coach's fill kept where the record
+sends none. That is the shape the fill stores, by the same function, so a
+review linked by 8.5.0 is never filled (`test:chatcontext`, `test:riotreview`).
+The row's own field is `riotPlantMs`, never `plantMs`, which is
+death-frames.js's: it times a post plant death only once `withRiotTimes` hands
+it Riot's milliseconds for the look, and carried on every reconciled round it
+moved the frames the picker chose for one (`test:grade`, round 6). A review
+saved before keeps no feed and is filled once (below, "Ask Coach").
+
+**The match's name set stays on the server** (8.5.0, `riot-rounds.js
+noteNames`, `nameSetOf`). Every word of every player's name and tag in a
+match `/match-rounds` fetched, lower case, the game's own words, plain English,
+the name gate's own plain words of play and the gear (a player called "Behind
+Cover" with the tag "Angle" took every look line saying "fall back behind
+cover" or "staying on the angle" with them), digits and words under three
+letters skipped, each hashed with a key made at
+boot (`crypto.randomBytes`), kept by match id for a day, 500 matches at most.
+`nameSetOf(matchId)` hands out something that answers `has(text)` (any word of
+the text one of a player's) and holds nothing it could print, to the name
+gates of the look (`input.names`), the review and Ask Coach for that match
+alone, by the match id an 8.5.0 client sends; no reply, log line or file ever
+carries it, and after a restart only the gates' own rule runs.
+
+**A fill waits its turn on the shared HenrikDev key** (8.5.0, `coach.js
+fillRefused`). A `/match-rounds` request marked `purpose=fill` (Ask Coach's one
+time fill of a review saved before the reply carried the feed, and later Phase
+D's) goes upstream only when no HenrikDev request was turned away with a 429
+in the last two minutes and fewer than ten fills went upstream in the last
+minute, server wide; otherwise it is a 503 with retry, which the fill asks
+again on the next open. One the reply cache answers costs the key nothing and
+is served. Live links and the backfill never wait (`test:trackerroutes`).
+
 Three things the model got wrong on the verified prompt, each fixed in code
 rather than asked for: it explained rounds 2 to 11 of 24 (`teachable()` picks
 the rounds, one per third first), it named the wrong killer (`namesKiller()`
@@ -639,7 +697,8 @@ before the death and lost the fight and the death screen.
 - **Unclear carries no sentences.** On the bench every unclear answer came with
   a sentence about the frame itself.
 - Every sentence passes the map gate (a callout from another map), the ability
-  gate (another agent's ability, unless its owner is named) and the killer gate.
+  gate (another agent's ability, unless its owner is named), the killer gate
+  and, since 8.5.0, the name gate (below).
 - Without a death moment the frame picker wants a full two seconds of margin
   before Riot's second, because the clock is read to the second and a
   same-second frame showed the combat report instead of the fight.
@@ -651,6 +710,145 @@ before the death and lost the fight and the death screen.
   (`--timed`): 1 confident wrong cause in 36 looks against Luna's 7, the R3
   fight in Mid Library found 12 of 13 times against 0, no overlay copied, at
   about $0.03 a match (the table beside `forensicsModel`).
+
+**Two gates every client gets** (8.5.0, `death-forensics.js parse`):
+
+- **No player is named in a look** (`server/services/name-gate.js`). The look
+  sees KILLED BY, the kill feed and teammates' cards, and a name it copies is
+  saved, shown and handed to the review and Ask Coach. The gate is the
+  client's read rule (`valorant-rounds.js namesSomeone`: a capitalised word no
+  list of the game's knows is a name) with three changes: each sentence's
+  first word is exempt, a word after "teammate" or "ally" counts only when
+  capitalised, and the game's words grow (the keys C, Q, E and X, the modes,
+  the ranks, the roles, the sides, Riot, Valorant, Occlara). As the client's
+  rule stands it called 66 of the 122 look sentences and round lines on record
+  names ("Stay" 16, "Hold" 14, "Take" 8); this calls none, and still catches
+  "You were killed by Morvane with a Vandal." and "Your teammate Tessik was ahead
+  of you." (`scripts/fixtures/look-sentences.json`: the bench's 98 verbatim,
+  the library's 24 retyped as equivalents). A Riot ID or a handle's shape (an
+  underscore inside a word, letters and digits mixed in four or more that are
+  no game form: R5, 4v3, 100hp) counts in any language, first word included,
+  "round #12" never; and so does any word of the match's own players, when an
+  8.5.0 client sent the match id and the server holds that match's name set
+  (`riot-rounds.js nameSetOf`, handed in as `input.names`, which answers
+  has(text) and holds nothing it could print). The capital rule is English's
+  alone: German writes every noun with one, Polish and Turkish put a case
+  ending on an agent's own name; a language code the prompt does not know is
+  asked in English (`promptName`), and read as English. A sentence ends at a
+  full stop, a question, an exclamation mark or a colon, and never at a
+  semicolon, after "vs." or at the colon of "by:" and "to:": split there too,
+  the death screen copied as "KILLED BY: Zorbo" made the name a first word,
+  exempt. The death screen's and the shop's own words reach the capital rule
+  in lower case (`GAME_PHRASES`: COMBAT REPORT, SWITCH PLAYER, SPECTATING,
+  Light, Heavy and Regen Armor or Shields, Headshot, the Clutch, Thrifty and
+  Flawless banners), since a look reads them off its last frame and "The
+  COMBAT REPORT shows you dealt 0 damage." was a name to it; a word of them
+  alone, "Report", still is. None of the 122, nor of the 696 sentences the 13
+  Oct bench:review wrote, turns on either. The sentence is dropped as one
+  naming another map is, logged as "a name", never the name; its plain words
+  are the client's, word for word (`test:forensics` holds the two lists
+  equal).
+- **Isolated is refused on a death Riot records as traded**: the look is
+  unclear, with no sentences, logged by round. "Too far from teammates to be
+  traded" beside Riot's own trade is the screen's word over Riot's.
+
+**Variant b: the fight judged first, the label last** (8.5.0, an admin bench's
+alone until bench A passes, then 8.5.0 and later by `FORENSICS_PROMPT=b`). On
+8.4.3, with five recording stills a death, four of Sol's five speaking looks on
+the player's Fracture and Pearl swiftplays were "Lost the duel", a fair fight
+with nothing to fix, beside a better play saying to fall back after the first
+shots: the reply asked for the cause first and the advice after it. Variant b's
+reply comes in the order it is decided, `{what, fight, better, change, cause,
+alt}`, 400 tokens to a's 320. It judges the fight (`FIGHTS`: right, wrong-spot,
+wrong-time, not-needed, unclear) in place of a's "a fair fight from a sound
+position is lost-duel", writes the better play (a right fight's is about the
+duel, and may say to be ready to step back if the first shots miss), says the
+one thing it changes most (`CHANGES`), and only then picks a cause from that
+judgement's family: right is lost-duel; wrong-spot is isolated, crossfire,
+overextend, exposed or rotating; wrong-time is repeek, dry-peek or rotating;
+not-needed is overextend, repeek, exposed or dry-peek. A Duelist's entry with a
+teammate close enough to trade is no wrong spot on its own. Code holds it:
+
+- a cause outside its fight's family gives way to `alt`, failing both the look
+  is unclear with no sentences, and the conflict is logged by keys alone
+  (`[forensics] R5 conflict: fight right, cause repeek, alt none`; a word off
+  the lists is "unknown", never the model's word);
+- a `change` outside its fight's set is saved as null and the label kept:
+  data for Ask Coach and the bench, never the grade;
+- isolated on a traded death is unclear, as above; unclear carries no
+  sentences; a mistake with no surviving what is unclear, lost-duel excepted.
+
+The look saves `fight`, `change` and `variant` beside its cause (`index.js
+askForensics`, the reply's variant where the look names none, and the card
+keeps them through `valorant-review.js lookJudgement`, each from its closed
+list); one saved with none was asked with a. And it sends Riot's match id
+(Riot's look's own, the scoreboard's for the look from the screen), the key to
+the match's name set on the server, as Riot's review written again does
+(`test:forensics`, `askForensics` run in a sandbox). **No key is added and
+none renamed**: b's words widen repeek to "fought again from the same angle
+after the first exchange or a kill, by staying on it or by peeking it again"
+(`CAUSES_B`; the review keeps quoting
+`CAUSES`), so the Fracture swiftplay's rounds 2, 5 and 6, one lesson under three
+labels, can count as one: "Repeeks, rounds 2, 5 and 6". The client's words and
+fix follow (`death-causes.js`, `insights.js CAUSE_FIX`), true of every repeek
+ever saved; the chip and titles stay Repeek and Repeeks, and an 8.4 client draws
+nothing new. **Who gets which is the route's** (`coach.js forensicsVariant`, by
+the one version gate `clientAtLeast`): a client before 8.5.0 is answered with
+today's prompt and parse byte for byte but for the two gates above, held to
+the look as 8.4.4 shipped it, frozen in `scripts/fixtures/death-forensics-844.js`
+(150 bodies' prompts, 4,740 replies). The module asks with b only when
+`input.variant` is 'b'.
+
+**The phrase lists set no label, in any variant** (`death-forensics.js
+PHRASES`; one list in four copies, the client's in `death-causes.js` and Ask
+Coach's in `fact-gates.js` and `chat-context.js`, held equal regex for regex):
+what a better play says it changes (decision, team, reset and timing, utility,
+the player's own abilities by name, aim), each regex held to a phrase it must
+catch and one it must not. They cannot tell a hedge from a lesson, so they only log a lost
+duel whose better play trips one but aim (`lost-duel better play trips
+reset`), keep a saved lost duel's label from Ask Coach when its better play
+moves the player (`movesPlayer`), and are Ask Coach's fair fight check. On the
+23 lost duels on record (`scripts/fixtures/lost-duel-answers.json`, the bench's
+18 verbatim and the library's 5 retyped) they change no label.
+
+**Bench A runs on the live body** (`npm run bench:forensics -- openai/gpt-6-sol
+--own --key --variant b --runs 5 --costs`, and `--variant a` as the control;
+spends money, about $1.10 a variant, each run stopped at `--budget`, $1.50 by
+default, so the two together stop at bench A's $3). Its set is
+`userData/bench/looks/set.json`, never the repo, written by `scripts/make-look-set.js`
+under Electron: the stills a review kept (Fracture R2, R5, R6, Pearl R1, R4,
+R5, R6), the stills a kept clip holds, decoded at `clips.LOOK_AT` through the
+app's own frames page (the Sunset swiftplay's R2, R3, R6 and R7, recorded on
+8.3.0 before a look took stills, their moments in the clip given with `--at
+l7eesy@2=9.2`: an argument shaped `x:2` makes Electron exit unseen), the
+read's frames where nothing else was kept (the Abyss swiftplay's R2) and the
+Abyss 13 to 11's four from the bench's copy of its session: 16 deaths, 80
+looks a variant. Each death goes alone, and each reply is scored RAW, before
+parse(), beside the server's parsed look (`scripts/bench-look-score.js`), since
+a parse that enforces the families cannot show a contradiction. The server
+sends an admin bench each reply's label words raw (`/death-forensics` with
+`raw: true` beside the admin password, `look.raw`; a licence's own `raw: true`
+is sent nothing), or the bench would stop at its first answer:
+`death-forensics.js rawLabels`, the fight, cause, alt and
+change as the model wrote them, each its key or "unknown", and whether it
+wrote a what, never a sentence or a word off a list, since a name in one would
+leave the server; the bench scores them as it would the reply's text
+(`test:serverguards` on the route itself). A look
+the server failed (its timeout, the provider) is asked once more, and a second
+failure stops the run saying so. The key (`key.json` beside the set, from the
+`key.template.json` and `key-sheet.html` the script writes, never overwritten)
+is written before the bench by people who watched each death: the fight,
+whether it was a fair duel, the labels acceptable and forbidden. Pass:
+forbidden labels at most 2 in 80;
+every fair duel lost-duel in 4 runs of 5; the avoidable share at most the
+key's plus 5 points; unclear wherever the key says so; raw self contradictions
+at most 5% and conflicts at most 10% of the looks that spoke; the Fracture
+three all acceptable in 4 runs of 5; p90 at most 4 s on the five still body.
+`--dry` builds every body and sends nothing. `test:forensics` holds the
+arithmetic of every bar on a set of its own, and runs the bench end to end on
+a profile of its own against a stand in server on 127.0.0.1 that answers with
+the real parse and rawLabels: the retry, what each look is sent with, the
+ledger's spend, and a run file with no licence and no word off a list.
 
 **A review Riot's record never reached looks too** (8.2). Before, frames
 reached a review only through Riot's verified deaths, so a screen only review
@@ -745,6 +943,17 @@ which wins whether it lands first or while the screen's is out.
   (`saidInRound`, GradeView's `saidInRound` option, only where the row says
   them). The library and Home draw it whole, and the lists are counted by
   key, so nothing in them changed.
+- **Both team comps, one line under the strip** (8.5.0, the player's choice,
+  `review.js paintComps`): "Your team: Breach, Jett (you), Killjoy, Omen,
+  Sova. Theirs: Cypher, Fade, Reyna, Sage, Viper." It is computed when the
+  review is shown (`valorant-review.js served`, `compsLine`), never kept on
+  disk, from the review's `comps`, which the link keeps since 8.5.0 and Ask
+  Coach's fill keeps on a review saved before: agents the game data knows and
+  nothing else, sorted, the player's own marked, set by textContent. A review
+  with no comps, or only its own team's, has no line (`test:surfaces`;
+  `check:mainwindow` paints it in the real window). Riot's record of each
+  death in a line of its own (what was bought, the damage each way) is Phase
+  D's.
 
 The frames the review looked at are saved beside it in the library, so the
 moment survives the AI log rolling past it, and a version painted after a look
@@ -886,6 +1095,22 @@ Decisions.
   less by design: on the shared curves the real 31 kill Jett read as a player who
   could not stay alive. The lesson from the retired grade-blend.js stands: a real
   scoreboard outranks a count of mistakes, which is why Impact weighs most.
+- **A short match is judged over twelve rounds** (8.5.0, the player's choice,
+  `decisionsShare`). Decisions is a curve over the share of rounds flagged, so
+  in a six round Swiftplay one label was a sixth of the match: it moved the
+  player's Fracture and Pearl swiftplays 21 to 25 points in Decisions and 5 to
+  6 overall, and six flawless rounds scored 96. A match under twelve rounds is
+  filled up to twelve at the typical share, (flags + 0.12 x (12 - rounds)) /
+  12, 0.12 being where the curve gives about 79, the median of the player's
+  twelve saved Decisions grades. One label in six rounds moves it 13 points
+  where it moved 25, both ways; Fracture as saved grades 63 and 87 A where it
+  was saved at 50 and 84, with rounds 5 and 6 Repeeks 53 and 85 A, and Pearl
+  92 and 71 B where it was 100 and 73, with rounds 1 and 5 avoidable 67 and 65
+  C (`test:grade`, on both matches' facts). Twelve rounds and more are judged
+  as they always were. Its evidence gains "judged as a short match, over 12
+  rounds". A grade already saved is shown and counted as it was saved, never
+  graded again; a review graded anew (Riot's record laid over it, at the
+  match's end or by the late link's upgrade in place) is graded by this rule.
 
 `src/shared/insights.js` makes the three lists from the same facts, each entry
 with a floor, a stable `key` (the library counts by it, so renaming one orphans
@@ -901,10 +1126,18 @@ patterns included (`inTodaysWords`, `factsView`), never rewritten on disk.
 `patterns.js` counts those keys across the last ten recorded reviews of a game
 (one graded from Riot's record alone has a grade and no list to count, below);
 **a pattern needs two matches**, and its trend compares the newer half of the
-window with the older half ('rising', 'falling', 'steady').
+window with the older half ('rising', 'falling', 'steady'). **A cause's trend
+is one prompt's** (8.5.0, `lookVariant`): variant b widened what a repeek is, so
+counted across the two prompts a repeek would read as rising for its
+definition's growth. A `cause:` key's halves are compared only across the
+matches the newest look's prompt looked at (a look saved with no variant was a;
+a match never looked at, or by both, is none's), with no trend before four of
+them; its counts, in how many matches and how often, are every match's.
 
 `npm run test:grade` covers the graders on the real fixture, the lists, the
-frame picker, the store, the patterns and the weekly report. `npm run
+frame picker, the store, the patterns and the weekly report, the short match
+rule on the Fracture and Pearl swiftplays, repeek counted as one lesson and the
+trend by prompt. `npm run
 check:matches` boots the app with saved reviews, reads the library back from the
 DOM, paints the breakdown, and clicks a row through to its review and its kept
 frame, and its eye through to the AI log on that match.
@@ -1758,7 +1991,8 @@ matches/     three pages from one surface, ?section=list, patterns or breakdown;
              the list carries its wins and losses beside the title (winLoss)
 review/      the post-match review, every game, branched on review.kind
 stats/       rank, win rate, tracker matches, graded matches
-chat/        Ask Coach, opened plainly or on one match's review
+chat/        Ask Coach, on the match its chip names: the newest, one picked or
+             asked about from its review, or none (below, "Ask Coach")
 settings/    all preferences, version string at the bottom, and under it Riot's
              notice word for word (8.3.2)
 ```
@@ -2166,7 +2400,11 @@ recorder starts, stops or its rounded frame rate moves). A clip itself never
 crosses IPC: the review page plays it from `occlara-clip://`, which main
 serves (`clip-scheme.js`). Onboarding asks what this PC can record with over
 `PC_CHECK` (`pc-check.js`), and puts the encoder asks it gets back to
-WebCodecs itself.
+WebCodecs itself. Ask Coach asks `CHAT_SEND` with the match on its chip
+(`{ reviewId }`, or 'none'), lists what the chip can name with `CHAT_MATCHES`
+(the ten newest of the game, held ones left out, the one chosen and its
+starters) and moves the chip with `CHAT_MATCH` (8.5.0), and hears
+`PUSH_REVIEWS` and `PUSH_GAME` to list again.
 
 ## The live read's STATE line
 
@@ -2179,8 +2417,13 @@ The models are whatever Railway says where an env var is set, and the code
 default where it is not: `AI_READ_MODEL` (default deepseek/deepseek-v4.1-flash),
 `AI_FORENSICS_MODEL` (default openai/gpt-6-sol since 8.4.0), `AI_REVIEW_MODEL`
 (default openai/gpt-6-sol since 8.4.0, no longer falling back to
-`AI_TEXT_MODEL`, which Ask Coach keeps; the bench tables are beside each in
-coach.js). Two rounds of benches on 13 Oct 2026 kept the read on DeepSeek: the
+`AI_TEXT_MODEL`, which Ask Coach keeps for every client before 8.5.0; the
+bench tables are beside each in coach.js), and `AI_CHAT_MODEL` (8.5.0, Ask
+Coach v2's, below, default openai/gpt-6-sol until bench:chat names a winner).
+`AI_TEXT_MODEL`'s code default is google/gemini-3-flash-preview, so a /health
+naming qwen/qwen3.7-flash as `textModel` is Railway's env var, which
+bench:review measured at 10 wrong facts or more in 84 lines against Gemini 3
+Flash's 4. Two rounds of benches on 13 Oct 2026 kept the read on DeepSeek: the
 one model that agreed with one more of Riot's deaths, Gemini 3.5 Flash Lite,
 cost 4 to 5.6 times as much, and every other candidate agreed with fewer at
 2.3 to 8 times the price. `AI_VISION_MODEL` serves the look at the agent
@@ -2195,10 +2438,27 @@ Occlara" sentence, no licence checked and no model called, as every
 switch. There is a credits breaker: on a 402 the server reports it honestly
 rather than pretending to be down, and the client backs off for three minutes.
 
+**A pinned call never falls back, and a strike is its own model's** (8.5.0,
+`textInfer`'s `fallback`, `textStrikes`). textInfer sent a call that came back
+empty or timed out again to `AI_TEXT_MODEL_FALLBACK` or the vision model,
+pinned or not, so the review (Sol, chosen by bench:review) came back written by
+whatever that was when Sol hiccuped; and one strike anywhere moved every
+unpinned text call for the life of the process, so a review's Sol timing out
+moved Ask Coach. The review passes `fallback: false`, and so does Ask Coach v2:
+a failure there is no narrative (a 503, or an empty reply that parses to a null
+summary, which every client handles, and Riot's repaint asks again). Strikes
+are counted per model, an empty wallet striking none, and the configured text
+model moves to the backstop only after its own: `/health` says `textModel` and
+`textModelNow`, the one unpinned calls go to now, and `chatModel`. Only an
+UNPINNED call strikes: bench:review and bench:chat bench Gemini 3 Flash, the
+text model's own default, and one bench answer empty or cut off at v2's
+deadline, struck, moved every old client's Ask Coach to the backstop until a
+restart (`test:serverguards`, a review bench and a v2 bench on that model).
+
 **What the calls cost is the provider's own figure** (8.3.1, `coach.js
 bookCost`). Every call to OpenRouter asks for its usage (`usage: { include:
 true }`) and books the `usage.cost` it returns under the route it served
-(read, forensics, review, chat, other) and the licence that made it, by day
+(read, forensics, review, chat, bench, other) and the licence that made it, by day
 and by month, carried with the request (`costScope`, which the coach router
 sets). A call that returns no cost (another provider, the legacy Gemini path,
 one aborted at its deadline, billed all the same) books the flat price per
@@ -2206,7 +2466,76 @@ image instead, counted apart as estimated; one the provider refused books
 nothing. `/api/admin/costs` shows `spend` today and this month by route, real
 and estimated apart, and each licence's own by its hash; `global` keeps the
 calls as the routes count them and the flat estimate beside them. `npm run
-test:aicost` holds it on a scripted provider.
+test:aicost` holds it on a scripted provider. **A bench is booked apart**
+(8.5.0, `benchCall`): a request with the admin password naming a bench model or
+a prompt variant is booked under `bench` with no licence, whatever route it
+went to, so a licence's figures and Ask Coach's cap never count a bench run,
+and a bench reads its cost off `spend.<period>.routes.bench`. bench-sessions.js
+counts that route beside the licence's own read over the same period, and
+bench-review.js `--costs` prints a `--models` review off it: read off the
+licence alone, a candidate's run cost $0 and bench:sessions' `--max-usd` never
+stopped one (`test:benchsession`, on a stand in that books as this server does).
+
+**Ask Coach v2, the route's half** (8.5.0, `coach.js chatV2`; the prompt and
+the reply gates are `chat-prompt.js` over `fact-gates.js`). Served to a request
+whose context is v2 (`context.v: 2`) from a client of 8.5.0 or later once
+`CHAT_PROMPT=v2` is set on Railway, or to an admin bench naming `variant: 'v2'`
+or `'v2-noprimer'`; everything else, every client before 8.5.0 above all, is
+answered as today, byte for byte, and a deploy without `chat-prompt.js`, or a v2
+context it cannot take, is answered as today too. An 8.5.0 client answered
+that way sends its matches without the 0 to 100 rating, and today's prompt
+lists them without one where it said "rating undefined" on every line; a
+client before it sends one on every match, so its prompt is unchanged
+(`test:serverguards`). `AI_CHAT_MODEL` answers,
+pinned with `fallback: false` (an admin bench may name a model from
+`BENCH_MODELS`, and is told which answered), 900 tokens at 0.4, inside one 40 s
+budget from the request (`CHAT_TIMES`): the first call abandoned at 28 s, the
+gates' one retry (a first sentence dropped, or fewer than two left) with their
+reasons named and at most 500 tokens only with 15 s left, and otherwise the
+honest line, `honest: true` so a client can say it in the player's language.
+The question reaches the prompt with "round #12" read as round 12 before the
+Riot ID scrub (`scrubAsked`), the reply keeps its paragraphs, each sanitised on
+its own and cut at 4,000 characters, the match's name set goes to the gates and
+a sentence still carrying one of its words is dropped here, and `dropped`
+(counts by gate), `logged` (what a rule in log mode, the name rule's, would
+have dropped) and `sentences` (how many the gates weighed) go back, counts
+only, for bench:chat's rates. THE DAILY CAP is per licence, one rolling 24 hour
+list of (time, booked cost) (`chatRoom`, the question's own line filled by
+`bookCost`, an aborted call included): `CHAT_DAY_USD` (default $0.15) or
+`CHAT_DAY_QUESTIONS` (default 40) reached, the question is 429 `{ error:
+'chat-daily', resetsAt }`, the moment enough of the list leaves the day, before
+any model is called. It covers v2 and, from 8.5.0, frame chat; a bench is never
+counted, and a client before 8.5.0 is never capped and keeps the limiter's 25
+messages in 5 minutes. In memory, so a deploy resets it. The day's questions,
+drops by gate, retries, honest lines and refusals are `GET /api/admin/chat`
+(server.js, behind the admin password), never `/health`. FRAME CHAT lost "THE
+TIP IT GAVE THEN" (no tip since 8.0), takes a linked round's Riot facts as an
+8.5.0 client sends them (`riot`, bounded by `riotFrameFacts`), and drops a
+sentence of its answer naming a player. THE VERSION GATE is one function,
+`clientAtLeast`, as `knowsGrace` reads X-Occlara-Version: it serves v2 and the
+death look's variant b (`forensicsVariant`: 8.5.0 and later once
+`FORENSICS_PROMPT=b`, or an admin bench, `'a'` its control), and nothing new
+reaches a client built before it (`test:serverguards`, `test:aicost`).
+
+**No player is named in what the server's models write back** (8.5.0,
+`namesSomeoneHere`). The review's summary, focus and round lines and frame
+chat's answer go a sentence at a time through the match's name set (in any
+language, the match id an 8.5.0 client sends) and the server's name gate
+(`name-gate.js`: a Riot ID or a handle's shape in any language, its capital
+rule in English), a sentence naming someone dropped whole and a round line with
+it, logged by place only. The review's and frame chat's own words reach the
+capital rule in lower case (`REVIEW_WORDS`: MVP, ACS, ADR, K/D, HS, Victory,
+Defeat, Attack, Defense, the banners, and what the HUD prints in capitals,
+COMBAT REPORT, SWITCH PLAYER, SPECTATORS, MATCH POINT), which it would take for
+names; over the 696 sentences the 13 Oct bench:review wrote and the 45 of the
+player's saved reviews it drops none (`test:reviewroute`). Frame chat has no
+answer on record to measure it over, and its own words are there too: the "I"
+its prompt asks for ("I cannot tell from this frame"), the gear by the game's
+names (Heavy Shields, Regen Shield), Melee, HEADSHOT, CREDITS and ADS. Without
+them an old client's frame chat answer came back "5 seconds before it.", or no
+answer at all. And a sentence dropped takes no number with it: a point between
+two digits ends no sentence (`sentencesOf`), where "a 1.48 K/D" came back
+"a 1. 48 K/D" beside a summary sentence the gate took out (`test:serverguards`).
 
 **`npm run verify:ai` is the gate for any read prompt or model change.** It
 runs the live read over the 240 real frames and fails on parse under 95%,
@@ -2689,6 +3018,20 @@ UNKNOWN for a spectated teammate's bar. It replaces the live prompt only once
 a bench over the buy phase frames this client sends has measured both against
 Riot's agent.
 
+**And for the stronger reader, variant crop and a bench model** (8.5.0, the
+server's half of the next step). Since 8.4.4 the call carries the bar alone,
+where b describes a whole screen. Variant crop (`detectPrompt('crop')`, served
+as b is, an admin bench's alone) is written for that picture: a crop enlarged
+three times, the health number at its left, the four icons with their keys
+under them (perhaps rebound, X the ultimate with its pips), the ammo count at
+its right, an icon dimmed or carrying charge pips when used or not bought
+still its shape, and nothing about faces, cards or panels, none of which is in
+it. And an admin bench may name a model from `BENCH_MODELS` on `/detect-agent`
+as on every other route, and is told which answered (`model`), so the bench
+over the same crops can measure a stronger vision model before one is pinned.
+The live prompt and `AI_VISION_MODEL` answer every install as they did
+(`test:serverguards`).
+
 Nothing of it reaches the screen, at any time. `npm run test:agentdetect`
 holds the look through the real engine on a fake clock, turned on by hand at
 eight a match (Start and agent select, one answer, two agreeing, a
@@ -2858,6 +3201,12 @@ not told the Overview is a trend** (8.4.1):
   paints none an older server still sends, and the player's own row says
   "You", as the review's kill feed carries no name (`test:trackerroutes`,
   `test:surfaces`).
+- **The MVP badge and the roster are each player's own** (8.5.0, `coach.js
+  matchDetail`, `mvpKey`). Both come from one match detail call, cached
+  forever, and the cache was keyed by the match alone: a duo partner who also
+  uses Occlara was handed the first requester's badge and roster, their row
+  marked as the player's. It is keyed `matchId|name#tag` in lower case
+  (`test:trackerroutes`).
 - **Riot's death check names the killer by agent** (`coach.js
   killerAgentOf`, `/match-deaths`). It answered the killer's full Riot ID,
   and the AI log painted it on every death Riot confirmed, a name its owner
@@ -2890,6 +3239,23 @@ it twice: `study()` picks the imported notes worth reading before the next
 match, by the topic a pattern points to, and the round lines are written with
 the retrieved notes in the prompt.
 
+**And by the topic a death's cause points to** (8.5.0, `match-review.js
+CAUSE_TOPICS`, for a client of 8.5.0 or later: the route sets `byCause` by the
+version gate, and one before it is listed its notes as today, byte for byte).
+A counted `cause:` mistake's topics weigh as a pattern's (+5), a single death
+the coach looked at gives its cause's +2: dry-peek planning the peek, filling
+utility and paint the picture; isolated checkpoints; repeek giving ground,
+planning the peek and movement; crossfire planning the peek and paint the
+picture; rotating its three rotation topics; overextend checkpoints and tempo;
+exposed post plant and retake shape. The summary and the focus already name
+the first counted mistake, so the study notes now follow it; against agent
+tagged notes at +4 the shift is small (an Omen's counted dry peeks bring in
+planning the peek). Ask Coach's notes leave out the review's own list as
+either kind of client was given it. `check:playbook` fails a topic of either
+table that no note carries (`CHECK_PLAYBOOK_TOPIC` plants one, which
+`test:valorantreview` holds it to), and `test:serverguards` holds the route's
+gate.
+
 **New knowledge goes in `server/data/playbook.json`**, the growth hook the
 module has always documented. It merges at startup, `check:playbook` covers it
 automatically through `knowledge.all()`, and extra fields such as `source` pass
@@ -2920,12 +3286,22 @@ untagged note competes with 357 others and loses.
 what the tag vocabulary check exists for, and the vocabulary list is itself
 checked against the flags `situationOf` actually produces, in both directions.
 
-**Weapon numbers are computed.** `sync:valorant` pulls the damage table (19
+**Weapon numbers are computed.** `sync:valorant` pulls the damage table (20
 weapons, 13 with falloff), and any note declaring `source.numbers` has every
-number in it verified against that weapon's real ranges. A Riot rebalance fails
-the build rather than leaving the coach confidently wrong. Notes that give
-tactical distances, "play inside 5 meters", are NOT checked, because that is
-advice and not a claim about the table.
+number in it verified against that weapon's real ranges, its spelled numbers
+too since 8.5.0 ("two taps", "a fifth bullet"; "one" only before what it
+counts, never the pronoun). A derived number (hits to kill, a magazine) is
+legal only as a claim the note declares in `source.claims`, `{ weapon, part,
+armor, hits, band }` or `{ weapon, field, value }`, which check:playbook
+computes against the table through the primer (`game-primer.js noteClaims`).
+Two of Occlara's own notes were false that way and nothing could see it: the
+Guardian's "two taps a full shield" (two body hits leave Heavy Armor on 20)
+and the Marshal's "one body and one pistol shot is a kill" (true only with a
+Sheriff, or against Light Armor). Both are computed claims now, and
+check:primer plants them word for word into check:playbook, which must fail
+them. A Riot rebalance fails the build rather than leaving the coach
+confidently wrong. Notes that give tactical distances, "play inside 5 meters",
+are NOT checked, because that is advice and not a claim about the table.
 
 A contradiction advisory was built here and **removed after measuring**: both
 alarms it raised were false, "send it" matching Wingman and Owl Drone rather
@@ -2940,8 +3316,9 @@ reserve at its scale: off, `study()` lists core notes only; on, two of three are
 advanced with a core note always among them, and a match lost in a run of
 rounds (the `streak` pattern) gives core two of three. A note carries `tier:
 'core' | 'advanced'`, core being the default so the 357 hand written ones are
-untouched. With the toggle on the mix `retrieve()` serves goes from 34% to 75%
-advanced, measured across 12 real logged contexts plus 5 synthetic.
+untouched. With the toggle on the mix `retrieve()` serves goes from about 30% to 75%
+advanced, measured across 12 real logged contexts plus 6 synthetic (the sixth,
+Swiftplay's round 5 pistol, since 8.5.0).
 
 **A floor of core notes always survives, and on a deathstreak core takes the
 majority back.** That is the design, not a hedge: advanced advice assumes the
@@ -2961,6 +3338,421 @@ advice anyway. Naming a DIFFERENT gun is allowed and is often the point.
 `npm run test:advancedtips` measures the retrieval shift offline. **Always run
 it on both sets**: measured on real contexts alone, all twelve came back "no
 agent", so `agents` notes, the highest scoring tag at +4, were never exercised.
+It also pins what the primer changed in retrieval (below): the pistol rounds by
+mode, the computed buy lines, and the four notes that lost a typed number.
+
+## The Valorant primer: every game number has a source
+
+`server/services/game-primer.js` (8.5.0) renders what the models are told
+about the game: how a match runs, the credits, damage and armour, a line per
+gun, duels, roles and teams, every agent's kit on its keys, attack and
+defence, and what the review counts. Before it, every number Ask Coach said
+came from the model's memory, which predates the Bandit, the Warden, the Regen
+Shield, Veto, Miks and Phoenix's key swap. **Every game number is synced,
+stated and confirmed, or measured, never typed.** Three tiers, and nothing
+else reaches the text:
+
+- **Synced**, from the game's own files through valorant-api.com. Since 8.5.0
+  `sync:valorant` keeps every gun's head, body and leg damage by band, its fire
+  rate, magazine, reload, draw, running speed, first bullet spread, aimed
+  burst, pellets, alt fire, penetration and feature; the armour (cost, the
+  share of each hit it takes, what it absorbs before it breaks, read from its
+  own text, and the Regen Shield's pool); each agent's kit (slot, default key
+  C, Q, E or X, name, description) and Riot's role descriptions; Standard's and
+  Swiftplay's own rules ("First to 13 wins.", Swiftplay's halves of 4 and no
+  win by two); the patch and version; each map's minimap transform (for Riot's
+  kill positions later). Every field the gates read is as it was
+  (`abilities` the lower case list in the game's order, `ranges[].body`), and
+  both copies stay identical. The extraction is
+  `server/services/valorant-extract.js`, which the sync requires, so the live
+  check reads the live game with the code that wrote the synced copy. It
+  FAILS CLOSED, naming every problem: fewer than 15 guns, a missing armour,
+  an agent missing a used slot or a description, a gun or gear item
+  `KNOWN_WEAPONS` or `KNOWN_GEAR` does not list, a field the API renamed. A
+  new gun is a renderer change first, then a sync.
+- **Stated**, in `server/data/game-rules.json`: the numbers no game data API
+  publishes, each once, with its kind (`riot-notes`, `measured`, `occlara`,
+  `wiki`), source, `verifiedPatch`, topic tags, check and `confirmed`. **A
+  wiki fact renders only once confirmed.** The player confirmed on 15 Oct 2026,
+  with the VALORANT Wiki as the stated source, the standard economy (the 800
+  start, the 3,000 win, the 1,900, 2,400 and 2,900 losses, the 200 kill, the
+  300 plant, overtime's 5,000), the spike (the 4 s plant, the 7 s defuse with
+  its half at 3.5 s, the 45 s timer, the beeps at 20 and 10 s) and ultimate
+  points (1 each for a kill, a death, a plant or defuse, an orb). Swiftplay's
+  pays and its ultimate start stay `confirmed: null` and are said in words
+  ("the second round of a half pays more after a won first round"); the kill
+  and plant pays are Competitive's facts, so Swiftplay is told they pay only
+  once they are stated and confirmed for it, never read into its "same core
+  rules". Riot's
+  patch notes give the 9,000 cap, the surviving loser's 1,000 and the Regen
+  Shield's 25. Measured: health 100 (the AI log fixtures' canary), the round's
+  100 s and the buy's 30 and 45 s (the client's constants). Occlara's own: the
+  trade's 5 s (imported from `TRADE_MS`, never copied), the early death's 30
+  s, the multi kill's 3, halves of 12, overtime won by a lead of 2 and
+  Unrated's 12 all decider (`match-end.js`). check:primer holds every mirror
+  equal to the code it mirrors, by export where there is one and by a pattern
+  that must read the number where there is not.
+- **Principles**: coaching text with no digits and no spelled numbers.
+
+**Every number goes through one helper, and keeps its provenance.** `n()`
+records the value, how it is shown (a number, beside the printed `text`), its
+subject and `subjectKind` (gun, gear, agent, ability, rule), its attribute in
+the number gate's own words (`hits`, `head`, `body`, `legs`, `price`,
+`credits`, `seconds`, `rate`, `magazine`, `pellets`, `health`, `percent`,
+`points`, `metres`, `kills`), its part, band and armour (`none`, `Light
+Armor`, `Heavy Armor`), the words a rule's number is tied by in a sentence,
+its source and the inputs it was computed from; a grouped number keeps an
+entry for each gun it covers. `provenance(mode, opts)` is what
+`fact-gates.js primerHas` checks a reply's numbers against. Hits to kill are
+simulated hit by hit through the absorption rule (and held equal to the
+closed form for every gun, band, part and armour); time to kill is the first
+hit at once and then one a fire interval, so a Spectre's 6 body hits on Heavy
+Armor take 0.38 s and a Vandal's 4 take 0.31. **Damage prints as the game
+shows it**, the whole number below a fractional value (the Sheriff's head hit
+is 159, as the player's Fracture combat report showed it), with the exact
+value kept for the arithmetic. Every grouping is computed: the prototype's
+hand typed "sidearms run at 85%" was false for the Sheriff and the Shorty.
+Riot's own kit text goes through the same helper, its digits and its spelled
+numbers ("every two kills") included.
+
+**Every sentence is a unit with its inputs**, and a unit whose input is
+withheld is left out whole, or said in its fallback words; a heading or a
+bullet whose units all go goes with them. Withheld are a synced number the
+live game no longer has and every sentence computed from it; the gun table
+and the kits (every `w:`, `g:` and `a:` input) when a differing live patch
+cannot be fetched or extracted, or no check has succeeded for 24 hours; a
+stated fact a patch since its `verifiedPatch` may have touched; and for a
+past match (`matchAt`), what the patches released since it tagged. **The
+numbers are the game as it is now**, and the header says so word for word:
+"These are the game's numbers as it is now. A match played before a patch can
+differ, and a number a patch has changed since that match is left out for it."
+
+**The live version check** (`startLiveCheck()`, at boot and every six hours;
+`liveStatus()`, `{ synced, live, withheld }`, for `/api/admin`) asks
+valorant-api.com's `/v1/version`. When it differs from the synced version it
+fetches the endpoints the sync uses, extracts them with `valorant-extract.js`
+and diffs every synced number the primer prints (`flatten`). A changed number
+is withheld until the next sync and deploy, one log line names it (and only
+when that changes), and **a new number is never stated before check:primer
+has run on it**: the primer prints the synced data only, the live data is
+read to diff and nothing else. Nothing runs at require time, since
+check:server loads every server file, and the timer never holds a process
+open. **server.js starts it once listening, on Railway alone**
+(`liveCheckWanted`: `RAILWAY_ENVIRONMENT_NAME` or the older
+`RAILWAY_ENVIRONMENT`, which Railway sets on every deploy, or
+`PRIMER_LIVE_CHECK=on`; `PRIMER_LIVE_CHECK=off` stops it anywhere, and every
+test that boots server.js sets it): no check, test or CI run calls
+valorant-api.com, and Railway's server is never left unchecked, which after a
+day would withhold the gun table and the kits. `GET /api/admin/primer`, behind
+the admin password, is `liveStatus()`: after a deploy `live.lastOkAt` set and
+`withheld` and `statedGate` empty say the primer states everything it has
+(`check:primer`, `test:serverguards`).
+
+**The patch history and its two gates.** `server/patch-notes.generated.json`
+keeps the last 12 patches in `history`, each with its release date and EVERY
+line of its notes, since the old sync dropped a line naming no agent, gun or
+map and an economy change names none. Every line means the short and the long
+ones too, which the prompt's five words to 240 characters keep out of
+`changes` only: Riot writes a change as a heading and short lines under it,
+and the heading is what names the topic (9.10's Regen Shield was "Regen
+Shield" over "Damage Absorption: 25 HP", neither five words, so the prompt's
+filter left the history nothing about the shield). A patch's notes count as
+found only on a line of five words or more (`substantive`), so a page of
+nothing but its own chrome withholds rather than vouches. The top level fields
+`patch-context.js` reads are as they were, and `npm run sync:patch --
+--upgrade` converts an old file offline (its lines named only, so it can
+withhold a gun but never clear a stated fact). A line is tagged by topic
+(`server/services/patch-topics.js`: economy, armor, spike, timers, format,
+ultimate, swiftplay, health, each pattern narrow on purpose and asserted on a
+positive and a negative line and its `CASES`: a heading names its topic, a
+plant time is the spike's, Spike Rush is a mode, a buy time is a timer).
+**The stated facts gate**, deploy wide: a fact passes when it was verified on
+the synced patch, or when every patch since had its notes found whole and none
+of their lines carries one of its topics; re-stamping is one edit of
+`verifiedPatch`, made after reading the lines. **A past match** is on the
+patch live on its date (`matchAt`), and within 48 hours after a release on
+both, or on Riot's own patch for it once the record gives one (`matchPatch`,
+Phase D's `game_version`); it loses what the patches since tagged (a stated
+fact by its topics, a gun or an agent by name, the armour by `armor`), and
+every stated fact a patch can touch when a patch since has no notes, notes
+kept only in part, or is missing from the history altogether (a hole between
+two kept patches is a patch nobody read; the sync records one it could not
+read rather than leaving the hole; across a major only its X.00 follows the
+last major's patch, so 14.01 straight over 13.08 is 14.00 missing). Occlara's
+own rules, the facts with no topic (the trade's 5 s, the early death, the multi
+kill), no patch changes, and no gate withholds them: the review a match was
+graded by says them.
+
+**Where it goes, and never.** Ask Coach gets the core for the match's mode
+and its slices (`kit`, `guns`), the death look the duel slice (`duel`, worded
+"bought", from full health) and both kits, the review the core without the
+gun table and the roster (`guns: false`) and the match's slices. The slices
+count only what they can: a shotgun in a duel by the pellets of one shell
+("a shell kills with 9 of its 12 body pellets"), never as a race of shots at
+its fire rate and never against a rifle's body count (counted as shots, a
+Judge at 5 m read as 2.29 s to kill Heavy Armor); a Regen Shield bought by its
+own absorption and its own name; an armour the game data does not name as no
+duel at all, never as none; the comps (`comps`) only by agents the game data
+knows, anything else in a team list counted and never printed, a player's
+name above all, and a team holding one never said to lack a role; the guns
+slice's effective health only while the armour rule holds, as the core's. If
+prefix caching does not reach the provider, Ask Coach's gun table moves to
+slices with the roster kept (`guns: false, roster: true`). The core renders in about
+4 ms and is the same text for every match on the synced patch, so it can sit
+first in a prompt for caching. Never the live read, never League, never `src/`
+(check:primer scans every require of it).
+
+**Today's knowledge, corrected** (8.5.0). `knowledge.js`'s four unsourced
+numbers went: footsteps "audible around 20 meters" (no source anywhere), the
+defuse's 7 and 3.5 s (now read from the confirmed rules), "the Frenzy melts
+inside 10 meters" (the band now read from the table, 20 m), and "the Spectre
+stays accurate on the move" (in no data); the Spectre's 15 m reads the table
+too. `situationOf`'s pistol rounds follow the mode (`ctx.mode`, or the live
+engine's `gameMode`: round 5 in Swiftplay, where round 13 never comes, with no
+mode Competitive as before) and its eco and full buy lines are computed (a
+Spectre with Light Armor, 2,000; a rifle with Heavy Armor, 3,900). Measured
+against 8.4.4: the study pool is identical, and of the 86 notes every review
+and chat retrieval can reach only the footsteps note's words changed.
+
+`npm run check:primer` (in npm test) holds all of it offline: every number in
+every render inside a recorded number, with no spelled one in the primer's
+own words (a planted digit must be caught); the extraction giving the
+generated file back from the API's shape and failing closed on each rule;
+only confirmed facts, and exactly the player's decision; hits, time to kill
+per gun and damage as shown, recomputed independently; mutation (a Spectre
+head hit of 110 removes "no Spectre head hit kills"); the mirrors and the
+canaries; size (the Ask Coach core under 17,000 characters, about 16,400
+today); no dashes, no source name, no patch number; the live check on a faked
+valorant-api (a changed Sheriff head hit withheld with its sentences, an
+outage after 24 hours, a failed extraction at once); the history and both
+gates (a heading and its short lines kept, a page of chrome no notes, a 13.09
+that moved the shield and the plant withholding both, 14.01 over 13.08 a hole,
+Occlara's own rules never withheld); the slices' counts (a Judge's shell, a
+Regen Shield, an unknown armour, a name in a team list); check:playbook's
+planted controls; and where the primer goes.
+
+## Ask Coach knows the match it is asked about
+
+Ask Coach (8.5.0, v2) answers about one match at a time, and code decides
+which. Before it was handed a 2,400 character summary of whichever review was
+open, the tip era's session tips and the tracker's profile, and the model said
+every game number from memory.
+
+```
+src/shared/chat-context.js       which match, the hold, the rounds a question names, the v2 context, the fill's rules
+src/main/services/ask-coach.js   main's half: the chip, the refusals, both shapes, the one time fill
+src/renderer/chat/               the page: the match chip, the starters, a thread per match
+server/services/chat-prompt.js   normalise, the prompt, parseReply, the retry's words
+server/services/fact-gates.js    the reply gates, a sentence at a time
+scripts/bench-chat.js            the bench that picks the model (spends money)
+```
+
+- **Which match, in code** (`chat-context.js pickMatch`). The chip says it:
+  the newest of the game when the page is opened from the sidebar, the
+  review's own from "Ask about this match", one picked from the ten newest,
+  or none for a general question. A question moves it only by the map rule:
+  a map written as a proper noun after "on", "in", "at" or "my", in a question
+  with a match word (a round, a death, a result, "match", "that game"), and
+  exactly one of the ten newest on that map. "How do I play B on Split" names
+  no match; "why did I die in round 5 on Split" does. Two of the ten or more
+  on it is answered by asking which, none by saying so, with no model call
+  either way, and a question that moved the chip goes alone, under a divider,
+  its reply naming the match. The round a question names is read in code as
+  well (`roundOf`): round 5, round five, R5, round #12, the pistol round by
+  side (the second is the mode's own, round 5 in Swiftplay), the first, the
+  last, overtime, and ronda, Runde, rodada, manche. A review older than the
+  ten newest that "Ask about this match" or the chip named stays the match,
+  and joins the list (`ask-coach.js list`): asked about the player's eleventh,
+  the question went to the newest.
+- **Nothing mid match, nothing of a held match.** A question asked while a
+  match is in progress is refused before any request (`MID_MATCH`), and asked
+  again after the fill and the tracker, which take time. A review saved after
+  a stop in the middle of its match may be of a match still being played
+  (`held`: `stoppedLive`, not linked, saved under 90 minutes ago, no review
+  after it): never the default, never listed, refused when "Ask about this
+  match" names it with the time it lifts, and frame chat refuses its frames
+  (`HELD_FRAME`), until Riot's record links it, a later match is recorded or
+  90 minutes pass. Its counts are no part of what the chat is told across
+  matches either (`ask-coach.js library`): the patterns and the breakdown's
+  rows are counted again without it while it is held, where they had told
+  "across your last matches" what the held match had shown so far.
+- **What it is sent** (`context.v: 2`, `build()`): the match as its review
+  keeps it, each card's Riot facts (the second, the killer and gun, first death
+  and kill, kills, the trade, the numbers standing, the clutch, the plant's
+  site and time, the kill feed in order with its agents and guns, kept from
+  the link since 8.5.0 and once filled on a review saved before), the
+  numbers an explanation needs computed (seconds from the player's last kill
+  to the death, seconds after the plant), the screen's spot and ult, a saved
+  look's cause, sentences and digits, the counted lists and patterns, the
+  grade with its evidence, the numbers against the player's own average, the
+  coach's summary and focus, the breakdown's rows for the map and the agent,
+  the patterns across matches, the tracker's numbers by name and the eight
+  newest other matches a line each. A card saved before 8.0.3 is read back
+  from its sentences (`oldFacts`), as the breakdown reads them: the player's
+  Abyss swiftplay went with no killer, second or trade in any round. A saved
+  lost duel whose better play moves the player goes without its label (the
+  phrase lists, above). NEVER SENT: the engine's match memory, session tips,
+  the tracker's `_riotId`, the match list's 0 to 100 rating, any player's name,
+  a held match, anything mid match. Today's fields go beside it, so a server
+  from before answers as it always did (`oldText` is the old string, moved
+  whole).
+- **The server takes it bounded** (`chat-prompt.js normalise`): agents, guns,
+  maps and callouts against the game data, causes against `CAUSES`, numbers
+  in range, free text through the handle shape, `BUY_BLAME`, the match's own
+  name set when this server holds it, the capital rule and the killer gate,
+  and the spike's time left computed from the primer's stated timer, never
+  typed on the client. The capital rule reads the game's own capitals in lower
+  case first, the review route's `REVIEW_WORDS` word for word and the chat's
+  own (`fact-gates.js lowerGameWords`, test:chatgates holding the two lists
+  equal): a summary sentence with "K/D", "ACS", "MVP" or "Victory" in it
+  never reached the prompt.
+- **The prompt** (`buildPrompt`): the spec's rules word for word, the primer's
+  core for the match's mode as of the match (the same text for every match on
+  the patch, so it can be cached), then the player, the match (the asked round
+  in full with its feed in order, every other round a line), the kits and,
+  with `CHAT_PRIMER_GUNS=slices`, the guns named (the core then keeping its
+  roster), eight coaching notes at most (by the topics the counted mistakes
+  point to, and `retrieve()` on the asked round, Advanced coaching honoured),
+  the conversation, and outside English the language line. A 20 round match
+  fits its own 19,000 characters with its round in full (`DYNAMIC_MAX_CHARS`,
+  trimmed in four steps). League gets its computed review and no primer;
+  `v2-noprimer` is the bench's control.
+- **The gates, a sentence at a time** (`fact-gates.js check`, through
+  `parseReply`). A sentence that fails one is dropped, never repaired: a
+  player's name or handle, or a capitalised word the player typed (never in
+  German); a source named; a meta or a ranking ("X is the best agent"); a round
+  the match does not have; a result or a death the record contradicts, the
+  negation read at its verb ("you didn't lose round 5" stays); a death called
+  something its look did not call it; a killer who is not Riot's; a callout
+  off the map or an ability off the player's kit in a sentence about a round;
+  a standing, a time or a gun the record contradicts; the buy phase or the
+  spawn blamed; an economy claim (Riot's record holds no buys before Phase D);
+  "N of M" that is no counted one; "0:08" for a second; and every number,
+  spelled ones and hit words turned to digits first, each by its unit and
+  what it is about, against the primer's own provenance (by gun, part, armour
+  and band), the match's numbers, the round's times within a second, the
+  standings and the look's digits. Outside English a number is checked by its
+  digits and unit alone, and the capital rule is English's. The name heuristic
+  is in log mode (`name-log`, counted, never dropped) until bench:chat
+  measures it. A reply whose first sentence was dropped, or that keeps fewer
+  than two, is asked for once more with the reasons named (`retryPrompt`),
+  else the honest line.
+- **What an independent probe of the gates found, 15 Oct** (each pinned in
+  test:chatgates, each pin failing with its rule reverted). Passed: "Neon is
+  better than Jett right now", "Jett is S tier", "the highest win rate on
+  Abyss", "the most picked duelist" and "strong in the current patch", all
+  rankings now (`AGENT_RANKED`, `TIER`, `RATE_RANKED`, `MOST_PICKED`,
+  `PATCH_NOW`); "Pro players like Brimo" with the capital that opens a
+  sentence; "the coach calls round 6 a lost duel", the label read past the
+  round named; "you lost the first round", "round 5 was a loss" and "the enemy
+  took round 5"; in a reply about one round, "nobody traded you" and "a
+  teammate traded you", what the player bought or saved and their own gun
+  ("your Vandal lost to his Sheriff"), none of them read as about the round;
+  "3 against 4" for 4 against 3, the player's side now first unless the
+  sentence is about theirs; "you died 25 s into the round" for another
+  kill's 25 s or a counted line's 30, a death's time now Riot's second of it
+  within one; "three kills in round 3" for two, a named round's own count; in
+  League, "Ahri is better than Zed right now" and "the best champion right
+  now" (`CHAMPION_RANKED`, `CHAMPION_META`, League's alone, "your best
+  champion by grade" the player's own). And a review's own sentence naming a
+  player of the match in lower case reached the prompt: the match's name set
+  holds it now (`chat-prompt.js matchNames`).
+  Dropped wrongly: "I don't have pick rates or a tier list for the current
+  patch", the honest answer the rules ask for, with its retry told it had
+  ranked agents (a meta word a negation or "rather than" governs is no
+  claim, `META_REFUSED`); every sentence saying "K/D", "Overtime" or "Attack"
+  once the player had typed the word with a capital, as an echo of a name
+  (the coach's own words and the game's capitals are no name they typed);
+  "I cannot tell you what you bought, because this match's record does not
+  hold it" (`ECON_REFUSAL`), and "you bought time" or "you saved your
+  ultimate", money words only where they are money; "a 1.48 K/D", "your K/D
+  in this match was 1.48", "your grade for the match was 66" and "you went
+  31 and 21", the scoreboard as the review itself writes it; "you died 21
+  times in 24 rounds", the scoreline's own deaths read as a repeat nobody
+  counted; a League death "12 minutes 34 seconds in", as the prompt itself
+  writes it; and the counted line quoted, "you got the first kill of the
+  round 8 times, rounds 5, 11 and 2 more", read as rounds 8 and 2 (a counted
+  line quoted is about the match, never the asked round alone,
+  `quotesCounted`). Still unchecked, by the spec's own reach: a claim about
+  the round that is not about the player ("the spike was planted at B", "it
+  was a clutch"), another kill's killer ("their Viper killed your Sova"), any
+  number outside English beyond its digits being one the facts hold
+  somewhere, and an echo in German, which capitalises every noun. Still
+  dropped: a past sentence with "kept" or "again" in it that no counted line
+  says ("you kept your crosshair at head height"), and a general rule naming
+  round numbers ("a save in round 2 sets up a full buy in round 3").
+  bench:chat's raw rate, its drop rate and the person's read are what
+  measure them.
+- **Its model, its time and its cap are the route's** (above, "Ask Coach v2,
+  the route's half"): `AI_CHAT_MODEL` pinned with no weaker model behind it,
+  40 s across both calls, and $0.15 a licence a rolling day. The page says
+  the cap in the player's language with when it lifts ("You've used today's
+  questions. Ask Coach is back at 21:14."), and main waits 50 s for a reply.
+- **The one time fill** (`ask-coach.js fill`, `chat-context.js needsFill`,
+  `applyRoundRecord`). A review linked before 8.5.0 keeps no kill feed, plant
+  time or comps, though Riot's round record has them. Ask Coach opening on it
+  asks `/match-rounds` once, `purpose=fill` (the server's fill reserve), for
+  the connected Riot ID only, three seconds after this app's last HenrikDev
+  request, never mid match, never for a held match and never while the
+  backfill or a review's own link is at work, and stores those fields and the
+  stamp, nothing else: no regrade, no narrative, no list. An answer that will
+  not change stamps it asked and it is never asked again; a 503 asks on the
+  next open. A question waits for a fill under way 8 s at most. The fill
+  stores the feed by the link's own function (`valorant-verify.js
+  killFeedOf`), so a review linked by 8.5.0, which keeps the same fields from
+  its link, is never filled.
+- **League and frame chat.** A League question gets the computed review alone
+  (the scoreline, the grade, the lists, every death by the game's clock),
+  never the summoner name. Frame chat sends a linked round's Riot facts
+  (`riot`, read by the route's `riotFrameFacts`) and refuses a held match's
+  frames.
+- **The page** (`src/renderer/chat/`): the chip is the shared dropdown, the
+  starters come from the match (its round with a look to walk through, its
+  agent, its lost rounds; general ones with none; League's own), a switch
+  starts a new thread under a divider, the cap and the hold are lines rather
+  than bubbles, and a reply keeps its paragraphs (`white-space: pre-line`),
+  set by textContent alone. An answer still on its way when the chip moves
+  lands where its typing dots stood, in the thread that asked it, and never
+  joins the new thread's conversation: it had landed under the new match's
+  divider and gone to the model with that match's next question.
+
+`npm run test:chatcontext` holds the hold (a held match's counts out of the
+patterns too), the map rule and the rounds, a review older than the ten
+newest kept as the match, what is never sent, the cards and looks (old cards
+read back equal to their fields on the real Abyss), the fill and the refusals
+on fakes, and both shapes; `npm run test:chatgates` every gate on its
+positives and negatives, each regex on a known positive and negative, the
+independent probe's cases above, the prompt's order and budget, the slices,
+the retry and the honest line, and the real primer's numbers; `test:surfaces`
+the page.
+
+**bench:chat picks the model** (`npm run bench:chat`, spends money, about
+$3.80, stopped at `--budget`, $5). Six matches: the repo's Abyss 13 to 11
+built offline and filled from its own record, and its Split 13 to 7 (the
+player's upgraded review where their library has it, else the repo's 8.0.1
+review upgraded offline), their questions in
+`scripts/fixtures/chat-questions.json`; and the player's Fracture, Sunset,
+Abyss swiftplay and Pearl, theirs in `userData/bench/chat/`, never in the
+repo. About thirty questions, each with a key written by hand from
+Riot's record (what a right answer states and the claims it must not make),
+checked apart from the gates. Every question goes through `ask-coach.js`
+itself on a read-only copy of the library, the player's reviews filled as the
+fill fills them, kept beside the bench and never saved. The server must send
+an admin bench the model's own text (`raw: true` beside the admin password:
+`raw`, `rawRetry` when the gates asked again, and `usage`, both calls' prompt,
+cached and completion tokens; a licence's own `raw: true` is sent the reply
+alone), or the bench stops at its first answer. Even there a sentence carrying
+a word of the match's name set is withheld (`coach.js rawForBench`, the
+marker `name-gate.js WITHHELD`, which bench:chat counts as a name), since the
+bench scores raw replies: the wrong fact rate with its exact 95%
+interval, what the gates caught and what slipped past them, drops, retries,
+honest lines, names, cost, cached tokens and latency, every bar of 8.13 and
+the cheapest model passing them all. The finalist's answers go to a sheet for
+a person to read, folded in by `--score <run> --read <read>`. `--dry` sends
+nothing, reads no licence or password and writes nothing: it holds every key
+to its own samples and every question to the match and round it must land on.
+It runs after the server deploys with v2 off; on a pass `AI_CHAT_MODEL` and
+`CHAT_PROMPT=v2` are set on Railway, and unsetting `CHAT_PROMPT` rolls it back.
 
 ## A refund must take the licence away
 
@@ -3131,7 +3923,7 @@ falls back per call: it is sent once more without the preference, booked as
 any call, and nothing else ever is (a 400, 401, 402, 403, 429, any other 5xx
 or a timeout is the call's own answer). The calls
 that fell back are counted per route since boot (read, forensics, review,
-chat, other), said in one log line a route an hour at most, and
+chat, bench, other), said in one log line a route an hour at most, and
 `GET /health` counts them as `dataPolicy: { mode, fellBack, refusedAgain,
 since }`: a route counting in `fellBack` sends its model's frames to providers
 that may keep them, each call after a refused round trip, until the model

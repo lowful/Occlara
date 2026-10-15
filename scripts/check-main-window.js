@@ -127,9 +127,16 @@ class StandInValorant extends EventEmitter {
 }
 const played = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
 const { rounds } = verify.reconcile(played.rounds, load('riot-abyss-13-11.json'));
+// Both team comps (8.5.0) as a link keeps them, so the review's comps line is
+// painted in the real window: a stand in, agents only, theirs the four the
+// fixture's Riot record has killing the player and a fifth made up.
+const COMPS = { us: [{ agent: 'Jett', role: 'Duelist' }, { agent: 'Killjoy', role: 'Sentinel' }, { agent: 'Omen', role: 'Controller' },
+  { agent: 'Sova', role: 'Initiator' }, { agent: 'Breach', role: 'Initiator' }],
+them: [{ agent: 'Skye', role: 'Initiator' }, { agent: 'Cypher', role: 'Sentinel' }, { agent: 'Viper', role: 'Controller' },
+  { agent: 'Phoenix', role: 'Duelist' }, { agent: 'Killjoy', role: 'Sentinel' }] };
 const built = valorantReview.build({ rounds, context: { ...played.context, agent: 'Jett' }, endedBy: 'score',
   ai: { focus: 'Enter second for a match: let a teammate or your utility take first contact, then trade.' },
-  role: 'Duelist', history: [], riotMe: { kills: 31, deaths: 21, assists: 4, score: 9168 } });
+  role: 'Duelist', history: [], riotMe: { kills: 31, deaths: 21, assists: 4, score: 9168 }, comps: COMPS });
 const store = new ReviewStore(path.join(ud, 'reviews'));
 const now = Date.now();
 [0, 1].forEach((i) => {
@@ -628,9 +635,23 @@ setTimeout(async () => {
     const painted = review && await until(() => review.webContents.executeJavaScript("!document.getElementById('vreview').hidden"), 5000);
     lines.push(`home row: shown=${mainWindow.current().shown} review painted=${!!painted}`);
     if (mainWindow.current().shown !== 'review' || !painted) return report(false, 'a recent match on Home did not open its review');
+    // Both team comps, one line under the strip (8.5.0), as main presents them.
+    const comps = await review.webContents.executeJavaScript(
+      "(() => { const c = document.getElementById('v-comps'); return c ? { hidden: c.hidden, text: c.textContent, under: c.parentNode.id } : null; })()");
+    lines.push(`comps line: ${JSON.stringify(comps)}`);
+    if (!comps || comps.hidden || comps.under !== 'v-rounds-wrap'
+      || comps.text !== 'Your team: Breach, Jett (you), Killjoy, Omen, Sova. Theirs: Cypher, Killjoy, Phoenix, Skye, Viper.') {
+      return report(false, `the review's comps line is not one line of both teams' agents under the strip: ${JSON.stringify(comps)}`);
+    }
 
     await wait(1500);
     await shot('review', mainWindow, win);
+    if (process.env.OCCLARA_SHOTS === '1') {
+      // The strip and the comps line under it (8.5.0), scrolled into view.
+      await review.webContents.executeJavaScript("document.getElementById('v-rounds-wrap').scrollIntoView({ block: 'start' }); true");
+      await shot('review-comps', mainWindow, win);
+      await review.webContents.executeJavaScript('window.scrollTo(0, 0); true');
+    }
     if (process.env.OCCLARA_SHOTS === '1') {
       for (const page of ['patterns', 'breakdown', 'stats', 'coach', 'settings']) {
         mainWindow.show(page);

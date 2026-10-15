@@ -1,0 +1,1165 @@
+{
+ "note": "Every look sentence and round line on record, 122: the 98 the 13 Oct 2026 forensics bench wrote on the repo's own Abyss 13 to 11 (valorant-match-abyss-13-11.json), verbatim, and the 24 of the player's library (the 12 sentences of its looks and the 12 round lines of the rounds looked at), retyped as equivalents: the same first word, capitalised words, digits and listed phrases, the other words changed. test:forensics holds the server's name gate to them: none names a player.",
+ "sentences": [
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 2,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You died at A Site, alone in the open with no teammate close enough to trade, and the Viper's Marshal finished you while your team was spread out and committed to B."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 2,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Hold A Vent tight with your Bandit and do not push out alone, so a teammate is close enough to trade the Viper if she takes you down."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 2,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You pushed onto A Site alone while your teammates were committed elsewhere, and the Viper's Marshal caught you with no one close enough to trade the kill."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 2,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Hold A Vent with your Bandit and stay tight with the team instead of pushing out alone, since the team was committed to B."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 10,
+   "field": "what",
+   "cause": "dry-peek",
+   "text": "You were standing at A Vent, peeking out with an Operator and no smoke or flash in place, and the enemy you died to was still unseen in this frame."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 10,
+   "field": "better",
+   "cause": "dry-peek",
+   "text": "Hold the corner and wait for a teammate's smoke or flash, or ping the enemy's position so your team can trade before you step out."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 2,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You pushed onto A Site at 1:20 with no teammate near you, and an enemy Viper killed you with a Marshal from the open ground in front of the site entrance while the rest of your team held elsewhere."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 2,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay with your Bandit at A Vent until your team is ready to take A Site together, so a single Marshal shot cannot catch you alone."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 3,
+   "field": "what",
+   "cause": "dry-peek",
+   "text": "You peeked wide into the open at A Vent with no utility or information first, and the killer was waiting for you as you came out."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 3,
+   "field": "better",
+   "cause": "dry-peek",
+   "text": "Hold the angle from cover or throw a flash before you peek A Vent, so you can see the Cypher before he sees you."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 10,
+   "field": "what",
+   "cause": "dry-peek",
+   "text": "You were standing at A Vent with your Operator, peeking toward the open corridor, and the frame shows no smoke and no teammate covering that angle before you stepped out."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "untimed",
+   "round": 10,
+   "field": "better",
+   "cause": "dry-peek",
+   "text": "Hold A Vent behind a smoke or wait for a teammate to cover the angle before you peek, so the enemy Cypher cannot hit you as you step out."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 2,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You were alone at A Site with no teammate near you when Viper's Marshal killed you, and nobody on your team traded the killer."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 2,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay with your Bandit at A Vent as the instructions say, and hold with the team rather than pushing alone into A Site."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were firing a Vandal in the open at a distant enemy on Mid Library while your team was holding elsewhere, and the fight ended with the killer's Spectre fire."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Hold back behind cover near your teammates and wait for a trade partner or utility before taking a shot at the enemy."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 10,
+   "field": "what",
+   "cause": "dry-peek",
+   "text": "Your screen shows you holding the A Vent area with an Operator in hand and no smoke or utility down, and the frame is taken about three seconds before you were killed by Cypher's Sheriff at Mid Top after the barriers dropped."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 10,
+   "field": "better",
+   "cause": "dry-peek",
+   "text": "Before stepping out, throw or wait for a smoke to block Cypher's line of sight, or hold back until a teammate is in position to trade."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 19,
+   "field": "what",
+   "cause": "crossfire",
+   "text": "Six seconds before your death you were at Mid Catwalk holding a Vandal with no enemy in view, then after you were killed by Cypher at Mid Bottom the spotted-enemy callouts show multiple enemies in Mid while Cypher's trap and neural theft we."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 19,
+   "field": "better",
+   "cause": "crossfire",
+   "text": "Hold back at Mid Catwalk until your team has pushed up through Mid Bottom together, or use a flash or information before you step into the area where Cypher was set up."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 2,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You were alone at A Site, several seconds after the barriers dropped, with no teammate close enough to trade, and an enemy Viper's Marshal caught you in the open."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 2,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Hold A Vent tight with your Bandit as the coaching prompt says, instead of pushing forward alone to A Site where your team was not with you."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were firing a Vandal down the Mid Library corridor at an enemy in the open while a teammate lay dead nearby, with no clear sign of a bad position or an unlit angle in this frame."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Hold back until a teammate is near or you have information on the angle, so the duel is not taken alone."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 10,
+   "field": "what",
+   "cause": "dry-peek",
+   "text": "You were standing at A Vent, holding an Operator with 100 health and no smoke or utility up, when an enemy was spotted in Mid and you were killed by Cypher about 3 seconds after this frame."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 10,
+   "field": "better",
+   "cause": "dry-peek",
+   "text": "Before stepping out of A Vent, wait for a smoke or a teammate's information so you are not peeking the angle blind."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 19,
+   "field": "what",
+   "cause": "crossfire",
+   "text": "Six seconds before the death you were on Mid Catwalk dashing forward with a Vandal, and by the death Cypher's trap had you in its neural theft while the screen showed multiple enemies spotted in Mid, so you walked into an enemy holding a di."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 19,
+   "field": "better",
+   "cause": "crossfire",
+   "text": "Hold back at Mid Bottom until your team clears or flashes the enemies in Mid, and only move forward once you know which angles are occupied so you are not caught by two of them at once."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 2,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You were alone at A Site with no teammate near you when you were killed by Viper, so nobody could trade the kill."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 2,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay tight with your Bandit at A Vent and do not push out alone while your team is committed to B."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were firing a Vandal down a corridor at an enemy in the open, with a teammate lying downed nearby and the enemy's fire on you, and the duel went against you."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Hold the angle with a teammate close enough to trade, or wait for utility before committing to the peek."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 19,
+   "field": "what",
+   "cause": "crossfire",
+   "text": "Six seconds before your death you were on Mid Catwalk with a Vandal and a dash ready, but in the second frame you were at Mid Bottom under a Cypher Neural Theft cage while your Vandal was out and the killer closed in, and the death screen s."
+  },
+  {
+   "from": "bench",
+   "run": "haiku",
+   "model": "anthropic/claude-haiku-5.5",
+   "body": "timed",
+   "round": 19,
+   "field": "better",
+   "cause": "crossfire",
+   "text": "Hold back at Mid Catwalk until your team has info and a trade partner, instead of pushing forward into Mid Bottom where you could be caught by Cypher's utility and a second angle."
+  },
+  {
+   "from": "bench",
+   "run": "luna-more",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 2,
+   "field": "what",
+   "cause": "dry-peek",
+   "text": "You were holding A Vent with your Bandit, then peeked into A Site and were killed by Viper’s Marshal without dealing damage."
+  },
+  {
+   "from": "bench",
+   "run": "luna-more",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 2,
+   "field": "better",
+   "cause": "dry-peek",
+   "text": "Use Cloudburst to block the sightline before peeking, or stay covered and wait for support."
+  },
+  {
+   "from": "bench",
+   "run": "luna-more",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You are alone in Mid Library, peeking A Vent while your teammates are committed to B, and the enemy holds the angle."
+  },
+  {
+   "from": "bench",
+   "run": "luna-more",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay with your teammates so they can trade you instead of taking this isolated peek."
+  },
+  {
+   "from": "bench",
+   "run": "luna-more",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You were alone at Mid Library, firing toward an enemy while your teammates were committed to B, so you could not be traded."
+  },
+  {
+   "from": "bench",
+   "run": "luna-more",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay with your teammates at B or regroup before taking a fight away from them."
+  },
+  {
+   "from": "bench",
+   "run": "luna-more",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "dry-peek",
+   "text": "You peeked A Vent without utility or information first and exposed yourself to Cypher."
+  },
+  {
+   "from": "bench",
+   "run": "luna-more",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "dry-peek",
+   "text": "Use Cloudburst or get information before peeking A Vent, and stay close enough to your teammates to be traded."
+  },
+  {
+   "from": "bench",
+   "run": "luna",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 2,
+   "field": "what",
+   "cause": "dry-peek",
+   "text": "You peeked from A Vent into A Site and Viper killed you with a Marshal before you dealt any damage."
+  },
+  {
+   "from": "bench",
+   "run": "luna",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 2,
+   "field": "better",
+   "cause": "dry-peek",
+   "text": "Use Cloudburst to block the angle or get information before peeking, and fall back if it is not safe."
+  },
+  {
+   "from": "bench",
+   "run": "luna",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "dry-peek",
+   "text": "You are peeking A Vent without utility or visible information while an enemy Cypher is holding the angle."
+  },
+  {
+   "from": "bench",
+   "run": "luna",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "dry-peek",
+   "text": "Use Cloudburst or get information before peeking A Vent, and stay close enough to your teammates to be traded."
+  },
+  {
+   "from": "bench",
+   "run": "script-looks",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You were alone at Mid Library while your teammates were committed to B, and the enemy held the angle that killed you."
+  },
+  {
+   "from": "bench",
+   "run": "script-looks",
+   "model": "openai/gpt-6-luna",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay with your team so they can trade you, or fall back instead of taking the fight alone."
+  },
+  {
+   "from": "bench",
+   "run": "script-looks",
+   "model": "openai/gpt-6-sol",
+   "body": "untimed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You fought an enemy from cover in Mid Library and died to Cypher with a Spectre."
+  },
+  {
+   "from": "bench",
+   "run": "script-looks",
+   "model": "openai/gpt-6-sol",
+   "body": "untimed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "You could have stayed behind cover and taken the next fight alongside a teammate."
+  },
+  {
+   "from": "bench",
+   "run": "script-looks",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You fought Cypher in Mid Library while your teammates were elsewhere, and your death was not traded."
+  },
+  {
+   "from": "bench",
+   "run": "script-looks",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay close enough to a teammate to fight the angle together or trade you."
+  },
+  {
+   "from": "bench",
+   "run": "script-looks",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were in Mid Library at full health, firing your Vandal down the corridor at an enemy in a straight fight, and the Cypher with the Spectre won it before you finished him."
+  },
+  {
+   "from": "bench",
+   "run": "script-looks",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Take that fight from a spot with a bit of cover, tap or burst at that range instead of spraying, and be ready to step back behind the corner if your first shots miss."
+  },
+  {
+   "from": "bench",
+   "run": "sol-more",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You fought Cypher from Mid Library while your teammates were elsewhere, and your death was not traded."
+  },
+  {
+   "from": "bench",
+   "run": "sol-more",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay closer to a teammate so they can trade you if you lose the fight."
+  },
+  {
+   "from": "bench",
+   "run": "sol-more",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You took a fight in Mid Library with no teammate close enough to trade when Cypher killed you."
+  },
+  {
+   "from": "bench",
+   "run": "sol-more",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay closer to your teammates so they can trade you if you lose the fight."
+  },
+  {
+   "from": "bench",
+   "run": "sol-more",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You fought Cypher from Mid Library while your teammates were elsewhere, and your death was not traded."
+  },
+  {
+   "from": "bench",
+   "run": "sol-more",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay close enough to a teammate to fight the angle together and trade each other."
+  },
+  {
+   "from": "bench",
+   "run": "sol-more",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You fought Cypher in Mid Library while your teammates were elsewhere, and nobody traded your death."
+  },
+  {
+   "from": "bench",
+   "run": "sol-more",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay close enough to a teammate to fight that angle together or trade each other."
+  },
+  {
+   "from": "bench",
+   "run": "sol-more",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You fought Cypher in Mid Library while your teammates were elsewhere, and your death was not traded."
+  },
+  {
+   "from": "bench",
+   "run": "sol-more",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay closer to a teammate so they can trade you if you lose the fight."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "untimed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were firing at an enemy from Mid Library, and Cypher killed you with a Spectre."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "untimed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "You had cover nearby, so fall back behind it rather than staying in the duel."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "untimed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You fought an enemy from Mid Library and later died to Cypher, with no trade within five seconds."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "untimed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "You could use cloudburst to break sight and fall back instead of staying in the fight."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "untimed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were firing at an enemy from cover in Mid Library, and Cypher killed you with a Spectre shortly afterward."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "untimed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Stay near cover and disengage if you cannot win the exchange."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "dry-peek",
+   "text": "You took an open fight in Mid Library against the Cypher who killed you, with no utility visible before the peek."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "dry-peek",
+   "text": "Use cloudburst to cover the angle before swinging, or hold from cover instead of taking the open fight."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You took a fight in Mid Library while your teammates were elsewhere, and Cypher killed you without a trade."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay close enough to a teammate to trade the fight, or fall back instead of taking it alone."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "isolated",
+   "text": "You fought Cypher from Mid Library while your teammates were elsewhere, and your death was not traded."
+  },
+  {
+   "from": "bench",
+   "run": "sol",
+   "model": "openai/gpt-6-sol",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "isolated",
+   "text": "Stay close enough to a teammate to trade the fight instead of taking it alone."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-more",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were at full health in Mid Library with a Vandal, trading shots with an enemy at the far end of the corridor, and Cypher's Spectre won the exchange."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-more",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Take the duel from a tighter angle, or step back behind cover after your first burst so you do not stand in a long straight line against his spray."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-more",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were at full health in Mid Library with a Vandal, shooting at an enemy down the long corridor, and you lost the fight to the Cypher's Spectre while your team held the numbers advantage."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-more",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Hold the corridor from behind cover and take the shot only when a teammate can swing with you, so a lost shot can be traded."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-more",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were at Mid Library with full health, holding a Vandal and already shooting at an enemy down the hallway, with teammates close by on the minimap, and you lost that gunfight to the Cypher's Spectre."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-more",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Fire a short controlled burst, then step back behind the wall so a teammate can swing with you, instead of standing in the open trading shots down the hallway."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-more",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were in Mid Library at full health, firing your Vandal down the hallway at an enemy, and you lost that gunfight to the Cypher's Spectre while teammates were still alive on the minimap."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-more",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Keep taking this fight from cover and stop firing in the open, so you can pull back behind the wall after the first shots and make the Spectre come to you."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-more",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were in Mid Library at full health and already firing your Vandal down the hallway at an enemy, with teammates close on the minimap, and the Cypher with a Spectre won the exchange."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-more",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Take that fight from a spot where a teammate can see the same enemy, or stop and reset your aim after the first shots so the trade is there if you lose the duel."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-probe",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "untimed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were in Mid Library with a Vandal, had just taken a kill and were firing down the long corridor at an enemy, and the Cypher with the Spectre won the next fight about 2 seconds later."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet-probe",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "untimed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "After the kill, use your Tailwind or step back behind the corner to reset your crosshair, so the next fight is on your terms and your team can help."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "untimed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were in Mid Library at full health, firing your rifle down a long corridor at an enemy, and Cypher beat you in that fight with his Spectre, even though you got 40 damage on him."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "untimed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Take the same fight from a spot where a teammate can see the same lane, or pause your spray and reset behind cover once the Spectre starts hitting you, so one lost exchange does not end your round."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "untimed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were in Mid Library at full health and armor, already firing down the corridor at an enemy, and Cypher's Spectre won that exchange two seconds later."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "untimed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Against a Spectre at that range, fire short controlled bursts at the head and step back behind the wall to reset the fight, so a teammate can help instead of you trading shots alone."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were at full health in Mid Library, holding the corridor with a rifle and shooting at an enemy down the hall, and Cypher's Spectre won the exchange before a teammate could trade."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Take the same fight from a half step back behind the corner, so a teammate has a line to trade you, and stop firing to reposition if the first shots miss."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were at full health in Mid Library with a Vandal, already firing at an enemy down the corridor, and you lost that gunfight to the Cypher's Spectre."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Take the same fight a step back behind the corner so a teammate can see the angle and trade you, and win it with first-bullet accuracy or a tap instead of spraying in the open."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You were at Mid Library with full health, firing your Vandal at an enemy down the long hallway, and you lost that fight to the Cypher's Spectre while teammates were close on the minimap."
+  },
+  {
+   "from": "bench",
+   "run": "sonnet",
+   "model": "anthropic/claude-sonnet-5.5",
+   "body": "timed",
+   "round": 3,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Take that duel from a spot where you can strafe and stop before shooting, so the Spectre cannot win the exchange, and stay tight with your teammates so a trade is there if you lose."
+  },
+  {
+   "from": "library",
+   "match": "abyss swiftplay",
+   "round": 2,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You played B Main from cover and lost the gunfight to Tejo’s Outlaw."
+  },
+  {
+   "from": "library",
+   "match": "abyss swiftplay",
+   "round": 2,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "After your last shots, fall back behind cover to reload so Tejo does not get another shot."
+  },
+  {
+   "from": "library",
+   "match": "fracture swiftplay",
+   "round": 2,
+   "field": "what",
+   "cause": "repeek",
+   "text": "You kept the same A Main angle after trading shots and taking a kill, and Astra killed you with a Sheriff."
+  },
+  {
+   "from": "library",
+   "match": "fracture swiftplay",
+   "round": 2,
+   "field": "better",
+   "cause": "repeek",
+   "text": "After the first exchange, fall back behind cover rather than holding the angle on 57 health."
+  },
+  {
+   "from": "library",
+   "match": "fracture swiftplay",
+   "round": 5,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You held an angle from cover on A Site, shot at the Jett you could see, and lost the duel to her Sheriff."
+  },
+  {
+   "from": "library",
+   "match": "fracture swiftplay",
+   "round": 5,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Keep the wall as cover, but fall back after your first shots instead of staying on that angle."
+  },
+  {
+   "from": "library",
+   "match": "fracture swiftplay",
+   "round": 6,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You fought Chamber from B Tree with your Sheriff, fired three times, and died without doing damage."
+  },
+  {
+   "from": "library",
+   "match": "fracture swiftplay",
+   "round": 6,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Take your next shot from cover instead of staying exposed in that duel."
+  },
+  {
+   "from": "library",
+   "match": "pearl swiftplay",
+   "round": 1,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "On B Site, you shot at Clove from beside cover and lost the pistol duel without hurting them."
+  },
+  {
+   "from": "library",
+   "match": "pearl swiftplay",
+   "round": 1,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Stay next to cover and aim before you fire so you can retreat if your first shots miss."
+  },
+  {
+   "from": "library",
+   "match": "pearl swiftplay",
+   "round": 5,
+   "field": "what",
+   "cause": "lost-duel",
+   "text": "You pulled out your Ghost and fought Cypher up close in Mid Plaza, doing 105 damage before his Classic killed you."
+  },
+  {
+   "from": "library",
+   "match": "pearl swiftplay",
+   "round": 5,
+   "field": "better",
+   "cause": "lost-duel",
+   "text": "Have your Ghost out as you reach the doorway so you take the fight without switching weapons under fire."
+  },
+  {
+   "from": "library",
+   "match": "abyss swiftplay",
+   "round": 2,
+   "field": "why",
+   "text": "Losing a fair fight from B Main happens, but waiting at A Vent with the knife out wastes your utility. Hold Mid Bottom with your weapon up to react to reports instead of idling."
+  },
+  {
+   "from": "library",
+   "match": "abyss swiftplay",
+   "round": 4,
+   "field": "why",
+   "text": "Dying early at Mid Top while scoped in makes you an easy pick for Tejo before your team gets there. Wait for your squad to reach you before you commit to that angle, so trades are there."
+  },
+  {
+   "from": "library",
+   "match": "abyss swiftplay",
+   "round": 8,
+   "field": "why",
+   "text": "Getting the first kill at B Link is good, but dying ten seconds later points to an overextension without dash ready. Use your mobility to reposition safely once you have information rather than staying in a vulnerable spot."
+  },
+  {
+   "from": "library",
+   "match": "sunset swiftplay",
+   "round": 2,
+   "field": "why",
+   "text": "Being dead while your team loses means you missed the chance to put on pressure earlier. You must stay alive through the first engagement to trade kills."
+  },
+  {
+   "from": "library",
+   "match": "sunset swiftplay",
+   "round": 3,
+   "field": "why",
+   "text": "Holding a pistol in spawn stops you reacting quickly to enemy pushes. You should be near a checkpoint to take space right after the round starts."
+  },
+  {
+   "from": "library",
+   "match": "sunset swiftplay",
+   "round": 6,
+   "field": "why",
+   "text": "Hugging a wall slows your acceleration and makes you an easy target for sharpshooters. You should step out of cover and peek angles with movement instead of staying static."
+  },
+  {
+   "from": "library",
+   "match": "sunset swiftplay",
+   "round": 7,
+   "field": "why",
+   "text": "Rotating into a site without information hands the enemy your positional advantage. Stick to the site that has already worked for the opponent to gather intel."
+  },
+  {
+   "from": "library",
+   "match": "fracture swiftplay",
+   "round": 5,
+   "field": "why",
+   "text": "After the plant, take a spot a teammate can trade instead of holding alone; nobody traded your death."
+  },
+  {
+   "from": "library",
+   "match": "pearl swiftplay",
+   "round": 1,
+   "field": "why",
+   "text": "After a fair duel lost, take one shot and return to cover before you challenge again, above all when nobody can trade you."
+  },
+  {
+   "from": "library",
+   "match": "pearl swiftplay",
+   "round": 4,
+   "field": "why",
+   "text": "Hold the space you have until a teammate can follow; nobody could trade you when you pushed further."
+  },
+  {
+   "from": "library",
+   "match": "pearl swiftplay",
+   "round": 5,
+   "field": "why",
+   "text": "Keep moving between peeks at the angle instead of a static close fight; your death was traded, but it came first."
+  },
+  {
+   "from": "library",
+   "match": "pearl swiftplay",
+   "round": 6,
+   "field": "why",
+   "text": "When you are low on health, fall back toward a teammate rather than holding alone; nobody could trade you."
+  }
+ ]
+}

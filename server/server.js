@@ -41,7 +41,7 @@ const retiredRoutes = require('./routes/retired');
 const adminRoutes   = require('./routes/admin');
 const webhookHandler = require('./routes/webhook');
 const { errorHandler, corsRefusal } = require('./services/http-errors');
-const { makeAdminLimiter } = require('./services/admin-auth');
+const { makeAdminLimiter, isAdmin } = require('./services/admin-auth');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -197,6 +197,13 @@ app.use('/api/coach',    coachRoutes);
 // is answered 410 on every path, and nothing is looked up or called. See
 // routes/retired.js.
 app.use('/api/rivals',   retiredRoutes.rivals);
+// Ask Coach's day (8.5.0): questions asked, drops by gate, retries, honest
+// lines and cap refusals, counts only, behind the admin password and its
+// limiter, never on the public /health (coach.js chatReport).
+app.get('/api/admin/chat', (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  res.json(coachRoutes.chatReport());
+});
 app.use('/api/admin',    adminRoutes);
 
 // The live view: who is on Occlara right now. The page itself holds no data;
@@ -238,6 +245,16 @@ app.listen(PORT, () => {
     ? `OpenAI-compatible (${process.env.AI_VISION_MODEL || 'default model'})`
     : process.env.GEMINI_API_KEY ? 'Gemini' : '(none configured)'}`);
   console.log(`[server] Stats: ${process.env.HENRIKDEV_API_KEY ? 'HenrikDev' : ''}${process.env.TRACKER_API_KEY ? ' tracker.gg' : ''}` || '(none)');
+  // THE PRIMER'S LIVE VERSION CHECK (8.5.0, game-primer.js): at boot and
+  // every six hours on Railway, never in a check, a test or CI
+  // (liveCheckWanted). /api/admin/primer says what it found.
+  try {
+    const primer = require('./services/game-primer');
+    if (primer.liveCheckWanted(process.env)) primer.startLiveCheck();
+    else console.log('[server] primer live check off (not on Railway, or PRIMER_LIVE_CHECK=off)');
+  } catch (e) {
+    console.warn('[server] the primer live check could not start:', e.message);
+  }
 });
 
 // ─── Memory logging, every 60s so we can spot leaks early ───────────────────

@@ -39,7 +39,10 @@ function registerIpc(deps) {
   safeHandle(C.STATE_GET, async () => controller.getState());
   safeHandle(C.SHELL_GET, async () => controller.getShell());
 
-  safeHandle(C.CHAT_SEND, async (_e, messages) => controller.chat(messages));
+  safeHandle(C.CHAT_SEND, async (_e, messages, opts) => controller.chat(messages, opts && typeof opts === 'object' ? opts : {}));
+  // Ask Coach's match (8.5.0): the list and the chip, main's to decide.
+  safeHandle(C.CHAT_MATCHES, async () => controller.chatMatches());
+  safeHandle(C.CHAT_MATCH, async (_e, id) => controller.chatMatch(typeof id === 'string' ? id : null));
 
   safeHandle(C.STATS_TEST, async () => controller.testTracker());
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-13T20:26:27.005Z",
+  "generatedAt": "2026-10-15T15:39:58.815Z",
   "patch": "13.08",
   "buildDate": "2026-10-01T20:58:39Z",
   "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-08/",
@@ -60,5 +60,4466 @@
       "line": "Fix for Warden scope reticle misalignment during full auto fire"
     }
   ],
-  "notesFound": true
+  "notesFound": true,
+  "history": [
+    {
+      "patch": "13.08",
+      "date": "2026-10-13T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-08/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 13.08",
+          "names": []
+        },
+        {
+          "line": "Act 6 starts now.",
+          "names": []
+        },
+        {
+          "line": "Game Updates Kenny “Karnifexlol“ Cameron",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "TL;DR: Vanguard continues to go brr, Map Rating is here, Performance Score has been updated, Corrode got some sweet new updates, Ascent and Split are out, Corrode and Bind are in, and we fixed some bugs.",
+          "names": [
+            "Ascent",
+            "Split",
+            "Bind",
+            "Corrode"
+          ]
+        },
+        {
+          "line": "Sup, gamers?!",
+          "names": []
+        },
+        {
+          "line": "Kenny here, back with another patch and some nifty little updates to kick off V26 Act 6. Read below for the full details.",
+          "names": []
+        },
+        {
+          "line": "GL HF GGs!",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "GENERAL UPDATES",
+          "names": []
+        },
+        {
+          "line": "In a new effort to provide more transparency about the actions we’ve taken against problematic players in our community, we want to start sharing our penalty numbers more often. The numbers on the graph above reflect accounts who were fully banned from playing VALORANT for 3 days or longer in Act 5.",
+          "names": []
+        },
+        {
+          "line": "In Act 5’s detection period (August 18 to October 1), we banned:",
+          "names": []
+        },
+        {
+          "line": "171,000+ cheaters",
+          "names": []
+        },
+        {
+          "line": "54,000+ botters",
+          "names": []
+        },
+        {
+          "line": "76,000+ for rank manipulation (boosters, boostees, hitchhikers, wintraders & others, numbers listed below)",
+          "names": []
+        },
+        {
+          "line": "74,000+ for toxicity or comms abuse",
+          "names": []
+        },
+        {
+          "line": "288,000+ for repeated AFK/gameplay abuse",
+          "names": []
+        },
+        {
+          "line": "14,000+ for using streamsniping and/or instalocking tools",
+          "names": []
+        },
+        {
+          "line": "And we know we still have a lot of work to do, and we’ll keep you updated as we do it.",
+          "names": []
+        },
+        {
+          "line": "More importantly, your reports help us improve our tooling and detection methods, so please continue to report in-game. Thank you!",
+          "names": []
+        },
+        {
+          "line": "AGENTS UPDATES",
+          "names": []
+        },
+        {
+          "line": "Killjoy Alarmbot projectile destruction VFX and audio feedback will now trigger when projectile is destroyed by moving doorways",
+          "names": [
+            "Killjoy"
+          ]
+        },
+        {
+          "line": "CLIENT UPDATES",
+          "names": []
+        },
+        {
+          "line": "New Queue and Mode Select interface for matchmade and custom game types",
+          "names": []
+        },
+        {
+          "line": "We’ve added a navigation bar to Career to make it easier to navigate to feature pages, like Rank Legacy, Accolades, and Map Rating.",
+          "names": []
+        },
+        {
+          "line": "COMPETITIVE UPDATES",
+          "names": []
+        },
+        {
+          "line": "Map Rating: Time to see if your favorite map is your best map.",
+          "names": []
+        },
+        {
+          "line": "Map Rating evaluates how your proficiency on a given map changes over time with a 0 to 500 rating and C to S letter grade.",
+          "names": []
+        },
+        {
+          "line": "Your rating is based on four primary stats: Overall Win Rate, Attacker Win Rate, Defender Win Rate, and Performance Score.",
+          "names": []
+        },
+        {
+          "line": "Recent matches contribute more to your rating and stats than older matches.",
+          "names": []
+        },
+        {
+          "line": "Improving any of these stats can increase your rating.",
+          "names": []
+        },
+        {
+          "line": "You can see your rating, stats, and other features, like your Top Agents in Agent Select, End of Game, and Career.",
+          "names": []
+        },
+        {
+          "line": "Other players are not able to see information about your Map Rating.",
+          "names": []
+        },
+        {
+          "line": "Map Rating is available for Competitive and Premier.",
+          "names": []
+        },
+        {
+          "line": "Everyone starts fresh with the Map Rating launch - historical match data will not count.",
+          "names": []
+        },
+        {
+          "line": "Performance Score Updates",
+          "names": []
+        },
+        {
+          "line": "Performance Score has been doing a great job at better valuing the contributions of different agents and roles, while still recognizing the value of fragging. At launch, Performance Score and ACS aligned on Match MVP ~70% of the time, which was in-line with our expectations given the additional factors measured in Performance Score. However, we noticed some edge cases where it felt like we overswung our measurement of those additional factors. To reduce these edge cases we made some adjustments that went live during 13.06.",
+          "names": []
+        },
+        {
+          "line": "Increased the score impact of Damage, Adjusted Kills, and Adjusted Deaths. These adjusted metrics include both First Bloods and First Deaths.",
+          "names": []
+        },
+        {
+          "line": "Made Chamber specific adjustments that better reflect his utility use.",
+          "names": [
+            "Chamber"
+          ]
+        },
+        {
+          "line": "MAP UPDATES",
+          "names": []
+        },
+        {
+          "line": "CORRODE MAP UPDATE",
+          "names": [
+            "Corrode"
+          ]
+        },
+        {
+          "line": "Happy belated birthday, Corrode! After more than a year of watching games and gathering data, we’ve identified a few areas we’d like to improve.",
+          "names": [
+            "Corrode"
+          ]
+        },
+        {
+          "line": "A Site and B Site — Defender Paths",
+          "names": []
+        },
+        {
+          "line": "Rotations have been taking too long. While rotation times vary across maps, Corrode’s have been making it especially difficult for defenders to get back into the action for a retake. So we've adjusted Defender spawn pathing towards site to help Defenders safely rotate a bit faster.",
+          "names": [
+            "Corrode"
+          ]
+        },
+        {
+          "line": "Adjusted Defender paths into the back of A Site and B Site to shorten rotations and help with retakes.",
+          "names": []
+        },
+        {
+          "line": "Before (Left) -&gt; After (Right)",
+          "names": []
+        },
+        {
+          "line": "Mid",
+          "names": []
+        },
+        {
+          "line": "Mid has felt like a bit of a brawl, and we want fights here to be more predictable for both sides. Attackers currently funnel through a single choke into Lower Mid, where defenders can slow their progress by spamming the half wall. We’re adjusting the wall and nearby cover to give attackers more room to work with and better options to move toward A Link.",
+          "names": []
+        },
+        {
+          "line": "Changed the Mid half wall to metal and moved it out 1 meter to reduce wall spam and allow attackers to sneak into A Link without being seen from Top Mid.",
+          "names": []
+        },
+        {
+          "line": "Moved the boxes at the back of Lower Mid toward B and added a jump-up.",
+          "names": []
+        },
+        {
+          "line": "Raised the wall in Lower Mid to prevent players from peeking over it from the relocated boxes.",
+          "names": []
+        },
+        {
+          "line": "A Site — Plant Zone",
+          "names": []
+        },
+        {
+          "line": "Adjusted the A Site plant zone to make playing post-plant from A Link less effective.",
+          "names": []
+        },
+        {
+          "line": "MAP POOL UPDATES",
+          "names": []
+        },
+        {
+          "line": "BIND and CORRODE are IN the COMPETITIVE and DEATHMATCH queues.",
+          "names": [
+            "Bind",
+            "Corrode"
+          ]
+        },
+        {
+          "line": "ASCENT and SPLIT are OUT of the COMPETITIVE and DEATHMATCH queues.",
+          "names": [
+            "Ascent",
+            "Split"
+          ]
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Competitive",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where the threshold shown for the Masterful accolade was incorrect.",
+          "names": []
+        },
+        {
+          "line": "Gameplay Systems",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where alternate footstep sounds would sometimes not play while a character was in Fog of War",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where bodyfall audio events would fail to play at proper location when agents died while in Fog of War",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where gun bounce audio events would sometimes not trigger as expected",
+          "names": []
+        },
+        {
+          "line": "Weapons",
+          "names": []
+        },
+        {
+          "line": "Fix for Warden scope reticle misalignment during full auto fire",
+          "names": [
+            "Warden"
+          ]
+        },
+        {
+          "line": "KNOWN ISSUES",
+          "names": []
+        },
+        {
+          "line": "We’re aware of a visual bug where Team MVP doesn’t correctly show in Match History. We’re currently working on a fix.",
+          "names": []
+        },
+        {
+          "line": "Range in Queue",
+          "names": []
+        },
+        {
+          "line": "We're aware of an issue that was putting some players into a bugged queue state while using the Practice Range, which led to us disabling the feature. We're currently testing a fix and hope to have it to you all ASAP.",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "13.06",
+      "date": "2026-09-22T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-06/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 13.06",
+          "names": []
+        },
+        {
+          "line": "Game Updates Kenny “Karnifexlol“ Cameron",
+          "names": []
+        },
+        {
+          "line": "2026-09-22T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "TL;DR: The big one is here. A new home and lobby experience, Agent Mastery system, Gauntlet: Glitched, Practice Range in Queue, The Warden, Competitive Updates, and more are ALL LAUNCHING TODAY!",
+          "names": [
+            "Warden"
+          ]
+        },
+        {
+          "line": "Sup, gamers?!",
+          "names": []
+        },
+        {
+          "line": "It’s Kenny here to break down our biggest patch of the year—ok, maybe it’s the biggest patch of the last few years. Maybe ever? Idk.",
+          "names": []
+        },
+        {
+          "line": "Anyway, sit back, relax, and strap in for some lengthy patch notes that go in-depth on allllll the new stuff.",
+          "names": []
+        },
+        {
+          "line": "See y’all in the Gauntlet: Glitched winner’s circle.",
+          "names": []
+        },
+        {
+          "line": "GL HF GGs!",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "GENERAL UPDATES",
+          "names": []
+        },
+        {
+          "line": "The boosting detection we rolled out recently has been making an impact on smurfs and boosters. So far, we've banned 1600 accounts per day. That's over 90,000 accounts, since July 20! And we're just getting started.",
+          "names": []
+        },
+        {
+          "line": "Our esteemed Anticheat team put out a retro on how the new Antiboosting tech is working so far, courtesy of Vanguard. TL;DR, our boosting detections are proving effective against smurfs, and we’re only getting started! Take a look at this graph and read more here .",
+          "names": []
+        },
+        {
+          "line": "CLIENT UPDATES",
+          "names": []
+        },
+        {
+          "line": "New Home/Lobby",
+          "names": []
+        },
+        {
+          "line": "We’ve merged Home and Lobby into a single hub, helping you get an overview of what’s happening in VALORANT and making it easier for you to hop into your next match. It’s now smoother than ever to pick your mode, assemble your squad, and queue up.",
+          "names": []
+        },
+        {
+          "line": "You can check out content like Events, Missions, the active map pool, Leaderboards, and more, while keeping your party front and center. We also added new tiles to Home to bring more visibility to limited time features such as new modes and Pick’ems.",
+          "names": []
+        },
+        {
+          "line": "And stay tuned, we'll also be bringing some updates to the Mode Select interface in Patch 13.08 as well.",
+          "names": []
+        },
+        {
+          "line": "Global Navigation",
+          "names": []
+        },
+        {
+          "line": "We revamped Global Navigation to make it easier to move between major hubs of the game and understand where you are. The layout also gives our navigation more room and reduces visual crowding.",
+          "names": []
+        },
+        {
+          "line": "Active pages, secondary navigation, and back behavior are also more consistent across the whole game.",
+          "names": []
+        },
+        {
+          "line": "New Item Indicators",
+          "names": []
+        },
+        {
+          "line": "If you’ve earned a bunch of new content in recent matches but haven’t yet seen it, you’ll now see indicators in your Collection signifying what’s new to you.",
+          "names": [
+            "Haven"
+          ]
+        },
+        {
+          "line": "Don’t worry - they’ll disappear as soon as you view your Collection or leave the game. We won’t keep showing them for your next session.",
+          "names": []
+        },
+        {
+          "line": "COMPETITIVE UPDATES",
+          "names": []
+        },
+        {
+          "line": "VALORANT is going BIG with several new features for your competitive experience this patch!",
+          "names": []
+        },
+        {
+          "line": "Range and Queue: You can now enter the Range while you’re in queue! Warm up your aim while you wait for your next match.",
+          "names": []
+        },
+        {
+          "line": "A few things to know:",
+          "names": []
+        },
+        {
+          "line": "You can enter the Range from the lobby after you have started matchmaking OR you can start matchmaking from inside the Range",
+          "names": []
+        },
+        {
+          "line": "If we expect your queue to be short, the Range may not be available right away. If your wait ends up taking longer than expected, the Range will show up as available again",
+          "names": []
+        },
+        {
+          "line": "Premier, Deathmatch and other modes without Agent Select will not support queueing from the Range",
+          "names": []
+        },
+        {
+          "line": "Performance Score: Average Combat Score (ACS) is out and Performance Score is in.",
+          "names": []
+        },
+        {
+          "line": "Performance Score is a 0-500 number that measures more than just damage and kills to paint a fuller picture of your contributions to a match.",
+          "names": []
+        },
+        {
+          "line": "Curious about your score? Check out the details in the End of Game screen to see what impacted your Performance Score, where you can improve, and how close you were to a Masterful performance",
+          "names": []
+        },
+        {
+          "line": "Performance Score is available in Competitive, Unrated, Swiftplay, and Premier",
+          "names": []
+        },
+        {
+          "line": "Your MVP and Scoreboard position in these modes are now determined by Performance Score",
+          "names": []
+        },
+        {
+          "line": "We’ll be keeping a close eye on your feedback as we plan updates to Performance Score.",
+          "names": []
+        },
+        {
+          "line": "Accolades: Ever wonder how many times you’ve earned MVP this Act or what your highest kills in a Competitive game were? Accolades have you covered.",
+          "names": []
+        },
+        {
+          "line": "Accolades recognize standout performances across a variety of stats, including many of the contributions measured by your Performance Score.",
+          "names": []
+        },
+        {
+          "line": "Each Accolade tracks your personal best for the current Act and across your lifetime play. Accolade tracking begins with this patch and will reflect on your gameplay going forward.",
+          "names": []
+        },
+        {
+          "line": "You can see your earned Accolades throughout the End of Game experience, including on the MVP screen. You can also head to the Competitive Hub to see all your Accolades in greater detail.",
+          "names": []
+        },
+        {
+          "line": "Accolades can only be earned in Competitive and Premier modes",
+          "names": []
+        },
+        {
+          "line": "Everyone starts fresh when Accolades launch- historical match data will not count",
+          "names": []
+        },
+        {
+          "line": "Rank Legacy: You can now see how many times you’ve reached each rank across your Competitive career, like a VALORANT trophy case!",
+          "names": []
+        },
+        {
+          "line": "Open the Competitive Hub from Career to check out your current rank and your lifetime ranks achieved.",
+          "names": []
+        },
+        {
+          "line": "Each time you earn a rank, you’ll see its counter increase, or see when you’ve hit a new peak!",
+          "names": []
+        },
+        {
+          "line": "Each existing rank can increase your Rank Legacy counter once every three Acts (from Acts I-III and Acts IV-VI)",
+          "names": []
+        },
+        {
+          "line": "Demoting into a rank does not increase its counter",
+          "names": []
+        },
+        {
+          "line": "Career Page Updates: The Career Page has been given a fresh look and we’ve added some new pages to support all these features.",
+          "names": []
+        },
+        {
+          "line": "Career: See your top Agents, Match History, and your Rank all on one page, with some personal flair",
+          "names": []
+        },
+        {
+          "line": "Competitive Hub: Head here from Career to find a snapshot of your Competitive Act, dedicated pages for Accolades and Rank Legacy, and some peeks at what’s coming soon.",
+          "names": []
+        },
+        {
+          "line": "Accolade Page: See all your Accolades in one place. Click in for more details, including how to earn it.",
+          "names": []
+        },
+        {
+          "line": "Rank Legacy Page: Look back at your Competitive journey and the ranks you’ve achieved over time",
+          "names": []
+        },
+        {
+          "line": "Friends can still view your Career and the Competitive Hub Overview",
+          "names": []
+        },
+        {
+          "line": "Dedicated Competitive Hub pages are visible only to you.",
+          "names": []
+        },
+        {
+          "line": "And stay tuned—we have even more coming in the following patches: Map Rating (13.08), Competitive Flex (14.00), and some updates for the Radiant experience (14.00)!",
+          "names": []
+        },
+        {
+          "line": "GAMEPLAY SYSTEMS UPDATES",
+          "names": []
+        },
+        {
+          "line": "End of Game",
+          "names": []
+        },
+        {
+          "line": "We have revamped the End of Game experience to give you a more clear summary of your match and what happens next. You’ll now see your performance, rewards, match details, and more in one place, with the most important moments highlighted.",
+          "names": []
+        },
+        {
+          "line": "You can see highlights like earning MVP or rank promotion, along with your progress across new systems like Agent Mastery, Accolades, and Performance Score.",
+          "names": []
+        },
+        {
+          "line": "The End of Game experience progresses automatically, but you can control your experience. Move through it at your own pace, dive into more detail, requeue immediately, or return to the Lobby whenever you’re ready.",
+          "names": []
+        },
+        {
+          "line": "MODES UPDATES",
+          "names": []
+        },
+        {
+          "line": "NEW LIMITED TIME MODE // GAUNTLET: GLITCHED",
+          "names": []
+        },
+        {
+          "line": "Introducing Gauntlet: Glitched , our most ambitious mode yet. Face off in 2v2 battles against seven other duos, draft abilities from different Agents, and upgrade them as the match progresses. There are new arenas to learn and familiar abilities to push way past their limits. If a Yoru decoy starts shooting at you, that’s working as intended.",
+          "names": [
+            "Yoru"
+          ]
+        },
+        {
+          "line": "EIGHT DUOS. ONE GAUNTLET.",
+          "names": []
+        },
+        {
+          "line": "Sixteen players enter as eight duos. Each round, you’ll face another team in a 2v2 showdown. Whether you’re representing the Purple Corgis or the Red Elephants, do your team proud!",
+          "names": []
+        },
+        {
+          "line": "Lose a round and your team loses health (sound familiar?). Hit zero and you’re out. Once eliminated, you can leave and queue up again without waiting for the remaining teams to finish.",
+          "names": []
+        },
+        {
+          "line": "As the match progresses through stages, the weapons change and round losses cost your team more health. Use those early rounds to find your footing before the stakes climb.",
+          "names": []
+        },
+        {
+          "line": "Queue solo or with a friend for short, action-packed matches.",
+          "names": []
+        },
+        {
+          "line": "HYBRID ROBO AGENTS",
+          "names": []
+        },
+        {
+          "line": "KAY/O, is that you?",
+          "names": [
+            "KAY/O"
+          ]
+        },
+        {
+          "line": "ABILITY DRAFT",
+          "names": []
+        },
+        {
+          "line": "Draft from randomized ability options between rounds to build your kit with abilities from different Agents.",
+          "names": []
+        },
+        {
+          "line": "Add another ability to your arsenal or invest in one you already have, upgrading it from Level 1 to Level 3.",
+          "names": []
+        },
+        {
+          "line": "Go all in on mobility, stock up on defensive bots and traps, or try something new with each draft.",
+          "names": []
+        },
+        {
+          "line": "Use rerolls, or craft on another slot to chase your desired combo. Remember to scout your lobby to see what other builds you might face!",
+          "names": []
+        },
+        {
+          "line": "FAMILIAR ABILITIES. GLITCHED UPGRADES.",
+          "names": []
+        },
+        {
+          "line": "As you push your abilities to Level 2, they have a rare, random chance to ‘glitch’ and go a little bit…haywire. We don’t want to give all of these away yet, but some glitches include:",
+          "names": []
+        },
+        {
+          "line": "Send out Raze’s Boom Bot and decide when it goes boom. Clock it.",
+          "names": [
+            "Raze"
+          ]
+        },
+        {
+          "line": "Make Gekko’s Wingman really, really big. They grow up so fast.",
+          "names": [
+            "Gekko"
+          ]
+        },
+        {
+          "line": "NEW ARENAS",
+          "names": []
+        },
+        {
+          "line": "Battle across four arenas that remix familiar VALORANT map spaces into battlegrounds built for 2v2.",
+          "names": []
+        },
+        {
+          "line": "Glitching seams stitch the spaces together. You might recognize the scenery, but you’ll need a fresh approach.",
+          "names": []
+        },
+        {
+          "line": "SEE YOU IN THE WINNER’S CIRCLE",
+          "names": []
+        },
+        {
+          "line": "Won your matchup? Enjoy the view. You’ll head to the Winner’s Circle above the four arenas, where you can watch the remaining fights, take shots at targets, or jump around like you meant to win that cleanly.",
+          "names": []
+        },
+        {
+          "line": "That’s a taste of what’s waiting in Gauntlet: Glitched. We’ll leave the discoveries to you!",
+          "names": []
+        },
+        {
+          "line": "LEAVING LIMITED TIME MODES",
+          "names": []
+        },
+        {
+          "line": "Retake is heading out. Thanks for playing!",
+          "names": []
+        },
+        {
+          "line": "PLAYER BEHAVIOR UPDATES",
+          "names": []
+        },
+        {
+          "line": "Riot Voice Evaluation (RVE) is expanding to Spanish, Portuguese, and Korean",
+          "names": []
+        },
+        {
+          "line": "We have updated RVE, our in-game voice comms technology to better detect Spanish, Portuguese, and Korean",
+          "names": []
+        },
+        {
+          "line": "If you encounter an incident of toxic behavior, make sure to report it via the Voice Comms Abuse category in-game. Your reports help us continue to identify and action on disruptive behavior, while improving our systems",
+          "names": []
+        },
+        {
+          "line": "For more information, check out this article on Playing with Respect",
+          "names": []
+        },
+        {
+          "line": "PROGRESSION UPDATES",
+          "names": []
+        },
+        {
+          "line": "AGENT MASTERY",
+          "names": []
+        },
+        {
+          "line": "Agent Mastery gives you new ways to show your dedication to an Agent. When you play Clove, you progress Clove. When you play Sova, you progress Sova. Every Agent has their own Act levels, Lifetime levels, Reward Track, and Agent ID.",
+          "names": [
+            "Sova",
+            "Clove"
+          ]
+        },
+        {
+          "line": "All players will start with zero Act Level and Lifetime Level progress on each Agent.",
+          "names": []
+        },
+        {
+          "line": "We're excited about Agent Mastery as a new system that continues to evolve with you Act-by-Act, Agent-by-Agent. So we want everyone to start on a level playing field here and embark on that new journey together.",
+          "names": []
+        },
+        {
+          "line": "PROGRESSION",
+          "names": []
+        },
+        {
+          "line": "There are two types of progression, both powered by Mastery Points (MP)",
+          "names": []
+        },
+        {
+          "line": "Act Levels track your progress with an Agent during the current Act and reset at the start of each new Act",
+          "names": []
+        },
+        {
+          "line": "Lifetime Levels permanently track your progress with an Agent across Acts",
+          "names": []
+        },
+        {
+          "line": "Earn MP to progress Act Levels. When you increase your Act Level you also increase your Lifetime Level. Simply put: 1 Act Level = 1 Lifetime Level.",
+          "names": []
+        },
+        {
+          "line": "All players will begin earning Mastery Points from the same starting point. Previous Agent playtime and progress will not carry over.",
+          "names": []
+        },
+        {
+          "line": "EARNING MASTERY POINTS",
+          "names": []
+        },
+        {
+          "line": "Play matches in supported game modes on an Agent to earn MP for that Agent.",
+          "names": []
+        },
+        {
+          "line": "Wins and strong performance grant bonus MP.",
+          "names": []
+        },
+        {
+          "line": "ACT LEVELS AND PORTRAIT UPGRADES",
+          "names": []
+        },
+        {
+          "line": "Each Agent has 10 main Act levels to progress through each Act.",
+          "names": []
+        },
+        {
+          "line": "Reach levels 4, 7, and 10 to unlock Portrait Accents, which upgrade the look of your Agent Portrait and showcase your investment in that Agent from the current and previous Act.",
+          "names": []
+        },
+        {
+          "line": "If you reach Act Level 10, you can continue to progress your Agent through Overleveling for the rest of the Act.",
+          "names": []
+        },
+        {
+          "line": "LIFETIME LEVELS, REWARDS AND AGENT ID",
+          "names": []
+        },
+        {
+          "line": "Lifetime levels permanently track how much you’ve progressed an Agent across Acts. They reflect long-term investment, not just who you played this Act.",
+          "names": []
+        },
+        {
+          "line": "Lifetime progression unlocks access to rewards on each Agent's Reward Track.",
+          "names": []
+        },
+        {
+          "line": "Spend Kingdom Credits to unlock the rewards you want.",
+          "names": []
+        },
+        {
+          "line": "Reward Tracks include rewards from the previous Agent Gear system, alongside a number of new rewards.",
+          "names": []
+        },
+        {
+          "line": "You will keep any Agent Gear rewards you have already unlocked.",
+          "names": []
+        },
+        {
+          "line": "We're also adding Agent IDs, a new way to show off your investment in your favorite Agents.",
+          "names": []
+        },
+        {
+          "line": "Unlock, customize and equip components through each Agent’s Reward Track.",
+          "names": []
+        },
+        {
+          "line": "WEAPONS UPDATES",
+          "names": []
+        },
+        {
+          "line": "Introducing the latest automatic Rifle to join the Vandal and Phantom in the 2900 credits tier— the Warden. Built to offer a new tactical choice, the Warden brings a distinct long-range option to your arsenal.",
+          "names": [
+            "Vandal",
+            "Warden",
+            "Phantom"
+          ]
+        },
+        {
+          "line": "Specifications",
+          "names": []
+        },
+        {
+          "line": "Weapon Class: Rifle",
+          "names": []
+        },
+        {
+          "line": "Price: 2900 credits",
+          "names": []
+        },
+        {
+          "line": "Projectile type: Bullet",
+          "names": []
+        },
+        {
+          "line": "Attachments: Scope",
+          "names": []
+        },
+        {
+          "line": "2x magnification",
+          "names": []
+        },
+        {
+          "line": "Bullets per Magazine: 18",
+          "names": []
+        },
+        {
+          "line": "Damage Per Bullet: 50 at all ranges",
+          "names": []
+        },
+        {
+          "line": "200 headshot",
+          "names": []
+        },
+        {
+          "line": "42 leg",
+          "names": []
+        },
+        {
+          "line": "Fire Rate: 6.5",
+          "names": []
+        },
+        {
+          "line": "Ammo Reserve: 36",
+          "names": []
+        },
+        {
+          "line": "Reload Timing: 2.5",
+          "names": []
+        },
+        {
+          "line": "Equip Timing:",
+          "names": []
+        },
+        {
+          "line": "Normal: 1.0",
+          "names": []
+        },
+        {
+          "line": "Fast: .6",
+          "names": []
+        },
+        {
+          "line": "Instant .2",
+          "names": []
+        },
+        {
+          "line": "Wall Penetration: Medium",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agent",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where an Agent’s Ultimate Ability Voiceover was being cutoff when casting a different ability immediately after.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Agents with possessable abilities (Tejo, Sova, Gekko, Cypher, Skye) were not being flashed when they exited a possessable ability at the exact same time an enemy activated a flash.",
+          "names": [
+            "Gekko",
+            "Tejo",
+            "Skye",
+            "Cypher",
+            "Sova"
+          ]
+        },
+        {
+          "line": "Fixed an issue with Cypher Trapwire where the trap would look active after Cypher was killed or suppressed at the exact moment the trap was reactivating.",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Competitive",
+          "names": []
+        },
+        {
+          "line": "The threshold shown for the ‘Masterful’ Accolade is incorrect and will be fixed next patch. This is purely a visual bug and doesn’t impact earning the Accolade.",
+          "names": []
+        },
+        {
+          "line": "Cosmetics",
+          "names": []
+        },
+        {
+          "line": "A known bug that allowed players to jiggle peek with their Flex equipped was fixed.",
+          "names": []
+        },
+        {
+          "line": "We actually fixed this bug in Patch 13.02 but forgot to add to patch notes. Oopsies!",
+          "names": []
+        },
+        {
+          "line": "CONSOLE ONLY",
+          "names": []
+        },
+        {
+          "line": "With Patch 13.06, VALORANT Console is now available in Australia and New Zealand!",
+          "names": []
+        },
+        {
+          "line": "G’day and kia ora, gamers!",
+          "names": []
+        },
+        {
+          "line": "KNOWN ISSUES",
+          "names": []
+        },
+        {
+          "line": "Console issue for mode selection when in Range in Queue",
+          "names": []
+        },
+        {
+          "line": "Modes",
+          "names": []
+        },
+        {
+          "line": "When exiting the queue, you may be unable to enter the Range for a moment even while not in any queue. This will be fixed in a following patch.",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "13.05",
+      "date": "2026-09-01T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-05/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 13.05",
+          "names": []
+        },
+        {
+          "line": "Game Updates Ashley Tsao",
+          "names": []
+        },
+        {
+          "line": "2026-09-01T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "TLDR; Pick’ Ems for Champs, penalties for stream sniping and instalock tools, and future changes to the Agent Gear system so make sure to grind it out and get all the items now!",
+          "names": []
+        },
+        {
+          "line": "Heyo, it’s Ash and we’ve got a small-ish patch for you with mostly bug fixes. We’re prepping for a pretty beefy next patch in 13.06 so more to come!",
+          "names": []
+        },
+        {
+          "line": "Let’s get it.",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "COSMETICS UPDATES",
+          "names": []
+        },
+        {
+          "line": "Sound Sprays",
+          "names": []
+        },
+        {
+          "line": "Based on your feedback, we've adjusted the sound attenuation for all sound sprays so you'll only be able to hear the sounds if you're nearby to ensure teams can communicate effectively. This will be a standard for all future audio sprays.",
+          "names": []
+        },
+        {
+          "line": "ESPORTS FEATURES",
+          "names": []
+        },
+        {
+          "line": "Pick’Ems have returned for Champions Shanghai ! Starting on September 10, you will have access to the Group Stage in-client and on the web. Predict the advancing teams for points, earning extra points for correctly guessing the exact placement. You’ll also earn rewards just for participating. Get your picks in before Groups kickoff on September 24th!",
+          "names": []
+        },
+        {
+          "line": "PLAYER BEHAVIOR UPDATES",
+          "names": []
+        },
+        {
+          "line": "We've started rolling out penalties if we detect usage of stream sniping and instalock tools. Players found using these tools will be subject to temporary game bans that will escalate to permanent with repeated usage.",
+          "names": []
+        },
+        {
+          "line": "PROGRESSION UPDATES",
+          "names": []
+        },
+        {
+          "line": "Agent Gear",
+          "names": []
+        },
+        {
+          "line": "Heads up, gamers! With the release of Patch 13.06 on September 22, we'll be revamping the Agent Gear system and the way you unlock items on that progression track. You will still keep the gear you've already earned, and you'll continue to use Kingdom Credits to unlock future gear. But after Patch 13.06, each piece of gear will be tied directly to how much you play the associated Agent. So if you're currently grinding for Agent Gear on any Agents you don't usually play, now's your chance to lock in and get those unlocks.",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agent",
+          "names": []
+        },
+        {
+          "line": "General",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Agent Ultimate voiceover could continue playing from an enemy's perspective after the Agent casting the Ultimate was killed.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where the Combat Report incorrectly displayed \"Enemies Blinded\" for certain abilities that don't apply Blind.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where smokes would block flashes after dissipating.",
+          "names": []
+        },
+        {
+          "line": "We’ve better timed the dissipation for the smokes on Astra, Brimstone, Clove, Miks, and Omen to fix an issue where their smokes could continue blocking flashes and other line-of-sight-dependent abilities while the smoke was dissipating.",
+          "names": [
+            "Miks",
+            "Astra",
+            "Brimstone",
+            "Clove",
+            "Omen"
+          ]
+        },
+        {
+          "line": "Chamber",
+          "names": [
+            "Chamber"
+          ]
+        },
+        {
+          "line": "Fixed an issue that could cause performance drops the first time Chamber equipped, aimed, or fired Headhunter during a round.",
+          "names": [
+            "Chamber"
+          ]
+        },
+        {
+          "line": "Cypher",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Cypher's Trapwire debuff could persist indefinitely on a new target if the initial target was killed just before the Trapwire triggered.",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Cypher's Cyber Cage could incorrectly block flashes, detection, and other line-of-sight-dependent abilities.",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Deadlock",
+          "names": [
+            "Deadlock"
+          ]
+        },
+        {
+          "line": "Fixed an issue where casting Deadlock's GravNet could briefly display unintended VFX on screen.",
+          "names": [
+            "Deadlock"
+          ]
+        },
+        {
+          "line": "Fade",
+          "names": [
+            "Fade"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Fade's Seize would not display its danger indicator to enemies in certain locations on Lotus.",
+          "names": [
+            "Fade",
+            "Lotus"
+          ]
+        },
+        {
+          "line": "KAY/O",
+          "names": [
+            "KAY/O"
+          ]
+        },
+        {
+          "line": "Fixed an issue where KAY/O's NULL/cmd could cause client-side framerate drops with each pulse.",
+          "names": [
+            "KAY/O"
+          ]
+        },
+        {
+          "line": "Omen",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Omen’s Dark Cover could obscure a player’s vision after the smoke has dissipated.",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Sage",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Sage's Healing Orb ability tooltips could be missing from the HUD when equipping the ability.",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Waylay",
+          "names": [
+            "Waylay"
+          ]
+        },
+        {
+          "line": "Fixed an issue where vision-blocking abilities could prevent Waylay's Saturate from applying Hinder to players within its area of effect.",
+          "names": [
+            "Waylay"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Waylay's Refract could cause snapshots of dynamic map objects to remain visible after the ability ended.",
+          "names": [
+            "Waylay"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Waylay's Saturate could apply Hinder to Agents while they were intangible.",
+          "names": [
+            "Waylay"
+          ]
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "GENERAL UPDATES",
+          "names": []
+        },
+        {
+          "line": "Default Bot Count in Range Practice Mode",
+          "names": []
+        },
+        {
+          "line": "An option for 10, 5, or 1 bot to spawn has been added in the Range practice mode.",
+          "names": []
+        },
+        {
+          "line": "The default number of bots spawned is now 5.",
+          "names": []
+        },
+        {
+          "line": "You can adjust this number in the Range settings.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where the close button was not functional after purchasing VALORANT Points.",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "13.04",
+      "date": "2026-08-18T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-04/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 13.04",
+          "names": []
+        },
+        {
+          "line": "Game Updates Emily “ghoulies” Hu",
+          "names": []
+        },
+        {
+          "line": "2026-08-18T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "TLDR; Goodbye Breeze and hello Abyss ! There’s a new map rotation in our Competitive and Deathmatch queues, and we fixed some issues with Agent bugs and transforming melees like Kuronami 2.0 and Nocturnum.",
+          "names": [
+            "Breeze",
+            "Abyss"
+          ]
+        },
+        {
+          "line": "Happy Patch Day, it’s Emily again! Act 5 is here, and with it a few fixes to keep your ranked grind consistent. Have y’all checked out the new skinline? You should really spam that flex…",
+          "names": []
+        },
+        {
+          "line": "While we’re starting Act 5 with some minor bug fixes and adjustments, keep an eye out for news coming in September. I sense a new Dev Update on the horizon, and some other game updates we are stoked to reveal! That’s all for now, GLHF!",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "MAP UPDATES",
+          "names": []
+        },
+        {
+          "line": "Map Pool Updates",
+          "names": []
+        },
+        {
+          "line": "ABYSS is IN the COMPETITIVE and DEATHMATCH queues.",
+          "names": [
+            "Abyss"
+          ]
+        },
+        {
+          "line": "BREEZE is OUT of the COMPETITIVE and DEATHMATCH queues.",
+          "names": [
+            "Breeze"
+          ]
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agent",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Cypher's Spycam minimap icon was rotated incorrectly.",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Viper's Snake Bite equip animation appeared incorrectly from an enemy's point of view.",
+          "names": [
+            "Viper"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Deadlock's GravNet visual effects could disappear after a player disconnected and reconnected.",
+          "names": [
+            "Deadlock"
+          ]
+        },
+        {
+          "line": "Stability",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where repeatedly switching between Clove's Meddle and Ruse could cause a player to freeze and disconnect.",
+          "names": [
+            "Clove"
+          ]
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "PREMIER UPDATES",
+          "names": []
+        },
+        {
+          "line": "Welcome to Stage V26A5! Matches start on August 18.",
+          "names": []
+        },
+        {
+          "line": "This Stage will run for five weeks of matches instead of the usual seven.",
+          "names": []
+        },
+        {
+          "line": "Teams with a Premier Score of at least 450 qualify for Playoffs on September 20.",
+          "names": []
+        },
+        {
+          "line": "In Contender and Invite, qualification is still based on your placement - check out the standings page for more info.",
+          "names": []
+        },
+        {
+          "line": "For Contender and Invite Division teams:",
+          "names": []
+        },
+        {
+          "line": "Playoffs will be played across two days! The first round of Playoffs will be on September 19. Teams that advance from the first round return on September 20 for the finals.",
+          "names": []
+        },
+        {
+          "line": "Cosmetics",
+          "names": []
+        },
+        {
+          "line": "Fixed a bug where the animation on all transforming melee weapons (like Kuronami 2.0 and Nocturnum) would not transform during their inspect.",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "13.02",
+      "date": "2026-07-28T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-02/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 13.02",
+          "names": []
+        },
+        {
+          "line": "Game Updates Emily “ghoulies” Hu",
+          "names": []
+        },
+        {
+          "line": "2026-07-28T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "Hey there, I’m Emily. I’ll be joining the Global Community team at Riot as an intern this summer, nice to meet you all! Hopefully y’all are staying cool with this summer heat, got a couple things for you to check out here :D",
+          "names": []
+        },
+        {
+          "line": "Here’s what’s happening in Patch 13.02 :",
+          "names": []
+        },
+        {
+          "line": "Phoenix adjustment to address frequent casting of Run it Back .",
+          "names": [
+            "Phoenix"
+          ]
+        },
+        {
+          "line": "We are delaying AROS: Replication , we’ll let you know when we have news to share.",
+          "names": []
+        },
+        {
+          "line": "Split, Corrode, and Lotus added to Retakes!",
+          "names": [
+            "Split",
+            "Lotus",
+            "Corrode"
+          ]
+        },
+        {
+          "line": "Some Agent bug fixes.",
+          "names": []
+        },
+        {
+          "line": "A fix for some door/ability interactions on Summit .",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "GLHF and see you all on the server!",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "AGENTS UPDATES",
+          "names": []
+        },
+        {
+          "line": "Phoenix",
+          "names": [
+            "Phoenix"
+          ]
+        },
+        {
+          "line": "Overall we are happy with the state of Phoenix's balance. This is a small touch to address the frequency with which he is able to cast his ultimate to be more in line with other characters.",
+          "names": [
+            "Phoenix"
+          ]
+        },
+        {
+          "line": "Ultimate points increased from 6 to 7.",
+          "names": []
+        },
+        {
+          "line": "MODES UPDATES",
+          "names": []
+        },
+        {
+          "line": "RETAKE",
+          "names": []
+        },
+        {
+          "line": "Split, Corrode, and Lotus are being added to the map pool for RETAKE.",
+          "names": [
+            "Split",
+            "Lotus",
+            "Corrode"
+          ]
+        },
+        {
+          "line": "AROS: Replication",
+          "names": []
+        },
+        {
+          "line": "All Random One Site: Replication will no longer be released in this update. We don’t take these decisions lightly as we know a lot of you were looking forward to this mode. We are still targeting a future release date and will let you know when we have more to share.",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agents",
+          "names": []
+        },
+        {
+          "line": "Omen",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Fixed an issue where the Shrouded Step 's obstructed placement indicator is missing.",
+          "names": []
+        },
+        {
+          "line": "KAY/O",
+          "names": [
+            "KAY/O"
+          ]
+        },
+        {
+          "line": "Fixed an issue where NULL/cmd ’s visual and death audio effects would not play when his downed timer expired.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where NULL/cmd ’s death animation played incorrectly after being revived.",
+          "names": []
+        },
+        {
+          "line": "Cypher",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Cyber Cage displayed incorrect visual effects when cast.",
+          "names": []
+        },
+        {
+          "line": "Fixed a rare issue where Cypher disconnected while casting Neural Theft .",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Gekko",
+          "names": [
+            "Gekko"
+          ]
+        },
+        {
+          "line": "Fixed an issue where the incorrect voiceover could play when Wingman planted the Spike.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Wingman could unexpectedly die while planting or defusing the Spike under very low frame rate conditions.",
+          "names": []
+        },
+        {
+          "line": "Miks",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Fixed an issue where the M Pulse ability icon and tooltip could be in the wrong place or missing on certain screens.",
+          "names": []
+        },
+        {
+          "line": "Reyna",
+          "names": [
+            "Reyna"
+          ]
+        },
+        {
+          "line": "Fixed an issue where the Dismiss icon remained grayed out after eliminating an enemy.",
+          "names": []
+        },
+        {
+          "line": "Chamber",
+          "names": [
+            "Chamber"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Rendezvous could fail to teleport Chamber back to his anchor.",
+          "names": [
+            "Chamber"
+          ]
+        },
+        {
+          "line": "Waylay",
+          "names": [
+            "Waylay"
+          ]
+        },
+        {
+          "line": "Fixed an issue on Icebox where Lightspeed and Refract could allow Waylay to clip into the walls of B Tube.",
+          "names": [
+            "Waylay",
+            "Icebox"
+          ]
+        },
+        {
+          "line": "Jett",
+          "names": [
+            "Jett"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Tailwind and Updraft could experience an unintended delay after using Cloudburst .",
+          "names": []
+        },
+        {
+          "line": "Raze",
+          "names": [
+            "Raze"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Boom Bot could briefly travel through solid geometry while locking onto airborne enemies.",
+          "names": []
+        },
+        {
+          "line": "Deadlock",
+          "names": [
+            "Deadlock"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Annihilation could incorrectly capture Omen while he was using From the Shadows, resulting in unintended damage of 900100 damage.",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Vyse",
+          "names": [
+            "Vyse"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Razorvine could become indestructible if it was deployed at the same moment Vyse was suppressed.",
+          "names": [
+            "Vyse"
+          ]
+        },
+        {
+          "line": "Maps",
+          "names": []
+        },
+        {
+          "line": "Summit",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Agent utility could sometimes be crushed by the door when it was already closed.",
+          "names": []
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "General",
+          "names": []
+        },
+        {
+          "line": "Fixed a cosmetic issue where Packets Received/Sent Rate graphs showed incorrect values when the game is running at extremely high framerates.",
+          "names": []
+        },
+        {
+          "line": "CONSOLE ONLY",
+          "names": []
+        },
+        {
+          "line": "Agent",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Tour de Force missed haptic feedback when equipped and fired.",
+          "names": []
+        },
+        {
+          "line": "Yoru",
+          "names": [
+            "Yoru"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Fakeout was missing aim assistance functionality.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where using Lightspeed and immediately equipping the Spike or a Flex item could grant unintended dash speed and distance.",
+          "names": []
+        },
+        {
+          "line": "Gameplay Systems",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue in game modes with no abilities where selecting Agent Info from the Settings menu could close the menu instead of displaying ability information.",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "13.01",
+      "date": "2026-07-14T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-01/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 13.01",
+          "names": []
+        },
+        {
+          "line": "Game Updates Ashley Tsao",
+          "names": []
+        },
+        {
+          "line": "2026-07-14T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "Hey, it’s Ashley! Hope everyone has been enjoying their summer and spending some time outside. It’s the season of sport so if you’re watching the World Cup, who are you rooting for?",
+          "names": []
+        },
+        {
+          "line": "Here’s the breakdown for Patch 13.01:",
+          "names": []
+        },
+        {
+          "line": "Iso buff to weapon equip speed after unequipping Double Tap",
+          "names": [
+            "Iso"
+          ]
+        },
+        {
+          "line": "Yoru buff with an increase in duration of Gatecrash",
+          "names": [
+            "Yoru"
+          ]
+        },
+        {
+          "line": "Outlaw adjustment to allow for more expression and control",
+          "names": [
+            "Outlaw"
+          ]
+        },
+        {
+          "line": "We can better detect rank manipulation and will begin issuing penalties for confirmed users. If you know you do this, count your days.",
+          "names": []
+        },
+        {
+          "line": "Loads of bug fixes",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "AGENTS UPDATES",
+          "names": []
+        },
+        {
+          "line": "Iso",
+          "names": [
+            "Iso"
+          ]
+        },
+        {
+          "line": "Double Tap",
+          "names": []
+        },
+        {
+          "line": "The speed of equipping your weapon after unequipping Double Tap is now instant.",
+          "names": []
+        },
+        {
+          "line": "Yoru",
+          "names": [
+            "Yoru"
+          ]
+        },
+        {
+          "line": "Gatecrash",
+          "names": []
+        },
+        {
+          "line": "Active Beacon Duration increased from 15s &gt;&gt;&gt; 20s",
+          "names": []
+        },
+        {
+          "line": "Fakeout",
+          "names": []
+        },
+        {
+          "line": "To further satisfy his deception fantasy, clones from Fakeout will now hold Yoru's last equipped weapon, instead of defaulting to his strongest weapon.",
+          "names": [
+            "Yoru"
+          ]
+        },
+        {
+          "line": "PLAYER BEHAVIOR UPDATES",
+          "names": []
+        },
+        {
+          "line": "Rank Manipulation Penalties",
+          "names": []
+        },
+        {
+          "line": "We’ve rolled out new tools to better detect rank manipulation in VALORANT, building on systems we successfully introduced in League of Legends last year. Combined with the data we’ve gathered since adding the Rank Manipulation category in-game late last year, we will begin issuing penalties for confirmed rank manipulation.",
+          "names": []
+        },
+        {
+          "line": "Penalties may include account suspensions, rank reversions, and ranked reward reversions.",
+          "names": []
+        },
+        {
+          "line": "As part of this, players will begin to receive reporter and bystander feedback in game when a player in their matches is penalized for rank manipulation.",
+          "names": []
+        },
+        {
+          "line": "Our goal is to protect ranked integrity and make sure competitive progress reflects fair play. For more detail on what counts as rank manipulation and how we’re approaching enforcement, check out this Play Fair article.",
+          "names": []
+        },
+        {
+          "line": "WEAPONS UPDATES",
+          "names": []
+        },
+        {
+          "line": "Outlaw has been performing strongly and we still want it to feel powerful with its back-to-back shots, but allow for some expression and some control to warrant that power.",
+          "names": [
+            "Outlaw"
+          ]
+        },
+        {
+          "line": "Outlaw",
+          "names": [
+            "Outlaw"
+          ]
+        },
+        {
+          "line": "Recovery from 0.1 &gt;&gt;&gt; 0.15 after first shot",
+          "names": []
+        },
+        {
+          "line": "Spread from 0 &gt;&gt;&gt; 2.25 after first shot",
+          "names": []
+        },
+        {
+          "line": "Recoil from 0 &gt;&gt;&gt; 4.0 after first shot",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agents",
+          "names": []
+        },
+        {
+          "line": "Astra",
+          "names": [
+            "Astra"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Astra's ability cooldown timer could sometimes remain visible after the ability had already been used.",
+          "names": [
+            "Astra"
+          ]
+        },
+        {
+          "line": "Clove",
+          "names": [
+            "Clove"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Clove could gain an extra charge of Ruse during the Buy Phase by purchasing and reselling ability charges.",
+          "names": [
+            "Clove"
+          ]
+        },
+        {
+          "line": "Cypher",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Cyber Cage could incorrectly block line-of-sight interactions above the ability's visual effects.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Cyber Cage's trajectory indicator would not appear when throwing the ability into locations outside of Cypher's line of sight.",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Cyber Cage would sometimes fail to play an audio cue when enemies entered through the lower portion of the cage.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where certain Spycam voice lines would not play correctly during specific actions.",
+          "names": []
+        },
+        {
+          "line": "Deadlock",
+          "names": [
+            "Deadlock"
+          ]
+        },
+        {
+          "line": "Fixed an issue where GravNet's third-person visual effects could disappear after a player disconnected and reconnected to the match.",
+          "names": []
+        },
+        {
+          "line": "Gekko",
+          "names": [
+            "Gekko"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Nearsight visual effects on some controllable creatures could persist after they had been destroyed by an enemy.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Double Tap could incorrectly prevent the first instance of fall damage.",
+          "names": []
+        },
+        {
+          "line": "Jett",
+          "names": [
+            "Jett"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Cloudburst could be activated during Updraft and Tailwind animations when multiple abilities were bound to the same key.",
+          "names": []
+        },
+        {
+          "line": "Fixed an inconsistency where Jett could not pick up the Spike or weapons during Tailwind .",
+          "names": [
+            "Jett"
+          ]
+        },
+        {
+          "line": "KAY/O",
+          "names": [
+            "KAY/O"
+          ]
+        },
+        {
+          "line": "Fixed an issue where FLASH/drive was missing part of its visual effects.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue that could cause an animation skip when equipping FLASH/drive .",
+          "names": []
+        },
+        {
+          "line": "Killjoy",
+          "names": [
+            "Killjoy"
+          ]
+        },
+        {
+          "line": "Fixed an issue on Split where Killjoy's Alarmbot could interact with players through certain wooden covers.",
+          "names": [
+            "Killjoy",
+            "Split"
+          ]
+        },
+        {
+          "line": "Miks",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Miks could gain an extra charge of Waveform during the Buy Phase by purchasing and reselling ability charges.",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Neon",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Neon could be unable to pick up the Spike while sliding over it.",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "Reyna",
+          "names": [
+            "Reyna"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Dismiss could occasionally leave Reyna unable to equip a weapon.",
+          "names": [
+            "Reyna"
+          ]
+        },
+        {
+          "line": "Fixed an issue on Abyss where Leer could apply its blind effect in unintended locations near A Main.",
+          "names": [
+            "Abyss"
+          ]
+        },
+        {
+          "line": "Sage",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Fixed an issue where players revived by Sage inside Viper's Pit or Poison Cloud would not correctly receive the nearsighted debuff.",
+          "names": [
+            "Viper",
+            "Sage"
+          ]
+        },
+        {
+          "line": "Skye",
+          "names": [
+            "Skye"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Skye could gain an extra charge of Guiding Light during the Buy Phase by purchasing and reselling ability charges.",
+          "names": [
+            "Skye"
+          ]
+        },
+        {
+          "line": "Viper",
+          "names": [
+            "Viper"
+          ]
+        },
+        {
+          "line": "Fixed an issue where players using controllable abilities could briefly see through Viper's Pit .",
+          "names": [
+            "Viper"
+          ]
+        },
+        {
+          "line": "Veto",
+          "names": [
+            "Veto"
+          ]
+        },
+        {
+          "line": "Fixed an issue where the Evolution voice filter could persist on certain voice lines for the remainder of the match after activating the Ultimate.",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue that allowed Yoru to gain unintended movement speed while in Dimensional Drift when interacting with Flex/Totems.",
+          "names": [
+            "Yoru"
+          ]
+        },
+        {
+          "line": "Maps",
+          "names": []
+        },
+        {
+          "line": "Split",
+          "names": [
+            "Split"
+          ]
+        },
+        {
+          "line": "Fixed an issue where certain wall-based abilities could be cut off when used in the middle of B Garage.",
+          "names": []
+        },
+        {
+          "line": "Summit",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Iso could survive the falling door crush.",
+          "names": [
+            "Iso"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Waylay could reach unintended locations using Refract and Lightspeed .",
+          "names": [
+            "Waylay"
+          ]
+        },
+        {
+          "line": "General",
+          "names": []
+        },
+        {
+          "line": "Fixed a cosmetic issue where Packets Received/Sent Rate graphs showed incorrect values when the game is running at extremely high framerates",
+          "names": []
+        },
+        {
+          "line": "KNOWN ISSUES",
+          "names": []
+        },
+        {
+          "line": "Agent",
+          "names": []
+        },
+        {
+          "line": "Omen",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Shrouded Step’s obstructed placement indicator is missing",
+          "names": []
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "SOCIAL UPDATES",
+          "names": []
+        },
+        {
+          "line": "Discord 🤝 Riot",
+          "names": []
+        },
+        {
+          "line": "VALORANT is partnering with Discord to make getting into your next game with your friends easier. You can now link your accounts to unlock new social features!",
+          "names": []
+        },
+        {
+          "line": "Invite friends in Discord straight to your party from within VALORANT. No alt-tabbing needed.",
+          "names": []
+        },
+        {
+          "line": "Copy a lobby link and share it directly on your server or anywhere your friends are.",
+          "names": []
+        },
+        {
+          "line": "See which of your Discord friends play VALORANT and jump into parties faster.",
+          "names": []
+        },
+        {
+          "line": "This rolled out as a beta in Brazil first and is launching globally wherever Discord is available on July 21.",
+          "names": []
+        },
+        {
+          "line": "For more information, check out &lt; this article &gt;.",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "13.00",
+      "date": "2026-06-23T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-00/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 13.00",
+          "names": []
+        },
+        {
+          "line": "Act 4 starts now.",
+          "names": []
+        },
+        {
+          "line": "Game Updates Kenny “Karnifexlol“ Cameron",
+          "names": []
+        },
+        {
+          "line": "2026-06-23T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "Sup, gamers!",
+          "names": []
+        },
+        {
+          "line": "We’re back with a big one for the start of V26 Act 4. So let’s jump right into it!",
+          "names": []
+        },
+        {
+          "line": "TL;DR:",
+          "names": []
+        },
+        {
+          "line": "Our Sentinel buffs are here! ( Cypher, Killjoy, Veto, Sage, and Deadlock )",
+          "names": [
+            "Deadlock",
+            "Cypher",
+            "Killjoy",
+            "Veto",
+            "Sage"
+          ]
+        },
+        {
+          "line": "We’re reducing Signature Ability cooldowns for Initiators! ( Sova, Fade, Skye, Breach, and KAY/O )",
+          "names": [
+            "Fade",
+            "Breach",
+            "KAY/O",
+            "Skye",
+            "Sova"
+          ]
+        },
+        {
+          "line": "Our newest map Summit is now in the Competitive Map Rotation.",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "We’re adjusting our Ranked Rating (RR) calculations!",
+          "names": []
+        },
+        {
+          "line": "We’re making adjustments to improve consistency of player ranks in your Competitive lobbies.",
+          "names": []
+        },
+        {
+          "line": "We’re tuning the Bandit to make it more viable outside of pistol rounds.",
+          "names": [
+            "Bandit"
+          ]
+        },
+        {
+          "line": "Our newest limited-time mode Retake is now in the queue menu!",
+          "names": []
+        },
+        {
+          "line": "Omen Shrouded Step audio is changing for gameplay clarity.",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Lots of small updates to Agent voice lines!",
+          "names": []
+        },
+        {
+          "line": "We’ve added our first version of Inbox for cataloging some of your in-client notifications.",
+          "names": []
+        },
+        {
+          "line": "Plus, a bunch of bug fixes.",
+          "names": []
+        },
+        {
+          "line": "There’s a lot more detail from the Devs below! So be sure to check out the full notes for more context on all the changes. Good luck on your Act 4 grind!",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "AGENTS UPDATES",
+          "names": []
+        },
+        {
+          "line": "Sentinels serve an important role in the VALORANT tactical loop by punishing attackers who ignore macro strategy and instead opt for repeated, low information 5-player site hits. We believe VALORANT is best when strategy is mixed. These changes are aimed at improving overall Sentinel power so they can better serve their purpose in keeping disrespectful attackers honest, as well as improve their kill potential when anchoring sites alone.",
+          "names": []
+        },
+        {
+          "line": "Cypher",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Trapwire",
+          "names": []
+        },
+        {
+          "line": "Reduced windup from .9s to .7s.",
+          "names": []
+        },
+        {
+          "line": "Killjoy",
+          "names": [
+            "Killjoy"
+          ]
+        },
+        {
+          "line": "Turret",
+          "names": []
+        },
+        {
+          "line": "Rate of fire increased by 50%",
+          "names": []
+        },
+        {
+          "line": "Nanoswarm",
+          "names": []
+        },
+        {
+          "line": "Duration increased from 4s to 5s.",
+          "names": []
+        },
+        {
+          "line": "Alarmbot",
+          "names": []
+        },
+        {
+          "line": "Movement speed increased by 50%.",
+          "names": []
+        },
+        {
+          "line": "Veto",
+          "names": [
+            "Veto"
+          ]
+        },
+        {
+          "line": "Interceptor",
+          "names": []
+        },
+        {
+          "line": "Reclaim cooldown reduced from 30s to 20s.",
+          "names": []
+        },
+        {
+          "line": "Crosscut",
+          "names": []
+        },
+        {
+          "line": "Usable area increased from 24m to 30m.",
+          "names": []
+        },
+        {
+          "line": "Arming time after placing was reduced from 1.5s to .75s.",
+          "names": []
+        },
+        {
+          "line": "Sage",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Healing Orb",
+          "names": []
+        },
+        {
+          "line": "Self Heal-Over-Time has increased from 50 to 100.",
+          "names": []
+        },
+        {
+          "line": "Deadlock",
+          "names": [
+            "Deadlock"
+          ]
+        },
+        {
+          "line": "GravNet",
+          "names": []
+        },
+        {
+          "line": "Cooldown reduced from 60s to 50s.",
+          "names": []
+        },
+        {
+          "line": "While we’ve appreciated that gunplay is playing a bigger role in VALORANT rounds since Patch 11.08, we feel there is room to give Initiators more strategic agency by playing around their cooldowns in late-round scenarios. These changes aim to strike a balance between the old cooldowns and the changes from Patch 11.08 late last year.",
+          "names": []
+        },
+        {
+          "line": "Initiator Cooldowns",
+          "names": []
+        },
+        {
+          "line": "The signature ability cooldown of Sova, Fade, Skye, Breach, KAY/0 have been reduced from 60s to 50s.",
+          "names": [
+            "Fade",
+            "Breach",
+            "Skye",
+            "Sova"
+          ]
+        },
+        {
+          "line": "Gekko’s ability cooldowns after reclaiming his buddies has been reduced from 20s to 15s.",
+          "names": [
+            "Gekko"
+          ]
+        },
+        {
+          "line": "While the gameplay and thematic elements of Omen’s Shrouded Step generally align with our design intention, cases where Omen teleports past or behind enemies during chaotic VALORANT rounds undetected because they simply could not parse the audio violates our gameplay clarity standards. This change is small, but should make Omen’s more obvious casts of this ability easier to hear.",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Omen",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Shrouded Step",
+          "names": []
+        },
+        {
+          "line": "We’ve updated enemy Omen Shrouded Step audio with the goal of improving clarity in situations where you are within range of the ability but are unable to hear it.",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Agent VO Updates",
+          "names": []
+        },
+        {
+          "line": "We're making small updates to various Agents voice lines and critical gameplay audio tells in order to reduce audio clutter and standardize Agent ability VO across our roster.",
+          "names": []
+        },
+        {
+          "line": "New Sage and Viper voice lines interactions for the new map, Summit.",
+          "names": [
+            "Viper",
+            "Sage",
+            "Summit"
+          ]
+        },
+        {
+          "line": "New conversation lines between Miks & Gekko , and Jett & Phoenix.",
+          "names": [
+            "Gekko",
+            "Miks",
+            "Phoenix",
+            "Jett"
+          ]
+        },
+        {
+          "line": "We’re also using this opportunity to remove a handful of lines that no longer meet our quality standards as they relate to agent behavior. The affected Agents are Killjoy, Jett, Reyna, Skye, Astra, Clove, Chamber, Neon, Deadlock, Vyse, Breach, Viper, Omen, Sova, Yoru, Fade, Iso, Tejo and Harbor.",
+          "names": [
+            "Fade",
+            "Breach",
+            "Deadlock",
+            "Tejo",
+            "Chamber",
+            "Skye",
+            "Sova",
+            "Killjoy",
+            "Harbor",
+            "Vyse",
+            "Viper",
+            "Astra",
+            "Iso",
+            "Clove",
+            "Neon",
+            "Yoru",
+            "Reyna",
+            "Omen",
+            "Jett"
+          ]
+        },
+        {
+          "line": "CLIENT UPDATES",
+          "names": []
+        },
+        {
+          "line": "Inbox is now live in the VALORANT client, giving you one place to revisit curated, non-urgent notifications. You can see which messages are new or read, delete individual items to keep things tidy, and expect more notifications over time as we continue expanding Inbox.",
+          "names": []
+        },
+        {
+          "line": "At launch, the Inbox includes the following message types:",
+          "names": []
+        },
+        {
+          "line": "Gifting updates, so you’ll know when a gift you sent was accepted or rejected.",
+          "names": []
+        },
+        {
+          "line": "Premier updates for promotion, being up for promotion, and qualifying for playoffs.",
+          "names": []
+        },
+        {
+          "line": "RR refund notifications.",
+          "names": []
+        },
+        {
+          "line": "Reporter feedback notifications, including “thank you for the report” messages.",
+          "names": []
+        },
+        {
+          "line": "And Act Introduction messages, so you can revisit the current Act’s high-level info in-client.",
+          "names": []
+        },
+        {
+          "line": "COMPETITIVE UPDATES",
+          "names": []
+        },
+        {
+          "line": "RR/MMR Adjustments",
+          "names": []
+        },
+        {
+          "line": "Now that the MMR changes we made earlier this year have had some time to settle, we’re adjusting our Ranked Rating (RR) calculations so you feel a little less stuck if you are consistently winning matches.",
+          "names": []
+        },
+        {
+          "line": "Let us know if the climb is feeling better, especially for our Immortal+ players!",
+          "names": []
+        },
+        {
+          "line": "MAP UPDATES",
+          "names": []
+        },
+        {
+          "line": "NEW MAP: SUMMIT",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "A 5v5 Spike mode map set in a Radiant training academy nestled in the mountains of China. Battle through training halls and meditation gardens where droppable walls reshape the battlefield mid-round.",
+          "names": []
+        },
+        {
+          "line": "Summit features three lanes and two sites.",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "Summit Launch Event",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "Summit will be available to play in Competitive queue starting today.",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "RR losses on Summit will be 50% reduced for the first two weeks. You will still receive 100% of the RR for any wins on Summit.",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "Map Pool Updates",
+          "names": []
+        },
+        {
+          "line": "SUMMIT and SUNSET are IN the COMPETITIVE and DEATHMATCH queues.",
+          "names": [
+            "Sunset",
+            "Summit"
+          ]
+        },
+        {
+          "line": "FRACTURE and PEARL are OUT of the COMPETITIVE and DEATHMATCH queues.",
+          "names": [
+            "Fracture",
+            "Pearl"
+          ]
+        },
+        {
+          "line": "MODES UPDATES",
+          "names": []
+        },
+        {
+          "line": "New Limited Time Mode",
+          "names": []
+        },
+        {
+          "line": "Introducing RETAKE , a fast 3v3 Spike mode built around constant post-plant action. The Spike is already planted when the round begins; one team holds, the other coordinates the retake under a ticking timer. Hold the site, push the retake, and race to 5 rounds.",
+          "names": []
+        },
+        {
+          "line": "Mode Details",
+          "names": []
+        },
+        {
+          "line": "Round Structure",
+          "names": []
+        },
+        {
+          "line": "3v3 on single sites",
+          "names": []
+        },
+        {
+          "line": "Sides swap every round. Planters defend the planted Spike, Retakers push to defuse",
+          "names": []
+        },
+        {
+          "line": "Rounds end on team elimination, defuse, or Spike detonation",
+          "names": []
+        },
+        {
+          "line": "First team to 5 rounds wins",
+          "names": []
+        },
+        {
+          "line": "Pre-Planted Spike",
+          "names": []
+        },
+        {
+          "line": "Auto-plants a few seconds into each round at a visible location on site",
+          "names": []
+        },
+        {
+          "line": "Plant positions are randomized from a curated pool of spots per site",
+          "names": []
+        },
+        {
+          "line": "Loadouts",
+          "names": []
+        },
+        {
+          "line": "No economy. Pick from two cards each round: weapons and armor, and ability charges",
+          "names": []
+        },
+        {
+          "line": "Each card offers two randomized options that escalate round over round",
+          "names": []
+        },
+        {
+          "line": "Maps",
+          "names": []
+        },
+        {
+          "line": "Available at launch: sites from Ascent, Bind, Haven, Summit, and Sunset",
+          "names": [
+            "Ascent",
+            "Bind",
+            "Sunset",
+            "Summit",
+            "Haven"
+          ]
+        },
+        {
+          "line": "Each match is played on a single site selected at random",
+          "names": []
+        },
+        {
+          "line": "NEW MAP QUEUE: SUMMIT",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "Summit Only queue will be available for 7 days.",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "Summit Only games will use the Swiftplay mode format.",
+          "names": [
+            "Summit"
+          ]
+        },
+        {
+          "line": "WEAPONS UPDATES",
+          "names": []
+        },
+        {
+          "line": "Now that the Bandit has been out for a few months, we’re fairly happy with where it’s landed, but we see an opportunity to make the gun more reliable while still maintaining its position as a precision weapon to master. We want to keep the Bandit’s pricing and mechanical mastery in check relative to the Ghost and Sheriff and we think these changes put it in a more competitive spot.",
+          "names": [
+            "Bandit",
+            "Ghost",
+            "Sheriff"
+          ]
+        },
+        {
+          "line": "Bandit Tuning",
+          "names": [
+            "Bandit"
+          ]
+        },
+        {
+          "line": "Recovery from .45 &gt;&gt;&gt; .4",
+          "names": []
+        },
+        {
+          "line": "Tap efficiency from 3 &gt;&gt;&gt; 4",
+          "names": []
+        },
+        {
+          "line": "Pitch recoil at max down from 4 &gt;&gt;&gt; 3",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "General",
+          "names": []
+        },
+        {
+          "line": "Fixed a bug where two different VOs could play when a player wins the round and game.",
+          "names": []
+        },
+        {
+          "line": "Fixed a bug where if a player was spectating an ally who got an Ace or Clutch in the previous round, the pre-round commend VO could become directional for the spectator.",
+          "names": []
+        },
+        {
+          "line": "Fixed a bug where the bottom HUD color for Signature and Ultimate abilities would be an incorrect color after Side Swap or Overtime.",
+          "names": []
+        },
+        {
+          "line": "Agents",
+          "names": []
+        },
+        {
+          "line": "Harbor",
+          "names": [
+            "Harbor"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Harbor’s Reckoning debuff could linger briefly after the ability’s VFX disappeared.",
+          "names": [
+            "Harbor"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Killjoy’s Nanoswarm cast VO line would not play.",
+          "names": [
+            "Killjoy"
+          ]
+        },
+        {
+          "line": "Viper",
+          "names": [
+            "Viper"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Viper could crouch outside of Viper’s Pit on Abyss without losing Smoke Integrity.",
+          "names": [
+            "Viper",
+            "Abyss"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Viper’s Pit could incorrectly spread through certain placements of Sage’s Barrier Orb and Vyse’s Shear , creating a divider inside the pit.",
+          "names": [
+            "Vyse",
+            "Viper",
+            "Sage"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Viper’s Pit VFX could fail to appear in Replays after scrubbing the timeline and switching to Free Cam.",
+          "names": [
+            "Viper"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Viper’s Pit smoke could appear with artifacts or form incorrectly on Ascent, Abyss, Haven, Icebox, and Split.",
+          "names": [
+            "Viper",
+            "Ascent",
+            "Split",
+            "Abyss",
+            "Icebox",
+            "Haven"
+          ]
+        },
+        {
+          "line": "KNOWN ISSUES",
+          "names": []
+        },
+        {
+          "line": "In certain scenarios, it’s possible that players will be notified twice about RR refunds via Inbox and the Modal popup. Please note that this does not mean you are getting a double refund.",
+          "names": []
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "We’ve made changes to our matchmaking to ensure the average rank of each team is within 1 sub-tier.",
+          "names": []
+        },
+        {
+          "line": "Basically, if your team's average rank is Gold 2, the other team's average rank will also be within Gold more often.",
+          "names": []
+        },
+        {
+          "line": "PREMIER UPDATES",
+          "names": []
+        },
+        {
+          "line": "Welcome to Stage V26A4! Matches start on July 1.",
+          "names": []
+        },
+        {
+          "line": "Teams with a Premier Score of at least 600 qualify for Playoffs on August 16.",
+          "names": []
+        },
+        {
+          "line": "Make sure to check the schedule in client for match start times for your zone!",
+          "names": []
+        },
+        {
+          "line": "For Contender and Invite Division teams:",
+          "names": []
+        },
+        {
+          "line": "Qualification is still based on your placement - check out the standings page for more info.",
+          "names": []
+        },
+        {
+          "line": "Playoffs will be played across two days! The first round of Playoffs will be on August 15. Teams that advance from the first round return on August 16 for the finals.",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "12.11",
+      "date": "2026-06-09T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-12-11/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 12.11",
+          "names": []
+        },
+        {
+          "line": "Game Updates Kenny “Karnifexlol“ Cameron",
+          "names": []
+        },
+        {
+          "line": "2026-06-09T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "Hi, friends! Kenny, here.",
+          "names": []
+        },
+        {
+          "line": "This week’s patch is just a lil guy! TL;DR, we’re launching the My VALORANT Card site today, fixing some bugs, and making some Premier changes.",
+          "names": []
+        },
+        {
+          "line": "This is the last patch of Act 3. Act 4 starts in two weeks with a bunch of exciting stuff coming. So stay tuned!",
+          "names": []
+        },
+        {
+          "line": "GL HF GGs, gamers.",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "GENERAL UPDATES",
+          "names": []
+        },
+        {
+          "line": "My VALORANT Card is now live!",
+          "names": []
+        },
+        {
+          "line": "Flex your skill, highlight your personality, and connect with other players using a personalized VALORANT card. You can use My VALORANT Card to find the perfect new addition to your squad based on what matters most to you—rank, roles to fill, or purely vibes.",
+          "names": []
+        },
+        {
+          "line": "Check out mycard.playvalorant.com to create your card, share on socials, and find new friends to add to your stack.",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agents",
+          "names": []
+        },
+        {
+          "line": "Fixed a bug where Agents would frequently repeat the spike pick up line when dropped on the zipline in Fracture.",
+          "names": [
+            "Fracture"
+          ]
+        },
+        {
+          "line": "Fixed a bug where if in left-handed mode Skye, Neon, and Fade’s HUD VFX would sometimes appear shifted into the middle of the screen.",
+          "names": [
+            "Fade",
+            "Skye",
+            "Neon"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Miks was getting assists for healing uninjured allies with M-Pulse .",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Viper’s Pit was getting stuck unable to expand in a few specific spots.",
+          "names": [
+            "Viper"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Sage’s Healing Orb was not usable during the buy phase.",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Miks’ M-Pulse could not be toggled after quickly swapping between abilities.",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Clove’s Not Dead Yet first person and third person SFX were not playing when the ability was available and when the ability timed out.",
+          "names": [
+            "Clove"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Raze's Blast Pack wasn't dealing damage to destructible enemy abilities.",
+          "names": [
+            "Raze"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Gekko’s reclaimable ability globules would disappear after using Thrash .",
+          "names": [
+            "Gekko"
+          ]
+        },
+        {
+          "line": "Maps",
+          "names": []
+        },
+        {
+          "line": "Fixed a bug on Breeze that allowed multiple Agent abilities to lock onto enemies who were out of sight behind the large boxes on A Main.",
+          "names": [
+            "Breeze"
+          ]
+        },
+        {
+          "line": "Store",
+          "names": []
+        },
+        {
+          "line": "Fixed an overlap issue on buy button prompts in Arabic while previewing bundles.",
+          "names": []
+        },
+        {
+          "line": "KNOWN ISSUES",
+          "names": []
+        },
+        {
+          "line": "We’re aware of the issue with Waylay where she can place her Refract on a roof on Ascent.",
+          "names": [
+            "Waylay",
+            "Ascent"
+          ]
+        },
+        {
+          "line": "We’re aware of the issue on Lotus where the doors sometimes don’t open.",
+          "names": [
+            "Lotus"
+          ]
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "PREMIER UPDATES",
+          "names": []
+        },
+        {
+          "line": "V26A3 Contender and Invite Division schedule changes:",
+          "names": []
+        },
+        {
+          "line": "Playoffs now take place across multiple days.",
+          "names": []
+        },
+        {
+          "line": "The first round of playoffs will be on June 20",
+          "names": []
+        },
+        {
+          "line": "Teams that advance from the first round return on June 21 for their next matchup",
+          "names": []
+        },
+        {
+          "line": "Make sure to check the schedule in client for round start times for your zone!",
+          "names": []
+        },
+        {
+          "line": "Premier",
+          "names": []
+        },
+        {
+          "line": "Fixed a bug where Premier team tags would not show up in the Buy menu during pre-round phase.",
+          "names": []
+        },
+        {
+          "line": "Added clearer error messaging during the ‘Create Team’ flow when a name and tag is already taken.",
+          "names": []
+        },
+        {
+          "line": "CONSOLE ONLY",
+          "names": []
+        },
+        {
+          "line": "WEAPON UPDATES",
+          "names": []
+        },
+        {
+          "line": "Judge",
+          "names": [
+            "Judge"
+          ]
+        },
+        {
+          "line": "Minimum spread increased from 2.25 &gt;&gt;&gt; 2.5",
+          "names": []
+        },
+        {
+          "line": "This change was made in Patch 12.09 for PC and is now being implemented for Console as we previously mentioned in the Patch 12.09 Patch Notes .",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where you couldn't see the Cypher camera model when placing the ability.",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "12.10",
+      "date": "2026-05-27T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-12-10/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 12.10",
+          "names": []
+        },
+        {
+          "line": "Game Updates JOY",
+          "names": []
+        },
+        {
+          "line": "2026-05-27T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "Hi folks, it’s a light patch this time around, but notably, Replays are now accessible through your friends’ list!",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "GENERAL UPDATES",
+          "names": []
+        },
+        {
+          "line": "Replay Friend Sharing: You can now access and watch your friends’ replays for all eligible modes (Competitive, Unrated, Swiftplay, Premier, Custom) directly from their Career page.",
+          "names": []
+        },
+        {
+          "line": "Replays for Custom games are only available when the lobby owner enables recording in the Custom options menu before the game starts. Recording must be enabled again for each new game.",
+          "names": []
+        },
+        {
+          "line": "ESPORTS FEATURES",
+          "names": []
+        },
+        {
+          "line": "Masters London Pick’Ems",
+          "names": []
+        },
+        {
+          "line": "Pick'Ems are back for Masters London! Starting May 27 (PT), you can make your picks for the Swiss Stage in-client and on the web.",
+          "names": []
+        },
+        {
+          "line": "For the Swiss Stage, you’ll be tasked with trying to predict who will advance from the 8-team Swiss Groups. For extra bonus points, try to predict a team who will make it out flawlessly with a 2-0 record.",
+          "names": []
+        },
+        {
+          "line": "You can earn an exclusive title just for playing, but win additional prizes depending on how you fare against other players.",
+          "names": []
+        },
+        {
+          "line": "MODES UPDATES",
+          "names": []
+        },
+        {
+          "line": "SKIRMISH: ASCENSION - All selectable Agents are available for both 1v1 and 2v2 modes even if you do not have them unlocked",
+          "names": []
+        },
+        {
+          "line": "NEW SKIRMISH MAPS",
+          "names": []
+        },
+        {
+          "line": "Added Skirmish Maps D and E",
+          "names": []
+        },
+        {
+          "line": "Available in all queues and customs.",
+          "names": []
+        },
+        {
+          "line": "Both feature ramps for more peek angle variety",
+          "names": []
+        },
+        {
+          "line": "Skirmish D",
+          "names": []
+        },
+        {
+          "line": "Skirmish E",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agents",
+          "names": []
+        },
+        {
+          "line": "Miks",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Miks's M-Pulse healing would persist briefly on enemies after they exit its range.",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Miks's M-Pulse could cancel other ability and weapon equip animations",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Fixed a bug where spamming alt-fire with Miks's M-Pulse could cause it to be used in the wrong form.",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Harbor",
+          "names": [
+            "Harbor"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Harbor's Reckoning could disappear early if the player spammed the cast button",
+          "names": [
+            "Harbor"
+          ]
+        },
+        {
+          "line": "Gameplay",
+          "names": []
+        },
+        {
+          "line": "Fixed a bug that allowed players to inadvertently kill enemies from spawn during the buy phase. This fix was rolled out with a patch redeploy during 12.09.",
+          "names": []
+        },
+        {
+          "line": "Modes",
+          "names": []
+        },
+        {
+          "line": "Skirmish 2v2: Fixed a bug where the timer was stuck at 0.5 seconds in overtime",
+          "names": []
+        },
+        {
+          "line": "Store",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where bundle details were not displayed on the confirmation page when purchasing VCT bundles.",
+          "names": []
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "PREMIER UPDATES",
+          "names": []
+        },
+        {
+          "line": "V26A3 Contender and Invite Division schedule changes:",
+          "names": []
+        },
+        {
+          "line": "Playoffs now take place across multiple days.",
+          "names": []
+        },
+        {
+          "line": "The first round of playoffs will be on June 20",
+          "names": []
+        },
+        {
+          "line": "Teams that advance from the first round return on June 21 for their next matchup",
+          "names": []
+        },
+        {
+          "line": "Make sure to check the schedule in client for round start times for your zone!",
+          "names": []
+        },
+        {
+          "line": "CONSOLE ONLY",
+          "names": []
+        },
+        {
+          "line": "Fixed a clipping issue when confirming a gun buddy purchase from the battlepass.",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "12.09",
+      "date": "2026-05-12T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-12-09/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 12.09",
+          "names": []
+        },
+        {
+          "line": "Game Updates JOY",
+          "names": []
+        },
+        {
+          "line": "2026-05-12T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "HELLO ALL! Drum roll please…🥁🥁🥁 it’s the moment you’ve been waiting for. Neon and shotgun nerfs have arrived. We’re making changes to her mobility in the air and giving her a greater resource tradeoff on High Gear. We’ve also made all shotguns less accurate while moving and shooting. Read on below for more!",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "AGENT UPDATES",
+          "names": []
+        },
+        {
+          "line": "Neon has been on our radar for a while now, and we’ve been working through changes to address the amount of impact she can have in games. This is related to a more complex pacing and strategy problem with multiple elements to solve (strong Duelists and shotguns, weak Sentinels, higher Initiator signature cooldowns), but for the time being we are going to release Neon and shotgun changes first to more quickly correct the balance of combat.",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "Her current role in breaking timings and creating pressure is correct, but her movement and evasiveness are pushing too far into combat space. We want to encourage Neon players to be intentional and make more meaningful decisions while playing her, so we’re making changes to her mobility in the air and giving her a greater resource tradeoff on High Gear. This should also allow opponents to have more opportunities for counterplay, as well as shave some additionally generously-tuned snowballing potential.",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "For a deeper dive on all the upcoming changes and why, you can read more about it &lt; here &gt;.",
+          "names": []
+        },
+        {
+          "line": "Neon",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "High Gear",
+          "names": []
+        },
+        {
+          "line": "Jumping with High Gear active no longer provides any speed bonus while Neon is airborne. Instead, Neon’s air speed while sprinting will match melee speed.",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "Fuel will only regenerate with a kill when Neon's ultimate is active",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "Fuel will still regenerate passively",
+          "names": []
+        },
+        {
+          "line": "Improved VFX to more clearly communicate the direction and origin of her slide",
+          "names": []
+        },
+        {
+          "line": "COMPETITIVE UPDATES",
+          "names": []
+        },
+        {
+          "line": "We’re testing MMR changes for modes other than Competitive, Unrated, and Swiftplay. These changes should result in better, more consistent matches. We’ll use what we learn to improve Competitive, Unrated, and Swiftplay in the future.",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agents",
+          "names": []
+        },
+        {
+          "line": "Chamber",
+          "names": [
+            "Chamber"
+          ]
+        },
+        {
+          "line": "Fixed a bug where ADS-ing while firing Chamber’s Headhunter created an animation that covers too much of the screen",
+          "names": [
+            "Chamber"
+          ]
+        },
+        {
+          "line": "Jett",
+          "names": [
+            "Jett"
+          ]
+        },
+        {
+          "line": "Fixed a visual bug where Jett's Tailwind was not playing the intended first-person animations when left-handed setting is enabled",
+          "names": [
+            "Jett"
+          ]
+        },
+        {
+          "line": "Fixed a bug where using Jett's Drift caused performance drops",
+          "names": [
+            "Jett"
+          ]
+        },
+        {
+          "line": "Miks",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Updated tooltip description of Harmonize .",
+          "names": []
+        },
+        {
+          "line": "Fixed bug where the preview cone for his ultimate would not show unless the ability was fully equipped",
+          "names": []
+        },
+        {
+          "line": "Sage",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Fixed an issue where a full health Sage could use Healing Orb on herself while affected by Decay, because she is not actually losing any health. This would consume the ability needlessly, since her health returns to normal once Decay wears off.",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Tejo",
+          "names": [
+            "Tejo"
+          ]
+        },
+        {
+          "line": "Fixed issue where the Guided Salvo ’s equip idle sound kept playing long after cast.",
+          "names": []
+        },
+        {
+          "line": "Viper",
+          "names": [
+            "Viper"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Sova's Recon Bolt and Chamber's Trademark were not affected by nearsightedness in Viper's Pit",
+          "names": [
+            "Chamber",
+            "Sova",
+            "Viper"
+          ]
+        },
+        {
+          "line": "Vyse",
+          "names": [
+            "Vyse"
+          ]
+        },
+        {
+          "line": "Fixed a bug where possessable drones ( Sova's Owl Drone, Skye's Trailblazer, Tejo's Stealth Drone ) would trigger the arming audio of Vyse's wall",
+          "names": [
+            "Tejo",
+            "Skye",
+            "Sova",
+            "Vyse"
+          ]
+        },
+        {
+          "line": "PLAYER BEHAVIOR UPDATES",
+          "names": []
+        },
+        {
+          "line": "We've improved our Riot Text Evaluation system to better detect and apply penalties for text comms abuse in the following languages: Arabic, German, English, Spanish, French, Italian, Japanese, Polish, Portuguese, Russian, Turkish, Chinese.",
+          "names": []
+        },
+        {
+          "line": "WEAPONS UPDATES",
+          "names": []
+        },
+        {
+          "line": "Alongside the Neon changes above, we are also changing the effectiveness of shotguns when moving and jumping to encourage players to use them defensively. Shotguns are intended to be most effective for holding tight angles and clearing close range spaces, but right now they’re a bit too effective in high-mobility situations. To reinforce their ideal usage, we are reducing shotgun accuracy while moving. This should make them more impactful when used deliberately and defensively, versus being aggressive on the move.",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "All shotguns:",
+          "names": []
+        },
+        {
+          "line": "All shotguns are now less accurate when moving",
+          "names": []
+        },
+        {
+          "line": "Run, walk, crouch-walk, and jump accuracy has been standardized across all shotguns",
+          "names": []
+        },
+        {
+          "line": "Crouching now provides a 15% accuracy multiplier for shotguns, matching rifles",
+          "names": []
+        },
+        {
+          "line": "Bucky: crouch accuracy modifier increased from 10 &gt;&gt;&gt; 15%",
+          "names": [
+            "Bucky"
+          ]
+        },
+        {
+          "line": "Judge/Shorty: crouch accuracy modifier decreased from 25 &gt;&gt;&gt; 15%",
+          "names": [
+            "Judge",
+            "Shorty"
+          ]
+        },
+        {
+          "line": "Shotguns are now much less accurate while using ropes",
+          "names": []
+        },
+        {
+          "line": "Your shotgun spread will increase significantly when you're on a rope, especially if you're moving:",
+          "names": []
+        },
+        {
+          "line": "Standing still: Accuracy reduced (spread increased from 0.075 &gt;&gt;&gt; 0.75)",
+          "names": []
+        },
+        {
+          "line": "Walking: Accuracy reduced (spread increased from 0.09 &gt;&gt;&gt; 1.5)",
+          "names": []
+        },
+        {
+          "line": "Running: Accuracy reduced (spread increased from 0.1 &gt;&gt;&gt; 3.0)",
+          "names": []
+        },
+        {
+          "line": "Bucky :",
+          "names": [
+            "Bucky"
+          ]
+        },
+        {
+          "line": "Bucky pellet damage in the 0-8m range decreased",
+          "names": [
+            "Bucky"
+          ]
+        },
+        {
+          "line": "Head 40 &gt;&gt;&gt; 34",
+          "names": []
+        },
+        {
+          "line": "Body 20 &gt;&gt;&gt; 17",
+          "names": []
+        },
+        {
+          "line": "Legs 17 &gt;&gt;&gt; 14",
+          "names": []
+        },
+        {
+          "line": "Minimum spread increased from 2.6 &gt;&gt;&gt; 3.0",
+          "names": []
+        },
+        {
+          "line": "Walking spread increased from 0.075 &gt;&gt;&gt; 1",
+          "names": []
+        },
+        {
+          "line": "Running spread increased from .1 &gt;&gt;&gt; 2",
+          "names": []
+        },
+        {
+          "line": "Crouch-walk spread increased from .05 &gt;&gt;&gt; .5",
+          "names": []
+        },
+        {
+          "line": "Jump spread increased from 1.25 &gt;&gt;&gt; 4",
+          "names": []
+        },
+        {
+          "line": "Judge :",
+          "names": [
+            "Judge"
+          ]
+        },
+        {
+          "line": "Minimum spread increased from 2.25 &gt;&gt;&gt; 2.5",
+          "names": []
+        },
+        {
+          "line": "Note: this will only apply to PC for now- this spread change will apply to console in Patch 12.11",
+          "names": []
+        },
+        {
+          "line": "Walking spread increased from .075 &gt;&gt;&gt; 1",
+          "names": []
+        },
+        {
+          "line": "Running spread increased from 0.75 &gt;&gt;&gt; 2",
+          "names": []
+        },
+        {
+          "line": "Jump spread increased from 2.25 &gt;&gt;&gt; 4",
+          "names": []
+        },
+        {
+          "line": "Shorty :",
+          "names": [
+            "Shorty"
+          ]
+        },
+        {
+          "line": "Fire rate decreased from 3.33 &gt;&gt;&gt; 3.0",
+          "names": []
+        },
+        {
+          "line": "Running spread increased from 0.1 &gt;&gt;&gt; 2",
+          "names": []
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "PERFORMANCE UPDATES",
+          "names": []
+        },
+        {
+          "line": "Added support for AMD Anti-Lag 2, which reduces input latency in certain GPU-bound scenarios. In order to use AMD Anti-Lag 2, you need compatible hardware, with updated drivers from March 9th, 2026 or later.",
+          "names": []
+        },
+        {
+          "line": "Fixed an exploit with her Fast Lane where using specific NVIDIA graphics settings impacted competitive integrity. Neon has returned to the game.",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "Progression",
+          "names": []
+        },
+        {
+          "line": "Fixed issue where dailies shown while hovering over the icon did not match the dailies in the End of Game screen.",
+          "names": []
+        },
+        {
+          "line": "CONSOLE ONLY",
+          "names": []
+        },
+        {
+          "line": "Phoenix",
+          "names": [
+            "Phoenix"
+          ]
+        },
+        {
+          "line": "Updated tooltip description of Curveball",
+          "names": []
+        },
+        {
+          "line": "KNOWN ISSUES.",
+          "names": []
+        },
+        {
+          "line": "Modes",
+          "names": []
+        },
+        {
+          "line": "Skirmish 2v2: Ascension and Skirmish 1v1: Ascension - Timer is stuck at 00.50 sec in Overtime phase",
+          "names": []
+        },
+        {
+          "line": "Skirmish 2v2: Ascension and Skirmish 1v1: Ascension - Agent abilities do not show up on the Combat Report in the following round after affecting enemies",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "12.08",
+      "date": "2026-04-28T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-12-08/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 12.08",
+          "names": []
+        },
+        {
+          "line": "Game Updates Ashley Tsao",
+          "names": []
+        },
+        {
+          "line": "2026-04-28T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "It’s Ash again! Patch 12.08 is bringing you an exciting new update to Skirmish called Skirmish: Ascension as well as another map rotation. Here’s the TLDR;",
+          "names": []
+        },
+        {
+          "line": "Skirmish: Ascension - a new, experimental ranked experience with its own competitive leaderboard on our FTW site",
+          "names": []
+        },
+        {
+          "line": "Ascent is in, Bind is out",
+          "names": [
+            "Ascent",
+            "Bind"
+          ]
+        },
+        {
+          "line": "[PC only] Premier is back!",
+          "names": []
+        },
+        {
+          "line": "More bug fixes",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "MAP UPDATES",
+          "names": []
+        },
+        {
+          "line": "Map Pool Updates",
+          "names": []
+        },
+        {
+          "line": "ASCENT is IN the Competitive and Deathmatch queues.",
+          "names": [
+            "Ascent"
+          ]
+        },
+        {
+          "line": "BIND is OUT of the Competitive and Deathmatch queues.",
+          "names": [
+            "Bind"
+          ]
+        },
+        {
+          "line": "MODES UPDATES",
+          "names": []
+        },
+        {
+          "line": "NEW LIMITED TIME MODE",
+          "names": []
+        },
+        {
+          "line": "Introducing Skirmish: Ascension , a new limited ranked experience for Skirmish.",
+          "names": []
+        },
+        {
+          "line": "We designed this mode as a fast, skill-forward competitive experience where gunplay stays primary, but selected abilities create more tactical decisions and replayable duels. Pick from a curated roster of Agents, each equipped with a single ability, and fight through staged weapon rounds in 1v1 or 2v2 . Compete on the FTW ranked ladder to earn rewards and prove you are better. Available for Act 3.",
+          "names": []
+        },
+        {
+          "line": "Mode Details",
+          "names": []
+        },
+        {
+          "line": "Agents & Abilities",
+          "names": []
+        },
+        {
+          "line": "Choose from 14 Agents, each with one ability from their kit",
+          "names": []
+        },
+        {
+          "line": "Jett (Tailwind)",
+          "names": [
+            "Jett"
+          ]
+        },
+        {
+          "line": "Waylay (Refract)",
+          "names": [
+            "Waylay"
+          ]
+        },
+        {
+          "line": "Chamber (Rendezvous)",
+          "names": [
+            "Chamber"
+          ]
+        },
+        {
+          "line": "Cypher (Cyber Cage)",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Omen (Shrouded Step)",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Phoenix (Curve Ball)",
+          "names": [
+            "Phoenix"
+          ]
+        },
+        {
+          "line": "Yoru (Clone)",
+          "names": [
+            "Yoru"
+          ]
+        },
+        {
+          "line": "Iso (Contingency)",
+          "names": [
+            "Iso"
+          ]
+        },
+        {
+          "line": "Sage (Barrier Orb)",
+          "names": [
+            "Sage"
+          ]
+        },
+        {
+          "line": "Raze (Blast Pack)",
+          "names": [
+            "Raze"
+          ]
+        },
+        {
+          "line": "Vyse (Arc Rose)",
+          "names": [
+            "Vyse"
+          ]
+        },
+        {
+          "line": "KAY/O (Flash/Drive)",
+          "names": [
+            "KAY/O"
+          ]
+        },
+        {
+          "line": "Breach (Flashpoint)",
+          "names": [
+            "Breach"
+          ]
+        },
+        {
+          "line": "Veto (Crosscut)",
+          "names": [
+            "Veto"
+          ]
+        },
+        {
+          "line": "Staged Weapons",
+          "names": []
+        },
+        {
+          "line": "No economy. Weapons escalate through stages as the match progresses",
+          "names": []
+        },
+        {
+          "line": "Rounds 1-4: Pistols (Bandit, Sheriff)",
+          "names": [
+            "Bandit",
+            "Sheriff"
+          ]
+        },
+        {
+          "line": "Rounds 5-8: Low-tier rifles (Guardian, Bulldog)",
+          "names": [
+            "Bulldog",
+            "Guardian"
+          ]
+        },
+        {
+          "line": "Round 9+: Vandal and Phantom",
+          "names": [
+            "Vandal",
+            "Phantom"
+          ]
+        },
+        {
+          "line": "Queues",
+          "names": []
+        },
+        {
+          "line": "1v1 and 2v2 with separate matchmaking",
+          "names": []
+        },
+        {
+          "line": "Round Structure",
+          "names": []
+        },
+        {
+          "line": "First to 10 rounds wins",
+          "names": []
+        },
+        {
+          "line": "FTW Ranked Ladder",
+          "names": []
+        },
+        {
+          "line": "Competitive leaderboard segmented by server, region, and platform",
+          "names": []
+        },
+        {
+          "line": "Separate leaderboards for 1v1 and 2v2, tracked independently",
+          "names": []
+        },
+        {
+          "line": "Rank Tiers",
+          "names": []
+        },
+        {
+          "line": "Iron: 0",
+          "names": []
+        },
+        {
+          "line": "Bronze: 700",
+          "names": []
+        },
+        {
+          "line": "Silver: 1100",
+          "names": []
+        },
+        {
+          "line": "Gold: 1500",
+          "names": []
+        },
+        {
+          "line": "Platinum: 1800",
+          "names": []
+        },
+        {
+          "line": "Diamond: 2100",
+          "names": []
+        },
+        {
+          "line": "Ascendant: 2400",
+          "names": []
+        },
+        {
+          "line": "Immortal: 2700",
+          "names": []
+        },
+        {
+          "line": "Radiant: Top 100",
+          "names": []
+        },
+        {
+          "line": "Rewards",
+          "names": []
+        },
+        {
+          "line": "Combat Ready player card: Complete 3 Skirmish: Ascension matches",
+          "names": []
+        },
+        {
+          "line": "Trade Me player card: Complete 15 Skirmish: Ascension matches",
+          "names": []
+        },
+        {
+          "line": "Titles awarded by highest rank achieved on either ladder",
+          "names": []
+        },
+        {
+          "line": "Skirmish Competitor: Gold to Platinum",
+          "names": []
+        },
+        {
+          "line": "Skirmish Expert: Diamond to Immortal",
+          "names": []
+        },
+        {
+          "line": "Skirmish Legend: Radiant",
+          "names": []
+        },
+        {
+          "line": "LEAVING LIMITED TIME MODES",
+          "names": []
+        },
+        {
+          "line": "Knockout is heading out. Thanks for playing!",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agent",
+          "names": []
+        },
+        {
+          "line": "These were fixed in Patch 12.07 but missed the notes.",
+          "names": []
+        },
+        {
+          "line": "Fixed a bug where using Miks’ Bassquake would cause the minimap cone to blink on use.",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Veto’s Chokehold could detect enemies behind rotating doors on Lotus.",
+          "names": [
+            "Veto",
+            "Lotus"
+          ]
+        },
+        {
+          "line": "Fixed a bug where KAY/O’s ability VFX were not appearing if used right after KAY/O casts NULL/cmd .",
+          "names": [
+            "KAY/O"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Neon’s High Gear slide was not playing SFX for moving across different surface types.",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Tejo’s agent select animation would sometimes cut off the smoke from the explosion.",
+          "names": [
+            "Tejo"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Gekko’s Dizzy would only target an enemy if their head was visible.",
+          "names": [
+            "Gekko"
+          ]
+        },
+        {
+          "line": "Fixed a bug where during Dimensional Drift Yoru could not see invisible abilities like Vyse’s Shear or Cypher’s Trapwire even if he was close enough to them.",
+          "names": [
+            "Cypher",
+            "Vyse",
+            "Yoru"
+          ]
+        },
+        {
+          "line": "These are new fixes in Patch 12.08.",
+          "names": []
+        },
+        {
+          "line": "Fixed a bug where Viper's Toxic Screen SFX would activate repeatedly when Veto walked into it with Evolution active",
+          "names": [
+            "Viper",
+            "Veto"
+          ]
+        },
+        {
+          "line": "Fixed a bug where players resurrected by Sage inside of Viper’s Decaying abilities would not gain Decay.",
+          "names": [
+            "Viper",
+            "Sage"
+          ]
+        },
+        {
+          "line": "Fixed a bug where Tejo’s Armageddon would sometimes cast targeting spawn instead of the intended location.",
+          "names": [
+            "Tejo"
+          ]
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "PREMIER UPDATES UPDATES",
+          "names": []
+        },
+        {
+          "line": "Welcome to Stage V26A3! Matches start on May 6.",
+          "names": []
+        },
+        {
+          "line": "Contender and Invite Division schedule changes:",
+          "names": []
+        },
+        {
+          "line": "There are only 6 weeks of matches this stage – the matches are still each Saturday from May 9 - June 13.",
+          "names": []
+        },
+        {
+          "line": "Playoffs now take place across multiple days.",
+          "names": []
+        },
+        {
+          "line": "The first round of playoffs takes place on June 20.",
+          "names": []
+        },
+        {
+          "line": "Teams that advance from the first round return on June 21 for their next matchup.",
+          "names": []
+        },
+        {
+          "line": "Make sure to check the schedule in the client for round start times for your zone!",
+          "names": []
+        },
+        {
+          "line": "General",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue in settings where audio sliders weren’t moving correctly",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where trying to exit the client while a replay was paused wasn’t working",
+          "names": []
+        },
+        {
+          "line": "CONSOLE ONLY",
+          "names": []
+        },
+        {
+          "line": "KNOWN ISSUES",
+          "names": []
+        },
+        {
+          "line": "Modes",
+          "names": []
+        },
+        {
+          "line": "Skirmish 2v2: Ascension and Skirmish 1v1: Ascension - Timer is stuck at 00.50 sec when during Overtime phase.",
+          "names": []
+        },
+        {
+          "line": "Skirmish 2v2: Ascension and Skirmish 1v1: Ascension - Agent abilities do not show up on the Combat Report in the following round after affecting enemies",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    },
+    {
+      "patch": "12.07",
+      "date": "2026-04-14T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-12-07/",
+      "notesFound": true,
+      "linesKept": "all",
+      "capped": false,
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 12.07",
+          "names": []
+        },
+        {
+          "line": "Game Updates Ashley Tsao",
+          "names": []
+        },
+        {
+          "line": "2026-04-14T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "Hey folks! It’s Ash here. Got a small update for ya and here’s the TLDR;",
+          "names": []
+        },
+        {
+          "line": "VALORANT is partnering with Discord so you can link accounts and invite friends in Discord directly from the game.",
+          "names": []
+        },
+        {
+          "line": "[PC only] Updated Settings screens to improve functionality and visual clarity",
+          "names": []
+        },
+        {
+          "line": "Lots of bug fixes",
+          "names": []
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Cosmetics",
+          "names": []
+        },
+        {
+          "line": "We’ve made some updates to several scope reticles to make them more consistent in the center range of view with the base scope reticle. Here is the list of updated skins: Kuronami Marshal, EX.O Marshal, Nocturnum Marshal, Araxys Outlaw and Operator. Thanks to Grimm for the feedback!",
+          "names": [
+            "Operator",
+            "Outlaw",
+            "Marshal"
+          ]
+        },
+        {
+          "line": "Store",
+          "names": []
+        },
+        {
+          "line": "Gifting ineligibility screen now extends the full width of the screen.",
+          "names": []
+        },
+        {
+          "line": "Fixed various clipping issues when at the purchase confirm step while purchasing a gun buddy.",
+          "names": []
+        },
+        {
+          "line": "Fixed header text coloring on purchase confirm screen.",
+          "names": []
+        },
+        {
+          "line": "Fixed various inconsistencies with bundle detail buttons.",
+          "names": []
+        },
+        {
+          "line": "Fixed issue that caused sprays to appear darkened when previewing in the purchase flow.",
+          "names": []
+        },
+        {
+          "line": "Bundle carousels are now a consistent height across all points of the purchase flow.",
+          "names": []
+        },
+        {
+          "line": "Removed icon from feared bundle tile while bundle is owned.",
+          "names": []
+        },
+        {
+          "line": "Resolved discoloration of offer tile while gifting a flex.",
+          "names": []
+        },
+        {
+          "line": "Resolved performance issue where having a large friends list was causing slight lag.",
+          "names": []
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "GENERAL UPDATES",
+          "names": []
+        },
+        {
+          "line": "The settings screens have been revamped to improve functionality and visual clarity",
+          "names": []
+        },
+        {
+          "line": "Added parent-child association for related settings",
+          "names": []
+        },
+        {
+          "line": "Added hover tooltips",
+          "names": []
+        },
+        {
+          "line": "Settings previously under General - Other are broken into 3 sections: User Interface, Content Filtering, Network",
+          "names": []
+        },
+        {
+          "line": "Visual refresh",
+          "names": []
+        },
+        {
+          "line": "We understand some of you quickly adjust settings during games, and we didn’t want to jeopardize that experience. The experience should largely feel the same but with improved QOL.",
+          "names": []
+        },
+        {
+          "line": "SOCIAL UPDATES",
+          "names": []
+        },
+        {
+          "line": "Discord 🤝Riot",
+          "names": []
+        },
+        {
+          "line": "VALORANT is partnering with Discord to make getting into your next game with your friends easier. You can now link your accounts to unlock new social features!",
+          "names": []
+        },
+        {
+          "line": "Invite friends in Discord straight to your party from within VALORANT. No alt-tabbing needed!",
+          "names": []
+        },
+        {
+          "line": "Copy a lobby link and share it directly on your server or anywhere your friends are.",
+          "names": []
+        },
+        {
+          "line": "See which of your Discord friends play VALORANT and jump into parties faster.",
+          "names": []
+        },
+        {
+          "line": "This will roll out as a beta in Brazil first, followed by the US & Canada on April 21, PT time. It will exit beta and launch globally with patch 12.08 on April 29, PT time.",
+          "names": []
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
+    }
+  ]
 }

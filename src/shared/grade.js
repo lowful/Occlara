@@ -118,6 +118,34 @@ function roleBaseline(history, role, key) {
 const NONE_AVOIDABLE = 'no avoidable death on record';
 const NONE_COUNTED = 'no death with your team ahead in a lost round';
 
+/*
+ * A SHORT MATCH IS JUDGED OVER TWELVE ROUNDS (8.5.0, the player's choice).
+ * Decisions is a curve over the share of rounds a death was flagged in, so in
+ * a six round Swiftplay one flag is a sixth of the match: one label moved the
+ * player's Fracture and Pearl swiftplays 21 to 25 points in Decisions and 5 to
+ * 6 overall, and six flawless rounds scored 96 on six rounds of evidence. A
+ * match under twelve rounds is filled up to twelve at the typical share,
+ * (flags + 0.12 x (12 - rounds)) / 12, where 0.12 is the share the curve
+ * gives about 79 for, the median of the player's twelve saved Decisions
+ * grades, a first guess like the curve's other anchors. One label's swing in
+ * six rounds is about halved, both ways, twelve rounds or more are judged as
+ * they always were, and the evidence says it was judged so. A grade already
+ * saved is never graded again: a review is shown with the grade it was saved
+ * with.
+ */
+const SHORT_MATCH_ROUNDS = 12;
+const TYPICAL_SHARE = 0.12;
+const SHORT_MATCH_LINE = 'judged as a short match, over 12 rounds';
+
+/** The share of rounds Decisions is judged on: flags over rounds, a short match filled up to twelve. */
+function decisionsShare(flags, rounds) {
+  if (!(rounds > 0)) return null;
+  if (rounds >= SHORT_MATCH_ROUNDS) return flags / rounds;
+  return (flags + TYPICAL_SHARE * (SHORT_MATCH_ROUNDS - rounds)) / SHORT_MATCH_ROUNDS;
+}
+// The curve Decisions reads that share on.
+const DECISIONS_CURVE = [[0, 96], [0.08, 85], [0.16, 72], [0.25, 60], [0.4, 42]];
+
 /**
  * @param input.rounds     reconciled rounds (valorant-verify) or ledger rows
  * @param input.scoreline  { kills, deaths, assists, acs } from Riot or the tracker, or null
@@ -277,7 +305,7 @@ function valorant(input) {
     for (const r of ult) flagged.add(r.n);
     const avoid = looked.filter((r) => isAvoidable(r.forensics.cause));
     for (const r of avoid) flagged.add(r.n);
-    let s = curve(flagged.size / total, [[0, 96], [0.08, 85], [0.16, 72], [0.25, 60], [0.4, 42]]);
+    let s = curve(decisionsShare(flagged.size, total), DECISIONS_CURVE);
     const clutches = verified.filter((r) => r.clutch && r.clutch.won === true).length;
     s += Math.min(8, clutches * 4);
     decisions.score = s;
@@ -290,6 +318,7 @@ function valorant(input) {
     }
     if (clutches) decisions.evidence.push(`won ${clutches} clutch${clutches === 1 ? '' : 'es'}`);
     if (!decisions.evidence.length) decisions.evidence.push(input.riotOnly ? NONE_COUNTED : NONE_AVOIDABLE);
+    if (total < SHORT_MATCH_ROUNDS) decisions.evidence.push(SHORT_MATCH_LINE);
   }
 
   return finish([survival, impact, teamplay, decisions], !isVerified, notes);
@@ -357,4 +386,5 @@ function lol(review) {
   return finish(cats, false, notes);
 }
 
-module.exports = { valorant, lol, letter, curve, combine, riotWords, NONE_AVOIDABLE, NONE_COUNTED };
+module.exports = { valorant, lol, letter, curve, combine, riotWords, decisionsShare, NONE_AVOIDABLE, NONE_COUNTED,
+  SHORT_MATCH_ROUNDS, TYPICAL_SHARE, SHORT_MATCH_LINE, DECISIONS_CURVE };

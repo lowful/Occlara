@@ -22,7 +22,11 @@ const CHANNELS = {
   STATE_GET:        'state:get',         // () → current coaching state snapshot
   // No agent channels since 8.4.4 (agent:set, agent:confirm, push:agent): the
   // engine reads the agent off the player's own HUD and asks nobody for it.
-  CHAT_SEND:        'chat:send',         // (messages) → { ok, reply }
+  CHAT_SEND:        'chat:send',         // (messages, { reviewId }) → { ok, reply, honest, match, moved, from } | { ok, which } | { ok, none } | { ok: false, kind, error, resetsAt?, until? }
+  // Ask Coach's match (8.5.0, src/main/services/ask-coach.js): the ten newest
+  // reviews of the game, none held, and the one the page's chip is on.
+  CHAT_MATCHES:     'chat:matches',      // () → { game, list: [{ id, map, agent, mode, result, score, day, at, source }], chosen: { id, how }, current, starters }
+  CHAT_MATCH:       'chat:match',        // (reviewId | 'none' | null) → the same, the chip moved: a review, general questions, or the newest
   STATS_TEST:       'stats:test',        // () → { ok, stats?, error? } tracker connect test
   STATS_DASHBOARD:  'stats:dashboard',   // () → { categories, rank, winRate, sessions, sessionCount, matches, riotConnected }
   STATS_REFRESH:    'stats:refreshMatches', // (mode) → { matches, fetchedAt, mode, refreshBlockedFor? } (3-min manual limit)

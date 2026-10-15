@@ -18,10 +18,26 @@
  * the real Split session through the real reader, says nothing of when its
  * first frame was taken.
  *
+ * And 8.5.0's, for every client: no player named in a look (name-gate.js),
+ * held on every look sentence and round line on record and on names planted
+ * in them; isolated refused on a death Riot records traded. Variant b, the
+ * fight judged first: its reply's order, its families and their second
+ * choice, a conflict falling to unclear and logged by its keys alone, a
+ * change outside its fight kept as nothing. The phrase lists, each held to a
+ * phrase it must catch and one it must not, and never changing a label on
+ * any of the 23 lost duels on record. And a client before 8.5.0 answered
+ * byte for byte as 8.4.4 answered it (scripts/fixtures/death-forensics-844.js),
+ * but for those two gates.
+ *
  * Run: npm run test:forensics
  */
 
+const fs = require('fs');
+const path = require('path');
 const df = require('../server/services/death-forensics');
+const nameGate = require('../server/services/name-gate');
+const shipped = require('./fixtures/death-forensics-844');
+const clientCauses = require('../src/shared/death-causes');
 
 let fails = 0;
 let checks = 0;
@@ -310,5 +326,624 @@ ok(look(riotEs, 'Viper te mató con la Marshal mientras sostenías solo.', 'Jueg
   `with nothing after the moment, the two it keeps are the last before the screen's read and the read's own (sent ${sOrder.map((i) => SCREEN_AT[i]).join(', ')})`);
 }
 
-console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' forensics checks passed'}`);
-process.exit(fails ? 1 : 0);
+// ── No player named in a look (8.5.0, every client) ────────────────────────
+// The server's copy of the client's read rule (name-gate.js), with each
+// sentence's first word exempt, a word after "teammate" counted only when it
+// is capitalised, and the game's own words grown. Run as the client's is over
+// the 122 look sentences and round lines on record it called 66 names; this
+// one calls none, and still catches the names planted in them.
+const SENTENCES = require('./fixtures/look-sentences.json').sentences;
+const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
+{
+  const { namesSomeone } = require('../src/shared/valorant-rounds');
+  ok(SENTENCES.length === 122 && SENTENCES.filter((s) => s.from === 'bench').length === 98,
+    `the look sentences and round lines on record: ${SENTENCES.length}, 98 of them the bench's own words`);
+  const called = SENTENCES.filter((s) => nameGate.namesSomeone(s.text));
+  ok(!called.length, `none of them is taken for a name (${called.map((s) => s.text).join(' | ') || 'none'})`);
+  const clientCalled = SENTENCES.filter((s) => namesSomeone(s.text)).length;
+  ok(clientCalled >= 40, `where the client's rule, run on them as it is, calls ${clientCalled} of them names`);
+  for (const [s, word] of [
+    ['You were killed by Morvane with a Vandal.', 'Morvane'],
+    ['Your teammate Tessik was ahead of you.', 'Tessik'],
+    ['You held B Main while your teammate Kraxis pushed past you.', 'Kraxis'],
+    ['You died to Morvane#EUW at B.', 'Morvane#EUW'],
+    ['You died to Morvane #1234 on A Site.', 'Morvane #1234'],
+    ['Your teammate big_boss pushed ahead.', 'big_boss'],
+    ['xXmorvane99Xx held A Main against you.', 'xXmorvane99Xx'],
+  ]) ok(nameGate.namesSomeone(s) === word, `a planted name is caught: "${s}" (${nameGate.namesSomeone(s)})`);
+  for (const s of ['Press Q to Updraft out of the fight.', 'Practise this in Deathmatch and the Range.',
+    'Hold the angle with 100hp and win your 1v1s with the first shot.', 'Teammate Sage was ahead of you on B Site.',
+    'what happened in round #12?', 'Stay behind cover in A Main until Sova clears it.', 'Your Duelist was Radiant last act, and you are Gold.',
+    'The Attackers took 4v3 into A Site at 30s, R5.']) {
+    ok(nameGate.namesSomeone(s) === null, `and the game's own words are no name: "${s}" (${nameGate.namesSomeone(s)})`);
+  }
+  // The client's own read cases, the rule's two copies side by side: equal,
+  // but where the server's differs by design, a lowercase word after teammate.
+  const READS = [
+    ['player at B Site stairs with 22 HP, teammate Zorbo ahead', 'Zorbo', 'Zorbo'],
+    ['player watching Klumpf walk through B Site', 'Klumpf', 'Klumpf'],
+    ['holding A Lobby with teammate zorbo', 'zorbo', null],
+    ['teammate Sage running ahead toward mid, player holding A Lobby', null, null],
+    ['holding A Lobby with teammates Brimstone, Sova, Skye and Phoenix nearby', null, null],
+    ['ALLY DEFUSING, player holding A Site', null, null],
+    ['player holding Mid Courtyard with Ghost, signature ability charged', null, null],
+    ['holding A Main with KAY/O behind, knife out with dash ready', null, null],
+  ];
+  ok(READS.every(([t, client, server]) => namesSomeone(t) === client && nameGate.namesSomeone(t) === server),
+    `on the client's own read cases the two copies agree, but "teammate zorbo", a lowercase word the server's lets be (${READS.map(([t]) => `${namesSomeone(t)}/${nameGate.namesSomeone(t)}`).join(', ')})`);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', 'valorant-rounds.js'), 'utf8');
+  const clientPlain = (/const PLAIN_WORDS = `([^`]*)`/.exec(src) || [])[1];
+  const wordList = (s) => String(s || '').trim().split(/\s+/).join(' ');
+  ok(clientPlain && wordList(clientPlain) === wordList(nameGate.PLAIN_WORDS) && wordList(clientPlain).split(' ').length > 300,
+    `the server's plain words are the client's, word for word (${wordList(clientPlain).split(' ').length})`);
+  // The match's own names (riot-rounds.js nameSetOf), handed in as the route
+  // has them: something that answers has(text), in any language, first word
+  // included, and says nothing of which.
+  const held = new Set(['morvane', 'tessik']);
+  const names = { has: (text) => String(text).toLowerCase().split(/[^\p{L}\p{N}]+/u).some((w) => held.has(w)) };
+  ok(nameGate.namesSomeone('Morvane killed you from A Main.') === null
+    && nameGate.namesSomeone('Morvane killed you from A Main.', { names }) === nameGate.MATCH_NAME
+    && nameGate.namesSomeone('the morvane push came late.', { names }) === nameGate.MATCH_NAME,
+  "a name as a sentence's first word, or in lower case, is the match's own, once the match's names are held");
+  ok(nameGate.namesSomeone('Tu compañero Tessik estaba delante de ti.', { language: 'es' }) === null
+    && nameGate.namesSomeone('Tu compañero Tessik estaba delante de ti.', { language: 'es', names }) === nameGate.MATCH_NAME
+    && nameGate.namesSomeone('Dein Teammate Kraxis hat gepusht.', { language: 'de' }) === null
+    && nameGate.namesSomeone('Du bist durch den Schuss von Morvane#EUW gefallen.', { language: 'de' }) === 'Morvane#EUW',
+  "outside English the capital rule rests (German writes every noun with one), while a handle's shape and the match's names still count");
+  ok(nameGate.namesSomeone('Der Sova hat dich erschossen.', { language: 'de' }) === null && nameGate.namesSomeone('Du bist durch Jetts Schuss gefallen.', { language: 'de' }) === null,
+    'so a German look is not dropped for its nouns');
+
+  // Through parse, for every client: the sentence goes, logged as a name and never as the name.
+  const riotLook = df.normalise({ agent: 'Jett', map: 'Abyss', deaths: [{ n: 4, side: 'attacking', sec: 20, killer: 'Viper', weapon: 'Vandal', traded: false, frames: [frame] }] });
+  const r4 = riotLook.deaths[0];
+  const named = df.parse(JSON.stringify({ cause: 'dry-peek', what: 'You swung wide into A Main with no utility.',
+    better: 'Let your teammate Kraxis flash it for you first.' }), riotLook, r4);
+  ok(named.cause === 'dry-peek' && named.what === 'You swung wide into A Main with no utility.' && named.better === null
+    && named.dropped.some((d) => d.field === 'better' && d.why === 'a name' && d.gate === 'name'),
+  'a better play naming a teammate is dropped, its what and label kept');
+  ok(!JSON.stringify(named.dropped).includes('Kraxis') && !df.logLines(named).join(' ').includes('Kraxis')
+    && df.logLines(named).join(' ') === '[forensics] R4 dropped: better (a name)', `and the log says a name, never which (${df.logLines(named).join(' ')})`);
+  const onlyName = df.parse(JSON.stringify({ cause: 'isolated', what: 'You were killed by Morvane far from your team.', better: 'Play near your team.' }), riotLook, r4);
+  ok(onlyName.cause === 'unclear' && onlyName.what === null && onlyName.better === null,
+    "a cause whose only explanation named a player is not counted against the player");
+  const withNames = { ...riotLook, names };
+  const first = df.parse(JSON.stringify({ cause: 'dry-peek', what: 'Morvane caught you swinging A Main with no utility.', better: 'Wait for a flash first.' }), withNames, r4);
+  ok(first.what === null && first.cause === 'unclear' && df.parse(JSON.stringify({ cause: 'dry-peek', what: 'Morvane caught you swinging A Main with no utility.',
+    better: 'Wait for a flash first.' }), riotLook, r4).what === 'Morvane caught you swinging A Main with no utility.',
+  "with the match's names held (an 8.5.0 client sends the match id), a name opening the sentence goes too; without them it is the first word, exempt");
+  const broken = { ...riotLook, names: { has: () => { throw new Error('no set'); } } };
+  const failed = df.parse(JSON.stringify({ cause: 'dry-peek', what: 'You swung wide into A Main with no utility.', better: 'Wait for a flash first.' }), broken, r4);
+  ok(failed.what === null && failed.better === null && failed.cause === 'unclear',
+    'a name check that throws drops the sentence: the safe direction');
+  const bLook = { ...riotLook, variant: 'b' };
+  const namedB = df.parse(JSON.stringify({ what: 'Your teammate Tessik was ahead of you when the Viper swung.', fight: 'wrong-spot',
+    better: 'Hold back with your team.', change: 'team', cause: 'isolated', alt: 'none' }), bLook, r4);
+  ok(namedB.what === null && namedB.cause === 'unclear' && namedB.fight === 'unclear', 'and so in variant b');
+}
+
+// ── The name gate's edges (8.5.0, verified) ────────────────────────────────
+// Where a sentence ends decides which word is exempt, and the death screen a
+// look reads off its last frame prints its own words in capitals.
+{
+  // A semicolon, "vs." and the death screen's "BY:" go on with the sentence:
+  // the word after them is no first word.
+  for (const [s, word] of [
+    ['The death screen read KILLED BY: Zorbo with a Vandal.', 'Zorbo'],
+    ['You died to: Klumpf, from A Main.', 'Klumpf'],
+    ['You pushed alone; Klumpf held the angle.', 'Klumpf'],
+    ['You lost the duel vs. Zorbo at B Main.', 'Zorbo'],
+    ['You lost the duel VS. Zorbo at B Main.', 'Zorbo'],
+  ]) ok(nameGate.namesSomeone(s) === word, `a name after a semicolon, "vs." or "BY:" is caught: "${s}" (${nameGate.namesSomeone(s)})`);
+  ok(nameGate.namesSomeone('Hold A Main. Then fall back to B Site!') === null && nameGate.namesSomeone('Did you see it? Stay behind cover.') === null
+    && nameGate.namesSomeone('One thing to fix: Trade your entry first.') === null
+    && nameGate.sentencesOf('One. Two! Three? Four: five; six vs. seven, by: eight.').length === 5,
+  'while a full stop, a question, an exclamation mark and a colon still end one, its next word exempt');
+  // The death screen's words and the armour by the shop's names are the
+  // game's, a word of them alone read as it stands.
+  for (const s of ['The COMBAT REPORT shows you dealt 0 damage.', 'The Combat Report shows you took 159 damage.',
+    'SWITCH PLAYER was on screen, so you were SPECTATING a teammate.', 'You had no Heavy Shields when the Jett swung.',
+    'Your Light Armor broke before the second shot.', 'You bought a Regen Shield and still lost the duel.',
+    'You lost the Clutch with a Headshot to the Raze.']) {
+    ok(nameGate.namesSomeone(s) === null, `the HUD's own words are no name: "${s}" (${nameGate.namesSomeone(s)})`);
+  }
+  ok(nameGate.namesSomeone('You were killed by Report from A Main.') === 'Report' && nameGate.namesSomeone('Your teammate Combat pushed.') === 'Combat',
+    "a word of them alone is read as it stands");
+  const look = df.normalise({ agent: 'Jett', map: 'Fracture', deaths: [{ n: 5, side: 'attacking', sec: 33, killer: 'Jett', weapon: 'Sheriff', traded: false, frames: [frame] }] });
+  const said = df.parse(JSON.stringify({ cause: 'repeek', what: 'The COMBAT REPORT shows you dealt 0 damage before the Jett swung again.',
+    better: 'After the first exchange, fall back behind cover.' }), look, look.deaths[0]);
+  ok(said.cause === 'repeek' && said.what && said.better, `so a look reading the combat report keeps its label and its sentences (${said.cause}, ${!!said.what})`);
+  // The capital rule reads the language the look was asked in: a code the
+  // prompt does not know is asked in English, and read as English.
+  const asked = (language) => df.normalise({ agent: 'Jett', map: 'Abyss', language, deaths: [{ n: 4, side: 'attacking', sec: 20, killer: 'Viper', traded: false, frames: [frame] }] });
+  const reply = JSON.stringify({ cause: 'dry-peek', what: 'You swung wide into A Main with no utility.', better: 'Let your teammate Zorbo flash it for you first.' });
+  const enGB = asked('en-GB');
+  const de = asked('de');
+  ok(/Write "what" and "better" in English/.test(df.buildPrompt(enGB, enGB.deaths[0])) && df.parse(reply, enGB, enGB.deaths[0]).better === null
+    && df.parse(reply, de, de.deaths[0]).better === 'Let your teammate Zorbo flash it for you first.',
+  "a code the prompt does not know is asked in English, and its name caught; German's capitals stay its own");
+  const duel = JSON.stringify({ cause: 'lost-duel', what: 'You lost the duel at A Main.', better: 'Fall back after your first shots.' });
+  ok(df.logLines(df.parse(duel, enGB, enGB.deaths[0])).join() === '[forensics] R4 lost-duel better play trips reset'
+    && !df.logLines(df.parse(duel, de, de.deaths[0])).length, "and its lost duel's better play is read by the English phrase lists, a German one's not");
+}
+
+// ── Isolated against Riot's trade (8.5.0, every client) ────────────────────
+{
+  const look = (traded, extra) => df.normalise({ agent: 'Jett', map: 'Abyss', ...(extra || {}),
+    deaths: [{ n: 9, side: 'defending', sec: 31, killer: 'Viper', weapon: 'Vandal', traded, frames: [frame] }] });
+  const reply = JSON.stringify({ cause: 'isolated', what: 'You held B Main alone, far from your team.', better: 'Play closer to your team.' });
+  const tr = look(true);
+  const traded = df.parse(reply, tr, tr.deaths[0]);
+  ok(traded.cause === 'unclear' && traded.what === null && traded.better === null
+    && traded.dropped.some((d) => d.field === 'cause' && d.gate === 'traded'),
+  '"too far from teammates to be traded" on a death Riot records as traded is unclear, with no sentences');
+  ok(df.logLines(traded).join(' ') === '[forensics] R9 dropped: cause (isolated on a death Riot records traded)', `logged by its round (${df.logLines(traded).join(' ')})`);
+  const nt = look(false);
+  ok(df.parse(reply, nt, nt.deaths[0]).cause === 'isolated', 'a death Riot records as not traded keeps it');
+  const scr = look(true, { source: 'screen' });
+  ok(scr.deaths[0].traded === null && df.parse(reply, scr, scr.deaths[0]).cause === 'isolated',
+    "and from the screen alone there is no trade on record to refuse it with");
+  ok(df.parse(JSON.stringify({ cause: 'dry-peek', what: 'You swung with no utility.', better: 'Flash first.' }), tr, tr.deaths[0]).cause === 'dry-peek',
+    'a traded death keeps any other label');
+  const b = { ...tr, variant: 'b' };
+  const tb = df.parse(JSON.stringify({ what: 'You held B Main alone.', fight: 'wrong-spot', better: 'Play closer to your team.', change: 'team',
+    cause: 'isolated', alt: 'crossfire' }), b, b.deaths[0]);
+  ok(tb.cause === 'unclear' && tb.fight === 'unclear' && tb.what === null, 'and so in variant b, its second choice not taken in its place');
+}
+
+// ── Variant b: the fight judged first, the label last (8.5.0) ──────────────
+{
+  const body = { agent: 'Jett', map: 'Fracture', deaths: [{ n: 5, side: 'attacking', sec: 33, killer: 'Jett', weapon: 'Sheriff', traded: false,
+    alive: { mates: 4, enemies: 3 }, planted: true, afterPlant: true, spot: 'A Site',
+    frames: [-3, -1.5, -0.7, -0.3, 0.7].map((s) => frame + s), frameAt: [-3, -1.5, -0.7, -0.3, 0.7], framesFrom: 'recording' }] };
+  const a = df.normalise(body);
+  const b = { ...df.normalise(body), variant: 'b' };
+  const pa = df.buildPrompt(a, a.deaths[0]);
+  const pb = df.buildPrompt(b, b.deaths[0]);
+  const json = pb.slice(pb.lastIndexOf('{'));
+  const at = (k) => json.indexOf(`"${k}":`);
+  ok(['what', 'fight', 'better', 'change', 'cause', 'alt'].every((k, i, ks) => at(k) >= 0 && (i === 0 || at(ks[i - 1]) < at(k))),
+    `b's reply comes in the order it is decided: what, fight, better, change, cause, alt (${json})`);
+  ok(/"cause": "<one label from the list>", "what"/.test(pa) && !/"fight"|"alt"/.test(pa), "a's is today's: cause, what, better");
+  ok(pb.includes('First write what happened. Then judge the fight in one word:\nright: a fight to take, from where you took it.')
+    && pb.includes('Then pick the cause that fits your judgement: right is lost-duel; wrong-spot is isolated, crossfire, overextend, exposed or rotating; '
+      + 'wrong-time is repeek, dry-peek or rotating; not-needed is overextend, repeek, exposed or dry-peek; unclear is unclear. alt is your second choice from the same group, or none.')
+    && pb.includes('Then say the one thing the better play changes most: aim, position, timing, decision, utility, team, or none.')
+    && pb.includes('A death the facts call traded is never isolated.') && pb.includes('a fair fight lost is right, and lost-duel.'),
+  "b judges the fight in the spec's words, its families written from FIGHTS");
+  ok(!pb.includes('A fair fight from a sound position is lost-duel.') && pa.includes('- A fair fight from a sound position is lost-duel.'),
+    "in place of a's fair fight rule, which a keeps");
+  ok(pb.includes(`repeek: ${df.CAUSES_B.repeek}`) && df.CAUSES_B.repeek === 'fought again from the same angle after the first exchange or a kill, by staying on it or by peeking it again'
+    && pb.includes(`lost-duel: ${df.CAUSES_B['lost-duel']}`) && pa.includes(`repeek: ${df.CAUSES.repeek}`)
+    && df.CAUSES.repeek === 'peeked the same angle again after being seen or getting a kill',
+  "b's cause list widens repeek and sharpens lost-duel; a's, which the review quotes too, is as it was");
+  ok(Object.keys(df.CAUSES_B).join() === Object.keys(df.CAUSES).join() && Object.keys(df.CAUSES).join() === Object.keys(clientCauses.CAUSES).join(),
+    'no key is added and none renamed, in either copy');
+  ok(!DASH.test(pb) && !DASH.test(df.judgement(true)), 'no dashes in b');
+  ok(df.tokensFor(a) === 320 && df.tokensFor(b) === 400 && df.TOKENS.b === 400, 'the reply is given 400 tokens in b, 320 as before in a');
+  ok(Array.isArray(df.VARIANTS) && df.VARIANTS.join() === 'b', 'the variants beside the live prompt, as the route reads them: b');
+  const es = { ...df.normalise({ ...body, language: 'es' }), variant: 'b' };
+  ok(/Keep "fight", "change", "cause" and "alt" as the English words from their lists/.test(df.buildPrompt(es, es.deaths[0])),
+    'in another language, its four words stay English, as the label always has');
+  // Every family holds known causes only, lost-duel only for a right fight,
+  // and every avoidable cause is some judgement's.
+  const fam = Object.values(df.FIGHTS).flatMap((f) => f.causes);
+  ok(fam.every((c) => df.CAUSES[c]) && df.FIGHTS.right.causes.join() === 'lost-duel'
+    && [...df.AVOIDABLE].every((c) => fam.includes(c)) && !Object.entries(df.FIGHTS).some(([k, f]) => k !== 'right' && f.causes.includes('lost-duel')),
+  'the families: known causes only, lost-duel only for a right fight, every avoidable cause in one');
+  ok(Object.keys(df.FIGHTS).join() === clientCauses.FIGHTS.join() && df.CHANGES.join() === clientCauses.CHANGES.join(),
+    "the client's lists of fights and changes are the server's");
+
+  const d5 = b.deaths[0];
+  const reply = (o) => JSON.stringify({ what: 'You held A Site from cover and shot at the Jett.', better: 'Stop before you shoot and aim at head level.', ...o });
+  const kept = df.parse(reply({ fight: 'right', change: 'aim', cause: 'lost-duel', alt: 'none' }), b, d5);
+  ok(kept.cause === 'lost-duel' && kept.fight === 'right' && kept.change === 'aim' && kept.variant === 'b' && kept.what && kept.better,
+    'a right fight lost on the shot is lost-duel, its change aim');
+  ok(Object.keys(df.replyOf(kept)).join() === 'n,cause,what,better,fight,change,variant',
+    `b's look carries its fight, change and variant beside its label (${Object.keys(df.replyOf(kept)).join()})`);
+  const viaAlt = df.parse(reply({ fight: 'wrong-time', change: 'timing', cause: 'lost-duel', alt: 'repeek' }), b, d5);
+  ok(viaAlt.cause === 'repeek' && viaAlt.fight === 'wrong-time' && viaAlt.change === 'timing', `a cause outside its fight's family gives way to its second choice (${viaAlt.cause})`);
+  const conflict = df.parse(reply({ fight: 'right', change: 'timing', cause: 'repeek', alt: 'none' }), b, d5);
+  ok(conflict.cause === 'unclear' && conflict.what === null && conflict.better === null && conflict.fight === 'unclear' && conflict.change === null,
+    'failing both, the look is unclear, with no sentences');
+  ok(df.logLines(conflict).join(' ') === '[forensics] R5 conflict: fight right, cause repeek, alt none',
+    `and the conflict is logged by its keys alone (${df.logLines(conflict).join(' ')})`);
+  const words = df.parse(reply({ fight: 'a brave one', cause: 'Bad luck from Morvane', alt: 'his fault' }), b, d5);
+  ok(words.cause === 'unclear' && df.logLines(words).join(' ') === '[forensics] R5 conflict: fight unknown, cause unknown, alt unknown'
+    && !df.logLines(words).join(' ').includes('Morvane'), "a word off the lists is logged as unknown, never as what the model wrote");
+  const missing = df.parse(JSON.stringify({ cause: 'lost-duel', what: 'You lost the duel.', better: 'Aim first.' }), b, d5);
+  ok(missing.cause === 'unclear' && /fight none/.test(df.logLines(missing).join(' ')), "a reply with no judgement has no family, and says nothing");
+  const outside = df.parse(reply({ fight: 'right', change: 'position', cause: 'lost-duel', alt: 'none' }), b, d5);
+  ok(outside.cause === 'lost-duel' && outside.change === null && outside.dropped.some((d) => d.field === 'change' && d.gate === 'change'),
+    "a change outside its fight's set is kept as nothing and logged, the label kept");
+  const words2 = df.parse(reply({ fight: 'Wrong Spot', change: 'Team', cause: 'Caught alone', alt: 'Isolated' }), b, d5);
+  ok(words2.fight === 'wrong-spot' && words2.change === 'team' && words2.cause === 'isolated', "a judgement in words is read as its key, and a title off the list gives way to its second choice");
+  const unclear = df.parse(reply({ fight: 'unclear', change: 'none', cause: 'unclear', alt: 'none' }), b, d5);
+  ok(unclear.cause === 'unclear' && unclear.what === null && unclear.better === null && !unclear.dropped.length, 'an unclear look says nothing, and nothing is logged');
+  const noWhat = df.parse(JSON.stringify({ what: '', fight: 'wrong-time', better: 'Wait for the flash.', change: 'utility', cause: 'dry-peek', alt: 'none' }), b, d5);
+  ok(noWhat.cause === 'unclear' && noWhat.better === null, 'a mistake with no surviving what is unclear, as in a');
+  const noWhatDuel = df.parse(JSON.stringify({ what: '', fight: 'right', better: '', change: 'none', cause: 'lost-duel', alt: 'none' }), b, d5);
+  ok(noWhatDuel.cause === 'lost-duel' && noWhatDuel.fight === 'right', 'and a lost duel needs none, as in a');
+  ok(df.parse('no JSON at all', b, d5).cause === 'unclear' && df.parse('no JSON at all', b, d5).fight === 'unclear', 'no JSON is unclear');
+  // What the route reads (coach.js): anything but 'b' is a, its null for the live prompt among them.
+  const asA = (v) => { const x = { ...df.normalise(body), variant: v }; return df.buildPrompt(x, x.deaths[0]) === pa; };
+  ok([null, undefined, 'a', 'c', 'B ', ''].every(asA) && df.buildPrompt(b, d5) === pb, "only 'b' asks with b: the route's null, and any other word, is a");
+}
+
+// ── The phrase lists: what a better play says it changes ────────────────────
+{
+  for (const [list, yes, no] of [
+    ['decision', 'With the spike down and a man up, let them come to you.', 'Come out of cover only once you have a teammate.'],
+    ['team', 'Take the fight where a teammate can trade you.', 'Take the fight from a tighter angle.'],
+    ['reset', 'Fall back after your first shots instead of staying on the angle.', 'Hold that angle with your crosshair at head level.'],
+    ['utility', 'Smoke the long angle before you cross.', 'Cross when the long angle is clear.'],
+    ['aim', 'Keep your crosshair at head level and tap.', 'Wait behind the wall until they come.'],
+  ]) {
+    ok(df.PHRASES[list].test(yes) && !df.PHRASES[list].test(no), `the ${list} list catches "${yes}" and lets "${no}" be`);
+  }
+  ok(df.phraseHits('Use your Updraft to take the high ground.', 'Jett').includes('utility') && !df.phraseHits('Use your Updraft to take the high ground.', 'Sova').includes('utility'),
+    "the player's own ability by name is utility");
+  ok(df.PHRASES.team.test('so a teammate can trade you') && !df.PHRASES.team.test('a tradeoff') && df.PHRASES.decision.test("Don't take the fight there.")
+    && !df.PHRASES.aim.test('a tapestry') && !df.PHRASES.reset.test('a preset'), 'whole words only: no trade in a tradeoff, no tap in a tapestry, no reset in a preset');
+  ok(df.movesPlayer('Fall back after your first shots.') && !df.movesPlayer('Aim before firing.') && !df.movesPlayer(''),
+    'a better play moves the player when it trips any list but aim');
+
+  // THEY SET NO LABEL, on any of the 23 lost duels on record: each one parsed
+  // as it came, and as variant b's right fight, is still a lost duel.
+  ok(ANSWERS.length === 23 && ANSWERS.filter((a) => a.from === 'bench').length === 18, `the lost duels on record: ${ANSWERS.length}, 18 the bench's own words`);
+  let moved = 0;
+  let logged = 0;
+  let still = 0;
+  for (const ans of ANSWERS) {
+    // Each one as its own match's look: its map, the player's agent, Riot's killer.
+    const at = df.normalise({ agent: ans.agent, map: ans.map, deaths: [{ n: ans.round, side: 'defending', sec: 14, killer: ans.killer,
+      weapon: ans.weapon, traded: false, frames: [frame] }] });
+    const bt = { ...at, variant: 'b' };
+    const ra = df.parse(JSON.stringify({ cause: 'lost-duel', what: ans.what, better: ans.better }), at, at.deaths[0]);
+    const rb = df.parse(JSON.stringify({ what: ans.what, fight: 'right', better: ans.better, change: 'aim', cause: 'lost-duel', alt: 'none' }), bt, bt.deaths[0]);
+    if (ra.cause !== 'lost-duel' || rb.cause !== 'lost-duel' || ra.better !== rb.better) moved++;
+    if (df.movesPlayer(ans.better, ans.agent)) {
+      logged += df.logLines(rb).some((l) => /lost-duel better play trips/.test(l)) ? 1 : 0;
+    } else still++;
+  }
+  ok(moved === 0, `the phrase lists change no label on any of them (${moved} changed)`);
+  ok(logged === ANSWERS.length - still && still === 2, `each one whose better play moves the player is logged for the bench, ${logged} of them; the two that do not, the Pearl swiftplay's, are not`);
+
+  // The client's copy (src/shared/death-causes.js), for Ask Coach's label rule.
+  ok(df.PHRASE_ORDER.join() === clientCauses.PHRASE_ORDER.join()
+    && df.PHRASE_ORDER.every((k) => df.PHRASES[k].source === clientCauses.PHRASES[k].source && df.PHRASES[k].flags === clientCauses.PHRASES[k].flags),
+  "the client's phrase lists are the server's, regex for regex");
+  // ONE LIST, FOUR COPIES: Ask Coach's two (its gates and its context) are
+  // the look's too, where they are deployed beside it.
+  const optional = (p) => { try { return require(p); } catch { return null; } };
+  const copies = [['fact-gates.js', optional('../server/services/fact-gates')], ['chat-context.js', optional('../src/shared/chat-context')]]
+    .filter(([, m]) => m && m.PHRASES);
+  ok(copies.every(([, m]) => df.PHRASE_ORDER.every((k) => m.PHRASES[k] && m.PHRASES[k].source === df.PHRASES[k].source && m.PHRASES[k].flags === df.PHRASES[k].flags)),
+    `and so are Ask Coach's, regex for regex (${copies.map(([n]) => n).join(', ') || 'none deployed beside it'})`);
+  const texts = [...ANSWERS.map((x) => x.better), ...SENTENCES.map((x) => x.text)];
+  ok(texts.every((t) => df.phraseHits(t, 'Jett').join() === clientCauses.phraseHits(t, 'Jett').join()),
+    `and they read every better play and sentence on record alike (${texts.length})`);
+}
+
+// ── A client before 8.5.0, answered as 8.4.4 answered it ────────────────────
+// The look as 8.4.4 shipped it, frozen beside the tests: the same prompt for
+// every body, as the route reads it (its live variant null, the version, the
+// match's names), and the same reply to every answer, but where a name or
+// Riot's trade decides.
+{
+  const live = (body, extra) => Object.assign(df.normalise(body), { variant: null, version: '8.4.4', names: null }, extra || {});
+  const bodies = [];
+  const timedAt = { recording: [-3, -1.5, -0.7, -0.3, 0.7], reads: [-2.3, 0.7], screen: [-4.5, -3, -2, -1, 0] };
+  for (const source of [undefined, 'screen']) {
+    for (const language of [undefined, 'en', 'es', 'de', 'ja']) {
+      for (const shape of ['one', 'two', 'recording', 'reads', 'screen']) {
+        for (const facts of [0, 1, 2]) {
+          const at = timedAt[shape] || null;
+          const frames = shape === 'one' ? [frame] : shape === 'two' ? [frame, frame] : at.map((s) => frame + s);
+          bodies.push({
+            agent: facts === 2 ? null : 'Jett', map: facts === 2 ? null : facts ? 'Sunset' : 'Abyss', source, language,
+            deaths: [{
+              n: 6, side: facts === 1 ? 'attacking' : facts ? null : 'defending',
+              ...(facts !== 2 ? { sec: 20, killer: facts ? 'KAY/O' : 'Omen', weapon: facts ? 'Outlaw' : 'Sheriff', firstDeath: !facts,
+                traded: facts ? true : false, alive: { mates: 4, enemies: 3 }, planted: true, afterPlant: !!facts, spot: 'Mid Courtyard', gap: facts ? 3 : 1 } : {}),
+              frames, ...(at ? { frameAt: at, framesFrom: shape === 'reads' ? 'reads' : 'recording' } : {}),
+            }],
+          });
+        }
+      }
+    }
+  }
+  const differ = bodies.filter((body) => {
+    const now = live(body);
+    const then = shipped.normalise(body);
+    return df.buildPrompt(now, now.deaths[0]) !== shipped.buildPrompt(then, then.deaths[0]);
+  });
+  ok(bodies.length === 150 && !differ.length, `every one of ${bodies.length} bodies is asked with 8.4.4's prompt, byte for byte (${differ.length} differ)`);
+
+  // The replies: every answer on record and the cases above, as each body's look.
+  const replies = [
+    ...ANSWERS.map((x) => ({ cause: 'lost-duel', what: x.what, better: x.better })),
+    ...SENTENCES.map((x) => ({ cause: x.cause || 'isolated', what: x.text, better: x.text })),
+    { cause: 'Dry Peek', what: 'You peeked.', better: 'Wait.' }, { cause: 'bad luck', what: 'You peeked.', better: 'Wait.' },
+    { cause: 'unclear', what: 'This frame does not show the fight.', better: 'Use this frame to reset.' }, { cause: 'lost-duel', what: '', better: '' },
+    { cause: 'isolated', what: '', better: 'Stay near your team.' }, { cause: 'isolated', what: `You held alone ${String.fromCharCode(0x2014)} too far out.`, better: 'x' },
+    { cause: 'isolated', what: 'You held Hookah alone.', better: 'Play closer to A Main.' }, { cause: 'dry-peek', what: 'Throw a recon bolt before you peek.', better: 'Wait.' },
+    { cause: 'isolated', what: 'Omen killed you from behind.', better: 'Wait.' }, { cause: 'exposed', what: 'You planted in the open', better: 'Plant behind the box' },
+  ].map((o) => JSON.stringify(o)).concat(['I think you dry peeked.', '```json\n{"cause": "dry-peek", "what": "You swung wide.", "better": "Wait."}\n```', '{"cause": "repeek"']);
+  let same = 0;
+  const unexplained = [];
+  let gated = 0;
+  for (const body of bodies.filter((x, i) => i % 5 === 0)) {
+    const now = live(body);
+    const then = shipped.normalise(body);
+    for (const text of replies) {
+      const got = df.parse(text, now, now.deaths[0]);
+      const old = shipped.parse(text, then, then.deaths[0]);
+      delete old.dropped;
+      const reply = df.replyOf(got);
+      if (JSON.stringify(reply) === JSON.stringify(old)) { same++; continue; }
+      // Only the two gates every client gets may tell them apart.
+      const byName = got.dropped.some((d) => d.gate === 'name');
+      const byTrade = got.dropped.some((d) => d.gate === 'traded');
+      const explained = (byTrade && old.cause === 'isolated' && reply.cause === 'unclear' && reply.what === null && reply.better === null)
+        || (byName && !byTrade && ['what', 'better'].some((f) => old[f] && reply[f] === null));
+      if (explained) gated++; else unexplained.push(text.slice(0, 60));
+    }
+  }
+  ok(!unexplained.length && same > 4000, `every reply reads as 8.4.4 read it (${same} the same), or differs only by a name or Riot's trade (${gated}); unexplained ${unexplained.length}${unexplained.length ? `: ${unexplained.slice(0, 3).join(' | ')}` : ''}`);
+  const plainBody = bodies[0];
+  const plain = df.replyOf(df.parse(replies[0], live(plainBody), live(plainBody).deaths[0]));
+  ok(Object.keys(plain).join() === 'n,cause,what,better', `its look carries no new field (${Object.keys(plain).join()})`);
+}
+
+// ── Bench A's score, on raw replies (bench-look-score.js) ───────────────────
+// The arithmetic bench A is passed or failed by, without a model: a set of
+// six deaths, a key, and five runs of replies as a model writes them, the
+// parsed look beside each. Each bar is held to the number it must give.
+{
+  const S = require('./bench-look-score');
+  const raw = (fight, cause, change, alt) => JSON.stringify({ what: 'x.', fight, better: 'y.', change, cause, alt: alt || 'none' });
+  ok(S.rawLook(raw('Wrong Spot', 'Caught alone', 'Team')).fight === 'wrong-spot' && S.rawLook(raw('Wrong Spot', 'Caught alone', 'Team')).cause === 'unknown'
+    && S.rawLook('no JSON').json === false && S.rawLook(raw('right', 'repeek', 'timing')).cause === 'repeek',
+  'a raw reply is read as the model wrote it: its words as keys, nothing enforced');
+  ok(S.contradicts(S.rawLook(raw('right', 'repeek', 'aim'))) && S.contradicts(S.rawLook(raw('right', 'lost-duel', 'timing')))
+    && !S.contradicts(S.rawLook(raw('right', 'lost-duel', 'aim'))) && !S.contradicts(S.rawLook(raw('wrong-time', 'repeek', 'timing')))
+    && !S.contradicts(S.rawLook(raw('unclear', 'unclear', 'none'))),
+  'a raw self contradiction: a cause outside its fight\'s family, or a right fight changing more than the aim');
+  ok(S.conflicts(S.rawLook(raw('right', 'repeek', 'timing'))) && !S.conflicts(S.rawLook(raw('wrong-spot', 'lost-duel', 'team', 'isolated')))
+    && S.conflicts(S.rawLook(JSON.stringify({ cause: 'repeek', what: 'x.' }))),
+  'and a conflict, what parse() turns to unclear: neither the cause nor its second choice in the family');
+  const set = { deaths: [
+    { key: 'f:2', match: 'Fracture swiftplay', body: 'recording' }, { key: 'f:5', match: 'Fracture swiftplay', body: 'recording' },
+    { key: 'f:6', match: 'Fracture swiftplay', body: 'recording' }, { key: 'p:1', match: 'Pearl swiftplay', body: 'recording' },
+    { key: 's:3', match: 'Sunset swiftplay', body: 'recording' }, { key: 'a:2', match: 'Abyss competitive', body: 'reads' }] };
+  const key = { deaths: [
+    { key: 'f:2', acceptable: ['repeek'], forbidden: ['lost-duel'] }, { key: 'f:5', acceptable: ['repeek', 'overextend'], forbidden: ['lost-duel', 'isolated'] },
+    { key: 'f:6', acceptable: ['repeek', 'dry-peek'], forbidden: ['isolated'] }, { key: 'p:1', fair: true, acceptable: ['lost-duel'], forbidden: ['dry-peek'] },
+    { key: 's:3', unclear: true, acceptable: ['unclear'], forbidden: [] }, { key: 'a:2', acceptable: ['isolated', 'dry-peek'], forbidden: ['lost-duel'] }] };
+  ok(!S.keyProblems(set, key).length, 'a key that answers every death is scored');
+  ok(S.keyProblems(set, { deaths: key.deaths.slice(1) }).join() === 'f:2: not in the key'
+    && /both acceptable and forbidden/.test(S.keyProblems({ deaths: [set.deaths[0]] }, { deaths: [{ key: 'f:2', acceptable: ['repeek'], forbidden: ['repeek'] }] }).join())
+    && /lost-duel alone/.test(S.keyProblems({ deaths: [set.deaths[3]] }, { deaths: [{ key: 'p:1', fair: true, acceptable: ['lost-duel', 'repeek'] }] }).join()),
+  'and one that misses a death, lists a label both ways, or calls a fight fair with another label is refused before the bench');
+  const looks = [];
+  const add = (k, run, text, ms) => looks.push({ key: k, run, raw: text, parsed: { cause: S.rawLook(text).cause }, ms: ms || 2500 });
+  for (let run = 1; run <= 5; run++) {
+    add('f:2', run, raw('wrong-time', 'repeek', 'timing'));
+    add('f:5', run, run < 5 ? raw('wrong-time', 'repeek', 'timing') : raw('right', 'lost-duel', 'aim'));
+    add('f:6', run, raw('wrong-time', 'dry-peek', 'utility'), run === 5 ? 4500 : 2500);
+    add('p:1', run, run < 5 ? raw('right', 'lost-duel', 'aim') : raw('wrong-time', 'dry-peek', 'utility'), run === 4 ? 4500 : 2500);
+    add('s:3', run, raw('unclear', 'unclear', 'none'));
+    add('a:2', run, run <= 3 ? raw('wrong-spot', 'isolated', 'team') : run === 4 ? raw('right', 'repeek', 'timing') : raw('wrong-spot', 'lost-duel', 'team', 'isolated'), 9000);
+  }
+  const r = S.score({ set, key, looks, variant: 'b', runs: 5 });
+  const b = (name) => r.bars.find((x) => x.name === name);
+  ok(b('forbidden').value === '3 in 30' && b('forbidden').pass === false,
+    `forbidden labels: three in 30 looks (round 5's lost duel, the fair duel's dry peek, the Abyss lost duel), over the 2 in 80 a bench of 80 may have (${b('forbidden').value}, ${b('forbidden').limit})`);
+  ok(b('fair').pass === true && b('fair').value === '1 of 1 fair duels', 'the fair duel is a lost duel in 4 runs of 5, enough');
+  ok(b('avoidable').value === '63%' && /67%/.test(b('avoidable').limit) && b('avoidable').pass === true,
+    `the share calling a death avoidable, 19 of 30, against the key's four deaths of six and 5 points (${b('avoidable').value}, ${b('avoidable').limit})`);
+  ok(b('unclear').pass === true && b('fracture').value === '4 of 5 runs' && b('fracture').pass === true,
+    'unclear every run where the key says so, and the Fracture three all acceptable in 4 runs of 5');
+  ok(b('contradict').value === '2 of 25 that spoke' && b('contradict').pass === false && b('conflicts').value === '1 of 25 that spoke' && b('conflicts').pass === true,
+    `two raw contradictions in 25 that spoke is over 5%, one conflict under 10% (${b('contradict').value}; ${b('conflicts').value})`);
+  ok(b('p90').value === '2.50 s' && b('p90').pass === true && !r.pass, `the p90 is the five still body's alone, the read frames' 9 s left out (${b('p90').value}), and the bench does not pass`);
+  const control = S.score({ set, key, looks, variant: 'a', runs: 5 });
+  ok(!control.bars.some((x) => x.name === 'contradict' || x.name === 'conflicts'), 'the control, variant a, has no judgement to contradict');
+  const bd = S.bodyDeath({ facts: { n: 2, side: 'defending' }, frames: ['x1', 'x2', 'x3'], frameAt: [-3, -0.3, 0.7], framesFrom: 'recording' },
+    (rel) => Buffer.from(rel));
+  ok(bd.frameAt.join() === '-0.3,0.7,-3' && Buffer.from(bd.frames[0], 'base64').toString() === 'x2' && bd.framesFrom === 'recording' && bd.n === 2,
+    "each death goes as the client sends it: the last frame before the death and the first after it lead");
+  ok(S.estimate({ body: 'recording' }) === 0.0165 && S.estimate({ body: 'reads' }) === 0.008, 'a look is reckoned at $0.0165 on five stills and $0.008 on two frames before the ledger answers');
+  // WHAT A BENCH IS SENT RAW is the label words, never a sentence of the
+  // model's (death-forensics.js rawLabels), and it scores as the text does.
+  const planted = JSON.stringify({ what: 'Zorbo#EUW killed you while Klumpf watched.', fight: 'Wrong Spot', better: 'Ask Klumpf to flash for you.',
+    change: 'Team', cause: 'Bad luck from Zorbo', alt: 'Isolated' });
+  const labels = df.rawLabels(planted);
+  ok(JSON.stringify(labels) === '{"json":true,"fight":"wrong-spot","cause":"unknown","alt":"isolated","change":"team","what":true}'
+    && !/Zorbo|Klumpf|killed|flash/i.test(JSON.stringify(labels)),
+  `the raw reply a bench is sent carries its label words as keys and no sentence, nor any word off a list (${JSON.stringify(labels)})`);
+  ok(JSON.stringify(df.rawLabels('no JSON at all')) === '{"json":false,"fight":null,"cause":null,"alt":null,"change":null,"what":false}',
+    'and a reply with no JSON is said to be one');
+  const texts = [planted, ...looks.map((l) => l.raw), 'no JSON', JSON.stringify({ cause: 'repeek', what: '' }), JSON.stringify({ fight: 'right', cause: 'none', alt: 'none', change: 'none' })];
+  ok(texts.every((t) => JSON.stringify(S.rawLook(df.rawLabels(t))) === JSON.stringify({ ...S.rawLook(t), better: null })),
+    `a bench scores the label words exactly as it scores the reply's text (${texts.length} replies)`);
+  const labelled = S.score({ set, key, looks: looks.map((l) => ({ ...l, raw: df.rawLabels(l.raw) })), variant: 'b', runs: 5 });
+  ok(JSON.stringify(labelled.bars) === JSON.stringify(r.bars), 'and every bar of the bench reads the same off them');
+  // BENCH A STOPS AT $3, both prompts together: each run, b and its control
+  // a, at half, which still covers a run of the spec's set (11 deaths on five
+  // stills, 5 on two frames, five runs).
+  const variantRun = 5 * (11 * S.estimate({ body: 'recording' }) + 5 * S.estimate({ body: 'reads' }));
+  ok(S.BENCH_A_USD === 3 && S.RUN_USD * 2 <= S.BENCH_A_USD && S.RUN_USD >= variantRun * 1.25,
+    `a run of bench A stops at $${S.RUN_USD.toFixed(2)}, so b and a together stop at $${(S.RUN_USD * 2).toFixed(2)}, while one run of the set reckons at $${variantRun.toFixed(2)}`);
+  const benchSrc = fs.readFileSync(path.join(__dirname, 'bench-forensics.js'), 'utf8');
+  ok(/flag\('budget', score\.RUN_USD\)/.test(benchSrc) && !/flag\('budget', 3\)/.test(benchSrc), "and bench-forensics.js --own takes it as its --budget's default");
+}
+
+// ── Bench A's run, end to end and offline ───────────────────────────────────
+// bench-forensics.js --own against a stand in server on 127.0.0.1 that
+// answers as the route will (the real normalise, parse and rawLabels) and
+// books each look under 'bench', with a profile of its own: a look set of
+// three deaths, a key, and a stand in licence, never the player's. A look the
+// server failed is asked once more; the run sends the admin password, the
+// variant, 8.5.0 and raw: true; and what it writes holds no licence and no
+// sentence of the model's but the gated ones.
+(async () => {
+  // MAIN'S LOOK SENDS RIOT'S MATCH ID AND KEEPS WHAT VARIANT B SAYS (8.5.0,
+  // index.js askForensics, run in a sandbox): the match id is the key to the
+  // match's own name set on the server, for the look's name gate; and each
+  // look keeps its fight, its change and the prompt it was asked with, which
+  // a cause's trend is held to (patterns.js lookVariant). A look of a server
+  // from before keeps none of them, and a word off their lists is kept as none.
+  try {
+    const vm = require('vm');
+    const review = require('../src/shared/valorant-review');
+    const mainText = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8').replace(/\r\n/g, '\n');
+    const fnOf = (head) => { const i = mainText.indexOf(head); const j = i < 0 ? -1 : mainText.indexOf('\n}\n', i); return j < 0 ? '' : mainText.slice(i, j + 3); };
+    const ask = fnOf('\nasync function askForensics(');
+    const posted = [];
+    let answer = null;
+    const lookBox = vm.createContext({
+      console: { log() {} }, Date, Math, Number, JSON, Object, Array, String, Promise, Map, Set, Buffer,
+      require: (m) => { if (m !== '../shared/valorant-review') throw new Error(`${m} is not in the sandbox`); return review; },
+      clips: { momentOf: () => 1000, stillName: (n, k) => `r${n}-rec${k}.jpg` },
+      lookStills: { sendOrder: (at) => at.map((_x, i) => i) },
+      fs: { readFileSync: () => Buffer.from('frame') }, path: { join: (...p) => p.join('/') },
+      API: { DEATH_FORENSICS: '/api/coach/death-forensics' },
+      store: { get: () => 'GC-TEST' },
+      api: { post: async (p, body) => { posted.push(body); return { ok: true, data: answer }; } },
+    });
+    const askMain = vm.runInContext(`${ask}\n;({ askForensics })`, lookBox);
+    const look = (n) => ({ round: { n, side: 'attacking', deathSec: 20, killerAgent: 'Jett', weapon: 'Sheriff', traded: false },
+      frames: [{ frame: 'f1.jpg' }, { frame: 'f2.jpg' }], names: [`r${n}-a.jpg`, `r${n}-b.jpg`], frameAt: [-1, 0.5], at: 5000 });
+    const lookSnap = { context: { agent: 'Jett', map: 'Fracture', language: 'en' } };
+    answer = { variant: 'b', deaths: [{ n: 2, cause: 'repeek', what: 'You stayed on the angle.', better: 'Fall back.', fight: 'wrong-time', change: 'timing', variant: 'b' },
+      { n: 5, cause: 'lost-duel', what: 'You lost the duel.', better: 'Aim at the head.', fight: 'a brave one', change: 'none' }] };
+    const got = await askMain.askForensics([look(2), look(5)], new Map(), lookSnap, 'riot', { dir: 'd', records: [] }, 'riot-match-1');
+    ok(posted[0] && posted[0].matchId === 'riot-match-1' && got.byRound[2].fight === 'wrong-time' && got.byRound[2].change === 'timing'
+      && got.byRound[2].variant === 'b' && !('fight' in got.byRound[5]) && got.byRound[5].change === 'none' && got.byRound[5].variant === 'b',
+    `main's look sends Riot's match id, and keeps each look's fight, change and prompt, a word off a list kept as none (${JSON.stringify(got.byRound[5])})`);
+    answer = { deaths: [{ n: 2, cause: 'repeek', what: 'You stayed on the angle.', better: 'Fall back.' }] };
+    const old = await askMain.askForensics([look(2)], new Map(), lookSnap, 'screen', { dir: 'd', records: [] }, null);
+    ok(!('matchId' in posted[1]) && !('fight' in old.byRound[2]) && !('change' in old.byRound[2]) && !('variant' in old.byRound[2]),
+      'and with no match id sends none, and a server from before gives a look none of the three: it was asked with a');
+    answer = { variant: 'a', deaths: [{ n: 2, cause: 'repeek', what: 'You stayed on the angle.', better: 'Fall back.' }] };
+    const a = await askMain.askForensics([look(2)], new Map(), lookSnap, 'riot', { dir: 'd', records: [] }, 'riot-match-1');
+    ok(a.byRound[2].variant === 'a', 'a look the reply says was asked with a keeps a');
+    // And what main hands it: Riot's match id from Riot's look, the
+    // scoreboard's for the look from the screen; the review written again is
+    // sent it too, and the review keeps Riot's comps.
+    const forSrc = fnOf('\nasync function forensicsFor(');
+    const linkSrc = mainText.slice(mainText.indexOf('const riotLook = async'), mainText.indexOf('const riotThen = '));
+    ok(/\(opts && opts\.matchId\) \|\| \(job && job\.tracker && job\.tracker\.matchId\)/.test(forSrc) && /askForensics\(looks, stills, snap, source, log, matchId\)/.test(forSrc)
+      && /if \(lm\.matchId\) body\.matchId = lm\.matchId;/.test(linkSrc) && /matchId: lm\.matchId \}\)/.test(linkSrc) && /comps: riot\.comps \|\| null/.test(linkSrc),
+    "and main hands it Riot's match id, sends the review written again the same, and keeps Riot's comps on the review");
+    // The card keeps them (valorant-review.js build), as it keeps the cause.
+    const card = review.build({ rounds: [{ n: 2, side: 'attacking', result: 'lost', died: true, verified: true,
+      forensics: { ...got.byRound[2], source: 'riot' } }], context: {}, endedBy: 'stop', ai: {} }).rounds[0].forensics;
+    const before = review.build({ rounds: [{ n: 2, side: 'attacking', result: 'lost', died: true, verified: true,
+      forensics: { cause: 'repeek', what: 'x.', better: 'y.', frames: [], source: 'riot' } }], context: {}, endedBy: 'stop', ai: {} }).rounds[0].forensics;
+    ok(card.fight === 'wrong-time' && card.change === 'timing' && card.variant === 'b' && !('fight' in before) && !('variant' in before),
+      'and the review card keeps the fight, the change and the prompt where the look has them, and a look saved before keeps its keys');
+    // THE RECORD'S SHAPE TO THE DEBUG LOG ON EACH LINK (8.5.0, spec 5.5): key
+    // names only, as the server sends them (riot-rounds.js deeperShape).
+    const roundsSrc = fnOf('\nasync function riotRoundsFor(');
+    const logged = [];
+    const linkBox = vm.createContext({
+      console: { log: (...a) => logged.push(a.join(' ')) }, JSON, String, encodeURIComponent,
+      store: { get: (k) => (k === 'riotId' ? 'Me#EUW' : 'GC-TEST') },
+      api: { get: async () => ({ ok: true, data: { perRound: [{ n: 1 }], shape: { top: ['metadata', 'rounds'], 'kills[0].weapon': ['name', 'type'] } } }) },
+    });
+    const linkMain = vm.runInContext(`${roundsSrc}\n;({ riotRoundsFor })`, linkBox);
+    const rec = await linkMain.riotRoundsFor({ matchId: 'riot-match-1' });
+    ok(rec && logged.some((l) => l === '[review] Riot round record shape: {"top":["metadata","rounds"],"kills[0].weapon":["name","type"]}'),
+      `each link writes the record's shape, key names only, to the debug log (${logged.join(' | ')})`);
+  } catch (e) {
+    ok(false, `main's look in its sandbox threw: ${e.stack || e.message}`);
+  }
+
+  const os = require('os');
+  const http = require('http');
+  const { spawn } = require('child_process');
+  const appData = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-bench-a-'));
+  const looksDir = path.join(appData, 'Occlara', 'bench', 'looks');
+  try {
+    fs.mkdirSync(path.join(looksDir, 'f'), { recursive: true });
+    fs.writeFileSync(path.join(appData, 'Occlara', 'occlara-config.json'), JSON.stringify({ licenseKey: 'STAND-IN-LICENCE-0000' }));
+    const img = (name) => { fs.writeFileSync(path.join(looksDir, 'f', name), Buffer.alloc(3000, 7)); return `f/${name}`; };
+    const at5 = [-3, -1.5, -0.7, -0.3, 0.7];
+    const facts = (n) => ({ n, side: 'attacking', sec: 30, killer: 'Jett', weapon: 'Sheriff', firstDeath: false, traded: false, alive: { mates: 4, enemies: 3 } });
+    const death = (n, body) => ({ key: `frac:${n}`, match: 'Fracture swiftplay', map: 'Fracture', agent: 'Jett', source: 'riot', facts: facts(n), body,
+      ...(body === 'recording' ? { frames: at5.map((s, i) => img(`r${n}-${i}.jpg`)), frameAt: at5, framesFrom: 'recording' }
+        : { frames: [img(`r${n}-a.jpg`), img(`r${n}-b.jpg`)], frameAt: [-2.3, 0.7], framesFrom: 'reads' }) });
+    fs.writeFileSync(path.join(looksDir, 'set.json'), JSON.stringify({ deaths: [death(2, 'recording'), death(5, 'recording'), death(6, 'reads')] }));
+    fs.writeFileSync(path.join(looksDir, 'key.json'), JSON.stringify({ deaths: [
+      { key: 'frac:2', acceptable: ['repeek'], forbidden: ['lost-duel'] }, { key: 'frac:5', acceptable: ['repeek', 'overextend'], forbidden: ['isolated'] },
+      { key: 'frac:6', acceptable: ['repeek', 'dry-peek'], forbidden: ['isolated'] }] }));
+    const wrote = {
+      2: { what: 'Zorbo watched you stay on the A Main angle.', fight: 'wrong-time', better: 'Fall back after the first exchange.', change: 'timing', cause: 'repeek', alt: 'none' },
+      5: { what: 'You stayed on A Site after your first shots.', fight: 'wrong-time', better: 'Get out of sight, Klumpf was trading.', change: 'timing', cause: 'repeek', alt: 'none' },
+      6: { what: 'You fought from B Tree.', fight: 'wrong-time', better: 'Wait for a flash.', change: 'utility', cause: 'Bad luck from Zorbo', alt: 'dry-peek' },
+    };
+    const asked = [];
+    let booked = 0;
+    let failedOnce = false;
+    const server = http.createServer((req, res) => {
+      let data = '';
+      req.on('data', (c) => { data += c; });
+      req.on('end', () => {
+        if (req.method === 'GET' && req.url === '/api/admin/costs') {
+          res.end(JSON.stringify({ spend: { today: { routes: { bench: { real: booked, estimated: 0, calls: asked.length } } } } }));
+          return;
+        }
+        const b = JSON.parse(data || '{}');
+        asked.push({ admin: req.headers['x-admin-password'], version: req.headers['x-occlara-version'], variant: b.variant, raw: b.raw,
+          model: b.benchModel, frameAt: b.deaths && b.deaths[0] && b.deaths[0].frameAt });
+        booked += 0.0172;
+        const input = df.normalise(b, { variant: b.variant });
+        const d = input.deaths[0];
+        if (d.n === 5 && !failedOnce) {
+          failedOnce = true;
+          res.end(JSON.stringify({ deaths: [{ n: 5, cause: 'unclear', what: null, better: null, failed: true }], model: b.benchModel, variant: b.variant }));
+          return;
+        }
+        const text = JSON.stringify(wrote[d.n]);
+        const look = df.replyOf(df.parse(text, input, d));
+        if (b.raw) look.raw = df.rawLabels(text);
+        res.end(JSON.stringify({ deaths: [look], model: b.benchModel, variant: b.variant }));
+      });
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const env = { ...process.env, APPDATA: appData, OCCLARA_SERVER: `http://127.0.0.1:${server.address().port}`, ADMIN_PASSWORD: 'stand-in-admin' };
+    const run = await new Promise((resolve) => {
+      const child = spawn(process.execPath, [path.join(__dirname, 'bench-forensics.js'), 'openai/gpt-6-sol', '--own', '--key', '--variant', 'b',
+        '--runs', '2', '--costs', '--gap', '0'], { cwd: path.join(__dirname, '..'), env });
+      let out = '';
+      child.stdout.on('data', (c) => { out += c; });
+      child.stderr.on('data', (c) => { out += c; });
+      const timer = setTimeout(() => child.kill(), 60000);
+      child.on('close', (code) => { clearTimeout(timer); resolve({ code, out }); });
+    });
+    server.close();
+    const runs = fs.existsSync(path.join(looksDir, 'runs')) ? fs.readdirSync(path.join(looksDir, 'runs')) : [];
+    const file = runs.length ? fs.readFileSync(path.join(looksDir, 'runs', runs[0]), 'utf8') : '';
+    const written = file ? JSON.parse(file) : { looks: [] };
+    ok(asked.length === 7 && /frac:5 +FAILED on the server, \d+ ms, asking once more/.test(run.out) && written.looks.length === 6 && !written.stopped,
+      `a look the server failed is asked once more, and the run goes on: ${asked.length} asked for 6 looks (${written.stopped || 'not stopped'})`);
+    ok(asked.every((a) => a.admin === 'stand-in-admin' && a.version === '8.5.0' && a.variant === 'b' && a.raw === true && a.model === 'openai/gpt-6-sol')
+      && asked[0].frameAt.join() === '-0.3,0.7,-3,-1.5,-0.7',
+    "each look goes with the admin password, the variant asked, 8.5.0, raw: true and the bench's model, its frames as the client orders them");
+    ok(Math.abs(written.spent - 7 * 0.0172) < 1e-9 && /\$0\.1204 spent/.test(run.out),
+      `what it spent is the ledger's, the failed look's too, where it passes the estimate (${written.spent})`);
+    ok(written.looks.every((l) => l.raw && typeof l.raw === 'object') && written.result.perDeath.find((p) => p.key === 'frac:6').raw.join() === 'wrong-time/unknown (utility),wrong-time/unknown (utility)'
+      && /PASS {2}forbidden/.test(run.out) && /FAIL {2}fracture/.test(run.out) && run.code === 1,
+    'the label words are scored raw, a cause off the list read as unknown though parse took its second choice, and the bars printed');
+    ok(!/STAND-IN-LICENCE/.test(file) && !/Klumpf/.test(file) && !/Bad luck/.test(file),
+      'and the run it writes holds no licence, no word off a list, and of the model\'s sentences only those the gates let pass');
+  } catch (e) {
+    ok(false, `bench A's offline run crashed: ${e.stack || e.message}`);
+  } finally {
+    fs.rmSync(appData, { recursive: true, force: true });
+  }
+  console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' forensics checks passed'}`);
+  process.exit(fails ? 1 : 0);
+})();

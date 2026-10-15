@@ -10,10 +10,11 @@
  * valorant-data.generated.json, so the prompt was teaching a vocabulary the gate
  * then rejected. One Iso session lost 7 tips to ability rejections.
  *
- * This is the kind of context worth adding: an agent's kit never changes, is not
- * legible on screen, and the model has no way to check itself. Adding more
- * VOLATILE state does the opposite, the model starts answering from the context
- * instead of the frame.
+ * This is the kind of context worth adding: an agent's kit is not legible on
+ * screen, the model has no way to check itself, and it changes only with a
+ * patch, which npm run sync:valorant carries the day it lands (Phoenix's keys
+ * swapped, Harbor's Cascade became Storm Surge). Adding more VOLATILE state does
+ * the opposite, the model starts answering from the context instead of the frame.
  *
  * Run: npm run test:agentkit
  */

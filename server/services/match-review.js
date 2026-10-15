@@ -76,6 +76,26 @@ const PATTERN_TOPICS = {
   retake: ['retake shape', 'contest or retake'],
 };
 
+/*
+ * WHAT A DEATH'S CAUSE SENDS THE PLAYER TO STUDY (8.5.0, beside the
+ * patterns'). The coach's look labels a death from a closed list (death-
+ * forensics.js CAUSES), and a label two looks of a match share is a counted
+ * mistake (`cause:repeek`, insights.js), which the summary and the focus
+ * already name: the study notes now follow it. Every topic here is one the
+ * playbook's notes carry, and check:playbook fails one that none does.
+ * lost-duel, a fair fight lost on the shot, has nothing to study but the aim,
+ * and unclear nothing at all.
+ */
+const CAUSE_TOPICS = {
+  'dry-peek': ['planning the peek', 'filling utility', 'paint the picture'],
+  isolated: ['checkpoints'],
+  repeek: ['giving ground', 'planning the peek', 'movement'],
+  crossfire: ['planning the peek', 'paint the picture'],
+  rotating: ['rotating into the unknown', 'anchor or rotate', 'rotating with util'],
+  overextend: ['checkpoints', 'tempo'],
+  exposed: ['post plant', 'retake shape'],
+};
+
 const clip = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
 
 /*
@@ -216,12 +236,26 @@ const RESERVE_OF = 8;
  * get the share of the slots they get there, six of eight, rounded down so a
  * core note always survives, and a match lost in a run of rounds (the streak
  * pattern) gives core the majority back, as a death streak does there.
+ *
+ * BY CAUSE TOO, FOR A CLIENT OF 8.5.0 OR LATER (`input.byCause`, which the
+ * route sets by the version gate, clientAtLeast): a counted `cause:` mistake's
+ * topics weigh as a pattern's (+5), and a single death the coach looked at
+ * gives its cause's topics +2 (CAUSE_TOPICS). A client before 8.5.0 is listed
+ * its notes as today, byte for byte.
  */
 function study(input, limit = 3) {
   const { context, patterns, rounds } = input;
   const s = knowledge.situationOf({ agent: context.agent, map: context.map });
   const wanted = new Set();
   for (const p of patterns) for (const t of PATTERN_TOPICS[p.key] || []) wanted.add(t);
+  const looked = new Set();
+  if (input.byCause === true) {
+    for (const m of input.mistakes || []) {
+      const c = /^cause:(.+)$/.exec(String((m && m.key) || ''));
+      if (c) for (const t of CAUSE_TOPICS[c[1]] || []) wanted.add(t);
+    }
+    for (const r of rounds || []) if (r && r.cause) for (const t of CAUSE_TOPICS[r.cause] || []) looked.add(t);
+  }
   const weak = weakSide(rounds);
   const advancedOn = context.advancedTips === true;
 
@@ -240,6 +274,7 @@ function study(input, limit = 3) {
     if (note.maps) score += 3;
     if (note.roles) score += 2;
     if (wanted.has(src.topic)) score += 5;
+    else if (looked.has(src.topic)) score += 2;
     if (note.side && weak && note.side === weak) score += 2;
     if (note.side && weak && note.side !== weak) score -= 2;
     scored.push({ text: note.text, topic: src.topic, advanced, score });
@@ -861,4 +896,5 @@ function roundLabels(text) {
 }
 
 module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, roundLabels, teachable, lineWorthy,
-  namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, REPEAT_WORDS, ROUND_LABELS, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS };
+  namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, REPEAT_WORDS, ROUND_LABELS, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS,
+  CAUSE_TOPICS };

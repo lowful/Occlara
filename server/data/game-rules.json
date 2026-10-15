@@ -1,0 +1,195 @@
+{
+  "note": "The Valorant primer's stated facts: the game numbers no game data API publishes, each once, with its kind (riot-notes, measured, occlara, wiki), its source, the patch it was verified on, the topics a patch line can touch it by, its check, and who or what confirmed it. A fact with confirmed null is never rendered as a number: the primer says its rule in words instead. A wiki fact is rendered only once confirmed. Never write one of these numbers in prose anywhere else: the primer (server/services/game-primer.js) renders it from here, and check:primer fails a number with no source. Re-stamping verifiedPatch after a patch is one edit per fact, made only once its topic's lines in that patch's notes were read.",
+  "confirmations": {
+    "player-2026-10-15": "The player's decision 5 of the 8.5 spec (section 18), 15 Oct 2026: the standard economy (start 800, win 3,000, losses 1,900, 2,400 and 2,900, kill 200, plant 300, overtime 5,000), the spike (4 s plant, 7 s defuse with its half at 3.5 s, the 45 s timer, beeps at 20 and 10 s) and ultimate points (1 each for a kill, a death, a plant or defuse, an orb) are confirmed, with the VALORANT Wiki as their stated source. Swiftplay's economy numbers stay unconfirmed and are explained in words."
+  },
+  "facts": {
+    "health": {
+      "value": 100, "kind": "measured", "verifiedPatch": "13.08", "tags": ["health"],
+      "source": "the game's HUD: every alive read of the player's own health in the five AI log fixtures (scripts/fixtures/valorant-session-*.json) tops out at exactly 100",
+      "check": "check:primer canary on the five fixtures",
+      "confirmed": { "by": "measured", "on": "2026-10-15", "how": "fixture canary, five sessions" }
+    },
+    "credits.start": {
+      "value": 800, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["economy"], "modes": ["standard", "swiftplay"],
+      "source": "VALORANT Wiki, Credits (every player starts each half on 800); measured: the first round 1 buy read shows 800 in the four AI log fixtures that read one, two of them swiftplay, and a swiftplay round 5 was bought with 800 (CLAUDE.md, the mode from round 5's buy phase)",
+      "check": "check:primer canary; the Riot economy check once Phase D proves Riot's remaining credits",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "credits.cap": {
+      "value": 9000, "kind": "riot-notes", "verifiedPatch": "13.08", "tags": ["economy"],
+      "source": "Riot's patch notes 0.50: 'Total credit cap is is reduced from 12,000 to 9,000'",
+      "check": "the Riot economy check (Phase D)",
+      "confirmed": { "by": "Riot's patch notes 0.50", "on": "2026-10-14", "how": "the line, verbatim" }
+    },
+    "credits.win": {
+      "value": 3000, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["economy"], "modes": ["standard"],
+      "source": "VALORANT Wiki, Credits (round win)",
+      "check": "the Riot economy check (Phase D)",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "credits.loss": {
+      "value": [1900, 2400, 2900], "kind": "wiki", "verifiedPatch": "13.08", "tags": ["economy"], "modes": ["standard"],
+      "source": "VALORANT Wiki, Credits (a round lost, the second in a row, the third in a row and after)",
+      "check": "the Riot economy check (Phase D)",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "credits.survived": {
+      "value": 1000, "kind": "riot-notes", "verifiedPatch": "13.08", "tags": ["economy"], "modes": ["standard"],
+      "source": "Riot's patch notes 1.11: 'Attackers who lose but survive the entire round without planting the Spike receive a reduced number of credits (1,000)' and 'Defenders who lose but survive the entire round after the Spike has detonated also receive reduced credits (1,000)'",
+      "check": "the Riot economy check (Phase D)",
+      "confirmed": { "by": "Riot's patch notes 1.11", "on": "2026-10-14", "how": "the lines, verbatim" }
+    },
+    "credits.kill": {
+      "value": 200, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["economy"], "modes": ["standard"],
+      "source": "VALORANT Wiki, Credits (each kill)",
+      "check": "the Riot economy check (Phase D)",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "credits.plant": {
+      "value": 300, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["economy", "spike"], "modes": ["standard"],
+      "source": "VALORANT Wiki, Credits (planting the spike pays every attacker)",
+      "check": "the Riot economy check (Phase D)",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "credits.overtime": {
+      "value": 5000, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["economy", "format"], "modes": ["standard"],
+      "source": "VALORANT Wiki, Credits and Competitive (every player starts each overtime round on 5,000)",
+      "check": "the Riot economy check on an overtime match (Phase D)",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "swift.round2.won": {
+      "value": 3000, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["economy", "swiftplay"], "modes": ["swiftplay"],
+      "source": "VALORANT Wiki, Credits (Swiftplay income, the second round of a half after a won first round) and Swiftplay",
+      "check": "the Riot economy check on a Swiftplay match (Phase D)",
+      "confirmed": null
+    },
+    "swift.round2.lost": {
+      "value": 2400, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["economy", "swiftplay"], "modes": ["swiftplay"],
+      "source": "VALORANT Wiki, Credits (Swiftplay income, the second round of a half after a lost first round)",
+      "check": "the Riot economy check on a Swiftplay match (Phase D)",
+      "confirmed": null
+    },
+    "swift.round34": {
+      "value": 4250, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["economy", "swiftplay"], "modes": ["swiftplay"],
+      "source": "VALORANT Wiki, Credits (Swiftplay income, the third and fourth rounds of a half)",
+      "check": "the Riot economy check on a Swiftplay match (Phase D)",
+      "confirmed": null
+    },
+    "swift.ultStart": {
+      "value": 2, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["ultimate", "swiftplay"], "modes": ["swiftplay"],
+      "source": "VALORANT Wiki, Swiftplay: 'All player start each half with two points for their ultimate'",
+      "check": "the patch gate only",
+      "confirmed": null
+    },
+    "swift.ultStart9": {
+      "value": 3, "cost": 9, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["ultimate", "swiftplay"], "modes": ["swiftplay"],
+      "source": "VALORANT Wiki, Swiftplay (an ultimate that costs 9 points starts each half on 3)",
+      "check": "the patch gate only",
+      "confirmed": null
+    },
+    "format.standard.half": {
+      "value": 12, "kind": "occlara", "verifiedPatch": "13.08", "tags": ["format"], "modes": ["standard"],
+      "source": "server/services/riot-rounds.js: a Competitive or Unrated match's halves are 12 rounds (halfLength), which Riot's own records of the real Abyss and Split matches bear out",
+      "check": "check:primer holds it equal to riot-rounds.js",
+      "mirror": { "file": "server/services/riot-rounds.js", "pattern": "rounds.length \\? (\\d+) : null" },
+      "confirmed": { "by": "occlara", "on": "2026-10-15", "how": "held equal to riot-rounds.js by check:primer" }
+    },
+    "format.overtime.lead": {
+      "value": 2, "kind": "occlara", "verifiedPatch": "13.08", "tags": ["format"], "modes": ["standard"],
+      "source": "src/shared/match-end.js isFinalScore: overtime from 12 all ends on a lead of exactly two",
+      "check": "check:primer drives isFinalScore",
+      "confirmed": { "by": "occlara", "on": "2026-10-15", "how": "held equal to match-end.js by check:primer" }
+    },
+    "format.unrated.decider": {
+      "value": true, "kind": "occlara", "verifiedPatch": "13.08", "tags": ["format"], "modes": ["standard"],
+      "source": "src/shared/match-end.js: 13 to 12 ends Unrated on sudden death, while Competitive goes to overtime",
+      "check": "check:primer drives isFinalScore (13 to 12 is not a final score for the watch, since Unrated ends there and Competitive does not)",
+      "confirmed": { "by": "occlara", "on": "2026-10-15", "how": "held equal to match-end.js by check:primer" }
+    },
+    "round.seconds": {
+      "value": 100, "kind": "measured", "verifiedPatch": "13.08", "tags": ["timers"],
+      "source": "src/shared/valorant-rounds.js ROUND_SECONDS, measured on real sessions (the round clock reads 1:40 as the barriers drop)",
+      "check": "check:primer holds it equal to the client constant; test:sessionreplay and test:readpolicy run it on real frames",
+      "mirror": { "file": "src/shared/valorant-rounds.js", "export": "ROUND_SECONDS" },
+      "confirmed": { "by": "measured", "on": "2026-10-15", "how": "the client constant, held equal" }
+    },
+    "buy.seconds": {
+      "value": 30, "kind": "measured", "verifiedPatch": "13.08", "tags": ["timers"],
+      "source": "src/shared/valorant-rounds.js BUY_SECONDS, measured (a competitive round 5 bought at 0:29)",
+      "check": "check:primer holds it equal to the client constant",
+      "mirror": { "file": "src/shared/valorant-rounds.js", "pattern": "const BUY_SECONDS = (\\d+);" },
+      "confirmed": { "by": "measured", "on": "2026-10-15", "how": "the client constant, held equal" }
+    },
+    "buy.pistolSeconds": {
+      "value": 45, "kind": "measured", "verifiedPatch": "13.08", "tags": ["timers"],
+      "source": "src/shared/valorant-rounds.js BUY_MAX_LEFT, measured (a swiftplay round 5 bought at 0:43)",
+      "check": "check:primer holds it equal to the client constant",
+      "mirror": { "file": "src/shared/valorant-rounds.js", "export": "BUY_MAX_LEFT" },
+      "confirmed": { "by": "measured", "on": "2026-10-15", "how": "the client constant, held equal" }
+    },
+    "spike.plant": {
+      "value": 4, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["spike"],
+      "source": "VALORANT Wiki, Spike ('Planting takes 4 seconds')",
+      "check": "the patch gate",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "spike.timer": {
+      "value": 45, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["spike"],
+      "source": "VALORANT Wiki, Spike (a 45 second detonation timer once planted)",
+      "check": "the patch gate; later the Riot bound (no kill in a planted round past the plant plus the timer)",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "spike.defuse": {
+      "value": 7, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["spike"],
+      "source": "VALORANT Wiki, Spike ('Defusing takes 7 seconds')",
+      "check": "the patch gate",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "spike.checkpoint": {
+      "value": 3.5, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["spike"],
+      "source": "VALORANT Wiki, Spike (a defuse keeps its progress once it passes the halfway mark at 3.5 seconds)",
+      "check": "the patch gate",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "spike.beeps": {
+      "value": [20, 10], "kind": "wiki", "verifiedPatch": "13.08", "tags": ["spike"],
+      "source": "VALORANT Wiki, Spike (the beeping speeds up with 20 seconds left and again with 10)",
+      "check": "the patch gate",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "ult.perEvent": {
+      "value": 1, "kind": "wiki", "verifiedPatch": "13.08", "tags": ["ultimate"],
+      "source": "VALORANT Wiki, Abilities (an ultimate point for each kill, each death, each spike plant or defuse, each ultimate orb)",
+      "check": "the patch gate",
+      "confirmed": { "by": "the player", "on": "2026-10-15", "how": "player-2026-10-15" }
+    },
+    "armor.regen.capacity": {
+      "value": 25, "kind": "riot-notes", "verifiedPatch": "13.08", "tags": ["armor"],
+      "source": "Riot's patch notes 9.10: 'Damage Absorption: 25 HP' (the game data gives the Regen Shield's 100% and its pool of 50, not this)",
+      "check": "the patch gate",
+      "confirmed": { "by": "Riot's patch notes 9.10", "on": "2026-10-14", "how": "the line, verbatim" }
+    },
+    "rule.tradeSeconds": {
+      "value": 5, "kind": "occlara", "verifiedPatch": "13.08", "tags": [],
+      "source": "Occlara's own rule: TRADE_MS in server/services/riot-rounds.js, imported at render, never copied",
+      "check": "check:primer holds this value equal to TRADE_MS",
+      "import": { "module": "./riot-rounds", "name": "TRADE_MS", "scale": 0.001 },
+      "confirmed": { "by": "occlara", "on": "2026-10-15", "how": "imported from TRADE_MS" }
+    },
+    "rule.earlySeconds": {
+      "value": 30, "kind": "occlara", "verifiedPatch": "13.08", "tags": [],
+      "source": "Occlara's own rule: src/shared/valorant-verify.js counts a death before the plant 30 seconds in or less as early, and valorant-rounds.js EARLY_DEATH_LEFT is 70 left on a 100 second round",
+      "check": "check:primer holds it equal to both",
+      "mirror": { "file": "src/shared/valorant-verify.js", "pattern": "early: !!rr\\.died && !rr\\.afterPlant && sec !== null && sec <= (\\d+)," },
+      "confirmed": { "by": "occlara", "on": "2026-10-15", "how": "held equal to valorant-verify.js by check:primer" }
+    },
+    "rule.multiKill": {
+      "value": 3, "kind": "occlara", "verifiedPatch": "13.08", "tags": [],
+      "source": "Occlara's own rule: src/shared/insights.js counts a round of three kills or more as a multi kill round",
+      "check": "check:primer holds it equal to insights.js",
+      "mirror": { "file": "src/shared/insights.js", "pattern": "const multi = verified\\.filter\\(\\(r\\) => typeof r\\.kills === 'number' && r\\.kills >= (\\d+)\\);" },
+      "confirmed": { "by": "occlara", "on": "2026-10-15", "how": "held equal to insights.js by check:primer" }
+    }
+  }
+}

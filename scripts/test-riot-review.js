@@ -242,6 +242,20 @@ const strip = (rv) => {
   ok(/Checked against Riot's record/.test(up.verification || ''), 'with the usual line saying what the check changed');
   ok(up.rounds.some((c) => c.spot), 'it keeps the screen\'s death locations where Riot confirms the death');
   ok(!up.ledger, 'and a verified review carries no ledger');
+  // THE ROUND IN ORDER AND BOTH COMPS (8.5.0), kept as a live link keeps them,
+  // so Ask Coach needs no fill: Riot's comps when its record has them, else
+  // what Ask Coach's fill had kept on the review being upgraded.
+  const COMPS = { us: [{ agent: 'Jett', role: 'Duelist' }], them: [{ agent: 'Skye', role: 'Initiator' }] };
+  const withComps = riotReview.upgradeWatched({ saved: { id: built.id, at: built.at, review: built }, row: ROW, riot: { ...riot, comps: COMPS },
+    history: [] }).review;
+  const keptFill = riotReview.upgradeWatched({ saved: { id: built.id, at: built.at, review: { ...built, comps: COMPS } }, row: ROW, riot,
+    history: [] }).review;
+  const fresh85 = riotReview.fromRiot({ row: ROW, riot: { ...riot, comps: COMPS }, history: [] }).review;
+  const fedCards = (rv) => rv.rounds.filter((c) => c.riot && Array.isArray(c.riot.feed) && c.riot.feed.length).length;
+  ok(JSON.stringify(withComps.comps) === JSON.stringify(COMPS) && JSON.stringify(keptFill.comps) === JSON.stringify(COMPS)
+    && JSON.stringify(fresh85.comps) === JSON.stringify(COMPS) && fedCards(up) === 24 && fedCards(fresh85) === 24
+    && up.rounds.find((c) => c.n === 3).riot.plantSec === 61.6,
+  `an upgrade in place and a review from Riot's record alone keep each round's feed, the plant and both comps (${fedCards(up)} rounds with a feed)`);
 
   // The same review saved before the ledger existed, with a read in a round
   // the screen invented a death in and one in a round both agree on.

@@ -214,6 +214,7 @@ function paintValorant(r) {
   $('v-focus').textContent = r.focus || '';
 
   paintStrip(r);
+  paintComps(r);
   paintPatterns(r);
   paintRounds(r);
   paintStudy(r);
@@ -355,6 +356,19 @@ function paintStudy(r) {
   const host = $('v-study');
   host.replaceChildren();
   for (const n of study) host.append(el('li', 'v-study-note', n.text));
+}
+
+/*
+ * BOTH TEAM COMPS, ONE LINE UNDER THE STRIP (8.5.0, the player's choice):
+ * "Your team: Breach, Jett (you), Killjoy, Omen, Sova. Theirs: ...", as
+ * valorant-review.js compsLine computed it from Riot's record when main
+ * presented the review, agents only. Set by textContent; no line without one.
+ */
+function paintComps(r) {
+  const line = typeof r.compsLine === 'string' ? r.compsLine : '';
+  const host = $('v-comps');
+  host.textContent = line;
+  host.hidden = !line;
 }
 
 /** One cell per round, halftime as a gap, the side named over each half. */

@@ -132,6 +132,67 @@ const reviewBody = { rounds: ROUNDS, context: { agent: 'Jett', map: 'Abyss' } };
     ok(r.status === 200 && r.body.review === null && r.body.thin === true, 'under three rounds is still a thin null review');
   }
 
+  // ── /match-review, pinned with no fallback (8.5.0) ───────────────────────
+  {
+    ai.sent.length = 0;
+    ai.next = reply('');
+    const r = await call(coach, 'POST', '/match-review', { headers: H, body: reviewBody });
+    ok(r.status === 200 && r.body.review === null && r.body.summary === null && ai.sent.length === 1 && ai.sent[0].model === 'openai/gpt-6-sol',
+      `Sol empty is no narrative, never one from another model (${ai.sent.map((s) => s.model).join(', ')})`);
+    ai.sent.length = 0;
+    ai.next = () => ({ status: 500, text: 'upstream exploded' });
+    const failed = await call(coach, 'POST', '/match-review', { headers: H, body: reviewBody });
+    ok(failed.status === 503 && ai.sent.length === 1, `and Sol failing is one call and a 503 (${ai.sent.length})`);
+  }
+
+  // ── /match-review, no player named (8.5.0) ───────────────────────────────
+  {
+    const riotRounds = require(path.join(__dirname, '..', 'server', 'services', 'riot-rounds.js'));
+    const MID = '1a2b3c4d-eeee-4fff-8aaa-0123456789ab';
+    riotRounds.noteNames(MID, { players: [{ name: 'Tessik', tag: 'EUW' }, { name: 'Me', tag: 'EUW' }] });
+    const named = 'SUMMARY: You won the rounds you opened with a trade behind you. Tessik carried the rest.\n'
+      + 'R2: Your teammate Tessik was ahead of you, so wait for the trade.\nR4: Take the duel with a teammate close.\nFOCUS: Wait for a teammate before you peek.';
+    const clean = 'SUMMARY: You won the rounds you opened with a trade behind you.\nR2: You took the duel alone.\nFOCUS: Wait for a teammate before you peek.';
+    const ROUND4 = ROUNDS.map((r) => ({ ...r }));
+    const body = (extra) => ({ ...reviewBody, rounds: ROUND4, ...(extra || {}) });
+    ai.next = reply(clean);
+    const plain = await call(coach, 'POST', '/match-review', { headers: H, body: body() });
+    const plainMatch = await call(coach, 'POST', '/match-review', { headers: H, body: body({ matchId: MID }) });
+    ok(plain.status === 200 && JSON.stringify(plain.body) === JSON.stringify(plainMatch.body) && plain.body.summary && plain.body.rounds[2],
+      'a review naming nobody comes back the same with or without its match id');
+    ai.next = reply(named);
+    const set = await call(coach, 'POST', '/match-review', { headers: H, body: body({ matchId: MID }) });
+    ok(set.body.summary === 'You won the rounds you opened with a trade behind you.' && !set.body.rounds[2] && set.body.rounds[4]
+      && set.body.focus === 'Wait for a teammate before you peek.' && !/Tessik/.test(JSON.stringify(set.body)),
+    `with the match's name set, a summary sentence naming a player goes and a round line naming one goes whole (${JSON.stringify(set.body.rounds)})`);
+    const gate = { namesSomeone: (s) => (/\bTessik\b/.test(s) ? 'Tessik' : null), asked: [] };
+    const watched = { namesSomeone: (s, o) => { gate.asked.push(o && o.language); return gate.namesSomeone(s); } };
+    coach.__test.services({ nameGate: watched });
+    const heur = await call(coach, 'POST', '/match-review', { headers: H, body: body() });
+    ok(heur.body.summary === 'You won the rounds you opened with a trade behind you.' && !heur.body.rounds[2] && heur.body.rounds[4]
+      && gate.asked.every((l) => l === 'en'), 'without it, the name gate (name-gate.js) drops the same, in English');
+    gate.asked.length = 0;
+    const de = await call(coach, 'POST', '/match-review', { headers: H, body: body({ context: { agent: 'Jett', map: 'Abyss', language: 'de' } }) });
+    ok(gate.asked.length > 0 && gate.asked.every((l) => l === 'de'), 'and in German it is asked as German, whose capitals are no names to it');
+    coach.__test.services({ nameGate: null });
+    // The review's own words are no names to the real gate: the scoreboard's,
+    // the result's, the sides' (REVIEW_WORDS), while a name still is.
+    const SAYS = ['You were the match MVP with 31 kills.', 'Your ACS of 290 led the lobby.', 'You finished with a K/D of 1.5.',
+      'You won on Split as Jett, a Victory 13 to 7.', 'Your ADR was 180 and your HS 25 percent.', 'You lost the pistol round on Attack.',
+      'You traded well on Defense.', 'The COMBAT REPORT shows you dealt no damage.', 'With SWITCH PLAYER at the bottom left you were dead.',
+      'The SPECTATORS counter is no sign of death.', 'It was MATCH POINT and your team had the ULTIMATE ready.'];
+    const kept = SAYS.filter((s) => !coach.__test.namesSomeoneHere(s, { language: 'en' }));
+    const caught = ['You were killed by Morvane with a Vandal.', 'Your teammate Tessik was ahead of you.', 'Your Acer friend was there.',
+      'You and xX_slayer_Xx held A.'].filter((s) => coach.__test.namesSomeoneHere(s, { language: 'en' }));
+    ok(kept.length === SAYS.length && caught.length === 4,
+      `the scoreboard, the result and the sides pass the name gate, where a name, a word only like one, and a handle do not (${kept.length} of ${SAYS.length} kept, ${caught.length} of 4 caught)`);
+    coach.__test.services({ nameGate: { namesSomeone: () => { throw new Error('a broken gate'); } } });
+    ai.next = reply(clean);
+    const broken = await call(coach, 'POST', '/match-review', { headers: H, body: body() });
+    ok(broken.status === 200 && JSON.stringify(broken.body) === JSON.stringify(plain.body), 'and a gate that throws decides nothing, the review answered as it was');
+    coach.__test.services({ nameGate: null });
+  }
+
   // ── /match-review, the tips branch older clients send ────────────────────
   {
     const r = await call(coach, 'POST', '/match-review', { headers: H, body: { tips: ['one', 'two'] } });

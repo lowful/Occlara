@@ -38,6 +38,23 @@
 
 const fs   = require('fs');
 const path = require('path');
+const primer = require('./game-primer');
+
+/*
+ * A GAME NUMBER IN A NOTE COMES FROM THE PRIMER, never from the typing hand
+ * (8.5.0). Four of the hand written notes below carried numbers nothing held:
+ * footsteps "audible around 20 meters" (no source anywhere), the defuse's 7
+ * and 3.5 seconds (right, but held by nothing), "the Frenzy melts inside 10
+ * meters" (its damage falls at 20), and "the Spectre stays accurate on the
+ * move" (in no data). The footsteps and the Spectre's accuracy lost their
+ * claims; the defuse reads the spike's confirmed timings from game-rules.json
+ * and the Frenzy and the Spectre their first band from the synced damage
+ * table, each with words to fall back on when the number cannot be stated.
+ */
+const DEFUSE = primer.stated('spike.defuse');
+const HALF_DEFUSE = primer.stated('spike.checkpoint');
+const FRENZY_BAND = primer.bandEnd('frenzy');
+const SPECTRE_BAND = primer.bandEnd('spectre');
 
 const PLAYBOOK = [
   // ── universal fundamentals ──────────────────────────────────────────────
@@ -104,7 +121,7 @@ const PLAYBOOK = [
   { text: 'Keep comms short, position, number, action, then quiet, backseat comms while dead lose retakes.', weight: 1 },
 
   // ── sound ───────────────────────────────────────────────────────────────
-  { text: 'Play off sound, running steps are audible around 20 meters, silence means shift walkers or nobody.', weight: 1 },
+  { text: 'Play off sound, running steps give a player away well before you see them, silence means shift walkers or nobody.', weight: 1 },
   { text: 'Your reload is a callout to the enemy, reload behind cover, never in the open after a kill.', weight: 2 },
   { text: 'Fake sound cues work, run a few loud steps one way then shift walk the other to sell a rotation.', weight: 1 },
   { text: 'Listen for ability audio, a plant, a teleport, an ult voice line, each is a free minimap ping in your head.', weight: 1 },
@@ -147,7 +164,9 @@ const PLAYBOOK = [
   { side: 'defense', text: 'Anchor with your gun on the choke and your feet near cover, holding from open ground wastes the defender advantage.', weight: 1 },
   { side: 'defense', text: 'After your team gets the opening pick, tighten the map as five, a man advantage grows by denying info, not by everyone hunting.', weight: 1 },
   { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Retake as a unit behind util, flash or smoke the planter cover and swing together, never one by one.', weight: 3 },
-  { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Play the defuse math, full defuse is 7 seconds and half is 3.5, tap the half defuse to bait their peek.', weight: 2 },
+  { side: 'defense', phase: 'postplant', situations: ['retake'], text: DEFUSE !== null && HALF_DEFUSE !== null
+    ? `Play the defuse math, full defuse is ${DEFUSE} seconds and half is ${HALF_DEFUSE}, tap the half defuse to bait their peek.`
+    : 'Play the defuse math, a defuse keeps its progress past the halfway mark, tap the half defuse to bait their peek.', weight: 2 },
   { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Clear the common post plant spots before touching the spike, tapping into three crosshairs is a throw.', weight: 2 },
   { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Use the spike audio, the fast beeps mean commit now, before that you still have time to clear properly.', weight: 1 },
   { side: 'defense', phase: 'postplant', text: 'If the retake is not winnable, save your gun and util, winning the next two rounds beats a hero attempt.', weight: 2 },
@@ -188,8 +207,10 @@ const PLAYBOOK = [
   { weapons: ['operator'], text: 'With the Operator hold one long sightline at max range and reposition the moment you fire, never re scope the same pixel.', weight: 3 },
   { weapons: ['operator'], text: 'Pick the sightline they must cross and let them walk into your Operator, you win by holding, not hunting.', weight: 2 },
   { weapons: ['operator'], text: 'Do not push with the Operator, a moving Op is just a very expensive knife, let the fight come to your scope.', weight: 2 },
-  { weapons: ['spectre', 'stinger'], text: 'The Spectre loses every long duel, play elbows, corners, and smoke edges, force fights inside 15 meters.', weight: 3 },
-  { weapons: ['spectre', 'stinger'], text: 'The Spectre stays accurate on the move up close, strafe fight inside rooms where rifles must stand still.', weight: 2 },
+  { weapons: ['spectre', 'stinger'], text: SPECTRE_BAND
+    ? `The Spectre loses every long duel, play elbows, corners, and smoke edges, force fights inside ${SPECTRE_BAND} meters.`
+    : 'The Spectre loses every long duel, play elbows, corners, and smoke edges, force the close fights.', weight: 3 },
+  { weapons: ['spectre', 'stinger'], text: 'Your SMG wins inside rooms and around tight corners, take the close fight there and leave the long angles to rifles.', weight: 2 },
   { weapons: ['judge', 'bucky', 'shorty'], text: 'A shotgun owns doorways and tight corners, hold the pixel where they funnel and take one body per shell.', weight: 3 },
   { weapons: ['judge', 'bucky', 'shorty'], text: 'Never hold open ground with a shotgun, hide close and let them walk past your corner.', weight: 2 },
   { weapons: ['sheriff'], text: 'The Sheriff one taps heads at close and mid range, aim head height only and refuse spray fights.', weight: 2 },
@@ -202,7 +223,10 @@ const PLAYBOOK = [
   { weapons: ['phantom'], text: 'The Phantom sprays through smokes with no tracers up close, spray the smoke edge where they cross.', weight: 1 },
   { weapons: ['vandal'], text: 'The Vandal one taps at every range, slow your fights down to single accurate shots, especially at distance.', weight: 1 },
   { weapons: ['bulldog'], text: 'The Bulldog burst fires on ADS, take mid range angles and burst heads, do not spray it like a Vandal.', weight: 2 },
-  { weapons: ['frenzy'], text: 'The Frenzy melts inside 10 meters, play it like a shotgun angle, not like a Ghost.', weight: 2 },
+  { weapons: ['frenzy'], text: FRENZY_BAND
+    ? `Your pistol melts inside ${FRENZY_BAND} meters, play it like a shotgun angle, not like a Ghost.`
+    : 'Your pistol melts up close, play it like a shotgun angle, not like a Ghost.', weight: 2,
+  ...(FRENZY_BAND ? { source: { kind: 'computed', topic: 'frenzy falloff', numbers: 'valorant-api.com damage table' } } : {}) },
 
   // ── roles (apply once the confirmed agent maps to a role) ───────────────
   { roles: ['duelist'], side: 'attack', text: 'Your entry creates space even when traded, but swing WITH your util as it lands, never before it.', weight: 2 },
@@ -495,6 +519,8 @@ try {
   console.error('[knowledge] agent roles from the game data unavailable:', e.message);
 }
 
+const BUY = primer.buyLines();
+
 /** Read the live context into the flags the notes are tagged with. */
 function situationOf(ctx) {
   const phaseRaw = String(ctx.phase || '').toLowerCase();
@@ -511,14 +537,20 @@ function situationOf(ctx) {
   const team    = Number(ctx.teamScore)  || 0;
   const enemy   = Number(ctx.enemyScore) || 0;
   const flags   = new Set();
-  if (round === 1 || round === 13) flags.add('pistol');
-  if (phase === 'buy' && credits != null && !flags.has('pistol')) {
-    if (credits < 2000) flags.add('eco');
-    else if (credits < 3900) flags.add('forcebuy');
+  // The pistol rounds follow the mode: round 1 and the first round after the
+  // half, which is 13 in Competitive and Unrated and 5 in Swiftplay, where
+  // round 13 never comes. A context with no mode is Competitive, as before.
+  const half = primer.halfOf(ctx.mode || ctx.gameMode);
+  if (round === 1 || (half && round === half + 1)) flags.add('pistol');
+  // The buy lines are computed from the prices: less than a Spectre with Light
+  // Armor is an eco, a rifle with Heavy Armor is a full buy.
+  if (phase === 'buy' && credits != null && !flags.has('pistol') && BUY.eco && BUY.full) {
+    if (credits < BUY.eco) flags.add('eco');
+    else if (credits < BUY.full) flags.add('forcebuy');
     else flags.add('fullbuy');
   }
   // Round after a pistol: the score tells us who is rich and who is broke.
-  if (round === 2 || round === 14) {
+  if (round === 2 || (half && round === half + 2)) {
     if (team > enemy) flags.add('antieco');
     else if (enemy > team) flags.add('lostpistol');
   }

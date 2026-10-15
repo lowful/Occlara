@@ -63,11 +63,16 @@ const WEIGHT = {
 };
 const CAUSE_WEIGHT = 2;
 
-/** The habit that fixes each death cause, in one line. */
+/**
+ * The habit that fixes each death cause, in one line. Repeek's (8.5.0) is the
+ * widened cause's: staying on the angle after the first exchange is one too
+ * (death-causes.js), and the old line, "never peek the same spot twice", said
+ * nothing to a player who never left it.
+ */
 const CAUSE_FIX = {
   'dry-peek': 'Use a flash, a drone or a teammate before you swing an angle.',
   'isolated': 'Play within trading distance of a teammate: close enough that they can swing the moment you die.',
-  'repeek': 'After you are seen or get a kill, change angle. Never peek the same spot twice.',
+  'repeek': 'After the first exchange or a kill, get out of their sight and take the next fight from somewhere else.',
   'crossfire': 'Clear one angle at a time. Smoke or flash off the second one before you step out.',
   'rotating': 'Rotate early or rotate through cover, and have your crosshair up while you move.',
   'overextend': 'Take the space your team can hold with you. Stop chasing kills past them.',

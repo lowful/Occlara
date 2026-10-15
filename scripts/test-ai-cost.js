@@ -119,7 +119,7 @@ const routes = (r) => Object.fromEntries(Object.entries(r.routes).map(([k, v]) =
     && !costs.asksUsage('https://api.openai.com/v1') && !costs.asksUsage('https://openrouter.ai.evil.example/v1') && !costs.asksUsage('https://notopenrouter.ai/v1')
     && !costs.asksUsage('') && costs.asking(),
   'OpenRouter is asked what each call cost, and no other provider: a look alike host is not OpenRouter');
-  ok(costs.routes.join() === 'read,forensics,review,chat,other', `the routes a call is booked under, and no other: ${costs.routes.join(', ')}`);
+  ok(costs.routes.join() === 'read,forensics,review,chat,bench,other', `the routes a call is booked under, and no other: ${costs.routes.join(', ')}`);
 
   // ── Each route's calls, with what the provider said they cost ─────────────
   ai.next = priced('STATE: {"phase":"buy","team":3,"enemy":2}', 0.00042);
@@ -185,13 +185,69 @@ const routes = (r) => Object.fromEntries(Object.entries(r.routes).map(([k, v]) =
     && v.global.costToday === v.spend.today.cost && typeof v.global.estCostToday === 'string' && v.spend.asksProvider === true && v.since,
   `/api/admin/costs shows the spend today and this month by route, the real and the estimated apart ($${v.spend && v.spend.today.real} real, $${v.spend && v.spend.today.estimated} estimated)`);
   const listed = (x) => JSON.stringify(Object.keys((x && x.routes) || {}));
-  ok(v.spend && v.spend.routes.join() === 'read,forensics,review,chat,other' && listed(v.spend.today) === JSON.stringify(v.spend.routes)
+  ok(v.spend && v.spend.routes.join() === 'read,forensics,review,chat,bench,other' && listed(v.spend.today) === JSON.stringify(v.spend.routes)
     && listed(v.spend.month) === listed(v.spend.today) && !/rivals/i.test(JSON.stringify(v)),
-  `listing read, forensics, review, chat and other, and no route of a game Occlara no longer coaches (${v.spend && v.spend.routes.join(', ')})`);
+  `listing read, forensics, review, chat, bench and other, and no route of a game Occlara no longer coaches (${v.spend && v.spend.routes.join(', ')})`);
   const rowA = (v.topUsers || []).find((r) => r.user === hashOf(A));
   ok(rowA && near(rowA.costToday, costs.report(A).today.cost) && rowA.spendToday.routes.forensics.calls === 3 && !JSON.stringify(v).includes(A),
     "and each licence's own, by its hash, no part of a key in it");
   ok((await call(admin, 'GET', '/costs', { headers: {} })).status === 401, 'and nobody without the admin password sees any of it');
+
+  // ── A bench is booked apart, and Ask Coach's cap reads the booked cost (8.5.0) ─
+  {
+    const ADMIN = { 'X-Admin-Password': 'cost-password' };
+    const C = 'GC-CCCC-CCCC-CCCC-CCCC';
+    const spent = (key) => costs.report(key).today;
+    const allBefore = spent(null);
+    ai.next = priced('STATE: {"phase":"buy","team":3,"enemy":2}', 0.0004);
+    await call(coach, 'POST', '/read', { headers: { 'X-License-Key': C, ...ADMIN }, body: { image: 'aGVsbG8=', context: {}, variant: 'c' } });
+    ai.next = priced('{"cause": "unclear"}', 0.002);
+    await call(coach, 'POST', '/death-forensics', { headers: { 'X-License-Key': C, ...ADMIN }, body: { agent: 'Jett', map: 'Abyss',
+      benchModel: 'openai/gpt-6-sol', deaths: [{ n: 4, frames: [IMG, IMG], frameAt: [-0.5, 0.5], framesFrom: 'reads' }] } });
+    let all = spent(null);
+    ok(all.routes.bench.calls === allBefore.routes.bench.calls + 2 && near(all.routes.bench.real, allBefore.routes.bench.real + 0.0024)
+      && all.routes.read.calls === allBefore.routes.read.calls && all.routes.forensics.calls === allBefore.routes.forensics.calls
+      && spent(C).calls === 0 && !costs.keys().includes(C),
+    `an admin bench naming a variant or a bench model is booked under bench with no licence, whatever its route ($${all.routes.bench.real})`);
+    ai.next = priced('STATE: {"phase":"buy","team":3,"enemy":2}', 0.0004);
+    await call(coach, 'POST', '/read', { headers: { 'X-License-Key': C }, body: { image: 'aGVsbG8=', context: {}, variant: 'c' } });
+    await call(coach, 'POST', '/read', { headers: { 'X-License-Key': C, ...ADMIN }, body: { image: 'aGVsbG8=', context: {} } });
+    ok(spent(C).routes.read.calls === 2 && spent(C).routes.bench.calls === 0 && spent(null).routes.bench.calls === all.routes.bench.calls,
+      'a variant named without the password, or the password with nothing named, is the licence\'s own read');
+
+    // Ask Coach v2 on a stand in for chat-prompt.js, the route's half alone.
+    const stand = {
+      normalise: (ctx) => ({ v: 2, language: ctx.language || 'en' }),
+      buildPrompt: (input, messages) => `V2\n${messages.map((m) => m.content).join('\n')}`,
+      parseReply: (raw) => ({ reply: String(raw || ''), retry: String(raw || '').split('. ').length < 2, reasons: [], dropped: {} }),
+    };
+    coach.__test.services({ chatPrompt: stand });
+    process.env.CHAT_PROMPT = 'v2';
+    const V2 = { messages: [{ role: 'user', content: 'Why did I lose round 5?' }], context: { v: 2, game: 'valorant', language: 'en' } };
+    const NEW = { 'X-Occlara-Version': '8.5.0' };
+    const D = 'GC-DDDD-DDDD-DDDD-DDDD';
+    const ledger = () => coach.__test.chatLedger.get(D) || [];
+    ai.next = priced('You lost the round on the plant. Next time hold the angle with a teammate.', 0.0123);
+    const one = await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': D, ...NEW }, body: V2 });
+    ok(one.status === 200 && one.body.v === 2 && ledger().length === 1 && near(ledger()[0].cost, 0.0123)
+      && near(spent(D).routes.chat.real, 0.0123),
+    `a v2 question's line in the daily cap is what was booked for it, the provider's own $0.0123 (${ledger()[0] && ledger()[0].cost})`);
+    ai.next = () => ({ content: 'You lost the round on the plant. Next time hold the angle with a teammate.' });
+    await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': D, ...NEW }, body: V2 });
+    ok(ledger().length === 2 && near(ledger()[1].cost, flat), `one that says nothing of its cost is the flat price it was booked at ($${ledger()[1] && ledger()[1].cost})`);
+    ai.next = priced('You lost the round on the plant. Next time hold the angle with a teammate.', 0.0123);
+    const bench = await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': D, ...ADMIN }, body: { ...V2, variant: 'v2' } });
+    ok(bench.status === 200 && bench.body.v === 2 && ledger().length === 2 && near(spent(D).routes.chat.real, 0.0123),
+      'and a bench question on the same licence is in neither its cap nor its chat figure');
+    const E = 'GC-EEEE-EEEE-EEEE-EEEE';
+    ai.next = priced('You lost the round on the plant. Next time hold the angle with a teammate.', 0.05);
+    const statuses = [];
+    for (let i = 0; i < 4; i++) statuses.push((await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': E, ...NEW }, body: V2 })).status);
+    ok(statuses.join() === '200,200,200,429' && near(spent(E).routes.chat.real, 0.15),
+      `three questions booked at $0.05 reach the $0.15 a day, and the next is refused before a call (${statuses.join(', ')})`);
+    delete process.env.CHAT_PROMPT;
+    coach.__test.services({ chatPrompt: null });
+  }
 
   // ── The calendar ──────────────────────────────────────────────────────────
   const at = async (iso, fn) => {

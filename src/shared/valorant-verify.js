@@ -43,9 +43,17 @@
 const deathFrames = require('./death-frames');
 
 let AGENTS = [];
+// A kill's gun as the feed keeps it (killFeedOf): the game's guns, and every
+// agent's abilities by their kit names, since an ability can kill.
+let GUNS = [];
+let KIT_NAMES = [];
 try {
   const d = require('./valorant-data.generated.json');
   AGENTS = Object.keys(d.agents || {});
+  GUNS = Object.keys(d.weapons || {});
+  for (const a of Object.values(d.agents || {})) {
+    for (const k of (a && Array.isArray(a.kit) ? a.kit : [])) if (k && typeof k.name === 'string' && k.name) KIT_NAMES.push(k.name);
+  }
 } catch {
   AGENTS = [];
 }
@@ -143,6 +151,41 @@ function namedKiller(text) {
 
 const same = (a, b) => String(a || '').toLowerCase().replace(/[^a-z]/g, '')
   === String(b || '').toLowerCase().replace(/[^a-z]/g, '');
+
+/*
+ * A round's kill feed as a review keeps it (8.5.0), the shape Ask Coach's one
+ * time fill stores (chat-context.js applyRoundRecord): { ms, by, on }, and
+ * the killer's agent, the victim's and the gun (ka, va, w) where the server
+ * sent them, each an agent the game data knows (agentName) or what the game
+ * data says can kill (feedGun: a gun, the knife, an ability by its kit name),
+ * so nothing a server sent as a player can ride in either. Nothing else of an
+ * entry is kept. Null when the record holds no feed (a server from before it
+ * parsed one).
+ */
+const SIDES = new Set(['me', 'mate', 'enemy']);
+function feedGun(w) {
+  const s = weaponName(w);
+  const t = s ? s.toLowerCase() : '';
+  if (!t) return null;
+  const gun = GUNS.find((g) => g === t);
+  if (gun) return gun.charAt(0).toUpperCase() + gun.slice(1);
+  if (t === 'melee' || t === 'knife') return 'Melee';
+  return KIT_NAMES.find((n) => n.toLowerCase() === t) || null;
+}
+function killFeedOf(feed) {
+  if (!Array.isArray(feed)) return null;
+  return feed.filter((k) => k && typeof k === 'object').slice(0, 24).map((k) => {
+    const e = { ms: typeof k.ms === 'number' && Number.isFinite(k.ms) ? k.ms : null,
+      by: SIDES.has(k.by) ? k.by : null, on: SIDES.has(k.on) ? k.on : null };
+    const ka = agentName(k.ka);
+    const va = agentName(k.va);
+    const w = feedGun(k.w);
+    if (ka) e.ka = ka;
+    if (va) e.va = va;
+    if (w) e.w = w;
+    return e;
+  });
+}
 
 /**
  * @param rounds  ledger.list() rows
@@ -275,6 +318,16 @@ function reconcile(rounds, riot, opts) {
       aliveAtDeath: rr.aliveAtDeath && typeof rr.aliveAtDeath.mates === 'number' ? rr.aliveAtDeath : null,
       clutch: rr.clutch && typeof rr.clutch.vs === 'number' ? rr.clutch : null,
       afterPlant: !!rr.afterPlant,
+      // THE ROUND IN ORDER (8.5.0), kept as the link has it so Ask Coach can
+      // tell a round without asking again (chat-context.js needsFill): Riot's
+      // kill feed of it, when and which side each end was on, both ends by
+      // agent and the gun once the server sends them, never a name; and the
+      // plant's moment and site. Null where the record has none. Never named
+      // plantMs: that is death-frames.js's, which times a post plant death only
+      // once withRiotTimes has handed it Riot's milliseconds for the look.
+      feed: killFeedOf(rr.feed),
+      riotPlantMs: typeof rr.plantMs === 'number' && Number.isFinite(rr.plantMs) ? rr.plantMs : null,
+      plantSite: /^[ABC]$/.test(String(rr.plantSite || '')) ? rr.plantSite : null,
     };
   });
 
@@ -349,4 +402,4 @@ function describe(checks) {
   return `Checked against Riot's record of ${scope}: ${deaths}.`;
 }
 
-module.exports = { reconcile, describe, namedKiller, weaponName, agentName, NOT_A_WEAPON };
+module.exports = { reconcile, describe, namedKiller, weaponName, agentName, killFeedOf, feedGun, NOT_A_WEAPON };

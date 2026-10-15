@@ -38,6 +38,9 @@ const path = require('path');
  */
 const data = require(path.join(__dirname, '..', 'server', 'valorant-data.generated.json'));
 const knowledge = require(path.join(__dirname, '..', 'server', 'services', 'knowledge.js'));
+// Spelled numbers and declared claims are read and computed by the primer,
+// the one place that knows the absorption rule (game-primer.js).
+const { spelledNumbers, noteClaims } = require(path.join(__dirname, '..', 'server', 'services', 'game-primer.js'));
 
 const AGENTS = data.agents || {};
 const MAPS = (data.maps || []).map((m) => m.toLowerCase());
@@ -129,6 +132,9 @@ if (!notes) {
   console.error('knowledge.js does not expose all(); add it so the playbook can be checked.');
   process.exit(2);
 }
+// check:primer plants control notes here (a spelled number, a false claim),
+// which this run must fail on, so a check that stops checking is seen.
+if (process.env.CHECK_PLAYBOOK_PLANT) notes.push(...JSON.parse(fs.readFileSync(process.env.CHECK_PLAYBOOK_PLANT, 'utf8')));
 
 /*
  * The merged file is read directly rather than through knowledge.all(), which
@@ -186,6 +192,33 @@ for (const note of imported) {
   if (Object.prototype.hasOwnProperty.call(note, 'coach')
       || (src && typeof src === 'object' && Object.prototype.hasOwnProperty.call(src, 'coach'))) {
     fail(note, 'carries a coach key, and the app never says where a note came from');
+  }
+}
+
+/*
+ * EVERY TOPIC A REVIEW SENDS THE PLAYER TO STUDY IS ONE A NOTE CARRIES
+ * (8.5.0). study() in match-review.js weighs a note by its source.topic when
+ * a pattern (PATTERN_TOPICS) or a death's cause (CAUSE_TOPICS) points to it,
+ * and a topic no note carries is a weight nothing ever gets: the study list
+ * quietly stops following that pattern or cause. CHECK_PLAYBOOK_TOPIC plants
+ * one nobody carries, which this run must fail on.
+ */
+{
+  const review = require(path.join(__dirname, '..', 'server', 'services', 'match-review.js'));
+  const carried = new Set(notes.map((n) => n && n.source && n.source.topic).filter((t) => typeof t === 'string'));
+  const asked = [];
+  for (const [table, topics] of [['PATTERN_TOPICS', review.PATTERN_TOPICS], ['CAUSE_TOPICS', review.CAUSE_TOPICS]]) {
+    if (!topics || typeof topics !== 'object') {
+      problems.push({ msg: `match-review.js exports no ${table}, so the topics study() weighs are unchecked`, text: '' });
+      continue;
+    }
+    for (const [key, list] of Object.entries(topics)) for (const t of list) asked.push({ table, key, topic: t });
+  }
+  if (process.env.CHECK_PLAYBOOK_TOPIC) asked.push({ table: 'CAUSE_TOPICS', key: 'planted', topic: process.env.CHECK_PLAYBOOK_TOPIC });
+  for (const a of asked) {
+    if (!carried.has(a.topic)) {
+      problems.push({ msg: `${a.table}.${a.key} sends the player to "${a.topic}", which no note's source.topic carries, so study() can never list one for it`, text: '' });
+    }
   }
 }
 
@@ -333,7 +366,10 @@ for (const note of notes) {
   if (!note.source || !note.source.numbers) continue;
   const text = String(note.text || '');
   const nums = (text.match(/\b\d+\b/g) || []).map(Number);
-  if (!nums.length) continue;
+  // A spelled number is a number too (8.5.0): "two taps a full shield" was a
+  // claim nothing read, and it is false against Heavy Armor.
+  const spelled = spelledNumbers(text);
+  if (!nums.length && !spelled.length) continue;
 
   // The union of every legal number across the weapons this note is tagged
   // with. A note tagged for three shotguns may quote any of their figures.
@@ -347,6 +383,9 @@ for (const note of notes) {
     if (rec.cost) legal.add(rec.cost);
   }
   if (!known) continue;                 // tag is a substring matcher, not a name
+  // A derived number (hits to kill, a magazine) is legal only as a claim the
+  // note declares in source.claims, each computed below against the table.
+  for (const v of noteClaims(note).values) legal.add(v);
 
   /*
    * A WEAPON NOTE MUST NOT NAME THE WEAPON IT IS TAGGED FOR.
@@ -379,6 +418,17 @@ for (const note of notes) {
         + `cost for ${note.weapons.join('/')} in the generated table`);
     }
   }
+  for (const s of spelled) {
+    if (!legal.has(s.value)) {
+      fail(note, `says "${s.word}" (${s.value}), which is not in the table for ${note.weapons.join('/')} `
+        + 'nor a claim the note declares in source.claims');
+    }
+  }
+}
+
+// Every declared claim is computed against the table, whatever the note.
+for (const note of notes) {
+  for (const p of noteClaims(note).problems) fail(note, p);
 }
 
 // ── Duplicates ──────────────────────────────────────────────────────────────
