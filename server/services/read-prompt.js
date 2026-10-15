@@ -84,10 +84,27 @@ const FIELDS = `STATE: {"side":null,"phase":null,"round":null,"clock":null,"team
  * frames dead in every session and no more LOBBY, and passing verify:ai plain
  * and at --lag 4, its cost a read within a tenth of the live prompt's.
  */
-const VARIANTS = ['b', 'c'];
+/*
+ * C IS THE LIVE PROMPT SINCE 15 OCT 2026, and the prompt every install read
+ * with before it is variant a, kept byte for byte for the benches to measure
+ * against. Three runs of each, interleaved over the four real sessions on one
+ * upstream, each frame sent the engine's own context and scored by time
+ * against Riot (npm run bench:sessions), c against it:
+ *   - invented deaths 4.33 a run against 7.33, no real death it caught missed
+ *   - real deaths caught: the Abyss 17.3 of 21 against 15, the Split 16 of 16
+ *     against 15.7, the Sunset 5 of 5 and the Fracture 3 of 3 both
+ *   - buy frames read dead 0.5 to 4.1% against 8.2 to 32.8%, in every session
+ *   - LOBBY replies 10.7 against 38 (the false menus that ended a match early)
+ *   - invented plants 1.33 both; verify:ai PASSED plain and at --lag 4
+ *   - a read cost 12.7% more ($0.0003173 against $0.0002816), its prompt
+ *     about 1,000 characters longer: past the tenth the bench allowed, and the
+ *     player chose c for the rest
+ * The live tell keeps 120 characters (TELL_MAX in routes/coach.js), a's 60.
+ */
+const VARIANTS = ['a', 'b', 'c'];
 const LINES = {
   alive: {
-    live: `- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"). No: alive false, and aliveTell names the dead tell: the word "Spectating", a teammate's portrait and name above "SWITCH PLAYER" bottom-left, "KILLED BY" upper right, a "COMBAT REPORT", a killcam, or no own health number at all. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. A flash, a smoke or a scope is not death.`,
+    a: `- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"). No: alive false, and aliveTell names the dead tell: the word "Spectating", a teammate's portrait and name above "SWITCH PLAYER" bottom-left, "KILLED BY" upper right, a "COMBAT REPORT", a killcam, or no own health number at all. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. A flash, a smoke or a scope is not death.`,
     b: `- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"). No: alive false, and aliveTell names the evidence on THIS frame. The death screen prints SWITCH PLAYER at the bottom-left, KILLED BY at the upper right and a COMBAT REPORT panel: write those words in aliveTell only when they are printed on this frame, never because you expect them there. With none of them printed, aliveTell names what you see in place of the player's own health and loadout. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. A flash, a smoke or a scope is not death.
 - SPECTATORS and a number at the top right counts the people watching the player on screen. A living player sees it, so it is never a sign of death, and it is no sign of life either: decide alive from the health number and the death screen, never from it, and never write it in aliveTell.`,
     c: `- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"), however low or red the number is. The player is dead only when this frame prints SWITCH PLAYER at the bottom-left, or a COMBAT REPORT panel with KILLED BY at its top and ROUND ONGOING at its foot, or shows no health number at the bottom-center at all. Then alive false, and aliveTell names which of these is on this frame, never a word the frame does not print and never a word to say it is absent. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. If you cannot tell, alive null.
@@ -95,11 +112,14 @@ const LINES = {
 - None of these is a sign of death, and none goes in aliveTell: SPECTATORS and a number at the top right (it counts who is watching the player), a skull icon at the bottom-center (the player's own kill banner), a name in the kill feed, the scoreboard, the map, the buy menu, a WON, LOST or FLAWLESS banner, a flash, a smoke or a scope.`,
   },
   clock: {
-    live: `- clock: the round timer at the top-center exactly as shown ("1:12"). After a plant it is the spike timer.`,
+    a: `- clock: the round timer at the top-center exactly as shown ("1:12"). After a plant it is the spike timer.`,
     b: `- clock: the round timer at the top-center exactly as shown ("1:12"). Once the spike is planted the game shows the spike icon there and no timer at all: clock null.`,
     c: `- clock: the timer at the top-center exactly as shown ("1:12"). When the spike icon stands in its place there is no timer: clock null. A timer still counting there means the spike is not down: then phase is not "postplant" and spike is not "planted".`,
   },
 };
+// The live prompt is c's, word for word; a bench naming c is read with it.
+LINES.alive.live = LINES.alive.c;
+LINES.clock.live = LINES.clock.c;
 
 function contextLine(ctx) {
   const c = ctx || {};
@@ -119,7 +139,8 @@ function contextLine(ctx) {
 
 /**
  * @param ctx      what the last applied read showed (contextLine)
- * @param variant  'b' or 'c' for a bench's variant, anything else the live prompt
+ * @param variant  'a', 'b' or 'c' for a bench's variant ('c' is the live
+ *                 prompt's own text), anything else the live prompt
  */
 function buildReadPrompt(ctx, variant) {
   const v = VARIANTS.includes(variant) ? variant : 'live';

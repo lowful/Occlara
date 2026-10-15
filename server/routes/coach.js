@@ -1018,9 +1018,10 @@ const READ_VARIANTS = new Set(readPrompt.VARIANTS);
 // room. 120 on c: at 90, 19 to 45% of b's dead tells were still cut, and the
 // Sunset swiftplay's frame-00309 "SPECTATORS 1" came out "SPECTATOR", which
 // the counter rule does not know and the spectator tell does. Every variant
-// has its own, since a missing one would quietly be the live 60. The live cap
-// moves only with the live prompt.
-const TELL_MAX = { live: 60, b: 90, c: 120 };
+// has its own, since a missing one would quietly be the live cap. The live cap
+// moves only with the live prompt: c's 120 since c became it (15 Oct 2026),
+// and a, the prompt before it, keeps its 60 for the benches.
+const TELL_MAX = { live: 120, a: 60, b: 90, c: 120 };
 function readVariant(req) {
   const v = String((req.body && req.body.variant) || '').trim().toLowerCase();
   return v && READ_VARIANTS.has(v) && isAdmin(req) ? v : null;
