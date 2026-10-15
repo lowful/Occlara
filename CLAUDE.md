@@ -2604,6 +2604,22 @@ the live prompt with its alive and clock lines given the judge's word for
 word, who may ask for it and its cap, and `test:benchsession` the bench's
 flag for c.
 
+**c is the live prompt since 15 Oct 2026**, the player's choice, and the
+prompt every install read with before it is variant a, byte for byte, for the
+benches to measure against (`read-prompt.js`: `LINES.alive.live` and
+`LINES.clock.live` are c's; `TELL_MAX` 120 live and on c, 60 on a, 90 on b).
+`npm run bench:sessions`, three runs of each interleaved over the four
+sessions: invented deaths 4.33 a run against 7.33, no death the prompt before
+caught missed (the Abyss 17.3 of 21 caught against 15, the Split 16 of 16
+against 15.7, the Sunset 5 of 5 and the Fracture 3 of 3 both), buy frames
+read dead 0.5 to 4.1% against 8.2 to 32.8% in every session, LOBBY replies
+10.7 against 38, invented plants 1.33 both, verify:ai PASSED plain and at
+`--lag 4`. It missed one term, a read costing 12.7% more ($0.0003173 against
+$0.0002816, its prompt about 1,000 characters longer) where the bench allowed
+a tenth, and the player chose c for the rest. `test:serverguards` holds the
+live prompt byte for byte as c's, c's bench read with that very prompt, and a
+byte for byte as the prompt before.
+
 **The bench that decides it reads as the app reads** (8.4.3,
 `bench-read.js --engine`, `scripts/read-score.js`, `npm run bench:sessions`).
 verify:ai sends each frame the server's own replies merged raw, so a misread

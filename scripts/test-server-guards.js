@@ -251,19 +251,32 @@ const PW = 'correct horse battery staple';
     const readPrompt = require(path.join(SERVER, 'services', 'read-prompt.js'));
     const { readVariant } = coach.__test;
     const sha = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
-    // TODAY'S LIVE PROMPT, BYTE FOR BYTE: its length and sha256 for three
-    // contexts, taken from the prompt every install read with before b was
-    // written. It changes only when a variant is made the default, once
-    // npm run verify:ai has passed it live.
+    // THE LIVE PROMPT, BYTE FOR BYTE: its length and sha256 for three
+    // contexts. c's since 15 Oct 2026 (bench:sessions against the prompt
+    // before it, and verify:ai plain and at --lag 4). It changes only when a
+    // variant is made the default, once its bench has passed it live.
+    const CTXS = [{},
+      { agent: 'Jett', map: 'Fracture', side: 'attacking', teamScore: 4, enemyScore: 1, playerAlive: false, gameMode: 'swiftplay' },
+      { map: 'Abyss', teamScore: 0, enemyScore: 0, playerAlive: true }];
     const LIVE = [
-      [{}, 4378, 'fca5c78206bda89f06c50b8f72068830c4cae5afa70e90b018e041646949b64c'],
-      [{ agent: 'Jett', map: 'Fracture', side: 'attacking', teamScore: 4, enemyScore: 1, playerAlive: false, gameMode: 'swiftplay' },
-        4578, '4d932b23cac299d678df47bca121bd89f1e8aa53f336c50a9c1c76fdfedc1e84'],
-      [{ map: 'Abyss', teamScore: 0, enemyScore: 0, playerAlive: true }, 4471, '32ac2fcd61539669fd7c2193a662cde813da0a32576210b7756e0b7deca31507'],
+      [5365, '156952fc388cb467b54a3ad06548b3b174bcc9c24fc7c8f707662a39fe304f4c'],
+      [5565, 'b1b26fea14540b05210b989094692001cdff81e8983e5b6274fc7b78d74e0f71'],
+      [5458, '938b110fad0532c5c7cee22c212105a8b916a980d7515abe6c098e0a1d31b21b'],
     ];
-    const moved = LIVE.map(([c, len, h]) => ({ p: readPrompt.buildReadPrompt(c), len, h }))
+    // And the prompt every install read with before it, kept as variant a,
+    // byte for byte, for the benches to measure against.
+    const BEFORE = [
+      [4378, 'fca5c78206bda89f06c50b8f72068830c4cae5afa70e90b018e041646949b64c'],
+      [4578, '4d932b23cac299d678df47bca121bd89f1e8aa53f336c50a9c1c76fdfedc1e84'],
+      [4471, '32ac2fcd61539669fd7c2193a662cde813da0a32576210b7756e0b7deca31507'],
+    ];
+    const movedOf = (pins, variant) => pins.map(([len, h], i) => ({ p: readPrompt.buildReadPrompt(CTXS[i], variant), len, h }))
       .filter(({ p, len, h }) => p.length !== len || sha(p) !== h).map(({ p, len }) => `${p.length} characters where ${len} were`);
-    ok(moved.length === 0, `the live read prompt is byte for byte the one every install reads with${moved.length ? ` (${moved.join('; ')})` : ''}`);
+    const moved = movedOf(LIVE);
+    ok(moved.length === 0, `the live read prompt is byte for byte c's, the one every install reads with${moved.length ? ` (${moved.join('; ')})` : ''}`);
+    ok(CTXS.every((c) => readPrompt.buildReadPrompt(c) === readPrompt.buildReadPrompt(c, 'c')), 'and a bench naming c is read with that very prompt');
+    const movedA = movedOf(BEFORE, 'a');
+    ok(movedA.length === 0, `variant a is the prompt before it, byte for byte${movedA.length ? ` (${movedA.join('; ')})` : ''}`);
     ok(sha(readPrompt.FIELDS) === '307ee0dac94c7ae22b2bf0cc707dcda0e8ff3c2521c03c5e8d3289b366a4fcdc',
       'and its STATE line, the shape mapState parses, is the one it always was');
 
@@ -289,20 +302,25 @@ const PW = 'correct horse battery staple';
     const live = readPrompt.buildReadPrompt(CTX);
     const plain = await read({});
     ok(plain.r.status === 200 && plain.prompt === live && !('variant' in plain.body) && !('model' in plain.body)
-      && plain.body.context.aliveTell === TELL.slice(0, 60),
-    `a client's read is the live prompt, its tell kept to 60 characters, and its reply the shape it always was (${plain.r.status})`);
+      && plain.body.context.aliveTell === TELL.slice(0, 120),
+    `a client's read is the live prompt, its tell kept to 120 characters, and its reply the shape it always was (${plain.r.status})`);
     const player = await read({ variant: 'b' });
-    ok(player.r.status === 200 && player.prompt === live && player.body.variant === null && player.body.context.aliveTell === TELL.slice(0, 60),
+    ok(player.r.status === 200 && player.prompt === live && player.body.variant === null && player.body.context.aliveTell === TELL.slice(0, 120),
       'a player naming the variant is read with the live prompt and its cap, and told it was (variant null)');
     const bench = await read({ variant: 'b' }, { 'X-Admin-Password': PW });
     ok(bench.r.status === 200 && bench.prompt === readPrompt.buildReadPrompt(CTX, 'b') && bench.prompt !== live && bench.body.variant === 'b',
       'an admin bench naming it is read with variant b, and told so');
+    const before = await read({ variant: 'a' }, { 'X-Admin-Password': PW });
+    ok(before.r.status === 200 && before.prompt === readPrompt.buildReadPrompt(CTX, 'a') && before.prompt !== live && before.body.variant === 'a',
+      'an admin bench naming a is read with the prompt before c, and told so');
     ok(bench.body.context.aliveTell === TELL.slice(0, 90) && /SPECTATORS 1/.test(bench.body.context.aliveTell)
-      && !/SPECTATORS/.test(plain.body.context.aliveTell),
-    `on b the tell keeps 90 characters, so "SPECTATORS 1" survives where 60 cut it to "${plain.body.context.aliveTell.slice(-3)}"`);
-    ok(plain.body.context.playerAlive === false && plain.body.context.playerHp === undefined
-      && bench.body.context.playerAlive === true && bench.body.context.playerHp === 89,
-    'and the counter it keeps is seen for what it is (SPECTATOR_COUNT): the living player\'s 89 stands, where the cut tell read them dead');
+      && /SPECTATORS 1/.test(plain.body.context.aliveTell) && !/SPECTATORS/.test(before.body.context.aliveTell)
+      && before.body.context.aliveTell === TELL.slice(0, 60),
+    `the live tell's 120 and b's 90 keep "SPECTATORS 1", where a's 60 cut it to "${before.body.context.aliveTell.slice(-3)}"`);
+    ok(plain.body.context.playerAlive === true && plain.body.context.playerHp === 89
+      && bench.body.context.playerAlive === true && bench.body.context.playerHp === 89
+      && before.body.context.playerAlive === false && before.body.context.playerHp === undefined,
+    'and the counter it keeps is seen for what it is (SPECTATOR_COUNT): the living player\'s 89 stands, where a\'s cut tell read them dead');
 
     // Variant c, asked for the same way, and served the same way.
     ok(readVariant({ body: { variant: 'c' }, headers: {} }) === null
@@ -312,21 +330,22 @@ const PW = 'correct horse battery staple';
     ok(readVariant({ body: { variant: 'c' }, headers: { 'x-admin-password': PW } }) === 'c'
       && readVariant({ body: { variant: ' C ' }, headers: { 'x-admin-password': PW } }) === 'c', 'an admin bench naming c gets it');
     const { TELL_MAX } = coach.__test;
-    ok(readPrompt.VARIANTS.every((v) => Number.isInteger(TELL_MAX[v]) && TELL_MAX[v] > TELL_MAX.live)
-      && TELL_MAX.live === 60 && TELL_MAX.b === 90 && TELL_MAX.c === 120,
-    `every variant keeps its own length of the tell, 120 on c, 90 on b, 60 on the live prompt (${JSON.stringify(TELL_MAX)})`);
+    ok(readPrompt.VARIANTS.every((v) => Number.isInteger(TELL_MAX[v]))
+      && TELL_MAX.live === 120 && TELL_MAX.c === TELL_MAX.live && TELL_MAX.b === 90 && TELL_MAX.a === 60,
+    `every variant keeps its own length of the tell, 120 on the live prompt and on c, 90 on b, 60 on a (${JSON.stringify(TELL_MAX)})`);
     // A tell naming the counter past its 90th character, as the Sunset
     // swiftplay's frame-00309 did, on a living player at 99.
     const TELL_C = 'own HP 99 and Classic bottom left, WON banner at the top center, round 4 is won, SPECTATORS 1 top right, the kill feed shows the player killed Reyna';
     model.reply = `STATE: ${JSON.stringify({ phase: 'active', alive: true, hp: 99, aliveTell: TELL_C, weapon: 'Classic' })}`;
     const playerC = await read({ variant: 'c' });
     ok(playerC.r.status === 200 && playerC.prompt === live && playerC.body.variant === null
-      && playerC.body.context.aliveTell === TELL_C.slice(0, 60),
+      && playerC.body.context.aliveTell === TELL_C.slice(0, 120),
     'a player naming variant c is read with the live prompt and its cap, and told it was (variant null)');
     const benchC = await read({ variant: 'c' }, { 'X-Admin-Password': PW });
     const promptC = readPrompt.buildReadPrompt(CTX, 'c');
-    ok(benchC.r.status === 200 && benchC.prompt === promptC && promptC !== live && promptC !== readPrompt.buildReadPrompt(CTX, 'b')
-      && benchC.body.variant === 'c', 'an admin bench naming c is read with variant c, neither the live prompt nor b, and told so');
+    ok(benchC.r.status === 200 && benchC.prompt === promptC && promptC === live && promptC !== readPrompt.buildReadPrompt(CTX, 'b')
+      && promptC !== readPrompt.buildReadPrompt(CTX, 'a') && benchC.body.variant === 'c',
+    'an admin bench naming c is read with c, the live prompt\'s own text, neither b nor a, and told so');
     const benchB = await read({ variant: 'b' }, { 'X-Admin-Password': PW });
     const tellC = benchC.body.context.aliveTell || '';
     const tellB = benchB.body.context.aliveTell || '';
@@ -338,9 +357,10 @@ const PW = 'correct horse battery staple';
     'and the living player\'s 99 stands on c, where the tell cut to "SPECTATOR" read them dead on b');
     model.reply = null;
 
-    // What b says, against what the live prompt says.
+    // What b says, against what the prompt before c said (a, the live one
+    // when b and c were written).
     const B = readPrompt.buildReadPrompt({}, 'b');
-    const A = readPrompt.buildReadPrompt({});
+    const A = readPrompt.buildReadPrompt({}, 'a');
     const aliveOf = (p) => p.split('\n').find((l) => l.startsWith('- alive and aliveTell:')) || '';
     const deadOf = (p) => { const l = aliveOf(p); return l.slice(l.indexOf('No:')); };
     const changed = B.split('\n').filter((l) => !A.split('\n').includes(l));
@@ -444,7 +464,7 @@ const PW = 'correct horse battery staple';
     model.reply = null;
     const cap = coach.__test.TELL_MAX.live;
     ok(NONE.every((t) => t.length <= cap) && STILL.every((t) => t.length <= cap),
-      'every tell here fits the live prompt\'s 60 characters, so the rule weighs it whole');
+      `every tell here fits the live prompt's ${cap} characters, so the rule weighs it whole`);
     ok(none.every((x) => x.status === 200 && x.ctx.playerAlive === true && x.ctx.playerHp === 100 && x.ctx.aliveTell === x.t),
       `a death word its own clause negates ("SWITCH PLAYER not shown", "no SWITCH PLAYER or KILLED BY printed") leaves the living player's 100 as the model read it (${none.map((x) => `${x.ctx.playerAlive}/${x.ctx.playerHp}`).join(', ')})`);
     ok(still.every((x) => x.status === 200 && x.ctx.playerAlive === false && x.ctx.playerHp === undefined),
