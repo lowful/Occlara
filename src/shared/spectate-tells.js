@@ -79,12 +79,77 @@ const SPECTATE_FALSE_FRIEND = /\bspectat(?:e|es|ing|or)\s+(?:the\s+)?(?:score\s?
  * "SPECTATORS 1 top right" on the frame after, and a death registered in a
  * round Riot has the player surviving. A spectator screen names a teammate, a
  * banner or SWITCH PLAYER, never a number, and a teammate's name that ends in
- * one ("h20") is not the counter either.
+ * one ("h20") is not the counter either. Whatever form of the word the number
+ * follows (8.4.3): "Spectated 1 top right" and "spectated by 1" are the player
+ * being watched, and read as a spectator screen each proved a death on one
+ * frame at 99 health.
  */
-const SPECTATOR_COUNT = /\bspectators\b|\bspectat(?:e|es|ing|or)\s*:?\s*\d{1,2}(?![\w/])|\b\d{1,2}\s+spectators?\b|\bspectators?\s+(?:count|counter|number|icon)\b/i;
+const SPECTATOR_COUNT = /\bspectators\b|\bspectat(?:e|es|ing|or)\s*:?\s*\d{1,2}(?![\w/])|\bspectated(?:\s+by)?\s*:?\s*\d{1,2}(?![\w/])|\b\d{1,2}\s+spectators?\b|\bspectators?\s+(?:count|counter|number|icon)\b/i;
 
 /** What only the death screen prints, which outranks both false friends. */
 const DEATH_SCREEN = /switch player|kill ?cam|combat report|killed by/i;
+
+/*
+ * A DEATH WORD ITS OWN CLAUSE NEGATES IS NO DEATH WORD (8.4.3).
+ *
+ * Variant b of the read prompt, benched on the player's four sessions, wrote
+ * "SWITCH PLAYER not shown", "SWITCH PLAYER not printed" and "no SWITCH
+ * PLAYER or KILLED BY printed": nine tells, eight of them on a living player
+ * in a buy phase, and every word list here took the words for the screen. So
+ * a death word (spectating, SWITCH PLAYER, KILLED BY, the COMBAT REPORT, a
+ * killcam, a death recap, YOU DIED, TEAM ELIMINATED, observer, respawn) counts
+ * only where its own clause, to a comma, a full stop, a semicolon or a bar,
+ * does not negate it: "no", "not", "without", "never", "neither" or "nor"
+ * right before it, or "not shown", "not printed", "not visible", "not on
+ * screen", "absent", "missing" or "hidden" right after it, at most two words
+ * for what it is ("text", "prompt", "panel") or "is" between. Two joined by
+ * "or" or "nor" share one negation. The "no" in "SWITCH PLAYER bottom left, no
+ * own HP" and "KILLED BY Sage, no own health" is the health's, and the word
+ * stands, as every word its clause leaves alone does: "KILLED BY PHOENIX and
+ * COMBAT REPORT panel printed, SWITCH PLAYER not visible" still prints the
+ * death screen, and it was the Abyss match's round 20 death. A phrase that is
+ * no death word (a teammate's HP, "no hp") is taken as it always was.
+ * MIRRORED by hand in server/routes/coach.js; test-spectate.js holds the two
+ * equal.
+ */
+const DEATH_WORD = /^(?:spectat|switch player|kill ?cam|death ?recap|combat report|killed by|observer|you died|team eliminated|respawn)/i;
+const NEGATED_BEFORE = /\b(?:no|not|without|never|neither|nor)\s+$/i;
+const NEGATED_AFTER = /^\s+(?:(?:text|prompt|panel|banner|label|button|message|screen|is|are|was|were)\s+){0,2}(?:not\s+(?:shown|printed|visible|on\s+screen)|absent|missing|hidden)\b/i;
+const OR_JOINED = /^\s+(?:or|nor)\s+$/i;
+const EVERY = new WeakMap();   // each word list's global twin, made once
+
+/** Does the tell say one of re's words, a death word its own clause negates left out? */
+function affirms(re, tell) {
+  const t = String(tell || '');
+  if (!t || t.search(re) < 0) return false;
+  let every = EVERY.get(re);
+  if (!every) {
+    every = new RegExp(re.source, `${re.flags.replace('g', '')}g`);
+    EVERY.set(re, every);
+  }
+  const words = [];
+  for (const m of t.matchAll(every)) {
+    if (!m[0]) continue;
+    if (!DEATH_WORD.test(m[0])) return true;
+    const from = m.index;
+    const to = from + m[0].length;
+    const head = t.slice(0, from);
+    const before = head.slice(Math.max(head.lastIndexOf(','), head.lastIndexOf('.'), head.lastIndexOf(';'), head.lastIndexOf('|')) + 1);
+    // To the end of its own clause, the rest of a cut word ("spectat|ing") left out.
+    const tail = t.slice(to).replace(/^\w+/, '');
+    const end = tail.search(/[,.;|]/);
+    const after = end < 0 ? tail : tail.slice(0, end);
+    words.push({ from, to, neg: NEGATED_BEFORE.test(before) ? 1 : (NEGATED_AFTER.test(after) ? -1 : 0) });
+  }
+  // "or" and "nor" carry a negation on: forwards from one before, back from one after.
+  for (let i = 1; i < words.length; i++) {
+    if (!words[i].neg && words[i - 1].neg === 1 && OR_JOINED.test(t.slice(words[i - 1].to, words[i].from))) words[i].neg = 1;
+  }
+  for (let i = words.length - 2; i >= 0; i--) {
+    if (!words[i].neg && words[i + 1].neg === -1 && OR_JOINED.test(t.slice(words[i].to, words[i + 1].from))) words[i].neg = -1;
+  }
+  return words.some((w) => !w.neg);
+}
 
 /** A read the model itself was unsure about is never proof of anything. */
 const UNSURE_TELL = /unreadable|kept previous|unclear|not sure|cannot tell|can.?t tell|assum/i;
@@ -109,15 +174,15 @@ const lower = (v) => String(v || '').toLowerCase();
 /** The spectator counter named, and nothing the death screen prints beside it. */
 function countsSpectators(tell) {
   const t = String(tell || '');
-  return SPECTATOR_COUNT.test(t) && !DEATH_SCREEN.test(t);
+  return SPECTATOR_COUNT.test(t) && !affirms(DEATH_SCREEN, t);
 }
 
 /** Does the tell name a spectator screen, allowing for the scoreboard and counter exceptions? */
 function tellSaysSpectating(tell) {
   const t = String(tell || '');
-  if (!t || !SPECTATE_TELL.test(t)) return false;
+  if (!t || !affirms(SPECTATE_TELL, t)) return false;
   // Both exceptions only apply when nothing stronger is present.
-  if (SPECTATE_FALSE_FRIEND.test(t) && !DEATH_SCREEN.test(t)) return false;
+  if (SPECTATE_FALSE_FRIEND.test(t) && !affirms(DEATH_SCREEN, t)) return false;
   if (countsSpectators(t)) return false;
   return true;
 }
@@ -262,5 +327,6 @@ function readHudOwner(f) {
 
 module.exports = {
   SPECTATE_TELL, SPECTATE_FALSE_FRIEND, SPECTATOR_COUNT, UNSURE_TELL, OWN_HUD, KILLED_BY_PLAYER,
-  tellSaysSpectating, countsSpectators, foreignAgentInTell, readHudOwner,
+  DEATH_SCREEN, DEATH_WORD,
+  tellSaysSpectating, countsSpectators, foreignAgentInTell, readHudOwner, affirms,
 };

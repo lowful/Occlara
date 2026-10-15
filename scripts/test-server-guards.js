@@ -396,6 +396,35 @@ const PW = 'correct horse battery staple';
       'c reads the timer until the spike icon takes its place and a timer still counting is no plant, where the live prompt had a spike timer and b no timer after a plant');
   }
 
+  // ── A death word its own clause negates is no death word (8.4.3) ──────────
+  {
+    // Through the read route, a client's read with the live prompt, the fake
+    // model answering as b did on a living player in the Split's round 4 buy
+    // phase (frame 00148). Its tell negates SWITCH PLAYER, and the spectator
+    // rule dropped the health the player's own HUD printed beside it.
+    const said = async (aliveTell) => {
+      model.reply = `STATE: ${JSON.stringify({ phase: 'buy', alive: true, hp: 100, aliveTell, weapon: 'Knife' })}`;
+      const r = await call(coach, 'POST', '/read', { headers: { 'X-License-Key': 'GC-READ-TEST-AAAA-BBBB' },
+        body: { image: 'aGVsbG8=', context: { map: 'Split', teamScore: 2, enemyScore: 1 } } });
+      return { status: r.status, ctx: (r.body && r.body.context) || {} };
+    };
+    const NONE = ['SWITCH PLAYER not shown; scoreboard open, own HP 100',
+      'no SWITCH PLAYER or KILLED BY printed, own HP 100 and knife', 'no own health, KILLED BY not visible'];
+    const STILL = ['SWITCH PLAYER bottom left, no own HP', 'KILLED BY Sage, no own health'];
+    const none = [];
+    for (const t of NONE) none.push({ t, ...(await said(t)) });
+    const still = [];
+    for (const t of STILL) still.push({ t, ...(await said(t)) });
+    model.reply = null;
+    const cap = coach.__test.TELL_MAX.live;
+    ok(NONE.every((t) => t.length <= cap) && STILL.every((t) => t.length <= cap),
+      'every tell here fits the live prompt\'s 60 characters, so the rule weighs it whole');
+    ok(none.every((x) => x.status === 200 && x.ctx.playerAlive === true && x.ctx.playerHp === 100 && x.ctx.aliveTell === x.t),
+      `a death word its own clause negates ("SWITCH PLAYER not shown", "no SWITCH PLAYER or KILLED BY printed") leaves the living player's 100 as the model read it (${none.map((x) => `${x.ctx.playerAlive}/${x.ctx.playerHp}`).join(', ')})`);
+    ok(still.every((x) => x.status === 200 && x.ctx.playerAlive === false && x.ctx.playerHp === undefined),
+      `where the "no" is the health's, SWITCH PLAYER and KILLED BY still name the screen, and the 100 beside them, a teammate's, is dropped (${still.map((x) => `${x.ctx.playerAlive}/${x.ctx.playerHp}`).join(', ')})`);
+  }
+
   // ── Ask Coach's context (8.4.1) ───────────────────────────────────────────
   {
     // What an 8.4.0 install sends, Stats' four Overview scores as a trend.

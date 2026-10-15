@@ -98,7 +98,8 @@ const { clockSeconds, isBuyPhase, BUY_MAX_LEFT } = require('./valorant-rounds');
 const { isFinalScore } = require('./match-end');
 const spectate = require('./spectate-tells');
 
-// What only the death screen prints (coaching-engine.js DEATH_SCREEN).
+// What only the death screen prints (coaching-engine.js DEATH_SCREEN), read as
+// the engine reads it (spectate.affirms): "SWITCH PLAYER not shown" names none.
 const DEATH_SCREEN = /killed by|combat report|switch player|kill ?cam|death ?recap/i;
 
 const RULES = Object.freeze({
@@ -278,7 +279,7 @@ class ReadCadence {
       if (s.onTrial) return full('trial');
       if (matchPoint(s.team, s.enemy, s.mode)) return full('match point');
       if (s.unsettled) return full('unsettled');
-      if (!(spectate.tellSaysSpectating(this.tell) || DEATH_SCREEN.test(this.tell))) return full('tell');
+      if (!(spectate.tellSaysSpectating(this.tell) || spectate.affirms(DEATH_SCREEN, this.tell))) return full('tell');
       return { ms: D.gapMs, why: 'dead' };
     }
     return full('play');

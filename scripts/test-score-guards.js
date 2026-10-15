@@ -198,20 +198,147 @@ function playTo(e, team, enemy) {
   }
 
   // ── A new match the watch never saw the last one end ─────────────────────
+  // Believed on time, not reads (8.4.3): the next match's 0 to 0 read over ten
+  // seconds. Its buy phase is read every two seconds here, one read with no
+  // score of its own among them, which carries the old match's held 13-12.
   {
     const e = engine();
     playTo(e, 13, 12);   // unrated sudden death: not a final score, and no menus read
     ok(!e.endWatch.ended, 'an unrated 13-12 is not ended by its score');
-    read(e, 120, { phase: 'buy', clock: '0:40', teamScore: 0, enemyScore: 0, map: 'Haven', playerAlive: true, playerHp: 100 });
+    const next = { phase: 'buy', teamScore: 0, enemyScore: 0, map: 'Haven', playerAlive: true, playerHp: 100 };
+    read(e, 120, { ...next, clock: '0:40' });
     ok(!e.ended.length, 'one read of 0-0 does not close a live match');
-    read(e, 2, { phase: 'buy', clock: '0:38', teamScore: 0, enemyScore: 0, map: 'Haven', playerAlive: true, playerHp: 100 });
+    read(e, 2, { phase: 'buy', clock: '0:38', map: 'Haven', playerAlive: true, playerHp: 100 });
+    for (const clock of ['0:36', '0:34', '0:32']) read(e, 2, { ...next, clock });
+    await new Promise((r) => setTimeout(r, 20));
+    ok(!e.ended.length, `nor do eight seconds of them (${e.ended.map((s) => s.endedBy).join() || 'nothing closed'})`);
+    read(e, 2, { ...next, clock: '0:30' });
     await new Promise((r) => setTimeout(r, 20));
     ok(e.ended.length === 1 && e.ended[0].endedBy === 'next-match',
-      `two reads close the old match as a review of its own (${e.ended.map((s) => s.endedBy)})`);
+      `ten seconds of them close the old match as a review of its own (${e.ended.map((s) => s.endedBy)})`);
     // 25 rounds scored and the 26th being played when the next match began.
     ok(e.ended[0] && e.ended[0].rounds.length === 26 && e.ended[0].rounds[25].n === 26,
-      `with its own rounds and no phantom one from the 0-0 read (${e.ended[0] && e.ended[0].rounds.length})`);
+      `with its own rounds and no phantom one bought at 13-12 by the read with no score (${e.ended[0] && e.ended[0].rounds.map((r) => r.n).slice(-3)})`);
     ok(e.ledger.size() === 1 && e.ledger.list()[0].n === 1, `and the new match starts at round 1 (${e.ledger.list().map((r) => r.n)})`);
+    // And the review is of the match as the wait began on it. The next match's
+    // reads say Haven, and two of them correct a map the model's reads hold:
+    // over the wait the closed match took the next one's map, and the live
+    // link refused its own match for it (map mismatch).
+    ok(e.ended[0] && e.ended[0].context.map === 'Bind',
+      `and its review keeps its own map, not the next match's (${e.ended[0] && e.ended[0].context.map})`);
+  }
+  // A Stop while the wait is open reviews the old match without the low reads
+  // it held: filed, the next match's first buy read began a round 27 at 13-12.
+  {
+    const e = engine();
+    playTo(e, 13, 12);
+    const next = { phase: 'buy', teamScore: 0, enemyScore: 0, map: 'Haven', playerAlive: true, playerHp: 100 };
+    read(e, 120, { ...next, clock: '0:40' });
+    read(e, 2, { ...next, clock: '0:38' });
+    e.stop();
+    await new Promise((r) => setTimeout(r, 20));
+    ok(e.ended.length === 1 && e.ended[0].endedBy === 'stop' && e.ended[0].rounds.length === 26,
+      `a Stop while it waits reviews the old match's own rounds, none bought at 13-12 by the reads it held (${e.ended.map((s) => `${s.endedBy}: ${s.rounds.map((r) => r.n).slice(-3)}`)})`);
+    // And on its context as the wait began, as the belief closes it: the next
+    // match's two Haven reads corrected the map the model's reads held, and
+    // the link refused the stopped match for the next one's map.
+    ok(e.ended[0] && e.ended[0].context.map === 'Bind' && e.ended[0].context.teamScore === 13 && e.ended[0].context.enemyScore === 12,
+      `and on its own map and score, not the next match's (${e.ended[0] && `${e.ended[0].context.map} ${e.ended[0].context.teamScore}-${e.ended[0].context.enemyScore}`})`);
+  }
+  // Its score is the live one all the same: a final read once on the banner,
+  // then the next match's round 1 and a menu, then a Stop. The final adopted
+  // at the Stop is what it ends on, and its last round with it.
+  {
+    const e = engine();
+    playTo(e, 12, 11);
+    read(e, 30, { phase: 'active', clock: '0:20', teamScore: 13, enemyScore: 11, playerAlive: true, playerHp: 100 });
+    read(e, 60, { phase: 'active', clock: '1:39', teamScore: 0, enemyScore: 0, map: 'Haven', playerAlive: true, playerHp: 100 });
+    menu(e, 2);
+    e.stop();
+    await new Promise((r) => setTimeout(r, 20));
+    const s = e.ended[0];
+    ok(e.ended.length === 1 && s.endedBy === 'score' && s.rounds.length === 24 && s.rounds[23].result === 'won'
+      && s.context.teamScore === 13 && s.context.map === 'Bind',
+      `a Stop on a final read once, the wait open: ended on 13-11 with its 24th round won (${e.ended.map((x) => `${x.endedBy} ${x.context.teamScore}-${x.context.enemyScore}: ${x.rounds.length} rounds, the last ${x.rounds.length ? x.rounds[x.rounds.length - 1].result : '-'}, on ${x.context.map}`)})`);
+  }
+  // The frames of the count that is believed are the new match's, filed into
+  // its ledger then, each at the low score it read: held, a death read in them
+  // was filed nowhere. Here the next match's reads begin in its round 1 (its
+  // buy phase unread), and the player dies seven seconds in, inside the wait.
+  {
+    const e = engine();
+    playTo(e, 13, 12);
+    const r1 = { teamScore: 0, enemyScore: 0, map: 'Haven' };
+    const up = (clock) => ({ ...r1, phase: 'active', clock, playerAlive: true, playerHp: 100, playerWeapon: 'Classic', aliveTell: 'own HP 100 and Classic bottom left' });
+    read(e, 180, up('1:39'));
+    for (const clock of ['1:37', '1:35', '1:33']) read(e, 2, up(clock));
+    read(e, 1, { ...r1, phase: 'dead', clock: '1:32', playerAlive: false, aliveTell: 'KILLED BY Jett and COMBAT REPORT' });
+    const died = e.lastDeathAt;
+    read(e, 2, { ...r1, phase: 'dead', clock: '1:30', playerAlive: false, aliveTell: 'Spectating teammate with SWITCH PLAYER bottom left' });
+    ok(died > 0 && !e.ended.length, `the death registers inside the wait, which has not closed the old match yet (${e.ended.map((x) => x.endedBy).join() || 'nothing closed'})`);
+    read(e, 2, { ...r1, phase: 'dead', clock: '1:28', playerAlive: false, aliveTell: 'Spectating teammate with SWITCH PLAYER bottom left' });
+    await new Promise((r) => setTimeout(r, 20));
+    const rows = e.ledger.list();
+    ok(e.ended.length === 1 && e.ended[0].endedBy === 'next-match' && rows.length === 1 && rows[0].n === 1 && rows[0].died === true
+      && e.ended[0].rounds.length === 26 && !e.ended[0].rounds[25].died,
+      `believed ten seconds on, the new match's round 1 has that death, and the old match's last round none (${rows.map((r) => `${r.n}${r.died ? 'D' : ''}`).join(' ')}; old ${e.ended.map((x) => `${x.endedBy}: ${x.rounds.length} rounds, the last ${x.rounds.length && x.rounds[x.rounds.length - 1].died ? 'died' : 'alive'}`)})`);
+  }
+  // Their side is the new match's own reads', never the old match's lock: a
+  // remake two rounds in, attacking, and the next match read defending.
+  {
+    const e = engine();
+    playTo(e, 1, 1);
+    const def = (clock) => ({ teamScore: 0, enemyScore: 0, side: 'defending', phase: 'active', clock, playerAlive: true, playerHp: 100 });
+    read(e, 120, def('1:39'));
+    for (const clock of ['1:37', '1:35', '1:33', '1:31', '1:29']) read(e, 2, def(clock));
+    await new Promise((r) => setTimeout(r, 20));
+    const rows = e.ledger.list();
+    ok(rows.length === 1 && rows[0].n === 1 && rows[0].side === 'defending',
+      `the frames the wait held go to the new match's round 1 with its own side (${rows.map((r) => `${r.n} ${r.side}`).join(', ')})`);
+  }
+  // And only those of the count that is believed: frames before the wait last
+  // started again went on into the old match, a death among them, and are not
+  // the new match's however long the wait kept the old one as it was.
+  {
+    const e = engine();
+    playTo(e, 5, 4);
+    read(e, 30, { phase: 'active', clock: '1:20', teamScore: 0, enemyScore: 0, playerAlive: true, playerHp: 100 });
+    for (let i = 0; i < 9; i++) read(e, 2, { phase: 'active', clock: `1:${String(18 - 2 * i).padStart(2, '0')}`, playerAlive: true, playerHp: 100 });
+    read(e, 2, { phase: 'dead', clock: '0:59', playerAlive: false, aliveTell: 'KILLED BY Jett and COMBAT REPORT' });
+    for (let i = 0; i < 5; i++) read(e, 2, { phase: 'dead', clock: `0:${57 - 2 * i}`, playerAlive: false, aliveTell: 'Spectating teammate with SWITCH PLAYER bottom left' });
+    const next = { phase: 'buy', teamScore: 0, enemyScore: 0, playerAlive: true, playerHp: 100 };
+    read(e, 4, { ...next, clock: '0:40' });
+    for (const clock of ['0:38', '0:36', '0:34', '0:32', '0:30']) read(e, 2, { ...next, clock });
+    await new Promise((r) => setTimeout(r, 20));
+    const rows = e.ledger.list();
+    ok(e.ended.length === 1 && rows.length === 1 && rows[0].n === 1 && !rows[0].died,
+      `a new match believed after its wait started again has none of the frames from before it, the old match's death among them (${rows.map((r) => `${r.n}${r.died ? 'D' : ''}`).join(' ')})`);
+  }
+  // The shop held half a minute between the next match's first low reads, a
+  // menu with no score on it: the three reads and the ten seconds fall within
+  // thirty of the wait's first, so it starts again on the first read past
+  // them, and the old match is still the one the first low read found. Taken
+  // again there, the next match's two Haven reads had corrected the map the
+  // model's reads held, and its buy read with no score, filed at 13-12, was a
+  // round 27 nobody played.
+  {
+    const e = engine();
+    playTo(e, 13, 12);
+    const next = { phase: 'buy', teamScore: 0, enemyScore: 0, map: 'Haven', playerAlive: true, playerHp: 100 };
+    read(e, 120, { ...next, clock: '0:44' });
+    read(e, 2, { ...next, clock: '0:42' });
+    read(e, 2, { phase: 'buy', clock: '0:40', map: 'Haven', playerAlive: true, playerHp: 100 });
+    for (let i = 0; i < 11; i++) menu(e, 3);
+    read(e, 3, { ...next, clock: '0:04' });
+    read(e, 2, { ...next, clock: '0:02' });
+    await new Promise((r) => setTimeout(r, 20));
+    ok(!e.ended.length, `a shop held 33 s between the next match's first low reads: past thirty seconds the wait starts again (${e.ended.map((s) => s.endedBy).join() || 'nothing closed'})`);
+    for (const clock of ['1:39', '1:37', '1:35', '1:33']) read(e, 2, { ...next, phase: 'active', clock });
+    await new Promise((r) => setTimeout(r, 20));
+    const snap = e.ended[0];
+    ok(e.ended.length === 1 && snap.endedBy === 'next-match' && snap.rounds.length === 26 && snap.rounds[25].n === 26
+      && snap.context.map === 'Bind',
+      `and ten seconds after it closes the old match as the first low read found it: its own 26 rounds and its own map (${e.ended.map((s) => `${s.endedBy}: ${s.rounds.map((r) => r.n).slice(-3)} on ${s.context.map}`)})`);
   }
 
   // ── A final score read once, then the end screen ─────────────────────────

@@ -70,6 +70,10 @@ class CoachingEngine extends EventEmitter {
     this.onTrial = null;      // a death on a weak tell, waiting one read for its verdict (judgeTrial)
     this.deathClock = null;   // { at, left } the round clock at the last registered death
     this.returnHeld = false;  // a return from the dead read once, waiting for a second read
+    this.newMatchRun = null;  // { from, reads, ledger, before, context } the next match's low score, read `reads` times since `from`,
+                              // and the old match as the first low read found it, kept when `from` and `reads` start again;
+                              // { low, frames } the last low score read and every game frame since `from`, for the new match's ledger
+    this.newMatchHeld = false; // this frame read that low score and is waiting for the verdict
     // Experimental settings, read live from the store so a settings flip
     // applies to the very next capture: { proPlaybook: 'off'|'on'|'hybrid' }.
     this.experiments = typeof opts.experiments === 'function' ? opts.experiments : () => ({});
@@ -188,6 +192,8 @@ class CoachingEngine extends EventEmitter {
     this.onTrial = null;
     this.deathClock = null;
     this.returnHeld = false;
+    this.newMatchRun = null;
+    this.newMatchHeld = false;
     this.pendingMode = null;
     this.standardEvidence = 0;
     this.swapEvidence = 0;
@@ -236,7 +242,18 @@ class CoachingEngine extends EventEmitter {
       const fc = this.finalCandidate;
       const candidate = !p && !!fc && (this.inLobby || fc.frame === this.analyzedFrames)
         && this.adoptFinalCandidate();
-      const snap = this.matchSnapshot((p && !p.swift) || candidate ? 'score' : 'stop');
+      // A Stop while the wait for the next match counts (newMatchRun) reviews
+      // the match on its context as the wait began, as the belief closes it,
+      // because the next match's reads go on landing in the live one: two of
+      // another map correct a map the model's reads hold, and stopped there the
+      // match took the next one's map, which the link then refused it for. Its
+      // score is the live one, the guards' own, which no read of the next match
+      // moves and a final adopted here sets.
+      const run = this.newMatchRun;
+      const c = this.matchContext;
+      const waited = run && run.from !== null && run.ledger === this.ledger
+        ? { ...run.context, teamScore: c.teamScore, enemyScore: c.enemyScore, roundNumber: c.roundNumber } : undefined;
+      const snap = this.matchSnapshot((p && !p.swift) || candidate ? 'score' : 'stop', waited);
       // Stopped with a round on screen rather than a menu or an end screen: the
       // match is most likely still being played, so its review must not open
       // over it (the player restarting to fix tracking, say).
@@ -337,10 +354,15 @@ class CoachingEngine extends EventEmitter {
       this.afterEnd = [];
       this.beginMatch(false);
     }
-    // A frame that reads as the NEXT match's first, waiting for a second read
-    // before the reset, carries this match's held score: filed here it was a
-    // round bought at 13-12 that nobody played.
-    if (this.newMatchReads > 0) return;
+    // Every game frame while the wait counts is kept for the new match, at the
+    // low score last read (updateMatchContext, newMatchRun): believed, it is
+    // filed again into the new match's ledger, the death among them included.
+    const run = this.newMatchRun;
+    if (run && run.from !== null) run.frames.push({ seen, team: run.low.team, enemy: run.low.enemy });
+    // A frame that reads as the NEXT match's first, waiting for the time a new
+    // match needs (updateMatchContext, newMatchRun), carries this match's held
+    // score: filed here it was a round bought at 13-12 that nobody played.
+    if (this.newMatchHeld) return;
     if (trial) trial.filed = { ledger: this.ledger, before: ledgerState(this.ledger) };
     this.ledger.observe(seen);
   }
@@ -387,7 +409,7 @@ class CoachingEngine extends EventEmitter {
     });
     const ownHud = u.playerAlive === true && typeof u.playerHp === 'number' && u.playerHp > 0
       && u.playerHp === t.hp && !!u.playerWeapon && u.playerWeapon === t.weapon
-      && !spectate.tellSaysSpectating(u.aliveTell) && !DEATH_SCREEN.test(String(u.aliveTell || ''))
+      && !spectate.tellSaysSpectating(u.aliveTell) && !spectate.affirms(DEATH_SCREEN, u.aliveTell)
       && !spectate.KILLED_BY_PLAYER.test(String(u.killFeed || '')) && !hud.spectating;
     if (sameRound && soon && ownHud) {
       const c = this.matchContext;
@@ -435,9 +457,10 @@ class CoachingEngine extends EventEmitter {
     }
   }
 
-  /** Everything the review needs about the match so far, or null if too thin. */
-  matchSnapshot(endedBy) {
-    const c = this.matchContext;
+  /** Everything the review needs about the match so far, or null if too thin.
+   *  `ctx` is the match's context when the live one has moved on (closeUnendedMatch). */
+  matchSnapshot(endedBy, ctx) {
+    const c = ctx || this.matchContext;
     const lastRound = endedBy === 'score' ? (c.teamScore | 0) + (c.enemyScore | 0) : null;
     const rounds = this.ledger.list(lastRound);
     if (!rounds.length) return null;
@@ -510,10 +533,11 @@ class CoachingEngine extends EventEmitter {
    * (a remake, an unrated 13-12 or a surrender whose menus were never read).
    * The last one is reviewed into the library and never opened over the new
    * one, or dropped when it is too short to review, like the menu path does.
+   * `ctx` is its context as the wait for the new match began on it.
    */
-  closeUnendedMatch() {
+  closeUnendedMatch(ctx) {
     const enough = this.ledger.size() >= this.endWatch.minRounds;
-    const snap = enough ? this.matchSnapshot('next-match') : null;
+    const snap = enough ? this.matchSnapshot('next-match', ctx) : null;
     console.log(`[engine] the last match was never seen ending: `
       + (snap ? `reviewing its ${snap.rounds.length} rounds` : 'too short to review'));
     this.endWatch.reset();
@@ -568,6 +592,7 @@ class CoachingEngine extends EventEmitter {
     this.matchStartedAt = Date.now();
     this.playerNotes = [];
     this.matchMemory = [];
+    this.newMatchRun = null;   // a wait for the next match weighed the last one's ledger
     if (resetAgent && this.matchContext.agent) {
       this.matchContext.agent = null;
       this.matchContext.agentConfirmed = false;
@@ -1364,28 +1389,109 @@ class CoachingEngine extends EventEmitter {
     // the score resets to 0-0. Every per-match side lock must reset with it,
     // a first-half side carried over from the previous match is exactly the
     // wrong-side bug. Judged on the round the two scores give, since the model
-    // leaves its own round empty on a third of frames, and on two reads in a
-    // row, since one misread 0 to 0 must not wipe a live match's locks.
+    // leaves its own round empty on a third of frames.
+    //
+    // A NEW MATCH NEEDS TIME, NOT TWO READS (8.4.3). It took two reads in a row
+    // from round 5 and three before it, and at a read a second two reads are
+    // one moment read twice, the rule the match end already keeps: on the
+    // bench the live read prompt read the Fracture's round 5, 4 to 0 printed
+    // plainly and the round clock at 1:38, as 0 to 0 three times in two
+    // seconds, the first with 4 to 0 in its context, which closed the match into the
+    // library at round 5 and filed the rest of it as a new match. So the low
+    // score has to be read over NEW_MATCH_MS, first such read to the latest,
+    // on NEW_MATCH_READS reads at least, and a read of the held score or a
+    // higher one between them starts the wait again; a read with no score of
+    // its own, or one digit, is no evidence either way. A real new match
+    // spends 45 seconds in its first buy phase at 0 to 0, and the old match is
+    // safe meanwhile: its score never goes backwards (below) and nobody dies in
+    // a buy phase. The frames of the count that is believed are the new
+    // match's, and they are filed into its ledger then (recordFrame keeps
+    // them): held, a death read in them was filed nowhere, and a new match
+    // whose reads began in its round 1, its buy phase paused through, lost the
+    // death seven seconds in at a read every 1, 2 and 3 s. What the
+    // wait filed into the old match's ledger, the new match's frames with no
+    // score of their own at the old match's held one, comes off it again when
+    // the new match is believed: filed, a buy phase read was a round 27 bought
+    // at 13-12 that nobody played. And the old match is reviewed on its context
+    // as the wait began, because the new match's reads go on landing in the
+    // live one: two of another map correct a map the model's reads hold, and
+    // over the wait the closed match took the next one's map, which the link
+    // then refused its own match for (map mismatch).
+    //
+    // AND THE WAIT IS BOUNDED. A read with no score of its own never ends it,
+    // and a real session goes minutes without one: the Abyss match's AI log
+    // has 144 seconds, two rounds and fifteen reads, with no score read. So
+    // three 0 to 0 misreads spread over a stretch like that added up to a new
+    // match, where reads in a row, the rule before, never would have. The
+    // three reads and the ten seconds must fall within NEW_MATCH_WITHIN_MS of
+    // the wait's first read: the first read past it starts the wait again when
+    // it is a low one and ends it when it is not. What the wait kept of the old
+    // match, its ledger and its context as the first low read found them,
+    // stays until its score is read again: a shop held half a minute splits a
+    // real new match's first low reads, and taken again where the wait began
+    // again, the closed match was reviewed on the next one's map. A real new
+    // match's first buy phase is read every 5 s at the slowest (the slowest
+    // capture speed, or a buy phase asleep), so it is believed on its third
+    // read, 10 s after its first: at every speed test:readpolicy's remake is
+    // believed 10 to 12 s after it.
+    //
     // Once the watch has ended the match there is no live match to protect, so
-    // a match that ended before round 5 (a surrender, a remake) does not leave
-    // the next one's 0 to 0 rejected as a score going backwards.
+    // one read is enough, and a match that ended before round 5 (a surrender,
+    // a remake) does not leave the next one's 0 to 0 rejected as a score going
+    // backwards.
     const afterEnd = !!(this.endWatch && this.endWatch.ended);
     const bothScores = !loneScore && typeof updates.teamScore === 'number' && typeof updates.enemyScore === 'number';
     const readRound = bothScores ? updates.teamScore + updates.enemyScore + 1 : null;
     const looksNew = bothScores && readRound <= 2 && updates.teamScore <= 1 && updates.enemyScore <= 1
       && prevRound > readRound && (prevRound >= 5 || afterEnd || this.ledger.size() > 0);
-    // Early in a match a misread 0 is likelier than a remake, so it needs a third.
-    const readsNeeded = afterEnd ? 1 : prevRound >= 5 ? 2 : 3;
-    this.newMatchReads = looksNew ? (this.newMatchReads || 0) + 1 : 0;
-    if (looksNew && this.newMatchReads >= readsNeeded) {
-      this.newMatchReads = 0;
+    let run = this.newMatchRun;
+    if (run && run.from !== null && now - run.from > NEW_MATCH_WITHIN_MS) {
+      run.from = null;
+      run.reads = 0;
+      run.frames = [];
+    }
+    if (looksNew && !afterEnd) {
+      if (!run) {
+        run = this.newMatchRun = { from: null, reads: 0, ledger: this.ledger, before: ledgerState(this.ledger),
+          context: { ...this.matchContext }, low: null, frames: [] };
+      }
+      if (run.from === null) run.from = now;
+      run.reads++;
+      run.low = { team: updates.teamScore, enemy: updates.enemyScore };
+    } else if (run && bothScores && updates.teamScore >= prevTeam && updates.enemyScore >= prevEnemy) {
+      this.newMatchRun = run = null;
+    }
+    const believed = looksNew && (afterEnd || (run.reads >= NEW_MATCH_READS && now - run.from >= NEW_MATCH_MS));
+    // A low read still waiting is filed nowhere (recordFrame).
+    this.newMatchHeld = looksNew && !believed;
+    if (believed) {
+      this.newMatchRun = null;
       // THE WATCH NEVER ENDED THE LAST ONE: a remake, an unrated 13-12 or a
       // surrender whose menus were never read. Without this the new match was
       // filed into the old ledger under round 27, and the old match's rounds
       // were reviewed under the new match's score. It is closed here, reviewed
       // into the library without opening (the player is already in the next
-      // match), or dropped when it is too short to review.
-      if (!afterEnd && this.ledger.size() > 0) this.closeUnendedMatch();
+      // match), or dropped when it is too short to review, its ledger and its
+      // context as they stood when the wait began.
+      if (!afterEnd && this.ledger.size() > 0) {
+        const began = run && run.ledger === this.ledger ? run : null;
+        if (began && began.before) {
+          try { putLedgerBack(this.ledger, began.before); } catch (e) { console.log('[engine] round ledger error:', e.message); }
+        }
+        this.closeUnendedMatch(began ? began.context : null);
+        // And the frames of the count that was believed are the new match's:
+        // each is filed into its ledger at the low score it read, or the last
+        // one read before it, its side left to the new match's own reads (the
+        // old match's lock held meanwhile). A death read while the wait held
+        // its frames was filed nowhere: a new match whose reads began in its
+        // round 1 lost the death seven seconds in.
+        if (began) {
+          for (const f of began.frames) {
+            try { this.ledger.observe({ ...f.seen, team: f.team, enemy: f.enemy, side: null }); }
+            catch (e) { console.log('[engine] round ledger error:', e.message); }
+          }
+        }
+      }
       console.log(`[engine] new match detected (round ${prevRound} -> ${readRound}), side/mode/map locks reset`);
       this.firstHalfSide = null;
       this.pendingFirstSide = null;
@@ -1812,7 +1918,7 @@ class CoachingEngine extends EventEmitter {
       // path for real deaths (where there is no health to read) and makes a
       // frame the model simply could not parse wait for a second opinion.
       const healthAbsent = updates.playerHp == null || updates.playerHp === 0;
-      const proven = healthAbsent && DEAD_TELL.test(tell) && !UNSURE_TELL.test(tell)
+      const proven = healthAbsent && spectate.affirms(DEAD_TELL, tell) && !UNSURE_TELL.test(tell)
         && !spectate.countsSpectators(tell);
       this.aliveFalseStreak = (this.aliveFalseStreak || 0) + 1;
       if (proven) {
@@ -2067,7 +2173,7 @@ class CoachingEngine extends EventEmitter {
         this.remember(line);
         if (pushed) trial.lines.push(line);
       };
-      this.onTrial = DEATH_SCREEN.test(tell) || spectate.KILLED_BY_PLAYER.test(String(updates.killFeed || ''))
+      this.onTrial = spectate.affirms(DEATH_SCREEN, tell) || spectate.KILLED_BY_PLAYER.test(String(updates.killFeed || ''))
         ? null : trial;
       this.matchContext.consecutiveDeaths++;
       this.matchContext.consecutiveWins = 0;
@@ -2411,6 +2517,15 @@ const MIN_ROUND_MS = 40000;
 // buy phase. Past it, a buy phase has confirmed the step or the match moved on.
 const STEP_ROLLBACK_MS = 3 * 60 * 1000;
 
+// How long, and on how many reads, the next match's low score must be read
+// before a match the watch never ended is closed for it (updateMatchContext, A
+// NEW MATCH NEEDS TIME). A new match's first buy phase is 45 seconds at 0 to 0;
+// a misread one is a moment, read again on the frames after it. And all of it
+// within NEW_MATCH_WITHIN_MS of the wait's first read, or the wait starts again.
+const NEW_MATCH_MS = 10000;
+const NEW_MATCH_READS = 3;
+const NEW_MATCH_WITHIN_MS = 30000;
+
 // A pistol round's money and buy timer, the two printed facts that tell a
 // swiftplay round 5 from a standard one. A normal buy phase is 30 seconds, so
 // 32 leaves a misread digit some room.
@@ -2444,7 +2559,10 @@ const TEAM_PLAN_TTL_MS = 45000;
 // death screen's own words came last: every real death of the player's Sunset
 // swiftplay read "KILLED BY <agent> and COMBAT REPORT" first, and this matched
 // none of them. "spectat" is also the spectator counter's word, which the
-// proof weighs apart (spectate-tells.js, countsSpectators).
+// proof weighs apart (spectate-tells.js, countsSpectators). Both lists are
+// read through spectate.affirms (8.4.3): a death word its own clause negates,
+// "SWITCH PLAYER not shown", "no SWITCH PLAYER", proves nothing, and is no
+// death screen either.
 const DEAD_TELL = /spectat|kill ?cam|death ?recap|observer|you died|respawn|teammate'?s? (?:name|loadout)|no hp|grey(?:ed)?[- ]?out|killed by|combat report|switch player/i;
 // What only the death screen prints. A death registered without any of it is
 // on a weak tell, and the read after it can withdraw it (judgeTrial).

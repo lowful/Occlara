@@ -886,6 +886,10 @@ async function main() {
       ['SPECTATORS 1 top right', B, 'the spectator counter, a living player\'s HUD: the gap'],
       ['Spectating teammate, own HP not shown', 3000, 'the spectator screen: every 3 s'],
       ['KILLED BY Jett and COMBAT REPORT shown', 3000, 'the death screen: every 3 s'],
+      // A death word its own clause negates names neither screen (8.4.3).
+      ['SWITCH PLAYER not shown, own HP 100 and Vandal', B, 'the death screen negated ("SWITCH PLAYER not shown"): the gap'],
+      ['no KILLED BY or COMBAT REPORT, own HP not visible', B, 'and "no KILLED BY or COMBAT REPORT": the gap'],
+      ['SWITCH PLAYER bottom left, no own HP', 3000, 'but SWITCH PLAYER beside "no own HP", the health\'s "no": every 3 s'],
     ];
     for (const [tell, want, what] of tells) {
       const q = new ReadCadence();
@@ -1055,6 +1059,35 @@ async function main() {
       + ` each of the ${db.length} deaths within one gap of reading everything (${da.filter((t, i) => t !== db[i]).length} on the other second)`
       + (!near ? ` [deaths ${a.deaths} -> ${b.deaths}]` : '') + (a.rounds !== b.rounds ? ` [rounds ${a.rounds} -> ${b.rounds}]` : '')
       + (a.ends !== b.ends ? ` [end ${a.ends} -> ${b.ends}]` : ''));
+  }
+  {
+    // The remake at every capture speed, the cadence on: the next match is
+    // believed on time (coaching-engine.js, A NEW MATCH NEEDS TIME), 10 to 12 s
+    // after its first low read (its third read every 5 s, its fifth every 3 s),
+    // inside the thirty seconds its wait has (NEW_MATCH_WITHIN_MS), so its own
+    // ledger holds its round 1 and the death in it at every speed.
+    const rows = (e) => e.ledger.list().map((x) => `${x.n}${x.result ? x.result[0] : '-'}${x.died ? 'D' : ''}`).join(' ');
+    const got = [];
+    for (const speed of [1000, 2000, 3000, 5000]) {
+      got.push(`${speed / 1000} s: ${rows((await scenario(SCENARIOS['a remake'].steps(), { speed })).engine)}`);
+    }
+    ok(got.every((g) => g.endsWith(' s: 1lD 2-')),
+      `a remake read every 1, 2, 3 and 5 s: the next match believed in its first buy phase, its own round 1 and the death in it (${got.join('; ')})`);
+    // And when its reads begin in its round 1, its buy phase paused through,
+    // the player dead seven seconds in: that death is read while the wait holds
+    // its frames, which are the new match's once it is believed and filed into
+    // its ledger then. Held and filed nowhere, it was lost at 1, 2 and 3 s.
+    const late = () => {
+      const s = SCENARIOS['a remake'].steps();
+      const k = s.findIndex(([n, f]) => n === 45 && f(0).phase === 'buy' && f(0).teamScore === 0);
+      return [...s.slice(0, k), [45, () => ({ pause: true })], [7, alive(0, 0)], [40, dead(0, 0, 92)], ...s.slice(k + 3)];
+    };
+    const paused = [];
+    for (const speed of [1000, 2000, 3000, 5000]) {
+      paused.push(`${speed / 1000} s: ${rows((await scenario(late(), { speed })).engine)}`);
+    }
+    ok(paused.every((g) => g.endsWith(' s: 1lD 2-')),
+      `and with its reads beginning in its round 1, the player dead seven seconds in, inside the wait: its round 1 keeps the death at every speed (${paused.join('; ')})`);
   }
   {
     // What the cadence holds back, phase by phase, on the 13 to 11 match.
