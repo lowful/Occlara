@@ -69,6 +69,26 @@
  * and a run it did not honour (no password, or a server that has not deployed
  * the variant yet) stops rather than report the live prompt's numbers under
  * the variant's name. Without the flag nothing is sent and nothing changes.
+ *
+ *   node scripts/bench-read.js live --engine --session <session> [--variant c] [--lag 4]
+ *
+ * --engine READS THE SESSION AS THE APP READS IT (8.4.3). Without it each
+ * frame is sent the server's own replies merged raw, so one misread fed back
+ * stays fed back: on both Fracture runs of 14 Oct a 0 to 0 read dropped the
+ * score line from the next prompt and the engine's new match rule reset the
+ * match, and buy frames sent "the player was DEAD on the last frame" were read
+ * dead 35 to 50% of the time against 11 to 19% without it. With it each frame
+ * is sent what coaching-engine.js's readContext() gives, and each reply is
+ * applied through the real engine in capture order as drain() applies it (a
+ * failed read skipped, a LOBBY a menu), its network stubbed and its clock the
+ * frame's capture time (read-score.js AppReader), so every guard, the ledger
+ * and the next context are the app's; --lag N sends frame k the context the
+ * engine had once the replies up to k - N were applied. The run is scored by
+ * time against Riot's own record of that session (read-score.js), not the
+ * Abyss's, and the trace gives each read the context it was `sent`. It is no
+ * gate, so --gate is refused beside it, and without the flag nothing here
+ * changes: npm run verify:ai sends and prints what it always has
+ * (test:benchsession holds it byte for byte).
  */
 
 const fs = require('fs');
@@ -98,7 +118,14 @@ const MODELS = args.filter((a, i) => !valueAt.has(i) && (a.includes('/') || a ==
 /** One JSON line to the --trace file, when there is one. */
 const trace = (o) => { if (TRACE) fs.appendFileSync(TRACE, JSON.stringify(o) + '\n'); };
 const GATE = args.includes('--gate');
+// Each frame sent the engine's readContext(), each reply through the engine.
+const ENGINE = args.includes('--engine');
 if (!MODELS.length) { console.log('name at least one model'); process.exit(1); }
+if (ENGINE && GATE) {
+  console.log('--gate is verify:ai\'s, read as it always has been (each frame sent the replies before it merged raw), '
+    + 'and --engine reads another way: run the gate without --engine.');
+  process.exit(1);
+}
 
 /** ADMIN_PASSWORD from the environment, or from server/.env when it exists. */
 function adminPassword() {
@@ -251,10 +278,111 @@ async function run(model) {
   return r;
 }
 
+/**
+ * One model's run with --engine. Frame k is sent once the replies up to
+ * k - LAG are applied, with what readContext() then gives at k's capture time,
+ * and its reply waits its turn, as one in flight waits in pending, so with
+ * LAG reads out the context is LAG reads old, as the app's is. Each reply is
+ * kept as the server sent it (the engine edits the object it is handed, and
+ * is handed a copy).
+ */
+async function runEngine(model) {
+  const { AppReader } = require('./read-score');
+  const order = frames.map((f, k) => ({ f, k })).sort((a, b) => a.f.at - b.f.at || a.k - b.k).map((x) => x.f);
+  const app = new AppReader(order.length ? order[0].at : 0);
+  const r = { model, n: 0, errs: 0, firstErr: null, lobby: 0, parsed: 0, ms: [], reads: [] };
+  const waiting = [];
+  const applyThrough = (k) => { while (waiting.length && waiting[0].k <= k) app.apply(waiting.shift().read); };
+  let lastStart = 0;
+  for (const [k, f] of order.entries()) {
+    r.n++;
+    applyThrough(k - LAG);
+    const sent = app.context(f.at);
+    const image = fs.readFileSync(path.join(dir, f.frame)).toString('base64');
+    if (MIN_GAP) {
+      const wait = lastStart + MIN_GAP - Date.now();
+      if (wait > 0) await new Promise((res) => setTimeout(res, wait));
+    }
+    lastStart = Date.now();
+    let j;
+    try { j = await read(model, image, sent); } catch (e) { j = { err: e.message, ms: 0 }; }
+    const line = { model, i: r.n, frame: f.frame, at: f.at, ms: j.ms, serverMs: j.serverMs == null ? null : j.serverMs,
+      err: j.err || null, servedBy: j.model || null, lobby: !!j.lobby, parsed: !!j.parsed, context: j.context || null, sent };
+    trace(line);
+    r.reads.push(line);
+    if (j.err) { r.errs++; r.firstErr = r.firstErr || j.err; waiting.push({ k, read: line }); continue; }
+    if (j.ignored) {
+      r.errs = frames.length;
+      r.firstErr = `the server ran ${j.model || 'the live model'}, not ${model}: check ADMIN_PASSWORD`;
+      console.log(`  ${model}: ${r.firstErr}`);
+      break;
+    }
+    if (j.ignoredVariant) {
+      r.errs = frames.length;
+      r.firstErr = `the server read with ${j.variant ? `variant ${j.variant}` : 'the live prompt'}, not variant ${VARIANT}: `
+        + 'check ADMIN_PASSWORD, or the server has not deployed it yet';
+      console.log(`  ${model}: ${r.firstErr}`);
+      break;
+    }
+    r.ms.push(j.ms);
+    if (j.lobby) r.lobby++;
+    else if (j.parsed) r.parsed++;
+    waiting.push({ k, read: line });
+  }
+  applyThrough(Infinity);
+  const last = r.reads.length ? r.reads[r.reads.length - 1].at : 0;
+  const { ledger } = app.stop(last);
+  r.registered = app.records.filter((x) => x.died).length;
+  r.matches = app.ended.map((x) => ({ endedBy: x.snap.endedBy, rounds: x.snap.rounds.length, voided: !!x.snap.voided }));
+  trace({ model, summary: true, engine: true, lag: LAG, ...(VARIANT ? { variant: VARIANT } : {}), n: r.n, errs: r.errs, firstErr: r.firstErr,
+    lobby: r.lobby, parsed: r.parsed, matches: r.matches,
+    rounds: ledger.map((x) => ({ n: x.n, died: !!x.died, side: x.side, spot: x.deathSpot || null })) });
+  return r;
+}
+
+/** --engine's report: scored by time against the session's own Riot record when the repo has one. */
+async function engineMain() {
+  const score = require('./read-score');
+  const known = score.sessionOf(SESSION);
+  const record = known ? score.riotRecord(known) : null;
+  console.log(`${frames.length} frames from ${SESSION}, read as the app reads them (--engine): each frame sent coaching-engine.js's `
+    + 'readContext(), each reply applied through the engine in capture order');
+  console.log(record
+    ? `Riot's record of it: ${known.riot}, ${record.map} ${record.score}, ${record.perRound.filter((x) => x.died).length} deaths in ${record.rounds} rounds\n`
+    : 'No Riot record of this session in scripts/fixtures: its reads are applied and counted, not scored against Riot\n');
+  if (VARIANT) console.log(`read with the read prompt's variant ${VARIANT}, not the live prompt\n`);
+  const CONC = Number(flag('parallel', 2));
+  const results = [];
+  for (let i = 0; i < MODELS.length; i += CONC) {
+    const batch = await Promise.all(MODELS.slice(i, i + CONC)
+      .map((m) => runEngine(m).then((r) => { console.log(`  done ${m}`); return r; })));
+    results.push(...batch);
+  }
+  console.log('');
+  if (record) {
+    const logged = score.traceOfLog(log.records);
+    const res = score.scoreSession({ riot: record, map: known.map, logged,
+      runs: results.map((r) => ({ name: r.model, trace: { reads: r.reads } })) });
+    for (const l of score.sessionLines(res, logged.reads.length ? logged.reads[0].at : 0)) console.log(l);
+    console.log('\nlogged is the AI log\'s own reads of the session, as the app read it then. A death is caught from 5 s before');
+    console.log('Riot\'s moment to the next buy phase; "buy dead" is buy frames read dead of the buy frames judged.');
+  } else {
+    console.log(`${'model'.padEnd(36)} reads  err  LOBBY  parse  p50    p90    deaths registered  matches ended`);
+    for (const r of results) {
+      console.log(`${r.model.padEnd(36)} ${String(r.n).padStart(5)}  ${String(r.errs).padStart(3)}  ${String(r.lobby).padStart(5)}  `
+        + `${String(pct(r.parsed, r.n - r.lobby - r.errs)).padStart(4)}%  ${String(q(r.ms, 0.5)).padStart(5)}  ${String(q(r.ms, 0.9)).padStart(5)}  `
+        + `${String(r.registered).padStart(17)}  ${r.matches.length}` + (r.errs ? `   ${r.errs} err (${r.firstErr})` : ''));
+    }
+  }
+  if (LAG > 1) console.log(`each frame was sent the engine's context of ${LAG} reads earlier (--lag ${LAG}).`);
+  if (VARIANT) console.log(`every frame was read with the read prompt's variant ${VARIANT} (--variant ${VARIANT}).`);
+}
+
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 const q = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(s.length * p))] : 0; };
 
 (async () => {
+  if (ENGINE) { await engineMain(); return; }
   console.log(`${frames.length} frames from ${SESSION}; Riot has ${riot.perRound.filter((x) => x.died).length} deaths in ${riot.rounds} rounds\n`);
   if (VARIANT) console.log(`read with the read prompt's variant ${VARIANT}, not the live prompt\n`);
   // TWO MODELS AT A TIME. The read limiter is per licence, and nine models at
