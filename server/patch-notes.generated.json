@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-19T20:19:02.795Z",
+  "generatedAt": "2026-10-20T18:49:58.093Z",
   "patch": "13.08",
-  "buildDate": "2026-10-14T01:28:56Z",
+  "buildDate": "2026-10-15T22:27:44Z",
   "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-08/",
   "headline": "The definitive source on all updates coming to the game.",
   "changes": [
@@ -376,6 +376,10 @@
         },
         {
           "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-09-22T13:00:00.000Z",
           "names": []
         },
         {
@@ -1050,10 +1054,6 @@
         },
         {
           "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-10-13T13:00:00.000Z",
           "names": []
         },
         {
@@ -1817,7 +1817,7 @@
           "names": []
         },
         {
-          "line": "2026-10-13T13:00:00.000Z",
+          "line": "2026-09-22T13:00:00.000Z",
           "names": []
         },
         {
@@ -4337,7 +4337,7 @@
           "names": []
         },
         {
-          "line": "2026-09-22T13:00:00.000Z",
+          "line": "2026-10-13T13:00:00.000Z",
           "names": []
         },
         {
