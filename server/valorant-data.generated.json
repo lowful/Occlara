@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-19T20:19:02.122Z",
+  "generatedAt": "2026-10-20T18:49:57.153Z",
   "source": "valorant-api.com",
   "patch": "13.08",
-  "version": "13.08.00.5698904",
-  "buildDate": "2026-10-14T01:28:56Z",
+  "version": "13.08.00.5715960",
+  "buildDate": "2026-10-15T22:27:44Z",
   "agents": {
     "Gekko": {
       "role": "Initiator",
