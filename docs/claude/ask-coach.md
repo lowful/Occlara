@@ -260,5 +260,9 @@ the cheapest model passing them all. The finalist's answers go to a sheet for
 a person to read, folded in by `--score <run> --read <read>`. `--dry` sends
 nothing, reads no licence or password and writes nothing: it holds every key
 to its own samples and every question to the match and round it must land on.
-It runs after the server deploys with v2 off; on a pass `AI_CHAT_MODEL` and
-`CHAT_PROMPT=v2` are set on Railway, and unsetting `CHAT_PROMPT` rolls it back.
+It ran after the server deployed with v2 off. **v2 is the default for 8.5.0
+and later since 23 Oct 2026**, after the run of that day, its panel's read and
+the two gate fixes it found, with the player's yes (`coach.js chatPromoted`:
+`CHAT_PROMPT` unset is v2, `CHAT_PROMPT=v1` turns it off; `AI_CHAT_MODEL`
+unset is Sol). test:serverguards holds the default, the switch off, and an
+8.4.4 install's Ask Coach byte for byte as today.

@@ -74,8 +74,9 @@ stopped one (`test:benchsession`, on a stand in that books as this server does).
 
 **Ask Coach v2, the route's half** (8.5.0, `coach.js chatV2`; the prompt and
 the reply gates are `chat-prompt.js` over `fact-gates.js`). Served to a request
-whose context is v2 (`context.v: 2`) from a client of 8.5.0 or later once
-`CHAT_PROMPT=v2` is set on Railway, or to an admin bench naming `variant: 'v2'`
+whose context is v2 (`context.v: 2`) from a client of 8.5.0 or later (the
+default since 23 Oct 2026, `coach.js chatPromoted`; `CHAT_PROMPT=v1` turns it
+off), or to an admin bench naming `variant: 'v2'`
 or `'v2-noprimer'`; everything else, every client before 8.5.0 above all, is
 answered as today, byte for byte, and a deploy without `chat-prompt.js`, or a v2
 context it cannot take, is answered as today too. An 8.5.0 client answered

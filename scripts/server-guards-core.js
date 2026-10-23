@@ -249,11 +249,13 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
         'and so it is with CHAT_PROMPT=v2 set, a v2 context beside today\'s fields, and v2 and a bench model named without the admin password');
       const noV = await ask({ ...SEEDED, context: { ...SEEDED.context, ...V2(), v: 1 } }, { 'X-Occlara-Version': NEW });
       ok(sameAsToday(noV, TODAY[0][1], TODAY[0][2]), 'and for an 8.5.0 client whose context is not v2');
-      delete process.env.CHAT_PROMPT;
+      // v2 is the default for 8.5.0 and later since 23 Oct; CHAT_PROMPT=v1
+      // turns it off.
+      process.env.CHAT_PROMPT = 'v1';
       const off = await ask({ ...SEEDED, context: { ...SEEDED.context, ...V2() } }, { 'X-Occlara-Version': NEW });
-      ok(sameAsToday(off, TODAY[0][1], TODAY[0][2]), 'and for an 8.5.0 client while CHAT_PROMPT is unset: v2 is off until the env says');
+      ok(sameAsToday(off, TODAY[0][1], TODAY[0][2]), 'and for an 8.5.0 client with CHAT_PROMPT=v1: v2 is off');
       // An 8.5.0 client sends its matches without the 0 to 100 rating, and
-      // today's prompt, which answers it until CHAT_PROMPT=v2, said "rating
+      // today's prompt, which answers it while v2 is off, said "rating
       // undefined" on every line.
       const unrated = SEEDED.context.recentMatches.map(({ rating, ...m }) => m);
       const noRating = await ask({ ...SEEDED, context: { ...SEEDED.context, ...V2(), recentMatches: unrated } }, { 'X-Occlara-Version': NEW });
@@ -261,6 +263,9 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       ok(noRating.r.status === 200 && !/rating undefined|rating is 0-100/.test(p) && p.includes('Their recent matches (newest first):\n')
         && p.includes('ACS 290, ADR 180, HS 25%\n'),
       `and its matches without a rating are listed without one, never "rating undefined" (${(p.match(/HS 25%[^\n]*/) || [''])[0]})`);
+      delete process.env.CHAT_PROMPT;
+      const oldDefault = await ask(TODAY[0][0], { 'X-Occlara-Version': OLD });
+      ok(sameAsToday(oldDefault, TODAY[0][1], TODAY[0][2]), 'and with CHAT_PROMPT unset, v2\'s default, an 8.4.4 install\'s Ask Coach is still today\'s, byte for byte');
     }
 
     // ── Ask Coach v2, on a stand in for chat-prompt.js ────────────────────
@@ -327,12 +332,17 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       const player = await ask(v2body({ benchModel: 'google/gemini-3-flash-preview' }), { 'X-Occlara-Version': NEW });
       ok(player.sent[0].body.model === 'openai/gpt-6-sol' && player.body.model === 'openai/gpt-6-sol',
         'a licence naming a bench model on v2 is answered by the chat model, and told so, as /read tells one');
-      delete process.env.CHAT_PROMPT;
+      process.env.CHAT_PROMPT = 'v1';
       const benchOff = await ask(v2body({ variant: 'v2' }), { 'X-Admin-Password': PW, 'X-Occlara-Version': OLD });
       ok(promptOf(benchOff.sent[0]).startsWith('V2 PROMPT (v2)') && benchOff.body.variant === 'v2',
-        'and an admin bench gets v2 while CHAT_PROMPT is unset, on an old version header too');
+        'and an admin bench gets v2 while CHAT_PROMPT=v1, on an old version header too');
       const playerOff = await ask(v2body({ variant: 'v2' }), { 'X-Occlara-Version': NEW });
-      ok(sameAsToday(playerOff, TODAY[0][1], TODAY[0][2]), 'while a player naming v2 with CHAT_PROMPT unset gets today\'s, byte for byte');
+      ok(sameAsToday(playerOff, TODAY[0][1], TODAY[0][2]), 'while a player naming v2 with CHAT_PROMPT=v1 gets today\'s, byte for byte');
+      delete process.env.CHAT_PROMPT;
+      prov.next = () => ({ content: GOOD });
+      const byDefault = await ask(v2body(), { 'X-Occlara-Version': NEW });
+      ok(promptOf(byDefault.sent[0] || { body: {} }).startsWith('V2 PROMPT (v2) on Fracture') && byDefault.body.v === 2 && byDefault.sent[0].body.model === 'openai/gpt-6-sol',
+        'and with CHAT_PROMPT unset an 8.5.0 client is answered by v2, the default since its bench');
       process.env.CHAT_PROMPT = 'v2';
     }
     {
@@ -753,9 +763,9 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
         && !/asked|honest|capped|retried|licencesAtCap/.test(got.health.text) && !got.health.text.includes('stand-in-core'),
       `GET /health names chatModel and textModelNow, and no count of Ask Coach's and no secret (${got.health ? got.health.status : `no answer: ${output.slice(-200)}`})`);
       const c = got.chat && got.chat.json;
-      ok(c && got.chat.status === 200 && c.asked && typeof c.asked.v2 === 'number' && c.cap && c.cap.usd === 0.15 && c.served === 'v1'
+      ok(c && got.chat.status === 200 && c.asked && typeof c.asked.v2 === 'number' && c.cap && c.cap.usd === 0.15 && c.served === 'v2'
         && got.refused && got.refused.status === 401,
-      `/api/admin/chat gives the day's counts behind the admin password, and 401 without it (${got.chat && got.chat.status}, ${got.refused && got.refused.status})`);
+      `/api/admin/chat gives the day's counts behind the admin password, v2 served by default, and 401 without it (${got.chat && got.chat.status}, ${c && c.served}, ${got.refused && got.refused.status})`);
       // The primer's live check: what it found behind the password, and never
       // started here (PRIMER_LIVE_CHECK=off, and no Railway): no test calls valorant-api.com.
       const pr = got.primer && got.primer.json;

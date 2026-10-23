@@ -285,10 +285,13 @@ const AI = {
   // facts in 84 lines, qwen/qwen3.7-flash 10 or more with 14 of 84 lines lost.
   textModel:   process.env.AI_TEXT_MODEL || 'google/gemini-3-flash-preview',
   // ASK COACH V2 (8.5.0): pinned on every v2 answer, with no other model ever
-  // answering one (fallback: false). Its default is bench:chat's winner, whose
-  // table goes here once it has run; until then openai/gpt-6-sol, the first
-  // candidate, which v2 is not served with until CHAT_PROMPT=v2 is set on
-  // Railway after that bench passes. Clients before 8.5.0 stay on textModel.
+  // answering one (fallback: false). bench:chat of 23 Oct 2026, 90 answers
+  // read by three agents: premises 9 of 9 corrected, the honest line 1.1%,
+  // drops 5.0%, retries 12.2%, depth 4.78 of 5, names, kits, relabels,
+  // economy and meta 0 shown, p90 6.1 s, $0.0087 a question, and its four
+  // wrong facts fixed in the gates and replayed away. v2 is the default for
+  // 8.5.0 and later since then (chatPromoted). Clients before 8.5.0 stay on
+  // textModel.
   chatModel:   process.env.AI_CHAT_MODEL || 'openai/gpt-6-sol',
   // The live READ (facts only, every one to five seconds) and the post match
   // REVIEW are different jobs with different budgets, so each has its own
@@ -4039,12 +4042,18 @@ const CHAT_DAY_MS = 24 * 60 * 60 * 1000;
 const HONEST_LINE = "I couldn't give you an answer I can stand behind for that one. Ask me about a round, a death or your agent in this match.";
 
 /** The v2 prompt a request is answered with ('v2' or 'v2-noprimer'), or null for today's. */
+/*
+ * V2 IS THE DEFAULT FOR 8.5.0 AND LATER since its bench and the player's yes
+ * (23 Oct 2026): CHAT_PROMPT unset is v2, and CHAT_PROMPT=v1 (any word but v2)
+ * turns it off. A client before 8.5.0 never gets it.
+ */
+const chatPromoted = () => String(process.env.CHAT_PROMPT || 'v2').trim().toLowerCase() === 'v2';
 function chatVariant(req) {
   const ctx = req.body && req.body.context;
   if (!ctx || typeof ctx !== 'object' || ctx.v !== 2) return null;
   const asked = String((req.body && req.body.variant) || '').trim().toLowerCase();
   if (asked && isAdmin(req)) return CHAT_VARIANTS.has(asked) ? asked : null;
-  return String(process.env.CHAT_PROMPT || '').trim().toLowerCase() === 'v2' && clientAtLeast(req, V85) ? 'v2' : null;
+  return chatPromoted() && clientAtLeast(req, V85) ? 'v2' : null;
 }
 
 /** The cap as Railway sets it, read on every question. */
@@ -4101,7 +4110,7 @@ function chatReport() {
   return { day: c.day, asked: { ...c.asked }, answered: c.answered, retried: c.retried, honest: c.honest,
     capped: c.capped, failed: c.failed, sentences: c.sentences, dropped: { ...c.dropped }, logged: { ...c.logged },
     licencesAtCap: atCap, cap: chatCap(),
-    model: AI.chatModel, served: String(process.env.CHAT_PROMPT || '').trim().toLowerCase() === 'v2' ? 'v2' : 'v1',
+    model: AI.chatModel, served: chatPromoted() ? 'v2' : 'v1',
     since: COSTS_SINCE };
 }
 
