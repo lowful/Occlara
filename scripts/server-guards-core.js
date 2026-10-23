@@ -563,6 +563,10 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       ok(named.sent.every((s) => s.body.max_tokens === 320) && named.body.variant === 'a',
         'a licence naming b is looked at with today\'s prompt, and told so (variant a)');
       delete process.env.FORENSICS_PROMPT;
+      // b2 is the default for 8.5.0 and later since its bench (22 Oct), and
+      // never reaches a client before it.
+      const oldDefault = await look(lookBody(), { 'X-Occlara-Version': OLD });
+      ok(asToday(oldDefault, lookBody()), `and with FORENSICS_PROMPT unset, b2's default, an 8.4.4 install's look is still the look 8.4.4 shipped (${oldDefault.sent.length} looks)`);
 
       // What the route hands the look: watched on the module itself. The
       // match's name set noted again: the cap's day on a clock four years on
@@ -575,9 +579,16 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
         names: input.names, n: death.n }); return realBuild(input, death); };
       if (!Array.isArray(deathForensics.VARIANTS) || !deathForensics.VARIANTS.includes('b')) deathForensics.VARIANTS = ['b'];
       try {
+        process.env.FORENSICS_PROMPT = 'a';
         const live = await look(lookBody(), { 'X-Occlara-Version': NEW });
-        ok(live.body.variant === 'a' && handed.every((h) => h.variant !== 'b') && live.sent.every((s) => s.body.max_tokens === 320),
-          'an 8.5.0 client is looked at with today\'s prompt until FORENSICS_PROMPT=b, and told so');
+        ok(live.body.variant === 'a' && handed.every((h) => h.variant !== 'b' && h.variant !== 'b2') && live.sent.every((s) => s.body.max_tokens === 320),
+          'an 8.5.0 client is looked at with today\'s prompt when FORENSICS_PROMPT=a, and told so');
+        handed.length = 0;
+        delete process.env.FORENSICS_PROMPT;
+        const byDefault = await look(lookBody(), { 'X-Occlara-Version': NEW });
+        ok(byDefault.body.variant === 'b2' && handed.length === 2 && handed.every((h) => h.variant === 'b2')
+          && byDefault.sent.every((s) => s.body.max_tokens === 400),
+        `and with FORENSICS_PROMPT unset it gets b2, the default since its bench, its 400 tokens, and is told so (${JSON.stringify(handed.map((h) => h.variant))})`);
         handed.length = 0;
         process.env.FORENSICS_PROMPT = 'b';
         const b = await look(lookBody(), { 'X-Occlara-Version': NEW });

@@ -177,8 +177,9 @@ the look as 8.4.4 shipped it, frozen in `scripts/fixtures/death-forensics-844.js
 (150 bodies' prompts, 4,740 replies). The module asks with b only when
 `input.variant` is 'b'.
 
-**Variant b2: b with the evidence each judgement rests on** (8.5.0, admin
-only until bench A passes, then `FORENSICS_PROMPT=b2`). Bench A of 15 Oct ran b
+**Variant b2: b with the evidence each judgement rests on** (8.5.0, the
+default for 8.5.0 and later since 22 Oct 2026; `FORENSICS_PROMPT=a` or `=b`
+names another, and a client before 8.5.0 never gets one). Bench A of 15 Oct ran b
 five times on 16 of the player's deaths against a key three agent panels
 wrote from the stills and Riot's facts, merged 2 of 3 and frozen before the
 first run: b held its families (no look contradicted itself) and beat a on
@@ -200,6 +201,19 @@ after a kill is never one. Unclear is asked for empty (`REPLY_B2`). Its
 causes, families and parse are b's, and its looks carry b's labels as 'b'
 (`LABELS`), the word an 8.5.0 client keeps and a cause's trend is held to;
 the reply's own `variant` says b2.
+
+**b2's bench, and why it is the default** (bench A, 22 Oct, five runs of the
+same 16 deaths against the same frozen key): forbidden labels 3 in 80 (a 13, b
+5), the fair duel a lost duel 5 of 5, unclear wherever the key says 4 of 4 (a
+3), the Fracture's rounds 2, 5 and 6 all acceptable in 3 runs of 5 (a and b 0),
+no look contradicting itself and no conflict after parse, p90 3.39 s (a 5.03).
+It missed three terms narrowly: forbidden by one (round 2 a lost duel twice,
+the Abyss round 3 a dry peek once), the Fracture by one run, and the avoidable
+bar, 55% where the merged key's union rule set 49% though the three panels'
+own keys ran 50 to 62.5%. Better than a on every term, it is the default by
+the player's rule, the better prompt overall (`coach.js forensicsVariant`:
+`FORENSICS_PROMPT` unset is b2; test:forensics and test:serverguards hold the
+default and an 8.4.4 install's look byte for byte as it shipped).
 
 **The phrase lists set no label, in any variant** (`death-forensics.js
 PHRASES`; one list in four copies, the client's in `death-causes.js` and Ask
