@@ -448,6 +448,30 @@ function standingsOf(card) {
 }
 
 /*
+ * THE NUMBERS STANDING AT THE PLAYER'S DEATH AND RIGHT AFTER IT (bench:chat,
+ * 23 Oct): from the kill feed where it holds the death, else from Riot's count
+ * at it (`alive`, the player among the mates), the one after it a mate fewer.
+ * A standing the death is said to leave is held to `after` (fact-gates.js
+ * leftByDeath): the Abyss swiftplay's round 2 died 4 against 5 and left 3
+ * against 5, and "leaving your team 4 against 5" passed as a standing it had.
+ * `after` joins no list of the round's standings: "Tejo killed you while it
+ * was 3 against 5" still drops there, where no feed is kept.
+ */
+function deathStandingsOf(card) {
+  const none = { at: null, after: null };
+  if (!card || !card.died) return none;
+  const r = card.riot || {};
+  let m = 5;
+  let e = 5;
+  for (const k of r.feed || []) {
+    if (k.on === 'me') return { at: [m, e], after: [m - 1, e] };
+    if (k.on === 'mate') m -= 1;
+    else if (k.on === 'enemy') e -= 1;
+  }
+  return r.alive ? { at: [r.alive.mates, r.alive.enemies], after: [r.alive.mates - 1, r.alive.enemies] } : none;
+}
+
+/*
  * THE PRIMER'S PROVENANCE AS THE GATES READ IT: each number's subject, the
  * attribute it is of, its part, band and armour, and how it is shown. The
  * primer (game-primer.js) names attributes as its text says them ("head
@@ -705,6 +729,9 @@ function factsOf(input, messages, opts) {
     primer: valorant ? primerFacts(mode, m && m.at) : [],
     echo: echoOf(messages),
     armor: null,
+    // The agents each team had, from Riot's comps and every kill feed: whose
+    // side a teammate or an enemy named alone against N is (fact-gates.js clutchOwner).
+    sides: { mates: new Set(), enemies: new Set() },
   };
   const addNum = (attr, value, round) => { if (fin(value)) f.numbers.push({ attr, value, round: round == null ? null : round }); };
   // A counted text's numbers, each with its unit when it has one ("the first
@@ -771,6 +798,18 @@ function factsOf(input, messages, opts) {
       }
     }
     for (const p of m.patterns) harvest(p.text);
+    if (m.comps) {
+      for (const x of m.comps.us) f.sides.mates.add(x.agent);
+      for (const x of m.comps.them) f.sides.enemies.add(x.agent);
+    }
+    for (const c of m.cards) {
+      for (const k of (c.riot && c.riot.feed) || []) {
+        if (k.by === 'mate' && k.ka) f.sides.mates.add(k.ka);
+        if (k.on === 'mate' && k.va) f.sides.mates.add(k.va);
+        if (k.by === 'enemy' && k.ka) f.sides.enemies.add(k.ka);
+        if (k.on === 'enemy' && k.va) f.sides.enemies.add(k.va);
+      }
+    }
     // Who killed the player how often, from the cards: "Skye killed you 7 times".
     const killers = new Map();
     for (const c of m.cards) if (c.riot && c.riot.killer) killers.set(c.riot.killer, (killers.get(c.riot.killer) || 0) + 1);
@@ -808,6 +847,7 @@ function factsOf(input, messages, opts) {
         if (gates.gunOwner(lookText, g) === 'theirs') weapons.theirs.add(g.name); else weapons.mine.add(g.name);
         weapons.all.add(g.name);
       }
+      const death = deathStandingsOf(c);
       f.rounds.set(c.n, {
         n: c.n, side: c.side, result: c.result, died: c.died, verified: c.verified, watched: c.watched,
         pistol: c.pistol, matchPoint,
@@ -816,7 +856,7 @@ function factsOf(input, messages, opts) {
         kills: r ? r.kills : null, traded: r ? r.traded : null, trades: r ? r.trades : null, clutch: r ? r.clutch : null,
         killer: r ? r.killer : null, killerWeapon: r ? r.weapon : null, sec: r ? r.sec : null,
         plantSec: r ? r.plantSec : null, plantSite: r ? r.plantSite : null,
-        feed, times, standings: standingsOf(c), weapons,
+        feed, times, standings: standingsOf(c), weapons, atDeath: death.at, after: death.after,
         look: c.look ? { cause: c.look.cause, what: c.look.what, better: c.look.better, fair: c.look.cause === 'lost-duel' } : null,
         lookDigits: (c.screen && c.screen.lookDigits) || [],
         before,
@@ -1476,11 +1516,35 @@ function cleanReply(raw) {
 const VERDICT = /^(?:yes|yeah|yep|no|nope|nah|correct|right|exactly|absolutely|definitely|not really|not quite|s[ií]|oui|non|ja|nein|sim|n[ãa]o)(?:,?\s+(?:it|that|you|they|he|she|we)\s+(?:was|were|did|is|are|should|had|could|would)(?:n't|\s+not)?(?:\s+have)?)?\s*[.!]?$/i;
 const VERDICT_REASON = 'your reply answered yes or no, and the sentence that said why could not be shown; answer with the fact itself, in a full sentence';
 
+/*
+ * A SENTENCE THAT LEANS ON A DROPPED ONE GOES WITH IT (bench:chat, 23 Oct).
+ * The reply closes up around a dropped sentence, so the next is read against
+ * whatever then stands before it: on the Sunset round 1, with the player's
+ * death dropped, "Skye traded KAY/O one second later" followed Phoenix's death
+ * at 24 s and told a trade at 25 s where Riot has 27 s, a wrong fact no
+ * sentence of the model's said. A sentence that leans on the one before it for
+ * its time or its subject (fact-gates.js leansOn) is dropped when that one is,
+ * in reading order, paragraphs or not, and so is the next if it leans on it.
+ *
+ * Dropped, not asked for again, because: a sentence is never repaired, and a
+ * bare verdict already goes with the sentence that said why (VERDICT), so the
+ * gates hold one rule, that what reads wrong as shown is not shown; asking
+ * again costs a second call, on the run of 23 Oct 2.8 s and $0.006 more an
+ * answer on average (the eight questions asked again in one run and not in
+ * another), where retries were already the one rate past its bar (12.2% of
+ * answers against 10%), and the second reply can lean the same way; and a
+ * reply the extra drop leaves without its answer is still asked for again,
+ * as any is whose first sentence went or that keeps fewer than two.
+ */
+const LEANS_REASON = 'a sentence of your reply leaned on the one before it, which could not be shown; give each event its own time into the round, and name the agent rather than he, she, that or it';
+
 /**
  * Every sentence of a reply's paragraphs through the gates, in order: { p
- * (its paragraph), s, drop, logged }, and a bare verdict whose next sentence
- * was dropped dropped with it (VERDICT). parseReply's reading of a reply, and
- * bench:chat's.
+ * (its paragraph), s, drop, logged }, a standing the death told in the
+ * sentence before left held to the one after it (gateLeftAcross), a sentence
+ * that leans on a dropped one dropped with it in English (LEANS_REASON), and
+ * a bare verdict whose next sentence was dropped dropped with it (VERDICT).
+ * parseReply's reading of a reply, and bench:chat's.
  */
 function gateReply(paras, facts, nameOpts) {
   const rows = [];
@@ -1490,6 +1554,24 @@ function gateReply(paras, facts, nameOpts) {
       rows.push({ p: i, s, drop: res.drop, logged: res.logged });
     }
   });
+  // The death in one sentence, the standing it left in the next ("Tejo killed
+  // you 13 s in. That left your team 4 against 5."): held to the one after it
+  // (fact-gates.js gateLeftAcross, the verifier's probe of 23 Oct).
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i].drop || rows[i - 1].drop) continue;
+    const across = gates.gateLeftAcross(rows[i - 1].s, rows[i].s, facts);
+    if (across) { rows[i].drop = across; rows[i].logged = []; }
+  }
+  // leansOn reads English words, so only an English reply leans by them: a
+  // Spanish "He visto" (I have seen) or a Turkish "Her raundda" (in every
+  // round) is no pronoun standing for a dropped sentence (the verifier's probe).
+  const english = ((facts && facts.language) || 'en') === 'en';
+  for (let i = 1; english && i < rows.length; i++) {
+    if (rows[i - 1].drop && !rows[i].drop && gates.leansOn(rows[i].s)) {
+      rows[i].drop = { gate: 'leans', reason: LEANS_REASON };
+      rows[i].logged = [];
+    }
+  }
   for (let i = 0; i + 1 < rows.length; i++) {
     if (!rows[i].drop && rows[i + 1].drop && VERDICT.test(gates.straighten(rows[i].s).trim())) {
       rows[i].drop = { gate: 'verdict', reason: VERDICT_REASON };
@@ -1572,7 +1654,7 @@ function retryParts(parts, reasons) {
 module.exports = {
   normalise, buildPrompt, buildParts, parseReply, retryPrompt, retryParts, HONEST_LINE,
   // The parts, for the tests and bench:chat.
-  factsOf, cleanReply, gateReply, askedRounds, matchName, pickNotes, primerFacts, normEntry, echoOf, gateText, stated, standingsOf,
+  factsOf, cleanReply, gateReply, askedRounds, matchName, pickNotes, primerFacts, normEntry, echoOf, gateText, stated, standingsOf, deathStandingsOf, LEANS_REASON,
   renderPlayer, renderMatch, renderAsked, renderEarlier, renderSlices, staticPrefix, languageLine, gunsInCore,
   VALORANT_RULES, LEAGUE_RULES, RIOT_ONLY, NO_MATCH, DYNAMIC_MAX_CHARS, MATCH_MAX_CHARS, MAX_CHARS, MAX_ASKED_ROUNDS, VERDICT, VERDICT_REASON,
 };

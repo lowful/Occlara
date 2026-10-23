@@ -652,6 +652,19 @@ HOW TO ANSWER
     'bench:chat counts a sentence withheld from a raw reply as a name, beside a planted one', JSON.stringify(n));
 }
 
+// The matches the bench:chat cases need, as the gates see them: a question on
+// a review, and a Riot record built as a review with the few facts of a round
+// a case needs.
+const asking = (rv, q, extra) => { const ms = [{ role: 'user', content: q }]; const input = inputFor(rv, q, extra); return { input, ms, f: factsFor(input, ms, STAND_IN) }; };
+const riotOnly = (file, row, edit) => {
+  const riot = load(file);
+  const per = riot.perRound.map((r) => (edit && edit[r.n] ? { ...r, ...edit[r.n] } : r));
+  const rv = riotReview.fromRiot({ row: { matchId: `${riot.map.toLowerCase()}-0015-test`, map: riot.map, agent: riot.me.agent,
+    mode: riot.queue === 'swiftplay' ? 'Swiftplay' : 'Competitive', result: riot.result, score: riot.score,
+    kills: 9, deaths: 6, assists: 2, acs: 200, adr: 130, headshotPct: 18, startedAt: AT, ...(row || {}) }, riot: { ...riot, perRound: per }, history: [] }).review;
+  return review.served({ ...rv, id: `valorant-1790000000${riot.rounds}15-${riot.map.toLowerCase().slice(0, 6)}`, at: AT });
+};
+
 // ── The bench:chat run of 15 Oct (Sol v2), each case from its raw replies ───
 // The person's read found the gates and the context, not the model, behind
 // most of what failed. Every sentence below in quotes from the run is the
@@ -695,16 +708,7 @@ HOW TO ANSWER
     ok(!!r && r.test(pos) && !r.test(neg), `${name} matches "${pos}" and not "${neg}"`);
   }
 
-  // The matches the cases need, as the gates see them.
-  const asking = (rv, q, extra) => { const ms = [{ role: 'user', content: q }]; const input = inputFor(rv, q, extra); return { input, ms, f: factsFor(input, ms, STAND_IN) }; };
-  const riotOnly = (file, row, edit) => {
-    const riot = load(file);
-    const per = riot.perRound.map((r) => (edit && edit[r.n] ? { ...r, ...edit[r.n] } : r));
-    const rv = riotReview.fromRiot({ row: { matchId: `${riot.map.toLowerCase()}-0015-test`, map: riot.map, agent: riot.me.agent,
-      mode: riot.queue === 'swiftplay' ? 'Swiftplay' : 'Competitive', result: riot.result, score: riot.score,
-      kills: 9, deaths: 6, assists: 2, acs: 200, adr: 130, headshotPct: 18, startedAt: AT, ...(row || {}) }, riot: { ...riot, perRound: per }, history: [] }).review;
-    return review.served({ ...rv, id: `valorant-1790000000${riot.rounds}15-${riot.map.toLowerCase().slice(0, 6)}`, at: AT });
-  };
+  // The matches the cases need, as the gates see them (asking, riotOnly, above).
   const SUNSET = riotOnly('riot-sunset-2-5.json', null, { 5: { kills: 1, feed: [{ ms: 52000, by: 'me', on: 'enemy' }] } });
   // Fracture's rounds 5 and 6 with the facts Riot's record of them has: round 5
   // the first kill and two, the spike down at A, the player killed by their
@@ -906,6 +910,265 @@ HOW TO ANSWER
   }
   ok(JSON.stringify(cp.retryParts(['a\n\n', 'b\n\n', 'c'], ['your reply said X'])) === JSON.stringify(['a\n\n', 'b\n\n', cp.retryPrompt('c', ['your reply said X'])])
     && cp.retryParts(['a\n\n', 'b\n\n', 'c'], ['r']).join('') === cp.retryPrompt('a\n\nb\n\nc', ['r']), 'the retry keeps the stable parts as sent, and joined it is retryPrompt\'s');
+}
+
+// ── The bench:chat run of 23 Oct (Sol v2), each case from its raw replies ───
+// The panel's read found 4 wrong facts in 90 answers, from two causes: two the
+// gates made, on the Sunset round 1 (runs 1 and 2), and two the model said, on
+// the Abyss swiftplay's round 2 (runs 1 and 2). Every sentence below in quotes
+// from the run is the model's own, its curly apostrophes as it wrote them; the
+// matches are the repo's Riot record of the Sunset swiftplay with round 1's kill
+// feed as Riot has it (agents, guns and seconds, never a name), the Abyss
+// swiftplay's 8.0.1 card read back as test:chatcontext reads it, the repo's
+// Abyss and Split, and the Pearl round 1 with its teams.
+{
+  console.log('\nthe bench:chat run of 23 Oct:');
+  const RQ = String.fromCharCode(0x2019);
+  // Each new regex on a known positive and a known negative.
+  const cases = [
+    ['CLUTCH', gates.CLUTCH, 'leaving Skye alone against three', 'leaving Skye against three'],
+    ['STANDING_WORDS', gates.STANDING_WORDS, 'leaving your team four against five', 'a one on one duel'],
+    ['STANDING_WORDS (a duel)', gates.STANDING_WORDS, 'leaving Skye one against two', 'a one against one duel'],
+    ['ALONE_AGAINST', gates.ALONE_AGAINST, 'leaving Skye alone against three', 'leaving you and Skye against three'],
+    ['LEFT_BY', gates.LEFT_BY, 'leaving your team 4 against 5', 'with your team 4 against 5'],
+    ['LEFT_BY (the left)', gates.LEFT_BY, 'the trade still left Skye', 'from the left at 4 against 5'],
+    ['PLAYER_DEATH', gates.PLAYER_DEATH, 'Tejo killed you 13 s in', 'you killed Tejo 13 s in'],
+    ['AFTER_DEATH', gates.AFTER_DEATH, 'After Tejo killed you, your team', 'After you killed Tejo, your team'],
+    ['EVENT_BETWEEN', gates.EVENT_BETWEEN, ', and Skye traded KAY/O a second later, ', ' at Mid Bottom at 26 s in, '],
+    ['CLAUSE_BETWEEN', gates.CLAUSE_BETWEEN, ' at 17 s in, and your teammates later ', ' 13 s in, which '],
+    ['LEANS_TIME', gates.LEANS_TIME, 'Skye traded KAY/O one second later', 'Your teammates later planted at B'],
+    ['LEANS_SUBJECT', gates.LEANS_SUBJECT, 'She killed you 5 times', 'Skye killed you 5 times'],
+    ['IT_IS_THE_ROUND', gates.IT_IS_THE_ROUND, 'It was a defence round.', 'It was not traded.'],
+    ['LEANS_TRADE', gates.LEANS_TRADE, 'Skye traded KAY/O at 27 s in', 'and nobody traded it'],
+    ['LEAN_ANCHOR', gates.LEAN_ANCHOR, 'KAY/O killed you at 26 s in, ', 'Before taking her angle again, '],
+  ];
+  for (const [name, re, pos, neg] of cases) {
+    const r = re && new RegExp(re.source, re.flags.replace('g', ''));
+    ok(!!r && r.test(pos) && !r.test(neg), `${name} matches "${pos}" and not "${neg}"`);
+  }
+
+  // 1. A TEAMMATE NAMED ALONE AGAINST N IS THAT TEAMMATE'S, NEVER THE PLAYER'S CLUTCH.
+  const SUNSET1 = riotOnly('riot-sunset-2-5.json', null, { 1: { traded: true, weapon: 'Sheriff', kills: 0, plantMs: 37900, plantSite: 'B',
+    aliveAtDeath: { mates: 2, enemies: 3 }, feed: [
+      { ms: 5200, by: 'enemy', on: 'mate', ka: 'Neon', va: 'Chamber', w: 'Sheriff' }, { ms: 7800, by: 'mate', on: 'enemy', ka: 'Phoenix', va: 'Neon', w: 'Ghost' },
+      { ms: 22600, by: 'enemy', on: 'mate', ka: 'Cypher', va: 'Miks', w: 'Ghost' }, { ms: 22800, by: 'mate', on: 'enemy', ka: 'Skye', va: 'Cypher', w: 'Ghost' },
+      { ms: 23900, by: 'enemy', on: 'mate', ka: 'Jett', va: 'Phoenix', w: 'Ghost' }, { ms: 26200, by: 'enemy', on: 'me', ka: 'KAY/O', va: 'Jett', w: 'Sheriff' },
+      { ms: 27300, by: 'mate', on: 'enemy', ka: 'Skye', va: 'KAY/O', w: 'Ghost' }, { ms: 39600, by: 'enemy', on: 'mate', ka: 'Clove', va: 'Skye', w: 'Ghost' }] } });
+  const S1 = asking(SUNSET1, 'Walk me through round 1.');
+  const s1 = S1.f.rounds.get(1);
+  ok(S1.f.asked === 1 && s1.died && s1.clutch === null && JSON.stringify(s1.atDeath) === '[2,3]' && JSON.stringify(s1.after) === '[1,3]'
+    && S1.f.sides.mates.has('Skye') && !S1.f.sides.enemies.has('Skye'),
+  'Sunset round 1: the player died 2 against 3 and left 1 against 3, in no clutch of their own, Skye on their side', JSON.stringify({ at: s1.atDeath, after: s1.after, clutch: s1.clutch }));
+  const died1 = `You died to KAY/O${RQ}s Sheriff at Mid Bottom at 26 s in, leaving Skye alone against three.`;
+  const died2 = 'KAY/O then killed you with a Sheriff at 26 s in, leaving Skye alone against three.';
+  const left2 = 'Skye did trade you, so you were close enough for an immediate answer, but the trade still left Skye alone against two with a plant to make and defend.';
+  for (const [s, which] of [[died1, 'run 1'], [died2, 'run 2'], [left2, 'run 2']]) {
+    ok(keeps(s, S1.f), `SUNSET-R1-WALK, ${which}: A TEAMMATE ALONE AGAINST N IS NO CLUTCH OF THE PLAYER'S: "${s}" stays`, why(s, S1.f));
+  }
+  ok(drops('In round 1 you were alone against three.', S1.f, 'timeline') && drops('KAY/O killed you at 26 s in, leaving Skye alone against two.', S1.f, 'timeline')
+    && drops('KAY/O killed you at 26 s in, leaving you and Skye alone against three.', S1.f, 'timeline')
+    && keeps('KAY/O killed you at 26 s in, and Skye traded KAY/O a second later, leaving Skye alone against two.', S1.f),
+  'and the player alone is still their own clutch, which the record does not have, while a teammate alone is 1 against N held to the record, the trade\'s 1 against 2 the trade\'s',
+  why('KAY/O killed you at 26 s in, leaving Skye alone against two.', S1.f));
+  const walk = 'In the Sunset match on Jett, a 2 to 5 loss, round 1 was your attack pistol. Your Chamber died to Neon at 5 s in, and Phoenix answered at 8 s in. '
+    + `At 23 s in, Cypher killed Miks and Skye traded Cypher, leaving it even. Their Jett killed Phoenix at 24 s in. ${died2} Skye traded KAY/O a second later, planted at B at 38 s in, then died to Clove at 40 s in.`;
+  const pw = cp.parseReply(walk, S1.input, { messages: S1.ms });
+  ok(!pw.retry && !Object.keys(pw.dropped).length && pw.reply.includes(`${died2} Skye traded KAY/O a second later`),
+    'SUNSET-R1-WALK, run 2: THE WALK GOES OUT WHOLE, the player\'s death 26 s in before "Skye traded KAY/O a second later", 27 s as Riot has it', JSON.stringify(pw.dropped));
+  const P1 = cp.normalise({ v: 2, game: 'valorant', language: 'en', advanced: false,
+    match: { id: 'valorant-1790000000000-pearl2', map: 'Pearl', agent: 'Raze', mode: 'Swiftplay', result: 'Defeat', score: '1-5', rounds: 6, verified: true, at: AT,
+      comps: { us: ['Jett', 'Phoenix', 'Raze', 'Reyna', 'Yoru'].map((agent) => ({ agent })), them: ['Clove', 'Cypher', 'Fade', 'Neon', 'Sage'].map((agent) => ({ agent })) },
+      cards: [{ n: 1, side: 'attacking', result: 'lost', died: true, verified: true, watched: true, pistol: true,
+        riot: { sec: 26, killer: 'Clove', weapon: 'Classic', traded: false, kills: 0, alive: { mates: 2, enemies: 2 } } }] },
+    player: {}, ask: { round: 1 } });
+  const P1f = factsFor(P1, [{ role: 'user', content: "Was it a player's fault that we lost round 1?" }], STAND_IN);
+  const reyna = 'Clove then killed you with a Classic on B Site, leaving Reyna alone against 2.';
+  ok(keeps(reyna, P1f) && drops('Clove then killed you with a Classic on B Site, leaving Reyna alone against 3.', P1f, 'timeline'),
+    'PEARL-R1-RIOTID, runs 2 and 3: "LEAVING REYNA ALONE AGAINST 2" STAYS, its 2 a standing\'s and never a number tied to nothing, and a wrong one drops', why(reyna, P1f));
+
+  // 1b. A SENTENCE THAT LEANS ON A DROPPED ONE GOES WITH IT, for its time or its subject.
+  ok(gates.leansOn('Skye traded KAY/O one second later, planted at B at 38 s in, then died to Clove at 40 s in.') === 'time'
+    && gates.leansOn('Skye traded KAY/O a second later, planted at B at 38 s in, then died to Clove at 40 s in.') === 'time'
+    && gates.leansOn('KAY/O killed you at 26 s in, and Skye traded KAY/O a second later.') === null,
+  'SUNSET-R1-WALK: "SKYE TRADED KAY/O ONE SECOND LATER" IS TIMED FROM THE SENTENCE BEFORE IT, and timed from an earlier clause of its own it is not');
+  const wrongTime = cp.gateReply(cp.cleanReply(`Their Jett killed Phoenix at 24 s in. You died to KAY/O${RQ}s Sheriff at Mid Bottom at 29 s in, leaving Skye alone against three. `
+    + 'Skye traded KAY/O a second later, planted at B at 38 s in, then died to Clove at 40 s in.'), S1.f, {});
+  ok(!wrongTime[0].drop && wrongTime[1].drop && wrongTime[1].drop.gate === 'number' && wrongTime[2].drop && wrongTime[2].drop.gate === 'leans'
+    && wrongTime[2].drop.reason === cp.LEANS_REASON,
+  'A DEATH A GATE DROPS TAKES "SKYE TRADED KAY/O A SECOND LATER" WITH IT, which after Phoenix\'s death would read as a trade at 25 s', JSON.stringify(wrongTime.map((r) => r.drop && r.drop.gate)));
+  for (const s of ['She killed you 5 times, in rounds 4, 7, 9, 10, and 19.', 'That was the first death, at 5 against 5, and it went untraded.',
+    'That is enough reason to keep playing her while you work on the bigger issue this match exposed, rather than switch because of the map.',
+    'That is the habit to carry into your Jett entries.', 'It was not traded.', 'Skye traded KAY/O at 27 s in.']) {
+    ok(gates.leansOn(s) === 'subject', `"${s}" LEANS ON THE SENTENCE BEFORE IT FOR ITS SUBJECT`);
+  }
+  for (const s of ['It was a defence round.', 'Two teammates then died before the spike went down at 24 s in.', 'Your teammates later planted at B at 51 s in and won.',
+    'No teammate killed Tejo within five seconds, so your death went untraded.', 'You were the first death, and nobody traded it.',
+    `There${RQ}s a reason to keep playing her, but your results don${RQ}t show that you need to switch.`, 'Their Neon killed your Chamber 5 s in, and your Phoenix answered 8 s in.']) {
+    ok(gates.leansOn(s) === null, `and "${s}" leans on nothing before it`);
+  }
+  const A22 = asking(ABYSS, 'What happened in round #22?');
+  const r22 = cp.parseReply('In the Abyss match on Jett, which you won 13 to 11, round 22 was an attack that you lost. You got the opening kill at 15 s in, putting your team ahead 5 against 4. '
+    + 'Skye killed you with a Vandal at 16 s in, at B Link according to the screen read. It was not traded. Two teammates then died before the spike went down at 24 s in.', A22.input, { messages: A22.ms });
+  ok(r22.dropped.attribution === 1 && r22.dropped.leans === 1 && !r22.retry && !/It was not traded/.test(r22.reply)
+    && /putting your team ahead 5 against 4\. Two teammates then died before the spike went down at 24 s in\./.test(r22.reply),
+  'ABYSS-R22-HASH, run 3: "IT WAS NOT TRADED." GOES WITH THE DEATH IT STOOD FOR, never read as the opening kill, and "Two teammates then died" stays', JSON.stringify(r22));
+  const SPLIT = chatContext.applyRoundRecord(riotReview.fromRiot({ row: { matchId: 'split-0023-test', map: 'Split', agent: 'Jett', mode: 'Competitive', result: 'Victory', score: '13-7',
+    kills: 17, deaths: 16, assists: 8, acs: 279, adr: 181, headshotPct: 22, startedAt: AT }, riot: load('riot-split-13-7.json'), history: [] }).review, load('riot-split-13-7.json'), AT);
+  const SC = asking({ ...SPLIT, id: 'valorant-1790000000023-split3', at: AT }, 'What comp did the enemy team run?');
+  const sc = cp.gateReply(cp.cleanReply('The matchup that kept hurting you was Reyna. She killed you 5 times, in rounds 4, 7, 9, 10, and 19.'), SC.f, {});
+  ok(sc[0].drop && sc[0].drop.gate === 'count' && sc[1].drop && sc[1].drop.gate === 'leans',
+    'SPLIT-COMPS, run 1: "SHE KILLED YOU 5 TIMES" GOES WITH THE REYNA IT STOOD FOR, never read as Skye, the last agent named', JSON.stringify(sc.map((r) => r.drop)));
+
+  // 2. A STANDING THE PLAYER'S DEATH LEFT IS THE ONE AFTER IT.
+  const v801 = { kind: 'valorant', id: 'valorant-1790000000070-abyss2', at: AT, verified: true, game: { map: 'Abyss', agent: 'Jett', mode: 'Swiftplay', result: 'Defeat', score: '3-5' },
+    rounds: [{ n: 2, side: 'Defence', result: 'lost', died: true, facts: ['Died at B Main, 13s in, to Tejo with a Outlaw', '4 against 5 when you died', 'Not traded', 'Spike planted at B'] }],
+    insights: { mistakes: [], strengths: [], missed: [] } };
+  const SW = asking(review.served(v801), 'Why did I die in round 2?');
+  const w2 = SW.f.rounds.get(2);
+  ok(SW.f.asked === 2 && !w2.feed && JSON.stringify(w2.atDeath) === '[4,5]' && JSON.stringify(w2.after) === '[3,5]' && JSON.stringify(w2.standings) === '[[5,5],[4,5]]',
+    'the Abyss swiftplay\'s round 2, an 8.0.1 card read back: died 4 against 5, which left 3 against 5, with no kill feed', JSON.stringify(w2));
+  const leftRun1 = 'Tejo killed you 13 s in, leaving your team 4 against 5.';
+  const leftRun2 = 'Tejo killed you 13 s in, leaving your team down 4 against 5, and no teammate traded your death.';
+  ok(drops(leftRun1, SW.f, 'timeline') && drops(leftRun2, SW.f, 'timeline')
+    && /left 4 against 5 standing in round 2, where Riot's record has 4 against 5 at the death and 3 against 5 after it/.test(why(leftRun1, SW.f)),
+  'ABYSS-SWIFT-R2, runs 1 and 2: "TEJO KILLED YOU 13 S IN, LEAVING YOUR TEAM 4 AGAINST 5" DROPS, the reason naming the standing at the death and the one after it', why(leftRun1, SW.f));
+  ok(keeps('Tejo killed you 13 s in, with four of your team against five standing at your death.', SW.f) && keeps('Tejo killed you 13 s in, leaving your team 3 against 5.', SW.f)
+    && keeps('After Tejo killed you, your team was 3 against 5.', SW.f) && keeps('You died 13 s in with your team 4 against 5.', SW.f),
+  'and run 3\'s "with four of your team against five standing at your death" stays, as do the standing the death left and the one at it, each said as what it is',
+  why('Tejo killed you 13 s in, leaving your team 3 against 5.', SW.f));
+  ok(drops('Tejo killed you 13 s in, leaving your team four against five.', SW.f, 'timeline') && drops('After Tejo killed you, your team was 4 against 5.', SW.f, 'timeline')
+    && drops('Your death left your team 4 against 5.', SW.f, 'timeline'),
+  'in words, after "after", and as what "your death" left, the standing at the death drops too', why('Tejo killed you 13 s in, leaving your team four against five.', SW.f));
+  const A3 = asking(ABYSS, 'Did Phoenix kill me in round 3?');
+  ok(drops('Cypher killed you at 19 s in, leaving your team 4 against 3.', A3.f, 'timeline')
+    && keeps('Cypher killed you at 19 s in, bringing it back to three against three, and no teammate traded you.', A3.f)
+    && keeps('Cypher killed you at 19 s in, with your team up 4 against 3 just before the death.', A3.f),
+  'WITH A KILL FEED, ON THE ABYSS ROUND 3: the standing at the death given as the one it left drops, and run 1\'s "with your team up 4 against 3 just before the death" stays',
+  why('Cypher killed you at 19 s in, leaving your team 4 against 3.', A3.f));
+  const A13 = asking(ABYSS, 'Why did I die in round 13?');
+  ok(keeps('Viper killed you at 17 s in, and your teammates later brought it to three against two.', A13.f) && keeps('Viper killed you at 17 s in, leaving it 4 against 4.', A13.f)
+    && drops('Viper killed you at 17 s in, leaving it 5 against 4.', A13.f, 'timeline'),
+  'and a clause of its own after the death is its own subject\'s: "your teammates later brought it to three against two" is theirs, never what the death left',
+  why('Viper killed you at 17 s in, and your teammates later brought it to three against two.', A13.f));
+
+  // ── The verifier's probe of the 23 Oct rules ──
+  // Sentences of the verifier's own, each where a rule above read wrong: a
+  // teammate's clutch in other words, the player's own, a standing at the
+  // death said plainly, one after it said every way, two parts no pin above
+  // held, and the languages the app writes in. Each fails with its rule out.
+  console.log('\nthe verifier\'s probe of the 23 Oct rules:');
+  for (const [name, re, pos, neg] of [
+    ['CLUTCH (as a verb)', gates.CLUTCH, 'You clutched round 1', 'You were the last one down'],
+    ['CARRIES_ON', gates.CARRIES_ON, ', and your team was then three against five', ', and your team was three against five'],
+    ['LEFT_FINITE', gates.LEFT_FINITE, 'left', 'leaving'],
+    ['AFTER_DEATH (with you dead)', gates.AFTER_DEATH, 'With you dead, your team was 3 against 5', 'With your team 4 against 5, you died'],
+    ['AFTER_DEATH (without you)', gates.AFTER_DEATH, 'Without you there, your team was 3 against 5', 'Without you trading, your team was 3 against 5'],
+    ['AFTER_DEATH (got you a kill)', gates.AFTER_DEATH, 'After their Jett got you, it was', 'After Skye\'s flash got you the opening kill, it was'],
+    ['AFTER_DEATH_NEXT', gates.AFTER_DEATH_NEXT, ' after you died because they were not ready', ' just before your death'],
+    ['AT_THE_DEATH', gates.AT_THE_DEATH, ' 13 s in at ', ', your team was '],
+    ['DATED_LATER', gates.DATED_LATER, ' after Sova fell.', ' and nobody traded you.'],
+    ['CLAUSE_MARK', gates.CLAUSE_MARK, ' 13 s in. That ', ' 13.5 s in '],
+    ['DEATH_SUBJECT', gates.DEATH_SUBJECT, ' your team was ', ' your teammates later '],
+    ['OTHER_TIME', gates.OTHER_TIME, ' 13 s in, before your team was ', ' 13 s in, and your team was '],
+    ['NEW_CLAUSE', gates.NEW_CLAUSE, ', your teammates pushed on, ', ' at 17 s in, and your teammates later '],
+    ['LEFT_OPENER', gates.LEFT_OPENER, 'That left your team 4 against 5.', 'Your teammates later brought it to 3 against 3.'],
+    ['PLAYER_DEATH (got you)', gates.PLAYER_DEATH, 'Their Jett got you 33 s in', 'Your Bandit got you the first kill'],
+    ['PAST_ABOUT_YOU (its time between)', gates.PAST_ABOUT_YOU, 'Your death at 13 s in made it 4 against 5', 'Your death count is high'],
+  ]) {
+    const r = re && new RegExp(re.source, re.flags.replace('g', ''));
+    ok(!!r && r.test(pos) && !r.test(neg), `${name} matches "${pos}" and not "${neg}"`);
+  }
+
+  // Whose a clutch is.
+  ok(keeps('KAY/O killed you at 26 s in, and Skye was left alone against three.', S1.f) && drops('KAY/O killed you at 26 s in, and Skye was left alone against four.', S1.f, 'timeline'),
+    'A CLAUSE\'S OWN "AND" JOINS NO TWO PLAYERS: "..., and Skye was left alone against three" is Skye\'s 1 against 3, never the player\'s clutch, and a wrong one drops',
+    why('KAY/O killed you at 26 s in, and Skye was left alone against three.', S1.f));
+  ok(['KAY/O killed you at 26 s in, leaving Skye to clutch against three.', 'KAY/O killed you at 26 s in, and Skye had to clutch against three.',
+    'KAY/O killed you at 26 s in, and Skye tried to clutch against three.'].every((s) => keeps(s, S1.f))
+    && drops('You had to clutch round 1.', S1.f, 'timeline') && drops('In round 1, Skye died, and you had to clutch against three.', S1.f, 'timeline'),
+  'A TEAMMATE LEFT TO CLUTCH, WHO HAD TO OR TRIED TO, IS THE TEAMMATE, and the player who had to is still the player', why('KAY/O killed you at 26 s in, leaving Skye to clutch against three.', S1.f));
+  ok(drops('You clutched round 1.', S1.f, 'timeline') && drops('You were clutching against three in round 1.', S1.f, 'timeline') && keeps('In round 1, Skye clutched against two.', S1.f),
+    'THE PLAYER\'S CLUTCH SAID AS A VERB DROPS, "you clutched" and "you were clutching" as "your clutch" does, and a teammate\'s stays', why('You clutched round 1.', S1.f));
+  ok(drops('In round 1, Clove was left alone against two.', S1.f, 'timeline') && drops('In round 1, their Clove was alone against two.', S1.f, 'timeline'),
+    'AN ENEMY ALONE AGAINST N IS N AGAINST 1, Clove placed by the match\'s kill feeds as by "their", and the round never had 2 against 1', why('In round 1, Clove was left alone against two.', S1.f));
+
+  // Two parts no pin above held: every standing, and an event with no "and" to mark it.
+  ok(drops('Tejo killed you 13 s in at 4 against 5, leaving your team 4 against 5.', SW.f, 'timeline'),
+    'EVERY STANDING A SENTENCE SAYS IS HELD: the second, "leaving your team 4 against 5", drops after a first that is right',
+    why('Tejo killed you 13 s in at 4 against 5, leaving your team 4 against 5.', SW.f));
+  ok(keeps('KAY/O killed you at 26 s in, Skye traded KAY/O at 27 s in, leaving Skye alone against two.', S1.f)
+    && keeps('KAY/O killed you at 26 s in, with Skye\'s trade a second later leaving Skye alone against two.', S1.f),
+  'A TRADE BETWEEN THE DEATH AND THE LEAVING WORD, NO "AND" TO MARK IT, MAKES THE STANDING THE TRADE\'S, told as a clause or as a noun: Skye alone against two stays',
+  why('KAY/O killed you at 26 s in, with Skye\'s trade a second later leaving Skye alone against two.', S1.f));
+
+  // A standing at the death said plainly, inside an after phrase.
+  const atTheDeath = ['After you died at 4 against 5, your team could not retake.', 'After Tejo killed you 13 s in at 4 against 5, your team lost the site.',
+    'Following your death at 4 against 5, your team lost the round.', 'Once you went down in a 4 against 5, the site was lost.'];
+  ok(atTheDeath.every((s) => keeps(s, SW.f)) && drops('After you died your team played 4 against 5.', SW.f, 'timeline'),
+    'AN AFTER PHRASE THAT GIVES THE DEATH ITS OWN STANDING IS THE STANDING AT IT: "After you died at 4 against 5, ..." stays, and "After you died your team played 4 against 5" still drops',
+    atTheDeath.map((s) => why(s, SW.f)).join(' '));
+
+  // The standing the death left, said every way.
+  for (const [wrong, right] of [
+    ['Tejo killed you 13 s in and left your team 4 against 5.', 'Tejo killed you 13 s in and left your team 3 against 5.'],
+    ['Tejo killed you 13 s in, and that left your team 4 against 5.', 'Tejo killed you 13 s in, and that left your team 3 against 5.'],
+    ['Tejo killed you 13 s in, and your team was left 4 against 5.', 'Tejo killed you 13 s in, and your team was left 3 against 5.'],
+    ['Tejo killed you 13 s in; that left your team 4 against 5.', 'Tejo killed you 13 s in; that left your team 3 against 5.'],
+    ['Nobody traded your death, and your team was then four against five.', 'Nobody traded your death, and your team was then three against five.'],
+    ['Tejo killed you 13 s in, and then your team was 4 against 5.', 'Tejo killed you 13 s in, then your team was 3 against 5.'],
+    ['Tejo killed you 13 s in, and your team then was 4 against 5.', 'Tejo killed you 13 s in, and your team then was 3 against 5.'],
+    ['Your team played 4 against 5 after you died.', 'Your team played 3 against 5 after you died.'],
+    ['With you dead, your team was 4 against 5.', 'With you dead, your team was 3 against 5.'],
+    ['Without you, your team was left 4 against 5.', 'Without you, your team was left 3 against 5.'],
+    ['Your death at 13 s in made it 4 against 5.', 'Your death at 13 s in made it 3 against 5.'],
+  ]) {
+    ok(drops(wrong, SW.f, 'timeline') && keeps(right, SW.f), `THE STANDING THE DEATH LEFT, SAID ANOTHER WAY: "${wrong}" drops and "${right}" stays`, `${why(wrong, SW.f)} ${why(right, SW.f)}`);
+  }
+  ok(keeps('Viper killed you at 17 s in; your teammates later brought it to three against two.', A13.f)
+    && keeps('Viper killed you at 17 s in, and your teammates then brought it to three against two.', A13.f)
+    && keeps('Viper killed you at 17 s in, then your teammates retook at 3 against 2.', A13.f)
+    && keeps('Viper killed you at 17 s in, then your team was 3 against 2 after Sova fell.', A13.f)
+    && drops('Viper killed you at 17 s in, after which it was 5 against 4.', A13.f, 'timeline')
+    && drops('Your team played four against five after you died because they were not ready to follow your swing.', A13.f, 'timeline'),
+  'A SUBJECT OF ITS OWN, AN EVENT AFTER "THEN" OR A TIME OF ITS OWN MAKES THE STANDING THAT ONE\'S: the teammates\' three against two stays, while "after which it was 5 against 4" and Qwen\'s "four against five after you died" (15 Oct) drop',
+  ['Viper killed you at 17 s in; your teammates later brought it to three against two.', 'Viper killed you at 17 s in, then your teammates retook at 3 against 2.',
+    'Viper killed you at 17 s in, then your team was 3 against 2 after Sova fell.'].map((s) => why(s, A13.f)).join(' '));
+  const ownClause = ['After Viper killed you, your teammates pushed on and made it 3 against 2.', 'After Viper killed you, your teammates pushed on, bringing it to 3 against 2.',
+    'Viper killed you at 17 s in, then Sova and Skye fought on, bringing it to three against two.', 'After Viper killed you, your teammates fought on and it was three against two.'];
+  ok(ownClause.every((s) => keeps(s, A13.f)) && drops('Viper killed you at 17 s in, and that made it 5 against 4.', A13.f, 'timeline'),
+    'A CLAUSE OF ITS OWN BETWEEN THE DEATH AND THE LEAVING WORD, MARKED OR NOT, IS ITS OWN: "your teammates pushed on, bringing it to 3 against 2" stays, as the push brought it',
+    ownClause.map((s) => why(s, A13.f)).join(' '));
+  const FR5 = asking(riotOnly('riot-fracture-5-1.json', null, { 5: { kills: 2, firstKill: true, traded: false, plantMs: 32000, plantSite: 'A', weapon: 'Sheriff',
+    aliveAtDeath: { mates: 4, enemies: 3 }, feed: [{ ms: 9000, by: 'me', on: 'enemy', ka: 'Jett', va: 'Deadlock', w: 'Bandit' },
+      { ms: 11000, by: 'me', on: 'enemy', ka: 'Jett', va: 'Chamber', w: 'Bandit' }, { ms: 27000, by: 'enemy', on: 'mate', ka: 'Phoenix', va: 'Chamber' },
+      { ms: 33000, by: 'enemy', on: 'me', ka: 'Jett', va: 'Jett', w: 'Sheriff' }] } }), 'Why did I die in round 5?');
+  ok(keeps('Your Bandit got you the first kill, leaving it 5 against 4.', FR5.f) && drops('Their Jett got you 33 s in, leaving it 4 against 3.', FR5.f, 'timeline')
+    && keeps('Their Jett got you 33 s in, leaving it 3 against 3.', FR5.f) && drops('After their Jett got you, it was 4 against 3.', FR5.f, 'timeline'),
+  '"GOT YOU THE FIRST KILL" IS NO DEATH OF THE PLAYER\'S: its 5 against 4 stays, while "their Jett got you 33 s in, leaving it 4 against 3" and "After their Jett got you, it was 4 against 3" drop',
+  why('Your Bandit got you the first kill, leaving it 5 against 4.', FR5.f));
+
+  // The death in one sentence, what it left in the next.
+  const two = (text, Q) => cp.parseReply(text, (Q || SW).input, { messages: (Q || SW).ms });
+  const across = [two('Tejo killed you 13 s in. That left your team 4 against 5.'), two('Tejo killed you 13 s in. That left your team 3 against 5.'),
+    two('Tejo killed you 13 s in. Your team was left 4 against 5.'), two('Tejo killed you 13 s in. After that your team was 4 against 5.'),
+    two('After Tejo killed you, your team was 3 against 5. Then it was 2 against 5.'),
+    two('Viper killed you at 17 s in. Your teammates later brought it to three against two.', A13),
+    two('Tejo killed you 13 s in, leaving your team 3 against 5. Then it was 2 against 5.')];
+  ok(across[0].dropped.timeline === 1 && across[0].reply === 'Tejo killed you 13 s in.' && !Object.keys(across[1].dropped).length
+    && across[2].dropped.timeline === 1 && across[3].dropped.timeline === 1 && !Object.keys(across[4].dropped).length && !Object.keys(across[5].dropped).length
+    && !Object.keys(across[6].dropped).length,
+  'THE DEATH IN ONE SENTENCE, WHAT IT LEFT IN THE NEXT: after "Tejo killed you 13 s in", "That left your team 4 against 5", "Your team was left 4 against 5" and "After that your team was 4 against 5" drop and "That left your team 3 against 5" stays, while what a sentence after a told standing carries on, and the teammates\' own, stay',
+  JSON.stringify(across.map((p) => p.dropped)));
+
+  // The leans rule in the languages the app writes in.
+  const lang = (language, text) => cp.gateReply(cp.cleanReply(text), asking(SUNSET1, 'Walk me through round 1.', { language }).f, {}).map((r) => (r.drop ? r.drop.gate : 'keep'));
+  const es = lang('es', 'En la ronda 1 moriste a los 26 s. Te mataron 99 veces en la ronda 1. He visto que juegas solo en esa zona.');
+  const tr = lang('tr', 'Raunt 1 içinde 26 saniyede öldün. Raunt 1 içinde 99 kez öldün. Her raundda ilk sen öldün.');
+  const en = lang('en', 'In round 1 you died at 26 s in. You died 99 times in round 1. It was not traded.');
+  ok(es.length === 3 && es[0] === 'keep' && es[1] !== 'keep' && es[2] === 'keep' && tr.length === 3 && tr[0] === 'keep' && tr[1] !== 'keep' && tr[2] === 'keep'
+    && en[1] !== 'keep' && en[2] === 'leans',
+  'THE LEANS RULE READS ENGLISH ALONE: a Spanish "He visto" (I have seen) and a Turkish "Her raundda" (in every round) after a dropped sentence stay, and the English "It was not traded." still goes',
+  JSON.stringify({ es, tr, en }));
 }
 
 // ── bench:chat's own keys (bench-chat.js, the repo's sheet) ────────────────

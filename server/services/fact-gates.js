@@ -307,7 +307,11 @@ function roundsNamed(s, facts) {
 // about, gave the player the killer's gun and was read as about no round, so
 // the weapon gate never saw it. Said of the player alone: "your teammates
 // fought back, but the defenders won" is theirs to tell.
-const PAST_ABOUT_YOU = /\b(?:you|your team|your teammates?)\s+(?:were|was|had|did|didn't|got|went|took|died|peeked|stayed|held|pushed|played|lost|won|made|stood|walked|ran|swung|killed|traded|used|missed|fired|shot|tried|kept|moved|opened|survived|planted|defused|rotated|fell|left|came|saw|hit|gave|chose|decided|bought|saved|forced|spent|dealt|purchased)\b|\byou\s+(?:fought|drew|faced|challenged|contested|engaged|entered|waited|reloaded|threw)\b|\b(?:killed|shot|got|caught|picked|beat|dropped|finished|traded) you\b|\btrad(?:e|ed|ing) your death\b|\byour\s+(?:death|kills?|duel|fight|trade|plant)\s+(?:was|were|went|came|had|happened|didn't|wasn't)\b/i;
+// And what the player's death left (bench:chat, 23 Oct): "Your death left your
+// team 4 against 5" is the standing a death left, which leftByDeath holds to
+// the one after it, and it was read as about no round. So is "Your death 13 s
+// in made it 4 against 5", its time between (the verifier's probe, 23 Oct).
+const PAST_ABOUT_YOU = /\b(?:you|your team|your teammates?)\s+(?:were|was|had|did|didn't|got|went|took|died|peeked|stayed|held|pushed|played|lost|won|made|stood|walked|ran|swung|killed|traded|used|missed|fired|shot|tried|kept|moved|opened|survived|planted|defused|rotated|fell|left|came|saw|hit|gave|chose|decided|bought|saved|forced|spent|dealt|purchased)\b|\byou\s+(?:fought|drew|faced|challenged|contested|engaged|entered|waited|reloaded|threw)\b|\b(?:killed|shot|got|caught|picked|beat|dropped|finished|traded) you\b|\btrad(?:e|ed|ing) your death\b|\byour\s+(?:death|kills?|duel|fight|trade|plant)\s+(?:(?:at\s+)?\d+(?:\.\d+)?\s*(?:s|secs?|seconds?)\s+(?:in|into(?:\s+the\s+round)?)\s+)?(?:was|were|went|came|had|happened|didn't|wasn't|left|made|brought|put|dropped)\b/i;
 
 /**
  * Whether a sentence is a round sentence, and of which rounds. A sentence that
@@ -732,7 +736,9 @@ const TRADED_YOU = /(?<!\b(?:no|not|never|nor|without)\s+(?:a\s+|an\s+|your\s+|o
 const STANDING = /\b([1-5])\s*(?:against|versus|vs\.?|v|on)\s*([1-5])\b/i;
 const ADVANTAGE = /\b(?:a player up|up a player|(?:man|player|numbers) advantage|numbers up|up in numbers|ahead in numbers|outnumbered them)\b/i;
 const DISADVANTAGE = /\b(?:a player down|down a player|you were outnumbered|behind in numbers|down in numbers)\b/i;
-const CLUTCH = /\b(?:clutch|last one (?:alive|standing)|alone against)\b/i;
+// "You clutched round 1" and "you were clutching against three" are the
+// player's clutch too, which the bare word missed (the verifier's probe, 23 Oct).
+const CLUTCH = /\b(?:clutch(?:ed|es|ing)?|last one (?:alive|standing)|alone against)\b/i;
 const AFTER_PLANT = /\b(?:after the plant|post[ -]plant|the spike (?:was|went) (?:down|planted)|spike down|once the spike was down|after (?:the spike|it) went down)\b/i;
 const FIRST_DEATH = /\b(?:first death|died first|first to die|first one to die|opening death|first player down|first one down)\b/i;
 const OPENING_KILL = /\b(?:first kill|opening kill|first blood|opened the round|entry kill)\b/i;
@@ -742,6 +748,276 @@ const ATTACK_SIDE = /\b(?:on attack|attacking|as an attacker|on the attacking si
 const DEFENCE_SIDE = /\b(?:on defen[cs]e|defending|as a defender|on the defending side)\b/i;
 const ABOUT_THEM = /\b(?:their|the enemy|the enemies|the other team)\b/i;
 const THEIRS_FIRST = /\b(?:they|them|their|the enemy|the enemies|the other team|the defenders|the attackers)\b/i;
+
+/*
+ * WHOSE A CLUTCH IS (bench:chat, 23 Oct). "KAY/O then killed you with a
+ * Sheriff at 26 s in, leaving Skye alone against three", true of the Sunset
+ * round 1 asked about, was read as a clutch of the player's, whom the record
+ * has dead and in no clutch, and dropped, in two runs of three. With it went
+ * the only sentence telling the player's own death, and the next one, "Skye
+ * traded KAY/O a second later", then followed Phoenix's death at 24 s and read
+ * as a trade at 25 s where Riot has 27 s: two of the four wrong facts the
+ * panel found were the gates' own. A teammate named alone against N is that
+ * teammate's situation, never the player's clutch: the numbers standing 1
+ * against N, held to the record as any standing is (standingClaims). An enemy
+ * alone against N is N against 1. Whose it is, is the word nearest before it
+ * past the words that only carry it ("leaving", "was", "your last"): "you" is
+ * the player; an agent after "their" is the enemy's and after "your" a
+ * teammate's; the player's own agent is the player; any other agent is the
+ * side the match's teams and kill feeds place it on (facts.sides), or either
+ * side's when they place it on both or neither; "teammate" is a teammate's;
+ * "you and Skye" is two of the player's side ('us', 2 against N). Anything
+ * else is read as the player's, as before.
+ *
+ * The verifier's probe (23 Oct): "KAY/O killed you at 26 s in, and Skye was
+ * left alone against three" was read as the player's clutch, the clause's own
+ * "and" taken for "Skye and Phoenix", two other players; that reading needs a
+ * player before the "and". And the words that carry a clutch to its owner
+ * include what it was to be or do: "leaving Skye to clutch against three",
+ * "Skye had to clutch", "Skye tried to clutch", "Skye won the clutch" are
+ * Skye's, each read as the player's.
+ */
+const OWNER_CARRIES = new Set(['leaving', 'left', 'leaves', 'leave', 'was', 'were', 'is', 'be', 'being', 'been', 'stood', 'remained',
+  'stayed', 'ended', 'up', 'all', 'completely', 'now', 'then', 'still', 'the', 'as', 'a', 'an', 'last', 'only', 'lone', 'single',
+  'remaining', 'in', 'one', 'to', 'had', 'has', 'have', 'tried', 'try', 'trying', 'attempted', 'forced', 'needed', 'went', 'into',
+  'won', 'lost', 'played', 'playing', 'took']);
+const OWNER_TOKEN = /[A-Za-z0-9/']+/g;
+/** 'me', 'us', 'mate', 'enemy' or 'someone': whose the clutch word at `at` is, by the words just before it. */
+function clutchOwner(text, at, facts) {
+  const f = facts || {};
+  const toks = [...String(text || '').slice(Math.max(0, at - 80), at).matchAll(OWNER_TOKEN)].map((m) => m[0]);
+  const person = (tok) => { const x = lower(tok || '').replace(/'s$/, ''); return x === 'you' || /^(?:teammates?|ally)$/.test(x) || AGENTS.some((a) => lower(a) === x); };
+  for (let i = toks.length - 1, seen = 0; i >= 0 && seen < 6; i--, seen++) {
+    const w = lower(toks[i]).replace(/'s$/, '');
+    const before = i > 0 ? lower(toks[i - 1]) : '';
+    // "You and Skye", "Skye and you": two of the player's side.
+    const pair = before === 'and' && i >= 2 && person(toks[i - 2]) && (w === 'you' || lower(toks[i - 2]) === 'you');
+    if (w === 'you' || w === 'yourself') return pair ? 'us' : 'me';
+    const agent = AGENTS.find((a) => lower(a) === w);
+    const mateWord = /^(?:teammates?|ally|allies)$/.test(w);
+    if (agent || mateWord) {
+      if (pair) return 'us';
+      // Two other players ("Skye and Phoenix"): read as before. A clause's own
+      // "and" ("you died, and Skye was left alone") joins no two players.
+      if ((before === 'and' || before === 'or') && i >= 2 && person(toks[i - 2])) return 'me';
+      if (/^(?:their|enemy|enemy's)$/.test(before)) return 'enemy';
+      if (mateWord || before === 'your' || before === "teammate's" || lower(toks[i + 1] || '') === 'teammate') return 'mate';
+      if (f.agent && lower(agent) === lower(f.agent)) return 'me';
+      const sides = f.sides || {};
+      const mate = !!(sides.mates && sides.mates.has(agent));
+      const enemy = !!(sides.enemies && sides.enemies.has(agent));
+      return mate && !enemy ? 'mate' : enemy && !mate ? 'enemy' : 'someone';
+    }
+    if (/^(?:enem(?:y|ies)|opponents?)$/.test(w)) return 'enemy';
+    if (!OWNER_CARRIES.has(w) && !/^\d+v\d+s?$/.test(w)) return 'me';
+  }
+  return 'me';
+}
+
+/*
+ * THE NUMBERS STANDING, EVERY WAY A SENTENCE SAYS THEM (bench:chat, 23 Oct):
+ * in digits ("4 against 5"), in words ("three against five", which no gate
+ * read, so a wrong one passed whatever it said) and as a teammate or an enemy
+ * alone against N (clutchOwner). Each with where it stands, for the death it
+ * may be said to leave (leftByDeath) and for the number gate, which leaves a
+ * standing's numbers to this gate. Words only with "against" or "versus", and
+ * never one against one: "a one on one duel" and "a one against one duel" are
+ * a duel, no standing.
+ */
+const SMALL_NUMBERS = { one: 1, two: 2, three: 3, four: 4, five: 5 };
+const smallOf = (w) => (/^[1-5]$/.test(String(w)) ? Number(w) : SMALL_NUMBERS[lower(w)] || null);
+const STANDING_WORDS = /\b(?!one\s+(?:against|versus)\s+one\b)(one|two|three|four|five)\s+(?:against|versus)\s+(one|two|three|four|five)\b/gi;
+const ALONE_AGAINST = /\balone\s+against\s+([1-5]|one|two|three|four|five)\b/gi;
+/** Every standing a sentence says, in order: { a, b, at, end, either, owner }, the player's side first (a). */
+function standingClaims(text, facts) {
+  const t = String(text || '');
+  const either = THEIRS_FIRST.test(t);
+  const out = [];
+  for (const m of t.matchAll(new RegExp(STANDING.source, 'gi'))) out.push({ a: Number(m[1]), b: Number(m[2]), at: m.index, end: m.index + m[0].length, either, owner: null });
+  for (const m of t.matchAll(new RegExp(STANDING_WORDS.source, 'gi'))) out.push({ a: smallOf(m[1]), b: smallOf(m[2]), at: m.index, end: m.index + m[0].length, either, owner: null });
+  for (const m of t.matchAll(new RegExp(ALONE_AGAINST.source, 'gi'))) {
+    const owner = clutchOwner(t, m.index, facts);
+    // The player alone is the clutch claim's (gateStanding), as it always was.
+    if (owner === 'me') continue;
+    const n = smallOf(m[1]);
+    const at = m.index;
+    const end = m.index + m[0].length;
+    out.push(owner === 'enemy' ? { a: n, b: 1, at, end, either: false, owner }
+      : owner === 'us' ? { a: 2, b: n, at, end, either: false, owner }
+        : { a: 1, b: n, at, end, either: owner === 'someone', owner });
+  }
+  return out.sort((x, y) => x.at - y.at);
+}
+
+/*
+ * A STANDING LEFT BY THE PLAYER'S DEATH IS THE ONE AFTER IT (bench:chat, 23
+ * Oct). "Tejo killed you 13 s in, leaving your team 4 against 5", on the Abyss
+ * swiftplay's round 2, gave the standing AT the death as the one it left, which
+ * was 3 against 5, in two runs of three; the gate passed it because 4 against 5
+ * is a standing the round had. A standing said to be left by, after or because
+ * of the player's death is held to the standing right after it (the round's
+ * `after`, chat-prompt.js factsOf), never to the round's standings as a whole:
+ * a word that leaves it ("leaving", "left", "making it", "bringing it back to",
+ * "putting", "down to") at most four words before it, with the player's death
+ * the last thing the sentence told before that word ("Tejo killed you 13 s in,
+ * leaving"), or the death after "after", "once", "following" or "because of"
+ * ("After you died, your team was 3 against 5"). Another kill, death or trade
+ * told between the two makes the standing that event's, held to the round's
+ * standings as before: in "KAY/O killed you, and Skye traded KAY/O a second
+ * later, leaving Skye alone against two" the trade left it. So does a clause
+ * of its own between them: in "Viper killed you at 17 s in, and your
+ * teammates later brought it to three against two" the teammates did.
+ *
+ * THE VERIFIER'S PROBE OF IT (23 Oct), each case pinned in test:chatgates:
+ *   - A leaving verb of its own clause ("left", "made", "brought") is the
+ *     death's when its subject is: none ("Tejo killed you 13 s in and left
+ *     your team 4 against 5"), one standing for the death ("and that left",
+ *     "; that left", "which left") or the team it left ("and your team was
+ *     left 4 against 5"). The clause guard had passed all three, the run's
+ *     own wrong standing in other words. A subject of its own ("and your
+ *     teammates later brought it", "; your teammates brought it") is that
+ *     subject's, as before, and the semicolon no longer hides one. Nor does
+ *     a clause of its own with no "and" to mark it: in "After Viper killed
+ *     you, your teammates pushed on, bringing it to 3 against 2" the push
+ *     brought it, and the leaving word's rule had dropped it as the death's.
+ *   - "Then", "after which", "after that" and "afterwards" carry the death on
+ *     as a leaving word does: "Nobody traded your death, and your team was
+ *     then three against five" (the run's own) told the standing after it.
+ *     An event in the words after one ("then your team retook at 3 against
+ *     5") or a time of its own after the standing ("after Sage fell") makes
+ *     it that event's.
+ *   - An after phrase that gives the death its own standing is the standing
+ *     at it: "After you died at 4 against 5, your team could not retake" and
+ *     "Once you went down in a 4 against 5" had been held to the one after.
+ *   - The death after the standing is the one after it: "Your team played
+ *     four against five after you died" (bench:chat, 15 Oct) passed. And
+ *     "With you dead" or "Without you there" says after the death too.
+ *   - "Got you" is the player's death only where nothing it got them follows:
+ *     "Your Bandit got you the first kill, leaving it 5 against 4" is no death.
+ */
+const LEFT_BY = /\b(?:leaving|(?<!\bthe\s)left|leaves|making|made|makes|bringing|brought|brings|putting|put|puts|dropping|dropped|drops|cutting|down to)\b/gi;
+// The words that carry the death on to what came right after it.
+const CARRIES_ON = /\b(?:then|after which|after that|afterwards?)\b/gi;
+const LEAVES_OR_CARRIES = new RegExp(`${LEFT_BY.source}|${CARRIES_ON.source}`, 'gi');
+// A leaving word that is the verb of a clause of its own, or carries the death on: its subject decides whose the standing is.
+const LEFT_FINITE = /^(?:left|leaves|made|makes|brought|brings|put|puts|dropped|drops|down to|then|after which|after that|afterwards?)$/i;
+const GOT_YOU_SOMETHING = '(?!\\s+you\\s+(?:a|an|the|one|two|three|four|five|some|your|their|into|onto|out|back|through|up|free|space|time|info|value|kills?|the\\s+first)\\b)';
+const PLAYER_DEATH = new RegExp(`\\byou(?:'d)?\\s+(?:[a-z']+\\s+){0,2}?(?:died|were killed|got killed|went down|fell(?!\\s+back))\\b|\\b(?:killed|shot|caught|picked|got${GOT_YOU_SOMETHING}|dropped|finished|beat|took out|picked off) you\\b|\\byour (?:own )?death\\b|\\byou were the first (?:death|one down|player down|to die)\\b`, 'gi');
+// The player's death as an after phrase names it.
+const DEATH_FORMS = `you(?:'d)?\\s+(?:[a-z']+\\s+){0,2}?(?:died|were killed|got killed|went down|fell(?!\\s+back))|your (?:own )?death|(?:(?:their|the enemy|an enemy|the)\\s+)?(?:${AGENT_ALT})(?:'s [A-Za-z]+)?\\s+(?:killed|shot|got${GOT_YOU_SOMETHING}|caught|picked off|picked|beat|dropped|took out|finished) you`;
+// And with the player dead: "With you dead, your team was 3 against 5", "Without you there".
+const AFTER_DEATH = new RegExp(`\\b(?:after|once|following|because(?:\\s+of)?)\\s+(?:${DEATH_FORMS})\\b|\\bwith you (?:dead|gone|out of the round)\\b|\\bwithout you\\b(?!\\s+[a-z]+ing\\b)`, 'gi');
+// The death named after the standing it left: "four against five after you died".
+const AFTER_DEATH_NEXT = new RegExp(`^\\s*(?:(?:standing|left)\\s+)?(?:(?:right|just|straight|immediately|shortly|soon)\\s+)?(?:after|once|following)\\s+(?:${DEATH_FORMS})\\b`, 'i');
+// What gives the death its own standing inside an after phrase: "After you died at 4 against 5", "Once you went down in a 4 against 5".
+const AT_THE_DEATH = /^\s*(?:(?:at\s+)?\d+(?:\.\d+)?\s*(?:s|secs?|seconds?)\s+(?:in|into(?:\s+the\s+round)?)\s+)?(?:at|in|with|while|during|on|when)\b(?:\s+[a-z'/]+){0,3}\s*$/i;
+// A time of the standing's own after it, which makes it that event's: "then your team was 2 against 5 after Sage fell".
+const DATED_LATER = /^\s*,?\s*(?:(?:right|just|shortly|soon)\s+)?(?:after|when|once|following|by the time|until)\b/i;
+const EVENT_BETWEEN = /\b(?:killed|kills|died|dies|traded|trades|answered|avenged|eliminated|planted|plants|defused|fell|went down|took out|picked off|retook)\b|\b(?:[A-Za-z/]+'s|teammate's|another|a second|a third|the next)\s+(?:death|kill|trade)\b|\bthe spike\b/i;
+const CLAUSE_BETWEEN = /\b(?:and|but|then|before|until|while|whereas)\b/i;
+// Where a clause of its own may open between the death and a leaving verb, and the subject that verb then has when the death left the standing.
+const CLAUSE_MARK = /[,;:]|\.(?!\d)|\b(?:and|but|so)\b/gi;
+const DEATH_SUBJECT = /^\s*(?:(?:that|this|it|which)\s+)?(?:(?:then|also|just|only|immediately|instantly|quickly|still|in turn)\s+)*(?:(?:your team|the team|your side|your teammates|you|they)\s+(?:was|were|got)\s+(?:(?:then|also|just|only|immediately|instantly|quickly|still|now)\s+)*)?$/i;
+const OTHER_TIME = /\b(?:before|until|while|whereas)\b/i;
+// A clause of its own between the death and a leaving word, a subject and its verb after a clause mark: what
+// it did is its own ("After Viper killed you, your teammates pushed on, bringing it to 3 against 2").
+const NEW_CLAUSE = new RegExp(`(?:[,;:]|\\b(?:and|but|so|then|while|as|when|whereas)\\b)\\s*(?:(?:then|later|also|still|quickly)\\s+)?(?:(?:your|their|the|a|an|his|her|our|one|two|both)\\s+)?(?:teammates?|team|side|enemies|enemy|opponents?|allies|ally|he|she|they|we|(?:${AGENT_ALT})(?![A-Za-z0-9]))\\s+(?:(?:then|later|also|still|quickly|soon|just)\\s+)?(?:[a-z]+ed|was|were|is|are|had|has|did|went|came|got|took|made|ran|held|fought|swung|stood|kept|lost|won|left|brought|put|threw|saw|gave|hit|shot|stayed|tried)\\b`, 'i');
+/** The words between the player's death, the last thing told before `at`, and `at`; null with no death there, or another event after it. */
+function sinceDeath(t, at) {
+  const head = t.slice(0, at);
+  let last = null;
+  for (const m of head.matchAll(new RegExp(PLAYER_DEATH.source, 'gi'))) last = m;
+  if (!last) return null;
+  const between = head.slice(last.index + last[0].length);
+  return EVENT_BETWEEN.test(between) ? null : between;
+}
+/**
+ * Whether a leaving word, `between` the death and it, is the death's: of the death's own clause, or the verb
+ * of one whose subject is the death's (DEATH_SUBJECT); never with a clause of its own between (NEW_CLAUSE).
+ */
+function deathsWord(word, between) {
+  if (!LEFT_FINITE.test(word)) return !CLAUSE_BETWEEN.test(between) && !NEW_CLAUSE.test(between);
+  if (OTHER_TIME.test(between)) return false;
+  let mark = null;
+  for (const m of between.matchAll(new RegExp(CLAUSE_MARK.source, 'gi'))) mark = m;
+  if (!mark) return true;
+  const subject = between.slice(mark.index + mark[0].length);
+  // "Your team then was 3 against 5": the team before a word that carries the death on.
+  const team = isCarry(word) && /^\s*(?:your team|the team|your side|your teammates|you|they|it)\s*$/i.test(subject);
+  return (DEATH_SUBJECT.test(subject) || team) && !NEW_CLAUSE.test(between.slice(0, mark.index));
+}
+const isCarry = (word) => new RegExp(`^(?:${CARRIES_ON.source})$`, 'i').test(word);
+/** Whether the standing at [at, end) is said to be left by, after or because of the player's death. */
+function leftByDeath(text, at, end) {
+  const t = straighten(text);
+  const from = Math.max(0, at - 60);
+  let left = null;
+  for (const m of t.slice(from, at).matchAll(new RegExp(LEAVES_OR_CARRIES.source, 'gi'))) left = m;
+  if (left) {
+    const where = from + left.index;
+    const carries = isCarry(left[0]);
+    let gap = t.slice(where + left[0].length, at);
+    // "After that, your team was 3 against 5": a comma after a word that carries the death on.
+    if (carries) gap = gap.replace(/^\s*,/, ' ');
+    if (!/[,;:]/.test(gap) && gap.split(/\s+/).filter(Boolean).length <= 4 && !EVENT_BETWEEN.test(gap)) {
+      const between = sinceDeath(t, where);
+      const deaths = between !== null && deathsWord(left[0], between)
+        && !(carries && Number.isInteger(end) && DATED_LATER.test(t.slice(end)) && !AFTER_DEATH_NEXT.test(t.slice(end)));
+      if (deaths) return true;
+      // A leaving word ties the standing to what came after the player's death told before it:
+      // another event or clause there, and no after phrase makes it the death's ("After Viper
+      // killed you, your teammates pushed on, bringing it to 3 against 2"). A word that only
+      // carries on, or one with no such death before it ("Without you, your team was left"),
+      // leaves it to the after phrase.
+      if (!carries && new RegExp(PLAYER_DEATH.source, 'i').test(t.slice(0, where))) return false;
+    }
+  }
+  const head = t.slice(0, at);
+  let after = null;
+  for (const m of head.matchAll(new RegExp(AFTER_DEATH.source, 'gi'))) after = m;
+  if (after) {
+    const between = head.slice(after.index + after[0].length);
+    if (!EVENT_BETWEEN.test(between) && !CLAUSE_BETWEEN.test(between) && !AT_THE_DEATH.test(between)) return true;
+  }
+  return Number.isInteger(end) && AFTER_DEATH_NEXT.test(t.slice(end, end + 100));
+}
+
+/*
+ * THE DEATH IN ONE SENTENCE, WHAT IT LEFT IN THE NEXT (the verifier's probe,
+ * 23 Oct). "Tejo killed you 13 s in. That left your team 4 against 5." told
+ * the run's wrong standing in two sentences, and the second was read as about
+ * no round, so nothing held it. A sentence that opens on what the one before
+ * it told and leaves a standing ("That left", "This made it", "It brought it
+ * to", "Your team was left") or carries it on ("Then", "After that") holds
+ * the standing the player's death left, when the sentence before it told that
+ * death last, with no standing or event of its own after it (chat-prompt.js
+ * gateReply), and leftByDeath reads the two as one.
+ */
+const LEFT_OPENER = /^(?:(?:and|so)\s*,?\s+)?(?:(?:that|this|it|which)\s+(?:(?:then|also|in turn)\s+)?(?:left|leaves|made|makes|brought|brings|put|puts|dropped|drops)\b|(?:your team|the team|your side|your teammates)\s+(?:was|were)\s+(?:then\s+)?(?:left|down to)\b|(?:then|after that|after this|afterwards?)\b)/i;
+/** gateStanding's death rule across two sentences: the reason a standing the death before it left is not the one after it, or null. */
+function gateLeftAcross(prev, sentence, facts) {
+  const f = facts || {};
+  if (f.language !== 'en' || !(f.rounds instanceof Map)) return null;
+  const s = straighten(sentence).trim();
+  if (!LEFT_OPENER.test(s) || isHypothetical(s) || isInstruction(s)) return null;
+  const p = straighten(prev).trim();
+  const rs = roundSentence(p, f);
+  const rest = sinceDeath(p, p.length);
+  if (!rs.round || rest === null || standingClaims(rest, f).length) return null;
+  const joined = `${p} ${s}`;
+  const off = p.length + 1;
+  for (const n of rs.rounds) {
+    const r = f.rounds.get(n);
+    if (!r || !r.died || !Array.isArray(r.after)) continue;
+    for (const c of standingClaims(s, f)) {
+      const is = ([m, e]) => (m === c.a && e === c.b) || (c.either && m === c.b && e === c.a);
+      if (!leftByDeath(joined, off + c.at, off + c.end) || is(r.after)) continue;
+      const atDeath = Array.isArray(r.atDeath) ? `${r.atDeath[0]} against ${r.atDeath[1]} at the death and ` : '';
+      return drop('timeline', `your reply said the player's death left ${c.a} against ${c.b} standing in round ${n}, where Riot's record has ${atDeath}${r.after[0]} against ${r.after[1]} after it`);
+    }
+  }
+  return null;
+}
 
 /** Whether a negation governs the words at `at`: within two words before them, no comma between (NEG_BEFORE). */
 const negatedAt = (t, at) => NEG_BEFORE.test(String(t || '').slice(Math.max(0, at - 48), at));
@@ -756,20 +1032,26 @@ function gateStanding(s, facts, rs) {
     if (!r) continue;
     const say = (what) => drop('timeline', `your reply said ${what} in round ${n}, which the record of it does not have`);
     const states = r.standings || [];
-    const st = STANDING.exec(t);
-    if (st) {
-      const a = Number(st[1]);
-      const b = Number(st[2]);
-      // The player's side first, as the record and the prompt say it ("4
-      // against 3 standing"): "you were down 3 against 4" on a round the
-      // player died 4 against 3 in passed with the numbers turned round. Only
-      // a sentence about their side may count theirs first.
-      const either = THEIRS_FIRST.test(t);
-      if (!states.some(([m, e]) => (m === a && e === b) || (either && m === b && e === a))) return say(`${a} against ${b} standing`);
+    // Every standing the sentence says (standingClaims), the player's side
+    // first, as the record and the prompt say it ("4 against 3 standing"):
+    // "you were down 3 against 4" on a round the player died 4 against 3 in
+    // passed with the numbers turned round. Only a sentence about their side
+    // may count theirs first. One the player's death left is the standing
+    // right after it (leftByDeath); any other is one the round had.
+    for (const c of standingClaims(t, f)) {
+      const is = ([m, e]) => (m === c.a && e === c.b) || (c.either && m === c.b && e === c.a);
+      if (r.died && Array.isArray(r.after) && leftByDeath(t, c.at, c.end)) {
+        if (!is(r.after)) {
+          const atDeath = Array.isArray(r.atDeath) ? `${r.atDeath[0]} against ${r.atDeath[1]} at the death and ` : '';
+          return drop('timeline', `your reply said the player's death left ${c.a} against ${c.b} standing in round ${n}, where Riot's record has ${atDeath}${r.after[0]} against ${r.after[1]} after it`);
+        }
+      } else if (!states.some(is)) return say(`${c.a} against ${c.b} standing`);
     }
     if (ADVANTAGE.test(t) && !neg && !states.some(([m, e]) => m > e)) return say('a man advantage');
     if (DISADVANTAGE.test(t) && !neg && !states.some(([m, e]) => m < e)) return say('a man disadvantage');
-    if (CLUTCH.test(t) && !neg && !r.clutch) return say('a clutch');
+    // A clutch is the player's only where the sentence says it is (clutchOwner).
+    const clutch = [...t.matchAll(new RegExp(CLUTCH.source, 'gi'))].some((m) => clutchOwner(t, m.index, f) === 'me');
+    if (clutch && !neg && !r.clutch) return say('a clutch');
     if (AFTER_PLANT.test(t) && !neg && !r.planted) return say('a plant');
     // Only the negation that governs it turns a first death or a first kill
     // round: in "you opened the round strong, but the team could not hold the
@@ -1361,6 +1643,9 @@ function gateNumbers(s, facts, rs) {
   const rounds = rs && rs.rounds ? rs.rounds : (f.asked && f.oneRound ? [f.asked] : []);
   const instruction = isInstruction(raw) || isHypothetical(raw);
   const fail = (said) => drop('number', `your reply said ${said}, which the facts do not hold`);
+  // A standing's numbers are the standing gate's: "leaving Reyna alone against
+  // 2" lost its 2 here as a number tied to nothing (standingClaims).
+  const standing = english ? standingClaims(t, f).map((c) => [c.at, c.end]) : [];
   // A clock outside a round sentence, as its seconds (a round sentence's is the time gate's).
   for (const m of t.matchAll(/\b(\d{1,2}):(\d{2})\b/g)) {
     const secs = Number(m[1]) * 60 + Number(m[2]);
@@ -1379,7 +1664,7 @@ function gateNumbers(s, facts, rs) {
       return fail(`a date on the ${value}th, which is no match's`);
     }
     if (/^\s*(?:against|versus|vs\.?|v|on)\s*[1-5]\b/i.test(after) || /\b[1-5]\s*(?:against|versus|vs\.?|v|on)\s*$/i.test(before)
-        || /^v\d/i.test(after) || /\dv$/i.test(before)) continue;
+        || /^v\d/i.test(after) || /\dv$/i.test(before) || standing.some(([from, to]) => at >= from && at < to)) continue;
     if (/^\s*(?:out\s+)?of\s+(?:the\s+|your\s+|their\s+)?\d/i.test(after) || /\b\d+\s+(?:out\s+)?of\s+(?:the\s+|your\s+|their\s+)?$/i.test(before)) continue;
     // "You went 31 and 21": the scoreline's kills and deaths, as the review
     // writes them, was two numbers tied to nothing (the verifier's probe).
@@ -1468,6 +1753,56 @@ function gateNumbers(s, facts, rs) {
   return null;
 }
 
+// ── What a sentence leans on ───────────────────────────────────────────────
+
+/*
+ * A SENTENCE THAT LEANS ON THE ONE BEFORE IT, for its time or its subject
+ * (bench:chat, 23 Oct). A sentence is dropped whole, never repaired, and the
+ * reply closes up around it, so the one after it is read against whatever
+ * now stands before it. On the Sunset round 1, "Skye traded KAY/O one second
+ * later" lost the player's death it was timed from and read as a trade at 25
+ * s, where Riot has 27 s; on Split, "She killed you 5 times" lost the Reyna
+ * it was about and read as Skye, the last agent named; "That was the first
+ * death", "That is the habit to carry" and "It was not traded" lost what
+ * they pointed at. chat-prompt.js gateReply drops such a sentence with the
+ * one it leans on. It leans:
+ *   - for its time, when it times its event from the one before ("one second
+ *     later", "moments later", "right after", "at the same time") with no
+ *     time or event in an earlier clause of its own to time it from. "Then"
+ *     and "later" alone order it, which stays true whatever stands before;
+ *     "within five seconds" is a trade's window, never a time;
+ *   - for its subject, when it opens on a pronoun for a player (he, she, his,
+ *     her, its), or on that, this or it with a verb, standing for what the
+ *     sentence before told. "It was a defence round" is the round's, and
+ *     "That round" or "This match" names what it means;
+ *   - for what it answers, when a trade of a killer it names ("Skye traded
+ *     KAY/O", "Phoenix answered") comes with no kill or death of its own
+ *     before it: the death it answers is the sentence before's. "You were the
+ *     first death, and nobody traded it" answers its own.
+ */
+const LEAN_OFFSET = '(?:(?:a|an|one|two|three|four|five|a few)\\s+(?:secs?|seconds?)|\\d+(?:\\.\\d+)?\\s*(?:s|secs?|seconds?)|(?:a\\s+)?(?:moment|beat|split second|instant)|moments|seconds|right|just|immediately|shortly|soon|straight)';
+const LEANS_TIME = new RegExp(`\\b${LEAN_OFFSET}\\s+(?:later\\b|afterwards?\\b|after(?=\\s*(?:[,.;:!?]|$|that\\b|this\\b)))|\\b(?:at|in)\\s+the\\s+same\\s+(?:time|moment|second|instant)\\b`, 'i');
+const LEANS_SUBJECT = /^(?:(?:and|but|so|then|still|yet|also)\s*,?\s+)?(?:(?:he|she)\b|(?:his|her|its)\s+[a-z]|(?:that|this|it)(?:'s\b|\s+(?:was|is|were|are|wasn't|isn't|had|has|left|leaves|gave|gives|meant|means|made|makes|put|puts|cost|costs|let|lets|happened|came|comes|went|brought|turned|decided|matters|mattered|changed|showed|shows|explains|explained|would|will|should|could|can|did|does|didn't|doesn't|counts|counted|ended|opened|forced|helped|allowed|created|got|took|says|said|tells|told)\b))/i;
+const IT_IS_THE_ROUND = /^(?:(?:and|but|so)\s*,?\s+)?it(?:'s|\s+(?:was|is))\s+(?:(?:a|an|the|your|their)\s+)?(?:[a-z]+\s+){0,2}(?:round|match|game|half)\b/i;
+const LEANS_TRADE = new RegExp(`\\b(?:traded|avenged)\\s+(?:(?:their|the enemy|an enemy|the)\\s+)?(?:${AGENT_ALT})(?![A-Za-z0-9])|\\banswered\\b(?!\\s+(?:you|your)\\b)`, 'i');
+const LEAN_ANCHOR = /\b\d+(?:\.\d+)?\s*(?:s|secs?|seconds?)\s+(?:in|into)\b|\b(?:killed|died|traded|shot|planted|defused|eliminated|fell|answered|avenged|took out|picked off)\b|\b(?:deaths?|kills?)\b/i;
+/** 'time', 'subject' or null: what a sentence takes from the one before it, and reads wrong without. */
+function leansOn(sentence) {
+  const t = straighten(sentence).trim();
+  const time = LEANS_TIME.exec(t);
+  if (time) {
+    // Timed from an earlier clause of its own ("KAY/O killed you at 26 s in, and Skye traded KAY/O a second later") is anchored.
+    const head = t.slice(0, time.index);
+    let cut = 0;
+    for (const m of head.matchAll(CLAUSE_START)) cut = m.index;
+    if (!LEAN_ANCHOR.test(head.slice(0, cut))) return 'time';
+  }
+  if (LEANS_SUBJECT.test(t) && !IT_IS_THE_ROUND.test(t)) return 'subject';
+  const trade = LEANS_TRADE.exec(t);
+  if (trade && !LEAN_ANCHOR.test(t.slice(0, trade.index))) return 'subject';
+  return null;
+}
+
 // ── All of them ────────────────────────────────────────────────────────────
 
 /*
@@ -1530,4 +1865,10 @@ module.exports = {
   PISTOL_ROUND, PISTOL_DESCRIBED, PISTOL_SECOND_AFTER, ROUND_SECONDS, OBJECT_IS_ROUND, MATCH_AFTER, SCORE_AFTER, SCORE_BEFORE,
   MATCH_BEFORE, NAMED_WIN_BEFORE, MAP_AFTER, OBJECT_BEFORE, CLEFT_BEFORE, CLEFT_AFTER,
   GUN_MINE_BEFORE, GUN_THEIRS_BEFORE, GUN_WITH_BEFORE, YOU_KILLED_PASSIVE, TOWARD_SOMEONE, CLAUSE_START, PEEK_AGAIN, negatedAt,
+  // The bench:chat run of 23 Oct, each asserted in test:chatgates.
+  clutchOwner, standingClaims, leftByDeath, leansOn, STANDING_WORDS, ALONE_AGAINST, LEFT_BY, PLAYER_DEATH, AFTER_DEATH, EVENT_BETWEEN, CLAUSE_BETWEEN,
+  LEANS_TIME, LEANS_SUBJECT, IT_IS_THE_ROUND, LEANS_TRADE, LEAN_ANCHOR, CLUTCH,
+  // The verifier's probe of 23 Oct, each asserted in test:chatgates.
+  gateLeftAcross, deathsWord, sinceDeath, CARRIES_ON, LEFT_FINITE, AFTER_DEATH_NEXT, AT_THE_DEATH, DATED_LATER, CLAUSE_MARK,
+  DEATH_SUBJECT, OTHER_TIME, LEFT_OPENER, OWNER_CARRIES, NEW_CLAUSE,
 };
