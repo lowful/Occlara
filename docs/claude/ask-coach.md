@@ -127,6 +127,25 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   prefix and the match's facts come first, byte for byte the same for every
   question of a match (`buildParts`), and the gun table is in the slices by
   default (`CHAT_PRIMER_GUNS=core` puts it back), since Sol cached 0 tokens.
+- **The 23 Oct run and what its panel found** (Sol v2, 90 answers, three runs
+  of the 30 questions, read by three agents, merged 2 of 3; $1.95). Premises
+  9 of 9 corrected, the honest line 1.1%, drops 5.0%, retries 12.2% (the bar
+  10%), depth 4.78 of 5, names, kits, relabels, economy and meta 0 shown, p90
+  6.1 s, $0.0087 a question with 77.6% of prompt tokens cached. Four wrong
+  facts in 90, from two causes, both fixed and replayed offline over the 90
+  raw replies (and the 15 Oct run's 120): a teammate named alone against N is
+  that teammate's standing, 1 against N, never the player's clutch
+  (`clutchOwner`, `standingClaims`), since "leaving Skye alone against three"
+  dropped the sentence carrying the player's death and the trade after it read
+  2 s early; and a standing said to be left by the player's death ("leaving",
+  "down to", "after you died", "that left", across two sentences too) is the
+  one after it (`deathStandingsOf`, `leftByDeath`, `gateLeftAcross`), since
+  "Tejo killed you 13 s in, leaving your team 4 against 5" gave the standing at
+  the death. And in English a sentence that leans on a dropped one, for its
+  time ("one second later"), its subject ("She killed you 5 times") or what it
+  answers, goes with it (`leansOn`, gate `leans`), never retried. On the
+  replay: the four wrong facts gone, drops 59 to 63, no answer's retry or
+  honest line changed.
 - **What an independent probe of the gates found, 15 Oct** (each pinned in
   test:chatgates, each pin failing with its rule reverted). Passed: "Neon is
   better than Jett right now", "Jett is S tier", "the highest win rate on
