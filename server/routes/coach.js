@@ -1077,14 +1077,25 @@ function clientAtLeast(req, from) {
  * which is looked at with today's prompt and parse exactly. An admin bench may
  * name 'a' for the live prompt, the control, whatever FORENSICS_PROMPT says.
  * Variant b2, b with the evidence each judgement rests on written out from
- * bench A, is in that list and rides this gate the same way, to its own
- * bench first and FORENSICS_PROMPT=b2 after it.
+ * bench A, is in that list and rides this gate the same way.
+ *
+ * B2 IS THE DEFAULT FOR 8.5.0 AND LATER SINCE ITS BENCH, the player's choice
+ * (bench A, 22 Oct 2026, five runs of 16 of the player's deaths against the
+ * panels' frozen key): forbidden labels 3 in 80 against today's 13 and b's
+ * 5, the key's fair duel a lost duel 5 of 5, unclear wherever the key says 4
+ * of 4 (today's 3), the Fracture's three rounds all acceptable in 3 runs of 5
+ * (today's 0), no look contradicting itself, p90 3.39 s (today's 5.03). It
+ * missed three terms narrowly (forbidden by one, the Fracture by one run, and
+ * the avoidable bar, 55% where the merged key's union rule set 49% though the
+ * three panels' own keys ran 50 to 62.5%), better than today's prompt on
+ * every one. FORENSICS_PROMPT names another (b, or a for today's prompt), and
+ * a client before 8.5.0 never gets one.
  */
 const lookVariants = () => (Array.isArray(deathForensics.VARIANTS) ? deathForensics.VARIANTS : []);
 function forensicsVariant(req) {
   const asked = String((req.body && req.body.variant) || '').trim().toLowerCase();
   if (asked && isAdmin(req) && (asked === 'a' || lookVariants().includes(asked))) return asked === 'a' ? null : asked;
-  const promoted = String(process.env.FORENSICS_PROMPT || '').trim().toLowerCase();
+  const promoted = String(process.env.FORENSICS_PROMPT || 'b2').trim().toLowerCase();
   return promoted && lookVariants().includes(promoted) && clientAtLeast(req, V85) ? promoted : null;
 }
 

@@ -725,9 +725,16 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
     const gate = vm.runInContext(`${src.join('\n')}\n;({ forensicsVariant })`, box).forensicsVariant;
     const req = (variant, headers) => ({ body: variant === undefined ? {} : { variant }, headers: headers || {} });
     const admin = { 'x-admin-password': 'stand-in-admin' };
+    // b2 is the default for 8.5.0 and later since its bench (22 Oct):
+    // FORENSICS_PROMPT unset is b2, and a turns it off.
+    ok(gate(req(undefined, { 'x-occlara-version': '8.5.0' })) === 'b2' && gate(req(undefined, { 'x-occlara-version': '8.4.4' })) === null
+      && gate(req(undefined)) === null,
+    'with FORENSICS_PROMPT unset an 8.5.0 client is looked at with b2, and a client before it with a');
+    env.FORENSICS_PROMPT = 'a';
     ok(gate(req('b2')) === null && gate(req('b2', { 'x-admin-password': 'guess' })) === null && gate(req('b2', { 'x-occlara-version': '8.5.0' })) === null
+      && gate(req(undefined, { 'x-occlara-version': '8.5.0' })) === null
       && gate(req('b2', admin)) === 'b2' && gate(req(' B2 ', admin)) === 'b2' && gate(req('b3', admin)) === null && gate(req('b', admin)) === 'b',
-    'the route serves b2 only beside the admin password: a licence naming it, a wrong password or a version alone is looked at with a');
+    'with FORENSICS_PROMPT=a a variant is served only beside the admin password: a licence naming it, a wrong password or a version alone is looked at with a');
     env.FORENSICS_PROMPT = 'b2';
     ok(gate(req(undefined, { 'x-occlara-version': '8.5.0' })) === 'b2' && gate(req(undefined, { 'x-occlara-version': '8.6.1' })) === 'b2'
       && gate(req(undefined, { 'x-occlara-version': '8.4.4' })) === null && gate(req(undefined)) === null
