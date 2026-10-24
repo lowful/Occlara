@@ -1,212 +1,275 @@
-/* Shared UI primitives, buttons, inputs, chips. */
+/* palette: tokens only */
+/* Shared UI primitives: buttons, keycaps, the mono label, the viewfinder,
+   the stat block, inputs. Held to the tokens by check:palette (the first line
+   above): no colour here but a token and the glass's neutral black and white,
+   and no gradient. */
 
-/* WHAT MAKES A BUTTON READ AS PREMIUM is a top edge that catches light. A real
-   physical control is lit from above, so its upper edge is brighter than its
-   face. One inset box-shadow reproduces that in a single line, and unlike a
-   gradient it survives any background colour underneath it.
+/* ── Buttons (8.6) ──────────────────────────────────────────────────────────
+   FLAT. A control is a fill and a hairline: 44px, --r-control, Geist 500
+   15px. Before 8.6 a button had a lit top edge, two shadows, a lift under the
+   pointer and a light sweep across the primary, and together they read as a
+   game launcher rather than a tool. Under the pointer the fill moves toward
+   the ink and nothing else moves.
 
-   Depth is TWO shadows, not one. A tight dark shadow at 1px seats the control
-   against the surface, and a wider soft one at 10px lifts it off the page. A
-   single mid shadow reads as a drop shadow; two read as an object. */
+   A bare .btn is the secondary, the same as .btn-ghost: the bordered control
+   it always was. The hovers exclude a disabled control inside :where(), so
+   they weigh what .btn:hover weighed and a surface's own state (Settings'
+   armed Clear clips, Log out under the pointer, a button that says it is
+   done) still wins over them.
+
+   A keycap at the right end takes the end padding down to 6px:
+   <button class="btn btn-primary">Open review<kbd class="kbd">E</kbd></button> */
 .btn {
   -webkit-app-region: no-drag;
-  font-family: var(--font);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3);
+  height: 44px; padding: 0 18px;
+  font-family: var(--font); font-size: 15px; font-weight: 500; line-height: 1; letter-spacing: -0.005em;
   color: var(--text);
-  background: var(--glass-fill-2);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-control);
   cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.055),
-    0 1px 2px rgba(0, 0, 0, 0.40);
-  transition: transform var(--t-fast) var(--ease),
-              background var(--t-fast) var(--ease),
-              box-shadow var(--t-med) var(--ease),
-              border-color var(--t-fast) var(--ease);
 }
-.btn:hover {
-  background: rgba(255,255,255,0.075);
-  border-color: rgba(255,255,255,0.155);
-  transform: translateY(-1px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 1px 2px rgba(0, 0, 0, 0.45),
-    0 6px 18px rgba(0, 0, 0, 0.42);
-}
-/* Pressing returns it to the surface and takes the lift shadow away, so the
-   control genuinely looks pushed in rather than merely scaled. */
-.btn:active {
-  transform: translateY(0) scale(0.985);
-  box-shadow:
-    inset 0 2px 5px rgba(0, 0, 0, 0.30),
-    0 1px 1px rgba(0, 0, 0, 0.35);
+.btn:where(:not(:disabled)):hover { background: rgba(255, 255, 255, 0.09); }
+.btn:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child) { padding-right: 6px; }
+.btn.md { height: 40px; }
+.btn.sm { height: 32px; padding: 0 12px; font-size: 13px; gap: var(--space-2); }
+.btn.sm:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child) { padding-right: 5px; }
+.btn.sm .kbd, .btn.sm kbd { height: 20px; min-width: 20px; padding: 0 5px; font-size: 10.5px; }
+
+/* The primary: the ink, with the ground's colour on it; white under the
+   pointer. It is no longer the red: the signal is Start's alone (.btn-rec). */
+.btn-primary { background: var(--text); border-color: transparent; color: var(--bg); }
+.btn-primary:where(:not(:disabled)):hover { background: var(--cyan); }
+.btn-primary .kbd, .btn-primary kbd { border-color: rgba(0, 0, 0, 0.22); color: rgba(0, 0, 0, 0.62); }
+.btn-primary .kbd.is-pressed, .btn-primary kbd.is-pressed { border-color: rgba(0, 0, 0, 0.45); color: var(--bg); }
+
+/* The ghost: three points of white in the control hairline, the ink on it. */
+.btn-ghost { background: rgba(255, 255, 255, 0.03); border-color: var(--line-2); color: var(--text); }
+.btn-ghost:where(:not(:disabled)):hover { background: rgba(255, 255, 255, 0.09); }
+
+/* A destructive action is a ghost until the pointer is on it: one of the
+   signal's places (check:palette SIGNAL_ALLOWED). */
+.btn-ghost.danger:hover:not(:disabled) {
+  color: var(--signal);
+  border-color: rgba(var(--signal-rgb), 0.5);
+  background: rgba(var(--signal-rgb), 0.08);
 }
 
-.btn-primary {
-  position: relative;
-  overflow: hidden;
-  background: var(--red);
-  border-color: transparent;
-  /* NOT #fff. --red is the primary accent, and the text on it is a token of
-     its own, --on-accent, so the two can only move together. */
-  color: var(--on-accent);
-  /* The same lit top edge, brighter because the face is saturated, plus a
-     coloured shadow so the red appears to sit in its own light. */
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    0 1px 2px rgba(0, 0, 0, 0.45),
-    0 4px 14px rgba(var(--red-rgb), 0.26);
-}
-.btn-primary:hover {
-  background: var(--red-2);
-  transform: translateY(-1px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    0 1px 2px rgba(0, 0, 0, 0.45),
-    0 8px 26px rgba(var(--red-rgb), 0.38);
-}
-.btn-primary:active {
-  transform: translateY(0) scale(0.985);
-  box-shadow:
-    inset 0 2px 6px rgba(0, 0, 0, 0.26),
-    0 1px 2px rgba(0, 0, 0, 0.40);
-}
-/* A light sweep across the primary action on hover. Transform only, so it
-   stays on the compositor and never triggers layout. */
-.btn-primary::after {
-  content: '';
-  position: absolute;
-  top: 0; bottom: 0; left: -60%;
-  width: 45%;
-  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.28), transparent);
-  transform: translateX(0);
-  opacity: 0;
-  pointer-events: none;
-}
-.btn-primary:hover::after { animation: sweep 720ms var(--ease-expo); }
-@keyframes sweep {
-  0%   { transform: translateX(0);    opacity: 0; }
-  18%  { opacity: 1; }
-  100% { transform: translateX(360%); opacity: 0; }
-}
-
-.btn-ghost {
+/* The link: the borderless in card action the ghost was before 8.6, its
+   words dim until the pointer is on it. */
+.btn-link {
+  height: auto; padding: var(--space-2) var(--space-3);
   background: transparent; border-color: transparent; color: var(--text-dim);
-  box-shadow: none;
 }
-.btn-ghost:hover {
-  color: var(--text); background: rgba(255,255,255,0.06);
-  transform: none; box-shadow: none;
+.btn-link:where(:not(:disabled)):hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+
+/* START: the ONE saturated fill in the app, the signal, with the ground's
+   colour on it (6.35:1; white on it measured 3.10:1). Its hover and its press
+   leave Stop alone (.active): unscoped, the press rule outweighed
+   .toggle.active and flashed the signal across Stop as it was pressed. */
+.btn-rec {
+  height: 48px;
+  background: var(--red); border-color: transparent; color: var(--on-accent);
+  font-size: 19px; font-weight: 600; letter-spacing: -0.01em;
 }
-.btn-ghost:active { transform: scale(0.97); box-shadow: none; }
+.btn-rec:hover:not(:disabled):not(.active) { background: var(--red-2); }
+.btn-rec:active:not(:disabled):not(.active) { background: var(--red-3); }
 
 .icon-btn {
   -webkit-app-region: no-drag;
+  position: relative;
   display: grid; place-items: center;
   width: 34px; height: 34px;
-  border-radius: var(--r-md);
-  background: transparent;
-  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  /* At rest on a faint surface with a hairline, rather than fully
+     transparent. Invisible-until-hovered buttons look tidy in a mockup and
+     read as empty space in use: a row of six of them gave no hint there was
+     anything to click. Flat, as every control is: no lit edge, no lift. */
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid rgba(255, 255, 255, 0.055);
   color: var(--text-dim);
   cursor: pointer;
-  transition: all var(--t-fast) var(--ease);
 }
-/* The header controls sit at rest on a faint surface with a hairline, rather
-   than fully transparent. Invisible-until-hovered buttons look tidy in a
-   mockup and read as empty space in use: a row of six of them gave no hint
-   there was anything to click. */
-.icon-btn {
-  background: rgba(255, 255, 255, 0.028);
-  border-color: rgba(255, 255, 255, 0.055);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
-  transition: color var(--t-fast) var(--ease),
-              background var(--t-fast) var(--ease),
-              border-color var(--t-fast) var(--ease),
-              transform var(--t-fast) var(--ease),
-              box-shadow var(--t-med) var(--ease);
-}
-.icon-btn:hover {
+.icon-btn:where(:not(:disabled)):hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.085);
   border-color: rgba(255, 255, 255, 0.16);
-  transform: translateY(-1px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 4px 12px rgba(0, 0, 0, 0.42);
-}
-.icon-btn:active {
-  transform: translateY(0) scale(0.95);
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.32);
-}
-/* Quit is the one destructive control in the row, so it earns the accent on
-   hover and only on hover. */
-.icon-btn.danger:hover {
-  color: var(--red);
-  border-color: rgba(var(--red-rgb), 0.42);
-  background: rgba(var(--red-rgb), 0.10);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 4px 14px rgba(var(--red-rgb), 0.18);
 }
 /* The eye that opens one match's AI log (shared/log-eye.js), on its row in
    Matches and in its review's header: an icon button a size down, beside rows
    and small buttons. Disabled once the log no longer holds the match, and
-   still there, so its tooltip can say why; it does not lift under the pointer
-   like a control that would do something. */
-.log-eye { flex: none; width: 30px; height: 30px; }
+   still there, so its tooltip can say why; it does not light under the
+   pointer like a control that would do something. */
+.log-eye { flex: none; }
+.log-eye:not(.labelled) { width: 30px; height: 30px; }
 .log-eye:disabled { opacity: 0.4; cursor: default; }
-.log-eye:disabled:hover {
-  color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.028);
-  border-color: rgba(255, 255, 255, 0.055);
-  transform: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
-}
 /* With its word beside it (log-eye.js labelled()), where it stands alone, on
-   Home's last match: a ghost button the size of the Open review beside it,
-   the eye leading the word. Disabled it stays as flat as it was. */
-.log-eye.labelled {
-  width: auto; height: auto;
-  display: inline-flex; align-items: center; gap: var(--space-2);
-}
-.log-eye.labelled:disabled:hover { color: var(--text-dim); background: transparent; border-color: transparent; box-shadow: none; }
+   Home's last match: a button of the class it carries, the size of the Open
+   review beside it, the eye leading the word. */
+.log-eye.labelled { display: inline-flex; align-items: center; gap: var(--space-2); }
 
+/* ── Inputs ──────────────────────────────────────────────────────────────── */
 .input {
   -webkit-app-region: no-drag;
-  width: 100%;
-  font-family: 'SF Mono', 'Consolas', monospace;
-  font-size: 15px;
+  width: 100%; height: 44px;
+  padding: 0 14px;
+  font-family: var(--font-mono);
+  font-size: 14px;
   letter-spacing: 2px;
   color: var(--text);
-  background: rgba(0,0,0,0.28);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-  padding: 13px 14px;
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-control);
   outline: none;
   transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
-.input:focus { border-color: rgba(var(--cyan-rgb),0.5); box-shadow: var(--glow-cyan); }
+.input:focus { border-color: rgba(var(--cyan-rgb), 0.5); box-shadow: var(--glow-cyan); }
 .input::placeholder { color: var(--text-mute); letter-spacing: 1px; }
+
+/* ── Type ────────────────────────────────────────────────────────────────────
+   THE MONO LABEL. Every small uppercase label (a stat's name, a column head, a
+   chip's word, an eyebrow) is this one face and size, never Geist bold in
+   capitals: Geist Mono 500, the weight it ships. */
+.mono {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.3;
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-mute);
+}
+/* THE EYEBROW: a mono label led by its index, [ 01 ], [ 02 ]. The index is
+   drawn, not written: the container sets counter-reset: sec and each eyebrow
+   counts itself, so its text, what a test and a screen reader read, is the
+   label alone (the empty text after the slash), and a hidden section takes no
+   number. Only where the order never changes: the review's sections and
+   Settings'. */
+.eyebrow {
+  display: flex; align-items: baseline; margin: 0;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.3;
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-mute);
+}
+.eyebrow::before {
+  counter-increment: sec;
+  content: "[ " counter(sec, decimal-leading-zero) " ]" / "";
+  color: var(--text-dim);
+  margin-right: var(--space-3);
+  white-space: pre;
+}
+/* A title or a number set large: tight, on a line of its own height, its
+   figures all one width. */
+.display {
+  font-family: var(--font); font-weight: 600;
+  letter-spacing: var(--track-display); line-height: var(--lh-display);
+  font-variant-numeric: tabular-nums; color: var(--text);
+}
+
+/* ── Keycaps ─────────────────────────────────────────────────────────────────
+   One key: <kbd class="kbd">H</kbd>. A chord is a row of them, one key a
+   cap: <span class="keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>H</kbd></span>.
+   Only a shortcut the app has is ever drawn, and only while the key does
+   what the cap says. .is-pressed is set by the renderer for --t-press when it
+   handles that key itself. Every kbd in the app is this one: the surfaces'
+   own (Consolas, a 2px bottom edge) went in 8.6. */
+kbd, .kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  /* never shrunk by a flex row it sits in: its min-width replaces the auto
+     minimum, and a squeezed cap let its chord run out of its border */
+  flex: none;
+  height: 22px; min-width: 22px; padding: 0 6px;
+  border: 1px solid var(--line-2); border-radius: var(--r-card);
+  background: transparent;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1; letter-spacing: 0;
+  color: var(--text-dim); white-space: nowrap;
+  transition: transform var(--t-press) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+kbd.lg, .kbd.lg { height: 24px; min-width: 24px; }
+.keys { display: inline-flex; align-items: center; gap: 4px; }
+kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(--text-mute); color: var(--text); }
+/* A cap drawn from a control's data-keys, for a control whose text a test or
+   a screen reader reads: one cap holding the whole chord, the control's own
+   words untouched (the empty text after the slash keeps it out of its
+   accessible name) and the chord in its aria-keyshortcuts. Hidden until a
+   surface shows it under its own condition, on hover or focus, say:
+   .x[data-keys]:hover::after { display: inline-flex; } */
+[data-keys]::after {
+  content: attr(data-keys) / "";
+  display: none; align-items: center; justify-content: center;
+  height: 22px; min-width: 22px; padding: 0 6px;
+  border: 1px solid var(--line-2); border-radius: var(--r-card);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1; letter-spacing: 0;
+  color: var(--text-mute); white-space: nowrap;
+}
+
+/* ── The viewfinder ──────────────────────────────────────────────────────────
+   Only on a card that frames one moment (the last match, the Verdict, a clip,
+   the AI log's frame): no border, four 16px brackets, 1.5px of ink-2, 2px
+   outside the box, over a two point fill. ONE pseudo element draws all four:
+   a whole border clipped to its corners, never a gradient. Under the pointer
+   or with focus inside, the brackets open 2px further. It must not sit inside
+   an overflow: hidden ancestor, which cuts the brackets off. */
+.vf {
+  position: relative;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--r-card);
+}
+.vf::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 1.5px solid var(--text-dim);
+  pointer-events: none;
+  clip-path: polygon(
+    0 0, 16px 0, 16px 3px, calc(100% - 16px) 3px, calc(100% - 16px) 0, 100% 0,
+    100% 16px, calc(100% - 3px) 16px, calc(100% - 3px) calc(100% - 16px), 100% calc(100% - 16px), 100% 100%,
+    calc(100% - 16px) 100%, calc(100% - 16px) calc(100% - 3px), 16px calc(100% - 3px), 16px 100%, 0 100%,
+    0 calc(100% - 16px), 3px calc(100% - 16px), 3px 16px, 0 16px);
+  transition: inset var(--t-slow) var(--ease-expo);
+}
+.vf:hover::before, .vf:focus-within::before { inset: -4px; }
+
+/* ── The stat block ──────────────────────────────────────────────────────────
+   <div class="stats sm"><div class="stat"><b class="stat-n">7</b><span class="stat-l">Matches</span></div>...</div>
+   Columns divided by the hairline. Held under .stats, so the review's own
+   .stat tiles (review.css) are not touched. The app uses .sm and .xs. */
+.stats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.stats > .stat { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: 0 var(--space-6); border-left: 1px solid var(--line); }
+.stats > .stat:first-child { padding-left: 0; border-left: 0; }
+.stats .stat-n {
+  font-family: var(--font); font-size: 64px; font-weight: 600;
+  line-height: var(--lh-display); letter-spacing: var(--track-display);
+  font-variant-numeric: tabular-nums; color: var(--text);
+}
+.stats.sm .stat-n { font-size: 36px; }
+.stats.xs .stat-n { font-size: 24px; }
+.stats .stat-l {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.3;
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-mute);
+}
+
+/* ── The column grid ─────────────────────────────────────────────────────────
+   Twelve 1px lines behind Home's header band, drawn as elements (a repeating
+   gradient is a gradient): <div class="colgrid" aria-hidden="true"><i></i> x 12</div>
+   as the first child of a position: relative band whose content sits above
+   it. It follows the page's centred column (html.embedded, below). Never
+   behind a review, a table or a frame. */
+.colgrid {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: max(var(--space-8), calc((100% - 1040px) / 2));
+  right: max(var(--space-8), calc((100% - 1040px) / 2));
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  pointer-events: none;
+  z-index: 0;
+}
+.colgrid > i { border-left: 1px solid var(--grid); }
+.colgrid > i:last-child { border-right: 1px solid var(--grid); }
+
+/* ── The live dot and the urgent dot: two more of the signal's places ──── */
+.sig-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); }
+.sig-dot.off { background: var(--text-mute); }
 
 /* Status dot */
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-mute); transition: all var(--t-med) var(--ease); }
-.dot.coaching { background: var(--cyan); box-shadow: 0 0 10px var(--cyan); animation: pulse 1.6s var(--ease) infinite; }
-.dot.paused   { background: #f5a623; box-shadow: 0 0 8px #f5a623; }
-.dot.stopped  { background: var(--text-mute); }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
-
-.chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; font-weight: 500;
-  padding: 5px 10px; border-radius: 999px;
-  background: rgba(var(--red-rgb),0.12); color: #ff8a95;
-  border: 1px solid rgba(var(--red-rgb),0.25);
-}
-.chip.good { background: rgba(var(--cyan-rgb),0.10); color: #7fe9f5; border-color: rgba(var(--cyan-rgb),0.28); }
 
 /* ── Shared motion utilities ──────────────────────────────────────────────
    Surfaces opt into these instead of redefining the same entrance five times.
@@ -233,63 +296,6 @@
   color: transparent;
 }
 
-/* ── Tip style picker ──────────────────────────────────────────────────────
-   Lives in shared so Settings and the onboarding tour show the SAME previews
-   from one definition; a second copy would drift the moment either changed.
-   Each preview is a miniature of the real card: two text bars with the same
-   background treatment that style uses on the overlay. */
-.style-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-.style-opt {
-  -webkit-app-region: no-drag;
-  display: flex; flex-direction: column; align-items: stretch; gap: 5px;
-  font-family: var(--font);
-  background: rgba(0,0,0,0.24);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-  padding: 9px 9px 10px;
-  cursor: pointer; min-width: 0;
-  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
-}
-.style-opt:hover  { border-color: rgba(255,255,255,0.20); background: rgba(255,255,255,0.05); }
-.style-opt:active { transform: scale(0.97); }
-.style-opt.active { border-color: rgba(var(--cyan-rgb),0.55); background: rgba(var(--cyan-rgb),0.07); }
-.style-opt b  { font-size: 11.5px; font-weight: 700; color: var(--text); }
-.style-opt em { font-size: 9.5px; font-style: normal; color: var(--text-mute); line-height: 1.3; }
-
-/* The miniature card: two text lines, matching the real cards. No accent bar,
-   because the real cards no longer have one. */
-.sp {
-  position: relative;
-  display: block; height: 34px; border-radius: 7px;
-  background: rgba(255,255,255,0.05);
-  overflow: hidden;
-}
-.sp i { display: none; }   /* the old accent bar, kept in markup, no longer drawn */
-.sp::before, .sp::after {
-  content: ''; position: absolute; left: 9px; height: 3px; border-radius: 2px;
-  background: rgba(255,255,255,0.55);
-}
-.sp::before { top: 10px; width: 62%; }
-.sp::after  { top: 19px; width: 40%; background: rgba(255,255,255,0.30); }
-
-.sp-glass   { background: rgba(0,0,0,0.72); backdrop-filter: blur(4px); border: 1px solid var(--glass-border); }
-.sp-solid   { background: rgba(0,0,0,0.98); border: 1px solid var(--glass-border); }
-/* Minimal has no panel, so the preview shows the outlined-text treatment: the
-   bars get their own dark ring instead of sitting on a fill. */
-.sp-minimal { background: transparent; }
-.sp-minimal::before, .sp-minimal::after {
-  box-shadow: 0 0 0 1.5px rgba(0,0,0,0.85), 0 1px 4px rgba(0,0,0,0.9);
-}
-.sp-neon {
-  background: rgba(0,0,0,0.95);
-  border: 1px solid var(--cyan);
-  box-shadow: 0 0 10px -2px var(--cyan), inset 0 0 12px -6px var(--cyan);
-}
-
 /* A control group that is inapplicable right now (for example the tip
    transparency slider while the Minimal style is selected, which draws no
    card to fade). Dimmed and inert, but its explanatory text stays readable so
@@ -299,25 +305,13 @@
 .disabled button,
 .disabled select { pointer-events: none; }
 
-/* ── Premium motion ────────────────────────────────────────────────────────
-   Shared, opt-in polish. Deliberately NOT applied to the overlay: that sits on
-   screen mid-fight, and motion there costs duels. These are for the surfaces
-   you read between games. Everything animates transform and opacity only, so
-   it stays on the compositor and never triggers layout. */
-
-/* Sequential reveal for list content: pass --i on each child. */
-.stagger > * {
-  animation: riseIn 380ms var(--ease-expo) both;
-  animation-delay: calc(var(--i, 0) * 55ms);
-}
-
 /* A button that presses in properly rather than just changing colour. */
 .press { transition: transform var(--t-fast) var(--ease-spring); }
 .press:active { transform: scale(0.96); }
 
-/* Icon buttons get a soft halo on hover instead of a flat fill change. */
-.icon-btn { position: relative; }
-.icon-btn::after {
+/* Icon buttons get a soft halo with the keyboard's focus, but one whose
+   ::after is its keycap ([data-keys], above). */
+.icon-btn:not([data-keys])::after {
   content: '';
   position: absolute; inset: 0;
   border-radius: inherit;
@@ -325,43 +319,33 @@
   transition: box-shadow var(--t-med) var(--ease);
   pointer-events: none;
 }
-.icon-btn:focus-visible::after { box-shadow: 0 0 0 3px rgba(var(--cyan-rgb), 0.18); }
+.icon-btn:not([data-keys]):focus-visible::after { box-shadow: 0 0 0 3px rgba(var(--cyan-rgb), 0.18); }
 
 /* Numbers that count up rather than snapping into place. */
 @keyframes countIn {
   from { opacity: 0; transform: translateY(6px) scale(0.96); }
   to   { opacity: 1; transform: none; }
 }
-.count-in { animation: countIn 460ms var(--ease-expo) both; }
-
-/* A quiet breathing pulse for anything live. Slow and low contrast on purpose. */
-@keyframes livePulse {
-  0%, 100% { opacity: 0.55; }
-  50%      { opacity: 1; }
-}
-.live-dot { animation: livePulse 2.4s var(--ease) infinite; }
 
 /* Window surfaces settle in rather than appearing. */
 @keyframes sheetIn {
   from { opacity: 0; transform: translateY(12px) scale(0.985); }
   to   { opacity: 1; transform: none; }
 }
-.sheet-in { animation: sheetIn 420ms var(--ease-expo) both; }
 
-/* ── Motion, added in the rebrand ─────────────────────────────────────────────
-   Restraint is the point. The brief was sleek, and the fastest way to lose that
-   is motion that draws attention to itself while somebody is trying to play a
-   ranked game. So: short durations, small distances, and nothing that loops
-   except the one control that is deliberately signalling "live".
+/* ── Motion ─────────────────────────────────────────────────────────────────
+   Restraint is the point: short durations, small distances, and nothing that
+   loops. Nothing here plays during a match, when the window shows only the
+   Recording screen, and nothing on that screen moves but its arrival.
 
    prefers-reduced-motion is honoured at the bottom rather than per rule, so a
    new animation cannot forget to opt in. */
 
-/* Buttons acknowledge the press. This is the single cheapest thing that makes an
-   interface feel responsive rather than rendered. */
+/* Controls answer the pointer in their fill and their ink. */
 .btn, .icon-btn, .seg button {
   transition: background var(--t-fast) var(--ease),
               border-color var(--t-fast) var(--ease),
+              color var(--t-fast) var(--ease),
               transform var(--t-fast) var(--ease);
 }
 .seg button:active { transform: scale(0.97); }
@@ -381,17 +365,6 @@ input:focus-visible, select:focus-visible {
 }
 .rise-in { animation: riseIn 240ms var(--ease-expo) both; }
 
-/* Staggering makes a list read as one gesture rather than six. Capped at six,
-   after which everything shares the last delay: a long list should not take a
-   second and a half to finish arriving. */
-.stagger > *          { animation: riseIn 240ms var(--ease-expo) both; }
-.stagger > *:nth-child(1) { animation-delay: 0ms; }
-.stagger > *:nth-child(2) { animation-delay: 40ms; }
-.stagger > *:nth-child(3) { animation-delay: 80ms; }
-.stagger > *:nth-child(4) { animation-delay: 120ms; }
-.stagger > *:nth-child(5) { animation-delay: 160ms; }
-.stagger > *:nth-child(n+6) { animation-delay: 200ms; }
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -405,7 +378,7 @@ input:focus-visible, select:focus-visible {
 .about-note {
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-card);
   background: rgba(255, 255, 255, 0.02);
 }
 .about-note .hint { margin: 0; }
@@ -446,7 +419,9 @@ html.embedded .sheet > header {
   border-bottom: 0;
 }
 html.embedded .sheet > header .h-brand img { display: none; }
-html.embedded .sheet > header .h-brand h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+/* The page title (8.6): Geist 600 at 24px on the app's own tracking. The size
+   is the record's beside it in Matches (matches.css), so the two stay one. */
+html.embedded .sheet > header .h-brand h2 { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); }
 html.embedded .sheet > header #close { display: none; }
 /* The page's title and content share one column, centred up to the width the
    mockups set, so a maximised window does not stretch a line of text across a

@@ -9,7 +9,7 @@
  * to the start, back and forward a second, back and forward one frame (which
  * pause first), the time as seconds from the death, and the speed, 1x, 0.5x
  * and 0.25x. The timeline is an input of type range, read out as the seconds
- * from the death, with the death marked on it in --red and the coach's stills
+ * from the death, with the death marked on it in --bad and the coach's stills
  * where they were taken (their frameAt): where the death's place in the clip
  * is not known (a review saved before 8.4.4, a look that never timed its
  * frames) nothing is marked, and the time is the clip's own seconds.

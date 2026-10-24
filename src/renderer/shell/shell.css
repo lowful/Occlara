@@ -100,11 +100,13 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 }
 .rec.live { border-color: rgba(var(--red-rgb), 0.35); background: rgba(var(--red-rgb), 0.05); }
 .rec-controls { display: flex; align-items: stretch; gap: var(--space-2); }
-/* THE START BUTTON STAYS RED (CLAUDE.md): the one control a player must find
-   without looking. 19px bold keeps white on the red at large-text contrast. */
+/* START STAYS THE SIGNAL (CLAUDE.md, 8.6): the one control a player must find
+   without looking, and the one saturated fill in the app. Its fill, hover and
+   press are .btn-rec's (ui.css), the ground's colour on it at 6.35:1, where
+   white measured 3.10:1; 19px at 600. */
 .toggle {
   flex: 1 1 auto; min-width: 0; height: 48px; padding: 0 var(--space-3);
-  font-size: 19px; font-weight: 700; letter-spacing: -0.2px; white-space: nowrap;
+  font-size: 19px; font-weight: 600; letter-spacing: -0.2px; white-space: nowrap;
   display: flex; align-items: center; justify-content: center; gap: var(--space-2);
 }
 /* The licence ended: the button is where that is said now, in two lines at a
@@ -117,6 +119,9 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .toggle.active:hover { box-shadow: none; filter: none; background: rgba(255, 255, 255, 0.11); }
 .toggle.active .t-ico { color: var(--red); }
 .toggle:disabled { opacity: 0.55; cursor: default; filter: grayscale(0.35); }
+/* Ended, a ghost at full opacity: its two lines read at 7.7:1, where the
+   signal faded by the rule above measured 2.40:1. */
+.toggle.ended:disabled { opacity: 1; filter: none; background: transparent; border: 1px solid var(--line-2); color: var(--text-dim); }
 .icon-btn.lg { flex: none; width: 48px; height: 48px; border: 1px solid var(--glass-border); background: var(--glass-fill-2); }
 .icon-btn.lg svg { width: var(--icon-lg); height: var(--icon-lg); }
 .icon-btn[disabled] { opacity: 0.3; cursor: default; pointer-events: none; }
@@ -177,10 +182,14 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   animation: riseIn var(--t-slow) var(--ease-expo) both;
 }
 .sealed-mark { color: var(--text); }
-.sealed-mark .pupil { fill: var(--red); }
-.sealed.held .sealed-mark { color: var(--text-dim); }
-.sealed.held .sealed-mark .pupil { fill: var(--text-mute); }
-.sealed h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+/* THE LIVE DOT (8.6): one still dot in the signal before "Recording", the
+   screen's only colour. It never pulses or loops: nothing on this screen
+   moves but its arrival. Held, the stop that ended the recording took the
+   dot with it and the crescent goes to ink-3. */
+.sealed h1 { display: inline-flex; align-items: center; gap: var(--space-3); font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+.sealed h1::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); }
+.sealed.held h1::before { display: none; }
+.sealed.held .sealed-mark { color: var(--text-mute); }
 .sealed-sub { max-width: 520px; font-size: 15px; line-height: 1.55; color: var(--text-dim); }
 .sealed-facts { list-style: none; width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: var(--space-2); text-align: left; }
 .sealed-facts li {

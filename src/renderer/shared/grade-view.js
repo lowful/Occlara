@@ -2,9 +2,10 @@
 
 /**
  * The grade and the three insight lists, drawn the same way everywhere they
- * appear: the review window, the match library and the weekly report. A match
- * graded from Riot's record alone has one list of facts in place of the three.
- * The panel and Stats draw their own grade chips and take the colour from here.
+ * appear: the review, the match library and Home. A match graded from Riot's
+ * record alone has one list of facts in place of the three. A row that has
+ * room for the letter alone draws it with letter(), and Stats takes its
+ * colours from here.
  *
  * TEXT ONLY, never innerHTML. Detail lines carry agent names, callouts and the
  * coach's sentences about a frame, and none of that is ours to trust as markup.
@@ -68,24 +69,44 @@
   }
 
   /**
+   * THE LETTER ALONE (8.6), for a row or a chip with no room for the card:
+   * the square in its tone with the letter in it, the one drawing the library,
+   * the breakdown and Stats use rather than a letter chip each. `g` is a
+   * score or a grade ({ score, letter }), whose own letter wins; `opts.size`
+   * is 'sm' (28px) or 'xs' (20px), the card's 40px without it. No grade is a
+   * '?' in no colour, never a D.
+   */
+  function letter(g, opts) {
+    const o = opts || {};
+    const grade = g && typeof g === 'object' ? g : { score: g, letter: letterOf(g) };
+    const l = grade.letter || letterOf(grade.score);
+    const size = o.size === 'sm' || o.size === 'xs' ? ' ' + o.size : '';
+    return el('span', 'gv-letter ' + (l ? gradeTone(grade) : 'none') + size, l || '?');
+  }
+
+  /**
    * The grade card: the number, the letter, and each category with the facts
    * it was built on. A category that could not be measured says so rather than
-   * showing a zero.
+   * showing a zero. `opts.compact` leaves out the row of the number and the
+   * letter, for a page that shows them already (the review, under its
+   * Verdict); the categories and their evidence stay.
    */
   function gradeCard(grade, opts) {
     const o = opts || {};
-    const card = el('section', 'gv-grade');
+    const card = el('section', 'gv-grade' + (o.compact ? ' compact' : ''));
     if (!grade) return card;
-    const top = el('div', 'gv-top');
-    const hasScore = typeof grade.score === 'number';
-    const score = el('div', 'gv-score', hasScore ? grade.score : '--');
-    const letter = el('div', 'gv-letter ' + (hasScore ? tone(grade.letter) : 'none'), hasScore ? grade.letter : '?');
-    const meta = el('div', 'gv-meta');
-    meta.append(el('div', 'gv-label', o.label || 'Match grade'));
-    meta.append(el('div', 'gv-sub', !hasScore ? 'Not enough measured to grade this match'
-      : grade.provisional ? 'Provisional: some of the record is still missing' : 'Out of 100, from what the record shows'));
-    top.append(score, letter, meta);
-    card.append(top);
+    if (!o.compact) {
+      const top = el('div', 'gv-top');
+      const hasScore = typeof grade.score === 'number';
+      const score = el('div', 'gv-score', hasScore ? grade.score : '--');
+      const mark = el('div', 'gv-letter ' + (hasScore ? tone(grade.letter) : 'none'), hasScore ? grade.letter : '?');
+      const meta = el('div', 'gv-meta');
+      meta.append(el('div', 'gv-label', o.label || 'Match grade'));
+      meta.append(el('div', 'gv-sub', !hasScore ? 'Not enough measured to grade this match'
+        : grade.provisional ? 'Provisional: some of the record is still missing' : 'Out of 100, from what the record shows'));
+      top.append(score, mark, meta);
+      card.append(top);
+    }
 
     const cats = el('div', 'gv-cats');
     for (const c of grade.categories || []) {
@@ -238,7 +259,7 @@
     return card;
   }
 
-  const api = { gradeCard, insightLists, factList, roundChips, letterOf, tone, scoreTone, gradeTone, checking, el };
+  const api = { gradeCard, insightLists, factList, roundChips, letter, letterOf, tone, scoreTone, gradeTone, checking, el };
   if (typeof window !== 'undefined') window.GradeView = api;
   // Node, for the test that holds the colour rule to grade.js. Nothing here
   // touches the DOM until a card is drawn, so requiring it is safe.

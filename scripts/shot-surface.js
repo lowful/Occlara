@@ -53,9 +53,9 @@ const OUT = path.join(ROOT, 'dist-surface-shots');
 // saved reviews in it, OCCLARA_SHOTS=1 npm run check:mainwindow writes
 // dist-surface-shots/main-<page>.png.
 const SIZES = {
-  shell: [1200, 780], home: [968, 740], settings: [520, 620], stats: [560, 720], history: [440, 560],
+  shell: [1200, 780], home: [968, 740], settings: [520, 620], stats: [560, 720],
   ailog: [900, 640], chat: [420, 600], weekly: [520, 680], onboarding: [480, 528],
-  activation: [424, 524], dock: [84, 84], overlay: [520, 400], splash: [360, 340],
+  activation: [424, 524], dock: [84, 84], splash: [360, 340],
   learn: [560, 720],
 };
 
@@ -86,7 +86,7 @@ app.whenReady().then(async () => {
       // The surfaces are transparent by design and composite onto the desktop.
       // A screenshot needs an opaque ground or the card renders black-on-black
       // and the whole point of looking is lost.
-      backgroundColor: '#08090A',
+      backgroundColor: '#0A0B0E',   // --bg (theme.css)
       // A PAGE IS REACHED AFTER LOAD, and a window that was never shown keeps
       // its first frame: every page shot came back as page 0. So a page
       // shot shows its window, inactive, fully transparent and ignoring the

@@ -509,6 +509,12 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const c2 = rv.rounds.find((c) => c.n === 2);
   ok(c2.facts[0] === 'Died at A Site, 15s in, to Viper with a Marshal', `round 2 reads exactly (${c2.facts[0]})`);
   ok(!rv.refused.some((t) => /Kills, damage/.test(t)), 'the "kills are not on the HUD" refusal goes once Riot supplies them');
+  // WHAT IT CANNOT TELL YOU IS TRUE (8.6). It said Riot records when you died
+  // and to whom, not where: Riot's record carries every kill's location, and
+  // the review keeps the screen's alone, so that is what it says.
+  ok(rv.refused.includes("Where you died is read off the screen, not taken from Riot's record, so a death's place can be misread.")
+    && !rv.refused.some((t) => /not where/.test(t)),
+  `a linked review says its death places are the screen's, never that Riot has none (${rv.refused.join(' | ')})`);
 
   const body = review.requestBody({ rounds, context: abyss.context, endedBy: 'score',
     riot: { agent: 'Jett', map: 'Abyss', score: '13-11', result: 'Victory' } });

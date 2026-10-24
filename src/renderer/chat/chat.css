@@ -4,7 +4,6 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 
 header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--glass-border); flex: none; }
 .h-brand { display: flex; align-items: center; gap: 9px; flex: none; }
-.h-brand img { filter: drop-shadow(0 2px 5px rgba(var(--red-rgb),0.45)); }
 header h2 { font-size: 15px; font-weight: 700; }
 
 /* The match this conversation is about (8.5.0): the shared dropdown, sized to
@@ -38,7 +37,8 @@ header h2 { font-size: 15px; font-weight: 700; }
 .msg.user {
   align-self: flex-end;
   color: var(--text);
-  background: rgba(var(--red-rgb), 0.90);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
   border-bottom-right-radius: 5px;
 }
 .msg.coach {
@@ -81,11 +81,11 @@ header h2 { font-size: 15px; font-weight: 700; }
 #input:focus { border-color: rgba(var(--cyan-rgb),0.5); box-shadow: 0 0 0 2px rgba(var(--cyan-rgb),0.12); }
 .send {
   flex: none; width: 38px; height: 38px; border-radius: 12px; cursor: pointer;
-  display: grid; place-items: center; color: var(--text);
-  background: var(--red); border: none;
-  transition: filter var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  display: grid; place-items: center; color: var(--bg);
+  background: var(--text); border: none;
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
-.send:hover { filter: brightness(1.08); box-shadow: var(--glow-red); }
+.send:hover { background: var(--cyan); }
 .send:active { transform: scale(0.94); }
 .send:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
 

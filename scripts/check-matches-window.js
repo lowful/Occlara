@@ -340,7 +340,7 @@ setTimeout(async () => {
 
     // WON AND LOST BESIDE THE TITLE, on the list page alone, through the real
     // bridge. Abyss is 2-1 and Bind's match from Riot's record a win, so 3:1,
-    // in Geist Mono at the title's size, wins in --good and losses in --red.
+    // in Geist Mono at the title's size, wins in --good and losses in --bad.
     // The Patterns and Breakdown pages, titled for what they count, carry none.
     const recordOf = (pjs) => pjs(`(() => {
       const b = document.getElementById('wl');
@@ -349,7 +349,7 @@ setTimeout(async () => {
       return { shown: !b.hidden && cs(b).display !== 'none', w: b.querySelector('.wl-w').textContent, l: b.querySelector('.wl-l').textContent,
         sr: b.querySelector('.wl-sr').textContent, size: cs(b).fontSize, titleSize: cs(document.querySelector('.sheet > header h2')).fontSize,
         weight: cs(b).fontWeight, family: cs(b).fontFamily, win: cs(b.querySelector('.wl-w')).color, loss: cs(b.querySelector('.wl-l')).color,
-        good: probe('var(--good)'), red: probe('var(--red)') };
+        good: probe('var(--good)'), bad: probe('var(--bad)') };
     })()`);
     const rec = await recordOf(js);
     lines.push(`record: shown=${rec.shown} ${rec.w}:${rec.l} "${rec.sr}" ${rec.weight} ${rec.size} (title ${rec.titleSize}) wins ${rec.win} losses ${rec.loss}`);
@@ -359,7 +359,7 @@ setTimeout(async () => {
     if (rec.size !== rec.titleSize || rec.weight !== '800' || !/Geist Mono/.test(rec.family)) {
       return report(false, `the record is ${rec.weight} ${rec.size} ${rec.family}, beside a ${rec.titleSize} title`);
     }
-    if (rec.win !== rec.good || rec.loss !== rec.red) return report(false, `wins are ${rec.win} and losses ${rec.loss}, not --good and --red`);
+    if (rec.win !== rec.good || rec.loss !== rec.bad) return report(false, `wins are ${rec.win} and losses ${rec.loss}, not --good and --bad`);
     for (const section of ['patterns', 'breakdown']) {
       const w = surfaces.find(`section=${section}`);
       const none = w && await w.webContents.executeJavaScript("document.getElementById('wl').hidden");

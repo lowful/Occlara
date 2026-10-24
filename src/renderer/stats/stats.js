@@ -494,52 +494,8 @@ function matchRow(m) {
     teamEl = team;
   }
 
-  const share = document.createElement('div');
-  share.className = 'share-row';
-  const gen = document.createElement('button');
-  gen.className = 'share-btn';
-  gen.textContent = 'Generate card';
-  gen.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    gen.textContent = 'Generating...';
-    let card = null;
-    try { card = await buildMatchCard(m); } catch {}
-    if (!card) { gen.textContent = 'Failed, try again'; return; }
-    gen.remove();
-    const flashBtn = (btn, text) => {
-      const orig = btn.textContent;
-      btn.textContent = text;
-      setTimeout(() => { btn.textContent = orig; }, 1400);
-    };
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'share-btn';
-    saveBtn.textContent = 'Save card';
-    saveBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const a = document.createElement('a');
-      a.download = `occlara-${(m.map || 'match').toLowerCase()}-${m.kills}-${m.deaths}.png`;
-      a.href = card.toDataURL('image/png');
-      a.click();
-      flashBtn(saveBtn, 'Saved!');
-    });
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'share-btn';
-    copyBtn.textContent = 'Copy card';
-    copyBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      card.toBlob(async (b) => {
-        try {
-          await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]);
-          flashBtn(copyBtn, 'Copied!');
-        } catch { flashBtn(copyBtn, 'Failed'); }
-      });
-    });
-    share.append(saveBtn, copyBtn);
-  });
-  share.append(gen);
   detail.append(tiles);
   if (teamEl) detail.append(teamEl);
-  detail.append(share);
   row.append(top, dropDown(detail));
   row.addEventListener('click', () => row.classList.toggle('open'));
   return row;
@@ -589,7 +545,7 @@ refreshBtn.addEventListener('click', async () => {
   // five minutes: a Refresh just after Riot published a game showed the game
   // before it on the tile as "RR from your last rated game", beside a match
   // list that already had the new one. Started before the dashboard, so the
-  // tile it repaints, and every scorecard after it, reads this one.
+  // tile it repaints reads this one.
   rrPoints(true);
   refreshDashboardForMode(matchMode, true);   // agents + overview stay fresh too
   // Not forced again: rrPoints(true) above is the read, and the graph shares it.
@@ -714,20 +670,6 @@ function sessionRow(s, i, settled) {
   return row;
 }
 
-// ── Shareable scorecard: a flashy PNG built on canvas ────────────────────────
-const cardLogo = new Image();
-cardLogo.src = '../../../assets/logo-mark.svg';
-
-function rr(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
 function matchForSession(s) {
   const start = (s.at || 0) - ((s.durationMin || 0) + 20) * 60000;
   const end   = (s.at || 0) + 10 * 60000;
@@ -744,8 +686,7 @@ function mvpForSession(s) {
   return m ? m.mvp || null : null;
 }
 
-// Competitive RR change for a match, from the rank history points (nearest
-// game within 45 minutes). Cached per window as the read itself, so whoever
+// The rank history points, cached per window as the read itself, so whoever
 // asks while it is out shares it and an older read landing late never
 // replaces a newer one. Refresh starts a forced one, past main's own five
 // minute cache, and the rank tile repainted after it reads that.
@@ -769,175 +710,6 @@ function rrPoints(force) {
     } catch { return []; }
   })();
   return rrPointsCache;
-}
-async function rrChangeForMatch(m) {
-  if (!m || !m.startedAt || m.queue !== 'Competitive') return null;
-  const pts = await rrPoints();
-  let best = null;
-  for (const p of pts) {
-    if (!p.date || Math.abs(p.date - m.startedAt) > 45 * 60000) continue;
-    if (!best || Math.abs(p.date - m.startedAt) < Math.abs(best.date - m.startedAt)) best = p;
-  }
-  return best && best.change != null ? best.change : null;
-}
-
-async function buildMatchCard(m) {
-  if (!cardLogo.complete) await new Promise((res) => { cardLogo.onload = res; cardLogo.onerror = res; });
-  try { await document.fonts.ready; } catch {}   // Geist must be loaded before canvas text
-  const rrChange = await rrChangeForMatch(m);
-  const icons = await loadAgentIcons();
-  const entry = icons[String(m.agent || '').toLowerCase()];
-  // crossOrigin keeps the canvas exportable; a tainted canvas cannot be saved
-  const portrait = entry && entry.portrait ? await new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = entry.portrait;
-  }) : null;
-
-  // The bundled brand face, used for the shareable card as well as the UI.
-  const DISPLAY = 'Geist, sans-serif';
-  const BODY = 'Geist, sans-serif';
-
-  const W = 1000, H = 560, L = 48;   // L = the one left margin everything shares
-  const cv = document.createElement('canvas');
-  cv.width = W; cv.height = H;
-  const ctx = cv.getContext('2d');
-  const shadowOn  = () => { ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 2; };
-  const shadowOff = () => { ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; };
-
-  ctx.fillStyle = '#06080e'; ctx.fillRect(0, 0, W, H);
-
-  // Angular shards, randomized so every card is one of one
-  for (let i = 0; i < 8; i++) {
-    const sx = W * 0.5 + Math.random() * W * 0.5;
-    const sy = Math.random() * H;
-    const ang = Math.random() * Math.PI * 2;
-    const len = 140 + Math.random() * 260;
-    const wid = 16 + Math.random() * 46;
-    ctx.fillStyle = ['rgba(52,74,140,0.20)', 'rgba(var(--red-rgb),0.10)', 'rgba(var(--cyan-rgb),0.08)'][i % 3];
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(sx + Math.cos(ang) * len, sy + Math.sin(ang) * len);
-    ctx.lineTo(sx + Math.cos(ang + 0.22) * (len * 0.72) + wid, sy + Math.sin(ang + 0.22) * (len * 0.72));
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  if (portrait && portrait.naturalWidth) {
-    const ph = H + 46;
-    const pw = ph * (portrait.naturalWidth / portrait.naturalHeight);
-    ctx.save();
-    ctx.globalAlpha = 0.95;
-    ctx.drawImage(portrait, W - pw * 0.84, H - ph + 18, pw, ph);
-    ctx.restore();
-    const fade = ctx.createLinearGradient(W * 0.4, 0, W * 0.68, 0);
-    fade.addColorStop(0, 'rgba(6,8,14,0.96)');
-    fade.addColorStop(1, 'rgba(6,8,14,0)');
-    ctx.fillStyle = fade; ctx.fillRect(W * 0.4, 0, W * 0.28, H);
-  }
-
-  // Header: the mark with the wordmark beside it
-  if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, L, 34, 30, 36);
-  ctx.textAlign = 'left';
-  shadowOn();
-  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 26px ' + DISPLAY;
-  ctx.fillText('OCCLARA', L + 42, 60);
-
-  // Player name + context line
-  const riot = (dashRiotId || '').trim();
-  const name = riot.split('#')[0] || 'Occlara Player';
-  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 56px ' + DISPLAY;
-  ctx.fillText(name.slice(0, 16), L, 158);
-  const dateStr = m.startedAt
-    ? new Date(m.startedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase()
-    : null;
-  ctx.fillStyle = 'rgba(175,205,225,0.8)'; ctx.font = '500 15px ' + BODY;
-  ctx.fillText([m.agent, m.map, m.queue, dateStr].filter(Boolean).join('  ·  ').toUpperCase(), L + 2, 196);
-  shadowOff();
-
-  // The pill leads with the Occlara match rating (0-100, tracker-derived)
-  const rating = Math.round(m.rating || 0);
-  const pillCol = rating >= 70 ? ['#2BE58D', '#19c97a'] : rating >= 55 ? ['#ffd76a', '#eebc3f'] : ['#ff8a95', '#ff5f6e'];
-  const pillW = 200, pillH = 80, pillY = 226;
-  const pg = ctx.createLinearGradient(L, 0, L + pillW, 0);
-  pg.addColorStop(0, pillCol[0]); pg.addColorStop(1, pillCol[1]);
-  ctx.fillStyle = pg;
-  ctx.shadowColor = pillCol[0]; ctx.shadowBlur = 24;
-  rr(ctx, L, pillY, pillW, pillH, 16); ctx.fill();
-  shadowOff();
-  ctx.textAlign = 'center';
-  ctx.font = '800 54px ' + DISPLAY;
-  ctx.fillStyle = '#03140b';
-  ctx.fillText(String(rating), L + pillW / 2, pillY + 57);
-  ctx.textAlign = 'left';
-
-  // MVP chip aligned with the pill's vertical center
-  if (m.mvp) {
-    const label = m.mvp === 'match' ? 'MATCH MVP' : 'TEAM MVP';
-    const gold = m.mvp === 'match' ? '#ffd76a' : '#cfd8e3';
-    ctx.font = '800 16px ' + BODY;
-    const cw = ctx.measureText(label).width + 40;
-    const mx = L + pillW + 18, my = pillY + (pillH - 40) / 2;
-    ctx.shadowColor = gold; ctx.shadowBlur = 20;
-    ctx.fillStyle = 'rgba(255,215,106,0.10)';
-    rr(ctx, mx, my, cw, 40, 20); ctx.fill();
-    shadowOff();
-    ctx.strokeStyle = gold; ctx.lineWidth = 2;
-    rr(ctx, mx, my, cw, 40, 20); ctx.stroke();
-    ctx.fillStyle = gold;
-    ctx.fillText(label, mx + 20, my + 26);
-  }
-
-  // Stat rows on a tight two-column grid: labels at L, values at L+140
-  const kdaCol = m.kills > m.deaths ? '#2BE58D' : m.kills < m.deaths ? '#ff8a95' : '#ffd76a';
-  const rows = [
-    ['RESULT', (m.result === 'Victory' ? 'WIN ' : m.result === 'Defeat' ? 'LOSS ' : 'DRAW ') + m.score,
-      m.result === 'Victory' ? '#2BE58D' : m.result === 'Defeat' ? '#ff8a95' : '#ECF9FF'],
-    ['K / D / A', m.kills + ' / ' + m.deaths + ' / ' + m.assists, kdaCol],
-  ];
-  if (rrChange != null) rows.push(['RR', (rrChange >= 0 ? '+' : '') + rrChange + ' RR', rrChange >= 0 ? '#2BE58D' : '#ff8a95']);
-  let ry = rows.length >= 3 ? 348 : 362;   // three rows start higher, two stay put
-  shadowOn();
-  for (const [label, value, color] of rows) {
-    ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '500 16px ' + BODY;
-    ctx.fillText(label, L, ry);
-    ctx.fillStyle = color; ctx.font = '800 21px ' + DISPLAY;
-    ctx.fillText(value, L + 140, ry);
-    ry += 31;
-  }
-  shadowOff();
-
-  // Stat tiles: the tracker numbers that matter, four equal boxes
-  const dd = m.dmgDelta != null ? (m.dmgDelta >= 0 ? '+' : '') + m.dmgDelta : null;
-  const cats = [['ACS', m.acs], ['ADR', m.adr], ['HS%', m.headshotPct != null ? m.headshotPct + '%' : null], ['DMG / RD', dd]];
-  const bw = 122, bh = 52, gap = 12, by = 438;
-  let bx = L;
-  for (const [label, vRaw] of cats) {
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    rr(ctx, bx, by, bw, bh, 10); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
-    rr(ctx, bx, by, bw, bh, 10); ctx.stroke();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(175,205,225,0.65)'; ctx.font = '500 10.5px ' + BODY;
-    ctx.fillText(label, bx + bw / 2, by + 19);
-    ctx.fillStyle = '#F4FBFF'; ctx.font = '800 20px ' + DISPLAY;
-    ctx.fillText(vRaw == null ? '·' : String(vRaw), bx + bw / 2, by + 43);
-    ctx.textAlign = 'left';
-    bx += bw + gap;
-  }
-
-  // Bottom bar: full riot tag left, site right, one shared baseline
-  shadowOn();
-  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 19px ' + DISPLAY;
-  const tag = riot ? riot.slice(0, 26) : name;
-  ctx.fillText(tag, L, 536);
-  const tagW = ctx.measureText(tag).width;
-  ctx.fillStyle = 'rgba(175,205,225,0.6)'; ctx.font = '500 19px ' + BODY;
-  ctx.fillText('occlara.app', L + tagW + 28, 536);
-  shadowOff();
-  return cv;
 }
 
 // The grade each row on screen is showing, by review id, so a repaint can tell
@@ -1082,7 +854,6 @@ function showCardSkeleton() {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-let dashRiotId = '';
 /**
  * Show the whole dashboard, or the "no stats for this game" panel instead.
  *
@@ -1123,7 +894,6 @@ async function load() {
     }
     showDashboard(true);
 
-    if (typeof d.riotId === 'string') dashRiotId = d.riotId;
     renderCards(d);
     renderAgents(d.topAgents);
     renderMatches(d.matches);
@@ -1185,7 +955,6 @@ window.occlara.onState((s) => {
   if (lastSeenRiot === null) { lastSeenRiot = s.riotId; return; }
   if (s.riotId === lastSeenRiot) return;
   lastSeenRiot = s.riotId;
-  dashRiotId = s.riotId;
   knownMatches.clear();
   rrPointsCache = null;
   matchMode = 'competitive';

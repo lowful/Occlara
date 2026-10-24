@@ -1,7 +1,12 @@
-/* Launch animation, about 2.4s.
-   Four beats: the ring draws, it breaks open into an aperture, the pupil
-   arrives, the name settles. It is the brand's own argument played once, since
-   an aperture OPENING is the whole point of the mark. */
+/* Launch animation, about 2.4s (MIN_MS in splash-window.js; check:splash
+   holds it).
+
+   The moon comes out of its own shadow, once. The shade, the inner disc of
+   the mark held in a mask, starts a little larger than the moon and on top of
+   it, so nothing shows; it drifts 18 units up and to the right and shrinks to
+   its own radius, so a sliver lights at the lower left and grows to the
+   crescent: occlusion lifting, which is the name. Then the name settles under
+   it. Nothing rotates, pulses or loops. */
 
 html, body {
   margin: 0;
@@ -18,7 +23,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 26px;
+  gap: 22px;
 
   /* A CARD, not a pool.
      This was a radial ellipse fading to fully transparent at 100%, meant to
@@ -36,110 +41,43 @@ html, body {
   background: var(--bg);
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-win), var(--edge-top);
-  /* The fade-out starts AFTER the last beat lands, not during it. It used to
-     begin at 1580ms while the pupil and wordmark were still arriving, so the
-     sequence was dimming before it finished. */
+  /* The fade-out starts AFTER the last beat lands, not during it. */
   animation: stageIn 380ms var(--ease) both, stageOut 320ms 2080ms var(--ease) forwards;
 }
 
 @keyframes stageIn  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes stageOut { to { opacity: 0; } }
 
-.mark {
-  /* White on near black needs no glow. The old ghost carried a red drop shadow
-     to give it presence; the aperture gets its presence from the gaps. */
-  color: var(--text);
-}
+/* White on near black needs no glow. */
+.mark { color: var(--text); display: block; }
 
-/* 1. The ring draws itself, then opens.
-      pathLength="1" means the dash maths is just 0 to 1, independent of the
-      real circumference. */
-.ring {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: draw 780ms 140ms cubic-bezier(0.65,0,0.35,1) forwards,
-             open 460ms 940ms var(--ease-expo) forwards;
-}
-
-@keyframes draw { to { stroke-dashoffset: 0; } }
-
-/* THE MOMENT THE MARK BECOMES AN APERTURE. The solid ring opens a single gap,
-   which is the entire idea of the brand played once. 0.8667 of the normalised
-   length leaves a 48 degree opening, matching assets/logo-mark.svg. */
-@keyframes open {
-  from { stroke-dasharray: 1 0; }
-  to   { stroke-dasharray: 0.8667 0.1333; }
-}
-
-/* The mark settles out of a slight rotation as it opens, which is what an
-   aperture blade actually does.
-
-   transform-origin is stated EXPLICITLY. On an SVG element it defaults to 0 0,
-   the top left corner, not the centre as it does for an HTML element, so the
-   first version pivoted the mark around its corner and threw the ring and the
-   pupil off centre. It looked like a geometry bug in the SVG and was a CSS
-   default. */
-.mark {
-  transform-origin: 50% 50%;
-  animation: settle 1100ms 860ms var(--ease-expo) both;
-}
-@keyframes settle {
-  from { transform: rotate(-16deg); }
-  to   { transform: rotate(0deg); }
-}
-
-/* 2. The pupil scales in last, from nothing, so the eye reads as opening. */
-.pupil {
-  transform-origin: 32px 32px;
-  transform: scale(0);
-  animation: pupilIn 460ms 1180ms var(--ease-spring) forwards;
-}
-
-/* One ring pushes outward as the aperture opens, then is gone. A single pulse
-   on the beat that matters reads as intent; a looping one reads as a spinner. */
-.mark::after { content: none; }
-.stage::after {
-  content: '';
-  position: absolute;
-  width: 96px; height: 96px;
-  border-radius: 50%;
-  border: 1px solid var(--text);
-  opacity: 0;
-  animation: shockwave 900ms 900ms var(--ease-expo) forwards;
-  pointer-events: none;
-}
-@keyframes shockwave {
-  0%   { transform: scale(0.55); opacity: 0.5; }
-  100% { transform: scale(2.4);  opacity: 0; }
-}
-
-@keyframes pupilIn {
-  from { transform: scale(0); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
+/* The shade: from over the whole moon to its place. SVG geometry is CSS here
+   (cx, cy, r), in the mark's own units. The markup carries the END state, so
+   with no animation (reduced motion) the mark is simply whole. */
+.shade { animation: wax 1100ms 240ms var(--ease-expo) both; }
+@keyframes wax {
+  from { cx: 71px; cy: 54px; r: 52px; }
+  to   { cx: 86.588px; cy: 45px; r: 42px; }
 }
 
 .wordmark {
   color: var(--text);
   font-family: var(--font);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 6px;
-  text-indent: 6px;   /* balances the trailing letter-space so it stays centred */
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: var(--track-display);
+  line-height: 1;
   opacity: 0;
-  animation: markIn 620ms 1360ms var(--ease-expo) forwards;
+  animation: wordIn 600ms 900ms var(--ease-expo) forwards;
+}
+@keyframes wordIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
 }
 
-@keyframes markIn {
-  from { opacity: 0; letter-spacing: 11px; }
-  to   { opacity: 0.92; letter-spacing: 5px; }
-}
-
-/* Reduced motion: the finished state, held and faded. No drawing, no flooding. */
+/* Reduced motion: the finished mark and name, in and out, nothing moving. */
 @media (prefers-reduced-motion: reduce) {
   .stage { animation: stageIn 200ms both, stageOut 300ms 1600ms linear forwards; }
-  .ring { animation: none; stroke-dashoffset: 0; stroke-dasharray: 0.8667 0.1333; }
-  .mark { animation: none; transform: none; }
-  .pupil { animation: none; transform: scale(1); opacity: 1; }
-  .stage::after { animation: none; opacity: 0; }
-  .wordmark { animation: none; opacity: 0.92; letter-spacing: 5px; }
+  .shade { animation: none; }
+  .wordmark { animation: none; opacity: 1; }
 }

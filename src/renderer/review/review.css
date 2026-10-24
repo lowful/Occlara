@@ -73,7 +73,7 @@ header {
   border-radius: var(--r-sm);
   margin-bottom: var(--space-1);
 }
-.moment-at { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--red); flex: none; }
+.moment-at { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--text-dim); flex: none; }
 .moment-why { font-size: 12px; color: var(--text-dim); line-height: 1.45; }
 
 .obj-grid { display: flex; flex-direction: column; gap: var(--space-1); }
@@ -88,7 +88,7 @@ header {
 .obj-score { font-family: var(--font-mono); font-size: 13px; color: var(--text-mute); }
 .obj-score b { font-weight: 600; color: var(--text); }
 .obj-score b.good { color: var(--good); }
-.obj-score b.bad { color: var(--red); }
+.obj-score b.bad { color: var(--bad); }
 .obj-sep { font-size: 11px; color: var(--text-mute); }
 
 .skill-row {
@@ -102,7 +102,7 @@ header {
 /* The dot carries the verdict as a POSITION and a colour, never colour alone. */
 .skill-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; background: var(--text-mute); }
 .skill-row.pass .skill-dot { background: var(--good); }
-.skill-row.fail .skill-dot { background: var(--red); }
+.skill-row.fail .skill-dot { background: var(--bad); }
 .skill-body { flex: 1; min-width: 0; }
 .skill-metric { font-size: 12px; font-weight: 600; color: var(--text); }
 .skill-num { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
@@ -110,14 +110,14 @@ header {
 .next-card {
   display: flex; flex-direction: column; gap: var(--space-3);
   padding: var(--space-4);
-  background: rgba(var(--red-rgb), 0.05);
-  border: 1px solid rgba(var(--red-rgb), 0.22);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
   border-radius: var(--r-md);
 }
 .next-title { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.25; }
 .l-mistake {
   font-size: 12.5px; color: var(--text-dim); line-height: 1.5; margin: 0;
-  padding-left: var(--space-3); border-left: 2px solid rgba(var(--red-rgb), 0.4);
+  padding-left: var(--space-3); border-left: 2px solid rgba(var(--bad-rgb), 0.4);
 }
 .empty { font-size: 12.5px; color: var(--text-mute); line-height: 1.55; }
 
@@ -170,7 +170,7 @@ header {
   color: var(--text-mute);
 }
 .v-result.win  { color: var(--text); }
-.v-result.loss { color: var(--red); }
+.v-result.loss { color: var(--bad); }
 .v-score {
   font-family: var(--font-mono); font-size: 40px; font-weight: 600;
   letter-spacing: -1px; line-height: 1.1; color: var(--text);
@@ -194,7 +194,7 @@ header {
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .v-stat-vs.good { color: var(--good); }
-.v-stat-vs.bad  { color: var(--red); }
+.v-stat-vs.bad  { color: var(--bad); }
 .v-against-note { font-size: 10.5px; line-height: 1.4; color: var(--text-mute); margin: 0; text-align: right; max-width: 380px; }
 
 /* Riot's record was applied. Quiet, because it is a reassurance, not news,
@@ -238,7 +238,7 @@ header {
 .v-cell-n { line-height: 1; }
 .v-cell-marks { display: flex; gap: 3px; height: 5px; }
 .mk { display: block; width: 5px; height: 5px; border-radius: 50%; }
-.mk.died { background: var(--red); }
+.mk.died { background: var(--bad); }
 .mk.planted { border-radius: 1px; background: var(--warn); }
 .v-cell.won .mk.planted { background: var(--bg); }
 
@@ -247,7 +247,7 @@ header {
 .lg { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
 .lg.won { background: var(--text); }
 .lg.lost { border: 1px solid rgba(255, 255, 255, 0.3); }
-.lg.died { width: 6px; height: 6px; border-radius: 50%; background: var(--red); }
+.lg.died { width: 6px; height: 6px; border-radius: 50%; background: var(--bad); }
 .lg.planted { width: 6px; height: 6px; border-radius: 1px; background: var(--warn); }
 
 .v-summary { font-size: 14px; line-height: 1.6; color: var(--text); margin: 0; }
@@ -274,7 +274,7 @@ header {
 .v-patterns { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .v-pattern { display: flex; align-items: baseline; gap: var(--space-2); font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
 .v-pattern-dot { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--text-mute); transform: translateY(-2px); }
-.v-pattern-dot.spot, .v-pattern-dot.early, .v-pattern-dot.ult { background: var(--red); }
+.v-pattern-dot.spot, .v-pattern-dot.early, .v-pattern-dot.ult { background: var(--bad); }
 
 /* ── Every round, once (8.3.1) ──────────────────────────────────────────────
    One card, a row a round, hairlines between. A round with nothing to say is
@@ -349,7 +349,7 @@ header {
   padding: 2px 8px; border-radius: 999px;
   border: 1px solid var(--glass-border); color: var(--text-dim);
 }
-.v-cause.bad { color: var(--red); border-color: rgba(var(--red-rgb), 0.40); background: rgba(var(--red-rgb), 0.07); }
+.v-cause.bad { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.40); background: rgba(var(--bad-rgb), 0.07); }
 /* The frames: a filmstrip under a clip, four a row at least, and two a row
    without one (--n, from review.js shotStrip). */
 .v-shots { display: grid; grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr)); gap: var(--space-2); }
@@ -505,7 +505,7 @@ header {
   background: var(--text-dim);
   transform-origin: 0 50%; transform: scaleX(var(--p));
 }
-/* The coach's stills, white, and the death, --red and taller than the thumb,
+/* The coach's stills, white, and the death, --bad and taller than the thumb,
    so it shows past it when the clip is at the death, and never told by its
    colour alone: the time beside the row says "At the death" on its frame. */
 .cp-mark {
@@ -513,7 +513,7 @@ header {
   width: 2px; margin-left: -1px; border-radius: 1px;
   background: rgba(255, 255, 255, 0.55);
 }
-.cp-mark.death { top: -7px; bottom: -7px; width: 3px; margin-left: -1.5px; background: var(--red); }
+.cp-mark.death { top: -7px; bottom: -7px; width: 3px; margin-left: -1.5px; background: var(--bad); }
 .cp-mark[hidden] { display: none; }
 .cp-seek {
   position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
@@ -543,7 +543,7 @@ header {
   font-family: var(--font-mono); font-size: 11.5px; font-weight: 500;
   color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.cp-time.at-death { color: var(--red); }
+.cp-time.at-death { color: var(--bad); }
 .cp-speed {
   margin-left: auto; display: flex; gap: 2px; padding: 2px;
   border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--glass-border);

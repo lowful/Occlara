@@ -98,5 +98,8 @@ not told the Overview is a trend** (8.4.1):
   giving drills": for a player dying 0.78 times a round, drills on
   positioning. The app sends them no more, the server ignores them from an
   older install, and the profile's own numbers are in the prompt already
-  (`test:serverguards`). The 0 to 100 match rating on each row, and the share
-  card built on it, wait for the Stats revamp.
+  (`test:serverguards`). The 0 to 100 match rating on each row still waits for
+  the Stats revamp; the share card built on it was retired in 8.6 (it printed
+  the Riot ID, stretched the mark and drew two gradients). A Verdict card with
+  its own share image is built on the `verdict` branch and not yet wired into
+  the review page.

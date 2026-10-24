@@ -650,7 +650,7 @@ function build(input) {
     ? ['The coach did not watch this match, so it has no death locations, no ultimate reads and no look at '
       + 'your deaths. Record your next match for the full review.']
     : isVerified
-      ? ['Riot records when you died and to whom, not where. Death locations are read off the screen.']
+      ? ["Where you died is read off the screen, not taken from Riot's record, so a death's place can be misread."]
       : ['Kills, damage and who won each fight are not printed on the HUD in a way the coach can read, '
         + 'so a round card says what was seen, not how the duel went.'];
   // STOPPED PARTWAY, SAID ONLY WHERE IT IS TRUE. From the screen alone a match

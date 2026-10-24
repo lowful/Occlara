@@ -52,7 +52,7 @@ form { width: 100%; }
 
 .error {
   margin-top: 12px; font-size: 12.5px; color: var(--bad);
-  background: rgba(var(--red-rgb),0.10); border: 1px solid rgba(var(--red-rgb),0.28);
+  background: rgba(var(--bad-rgb),0.10); border: 1px solid rgba(var(--bad-rgb),0.28);
   border-radius: 10px; padding: 9px 11px; text-align: center;
   animation: shake 0.32s var(--ease);
 }

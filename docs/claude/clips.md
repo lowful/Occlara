@@ -82,7 +82,7 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   and controlling the time and going in step by step". Every clip a review
   shows has it, a round's and a League death's alike. Under the picture a
   timeline, an input of type range read out as the seconds from the death,
-  the death on it in --red and the coach's stills where they were taken
+  the death on it in --bad and the coach's stills where they were taken
   (their `frameAt`), and one row: play and pause, back to the start, back and
   forward a second, back and forward one frame (pausing first), the time in
   the stills' words ("2.4 s before", "0.3 s after", "At the death" on the

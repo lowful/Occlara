@@ -633,19 +633,31 @@ function rig() {
   const Module = require('module');
   const made = [];
   class Tray extends EventEmitter {
-    constructor() { super(); this.menu = null; this.tip = ''; made.push(this); }
+    constructor(image) { super(); this.menu = null; this.tip = ''; this.image = image; made.push(this); }
     setToolTip(t) { this.tip = t; }
     setContextMenu(m) { this.menu = m; }
+    setImage(image) { this.image = image; }
     destroy() {}
   }
+  // THE CRESCENT FOLLOWS THE TASKBAR (8.6): a stand-in for Windows' theme, and
+  // pictures that remember the file they were drawn from. A shrink, the 16px
+  // resize of icon.png the tray used before, is counted.
+  const theme = Object.assign(new EventEmitter(), { shouldUseDarkColorsForSystemIntegratedUI: true });
+  let resized = 0;
   const electron = {
-    Tray, Menu: { buildFromTemplate: (t) => t }, app: {},
-    nativeImage: { createFromPath: () => ({ resize: () => ({}) }), createEmpty: () => ({}) },
+    Tray, Menu: { buildFromTemplate: (t) => t }, app: {}, nativeTheme: theme,
+    nativeImage: {
+      createFromPath: (p) => ({ file: path.basename(p), resize: () => { resized++; return {}; } }),
+      createEmpty: () => ({ file: null }),
+    },
   };
+  let filesThere = true;
+  const trayFs = { ...fs, existsSync: (p) => filesThere && fs.existsSync(p) };
   const file = require.resolve('../src/main/tray');
   const load = Module._load;
   Module._load = function (request, parent, ...rest) {
     if (request === 'electron' && parent && parent.filename === file) return electron;
+    if (request === 'fs' && parent && parent.filename === file) return trayFs;
     return load.call(this, request, parent, ...rest);
   };
   let trayMod = null;
@@ -657,6 +669,20 @@ function rig() {
   }
   trayMod.create(actions);
   const t = made[0];
+  ok(!!t && !!t.image && t.image.file === 'tray-dark.ico' && !resized,
+    'on a dark taskbar the tray draws the crescent in the ink, tray-dark.ico, shrunk from nothing', t && t.image && t.image.file);
+  theme.shouldUseDarkColorsForSystemIntegratedUI = false;
+  theme.emit('updated');
+  ok(!!t && !!t.image && t.image.file === 'tray-light.ico' && !resized,
+    'and Windows going light repaints it in the ground, tray-light.ico', t && t.image && t.image.file);
+  ok(['tray-dark.ico', 'tray-light.ico'].every((f) => fs.existsSync(path.join(__dirname, '..', 'assets', f))),
+    'both pictures are in assets, drawn by scripts/generate-icon.js');
+  filesThere = false;
+  theme.emit('updated');
+  ok(!!t && !!t.image && t.image.file === null, 'a picture missing from assets is an empty one, never a throw');
+  filesThere = true;
+  theme.shouldUseDarkColorsForSystemIntegratedUI = true;
+  theme.emit('updated');
   ok(!!t && t.listenerCount('click') === 1 && t.listenerCount('double-click') === 1, 'the icon listens for a click and a double click');
   if (t) t.emit('click');
   ok(calls.join() === 'show', 'a click on the icon brings the window up and to the front');
@@ -672,6 +698,9 @@ function rig() {
   trayMod.update(true, { ...actions, isMinimized: () => false });
   ok(t && t.menu[0].label === 'Stop Recording' && t.menu[1].label === 'Hide Occlara' && t.tip === 'Occlara, recording',
     'and it follows the recording and the window as before');
+  ok(theme.listenerCount('updated') === 1, 'it listens for the theme once');
+  trayMod.destroy();
+  ok(theme.listenerCount('updated') === 0, 'and gone, it no longer does');
 }
 
 // ── Closing quits, and asks first when that would lose something (8.4.1) ──

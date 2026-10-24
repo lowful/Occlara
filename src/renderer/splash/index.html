@@ -11,25 +11,21 @@
   <link rel="stylesheet" href="splash.css" />
 </head>
 <body>
-  <!-- The aperture opens: the ring draws, the gaps appear, the pupil arrives.
-       Three beats and nothing else: no grid, no rings, no progress bar. The
-       silhouette is inlined so the outline and the fill can be separate paths,
-       which is what makes the draw-on possible. Keep in sync with
-       assets/logo-mark.svg if the logo changes. -->
+  <!-- The moon comes out of its shadow, then the name settles. The mark is
+       drawn here as its two circles, the disc and the shade in a mask, so the
+       shade can move; it is the same geometry as assets/logo-mark.svg (the
+       disc r50 at 71,54, the shade r42 at 86.588,45). Change both. -->
   <div class="stage">
-    <!-- The aperture opens: the ring draws itself, then the pupil scales in.
-         An aperture OPENING is the whole argument of the mark, so the animation
-         has to move outward rather than flood or fade. -->
-    <svg class="mark" viewBox="0 0 64 64" width="96" height="96" role="img" aria-label="Occlara">
-      <!-- pathLength normalises each ring to 1, so the dash maths below does not
-           depend on the real circumference. -->
-      <circle class="ring" cx="32" cy="32" r="24" pathLength="1"
-              fill="none" stroke="currentColor" stroke-width="5"
-              stroke-linecap="round" transform="rotate(-54 32 32)"/>
-      <circle class="pupil" cx="32" cy="32" r="6" fill="currentColor"/>
+    <svg class="mark" viewBox="0 0 120 120" width="96" height="96" role="img" aria-label="Occlara">
+      <defs>
+        <mask id="phase" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">
+          <rect width="120" height="120" fill="white"/>
+          <circle class="shade" cx="86.588" cy="45" r="42" fill="black"/>
+        </mask>
+      </defs>
+      <circle cx="71" cy="54" r="50" fill="currentColor" mask="url(#phase)"/>
     </svg>
-
-    <div class="wordmark">OCCLARA</div>
+    <div class="wordmark">Occlara</div>
   </div>
 </body>
 </html>

@@ -86,8 +86,8 @@ const MIN_H = 640;
 // to paint it, and only the page's own left margin.
 const STAGE_PX = 1;
 // A page view's ground, and its see-through state while a page is on its way
-// under it. #08090A is --bg (theme.css).
-const GROUND = '#08090A';
+// under it. #0A0B0E is --bg (theme.css).
+const GROUND = '#0A0B0E';
 const CLEAR = '#00000000';
 
 let win = null;
@@ -199,7 +199,7 @@ function create(opts) {
     minWidth: MIN_W,
     minHeight: MIN_H,
     frame: false,
-    backgroundColor: '#08090A',
+    backgroundColor: '#0A0B0E',   // is --bg (theme.css)
     show: false,
     title: 'Occlara',
     webPreferences: {

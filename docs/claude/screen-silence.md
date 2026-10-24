@@ -24,7 +24,7 @@ What still counts as "reaching the screen", and is sealed mid match:
   its sidebar's pages are locked (`syncSeal`, below under The UI), because an
   open page on a second monitor is the same live feed. A stop in the middle of
   a match holds that seal until the player opens a page.
-- The corner mark, the always on top aperture the window leaves at the top
+- The corner mark, the always on top crescent the window leaves at the top
   right of the screen while it is hidden, goes while the seal is on, live or
   held, and comes back once it lifts with the window still hidden (8.3.2,
   `placeMark` in index.js, `check:seal`). It showed nothing, but it sat over

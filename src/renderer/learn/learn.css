@@ -75,7 +75,7 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 .a-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .a-eyebrow {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.08em; color: var(--red);
+  letter-spacing: 0.08em; color: var(--text-mute);
 }
 .a-track {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase;
@@ -229,7 +229,7 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 .l-mistake {
   font-size: 12.5px; line-height: 1.5; color: var(--text-dim);
   padding-left: var(--space-3);
-  border-left: 2px solid rgba(var(--red-rgb), 0.45);
+  border-left: 2px solid rgba(var(--bad-rgb), 0.45);
 }
 
 .l-body { display: flex; flex-direction: column; gap: var(--space-3); }
@@ -367,9 +367,9 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 }
 .seg-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
 .seg-btn.active {
-  background: rgba(var(--red-rgb), 0.16);
-  border-color: rgba(var(--red-rgb), 0.35);
-  color: var(--text);
+  background: var(--text);
+  border-color: transparent;
+  color: var(--bg);
 }
 .seg-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(var(--cyan-rgb), 0.25); }
 
@@ -384,13 +384,13 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 .focus {
   display: flex; flex-direction: column; gap: var(--space-3);
   padding: var(--space-4);
-  background: rgba(var(--red-rgb), 0.05);
-  border: 1px solid rgba(var(--red-rgb), 0.22);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
   border-radius: var(--r-md);
 }
 .f-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .f-eyebrow {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.08em; color: var(--red);
+  letter-spacing: 0.08em; color: var(--text-mute);
 }
 .focus h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.25; }

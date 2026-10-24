@@ -107,7 +107,7 @@ h3 {
 }
 .delta:hover { transform: translateX(2px); border-color: rgba(255,255,255,0.15); }
 .delta.up   { border-left-color: var(--cyan); }
-.delta.down { border-left-color: var(--red); }
+.delta.down { border-left-color: var(--bad); }
 .delta .label { flex: 1; font-size: 12.5px; color: var(--text-dim); }
 .delta .value { font-size: 13.5px; font-weight: 700; }
 .delta .chg {
@@ -118,7 +118,7 @@ h3 {
   white-space: nowrap;
 }
 .delta.up   .chg { color: var(--cyan); background: rgba(var(--cyan-rgb),0.10); }
-.delta.down .chg { color: var(--red);  background: rgba(var(--red-rgb),0.10); }
+.delta.down .chg { color: var(--bad);  background: rgba(var(--bad-rgb),0.10); }
 .delta.flat .chg { color: var(--text-mute); background: rgba(255,255,255,0.05); }
 
 /* ── Category bars ──────────────────────────────────────────────────────── */
@@ -133,7 +133,7 @@ h3 {
 .cat .score { font-size: 12.5px; font-weight: 700; }
 .cat .score .arrow { font-size: 10px; margin-left: 4px; }
 .arrow.up   { color: var(--cyan); }
-.arrow.down { color: var(--red); }
+.arrow.down { color: var(--bad); }
 .arrow.flat { color: var(--text-mute); }
 .bar {
   height: 6px;
@@ -155,7 +155,7 @@ h3 {
   transition-delay: calc(var(--i, 0) * 70ms);
 }
 .cat.best  .name::after { content: ' · strongest'; color: var(--cyan); font-size: 10px; }
-.cat.worst .name::after { content: ' · weakest';   color: var(--red);  font-size: 10px; }
+.cat.worst .name::after { content: ' · weakest';   color: var(--bad);  font-size: 10px; }
 
 /* ── Coach notes ────────────────────────────────────────────────────────── */
 .notes { list-style: none; display: flex; flex-direction: column; gap: 6px; }
@@ -170,7 +170,7 @@ h3 {
   padding: 9px 11px;
 }
 .notes.good li { border-left-color: var(--cyan); }
-.notes.bad  li { border-left-color: var(--red); }
+.notes.bad  li { border-left-color: var(--bad); }
 
 /* ── Empty state ────────────────────────────────────────────────────────── */
 .empty-wrap { text-align: center; padding: 34px 16px; }
@@ -209,9 +209,8 @@ h3 {
 .habit {
   padding: 11px 13px;
   border: 1px solid var(--glass-border);
-  border-left: 2px solid var(--red);
   border-radius: var(--r-md);
-  background: rgba(var(--red-rgb), 0.05);
+  background: var(--bg-2);
 }
 .habit-head { display: flex; align-items: baseline; gap: 8px; }
 .habit-head b { color: var(--text); font-size: 13px; font-weight: 700; }
