@@ -214,7 +214,7 @@ library or the rank history, nothing invented (`src/shared/home-model.js`):
   where the grade came from ("From what the screen read") is gone; the review
   says it.
 - **The rank**, Valorant's with a Riot ID and a rated game: the newest rated
-  point's tier, the last game's RR (+24 in `--good`, -15 in `--red`, 0 dim)
+  point's tier, the last game's RR (+24 in `--good`, -15 in `--bad`, 0 dim)
   and the rank journey as a line, by Stats' own rules (`rankModel`: rated
   points only, cut at the newest jump over 300, a game's RR 60 or less), with
   Rank journey opening Stats with the journey open (8.4.1: `OPEN_STATS` with
@@ -280,7 +280,10 @@ after it, and no channel carries an agent to a window (`AGENT_SET`,
 `AGENT_CONFIRM` and `PUSH_AGENT` went, and Ask Coach's agent chip with
 them). Start fills the width beside the square pause button, both
 48px, one padding all round. The state is the button's word (Start, Stop, "Subscription
-ended"), the pause button's icon and the live colour while recording. What
+ended"), the pause button's icon and the live colour while recording. Start is
+`btn btn-rec toggle` (8.6): the signal by its own class, `.btn-rec` in
+`ui.css`, never the primary, which is the ink; ended, a ghost at full
+opacity. What
 the line said when there was something to say is **the notice line** in the
 top strip, left of the window's buttons (`shell.js noticeLine`), empty
 otherwise, never hidden, because a live region shown and filled in the same

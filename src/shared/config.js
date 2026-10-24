@@ -26,13 +26,6 @@ const API = {
 const PURCHASE_URL = 'https://occlara.app/account';
 const SIGNUP_URL = 'https://occlara.app/signup';
 
-// ── Brand ───────────────────────────────────────────────────────────────────
-const BRAND = {
-  red:  '#FF4655',
-  cyan: '#00F0FF',
-  bg:   '#0F1923',
-};
-
 // ── Capture ─────────────────────────────────────────────────────────────────
 // Two quality profiles: standard is plenty for HUD reading and uploads fast;
 // high sends a sharper frame (bigger upload + more image tokens per call, so
@@ -184,7 +177,6 @@ module.exports = {
   API,
   PURCHASE_URL,
   SIGNUP_URL,
-  BRAND,
   CAPTURE,
   TIMING,
   STORE_DEFAULTS,

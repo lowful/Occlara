@@ -1118,7 +1118,7 @@ async function openShell(cfg, state, opts) {
     }
 
     // The look, read off the stylesheets: Geist Mono 800 at the title's two
-    // sizes, a window's 13px and a page's 24px, wins --good and losses --red.
+    // sizes, a window's 13px and a page's 24px, wins --good and losses --bad.
     const css = fs.readFileSync(path.join(RENDERER, 'matches', 'matches.css'), 'utf8');
     const ui = fs.readFileSync(path.join(RENDERER, 'shared', 'ui.css'), 'utf8');
     const rule = (src, sel) => {
@@ -1135,8 +1135,8 @@ async function openShell(cfg, state, opts) {
       && prop(rule(css, 'html.embedded .sheet > header .wl'), 'font-size') === prop(rule(ui, 'html.embedded .sheet > header .h-brand h2'), 'font-size')
       && prop(rule(css, 'html.embedded .sheet > header .wl'), 'font-size') === '24px',
     'at the title\'s size in a window and as a page');
-    ok(prop(rule(css, '.wl-w'), 'color') === 'var(--good)' && prop(rule(css, '.wl-l'), 'color') === 'var(--red)'
-      && prop(rule(css, '.wl-sep'), 'color') === 'var(--text-mute)', 'wins --good, losses --red, the colon dim');
+    ok(prop(rule(css, '.wl-w'), 'color') === 'var(--good)' && prop(rule(css, '.wl-l'), 'color') === 'var(--bad)'
+      && prop(rule(css, '.wl-sep'), 'color') === 'var(--text-mute)', 'wins --good, losses --bad, the colon dim');
     ok(/clip:/.test(rule(ui, '.sr-only')) && !/\n\.sr-only\s*\{/.test(fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8')),
       'the screen reader class is the shared one in ui.css, which the library loads, not a copy');
   });
@@ -1982,8 +1982,8 @@ async function openShell(cfg, state, opts) {
       return ((css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '').trim();
     };
     ok(colour('.arrow.flat') === 'color: var(--text-mute);', 'the rule reader finds a known rule');
-    ok(colour('.arrow.rr.gain') === 'color: var(--good);' && colour('.arrow.rr.loss') === 'color: var(--red);'
-      && colour('.arrow.rr.even') === 'color: var(--text-mute);', 'a gain is --good, a loss --red, no change dim');
+    ok(colour('.arrow.rr.gain') === 'color: var(--good);' && colour('.arrow.rr.loss') === 'color: var(--bad);'
+      && colour('.arrow.rr.even') === 'color: var(--text-mute);', 'a gain is --good, a loss --bad, no change dim');
     // Ask Coach is a page in the sidebar; "Ask Coach about this" on a graded match stays.
     ok(!gain.st.$('askcoach') && typeof gain.st.bridge.api.openChat === 'undefined'
       && typeof gain.st.bridge.api.askAboutSession === 'function',
@@ -3188,7 +3188,7 @@ async function openShell(cfg, state, opts) {
 
   // THE CLIP PLAYER (8.4.4): every clip a review shows, both games, with play
   // and pause, back to the start, a second and a frame either way, a timeline
-  // read out as the seconds from the death with the death in --red and the
+  // read out as the seconds from the death with the death in --bad and the
   // coach's stills marked, and the speed. A step lands on the clip's own
   // frames, one seek is in flight at a time, the keyboard works only while
   // the player has focus, and a still under its clip is a place in it. A
@@ -3301,9 +3301,9 @@ async function openShell(cfg, state, opts) {
       'and the coach\'s five stills where they were taken, by their seconds from it', stills.map((x) => x.style['--p']).join(' '));
     ok(range.title === 'The red mark is the death, the white ones the coach\'s stills', 'the timeline says what its marks are', range.title);
     const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
-    ok(/\.cp-mark\.death \{[^}]*background: var\(--red\);/.test(rcss) && /\.cp-fill \{[^}]*background: var\(--text-dim\);[^}]*transform: scaleX\(var\(--p\)\);/.test(rcss)
+    ok(/\.cp-mark\.death \{[^}]*background: var\(--bad\);/.test(rcss) && /\.cp-fill \{[^}]*background: var\(--text-dim\);[^}]*transform: scaleX\(var\(--p\)\);/.test(rcss)
       && !/gradient/.test(rcss),
-    'the death in --red, the timeline filled with a solid fill scaled to its place, and no gradient');
+    'the death in --bad, the timeline filled with a solid fill scaled to its place, and no gradient');
     ok(/@media \(prefers-reduced-motion: reduce\) \{\s*\.v-clip-big, \.cp-btn, \.cp-rate \{ transition: none; \}/.test(rcss),
       'and nothing of the player moves when asked for reduced motion');
 

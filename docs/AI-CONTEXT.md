@@ -127,12 +127,16 @@ settings, stats, history, ailog, chat, weekly, activation, audio.
 **Design tokens live in `src/renderer/shared/theme.css`** and are imported by
 every surface. Use the variables, never hardcode:
 
-- `--red` `#FF4655`, `--cyan` `#FFFFFF`, `--bg` `#08090A`. **The names are
-  historical**: `--cyan` is white, and they mean "primary accent" and "secondary
-  accent". Do not rename them, they are consumed 225 times across 15 files and
-  `npm run check:palette` exists because that edit has gone wrong before.
-- `--on-accent` is the label colour ON the accent, a token so the two can only
-  move together.
+- `--red` `#FF5A3C`, the signal (8.6), `--cyan` `#FFFFFF`, `--bg` `#0A0B0E`.
+  **The names are historical**: `--red` is the signal and `--cyan` is white, and
+  they mean "primary accent" and "secondary accent". Do not rename them, they
+  are consumed 225 times across 15 files and `npm run check:palette` exists
+  because that edit has gone wrong before. The signal is only Start's fill, the
+  live record card and its Stop, the live and urgent dots and a destructive
+  action under the pointer (`SIGNAL_ALLOWED`); a loss, a D, a death and an
+  error are `--bad`.
+- `--on-accent` `#0A0B0E` is the label colour ON the signal, a token so the two
+  can only move together.
 - Text `--text` `--text-dim` `--text-mute`, glass `--glass-*`, radii `--r-*`,
   motion `--ease*` `--t-*`.
 - **`--space-1..10`** on a 4px grid, and **`--icon-xs/sm/md/lg`**. An audit
@@ -151,13 +155,14 @@ Settled decisions that keep getting reintroduced by accident:
   shimmer, where the gradient IS the animation. The splash vignette is gone; it
   faded a square window's corners to fully transparent, so the launch screen
   read as an oval blob. The splash is now a solid card like every other surface.
-- **The coaching button stays red**, at 19px/700. That size is not taste: white
-  on the accent measures 3.36:1, WCAG asks 3:1 of large text and large starts at
-  18.66px bold, so crossing that threshold fixes contrast without touching a
-  brand colour used 225 times.
+- **Start stays the signal**, at 19px 600 with the dark label, `--on-accent`
+  on `--red`: 6.35:1, where white on the signal measures 3.10:1. It has its own
+  class, `.btn-rec`, because the primary button is the ink.
 - **No left accent bar on tip cards.** THE CARD IS THE TIP.
-- **Geist only**, bundled in `assets/fonts`, weights 400 to 800. A missing
-  weight silently falls back to Segoe UI and reshapes the whole interface.
+- **Geist only**, bundled in `assets/fonts`, weights 400 to 800, and Geist
+  Mono 400 and 500. A missing weight silently falls back to Segoe UI and
+  reshapes the whole interface. `font-synthesis-weight: none` is set on `html`,
+  so a weight that is not shipped draws at the nearest one, never a faked bold.
 
 **Tip glyphs** (`src/renderer/shared/tip-visuals.js`) mark the site, callout,
 agent and direction inside a tip. The words are never rewritten. Capped at three
@@ -336,12 +341,14 @@ read's context is checked with `npm run verify:ai -- --lag 4`.
 - **An empty result is a claim.** `grep -viF` crashes in this environment and
   prints nothing, turning a failed audit into a false all-clear. Print the count
   from the stage before the filter before believing a negative.
-- **The logo is an aperture and exists in four places**: `assets/logo-mark.svg`,
-  inlined in splash and dock so they can animate, and drawn mathematically in
-  `scripts/generate-icon.js`. Change one, change all. The SVG carries an
-  explicit `color="#FFFFFF"` because an external SVG in an `<img>` is its own
-  document, so `currentColor` would resolve to black and the mark would be
-  invisible.
+- **The logo is a crescent and exists in five places**: `assets/logo-mark.svg`,
+  the splash (its two circles, the shade in a mask so it can move), the dock
+  and the Recording screen (the path inline, in `currentColor`), and
+  `scripts/generate-icon.js`, which draws it by arithmetic for every icon.
+  Change one, change all; `npm run test:mark` holds them to one geometry. The
+  SVG carries an explicit `color="#F5F5F7"` because an external SVG in an
+  `<img>` is its own document, so `currentColor` would resolve to black and
+  the mark would be invisible.
 
 ---
 

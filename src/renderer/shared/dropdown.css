@@ -1,3 +1,4 @@
+/* palette: tokens only */
 /* ── Dropdown ────────────────────────────────────────────────────────────────
    Paired with shared/dropdown.js. Replaces the native <select>, which renders
    as the Windows widget: a white box with a grey chevron and a system-blue
@@ -20,7 +21,7 @@
   color: var(--text);
   background: rgba(0, 0, 0, 0.30);
   border: 1px solid var(--glass-border);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-control);
   cursor: pointer;
   text-align: left;
   transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
@@ -67,7 +68,7 @@
      thing you can read where it is. */
   background: var(--bg-2);
   border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-card);
   box-shadow: var(--lift);
   animation: ddIn var(--t-fast) var(--ease-expo) both;
 }
@@ -88,7 +89,7 @@
 .dd-opt {
   display: flex; align-items: center; gap: var(--space-2);
   padding: 7px var(--space-2);
-  border-radius: 6px;
+  border-radius: var(--r-card);
   font-size: 12.5px;
   color: var(--text-dim);
   cursor: pointer;
@@ -99,13 +100,13 @@
    different highlights in one list is how you lose track of what Enter does. */
 .dd-opt.dd-hi { background: rgba(255, 255, 255, 0.07); color: var(--text); }
 .dd-opt[aria-selected="true"] { color: var(--text); font-weight: 600; }
-/* The accent marks the current value, which is the one place in this control
-   worth spending colour on. */
+/* A dot in the ink marks the current value: the signal is never a choice
+   (8.6), and the weight and the dot already set it apart. */
 .dd-opt[aria-selected="true"]::after {
   content: '';
   width: 5px; height: 5px; flex: none;
   border-radius: 50%;
-  background: var(--red);
+  background: var(--text);
 }
 
 /* A secondary note on an option (a preview tag, an untranslated warning). */
@@ -115,7 +116,7 @@
   text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--text-mute);
   border: 1px solid var(--glass-border);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   padding: 1px 6px;
 }
 

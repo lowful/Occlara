@@ -5,7 +5,7 @@ const path = require('path');
 const registry = require('./registry');
 
 /**
- * Tiny, fully click-through badge, the aperture mark, shown where the panel was docked when
+ * Tiny, fully click-through badge, the crescent mark, shown where the panel was docked when
  * the user minimizes. It CANNOT be clicked (setIgnoreMouseEvents) so it never
  * catches the cursor mid-aim, restore is via hotkey (Ctrl+Shift+M) or tray.
  *
@@ -15,7 +15,7 @@ const registry = require('./registry');
  * test in syncSeal): a match in progress, or a stop mid match holding the
  * seal, takes it away, and the seal lifting brings it back.
  */
-// Window is larger than the 30x35 badge artwork so its drop-shadow + red glow
+// Window is larger than the 26px crescent so its dark rim and soft shadow
 // have transparent room and never clip at the window edge. Safe to oversize
 // because the dock is fully click-through (setIgnoreMouseEvents below).
 const SIZE = 84;

@@ -1,442 +1,297 @@
-# Lovable prompt: the Occlara product section
+# Lovable brief: the Occlara website, 8.6
 
-Paste everything below the line into Lovable. It is written to be acted on
-directly. There is a live reference page built from the app's real CSS, so
-anything ambiguous here can be settled by looking at that instead of guessing.
+Paste everything below the line into Lovable. It is the 8.6 spec's section on
+the website, its rules and its copy word for word. It replaces the brief that
+stood here before 8.6, which described the live tip era: an overlay, a tip
+every few seconds, and a coach that spoke during the match. None of that is
+the product, and pasted now it would bring the old copy back.
 
-None of this repo's files go into the website repo. This is a description.
+None of this repo's files go into the website repo except the export the
+demos read (`proof.generated.json`, written by `node
+scripts/export-site-proof.js` on the release commit). The site goes live
+only after the 8.6.0 installer is published, because its window demos must
+show a UI that exists.
 
 ---
 
-Build a product section for **Occlara**, a Valorant coaching overlay, and then
-bring the rest of the site into line with it. Sections 1 to 4 are the new work,
-section 5 is the sweep, and the sweep is not optional. Stack is the one this
-project already uses: Vite, React, TypeScript, Tailwind, shadcn.
+## What Occlara is
 
-## What Occlara is, in one paragraph
+Occlara is a post match AI coach for Valorant and League of Legends, on
+Windows 10 and 11. It shows nothing about the match while you play, records
+the match on your PC when the PC can record, and opens a review when the match
+ends: a score out of 100 from four categories with their evidence, the
+mistakes you keep making with one fix for each, what went well, and what was
+missed, opening on its Verdict, the grade with one reason counted from the
+match. In Valorant it reads your main display the way OBS captures it, up to
+once a second, and checks each review against Riot's record of the match once
+your Riot ID is connected. League of Legends is read from the game's own Live
+Client Data on your PC, never from its screen. It never reads game memory,
+never touches game files, and never automates input.
 
-It watches the screen while you play, the way OBS does, and writes a short
-coaching tip every few seconds. Then it checks each tip against what it can
-actually prove and throws away everything it cannot stand behind. It never reads
-game memory, never touches game files, never automates input. After the match it
-shows every death and whether it had anything to say about each one.
+## Rules that keep the site true
 
-## What this section has to land
+- **No em dash and no en dash** anywhere in the copy. Use commas.
+- **Nothing about the match while you play.** Never "overlay" except inside
+  Riot's quoted sentence, and never "next round", "between rounds", "live
+  tip", "every few seconds", "voice coach", "coaching tip", "real time
+  coaching", "death log", "tip every" or "keep the panel". No hero of the
+  product running over gameplay: it would depict an overlay. The hero shows
+  the window after a match.
+- **Two games**: Valorant and League of Legends. Never Marvel Rivals, any
+  "rivals", NetEase or "three games".
+- **Every claim is true of the build it ships beside**, with its condition
+  stated where it is made (a Valorant grade needs the Riot ID connected; a clip
+  needs a PC that can record). A clause that says a screen, the display,
+  frames, stills, pixels or screenshots are read, seen or watched, or names
+  OBS, names Valorant, never League.
+- **Every string a demo shows from a real review comes from the export**, and
+  every drawn stand in is labelled as one (the table below).
+- **No other player's name or Riot ID anywhere**: agents and numbers only. The
+  shared picture carries no Riot ID, the player's own included.
+- **No "#1", "MOST POPULAR", testimonials or user counts**: no source backs
+  them. No Discord button: no real server or invite exists. No public share
+  link: a review never leaves the PC.
+- **No decorative gradients.** The column grid is drawn as elements.
+- **Fonts are Geist and Geist Mono** at the weights the Google Fonts link loads
+  (400 to 800 of both), with `font-synthesis-weight: none` on `html`.
+- **The signal is only** a live dot, an urgent dot, Start in the drawings of
+  the app and a destructive action under the pointer. A loss, an error or a
+  death is `--negative` (`--oc-bad`). The primary is the ink.
 
-The differentiator is not "AI tips appear over your game". Every competitor has
-that. It is that **the coach only speaks when it can prove what it is saying**,
-and says nothing the rest of the time. Do not soften that into a feature bullet.
-It is the spine of the section, and the place it is proved is the post-match
-review: six deaths in a real session, five reviewed, and one it deliberately
-stayed quiet on rather than risk sending the player the wrong way.
+## How the site is built and checked
 
-Do not build a panel that lists refused tips, or a counter of them, or a feed of
-struck-through text. An earlier draft had one and it was cut: a wall of crossed
-out sentences reads as an error log, invites the reader to try to read them, and
-makes restraint look like malfunction. The five silent markers on the death rail
-make the same point without asking anyone to read a rejection. For the same
-reason, never print an internal rule name anywhere on the site.
+Separate private repo `lowful/ghostcoach-9a45ac05` (Vite, React, TypeScript, Tailwind, shadcn), synced both ways with Lovable from main. Work on one branch; **pushing main deploys production and needs the player's yes**. Lovable edits main too, so while the branch is open the player pauses edits in Lovable, or the lead rebases the branch on main just before merging and reruns every check. `npm ci` is broken: `npm install --no-audit --no-fund`, and never commit `package-lock.json`. After every `npm run build`, `git checkout -- supabase/functions/mcp/index.ts`. Then `npm test` and `npx tsc -p tsconfig.app.json --noEmit` (lint is not a gate). `public/riot.txt` stays whatever else in `public/` changes.
 
-The line that closes the section is "Most coaching tools are judged on what they
-say. This one is worth judging on what it will not."
+Gates kept green, changed only on purpose:
+- `copy.test.ts`: no dash; no tip era words. In copy that means: never "overlay" except inside Riot's quoted sentence, never "next round", "between rounds", "live tip", "every few seconds", "voice coach", "coaching tip", "real time coaching", "death log", "tip every", "keep the panel".
+- `two-games.test.tsx`: no Marvel, Rivals (any "rivals"), NetEase, "three games"; the pinned strings below are kept; every route is in `src/test/stubs/pages.tsx` `PAGES`; the og-image's sha256 is updated after the new card is looked at.
+- `screen-copy.test.tsx`: a clause that says a screen, the display, frames, stills, pixels or screenshots are read, seen or watched, or names OBS, names Valorant (or sits in a block that names Valorant alone) and never League; on the legal pages, in the FAQ, in llms.txt and now on /manifesto, a clause with "Riot's record", "round by round" or "what it saw" names Valorant itself. Every line below was held to these rules when it was written; a line changed is held to them again by the site's own suite.
+- `plan-price.test.tsx`, the edge billing, checkout and licence tests, `legal-copy.test.tsx`, `rendered-pages.test.tsx`, `account-page.test.tsx`.
+- `lovable-memory.test.ts` (colours and pages) and `ProductProof.test.tsx` (H1, section order).
+- New: `src/test/palette.test.ts` (the foundation, below) and `src/test/proof-export.test.tsx` (the demos, below).
 
-Three beats, in this order:
+## The foundation: fonts, tokens, colours, components, the mark
 
-1. **The overlay running**, one tip at a time over a game frame.
-2. **The agent icon**, and why a colour on it has to be earned.
-3. **The match review**, every death, who killed you, and what it actually said.
 
-## Design tokens
+- **Fonts unchanged**: `index.html` keeps Geist and Geist Mono from Google Fonts at 400 to 800; Tailwind's `sans` and `display` stay Geist, `mono` Geist Mono; the memory's Font line and its test stay as they are. `html { font-synthesis-weight: none; }` is added.
+- **Tokens** (`src/index.css` `:root`, integer HSL with the hex comment the memory test reads). Moved: `--background: 225 17% 5%; /* #0A0B0E */`, `--surface: 223 19% 7%; /* #0F1116 */`, `--surface-raised: 225 17% 9%; /* #14161C */`. New: `--signal: 9 100% 62%; /* #FF5A3C */`, `--signal-hover: 9 99% 64%; /* #FE6347 */`, `--negative: 355 74% 65%; /* #E8636F */`, `--paper: 223 19% 93%; /* #E9EBF0 */`. Gone: `--accent-solid` and `--accent-hover`. Kept as they are: `--foreground` (#F5F5F7), `--foreground-secondary` (#A1A1A6), `--foreground-muted` (#808086), `--positive`, `--warning`, the hairlines, `--border-strong`, `--ease-out` and `--ease` (the app's own curves). The bridge: `--primary: var(--foreground)`, `--primary-foreground: var(--background)`, `--destructive: var(--signal)`, `--destructive-foreground: var(--background)`, `--sidebar-primary: var(--foreground)`, `--sidebar-primary-foreground: var(--background)`, `--radius: 0.625rem`.
+- **The `--oc-*` set keeps its names**, as the app keeps its own, and its values move: `--oc-bg #0A0B0E`, `--oc-bg2 #0F1116`, `--oc-side #0F1116` (the app's rail is `--bg-2`), `--oc-red #FF5A3C` (the signal, under its old name); `--oc-text`, `--oc-dim`, `--oc-mute`, `--oc-line`, `--oc-line-2`, `--oc-line-3`, `--oc-good`, `--oc-warn` unchanged. Added: `--oc-red-rgb: 255, 90, 60`, `--oc-bad: #E8636F`, `--oc-bad-rgb: 232, 99, 111`, `--oc-grid: rgba(255,255,255,0.045)`, `--oc-glass: rgba(13,14,16,0.72)`, `--oc-paper #E9EBF0`, `--oc-paper-ink #0A0B0E`, `--oc-paper-ink-2 #484A4E`, `--oc-paper-ink-3 #636568`, `--oc-paper-line rgba(10,11,14,0.14)`, `--oc-r-card 6px`, `--oc-r-control 10px`, `--oc-r-pill 999px`. None of the 150 uses of the existing names changes.
+- **Every red sorted by its job**, as the app's 8.6 colour pass sorted its own:
 
-Use these exactly. They are the app's own values, so the site and the product
-cannot drift apart.
-
-```
---bg          #08090A     page ground
---text        #F5F5F7
---text-dim    #A1A1A6     body copy on dark
---text-mute   #808086     captions only, never body copy
---red         #FF4655     the one accent, rgb 255,70,85
---good        #52C88A     proven ally, positive state, rgb 82,200,138
---warn        #D9A441     "the coach said nothing here"
---glass-border rgba(255,255,255,0.09)   every hairline
-radii          8 / 12 / 16
-easing         cubic-bezier(0.16, 1, 0.30, 1)    exponential ease out
-```
-
-**Type**: Geist for everything, Geist Mono for digits, scores, labels that index
-something, and anything that lines up in a column. Both are on Google Fonts. Weights 400 to 800
-only, never one outside that set.
-
-**Headings** need an explicit `line-height` near 1.1. Inheriting a body 1.6 at
-34px pulls the two lines so far apart they read as separate sentences. This went
-wrong once already.
-
-## Rules that keep getting broken
-
-- **No decorative gradients.** Solid fills and hairline borders, with no
-  exceptions left. The game frame behind the tip cards used to be a gradient
-  standing in for a photograph, and it is now an actual frame of the game.
-- **Red is spent in one place at a time.** It is the accent and the enemy glow.
-  It is not a heading colour or a border on every card.
-- **Dark only.** Paint every colour explicitly so it holds whatever theme the
-  visitor's browser is in. Do not build a light variant.
-- **No em dashes or en dashes anywhere.** Commas. This is a hard rule.
-- **No kicker or eyebrow labels above headings.** The heading carries itself.
-
-## 1. Tip card
-
-```
-background   rgba(0, 0, 0, 0.90)
-border       1px solid --glass-border
-radius       13px
-backdrop     blur(14px) saturate(150%)
-shadow       0 8px 26px rgba(0,0,0,0.55)
-body         13.5px / 1.5
-width        348px
-```
-
-A meta row above the text: a 6px round dot, then an uppercase 10px label at
-0.09em letter-spacing in `--text-mute`. The dot is `--red` normally. For a death
-review the dot and the label are `--text` and the label reads **DEATH REVIEW**.
-
-**Motion** is specified in section 2. One card at a time, never two.
-
-## 2. One tip at a time
-
-Tips arrive **one at a time and do not stack.** The card that is up leaves
-before the next one lands, so the frame is never holding more than one sentence.
-
-This is not a layout preference, it is what the product is. A tip is glanced at
-mid fight and then it is gone; a column of three of them is a feed, which is a
-different and worse thing, and no player reads the second one during a round.
-
-```
-enter    420ms  cubic-bezier(0.16, 1, 0.30, 1)
-         opacity 0 to 1, translateY(20px) to 0, scale(0.97) to 1, blur(3px) to none
-exit     300ms
-         opacity 1 to 0, translateY(0 to -12px), scale(1 to 0.985), blur(0 to 2px)
-interval 3400ms
-```
-
-Animate the outgoing card out and remove it on its own timer so the two never
-overlap in the layout. The first card must be present in the **first painted
-frame**, so the page is never an empty box waiting on an interval.
-
-**The frame behind them is a real screenshot**, `background-size: cover`,
-centred, radius 16, hairline border. Crop the capture before shipping it so the
-score, the round timer, the minimap and the health and ammo readout are all
-outside the picture: a real HUD next to the tip card makes the card look like
-part of the game's own interface, which is the one thing it must not look like.
-Do not draw a fake HUD on top either, the screenshot is the context.
-
-Over that, a soft pool of `rgba(0,0,0,0.55)` fading to transparent, as a radial
-about 60% by 44% from the centre, so the card has ground to sit on while the
-game stays readable around it. Not a wash over the whole frame.
-
-**The card sits in the centre of the frame**, both axes. Bottom aligned reads as
-a HUD element. Its text stays left aligned.
-
-Real tips to cycle, verbatim, all from one logged session:
-
-- You died to [Sova] because you peeked A Nest wide with no trade partner. (death review)
-- Your ult is up as [Iso], so take the duel you have been avoiding.
-- You died to [Sage] after she walled off the cover you were running to. (death review)
-- You are trading well as [Iso], so keep taking the first duel while it is working.
-- You died to [Clove] who repeeked the smoke you had already cleared. (death review)
-
-## 3. The agent icon
-
-An agent's name is replaced by that agent's portrait, when and only when the
-sentence proves whose side they are on. **The name is never lost**: it moves to
-`title` and `aria-label`.
-
-**There is no box.** No background, no border, no border-radius, no pill, no
-circle, no container of any kind. The PNG sits inline in the sentence and the
-colour is a **glow that follows the character's own silhouette**, made with
-stacked `drop-shadow` filters on the image itself.
-
-```css
-.agent {                       /* the wrapper does nothing but size it */
-  display: inline-block;
-  width: 1.62em; height: 1.62em;
-  vertical-align: -0.34em;
-  margin: 0 0.1em;
-  background: none; border: 0; border-radius: 0; box-shadow: none;
-  overflow: visible;
-}
-.agent img {
-  width: 100%; height: 100%;
-  object-fit: contain;         /* not cover: there is no box to crop against */
-  display: block;
-}
-
-/* neutral, and the default */
-.agent img { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.9)); }
-
-/* proven enemy */
-.agent.enemy img {
-  filter: drop-shadow(0 0 1px #FF4655)
-          drop-shadow(0 0 3px rgba(255,70,85,0.9))
-          drop-shadow(0 0 6px rgba(255,70,85,0.55));
-}
-/* proven ally */
-.agent.ally img {
-  filter: drop-shadow(0 0 1px #52C88A)
-          drop-shadow(0 0 3px rgba(82,200,138,0.9))
-          drop-shadow(0 0 6px rgba(82,200,138,0.55));
-}
-```
-
-`drop-shadow` follows the alpha channel, which is why the art choice below is not
-interchangeable and why this cannot be done with `box-shadow`.
-
-**Use the SQUARE bust, not the kill feed crop.** From
-`https://valorant-api.com/v1/agents?isPlayableCharacter=true`, field
-`displayIcon`. It is 1024x1024 and about 410KB, so resample it to 64px before
-shipping: 29 agents at full size is twelve megabytes to draw a mark twenty
-pixels wide. Self-host, do not hotlink.
-
-The reason is measurable, not taste. The bust's alpha is a real character
-silhouette, roughly a quarter of the box genuinely transparent with notches down
-the side, so the glow traces the agent. The kill feed crop's alpha is a near
-rectangle, so the identical filter on it draws a glowing box. On the page draw
-the bust at about `2.1em` square.
-
-**TWO states, and every portrait carries a colour:**
-
-| State | Glow | When |
-|---|---|---|
-| Proven enemy | red, as above | the sentence says this agent killed the player |
-| Proven ally | green, as above | it is the player's own confirmed agent |
-
-**There is no third state, and no uncoloured portrait.** There is no team roster
-anywhere in the product, so an agent whose side cannot be proven simply keeps
-their name as a word and gets no picture at all. A face with no colour used to be
-that third state and it was the weakest thing on the card: it looked like the
-other two with the meaning filed off, and a reader took grey to mean a team
-rather than an admission. Nothing is guessed, the uncertainty just stops being
-drawn as though it were information.
-
-**A portrait is the PERSON, never a thing they own.** "You died to a Sage wall"
-rendered as "you died to a [picture of Sage] wall", which reads as being killed
-by a photograph. So the sentence names who killed the player, and says what their
-utility did in a clause of its own: "You died to Sage, who walled off your cover
-first." If a sentence has to talk about the object, the name stays a plain word
-there and keeps ordinary grammar, article and all: "a Sage wall is up".
-
-**No article in front of an agent name as a person.** Write "Reyna is holding B
-Main", never "a Reyna" and never "the Reyna". There is one of each agent in a
-match, so the name was never doing work the picture cannot.
-
-Show the two states as two real sentences, not as feature cards:
-
-- Proven enemy: `You died to [Sage], who walled off your cover first.`
-- Proven ally: `Your shield is up as [Iso], so you win this trade if you take it now.`
-
-## 4. The match review, which is the section that sells it
-
-This is the strongest thing in the product, so build it carefully.
-
-After a match, Occlara shows **every death you took, who killed you, and the
-exact line it put on screen at the time.** Including the deaths it had nothing
-to say about, which it marks rather than hides.
-
-**Do not put capture statistics on this page.** An earlier draft of this section
-had frame offsets in seconds, an "unseen window" showing the gap between two
-captures, and a note about the model's polling interval. All of it was true and
-none of it was the player's problem: it explained how the tool works instead of
-what the tool found, and it made a review look like a diagnostic readout. No
-frame numbers, no offsets, no capture rate, no confidence scores, no percentages.
-
-A player looking at this wants three things per death, in this order: **who
-killed me, what did it say, can I trust it.** Build only those.
-
-### Structure
-
-One card, `--glass-border` hairline, `--r-lg`, `rgba(255,255,255,0.022)` fill,
-max width about 860px.
-
-**Header row**, 18px 22px, hairline underneath:
-
-| Element | Style |
+| Rules in `src/index.css` | Becomes |
 |---|---|
-| Map name | 15.5px, weight 700 |
-| Agent and K/D/A | Geist Mono 13px, `--text-dim`, tabular numerals |
-| Result | pill, right aligned, `--good` on `rgba(82,200,138,0.12)` with a `0.3` alpha border |
+| `.ow-toggle` (the drawn Start) | `--oc-red` fill, `--oc-bg` label at 600, as the app's Start |
+| `.ow-stop`, `.ow-rec.is-live` (its tint as `rgba(var(--oc-red-rgb), a)`), `.ow-rec-dot`, `.rec-dot.is-live` | stay the signal; the two dots lose `breathe` and sit still |
+| `.oc-dot.is-bad`, `.oc-cause.is-bad`, `.oc-letter.is-bad`, `.gv-letter.is-bad`, `.gv-cat-score.is-bad`, `.gv-bar i.is-bad`, `.oc-rr.is-loss`, `.oc-trend.is-worse`, `.lg-died`, `.mk-died`, `.lh-row-main em.is-loss` | `--oc-bad`, tints `rgba(var(--oc-bad-rgb), a)` |
+| `.rec-head-rail i` (the diagram's playhead, its glow gone), `.rec-clip i`, `.rec-clip b`, `.rec-stat-kept b`, `.md-tab-bar i, .ld-tab-bar i` | ink: none of them is live or a loss |
+| `.sc-enemy i`, `.sc-foe i` and their `::before` (the stand in stills' drawn enemies) | `--oc-bad` tints: a drawn enemy, not the brand |
+| `.plan.is-featured` | `--oc-line-3` border on `--oc-bg2`: the featured card is marked by its primary button |
+| `.rd-check.is-checked .rd-cell.is-invented`, `.rd-check.is-fixed ...` | deleted with the invented death (the ReviewDemo, below) |
+| `.hd-pupil` | deleted with the aperture |
 
-**Count row**, 13px 22px, hairline underneath: "6 deaths, 5 of them reviewed" in
-`--text-mute` at 12.5px, and right aligned a row of one 7px dot per death. A
-reviewed death is a filled `--text-mute` dot at 0.55 opacity; a silent one is
-**hollow with a 1px `--warn` border**. Six dots read the shape of the match
-before a single word is read.
+- **The primary audit** (the bridge makes `primary` ink): in `index.css` and in Account, Success, Signup, ForgotPassword, ResetPassword, OAuthConsent and NotFound (its `Radar` icon is `text-primary`), an error or alert that used `text-primary` or a `primary` tint becomes `negative`; a decorative icon tint becomes `foreground-secondary`; a primary action stays `default` (ink); a destructive action is the `destructive` ghost.
+- **`src/test/palette.test.ts`**, every rule asserted against a known positive and a known negative string inside it: no `#FF4655` and no `rgba(255, 70, 85` (any spacing) in `src/**/*.{css,ts,tsx}` or `supabase/functions/_shared/email-templates/theme.ts`; every `var(--name)` in `src/index.css` is defined there or set as a custom property in a TSX style object (today `--i`, `--w`, `--d`, `--k`, `--j`, `--rec-ms`, `--side`, `--size`, `--reach`, `--gv-delay`, `--rv-delay` are set inline, so the check reads both); every font family named is Geist, Geist Mono or a generic or system fallback, at a weight the Google Fonts URL loads; `font-synthesis-weight: none` on `html`; `--oc-red` and `--signal` only in the selectors of the table's signal rows, `.sig-dot` and the destructive hover.
+- **Components** in `index.css`: `.oc-mono` (Geist Mono 500, 11px, 0.08em, uppercase), `.oc-eyebrow` with `.ix`, `.oc-display` (Geist 600, -0.02em, line-height 1), `.oc-vf` (the app's viewfinder), `.oc-kbd` and `.oc-keys`, `.oc-stats` (64px numbers here, 40px under 768px), `.oc-colgrid` (one layer behind the whole page: 12 columns from 1024px, 6 from 768, none under; the paper section covers it), `.oc-paper` (the inverted section), `.sig-dot`. shadcn `Button`: default ink, 44px at `lg`, `--radius`, Geist 500 15px, hover white; `outline` is the ghost (0.03 fill, the strong hairline); `destructive` is the ghost with the signal under the pointer. `Reveal`: opacity and 12px, 0.7s on `--ease-out`, 50ms apart, once, none under reduced motion. The nav pill takes `--oc-glass` after 40px of scroll.
+- **The mark**: `Brand.tsx` exports `CrescentMark` (the path, `currentColor`) in place of `ApertureMark`, and every import moves to it (Navbar, Footer, auth and legal layouts, 404, Account, AppWindow, HeroDemo, CallToAction). The wordmark Geist 600, -0.02em.
+- **Out of the CSS**: the aperture's rules and keyframes (`cta-ring`, `cta-pupil`, `hd-pupil`, `pupil`, `breathe`, and the reduced motion line naming them), the headline's word animation and odometer. The "Deliberately inert" comment says the column grid is the one decoration and is drawn as elements.
+- **public**: `favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-512.png` from `generate-icon.js --site`; `index.html` links the touch icon; the Organization JSON-LD logo is `https://occlara.app/icon-512.png`. `riot.txt`, `robots.txt`, `sitemap.xml` and `llms.txt` stay (the last two change with /manifesto).
+- **og-image.jpg**: 1200x630 JPEG on #0A0B0E with the column grid; the lockup top left; "Silent while you play. Graded when it ends." Geist 600; `.oc-mono` "VALORANT · LEAGUE OF LEGENDS · WINDOWS 10 AND 11"; the Abyss Verdict card (dark, from the export) on the right. Rendered in Chromium, looked at, then its sha256 goes into `two-games.test.tsx`. `og:image:alt`: "Occlara, the post match coach for Valorant and League of Legends".
+- **Head of the home page** (Index.tsx and index.html, three copies of the description as the test counts): title "Occlara | The post match coach for Valorant and League of Legends"; description "Occlara shows you nothing while you play, then reviews the match when it ends: what you keep doing wrong, what went well, and clips of your deaths. Valorant and League of Legends, for Windows."
+- **`.lovable/memory/index.md`**: Colors (the moved and new lines in its format; `--accent-solid` and `--accent-hover` gone; then "Borders are a white hairline at 9% (--hairline), controls at 18% (--border-strong). --primary is the ink: buttons are ink on charcoal. The signal, --signal, is only for a live dot, an urgent dot, Start in the drawings of the app and a destructive action under the pointer. --negative is a loss, an error or a death. Paper is only for the During and after section. There is no cyan."); Font unchanged; Sections (the new order); Pages (adds /blog/how-to-review-valorant-matches and /manifesto).
+- **Index.tsx**: Navbar, Hero, ProductProof, Proof, Games, Safety, Pricing, FAQ, CallToAction, Footer. ProductProof renders `<Verdict />` between its review and its round. `Verdict.tsx` and `Proof.tsx` are their own sections.
+- **Dead files deleted** after checking nothing imports them: `src/assets/agents/*.asset.json`, `src/assets/ghostcoach-hero-screenshot.png.asset.json`, `src/assets/occlara-live-gameplay.png.asset.json`, `src/assets/ghostcoach-panel.png`, `src/assets/ghostcoach-screenshot.png`, `src/components/AgentPortrait.tsx`, `src/hooks/useCursorGlow.ts`, `src/hooks/useScrollReveal.ts`, `public/placeholder.svg`, `REVAMP_NOTES.md`. The CDN copies are the owner's to delete in Lovable.
 
-**Then one row per death**, separated by hairlines, `19px 22px`, a two column
-grid of `186px` and the rest with a 24px gap. Under 720px it stacks.
+## The homepage, top to bottom
 
-Left column:
+Every section follows one grammar: eyebrow, a heading, a lead of about two lines, at most one call to act, then the artifact. Eyebrow indices count in page order.
 
-- `DEATH 3 &middot; ROUND 6` in Geist Mono, 11.5px, `--text-mute`, uppercase,
-  0.07em tracking. Omit the round when it was not read, do not print "unknown".
-- `Killed by` in 12.5px `--text-dim`, then the agent portrait with the red enemy
-  glow from section 3, then the name in 14.5px weight 600.
-- When the killer was never legible: **"Killer never identified"** in 13px
-  `--text-mute` italic, and drop the "Killed by" label entirely. "Killed by not
-  identified" is not a sentence. Do not guess a name to fill the space.
+**Navbar.** The crescent and "Occlara". Links: How it works (/#how-it-works), Review (/#review), Games (/#games), Pricing (/#pricing), Manifesto (/manifesto). Right: Log in (/signup?tab=login) and Get Occlara (/signup, primary); signed in, Account and Log out as today. The phone menu carries the same links.
 
-Right column, and this is the part that matters: **the real tip card.** Not a
-blockquote, not italic text, not a speech bubble. The same component from
-section 1, with the `DEATH REVIEW` meta label and the white dot, capped at about
-420px wide. The player sees the thing they saw in game.
+**Hero.** Left column:
+- Eyebrow: `[ 01 ]` POST MATCH COACH
+- H1: **Silent while you play. Graded when it ends.**
+- Lead: "Occlara follows your match in silence and shows you nothing until it is over. Then your review opens: a score out of 100, the mistakes you keep making, and clips of your deaths."
+- Buttons: Create account (primary, /signup, keeps `btn-primary`), See pricing (ghost, #pricing).
+- Meta, two lines as today: "Valorant, League of Legends" and "Windows 10 and 11, 3-day money-back guarantee".
+- Note (13px, ink-3): "A Valorant grade needs your Riot ID connected and lands once Riot publishes the match, usually 1 to 4 minutes after it ends. A League of Legends review is whole when the game ends."
 
-### The death it said nothing about
+Right column: a 16:9 `.oc-vf` frame holding the HeroDemo (the demos, below). Under it, `.oc-mono`: "DEMO, DRAWN FROM THE APP'S OWN SCREENS. A REAL VALORANT MATCH ON ABYSS, CHECKED AGAINST RIOT'S RECORD."
 
-Do not leave a blank. A gap reads as an oversight, and this one is the opposite.
-In the same slot, a box with a **dashed** `rgba(217,164,65,0.4)` border on a
-`rgba(217,164,65,0.05)` fill, `--r-md`, 14px 16px:
+Under both, the stat block:
 
-- Heading: "IT SAID NOTHING HERE", 12.5px, weight 600, `--warn`, uppercase, 0.07em
-- Body: "It wrote a tip for this death and stopped itself before sending it." at
-  13.5px `--text-dim`
+| Number | Label | Note under it |
+|---|---|---|
+| 0 | TIPS, NUMBERS OR PAGES ABOUT THE MATCH WHILE YOU PLAY | During a match the window shows only a Recording screen, every page locked. |
+| 15 s | CLIP, AT MOST, OF EACH DEATH THE COACH LOOKED AT | Cut from your own recording, 11 seconds before the death to 4 after, shorter when the death comes in a round's first seconds. Valorant, with recording on: a graphics card with a hardware H.264 encoder and 8 GB free. League of Legends keeps clips of up to six deaths. |
+| 10 | PAST VALORANT MATCHES GRADED WHEN YOU CONNECT | Your last ten Valorant matches in Competitive, Unrated, Swiftplay or Premier, graded from Riot's record, so they have no clips. |
 
-Under the whole card, one paragraph in `--text-mute` explaining that specific
-one in plain language, no rule names:
+**How it works, `#how-it-works`.**
+- Eyebrow `[ 02 ]` WHILE YOU PLAY. H2 **Press Start, then play.**
+- Lead: "In Valorant, Occlara reads your screen the way OBS captures it, up to once a second. In League of Legends it reads the game's own live data. In both it records the match on your PC when your PC can record, and nothing about the match reaches your screen until it ends."
+- Artifact: the RecordingDemo (the demos, below), its strings as today.
+- Facts row: **Encoder**: "H.264 on your graphics card, at 720p or 1080p and about 30 frames a second." **If it lags**: "Recording stops for that session, and the coach keeps reading." **Privacy**: "The recording and its clips never leave your PC. In Valorant, the frames the coach reads, up to one a second, and a few stills of each death it looks at are sent to Occlara's server and its AI provider to be read; the server keeps none of them. No sound, no other monitors." **What stays**: "Clips of up to six deaths a match, each up to 15 seconds, under a space limit you set, 10 GB unless you change it."
 
-> The fourth one is blank because the coach wrote a tip and then stopped itself.
-> It was about to tell you to hold A Nest, and it had already seen an enemy on B.
-> It would rather leave a gap than send you the wrong way, and it shows you the
-> gap instead of quietly closing it.
+**The review, `#review`.**
+- Eyebrow `[ 03 ]` THE REVIEW. H2 **A grade you can check.**
+- Lead: "A score out of 100 from four categories, each listing the facts it came from. Then the mistakes you keep making with one fix for each, what went well, and in Valorant every round, checked against Riot's record."
+- Artifact: the ReviewDemo (the demos, below), opening on its Verdict.
+- Caption: "A real Valorant match on Abyss, as Occlara 8.6 reviews it, checked against Riot's record: the screen read 22 deaths and Riot has 21."
 
-### The real data. Use it verbatim.
+**The verdict, `#verdict`.**
+- Eyebrow `[ 04 ]` THE VERDICT. H2 **The grade, and the reason for it.**
+- Lead: "Every graded review opens on its Verdict: the letter, the score out of 100 and one reason counted from the match, never written by the model. Share image saves it as a picture made on your PC, with no Riot ID on it."
+- Three live HTML cards, 1.586:1, `.oc-vf`, the middle one turned 2 degrees, each with `.oc-mono` REAL MATCH under it, their values from the export (`proof/verdicts.ts` reads it). Today's values:
+    1. SPLIT · 13-7 · WIN, **B 71**/100, "14 of your 16 deaths went untraded.", K/D/A 17/16/8, ACS 279, ADR 181, HS 22%, JETT · COMPETITIVE, 4 OCT 2026.
+    2. ABYSS · 3-5 · LOSS, **S 97**/100, "First kill of the round 4 times.", K/D/A 11/5/2, ACS 417, ADR 285, HS 33%, JETT · SWIFTPLAY, 4 OCT 2026.
+    3. FRACTURE · 5-1 · WIN, **A 84**/100, "First kill of the round 3 times.", K/D/A 12/3/2, ACS 569, ADR 320, HS 24%, JETT · SWIFTPLAY, 13 OCT 2026.
+- Under the cards: "Real matches, real reviews, agents and numbers only. A loss graded S and a win graded B: the grade is how you played, not the scoreboard."
+- Letters toned as in the app (S and A `--oc-good`, B ink, C `--oc-warn`, D `--oc-bad`), the number always beside them.
 
-Session: **Icebox, Iso, 11 / 6 / 1, Victory 5-3.** Six deaths, matching Riot's
-own record of the match. Every line below is what the coach actually wrote.
+**One round, `#deaths`.**
+- Eyebrow `[ 05 ]` ONE ROUND, TAKEN APART. H2 **Rewatch the moment. Then fix it.**
+- Lead: "In Valorant, for the deaths worth learning from, the review cuts the seconds before and after out of your own recording, names the cause when its frames show it, and gives you the better play. A fair fight you lost is called a lost duel, not a mistake."
+- Artifact: the RoundDemo (the demos, below), pinned while four steps scroll past, every string from the export:
+    1. **Riot's facts.** "R2 · WON · DEFENCE" and "Died at A Main, 31s in, to Astra with a Sheriff · 5 against 1 when you died · Traded by a teammate · 3 kills · First kill of the round"
+    2. **The moment.** Five stills under their labels, 3 S BEFORE, 1.5 S BEFORE, 0.7 S BEFORE, 0.3 S BEFORE, JUST AFTER, and the timeline as the clip player draws it: 15 s, the death 11 s in, in `--oc-bad`, the five stills marked where they were taken.
+    3. **The cause.** The chip Repeek and "You stayed on the same A Main angle after trading shots and killing one enemy, then Astra killed you with a Sheriff."
+    4. **The better play.** "After the first exchange, fall back behind cover instead of staying on the angle with 57 health."
+- Then, "Also looked at in this match", each with its chip, what and Better as the review shows them: R5 Lost the duel, "You held an angle from cover on A Site, fired at the visible Jett, and lost the duel to her Sheriff." Better: "Keep using the wall for cover, but fall back after your first shots instead of staying on the angle." R6 Lost the duel, "You fought Chamber from B Tree with your Sheriff, fired three shots, and died without dealing damage." Better: "Take the next shot from cover instead of staying exposed in the duel."
+- Caption: "Round 2 of a real Valorant match on Fracture, word for word as its review shows it. The stills are drawn stand ins for the ones cut from your own recording."
 
-| # | Round | Killed by | Tip |
-|---|---|---|---|
-| 1 | 1 | Sage | You died to a wide angle with no cover, so next time retreat behind the box and let your team clear the site before you re-engage. |
-| 2 | 3 | Clove | You died to a pistol at close range because you held that A Main angle too wide without a trade partner. |
-| 3 | 6 | Sage | You died to [Sage] on B Site because you were isolated and exposed, so next time hold tight with a teammate. |
-| 4 | not read | Clove | none, see above |
-| 5 | 7 | Clove | You died holding A Site alone after your team pushed B, so you need to fall back into the site and wait. |
-| 6 | 8 | never identified | You died holding A Rafters alone against a full buy, so next round fall back to A Site or wait for a teammate. |
+**The library, `#library`.**
+- Eyebrow `[ 06 ]` THE LIBRARY. H2 **It remembers every match.**
+- Lead: "Every review is kept. Occlara counts what repeats across your last ten matches, breaks your record down by map and agent, and keeps your Valorant rank and RR beside it."
+- Artifact: the LibraryDemo, restyled. Caption: "An example library of ten matches, labelled as one. Its Abyss row is the real match above."
 
-Only row 3 names an agent inside the tip, so only row 3 gets a portrait in the
-tip text. The left column portrait is separate and every identified killer gets
-one, because a killer is a proven enemy by definition.
+**Proof, `#proof`.**
+- Eyebrow `[ 07 ]` PROOF. H2 **Four things you can check.**
+- Lead: "Each is something the app does today, the first three drawn the way the app draws them."
+- Four `.oc-vf` cards:
+    1. **Nothing on screen until it ends.** "During a match the window shows one screen, Recording, and locks every page. Ask Coach answers nothing and an update waits until you are done." Drawing: the rail with its locks, the crescent, the still dot and "Recording".
+    2. **Checked against Riot's record.** "On a real Valorant match the screen read 22 deaths and Riot has 21. The extra one, in round 17, was dropped." Drawing: the export's 24 round strip, round 17 as the app draws it, a won round with no death mark, and the verification sentence under it word for word.
+    3. **It says when it cannot tell.** "When the coach's frames missed the fight, its look says Frame unclear and names no cause and no better play. A fight you lost fairly is Lost the duel, not a mistake." Drawing: two rows from the export as the review draws them, 610vb4 round 4 (its facts, the Frame unclear chip, its Coach's read) and Fracture round 5 (the Lost the duel chip, its what and Better).
+    4. **The recording stays on your PC.** "Written to your PC a minute at a time while you play and deleted once the review is built, apart from clips of up to six deaths, each up to 15 seconds. In Valorant, the frames the coach reads, up to one a second, and a few stills of each death it looks at are sent to Occlara's server to be read; the server keeps none of them." Drawing: the minute pages, four kept clips, the rest struck, labelled `.oc-mono` DIAGRAM.
 
-Row 3 is written "died to Sage", not "died to a Sage". That is not a typo to
-correct: the article is stripped before the tip is ever drawn, for the reasons in
-section 3.
+**Games, `#games`.** Hairline rows, each still an `article` with its `h3`.
+- Eyebrow `[ 08 ]` TWO GAMES. H2 **Two games. Graded after every match.** Lead: "One license covers both, and each is graded on what that game can honestly show." (both pinned; the pin's spelling moves with it, see Other pages)
+- **Valorant**, tag Recorded and clipped: "Occlara reads Valorant off your main display the way OBS captures it, up to once a second, and checks each review against Riot's record of the match once your Riot ID is connected. The review goes round by round, with a clip of each death the coach looked at, and Stats keeps your rank journey." Graded on Survival, Impact, Teamplay, Decisions.
+- **League of Legends**, tag Recorded and clipped: "Read from the game's own Live Client Data on your PC. Its screen is never read, only recorded for the clips. Every death is listed by the game clock, with clips of up to six of them. Supports are not graded on Farming, and Stats is for Valorant only." Graded on Farming, Survival, Vision, Objectives.
 
-### Motion
+**During and after, `#safety`, the one section on paper.**
+- Eyebrow `[ 09 ]` DURING AND AFTER. H2 **It stays outside the game.**
+- Lead: "Riot's developer policy separates help that changes how you play right now from coaching that works “upon reflection, learning and coaching the player game over game”. Occlara is built entirely on the second half of that sentence."
+- Table:
 
-Rows fade and rise 8px on scroll into view, 380ms on the exponential ease,
-staggered 60ms apart, once only. Nothing loops. Honour `prefers-reduced-motion`
-by rendering them in place. The card must be fully populated in the first
-painted frame; the animation is a reveal, never a loader.
+| | During the match | After the match |
+|---|---|---|
+| On your screen | Recording, with every page locked | Your review, the moment it is ready |
+| Ask Coach | Answers nothing | Answers about the match you pick |
+| Your recording | Written to your PC a minute at a time | Cut to clips of up to six of your deaths, the rest deleted |
+| An update | Waits | Asks to restart |
+| Your mouse and keys | Never touched | Never touched |
 
-## 5. Then go through the rest of the site with this
+- The four Never rows as today: **Reads game memory** ("In Valorant it captures your display, the way OBS does when you stream. In League of Legends it reads the game's own Live Client Data on your PC, never its screen."), **Touches game files** ("Nothing injected, patched or hooked. No driver, no kernel component."), **Sends an input** ("It cannot move your crosshair or press a key. Every shot is yours."), **Coaches you mid match** ("No tip, no number, no page about the match until it is over.").
+- Links: How Occlara plays fair (/fair-play), Read the manifesto (/manifesto).
+- On paper: no status colours (they fail there); ink, `--oc-paper-ink-2` and `-3`, `--oc-paper-line`.
 
-Sections 1 to 4 are the new work. This section is the part that is easy to skip
-and should not be: **the whole site has to end up saying the same things.** Do
-not build the new section next to an older one that contradicts it.
+**Pricing, `#pricing`.**
+- Eyebrow `[ 10 ]` PRICING. H2 **Pick how long you want it.** Lead: "Every plan unlocks everything in both games. Start weekly to try it in your next session, go monthly to keep it going, or go yearly for the lowest price a month."
+- Cards (PlanPrice and the renewal sentence untouched; MOST POPULAR goes; Monthly stays the featured card with the primary button):
+    - **Weekly, $10 per week.** "Try it for a ranked push, with a 3-day money-back guarantee". Every feature for Valorant and League of Legends · A graded review after each match you play with Occlara on, Valorant with your Riot ID connected · Clips of your deaths, kept on your PC, when your PC can record · Cancel any time, no questions asked · 3-day money-back guarantee. Button Start weekly.
+    - **Monthly, $29.99 per month.** "For regular players, billed every month". Everything in Weekly · Cheaper than four weeks of Weekly · Cancel any time, keep access through the period · 3-day money-back guarantee. Button Start monthly.
+    - **Yearly, $249.99 per year.** "Billed once a year, the lowest price a month at $20.83". Every feature for Valorant and League of Legends · A graded review after each match you play with Occlara on, Valorant with your Riot ID connected · Clips of your deaths, kept on your PC, when your PC can record · Renews every 12 months, cancel any time before it does · 3-day money-back guarantee, on a renewal too. Button Start yearly.
+- Under them: "One license covers Valorant and League of Legends on one PC at a time. Payments are handled by Stripe." (pinned, spelling moved with it) and "Every plan has a 3-day money-back guarantee. Questions? Email support@occlara.app."
 
-Walk every page, every section, every card, the nav, the footer, the meta tags
-and the OG image, and bring each one up to date. Specifically:
+**FAQ, `#faq`, `src/data/faq.ts`, also the JSON-LD.**
+- Eyebrow `[ 11 ]` FAQ. H2 **The questions worth answering.** Lead: "Anything else, ask support@occlara.app."
+1. **What does Occlara grade?** "With your Riot ID connected, a Valorant match gets a score out of 100 and a letter once Riot's record of it is found. The score is built from four categories: Survival, Impact, Teamplay and Decisions. Each category lists the facts it came from, so you can see what moved it. The review then lists the mistakes you keep making with a fix for each, what went well, and what you missed. A Valorant match Riot's record never links to, such as one played on another account than the Riot ID in Settings, is reviewed from the screen alone. From the screen alone, a Valorant review counts your deaths and shows what would grade it. League of Legends games are graded on categories of their own."
+2. **When does the review open?** "A League of Legends review opens the moment the game ends. With your Riot ID connected, a Valorant review opens when the match ends and shows its steps while it waits for Riot's record of the Valorant match, usually 1 to 4 minutes. If Riot is late, the review from the screen is shown at six minutes and fills in when the record lands."
+3. **Does it show anything while I play?** (today's answer)
+4. **Will recording slow my game down?** (today's answer)
+5. **Where does the recording go?** (today's answer)
+6. **What is sent to Occlara?** "In Valorant, the frames the coach reads, up to one a second, and a few stills of each death it looks at go to Occlara's server and its AI provider to be read, and the server keeps none of them. Anything on your main display while a Valorant session runs can be in those frames. Each request asks for providers that neither keep it nor train on it; when no provider of the model offers that, the request is sent once more without that ask, so the review still comes. The server also gets each Valorant match's facts, to write its review, and your Riot ID, to fetch Riot's record of it. Ask Coach sends the match you ask about as its review keeps it, a line for each of your eight newest other matches and your question, with agents and numbers and no player's name; asking about a frame of a Valorant session in the AI log sends that frame. In League of Legends no frame is sent: the game is read from its own Live Client Data on your PC. After a session the app sends a few numbers about how recording coped, never what was on screen. Your reviews, your clips and the log of your recent sessions are stored on your PC."
+7. **How does it know what really happened?** "Once your Riot ID is connected, each Valorant review is checked against Riot's own record of the match. Deaths, killers, weapons, timing and round results come from Riot, and the screen adds where you died and what the coach saw. Reads Riot contradicts are hidden, and the review says what the check changed: on one real Valorant match the screen read 22 deaths, Riot had 21, and the extra one was dropped."
+8. **Can I share a review?** "Yes. Share image in a review draws its Verdict on your PC: the grade, its one reason, up to four numbers from the match, what you played and the date, and no Riot ID, yours included. Save it as a PNG or copy it. Nothing is uploaded, and there is no public link."
+9. **Can it get my account banned?**, 10. **What do I need to run it?**, 11. **Why does Windows warn about an unknown publisher?**, 12. **Can I cancel, and can I get a refund?** (today's answers).
+The file's header comment says the answers are true of Occlara 8.6.0.
 
-- **Anywhere an agent is drawn**, replace whatever is there now with the boxless
-  glow from section 3. No pill, no rounded rectangle, no circle crop, no ring, no
-  bordered chip. If a page shows an agent as a username, a coloured text span, or
-  a lettered avatar, it becomes the portrait with the name on `title` and
-  `aria-label`. Two colour states, everywhere on the site, and no uncoloured
-  portrait: an agent whose side is not proven stays a plain word. A portrait
-  never stands in for a name that is modifying an object.
-- **Anywhere refused tips are listed**, delete the whole thing: the panel, the
-  counter, the struck-through rows. And never print an internal rule name, no
-  `PLAY_PATTERNS`, no "too similar to a recent tip", no diagnostic strings, in
-  copy or in screenshots or in alt text. The restraint is shown by the silent
-  markers in the death log, not by a list of rejections.
-- **Anywhere tips are shown arriving**, they arrive one at a time. No stacks, no
-  columns of two or three cards, no feed.
-- **Anywhere the product is described**, make the description match what it
-  actually does now: it watches the screen the way OBS does, it writes a tip
-  every few seconds, it refuses most of them, and after the match it shows every
-  death including the ones it had nothing to say about. If an older section
-  promises real-time League advice, that promise is wrong and has to go: League
-  is recorded silently and reviewed after the game, by policy, and that is
-  explained below.
-- **Every mention of the name.** The product is Occlara. GhostCoach was the old
-  name and should not appear in copy, headings, alt text, filenames the visitor
-  can see, or the page title. Two identifiers deliberately keep the old name and
-  are not typos to correct: the installer `GhostCoach.2.0.Setup.exe` and any
-  releases URL. Leave those exactly as they are, or existing download links die.
-- **The download.** One primary button, pointing at `Occlara-Setup.exe`. Windows
-  only, say so plainly rather than letting a Mac visitor find out after the
-  click.
-- **Tokens and type.** Any page still on an older palette, an older radius, or a
-  font weight outside 400 to 800 moves onto the values in this brief. A missing
-  weight silently falls back to a system font and changes the shape of the whole
-  page without erroring, so check rather than assume.
-- **Anything else you find that is stale, broken, inconsistent or contradictory,
-  fix it.** Dead links, placeholder copy, lorem, a stat that disagrees with
-  another stat, a screenshot of a UI that no longer exists, an empty section, a
-  route that 404s, an image with no `alt`, a heading level that skips. You have
-  the whole site; use that. Where two places disagree about a fact, this brief
-  wins.
+**Closing.** The crescent, still, 72px. H2 **Your next match, graded.** Lead "Press Start, play, and read the review when it ends." Download for Windows (primary, `DOWNLOAD_URL`) and See pricing (ghost). "Windows 10 and 11 · 3-day money-back guarantee".
 
-Two things not to "fix":
+**Footer.** The brand line as today (pinned): "The post match coach for Valorant and League of Legends. In Valorant it captures the display the way OBS does; in League it reads the game's own live data. It never reads game memory, never touches game files, and never automates input." Columns: **Product** (How it works, The review, The verdict, Pricing, FAQ, Download for Windows); **Read** (Manifesto, Is Valorant coaching worth it?, How to review a Valorant match); **Legal**, renamed from Company (Privacy, Terms, Refunds, Fair play, Legal, support@occlara.app). Riot's notice word for word.
 
-- **Do not invent numbers.** Every figure on the site should trace to something
-  real. If you cannot source a claim, cut it rather than round it up.
-- **Do not add testimonials, logos, user counts, or press mentions** unless you
-  were given real ones. A fabricated quote on a page whose entire argument is
-  honesty is the single worst thing that could ship here.
+## /manifesto
 
-When you are done, list what you changed outside sections 1 to 4 and why, so the
-sweep can be checked rather than taken on trust.
 
-## What the product actually does, for the copy on other pages
+H1: **Coaching belongs after the match.**
 
-Short version, accurate as of this brief, so nothing on the site has to guess:
+- `[ 01 ]` **Nothing while you play.** "Riot's developer policy for Valorant does not approve “in-game apps and overlays that include any real-time data that would improve a player's performance immediately by altering player behavior (i.e. 'go here now'), vs altering it upon reflection, learning and coaching the player game over game”. Occlara is built on the second half of that sentence. During a match its window shows one screen, Recording, and locks every page. Ask Coach answers nothing, the shortcut to your last review does nothing, and an update waits until you are done. League of Legends is held to the same rule."
+- `[ 02 ]` **Code checks the model.** "In Valorant, the coach reads your screen with a model, and a model can be wrong. So the app checks the model with rules written for failures we reproduced: which map it is on, whether the scoreboard still adds up, whether a health bar says you are still alive, whether you are spectating a teammate. When code and the model disagree, code wins."
+- `[ 03 ]` **Riot's record has the last word.** "With your Riot ID connected, every Valorant review is checked against Riot's record of the match. Deaths, killers, weapons, timing and round results come from Riot. Reads Riot contradicts are hidden, and the review says what the check changed."
+- `[ 04 ]` **It says when it cannot tell.** "When the frames the coach had missed the fight, its look says Frame unclear and names no cause and no better play. In a Valorant review, where you died is read off the screen, not taken from Riot's record, and the review says so."
+- `[ 05 ]` **A fair fight is not a mistake.** "When the coach looks at a death and finds a fair fight you lost, it calls it Lost the duel, and it does not count against you as a mistake."
+- `[ 06 ]` **The reason is counted.** "The one reason under a Verdict is counted from the match, never written by the model. If nothing can be counted, the Verdict has no reason rather than an invented one."
+- `[ 07 ]` **Your recording stays yours.** "When your PC can record, the match is recorded on it and deleted once the review is built, apart from clips of up to six deaths, under a space limit you set. The clips never leave your PC. In Valorant, the frames the coach reads, up to one a second, and a few stills of each death it looks at are sent to Occlara's server to be read, and the server keeps none of them."
+- `[ 08 ]` **No one else's name.** "A review names agents, never players. The agent who killed you is named, never the player; your team is agents and numbers; and the picture you share carries no Riot ID, yours included."
+- `[ 09 ]` **It never touches the game.** "No game memory, no game files, no input. In Valorant it captures your display the way OBS does; in League of Legends it reads the game's own Live Client Data."
 
-- **Valorant.** Live coaching while you play. Screen capture only, the same way
-  OBS sees the display. It never reads game memory, never touches game files,
-  never automates input.
-- **League of Legends.** Recorded silently during the game and reviewed after it
-  ends. **There is no live League coaching and there must never be**, because
-  Riot's League policy approves overlays that show "static data that is available
-  prior to the game" and bans "any game-session-specific information that would
-  be previously unknown to the player". The same policy names the legitimate
-  alternative, coaching the player "game over game". Do not describe League as
-  live, do not imply it, and do not write copy that a reader could reasonably
-  read as live.
-- **After the match**, the death log above, the session grade, and a chat where
-  you can ask about any single captured frame.
-- **Stats** exist for Valorant. League needs a production key the app does not
-  have, so it says so instead of showing a Valorant shaped dashboard with
-  someone else's numbers in it.
+## Other pages
 
-## Copy rules
+- **Fair play**, the During list's recording item: "Records the match on your own PC when recording is on, so your review can play back the moments it looked at. The recording and its clips never leave your PC; in Valorant, the frames the coach reads, up to one a second, and a few stills of each death the coach looks at are sent to Occlara's server to be read." The After list keeps its two pinned game lines.
+- **Privacy**, three paragraphs added in its own voice:
+    - "Ask Coach. When you ask Ask Coach about a match, the app sends that match as its review keeps it (its round facts with agents and weapons, the grade and its evidence, the lists, the patterns and the breakdown rows for its map and agent), a line for each of your eight newest other matches, and your question, to Occlara's server and its AI provider to write the answer. No player's name is sent. Asking about a frame of a Valorant session in the AI log sends that frame and, for a round Riot's record covers in Valorant, its facts."
+    - "AI providers. Every request to the AI provider asks for providers that neither keep it nor train on it. When none of the model's providers offers that, the request is sent once more without that preference, so the review still arrives. Occlara's server keeps no frame and no still."
+    - "This website. occlara.app loads DataFast's analytics and PromoteKit's referral script, and Lovable, which hosts the site, adds its own page analytics. PromoteKit may set a cookie to credit a referral."
+    - The owner's TO COMPLETE gaps (seller name and address, legal bases, retention periods, EU and UK representative) stay for the owner; nothing invents them.
+- **Sign up**: the panel line "Your account holds your license and your devices. Your reviews and clips are kept on your PC."; benefits "License activation and device controls", "A graded review after each match you play with Occlara on, Valorant with your Riot ID connected", "Valorant stats once your Riot ID is connected"; on the Log in tab "By logging in, you agree to the Terms of Service and Privacy Policy."
+- **One spelling, the app's**: visible copy says "license", as the app ("License key", "Enter your license key.") and the Account page's pinned lines ("Your license has expired.") already do. The three visible "licence" (the Games lead, the pricing line, the sign up panel line) move with their two pins in `two-games.test.tsx`; identifiers and comments are left alone.
+- **The emails**: `theme.ts` takes the new grounds (page #0A0B0E, card #0F1116, raised #14161C) and a 6px card radius; Geist stays; there is no mark or red in them. Deploying the edge functions that send them is the owner's.
+- **Guide 1** ("Is Valorant Coaching Worth It?"), line 72: "In Valorant, Occlara watches the visible match through screen capture, the same way OBS does. It reads the screen up to once a second, shows you nothing while you play, and turns what it read into a round by round review when the match ends, graded once your Riot ID is connected, with a clip of each death it looked at." Its closing line: "In Valorant, Occlara records your match in silence and opens a round by round review when it ends, graded once your Riot ID is connected. 3-day money-back guarantee."
+- **Guide 2** ("How to Review a Valorant Match and Actually Improve"), line 74: "This is the part Occlara does for you. In Valorant, it watches your match silently through screen capture, shows nothing while you play, and opens your review when the match ends, graded once your Riot ID is connected, with a clip of each death it looked at, so you can see the moment instead of trying to remember it." Its closing line as guide 1's.
+- Fixes found in the survey: /reset-password shows "This reset link has expired or was already used." with a link to /forgot-password when no session arrives within 10 seconds; at 320px the login, forgot password, reset password and OAuth consent pages (11px) and guide 1 (4px) stop scrolling sideways.
 
-- No em dashes or en dashes. Commas.
-- Never name a player by username. Agents and roles only.
-- Active voice. A control says exactly what happens.
-- Do not claim the coach is always right. The whole section is about it saying
-  when it does not know.
+## The demos, and what is labelled
 
-## Accessibility
+Every review string below is read from `src/components/proof/proof.generated.json`, the export the app writes (`node scripts/export-site-proof.js` in the app's repo, copied in), never typed. `data.ts` keeps only the example library and the diagram's numbers.
 
-Every agent icon carries the name in `title` and `aria-label`. Timeline markers
-are real `<button>` elements with a visible focus ring and an `aria-label`
-naming the death, its round, and whether anything was said. Honour
-`prefers-reduced-motion`: no card entrance, no scale on select. Theme the browser
-surfaces too, selection colour and scrollbar included, from the palette.
+| Demo | What it is | Label |
+|---|---|---|
+| HeroDemo | The app's 8.6 window drawn in HTML: the crescent, the 2px marker, Start in the signal with its dark label, the Recording screen with its still dot and three fact rows, nothing breathing; then the seal lifting and the review opening on the export's Abyss Verdict (B 71, "20 of your 21 deaths went untraded.", K/D/A 31/21/4, ACS 382, ADR 243), its meta line "Jett · Abyss · Unrated · 24 rounds watched", its verification sentence, the four categories and the first mistake. It starts when it scrolls into view (a phone saw only its end) and keeps Replay | DEMO, DRAWN FROM THE APP'S OWN SCREENS |
+| RecordingDemo | One minute pages, four clips kept at the export's picker rounds (2, 3, 10 and 19), the rest deleted; the example look sentences go | DIAGRAM |
+| ReviewDemo | The export's Abyss review, every line word for word, opening on its Verdict; the round strip as the app draws it, round 17 a won round with no death mark, the verification sentence under it; each round a button, its facts in a live region. The screen count turning into Riot's and the invented death that is struck go: the app never draws a death it dropped | "A real Valorant match on Abyss, as Occlara 8.6 reviews it" |
+| Verdict cards | The export's three saved reviews, agents and numbers only | REAL MATCH |
+| RoundDemo (replaces MomentDemo) | Fracture rounds 2, 5 and 6 from the export word for word; five stills drawn with MomentDemo's greybox scene under their real labels; the timeline as the clip player draws it; sticky on desktop, a static stack of the four steps on phones and under reduced motion | STAND IN on each still, and the caption |
+| LibraryDemo | The example library of ten, restyled; its Abyss row from the export | AN EXAMPLE LIBRARY |
+| Proof drawings | 1 the Recording screen as the app draws it; 2 and 3 the export's strip and rows; 4 a diagram | DIAGRAM on 4 |
 
-## Legal footer, required
+Footage, later and only with the owner's OK: the app's window after a match, recorded on our own PC, with the kill feed, the death screen, chat and any notification blurred; never gameplay with the app drawn over it; it replaces a drawn demo and says REAL FOOTAGE.
 
-> Occlara captures the display the way OBS does. It never reads game memory,
-> never touches game files, and never automates input.
->
-> Agent art is Riot's, shown under Valorant's third party guidelines. Occlara is
-> not endorsed by Riot Games.
+`ProductProof.test.tsx` follows: the H1 "Silent while you play. Graded when it ends.", Create account with `btn-primary`; the headings in order "Press Start, then play.", "A grade you can check.", "The grade, and the reason for it.", "Rewatch the moment. Then fix it.", "It remembers every match."; the recording strings; the round's tabs become the RoundDemo's steps. New `src/test/proof-export.test.tsx` renders the HeroDemo, the ReviewDemo, the RoundDemo, the three Verdict cards and Proof 2 and 3, and asserts that every string the export marks as shown is in the rendered text: the Verdicts, the meta line, the verification sentence, round 17 with no death mark, round 2's facts, five still labels, what and Better, rounds 5 and 6 with their Better lines, the unclear row with its Coach's read, and the picker's rounds 2, 3, 10 and 19.
+
+## llms.txt
+
+```
+# Occlara
+
+> Occlara is a post match AI coach for Valorant and League of Legends, on Windows 10 and 11. It shows nothing about the match while you play, records the match on your PC when the PC can record, and opens a review when the match ends.
+
+In Valorant, Occlara reads your main display the way OBS captures it, up to once a second. With a Riot ID connected, a Valorant match gets a score out of 100 and a letter once Riot's record of it is found, usually 1 to 4 minutes after it ends. The score comes from four categories (Survival, Impact, Teamplay, Decisions), each listing the facts it came from, and each Valorant review is checked against Riot's record of the match. The review lists the mistakes you keep making with one fix for each, what went well and what you missed, and opens on its Verdict, the grade with one reason counted from the match, which can be saved or copied as a picture made on your PC with no Riot ID on it.
+
+When the PC can record, the match is recorded on it with the graphics card's H.264 encoder and deleted once the review is built, apart from clips of up to six deaths, each up to 15 seconds. No recording or clip leaves the PC. In Valorant, the frames the coach reads, up to one a second, and a few stills of each death it looks at are sent to Occlara's server to be read, and the server keeps none of them. The library counts what repeats across your last ten matches, breaks your record down by map and agent, and shows your Valorant rank and RR.
+
+League of Legends is graded from the game's own Live Client Data on your PC, never from its screen, with every death listed by the game clock and clips of up to six of them. Occlara never reads game memory, never touches game files, and never automates input.
+
+## Pages
+
+- [Home](/): What Occlara does, the review, the Verdict, recording, the library, pricing, and FAQ.
+- [Manifesto](/manifesto): Why Occlara shows you nothing while you play, and what it promises about the review after.
+- [Sign up](/signup): Create an Occlara account or log in.
+- [Fair play](/fair-play): How Occlara reads matches silently and reviews them after they end.
+- [Privacy Policy](/privacy): How data is handled, and what stays on your PC.
+- [Terms of Service](/terms): Rules for using Occlara.
+- [Refund Policy](/refund): 3-day money-back guarantee terms.
+
+## Guides
+
+- [Is Valorant Coaching Worth It?](/blog/is-valorant-coaching-worth-it): Why evidence and honesty matter more than the volume of advice.
+- [How to Review a Valorant Match and Actually Improve](/blog/how-to-review-valorant-matches): A way to review your own matches that finds the habit, not the highlight.
+```

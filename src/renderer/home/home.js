@@ -47,7 +47,7 @@ const isLoss = (result) => /defeat|loss/i.test(String(result || ''));
 
 /** "+24 RR", "-15 RR", "0 RR", as the Stats rank tile writes it. */
 const rrText = (change) => `${change > 0 ? '+' : ''}${change} RR`;
-/** A gain in --good, a loss in --red, no change dim (home.css). */
+/** A gain in --good, a loss in --bad, no change dim (home.css). */
 const rrTone = (change) => (change > 0 ? 'gain' : change < 0 ? 'loss' : 'even');
 
 function paintLast(last) {

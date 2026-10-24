@@ -14,26 +14,30 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 }
 .card button,
 .card input,
-.card .seg,
-.card .style-grid,
-.card .op-row { -webkit-app-region: no-drag; }
+.card .seg { -webkit-app-region: no-drag; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 
 /* The close button sits INSIDE the card's rounded corner. At a 10px inset a
    34px button overlaps the 20px corner radius, so its edge poked outside the
    card and read as floating off the panel. Inset past the radius instead, and
-   keep it above the page content so a tall page can never overlap it. */
+   keep it above the page content so a tall page can never overlap it.
+   8.6: at 14px it still sat 10px outside the column everything else lines up
+   on (the Next button's edge, the cards' edges), and read as hanging off the
+   panel. Its right edge now IS that column, the card's 24px padding, and the
+   headline keeps clear of it (.hero h1 below). */
 .icon-btn.x {
   position: absolute;
-  top: 14px; right: 14px;
+  top: 18px; right: 24px;
   z-index: 3;
-  width: 30px; height: 30px;
+  width: 28px; height: 28px;
 }
 
 .hero { text-align: center; margin-bottom: 18px; }
 .mark { margin-bottom: 8px; animation: float 4.5s ease-in-out infinite; }
 @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-.hero h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; }
+/* Clear of the close button on both sides, so a long headline ("Grade your
+   last matches") never runs under it and stays centred. */
+.hero h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; padding: 0 36px; }
 .hero .sub { color: var(--text-dim); font-size: 12.5px; margin-top: 3px; }
 
 .steps { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
@@ -45,16 +49,16 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .steps .n {
   flex: none; width: 22px; height: 22px; margin-top: 1px;
   display: grid; place-items: center;
-  font-size: 11.5px; font-weight: 800; color: #fff;
-  background: var(--red);
-  border-radius: 7px;
+  font-size: 11.5px; font-weight: 800; color: var(--text-dim);
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
 }
 .steps b { display: block; font-size: 13px; margin-bottom: 2px; }
 .steps b kbd { font-size: 10.5px; }
 .steps span { font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
 .steps li > div { flex: 1; min-width: 0; }
 
-/* Fundamental tips question (step 5): on/off choice saved straight to config */
+/* The Advanced coaching choice, off or on, saved straight to config. */
 .seg {
   display: flex; gap: 5px; margin-top: 9px;
   background: rgba(0,0,0,0.28); padding: 4px;
@@ -66,7 +70,7 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   padding: 7px 6px; border-radius: 7px; transition: all var(--t-fast) var(--ease);
 }
 .seg button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
-.seg button.active { background: var(--red); color: #fff; box-shadow: var(--glow-red); }
+.seg button.active { background: var(--text); color: var(--bg); }
 
 .keys {
   display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px;
@@ -75,7 +79,6 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   margin-bottom: 16px;
 }
 .k { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--text-dim); }
-kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,0,0,0.32); border: 1px solid var(--glass-border); border-radius: 5px; padding: 2px 6px; color: var(--text-dim); white-space: nowrap; }
 
 .full { width: 100%; height: 44px; font-size: 14px; margin-top: auto; }
 
@@ -112,7 +115,9 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
   margin-top: 18px; padding-top: 14px;
   border-top: 1px solid var(--glass-border);
 }
-.nav .btn { min-width: 96px; }
+/* 40px, the shared .md size: at the shared 44 (8.6) the longest page, How
+   Occlara watches, overflowed its 480x528 card by 2px. */
+.nav .btn { min-width: 96px; height: 40px; }
 .dots { flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; }
 .dot-nav {
   width: 7px; height: 7px; padding: 0;
@@ -124,34 +129,20 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 .dot-nav.done   { background: rgba(var(--cyan-rgb),0.45); }
 .dot-nav.active { width: 20px; border-radius: 4px; background: var(--cyan); box-shadow: 0 0 10px rgba(var(--cyan-rgb),0.5); }
 
-/* Transparency row on the tip-style page. */
-.op-row {
-  display: flex; align-items: center; gap: 11px;
-  margin-top: 14px;
-}
-.op-row label { font-size: 12px; font-weight: 600; color: var(--text-dim); flex: none; }
-.op-row input[type="range"] { flex: 1; }
-.op-row b { font-size: 12px; font-weight: 700; color: var(--text); min-width: 40px; text-align: right; }
-
 /* Each page assembles: the hero settles first, then its content follows in
    sequence. Short and expo-eased so it reads as polish, not as waiting. */
 .page .hero { animation: riseIn 340ms var(--ease-expo) both; }
 .page .steps li,
-.page .keys .k,
-.page .style-grid .style-opt {
+.page .keys .k {
   animation: riseIn 380ms var(--ease-expo) both;
 }
 .page .steps li:nth-child(1),
-.page .keys .k:nth-child(1),
-.page .style-grid .style-opt:nth-child(1) { animation-delay: 70ms; }
+.page .keys .k:nth-child(1) { animation-delay: 70ms; }
 .page .steps li:nth-child(2),
-.page .keys .k:nth-child(2),
-.page .style-grid .style-opt:nth-child(2) { animation-delay: 125ms; }
-.page .keys .k:nth-child(3),
-.page .style-grid .style-opt:nth-child(3) { animation-delay: 180ms; }
-.page .keys .k:nth-child(4),
-.page .style-grid .style-opt:nth-child(4) { animation-delay: 235ms; }
-.page .lead, .page .op-row, .page .seg {
+.page .keys .k:nth-child(2) { animation-delay: 125ms; }
+.page .keys .k:nth-child(3) { animation-delay: 180ms; }
+.page .keys .k:nth-child(4) { animation-delay: 235ms; }
+.page .lead, .page .seg {
   animation: riseIn 380ms var(--ease-expo) both;
   animation-delay: 150ms;
 }
@@ -239,7 +230,7 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 .obr-strip i.w { background: var(--text); border-color: var(--text); }
 .obr-strip i.d::after {
   content: ''; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px;
-  margin-left: -2px; border-radius: 50%; background: var(--red);
+  margin-left: -2px; border-radius: 50%; background: var(--bad);
 }
 .obr-strip i.p::after {
   content: ''; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px;
@@ -281,14 +272,14 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 .ob-connect { flex: none; }
 .ob-riot-status { font-size: 12px; color: var(--text-dim); margin: 6px 0 0; }
 .ob-riot-status.ok { color: var(--good); }
-.ob-riot-status.err { color: var(--red); }
+.ob-riot-status.err { color: var(--bad); }
 /* THE LIST GIVES WAY. min-height: 0 lets this box shrink below its content,
    so when a two line status and a two line summary arrive with the rows, the
    scrolling list takes the squeeze instead of the centred page spilling out
    of the card at both ends. */
 .ob-bf { display: flex; flex-direction: column; gap: 6px; margin-top: var(--space-2); min-height: 0; }
 .ob-bf-line { font-size: 11.5px; color: var(--text-mute); }
-.ob-bf-line.err { color: var(--red); }
+.ob-bf-line.err { color: var(--bad); }
 /* NO-DRAG, because the whole card is a drag handle, and a drag region on
    Windows takes the mouse wheel and the scrollbar as well as the click: the
    list would show its first rows and never scroll to the rest. */
@@ -299,11 +290,11 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 .ob-bf-name { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ob-bf-res { color: var(--text-mute); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
 .ob-bf-res.win { color: var(--text); }
-.ob-bf-res.loss { color: var(--red); }
+.ob-bf-res.loss { color: var(--bad); }
 .ob-bf-grade { font-family: var(--font-mono); font-weight: 600; color: var(--text); min-width: 44px; text-align: right; }
 .ob-bf-grade.good { color: var(--good); }
 .ob-bf-grade.warn { color: var(--warn); }
-.ob-bf-grade.bad { color: var(--red); }
+.ob-bf-grade.bad { color: var(--bad); }
 .ob-bf-row.failed .ob-bf-name { color: var(--text-mute); }
 /* 11px, the size of the other notes in the tour: at 12px the Advanced
    coaching line wrapped to three lines and the After every match page

@@ -17,27 +17,38 @@
 @font-face { font-family: 'Geist Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('../../../assets/fonts/geistmono-400.woff2') format('woff2'); }
 @font-face { font-family: 'Geist Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('../../../assets/fonts/geistmono-500.woff2') format('woff2'); }
 
+/* NO FAKED BOLD (8.6). A weight that is not shipped above draws at the nearest
+   weight that is, never as a thickened copy of it. Chromium otherwise smears a
+   bold over Geist Mono 500 wherever a rule asks the mono face for 600 or 800,
+   and that synthetic weight is neither Geist's drawing nor the same width. */
+html { font-synthesis-weight: none; }
+
 :root {
   /* Brand.
-     ONE accent, not two. The old palette ran Riot red AND cyan, which is one
-     accent too many for a dark minimal interface: everything competed and
-     nothing led. Red is now reserved almost entirely for the coaching state,
-     the one thing a player needs to find instantly, and WHITE does the work
-     cyan used to do.
+     ONE accent, not two, and since 8.6 it is not Valorant's red. --red is THE
+     SIGNAL, #FF5A3C, under its old name: Start's fill, the live record card and
+     its Stop icon, the Recording screen's live dot, the notice line's urgent
+     dot and a destructive action under the pointer, and nowhere else
+     (check:palette holds it to those rules). A loss, a D, a lost round, a
+     death and an error line are an OUTCOME and take --bad below, never the
+     signal. WHITE does the work cyan used to do.
 
      --cyan is deliberately NOT renamed even though it is now white. It is
      consumed 225 times across 15 files, so the established meaning of these two
      tokens is "primary accent" and "secondary accent" rather than the colours
      they are named after. Renaming is a 225 site mechanical edit for no user
      visible gain, and check:palette exists because that class of edit has gone
-     wrong here before. */
-  --red:   #FF4655;
-  --red-2: #ff2d40;
+     wrong here before. New code writes --signal, the same colour by the name
+     of its job. */
+  --red:   #FF5A3C;
+  --red-2: #FE6347;   /* Start under the pointer */
+  --red-3: #E65136;   /* Start pressed */
   --cyan:  #FFFFFF;
-  /* Neutral near-black, not the old blue-black. "Dark and clean" reads neutral;
-     a blue cast reads like a theme. */
-  --bg:    #08090A;
-  --bg-2:  #0E0F11;
+  /* Cool charcoal (8.6): the ground of every surface, a breath cooler than the
+     neutral near-black before it, so the white ink and the one warm signal
+     read as the only colour on it. */
+  --bg:    #0A0B0E;
+  --bg-2:  #0F1116;
 
   /* The same two brand colours as bare RGB triplets, for use inside rgba().
      A colour needs this form to be tinted: rgba(var(--red-rgb), 0.12). Without
@@ -45,13 +56,15 @@
      exactly what happened: 51 copies of the red and 68 of the cyan were written
      out longhand across the surfaces, so changing the palette in one place
      changed almost nothing on screen. */
-  --red-rgb:  255, 70, 85;
+  --red-rgb:  255, 90, 60;
   --cyan-rgb: 255, 255, 255;
-  /* The label colour ON the accent. A token rather than a hardcoded #fff in
-     .btn-primary, so the accent and the thing written on it can only ever move
-     together. That mattered when the accent was repointed per game; it is
-     cheap insurance now. */
-  --on-accent: #FFFFFF;
+  --signal:     var(--red);
+  --signal-rgb: var(--red-rgb);
+  /* The label colour ON the signal, the ground's colour: 6.35:1 on it, where
+     white measured 3.10:1 and failed. A token rather than a hardcoded colour
+     in .btn-rec, so the signal and the thing written on it can only ever move
+     together. */
+  --on-accent: #0A0B0E;
 
   /* Status. These describe an OUTCOME, not the brand, so they stay the same
      whatever palette is active: a win is green in every game. They exist
@@ -80,15 +93,22 @@
   --tier-4: #3FC1AE;   /* Platinum and Emerald */
   --tier-5: #6E8BE0;   /* Diamond and above */
 
-  /* Text */
+  /* Text: three levels of ink, 18.1, 7.7 and 5.0 to 1 on --bg. */
   --text:      #F5F5F7;
   --text-dim:  #A1A1A6;
   --text-mute: #808086;   /* was #6E6E73, which measured 3.93:1 and failed 4.5:1 */
 
+  /* Lines (8.6). --line is the hairline (what --glass-border always was),
+     --line-2 the border of a control and a keycap, --grid the column grid
+     behind Home's header, drawn as elements, never as a gradient. */
+  --line:   rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.16);
+  --grid:   rgba(255, 255, 255, 0.045);
+
   /* Glass */
   --glass-fill:   rgba(13, 14, 16, 0.92);   /* darker, less translucent: readability first */
   --glass-fill-2: rgba(20, 21, 24, 0.82);
-  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-border: var(--line);
   --glass-blur:   18px;
   /* --shadow is for full-bleed surfaces (overlay). Windowed surfaces use
      --shadow-win, which fits inside their transparent margin so it never
@@ -96,13 +116,30 @@
   --shadow:       0 16px 48px rgba(0, 0, 0, 0.60);
   --shadow-win:   0 2px 10px rgba(0, 0, 0, 0.65);
 
-  /* Accent glows */
-  /* The white accent glows as a crisp hairline rather than a halo. A coloured
-     bloom is the thing that read as "gamer" rather than "clean". */
-  --glow-cyan: 0 0 0 1px rgba(var(--cyan-rgb), 0.22), 0 0 24px rgba(var(--cyan-rgb), 0.07);
-  --glow-red:  0 0 0 1px rgba(var(--red-rgb), 0.45), 0 0 22px rgba(var(--red-rgb), 0.22);
+  /* Accent glows: a crisp hairline each, and no halo (8.6). A coloured bloom
+     is the thing that read as "gamer" rather than "clean". --glow-red is used
+     by nothing since the colour pass and is kept for its name. */
+  --glow-cyan: 0 0 0 1px rgba(var(--cyan-rgb), 0.22);
+  --glow-red:  0 0 0 1px rgba(var(--red-rgb), 0.45);
 
-  /* Geometry + motion */
+  /* Paper (8.6): the share image of a Verdict and nothing else. Its three
+     inks measure 16.5, 7.4 and 4.9 to 1 on it. */
+  --paper:       #E9EBF0;
+  --paper-ink:   #0A0B0E;
+  --paper-ink-2: #484A4E;
+  --paper-ink-3: #636568;
+  --paper-line:  rgba(10, 11, 14, 0.14);
+
+  /* Geometry + motion.
+     THE RADII ARE ROLES (8.6): a card or a panel --r-card, a control
+     --r-control, a pill --r-pill, each set by role in a surface's own rules.
+     The three legacy names keep 8, 12 and 16 so that a window shaped frame
+     (the splash, onboarding, activation, weekly's sheet, a learn card) and the
+     focus ring keep their shape: remapped here, weekly's frame would have gone
+     from 16 to 10 with nobody touching weekly. */
+  --r-card: 6px;
+  --r-control: 10px;
+  --r-pill: 999px;
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;
@@ -143,6 +180,7 @@
   --ease-expo:   cubic-bezier(0.16, 1, 0.30, 1);
   /* Slight overshoot for things that should feel springy (badges, confirmations). */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t-press: 80ms;   /* a keycap going down */
   --t-fast: 140ms;
   --t-med:  220ms;
   --t-slow: 420ms;
@@ -157,6 +195,11 @@
 
   --font: 'Geist', -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+  /* The app's own tracking (8.6): titles and big numbers at --track-display
+     on a line of --lh-display, small uppercase labels at --track-label. */
+  --track-display: -0.02em;
+  --lh-display: 1;
+  --track-label: 0.08em;
 }
 
 /* ── One palette ────────────────────────────────────────────────────────────

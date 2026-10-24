@@ -108,8 +108,8 @@ header {
   display: flex; align-items: center; gap: var(--space-2);
   margin-top: var(--space-2);
   padding: 7px 10px;
-  background: rgba(var(--red-rgb), 0.06);
-  border: 1px solid rgba(var(--red-rgb), 0.22);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
   border-radius: var(--r-sm);
 }
 .deathnav .nav-btn { width: 26px; height: 24px; font-size: 15px; }
@@ -148,17 +148,6 @@ header {
   to   { opacity: 1; transform: none; }
 }
 .kh-row { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.keyhint kbd {
-  font-family: var(--font-mono);
-  font-size: 10px; line-height: 1;
-  color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--glass-border);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 3px 5px;
-  min-width: 18px; text-align: center;
-}
 .kh-sep { width: 1px; height: 13px; background: var(--glass-border); }
 .kh-x {
   margin-left: auto; flex: none;
@@ -189,13 +178,13 @@ header {
 }
 /* The first frame that reads dead. Not the death: the death is in the gap
    before it, which is what the note underneath says. */
-.strip-shot.is-dead { border-color: rgba(var(--red-rgb), 0.55); }
+.strip-shot.is-dead { border-color: rgba(var(--bad-rgb), 0.55); }
 .strip-cap {
   display: block; padding: 3px 5px 4px;
   font-size: 10px; line-height: 1.25; color: var(--text-mute);
   text-align: left;
 }
-.strip-shot.is-dead .strip-cap { color: var(--red); }
+.strip-shot.is-dead .strip-cap { color: var(--bad); }
 .strip-note {
   margin: var(--space-2) 0 0; font-size: 11.5px; color: var(--warn);
   line-height: 1.45;
@@ -213,8 +202,8 @@ header {
 .confirm.agrees .dot { background: var(--good); }
 .confirm.missed      { border-color: rgba(var(--warn-rgb), 0.35); color: var(--text); }
 .confirm.missed .dot { background: var(--warn); }
-.confirm.overcounted      { border-color: rgba(var(--red-rgb), 0.4); color: var(--text); }
-.confirm.overcounted .dot { background: var(--red); }
+.confirm.overcounted      { border-color: rgba(var(--bad-rgb), 0.4); color: var(--text); }
+.confirm.overcounted .dot { background: var(--bad); }
 
 .frame-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-dim); }
 .frame-meta .muted { color: var(--text-mute); }
@@ -239,14 +228,14 @@ header {
 .srow .v { flex: 1; color: var(--text); word-break: break-word; }
 /* Highlight the location + alive reads, since those are the usual culprits. */
 .srow.key .v { color: var(--cyan); font-weight: 600; }
-.srow.dead .v { color: var(--red); font-weight: 600; }
+.srow.dead .v { color: var(--bad); font-weight: 600; }
 /* Flags a frame whose map read disagrees with the confirmed map for its stretch,
    so the two readouts never quietly contradict each other. */
 .srow .misread {
   flex: none; align-self: center; padding: 1px 6px; border-radius: 999px;
   font-size: 9.5px; font-weight: 700; white-space: nowrap;
-  color: var(--red); background: rgba(var(--red-rgb), 0.12);
-  border: 1px solid rgba(var(--red-rgb), 0.35);
+  color: var(--bad); background: rgba(var(--bad-rgb), 0.12);
+  border: 1px solid rgba(var(--bad-rgb), 0.35);
 }
 
 /* Why a tip the model produced never reached the player. */
@@ -262,7 +251,7 @@ header {
 }
 .ask-msg.you   { background: rgba(255,255,255,0.05); color: var(--text-dim); align-self: flex-end; max-width: 92%; }
 .ask-msg.coach { background: rgba(var(--cyan-rgb),0.07); border-color: rgba(var(--cyan-rgb),0.28); color: var(--text); }
-.ask-msg.err   { background: rgba(var(--red-rgb),0.08); border-color: rgba(var(--red-rgb),0.30); color: var(--bad); }
+.ask-msg.err   { background: rgba(var(--bad-rgb),0.08); border-color: rgba(var(--bad-rgb),0.30); color: var(--bad); }
 .ask-msg.wait  { color: var(--text-mute); font-style: italic; }
 
 .ask-row { display: flex; gap: 6px; }
@@ -274,12 +263,12 @@ header {
 .ask-input:focus { border-color: rgba(var(--cyan-rgb),0.5); }
 .ask-input::placeholder { color: var(--text-mute); }
 .ask-send {
-  flex: none; font-family: var(--font); font-size: 12px; font-weight: 700; color: #fff;
-  background: var(--red); border: none;
+  flex: none; font-family: var(--font); font-size: 12px; font-weight: 700; color: var(--bg);
+  background: var(--text); border: none;
   border-radius: 8px; padding: 0 14px; cursor: pointer;
-  transition: filter var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
-.ask-send:hover  { filter: brightness(1.08); }
+.ask-send:hover  { background: var(--cyan); }
 .ask-send:active { transform: scale(0.97); }
 .ask-send:disabled { opacity: 0.5; cursor: default; }
 

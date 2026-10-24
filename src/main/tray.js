@@ -1,6 +1,6 @@
 'use strict';
 
-const { Tray, Menu, nativeImage, app } = require('electron');
+const { Tray, Menu, nativeImage, nativeTheme, app } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -13,17 +13,30 @@ const fs   = require('fs');
  * the game went out of sight on a double click. A click and a double click
  * now both bring the window up and to the front (actions.show); the context
  * menu, the right click, is as it was, its Show or Hide still a toggle.
+ *
+ * THE CRESCENT FOLLOWS THE TASKBAR (8.6). The tray draws the crescent alone,
+ * no tile, in the ink on a dark taskbar (tray-dark.ico) and in the ground on
+ * a light one (tray-light.ico), each at the sizes Windows asks for at 100 to
+ * 300% scaling, so no 16px copy is shrunk from a larger picture. Windows
+ * changing its theme repaints it.
  */
 let tray = null;
 
+/** The tray's picture for the taskbar's theme now, or nothing if the file is missing. */
+function trayImage() {
+  const dark = !!(nativeTheme && nativeTheme.shouldUseDarkColorsForSystemIntegratedUI);
+  const file = path.join(__dirname, '../../assets', dark ? 'tray-dark.ico' : 'tray-light.ico');
+  return fs.existsSync(file) ? nativeImage.createFromPath(file) : nativeImage.createEmpty();
+}
+
+function onTheme() {
+  if (tray) tray.setImage(trayImage());
+}
+
 function create(actions) {
   try {
-    const iconPath = path.join(__dirname, '../../assets/icon.png');
-    const icon = fs.existsSync(iconPath)
-      ? nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
-      : nativeImage.createEmpty();
-
-    tray = new Tray(icon);
+    tray = new Tray(trayImage());
+    if (nativeTheme) nativeTheme.on('updated', onTheme);
     tray.setToolTip('Occlara');
     update(false, actions);
     // A double click is a click first, so the window is asked up twice, and
@@ -56,7 +69,8 @@ function update(isCoaching, actions) {
 }
 
 function destroy() {
+  if (nativeTheme) nativeTheme.removeListener('updated', onTheme);
   if (tray) { tray.destroy(); tray = null; }
 }
 
-module.exports = { create, update, destroy };
+module.exports = { create, update, destroy, trayImage };

@@ -48,7 +48,7 @@ function open(target) {
     minHeight:   460,
     transparent: false,
     center:      true,
-    backgroundColor: '#0b1119',
+    backgroundColor: '#0A0B0E',   // is --bg (theme.css)
     show:        false,
     webPreferences: {
       contextIsolation: true,

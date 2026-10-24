@@ -45,7 +45,7 @@
            own HUD in the match and named by Riot's record after it. -->
       <section id="rec" class="rec" aria-label="Recording">
         <div class="rec-controls">
-          <button id="toggle" class="btn btn-primary toggle" type="button">
+          <button id="toggle" class="btn btn-rec toggle" type="button">
             <span class="t-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg></span><span class="t-label">Start</span>
           </button>
           <button id="pause" class="icon-btn lg" type="button" title="Pause or resume (Ctrl+Shift+P)" aria-label="Pause or resume" disabled>
@@ -83,9 +83,11 @@
         <!-- While a match is in progress no page shows: only this. Held (a stop
              in the middle of a match), it says so and the sidebar stays open. -->
         <section id="sealed" class="sealed" aria-label="Recording" hidden>
-          <svg class="sealed-mark" viewBox="0 0 64 64" width="88" height="88" fill="none" role="img" aria-label="Occlara">
-            <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="130.690 20.106" transform="rotate(-54 32 32)"/>
-            <circle class="pupil" cx="32" cy="32" r="6"/>
+          <!-- The crescent, inline so it takes currentColor: the same path as
+               assets/logo-mark.svg, so change both. The live dot is the
+               title's, drawn by shell.css, and it never moves. -->
+          <svg class="sealed-mark" viewBox="0 0 120 120" width="88" height="88" fill="none" role="img" aria-label="Occlara">
+            <path d="M76.294,4.281 A50,50 0 1,0 116.705,74.274 A42,42 0 1,1 76.294,4.281 Z" fill="currentColor"/>
           </svg>
           <h1 id="sealed-title">Recording</h1>
           <p id="sealed-sub" class="sealed-sub">Occlara shows nothing until the match ends. The review opens here the moment it does.</p>

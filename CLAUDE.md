@@ -96,7 +96,7 @@ in `docs/claude/` to find it.
 | Changing the recorder: capture, encoder, what is kept, the disk guard, health | `docs/claude/recorder.md` |
 | Changing clips: cutting, playback, the clip player, the cap, recording Settings and onboarding, dev switches | `docs/claude/clips.md` |
 | Changing the main window, shell, pages, Home, the record card, closing or the tray | `docs/claude/ui.md` |
-| Changing CSS, tokens or fonts, or adding an IPC channel (`channels.js`) | `docs/claude/ui-rules-ipc.md` |
+| Changing CSS, tokens, fonts, the signal's places or the shared components, or adding an IPC channel (`channels.js`) | `docs/claude/ui-rules-ipc.md` |
 | Changing the live read prompt or STATE line, `mapState`, model env vars, call costs, or running `verify:ai` | `docs/claude/live-read.md` |
 | Touching a guard in `coaching-engine.js`: map lock, labels, scoreboard, HP beats death, spectating | `docs/claude/guards.md` |
 | Changing how the agent is read off the HUD (`lookForAgent`, detect-agent, `agent-crop`) | `docs/claude/agent-hud.md` |
@@ -182,14 +182,17 @@ nothing in `src/` hard-codes an installer filename. Verify that before assuming
 any other name here is safe to move: the test is whether something outside this
 repo has the string baked in.
 
-**The logo is an aperture, and it exists in five places.** `assets/logo-mark.svg`
-is the source; `splash/index.html`, `dock/index.html` and the Recording screen in
-`shell/index.html` (a thinner stroke at 88px) inline their own copies so they
-can animate and inherit `currentColor`; `scripts/generate-icon.js` draws it
-mathematically for the `.ico` and `.png`. Change one and change all of them.
-The SVG carries an explicit `color="#FFFFFF"` because an external SVG loaded
-through an `<img>` tag is its own document, so `currentColor` resolves to black
-there and the mark renders invisible on the dark ground.
+**The logo is a crescent, and it exists in five places.** `assets/logo-mark.svg`
+is the source; `splash/index.html` draws it as its two circles with the shade
+in a mask, so the shade can move; `dock/index.html` and the Recording screen in
+`shell/index.html` inline the path, so they take `currentColor`;
+`scripts/generate-icon.js` draws it by arithmetic for the `.ico`, the `.png`
+and the two tray icons. Change one and change all of them, then run
+`node scripts/generate-icon.js`: `npm run test:mark` holds the five to one
+geometry and the icons to what the script draws. The SVG carries an explicit
+`color="#F5F5F7"` because an external SVG loaded through an `<img>` tag is its
+own document, so `currentColor` resolves to black there and the mark renders
+invisible on the dark ground.
 
 **Look at UI changes, do not only compile them.**
 `npx electron scripts/shot-surface.js shell settings` writes real screenshots to

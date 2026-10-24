@@ -20,7 +20,7 @@ header {
 
 /* WON AND LOST beside the title (matches.js paintWinLoss), in Geist Mono at
    the title's own size: 13px here, 24px as a page (below, after ui.css).
-   Wins in --good, losses in --red, the colon between them dim. Each colour
+   Wins in --good, losses in --bad, the colon between them dim. Each colour
    sits on its number, so the colour is never the only signal. */
 .wl {
   display: inline-flex; align-items: baseline; margin-left: var(--space-2);
@@ -28,7 +28,7 @@ header {
 }
 .wl b { font-weight: inherit; }
 .wl-w { color: var(--good); }
-.wl-l { color: var(--red); }
+.wl-l { color: var(--bad); }
 .wl-sep { color: var(--text-mute); }
 
 .tabs { display: flex; gap: 2px; margin-left: auto; padding: 2px; border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--glass-border); }
@@ -81,7 +81,7 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 }
 .p-bar i.good { background: var(--good); }
 .p-bar i.warn { background: var(--warn); }
-.p-bar i.bad  { background: var(--red); }
+.p-bar i.bad  { background: var(--bad); }
 .p-bar i.prov { opacity: 0.55; }
 .p-bar span {
   position: absolute; left: 0; right: 0; bottom: calc(var(--h, 0%) + 4px);
@@ -99,7 +99,7 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 
 .p-freq { font-size: 11px; color: var(--text-mute); }
 .p-trendword { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 6px; }
-.p-trendword.worse { color: var(--red); }
+.p-trendword.worse { color: var(--bad); }
 .p-trendword.better { color: var(--good); }
 .p-trendword.steady { color: var(--text-mute); }
 
@@ -134,7 +134,7 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 .m-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-res { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-mute); flex: none; }
 .m-res.win { color: var(--text); }
-.m-res.loss { color: var(--red); }
+.m-res.loss { color: var(--bad); }
 .m-meta { font-size: 11.5px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-top-mistake { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-grade { display: flex; align-items: center; gap: 8px; }
@@ -147,7 +147,7 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 .m-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
 .m-letter.mid  { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
 .m-letter.warn { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.45); }
-.m-letter.bad  { color: var(--red); border-color: rgba(var(--red-rgb), 0.45); }
+.m-letter.bad  { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.45); }
 .m-letter.none { color: var(--text-mute); }
 
 @media (max-width: 620px) {
@@ -247,7 +247,7 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 .b-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
 .b-letter.mid  { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
 .b-letter.warn { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.45); }
-.b-letter.bad  { color: var(--red); border-color: rgba(var(--red-rgb), 0.45); }
+.b-letter.bad  { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.45); }
 
 /* An open row's detail grows from its row by height and closes back into it
    (.reveal, ui.css; toggleRow in matches.js): the row is the reveal, its cell

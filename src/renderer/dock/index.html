@@ -9,18 +9,15 @@
   <link rel="stylesheet" href="dock.css" />
 </head>
 <body>
-  <!-- Just the floating mark, no status dot, no bubble. Fully click-through;
-       restore is Ctrl+Shift+M or the tray. The logo SVG is inlined so the
-       pupils can aim at the center of the screen from wherever the dock sits. -->
+  <!-- The corner mark: the crescent alone, no status dot, no bubble. Fully
+       click-through; restore is Ctrl+Shift+M or the tray, and it is never on
+       screen during a match (placeMark). Inline rather than an img so it
+       takes currentColor; the same path as assets/logo-mark.svg, so change
+       both or they drift. -->
   <div class="dock">
-    <!-- The mark, inline rather than an img so it can inherit currentColor and
-         tint with the dock's own state. Kept identical in geometry to
-         assets/logo-mark.svg; change both or they drift. -->
-    <svg class="mark" width="26" height="26" viewBox="0 0 64 64" fill="none"
+    <svg class="mark" width="26" height="26" viewBox="0 0 120 120" fill="none"
          xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Occlara">
-      <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="5"
-              stroke-linecap="round" stroke-dasharray="130.690 20.106" transform="rotate(-54 32 32)"/>
-      <circle cx="32" cy="32" r="6" fill="currentColor"/>
+      <path d="M76.294,4.281 A50,50 0 1,0 116.705,74.274 A42,42 0 1,1 76.294,4.281 Z" fill="currentColor"/>
     </svg>
   </div>
   <script src="../shared/i18n-apply.js"></script>

@@ -1,39 +1,33 @@
 <!--
-  Occlara mark: an aperture, reduced to two elements.
+  Occlara mark: a crescent moon, and nothing in it (the player's ask, 8.6).
 
-  Third version, and the simplest. One ring of three arcs was inert; two rings
-  with offset gaps had depth but was busy at 16px, where six arc ends and a
-  pupil turn into noise. This is one ring, one gap, one pupil.
+  Two circles on a 120 unit grid: the disc of radius 50 centred at (71, 54),
+  less the disc of radius 42 centred 18 further on, 30 degrees above the
+  horizontal, at (86.588, 45). The back is 26 units thick, 26 percent of the
+  diameter, which keeps it 3.5px at 16px in the tray. The horns face up and to
+  the right, so it reads as the moon and not as a C beside a word starting
+  with O.
 
-  The single gap does all the work. A ring plus a dot is a target or a reticle;
-  break the ring once and it becomes an aperture, an eye, a lens. That matters
-  because `occl-` reads as OCCLUDE, to block vision, so the mark has to argue
-  OPENING as plainly as it can, and it pairs with the `-clara` half, clarus,
-  clear.
+  It is not centred on its disc. The disc sits right of and above the middle of
+  the box, at the point halfway between the crescent's bounding box centre and
+  its centre of area, which is where a crescent looks centred in a square: the
+  disc centred left the mark hugging the left side of every tile it was put in.
 
-  The gap is 48 degrees, sitting from roughly one o'clock to two. Placing it off
-  the vertical axis is deliberate: a gap at the top reads as a broken circle,
-  and a gap on the diagonal reads as an aperture blade pulling back.
+  It exists in five places, and they change together: this file; the splash,
+  which draws it as its two circles with the shade in a mask so the shade can
+  move; the corner mark (dock) and the Recording screen (shell), which inline
+  this path so they take currentColor; and scripts/generate-icon.js, which
+  draws the same two circles by arithmetic for every icon.
 
-  Dashes rather than a hand-plotted arc. Circumference is 2*pi*24 = 150.796, so
-  a 48 degree gap is 20.106 and the remaining stroke is 130.690. Hand-plotting
-  the arc drifts a fraction of a degree and the ends stop looking parallel.
+  color="#F5F5F7" on the root is load-bearing. Through an <img> an SVG is its
+  own document and currentColor resolves against it, so without a default the
+  mark falls back to black and is invisible on the dark ground. #F5F5F7 is
+  the app's ink, the text token in theme.css.
 
-  color="#FFFFFF" on the root is load-bearing. Nearly every surface uses this
-  file through an <img>, and an external SVG loaded that way is its own
-  document: currentColor resolves against the SVG, not the page, so without a
-  default it falls back to black and the mark is invisible on the dark ground.
-
-  Sizes it must survive: 16px in the Windows tray, 20px in a panel header. At
-  16px the stroke lands near 1.25px and the pupil near 3px. Two elements is what
-  makes that legible.
+  No double hyphen anywhere in this comment: XML forbids one inside a
+  comment, and the file then fails to parse and every img showing it breaks.
 -->
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none"
-     xmlns="http://www.w3.org/2000/svg" color="#FFFFFF" role="img" aria-label="Occlara">
-  <circle cx="32" cy="32" r="24"
-          fill="none" stroke="currentColor" stroke-width="5"
-          stroke-linecap="round"
-          stroke-dasharray="130.690 20.106"
-          transform="rotate(-54 32 32)"/>
-  <circle cx="32" cy="32" r="6" fill="currentColor"/>
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none"
+     xmlns="http://www.w3.org/2000/svg" color="#F5F5F7" role="img" aria-label="Occlara">
+  <path d="M76.294,4.281 A50,50 0 1,0 116.705,74.274 A42,42 0 1,1 76.294,4.281 Z" fill="currentColor"/>
 </svg>

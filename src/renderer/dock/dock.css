@@ -4,12 +4,14 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
   position: relative;
   width: 100%; height: 100%;
   display: grid; place-items: center;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+  /* A one pixel dark rim, then the soft fall: white on a light desktop kept
+     only its blur, and the rim is what gives it an edge there. */
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
   animation: dockIn 280ms var(--ease) both;
 }
-/* White on dark needs no coloured bloom; the old red glow was the single most
-   "gamer" thing on the dock. A slow bob is kept because the dock is a live
-   presence indicator, and stillness reads as crashed. */
-.mark { color: var(--text); animation: bob 4s ease-in-out infinite; }
-@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+/* A slow drift of two pixels, the moon's own pace: the mark is a presence
+   between matches, and stillness read as crashed. It is gone mid match, and
+   asked for less motion it holds still (theme.css). */
+.mark { color: var(--text); animation: drift 6s ease-in-out infinite alternate; }
+@keyframes drift { from { transform: translateY(0); } to { transform: translateY(-2px); } }
 @keyframes dockIn { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }

@@ -43,7 +43,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 /* A way on from a card's head (All matches, Rank journey) keeps its padding to
    be pressed, and gives it back in margin, so the head is as tall as its
    label and the word lines up with the card's edge. */
-.card-head .btn-ghost { padding: 8px 12px; margin: -8px -12px -8px 0; }
+.card-head .btn-link { padding: 8px 12px; margin: -8px -12px -8px 0; }
 .label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-mute); }
 
 .empty h2 { font-size: 17px; font-weight: 700; }
@@ -70,7 +70,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .focus-text { font-size: 16px; font-weight: 600; line-height: 1.5; }
 
 .top-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: 15px; }
-.top-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+.top-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
 .trend { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-mute); }
 .trend.rising { color: var(--bad); }
 .fix { font-size: 13px; line-height: 1.5; }
@@ -91,7 +91,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .rank-tier { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; white-space: nowrap; }
 .rank-rr, .r-rr { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text-mute); white-space: nowrap; }
 .rank-rr.gain, .r-rr.gain { color: var(--good); }
-.rank-rr.loss, .r-rr.loss { color: var(--red); }
+.rank-rr.loss, .r-rr.loss { color: var(--bad); }
 .rank-rr.even, .r-rr.even { color: var(--text-mute); }
 /* The line is laid over its box rather than in it: in the flow, its own
    shape (100 by 40) set the box's height from its width. */
@@ -125,7 +125,7 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .bar.good { background: var(--good); }
 .bar.mid { background: var(--text); }
 .bar.warn { background: var(--warn); }
-.bar.bad { background: var(--red); }
+.bar.bad { background: var(--bad); }
 .bar-num {
   position: absolute; left: 0; right: 0; bottom: calc(var(--h, 0%) + 6px);
   text-align: center; font-family: var(--font-mono); font-size: 12px; line-height: 12px; color: var(--text-dim);
