@@ -1,67 +1,22 @@
 {
-  "generatedAt": "2026-10-26T20:13:51.688Z",
-  "patch": "13.08",
-  "buildDate": "2026-10-15T22:27:44Z",
-  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-08/",
-  "headline": "The definitive source on all updates coming to the game.",
-  "changes": [
-    {
-      "type": "map",
-      "names": [
-        "Ascent",
-        "Split",
-        "Bind",
-        "Corrode"
-      ],
-      "line": "TL;DR: Vanguard continues to go brr, Map Rating is here, Performance Score has been updated, Corrode got some sweet new updates, Ascent and Split are out, Corrode and Bind are in, and we fixed some bugs."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Killjoy"
-      ],
-      "line": "Killjoy Alarmbot projectile destruction VFX and audio feedback will now trigger when projectile is destroyed by moving doorways"
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Chamber"
-      ],
-      "line": "Made Chamber specific adjustments that better reflect his utility use."
-    },
-    {
-      "type": "map",
-      "names": [
-        "Corrode"
-      ],
-      "line": "Happy belated birthday, Corrode! After more than a year of watching games and gathering data, we’ve identified a few areas we’d like to improve."
-    },
-    {
-      "type": "map",
-      "names": [
-        "Bind",
-        "Corrode"
-      ],
-      "line": "BIND and CORRODE are IN the COMPETITIVE and DEATHMATCH queues."
-    },
-    {
-      "type": "map",
-      "names": [
-        "Ascent",
-        "Split"
-      ],
-      "line": "ASCENT and SPLIT are OUT of the COMPETITIVE and DEATHMATCH queues."
-    },
-    {
-      "type": "weapon",
-      "names": [
-        "Warden"
-      ],
-      "line": "Fix for Warden scope reticle misalignment during full auto fire"
-    }
-  ],
-  "notesFound": true,
+  "generatedAt": "2026-10-27T19:45:01.927Z",
+  "patch": "13.09",
+  "buildDate": "2026-10-23T21:56:06Z",
+  "source": null,
+  "headline": null,
+  "changes": [],
+  "notesFound": false,
   "history": [
+    {
+      "patch": "13.09",
+      "date": "2026-10-23T21:56:06Z",
+      "dateFrom": "buildDate",
+      "source": null,
+      "notesFound": false,
+      "linesKept": "all",
+      "capped": false,
+      "lines": []
+    },
     {
       "patch": "13.08",
       "date": "2026-10-13T13:00:00.000Z",
@@ -376,6 +331,10 @@
         },
         {
           "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
@@ -1053,7 +1012,7 @@
           "names": []
         },
         {
-          "line": "2026-10-13T13:00:00.000Z",
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
@@ -1325,7 +1284,7 @@
           "names": []
         },
         {
-          "line": "2026-10-13T13:00:00.000Z",
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
@@ -1479,7 +1438,7 @@
           "names": []
         },
         {
-          "line": "2026-10-13T13:00:00.000Z",
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
@@ -1817,7 +1776,7 @@
           "names": []
         },
         {
-          "line": "2026-10-13T13:00:00.000Z",
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
@@ -2300,7 +2259,7 @@
           "names": []
         },
         {
-          "line": "2026-10-13T13:00:00.000Z",
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
@@ -2983,7 +2942,7 @@
           "names": []
         },
         {
-          "line": "2026-10-13T13:00:00.000Z",
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
@@ -3225,7 +3184,7 @@
           "names": []
         },
         {
-          "line": "2026-10-13T13:00:00.000Z",
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
@@ -3440,7 +3399,7 @@
           "names": []
         },
         {
-          "line": "2026-10-13T13:00:00.000Z",
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
@@ -3857,7 +3816,7 @@
           "names": []
         },
         {
-          "line": "2026-09-22T13:00:00.000Z",
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
@@ -4337,182 +4296,7 @@
           "names": []
         },
         {
-          "line": "2026-10-13T13:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
-          "names": []
-        }
-      ]
-    },
-    {
-      "patch": "12.07",
-      "date": "2026-04-14T13:00:00.000Z",
-      "dateFrom": "article",
-      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-12-07/",
-      "notesFound": true,
-      "linesKept": "all",
-      "capped": false,
-      "lines": [
-        {
-          "line": "VALORANT Patch Notes 12.07",
-          "names": []
-        },
-        {
-          "line": "Game Updates Ashley Tsao",
-          "names": []
-        },
-        {
-          "line": "2026-04-14T13:00:00.000Z",
-          "names": []
-        },
-        {
-          "line": "Hey folks! It’s Ash here. Got a small update for ya and here’s the TLDR;",
-          "names": []
-        },
-        {
-          "line": "VALORANT is partnering with Discord so you can link accounts and invite friends in Discord directly from the game.",
-          "names": []
-        },
-        {
-          "line": "[PC only] Updated Settings screens to improve functionality and visual clarity",
-          "names": []
-        },
-        {
-          "line": "Lots of bug fixes",
-          "names": []
-        },
-        {
-          "line": "ALL PLATFORMS",
-          "names": []
-        },
-        {
-          "line": "BUG FIXES",
-          "names": []
-        },
-        {
-          "line": "Cosmetics",
-          "names": []
-        },
-        {
-          "line": "We’ve made some updates to several scope reticles to make them more consistent in the center range of view with the base scope reticle. Here is the list of updated skins: Kuronami Marshal, EX.O Marshal, Nocturnum Marshal, Araxys Outlaw and Operator. Thanks to Grimm for the feedback!",
-          "names": [
-            "Operator",
-            "Outlaw",
-            "Marshal"
-          ]
-        },
-        {
-          "line": "Store",
-          "names": []
-        },
-        {
-          "line": "Gifting ineligibility screen now extends the full width of the screen.",
-          "names": []
-        },
-        {
-          "line": "Fixed various clipping issues when at the purchase confirm step while purchasing a gun buddy.",
-          "names": []
-        },
-        {
-          "line": "Fixed header text coloring on purchase confirm screen.",
-          "names": []
-        },
-        {
-          "line": "Fixed various inconsistencies with bundle detail buttons.",
-          "names": []
-        },
-        {
-          "line": "Fixed issue that caused sprays to appear darkened when previewing in the purchase flow.",
-          "names": []
-        },
-        {
-          "line": "Bundle carousels are now a consistent height across all points of the purchase flow.",
-          "names": []
-        },
-        {
-          "line": "Removed icon from feared bundle tile while bundle is owned.",
-          "names": []
-        },
-        {
-          "line": "Resolved discoloration of offer tile while gifting a flex.",
-          "names": []
-        },
-        {
-          "line": "Resolved performance issue where having a large friends list was causing slight lag.",
-          "names": []
-        },
-        {
-          "line": "PC ONLY",
-          "names": []
-        },
-        {
-          "line": "GENERAL UPDATES",
-          "names": []
-        },
-        {
-          "line": "The settings screens have been revamped to improve functionality and visual clarity",
-          "names": []
-        },
-        {
-          "line": "Added parent-child association for related settings",
-          "names": []
-        },
-        {
-          "line": "Added hover tooltips",
-          "names": []
-        },
-        {
-          "line": "Settings previously under General - Other are broken into 3 sections: User Interface, Content Filtering, Network",
-          "names": []
-        },
-        {
-          "line": "Visual refresh",
-          "names": []
-        },
-        {
-          "line": "We understand some of you quickly adjust settings during games, and we didn’t want to jeopardize that experience. The experience should largely feel the same but with improved QOL.",
-          "names": []
-        },
-        {
-          "line": "SOCIAL UPDATES",
-          "names": []
-        },
-        {
-          "line": "Discord 🤝Riot",
-          "names": []
-        },
-        {
-          "line": "VALORANT is partnering with Discord to make getting into your next game with your friends easier. You can now link your accounts to unlock new social features!",
-          "names": []
-        },
-        {
-          "line": "Invite friends in Discord straight to your party from within VALORANT. No alt-tabbing needed!",
-          "names": []
-        },
-        {
-          "line": "Copy a lobby link and share it directly on your server or anywhere your friends are.",
-          "names": []
-        },
-        {
-          "line": "See which of your Discord friends play VALORANT and jump into parties faster.",
-          "names": []
-        },
-        {
-          "line": "This will roll out as a beta in Brazil first, followed by the US & Canada on April 21, PT time. It will exit beta and launch globally with patch 12.08 on April 29, PT time.",
-          "names": []
-        },
-        {
-          "line": "Related Articles",
-          "names": []
-        },
-        {
-          "line": "Game Updates",
-          "names": []
-        },
-        {
-          "line": "2026-10-13T13:00:00.000Z",
+          "line": "2026-10-27T13:00:00.000Z",
           "names": []
         },
         {
