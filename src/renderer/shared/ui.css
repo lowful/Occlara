@@ -74,7 +74,7 @@
 .btn-link:where(:not(:disabled)):active { transform: none; box-shadow: none; }
 
 /* START: the ONE saturated fill in the app, the signal, with the ground's
-   colour on it (6.35:1; white on it measured 3.10:1). Its hover and its press
+   colour on it (4.65:1; white on it measures 4.23:1, under the 4.5 the label needs). Its hover and its press
    leave Stop alone (.active): unscoped, the press rule outweighed
    .toggle.active and flashed the signal across Stop as it was pressed. */
 .btn-rec {

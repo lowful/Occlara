@@ -127,7 +127,7 @@ settings, stats, history, ailog, chat, weekly, activation, audio.
 **Design tokens live in `src/renderer/shared/theme.css`** and are imported by
 every surface. Use the variables, never hardcode:
 
-- `--red` `#FF5A3C`, the signal (8.6), `--cyan` `#FFFFFF`, `--bg` `#0A0B0E`.
+- `--red` `#E5383B`, the signal (8.6), `--cyan` `#FFFFFF`, `--bg` `#0A0B0E`.
   **The names are historical**: `--red` is the signal and `--cyan` is white, and
   they mean "primary accent" and "secondary accent". Do not rename them, they
   are consumed 225 times across 15 files and `npm run check:palette` exists

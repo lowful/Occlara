@@ -26,7 +26,7 @@ html { font-synthesis-weight: none; }
 :root {
   /* Brand.
      ONE accent, not two, and since 8.6 it is not Valorant's red. --red is THE
-     SIGNAL, #FF5A3C, under its old name: Start's fill, the live record card and
+     SIGNAL, #E5383B, under its old name: Start's fill, the live record card and
      its Stop icon, the Recording screen's live dot, the notice line's urgent
      dot and a destructive action under the pointer, and nowhere else
      (check:palette holds it to those rules). A loss, a D, a lost round, a
@@ -40,12 +40,12 @@ html { font-synthesis-weight: none; }
      visible gain, and check:palette exists because that class of edit has gone
      wrong here before. New code writes --signal, the same colour by the name
      of its job. */
-  --red:   #FF5A3C;
-  --red-2: #FE6347;   /* Start under the pointer */
-  --red-3: #E65136;   /* Start pressed */
+  --red:   #E5383B;
+  --red-2: #F04A4D;   /* Start under the pointer */
+  --red-3: #C9302F;   /* Start pressed */
   --cyan:  #FFFFFF;
   /* Cool charcoal (8.6): the ground of every surface, a breath cooler than the
-     neutral near-black before it, so the white ink and the one warm signal
+     neutral near-black before it, so the white ink and the one red signal
      read as the only colour on it. */
   --bg:    #0A0B0E;
   --bg-2:  #0F1116;
@@ -56,12 +56,12 @@ html { font-synthesis-weight: none; }
      exactly what happened: 51 copies of the red and 68 of the cyan were written
      out longhand across the surfaces, so changing the palette in one place
      changed almost nothing on screen. */
-  --red-rgb:  255, 90, 60;
+  --red-rgb:  229, 56, 59;
   --cyan-rgb: 255, 255, 255;
   --signal:     var(--red);
   --signal-rgb: var(--red-rgb);
-  /* The label colour ON the signal, the ground's colour: 6.35:1 on it, where
-     white measured 3.10:1 and failed. A token rather than a hardcoded colour
+  /* The label colour ON the signal, the ground's colour: 4.65:1 on it, where
+     white measures 4.23:1 and failed. A token rather than a hardcoded colour
      in .btn-rec, so the signal and the thing written on it can only ever move
      together. */
   --on-accent: #0A0B0E;

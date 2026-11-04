@@ -29,9 +29,9 @@ literal outside it).
 | `--line` | white at .09 | the hairline: every rule between rows and over a section |
 | `--line-2` | white at .16 | a control's border, a keycap's, a letter mark's |
 | `--grid` | white at .045 | Home's column grid, drawn as elements |
-| `--signal` (`--red`) | `#FF5A3C` | Start and the signal's other places, nothing else |
-| `--red-2`, `--red-3` | `#FE6347`, `#E65136` | Start under the pointer, Start pressed |
-| `--on-accent` | `#0A0B0E` | the label on the signal (6.35:1) |
+| `--signal` (`--red`) | `#E5383B` | Start and the signal's other places, nothing else |
+| `--red-2`, `--red-3` | `#F04A4D`, `#C9302F` | Start under the pointer, Start pressed |
+| `--on-accent` | `#0A0B0E` | the label on the signal (4.65:1) |
 | `--cyan` | `#FFFFFF` | the secondary accent, white; the focus ring |
 | `--good`, `--warn`, `--bad` | `#52C88A`, `#D9A441`, `#E8636F` | outcomes only, never the brand |
 | `--paper*` | | the Verdict's share image alone |
