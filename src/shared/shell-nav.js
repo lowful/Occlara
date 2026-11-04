@@ -7,8 +7,9 @@
  * Since 8.1 the app is one window: a sidebar, and the page beside it. Each
  * page is an existing surface loaded in a view of its own (main-window.js), so
  * a page keeps its scroll, its chat and its state when the player goes
- * elsewhere and comes back. Matches, Patterns and Breakdown are three sections
- * of the one library surface, which used to be a single long scroll.
+ * elsewhere and comes back. Matches and Patterns are two sections of the one
+ * library surface, which used to be a single long scroll; Moments (8.7) is a
+ * surface of its own, in the place the Breakdown tab had.
  *
  * THE SEAL. Nothing reaches the screen during a match, so while one is in
  * progress the window shows no page at all, only the Recording screen the
@@ -23,7 +24,9 @@ const PAGES = [
   { id: 'home', label: 'Home', surface: 'home', query: {}, preload: 'home-preload.js', nav: true },
   { id: 'matches', label: 'Matches', surface: 'matches', query: { section: 'list' }, preload: 'matches-preload.js', nav: true },
   { id: 'patterns', label: 'Patterns', surface: 'matches', query: { section: 'patterns' }, preload: 'matches-preload.js', nav: true },
-  { id: 'breakdown', label: 'Breakdown', surface: 'matches', query: { section: 'breakdown' }, preload: 'matches-preload.js', nav: true },
+  // Moments (8.7) took the Breakdown tab's place: the player's deaths and
+  // highlights, compiled. The breakdown's numbers fold into Patterns.
+  { id: 'moments', label: 'Moments', surface: 'moments', query: {}, preload: 'moments-preload.js', nav: true },
   { id: 'stats', label: 'Stats', surface: 'stats', query: {}, preload: 'stats-preload.js', nav: true },
   { id: 'coach', label: 'Ask Coach', surface: 'chat', query: {}, preload: 'chat-preload.js', nav: true },
   // The Invite page (8.7): a button in the sidebar's foot directly above

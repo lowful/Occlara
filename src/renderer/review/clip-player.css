@@ -1,0 +1,164 @@
+/* palette: tokens only */
+/* THE CLIP PLAYER (8.4.4, clip-player.js), shared by the review page and the
+   Moments page (8.7): the clip framed as a clip image is, a timeline with the
+   death marked on it in --bad and the coach's stills where they were taken,
+   one row of controls, the time as seconds from the death and the speed.
+   Moved here from review.css so the compilation player on Moments plays a
+   clip with the same marks and the same keys; the rules a page adds around
+   it (the stills under a review's clip, a clip gone) stay in that page's
+   stylesheet. */
+
+/* The clip of a moment (8.3): the recording's own seconds around the death,
+   the frame the coach looked at as its picture until it plays, and its player
+   under it (8.4.4, clip-player.js): a timeline, then one row of controls, the
+   time as seconds from the death and the speed. The picture keeps its mark in
+   the middle until the clip is first played or moved, a picture of the play
+   button below, so it never sits over a frame being studied. The clip
+   player's own pass refines these at the end of this file. */
+.v-clip { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); border-radius: var(--r-sm); }
+.v-clip:focus { outline: none; }
+.v-clip:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+.v-clip-frame { position: relative; }
+.v-clip-video {
+  display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain;
+  border-radius: var(--r-sm); border: 1px solid var(--glass-border);
+  background: rgb(0, 0, 0); cursor: pointer;
+}
+.v-clip-big {
+  position: absolute; left: 50%; top: 50%;
+  width: 44px; height: 44px; margin: -22px 0 0 -22px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.55); color: var(--text);
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.v-clip-big .v-clip-mark { width: var(--icon-md); height: var(--icon-md); }
+.v-clip.started .v-clip-big { opacity: 0; }
+
+/* The timeline. The range lies over a track drawn under it, so the filled
+   part is a solid fill of its own, scaled from the left (--p, the place in
+   the clip, set by the player), and the marks sit on the track where the
+   thumb's centre passes them: the track is inset by half the thumb. */
+.cp-bar { display: flex; flex-direction: column; gap: var(--space-1); }
+.cp-line { position: relative; height: 20px; --p: 0; }
+.cp-track {
+  position: absolute; left: 6px; right: 6px; top: 8px; height: 4px;
+  border-radius: var(--r-sm); background: rgba(255, 255, 255, 0.14);
+}
+.cp-fill {
+  position: absolute; inset: 0; border-radius: inherit;
+  background: var(--text-dim);
+  transform-origin: 0 50%; transform: scaleX(var(--p));
+}
+/* The coach's stills, white, and the death, --bad and taller than the thumb,
+   so it shows past it when the clip is at the death, and never told by its
+   colour alone: the time beside the row says "At the death" on its frame. */
+.cp-mark {
+  position: absolute; top: -4px; bottom: -4px; left: calc(var(--p) * 100%);
+  width: 2px; margin-left: -1px; border-radius: 1px;
+  background: rgba(255, 255, 255, 0.55);
+}
+.cp-mark.death { top: -7px; bottom: -7px; width: 3px; margin-left: -1.5px; background: var(--bad); }
+.cp-mark[hidden] { display: none; }
+.cp-seek {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  -webkit-appearance: none; appearance: none;
+  background: transparent; cursor: pointer;
+}
+.cp-seek::-webkit-slider-runnable-track { height: 100%; background: transparent; border: 0; }
+.cp-seek::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 12px; height: 12px; margin-top: 4px; border-radius: 50%; border: 0;
+  background: var(--text);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.45);
+}
+.cp-seek:focus-visible { outline: none; }
+.cp-seek:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(var(--cyan-rgb), 0.35); }
+
+/* The row: play and the five moves, the time, the speed at the far end. It
+   wraps the speed under the rest where the clip is narrow. */
+.cp-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); }
+.cp-btn { width: 28px; height: 28px; padding: 0; border-radius: var(--r-sm); }
+.cp-btn .v-clip-mark { width: var(--icon-sm); height: var(--icon-sm); }
+.v-clip-play .v-clip-mark.pause { display: none; }
+.v-clip.playing .v-clip-play .v-clip-mark.play { display: none; }
+.v-clip.playing .v-clip-play .v-clip-mark.pause { display: block; }
+.cp-time {
+  margin-left: var(--space-2); min-width: 12ch;
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 500;
+  color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.cp-time.at-death { color: var(--bad); }
+.cp-speed {
+  margin-left: auto; display: flex; gap: 2px; padding: 2px;
+  border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--glass-border);
+}
+.cp-rate {
+  font: 600 11px var(--font); color: var(--text-dim);
+  padding: 3px 8px; border: 0; border-radius: calc(var(--r-sm) - 2px);
+  background: transparent; cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.cp-rate:hover { color: var(--text); }
+.cp-rate[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.cp-rate:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .v-clip-big, .cp-btn, .cp-rate { transition: none; }
+}
+
+/* ── surface additions: the clip player (8.7 redesign) ────────────────────
+   Appended by the clip player's own pass (clip-player.js). The rules above
+   stay as the tests read them (.cp-mark.death in --bad, .cp-fill scaled by
+   --p, the reduced motion line); these refine them: a 2px hairline scrub bar
+   with a precise thumb, the death a tick in --bad, the stills thinner ticks,
+   capsule transport buttons (the play one in ink), and the speed as one
+   capsule whose thumb slides to the rate chosen (--i, set by the player). */
+.v-clip { gap: var(--space-3); border-radius: var(--r-card); }
+.v-clip-video { border-radius: var(--r-card); border-color: var(--line); }
+.v-clip-big {
+  width: 48px; height: 48px; margin: -24px 0 0 -24px;
+  border-color: var(--line-2); background: rgba(0, 0, 0, 0.6);
+  box-shadow: var(--hi), var(--drop);
+  transition: opacity var(--t-fast) var(--ease), transform var(--t-med) var(--ease-expo);
+}
+.v-clip.started .v-clip-big { transform: scale(0.9); }
+.cp-bar { gap: var(--space-2); }
+.cp-line { height: 24px; }
+.cp-track { left: 7px; right: 7px; top: 11px; height: 2px; border-radius: 1px; background: var(--line-2); }
+.cp-mark { top: -4px; bottom: -4px; width: 1px; margin-left: -0.5px; border-radius: 0; background: rgba(255, 255, 255, 0.4); }
+.cp-mark.death { top: -6px; bottom: -6px; width: 2px; margin-left: -1px; }
+.cp-seek::-webkit-slider-thumb {
+  width: 12px; height: 12px; margin-top: 6px;
+  background: var(--text);
+  box-shadow: var(--hi-ink), 0 0 0 2px var(--bg), var(--drop);
+  transition: transform var(--t-fast) var(--ease);
+}
+.cp-seek:hover::-webkit-slider-thumb, .cp-seek:active::-webkit-slider-thumb { transform: scale(1.15); }
+.cp-seek:focus-visible::-webkit-slider-thumb { box-shadow: var(--hi-ink), 0 0 0 2px var(--bg), 0 0 0 4px rgba(var(--cyan-rgb), 0.55); }
+.cp-row { gap: var(--space-2); }
+.cp-btn { width: 32px; height: 32px; border-radius: var(--r-btn); }
+.v-clip-play { background: var(--text); border-color: transparent; color: var(--bg); box-shadow: var(--hi-ink), var(--drop); }
+.v-clip-play:where(:not(:disabled)):hover { background: var(--cyan); border-color: transparent; color: var(--bg); box-shadow: var(--hi-ink), var(--drop-hover); }
+.v-clip-play:where(:not(:disabled)):active { box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
+.cp-time { margin-left: var(--space-2); font-size: 12px; }
+.cp-speed {
+  position: relative; --i: 0;
+  gap: 0; padding: 3px;
+  border: 1px solid var(--line-2); border-radius: var(--r-btn);
+  background: rgba(0, 0, 0, 0.32); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.cp-speed::before {
+  content: ''; position: absolute; top: 3px; bottom: 3px; left: 3px; width: 44px;
+  border-radius: var(--r-btn); background: var(--text); box-shadow: var(--hi-ink), var(--drop);
+  transform: translateX(calc(var(--i) * 44px));
+  transition: transform var(--t-med) var(--ease-expo);
+  pointer-events: none;
+}
+.cp-rate {
+  position: relative; width: 44px; height: 24px; padding: 0;
+  font: 500 12px var(--font); border-radius: var(--r-btn); color: var(--text-dim);
+  transition: color var(--t-fast) var(--ease);
+}
+.cp-rate[aria-pressed="true"], .cp-rate[aria-pressed="true"]:hover { background: transparent; color: var(--bg); }

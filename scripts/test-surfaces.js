@@ -1177,7 +1177,7 @@ async function openShell(cfg, state, opts) {
     await settle();
     ok(wl.hidden, 'nor does an empty library');
     results.valorant = ['Victory', 'Defeat'];
-    for (const s of ['patterns', 'breakdown']) {
+    for (const s of ['patterns']) {
       const p = await open(s);
       ok(p.$('wl').hidden && p.document.querySelectorAll('#list .m-res').length === 2,
         `the ${s} page, titled for what it counts, carries no record`);
@@ -3775,7 +3775,8 @@ async function openShell(cfg, state, opts) {
     ok(stills.length === 5 && same(stills.map((x) => x.style['--p']), AT.map((a) => pOf(DEATH + a * 1000))) && stills.every((x) => !x.hidden),
       'and the coach\'s five stills where they were taken, by their seconds from it', stills.map((x) => x.style['--p']).join(' '));
     ok(range.title === 'The red mark is the death, the white ones the coach\'s stills', 'the timeline says what its marks are', range.title);
-    const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
+    // The player's rules are clip-player.css (8.7), shared with the Moments page.
+    const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'clip-player.css'), 'utf8');
     ok(/\.cp-mark\.death \{[^}]*background: var\(--bad\);/.test(rcss) && /\.cp-fill \{[^}]*background: var\(--text-dim\);[^}]*transform: scaleX\(var\(--p\)\);/.test(rcss)
       && !/gradient/.test(rcss),
     'the death in --bad, the timeline filled with a solid fill scaled to its place, and no gradient');
@@ -5809,6 +5810,182 @@ async function openShell(cfg, state, opts) {
     s.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: 'home', sealed: false, held: false });
     await settle();
     ok(!s.$('nav-invite').disabled && s.$('nav-invite').querySelector('svg').innerHTML.includes('circle'), 'and the seal lifted, its own icon is back');
+  });
+
+  // THE MOMENTS PAGE (8.7), in the Breakdown tab's place: the deaths and
+  // highlights main compiled (shared/moments.js), under each match's line,
+  // the compilation by repeated mistake over them, a filter, the clips, and
+  // the player that plays a pattern's kept clips back to back, after a match
+  // only. The page counts nothing: every line is main's.
+  await section('the Moments page: deaths and highlights under each match, the compilation, the filter and its player:', async () => {
+    const moments = require('../src/shared/moments');
+    const patterns = require('../src/shared/patterns');
+    const ISOLATED = require('../src/shared/death-causes').CAUSES.isolated.one;
+    const { replay, load } = require('./fixtures/replay-match');
+    const verify = require('../src/shared/valorant-verify');
+    const valorantReview = require('../src/shared/valorant-review');
+    const played = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
+    const { rounds } = verify.reconcile(played.rounds, load('riot-abyss-13-11.json'));
+    const T0 = Date.UTC(2026, 10, 1, 20);
+    const look = (r, extra) => ({ ...r, forensics: { cause: 'isolated', what: 'You swung the angle alone.', better: 'Wait for a teammate.', source: 'riot', at: T0, ...extra } });
+    const withLooks = rounds.map((r) => (r.n === 2 ? look(r, { clip: 'r2-clip.mkv', clipDeath: 11200 }) : r.n === 6 ? look(r, { clip: 'r6-clip.mkv', clipDeath: 9800 }) : r));
+    const rv = valorantReview.build({ rounds: withLooks, context: { ...played.context, agent: 'Jett' }, endedBy: 'score',
+      ai: {}, role: 'Duelist', history: [], riotMe: { kills: 31, deaths: 21, assists: 4, score: 9168 } });
+    const saved = [0, 1].map((i) => ({ id: `valorant-${T0 - i * 3600000}-sur${i}`, at: T0 - i * 3600000, game: 'valorant',
+      review: { ...rv, kind: 'valorant', ...(i ? { clipsCleared: { reason: 'space', at: T0 } } : {}) } }));
+    const onDisk = { [saved[0].id]: ['r2-clip.mkv', 'r6-clip.mkv'] };
+    const url = (id, name) => `occlara-clip://review/${id}/${name}`;
+    const data = moments.build('valorant', saved, { patterns: patterns.summarise(saved), clips: (id) => onDisk[id] || [], url, recordingMode: 'auto' });
+    let sealed = false;
+    const open = async (got) => {
+      const q = loadSurface('moments', { handlers: {
+        [C.STATE_GET]: () => ({ gameId: 'valorant', isCoaching: false }),
+        [C.SHELL_GET]: () => ({ page: 'moments', shown: sealed ? null : 'moments', sealed, held: false }),
+        [C.MOMENTS_GET]: () => got,
+      } });
+      await settle();
+      return q;
+    };
+    const q = await open(data);
+    ok(q.$('mo-wait').hidden && !q.$('mo-log').hidden && q.$('mo-empty').hidden, 'with saved matches it shows the log');
+    const all = data.matches.reduce((n, m) => n + m.moments.length, 0);
+    ok(q.document.querySelectorAll('#mo-list .mo-match').length === 2 && q.document.querySelectorAll('#mo-list .mo-row').length === all,
+      'one section a match, one row a moment', `${q.document.querySelectorAll('#mo-list .mo-row').length} of ${all}`);
+    const head = q.document.querySelector('#mo-list .mo-match .mo-mhead');
+    ok(head && /Victory 13-11/.test(head.querySelector('.mo-res').textContent) && head.querySelector('.mo-res').classList.contains('win')
+      && /Jett on Abyss/.test(head.querySelector('.mo-who').textContent) && head.querySelector('.mo-score').textContent === String(rv.grade.score)
+      && head.querySelector('.gv-letter').textContent === rv.grade.letter,
+      'the match line: the result and score in its tone, the agent on the map, the grade as its number and letter', head && head.textContent);
+    ok(q.$('mo-counts').textContent === `${data.counts.deaths} deaths, ${data.counts.highlights} highlights, 2 clips across 2 matches`,
+      'the counts line is main\'s counts', q.$('mo-counts').textContent);
+    const rowOf = (id, n) => q.document.querySelector(`#mo-list .mo-row[data-key="${id}:r${n}"]`);
+    const r2 = rowOf(saved[0].id, 2);
+    ok(r2 && r2.querySelector('.mo-kind').classList.contains('death') && r2.querySelector('.mo-mtitle').textContent === ISOLATED
+      && r2.querySelector('.mo-mline').textContent === 'You swung the angle alone.' && /^\d+ s in$/.test(r2.querySelector('.mo-time').textContent),
+      'a death the coach looked at: its cause, what it saw, its time', r2 && r2.textContent);
+    ok(r2 && r2.querySelector('.mo-mark.across') && [...r2.querySelectorAll('.mo-mark')].some((m) => m.textContent === ISOLATED),
+      'marked with the repeated mistakes it belongs to, across matches', r2 && [...r2.querySelectorAll('.mo-mark')].map((m) => m.textContent).join('|'));
+    ok(r2 && r2.querySelector('.mo-play') && r2.querySelector('.mo-play').getAttribute('aria-label') === 'Play the clip of round 2', 'and a play button for its clip');
+    const old2 = rowOf(saved[1].id, 2);
+    ok(old2 && !old2.querySelector('.mo-play') && old2.querySelector('.mo-gone').textContent === 'Clip cleared for space',
+      'a clip cleared for space says so in its place', old2 && old2.textContent);
+    const hl = q.document.querySelector('#mo-list .mo-row .mo-kind.highlight');
+    ok(hl && /kills$|^Ace$|running$/.test(hl.parentNode.querySelector('.mo-mtitle').textContent), 'a highlight row is marked as one', hl && hl.parentNode.textContent);
+    ok(q.$('mo-note').hidden, 'with clips kept there is no note');
+    r2.querySelector('.mo-open').click();
+    ok(q.bridge.sent.some(([ch, id, n]) => ch === C.REVIEW_OPEN && id === saved[0].id && n === 2), 'a row opens its review at its round');
+
+    // The filter: one capsule, the chosen button pressed, the list follows.
+    const deathsBtn = q.document.querySelector('#mo-filter button[data-kind="death"]');
+    deathsBtn.click();
+    ok(deathsBtn.getAttribute('aria-pressed') === 'true' && q.document.querySelector('#mo-filter button[data-kind="all"]').getAttribute('aria-pressed') === 'false'
+      && q.document.querySelectorAll('#mo-list .mo-row').length === data.counts.deaths && !q.document.querySelector('#mo-list .mo-kind.highlight'),
+      'Deaths shows the deaths alone', `${q.document.querySelectorAll('#mo-list .mo-row').length}`);
+    q.document.querySelector('#mo-filter button[data-kind="highlight"]').click();
+    ok(q.document.querySelectorAll('#mo-list .mo-row').length === data.counts.highlights && !q.document.querySelector('#mo-list .mo-kind.death'), 'Highlights the highlights alone');
+    q.document.querySelector('#mo-filter button[data-kind="all"]').click();
+    ok(q.document.querySelectorAll('#mo-list .mo-row').length === all, 'All every moment again');
+
+    // The compilation: a row a pattern, main's line, Play all where clips were
+    // kept. It is drawn again on a choice, so its rows are read again each time.
+    const comps = () => q.document.querySelectorAll('#mo-comp-rows .mo-crow');
+    const pickOf = (key) => q.document.querySelector(`#mo-comp-rows .mo-cpick[data-key="${key}"]`);
+    ok(!q.$('mo-comp').hidden && comps().length === data.compilation.length && comps().length >= 2, 'the compilation lists every pattern', `${comps().length}`);
+    const iso = data.compilation.find((c) => c.key === 'cause:isolated');
+    const isoRow = pickOf('cause:isolated').parentNode;
+    ok(isoRow.querySelector('.mo-ctitle').textContent === iso.title && isoRow.querySelector('.mo-cline').textContent === iso.line
+      && iso.line === '4 deaths over 2 matches, 2 clips kept', 'with its title and main\'s line', isoRow.textContent);
+    ok(isoRow.querySelector('button.btn') && isoRow.querySelector('button.btn').textContent === 'Play all', 'and Play all where clips were kept');
+    ok(data.compilation.every((c) => c.clips > 0) && ![...comps()].some((r) => r.querySelector('.mo-cnone')),
+      'every pattern here holds a kept clip, so none says otherwise');
+    pickOf('cause:isolated').click();
+    ok(pickOf('cause:isolated').getAttribute('aria-pressed') === 'true'
+      && q.document.querySelectorAll('#mo-list .mo-row').length === iso.deaths
+      && [...q.document.querySelectorAll('#mo-list .mo-row')].every((r) => r.querySelector('.mo-kind').classList.contains('death')),
+      'a pattern chosen shows only its deaths below', `${q.document.querySelectorAll('#mo-list .mo-row').length} of ${iso.deaths}`);
+    pickOf('cause:isolated').click();
+    ok(q.document.querySelectorAll('#mo-list .mo-row').length === all && pickOf('cause:isolated').getAttribute('aria-pressed') === 'false',
+      'chosen again, every moment is back');
+
+    // The player: Play all opens it on the first kept clip, the arrows and
+    // Next move, Esc closes it and gives the focus back.
+    const playAll = pickOf('cause:isolated').parentNode.querySelector('button.btn');
+    playAll.focus();
+    playAll.click();
+    await settle();
+    const pl = q.$('mo-player');
+    ok(!pl.hidden && pl.classList.contains('open') && q.$('mo-pl-title').textContent === iso.title && q.$('mo-pl-count').textContent === '1 of 2',
+      'Play all opens the player on the pattern\'s kept clips', `${pl.hidden} ${q.$('mo-pl-count').textContent}`);
+    // The clip is in the review's own player (8.7): its video by the URL attribute,
+    // as the review's is, the death marked on the timeline, no loop so `ended` advances.
+    ok(q.$('mo-video').getAttribute('src') === url(saved[0].id, 'r2-clip.mkv') && q.$('mo-video').getAttribute('muted') !== null, 'the clip by its URL, muted', q.$('mo-video').getAttribute('src'));
+    const stage = q.$('mo-pl-stage');
+    ok(stage.querySelector('.v-clip') && stage.querySelector('.v-clip video.v-clip-video') === q.$('mo-video') && stage.querySelector('.cp-mark.death')
+      && stage.querySelector('.cp-time') && !q.$('mo-video').hasAttribute('loop'),
+    'in the review\'s clip player, the death marked on its timeline, the time from the death, and no loop', stage.innerHTML && stage.innerHTML.slice(0, 120));
+    ok(q.$('mo-pl-toggle').getAttribute('aria-pressed') === null, 'the toggle\'s label alone says Play or Pause, no pressed state beside it');
+    ok(q.$('mo-pl-line').textContent === `Jett on Abyss, round 2: ${ISOLATED}. You swung the angle alone.`, 'the moment\'s line under it', q.$('mo-pl-line').textContent);
+    ok(q.$('mo-pl-prev').disabled && !q.$('mo-pl-next').disabled, 'Previous is off on the first');
+    ok(q.document.activeElement === q.$('mo-pl-close'), 'the keyboard is on its Close');
+    const inertBehind = () => [...q.document.querySelectorAll('.sheet > header, .sheet > main')].map((n) => n.hasAttribute('inert'));
+    ok(same(inertBehind(), [true, true]), 'and the page behind the dialog is inert, so Tab and Shift+Tab cycle inside it', inertBehind().join());
+    q.$('mo-pl-next').click();
+    ok(q.$('mo-pl-count').textContent === '2 of 2' && q.$('mo-video').getAttribute('src') === url(saved[0].id, 'r6-clip.mkv') && q.$('mo-pl-next').disabled, 'Next plays the next kept clip');
+    q.fire(q.$('mo-pl-close'), 'keydown', { key: 'ArrowLeft' });
+    ok(q.$('mo-pl-count').textContent === '1 of 2', 'the left arrow goes back');
+    q.fire(q.$('mo-video'), 'ended');
+    ok(q.$('mo-pl-count').textContent === '2 of 2', 'a clip ending plays on to the next');
+    q.$('mo-pl-open').click();
+    ok(pl.hidden && q.bridge.sent.some(([ch, id, n]) => ch === C.REVIEW_OPEN && id === saved[0].id && n === 6), 'Open its review closes the player and opens the review at that round');
+    playAll.focus();
+    playAll.click();
+    await settle();
+    q.fire(q.$('mo-pl-close'), 'keydown', { key: 'Escape' });
+    ok(pl.hidden && !pl.classList.contains('open') && !q.$('mo-video').getAttribute('src') && q.document.activeElement === playAll,
+      'Esc closes it, lets the clip go and gives the focus back', `${pl.hidden} ${q.document.activeElement && q.document.activeElement.textContent}`);
+    ok(same(inertBehind(), [false, false]), 'and the page behind it is live again', inertBehind().join());
+    rowOf(saved[0].id, 2).querySelector('.mo-play').click();
+    await settle();
+    ok(!pl.hidden && q.$('mo-pl-count').textContent === '1 of 1' && q.$('mo-pl-title').textContent === `${ISOLATED}, round 2`, 'a row\'s play button plays that one clip');
+    q.bridge.emit(C.PUSH_PAGE, { phase: 'leave' });
+    ok(pl.hidden, 'leaving the page closes it');
+    // Sealed, nothing plays: the seal hides the page, and the player asks anyway.
+    sealed = true;
+    playAll.click();
+    await settle();
+    ok(pl.hidden, 'mid match the player does not open');
+    sealed = false;
+
+    // The empty states, and the note on no clips.
+    const none = await open(moments.build('valorant', [], { patterns: {}, clips: () => [], url, recordingMode: 'auto' }));
+    ok(!none.$('mo-empty').hidden && none.$('mo-log').hidden && none.$('mo-comp').hidden && none.$('mo-empty-title').textContent === 'No matches yet'
+      && /Press Start/.test(none.$('mo-empty-hint').textContent), 'no matches: it says how one gets here');
+    const off = await open(moments.build('valorant', saved, { patterns: patterns.summarise(saved), clips: () => [], url, recordingMode: 'off' }));
+    ok(!off.$('mo-note').hidden && /recording was off/.test(off.$('mo-note').textContent) && off.document.querySelectorAll('#mo-note').length === 1,
+      'no clips because recording was off: said once, in main\'s words', off.$('mo-note').textContent);
+    ok(!off.document.querySelector('#mo-list .mo-play') && off.document.querySelectorAll('#mo-list .mo-gone').length === 4,
+      'and each looked at death says its clip is gone', `${off.document.querySelectorAll('#mo-list .mo-gone').length}`);
+    ok([...off.document.querySelectorAll('#mo-comp-rows .mo-crow')].every((r) => !r.querySelector('button.btn') && r.querySelector('.mo-cnone').textContent === 'No clip kept'),
+      'and every pattern says no clip was kept, with no Play all');
+    const failed = await open({ ok: false, error: 'boom' });
+    ok(!failed.$('mo-empty').hidden && failed.$('mo-empty-title').textContent === 'No matches yet', 'main failing to answer is the empty page, never a throw');
+
+    // The nav: Moments in the sidebar where Breakdown was, locked by the seal.
+    const nav = require('../src/shared/shell-nav');
+    ok(nav.PAGES.filter((p) => p.nav).map((p) => p.id).join() === 'home,matches,patterns,moments,stats,coach', 'the sidebar lists Moments in Breakdown\'s place');
+    const s = await openShell({ game: 'valorant' });
+    const item = s.document.querySelector('#nav .nav-item[data-page="moments"]');
+    ok(item && item.textContent.trim() === 'Moments' && item.querySelector('svg path'), 'the shell draws Moments with an icon of its own');
+    item.click();
+    ok(s.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'moments'), 'and it goes to the Moments page');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'moments', shown: null, sealed: true, held: false });
+    await settle();
+    ok(item.disabled && item.querySelector('svg').innerHTML.includes('rect x="5" y="11"'), 'sealed mid match, Moments is locked, its icon the lock');
+
+    const files = ['index.html', 'moments.js', 'moments.css'].map((f) => fs.readFileSync(path.join(RENDERER, 'moments', f), 'utf8'));
+    ok(files.every((x) => !DASHES.test(x)), 'no dash in the page');
+    ok(!/\b\d+ (?:deaths?|kills?|clips?|matches)\b/.test(uncommented(files[1]).replace(/\$\{[^}]*\}/g, '')), 'and the script counts nothing of its own: every number is main\'s');
+    ok(q.logs.every((l) => !/error|TypeError/i.test(l)), 'and the page logged no error', q.logs.join(' | '));
   });
 
   await section('Settings\' Account section: the email, the plan, the games, the key and Sign out, all main\'s:', async () => {

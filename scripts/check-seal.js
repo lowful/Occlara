@@ -281,6 +281,15 @@ setTimeout(async () => {
       const inviteShown = shownViews();
       lines.push(`${game} match: Invite asked for mid match: shown=${inviteMid.shown} pages shown=${inviteShown.join(',') || 'none'} button locked=${!!inviteLocked}`);
       if (inviteMid.shown !== null || inviteShown.length || !inviteLocked) return report(false, `mid ${game} match, the Invite page or its button is not sealed`);
+      // AND THE MOMENTS PAGE (8.7), whose clips must never play mid match:
+      // asked for mid match, no page shows and its nav item is locked.
+      send(C.SHELL_NAV, 'moments');
+      await wait(400);
+      const momentsMid = await invoke(C.SHELL_GET);
+      const momentsLocked = await until(() => sjs("(() => { const b = document.querySelector('#nav .nav-item[data-page=\"moments\"]'); return !!b && b.disabled; })()"), 3000);
+      const momentsShown = shownViews();
+      lines.push(`${game} match: Moments asked for mid match: shown=${momentsMid.shown} pages shown=${momentsShown.join(',') || 'none'} button locked=${!!momentsLocked}`);
+      if (momentsMid.shown !== null || momentsShown.length || !momentsLocked) return report(false, `mid ${game} match, the Moments page or its button is not sealed`);
       send(C.SHELL_NAV, 'matches');
       e.live = false;
       const over = await invoke(C.SHELL_GET);

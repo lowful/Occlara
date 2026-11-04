@@ -74,6 +74,7 @@ function registerIpc(deps) {
   safeHandle(C.PATTERNS_GET, async (_e, game) => controller.getPatterns(game));
   safeHandle(C.PROGRESS_GET, async (_e, id) => controller.getProgress(typeof id === 'string' ? id : null));
   safeHandle(C.BREAKDOWN_GET, async (_e, game, opts) => controller.getBreakdown(game, opts));
+  safeHandle(C.MOMENTS_GET, async (_e, game) => controller.getMoments(game));
   safeHandle(C.BACKFILL_START, async () => controller.startBackfill());
   safeHandle(C.BACKFILL_STATUS, async () => controller.getBackfillStatus());
   safeHandle(C.CLIPS_USAGE, async () => controller.clipsUsage());
@@ -120,7 +121,10 @@ function registerIpc(deps) {
   ipcMain.on(C.OPEN_REVIEW,    () => guard('review',   () => controller.openReview()));
   ipcMain.on(C.OPEN_AILOG,     (_e, sessionId) => guard('ailog', () => controller.openAiLog(sessionId)));
   ipcMain.on(C.OPEN_CHAT_SEEDED, (_e, seed) => guard('chatSeeded', () => controller.openChatSeeded(seed)));
-  ipcMain.on(C.REVIEW_OPEN,    (_e, id) => guard('reviewOpen', () => controller.openReviewById(id)));
+  // At one of its rounds when a page names one (8.7, Moments): a positive
+  // integer and nothing else reaches the review.
+  ipcMain.on(C.REVIEW_OPEN,    (_e, id, round) => guard('reviewOpen',
+    () => controller.openReviewById(id, Number.isInteger(round) && round > 0 ? round : null)));
   ipcMain.on(C.REVIEW_AILOG,   (_e, id, at) => guard('reviewAiLog', () => controller.openReviewAiLog(id, at)));
   // The account page, or the sign up page for the licence window's "Get one":
   // a page names which, never a URL.

@@ -1,0 +1,188 @@
+/* palette: tokens only */
+/* The Moments page (8.7), an entry of the training log: the player's deaths
+   and highlights under each match's ruled line, the compilation by repeated
+   mistake over them, and its player. No card anywhere: a section is a
+   heading, a hint and rows parted by the hairline; a row's hover is a faint
+   fill across it. The only framed thing is the clip playing, which is an
+   image. Every button is ui.css's capsule. */
+
+html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
+
+.sheet { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.sheet > header { display: flex; align-items: center; padding: var(--space-4); }
+.h-brand { display: flex; align-items: center; gap: var(--space-2); }
+.h-brand h2 { font-size: 15.5px; font-weight: 700; }
+#close { margin-left: auto; }
+
+.body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: var(--space-2) var(--space-4) var(--space-10);
+  display: flex; flex-direction: column; gap: var(--space-10);
+}
+.body::-webkit-scrollbar { width: 8px; }
+.body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 4px; }
+
+.mo-wait { font-size: 14px; color: var(--text-mute); }
+.mo-sec { display: flex; flex-direction: column; gap: var(--space-3); }
+.mo-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); margin: 0; }
+.mo-hint { font-size: 13px; line-height: 1.5; color: var(--text-dim); margin: 0; max-width: 72ch; }
+/* The one note on clips, quiet and once. */
+.mo-note { font-size: 13px; line-height: 1.5; color: var(--text-mute); margin: 0; max-width: 72ch; }
+
+/* ── The compilation ──────────────────────────────────────────────────────
+   One ruled row per pattern: its title and its count as a button that
+   chooses it (the list below shows only its deaths), Play all at its end
+   where clips were kept, else a quiet word. */
+.mo-comp-rows { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.mo-crow {
+  display: flex; align-items: center; gap: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  transition: background var(--t-fast) var(--ease);
+}
+.mo-crow:hover { background: rgba(255, 255, 255, 0.035); }
+.mo-cpick {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+  padding: var(--space-3) 0;
+  background: transparent; border: 0; border-radius: 0; color: var(--text); font: inherit; cursor: pointer;
+}
+.mo-cpick:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
+.mo-ctitle { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: var(--space-2); }
+/* Chosen: a filled dot before the title, form before hue. */
+.mo-cpick[aria-pressed="true"] .mo-ctitle::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--text); flex: none; }
+.mo-cline { font-size: 13px; color: var(--text-dim); }
+.mo-cnone { flex: none; font-size: 12px; color: var(--text-mute); }
+
+/* ── The filter and the counts ────────────────────────────────────────── */
+.mo-log-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
+.mo-counts { font-size: 13px; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mo-filter { align-self: flex-start; display: inline-flex; gap: 2px; }
+/* Drawn flat until seg.js adds the sliding thumb; the chosen button filled either way. */
+.seg:not(.seg-slide) > button {
+  height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-btn); background: transparent;
+  color: var(--text-dim); font: 500 13px var(--font); cursor: pointer;
+}
+.seg:not(.seg-slide) > button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+#mo-filter > button:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+
+/* ── The matches and their moments ────────────────────────────────────── */
+.mo-list { display: flex; flex-direction: column; gap: var(--space-8); }
+.mo-match { display: flex; flex-direction: column; }
+/* The match's line: the result and the score in the outcome's tone, who and
+   where, the date, the grade at the right as its number and its letter. */
+.mo-mhead {
+  display: flex; align-items: baseline; gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.mo-res { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; flex: none; font-variant-numeric: tabular-nums; }
+.mo-res.win { color: var(--good); }
+.mo-res.loss { color: var(--bad); }
+.mo-who { font-size: 14px; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mo-when { font-size: 12px; color: var(--text-mute); white-space: nowrap; }
+.mo-grade { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); flex: none; }
+.mo-score {
+  font-family: var(--font); font-size: 20px; font-weight: 600; line-height: 1;
+  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text);
+}
+
+.mo-rows { display: flex; flex-direction: column; }
+.mo-row {
+  display: flex; align-items: center; gap: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  transition: background var(--t-fast) var(--ease);
+}
+.mo-row:hover { background: rgba(255, 255, 255, 0.035); }
+/* The rows rise once, as the list first appears on screen (moments.js), 40ms
+   apart and capped at the eighth; a repaint draws them as they are. */
+.mo-row.rise { animation: rowIn var(--t-slow) var(--ease-expo) both; animation-delay: calc(var(--i, 0) * 40ms); }
+@keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* The row is a button that opens the review at the round. */
+.mo-open {
+  flex: 1 1 auto; min-width: 0;
+  display: grid; grid-template-columns: 44px 76px minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-3);
+  text-align: left; padding: var(--space-3) 0;
+  background: transparent; border: 0; border-radius: 0; color: var(--text); font: inherit; cursor: pointer;
+}
+.mo-open:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
+/* The round, a column of digits in the mono face. */
+.mo-round { font: 500 12px var(--font-mono); color: var(--text-mute); font-variant-numeric: tabular-nums; }
+/* The kind, a word in the outcome's tone with a mark before it: a death a
+   ringed dot in --bad, a highlight a filled dot in --good. */
+.mo-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.mo-kind::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; }
+.mo-kind.death { color: var(--bad); }
+.mo-kind.death::before { border: 1.5px solid currentColor; }
+.mo-kind.highlight { color: var(--good); }
+.mo-kind.highlight::before { background: currentColor; }
+.mo-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mo-mtitle { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mo-mline { font-size: 13px; color: var(--text-dim); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* A repeated mistake's mark: a dot, then its title, quiet; one across matches in the ink. */
+.mo-marks { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin-top: 2px; }
+.mo-mark { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--text-mute); white-space: nowrap; }
+.mo-mark::before { content: ''; flex: none; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.mo-mark.across { color: var(--text-dim); }
+.mo-time { font: 500 12px var(--font-mono); color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* The clip at the row's end: a play capsule, or a quiet word for one gone.
+   The column is there only while a clip is kept in these matches (.clips,
+   set by moments.js), sized to the capsule so the times line up across the
+   rows; with no clip at all the time is the last column, on the rule, as the
+   last column is on every page of the log. */
+.mo-clip { flex: none; display: flex; justify-content: flex-end; align-items: center; }
+.mo-clip:empty { display: none; }
+.mo-list.clips .mo-clip { display: flex; min-width: 32px; }
+.mo-gone { font-size: 12px; color: var(--text-mute); white-space: nowrap; }
+
+/* ── The compilation player ────────────────────────────────────────────── */
+/* Over the page on a dark veil, its panel one column: the title line, the
+   clip framed as a clip image is, the moment's line, the controls. It opens
+   with a short fade (transform and opacity only). */
+.mo-player {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-6);
+  background: rgba(0, 0, 0, 0.72);
+  opacity: 0;
+  transition: opacity var(--t-med) var(--ease-out);
+}
+.mo-player.open { opacity: 1; }
+.mo-player[hidden] { display: none; }
+.mo-pl-panel {
+  width: min(100%, 880px);
+  display: flex; flex-direction: column; gap: var(--space-3);
+  transform: translateY(6px);
+  transition: transform var(--t-med) var(--ease-expo);
+}
+.mo-player.open .mo-pl-panel { transform: none; }
+.mo-pl-top { display: flex; align-items: center; gap: var(--space-3); padding-bottom: var(--space-3); border-bottom: 1px solid var(--line); }
+.mo-pl-head { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; flex: 1 1 auto; }
+.mo-pl-head .mo-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mo-pl-count { font: 500 12px var(--font-mono); color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* The stage holds the review's clip player (review/clip-player.css draws it:
+   the framed picture, the timeline with the death marked, the controls); an
+   empty stage keeps the picture's height so the panel does not jump. */
+.mo-pl-stage { display: flex; flex-direction: column; min-height: 0; }
+.mo-pl-stage:empty { aspect-ratio: 16 / 9; background: rgba(0, 0, 0, 0.6); border: 1px solid var(--line); border-radius: var(--r-card); }
+.mo-pl-stage .v-clip { width: 100%; }
+/* Without the player's script, a bare video is drawn as its picture is. */
+.mo-pl-stage > video {
+  display: block; width: 100%; aspect-ratio: 16 / 9; background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--line); border-radius: var(--r-card);
+}
+.mo-pl-line { font-size: 14px; color: var(--text-dim); margin: 0; line-height: 1.5; }
+.mo-pl-controls { display: flex; align-items: center; gap: var(--space-2); }
+.mo-pl-controls #mo-pl-open { margin-left: auto; }
+/* A clip that could not be played says so where the line is. */
+.mo-pl-line.bad { color: var(--bad); }
+
+@media (max-width: 700px) {
+  .mo-open { grid-template-columns: 36px 1fr auto; }
+  .mo-kind { display: none; }
+  .mo-clip { width: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mo-row, .mo-row.rise { animation: none; transition: none; }
+  .mo-player, .mo-pl-panel { transition: none; }
+  .mo-pl-panel { transform: none; }
+}

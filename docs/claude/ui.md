@@ -29,8 +29,13 @@ shell/       the window's document: the sidebar (game, pages, the record card,
              the Recording screen
 home/        the last match and its grade, the next match's focus, Valorant's
              rank, the most repeated mistake, the grade trend, recent matches
-matches/     three pages from one surface, ?section=list, patterns or breakdown;
-             the list carries its wins and losses beside the title (winLoss)
+matches/     two pages from one surface, ?section=list or patterns; the list
+             carries its wins and losses beside the title (winLoss), and the
+             breakdown by agent, map and queue is one folded line at the foot
+             of Patterns (8.7)
+moments/     the Moments page (8.7): every death and highlight of the saved
+             reviews, newest match first, with the clips kept and the
+             compilation by repeated mistake (below, "The Moments page")
 review/      the post-match review, every game, branched on review.kind
 stats/       rank, win rate, tracker matches, graded matches
 chat/        Ask Coach, on the match its chip names: the newest, one picked or
@@ -44,6 +49,81 @@ The pages and their order are `src/shared/shell-nav.js`. A page is loaded with
 card chrome, the close button and the drag region it had as a window and
 centres its column. The layout sizes, a 232px sidebar and a 40px top strip,
 are in both `main-window.js` and `shell.css`: change them together.
+
+**The Moments page (8.7)** took the Breakdown tab's place in the sidebar, the
+owner's call ("the breakdown tab is kind of useless... maybe a tab with the
+compilation of their deaths and highlights"). `src/shared/moments.js` is pure:
+`build(game, saved, { patterns, clips, url, frames, recordingMode })` turns the saved
+reviews (newest first, the patterns' own `LOOK_BACK`, which moments.js
+requires from `patterns.js` and re-exports, and index.js reads as
+`patternsOf.LOOK_BACK`, so there is one window) into one entry a match
+(result, score, date, agent, map, mode, grade) with its moments in round
+order. A DEATH is every round card with `died`: its title the look's cause
+from the closed list in the singular (`death-causes.js causeTitle`), else
+"Killed by <agent> with a <gun>" from Riot's record, else "Died"; its line what
+the look saw, else where and what Riot says (first to die, nobody traded it,
+after the plant); its time Riot's `sec` into the round; its marks every
+counted mistake of its review whose rounds hold it (`insights.mistakes`),
+`across` when the key is a pattern across matches (`patterns.summarise`); its
+clip the look's, played by `clipScheme.urlFor` while on disk
+(`reviewStore.clipsOf`), else `clipGone` with the review's `clipsCleared`
+reason or 'gone', and nothing at all for a death never looked at, since a
+clip is only cut at a look. A HIGHLIGHT is counted off Riot's verified rounds
+alone: three or more kills (five an ace), a clutch Riot records as won, and
+the first kill in two or more rounds running (one entry on the streak's first
+round); its times are the player's kills off Riot's kill feed. The
+COMPILATION groups every death in a round a pattern counts by the pattern,
+most deaths first: title, fix, deaths, matches, clips, the line "20 deaths
+over 4 matches, 3 clips kept", and its items by key. `clipsNote` is the one
+reason no clip at all was kept ('off', 'space', 'cleared', 'nolook'), its
+sentence `clipsNoteText`; every sentence the page shows is written here
+(`NOTES`, `GONE`), so the page counts and words nothing. Main serves it as
+`MOMENTS_GET` (index.js `getMoments`), from the same read the patterns are
+made from. **No highlight clips**: Riot's record gives kill times, but a
+highlight's place on the recording needs its round's barrier drop on the wall
+clock, which only a look's clocked frames give (death-frames.js barrierDrop),
+and cutting more clips at the look would hold the recording longer and
+outgrow `MAX_CLIPS`; so a highlight is its facts and no clip, said plainly in
+the page's counts.
+
+The page (`src/renderer/moments/`, `moments-preload.js`) paints it in the
+log's language: the compilation as ruled rows with Play all where clips were
+kept (else "No clip kept"), a row chosen (`aria-pressed`) showing only its
+deaths below; the filter All, Deaths, Highlights as one capsule
+(`occlaraSeg`); the counts line; the note; then each match's ruled line over
+its rows, a row a button that opens its review AT THAT ROUND (`REVIEW_OPEN(id,
+round)`: index.js `setReviewJump` hands the review `jumpTo` for five seconds,
+stamped `jumpAt`, and review.js `jumpIfAsked` runs `goRound` once per open,
+keyed on the review, the round and the stamp, on screen, so the row flashes
+and takes the keyboard as `flashTo` does, and the same round opened again
+from Moments jumps again); the rows rise once per game, 40ms apart, capped at
+the eighth; the clip column (`.mo-clip`) is only drawn while a clip is kept
+in these matches (`#mo-list.clips`), else the time is the last column, on the
+rule. THE COMPILATION PLAYER plays each clip in THE REVIEW'S OWN CLIP PLAYER
+(`review/clip-player.js` and `clip-time.js`, loaded by the page, its rules in
+`review/clip-player.css`, shared by both pages): the death marked on the
+timeline, the time as seconds from the death, a frame step, the speed; one
+player a clip, built on `#mo-pl-stage` as each comes up with the clip's
+`death` and `frames` (main reads the frames with `reviewClips.frameTimes`),
+its loop taken off so `ended` advances; on the clip's own `occlara-clip://`
+URL (the page's CSP allows `media-src occlara-clip:`), muted, in a dialog
+over the page: Esc closes it and gives the focus back, the arrows on the
+dialog's buttons move between clips (inside the clip they move a second, the
+player's word, `defaultPrevented`), Space plays and pauses, the toggle's label
+alone says Play or Pause, the page behind is `inert` while it is open so Tab
+and Shift+Tab cycle inside, "Open its review"
+opens the clip's review at its round. It opens only after a match: main is
+asked `SHELL_GET` and a sealed answer opens nothing, and the page's leave or
+the document going hidden closes it. Empty states teach: no matches yet, no
+moments on record, the note on no clips (recording off, the cap, Clear
+clips, no look yet) said once. `npm run test:moments` holds the module on the
+real Abyss match and on made up reviews, `test:surfaces` the page, its
+filter, its player and the sidebar's lock, `check:seal` the page sealed mid
+match, `check:mainwindow` the page on real views with looks seeded on the
+older matches and one stub clip (`main-moments.png`, `main-moments-rows.png`,
+`main-moments-highlights.png`), and a row opening its review at round 2
+(`main-moments-review.png`), and `check:matches` the breakdown folded at the
+foot of Patterns.
 
 **The seal.** While a match is in progress no page is visible, whatever asks
 for one. `syncSeal()` in `src/main/index.js` sets it from `isCoaching &&
@@ -241,6 +321,33 @@ pages, the seal hiding every page, the review showing when it lifts and a
 recent match opening its review.
 `npm run test:shellnav` and `npm run test:homemodel` cover the navigation and
 Home offline.
+
+**The sample library and the site's proof (8.7).** The reviews
+`check:mainwindow` boots on are one fixture, `scripts/fixtures/proof-reviews.js`:
+four Valorant reviews built from the real Abyss match (a Jett, 13 : 11, a B of
+71 as the newest, three older graded 58, 61 and 64 so the grade rises and the
+newest is a best), the older three looked at in rounds 2 and 6 with a clip kept
+beside the second and gone from the third, the coach's two lines (the read and
+the fix) stood in for, a seeded Free account with its three games used, and the
+stand-in reader. `seed(ud, { now })` writes the profile; `installStandIns()`
+puts the reader and the account view in place of index.js's. The window is
+pictured through `scripts/fixtures/window-shot.js` (the shell and the page
+composited, as the check's shots always were), which can also hold a picture
+until two captures a beat apart are the same bytes and refuse a blank one.
+`scripts/export-site-proof.js --out <dir>` (`npm run export:siteproof`) boots
+the real window on the library at 1280 by 800 and a device scale of 2 and
+writes what the website's demos are made from, never invented:
+`proof.generated.json`, every string read off the real pages (the Verdict, the
+categories and their chips, the read, the fix, the lists, the rounds, the
+progress lines, the Moments entries; no name, no Riot ID, no date, no id, no
+dash, stamped with the commit, labelled "Sample match"), the pages as WebP
+(home, matches, moments, review-top, review-rounds, settings, invite, sealed)
+through ffmpeg under 3 MB in all, the share image from the review page's own
+`verdict-card.js`, and `mark.json` (the crescent's path and the tokens).
+`test:siteproof` runs it twice with `--json-only` and holds the JSON to the
+same bytes and to those rules. The window's size is asked for again less the
+delta the frameless window adds at scale 2, and `--json-only` skips the scale
+and the pictures.
 
 **Home (8.2.1), as the player asked for it.** Every section is read from the
 library or the rank history, nothing invented (`src/shared/home-model.js`).

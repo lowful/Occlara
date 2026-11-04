@@ -443,8 +443,16 @@ function detail(b, dim, row) {
 }
 
 /** The line under the heading: the sample, and what is not in the rows of `dim`. */
-function subLine(b, dim) {
-  if (!b.matches) return '';
+function subLine(b, dim) { return subParts(b, dim).join(' '); }
+
+/**
+ * The sample's sentences, one by one: the first ("Across 4 matches in
+ * Competitive.") sits beside the folded line's title; the rest, which say
+ * why a column is empty, go above the table (#b-sample), where they wrap
+ * rather than being cut to an ellipsis at the window's width.
+ */
+function subParts(b, dim) {
+  if (!b.matches) return [];
   const lol = b.game === 'lol';
   const parts = [`Across ${matchesWord(b.matches, lol)}${b.queue && b.queue !== 'All' ? ` in ${b.queue}` : ''}.`];
   if (b.game === 'valorant' && b.checked < b.matches) {
@@ -461,7 +469,7 @@ function subLine(b, dim) {
     parts.push(`${matchesWord(unknown, lol)} with no ${d.one} read ${unknown === 1 ? 'is' : 'are'} not in a row.`);
   }
   if (b.left) parts.push(`${b.left} in other modes ${b.left === 1 ? 'is' : 'are'} left out, since ${b.left === 1 ? 'it is' : 'they are'} played on other rules.`);
-  return parts.join(' ');
+  return parts;
 }
 
 /** Why the table is empty: nothing saved yet, or nothing saved has this cut read. */
@@ -518,17 +526,9 @@ function drawBreakdown(b) {
   lastBreakdown = b;
   const host = $('breakdown');
   if (!b || !Array.isArray(b.dims) || !b.dims.length) {
-    // ON ITS OWN PAGE (8.1) the breakdown says it has nothing yet, rather than
-    // leaving a blank page under its title.
-    const own = document.documentElement.dataset.section === 'breakdown';
-    host.hidden = !own;
-    if (own) {
-      for (const id of ['b-dims', 'b-queues', 'b-headline', 'b-note']) $(id).hidden = true;
-      $('b-table').replaceChildren();
-      $('b-sub').textContent = '';
-      $('b-empty').textContent = 'Nothing to break down yet. Every saved review of this game is counted here, by map and by agent.';
-      $('b-empty').hidden = false;
-    }
+    // Nothing to break down: the folded line at the foot of Patterns (8.7)
+    // is not drawn at all, rather than a line that opens on nothing.
+    host.hidden = true;
     return;
   }
   host.hidden = false;
@@ -567,7 +567,10 @@ function drawBreakdown(b) {
     }
   }
 
-  $('b-sub').textContent = subLine(b, dim);
+  const parts = subParts(b, dim);
+  $('b-sub').textContent = parts[0] || '';
+  $('b-sample').textContent = parts.slice(1).join(' ');
+  $('b-sample').hidden = parts.length < 2;
   const hl = $('b-headline');
   hl.replaceChildren();
   const calls = Array.isArray(b.headline) ? b.headline : [];
@@ -847,9 +850,10 @@ const closeWindow = () => { if (!(window.occlaraEmbedded && window.occlaraEmbedd
 $('close').addEventListener('click', closeWindow);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeWindow(); });
 
-// ONE SURFACE, THREE PAGES (8.1). As a page of the main window the library
-// shows one section, named by its query, and is titled for it.
-const SECTION_TITLES = { list: 'Matches', patterns: 'Patterns', breakdown: 'Breakdown' };
+// ONE SURFACE, TWO PAGES (8.1; the Breakdown page folded into Patterns in
+// 8.7). As a page of the main window the library shows one section, named
+// by its query, and is titled for it.
+const SECTION_TITLES = { list: 'Matches', patterns: 'Patterns' };
 {
   const title = SECTION_TITLES[document.documentElement.dataset.section];
   const h = document.querySelector('.sheet > header .h-brand h2');

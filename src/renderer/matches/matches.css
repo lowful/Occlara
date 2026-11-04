@@ -262,7 +262,29 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 /* ── The breakdown ─────────────────────────────────────────────────────────
    A table of ruled rows that open in place. Digits in Geist Mono so columns
    line up; a grade always shows its number and letter beside its colour; a
-   rate under its floor is drawn quiet as "3 of 7", never as a percentage. */
+   rate under its floor is drawn quiet as "3 of 7", never as a percentage.
+   FOLDED AT THE FOOT OF PATTERNS (8.7): one closed line, its title and the
+   sample it counts over, a chevron at its end, the table inside once open. */
+.breakdown { display: block; margin-top: calc(var(--space-10) - var(--space-3)); }
+.b-sum {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: baseline; gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.b-sum::-webkit-details-marker { display: none; }
+.b-sum-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); flex: none; }
+.b-sum-hint { font-size: 13px; color: var(--text-dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-sum::after {
+  content: ''; flex: none; margin-left: auto; align-self: center;
+  width: 6px; height: 6px; border-right: 1.5px solid var(--text-mute); border-bottom: 1.5px solid var(--text-mute);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform var(--t-fast) var(--ease);
+}
+.breakdown[open] > .b-sum::after { transform: translateY(1px) rotate(225deg); }
+.b-sum:hover::after { border-color: var(--text); }
+.b-sum:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
+.b-body { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-4); }
 .b-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-6); }
 .b-head > div:first-child { min-width: 0; }
 /* The cut and the queue are segmented capsules (shared/seg.js occlaraSeg,
@@ -373,21 +395,16 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
   .b-dt:first-child { padding-top: 0; }
 }
 
-/* ── One surface, three pages (8.1) ────────────────────────────────────────
+/* ── One surface, two pages (8.1; the breakdown folded into Patterns in 8.7) ──
    As a page of the main window the library shows one section, named by its
-   query (embed.js): Matches, Patterns or Breakdown. The game is the one the
-   sidebar coaches, so the game tabs go, and the section's own heading goes
-   where it would repeat the page title above it. */
+   query (embed.js): Matches or Patterns. The game is the one the sidebar
+   coaches, so the game tabs go, and the section's own heading goes where it
+   would repeat the page title above it. */
 html.embedded .tabs { display: none; }
 html[data-section="list"] #patterns,
-html[data-section="list"] #breakdown,
-html[data-section="patterns"] #breakdown,
-html[data-section="patterns"] #every,
-html[data-section="breakdown"] #patterns,
-html[data-section="breakdown"] #every { display: none !important; }
+html[data-section="patterns"] #every { display: none !important; }
 html[data-section="list"] #every .l-head h3,
-html[data-section="patterns"] #patterns .p-head h3,
-html[data-section="breakdown"] #breakdown .b-head h3 { display: none; }
+html[data-section="patterns"] #patterns .p-head h3 { display: none; }
 /* The record beside the page title is the title's 24px (ui.css), on its
    baseline. */
 html.embedded .sheet > header .h-brand { align-items: baseline; }

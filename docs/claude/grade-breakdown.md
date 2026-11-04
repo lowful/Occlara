@@ -97,7 +97,13 @@ frame, and its eye through to the AI log on that match.
 
 `src/shared/breakdown.js` cuts every saved review of a game by map and agent
 (map and champion for League), cached in main until the next save. Counted,
-never written, and every number carries its sample:
+never written, and every number carries its sample. **Since 8.7 it is not a
+page**: the Breakdown tab went to Moments (ui.md, "The Moments page"), and the
+table lives at the foot of Patterns as one closed `<details>` line, "By agent,
+map and queue" with its sample beside it (`#breakdown`, `.b-sum`, still
+`BREAKDOWN_GET` and `matches.js drawBreakdown`; with nothing to break down the
+line is not drawn). Ask Coach's context and `bench:chat` read the module as
+before:
 
 - Round numbers come only from Riot checked rounds (the screen files a result a
   round late often enough to fake a side win rate), death locations only from

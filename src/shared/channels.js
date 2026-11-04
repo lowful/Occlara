@@ -80,7 +80,7 @@ const CHANNELS = {
   // The match library: every saved review, for every game.
   REVIEWS_LIST:    'reviews:list',       // (game?) -> [{ id, at, game, title, result, score, grade, aiLog: 'kept' | 'gone' | null, work: null | { path, step, ... } }]
   REVIEW_GET:      'reviews:get',        // (id) -> the saved review
-  REVIEW_OPEN:     'reviews:open',       // (id) open the review window on one saved review
+  REVIEW_OPEN:     'reviews:open',       // (id, round?) open the review page on one saved review, at one of its rounds (8.7, Moments)
   // The eye on a library row and on the review page (8.2): the AI log, opened
   // on that review's match. The page names the review and nothing else; main
   // finds the session and the frames from it. The eye on one death the coach
@@ -92,6 +92,10 @@ const CHANNELS = {
   // The breakdown in Matches: by map and agent (champion), counted from
   // the saved reviews of one game (src/shared/breakdown.js).
   BREAKDOWN_GET:   'reviews:breakdown',  // (game, { queue }) -> { game, matches, dims, rows, headline, ... }
+  // The Moments page (8.7): every death and highlight of the saved reviews of
+  // one game, newest first, with the clips kept of them and the compilation
+  // by repeated mistake (src/shared/moments.js).
+  MOMENTS_GET:     'reviews:moments',    // (game) -> { game, matches: [{ ..., moments }], compilation, counts, clipsNote }
   // Grading the recent matches of the Riot ID in config from Riot's record
   // (src/main/services/backfill.js).
   BACKFILL_START:  'backfill:start',     // () -> the run's status

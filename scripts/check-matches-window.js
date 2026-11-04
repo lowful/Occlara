@@ -331,10 +331,11 @@ setTimeout(async () => {
       if (!own || others.length) return `the ${section} page shows ${others.join(', ') || 'nothing of its own'}`;
       return null;
     };
+    // ONE SURFACE, TWO PAGES (8.7): the breakdown is a folded line at the
+    // foot of Patterns, so it shows with the patterns and never on its own.
     for (const [section, title, visible, hiddenIds] of [
-      ['list', 'Matches', 'every', ['patterns', 'breakdown']],
-      ['patterns', 'Patterns', 'patterns', ['every', 'breakdown']],
-      ['breakdown', 'Breakdown', 'breakdown', ['every', 'patterns']],
+      ['list', 'Matches', 'every', ['patterns']],
+      ['patterns', 'Patterns', 'patterns', ['every']],
     ]) {
       const why = await pageOf(section, title, visible, hiddenIds);
       if (why) return report(false, why);
@@ -365,14 +366,16 @@ setTimeout(async () => {
       return report(false, `the record is ${rec.weight} ${rec.size} ${rec.family}, beside a ${rec.titleSize} title`);
     }
     if (rec.win !== rec.good || rec.loss !== rec.bad) return report(false, `wins are ${rec.win} and losses ${rec.loss}, not --good and --bad`);
-    for (const section of ['patterns', 'breakdown']) {
+    for (const section of ['patterns']) {
       const w = surfaces.find(`section=${section}`);
       const none = w && await w.webContents.executeJavaScript("document.getElementById('wl').hidden");
       if (!none) return report(false, `the ${section} page carries the record`);
     }
 
-    // The breakdown: two maps, two agents, a row that opens in place.
-    const bShown = await js("!document.getElementById('breakdown').hidden");
+    // The breakdown, folded at the foot of Patterns (8.7): shown with four
+    // saved matches, its folded line naming the sample; two maps, two
+    // agents, a row that opens in place.
+    const bShown = await js("!document.getElementById('breakdown').hidden && document.getElementById('breakdown').tagName === 'DETAILS' && !!document.querySelector('#breakdown > summary .b-sum-title')");
     const maps = await js("[...document.querySelectorAll('#b-table .b-row .b-name span:first-child')].map((n) => n.textContent).join(',')");
     lines.push(`breakdown shown=${bShown} maps=${maps}`);
     if (!bShown) return report(false, 'the breakdown section stayed hidden with four saved matches');
@@ -487,7 +490,7 @@ setTimeout(async () => {
     if (noAgent !== 'None of these matches has a confirmed agent yet.') return report(false, `a cut with no agent read says "${noAgent}"`);
     // LEAGUE IS ONE MODE AT A TIME, the most played first, with no All chip.
     await tab('League of Legends');
-    const lol = await js("({ sub: document.getElementById('b-sub').textContent, chips: document.querySelectorAll('#b-queues .b-chip').length, shown: !document.getElementById('b-queues').hidden, champs: [...document.querySelectorAll('#b-table .b-row .b-name span:first-child')].map((n) => n.textContent).join(',') })");
+    const lol = await js("({ sub: [document.getElementById('b-sub').textContent, document.getElementById('b-sample').hidden ? '' : document.getElementById('b-sample').textContent].filter(Boolean).join(' '), chips: document.querySelectorAll('#b-queues .b-chip').length, shown: !document.getElementById('b-queues').hidden, champs: [...document.querySelectorAll('#b-table .b-row .b-name span:first-child')].map((n) => n.textContent).join(',') })");
     lines.push(`league: ${lol.champs} chips=${lol.chips} | ${lol.sub}`);
     if (!lol.shown || lol.chips !== 2) return report(false, `League shows ${lol.chips} mode chips, expected Summoner's Rift and ARAM`);
     if ((await recordOf(js)).shown) return report(false, 'League, whose reviews carry no result, shows a record beside the title');
