@@ -34,7 +34,7 @@ const ok = (cond, what, detail) => {
 };
 
 const gen = require('./generate-icon');
-const PATH = 'M76.294,4.281 A50,50 0 1,0 116.705,74.274 A42,42 0 1,1 76.294,4.281 Z';
+const PATH = 'M67.444,10.281 A50,50 0 1,0 107.855,80.274 A42,42 0 1,1 67.444,10.281 Z';
 const r3 = (n) => Math.round(n * 1000) / 1000;
 
 // The readers, on known strings first: a reader that finds nothing would pass
@@ -46,14 +46,14 @@ ok(pathsIn('<svg><path fill="x" d="M1,2 Z"/><path d="M3,4 Z" /></svg>').join('|'
   && svgTag('<svg class="mark" viewBox="0 0 120 120"><path/></svg>', 'mark') === '<svg class="mark" viewBox="0 0 120 120">',
 'the path and svg readers find what they look for');
 ok(OLD_MARK.test('<circle class="pupil" cx="32"/>') && OLD_MARK.test('stroke-dasharray="130.690 20.106"')
-  && !OLD_MARK.test('<path d="M76.294,4.281 Z" fill="currentColor"/>'),
+  && !OLD_MARK.test('<path d="M67.444,10.281 Z" fill="currentColor"/>'),
 'the old mark detector finds the ring and the pupil, and passes over the crescent');
 
 // 1. The arithmetic: the two circles, and the path they make.
-ok(gen.OUTER.x === 71 && gen.OUTER.y === 54 && gen.OUTER.r === 50
-  && r3(gen.INNER.x) === 86.588 && r3(gen.INNER.y) === 45 && gen.INNER.r === 42,
-'generate-icon.js draws the disc r50 at (71, 54) less the shade r42 at (86.588, 45)', JSON.stringify([gen.OUTER, gen.INNER]));
-ok(gen.inCrescent(25, 60) && gen.inCrescent(60, 100) && !gen.inCrescent(86.588, 45) && !gen.inCrescent(5, 5) && !gen.inCrescent(118, 10),
+ok(gen.OUTER.x === 62.15 && gen.OUTER.y === 60 && gen.OUTER.r === 50
+  && r3(gen.INNER.x) === 77.738 && r3(gen.INNER.y) === 51 && gen.INNER.r === 42,
+'generate-icon.js draws the disc r50 at (62.15, 60) less the shade r42 at (77.738, 51)', JSON.stringify([gen.OUTER, gen.INNER]));
+ok(gen.inCrescent(16, 66) && gen.inCrescent(51, 106) && !gen.inCrescent(77.738, 51) && !gen.inCrescent(5, 5) && !gen.inCrescent(118, 10) && !gen.inCrescent(110, 60),
   'inside the crescent is the back of the moon, never the shade or past the disc');
 ok(gen.tilePath(100 / 120) === PATH, 'and the path it computes for the 120 box is the mark\'s path', gen.tilePath(100 / 120));
 
@@ -106,7 +106,7 @@ ok(num(disc, 'cx') === gen.OUTER.x && num(disc, 'cy') === gen.OUTER.y && num(dis
   && num(shade, 'cx') === r3(gen.INNER.x) && num(shade, 'cy') === r3(gen.INNER.y) && num(shade, 'r') === gen.INNER.r,
 'the splash\'s disc and shade are the same two circles', `${disc} ${shade}`);
 const splashCss = read('src/renderer/splash/splash.css');
-ok(/to\s*\{\s*cx: 86\.588px; cy: 45px; r: 42px; \}/.test(splashCss) && !OLD_MARK.test(code(splashCss)) && !/shockwave|infinite/.test(code(splashCss)),
+ok(/to\s*\{\s*cx: 77\.738px; cy: 51px; r: 42px; \}/.test(splashCss) && !OLD_MARK.test(code(splashCss)) && !/shockwave|infinite/.test(code(splashCss)),
   'its shade comes to rest in its own place, and no ring, pupil, shockwave or loop is left');
 ok(/class="wordmark">Occlara</.test(splash) && /\.wordmark \{[^}]*font-weight: 600;/.test(splashCss),
   'the name under it is "Occlara", Geist 600');
