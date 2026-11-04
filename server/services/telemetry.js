@@ -65,7 +65,8 @@ const sessions = [];
 const RECORDING_OUTCOMES = ['recorded', 'off', 'no-hw-encoder', 'busy', 'disk', 'black', 'error'];
 const RECORDING_GAMES = ['valorant', 'lol'];
 const RECORDING_MODES = ['auto', 'off'];
-const RECORDING_RES = ['720', '1080'];
+// 480p since 8.7 (recorder.js RES): a client before it sends only the other two.
+const RECORDING_RES = ['480', '720', '1080'];
 const VERSION = /^\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 const MAX_RECORDINGS = 1000;
 const recordings = [];

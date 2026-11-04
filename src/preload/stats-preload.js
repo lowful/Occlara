@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('occlara', {
   // journey, else null (8.4.1).
   openedFor:       () => ipcRenderer.invoke(C.STATS_OPENED_FOR),
   openWeekly:      () => ipcRenderer.send(C.OPEN_WEEKLY),
+  // Another page of the window (8.7): Settings, from the line that asks for a
+  // Riot ID, as Home's go does.
+  go:              (page) => ipcRenderer.send(C.SHELL_NAV, page),
   openAiLog:       (sessionId) => ipcRenderer.send(C.OPEN_AILOG, sessionId || null),
   askAboutSession: (seed) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, seed),
   openReview:      (id) => ipcRenderer.send(C.REVIEW_OPEN, id),

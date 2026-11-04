@@ -45,9 +45,8 @@ function paintHow(how) {
   list.parentNode.hidden = !lines.length;
 }
 
-function paintGames(view) {
-  const games = (view && typeof view.gamesLeft === 'string') ? view.gamesLeft : '';
-  $('inv-games').textContent = games;
+function paintGames() {
+  // The games left are the rail's line under Start (8.7, shell.js), said once.
   $('inv-upgrade').hidden = typeof api.openUpgrade !== 'function';
 }
 

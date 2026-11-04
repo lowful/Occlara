@@ -49,7 +49,9 @@
  *      session, the reads stay on GDI, and the notice says Windowed Fullscreen.
  *      Then the primary display changing while recording: the old page stops
  *      with every chunk on disk and nothing open, and a new page records 30 a
- *      second of the 60 delivered, built again.
+ *      second of the 60 delivered, built again. And 480p (8.7): the real page
+ *      records 854x480 at 15 a second of the 60 drawn, its read on the GDI
+ *      helper, at the 1.33 Mbps asked, said so where Settings and the log say it.
  *   5. A match's end holds its recording, and a resume lets the hold go with
  *      the withdrawn review. The displays changing reach the recorder with
  *      the primary display's id. Windows ending its session ('session-end' on
@@ -138,7 +140,7 @@ if (!process.versions.electron) {
   if (rec.fatal) console.log('FAIL  ' + rec.fatal);
   const bad = rec.lines.filter((l) => !l.ok).length + (rec.fatal ? 1 : 0);
   if (bad) { console.error(`\nFAIL: ${bad} of ${rec.lines.length} recorder checks failed`); process.exit(1); }
-  console.log(`\nPASS: all ${rec.lines.length} checks: the real recorder records generated frames into pages, 30 a second of the 60 drawn at the bitrate asked, serves the read its frame, stops cleanly with every chunk the page sent and nothing left open, falls back to GDI with its notice when busy, stops when the capture reads black, starts again whole on a display change, ends at once when Windows ends its session or any quit comes, and its counts reach the server once however the session ended`);
+  console.log(`\nPASS: all ${rec.lines.length} checks: the real recorder records generated frames into pages, 30 a second of the 60 drawn at the bitrate asked (15 at 480p), serves the read its frame, stops cleanly with every chunk the page sent and nothing left open, falls back to GDI with its notice when busy, stops when the capture reads black, starts again whole on a display change, ends at once when Windows ends its session or any quit comes, and its counts reach the server once however the session ended`);
   process.exit(0);
 }
 
@@ -602,6 +604,67 @@ setTimeout(async () => {
       `and the new one records ${hB && hB.recordedFps} a second of the ${hB && hB.fps} delivered, ${hB && hB.framesOpen} frames open: built again`);
     send(C.COACH_STOP);
     ok(await until(() => !recWin(), STOP_WAIT_MS), 'stopped: its page gone too');
+
+    // 4c. 480P, THE LIGHT SIZE (8.7): the real page asked for 854x480, the
+    // capture for 30 a second and the recording for 15 of them; the busy
+    // picture is still drawn 60 times a second, so the grid keeps 15 of 60.
+    // It cannot hand the Standard read its 1280x720 frame, so every read
+    // stays on the GDI helper (the grey frame), as it is with recording Off.
+    const sentBefore480 = reportsTo().length;
+    store.set('recordingRes', '480');
+    send(C.COACH_START);
+    const v480 = latest();
+    const seg480 = await until(onSeg, 15000);
+    const kept480 = [];
+    const tracks480 = [];
+    const reads480 = [];
+    const t480 = Date.now();
+    while (Date.now() - t480 < 7000) {
+      await wait(1000);
+      const hl = recorderModule.current().health;
+      if (hl && hl.changing && Number.isFinite(hl.recordedFps)) kept480.push(hl.recordedFps);
+      if (hl && hl.track) tracks480.push(hl.track);
+      const shot = await v480.capture();
+      reads480.push(capture.source() === 'gdi' && shot === grey);
+    }
+    const live480 = (await invoke(C.STATE_GET)).recording.live;
+    ok(seg480 && tracks480.length >= 4 && tracks480.every((t) => t.width === 854 && t.height === 480),
+      `480p: the page records 854x480 (${JSON.stringify(tracks480[tracks480.length - 1] || null)})`);
+    ok(kept480.length >= 4 && quantile(kept480, 0.5) >= 13 && quantile(kept480, 0.5) <= 16 && Math.max(...kept480) <= 17,
+      `480p keeps 15 a second of the ${FAKE_FPS} drawn: ${kept480.join(', ')}`);
+    ok(live480 && live480.res === '480' && live480.height === 480 && live480.fps === 15,
+      `Settings is told 480p, about 15 frames a second: ${JSON.stringify(live480)}`);
+    ok(reads480.length >= 4 && reads480.every(Boolean), `every read while recording 480p came from the GDI helper, the recording too small for the read's frame (${reads480.length})`);
+    send(C.COACH_STOP);
+    ok(await until(() => !recWin(), STOP_WAIT_MS), '480p stopped: its page gone');
+    const dir480 = seg480 ? onDisk().find((d) => path.join(ROOT, d.name) === seg480.dir) : null;
+    let ix480 = null;
+    let cl480 = [];
+    if (dir480 && dir480.init) {
+      const all = Buffer.concat([dir480.init].concat(dir480.pages.map((p) => p.bytes)));
+      ix480 = require(path.join(REPO, 'src/shared/clip-frames')).indexClip(all);
+      const rd = webm.createReader();
+      rd.push(all);
+      rd.end();
+      cl480 = rd.clusters;
+    }
+    const span480 = cl480.length ? (cl480[cl480.length - 1].last - cl480[0].first) / 1000 : 0;
+    const frames480 = cl480.reduce((n, c) => n + c.frames, 0);
+    const bytes480 = dir480 && dir480.init ? dir480.init.length + dir480.pages.reduce((n, p) => n + p.bytes.length, 0) : 0;
+    const mbps480 = bytes480 * 8 / 1e6 / Math.max(1, span480);
+    ok(ix480 && ix480.width === 854 && ix480.height === 480 && span480 >= 5 && frames480 / span480 >= 10 && frames480 / span480 <= 15.5
+      && cl480.every((c) => c.keyframe === true),
+    `on disk: an ${ix480 ? ix480.width + 'x' + ix480.height : 'unread'} H.264 track, ${frames480} frames over ${r1(span480)} s, ${r1(frames480 / Math.max(1, span480))} a second, every Cluster on a keyframe`);
+    ok(seg480 && seg480.bitrate === 1.33e6 && mbps480 <= 1.33 * BITRATE_BAND && seg480.pageFramesOpen === 0 && seg480.pageTracksLive === 0
+      && seg480.chunks === seg480.pageChunks,
+    `${r1(mbps480)} Mbps written against the 1.33 asked, every chunk the page sent on disk, ${seg480 ? seg480.pageFramesOpen : '?'} frames left open, ${seg480 ? seg480.pageTracksLive : '?'} tracks live`);
+    const r480 = await until(() => reportsTo().slice(sentBefore480).find((x) => x.res === '480'), 6000);
+    ok(r480 && r480.outcome === 'recorded' && r480.game === 'valorant', `its counts say 480, recorded: ${JSON.stringify(r480)}`);
+    let log480 = '';
+    try { log480 = fs.readFileSync(path.join(ud, 'debug.log'), 'utf8'); } catch { /* said below */ }
+    ok(/\[recorder\] recording 854x480 of a 1920x1080 display \(its own shape\), asked 854x480 at up to 30 fps, recorded at up to 15, 1\.3 Mbps/.test(log480),
+      'and the start line says 480p asks the capture for 30 a second and records 15');
+    store.set('recordingRes', '720');
 
     // 5. The displays changing reach the recorder, with the primary
     // display's id (index.js follows screen's three events).

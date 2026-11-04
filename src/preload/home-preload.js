@@ -37,7 +37,11 @@ contextBridge.exposeInMainWorld('occlara', {
     // REVIEW_GET answers the review itself; the model checks it is the newest row's.
     const newest = list[0] ? await ipcRenderer.invoke(C.REVIEW_GET, list[0].id).catch(() => null) : null;
     const review = newest ? { ...newest, id: newest.id || list[0].id } : null;
-    return homeModel({ rows: list, patterns, review });
+    // While the newest is still being written (its row carries work), the
+    // one before it lends its fix (home-model.js focusPrevious).
+    const writing = !!(list[0] && list[0].work) && !(review && typeof review.focus === 'string' && review.focus.trim());
+    const before = writing && list[1] ? await ipcRenderer.invoke(C.REVIEW_GET, list[1].id).catch(() => null) : null;
+    return homeModel({ rows: list, patterns, review, previous: before });
   },
   /**
    * The rank card and the RR of each rated match in the library, by id, from

@@ -39,8 +39,8 @@ html, body {
   height: calc(100% - 20px);
   border-radius: 18px;
   background: var(--bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-win), var(--edge-top);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-win);
   /* The fade-out starts AFTER the last beat lands, not during it. */
   animation: stageIn 380ms var(--ease) both, stageOut 320ms 2080ms var(--ease) forwards;
 }

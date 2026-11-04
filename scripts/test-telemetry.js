@@ -99,7 +99,7 @@ check('  junk fields are clamped, not stored',
 // ── The match recorder's sessions (8.3) ────────────────────────────────────
 // The client's block, built by the client's own reportBlock() so the two
 // cannot drift, then everything a careless or hostile client might add.
-const { reportBlock, OUTCOMES, GAMES } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'recorder.js'));
+const { reportBlock, OUTCOMES, GAMES, RES_CHOICES } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'recorder.js'));
 const before = JSON.stringify(t.summary());
 const tipFields = (x) => { const { recording, ...rest } = x; return JSON.stringify(rest); };
 
@@ -113,6 +113,11 @@ check('  the server knows the same outcomes and games the client can send',
   JSON.stringify(t.RECORDING_OUTCOMES) === JSON.stringify(OUTCOMES) && JSON.stringify(t.RECORDING_GAMES) === JSON.stringify(GAMES)
     && JSON.stringify(GAMES) === JSON.stringify(['valorant', 'lol']),
   `${t.RECORDING_OUTCOMES} against ${OUTCOMES}, ${t.RECORDING_GAMES} against ${GAMES}`);
+// 480p since 8.7: a 480p session counted as 'other' would hide the light tier's numbers.
+check('  and the same sizes, 480p included, each sent as itself',
+  JSON.stringify(t.RECORDING_RES) === JSON.stringify(RES_CHOICES) && JSON.stringify(RES_CHOICES) === JSON.stringify(['480', '720', '1080'])
+    && reportBlock({ res: '480', outcome: 'recorded' }, '8.7.0').res === '480' && reportBlock({ res: '1440', outcome: 'off' }, '8.7.0').res === '720',
+  `${t.RECORDING_RES} against ${RES_CHOICES}`);
 check('  a session the client cannot name a game for is sent as Valorant\'s, never a word off its list',
   reportBlock({ outcome: 'off' }, '8.3.0').game === 'valorant' && reportBlock({ game: 'rivals', outcome: 'off' }, '8.3.0').game === 'valorant');
 t.record(block, 'feedbeef00');

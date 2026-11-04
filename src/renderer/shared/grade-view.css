@@ -1,15 +1,17 @@
 /* palette: tokens only */
-/* The grade card and the insight lists, shared by the review, the match
-   library, Home, onboarding and Stats. White on black like the rest of the app; the status
-   colours carry the verdict, and every verdict also has a number or a word
-   beside it, so colour is never the only signal. */
+/* The grade and the insight lists, shared by the review, the match
+   library, Home, onboarding and Stats. White on black like the rest of the
+   app; the status colours carry the verdict, and every verdict also has a
+   number or a word beside it, so colour is never the only signal.
 
-/* NO FRAME OF ITS OWN (8.6): the host frames the grade card, Home's last
-   match its card and the review its section, so it is never a card inside a
-   card. */
-.gv-grade {
-  display: flex; flex-direction: column; gap: var(--space-4);
-}
+   THE TRAINING LOG (8.7 redesign): no card anywhere in here. A category is
+   a name, its number at the end, and one thin rule filled to the score; its
+   evidence is a quiet inline run. A list is rows parted by the hairline, the
+   top mistake set larger with its fix the line to act on. */
+
+/* NO FRAME OF ITS OWN (8.6): the host frames the grade, so it is never a
+   card inside a card. */
+.gv-grade { display: flex; flex-direction: column; gap: var(--space-5); }
 .gv-top { display: flex; align-items: center; gap: var(--space-4); }
 /* The number is Geist 600 with figures one width, the type scale's big
    number: Geist Mono ships no 600, and asked for one it was a faked bold. */
@@ -17,120 +19,105 @@
   font-family: var(--font); font-size: 44px; font-weight: 600; line-height: 1;
   letter-spacing: var(--track-display); color: var(--text); font-variant-numeric: tabular-nums;
 }
-/* The letter: a 40px square in its tone, S and A --good, B the ink, C
+/* The letter: a capsule mark in its tone, S and A --good, B the ink, C
    --warn, D --bad, the letter itself always in it. GradeView.letter() draws
-   it smaller in a row (.sm, .xs). */
+   it smaller in a row (.sm, .xs). One of the few framed marks that stay: a
+   letter in a row needs its ring to be found. The same capsule as the
+   library's .m-letter (matches.css), so a grade reads the same on every page. */
 .gv-letter {
   flex: none;
-  width: 40px; height: 40px; border-radius: var(--r-card);
+  width: 40px; height: 40px; border-radius: var(--r-btn);
   display: inline-flex; align-items: center; justify-content: center;
   font-family: var(--font); font-size: 22px; font-weight: 600; letter-spacing: -0.5px; line-height: 1;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--line-2);
 }
-.gv-letter.sm { width: 28px; height: 28px; font-size: 14px; letter-spacing: 0; }
+.gv-letter.sm { width: auto; min-width: 30px; height: 22px; padding: 0 8px; font-size: 11px; letter-spacing: 0.02em; }
 .gv-letter.xs { width: 20px; height: 20px; font-size: 11px; letter-spacing: 0; }
-.gv-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); background: rgba(var(--good-rgb), 0.08); }
+.gv-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
 .gv-letter.mid  { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
-.gv-letter.warn { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.45); background: rgba(var(--warn-rgb), 0.08); }
-.gv-letter.bad  { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.45); background: rgba(var(--bad-rgb), 0.08); }
+.gv-letter.warn { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.45); }
+.gv-letter.bad  { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.45); }
 .gv-letter.none { color: var(--text-mute); }
 .gv-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-/* Small uppercase labels are the mono label (ui.css .mono), never Geist bold
-   in capitals. */
-.gv-label {
-  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.3;
-  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-mute);
-}
-.gv-sub { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
+.gv-label { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
+.gv-sub { font-size: 13px; color: var(--text-dim); line-height: 1.4; }
 
-.gv-cats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3) var(--space-4); }
-.gv-cat { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+/* The four categories, two a row: the name, the number at the end of its
+   line, the rule under both filled to the score, and the evidence as one
+   quiet run of words under it. */
+.gv-cats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5) var(--space-10); }
+.gv-cat { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .gv-cat-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
-.gv-cat-name { font-size: 12px; font-weight: 600; color: var(--text); }
-.gv-cat-score { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
-.gv-cat.unmeasured .gv-cat-score { font-family: var(--font); font-size: 11px; font-weight: 500; color: var(--text-mute); }
-.gv-bar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.gv-cat-name { font-size: 14px; font-weight: 500; color: var(--text); }
+.gv-cat-score { font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.gv-cat.unmeasured .gv-cat-score { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+/* The rule: the hairline, and over it the fill, the ink or the score's tone. */
+.gv-bar { height: 2px; background: var(--line); overflow: hidden; }
 .gv-bar i {
-  display: block; height: 100%; width: var(--w, 0%); border-radius: 2px; background: var(--text);
+  display: block; height: 100%; width: var(--w, 0%); background: var(--text);
   transition: width var(--t-slow) var(--ease);
 }
 .gv-bar i.good { background: var(--good); }
 .gv-bar i.warn { background: var(--warn); }
 .gv-bar i.bad  { background: var(--bad); }
-/* The evidence, a stat chip each (8.7), its leading number in bold
-   (grade-view.js chip). */
-.gv-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.gv-chip {
-  font-size: 11px; line-height: 1.35; color: var(--text-dim);
-  padding: 2px 8px; border-radius: var(--r-pill);
-  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
-}
+/* An unmeasured category keeps a dashed rule: its state in form. */
+.gv-cat.unmeasured .gv-bar { background: transparent; border-top: 1px dashed var(--line-2); height: 0; }
+/* The evidence (8.7), its leading number in the ink (grade-view.js chip), a
+   dot of the quiet ink between one fact and the next. No pill. */
+.gv-chips { display: flex; flex-wrap: wrap; gap: 2px 0; }
+.gv-chip { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+.gv-chip:not(:last-child)::after { content: '\00B7'; margin: 0 8px; color: var(--text-mute); }
 .gv-chip b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
-.gv-note { font-size: 11.5px; line-height: 1.45; color: var(--text-dim); margin: 0; }
+.gv-note { font-size: 13px; line-height: 1.5; color: var(--text-dim); margin: 0; }
 .gv-cat-score.good { color: var(--good); }
 .gv-cat-score.warn { color: var(--warn); }
 .gv-cat-score.bad  { color: var(--bad); }
 
-.gv-insights { display: flex; flex-direction: column; gap: var(--space-6); }
+.gv-insights { display: flex; flex-direction: column; gap: var(--space-10); }
 .gv-block { display: flex; flex-direction: column; gap: var(--space-2); }
-.gv-block h3 {
-  margin: 0;
-  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.3;
-  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-mute);
-}
-.gv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-.gv-item {
-  display: flex; flex-direction: column; gap: 6px;
-  padding: var(--space-3) var(--space-4);
-  background: rgba(0, 0, 0, 0.24);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-card);
-}
-.gv-item-head { display: flex; align-items: center; gap: var(--space-2); }
-.gv-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--text-mute); }
+.gv-block h3 { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; color: var(--text); }
+/* The rows, parted by the hairline. */
+.gv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.gv-item { display: flex; flex-direction: column; gap: 6px; padding: var(--space-3) 0; border-top: 1px solid var(--line); }
+.gv-list > .gv-item:last-child { border-bottom: 1px solid var(--line); }
+.gv-item-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.gv-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
 .gv-item.bad .gv-dot  { background: var(--bad); }
 .gv-item.good .gv-dot { background: var(--good); }
 .gv-item.warn .gv-dot { background: var(--warn); }
-.gv-item-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.gv-badge {
-  font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: var(--track-label); text-transform: uppercase;
-  padding: 2px 6px; border-radius: var(--r-pill); color: var(--text-mute);
-  border: 1px solid var(--glass-border); margin-left: auto;
-}
-.gv-item-detail { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); margin: 0; }
-.gv-item-fix { font-size: 12.5px; line-height: 1.5; color: var(--text); margin: 0; }
-.gv-fix-label {
-  font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: var(--track-label); text-transform: uppercase;
-  color: var(--text-mute); margin-right: 8px;
-}
-.gv-rounds { display: flex; flex-wrap: wrap; gap: 4px; }
+.gv-item-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.gv-badge { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-left: auto; white-space: nowrap; }
+.gv-item-detail { font-size: 14px; line-height: 1.5; color: var(--text-dim); margin: 0; max-width: 72ch; }
+.gv-item-fix { font-size: 14px; line-height: 1.5; color: var(--text); margin: 0; max-width: 72ch; }
+.gv-fix-label { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-right: 8px; }
+/* The rounds an entry names, R2 R9 R14, a quiet run of the mono face; a
+   button where the page can jump to the round, told by the pointer and the
+   ink under it. */
+.gv-rounds { display: flex; flex-wrap: wrap; gap: 2px var(--space-3); }
 .gv-rchip {
-  font: 500 10.5px var(--font-mono); color: var(--text-dim);
-  padding: 2px 7px; border-radius: var(--r-pill);
-  border: 1px solid var(--line-2); background: transparent;
+  font: 500 12px var(--font-mono); color: var(--text-dim); font-variant-numeric: tabular-nums;
+  padding: 2px 0; border: 0; border-radius: 2px; background: transparent;
 }
-button.gv-rchip { cursor: pointer; transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
-button.gv-rchip:hover { border-color: rgba(255, 255, 255, 0.45); color: var(--text); }
-button.gv-rchip:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-.gv-empty { font-size: 12.5px; color: var(--text-mute); line-height: 1.5; margin: 0; }
+button.gv-rchip { cursor: pointer; transition: color var(--t-fast) var(--ease); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+button.gv-rchip:hover { color: var(--text); text-decoration-color: var(--text); }
+button.gv-rchip:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+.gv-empty { font-size: 14px; color: var(--text-mute); line-height: 1.5; margin: 0; }
 
-/* The lists ranked (8.7, insightLists hero): the top mistake a card with
-   room round it and its fix the largest line on it; every other entry one
-   closed line, its title and its rounds counted, opening to the rest. */
-.gv-hero { gap: var(--space-2); padding: var(--space-4); background: var(--bg-2); }
-.gv-hero .gv-item-title { font-size: 15px; letter-spacing: -0.01em; }
-.gv-hero.bad { border-color: rgba(var(--bad-rgb), 0.35); }
+/* The lists ranked (8.7, insightLists hero): the top mistake set larger
+   with room round it and its fix the largest line on it, the line to act
+   on; every other entry one closed line, its title and its rounds counted,
+   opening to the rest. */
+.gv-hero { gap: var(--space-2); padding: var(--space-2) 0 var(--space-4); border-top: 0; }
+.gv-hero .gv-item-title { font-size: 17px; letter-spacing: -0.01em; }
 .gv-action {
-  display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 2px;
-  margin: var(--space-1) 0 0; font-size: 14.5px; font-weight: 600; line-height: 1.45; color: var(--text);
+  display: block;
+  margin: var(--space-1) 0 0; font-size: 20px; font-weight: 600; line-height: 1.35; letter-spacing: -0.015em; color: var(--text);
+  max-width: 60ch; text-wrap: pretty;
 }
-.gv-action-mark { margin-right: 8px; color: var(--text-dim); font-weight: 500; }
+.gv-action-mark { margin-right: 10px; color: var(--text-dim); font-weight: 500; }
+.gv-action .gv-fix-label { font-size: 13px; }
 .gv-rowed { padding: 0; }
-.gv-row > summary {
-  list-style: none; cursor: pointer;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--r-card);
-}
+.gv-row > summary { list-style: none; cursor: pointer; padding: var(--space-3) 0; }
 .gv-row > summary::-webkit-details-marker { display: none; }
 .gv-row > summary::after {
   content: ''; flex: none; margin-left: auto;
@@ -140,37 +127,30 @@ button.gv-rchip:focus-visible { outline: 2px solid var(--text); outline-offset: 
 }
 .gv-row[open] > summary::after { transform: translateY(1px) rotate(225deg); }
 .gv-row > summary:hover .gv-item-title { color: var(--text); }
-.gv-row > summary:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.gv-row > summary:hover::after { border-color: var(--text); }
+.gv-row > summary:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: 2px; }
 .gv-row .gv-badge { margin-left: 0; }
-.gv-row-body {
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 0 var(--space-4) var(--space-3);
-}
+.gv-row-body { display: flex; flex-direction: column; gap: 6px; padding: 0 0 var(--space-3) 14px; }
 .gv-count {
-  flex: none; font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; color: var(--text-mute);
-  padding: 1px 7px; border-radius: var(--r-pill); border: 1px solid var(--line-2);
+  flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-mute);
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 
 /* This match against the ones before it (8.7, grade-view.js progressStrip):
-   a chip a line, its tone the colour of its edge and its dot, and its words
-   saying the sign and the window, so the colour is never the only signal. */
-.gv-progs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+   one quiet line, a dot in its tone before each, and its words saying the
+   sign and the window, so the colour is never the only signal. */
+.gv-progs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
 .gv-prog {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 5px 12px; border-radius: var(--r-pill);
-  border: 1px solid var(--line-2); background: rgba(255, 255, 255, 0.03);
-  font-size: 12.5px; font-weight: 500; line-height: 1.35; color: var(--text);
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 500; line-height: 1.4; color: var(--text);
 }
 .gv-prog::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
-.gv-prog.good { border-color: rgba(var(--good-rgb), 0.40); background: rgba(var(--good-rgb), 0.07); }
 .gv-prog.good::before { background: var(--good); }
-.gv-prog.bad { border-color: rgba(var(--bad-rgb), 0.40); background: rgba(var(--bad-rgb), 0.07); }
 .gv-prog.bad::before { background: var(--bad); }
 /* The review's reveal (8.7, review.js startReveal, review.css): under a
    .revealing host the bars fill from nothing after the letter has stamped,
    one after another by their place (--i, gradeCard's opts.reveal), and the
-   progress chips rise in after the bars. Transform and opacity only, so
+   progress lines rise in after the bars. Transform and opacity only, so
    nothing moves around them; .reveal-done is the end state at once. */
 .revealing:not(.reveal-done) .gv-bar i {
   transform-origin: left center;
@@ -186,10 +166,9 @@ button.gv-rchip:focus-visible { outline: 2px solid var(--text); outline-offset: 
   to   { transform: scaleX(1); }
 }
 
-/* A review still being checked (8.4.1, grade-view.js checking): a pill where
-   its grade would be, its word beside a dot, and on Home's last match a card
-   in the grade card's place saying what it waits for, framed, as the grade
-   card is, by its host. The word is the signal.
+/* A review still being checked (8.4.1, grade-view.js checking): its word
+   beside a dot where its grade would be, and on Home's last match a block in
+   the grade's place saying what it waits for. The word is the signal.
    The dot is still: anything that never stops moving keeps its page composited
    every frame, and the look at the deaths decodes its stills on the GPU while
    the review is being checked (review.css, the loading screen, says what that
@@ -197,9 +176,7 @@ button.gv-rchip:focus-visible { outline: 2px solid var(--text); outline-offset: 
 .gv-checking {
   flex: none; align-self: center;
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 9px; border-radius: var(--r-pill);
-  border: 1px solid var(--line-2);
-  font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: var(--track-label); text-transform: uppercase;
+  font-size: 12px; font-weight: 500;
   color: var(--text-dim); white-space: nowrap;
 }
 .gv-checking-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text); }
@@ -207,7 +184,7 @@ button.gv-rchip:focus-visible { outline: 2px solid var(--text); outline-offset: 
   display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
 }
 .gv-checking-card .gv-checking { align-self: flex-start; }
-.gv-checking-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+.gv-checking-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
 .gv-checking-card .gv-sub { margin: 0; }
 
 @media (max-width: 520px) {

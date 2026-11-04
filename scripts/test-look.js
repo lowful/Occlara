@@ -94,9 +94,10 @@ const shellCss = read('shell/shell.css');
 ok(/<button id="toggle" class="btn btn-rec toggle" type="button">/.test(shellHtml) && !/id="toggle"[^>]*btn-primary/.test(shellHtml),
   'Start is .btn-rec, never the primary, so the primary turning ink leaves it the signal');
 const rec = rule(ui, '.btn-rec');
-ok(prop(rec, 'background') === 'var(--red)' && prop(rec, 'color') === 'var(--on-accent)' && prop(rec, 'font-size') === '19px'
-  && prop(rec, 'font-weight') === '600' && prop(rule(shellCss, '.toggle'), 'font-weight') === '600',
-'its fill is the signal, its label the ground at 19px 600', rec.trim());
+ok(prop(rec, 'background') === 'var(--red)' && prop(rec, 'color') === 'var(--on-accent)' && prop(rec, 'font-size') === '18px'
+  && prop(rec, 'font-weight') === '600' && prop(rec, 'box-shadow') === 'var(--hi-signal), var(--drop)'
+  && prop(rule(shellCss, '.toggle'), 'font-weight') === '600',
+'its fill is the signal, its label the ground at 18px 600, lit from above like every capsule (8.7)', rec.trim());
 ok(prop(rule(ui, '.btn-rec:hover:not(:disabled):not(.active)'), 'background') === 'var(--red-2)'
   && prop(rule(ui, '.btn-rec:active:not(:disabled):not(.active)'), 'background') === 'var(--red-3)'
   && !rule(ui, '.btn-rec:hover') && !rule(ui, '.btn-rec:active'),
@@ -109,34 +110,45 @@ ok(prop(ended, 'opacity') === '1' && prop(ended, 'filter') === 'none' && prop(en
 const primary = rule(ui, '.btn-primary');
 ok(prop(primary, 'background') === 'var(--text)' && prop(primary, 'color') === 'var(--bg)'
   && prop(rule(ui, '.btn-primary:where(:not(:disabled)):hover'), 'background') === 'var(--cyan)'
-  && !/\.btn-primary::after|@keyframes sweep|box-shadow/.test(ui.replace(/\/\*[\s\S]*?\*\//g, '').match(/\.btn-primary[^{]*\{[^}]*\}/g).join('\n')),
-'the primary is the ink with the ground on it, white under the pointer, with no glow, lift or sweep');
+  && prop(primary, 'box-shadow') === 'var(--hi-ink), var(--drop)'
+  && !/\.btn-primary::after|@keyframes sweep|blur\(|0 0 \d+px/.test(ui.replace(/\/\*[\s\S]*?\*\//g, '').match(/\.btn-primary[^{]*\{[^}]*\}/g).join('\n')),
+'the primary is the ink with the ground on it, white under the pointer, its lit top edge and offset shadow (8.7) and no glow or sweep');
 
 // ── F5: the shared components ─────────────────────────────────────────────
 const btn = rule(ui, '.btn');
-ok(prop(btn, 'height') === '44px' && prop(btn, 'border-radius') === 'var(--r-control)' && prop(btn, 'font-size') === '15px'
-  && prop(btn, 'font-weight') === '500' && prop(btn, 'padding') === '0 18px' && prop(btn, 'gap') === 'var(--space-3)'
-  && !prop(btn, 'box-shadow') && !/\.btn:hover\s*\{|\.btn:active\s*\{|translateY\(-1px\)/.test(ui.replace(/\/\*[\s\S]*?\*\//g, '')),
-'a button is flat: 44px, --r-control, Geist 500 15px, no shadow, no lift and no press of its own', btn.trim());
-ok(prop(rule(ui, '.btn.md'), 'height') === '40px' && prop(rule(ui, '.btn.sm'), 'height') === '32px' && prop(rule(ui, '.btn.sm'), 'font-size') === '13px'
-  && prop(rule(ui, '.btn:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child)'), 'padding-right') === '6px',
-'with a 40px and a 32px size, and a keycap at its end taking the end padding to 6px');
+// THE CAPSULE (8.7): --r-btn, a lit top edge (--hi) over an offset shadow
+// (--drop), a pixel of rise under the pointer and a press that goes down into
+// an inset shadow. Transform and shadow only, nothing of layout.
+ok(prop(btn, 'height') === '40px' && prop(btn, 'border-radius') === 'var(--r-btn)' && prop(btn, 'font-size') === '14px'
+  && prop(btn, 'font-weight') === '500' && prop(btn, 'padding') === '0 20px' && prop(btn, 'gap') === 'var(--space-2)'
+  && prop(btn, 'box-shadow') === 'var(--hi), var(--drop)'
+  && /translateY\(-1px\)/.test(rule(ui, '.btn:where(:not(:disabled)):hover'))
+  && /inset 0 1px 2px/.test(rule(ui, '.btn:where(:not(:disabled)):active'))
+  && !/\.btn:hover\s*\{|\.btn:active\s*\{/.test(ui.replace(/\/\*[\s\S]*?\*\//g, '')),
+'a button is a capsule: 40px, --r-btn, Geist 500 14px, lit from above, a pixel of rise and a press into its shadow', btn.trim());
+ok(prop(rule(ui, '.btn.md'), 'height') === '36px' && prop(rule(ui, '.btn.sm'), 'height') === '30px' && prop(rule(ui, '.btn.sm'), 'font-size') === '13px'
+  && prop(rule(ui, '.btn:has(> .kbd:last-child, > kbd:last-child, > .keys:last-child)'), 'padding-right') === '8px',
+'with a 36px and a 30px size, and a keycap at its end taking the end padding to 8px');
 const ghost = rule(ui, '.btn-ghost');
-ok(prop(ghost, 'background') === 'rgba(255, 255, 255, 0.03)' && prop(ghost, 'border-color') === 'var(--line-2)' && prop(ghost, 'color') === 'var(--text)'
-  && prop(rule(ui, '.btn-ghost:where(:not(:disabled)):hover'), 'background') === 'rgba(255, 255, 255, 0.09)'
+ok(prop(ghost, 'background') === 'rgba(255, 255, 255, 0.055)' && prop(ghost, 'border-color') === 'var(--line-2)' && prop(ghost, 'color') === 'var(--text)'
+  && prop(rule(ui, '.btn-ghost:where(:not(:disabled)):hover'), 'background') === 'rgba(255, 255, 255, 0.095)'
   && prop(rule(ui, '.btn-link'), 'border-color') === 'transparent' && prop(rule(ui, '.btn-link'), 'color') === 'var(--text-dim)',
 'the ghost is the bordered secondary, and the borderless link it was is .btn-link');
 const danger = rule(ui, '.btn-ghost.danger:hover:not(:disabled)');
 ok(prop(danger, 'color') === 'var(--signal)' && /rgba\(var\(--signal-rgb\), 0\.5\)/.test(danger) && /rgba\(var\(--signal-rgb\), 0\.08\)/.test(danger),
   'a destructive ghost takes the signal under the pointer alone');
-const mono = rule(ui, '.mono');
-ok(prop(mono, 'font-family') === 'var(--font-mono)' && prop(mono, 'font-weight') === '500' && prop(mono, 'font-size') === '11px'
-  && prop(mono, 'letter-spacing') === 'var(--track-label)' && prop(mono, 'text-transform') === 'uppercase' && prop(mono, 'color') === 'var(--text-mute)',
-'the mono label is Geist Mono 500 11px, uppercase on --track-label, in ink-3', mono.trim());
-const ix = rule(ui, '.eyebrow::before');
-ok(prop(ix, 'counter-increment') === 'sec' && prop(ix, 'content') === '"[ " counter(sec, decimal-leading-zero) " ]" / ""'
-  && prop(ix, 'color') === 'var(--text-dim)' && prop(rule(ui, '.eyebrow'), 'font-family') === 'var(--font-mono)',
-'an eyebrow draws its index from a counter, with empty alternative text, so its own text stays the label');
+// The mono uppercase kicker and the indexed eyebrow are gone (8.7): a label
+// is Geist 12/500 in --text-mute, sentence case, and no renderer asks for
+// either class.
+ok(!rule(ui, '.mono').trim() && !rule(ui, '.eyebrow').trim() && !rule(ui, '.eyebrow::before').trim(),
+  'no .mono kicker and no .eyebrow in ui.css');
+{
+  const rendererDir = path.join(__dirname, '..', 'src', 'renderer');
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  const asks = walk(rendererDir).filter((f) => /\.(html|js)$/.test(f))
+    .filter((f) => /class="(?:[^"]*\s)?(?:mono|eyebrow)(?:\s[^"]*)?"|['"](?:[^'"]* )?(?:mono|eyebrow)(?: [^'"]*)?['"]\s*[,)]/.test(fs.readFileSync(f, 'utf8')));
+  ok(!asks.length, 'and no surface asks for them', asks.join(', '));
+}
 const cap = rule(ui, 'kbd, .kbd');
 ok(prop(cap, 'height') === '22px' && prop(cap, 'border') === '1px solid var(--line-2)' && prop(cap, 'border-radius') === 'var(--r-card)'
   && prop(cap, 'font-family') === 'var(--font-mono)' && prop(cap, 'font-weight') === '500' && prop(cap, 'font-size') === '11px'
@@ -163,9 +175,9 @@ ok(prop(input, 'height') === '44px' && prop(input, 'font-family') === 'var(--fon
   && prop(input, 'border') === '1px solid var(--line-2)' && prop(input, 'border-radius') === 'var(--r-control)' && prop(input, 'background') === 'transparent'
   && prop(rule(ui, '.input:focus'), 'box-shadow') === 'var(--glow-cyan)' && !/SF Mono|Consolas/.test(ui.replace(/\/\*[\s\S]*?\*\//g, '')),
 'an input is 44px of Geist Mono 14px in the control hairline, no literal font left', input.trim());
-ok(prop(rule(ui, '.icon-btn'), 'border-radius') === 'var(--r-control)' && !prop(rule(ui, '.icon-btn'), 'box-shadow')
-  && !/translateY/.test(rule(ui, '.icon-btn:where(:not(:disabled)):hover')),
-'an icon button is --r-control and as flat as the rest');
+ok(prop(rule(ui, '.icon-btn'), 'border-radius') === 'var(--r-btn)' && prop(rule(ui, '.icon-btn'), 'box-shadow') === 'var(--hi), var(--drop)'
+  && /translateY\(-1px\)/.test(rule(ui, '.icon-btn:where(:not(:disabled)):hover')),
+'an icon button is the same capsule as the rest: --r-btn, lit from above, a pixel of rise (8.7)');
 ok(prop(rule(ui, 'html.embedded .sheet > header .h-brand h2'), 'font-weight') === '600'
   && prop(rule(ui, 'html.embedded .sheet > header .h-brand h2'), 'font-size') === '24px'
   && prop(rule(ui, 'html.embedded .sheet > header .h-brand h2'), 'letter-spacing') === 'var(--track-display)',
@@ -186,13 +198,15 @@ ok(prop(score, 'font-family') === 'var(--font)' && prop(score, 'font-weight') ==
   && prop(score, 'font-variant-numeric') === 'tabular-nums',
 'its score is Geist 600 44px with figures one width', score.trim());
 const lt = rule(gv, '.gv-letter');
-ok(prop(lt, 'width') === '40px' && prop(lt, 'height') === '40px' && prop(lt, 'border-radius') === 'var(--r-card)' && prop(lt, 'font-weight') === '600'
+ok(prop(lt, 'width') === '40px' && prop(lt, 'height') === '40px' && prop(lt, 'border-radius') === 'var(--r-btn)' && prop(lt, 'font-weight') === '600'
   && prop(rule(gv, '.gv-letter.good'), 'color') === 'var(--good)' && prop(rule(gv, '.gv-letter.mid'), 'color') === 'var(--text)'
   && prop(rule(gv, '.gv-letter.warn'), 'color') === 'var(--warn)' && prop(rule(gv, '.gv-letter.bad'), 'color') === 'var(--bad)',
-'its letter is a 40px square on --r-card, Geist 600, S and A --good, B ink, C --warn, D --bad');
-ok(prop(rule(gv, '.gv-cat-score'), 'font-weight') === '500' && /^500 /.test(prop(rule(gv, '.gv-rchip'), 'font'))
-  && prop(rule(gv, '.gv-label'), 'font-family') === 'var(--font-mono)' && prop(rule(gv, '.gv-block h3'), 'font-family') === 'var(--font-mono)',
-'its category scores and round chips are Geist Mono 500, its small labels the mono label');
+'its letter is a 40px capsule on --r-btn (8.7, the same mark as the library\'s .m-letter), Geist 600, S and A --good, B ink, C --warn, D --bad');
+ok(prop(rule(gv, '.gv-cat-score'), 'font-weight') === '600' && prop(rule(gv, '.gv-cat-score'), 'font-family') === 'var(--font)'
+  && /^500 12px var\(--font-mono\)/.test(prop(rule(gv, '.gv-rchip'), 'font'))
+  && prop(rule(gv, '.gv-label'), 'font-size') === '12px' && prop(rule(gv, '.gv-label'), 'font-weight') === '500' && prop(rule(gv, '.gv-label'), 'color') === 'var(--text-mute)'
+  && prop(rule(gv, '.gv-block h3'), 'font-size') === '15px' && prop(rule(gv, '.gv-block h3'), 'font-weight') === '600' && !prop(rule(gv, '.gv-block h3'), 'font-family'),
+'its category scores are Geist 600, its round chips Geist Mono 500, its small labels Geist 12/500 mute and its headings Geist 15/600 (8.7, no mono kickers)');
 
 global.document = new Document('<body></body>');
 global.window = undefined;

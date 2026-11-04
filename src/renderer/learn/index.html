@@ -27,7 +27,10 @@
          ticks it off over time. The coach still says what it would pick, but it
          suggests rather than gates: a lesson list you cannot leave is a course,
          and a course is not what someone climbing ranked wants at 1am. -->
-    <main id="dash" class="body">
+    <!-- Until the data lands, one quiet line (8.7): no empty bands, no
+         heading over nothing. -->
+    <p id="learn-loading" class="loading">Loading...</p>
+    <main id="dash" class="body" hidden>
 
       <!-- WHO IS LEARNING. Rank band and role are graded inputs, not
            preferences: the role decides which skills apply at all and the band
@@ -109,6 +112,7 @@
     </main>
   </div>
 
+  <script src="../shared/seg.js"></script>
   <script src="../shared/i18n-apply.js"></script>
   <script src="learn.js"></script>
 </body>

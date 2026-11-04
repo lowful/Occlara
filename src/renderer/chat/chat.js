@@ -136,24 +136,8 @@ function newThread(row, before) {
 
 // ── Starters, from the match on the chip ───────────────────────────────────
 
-const SVG = 'http://www.w3.org/2000/svg';
-function icon(paths) {
-  const svg = document.createElementNS(SVG, 'svg');
-  for (const [k, v] of [['viewBox', '0 0 24 24'], ['width', '15'], ['height', '15'], ['fill', 'none'], ['stroke', 'currentColor'],
-    ['stroke-width', '1.8'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round']]) svg.setAttribute(k, v);
-  for (const d of paths) {
-    const p = document.createElementNS(SVG, d.startsWith('c') ? 'circle' : 'path');
-    if (d.startsWith('c')) { const [, cx, cy, r] = d.split(' '); p.setAttribute('cx', cx); p.setAttribute('cy', cy); p.setAttribute('r', r); }
-    else p.setAttribute('d', d);
-    svg.append(p);
-  }
-  return svg;
-}
-const ICONS = [
-  ['M4 19h16', 'M7 15l3-4 3 2 4-6'],
-  ['c 12 12 8', 'c 12 12 3.4', 'M12 2v3', 'M12 19v3', 'M2 12h3', 'M19 12h3'],
-  ['M12 3a7 7 0 0 0-4 12.7V19a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-3.3A7 7 0 0 0 12 3z'],
-];
+// Each is a ghost capsule holding the question alone (8.7): the icons that
+// led them went, the words are the whole of it.
 
 /** The questions the page offers for the match on the chip, or for no match. */
 function starterTexts() {
@@ -165,16 +149,11 @@ function starterTexts() {
 
 function paintStarters() {
   startersEl.replaceChildren();
-  starterTexts().forEach((text, i) => {
+  starterTexts().forEach((text) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'starter';
-    const ico = document.createElement('span');
-    ico.className = 's-ico';
-    ico.append(icon(ICONS[i % ICONS.length]));
-    const words = document.createElement('span');
-    words.textContent = text;
-    b.append(ico, words);
+    b.textContent = text;
     b.addEventListener('click', () => send(text));
     startersEl.append(b);
   });

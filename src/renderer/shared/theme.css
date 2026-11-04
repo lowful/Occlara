@@ -140,6 +140,22 @@ html { font-synthesis-weight: none; }
   --r-card: 6px;
   --r-control: 10px;
   --r-pill: 999px;
+  /* 8.7 redesign, THE TRAINING LOG. A button is a capsule: --r-btn. A card is
+     gone (a ruled row or a hairline section carries the content instead);
+     --r-card stays for the few framed things left (a keycap, a clip frame).
+     Depth is the button's alone, built from OFFSET shadows and inset lit
+     edges (never a gradient, never a halo): --hi the lit top edge, --hi-ink
+     the same on a light fill, --drop the resting shadow, --drop-hover the
+     one under the pointer. */
+  --r-btn: 999px;
+  --hi:         inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  --hi-ink:     inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(0, 0, 0, 0.16);
+  --hi-signal:  inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  --drop:       0 1px 2px rgba(0, 0, 0, 0.55);
+  --drop-hover: 0 6px 14px -4px rgba(0, 0, 0, 0.7);
+  /* The motion every surface shares: ease-out-quart for arrivals, and one
+     spring for a thumb or a stamp that settles. Durations stay --t-*. */
+  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;

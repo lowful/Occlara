@@ -1,5 +1,20 @@
 'use strict';
 
+/*
+ * THE SLIDING THUMB (8.7): shared/seg.js lays one thumb behind each row of
+ * buttons and slides it to the chosen one (.active). The buttons and their
+ * state are untouched, so markSeg below and every test that reads .active
+ * are as they were. Guarded on MutationObserver, which the offline DOM the
+ * tests run the page in does not have; there the buttons draw their own fill
+ * (settings.css .seg:not(.seg-slide)).
+ */
+function slideSeg(id) {
+  const el = document.getElementById(id);
+  if (el && typeof window.occlaraSeg === 'function' && typeof MutationObserver === 'function') window.occlaraSeg(el);
+  return el;
+}
+for (const id of ['capturespeed', 'recording', 'recordingres', 'clipcap', 'advanced', 'capturequality', 'sounds', 'ailog']) slideSeg(id);
+
 function markSeg(seg, value) {
   for (const btn of seg.querySelectorAll('button')) {
     btn.classList.toggle('active', btn.dataset.val === value);
@@ -63,7 +78,8 @@ wireSeg(captureSeg, 'captureQuality');
 /*
  * RECORD MATCH VIDEO (8.3): On or Off, the words the player asked for, stored
  * as 'auto' and 'off', the values the setting shipped with (On is Auto: it
- * turns itself off on a PC that cannot afford it); and 720p or 1080p. Under
+ * turns itself off on a PC that cannot afford it); and 480p, 720p or 1080p,
+ * 480p the light one (8.7, 15 frames a second). Under
  * them ONE STATUS LINE: recording now, at what size and about how many frames
  * a second, or why it is not, this session's reason before the last session's
  * (no hardware encoder, the PC busy, not enough disk, a game the capture read
@@ -90,8 +106,8 @@ const still = () => (recGame === 'lol' ? "Your review is still built from the ga
  * while its own record is (Settings never says League's screen is read).
  */
 const REC_HINT = {
-  valorant: 'On records each match on this PC at about 30 frames a second while the coach reads your screen; if your PC cannot keep up while you play, recording stops for that session and the coach keeps reading. Off records nothing, and the coach still reads your screen at the speed set above. The video stays on this PC: once a review is built, a short clip of each moment it looked at is kept beside it and the rest is deleted.',
-  lol: "On records each game on this PC at about 30 frames a second; if your PC cannot keep up while you play, recording stops for that session. Off records nothing. Either way your review is built from the game's own record. The video stays on this PC: once a review is built, short clips of up to six of your deaths, spread across the game, are kept beside it and the rest is deleted.",
+  valorant: 'On records each match on this PC at about 30 frames a second (15 at 480p, the lightest size, whose death moments are less sharp) while the coach reads your screen; if your PC cannot keep up while you play, recording stops for that session and the coach keeps reading. Off records nothing, and the coach still reads your screen at the speed set above. The video stays on this PC: once a review is built, a short clip of each moment it looked at is kept beside it and the rest is deleted.',
+  lol: "On records each game on this PC at about 30 frames a second (15 at 480p, the lightest size, whose death moments are less sharp); if your PC cannot keep up while you play, recording stops for that session. Off records nothing. Either way your review is built from the game's own record. The video stays on this PC: once a review is built, short clips of up to six of your deaths, spread across the game, are kept beside it and the rest is deleted.",
 };
 // Capture speed and Performance are about reading the screen, and say what
 // they do in each game. Both are the Valorant engine's alone: League's
@@ -124,10 +140,15 @@ const REC_WHY = {
  * number of rows than the setting names (a 1280x1024 display at 1080p records
  * 1024, and says 1024p); the setting where main does not give them.
  */
+/** A saved size as Settings shows it: '480' and '1080' as they are, anything else '720' (recorder.js resOf). */
+function resOf(v) {
+  const s = String(v);
+  return s === '480' || s === '1080' ? s : '720';
+}
 function recordingRows(live) {
   const h = live && live.height;
   if (Number.isFinite(h) && h > 0) return String(Math.round(h));
-  return String(live && live.res) === '1080' ? '1080' : '720';
+  return resOf(live && live.res);
 }
 /** The status line's words, and whether Try again goes under them; null to say nothing. */
 function recordingLine(r) {
@@ -148,7 +169,7 @@ function paintRecording(r) {
   if (!r) return;
   const off = r.mode === 'off';
   markSeg(recSeg, off ? 'off' : 'auto');
-  markSeg(recResSeg, String(r.res) === '1080' ? '1080' : '720');
+  markSeg(recResSeg, resOf(r.res));
   paintRecHint();
   const line = recordingLine(r);
   // Written only when it changes: it is a live region, and the state is
@@ -291,7 +312,7 @@ function buildGamePicker(current, includeUnavailable) {
     // game is not built yet" about League, which Start records and
     // grades, and that "the look and layout are real", about palettes that are
     // gone. Only a game Start would refuse is called unbuilt.
-    tag: g.preview || !g.coaching ? 'preview' : '',
+    tag: g.comingSoon ? 'coming soon' : (g.preview || !g.coaching ? 'preview' : ''),
     note: !g.coaching ? 'Recording is not built for this game yet. Start will say so and do nothing.'
       : (GAME_NOTES[g.id] || ''),
   }));
@@ -301,7 +322,11 @@ function buildGamePicker(current, includeUnavailable) {
       label: 'Game',
       options: opts,
       value: current,
-      onChange: (id) => window.occlara.setConfig({ game: id }).catch(() => {}),
+      onChange: (id) => {
+        // A game that is coming soon cannot be chosen: put the list back.
+        if (games.some((g) => g.id === id && g.comingSoon)) { gameDD.setValue(current); return; }
+        window.occlara.setConfig({ game: id }).catch(() => {});
+      },
     });
   } else {
     gameDD.setOptions(opts, true).setValue(current);

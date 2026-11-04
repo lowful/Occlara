@@ -117,6 +117,55 @@ const pick = (r) => `${r.tier} ${r.mode} ${r.res} ${r.recordable ? 'recordable' 
     ok(sizes[720] === true && sizes[1080] === false, 'a size the encoder refused cannot be chosen; one it never answered for can');
   });
 
+  // 480P, THE LIGHT ONE (8.7): asked for 30 frames a second and recorded at
+  // 15, it is offered first to a PC that was told to record nothing (a modest
+  // one) or at 720p for want of RAM or threads. Only on the encoder's yes to it.
+  await section('480p, offered first where the PC is short, on the encoder\'s yes:', () => {
+    const ALL = { 480: true, 720: true, 1080: true };
+    const big3 = rules.recommend(pc({ encoder: ALL }));
+    ok(pick(big3) === 'capable auto 1080 recordable' && big3.why === 'This PC can record at 1080p.' && big3.sizes[480] === true,
+      'a capable PC whose encoder takes all three still records at 1080p', pick(big3));
+    const modest = rules.recommend(pc({ ramBytes: 3.8 * GB, encoder: ALL }));
+    ok(pick(modest) === 'modest auto 480 recordable' && modest.tone === 'warn'
+      && modest.why === 'With 4 GB of RAM, 480p is the lightest way to record. It stops by itself if the PC cannot keep up.',
+    'a modest PC, once told Frames only, records at 480p, the lightest', `${pick(modest)}: ${modest.why}`);
+    ok(pick(rules.recommend(pc({ threads: 2, encoder: ALL }))) === 'modest auto 480 recordable'
+      && /^With 4 GB of RAM and 2 CPU threads, 480p is the lightest way to record\./.test(rules.recommend(pc({ ramBytes: 3.5 * GB, threads: 2, encoder: ALL })).why),
+    'under 4 threads the same, and both short both named');
+    ok(pick(rules.recommend(pc({ ramBytes: 3.8 * GB, encoder: { 480: false, 720: true, 1080: true } }))) === 'modest off 720 recordable'
+      && pick(rules.recommend(pc({ ramBytes: 3.8 * GB }))) === 'modest off 720 recordable',
+    'a modest PC whose encoder refused 480p, or never answered for it, is told Frames only as before 8.7');
+    const ram12 = rules.recommend(pc({ ramBytes: 11.8 * GB, encoder: ALL }));
+    ok(pick(ram12) === 'capable auto 480 recordable' && ram12.why === 'This PC can record at 480p, the lightest size. 720p and 1080p are for 16 GB of RAM or more.',
+      'a PC short of 16 GB of RAM, once told 720p, records at 480p', `${pick(ram12)}: ${ram12.why}`);
+    const six = rules.recommend(pc({ threads: 6, encoder: ALL }));
+    ok(pick(six) === 'capable auto 480 recordable' && six.why === 'This PC can record at 480p, the lightest size. 720p and 1080p are for 8 CPU threads or more.',
+      'a PC short of 8 threads, the same', six.why);
+    ok(rules.recommend(pc({ display: { width: 1600, height: 900 }, encoder: ALL })).res === '720'
+      && rules.recommend(pc({ encoder: { 480: true, 720: true, 1080: false } })).res === '720'
+      && rules.recommend(pc({ ramBytes: null, encoder: ALL })).res === '720' && rules.recommend(pc({ threads: null, encoder: ALL })).res === '720',
+    'a strong PC short only of the display or of the encoder\'s 1080p, or one whose RAM or threads could not be read, stays at 720p');
+    ok(rules.recommend(pc({ ramBytes: 11.8 * GB, encoder: { 480: false, 720: true, 1080: true } })).res === '720'
+      && rules.recommend(pc({ ramBytes: 11.8 * GB, encoder: { 720: true, 1080: true } })).res === '720',
+    'and a light PC whose encoder refused 480p, or never answered for it, records at 720p as before');
+    const only480 = rules.recommend(pc({ encoder: { 480: true, 720: false, 1080: false } }));
+    ok(pick(only480) === 'capable auto 480 recordable' && only480.why === 'This PC can record at 480p. Its encoder does not take 720p or 1080p.'
+      && only480.sizes[720] === false && only480.sizes[1080] === false,
+    'an encoder that takes 480p alone can still record, at 480p', pick(only480));
+    ok(pick(rules.recommend(pc({ encoder: { 480: false, 720: false, 1080: false } }))) === 'none off 720 not recordable'
+      && pick(rules.recommend(pc({ encoder: { 480: null, 720: false, 1080: false } }))) === 'none off 720 not recordable',
+    'refused at all three sizes, or 720p and 1080p refused with no answer for 480p: nothing to record with');
+    const odd = rules.recommend(pc({ ramBytes: 11.8 * GB, encoder: { 480: true, 720: false, 1080: true } }));
+    ok(odd.res === '480' && odd.refused[720] === 'Its encoder does not take 720p.' && odd.refused[480] === null,
+      'no size the encoder refused is recommended, and each refusal says which size', JSON.stringify(odd.refused));
+    const enc3 = (e) => rules.encoderText(e);
+    ok(enc3(ALL) === '480p, 720p and 1080p' && enc3({ 480: true, 720: true, 1080: false }) === '480p and 720p' && enc3({ 480: true, 720: false, 1080: false }) === '480p'
+      && enc3({ 480: false, 720: false, 1080: false }) === 'None found' && enc3({ 480: true }) === '480p',
+    'the encoder in words, 480p among the sizes it takes');
+    const words = [modest, ram12, six, only480].map((r) => r.why);
+    ok(!words.some((w) => DASHES.test(w) || /screen/i.test(w)), 'no dash and no word of the screen in the new lines');
+  });
+
   await section('memory as it is sold, and space in words:', () => {
     const cases = [[3.5, 4], [5.9, 6], [7.4, 8], [7.9, 8], [11.8, 12], [13.9, 16], [15.4, 16], [15.95, 16], [19.8, 20], [31.84, 32], [63.7, 64]];
     const got = cases.map(([g]) => rules.installedGB(g * GB));
@@ -178,9 +227,10 @@ const pick = (r) => `${r.tier} ${r.mode} ${r.res} ${r.recordable ? 'recordable' 
     ok(pcCheck.driveOf('C:\\Users\\p\\AppData\\Roaming\\Occlara\\recording') === 'C:' && pcCheck.driveOf('D:\\Games\\Occlara\\recording') === 'D:',
       'the drive the recordings go to, by its letter');
     ok(same(pcCheck.asks({ width: 1920, height: 1080 }), [
+      { res: '480', width: 854, height: 480, codec: 'avc1.42E01F', bitrate: 1.33e6 },
       { res: '720', width: 1280, height: 720, codec: 'avc1.42E01F', bitrate: 3e6 },
       { res: '1080', width: 1920, height: 1080, codec: 'avc1.42E028', bitrate: 6e6 },
-    ]), 'on a 1920x1080 display the asks are 1280x720 at avc1.42E01F and 3 Mbps, 1920x1080 at avc1.42E028 and 6 Mbps');
+    ]), 'on a 1920x1080 display the asks are 854x480 at avc1.42E01F and 1.33 Mbps (8.7), 1280x720 at avc1.42E01F and 3 Mbps, 1920x1080 at avc1.42E028 and 6 Mbps');
     ok(same(pcCheck.asks(null), pcCheck.asks({ width: 1920, height: 1080 })), 'with no display known, the boxes themselves');
 
     const seen = [];
@@ -239,10 +289,10 @@ const pick = (r) => `${r.tier} ${r.mode} ${r.res} ${r.recordable ? 'recordable' 
     const off = [];
     for (const [width, height] of displays) {
       const display = { width, height };
-      const want = [await startOf(display, '720'), await startOf(display, '1080')];
+      const want = [await startOf(display, '480'), await startOf(display, '720'), await startOf(display, '1080')];
       if (!same(pcCheck.asks(display), want)) off.push(`${width}x${height}: check ${JSON.stringify(pcCheck.asks(display))} recorder ${JSON.stringify(want)}`);
     }
-    ok(!off.length, `main hands the page the asks the real Recorder starts with, on ${displays.length} displays at both sizes`, off.join('\n        '));
+    ok(!off.length, `main hands the page the asks the real Recorder starts with, on ${displays.length} displays at all three sizes`, off.join('\n        '));
 
     // The real recorder page's gate, run as the page runs it, with a VideoEncoder that writes down what it is asked.
     const gateAsked = [];
@@ -280,7 +330,7 @@ const pick = (r) => `${r.tier} ${r.mode} ${r.res} ${r.recordable ? 'recordable' 
     await settle();
     ob.window.go(3);
     await settle(20);
-    ok(gateAsked.length === 2 && same(pageAsked, gateAsked), 'the onboarding page asks VideoEncoder exactly what the recorder page\'s gate asks',
+    ok(gateAsked.length === 3 && same(pageAsked, gateAsked), 'the onboarding page asks VideoEncoder exactly what the recorder page\'s gate asks',
       `page ${JSON.stringify(pageAsked)}\n        gate ${JSON.stringify(gateAsked)}`);
     ok(pageAsked.every((c) => c.hardwareAcceleration === 'prefer-hardware' && c.framerate === 30), 'prefer-hardware, at 30 fps');
   });

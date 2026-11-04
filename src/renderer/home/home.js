@@ -63,14 +63,18 @@ function paintLast(last, milestone) {
   const top = el('div', 'last-top');
   const facts = el('div', 'last-facts');
   facts.append(el('span', 'label', `Last match${last.at ? ', ' + when(last.at) : ''}`));
-  // STILL BEING CHECKED (8.4.1): its result, score and grade are the screen's
-  // until the review is whole, and Riot's record changes them minutes later,
-  // so the card says what it waits for in their place, as its review page
-  // shows a loading screen.
-  if (last.result && !last.work) facts.append(el('span', 'result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''), last.result));
-  if (last.score && !last.work) facts.append(el('span', 'score', String(last.score).replace(/\s*-\s*/, ' : ')));
+  // The result, the score and who and where on ONE LINE (8.7), the ruled
+  // entry of the log, with the grade and the two buttons beside it (home.css
+  // .last). STILL BEING CHECKED (8.4.1): its result, score and grade are the
+  // screen's until the review is whole, and Riot's record changes them
+  // minutes later, so the card says what it waits for in their place, as its
+  // review page shows a loading screen.
+  const line = el('div', 'last-line');
+  if (last.result && !last.work) line.append(el('span', 'result ' + (isWin(last.result) ? 'win' : isLoss(last.result) ? 'loss' : ''), last.result));
+  if (last.score && !last.work) line.append(el('span', 'score', String(last.score).replace(/\s*-\s*/, ' : ')));
   const meta = [last.title, last.map, last.mode].filter(Boolean).join('  ·  ');
-  if (meta) facts.append(el('span', 'meta', meta));
+  if (meta) line.append(el('span', 'meta', meta));
+  if (line.childNodes.length) facts.append(line);
   top.append(facts);
   host.append(top);
   const strip = milestone && !last.work ? GV.progressStrip({ lines: [milestone] }) : null;
@@ -119,24 +123,33 @@ function paintTrend(trend, average) {
   const bars = $('trend-bars');
   bars.replaceChildren();
   bars.setAttribute('aria-label', `Grades ${trend.map((t) => t.score).join(', ')}, oldest first`);
-  for (const t of trend) {
+  trend.forEach((t, j) => {
     const col = el('div', 'bar-col');
+    // Its place in the row (--j), for the bars to rise one after another as
+    // the section arrives (home.css).
+    col.style.setProperty('--j', String(j));
     const track = el('div', 'bar-track');
     track.style.setProperty('--h', `${Math.max(4, Math.min(100, Number(t.score) || 0))}%`);
     track.append(el('div', 'bar ' + GV.gradeTone(t)), el('span', 'bar-num', String(t.score)));
-    col.append(track, el('span', 'bar-map', t.map || ''));
+    // No map under the bar (8.7): the row beside it names the match. The
+    // column's title keeps it for the pointer.
+    col.title = [t.map, t.score].filter((x) => x !== null && x !== undefined && x !== '').join(': ');
+    col.append(track);
     bars.append(col);
-  }
+  });
 }
 
 function paintRecent(recent) {
   const host = $('recent-list');
   host.replaceChildren();
-  for (const m of recent) {
+  recent.forEach((m, j) => {
     const b = el('button', 'r-row');
     b.type = 'button';
     b.setAttribute('role', 'listitem');
     b.dataset.id = m.id;
+    // Its place in the list (--j), for the rows to rise one after another as
+    // the section arrives (home.css), and never on a repaint.
+    b.style.setProperty('--j', String(j));
     const main = el('span', 'r-main');
     const title = el('span', 'r-title', m.map || m.title || 'Match');
     // Still being checked (8.4.1): the screen's result and grade are not said
@@ -144,6 +157,17 @@ function paintRecent(recent) {
     if (m.result && !m.work) {
       title.append(el('span', 'r-res ' + (isWin(m.result) ? 'win' : isLoss(m.result) ? 'loss' : ''),
         [m.result, m.score].filter(Boolean).join(' ')));
+    }
+    // Its marks (8.7, home-model.js marks, as the library draws them beside
+    // the result): "Best in 23", "First A", "3 in a row". None while the
+    // match is still being checked, since its grade is not yet its own.
+    if (!m.work && Array.isArray(m.marks)) {
+      for (const k of m.marks) {
+        if (!k || typeof k.text !== 'string' || !k.text) continue;
+        const mark = el('span', 'r-mark' + (k.kind ? ' ' + k.kind : ''), k.text);
+        mark.title = k.text;
+        title.append(mark);
+      }
     }
     main.append(title);
     main.append(el('span', 'r-meta', [when(m.at), m.title, m.mode,
@@ -162,7 +186,7 @@ function paintRecent(recent) {
     }
     b.addEventListener('click', () => window.occlara.openReview(m.id));
     host.append(b);
-  }
+  });
   paintRowRR();
 }
 
@@ -259,12 +283,31 @@ function closeUp() {
   for (const col of [$('side'), $('lower')]) col.hidden = [...col.children].every((c) => c.hidden);
 }
 
+/*
+ * THE ARRIVAL ENDS (8.7). card-in gates the rows', bars' and category fills'
+ * entrances (home.css), and left on, a repaint (a review saved: load() with
+ * no arrive) rebuilt them under it and they rose again, the list and the
+ * trend vanishing for a moment on every save. So the class is taken off once
+ * the longest entrance is through: every keyframe's end state is the natural
+ * state, so nothing visible changes when it goes.
+ */
+const ARRIVAL_MS = 1200;
+let arrivalEnd = null;
+function endArrival(cards) {
+  clearTimeout(arrivalEnd);
+  arrivalEnd = setTimeout(() => {
+    arrivalEnd = null;
+    for (const c of cards) c.classList.remove('card-in');
+  }, ARRIVAL_MS);
+}
+
 /** A card shown after the others arrived rises in by itself, as they did. */
 function rise(card) {
   card.classList.remove('card-in');
   void card.offsetWidth;   // taken off and put back, so it plays again
   card.style.setProperty('--i', '0');
   card.classList.add('card-in');
+  endArrival([...document.querySelectorAll('.home .card.card-in')]);
 }
 
 /**
@@ -308,6 +351,7 @@ function arrive() {
       c.style.setProperty('--i', String(i));
       c.classList.add('card-in');
     });
+    endArrival(cards);
   };
   if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(run); else run();
 }
@@ -344,15 +388,13 @@ async function paint() {
   const has = !!(model && model.last);
   $('empty').hidden = has;
   $('content').hidden = !has;
-  if (!has) {
-    // Only Valorant is graded from Riot's record, and only with a Riot ID.
-    const noRiot = game === 'valorant' && !String((cfg && cfg.riotId) || '').includes('#');
-    $('empty-riot').hidden = !noRiot;
-    $('empty-settings').hidden = !noRiot;
-    return true;
-  }
+  if (!has) return true;
   paintLast(model.last, model.milestone || null);
+  // THE FIX STAYS THE HERO WHILE A REVIEW IS WRITTEN (8.7): the last whole
+  // review's fix, its label saying so (home.css #focus.previous), rather
+  // than the page opening on the chart while the newest is still checked.
   $('focus').hidden = !model.focus;
+  $('focus').querySelector('.label').textContent = model.focusPrevious ? 'Your next match, from the last review' : 'Your next match';
   $('focus-text').textContent = model.focus || '';
   $('top').hidden = !model.top;
   if (model.top) {
@@ -376,24 +418,8 @@ $('recent-all').addEventListener('click', () => window.occlara.go('matches'));
 // Stats with the journey open, which this button names (8.4.1): it opened
 // Stats with the journey folded in the Rank tile, one more click away.
 $('rank-more').addEventListener('click', () => window.occlara.openRankJourney());
-$('empty-settings').addEventListener('click', () => window.occlara.go('settings'));
-
-/*
- * THE GAMES LEFT (8.7): one quiet line under the header's hint, exactly as
- * main writes it (usage.js gamesLeft, "2 of 3 free games left"), and nothing
- * when it has nothing to say. Main holds a change mid match, and Home is not
- * on screen then anyway (the seal).
- */
-function paintGames(view) {
-  const line = view && typeof view.gamesLeft === 'string' ? view.gamesLeft : '';
-  const el = $('h-games');
-  if (el.textContent !== line) el.textContent = line;
-  el.hidden = !line;
-}
-if (typeof window.occlara.getAccount === 'function') {
-  Promise.resolve(window.occlara.getAccount()).then(paintGames).catch(() => {});
-}
-if (typeof window.occlara.onAccount === 'function') window.occlara.onAccount(paintGames);
+// The games left (8.7) are the rail's line under Start (shell.js), said once;
+// Home carries no copy of it.
 
 /*
  * LISTENING BEFORE THE FIRST PAINT (8.2.1). The first load waits for the rank,

@@ -489,6 +489,21 @@ function emptyLine(b, dim) {
  * A row opens in place since 8.2 (toggleRow) and repaints nothing; a sort, a
  * cut or a queue still does.
  */
+/**
+ * THE CUT AND THE QUEUE ARE SEGMENTED CAPSULES (8.7, shared/seg.js): one
+ * thumb slides to the chosen button. occlaraSeg puts the thumb into the row
+ * once, so a repaint takes the buttons out and leaves it, where
+ * replaceChildren took the thumb with them and the capsule lost its fill.
+ */
+function clearButtons(host) {
+  for (const b of [...host.querySelectorAll('button')]) b.remove();
+}
+function segment(host) {
+  try {
+    if (typeof window.occlaraSeg === 'function') window.occlaraSeg(host);
+  } catch { /* a DOM with no observers (the offline tests) draws the buttons flat */ }
+}
+
 function paintBreakdown(b) {
   const host = $('breakdown');
   const active = document.activeElement;
@@ -522,7 +537,7 @@ function drawBreakdown(b) {
   if (!dims.some((d) => d.key === dim)) dim = bstate.dim[b.game] = dims[0].key;
 
   const dimsHost = $('b-dims');
-  dimsHost.replaceChildren();
+  clearButtons(dimsHost);
   // Nothing saved yet is one empty line, with no switch that changes nothing.
   dimsHost.hidden = dims.length < 2 || !b.matches;
   for (const d of dims) {
@@ -536,7 +551,7 @@ function drawBreakdown(b) {
   }
 
   const qHost = $('b-queues');
-  qHost.replaceChildren();
+  clearButtons(qHost);
   const queues = Array.isArray(b.queues) ? b.queues : [];
   qHost.hidden = queues.length < 2;
   if (queues.length >= 2) {
@@ -666,11 +681,13 @@ let riotId = '';
 
 function paintBf() {
   const box = $('bf');
-  box.hidden = game !== 'valorant';
+  const connected = riotId.includes('#');
+  // Only with a Riot ID (8.7): the rail's own bullet asks for one on every
+  // page, so no second "Add your Riot ID" stands here.
+  box.hidden = game !== 'valorant' || !connected;
   if (box.hidden) return;
   const s = backfill || { state: 'idle' };
   const btn = $('bf-go');
-  const connected = riotId.includes('#');
   // A RUN BELONGS TO ITS ACCOUNT. Once the Riot ID changes, the last run's
   // outcome ("Graded 4 recent matches") is about another account's matches,
   // and a run still winding down for the old ID is not grading this one, so
@@ -741,14 +758,20 @@ function row(m, gutter, marks) {
   main.append(el('div', 'm-meta', [fmtWhen(m.at), m.map, m.mode,
     m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null]
     .filter(Boolean).join('  ·  ')));
-  if (m.topMistake && !checking) main.append(el('div', 'm-top-mistake', `Top mistake: ${m.topMistake}`));
+  // The top mistake as the row's quiet second line, its label quieter still.
+  if (m.topMistake && !checking) {
+    const tm = el('div', 'm-top-mistake');
+    tm.append(el('span', 'm-tm-label', 'Top mistake: '), document.createTextNode(m.topMistake));
+    main.append(tm);
+  }
 
   const grade = el('div', 'm-grade');
   const g = m.grade;
   if (checking) grade.append(checking);
   else {
     grade.append(el('span', 'm-score', g ? g.score : '--'));
-    grade.append(el('span', 'm-letter ' + (g ? gradeTone(g) : 'none'), g ? g.letter : '?'));
+    // A provisional grade's capsule is dashed (matches.css): form before hue.
+    grade.append(el('span', 'm-letter ' + (g ? gradeTone(g) + (g.provisional ? ' prov' : '') : 'none'), g ? g.letter : '?'));
     if (g && g.provisional) grade.title = 'Provisional: some of the record was missing';
   }
   b.append(main, grade);
@@ -796,11 +819,21 @@ async function load() {
   host.replaceChildren();
   const eyes = rows.some((m) => m.aiLog === 'kept' || m.aiLog === 'gone');
   const marks = (patterns && patterns.progress && patterns.progress.marks) || {};
-  rows.forEach((m, i) => {
-    const r = row(m, eyes, marks[m.id]);
-    r.style.animationDelay = Math.min(i * 40, 360) + 'ms';
-    host.append(r);
-  });
+  const painted = rows.map((m) => row(m, eyes, marks[m.id]));
+  for (const r of painted) host.append(r);
+  // THE ROWS RISE ONCE, as this game's list first appears on screen (.rise,
+  // matches.css): 40ms apart, the stagger capped at the eighth row, and only
+  // once the page is shown (embed.js occlaraOnShown), so it is seen. A repaint
+  // after that, a review saved or improved, draws the rows as they are.
+  if (painted.length && host.dataset.risen !== game) {
+    host.dataset.risen = game;
+    const rise = () => painted.forEach((r, i) => {
+      if (r.parentNode !== host) return;   // painted again meanwhile
+      r.style.setProperty('--i', String(Math.min(i, 8)));
+      r.classList.add('rise');
+    });
+    if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(rise); else rise();
+  }
   $('empty').hidden = rows.length > 0;
   paintWinLoss(rows);
   paintPatterns(patterns || { matches: 0, enough: false, grades: [], categories: [], average: null });
@@ -828,6 +861,8 @@ const SECTION_TITLES = { list: 'Matches', patterns: 'Patterns', breakdown: 'Brea
   const games = window.occlara.games();
   game = (state && state.gameId) || (games[0] && games[0].id) || 'valorant';
   paintTabs(games);
+  segment($('b-dims'));
+  segment($('b-queues'));
   await load();
   backfill = await window.occlara.getBackfill().catch(() => null);
   paintBf();

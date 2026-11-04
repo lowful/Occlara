@@ -26,68 +26,106 @@
       <button id="close" class="icon-btn no-drag" title="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
     </header>
 
+    <!-- THE TRAINING LOG (8.7): every setting is one ruled group, a heading,
+         one line that says what it changes, and its control on the same row.
+         The longer explanation each group used to open with is folded into a
+         details line under the row, word for word, so nothing a test or a
+         player relies on is gone. No group is a box: a hairline above each one
+         and the dark between them do the grouping. -->
     <div class="body">
-      <!-- What Occlara is, in one line, for anyone who opens Settings looking
-           for the tip controls that used to be here. -->
-      <section class="about-note">
-        <p class="hint">Occlara reads your game while you play and shows nothing until the match ends. Then it opens a graded review: your repeated mistakes, what went well, and what you missed. Every review is kept under Matches.</p>
-      </section>
-
-      <section>
-        <h3 data-i18n="settings.tipFrequency" id="capture-title">Capture speed</h3>
-        <p class="hint" id="capture-hint">How often Occlara reads your screen in a live round. Menus, buy phases and the time spent dead are read less often. Faster reads catch more of every fight, so the review has more to go on. Auto starts at one read a second and keeps it while the AI keeps up, even when a reply takes a few seconds, and steps down on its own only if replies lag further or keep failing. The capture runs in its own process, outside the game.</p>
-        <div class="seg" id="capturespeed">
-          <button data-val="auto">Auto</button>
-          <button data-val="1000">1s</button>
-          <button data-val="2000">2s</button>
-          <button data-val="3000">3s</button>
-          <button data-val="5000">5s</button>
+      <!-- No paragraph about what Occlara is (8.7): the Recording screen says
+           it, and the first group owns this page. -->
+      <section class="group first">
+        <div class="row">
+          <div class="row-text">
+            <h3 data-i18n="settings.tipFrequency" id="capture-title">Capture speed</h3>
+            <p class="hint">Faster reads catch more of every fight. Auto keeps up by itself.</p>
+          </div>
+          <div class="seg ctl" id="capturespeed">
+            <button data-val="auto">Auto</button>
+            <button data-val="1000">1s</button>
+            <button data-val="2000">2s</button>
+            <button data-val="3000">3s</button>
+            <button data-val="5000">5s</button>
+          </div>
         </div>
+        <details class="more">
+          <summary>How a round is read</summary>
+          <p class="hint" id="capture-hint">How often Occlara reads your screen in a live round. Menus, buy phases and the time spent dead are read less often. Faster reads catch more of every fight, so the review has more to go on. Auto starts at one read a second and keeps it while the AI keeps up, even when a reply takes a few seconds, and steps down on its own only if replies lag further or keep failing. The capture runs in its own process, outside the game.</p>
+        </details>
         <p class="hint live-cadence" id="cadence-now" hidden></p>
       </section>
 
       <!-- The match recorded on this PC (8.3, src/main/services/recorder.js).
            On or Off, the player's words for it; On is the stored 'auto' it
            shipped as, the default, which turns itself off on a PC that cannot
-           afford it. The hint is written per game (settings.js REC_HINT),
-           since each game records, or does not, in its own way. The status
-           line says it is recording, or why it is not, with a way to try
-           again where it turned itself off. Under it, the clips kept beside
-           the reviews against their cap, and Clear clips. -->
-      <section>
-        <h3>Record match video</h3>
-        <p class="hint" id="rec-hint"></p>
-        <div class="seg" id="recording">
-          <button data-val="auto">On</button>
-          <button data-val="off">Off</button>
-        </div>
-        <div class="seg rec-res" id="recordingres">
-          <button data-val="720">720p</button>
-          <button data-val="1080">1080p</button>
-        </div>
-        <p class="rec-note" id="rec-note" aria-live="polite" hidden></p>
-        <button id="rec-retry" class="btn rec-retry" type="button" hidden>Try again</button>
-        <div class="rec-clips">
-          <p class="rec-usage" id="clip-usage" aria-live="polite">Clips kept beside your reviews</p>
-          <p class="hint rec-cap-hint">Space the clips may take together. Past it, the oldest reviews lose their clips first and keep their frames and facts.</p>
-          <div class="seg rec-cap" id="clipcap">
-            <button data-val="5">5 GB</button>
-            <button data-val="10">10 GB</button>
-            <button data-val="20">20 GB</button>
-            <button data-val="50">50 GB</button>
+           afford it. The folded hint is written per game (settings.js
+           REC_HINT), since each game records, or does not, in its own way.
+           The status line says it is recording, or why it is not, with a way
+           to try again where it turned itself off. Under it, the clips kept
+           beside the reviews against their cap, and Clear clips. -->
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3>Record match video</h3>
+            <p class="hint">Recorded on this PC, so the review can show a clip of each moment. The video never leaves this PC.</p>
           </div>
-          <button id="clip-clear" class="btn btn-ghost rec-clear" type="button" disabled>Clear clips</button>
+          <div class="ctl ctl-pair">
+            <div class="seg" id="recording">
+              <button data-val="auto">On</button>
+              <button data-val="off">Off</button>
+            </div>
+            <div class="seg rec-res" id="recordingres">
+              <button data-val="480" title="The lightest: 15 frames a second, and the death moments are less sharp.">480p</button>
+              <button data-val="720">720p</button>
+              <button data-val="1080">1080p</button>
+            </div>
+          </div>
+        </div>
+        <details class="more">
+          <summary>What On and Off do</summary>
+          <p class="hint" id="rec-hint"></p>
+        </details>
+        <p class="rec-note" id="rec-note" aria-live="polite" hidden></p>
+        <button id="rec-retry" class="btn btn-ghost sm rec-retry" type="button" hidden>Try again</button>
+        <div class="rec-clips">
+          <div class="row">
+            <div class="row-text">
+              <!-- A heading like the other groups' (8.7); what the clips
+                   take is the hint under it, not the heading. -->
+              <h3>Clips</h3>
+              <p class="hint rec-usage" id="clip-usage" aria-live="polite">Clips kept beside your reviews</p>
+              <p class="hint rec-cap-hint">Space the clips may take together. Past it, the oldest reviews lose their clips first and keep their frames and facts.</p>
+            </div>
+            <div class="ctl ctl-pair">
+              <div class="seg rec-cap" id="clipcap">
+                <button data-val="5">5 GB</button>
+                <button data-val="10">10 GB</button>
+                <button data-val="20">20 GB</button>
+                <button data-val="50">50 GB</button>
+              </div>
+              <button id="clip-clear" class="btn btn-ghost sm rec-clear" type="button" disabled>Clear clips</button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section>
-        <h3 data-i18n="settings.riotId">Riot ID</h3>
-        <p class="hint">Name#TAG of the account you play Valorant on. A full grade needs it: Riot's record of each match checks every death the screen read, adds who killed you and when, and counts trades and clutches.</p>
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3 data-i18n="settings.riotId">Riot ID</h3>
+            <p class="hint">Name#TAG of the account you play Valorant on. A full grade needs it.</p>
+          </div>
+        </div>
         <div class="riot-row">
           <input id="riotid" class="input riot-input" type="text" placeholder="PlayerName#TAG"
                  maxlength="40" autocomplete="off" spellcheck="false" />
           <button id="trk-connect" class="btn trk-btn" data-i18n="settings.connect">Connect</button>
         </div>
+        <details class="more">
+          <summary>What Riot's record adds</summary>
+          <p class="hint">Riot's record of each match checks every death the screen read, adds who killed you and when, and counts trades and clutches.</p>
+        </details>
         <p id="trk-status" class="trk-status" hidden></p>
         <!-- The grading Connect starts (backfill.js), followed as main pushes
              it, and the library it fills once it has graded something. -->
@@ -95,30 +133,50 @@
         <button id="bf-open" class="btn btn-link bf-open" type="button" hidden>Open Matches</button>
       </section>
 
-      <section>
-        <h3>Advanced coaching</h3>
-        <p class="hint">Lets your review draw on the deeper material: damage breakpoints, utility timings and reads across rounds. Fundamentals always stay in, and they take over when a match shows you dying on repeat.</p>
-        <div class="seg" id="advanced">
-          <button data-val="on">On</button>
-          <button data-val="off">Off</button>
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3>Advanced coaching</h3>
+            <p class="hint">Lets your review draw on the deeper material: damage breakpoints, utility timings and reads across rounds.</p>
+          </div>
+          <div class="seg ctl" id="advanced">
+            <button data-val="on">On</button>
+            <button data-val="off">Off</button>
+          </div>
         </div>
+        <details class="more">
+          <summary>What stays in either way</summary>
+          <p class="hint">Fundamentals always stay in, and they take over when a match shows you dying on repeat.</p>
+        </details>
       </section>
 
-      <section>
-        <h3 data-i18n="settings.performance">Performance</h3>
-        <p class="hint" id="perf-hint">Screenshots are read at 720p so health, the round timer, the score and the location label are legible. Performance sends smaller frames for an older PC or a slow connection, and the reads get less reliable.</p>
-        <div class="seg" id="capturequality">
-          <button data-val="standard">Quality</button>
-          <button data-val="performance">Performance</button>
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3 data-i18n="settings.performance">Performance</h3>
+            <p class="hint">Smaller frames for an older PC or a slow connection. The reads get less reliable.</p>
+          </div>
+          <div class="seg ctl" id="capturequality">
+            <button data-val="standard">Quality</button>
+            <button data-val="performance">Performance</button>
+          </div>
         </div>
+        <details class="more">
+          <summary>What is read at each size</summary>
+          <p class="hint" id="perf-hint">Screenshots are read at 720p so health, the round timer, the score and the location label are legible. Performance sends smaller frames for an older PC or a slow connection, and the reads get less reliable.</p>
+        </details>
       </section>
 
-      <section>
-        <h3>Sounds</h3>
-        <p class="hint">A short sound when recording starts and another when it stops, so you know it is on without looking away from the game.</p>
-        <div class="seg" id="sounds">
-          <button data-val="on">On</button>
-          <button data-val="off">Off</button>
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3>Sounds</h3>
+            <p class="hint">A short sound when recording starts and another when it stops, so you know it is on without looking away from the game.</p>
+          </div>
+          <div class="seg ctl" id="sounds">
+            <button data-val="on">On</button>
+            <button data-val="off">Off</button>
+          </div>
         </div>
       </section>
 
@@ -127,17 +185,19 @@
            view, usage.js), the key copied by main. Signed in through the
            browser it ends on Sign out; on a licence key alone it offers the
            browser sign in, the key working on either way. -->
-      <section class="license account" id="acct" aria-labelledby="acct-title">
-        <h3 id="acct-title">Account</h3>
-        <div class="kv" id="acct-email-row" hidden><span>Email</span><span id="acct-email" class="acct-val"></span></div>
-        <div class="kv" id="acct-tier-row" hidden><span>Plan</span><b id="acct-tier"></b></div>
-        <div class="kv" id="acct-games-row" hidden><span>Games</span><span id="acct-games" class="acct-val"></span></div>
-        <div class="kv" id="acct-key-row" hidden>
-          <span>Account key</span>
-          <span class="acct-key-wrap">
-            <span id="acct-key" class="acct-key"></span>
-            <button id="acct-copy" class="btn btn-ghost sm" type="button">Copy</button>
-          </span>
+      <section class="group account" id="acct" aria-labelledby="acct-title">
+        <div class="row"><div class="row-text"><h3 id="acct-title">Account</h3></div></div>
+        <div class="kvs">
+          <div class="kv" id="acct-email-row" hidden><span>Email</span><span id="acct-email" class="acct-val"></span></div>
+          <div class="kv" id="acct-tier-row" hidden><span>Plan</span><b id="acct-tier"></b></div>
+          <div class="kv" id="acct-games-row" hidden><span>Games</span><span id="acct-games" class="acct-val"></span></div>
+          <div class="kv" id="acct-key-row" hidden>
+            <span>Account key</span>
+            <span class="acct-key-wrap">
+              <span id="acct-key" class="acct-key"></span>
+              <button id="acct-copy" class="btn btn-ghost sm" type="button">Copy</button>
+            </span>
+          </div>
         </div>
         <p id="acct-out" class="hint acct-out" hidden>Sign in with your browser to see your games and invite friends. Your licence key keeps working.</p>
         <p id="acct-wait" class="acct-wait" aria-live="polite" hidden>Continue in your browser. This page updates once you have signed in.</p>
@@ -153,48 +213,66 @@
         <p id="acct-said" class="sr-only" aria-live="polite"></p>
       </section>
 
-      <section class="license" id="lic">
-        <h3>License</h3>
-        <div class="kv"><span>Plan</span><b id="lic-plan">·</b></div>
-        <div class="kv"><span>Status</span><span id="lic-status" class="badge">·</span></div>
-        <div class="kv"><span>Expires</span><b id="lic-expiry">·</b></div>
+      <section class="group license" id="lic">
+        <div class="row"><div class="row-text"><h3>License</h3></div></div>
+        <div class="kvs">
+          <div class="kv"><span>Plan</span><b id="lic-plan">·</b></div>
+          <div class="kv"><span>Status</span><span id="lic-status" class="badge">·</span></div>
+          <div class="kv"><span>Expires</span><b id="lic-expiry">·</b></div>
+        </div>
         <p id="lic-ended" class="lic-ended" hidden></p>
       </section>
 
       <!-- Language lives at the bottom, with the other set-once settings. It is
            changed rarely, so it does not earn a spot above the controls players
            actually tune between matches. -->
-      <section>
-        <h3 data-i18n="common.language">Language</h3>
-        <p class="hint" data-i18n="common.languageHint">Coaching tips and the app appear in this language.</p>
-        <div class="riot-row">
-          <div id="language" class="lang-select"></div>
-          <button id="lang-save" class="btn trk-btn" data-i18n="common.save" disabled>Save</button>
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3 data-i18n="common.language">Language</h3>
+            <p class="hint" data-i18n="common.languageHint">Coaching tips and the app appear in this language.</p>
+          </div>
+          <div class="ctl ctl-pair lang-ctl">
+            <div id="language" class="lang-select"></div>
+            <button id="lang-save" class="btn btn-ghost sm trk-btn" data-i18n="common.save" disabled>Save</button>
+          </div>
         </div>
         <p class="hint" id="language-note" hidden></p>
         <p id="lang-status" class="trk-status" hidden></p>
       </section>
 
-      <section>
-        <h3>Hotkeys</h3>
-        <div class="kv"><span>Open your last review</span><kbd>Ctrl+Shift+E</kbd></div>
-        <div class="kv"><span>Open Matches</span><kbd>Ctrl+Shift+H</kbd></div>
-        <div class="kv"><span>Hide or show Occlara</span><kbd>Ctrl+Shift+M</kbd></div>
-        <div class="kv"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
-        <div class="kv"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
+      <section class="group">
+        <div class="row"><div class="row-text"><h3>Hotkeys</h3></div></div>
+        <div class="kvs">
+          <div class="kv"><span>Open your last review</span><kbd>Ctrl+Shift+E</kbd></div>
+          <div class="kv"><span>Open Matches</span><kbd>Ctrl+Shift+H</kbd></div>
+          <div class="kv"><span>Hide or show Occlara</span><kbd>Ctrl+Shift+M</kbd></div>
+          <div class="kv"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
+          <div class="kv"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
+        </div>
       </section>
 
       <!-- ADVANCED. The frame log is the raw material of every review, and the
            viewer for it is a debugging tool, so it lives down here rather than
            in the sidebar. -->
-      <section>
-        <h3>AI log</h3>
-        <p class="hint">Keeps the frames Occlara reads and what it parsed from each, for your last few sessions. The review goes back to these to look at the moment before a death, so with this off the review has no frames to show. Sealed while a match is in progress.</p>
-        <div class="seg" id="ailog">
-          <button data-val="on">On</button>
-          <button data-val="off">Off</button>
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3>AI log</h3>
+            <p class="hint">Keeps the frames Occlara reads and what it parsed from each, for your last few sessions.</p>
+          </div>
+          <div class="ctl ctl-pair">
+            <div class="seg" id="ailog">
+              <button data-val="on">On</button>
+              <button data-val="off">Off</button>
+            </div>
+            <button id="open-ailog" class="btn btn-ghost sm trk-btn ailog-open">Open the AI log</button>
+          </div>
         </div>
-        <button id="open-ailog" class="btn trk-btn ailog-open">Open the AI log</button>
+        <details class="more">
+          <summary>Why the review needs it</summary>
+          <p class="hint">The review goes back to these to look at the moment before a death, so with this off the review has no frames to show. Sealed while a match is in progress.</p>
+        </details>
       </section>
 
       <section class="wip">
@@ -213,16 +291,19 @@
       </section>
     </div>
 
+    <!-- Quiet capsules: the plan and the way out, no longer a bank of full
+         width buttons under every page. -->
     <footer>
-      <button id="purchase" class="btn btn-ghost full" data-i18n="settings.manageSub">Manage subscription</button>
       <div class="footer-actions">
-        <button id="logout" class="btn btn-danger" data-i18n="settings.logOut">Log out</button>
-        <button id="quit" class="btn">Quit</button>
+        <button id="purchase" class="btn btn-ghost sm" data-i18n="settings.manageSub">Manage subscription</button>
+        <button id="logout" class="btn btn-ghost sm danger" data-i18n="settings.logOut">Log out</button>
       </div>
+      <button id="quit" class="btn btn-ghost sm">Quit</button>
     </footer>
   </div>
 
   <script src="../shared/dropdown.js"></script>
+  <script src="../shared/seg.js"></script>
   <script src="../shared/i18n-apply.js"></script>
   <script src="settings.js"></script>
 </body>

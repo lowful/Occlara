@@ -253,7 +253,8 @@ setTimeout(async () => {
     for (const game of ['lol']) {
       const notHeld = await holdSeal(game, { reloadShell: game === 'lol' });
       if (notHeld) return report(false, notHeld);
-      await invoke(C.CONFIG_SET, { game });
+      // League is coming soon: written to the store, as a page cannot choose it.
+      require(path.join(REPO, 'src/main/services/store')).set('game', game);
       send(C.COACH_START);
       const e = latest();
       const st = await invoke(C.STATE_GET);
@@ -368,7 +369,12 @@ setTimeout(async () => {
     // A League game: up while its client has no game on, gone the tick the
     // game is, still gone with the window brought up and hidden again mid
     // game, and back once the game is over.
-    await invoke(C.CONFIG_SET, { game: 'lol' });
+    // League is coming soon (games.js comingSoon): a page cannot choose it, so
+    // the check writes the store the way an install that had it chosen would
+    // be, and the seal and the mark are still held to the League rules.
+    const refusedLol = await invoke(C.CONFIG_SET, { game: 'lol' });
+    if (refusedLol && refusedLol.config && refusedLol.config.game === 'lol') return report(false, 'League is coming soon, yet a page could choose it');
+    require(path.join(REPO, 'src/main/services/store')).set('game', 'lol');
     send(C.COACH_START);
     const lolRec = latest();
     if (!(lolRec instanceof StandInLeague) || !(await invoke(C.STATE_GET)).isCoaching) return report(false, 'League did not start recording for the mark');

@@ -94,8 +94,10 @@ function rowOf(r) {
  * @param rows      the library index of the game, newest first (reviewStore.list(game))
  * @param patterns  patterns.summarise() of the same game
  * @param review    the newest whole review of the game, or null
+ * @param previous  the review before it, read only while the newest is still
+ *                  being written (home-preload.js), or null
  */
-function homeModel({ rows, patterns, review }) {
+function homeModel({ rows, patterns, review, previous }) {
   const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
   const p = patterns || {};
   const newest = list[0] || null;
@@ -124,17 +126,35 @@ function homeModel({ rows, patterns, review }) {
     return { id: g.id, score: g.score, letter: g.letter, at: g.at, map: row ? row.map || null : null };
   });
 
+  // THE FIX NEVER LEAVES THE PAGE (8.7): while the newest review is still
+  // being written, the last whole review's fix stands in, and says so
+  // (focusPrevious), rather than Home opening on nothing to do.
+  const ownFocus = whole && typeof whole.focus === 'string' && whole.focus.trim() ? whole.focus : null;
+  const prevFocus = !ownFocus && last && last.work && previous && typeof previous.focus === 'string' && previous.focus.trim()
+    ? previous.focus : null;
+
   return {
     last,
-    focus: whole && typeof whole.focus === 'string' && whole.focus.trim() ? whole.focus : null,
+    focus: ownFocus || prevFocus,
+    focusPrevious: !!prevFocus,
     top,
     trend,
     average: grades.length >= 2 && typeof p.average === 'number' ? p.average : null,
     // The newest match's first progress line (8.7, progress.js libraryProgress),
     // as main counted it: { kind, tone, text }, or null.
     milestone: milestoneOf(p.progress),
-    recent: list.slice(0, RECENT).map(rowOf),
+    // Each recent row's marks (8.7, progress.js libraryProgress marks[id]),
+    // the badges the library draws, "Best in 23", "First A", "3 in a row":
+    // read whole, as main counted them, and [] where it counted none.
+    recent: list.slice(0, RECENT).map((r) => ({ ...rowOf(r), marks: marksOf(p.progress, r.id) })),
   };
+}
+
+/** One row's marks as main counted them: [{ kind, text }], never one without its text. */
+function marksOf(progress, id) {
+  const all = progress && progress.marks && typeof progress.marks === 'object' ? progress.marks[id] : null;
+  return (Array.isArray(all) ? all : []).filter((k) => k && typeof k.text === 'string' && k.text)
+    .map((k) => ({ kind: typeof k.kind === 'string' ? k.kind : null, text: k.text }));
 }
 
 // ── The rank (8.2.1) ───────────────────────────────────────────────────────

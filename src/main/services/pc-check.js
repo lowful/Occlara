@@ -7,12 +7,14 @@
  * the primary display in physical pixels, and the free space on the drive the
  * recordings are kept on (index.js keeps them in userData/recording).
  *
- * WITH THEM GO THE RECORDER'S OWN TWO ASKS. What the recorder's gate puts to
- * the GPU's encoder at 720p and at 1080p on this display, built by
+ * WITH THEM GO THE RECORDER'S OWN THREE ASKS. What the recorder's gate puts
+ * to the GPU's encoder at 480p, 720p and 1080p on this display, built by
  * recorder.js's fitSize, codecFor and bitrateFor, so the check asks exactly
  * what a session will: on a 16:9 display of 1920x1080 or more that is
- * 1280x720 at avc1.42E01F and 3 Mbps, and 1920x1080 at avc1.42E028 and 6
- * Mbps, at 30 fps, prefer-hardware. The page puts them to VideoEncoder
+ * 854x480 at avc1.42E01F and 1.33 Mbps (8.7), 1280x720 at avc1.42E01F and 3
+ * Mbps, and 1920x1080 at avc1.42E028 and 6 Mbps, at 30 fps, prefer-hardware
+ * (the gate asks 30 at every size: Chromium sets MediaRecorder's encoder for
+ * 30 whatever it is handed). The page puts them to VideoEncoder
  * itself, since WebCodecs is a page's and not main's, and
  * src/renderer/onboarding/pc-rules.js turns the answers into a
  * recommendation.
@@ -27,7 +29,7 @@
  */
 const os = require('os');
 const path = require('path');
-const { fitSize, codecFor, bitrateFor, realFreeBytes } = require('./recorder');
+const { fitSize, codecFor, bitrateFor, realFreeBytes, RES_CHOICES } = require('./recorder');
 
 // The software adapter Windows lists beside every real GPU, "Microsoft Basic
 // Render Driver" (vendor 0x1414): never the GPU a recording is encoded on.
@@ -60,9 +62,9 @@ function physical(display) {
   return width > 0 && height > 0 ? { width, height } : null;
 }
 
-/** The recorder's gate asks at 720p and 1080p for a display (null: the boxes themselves). */
+/** The recorder's gate asks at 480p, 720p and 1080p for a display (null: the boxes themselves). */
 function asks(display) {
-  return ['720', '1080'].map((res) => {
+  return RES_CHOICES.map((res) => {
     const size = fitSize(display, res);
     return { res, width: size.width, height: size.height, codec: codecFor(size), bitrate: bitrateFor(size, res) };
   });

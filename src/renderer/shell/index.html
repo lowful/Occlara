@@ -35,24 +35,30 @@
 
       <div class="spacer"></div>
 
-      <!-- The record card (8.3): its two buttons and nothing under them, the
-           player's ask. What state it is in is the button's word (Start, Stop,
-           Subscription ended), the pause button's icon and the card's live
-           colour while recording; what the line under them said when there
-           was something to say is the top strip's notice line now. And
-           nothing over them (8.4.4): the agent check that asked which agent
-           was being played at Start is gone, the agent read off the player's
-           own HUD in the match and named by Riot's record after it. -->
+      <!-- The record controls (8.3, unboxed in 8.7): two buttons directly in
+           the rail and nothing under them, the player's ask. What state they
+           are in is the button's word (Start, Stop, Subscription ended), the
+           pause button's icon and the Stop icon's colour while recording;
+           what the line under them said when there was something to say is
+           the top strip's notice line now. And nothing over them (8.4.4): the
+           agent check that asked which agent was being played at Start is
+           gone, the agent read off the player's own HUD in the match and
+           named by Riot's record after it. -->
       <section id="rec" class="rec" aria-label="Recording">
         <div class="rec-controls">
           <button id="toggle" class="btn btn-rec toggle" type="button">
             <span class="t-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg></span><span class="t-label">Start</span>
           </button>
           <button id="pause" class="icon-btn lg" type="button" title="Pause or resume (Ctrl+Shift+P)" aria-label="Pause or resume" disabled>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 5v14"/><path d="M15 5v14"/></svg>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-blocked="false" aria-hidden="true"><path d="M9 5v14"/><path d="M15 5v14"/></svg>
           </button>
         </div>
       </section>
+      <!-- THE GAMES LEFT (8.7): one quiet line under Start, main's words
+           alone (usage.js gamesLeft, shell.js paintGamesLeft), said here and
+           nowhere else in the window. Nothing while a match is read: main
+           holds a change until it ends, and the rail says nothing then. -->
+      <p id="rail-games" class="rail-games" hidden></p>
 
       <div class="foot">
         <!-- Invite friends (8.7), directly above Settings, a page like it and
@@ -97,6 +103,7 @@
           </svg>
           <h1 id="sealed-title">Recording</h1>
           <p id="sealed-sub" class="sealed-sub">Occlara shows nothing until the match ends. The review opens here the moment it does.</p>
+          <!-- The three facts as ruled rows (8.7): no box, a hairline between. -->
           <ul id="sealed-facts" class="sealed-facts">
             <li id="sealed-capture-row"><b>Capture</b><span id="sealed-capture">Auto, as fast as the connection keeps up</span></li>
             <li><b>Game</b><span id="sealed-game">Read the way OBS reads it: the display only, never memory or files</span></li>
@@ -110,6 +117,7 @@
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/sfx.js"></script>
   <script src="../shared/game-logos.js"></script>
+  <script src="../shared/seg.js"></script>
   <script src="shell.js"></script>
 </body>
 </html>

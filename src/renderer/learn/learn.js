@@ -261,6 +261,8 @@ function paintTracks() {
       // row is a div and each half is its own button.
       const row = document.createElement('div');
       row.className = 'lesson-row' + (done.has(l.id) ? ' done' : '');
+      row.dataset.id = l.id;
+      row.dataset.title = l.title;
 
       const tick = document.createElement('button');
       tick.type = 'button';
@@ -436,6 +438,27 @@ function mark(word) {
   return s;
 }
 
+/** One lesson's row and its track's count, in place (8.7): a tick repaints no other row. */
+function paintRowDone(id) {
+  const row = $('tracks').querySelector(`.lesson-row[data-id="${id}"]`);
+  if (!row) return false;
+  const is = done.has(id);
+  row.classList.toggle('done', is);
+  const tick = row.querySelector('.row-tick');
+  if (tick) {
+    tick.setAttribute('aria-pressed', is ? 'true' : 'false');
+    tick.setAttribute('aria-label', (is ? 'Mark not done: ' : 'Mark done: ') + (row.dataset.title || ''));
+    tick.title = is ? 'Mark not done' : 'Mark done';
+  }
+  const sec = row.closest('.track');
+  const count = sec && sec.querySelector('.track-count');
+  if (count) {
+    const rows = [...sec.querySelectorAll('.lesson-row')];
+    count.textContent = `${rows.filter((r) => r.classList.contains('done')).length}/${rows.length}`;
+  }
+  return true;
+}
+
 async function toggleDone(id) {
   const next = !done.has(id);
   if (next) done.add(id); else done.delete(id);
@@ -444,15 +467,24 @@ async function toggleDone(id) {
   btn.textContent = next ? 'Completed' : 'Mark complete';
   btn.classList.toggle('is-done', next);
   paintProgress();
+  // On the dashboard the one row changes in place: rebuilding every row
+  // replayed the whole list's entrance for one tick. The lesson view's way
+  // back repaints the dashboard anyway (showDash).
+  const inPlace = !dashView.hidden && paintRowDone(id);
 
+  const before = [...done].sort().join();
   try {
     const res = await window.occlara.setProgress(id, next);
     if (res && Array.isArray(res.progress)) done = new Set(res.progress);
   } catch { /* the local state already moved; a failed write retries next time */ }
-  paintDash();
+  // Painted whole only where the store answered something else than what was
+  // ticked, or where no row stood to change.
+  if (!inPlace || [...done].sort().join() !== before) paintDash();
 }
 
 function show(view) {
+  const loading = $('learn-loading');
+  if (loading) loading.hidden = true;
   dashView.hidden = view !== 'dash';
   lessonView.hidden = view !== 'lesson';
   const el = view === 'dash' ? dashView : lessonView;
@@ -522,9 +554,17 @@ function rankMark(band) {
   return svg;
 }
 
-/** One segmented control. Plain buttons, no dropdown dependency. */
+/**
+ * One segmented control. Plain buttons, no dropdown dependency. The thumb
+ * shared/seg.js lays behind them (8.7) slides to the chosen one by itself as
+ * the buttons are rebuilt, so only the buttons are taken out, never the
+ * thumb. Guarded on MutationObserver, which the offline DOM the tests run
+ * the page in does not have; there the chosen button draws its own fill
+ * (learn.css .seg:not(.seg-slide)).
+ */
 function seg(host, options, current, onPick, withMark) {
-  host.replaceChildren();
+  for (const b of [...host.querySelectorAll('button')]) b.remove();
+  if (typeof window.occlaraSeg === 'function' && typeof MutationObserver === 'function') window.occlaraSeg(host);
   for (const [value, label] of options) {
     const b = document.createElement('button');
     b.type = 'button';

@@ -29,3 +29,6 @@ dist-logo/
 .agents/
 .claude/
 skills-lock.json
+
+# impeccable working files
+.impeccable/

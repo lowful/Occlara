@@ -7,7 +7,7 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
 ```
 src/main/services/recorder.js        pages, holds, the sweep, the disk guard, health, the fallback, the counts
 src/main/windows/recorder-window.js  a window nobody sees, the primary display's source, the CPU sample
-src/renderer/recorder/               the page: the gate, MediaRecorder fed 30 frames a second (grid.js), the read's frame, health each second
+src/renderer/recorder/               the page: the gate, MediaRecorder fed 30 frames a second, 15 at 480p (grid.js), the read's frame, health each second
 src/main/services/capture.js         the read's frame: from the stream while it serves one, else the GDI helper
 src/shared/webm.js                   the chunks read as they come, whole Clusters out, clips cut by them
 src/shared/clips.js                  a clip's name, its seconds, when a look's death was, the cap's choices
@@ -41,9 +41,14 @@ the server as they always have, one a read, and the counts below say how the
 PC coped, never what was on it.
 
 - **Auto by default, and it turns itself off.** `recordingMode` 'auto' or
-  'off', `recordingRes` '720' or '1080'. Judged only while a match is in
+  'off', `recordingRes` '480', '720' or '1080' (480 since 8.7; main reads it
+  through `recorder.js resOf`, and Settings and onboarding by the same rule
+  in their own pages: '480' and '1080' as they are, a number 480 or 1080 too,
+  anything else '720', as every reader did before there were three). Judged only while a match is in
   progress, the recorder gives up for the session ('busy') when for 20 s
-  straight the capture delivers under 12 frames a second while the picture
+  straight the capture delivers under 12 frames a second (6 at 480p, the
+  floor sized to the rate recorded: `RES[res].minFps`, a dev limit laid over
+  it only when set) while the picture
   changes (or stops delivering; what the capture delivers, never the 30 a
   second recorded of it), a chunk is over 4 s late, the page's process
   is over 60% of ONE core, or the PC is over 95% (`HEALTH`, first guesses to be
@@ -66,10 +71,10 @@ PC coped, never what was on it.
 - **H.264 on the GPU, or nothing.** The page asks `VideoEncoder.isConfigSupported`
   with prefer-hardware first, before the screen is opened ('no-hw-encoder'):
   in the spike it told the GPU's encoder apart (yes for H.264, no for VP9, which
-  then took a whole core in software). MediaRecorder, Matroska first, 3 Mbps at
-  720p and 6 at 1080p (more for a recording bigger than its box, in proportion
+  then took a whole core in software). MediaRecorder, Matroska first, 1.33 Mbps
+  at 480p, 3 at 720p and 6 at 1080p (more for a recording bigger than its box, in proportion
   to its pixels, twice the box's at most: `bitrateFor`), a keyframe and a chunk
-  every second. The capture is asked for 60 fps, because asked for 30 with the
+  every second. At 720p and 1080p (480p's below) the capture is asked for 60 fps, because asked for 30 with the
   whole screen moving it delivered 21, and the recording is handed 30 of them
   (8.4.2, `src/renderer/recorder/grid.js`, `RECORD_FPS`): Chromium sets
   MediaRecorder's encoder for 30 frames a second whatever it is handed, so
@@ -111,6 +116,59 @@ PC coped, never what was on it.
   processor are as they were.
   The level is by macroblocks (`codecFor`): 3.1 up to 3600 (1280x720), 4.0
   past it.
+- **480p, the light size** (8.7, the owner's ask: "try to make the recording
+  less laggy if we can, i dont know if 60 fps is needed or not and also add
+  an option for something below 720p. making it more lightweight is
+  better"). `RES[480]`: 854x480, the capture asked for 30 frames a second and
+  15 of them recorded (the start's `fps` and `recordFps`, which the page and
+  grid.js take as given), 1.33 Mbps, 720p's 3 in proportion to its pixels, so
+  each frame keeps a 720p frame's bits per pixel and, Chromium giving each
+  frame a thirtieth of a second's bits, about half of it written at 15 a
+  second (0.7 Mbps on the real screen, 1.5 on the busy generated picture).
+  The gate asks it at 30 fps like every size, since that is what Chromium
+  sets MediaRecorder's encoder for. Its stills are decoded from 854x480 and
+  drawn up to the look's 1280x720, so its death moments are less sharp, which
+  Settings says. MEASURED on this PC (RTX 5060, i5-14400F, one 1920x1080
+  display at 240 Hz), the real page recording the real screen with a busy
+  pattern drawn on a quarter of it at every refresh, 12 to 20 s a run, two
+  passes, % of one core: today's 720p (asked 60, recorded 30) took the page
+  4.3 and 3.9 and the MAIN process 30.2 and 29.6, at 54 to 57 delivered;
+  1080p 5.1 and 4.8, main 22.7 and 21.3 (no scaling: the display is 1080p).
+  THE CAPTURE ITSELF IS THE COST, and it is in Electron's main process,
+  where Chromium's desktop capturer runs: it follows the frames delivered,
+  recorded or not, and the scaling (1080p, unscaled on this display, cost
+  less than 720p at the same rate), and the earlier measurements here (the
+  page and the GPU process alone) never saw it. 720p
+  asked for 30 delivered 29 and took main 17.9 and 16.8; recorded at 24, 20
+  or 15 of them main stayed at 15.5 to 16.7 and the page fell to 2.7 at 15. 480p
+  asked 30 and recorded 15: page 1.5 and 1.7, main 14.6 and 17.3, 0.7 Mbps
+  against 720p's 3. The GPU process ran 33 to 51 with the pattern alone at 43,
+  too noisy to rank; with the pattern drawn at 60 a second instead it was
+  15.5 for today's 720p and 11.8 for 480p (main 26.8 and 12.4). BUT 480p
+  cannot hand the Standard read its 1280x720 frame, so the read is the GDI
+  helper's again, as with recording Off, and the helper is a process start a
+  read: 78 ms of CPU each here (median of 30), 8% of a core at a read a
+  second. So in a Valorant live round 480p costs about a quarter less CPU
+  than today's 720p (page and main 16 to 19, plus 8), and about half less
+  where there is no read to take (League) or the read is Performance's
+  854x480, which it covers and serves (`fitSize` below). Two ways round the
+  GDI read were measured and not taken: a frame's `displayWidth` set to
+  854x480 on a 1280x720 capture is ignored by MediaRecorder (it recorded
+  1280x720), and each recorded frame drawn down on a canvas from a 1280x720
+  capture recorded 854x480 with the read served, at page 4.8 and 5.5, main
+  15.4 and 17.3, about what 480p with the GDI read costs, for a copy of every
+  frame where every other size passes the capture's own on.
+- **Whether 60 is needed** (8.7, measured, not changed). 720p and 1080p
+  still ask 60 and record 30. On this 240 Hz screen asked 30 delivered 29
+  (and 29 with the pattern drawn at 60 a second), asked 45 delivered 43 and
+  took main 22 against 28.6 at 60, and asked 30 took 13 to 14 points of a core
+  less than 60. Asking 30 at 720p and 1080p would be the largest saving of
+  all, but the 8.3 spike measured 21 delivered at 30 with the whole screen
+  moving, so a PC like that would record 21 instead of 30; a 60 Hz display
+  cannot be tried here without changing Windows' display settings. 45 should
+  deliver 30 on a 60 Hz display by the same arithmetic (a grab, then the
+  first refresh a frame period later) and 36 to 41 on 144 to 240 Hz, untried
+  on 60 Hz. Both are proposals for a game test, not shipped.
 - **Never cropped, and never fewer rows than the read.** The display's own
   shape (`fitSize`): asked a box of another shape, this Chromium hands back
   exactly the box (a 1280x600 ask on a 1920x1080 display came back 1280x600).
@@ -127,7 +185,14 @@ PC coped, never what was on it.
   the display): it is every pixel the GDI helper reads, stretched up the same
   way, where measured against the frame alone it left every read of the
   session on the helper's launch a frame. The log says whether the
-  track kept the shape.
+  track kept the shape. 480p's box is smaller than the Standard read's
+  frame, so what a recording covers is the read's frame WITHIN its box
+  (8.7): 480p is never fewer rows or columns than 854x480, 3440x1440 records
+  1146x480, 1920x1200 854x534, 5120x1440 1706x480, a 1366x768 laptop 854x480,
+  1280x1024 854x684 and 1024x768 854x640, all level 3.1, and it never covers
+  the Standard read, whose reads stay on the GDI helper (logged at the start);
+  covering Performance's 854x480 it serves the read. 720p and 1080p record
+  what they did, every read's frame being within their boxes.
 - **The read's frame** comes from a clone of the track through a
   MediaStreamTrackProcessor, the newest VideoFrame kept and every other closed,
   drawn STRETCHED to the capture profile's size (1280x720, JPEG 0.7) as

@@ -543,6 +543,11 @@ function loadSurface(name, opts) {
     localStorage: { _m: {}, getItem(k) { return k in this._m ? this._m[k] : null; }, setItem(k, v) { this._m[k] = String(v); }, removeItem(k) { delete this._m[k]; } },
     Image: class { constructor() { this.complete = true; this.naturalWidth = 0; } },
     ResizeObserver: sizes.ResizeObserver,
+    // A MutationObserver that hears nothing: shared/seg.js (8.7) watches a
+    // segmented control's buttons to move its thumb, which the fake DOM does
+    // not lay out anyway. The buttons keep their own state, which is what a
+    // test reads.
+    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
     fetch: () => Promise.reject(new Error('no network in a test')),
     queueMicrotask: (fn) => Promise.resolve().then(fn),
     URLSearchParams,

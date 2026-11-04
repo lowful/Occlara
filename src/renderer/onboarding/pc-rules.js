@@ -8,21 +8,33 @@
  * scripts/test-pc-check.js runs these very rules on every branch, not a copy.
  *
  * THE RULES, in order:
- *   1. No hardware encoder (the encoder said no to both of the recorder's
- *      asks), or under 8 GB free where the recordings go: Frames only, and
- *      Record cannot be chosen, because the recorder refuses to start then
- *      (recorder.js: the gate's 'no-hw-encoder', DISK_START_BYTES).
- *   2. A modest PC, under 8 GB of RAM or under 4 CPU threads: Frames only is
- *      recommended, and Record can still be chosen. A session the PC cannot
- *      keep up with stops recording by itself (recorder.js HEALTH).
+ *   1. No hardware encoder (the encoder said no to 720p and 1080p and did not
+ *      take 480p), or under 8 GB free where the recordings go: Frames only,
+ *      and Record cannot be chosen, because the recorder refuses to start
+ *      then (recorder.js: the gate's 'no-hw-encoder', DISK_START_BYTES).
+ *   2. A modest PC, under 8 GB of RAM or under 4 CPU threads: Record at 480p,
+ *      the lightest size (8.7; before it, Frames only was recommended), and
+ *      Frames only can still be chosen. A session the PC cannot keep up with
+ *      stops recording by itself (recorder.js HEALTH). Where the encoder
+ *      refused 480p, Frames only, as before.
  *   3. An encoder that never answered: Record at 720p, the recorder's own
  *      default, which turns itself off where the PC cannot afford it.
  *   4. Otherwise Record: at 1080p when the encoder takes 1080p, the display is
- *      at least 1920x1080, and there are 16 GB of RAM and 8 threads; at 720p
- *      when any of those falls short, and the line says which.
+ *      at least 1920x1080, and there are 16 GB of RAM and 8 threads; at 480p
+ *      (8.7) when the RAM or the threads are known to fall short of that, the
+ *      PC itself being what is short; at 720p when only the display or the
+ *      encoder's 1080p answer falls short, or a fact is not known; and the
+ *      line says which. 480p asks the capture for 30 frames a second and
+ *      records 15 where 720p asks 60 and records 30: measured on the PC 8.3
+ *      was built on, about a quarter less CPU than 720p with the read back on
+ *      the GDI helper, about half where there is no read to take (League)
+ *      or Performance's 854x480 read is served from it, and less than half
+ *      the disk (docs/claude/recorder.md).
  *
  * A fact that could not be read decides nothing: no rule fires on it, and no
- * 1080p is recommended without it.
+ * 1080p (nor 480p for want of it) is recommended without it. Nor is 480p
+ * recommended without the encoder's yes to it: an answer never given leaves
+ * a modest PC on Frames only and a light one on 720p, as before 8.7.
  */
 (function (root) {
   const GB = 1024 * 1024 * 1024;
@@ -50,7 +62,7 @@
   function encoderOf(encoder) {
     const e = encoder || {};
     const at = (r) => (e[r] === true ? true : e[r] === false ? false : null);
-    return { 720: at('720'), 1080: at('1080') };
+    return { 480: at('480'), 720: at('720'), 1080: at('1080') };
   }
 
   /** 103 GB, 7.9 GB: rounded down, so a drive just short of 8 never reads as 8.0. */
@@ -76,6 +88,7 @@
   }
 
   const KEEP_UP = 'You can still record: it stops by itself if the PC cannot keep up.';
+  const STOPS = 'It stops by itself if the PC cannot keep up.';
   /** Why a size cannot be chosen: the encoder said no to it. */
   const REFUSED = (r) => `Its encoder does not take ${r}p.`;
 
@@ -83,24 +96,33 @@
    * The recommendation for one PC check:
    *   tier        'none' | 'disk' | 'modest' | 'unknown' | 'capable'
    *   mode, res   what to pre select: recordingMode 'auto' (Record) or 'off'
-   *               (Frames only), recordingRes '720' or '1080', never a size
-   *               the encoder refused while the other can be recorded
+   *               (Frames only), recordingRes '480', '720' or '1080', never a
+   *               size the encoder refused while another can be recorded
    *   recordable  whether Record can be chosen at all
-   *   sizes       { 720, 1080 }: whether each size can be chosen
-   *   refused     { 720, 1080 }: why a size cannot be, or null
+   *   sizes       { 480, 720, 1080 }: whether each size can be chosen
+   *   refused     { 480, 720, 1080 }: why a size cannot be, or null
    *   why, tone   the line the page shows, and 'good', 'warn' or '' for it
    */
   function recommend(facts) {
     const x = factsOf(facts);
     const { enc, ram, threads, free, display } = x;
-    const sizes = { 720: enc[720] !== false, 1080: enc[1080] !== false };
-    const refused = { 720: sizes[720] ? null : REFUSED('720'), 1080: sizes[1080] ? null : REFUSED('1080') };
-    // The smaller size the encoder did not refuse, for a recommendation that
-    // names no size of its own: 720p, the recorder's default, where it can.
-    const small = sizes[720] || !sizes[1080] ? '720' : '1080';
+    const sizes = { 480: enc[480] !== false, 720: enc[720] !== false, 1080: enc[1080] !== false };
+    const refused = {
+      480: sizes[480] ? null : REFUSED('480'), 720: sizes[720] ? null : REFUSED('720'), 1080: sizes[1080] ? null : REFUSED('1080'),
+    };
+    // The size for a recommendation that names no size of its own: 720p, the
+    // recorder's default, where the encoder did not refuse it; else one it
+    // said yes to, 480p before 1080p; else one it did not refuse.
+    const ORDER = ['720', '480', '1080'];
+    const small = (sizes[720] && '720') || ORDER.find((r) => enc[r] === true) || ORDER.find((r) => sizes[r]) || '720';
     const out = (o) => Object.assign({ sizes, refused, ram, threads, free, display, encoder: enc }, o);
+    // The PC itself short of 1080p (8.7): known to have under 16 GB of RAM or
+    // under 8 threads. Short only of the display or of the encoder's 1080p,
+    // it is not a light PC.
+    const light = (ram !== null && ram < FULL_HD.ramGB) || (threads !== null && threads < FULL_HD.threads);
 
-    if (enc[720] === false && enc[1080] === false) {
+    // An encoder that refused 720p and 1080p and took 480p can still record, at 480p.
+    if (enc[720] === false && enc[1080] === false && enc[480] !== true) {
       return out({ tier: 'none', mode: 'off', res: '720', recordable: false, tone: 'warn',
         why: 'This PC has no hardware video encoder Occlara can record with.' });
     }
@@ -113,8 +135,17 @@
     if (ram !== null && ram < MODEST.ramGB) low.push(`${ram} GB of RAM`);
     if (threads !== null && threads < MODEST.threads) low.push(`${threads} CPU thread${threads === 1 ? '' : 's'}`);
     if (low.length) {
+      // 480p, the lightest, where the encoder said it takes it (8.7).
+      if (enc[480] === true) {
+        return out({ tier: 'modest', mode: 'auto', res: '480', recordable: true, tone: 'warn',
+          why: `With ${low.join(' and ')}, 480p is the lightest way to record. ${STOPS}` });
+      }
       return out({ tier: 'modest', mode: 'off', res: small, recordable: true, tone: 'warn',
         why: `With ${low.join(' and ')}, recording could slow your game. ${KEEP_UP}` });
+    }
+    if (enc[480] === true && enc[720] === false && enc[1080] === false) {
+      return out({ tier: 'capable', mode: 'auto', res: '480', recordable: true, tone: 'good', short: null,
+        why: 'This PC can record at 480p. Its encoder does not take 720p or 1080p.' });
     }
     if (enc[720] !== true && enc[1080] !== true) {
       return out({ tier: 'unknown', mode: 'auto', res: small, recordable: true, tone: '',
@@ -127,8 +158,19 @@
     else if (!display || display.width < FULL_HD.width || display.height < FULL_HD.height) short = '1080p is for a display of 1920x1080 or more.';
     else if (ram === null || ram < FULL_HD.ramGB) short = `1080p is for ${FULL_HD.ramGB} GB of RAM or more.`;
     else if (threads === null || threads < FULL_HD.threads) short = `1080p is for ${FULL_HD.threads} CPU threads or more.`;
+    if (!short) {
+      return out({ tier: 'capable', mode: 'auto', res: '1080', recordable: true, tone: 'good', short: null,
+        why: 'This PC can record at 1080p.' });
+    }
+    // Light: 480p, where the encoder takes it, the line naming what the
+    // sharper sizes are for.
+    if (light && enc[480] === true) {
+      const what = ram !== null && ram < FULL_HD.ramGB ? `${FULL_HD.ramGB} GB of RAM` : `${FULL_HD.threads} CPU threads`;
+      return out({ tier: 'capable', mode: 'auto', res: '480', recordable: true, tone: 'good', short,
+        why: `This PC can record at 480p, the lightest size. 720p and 1080p are for ${what} or more.` });
+    }
     // An encoder that takes 1080p and refused 720p can only record at 1080p.
-    if (!short || enc[720] === false) {
+    if (enc[720] === false) {
       return out({ tier: 'capable', mode: 'auto', res: '1080', recordable: true, tone: 'good', short: null,
         why: 'This PC can record at 1080p.' });
     }
@@ -139,9 +181,8 @@
   /** The encoder's answer in words: the sizes it takes, none, or not checked. */
   function encoderText(encoder) {
     const e = encoderOf(encoder);
-    if (e[720] === true && e[1080] === true) return '720p and 1080p';
-    if (e[720] === true) return '720p';
-    if (e[1080] === true) return '1080p';
+    const takes = ['480', '720', '1080'].filter((r) => e[r] === true).map((r) => `${r}p`);
+    if (takes.length) return takes.length === 1 ? takes[0] : `${takes.slice(0, -1).join(', ')} and ${takes[takes.length - 1]}`;
     if (e[720] === false && e[1080] === false) return 'None found';
     return 'Not checked';
   }

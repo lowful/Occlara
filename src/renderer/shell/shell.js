@@ -158,7 +158,9 @@ function paintGames() {
   const host = $('gamepick');
   const games = window.occlara.games(!!(cfg && cfg.devGames === true));
   host.hidden = games.length < 2;
-  host.replaceChildren();
+  // The buttons alone go: the capsule's thumb (shared/seg.js, 8.7) stays and
+  // slides to the game picked once they are back.
+  for (const b of host.querySelectorAll('button')) b.remove();
   if (games.length < 2) { placeMarker(); return; }
   for (const g of games) {
     const b = document.createElement('button');
@@ -172,6 +174,24 @@ function paintGames() {
     b.setAttribute('aria-label', g.label);
     b.title = isCoaching ? 'Stop recording to switch game' : g.label;
     b.setAttribute('aria-pressed', String(g.id === gameId));
+    // A game that is coming soon is shown but cannot be chosen: a popup says
+    // so on hover and on keyboard focus (games.js comingSoon). aria-disabled
+    // rather than disabled, so it still receives the hover.
+    if (g.comingSoon) {
+      b.classList.add('soon');
+      b.removeAttribute('title');
+      b.setAttribute('aria-disabled', 'true');
+      b.setAttribute('aria-label', `${g.label}, coming soon`);
+      b.setAttribute('aria-pressed', 'false');
+      const pop = document.createElement('span');
+      pop.className = 'soon-pop';
+      pop.setAttribute('role', 'tooltip');
+      pop.textContent = 'Coming soon';
+      b.append(pop);
+      b.addEventListener('click', (e) => e.preventDefault());
+      host.append(b);
+      continue;
+    }
     // Switching game stops a running session (index.js onConfigChanged), so
     // it is refused here while recording rather than done by surprise.
     b.disabled = isCoaching;
@@ -181,6 +201,8 @@ function paintGames() {
     });
     host.append(b);
   }
+  // One capsule, one thumb under the game picked (ui.css .seg-slide).
+  if (typeof window.occlaraSeg === 'function') window.occlaraSeg(host);
   // The picker sits above the pages: shown or gone, they move.
   placeMarker();
 }
@@ -196,6 +218,27 @@ function paintAccount() {
   el.classList.toggle('on', connected);
 }
 $('account').addEventListener('click', () => window.occlara.go('settings'));
+
+/*
+ * THE GAMES LEFT (8.7): one quiet line under Start, exactly as main writes
+ * it (usage.js gamesLeft, "2 of 3 free games left"), and nothing when it has
+ * nothing to say. Said here once for the whole window: Home, Invite and the
+ * pages carry no copy. Hidden while a match is read: main holds a change
+ * until the match ends, and the rail says nothing mid match.
+ */
+let gamesLine = '';
+function paintGamesLeft(view) {
+  if (view !== undefined) gamesLine = view && typeof view.gamesLeft === 'string' ? view.gamesLeft : '';
+  const el = $('rail-games');
+  if (!el) return;
+  const text = isCoaching ? '' : gamesLine;
+  if (el.textContent !== text) el.textContent = text;
+  el.hidden = !text;
+}
+if (typeof window.occlara.getAccount === 'function') {
+  Promise.resolve(window.occlara.getAccount()).then(paintGamesLeft).catch(() => {});
+}
+if (typeof window.occlara.onAccount === 'function') window.occlara.onAccount(paintGamesLeft);
 
 /** The config, or what is already known when it cannot be read. */
 function readConfig(fallback) {
@@ -332,7 +375,7 @@ function applyState(s) {
   // it again after layout: the Learn entry above shows or goes with the game.
   placeMarker();
   soundCue();
-  if (gameChanged || wasCoaching !== isCoaching) { paintGames(); paintAccount(); }
+  if (gameChanged || wasCoaching !== isCoaching) { paintGames(); paintAccount(); paintGamesLeft(); }
 }
 
 window.occlara.onState(applyState);

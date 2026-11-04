@@ -415,14 +415,16 @@ setTimeout(async () => {
         return report(false, 'a choice clicked on the page did not reach the store as it was made');
       }
 
+      // A modest PC (8.7): Record at 480p, the lightest, where it was told Frames only.
       const modest = await standIn({ ...STAND, ramBytes: 3.8 * GB, threads: 2 }, true, 'auto', '720');
-      lines.push(`a modest PC: "${modest && modest.line}" frames=${modest && modest.frames} tagged=${modest && modest.framesTag} record open=${modest && !modest.recOff} saved="${recSaved()}"`);
+      lines.push(`a modest PC: "${modest && modest.line}" record=${modest && modest.rec} res=${modest && modest.res} tagged=${modest && modest.recTag} frames open=${modest && !modest.frames} saved="${recSaved()}"`);
       // The longest line the page has, two short facts named: the page still fits.
       const overModest = await js(FITS(3));
       await shot(win, 'onboarding-watch-2-modest');
       if (overModest) return report(false, `the How Occlara watches page overflows its card with its longest line: ${overModest}`);
-      if (!modest || !modest.frames || !modest.framesTag || modest.recOff || recSaved() !== 'off 720') {
-        return report(false, 'a modest PC did not pre select and save Frames only with Record still open');
+      if (!modest || !modest.rec || modest.res !== '480' || !modest.recTag || modest.recOff || recSaved() !== 'auto 480'
+        || !/^With 4 GB of RAM and 2 CPU threads, 480p is the lightest way to record\./.test(modest.line)) {
+        return report(false, 'a modest PC did not pre select and save Record at 480p, the lightest');
       }
 
       const fullDrive = await standIn({ ...STAND, freeBytes: 5.26 * GB }, true, 'auto', '1080');
@@ -449,7 +451,7 @@ setTimeout(async () => {
       const refusedTitle = await js("document.querySelector('#ob-res [data-res=\"1080\"]').title");
       lines.push(`a saved 1080p the GPU refuses: "${refused && refused.line}" res=${refused && refused.res} open="${refused && refused.open}" 1080p says "${refusedTitle}" saved="${recSaved()}"`);
       await shot(win, 'onboarding-watch-5-saved-1080p-refused');
-      if (!refused || !refused.rec || refused.res !== '720' || refused.open !== '720' || recSaved() !== 'auto 720'
+      if (!refused || !refused.rec || refused.res !== '720' || refused.open !== '480,720' || recSaved() !== 'auto 720'
         || refusedTitle !== 'Its encoder does not take 1080p.' || refused.line !== 'This PC can record at 720p. Its encoder does not take 1080p.') {
         return report(false, 'a saved 1080p the GPU refuses was not shown unavailable with its reason, Record at 720p saved in its place');
       }
@@ -460,7 +462,7 @@ setTimeout(async () => {
       lines.push(`a modest PC whose GPU refuses a saved 1080p: "${refusedModest && refusedModest.line}" record=${refusedModest && refusedModest.rec} res=${refusedModest && refusedModest.res} saved="${recSaved()}" fits=${!overRefused}`);
       await shot(win, 'onboarding-watch-5b-modest-refused');
       if (overRefused) return report(false, `the How Occlara watches page overflows its card with its longest line: ${overRefused}`);
-      if (!refusedModest || !refusedModest.rec || refusedModest.res !== '720' || recSaved() !== 'auto 720'
+      if (!refusedModest || !refusedModest.rec || refusedModest.res !== '480' || recSaved() !== 'auto 480'
         || !/keep up\. Its encoder does not take 1080p\.$/.test(refusedModest.line)) {
         return report(false, 'on a modest PC a saved 1080p the GPU refuses was not put right with its reason said');
       }

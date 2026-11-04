@@ -5,6 +5,11 @@
  * recorder page before recorder.js (the page's CSP is script-src 'self'), so
  * that scripts/test-recorder.js drives this very code, as it drives health.js.
  *
+ * THE RATE IS THE START'S (8.7): createGrid(fps) keeps `fps` a second, 30 at
+ * 720p and 1080p and 15 at 480p (main's recorder.js RES); RECORD_FPS is only
+ * the rate a start that names none gets. Every rule below is in slots of that
+ * rate, so it holds at 15 as at 30 (test:recorder runs both).
+ *
  * WHY. The capture is asked for 60 frames a second, because asked for 30 with
  * the whole screen moving it delivered 21 (recorder.js ASK_FPS). MediaRecorder
  * was handed that track and recorded every frame it delivered, and Chromium
