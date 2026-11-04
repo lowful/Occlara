@@ -1,17 +1,18 @@
 <!--
   Occlara mark: a crescent moon, and nothing in it (the player's ask, 8.6).
 
-  Two circles on a 120 unit grid: the disc of radius 50 centred at (71, 54),
-  less the disc of radius 42 centred 18 further on, 30 degrees above the
-  horizontal, at (86.588, 45). The back is 26 units thick, 26 percent of the
+  Two circles on a 120 unit grid: the disc of radius 50 centred at
+  (62.15, 60), less the disc of radius 42 centred 18 further on, 30 degrees
+  above the horizontal, at (77.738, 51). The back is 26 units thick, 26 percent of the
   diameter, which keeps it 3.5px at 16px in the tray. The horns face up and to
   the right, so it reads as the moon and not as a C beside a word starting
   with O.
 
-  It is not centred on its disc. The disc sits right of and above the middle of
-  the box, at the point halfway between the crescent's bounding box centre and
-  its centre of area, which is where a crescent looks centred in a square: the
-  disc centred left the mark hugging the left side of every tile it was put in.
+  Its ink is centred, not its disc. The crescent's bounding box, x 12.15 to
+  107.85 and y 10 to 110, has its centre exactly at (60, 60), the middle of
+  the box (the player's call, 8.7). The disc therefore sits left of and below
+  the middle. Before, the disc sat right of and above it, halfway toward the
+  centre of area, and the ink read as off centre in every tile.
 
   It exists in five places, and they change together: this file; the splash,
   which draws it as its two circles with the shade in a mask so the shade can
@@ -29,5 +30,5 @@
 -->
 <svg width="120" height="120" viewBox="0 0 120 120" fill="none"
      xmlns="http://www.w3.org/2000/svg" color="#F5F5F7" role="img" aria-label="Occlara">
-  <path d="M76.294,4.281 A50,50 0 1,0 116.705,74.274 A42,42 0 1,1 76.294,4.281 Z" fill="currentColor"/>
+  <path d="M67.444,10.281 A50,50 0 1,0 107.855,80.274 A42,42 0 1,1 67.444,10.281 Z" fill="currentColor"/>
 </svg>

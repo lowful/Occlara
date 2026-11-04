@@ -20,9 +20,11 @@
  * changed mark is a changed number below and one run.
  *
  * THE DRAWING IS ARITHMETIC, the same two circles as assets/logo-mark.svg: on
- * the 120 unit grid, the disc of radius 50 at (71, 54) less the disc of radius
- * 42 at (86.588, 45). If that file changes, this must change with it (it is
- * one of the mark's five places, CLAUDE.md).
+ * the 120 unit grid, the disc of radius 50 at (62.15, 60) less the disc of
+ * radius 42 at (77.738, 51). The ink's bounding box, x 12.15 to 107.85 and y
+ * 10 to 110, has its centre at (60, 60), the centre of the box, so centring
+ * the 120 box in a tile centres the ink (8.7). If that file changes, this must
+ * change with it (it is one of the mark's five places, CLAUDE.md).
  *
  * EVERY PIXEL IS COVERED, NOT POINT SAMPLED. The aperture's generator asked
  * once per pixel whether its centre was inside the mark, so every edge was a
@@ -42,8 +44,8 @@ const fs = require('fs');
 const path = require('path');
 
 // ─── The crescent (120 unit grid) and the tile ──────────────────────────────
-const OUTER = { x: 71, y: 54, r: 50 };
-const INNER = { x: 71 + 18 * Math.cos(Math.PI / 6), y: 54 - 18 * Math.sin(Math.PI / 6), r: 42 };   // (86.588, 45)
+const OUTER = { x: 62.15, y: 60, r: 50 };
+const INNER = { x: OUTER.x + 18 * Math.cos(Math.PI / 6), y: OUTER.y - 18 * Math.sin(Math.PI / 6), r: 42 };   // (77.738, 51)
 const GROUND = [0x0A, 0x0B, 0x0E];   // --bg
 const INK = [0xF5, 0xF5, 0xF7];      // --text
 const TILE_RADIUS = 0.225;           // of the tile's side
