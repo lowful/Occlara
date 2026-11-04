@@ -19,10 +19,12 @@ server/services/match-review.js       the model's half: summary, a why per round
 src/main/services/review-store.js     every review saved, userData/reviews, with its frames and clips
 src/shared/patterns.js                what repeats across the last ten matches of a game
 src/shared/breakdown.js               the library by map and agent (or champion), counted
+src/shared/moments.js                 every death and highlight of the saved reviews, with the clips kept (8.7)
 src/shared/riot-review.js             a review from Riot's record alone, or a recording linked late
 src/main/services/backfill.js         Connect grades the last ten matches from Riot's record; the late link at launch
 src/renderer/review/                  one page for every game, branched on review.kind
-src/renderer/matches/                 the library, "Your patterns" and the breakdown pages
+src/renderer/matches/                 the library and "Your patterns", the breakdown folded at its foot
+src/renderer/moments/                 the Moments page: deaths and highlights, compiled, and their player
 src/renderer/home/                    the last match, its focus, the rank and the top repeated mistake
 ```
 

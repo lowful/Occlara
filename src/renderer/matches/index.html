@@ -49,26 +49,34 @@
         <div id="p-trend" class="p-trend" hidden></div>
         <div id="p-cats" class="p-cats" hidden></div>
         <div id="p-lists"></div>
-      </section>
 
-      <!-- WHERE AND ON WHAT. The patterns say what keeps happening; this says
-           on which map and which agent, counted from the same saved reviews by
-           src/shared/breakdown.js. Every number carries its sample. -->
-      <section id="breakdown" class="block breakdown" hidden>
-        <div class="b-head">
-          <div>
-            <h3>Breakdown</h3>
-            <p id="b-sub" class="hint"></p>
+        <!-- WHERE AND ON WHAT (folded, 8.7). The patterns say what keeps
+             happening; this says on which map and which agent, counted from
+             the same saved reviews by src/shared/breakdown.js, every number
+             with its sample. It was the Breakdown tab until Moments took its
+             place: one closed line at the foot of Patterns now, its table
+             whole inside. -->
+        <details id="breakdown" class="breakdown" hidden>
+          <summary class="b-sum">
+            <span class="b-sum-title">By agent, map and queue</span>
+            <span id="b-sub" class="b-sum-hint"></span>
+          </summary>
+          <div class="b-body">
+            <!-- The cut and the queue are segmented capsules whose thumb
+                 slides (shared/seg.js, occlaraSeg in matches.js). -->
+            <div class="b-head">
+              <div id="b-dims" class="seg-mini" role="tablist" aria-label="Break down by"></div>
+            </div>
+            <div id="b-queues" class="b-queues" role="group" aria-label="Queue" hidden></div>
+            <!-- The rest of the sample's sentences (why a column is empty), wrapping
+                 here rather than cut beside the title above. -->
+            <p id="b-sample" class="b-note" hidden></p>
+            <div id="b-headline" class="b-headline" hidden></div>
+            <p id="b-note" class="b-note" hidden></p>
+            <div id="b-table" class="b-table" role="table" aria-label="Breakdown"></div>
+            <p id="b-empty" class="empty" hidden></p>
           </div>
-          <!-- The cut and the queue below are segmented capsules whose thumb
-               slides (shared/seg.js, occlaraSeg in matches.js). -->
-          <div id="b-dims" class="seg-mini" role="tablist" aria-label="Break down by"></div>
-        </div>
-        <div id="b-queues" class="b-queues" role="group" aria-label="Queue" hidden></div>
-        <div id="b-headline" class="b-headline" hidden></div>
-        <p id="b-note" class="b-note" hidden></p>
-        <div id="b-table" class="b-table" role="table" aria-label="Breakdown"></div>
-        <p id="b-empty" class="empty" hidden></p>
+        </details>
       </section>
 
       <section id="every" class="block">

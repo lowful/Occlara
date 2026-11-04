@@ -967,6 +967,26 @@ function flashTo(card) {
 function goRound(n) { flashTo(document.getElementById(`round-${n}`)); }
 
 /*
+ * OPENED AT ONE ROUND (8.7): a Moments row opens its review at the round it
+ * names, which main hands over as `jumpTo` on the review for a few seconds,
+ * stamped `jumpAt` (index.js setReviewJump). Jumped once per open, keyed on
+ * the review, the round and the stamp: the page can be painted twice for one
+ * open (the push, then its own ask as it loads), which jumps once, while the
+ * same review opened at the same round again from Moments, a new stamp, jumps
+ * again. And only once it is on screen, so the scroll is seen.
+ */
+let jumped = null;
+function jumpIfAsked(r) {
+  const n = r && Number.isInteger(r.jumpTo) && r.jumpTo > 0 ? r.jumpTo : null;
+  if (!n || !r.id) return;
+  const key = `${r.id}:${n}:${Number.isFinite(r.jumpAt) ? r.jumpAt : 0}`;
+  if (jumped === key) return;
+  jumped = key;
+  const go = () => { if (current && current.id === r.id) goRound(n); };
+  if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(go); else go();
+}
+
+/*
  * SAID IN ITS ROUND, NOT TWICE (8.3.1). Each death the coach looked at is a
  * miss of its own under "What you missed" (insights.js): "Round 6:" and what
  * the look saw, its better play as the fix. That round's row says the same
@@ -1340,6 +1360,7 @@ function paint(r) {
       $('vreview').classList.add('v-arrive');
       startReveal(r, verdict);
     }
+    jumpIfAsked(r);
     return;
   }
   releaseClips($('v-rounds'));

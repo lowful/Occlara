@@ -100,10 +100,21 @@ How each page keeps it:
   dotted facts, the four categories as named rules filled to the score with the
   evidence as one inline run, the lists as rows with the top mistake set larger,
   every round a ruled row.
-- **Matches, Patterns, Breakdown** (`matches.css`): rows parted by the hairline,
-  the row's hover a faint fill, the grade a number and a ringed letter, the trend's
-  bars on one hairline, the breakdown a table of ruled rows that open in place
-  (`.reveal`).
+- **Matches, Patterns** (`matches.css`): rows parted by the hairline, the row's
+  hover a faint fill, the grade a number and a ringed letter, the trend's bars on
+  one hairline, and at the foot of Patterns the breakdown (by agent, map and
+  queue) as one closed `<details>` line, its table of ruled rows that open in
+  place (`.reveal`) inside.
+- **Moments** (`moments.css`, 8.7, in the Breakdown tab's place): the
+  compilation by repeated mistake as ruled rows with Play all at the end, the
+  filter as one capsule, then each match as one ruled line (result and score
+  in its tone, who and where, the date, the grade) over its moments as rows:
+  the round in the mono face, the kind as a word with a mark (a death a ringed
+  dot in `--bad`, a highlight a filled dot in `--good`), the title and one
+  line, the repeated mistakes as dotted marks, the time in the mono face, and
+  a play capsule or a quiet word for a clip gone. Its player is a dark veil
+  over the page, one column: the clip framed as a clip image is, its line,
+  capsule controls.
 - **Settings** (`settings.css`): a group is a heading, one line saying what it
   changes, and its capsule control on the same row at the right; the explanation
   is folded into a `<details>` line under the row, every word kept. The first
@@ -154,7 +165,8 @@ gradient and never a halo:
 A row of buttons becomes one capsule with one sliding thumb, the way a monthly
 and yearly toggle does: capture speed, On and Off, the recording size, the clip
 cap, the game picker in the rail, Stats' queue, the breakdown's cut and queue,
-Learn's bands, onboarding's choices and the share sheet's options.
+Moments' All, Deaths and Highlights, Learn's bands, onboarding's choices and
+the share sheet's options.
 
 - Markup stays what it was: the buttons are the control and their state is the
   attribute or class the surface already sets (`aria-pressed="true"`,
@@ -205,9 +217,11 @@ loops, and nothing during a match.
 - **Continuity.** A page change slides 12px from the side it comes from on
   `--t-med` (`html.page-armed`, `ui.css`); the sidebar marker is one element slid
   to the current page; every segmented thumb slides; a breakdown row and Stats'
-  notes open by height in place (`.reveal`, one grid row from 0fr to 1fr).
+  notes open by height in place (`.reveal`, one grid row from 0fr to 1fr);
+  Moments' player opens with a short fade and a 6px rise of its column
+  (`.mo-player.open`), nothing while a match is in progress.
 - **Arrival.** Rows rise 6px (`riseIn`, `.rise-in`, `.m-item.rise`,
-  `.recent.card-in .r-row`) 40ms apart, the stagger capped at the eighth row,
+  `.mo-row.rise`, `.recent.card-in .r-row`) 40ms apart, the stagger capped at the eighth row,
   once, when a list first appears on screen, never on a repaint. Home's sections
   arrive the same way on first paint and on a change of game; the trend's bars
   rise by their clip (`barUp`).

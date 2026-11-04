@@ -35,11 +35,17 @@ ok(PAGES.every((p) => fs.existsSync(path.join(__dirname, '..', 'src', 'renderer'
 ok(PAGES.every((p) => fs.existsSync(path.join(__dirname, '..', 'src', 'preload', p.preload))),
   'and a preload that exists');
 ok(pageOf('matches') && pageOf('matches').query.section === 'list'
-  && pageOf('patterns').surface === 'matches' && pageOf('breakdown').query.section === 'breakdown',
-  'Matches, Patterns and Breakdown are three sections of the library surface');
+  && pageOf('patterns').surface === 'matches' && pageOf('patterns').query.section === 'patterns',
+  'Matches and Patterns are two sections of the library surface');
+// MOMENTS (8.7) took the Breakdown tab's place: its own surface and preload,
+// in the nav list where Breakdown was, and no breakdown page is left.
+ok(pageOf('moments') && pageOf('moments').surface === 'moments' && pageOf('moments').preload === 'moments-preload.js'
+  && pageOf('moments').nav === true && !pageOf('moments').query.section,
+  'Moments is a page with its own surface and preload, in the nav list', JSON.stringify(pageOf('moments')));
+ok(!pageOf('breakdown') && !PAGES.some((p) => p.query && p.query.section === 'breakdown'), 'the Breakdown page is gone');
 ok(!pageOf('nope'), 'an unknown page is none');
-ok(PAGES.filter((p) => p.nav).map((p) => p.id).join() === 'home,matches,patterns,breakdown,stats,coach',
-  'the sidebar lists Home, Matches, Patterns, Breakdown, Stats and Ask Coach, in that order');
+ok(PAGES.filter((p) => p.nav).map((p) => p.id).join() === 'home,matches,patterns,moments,stats,coach',
+  'the sidebar lists Home, Matches, Patterns, Moments, Stats and Ask Coach, in that order');
 // THE INVITE PAGE (8.7): its own surface and preload, out of the nav list (its
 // button is in the sidebar's foot, directly above Settings), and just before
 // Settings, so the window moves forward into it from every page above it.
@@ -74,9 +80,9 @@ ok(direction('coach', 'invite') === 'forward' && direction('invite', 'settings')
 }
 
 // ── Which way the window moves (8.2) ──────────────────────────────────────
-ok(direction('home', 'matches') === 'forward' && direction('matches', 'breakdown') === 'forward'
+ok(direction('home', 'matches') === 'forward' && direction('matches', 'moments') === 'forward'
   && direction('coach', 'settings') === 'forward', 'down the sidebar is forward, Settings at its foot last');
-ok(direction('stats', 'home') === 'back' && direction('settings', 'coach') === 'back' && direction('breakdown', 'patterns') === 'back',
+ok(direction('stats', 'home') === 'back' && direction('settings', 'coach') === 'back' && direction('moments', 'patterns') === 'back',
   'up it is back');
 ok(PAGES.filter((p) => p.id !== 'review').every((p) => direction(p.id, 'review') === 'forward' && direction('review', p.id) === 'back'),
   'the review is deeper than every page: forward into it from anywhere, back out of it to anywhere');

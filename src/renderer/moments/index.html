@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; media-src 'self' occlara-clip:;" />
+  <title>Occlara Moments</title>
+  <!-- Before the body: a page of the main window never paints its old window chrome. -->
+  <script src="../shared/embed.js"></script>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../shared/grade-view.css" />
+  <link rel="stylesheet" href="../review/clip-player.css" />
+  <link rel="stylesheet" href="moments.css" />
+</head>
+<body>
+  <!-- THE MOMENTS PAGE (8.7). The player's deaths and highlights, compiled
+       from the saved reviews, newest match first: under each match's ruled
+       line its moments, a death with what the coach saw there and the clip
+       of it where one was kept, a highlight Riot's record proves. At the top
+       the compilation by repeated mistake, with Play all. Every line is
+       main's (src/shared/moments.js); this page paints and plays. Locked by
+       the seal like every page, and nothing here plays mid match. -->
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
+        <h2>Moments</h2>
+      </div>
+      <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+    </header>
+
+    <main class="body">
+      <!-- Asking main. -->
+      <p id="mo-wait" class="mo-wait" aria-live="polite">Reading your matches</p>
+
+      <!-- Nothing saved yet, or nothing in the saved matches. -->
+      <section id="mo-empty" class="mo-sec" hidden>
+        <h3 id="mo-empty-title" class="mo-title"></h3>
+        <p id="mo-empty-hint" class="mo-hint"></p>
+      </section>
+
+      <!-- THE COMPILATION: every death in a round a pattern across matches
+           counts, grouped by the pattern, with Play all where clips were
+           kept. A row chosen shows only its deaths below. -->
+      <section id="mo-comp" class="mo-sec" hidden aria-labelledby="mo-comp-title">
+        <h3 id="mo-comp-title" class="mo-title">By repeated mistake</h3>
+        <p class="mo-hint">Every death in a round one of your patterns counts, grouped by the pattern. Choose one to see only those deaths below.</p>
+        <div id="mo-comp-rows" class="mo-comp-rows" role="list"></div>
+      </section>
+
+      <!-- The filter and the counts, over the list. -->
+      <section id="mo-log" class="mo-sec" hidden aria-labelledby="mo-log-title">
+        <div class="mo-log-head">
+          <h3 id="mo-log-title" class="mo-title">Every moment</h3>
+          <span id="mo-counts" class="mo-counts"></span>
+        </div>
+        <!-- One capsule, one sliding thumb (shared/seg.js occlaraSeg). -->
+        <div id="mo-filter" class="seg mo-filter" role="group" aria-label="Show">
+          <button type="button" data-kind="all" aria-pressed="true">All</button>
+          <button type="button" data-kind="death" aria-pressed="false">Deaths</button>
+          <button type="button" data-kind="highlight" aria-pressed="false">Highlights</button>
+        </div>
+        <!-- Why no clip was kept, said once. -->
+        <p id="mo-note" class="mo-note" hidden></p>
+        <div id="mo-list" class="mo-list"></div>
+        <p id="mo-none" class="mo-hint" hidden></p>
+      </section>
+    </main>
+
+    <!-- THE COMPILATION PLAYER: one pattern's kept clips, back to back, over
+         the page, each in the review's own clip player (review/clip-player.js:
+         the death marked on the timeline, the time as seconds from it, a frame
+         step, the speed). Opened by Play all after a match only, closed by Esc
+         or its button; the arrows on the dialog's buttons move between clips,
+         inside the clip they move a second, as on the review. The page behind
+         it is inert while it is open, so the keyboard cycles inside. -->
+    <div id="mo-player" class="mo-player" role="dialog" aria-modal="true" aria-labelledby="mo-pl-title" hidden>
+      <div class="mo-pl-panel">
+        <div class="mo-pl-top">
+          <div class="mo-pl-head">
+            <h3 id="mo-pl-title" class="mo-title"></h3>
+            <span id="mo-pl-count" class="mo-pl-count" aria-live="polite"></span>
+          </div>
+          <button id="mo-pl-close" class="icon-btn" type="button" title="Close (Esc)" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+        </div>
+        <!-- The clip's player is built here (moments.js playAt); its video is #mo-video. -->
+        <div id="mo-pl-stage" class="mo-pl-stage"></div>
+        <p id="mo-pl-line" class="mo-pl-line"></p>
+        <div class="mo-pl-controls">
+          <button id="mo-pl-prev" class="btn btn-ghost sm" type="button">Previous</button>
+          <button id="mo-pl-toggle" class="btn btn-ghost sm" type="button">Pause</button>
+          <button id="mo-pl-next" class="btn btn-ghost sm" type="button">Next</button>
+          <button id="mo-pl-open" class="btn btn-link sm" type="button">Open its review</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../shared/seg.js"></script>
+  <script src="../shared/grade-view.js"></script>
+  <script src="../review/clip-time.js"></script>
+  <script src="../review/clip-player.js"></script>
+  <script src="moments.js"></script>
+</body>
+</html>

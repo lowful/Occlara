@@ -70,7 +70,12 @@ What still counts as "reaching the screen", and is sealed mid match:
   stops reading, recording goes on, the review is saved locked), every cap or
   games left notice and the `ACCOUNT_CHANGED` push wait for the seal to lift
   (flushed from `syncSeal` and `controller.stop`), and the Invite page is a
-  page like the others, locked by `syncSeal` (`check:seal`). A sign in the
+  page like the others, locked by `syncSeal` (`check:seal`).
+- The Moments page (8.7, ui.md) is a page like the others, locked by
+  `syncSeal` (`check:seal`), and its compilation player, which plays the kept
+  clips of a repeated mistake back to back, asks main whether the window is
+  sealed before it opens (`SHELL_GET`) and closes on the page's leave and on
+  the document going hidden, so no clip plays mid match (`test:surfaces`). A sign in the
   server stops taking (onRefused) never acts mid match: the recording goes
   on, a read refused after it has no key to revalidate and ends no licence
   (`recheckAuth`, the licence watch only ends a stored key), and the Sign in

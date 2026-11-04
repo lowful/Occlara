@@ -68,13 +68,16 @@ if (!process.versions.electron) {
   process.exit(0);
 }
 
-const { app, BrowserWindow } = require('electron');
-const { replay, load } = require('./fixtures/replay-match');
+const { app } = require('electron');
 const surfaces = require('./fixtures/surfaces');
-const verify = require(path.join(REPO, 'src/shared/valorant-verify'));
-const valorantReview = require(path.join(REPO, 'src/shared/valorant-review'));
-const { ReviewStore, newId } = require(path.join(REPO, 'src/main/services/review-store'));
-const gradeOf = require(path.join(REPO, 'src/shared/grade'));
+// THE SAMPLE LIBRARY (8.7, scripts/fixtures/proof-reviews.js): four saved
+// Valorant reviews built from the real match, the older three looked at with
+// a clip kept beside the second, a seeded Free account with its three games
+// used, and the stand-in reader step 5b records with. Shared with the site
+// proof exporter, so the website's pictures are of what this check holds.
+const proof = require('./fixtures/proof-reviews');
+const { composite } = require('./fixtures/window-shot');
+const { SEEDED_VIEW, SEEDED_REFERRAL, usage, readers } = proof;
 
 const lines = [];
 let reported = false;
@@ -86,99 +89,10 @@ function report(ok, detail) {
   app.exit(ok ? 0 : 1);
 }
 
-// A profile with four saved Valorant reviews built from the real match.
-// Recording Off: step 5b records a match with a stand-in reader, and a check
-// never records the desktop. No Riot ID, so nothing is asked of the network.
+proof.installStandIns();
 const ud = path.join(os.tmpdir(), 'occlara-check-main-window');
-fs.rmSync(ud, { recursive: true, force: true });
-fs.mkdirSync(ud, { recursive: true });
-fs.writeFileSync(path.join(ud, 'occlara-config.json'), JSON.stringify({
-  game: 'valorant', onboardingCompleted: true, licenseKey: '', language: 'en', recordingMode: 'off',
-}, null, 2));
-
-// THE READER, a stand-in (as check:seal has it), for step 5b's review still
-// being built: what matchInProgress() reads and what the real one emits when
-// its watch ends a match, nothing more: no capture, no model, no network.
-const Module = require('module');
-const { EventEmitter } = require('events');
-const INDEX = path.join(REPO, 'src', 'main', 'index.js');
-const readers = [];
-class StandInValorant extends EventEmitter {
-  constructor() {
-    super();
-    this.endWatch = { ended: false };
-    this.ledger = { size: () => 0 };
-    this.inLobby = true;
-    readers.push(this);
-  }
-  start() { this.emit('status', 'coaching'); }
-  stop() { this.emit('status', 'stopped'); }
-  pause() {}
-  resume() {}
-}
-{
-  // Asked for by index.js alone. Compared without case: Windows paths can
-  // come back with the drive letter in either.
-  const same = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
-  const realLoad = Module._load;
-  Module._load = function patched(request, parent, isMain) {
-    if (parent && parent.filename && same(parent.filename, INDEX) && request === './services/coaching-engine') return StandInValorant;
-    if (parent && parent.filename && same(parent.filename, INDEX) && request === './services/account-service') return seededAccounts(realLoad(request, parent, isMain));
-    return realLoad(request, parent, isMain);
-  };
-}
-
-// AN ACCOUNT ON THIS PC (8.7), seeded: what the pages are handed, as the
-// real account service's view hands it for a Free account with its three
-// games used, every line written by the real usage.js. Only what a page is
-// told is stood in for (view, referral); the service is the real one, so
-// main still has no session and asks the network nothing. The referral is
-// what GET /api/referral gives, finished as main finishes it.
-const usage = require(path.join(REPO, 'src/shared/usage'));
-const SEEDED_STATE = { tier: 'free', used: 3, left: 0, free_total: 3, bonus_pool: 0, bonus_earned: 0,
-  email: 'player@example.com', account_key: 'GC-TEST-AB12-CD34-EF56', invites: { pending: 1, qualified: 1, refused: 0 } };
-const SEEDED_VIEW = {
-  signedIn: true, via: 'session', pending: false, waiting: false, email: SEEDED_STATE.email,
-  tier: 'free', tierLabel: usage.tierLabel(SEEDED_STATE), gamesLeft: usage.gamesLeft(SEEDED_STATE),
-  cap: usage.capState(SEEDED_STATE), capped: false, accountKey: SEEDED_STATE.account_key, invites: SEEDED_STATE.invites,
-  urls: { upgrade: usage.UPGRADE_URL, account: usage.ACCOUNT_URL, signup: usage.SIGNUP_URL },
-};
-const SEEDED_REF = { code: 'abcd1234', link: 'https://occlara.app/invite/abcd1234', invited: 2, qualified: 1, earned: 4,
-  max_friends: usage.MAX_FRIENDS, max_games: usage.MAX_EARNED };
-const SEEDED_REFERRAL = { ...SEEDED_REF, line: usage.inviteProgress(SEEDED_REF), how: usage.INVITE_HOW.slice() };
-function seededAccounts(mod) {
-  return { ...mod, createAccountService: (deps) => {
-    const real = mod.createAccountService(deps);
-    return { ...real, view: () => ({ ...SEEDED_VIEW }), referral: async () => ({ ...SEEDED_REFERRAL, how: SEEDED_REFERRAL.how.slice() }) };
-  } };
-}
-const played = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
-const { rounds } = verify.reconcile(played.rounds, load('riot-abyss-13-11.json'));
-// Both team comps (8.5.0) as a link keeps them, so the review's comps line is
-// painted in the real window: a stand in, agents only, theirs the four the
-// fixture's Riot record has killing the player and a fifth made up.
-const COMPS = { us: [{ agent: 'Jett', role: 'Duelist' }, { agent: 'Killjoy', role: 'Sentinel' }, { agent: 'Omen', role: 'Controller' },
-  { agent: 'Sova', role: 'Initiator' }, { agent: 'Breach', role: 'Initiator' }],
-them: [{ agent: 'Skye', role: 'Initiator' }, { agent: 'Cypher', role: 'Sentinel' }, { agent: 'Viper', role: 'Controller' },
-  { agent: 'Phoenix', role: 'Duelist' }, { agent: 'Killjoy', role: 'Sentinel' }] };
-const built = valorantReview.build({ rounds, context: { ...played.context, agent: 'Jett' }, endedBy: 'score',
-  ai: { focus: 'Enter second for a match: let a teammate or your utility take first contact, then trade.' },
-  role: 'Duelist', history: [], riotMe: { kills: 31, deaths: 21, assists: 4, score: 9168 }, comps: COMPS });
-const store = new ReviewStore(path.join(ud, 'reviews'));
-const now = Date.now();
-// THE NEWEST IS A RECORD (8.7): the built match, then three older ones graded
-// lower, so the shots show what progress.js counts on the real pages, a best
-// (it needs three graded matches before it), the delta on the last match and
-// on the average. Lower, never higher, so the newest stays the grade and the
-// tallest bar the checks below read.
-const OLDER = [64, 58, 61];
-const SEEDED = 1 + OLDER.length;
-[null, ...OLDER].forEach((score, i) => {
-  const at = now - i * 3600000;
-  const id = newId('valorant', at);
-  const g = score === null ? built.grade : { ...built.grade, score, letter: gradeOf.letter(score) };
-  store.save({ id, game: 'valorant', at, review: { ...built, grade: g, id, at, kind: 'valorant' } });
-});
+const seeded = proof.seed(ud);
+const { played, built, store, SEEDED, ids: seededIds } = seeded;
 process.env.OCCLARA_DEV_USERDATA = ud;
 
 app.disableHardwareAcceleration();
@@ -199,40 +113,17 @@ async function until(fn, ms) {
 
 /**
  * OCCLARA_SHOTS=1: the window as a player sees it, to dist-surface-shots/
- * main-<name>.png. The shell and the page are two webContents, so each is
- * captured and the page is drawn over the shell at the sidebar's edge.
+ * main-<name>.png, through scripts/fixtures/window-shot.js (the shell and the
+ * page composited), which the site proof exporter shoots with too.
  */
-async function capture(wc) {
-  for (let i = 0; i < 5; i++) {
-    try { return await wc.capturePage(); } catch { await wait(500); }
-  }
-  return null;
-}
-
 async function shot(name, mainWindow, win) {
   if (process.env.OCCLARA_SHOTS !== '1') return;
   await wait(500);   // the last change painted before it is captured
-  const shellImg = await capture(win.webContents);
-  const s = mainWindow.current().shown;
-  const v = s && mainWindow.pageViews().get(s);
-  const pageImg = v ? await capture(v.webContents) : null;
-  if (!shellImg || (v && !pageImg)) { lines.push(`shot main-${name}.png could not be captured`); return; }
-  const scale = shellImg.getSize().width / win.getContentSize()[0];
-  const comp = new BrowserWindow({ show: false, width: 200, height: 200 });
-  await comp.loadURL('data:text/html,<canvas id="c"></canvas>');
-  const data = await comp.webContents.executeJavaScript(`(async () => {
-    const load = (src) => new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = src; });
-    const a = await load(${JSON.stringify(shellImg.toDataURL())});
-    const c = document.getElementById('c'); c.width = a.width; c.height = a.height;
-    const g = c.getContext('2d'); g.drawImage(a, 0, 0);
-    ${pageImg ? `const b = await load(${JSON.stringify(pageImg.toDataURL())});
-    g.drawImage(b, ${Math.round(mainWindow.SIDEBAR_W * scale)}, ${Math.round(mainWindow.TOP_H * scale)});` : ''}
-    return c.toDataURL('image/png');
-  })()`);
-  comp.destroy();
+  const pic = await composite(mainWindow, win);
+  if (!pic) { lines.push(`shot main-${name}.png could not be captured`); return; }
   const dir = path.join(REPO, 'dist-surface-shots');
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `main-${name}.png`), Buffer.from(String(data).split(',')[1], 'base64'));
+  fs.writeFileSync(path.join(dir, `main-${name}.png`), pic.png);
   lines.push(`shot main-${name}.png`);
 }
 
@@ -257,7 +148,7 @@ setTimeout(async () => {
     const nav = await sjs("[...document.querySelectorAll('#nav .nav-item')].map((b) => b.textContent.trim()).join(',')");
     const start = await sjs("document.querySelector('#toggle .t-label').textContent");
     lines.push(`sidebar: ${nav} | Start reads "${start}"`);
-    if (nav !== 'Home,Matches,Patterns,Breakdown,Stats,Ask Coach') return report(false, `the sidebar lists ${nav}`);
+    if (nav !== 'Home,Matches,Patterns,Moments,Stats,Ask Coach') return report(false, `the sidebar lists ${nav}`);
     if (start !== 'Start') return report(false, `the record button reads ${start}`);
 
     // 2. Home, the page the window opens on.
@@ -790,12 +681,64 @@ setTimeout(async () => {
       await setjs("document.querySelector('.body').scrollTop = 0; true");
     }
 
+    // THE MOMENTS PAGE (8.7), in the Breakdown tab's place: every seeded
+    // match under its own line, its deaths and highlights, the compilation by
+    // repeated mistake with Play all for the one kept clip, and a row opening
+    // its review at its round.
+    mainWindow.show('moments');
+    if (!await until(settled('moments'), 4000)) return report(false, 'the Moments page never came in');
+    const mojs = (s) => mainWindow.pageViews().get('moments').webContents.executeJavaScript(s);
+    const momentsPage = await until(() => mojs(`(() => {
+      if (document.getElementById('mo-log').hidden) return null;
+      const q = (s) => document.querySelectorAll(s).length;
+      return { matches: q('#mo-list .mo-match'), rows: q('#mo-list .mo-row'), deaths: q('#mo-list .mo-kind.death'), highlights: q('#mo-list .mo-kind.highlight'),
+        comp: q('#mo-comp-rows .mo-crow'), playAll: [...document.querySelectorAll('#mo-comp-rows button.btn')].map((b) => b.textContent).join(),
+        plays: q('#mo-list .mo-play'), gone: q('#mo-list .mo-gone'), marks: q('#mo-list .mo-mark.across'), note: document.getElementById('mo-note').hidden,
+        filter: document.querySelectorAll('#mo-filter.seg-slide .seg-thumb').length, counts: document.getElementById('mo-counts').textContent,
+        risen: q('#mo-list .mo-row.rise'), causeTitle: (document.querySelector('#mo-list .mo-row .mo-mtitle') || {}).textContent };
+    })()`), 6000);
+    lines.push(`moments page: ${JSON.stringify(momentsPage)}`);
+    if (!momentsPage || momentsPage.matches !== SEEDED || !momentsPage.rows || !momentsPage.deaths || !momentsPage.highlights) {
+      return report(false, `the Moments page does not list the seeded matches with their deaths and highlights: ${JSON.stringify(momentsPage)}`);
+    }
+    if (!momentsPage.comp || !/Play all/.test(momentsPage.playAll) || momentsPage.plays !== 1 || momentsPage.gone < 1 || !momentsPage.marks
+      || !momentsPage.note || momentsPage.filter !== 1 || momentsPage.risen < 8) {
+      return report(false, `the Moments page is missing its compilation, its one kept clip, its marks, its sliding filter or its rising rows: ${JSON.stringify(momentsPage)}`);
+    }
+    await shot('moments', mainWindow, win);
     if (process.env.OCCLARA_SHOTS === '1') {
-      for (const page of ['patterns', 'breakdown', 'stats', 'coach', 'settings']) {
+      // The rows themselves, scrolled to, and the filter on Highlights.
+      await mojs("document.getElementById('mo-log').scrollIntoView({ block: 'start' }); true");
+      await shot('moments-rows', mainWindow, win);
+      await mojs("document.querySelector('#mo-filter button[data-kind=\"highlight\"]').click(); document.getElementById('mo-log').scrollIntoView({ block: 'start' }); true");
+      await wait(400);
+      await shot('moments-highlights', mainWindow, win);
+      await mojs("document.querySelector('#mo-filter button[data-kind=\"all\"]').click(); document.querySelector('.body').scrollTop = 0; true");
+    }
+    // A row opens its review at its round: round 2 of the second match,
+    // which the review page jumps to and hands the keyboard (flashTo).
+    await mojs(`document.querySelector('#mo-list .mo-row[data-key="${seededIds[1]}:r2"] .mo-open').click(); true`);
+    if (!await until(settled('review'), 4000)) return report(false, 'a Moments row did not open its review');
+    const rvjs = (s) => mainWindow.pageViews().get('review').webContents.executeJavaScript(s);
+    const landed = await until(() => rvjs("(() => { const a = document.activeElement; return a && a.id === 'round-2' && a.classList.contains('flash') ? a.id : null; })()"), 5000);
+    lines.push(`moments row opened its review at ${landed}`);
+    if (landed !== 'round-2') return report(false, 'the review opened from a Moments row did not jump to its round');
+    await shot('moments-review', mainWindow, win);
+
+    if (process.env.OCCLARA_SHOTS === '1') {
+      for (const page of ['patterns', 'stats', 'coach', 'settings']) {
         mainWindow.show(page);
         await wait(3000);
         await shot(page, mainWindow, win);
       }
+      // The breakdown, folded at the foot of Patterns (8.7), opened.
+      mainWindow.show('patterns');
+      await wait(1500);
+      const pjs = (s) => mainWindow.pageViews().get('patterns').webContents.executeJavaScript(s);
+      await pjs("(() => { const d = document.getElementById('breakdown'); d.open = true; d.scrollIntoView({ block: 'start' }); return true; })()");
+      await wait(600);
+      await shot('patterns-breakdown', mainWindow, win);
+      await pjs("(() => { const d = document.getElementById('breakdown'); d.open = false; document.querySelector('.body').scrollTop = 0; return true; })()");
     }
 
     // 5b. A REVIEW STILL BEING BUILT IS A LOADING SCREEN (8.4.1), through the

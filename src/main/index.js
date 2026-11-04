@@ -73,6 +73,7 @@ const insightsOf  = require('../shared/insights');
 const patternsOf  = require('../shared/patterns');
 const progressOf  = require('../shared/progress');
 const breakdownOf = require('../shared/breakdown');
+const momentsOf   = require('../shared/moments');
 const { Backfill } = require('./services/backfill');
 const { RankHistory } = require('./services/rank-history');
 const deathFrames = require('../shared/death-frames');
@@ -731,6 +732,9 @@ function present(review) {
   if (!review || typeof review !== 'object') return review;
   const { served } = require('../shared/valorant-review');
   const out = { ...served(review) };
+  // Opened at one of its rounds (8.7, Moments): the page jumps there once an
+  // open, `jumpAt` telling one open from the next at the same round.
+  if (reviewJump && review.id && reviewJump.id === review.id) { out.jumpTo = reviewJump.round; out.jumpAt = reviewJump.at; }
   if (Array.isArray(review.study)) {
     out.study = review.study.filter((n) => n && typeof n.text === 'string' && n.text).map((n) => ({ text: n.text }));
   }
@@ -743,6 +747,26 @@ function present(review) {
     // Each frame's own time, for the clip's player to step by (8.4.4), read once a file.
     frames: (name) => reviewClips.frameTimes(reviewStore.clipFile(review.id, name)),
   });
+}
+
+/*
+ * THE ROUND A REVIEW OPENS AT (8.7): a Moments row names its review and its
+ * round, and the review page jumps to that round's row once it is painted
+ * (review.js, `jumpTo`). Kept here for the few seconds the open takes, since
+ * the page can get the review by the push or by asking for it as it loads,
+ * and cleared after, so a later version of the review (Riot's record landing)
+ * does not jump again. Each open is stamped (`at`), and the page keys its one
+ * jump on the stamp as well as the round, so the same review opened at the
+ * same round a second time jumps again, while the two paints of one open
+ * (the push, then the page's own ask) still jump once.
+ */
+let reviewJump = null;
+let reviewJumpTimer = null;
+const JUMP_MS = 5000;
+function setReviewJump(id, round) {
+  clearTimeout(reviewJumpTimer);
+  reviewJump = id && Number.isInteger(round) && round > 0 ? { id, round, at: Date.now() } : null;
+  if (reviewJump) reviewJumpTimer = setTimeout(() => { reviewJump = null; }, JUMP_MS);
 }
 
 /** Paint a review in the review window, whichever game it is from. */
@@ -2167,10 +2191,11 @@ const controller = {
     const e = reviewStore.get(id);
     return e ? present(withFrames(e.review)) : null;
   },
-  /** Open the review window on one saved review. */
-  openReviewById(id) {
+  /** Open the review page on one saved review, at one of its rounds when asked (8.7). */
+  openReviewById(id, round) {
     const e = reviewStore.get(id);
     if (!e) return;
+    setReviewJump(e.review.id || id, round);
     // As saved: showReview presents what it sends, and holds the review as main has it.
     showReview(withFrames(e.review));
     openPage('review');
@@ -2218,6 +2243,25 @@ const controller = {
     const e = id ? reviewStore.get(id) : null;
     if (!e) return null;
     return progressOf.matchProgress(reviewStore.recent(e.game, patternsOf.LOOK_BACK), id);
+  },
+  /**
+   * The Moments page (8.7, src/shared/moments.js): every death and highlight
+   * of one game's saved reviews, newest first, the clips kept beside them by
+   * their URLs, and the compilation by the patterns across matches. The same
+   * read the patterns are made from, and what is on disk beside each review.
+   */
+  getMoments(game) {
+    const g = game || gameRegistry.get(store.get('game')).id;
+    // The patterns' own window, so the compilation counts what Patterns counts.
+    const recent = reviewStore.recent(g, patternsOf.LOOK_BACK);
+    return momentsOf.build(g, recent, {
+      patterns: patternsOf.summarise(recent),
+      clips: (id) => reviewStore.clipsOf(id).map((c) => c.name),
+      url: (id, name) => clipScheme.urlFor(id, name),
+      // Each kept clip's frames, for the player's frame step and marks (read once a file).
+      frames: (id, name) => reviewClips.frameTimes(reviewStore.clipFile(id, name)),
+      recordingMode: store.get('recordingMode') === 'off' ? 'off' : 'auto',
+    });
   },
   /** By map and agent (champion), counted from every saved review of one game. */
   getBreakdown(game, opts) {

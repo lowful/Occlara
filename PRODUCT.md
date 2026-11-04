@@ -22,7 +22,7 @@ Occlara is a post-match AI coach. It reads the game while it is played and shows
 ## Operating Context
 - **Before a match:** Home and the Start button.
 - **During a match:** a sealed Recording screen only. Every page is locked, and no notice or sound mentions the match.
-- **After the match:** the review opens, with Home, Matches, Patterns, Breakdown, Stats, Ask Coach, Invite and Settings around it.
+- **After the match:** the review opens, with Home, Matches, Patterns, Moments, Stats, Ask Coach, Invite and Settings around it.
 - **Separate windows:** Sign in (activation), onboarding, splash, the dock, the clip player, the AI log viewer and the Verdict share image.
 - **Accounts (8.7):** Free, Pro and Max, with a monthly game cap and referral invites.
 
@@ -40,7 +40,7 @@ Occlara is a post-match AI coach. It reads the game while it is played and shows
 
 ## Evidence on Hand
 - Real screens from the current build are in `dist-surface-shots/` (`OCCLARA_SHOTS=1 npm run check:mainwindow`, `npx electron scripts/shot-surface.js <surface>`).
-- Seeded reviews live in `scripts/check-main-window.js`.
+- The seeded reviews are the sample library in `scripts/fixtures/proof-reviews.js` (a Jett on Abyss, 13 : 11, a B of 71, three older matches rising to it), which `check:mainwindow` boots on and `npm run export:siteproof` pictures for the website (`scripts/export-site-proof.js`: the pages as WebP at 2x, the share image, and `proof.generated.json`, the display strings read off the real pages, labelled "Sample match").
 - There are no testimonials, user counts or benchmarks, and none may be invented.
 
 ## Product Principles

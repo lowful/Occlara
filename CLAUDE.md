@@ -96,6 +96,7 @@ in `docs/claude/` to find it.
 | Changing the recorder: capture, encoder, what is kept, the disk guard, health | `docs/claude/recorder.md` |
 | Changing clips: cutting, playback, the clip player, the cap, recording Settings and onboarding, dev switches | `docs/claude/clips.md` |
 | Changing the main window, shell, pages, Home, the record card, closing or the tray | `docs/claude/ui.md` |
+| Changing the Moments page (deaths and highlights, the compilation, its player) or `moments.js` | `docs/claude/ui.md`, "The Moments page" |
 | Changing CSS, tokens, fonts, the signal's places or the shared components, or adding an IPC channel (`channels.js`) | `docs/claude/ui-rules-ipc.md` |
 | Changing the live read prompt or STATE line, `mapState`, model env vars, call costs, or running `verify:ai` | `docs/claude/live-read.md` |
 | Touching a guard in `coaching-engine.js`: map lock, labels, scoreboard, HP beats death, spectating | `docs/claude/guards.md` |
@@ -201,7 +202,10 @@ invisible on the dark ground.
 check:mainwindow` writes `main-<page>.png`, every page in the window beside the
 sidebar with saved reviews in it. A dropped colour declaration, an unshipped
 font weight and a stretched logo all pass every automated check in this repo
-and are obvious in a picture.
+and are obvious in a picture. The website's demos come from
+`npm run export:siteproof`, the same window on the same sample library
+(`scripts/fixtures/proof-reviews.js`), never from anything invented
+(`docs/claude/ui.md`).
 
 ## Releases
 
