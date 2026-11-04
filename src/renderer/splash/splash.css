@@ -56,8 +56,8 @@ html, body {
    with no animation (reduced motion) the mark is simply whole. */
 .shade { animation: wax 1100ms 240ms var(--ease-expo) both; }
 @keyframes wax {
-  from { cx: 71px; cy: 54px; r: 52px; }
-  to   { cx: 86.588px; cy: 45px; r: 42px; }
+  from { cx: 62.15px; cy: 60px; r: 52px; }
+  to   { cx: 77.738px; cy: 51px; r: 42px; }
 }
 
 .wordmark {
