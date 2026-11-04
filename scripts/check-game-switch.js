@@ -105,7 +105,14 @@ setTimeout(async () => {
     if (!v1.over || v1.nostats) return report(false, 'Valorant should show the dashboard, not the blank panel');
 
     // 4. Switch to League.
-    await setCfg({ game: 'lol' });
+    // League is coming soon (games.js comingSoon): a page cannot choose it.
+    const refused = await setCfg({ game: 'lol' });
+    lines.push('lol       chosen from a page: game=' + refused.config.game + ' (must stay valorant)');
+    if (refused.config.game !== 'valorant') return report(false, 'a page chose League, which is coming soon');
+    // The stats panel for a game without a source still has to hold, so the
+    // choice is written straight to the store here, as an old install had it.
+    require(path.join(REPO, 'src/main/services/store')).set('game', 'lol');
+    await setCfg({});
     await new Promise((r) => setTimeout(r, 2600));
 
     gotPush = await js("window.__sawGame ? JSON.stringify(window.__sawGame) : ''");

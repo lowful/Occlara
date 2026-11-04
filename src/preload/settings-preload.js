@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld('occlara', {
   // before it refuses a game.
   games: {
     list: (includeUnavailable) => GAMES.list(includeUnavailable)
-      .map((g) => ({ id: g.id, label: g.label, coaching: GAMES.canCoach(g.id), preview: !!g.preview })),
+      .map((g) => ({ id: g.id, label: g.label, coaching: GAMES.canCoach(g.id), preview: !!g.preview, comingSoon: !!g.comingSoon })),
   },
 
   i18n: {
