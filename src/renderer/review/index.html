@@ -27,10 +27,45 @@
              nothing was recorded, disabled once the log no longer holds it. -->
         <span id="eye-host" class="eye-host no-drag" hidden></span>
         <button id="ask" class="btn btn-ghost sm no-drag" hidden>Ask about this match</button>
+        <!-- The Verdict as an image (8.7, docs/claude/verdict.md): drawn on
+             this PC, saved or copied from here, never uploaded. Shown only
+             beside a Verdict. -->
+        <button id="share" class="btn btn-ghost sm no-drag" aria-expanded="false" aria-controls="share-sheet" hidden>Share image</button>
         <button id="matches" class="btn btn-ghost sm no-drag">All matches</button>
       </div>
       <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
     </header>
+
+    <!-- THE SHARE SHEET, under the header (8.7, review.js openShare): the
+         image as it will be saved, its three sizes and two grounds, and Save
+         and Copy, each saying it worked for 1.4 s. Esc closes it before the
+         page. -->
+    <section id="share-sheet" class="share" aria-label="Share image" hidden>
+      <div id="sh-preview" class="sh-preview"></div>
+      <div class="sh-controls">
+        <div class="sh-group">
+          <span class="sh-label">Size</span>
+          <div class="sh-seg" role="group" aria-label="Size">
+            <button type="button" class="sh-opt" data-size="card" aria-pressed="true">Card</button>
+            <button type="button" class="sh-opt" data-size="post" aria-pressed="false">Post</button>
+            <button type="button" class="sh-opt" data-size="discord" aria-pressed="false">Discord</button>
+          </div>
+        </div>
+        <div class="sh-group">
+          <span class="sh-label">Ground</span>
+          <div class="sh-seg" role="group" aria-label="Ground">
+            <button type="button" class="sh-opt" data-ground="paper" aria-pressed="true">Paper</button>
+            <button type="button" class="sh-opt" data-ground="dark" aria-pressed="false">Dark</button>
+          </div>
+        </div>
+        <div class="sh-acts">
+          <button id="sh-save" type="button" class="btn btn-primary sm">Save image</button>
+          <button id="sh-copy" type="button" class="btn btn-ghost sm">Copy image</button>
+          <button id="sh-close" type="button" class="icon-btn" title="Close" aria-label="Close the share sheet"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+        </div>
+        <p id="sh-said" class="sr-only" aria-live="polite"></p>
+      </div>
+    </section>
 
     <main class="body">
       <p id="empty" class="empty" hidden>No match has been reviewed yet. Press Start, play a match, and the review opens here when it ends.</p>
@@ -70,14 +105,23 @@
            first; the repeated mistakes; then every round in one list, each
            death the coach looked at inside its own round. -->
       <div id="vreview" hidden>
-        <!-- The result and where it came from, Riot's scoreboard beside it,
-             and against the player's own average under each number, which
-             was a section of its own repeating the same four numbers. -->
-        <section class="v-hero" id="v-hero">
-          <div class="v-hero-main">
+        <!-- THE VERDICT (8.7, shared/verdict.js through the preload): the
+             letter and the number, the one counted reason, the result and
+             where it came from, and Riot's scoreboard in its row, against
+             the player's own average under each number. A review with no
+             grade to show keeps the result and the scoreboard alone. -->
+        <section class="vd" id="v-verdict">
+          <div class="vd-top">
+            <span id="v-vd-label" class="vd-label">Verdict</span>
             <div id="v-result" class="v-result"></div>
+          </div>
+          <div class="vd-main">
+            <div id="v-grade" class="vd-grade-host" hidden></div>
+            <div class="vd-said">
+              <p id="v-reason" class="vd-reason" hidden></p>
+              <div id="v-meta" class="v-meta"></div>
+            </div>
             <div id="v-score" class="v-score"></div>
-            <div id="v-meta" class="v-meta"></div>
           </div>
           <div id="v-stats-wrap" class="v-stats-wrap" hidden>
             <div id="v-stats" class="v-stats"></div>
@@ -86,10 +130,17 @@
           <p id="v-verified" class="v-verified" hidden></p>
         </section>
 
+        <!-- This match against the ones before it (8.7, shared/progress.js),
+             a chip a line; hidden until main answers, and with nothing to say. -->
+        <div id="v-prog" class="v-prog" hidden></div>
+
         <section class="block" id="v-summary-wrap">
           <h3>The coach's read</h3>
-          <p id="v-summary" class="v-summary"></p>
+          <ul id="v-summary" class="v-summary"></ul>
           <div id="v-focus-wrap" class="v-focus">
+            <!-- Last match's top mistake and how it went in this one, counted
+                 (progress.js focus), above the focus it led to. -->
+            <p id="v-focus-was" class="v-focus-was" hidden></p>
             <div class="v-focus-label">Next match</div>
             <p id="v-focus" class="v-focus-text"></p>
           </div>
@@ -116,15 +167,17 @@
           <div id="v-rounds" class="v-rounds"></div>
         </section>
 
-        <section class="block" id="v-study-wrap">
-          <h3>Study before your next match</h3>
+        <!-- Closed until asked for (8.7): reading for later, and what the
+             review declines to guess, under the rounds. -->
+        <details class="block v-more" id="v-study-wrap">
+          <summary><h3>Study before your next match</h3></summary>
           <ul id="v-study" class="v-study"></ul>
-        </section>
+        </details>
 
-        <section class="block" id="v-refused-wrap">
-          <h3>What this review cannot tell you</h3>
+        <details class="block v-more" id="v-refused-wrap">
+          <summary><h3>What this review cannot tell you</h3></summary>
           <ul id="v-refused" class="r-refused"></ul>
-        </section>
+        </details>
 
         <p class="v-foot">Read silently. Nothing was shown on your screen while you played.</p>
       </div>
@@ -137,6 +190,11 @@
           <div id="r-champ" class="r-champ"></div>
           <div id="r-meta" class="r-meta"></div>
         </section>
+
+        <!-- The Verdict and the strip against the games before, as a
+             Valorant review has them, where the game has a grade (8.7). -->
+        <section id="r-verdict" class="vd lol" hidden></section>
+        <div id="r-prog" class="v-prog" hidden></div>
 
         <section class="scoreline" id="r-scores"></section>
 
@@ -190,6 +248,10 @@
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/grade-view.js"></script>
   <script src="../shared/log-eye.js"></script>
+  <!-- The share image (8.6.0), drawn here from the Verdict on the page. -->
+  <script src="../shared/verdict-card.js"></script>
+  <!-- The reveal cue (8.7): review.js plays it when the letter lands. -->
+  <script src="../shared/sfx.js"></script>
   <!-- The clip player (8.4.4): its arithmetic, pure and tested as it is,
        then the player every clip on the page is drawn with. -->
   <script src="clip-time.js"></script>

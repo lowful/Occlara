@@ -173,8 +173,16 @@ function paintSkills(r) {
  * for Riot's record, and "What this review cannot tell you" says where the
  * scoreboard comes from, so that note was the page saying it a third time.
  */
-function paintValorant(r) {
+function paintValorant(r, verdict) {
   const g = r.game || {};
+  // The Verdict's letter, number and reason, when the review has a grade to
+  // show; the result, the score and the scoreboard are there either way.
+  $('v-vd-label').hidden = !verdict;
+  $('v-grade').replaceChildren(...(verdict ? [verdictGrade(verdict)] : []));
+  $('v-grade').hidden = !verdict;
+  $('v-reason').textContent = (verdict && verdict.reason) || '';
+  $('v-reason').hidden = !(verdict && verdict.reason);
+  $('v-verdict').classList.toggle('graded', !!verdict);
   const resultEl = $('v-result');
   resultEl.textContent = g.result ? g.result.toUpperCase() : 'MATCH REVIEW';
   resultEl.className = 'v-result' + (g.result === 'Victory' ? ' win' : g.result === 'Defeat' ? ' loss' : '');
@@ -200,18 +208,25 @@ function paintValorant(r) {
   paintStats(r);
 
   // The coach's read. Missing when the model was unreachable or the match was
-  // too short to narrate, and each case says which.
+  // too short to narrate, and each case says which. Short lines (8.7): the
+  // summary as served() split it into its sentences, a line each, where it was
+  // one paragraph; a review served without them is its summary in one line.
   const summary = r.summary;
   $('v-summary-wrap').hidden = !summary && !r.focus && !r.aiUnavailable && !r.thin && !r.narrativePending;
-  $('v-summary').textContent = summary
+  const said = summary
     || (r.narrativePending ? "Rewriting the coach's read with Riot's record of the match. This takes a few seconds."
       : r.thin ? 'Too little of this match was seen to write a read of it.'
       : r.aiUnavailable ? 'The coach could not be reached to write this part. Everything else on this page was computed from the match.'
         : '');
+  const lines = summary && Array.isArray(r.summaryLines) && r.summaryLines.length ? r.summaryLines : said ? [said] : [];
+  $('v-summary').replaceChildren(...lines.map((line) => el('li', 'v-summary-line', line)));
   // A focus with no read above it: no empty line between the heading and it.
-  $('v-summary').hidden = !$('v-summary').textContent;
+  $('v-summary').hidden = !lines.length;
   $('v-focus-wrap').hidden = !r.focus;
   $('v-focus').textContent = r.focus || '';
+  // Last match's result on its top mistake comes with the progress, after.
+  $('v-focus-was').hidden = true;
+  $('v-focus-was').textContent = '';
 
   paintStrip(r);
   paintComps(r);
@@ -221,9 +236,86 @@ function paintValorant(r) {
 
   const refused = Array.isArray(r.refused) ? r.refused : [];
   $('v-refused-wrap').hidden = !refused.length;
+  const keptRefused = openedFor(r);
+  $('v-refused-wrap').open = keptRefused.refused;
+  $('v-refused-wrap').ontoggle = (e) => { keptRefused.refused = e.target.open; };
   const list = $('v-refused');
   list.replaceChildren();
   for (const line of refused) list.append(el('li', 'r-refused-item', line));
+}
+
+/*
+ * THE VERDICT'S GRADE (8.7): the letter in its tone from GradeView, the one
+ * grade colour rule, and the number out of 100 beside it, PROVISIONAL over the
+ * number when the grade is. Both are the grade's own, as verdict.js passed
+ * them. Each part keeps a class of its own (.vd-letter, .vd-score) for the
+ * reveal to find.
+ */
+function verdictGrade(v) {
+  const box = el('div', 'vd-grade');
+  box.append(el('span', 'vd-letter ' + (window.GradeView.gradeTone({ score: v.score, letter: v.letter }) || 'none'), v.letter));
+  const num = el('div', 'vd-num');
+  if (v.provisional) num.append(el('span', 'vd-prov', 'Provisional'));
+  const line = el('div', 'vd-num-line');
+  line.append(el('span', 'vd-score', v.score), el('span', 'vd-out', '/100'));
+  num.append(line);
+  box.append(num);
+  return box;
+}
+
+/** League's Verdict: the grade and the reason, its numbers in the scoreline under it. */
+function paintLolVerdict(v) {
+  const host = $('r-verdict');
+  host.replaceChildren();
+  host.hidden = !v;
+  if (!v) return;
+  const top = el('div', 'vd-top');
+  top.append(el('span', 'vd-label', 'Verdict'));
+  if (v.right) top.append(el('span', 'v-result', v.right));
+  const main = el('div', 'vd-main');
+  const said = el('div', 'vd-said');
+  if (v.reason) said.append(el('p', 'vd-reason', v.reason));
+  if (v.sub) said.append(el('div', 'v-meta', v.sub));
+  main.append(verdictGrade(v), said);
+  host.append(top, main);
+}
+
+/*
+ * THIS MATCH AGAINST THE ONES BEFORE IT (8.7), asked of main once the page is
+ * painted (shared/progress.js matchProgress through PROGRESS_GET): its lines a
+ * chip each under the Verdict, and on a Valorant review with a focus, the line
+ * on last match's top mistake above that focus rather than among the chips.
+ * An answer for a review the page has moved on from is dropped.
+ */
+let progressFor = null;
+// The answer asked for last, kept for the reveal's sound to wait on (a best
+// plays 'best'), so the page asks main once.
+let progressAsked = null;
+function paintProgress(r) {
+  const valorant = r.kind === 'valorant';
+  const host = $(valorant ? 'v-prog' : 'r-prog');
+  for (const id of ['v-prog', 'r-prog']) { $(id).replaceChildren(); $(id).hidden = true; }
+  const id = r.id;
+  progressFor = id || null;
+  progressAsked = null;
+  if (!id || !window.occlara.progressOf) return;
+  const asked = Promise.resolve(window.occlara.progressOf(id));
+  progressAsked = { id, asked };
+  asked.then((p) => {
+    if (progressFor !== id || !current || current.id !== id || current.work || !p) return;
+    const lines = Array.isArray(p.lines) ? p.lines : [];
+    const focusLine = valorant && r.focus ? lines.find((l) => l && l.kind === 'focus' && l.text) : null;
+    const strip = window.GradeView.progressStrip(p, { omit: focusLine ? ['focus'] : [] });
+    // Replaced, never added to: a review painted twice asks twice.
+    host.replaceChildren(...(strip ? [strip] : []));
+    host.hidden = !strip;
+    if (focusLine) {
+      const was = $('v-focus-was');
+      was.textContent = focusLine.text;
+      was.className = 'v-focus-was ' + (focusLine.tone || 'even');
+      was.hidden = false;
+    }
+  }).catch(() => {});
 }
 
 /*
@@ -246,10 +338,15 @@ function versus(a, name) {
   return line;
 }
 
-/** One of Riot's numbers, its label, and how it compares, inside the result's card. */
+/**
+ * One of Riot's numbers, its label, and how it compares, in the Verdict's
+ * row. A number the review does not have is left out, never drawn as "--",
+ * as the Verdict leaves it out (shared/verdict.js statsOf).
+ */
 function vStat(label, value, a, name) {
+  if (value === null || value === undefined) return null;
   const box = el('div', 'v-stat');
-  box.append(el('div', 'v-stat-value', value === null || value === undefined ? '--' : value));
+  box.append(el('div', 'v-stat-value', value));
   box.append(el('div', 'v-stat-label', label));
   const vs = versus(a, name);
   if (vs) box.append(vs);
@@ -271,12 +368,12 @@ function paintStats(r) {
   for (const a of against) if (a && AGAINST_OF[a.label]) vs[AGAINST_OF[a.label]] = a;
   const kda = [s.kills, s.deaths, s.assists].every((v) => v !== null && v !== undefined)
     ? `${s.kills}/${s.deaths}/${s.assists}` : null;
-  host.append(
+  host.append(...[
     vStat('K / D / A', kda, vs.kd, 'K/D'),
     vStat('ACS', s.acs, vs.acs),
     vStat('ADR', s.adr, vs.adr),
     vStat('Headshot', typeof s.headshotPct === 'number' ? s.headshotPct + '%' : null, vs.headshot),
-  );
+  ].filter(Boolean));
   // What the comparison is over, once: every number carries its sample.
   const over = Object.values(vs)[0];
   if (over && over.games) {
@@ -353,6 +450,11 @@ function paintStudy(r) {
   const study = (Array.isArray(r.study) ? r.study : [])
     .filter((n) => n && typeof n.text === 'string' && n.text && !restates(n.text, r.focus));
   $('v-study-wrap').hidden = !study.length;
+  // Closed on every new review (8.7): reading for later, under the rounds.
+  // A repaint of the same review keeps it as the player left it.
+  const keptStudy = openedFor(r);
+  $('v-study-wrap').open = keptStudy.study;
+  $('v-study-wrap').ontoggle = (e) => { keptStudy.study = e.target.open; };
   const host = $('v-study');
   host.replaceChildren();
   for (const n of study) host.append(el('li', 'v-study-note', n.text));
@@ -419,6 +521,24 @@ function paintStrip(r) {
  * round of raw reads ("in spawn during buy phase holding Ghost"), what the
  * review is built from rather than what it says.
  */
+/*
+ * WHAT THE PLAYER OPENED STAYS OPEN ON A REPAINT OF THE SAME REVIEW (8.7): the
+ * screen look lands after the review and pushes the same id again, and a fold
+ * or the study notes snapping shut under the player's hand reads as a bug.
+ * Another review starts closed.
+ */
+const opened = { id: null, rounds: new Set(), study: false, refused: false };
+function openedFor(r) {
+  const id = (r && r.id) || null;
+  if (!id || opened.id !== id) {
+    opened.id = id;
+    opened.rounds = new Set();
+    opened.study = false;
+    opened.refused = false;
+  }
+  return opened;
+}
+
 function paintRounds(r) {
   const host = $('v-rounds');
   releaseClips(host);
@@ -426,7 +546,12 @@ function paintRounds(r) {
   const rounds = Array.isArray(r.rounds) ? r.rounds : [];
   $('v-rounds-wrap').hidden = !rounds.length;
   const frames = r.frameData || {};
-  for (const c of rounds) host.append(roundRow(r, c, frames));
+  const kept = openedFor(r);
+  for (const c of rounds) {
+    const row = roundRow(r, c, frames);
+    host.append(row);
+    if (kept.rounds.has(c.n)) openRow(row);
+  }
 }
 
 function roundRow(r, c, frames) {
@@ -442,7 +567,6 @@ function roundRow(r, c, frames) {
   // then the why, each a block of its own under its own label (look()).
   const speaks = !!(f && f.cause !== 'unclear' && (f.what || f.better));
   const why = c.why && !(speaks && f.source !== 'screen') ? c.why : null;
-  const facts = (Array.isArray(c.facts) ? c.facts : []).join('  ·  ');
   const row = el('article', 'v-round' + (f || why ? '' : ' quiet'));
   row.id = `round-${c.n}`;
   const head = el('div', 'v-round-head');
@@ -451,17 +575,126 @@ function roundRow(r, c, frames) {
   if (c.side) head.append(el('span', 'v-side', c.side));
   row.append(head);
   if (!f && !why) {
-    if (facts) head.append(el('span', 'v-facts', facts));
+    const facts = factsOf(c, 'span');
+    if (facts) head.append(facts);
     return row;
   }
   // The AI log at the moment the coach looked at, while it still holds the
   // match: the eye in the page's header opens the match on its first death.
   const eye = f && r.id && r.aiLog === 'kept' && typeof f.at === 'number' && window.LogEye
     ? window.LogEye.button('kept', () => window.occlara.openAiLog(r.id, f.at), window.LogEye.MOMENT) : null;
+  const said = f ? look(c, frames, why) : whyLine(why);
+  /*
+   * A ROUND NOT OPEN IS ONE LINE UNTIL ASKED (8.7): served() opens a round
+   * with a look or a why, or one of the top mistake's, and the rest of the
+   * rows with something to say fold to their number, result, side and tags,
+   * opened by a click anywhere on the line or the chevron's own key. A row
+   * served before there was `open` is open.
+   */
+  if (c.open === false) {
+    const facts = factsOf(c, 'span');
+    if (facts) head.append(facts);
+    if (eye) head.append(eye);
+    const body = el('div', 'v-round-body');
+    body.id = `round-${c.n}-body`;
+    body.hidden = true;
+    body.append(said);
+    const more = el('button', 'v-fold');
+    more.type = 'button';
+    more.setAttribute('aria-expanded', 'false');
+    more.setAttribute('aria-controls', body.id);
+    more.setAttribute('aria-label', `Round ${c.n}, show what the coach said`);
+    head.append(more);
+    row.classList.add('fold');
+    head.addEventListener('click', (e) => {
+      const t = e && e.target;
+      if (t && t.closest && t.closest('.log-eye')) return;
+      if (row.classList.contains('open')) foldRow(row, false);
+      else openRow(row);
+    });
+    row.append(body);
+    return row;
+  }
   if (eye) head.append(eye);
-  if (facts) row.append(el('div', 'v-facts', facts));
-  row.append(f ? look(c, frames, why) : whyLine(why));
+  const facts = factsOf(c, 'div');
+  if (facts) row.append(facts);
+  row.append(said);
   return row;
+}
+
+/** A folded round opened, or folded again; a row that does not fold is left as it is. */
+function foldRow(row, open) {
+  if (!row || !row.classList.contains('fold')) return;
+  const body = row.querySelector('.v-round-body');
+  const more = row.querySelector('.v-fold');
+  row.classList.toggle('open', open);
+  const n = Number(String(row.id).replace('round-', ''));
+  if (open) opened.rounds.add(n); else opened.rounds.delete(n);
+  if (body) body.hidden = !open;
+  if (more) more.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+const openRow = (row) => foldRow(row, true);
+
+/*
+ * THE ROUND'S FACTS AS TAGS (8.7): served() maps each fact roundFacts wrote
+ * to a kind and a tone (valorant-review.js factTags), and each is drawn as a
+ * chip, an icon by its kind and the fact's own words. The icon is a lookup
+ * and decides nothing; a kind it does not know has none. A round served
+ * before there were tags is its facts in one line, as it was.
+ */
+const TAG_ICON = {
+  death: 'M6 6l12 12M18 6L6 18',
+  firstdeath: 'M6 6l12 12M18 6L6 18M4 3v4',
+  kill: 'M12 3v5M12 16v5M3 12h5M16 12h5',
+  firstkill: 'M12 3v5M12 16v5M3 12h5M16 12h5M12 11.5v1',
+  traded: 'M4 9h13l-3-3M20 15H7l3 3',
+  untraded: 'M4 12h16M12 4v4',
+  tradedmate: 'M4 9h13l-3-3M20 15H7l3 3',
+  odds: 'M5 18V10M10 18V6M15 18v-5M20 18v-9',
+  ult: 'M12 3l2.6 5.6L20 9.5l-4 4 1 6-5-2.8-5 2.8 1-6-4-4 5.4-.9z',
+  clutch: 'M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z',
+  plant: 'M12 4v16M7 9l5-5 5 5',
+  survived: 'M5 12.5l4.5 4.5L19 7.5',
+  unwatched: 'M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6zM4 4l16 16',
+};
+const TAG_TONES = new Set(['good', 'bad', 'warn', 'even']);
+
+function tagIcon(kind) {
+  const d = TAG_ICON[kind];
+  if (!d) return null;
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', 'v-tag-icon');
+  const p = document.createElementNS(SVG_NS, 'path');
+  p.setAttribute('d', d);
+  p.setAttribute('fill', 'none');
+  p.setAttribute('stroke', 'currentColor');
+  p.setAttribute('stroke-width', '2');
+  p.setAttribute('stroke-linecap', 'round');
+  p.setAttribute('stroke-linejoin', 'round');
+  svg.append(p);
+  return svg;
+}
+
+/** The round's facts: its tags as chips, or its facts in one line; null with neither. */
+function factsOf(c, tag) {
+  if (Array.isArray(c.tags)) {
+    const tags = c.tags.filter((t) => t && t.text);
+    if (!tags.length) return null;
+    const box = el(tag, 'v-facts v-tags');
+    for (const t of tags) {
+      const chip = el('span', `v-tag ${TAG_TONES.has(t.tone) ? t.tone : 'even'}`);
+      chip.dataset.kind = String(t.kind || 'fact');
+      const icon = tagIcon(t.kind);
+      if (icon) chip.append(icon);
+      chip.append(document.createTextNode(t.text));
+      box.append(chip);
+    }
+    return box;
+  }
+  const facts = (Array.isArray(c.facts) ? c.facts : []).join('  ·  ');
+  return facts ? el(tag, 'v-facts', facts) : null;
 }
 
 /**
@@ -727,6 +960,9 @@ function zoomShot(strip, fig) {
  */
 function flashTo(card) {
   if (!card) return;
+  // A folded round opens first, so the jump lands on what it was for and the
+  // scroll is to the row's whole height.
+  openRow(card);
   const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   card.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
   if (!card.hasAttribute('tabindex')) card.tabIndex = -1;
@@ -781,7 +1017,7 @@ function saidInRound(r) {
  * @param at.grade  what the grade goes after
  * @param at.lists  what the lists go after, when not straight after the grade
  */
-function paintCommon(r, at) {
+function paintCommon(r, at, verdict) {
   const common = $('common');
   const gHost = $('grade-host');
   const iHost = $('insights-host');
@@ -797,9 +1033,12 @@ function paintCommon(r, at) {
   common.hidden = !!at.lists || !(r.grade || r.insights);
   gHost.hidden = !r.grade;
   iHost.hidden = !r.insights;
-  if (r.grade) gHost.append(window.GradeView.gradeCard(r.grade));
+  // Under a Verdict the grade is compact: the Verdict says the letter and the
+  // number, so the card keeps the categories and their evidence (8.7).
+  if (r.grade) gHost.append(window.GradeView.gradeCard(r.grade, { compact: !!verdict, reveal: true }));
   if (r.insights) {
     iHost.append(window.GradeView.insightLists(r.insights, {
+      hero: true,
       onRound: r.kind === 'valorant' ? goRound : false,
       saidInRound: r.kind === 'valorant' ? saidInRound(r) : null,
       empty: r.kind === 'valorant' && !r.verified
@@ -941,9 +1180,128 @@ function tickBuilding(work) {
   foot.hidden = !foot.textContent;
 }
 
+/*
+ * THE REVEAL (8.7, docs/claude/ui.md "The reveal"): the review the loading
+ * screen gives way to arrives in order, once per review in this page's
+ * memory. The number counts up, the letter stamps in, the bars fill one after
+ * another, the progress chips rise in, and the letter landing is heard
+ * (shared/sfx.js 'reveal', or 'best' with a best in the progress). A review
+ * opened later, from the library or Home, is painted as it ends.
+ *
+ * The motion is all CSS (review.css, grade-view.css): the page sets the
+ * classes and the number to count to, and the count is @property --n through
+ * counter(), so no figure is worked out here and the real number stays the
+ * text. Nothing reads an animation event (theme.css): the sound is a timer
+ * matched to the stamp's delay, and the end is a timer too.
+ *
+ * NOTHING MID MATCH. It runs inside occlaraOnShown (embed.js): a sealed page
+ * is never on screen, so a review made whole during the next match waits,
+ * its reveal and its sound with it. And main is asked as the letter lands:
+ * the sound plays only with sounds on and coaching off
+ * (docs/claude/screen-silence.md). A click or a key ends it at once
+ * (.reveal-done).
+ */
+const revealed = new Set();
+// --t-slow (theme.css): the letter's stamp waits this long, its sound with it.
+const STAMP_MS = 420;
+// Past the chips' rise (review.css, grade-view.css): over, whatever is left.
+const REVEAL_MS = 2000;
+let reveal = null;
+
+const lessMotion = () => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Once per review, from the branch where its loading screen gave way. */
+function startReveal(r, verdict) {
+  if (!r.id || revealed.has(r.id)) return;
+  revealed.add(r.id);
+  const mine = { id: r.id, verdict, started: false, cued: false, stamp: null, done: null, skip: null };
+  reveal = mine;
+  const shown = typeof window.occlaraOnShown === 'function' ? window.occlaraOnShown : (fn) => fn();
+  shown(() => runReveal(mine));
+}
+
+function runReveal(mine) {
+  if (reveal !== mine || !current || current.id !== mine.id || current.work) return;
+  mine.started = true;
+  const root = $('vreview');
+  root.classList.remove('reveal-done');
+  const still = lessMotion();
+  // Counted up only to a whole number, and not when asked for less motion.
+  const score = root.querySelector('.vd-score');
+  if (score && !still && mine.verdict && Number.isInteger(mine.verdict.score)) {
+    score.style.setProperty('--to', String(mine.verdict.score));
+    score.classList.add('counting');
+  }
+  root.classList.add('revealing');
+  mine.stamp = setTimeout(() => cueReveal(mine), still ? 0 : STAMP_MS);
+  mine.done = setTimeout(() => endReveal(mine), still ? 0 : REVEAL_MS);
+  mine.skip = () => endReveal(mine);
+  document.addEventListener('pointerdown', mine.skip, true);
+  document.addEventListener('keydown', mine.skip, true);
+}
+
+function unhookReveal(mine) {
+  clearTimeout(mine.stamp);
+  clearTimeout(mine.done);
+  if (!mine.skip) return;
+  document.removeEventListener('pointerdown', mine.skip, true);
+  document.removeEventListener('keydown', mine.skip, true);
+}
+
+/** Its end state, now. Ended before the letter landed, it lands now, and is heard now. */
+function endReveal(mine) {
+  if (reveal !== mine) return;
+  reveal = null;
+  unhookReveal(mine);
+  const root = $('vreview');
+  root.classList.add('reveal-done');
+  const score = root.querySelector('.vd-score.counting');
+  if (score) score.classList.remove('counting');
+  cueReveal(mine);
+}
+
+/** The letter landing, heard: main asked now, and the progress asked with the paint. */
+function cueReveal(mine) {
+  if (mine.cued || !mine.started) return;
+  mine.cued = true;
+  clearTimeout(mine.stamp);
+  const state = window.occlara.getState ? Promise.resolve(window.occlara.getState()).catch(() => null) : Promise.resolve(null);
+  const asked = progressAsked && progressAsked.id === mine.id ? progressAsked.asked.catch(() => null) : null;
+  Promise.all([state, asked]).then(([s, p]) => {
+    if (!s || s.sounds === false || s.isCoaching !== false) return;
+    // Not over the loading screen: the review went back to being built.
+    if (!current || current.id !== mine.id || current.work) return;
+    const sfx = window.occlaraSfx;
+    if (!sfx || typeof sfx.play !== 'function') return;
+    sfx.play(p && p.best && (p.best.grade || p.best.firstLetter) ? 'best' : 'reveal');
+  }).catch(() => {});
+}
+
+/**
+ * A paint over a reveal. The same review painted again ends its reveal where
+ * it was going, or, still waiting to be on screen, leaves it waiting; any
+ * other paint drops it, silent, and the page is painted as it ends.
+ */
+function settleReveal(r) {
+  const mine = reveal;
+  if (mine && r && !r.work && r.id === mine.id) {
+    if (mine.started) endReveal(mine);
+    return;
+  }
+  if (mine) { reveal = null; unhookReveal(mine); }
+  $('vreview').classList.remove('revealing', 'reveal-done');
+}
+
 function paint(r) {
+  settleReveal(r);
   paintEye(r);
+  // The share sheet stays open over a new version of the review it was
+  // opened on, drawn again; over any other, or none, it closes.
+  const sameReview = !!(r && current && r.id && r.id === current.id);
+  $('share').hidden = true;
+  if (!r || r.work) { closeShare(false); shareVerdict = null; }
   if (!r) {
+    progressFor = null;
     paintBuilding(null);
     releaseClips($('v-rounds'));
     releaseClips($('r-deaths'));
@@ -957,9 +1315,16 @@ function paint(r) {
   current = r;
   // Asked about half built, the coach would talk about a review about to change.
   $('ask').hidden = !r.id || !!r.work;
-  if (r.work) { paintBuilding(r.work); return; }
+  if (r.work) { progressFor = null; paintBuilding(r.work); return; }
   const wasBuilding = !$('building').hidden;
   paintBuilding(null);
+  // The Verdict, built by the preload from the review as served, or null
+  // with no grade to show (shared/verdict.js of()). Share image goes with it.
+  const verdict = window.occlara.verdictOf ? window.occlara.verdictOf(r) : null;
+  shareVerdict = verdict;
+  $('share').hidden = !verdict || !window.VerdictCard;
+  if (!verdict || !sameReview) closeShare(false);
+  else if (shareOpen()) drawShare();
   // Valorant has its own container, so the League one is simply hidden
   // rather than having each of its sections turned off one by one.
   if (r.kind === 'valorant') {
@@ -967,13 +1332,16 @@ function paint(r) {
     releaseClips($('r-deaths'));
     $('review').hidden = true;
     $('vreview').hidden = false;
-    paintValorant(r);
-    paintCommon(r, { grade: $('v-hero'), lists: $('v-summary-wrap') });
+    paintValorant(r, verdict);
+    // The Verdict, the strip against the matches before it, then the grade.
+    paintCommon(r, { grade: $('v-prog'), lists: $('v-summary-wrap') }, verdict);
+    paintProgress(r);
     // Whole at last, it rises in where the loading screen was.
     if (wasBuilding) {
       $('vreview').classList.remove('v-arrive');
       void $('vreview').offsetWidth;
       $('vreview').classList.add('v-arrive');
+      startReveal(r, verdict);
     }
     return;
   }
@@ -993,8 +1361,10 @@ function paint(r) {
   const bits = [g.role, g.mode, g.duration].filter(Boolean);
   $('r-meta').textContent = bits.join('  ·  ');
 
+  paintLolVerdict(verdict);
   paintScores(r.scoreline || {});
-  paintCommon(r, { grade: $('r-scores') });
+  paintCommon(r, { grade: $('r-scores') }, verdict);
+  paintProgress(r);
   $('r-death-head').textContent = (r.deaths || {}).headline || '';
   $('r-death-detail').textContent = (r.deaths || {}).detail || '';
   paintLolDeaths(r);
@@ -1011,6 +1381,98 @@ function paint(r) {
   }
 }
 
+/*
+ * SHARE IMAGE (8.7, docs/claude/verdict.md "The share image"): a sheet under
+ * the header with the image as it will be saved, drawn by VerdictCard from
+ * the Verdict on the page, in the size and on the ground picked, and Save and
+ * Copy, each saying it worked (or that it did not) for 1.4 s. Nothing leaves
+ * the PC from here: Save is a download the player places, Copy the clipboard.
+ */
+const SAID_FOR_MS = 1400;
+const share = { size: 'card', paper: true, drawn: 0 };
+let shareVerdict = null;
+const shareOpen = () => !$('share-sheet').hidden;
+
+/** The preview drawn again; a drawing overtaken by a newer one is dropped. */
+function drawShare() {
+  const host = $('sh-preview');
+  const v = shareVerdict;
+  if (!v || !window.VerdictCard) { host.replaceChildren(); return; }
+  const n = ++share.drawn;
+  host.dataset.size = share.size;
+  Promise.resolve().then(() => window.VerdictCard.render(v, { size: share.size, paper: share.paper })).then((cv) => {
+    if (n !== share.drawn || !shareOpen()) return;
+    cv.classList.add('sh-canvas');
+    cv.setAttribute('role', 'img');
+    cv.setAttribute('aria-label', 'The share image as it will be saved');
+    host.replaceChildren(cv);
+  }).catch(() => {
+    if (n === share.drawn) host.replaceChildren(el('p', 'sh-none', 'The image could not be drawn.'));
+  });
+}
+
+function openShare() {
+  if (!shareVerdict) return;
+  $('share-sheet').hidden = false;
+  $('share').setAttribute('aria-expanded', 'true');
+  drawShare();
+}
+
+/** Closed, and the keyboard handed back to Share image when it was in the sheet. */
+function closeShare(refocus) {
+  const sheet = $('share-sheet');
+  if (sheet.hidden) return;
+  sheet.hidden = true;
+  share.drawn++;
+  $('sh-preview').replaceChildren();
+  $('share').setAttribute('aria-expanded', 'false');
+  if (refocus && !$('share').hidden) $('share').focus();
+}
+
+/** The buttons of one group pressed by the value picked. */
+function pressOptions() {
+  for (const b of $('share-sheet').querySelectorAll('.sh-opt')) {
+    const on = b.dataset.size ? b.dataset.size === share.size : (b.dataset.ground === 'paper') === share.paper;
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+}
+
+/** A button's own label swapped for what happened, then back after 1.4 s. */
+function sayOn(btn, text) {
+  if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+  clearTimeout(btn._said);
+  btn.textContent = text;
+  btn.classList.add('said');
+  $('sh-said').textContent = text;
+  btn._said = setTimeout(() => {
+    btn.textContent = btn.dataset.label;
+    btn.classList.remove('said');
+  }, SAID_FOR_MS);
+}
+
+for (const b of $('share-sheet').querySelectorAll('.sh-opt')) {
+  b.addEventListener('click', () => {
+    if (b.dataset.size) share.size = b.dataset.size;
+    else share.paper = b.dataset.ground === 'paper';
+    pressOptions();
+    drawShare();
+  });
+}
+$('share').addEventListener('click', () => (shareOpen() ? closeShare(false) : openShare()));
+$('sh-close').addEventListener('click', () => closeShare(true));
+$('sh-save').addEventListener('click', () => {
+  const v = shareVerdict;
+  if (!v || !window.VerdictCard) return;
+  Promise.resolve(window.VerdictCard.save(v, { size: share.size, paper: share.paper }))
+    .then((done) => sayOn($('sh-save'), done ? 'Saved' : 'Could not save'));
+});
+$('sh-copy').addEventListener('click', () => {
+  const v = shareVerdict;
+  if (!v || !window.VerdictCard) return;
+  Promise.resolve(window.VerdictCard.copy(v, { size: share.size, paper: share.paper }))
+    .then((done) => sayOn($('sh-copy'), done ? 'Copied' : 'Could not copy'));
+});
+
 let current = null;
 // A page of the main window has no window of its own to close: the sidebar
 // and All matches are how a player leaves it.
@@ -1018,7 +1480,12 @@ const closeWindow = () => { if (!(window.occlaraEmbedded && window.occlaraEmbedd
 $('close').addEventListener('click', closeWindow);
 $('matches').addEventListener('click', () => window.occlara.openMatches());
 $('ask').addEventListener('click', () => { if (current && current.id) window.occlara.askAbout(current.id); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeWindow(); });
+// Esc closes the share sheet first, and only with none open the page.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (shareOpen()) { closeShare(true); return; }
+  closeWindow();
+});
 
 // Both paths, because the window can be opened by the push OR by hand later.
 window.occlara.onReview(paint);
@@ -1032,6 +1499,8 @@ if (window.occlara.onReviewWork) {
     if (m.work) {
       current = { ...current, work: m.work };
       $('ask').hidden = true;
+      closeShare(false);
+      $('share').hidden = true;
       paintBuilding(m.work);
       return;
     }

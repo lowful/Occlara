@@ -74,6 +74,7 @@ const surfaces = require('./fixtures/surfaces');
 const verify = require(path.join(REPO, 'src/shared/valorant-verify'));
 const valorantReview = require(path.join(REPO, 'src/shared/valorant-review'));
 const { ReviewStore, newId } = require(path.join(REPO, 'src/main/services/review-store'));
+const gradeOf = require(path.join(REPO, 'src/shared/grade'));
 
 const lines = [];
 let reported = false;
@@ -85,7 +86,7 @@ function report(ok, detail) {
   app.exit(ok ? 0 : 1);
 }
 
-// A profile with two saved Valorant reviews built from the real match.
+// A profile with four saved Valorant reviews built from the real match.
 // Recording Off: step 5b records a match with a stand-in reader, and a check
 // never records the desktop. No Riot ID, so nothing is asked of the network.
 const ud = path.join(os.tmpdir(), 'occlara-check-main-window');
@@ -139,10 +140,18 @@ const built = valorantReview.build({ rounds, context: { ...played.context, agent
   role: 'Duelist', history: [], riotMe: { kills: 31, deaths: 21, assists: 4, score: 9168 }, comps: COMPS });
 const store = new ReviewStore(path.join(ud, 'reviews'));
 const now = Date.now();
-[0, 1].forEach((i) => {
+// THE NEWEST IS A RECORD (8.7): the built match, then three older ones graded
+// lower, so the shots show what progress.js counts on the real pages, a best
+// (it needs three graded matches before it), the delta on the last match and
+// on the average. Lower, never higher, so the newest stays the grade and the
+// tallest bar the checks below read.
+const OLDER = [64, 58, 61];
+const SEEDED = 1 + OLDER.length;
+[null, ...OLDER].forEach((score, i) => {
   const at = now - i * 3600000;
   const id = newId('valorant', at);
-  store.save({ id, game: 'valorant', at, review: { ...built, id, at, kind: 'valorant' } });
+  const g = score === null ? built.grade : { ...built.grade, score, letter: gradeOf.letter(score) };
+  store.save({ id, game: 'valorant', at, review: { ...built, grade: g, id, at, kind: 'valorant' } });
 });
 process.env.OCCLARA_DEV_USERDATA = ud;
 
@@ -238,7 +247,7 @@ setTimeout(async () => {
     lines.push(`home: score="${last}" grade=${gradeNum} recent=${recent} focus="${focus.slice(0, 40)}"`);
     if (last !== '13 : 11') return report(false, `Home's last match reads "${last}"`);
     if (String(gradeNum) !== String(built.grade.score)) return report(false, `Home's grade reads ${gradeNum}, the review ${built.grade.score}`);
-    if (recent !== 2) return report(false, `Home lists ${recent} recent matches`);
+    if (recent !== SEEDED) return report(false, `Home lists ${recent} recent matches, ${SEEDED} were saved`);
     if (!/^Enter second/.test(focus)) return report(false, 'Home has no focus for the next match');
     // 8.2.1: the last match ends on the eye's View match and Open review and
     // nothing else (these matches were saved with no AI log kept, so the eye

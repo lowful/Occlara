@@ -215,7 +215,7 @@ const compact = GV.gradeCard(G, { compact: true });
 ok(full.querySelector('.gv-top') && full.querySelector('.gv-score').textContent === '61' && full.querySelectorAll('.gv-cat').length === 1,
   'the card has its score row and its categories');
 ok(!compact.querySelector('.gv-top') && !compact.querySelector('.gv-score') && !compact.querySelector('.gv-letter')
-  && compact.querySelectorAll('.gv-cat').length === 1 && compact.querySelector('.gv-ev').textContent === 'First kill 3 times',
+  && compact.querySelectorAll('.gv-cat').length === 1 && compact.querySelector('.gv-chips').textContent === 'First kill 3 times',
 'and compact, for the review under its Verdict, leaves out the score row and keeps the categories with their evidence');
 
 console.log(fails ? `\n${fails} look check(s) FAILED` : '\nall look checks passed: the tokens, Start, the primary, the shared components and the grade card are the 8.6 look');

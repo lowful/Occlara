@@ -181,6 +181,32 @@ first paint and on a change of game, once it is on screen (`occlaraOnShown`);
 the Recording screen rises in; the AI log and the weekly
 report ease in. `npm run test:surfaces` pins each.
 
+**The reveal (8.7).** The review the loading screen gives way to (the
+`wasBuilding` branch of `paint()` in review.js, `startReveal`) arrives in
+order, once per review id the page holds in memory: the number counts up over
+`--t-slow` twice, the letter stamps in after `--t-slow` (`vdStamp`, scale 1.35
+to 1 on `--ease-spring`), the grade's bars fill from `scaleX(0)` one after
+another (`--i` from `gradeCard`'s `opts.reveal`, 80ms apart), and the progress
+chips rise in after them. A review opened later, from the library or Home, or
+painted again, is painted as it ends. It is all CSS (`#vreview.revealing`,
+review.css and grade-view.css): the count is `@property --n` (an integer)
+drawn by `counter()` over the real number, which stays the text, and the page
+only sets `--to`; it does no figure of its own. A click or a key adds
+`.reveal-done`, the end state at once, and so does a timer once it is over.
+Nothing reads an animation event (theme.css): the sound is a `setTimeout`
+matched to the stamp's delay. Asked for less motion, nothing counts and every
+delay is 0, because theme.css collapses durations and never delays.
+
+The letter landing is heard: `shared/sfx.js` 'reveal' (a soft rising C major
+triad), or 'best' (the triad and the octave over it) when the progress has a
+best grade or a first S or A. It runs inside `occlaraOnShown` (embed.js), so a
+review made whole while the page is off screen or sealed waits to be shown,
+its reveal and its sound with it, and main is asked (`getState()`) as the
+letter lands: the sound plays only with `sounds` not false and `isCoaching`
+false (screen-silence.md). review/index.html must load `../shared/sfx.js`
+for it to be heard; without it the reveal is silent. `test:surfaces` holds
+each part with a spy on the sound.
+
 Separate windows, because they are not pages:
 
 ```

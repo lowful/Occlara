@@ -3,7 +3,8 @@
 /**
  * What Home shows, read from the library: the last match and its grade, the
  * focus the review set for the next one, the most repeated mistake, the grade
- * over the last five matches, and the recent matches.
+ * over the last five matches, the newest match's milestone, and the recent
+ * matches.
  *
  * NOTHING IS INVENTED HERE. Every figure is one the library already holds,
  * and an empty library gives empty fields rather than zeros: a new player's
@@ -69,6 +70,13 @@ function workOfRow(r) {
   return { path: w.path, step: typeof w.step === 'string' ? w.step : null };
 }
 
+/** A progress line passed through whole, or null: never one without its text. */
+function milestoneOf(progress) {
+  const l = progress && progress.latest;
+  if (!l || typeof l.text !== 'string' || !l.text) return null;
+  return { kind: typeof l.kind === 'string' ? l.kind : null, tone: typeof l.tone === 'string' ? l.tone : 'even', text: l.text };
+}
+
 function rowOf(r) {
   return {
     id: r.id, title: r.title || null, map: r.map || null, mode: r.mode || null,
@@ -122,6 +130,9 @@ function homeModel({ rows, patterns, review }) {
     top,
     trend,
     average: grades.length >= 2 && typeof p.average === 'number' ? p.average : null,
+    // The newest match's first progress line (8.7, progress.js libraryProgress),
+    // as main counted it: { kind, tone, text }, or null.
+    milestone: milestoneOf(p.progress),
     recent: list.slice(0, RECENT).map(rowOf),
   };
 }

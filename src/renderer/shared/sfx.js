@@ -1,9 +1,17 @@
 /**
- * The two sounds the app makes: coaching armed, and coaching stood down.
+ * The four sounds the app makes: coaching armed, coaching stood down, a review
+ * arriving, and a review arriving with a best in it.
  *
- * Played by the panel on its status transitions (panel.js soundCue), and only
- * when config.sounds is not false. The overlay played them until 8.0 removed
- * it, and for a while after that nothing did.
+ * The first two are played by the shell on its status transitions (shell.js
+ * soundCue), and only when config.sounds is not false. The overlay played them
+ * until 8.0 removed it, and for a while after that nothing did.
+ *
+ * The other two (8.7) are the review page's reveal (review.js startReveal,
+ * docs/claude/ui.md "The reveal"): once, as the letter stamps in on a review
+ * the loading screen gave way to, never on one opened later. They wait for the
+ * page to be on screen (occlaraOnShown, so never while the seal is on), and
+ * the page asks main first: nothing with sounds off, nothing while coaching
+ * (docs/claude/screen-silence.md).
  *
  * Synthesised rather than shipped as files, for three reasons that all matter
  * here. The panel's CSP is `default-src 'self'` with no media-src, and Web
@@ -17,6 +25,11 @@
  * falling, with a low body under it: something releasing. Both are under a
  * third of a second, because this plays over a game somebody is concentrating
  * on and a sound that outstays its welcome once will be muted forever.
+ *
+ * The reveal is heard with no game running, so it may be warmer: the major
+ * triad on the same C, rising and soft, with no latch, under half a second. A
+ * best is that triad with the octave over it, the one cue that says more than
+ * "here it is".
  */
 
 (function (root, factory) {
@@ -38,6 +51,9 @@ const GAIN = 0.16;
  */
 const LOW = 523.25;
 const HIGH = 783.99;
+/** The third between them, for the reveal's triad (C5, E5, G5), and C6 over it for a best. */
+const THIRD = 659.25;
+const OCTAVE = 1046.5;
 
 let ctx = null;
 
@@ -122,9 +138,9 @@ function latch(at, freq, level) {
 }
 
 /**
- * Play one of the two sounds.
+ * Play one of the four sounds.
  *
- * `kind` is 'start' or 'stop'. Anything else is ignored rather than throwing:
+ * `kind` is 'start', 'stop', 'reveal' or 'best'. Anything else is ignored rather than throwing:
  * this is a sound effect, and a surface that crashes because it could not
  * make a noise is a far worse bug than silence.
  */
@@ -165,6 +181,22 @@ function play(kind, volume) {
     tone(t + 0.005, HIGH, 0.08, 'triangle', level * 0.9);
     tone(t + 0.06, LOW, 0.2, 'triangle', level * 0.9);
     tone(t + 0.06, LOW / 4, 0.24, 'sine', level * 0.5);
+    return;
+  }
+
+  if (kind === 'reveal' || kind === 'best') {
+    // The triad rising, each note starting under the last one's tail, softer
+    // than the fifth, over a quiet sine an octave under the root. No latch:
+    // this is a result arriving, not a piece of equipment switching.
+    tone(t, LOW / 2, 0.36, 'sine', level * 0.3);
+    tone(t, LOW, 0.16, 'triangle', level * 0.75);
+    tone(t + 0.07, THIRD, 0.16, 'triangle', level * 0.75);
+    tone(t + 0.14, HIGH, kind === 'best' ? 0.2 : 0.3, 'triangle', level * 0.8);
+    if (kind === 'best') {
+      // The octave over it, held longest, its own octave faint above.
+      tone(t + 0.22, OCTAVE, 0.32, 'triangle', level * 0.7);
+      tone(t + 0.22, OCTAVE * 2, 0.2, 'sine', level * 0.2);
+    }
   }
 }
 

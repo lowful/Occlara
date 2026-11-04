@@ -820,10 +820,135 @@ function riotOnlyNote(grade, riotOnly) {
 function served(review) {
   if (!review || review.kind !== 'valorant') return review;
   if (review.source === 'riot') {
-    return withCompsLine(weaponsInTodaysWords({ ...review, insights: insights.asFacts(review.insights), grade: grader.riotWords(review.grade) }));
+    return withView(withCompsLine(weaponsInTodaysWords({ ...review, insights: insights.asFacts(review.insights),
+      grade: grader.riotWords(review.grade) })));
   }
   const out = review.insights ? { ...review, insights: insights.inTodaysWords(review.insights) } : review;
-  return withCompsLine(weaponsInTodaysWords(aboutNotesInTodaysWords(out)));
+  return withView(withCompsLine(weaponsInTodaysWords(aboutNotesInTodaysWords(out))));
+}
+
+/*
+ * WHAT THE PAGE DRAWS BY, NEVER ON DISK (B2). Each round's facts as tags, the
+ * rounds that open by themselves, and the summary as lines: worked out here so
+ * the window does no reading of its own, from what any saved review already
+ * holds, so a review from any version gets them. withoutView takes them off
+ * again, for a test that holds the rest of what is shown unchanged.
+ */
+const VIEW_FIELDS = ['summaryLines'];
+const VIEW_CARD_FIELDS = ['tags', 'open'];
+
+function withView(review) {
+  if (!review || typeof review !== 'object') return review;
+  // The rounds of the top mistake the list counted, the one the page leads
+  // with. None from Riot's record alone, which counts facts, not mistakes.
+  const top = insights.countable(review).mistakes[0];
+  const hot = new Set(top && Array.isArray(top.rounds) ? top.rounds : []);
+  const rounds = Array.isArray(review.rounds)
+    ? review.rounds.map((c) => (c && typeof c === 'object'
+      ? { ...c, tags: factTags(c.facts), open: !!(c.forensics || c.why || hot.has(c.n)) } : c))
+    : review.rounds;
+  return { ...review, rounds, summaryLines: summaryLines(review.summary) };
+}
+
+/** The review without what withView added: as served() gave it before B2. */
+function withoutView(review) {
+  if (!review || typeof review !== 'object') return review;
+  const out = { ...review };
+  for (const k of VIEW_FIELDS) delete out[k];
+  if (Array.isArray(out.rounds)) {
+    out.rounds = out.rounds.map((c) => {
+      if (!c || typeof c !== 'object') return c;
+      const card = { ...c };
+      for (const k of VIEW_CARD_FIELDS) delete card[k];
+      return card;
+    });
+  }
+  return out;
+}
+
+/*
+ * EACH FACT roundFacts WRITES, AS A TAG: { kind, tone, text }, the text the
+ * fact itself. Matched on the exact sentences it writes, today's and every
+ * earlier one a saved card can hold ("Died at B Tree, 3s in, to Chamber" as
+ * weaponsInTodaysWords leaves it). A sentence matched by none is a plain
+ * 'fact', so a card saved by some other version still shows every line.
+ *
+ * Tones: 'bad' a death or the round's first one, 'warn' what the counts call
+ * a mistake (not traded, the ultimate held, a death with the team ahead),
+ * 'good' what they call a strength, 'even' the rest.
+ */
+const ODDS_RE = /^(\d+) against (\d+) when you died$/;
+const KILLS_RE = /^\d+ kills?$/;
+const TRADED_MATES_RE = /^Traded teammates \d+ times$/;
+const CLUTCH_FACT_RE = /^Last one standing against \d+(, and won it|, lost)?$/;
+// "Died", "Died at A Main, 31s in, to Astra with a Sheriff", "Died 12s in",
+// "Died, to Jett", "Died mid round": the word, then the end, a space or a comma.
+const DIED_RE = /^Died(?:$|[ ,])/;
+
+const FACT_EXACT = new Map([
+  ['First death of the round', { kind: 'firstdeath', tone: 'bad' }],
+  ['Traded by a teammate', { kind: 'traded', tone: 'even' }],
+  ['Not traded', { kind: 'untraded', tone: 'warn' }],
+  ['Ultimate was ready', { kind: 'ult', tone: 'warn' }],
+  ['Survived', { kind: 'survived', tone: 'good' }],
+  ['First kill of the round', { kind: 'firstkill', tone: 'good' }],
+  ['Traded a teammate', { kind: 'tradedmate', tone: 'good' }],
+  ['Spike planted', { kind: 'plant', tone: 'even' }],
+  ['Not watched by the coach', { kind: 'unwatched', tone: 'even' }],
+]);
+
+function factTag(text) {
+  const exact = FACT_EXACT.get(text);
+  if (exact) return { ...exact, text };
+  if (DIED_RE.test(text)) return { kind: 'death', tone: 'bad', text };
+  const odds = ODDS_RE.exec(text);
+  if (odds) {
+    // Ahead and still dead is the lost advantage the mistakes count; level or
+    // behind is what the round already was.
+    return { kind: 'odds', tone: Number(odds[1]) > Number(odds[2]) ? 'warn' : 'even', text };
+  }
+  if (KILLS_RE.test(text)) return { kind: 'kill', tone: 'good', text };
+  if (TRADED_MATES_RE.test(text)) return { kind: 'tradedmate', tone: 'good', text };
+  const clutch = CLUTCH_FACT_RE.exec(text);
+  if (clutch) return { kind: 'clutch', tone: clutch[1] === ', and won it' ? 'good' : 'even', text };
+  if (text.startsWith('Spike planted at ')) return { kind: 'plant', tone: 'even', text };
+  return { kind: 'fact', tone: 'even', text };
+}
+
+/** A card's facts as tags, in their order; none for a card with no facts. */
+function factTags(facts) {
+  if (!Array.isArray(facts)) return [];
+  return facts.filter((f) => typeof f === 'string' && f).map(factTag);
+}
+
+/*
+ * THE SUMMARY AS LINES, one sentence each, split only where a sentence ends:
+ * a stop, then a space, then a capital, a digit or a quote. Never inside
+ * "1.5", and never after "vs." or "e.g.", which the model writes mid sentence.
+ * A summary it cannot split is one line; none is no lines.
+ */
+const SENTENCE_END_RE = /[.!?]+["')\]]?\s+(?=["'(\[]?[A-Z0-9])/g;
+const ABBREV_RE = /(?:^|[\s(])(?:vs|v|e\.g|i\.e|etc|approx)\.$/i;
+
+function summaryLines(summary) {
+  if (typeof summary !== 'string') return [];
+  const text = summary.trim();
+  if (!text) return [];
+  const out = [];
+  let from = 0;
+  SENTENCE_END_RE.lastIndex = 0;
+  let m;
+  while ((m = SENTENCE_END_RE.exec(text))) {
+    const stop = m.index + m[0].trimEnd().length;
+    const head = text.slice(from, stop);
+    // "vs. Jett": the stop ends a word the model shortens, not the sentence.
+    if (ABBREV_RE.test(text.slice(Math.max(from, m.index - 8), m.index + 1))) continue;
+    if (head.trim()) out.push(head.trim());
+    from = m.index + m[0].length;
+  }
+  const rest = text.slice(from).trim();
+  if (rest) out.push(rest);
+  return out;
 }
 
 /** The review as shown, with its comps line (8.5.0) where it has comps, never on disk. */
@@ -1061,4 +1186,5 @@ function against(tracker, role, history) {
 
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
   queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, lookJudgement,
+  factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS,
   BASELINE_GAMES, BASELINE_MIN };

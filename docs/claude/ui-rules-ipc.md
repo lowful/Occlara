@@ -145,7 +145,11 @@ silently stopped receiving events with no error. Add the constant to
 Renderers have no Node access. Everything crosses through a preload via
 `contextBridge`. The library is `REVIEWS_LIST`, `REVIEW_GET`, `REVIEW_OPEN`,
 `REVIEW_AILOG` (the eye: the AI log on that review's match, or at one moment
-of it from the eye on a death the coach looked at), `PATTERNS_GET`,
+of it from the eye on a death the coach looked at), `PATTERNS_GET` (with
+`progress`, `libraryProgress()` from the same read, for the library's marks and
+Home's milestone), `PROGRESS_GET` (8.7: one review's `matchProgress()`, for the
+review page through `review-preload.js progressOf`, beside its `verdictOf` and a
+read only `getState` for the reveal's sound),
 `BREAKDOWN_GET`, and `PUSH_REVIEWS` fires whenever a review is saved or
 improved. `PUSH_REVIEW_WORK` carries `{ id, work }` for a review still being
 built, the step it is on or null once it is whole, to the review page, Home

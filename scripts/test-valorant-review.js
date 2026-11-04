@@ -1290,7 +1290,7 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     && JSON.stringify(shownBefore.refused) === JSON.stringify(cut.refused)
     && /reads, so it is hidden\.$/.test(before.verification) && before.refused.some((t) => t.endsWith("no location or coach's read.")),
   `a review saved before says them in today's words when shown, and is left as it was (${shownBefore.verification} | ${shownBefore.refused.join(' | ')})`);
-  ok(JSON.stringify(review.served(cut)) === JSON.stringify(cut), 'and one built today is shown as it was built');
+  ok(JSON.stringify(review.withoutView(review.served(cut))) === JSON.stringify(cut), 'and one built today is shown as it was built, give or take its view-only fields');
   ok(review.spans([1, 2, 3, 4, 24]) === 'rounds 1 to 4 and 24' && review.spans([5, 6, 9]) === 'rounds 5, 6 and 9'
     && review.spans([7]) === 'round 7', 'round runs read as a person would write them');
 }

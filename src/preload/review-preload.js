@@ -3,6 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const { pageMotion } = require('./page-motion');
+const verdict = require('../shared/verdict');
 
 /**
  * Bridge for the post-game review.
@@ -39,6 +40,15 @@ contextBridge.exposeInMainWorld('occlara', {
     ipcRenderer.on(C.PUSH_REVIEW_WORK, h);
     return () => ipcRenderer.removeListener(C.PUSH_REVIEW_WORK, h);
   },
+  // The Verdict at the top of a graded review (8.6.0, shared/verdict.js),
+  // built here so the page does no counting of its own.
+  verdictOf: (r) => verdict.of(r),
+  // This review against the ones before it (8.7, shared/progress.js): its
+  // finished lines and the counts beside them, or null.
+  progressOf: (id) => ipcRenderer.invoke(C.PROGRESS_GET, id),
+  // Read only: the reveal's sound asks whether sounds are on and whether a
+  // match is being coached, and plays nothing while one is.
+  getState: () => ipcRenderer.invoke(C.STATE_GET),
   openLearn: () => ipcRenderer.send(C.OPEN_LEARN),
   // The library, and Ask Coach opened on this match.
   openMatches: () => ipcRenderer.send(C.OPEN_HISTORY),

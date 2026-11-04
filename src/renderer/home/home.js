@@ -50,7 +50,14 @@ const rrText = (change) => `${change > 0 ? '+' : ''}${change} RR`;
 /** A gain in --good, a loss in --bad, no change dim (home.css). */
 const rrTone = (change) => (change > 0 ? 'gain' : change < 0 ? 'loss' : 'even');
 
-function paintLast(last) {
+/**
+ * @param milestone  the last match against the ones before it (8.7,
+ *   home-model.js milestone, progress.js libraryProgress latest): one finished
+ *   line, { kind, tone, text }, drawn as the review draws its progress strip
+ *   (GradeView.progressStrip), under the match's facts. Left out while the
+ *   match is still being checked, since its grade is not yet its own.
+ */
+function paintLast(last, milestone) {
   const host = $('last');
   host.replaceChildren();
   const top = el('div', 'last-top');
@@ -66,6 +73,11 @@ function paintLast(last) {
   if (meta) facts.append(el('span', 'meta', meta));
   top.append(facts);
   host.append(top);
+  const strip = milestone && !last.work ? GV.progressStrip({ lines: [milestone] }) : null;
+  if (strip) {
+    strip.classList.add('last-prog');
+    host.append(strip);
+  }
 
   const checking = last.work ? GV.checking(last.work, { full: true }) : null;
   if (checking) host.append(checking);
@@ -339,7 +351,7 @@ async function paint() {
     $('empty-settings').hidden = !noRiot;
     return true;
   }
-  paintLast(model.last);
+  paintLast(model.last, model.milestone || null);
   $('focus').hidden = !model.focus;
   $('focus-text').textContent = model.focus || '';
   $('top').hidden = !model.top;

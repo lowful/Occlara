@@ -60,6 +60,11 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .result.loss { color: var(--bad); }
 .score { font-size: 52px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .meta { font-size: 14px; color: var(--text-dim); }
+/* The last match's milestone (8.7, home.js paintLast): the line the review's
+   progress strip leads with, a chip in its tone between the facts and the
+   grade, a touch closer to the facts it is about. */
+.last-prog { margin-top: calc(var(--space-2) * -1); }
+.last-prog .gv-prog { font-size: 13px; }
 .last-foot {
   margin-top: auto;
   display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2);
