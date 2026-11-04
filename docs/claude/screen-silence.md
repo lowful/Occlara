@@ -62,3 +62,14 @@ What still counts as "reaching the screen", and is sealed mid match:
   the recording and the review being checked with it. It is asked again
   every 30 seconds until then, and names the newest version downloaded
   meanwhile, the one a restart installs (`test:updater`).
+- Accounts (8.7, accounts.md): a 402 cap mid match is silent (the engine
+  stops reading, recording goes on, the review is saved locked), every cap or
+  games left notice and the `ACCOUNT_CHANGED` push wait for the seal to lift
+  (flushed from `syncSeal` and `controller.stop`), and the Invite page is a
+  page like the others, locked by `syncSeal` (`check:seal`). A sign in the
+  server stops taking (onRefused) never acts mid match: the recording goes
+  on, a read refused after it has no key to revalidate and ends no licence
+  (`recheckAuth`, the licence watch only ends a stored key), and the Sign in
+  window waits until nothing is recorded AND no seal holds, a stop mid match
+  included (`sessionEndedWhileRecording`, flushed with the account waits;
+  Start ends it at once, as the player's own choice). `check:sessionend`.

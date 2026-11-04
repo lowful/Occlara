@@ -96,6 +96,24 @@
         <div id="insights-host"></div>
       </div>
 
+      <!-- A LOCKED REVIEW (8.7): the match was played with no games left, so
+           it has its numbers alone and this card in place of the grade, the
+           read and the rounds. Moved by the painter under whichever game's
+           numbers are showing (review.js paintLocked). Its lines are main's
+           (usage.js capState through the account's view), with a plain line
+           of its own when main has none to give. No Verdict, no progress, no
+           reveal and no sound. -->
+      <section id="locked" class="locked" aria-labelledby="lk-title" hidden>
+        <span class="mono">No games left</span>
+        <h3 id="lk-title" class="lk-title">This review is locked</h3>
+        <p id="lk-body" class="lk-body">Upgrade for more games each month, or invite friends for free games.</p>
+        <p id="lk-note" class="lk-note">This match was played with no games left, so it shows its numbers alone: no grade, no coach's read and no look at your deaths.</p>
+        <div class="lk-actions">
+          <button id="lk-upgrade" class="btn btn-primary md" type="button" hidden>Upgrade</button>
+          <button id="lk-invite" class="btn btn-ghost md" type="button" hidden>Invite friends</button>
+        </div>
+      </section>
+
       <!-- VALORANT. Its own container rather than a second shape squeezed
            through the League slots: a review that is round by round has none
            of their sections at all.
@@ -200,7 +218,7 @@
 
         <!-- HOW THE DEATHS HAPPENED. The most useful thing in the record, and
              the only part that needs no baseline, so it works on game one. -->
-        <section class="block">
+        <section class="block" id="r-death-wrap">
           <h3>How you died</h3>
           <p id="r-death-head" class="r-head"></p>
           <p id="r-death-detail" class="r-detail"></p>
@@ -222,7 +240,7 @@
           <div id="r-moments"></div>
         </section>
 
-        <section class="block">
+        <section class="block" id="r-obj-wrap">
           <h3>Objectives</h3>
           <div id="r-obj" class="obj-grid"></div>
         </section>

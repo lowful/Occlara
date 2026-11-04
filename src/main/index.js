@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, globalShortcut, screen, protocol, dialog } = require('electron');
+const { app, globalShortcut, screen, protocol, dialog, safeStorage, shell, clipboard } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -82,6 +82,25 @@ const reviewClips = require('./services/review-clips');
 const lookStills = require('./services/look-stills');
 const reviewWork = require('../shared/review-work');
 const quitAsk = require('../shared/quit-ask');
+const usage = require('../shared/usage');
+const { createAccountService } = require('./services/account-service');
+
+// ── The account (8.7) ────────────────────────────────────────────────────────
+// account-service.js says what it does: the browser sign in, the session it
+// leaves, the headers every request sends (`authed`), and the account's games.
+// A stored licence key is still sent when nobody is signed in, so an 8.6
+// install keeps working on the key it holds (`licenseKey` in the store).
+const account = createAccountService({
+  store,
+  api,
+  safeStorage,
+  openExternal: (url) => shell.openExternal(url),
+  deviceId: () => licenseService.computeDeviceId(),
+  deviceName: () => require('os').hostname() || 'Unknown Device',
+  log: (...a) => console.log(...a),
+});
+/** The auth every request to the server sends (api-client.js authHeaders). */
+const authed = () => account.auth();
 
 // Every post-match review, for every game. See services/review-store.js.
 const reviewStore = new ReviewStore(path.join(app.getPath('userData'), 'reviews'));
@@ -257,9 +276,8 @@ recorder.on('report', (block, how) => {
 
 /** One kept block to the server; taken, it is let go, unless a newer one has replaced it. */
 function sendReport(kept) {
-  const key = store.get('licenseKey');
-  if (!key || !kept || !kept.block) return;
-  api.post('/api/coach/session-report', kept.block, key, 8000).then((r) => {
+  if (!account.hasAuth() || !kept || !kept.block) return;
+  api.post('/api/coach/session-report', kept.block, authed, 8000).then((r) => {
     const now = store.get('recordingReportPending');
     if (r && r.ok && now && now.at === kept.at && now.n === kept.n) store.set('recordingReportPending', null);
   }).catch(() => {});
@@ -268,7 +286,7 @@ function sendReport(kept) {
 let pendingReportSent = false;
 /** At launch, once the licence key is known: the block a quit left, sent once. */
 function sendPendingReport() {
-  if (pendingReportSent || !store.get('licenseKey')) return;
+  if (pendingReportSent || !account.hasAuth()) return;
   const kept = store.get('recordingReportPending');
   if (!kept || typeof kept !== 'object' || !kept.block) return;
   pendingReportSent = true;
@@ -350,6 +368,55 @@ function pushNotice(text, kind) {
   registry.broadcast(C.PUSH_STATE, buildState());
 }
 
+/*
+ * THE ACCOUNT'S NOTICES AND PUSHES, NEVER MID MATCH (8.7). A cap's notice
+ * ("You have used your 3 free games ...") is said only while nothing is being
+ * recorded and the window is not sealed, live or held: one that comes up mid
+ * session waits, and is said as the seal lifts or the recording stops
+ * (flushAccountWaits, from syncSeal and controller.stop). It is written when
+ * it is said, from the account as it stands then. The account's view
+ * (ACCOUNT_CHANGED) is held while a match is in progress or the window is
+ * sealed, and sent once it is free.
+ */
+let capNoticeWaiting = false;
+let accountPushWaiting = false;
+// The server stopped taking the sign in while a match was recorded or held
+// sealed (onRefused, below): the session ends once neither is true.
+let sessionEndedWhileRecording = false;
+function windowSealed() {
+  try { return !!mainWindow.current().sealed || sealHeld; } catch { return sealHeld; }
+}
+function capNoticeSoon() {
+  capNoticeWaiting = true;
+  flushAccountWaits();
+}
+function flushAccountWaits() {
+  if (accountPushWaiting && !matchInProgress() && !windowSealed()) {
+    accountPushWaiting = false;
+    registry.broadcast(C.ACCOUNT_CHANGED, account.view());
+  }
+  if (capNoticeWaiting && !state.isCoaching && !windowSealed()) {
+    capNoticeWaiting = false;
+    const text = usage.capNotice(account.cached())
+      || 'You have no games left. Upgrade at occlara.app/pricing or invite friends for more.';
+    pushNotice(text, 'cap');
+  }
+  // A SIGN IN THAT ENDED MID MATCH ends here, never over the match: the Sign
+  // in window waits until nothing is recorded AND no seal holds, a stop in the
+  // middle of a match (sealHeld) included, as the cap's notice does. Checked
+  // again a tick later, after a stop has settled its own seal.
+  if (sessionEndedWhileRecording && !state.isCoaching && !windowSealed()) {
+    setImmediate(() => { if (sessionEndedWhileRecording && !state.isCoaching && !windowSealed()) endSession(); });
+  }
+}
+account.onChange(() => {
+  accountPushWaiting = true;
+  // Games again (an upgrade, a new month): the cap's line is no longer true.
+  const st = account.cached();
+  if (st && !usage.capState(st) && state.notice && state.notice.kind === 'cap') pushNotice(null);
+  flushAccountWaits();
+});
+
 function setStatus(status) {
   state.status = status;
   registry.broadcast(C.PUSH_STATUS, { status });
@@ -388,7 +455,16 @@ function saveReview(review, game, frames) {
 // ── Grading recent matches from Riot's record ────────────────────────────────
 // backfill.js says what it does and why. This is only what it is wired to.
 const backfill = new Backfill({
-  get: (p, timeoutMs) => api.get(p, store.get('licenseKey'), timeoutMs),
+  get: (p, timeoutMs) => api.get(p, authed, timeoutMs),
+  // A review from Riot's record alone counts as a game (8.7): refused, it is
+  // saved locked, and the cap's notice waits for the window to be free.
+  claim: async (c) => {
+    const got = await account.claim(c);
+    if (got && got.granted === false) capNoticeSoon();
+    return got;
+  },
+  // A run taken back gives back each game it claimed (backfill.js takeBack).
+  release: (clientMatchId) => account.release(clientMatchId),
   library: () => reviewStore.list('valorant').map((meta) => ({
     meta,
     // The whole review only where the plan reads one: those not checked
@@ -531,6 +607,8 @@ function syncSeal() {
   const live = !!state.isCoaching && matchInProgress();
   mainWindow.setSealed(live || sealHeld, { held: !live && sealHeld });
   placeMark(live || sealHeld);
+  // The account's notice and view, held while sealed, go once it lifts.
+  if (capNoticeWaiting || accountPushWaiting || sessionEndedWhileRecording) flushAccountWaits();
 }
 
 /**
@@ -756,7 +834,7 @@ async function riotRoundsFor(lm) {
   try {
     const { ok, data } = await api.get(
       `/api/coach/match-rounds?matchId=${encodeURIComponent(lm.matchId)}&username=${encodeURIComponent(riotId)}`,
-      store.get('licenseKey'), 30000);
+      authed, 30000);
     if (!ok || !data || data.error || !Array.isArray(data.perRound) || !data.perRound.length) {
       console.log('[review] no Riot round record:', (data && data.error) || 'no answer');
       return null;
@@ -824,6 +902,8 @@ async function forensicsFor(rounds, snap, opts) {
   // server, for the look's name gate alone: Riot's look's, else the scoreboard's.
   const matchId = (opts && opts.matchId) || (job && job.tracker && job.tracker.matchId) || null;
   const looked = await askForensics(looks, stills, snap, source, log, matchId);
+  // Refused for the cap (8.7): the review is saved locked, and no look is kept.
+  if (looked.capped) { if (job) lockReview(job); return empty; }
   if (stale()) return empty;
   if (job) keepLookClips(job, looked, cut);
   return looked;
@@ -910,7 +990,8 @@ async function askForensics(looks, stills, snap, source, log, matchId) {
         return { ...d, frames: order.map((i) => frames[i]), frameAt: order.map((i) => frameAt[i]), framesFrom };
       }),
     };
-    const { ok, data } = await api.post(API.DEATH_FORENSICS, body, store.get('licenseKey'), 60000);
+    const { ok, status, data } = await api.post(API.DEATH_FORENSICS, body, authed, 60000);
+    if (status === 402 && data && data.error === 'cap') return { ...empty, capped: true };
     if (!ok || !data || !Array.isArray(data.deaths)) {
       console.log('[review] death forensics unavailable:', (data && data.error) || 'no answer');
       return empty;
@@ -1044,7 +1125,7 @@ function screenLook(job) {
 }
 
 async function lookFromScreen(job) {
-  if (job.cancelled || job.riotLooked) return;
+  if (job.cancelled || job.riotLooked || job.locked) return;
   const snap = job.snap;
   // Told Riot's agent once the scoreboard has linked and only its rounds never
   // came, the agent the review names (game.agent): since 8.4.4 the screen's is
@@ -1351,12 +1432,26 @@ function withdrawReview(startedAt) {
 }
 
 /**
+ * A REVIEW SAVED LOCKED (8.7): the account had no games left, by the engine's
+ * 402 on the read or the server's on the look or the narrative. Every version
+ * saved from now on says locked (stampReview), nothing more is asked of the
+ * model for it, and the cap's notice waits for the window to be free.
+ */
+function lockReview(job) {
+  if (!job || job.locked) return;
+  job.locked = true;
+  console.log(`[review] ${job.id} is saved locked: the account has no games left`);
+  capNoticeSoon();
+}
+
+/**
  * Every version of a review is the same match: its id, its end, and its place
  * in the AI log, so the eye on it opens this match's frames whichever version
  * the library ends up keeping.
  */
 function stampReview(job, built) {
   return Object.assign(built, { id: job.id, at: job.snap.endedAt || Date.now(), aiLog: job.aiLog || null },
+    job.locked ? { locked: true } : {},
     // Its clips taken while it was still being improved (clipsCleared): every
     // later version says why, as the saved one the cap or Settings marked did.
     job.clipsCleared ? { clipsCleared: job.clipsCleared } : {});
@@ -1447,6 +1542,10 @@ function onValorantMatchEnded(snap) {
   const job = {
     id: newId('valorant', snap.endedAt || Date.now()),
     snap, cancelled: false, timer: null, recorded: false, showing: null,
+    // THE ACCOUNT HAD NO GAMES LEFT (8.7, the engine's 402 cap): the review is
+    // saved locked, Riot's record its only numbers, and neither the look at
+    // the deaths nor the narrative is asked for (lockReview).
+    locked: !!snap.capped,
     // The baseline as it was BEFORE this match. Its own history row is added
     // when the tracker links, and every version built after that compared the
     // match with an average that included the match itself.
@@ -1468,6 +1567,10 @@ function onValorantMatchEnded(snap) {
   job.aiLog = job.log ? aiLogStore.placeOf(job.log.dir, snap.startedAt, snap.endedAt) : null;
   snap.log = job.log;
   reviewJobs.set(snap.startedAt, job);
+  if (job.locked) {
+    console.log(`[review] ${job.id} is saved locked: the account has no games left`);
+    capNoticeSoon();
+  }
 
   // NOTHING OPENS OVER A MATCH IN PROGRESS: the next one already being played,
   // one the player had already left for the next (next-match), or the one
@@ -1510,13 +1613,14 @@ function onValorantMatchReview(reviewText, snap) {
   if (!job || job.cancelled) return;
   snap.log = job.log;
   job.snap = snap;
-  if (!snap.ai) console.log('[review] no model narrative for this match');
+  if (snap.capped) lockReview(job);
+  if (!snap.ai && !job.locked) console.log('[review] no model narrative for this match');
   // Which way this review is finished, decided here, where the link and the
   // look from the screen start (shared/review-work.js pathOf).
   job.narrated = true;
   job.byRiot = riotIdSet();
   repaintReview(job, buildValorantReview(snap, null, { history: job.history }).built);
-  if (!job.byRiot) screenLook(job);
+  if (!job.byRiot && !job.locked) screenLook(job);
   linkRiotRecord(job);
   noteWork(job);
 }
@@ -1613,15 +1717,17 @@ function linkRiotRecord(job) {
     // is the one kept, its clips are, and the screen's go.
     job.stage = 'look';
     noteWork(job);
-    const looked = await forensicsFor(deathFrames.withRiotTimes(rounds, riot), { ...snap, context },
-      { job, stale: () => job.cancelled, matchId: lm.matchId });
+    // A locked review (8.7) shows Riot's record and asks the model nothing.
+    const looked = job.locked ? { byRound: {}, frames: {} }
+      : await forensicsFor(deathFrames.withRiotTimes(rounds, riot), { ...snap, context },
+        { job, stale: () => job.cancelled, matchId: lm.matchId });
     if (job.cancelled) return false;
     for (const r of rounds) if (looked.byRound[r.n]) r.forensics = looked.byRound[r.n];
 
     job.stage = 'writing';
     noteWork(job);
     let ai = null;
-    try {
+    if (!job.locked) try {
       const body = valorantReview.requestBody({
         rounds, context, endedBy: snap.endedBy, tips: [], notes: snap.notes,
         riot: {
@@ -1634,8 +1740,9 @@ function linkRiotRecord(job) {
       // Riot's match id (8.5.0): the key to the match's own name set, which the
       // server holds for its review's name gate and never sends back.
       if (lm.matchId) body.matchId = lm.matchId;
-      const res = await api.post(API.MATCH_REVIEW, body, store.get('licenseKey'), 60000);
+      const res = await api.post(API.MATCH_REVIEW, body, authed, 60000);
       ai = res && res.ok ? res.data : null;
+      if (res && res.status === 402 && res.data && res.data.error === 'cap') lockReview(job);
     } catch (e) {
       console.log('[review] verified narrative failed:', e.message);
     }
@@ -1759,8 +1866,17 @@ function askCoach() {
   if (askCoachOne) return askCoachOne;
   const { AskCoach } = require('./services/ask-coach');
   askCoachOne = new AskCoach({
-    store,
-    api,
+    // ask-coach.js reads the key from the store and hands it to the api: the
+    // account's auth goes in its place (8.7), and "a licence" is any auth,
+    // a signed in session as much as a key.
+    store: {
+      get: (k) => (k === 'licenseKey' ? (store.get('licenseKey') || (account.signedIn() ? 'session' : '')) : store.get(k)),
+      set: (k, v) => store.set(k, v),
+    },
+    api: {
+      get: (p, _key, ms) => api.get(p, authed, ms),
+      post: (p, body, _key, ms, extra) => api.post(p, body, authed, ms, extra),
+    },
     reviews: {
       list: (game) => reviewStore.list(game || null),
       get: (id) => reviewStore.get(id),
@@ -1808,8 +1924,41 @@ function dataUrls(frames) {
 // Owns the CoachingEngine instance and forwards its events onto the IPC bus.
 let engine = null;
 
+// How old an answer about the account Start still trusts (start()).
+const START_TRUST_MS = 5 * 60 * 1000;
+
 const controller = {
+  /**
+   * START ASKS THE ACCOUNT (8.7), and refuses only on a definite cap: the
+   * server enforcing and nothing left, said by me() as capped, in an answer
+   * at most START_TRUST_MS old. me() is asked at launch, on the licence
+   * watch's ticks and after every game counted, and again here, in the
+   * background, so Start never waits on the network: no answer, an old one,
+   * an error, an old server or accounts not live on it all let the player
+   * through, and the server's own 402 on the read is the cap then (silent,
+   * the review saved locked).
+   */
   start() {
+    if (state.isCoaching) return;
+    // A sign in that ended while a stop mid match held the seal: Start is the
+    // player's own choice, so the session ends now (the Sign in window, or a
+    // key still valid here carries on) rather than recording with no account.
+    if (sessionEndedWhileRecording) {
+      endSession();
+      if (!account.signedIn() && !licenseService.isLocallyValid()) return;
+    }
+    if (account.hasAuth()) {
+      const st = account.age() < START_TRUST_MS ? account.cached() : null;
+      account.me().catch(() => null);
+      if (st && st.capped) {
+        console.log('[coach] not started: the account has no games left');
+        capNoticeSoon();
+        return;
+      }
+    }
+    controller.begin();
+  },
+  begin() {
     if (state.isCoaching) return;
     if (!state.licenseActive) {
       // Subscription ended: refuse to coach, remind the user, and re-check in
@@ -1897,7 +2046,7 @@ const controller = {
       return;
     }
     engine = new CoachingEngine({
-      licenseKey:      store.get('licenseKey'),
+      licenseKey:      account.hasAuth() ? authed : '',
       captureFunction: () => capture.captureScreenshot(store.get('captureQuality') === 'performance' ? 'performance' : 'standard'),
       captureSpeed:    store.get('captureSpeed') || 'auto',
       // Experimental settings, read live so flipping them in Settings applies
@@ -1946,7 +2095,7 @@ const controller = {
     // The server rejected our license key (401/403), confirm with an immediate
     // re-validation so a genuinely ended subscription locks fast (and a transient
     // server error does not, since revalidate is authoritative).
-    engine.on('auth-suspect', () => revalidateNow());
+    engine.on('auth-suspect', () => recheckAuth());
 
     state.isCoaching = true;
     state.isPaused   = false;
@@ -1988,6 +2137,11 @@ const controller = {
     flushAiLog(true);
     setStatus('stopped');
     console.log('[coach] stopped');
+    // A cap's notice held through the session, said now unless a seal holds.
+    // And a sign in the server stopped taking during the session (onRefused)
+    // goes back to the Sign in window, but only once no seal holds: a stop in
+    // the middle of a match holds it (flushAccountWaits).
+    flushAccountWaits();
   },
   pauseResume() {
     // The League recorder has nothing to pause: it reads what the game client
@@ -2349,7 +2503,7 @@ const controller = {
    *  from a summary, and the two preceding frames ride along because a death is
    *  usually explained by what was happening just before it. */
   async askAboutFrame(payload) {
-    const licenseKey = store.get('licenseKey');
+    const licenseKey = account.hasAuth() ? authed : null;
     if (!licenseKey) return { error: 'No license active.' };
     const p = payload || {};
     const question = String(p.question || '').trim();
@@ -2565,7 +2719,7 @@ const controller = {
     }
     try {
       const { ok, data } = await api.get('/api/coach/matches?username=' + encodeURIComponent(riotId)
-        + '&mode=' + m + (manual ? '&refresh=1' : ''), store.get('licenseKey'), 20000);
+        + '&mode=' + m + (manual ? '&refresh=1' : ''), authed, 20000);
       if (ok && data && Array.isArray(data.matches)) {
         matchesClient[m] = { data: data.matches, fetchedAt: data.fetchedAt || now,
                              lastManual: manual ? now : bucket.lastManual };
@@ -2637,7 +2791,11 @@ const controller = {
     // A fresh sign-in gets the tour again (new player on this machine, or a
     // returning one who wants the refresher).
     store.set('onboardingCompleted', false);
-    logoutToActivation('You have been logged out. Enter a license key to sign back in.');
+    // Signed out of the account too (8.7): the server is told, the token goes.
+    const wasSignedIn = account.signedIn();
+    account.signOut().catch(() => {});
+    logoutToActivation(wasSignedIn ? 'You have been signed out. Sign in again, or use a licence key.'
+      : 'You have been logged out. Enter a license key to sign back in.');
   },
   finishOnboarding() {
     store.set('onboardingCompleted', true);
@@ -2786,7 +2944,7 @@ function forgetRiotId(riotId) {
 // below stays the persisted profile the coach and chat run on.
 let unratedStatsCache = { at: 0, riotId: '', data: null };
 // The rank history for Stats and Home, and a link making it stale (rank-history.js).
-const rankHistory = new RankHistory({ get: (p, timeoutMs) => api.get(p, store.get('licenseKey'), timeoutMs) });
+const rankHistory = new RankHistory({ get: (p, timeoutMs) => api.get(p, authed, timeoutMs) });
 
 async function fetchUnratedStats(force) {
   const riotId = (store.get('riotId') || '').trim();
@@ -2796,7 +2954,7 @@ async function fetchUnratedStats(force) {
     return unratedStatsCache.data;
   }
   try {
-    const { ok, data } = await api.get('/api/coach/player-stats?mode=unrated&username=' + encodeURIComponent(riotId), store.get('licenseKey'), 22000);
+    const { ok, data } = await api.get('/api/coach/player-stats?mode=unrated&username=' + encodeURIComponent(riotId), authed, 22000);
     const stats = ok && data && !data.error ? data : null;
     if (stats) unratedStatsCache = { at: Date.now(), riotId, data: stats };
     return stats || (unratedStatsCache.riotId === riotId ? unratedStatsCache.data : null);
@@ -2813,7 +2971,7 @@ async function fetchTrackerStats(force, mode) {
     return statsCache.data;
   }
   try {
-    const { ok, data } = await api.get('/api/coach/player-stats?username=' + encodeURIComponent(riotId), store.get('licenseKey'), 15000);
+    const { ok, data } = await api.get('/api/coach/player-stats?username=' + encodeURIComponent(riotId), authed, 15000);
     const stats = ok && data && !data.error ? data : null;
     if (stats) {
       statsCache = { at: Date.now(), riotId, data: stats, lastError: null };
@@ -2841,7 +2999,7 @@ async function fetchTrackerStats(force, mode) {
  *  Null when unavailable; the review simply shows without match stats. */
 async function fetchLastMatch() {
   const riotId = (store.get('riotId') || '').trim();
-  const licenseKey = store.get('licenseKey');
+  const licenseKey = account.hasAuth() ? authed : null;
   if (!riotId || !riotId.includes('#') || !licenseKey) return null;
   try {
     const { ok, data } = await api.get('/api/coach/last-match?username=' + encodeURIComponent(riotId), licenseKey, 30000);
@@ -2923,7 +3081,28 @@ async function fetchCoachedMatch(startedAt, endedAt, mctx, out) {
  * review is where a confident wrong sentence is most expensive, because the game
  * is over and the player cannot check it against anything but a half memory.
  */
+/*
+ * A LEAGUE GAME COUNTS AS A GAME (8.7), claimed once it is over and before its
+ * review is built: refused, the review is saved locked. A game under five
+ * minutes (a remake, a dodge the client reported as a game) is never counted,
+ * and anything but the server's own no is granted (account-service.js claim),
+ * a claim slower than LOL_CLAIM_MS included, so a review is never held back
+ * long by it.
+ */
+const LOL_COUNT_MIN_SEC = 5 * 60;
+const LOL_CLAIM_MS = 10000;
 function finishLolGame(record) {
+  const secs = Number(record && record.stats && record.stats.gameTimeSec) || 0;
+  if (secs < LOL_COUNT_MIN_SEC || !account.hasAuth()) { finishLolGameNow(record, false); return; }
+  const clientMatchId = `lol:${Number(record.startedAt) || Date.now()}`;
+  Promise.race([
+    account.claim({ game: 'lol', kind: 'league', clientMatchId }),
+    new Promise((resolve) => setTimeout(() => resolve({ granted: true, unknown: true }), LOL_CLAIM_MS)),
+  ]).then((got) => finishLolGameNow(record, !!got && got.granted === false),
+    () => finishLolGameNow(record, false));
+}
+
+function finishLolGameNow(record, locked) {
   const review = require('../shared/lol-review');
   // Not "grader": that name is grade.js at the top of this file, and shadowing
   // it here made grader.lol throw, so every League review was saved ungraded.
@@ -2947,6 +3126,12 @@ function finishLolGame(record) {
     built.kind = 'lol';
     built.id = newId('lol');
     built.at = Date.now();
+    // No games left (finishLolGame): saved locked, and the cap's notice waits.
+    if (locked) {
+      built.locked = true;
+      console.log(`[lol] ${built.id} is saved locked: the account has no games left`);
+      capNoticeSoon();
+    }
     try {
       built.grade = grader.lol(built);
       built.insights = insightsOf.lol(built);
@@ -3525,7 +3710,7 @@ async function confirmDeaths(id, scope) {
   if (cached) return cached;
 
   const riotId = (store.get('riotId') || '').trim();
-  const licenseKey = store.get('licenseKey');
+  const licenseKey = account.hasAuth() ? authed : null;
   if (!riotId.includes('#') || !licenseKey) return { status: 'unavailable', why: 'no Riot ID set' };
 
   try {
@@ -3737,6 +3922,103 @@ function logoutToActivation(reason) {
   showActivation(reason);
 }
 
+// ── Sign in (8.7) ────────────────────────────────────────────────────────────
+/**
+ * At launch: signed in through the browser, the app opens on the session and
+ * the account is asked about in the background (an error there never blocks
+ * anything). Otherwise the key's path as it always was (launchWithLicence),
+ * whose window is the Sign in window: "Sign in with your browser" first, the
+ * key form behind "Use a licence key".
+ */
+function launchWithAccount() {
+  if (account.signedIn()) {
+    launchMainApp();
+    account.me({ force: true }).catch(() => {});
+    return;
+  }
+  launchWithLicence();
+  // On a key, its games are asked about too, for Start (controller.start).
+  if (account.hasAuth()) account.me().catch(() => {});
+}
+
+/** The browser sign in landed: the Sign in window goes and the app opens. */
+function onSignedIn() {
+  state.licenseActive = true;
+  state.licenseReason = '';
+  state.notice = null;
+  activationWindow.close();
+  launchMainApp();
+  registry.broadcast(C.PUSH_STATE, buildState());
+}
+
+/**
+ * The server said 401 or 403 to a read. Signed in, the account is asked
+ * (me(), whose 401 ends the session: onRefused below); on a key, the licence
+ * is checked again as it always was.
+ */
+function recheckAuth() {
+  if (account.signedIn()) { account.me({ force: true }).catch(() => {}); return; }
+  // No key to check: a session refused mid match ends through endSession once
+  // the match is over (onRefused). Revalidating nothing answered valid false,
+  // which ended the licence, stopped the recording and said so mid match.
+  if (!store.get('licenseKey')) return;
+  revalidateNow();
+}
+
+/*
+ * THE SERVER STOPPED TAKING THE SIGN IN (signed out on another device, the
+ * session revoked). Never mid session: the recording goes on and the reads
+ * fail as any refused read does, and once it stops the app goes back to the
+ * Sign in window, unless a key still valid on this PC carries on.
+ */
+function endSession() {
+  sessionEndedWhileRecording = false;
+  if (!mainLaunched || account.signedIn()) return;
+  if (licenseService.isLocallyValid()) { registry.broadcast(C.PUSH_STATE, buildState()); return; }
+  logoutToActivation('Your sign in has ended. Sign in again to keep recording.');
+}
+account.onRefused(() => {
+  // Recording, or a stop mid match holding the seal: it waits (flushAccountWaits).
+  if (state.isCoaching || windowSealed()) { sessionEndedWhileRecording = true; return; }
+  endSession();
+});
+
+/**
+ * What register-ipc.js hands the pages (C.ACCOUNT_*, C.REFERRAL_*). The view
+ * carries no token; the key and the invite link are copied by main.
+ */
+const accountIpc = {
+  async view() {
+    // Asked again when the cache is old, never mid match: nothing about the
+    // account is fetched for a page while a match is played.
+    if (account.hasAuth() && !account.fresh() && !matchInProgress()) await account.me().catch(() => null);
+    return account.view();
+  },
+  async signIn() {
+    const r = await account.signIn();
+    if (r && r.ok) onSignedIn();
+    return r;
+  },
+  cancel() { return account.cancel(); },
+  async signOut() { controller.logout(); return { ok: true }; },
+  copyKey() {
+    const key = account.view().accountKey;
+    if (!key) return { ok: false };
+    clipboard.writeText(key);
+    return { ok: true };
+  },
+  async referral() {
+    if (matchInProgress()) return null;
+    return account.referral();
+  },
+  async copyLink() {
+    const r = await account.referral();
+    if (!r || !r.link) return { ok: false };
+    clipboard.writeText(r.link);
+    return { ok: true, link: r.link };
+  },
+};
+
 // ── License watchdog ─────────────────────────────────────────────────────────
 // Every minute: an offline-safe expiry check (the cached expiry date passing).
 // Every ~10 minutes: a server re-validation, and a state broadcast so the open
@@ -3750,13 +4032,23 @@ function startLicenseWatch() {
     if (!mainLaunched) return;
     // Offline-safe: the cached expiry date has passed. (Doesn't return early, so
     // the server re-check below can still detect a renewal.)
-    if (state.licenseActive && !licenseService.isLocallyValid()) {
+    // Signed in (8.7), the session is the app's access and the key is only
+    // its fallback: a key that ended is no reason to stop a signed in player.
+    // Only a KEY ends this way: a session only player whose sign in was
+    // refused has no key to be valid, and ends through endSession once the
+    // match is over, never by a stop and a notice mid match.
+    if (state.licenseActive && !account.signedIn() && store.get('licenseKey') && !licenseService.isLocallyValid()) {
       const status = store.get('licenseStatus');
       enterLicenseEnded(status && status !== 'active' ? status : 'expired');
     }
     // Server re-check every ~3 minutes: catches a server-side end AND a renewal,
     // and keeps the open Settings window's license block fresh.
-    if (++licenseTick % 3 === 0 && store.get('licenseKey')) {
+    if (++licenseTick % 3 === 0 && account.signedIn()) {
+      // The account's games and whether the server still takes the session.
+      account.me({ force: true }).catch(() => {});
+    } else if (licenseTick % 3 === 0 && store.get('licenseKey')) {
+      // A key's games too (8.7), for Start's answer (controller.start).
+      account.me({ force: true }).catch(() => {});
       licenseService.revalidate()
         .then((r) => {
           if (r.valid === false) enterLicenseEnded(r.status);
@@ -3832,7 +4124,7 @@ function showActivation(reason) {
   if (win && !win.__quitsWhenAlone) {
     win.__quitsWhenAlone = true;
     win.on('closed', () => {
-      if (!surfacesUp && !registry.get('onboarding') && !licenseService.isLocallyValid()) {
+      if (!surfacesUp && !registry.get('onboarding') && !licenseService.isLocallyValid() && !account.signedIn()) {
         console.log('[main] licence window closed without a licence, quitting');
         cleanupAndQuit();
       }
@@ -4136,7 +4428,11 @@ app.setAppUserModelId('com.ghostcoach.app2');
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_e, argv) => {
+    // The sign in's fallback link, occlara://auth (8.7): taken only while a
+    // browser sign in waits, with its own state (account-service.js).
+    const link = account.deepLinkIn(argv);
+    if (link && !account.handleDeepLink(link)) console.log('[account] a sign in link arrived with no sign in waiting for it');
     // Opened again from the Start menu or a shortcut: the window comes back
     // from wherever it went, hidden by Ctrl+Shift+M or the tray's Hide, or
     // minimised (its X quits since 8.4.1).
@@ -4182,7 +4478,12 @@ if (!app.requestSingleInstanceLock()) {
     // a clip and applying the cap left the clips past it.
     applyClipCap();
 
-    registerIpc({ controller, license });
+    registerIpc({ controller, license, account: accountIpc });
+    // occlara:// for the sign in's fallback link (8.7), on an installed build
+    // only: a dev run would point Windows at electron.exe.
+    if (app.isPackaged) {
+      try { app.setAsDefaultProtocolClient('occlara'); } catch (e) { console.warn('[account] protocol:', e.message); }
+    }
 
     // Dev-only self-test (never runs in normal use): bypasses the license server
     // and exercises launch → IPC round-trip, writing results to debug.log.
@@ -4221,8 +4522,9 @@ if (!app.requestSingleInstanceLock()) {
     // Trust-cache, re-activate in background: if a locally-valid license is
     // cached, launch instantly and silently re-check; only sign out on an
     // explicit valid:false. Otherwise the activation window, and a stored
-    // key that ended asked about once beside it (launchWithLicence).
-    launchWithLicence();
+    // key that ended asked about once beside it (launchWithLicence). Signed
+    // in through the browser (8.7), the app opens on the session alone.
+    launchWithAccount();
   });
 
   app.on('window-all-closed', () => {

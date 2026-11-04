@@ -722,6 +722,97 @@ if (emailEl) {
   });
 }
 
+/*
+ * THE ACCOUNT SECTION (8.7). Every line is main's view of the account
+ * (account-service.js view, its games and the cap written by usage.js), so
+ * nothing here counts a game or works out a date. Signed in through the
+ * browser: email, plan, games left, the account key with Copy, and Sign out.
+ * On a licence key alone: the key, whatever the server said of its games,
+ * and Sign in with your browser, the key working on either way.
+ */
+const ACCT_SIGNIN_ERRORS = {
+  timeout: 'The sign in took too long. Try again.',
+  refused: 'That sign in was not accepted. Try again.',
+  unreachable: 'Occlara could not reach its server. Check your connection and try again.',
+  browser: 'Your browser could not be opened. Try again.',
+  listen: 'Sign in could not start on this PC. Try again.',
+};
+const acct = (id) => document.getElementById(id);
+let acctSigningIn = false;
+let acctCopied = null;
+
+function acctRow(row, value) {
+  const text = typeof value === 'string' ? value : '';
+  acct(row).hidden = !text;
+  return text;
+}
+
+function paintAccount(view) {
+  const v = view || {};
+  acct('acct-email').textContent = acctRow('acct-email-row', v.signedIn ? v.email : '');
+  acct('acct-tier').textContent = acctRow('acct-tier-row', v.tierLabel);
+  acct('acct-games').textContent = acctRow('acct-games-row', v.gamesLeft);
+  const key = acctRow('acct-key-row', v.accountKey);
+  acct('acct-key').textContent = key;
+  acct('acct-key').title = key;
+  const waiting = acctSigningIn || !!v.pending;
+  acct('acct-out').hidden = !!v.signedIn || waiting;
+  acct('acct-wait').hidden = !waiting;
+  acct('acct-signin').hidden = !!v.signedIn || waiting;
+  acct('acct-cancel').hidden = !waiting;
+  acct('acct-signout').hidden = !v.signedIn;
+  // Upgrade on a plan that has one above it: Free and Pro.
+  acct('acct-upgrade').hidden = !(v.tier === 'free' || v.tier === 'pro');
+  // Invites need an account behind them: a session, or a key the server knows.
+  acct('acct-invite').hidden = !v.via;
+  // Signed in, the Account section is the whole story: the old License
+  // section would show a key plan of "·" and the footer would repeat Manage
+  // plan and Sign out, so both step aside. On a key alone they stay, and the
+  // footer's Manage subscription is the one way to the plan.
+  const signedIn = !!v.signedIn;
+  acct('lic').hidden = signedIn;
+  acct('purchase').hidden = signedIn;
+  acct('logout').hidden = signedIn;
+  acct('acct-manage').hidden = !signedIn;
+}
+
+async function refreshAccount() {
+  if (typeof window.occlara.getAccount !== 'function') { acct('acct').hidden = true; return; }
+  const view = await Promise.resolve(window.occlara.getAccount()).catch(() => null);
+  paintAccount(view);
+}
+
+acct('acct-copy').addEventListener('click', async () => {
+  const r = await Promise.resolve(window.occlara.copyAccountKey()).catch(() => null);
+  const done = !!(r && r.ok);
+  acct('acct-copy').textContent = done ? 'Copied' : 'Could not copy';
+  acct('acct-said').textContent = done ? 'Your account key is copied.' : 'The account key could not be copied.';
+  clearTimeout(acctCopied);
+  acctCopied = setTimeout(() => { acct('acct-copy').textContent = 'Copy'; }, 1400);
+});
+acct('acct-signin').addEventListener('click', async () => {
+  if (acctSigningIn) return;
+  acctSigningIn = true;
+  acct('acct-error').hidden = true;
+  await refreshAccount();
+  let r = null;
+  try { r = await window.occlara.signIn(); } catch { r = { ok: false, error: null }; }
+  acctSigningIn = false;
+  if (!(r && r.ok) && r && r.error !== 'cancelled') {
+    acct('acct-error').textContent = ACCT_SIGNIN_ERRORS[r.error] || 'The sign in did not finish. Try again.';
+    acct('acct-error').hidden = false;
+  }
+  await refreshAccount();
+});
+acct('acct-cancel').addEventListener('click', () => window.occlara.cancelSignIn());
+acct('acct-signout').addEventListener('click', () => window.occlara.signOut());
+acct('acct-manage').addEventListener('click', () => window.occlara.openAccount());
+acct('acct-upgrade').addEventListener('click', () => window.occlara.openUpgrade());
+acct('acct-invite').addEventListener('click', () => window.occlara.openInvite());
+if (typeof window.occlara.onAccount === 'function') window.occlara.onAccount((v) => { if (!acctSigningIn) paintAccount(v); });
+window.addEventListener('focus', refreshAccount);
+refreshAccount();
+
 load();
 if (window.initI18n) window.initI18n();
 console.log('[settings] ready');

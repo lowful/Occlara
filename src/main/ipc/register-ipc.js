@@ -4,6 +4,7 @@ const { ipcMain, shell } = require('electron');
 const C = require('../../shared/channels');
 const { PURCHASE_URL, SIGNUP_URL } = require('../../shared/config');
 const { capGB } = require('../../shared/clips');
+const { UPGRADE_URL, ACCOUNT_URL } = require('../../shared/usage');
 const store = require('../services/store');
 const updater = require('../updater');
 const pcCheck = require('../services/pc-check');
@@ -16,10 +17,24 @@ const pcCheck = require('../services/pc-check');
  * deps = {
  *   controller: { start, stop, pauseResume, getState, openSettings, openReviewById, listReviews, quit },
  *   license:    { activate(key) → result, getCached() → {...} },
+ *   account:    { view(), signIn(), cancel(), signOut(), copyKey(), referral(), copyLink() } (8.7, index.js)
  * }
  */
 function registerIpc(deps) {
-  const { controller, license } = deps;
+  const { controller, license, account } = deps;
+
+  // ── the account (8.7) ─────────────────────────────────────────────────────
+  if (account) {
+    safeHandle(C.ACCOUNT_GET, async () => account.view());
+    safeHandle(C.ACCOUNT_SIGNIN, async () => account.signIn());
+    safeHandle(C.ACCOUNT_SIGNOUT, async () => account.signOut());
+    safeHandle(C.ACCOUNT_COPY_KEY, async () => account.copyKey());
+    safeHandle(C.REFERRAL_GET, async () => account.referral());
+    safeHandle(C.REFERRAL_COPY, async () => account.copyLink());
+    ipcMain.on(C.ACCOUNT_SIGNIN_CANCEL, () => guard('signInCancel', () => account.cancel()));
+  }
+  ipcMain.on(C.OPEN_UPGRADE, () => guard('upgrade', () => shell.openExternal(UPGRADE_URL)));
+  ipcMain.on(C.OPEN_ACCOUNT, () => guard('account', () => shell.openExternal(ACCOUNT_URL)));
 
   // ── request/response ──────────────────────────────────────────────────────
   safeHandle(C.LICENSE_ACTIVATE, async (_e, key) => license.activate(key));
@@ -30,7 +45,8 @@ function registerIpc(deps) {
 
   safeHandle(C.CONFIG_SET, async (_e, partial) => {
     if (partial && typeof partial === 'object') {
-      for (const [k, v] of Object.entries(partial)) store.set(k, v);
+      // The sign in is main's alone (account-service.js): a page never writes it.
+      for (const [k, v] of Object.entries(partial)) if (!/^account/i.test(k)) store.set(k, v);
     }
     controller.onConfigChanged?.();
     return { ok: true, config: snapshotConfig() };

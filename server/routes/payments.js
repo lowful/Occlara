@@ -107,7 +107,9 @@ async function cancelAll(req, res) {
     // got. The website is a separate repo, and a page that branches on res.ok
     // would read a 200 as "your subscription was cancelled" when nothing was.
     // The fields after `error` are for a page that wants to say which case it is.
-    const newest = all.find((l) => l.status === 'active') || all[0];
+    // A free key (8.7) is no purchase: the newest licence a charge bought speaks first.
+    const newest = all.find((l) => l.status === 'active' && l.plan !== 'free')
+      || all.find((l) => l.status === 'active') || all[0];
     const message = newest.plan === 'lifetime'
       ? 'A lifetime licence has no subscription, so nothing will be charged again and there is nothing to cancel.'
       : 'There is no active subscription on this account to cancel.';

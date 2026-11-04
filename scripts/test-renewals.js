@@ -43,7 +43,9 @@ const ok = (cond, what) => {
   if (!cond) { fails++; console.log(`FAIL  ${what}`); } else console.log(`ok    ${what}`);
 };
 
-const sb = makeSupabase();
+// The 8.7 accounts tables are not there (fake-accounts.js notLive): every
+// check below holds the licence path exactly as it was without them.
+const sb = require('./fixtures/fake-accounts').notLive(makeSupabase());
 const st = makeStripe();
 const handler = loadWith(path.join(SERVER, 'routes', 'webhook.js'), { supabase: sb, stripe: st.api });
 const license = loadWith(path.join(SERVER, 'routes', 'license.js'), { supabase: sb, stripe: st.api });

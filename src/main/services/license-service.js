@@ -106,6 +106,18 @@ function usable(status, expiry) {
   return status === 'payment_failed' && !!expiry;
 }
 
+/*
+ * THE PLANS A KEY CAN CARRY (8.7). 'free' is a free account's key, active with
+ * no expiry, shown on its account and usable as the sign in's fallback; the
+ * server caps its games, never this rule. The 8.6 client's usable() is
+ * shipped and reads the status alone, which is why paid plans stay weekly,
+ * monthly, yearly and lifetime on the licence row. usable() reads the status
+ * and expiry alone here too, whatever the plan, 'free' included: it is the
+ * rule the server shares (test:licenceoutage), and a plan word refused here
+ * would lock a key the server serves.
+ */
+const PLANS = ['free', 'weekly', 'monthly', 'yearly', 'lifetime'];
+
 /**
  * What the notice line does about a payment grace (index.js notePaymentGrace),
  * from whether it was said already and the licence as it stands: 'say' it
@@ -286,4 +298,5 @@ module.exports = {
   endedMessage,
   usable,
   graceStep,
+  PLANS,
 };

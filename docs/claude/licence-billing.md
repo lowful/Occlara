@@ -208,3 +208,13 @@ behaves live, and PostgREST's own errors; a Stripe that answers the server in
 2023-10-16 and sends events in 2023-10-16 or basil. The old fakes agreed to
 everything, which is how test:refundrevoke passed while every site refund left
 its key working. Each fix was proved by reverting it and watching its check fail.
+
+### Entitlements ride on the same events (8.7)
+
+The webhook also writes the account (`entitlements`): tier and cap from the
+Price lookup key, and on a full refund or a dispute, AFTER the unchanged revoke
+and cancel, every account of those licences goes free with no games left. A
+partial refund still writes nothing. Every entitlement write checks its error
+and throws, and with the tables missing the licence path runs unchanged. The
+detail, the payer rules and the switches are in accounts.md;
+`test:entitlementwebhook` holds it.

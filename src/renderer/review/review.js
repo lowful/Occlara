@@ -1050,7 +1050,7 @@ function paintCommon(r, at, verdict) {
 
 /** Show every block, so no League review inherits the hidden flags of the one before it. */
 function resetSections() {
-  for (const id of ['r-moments-wrap', 'r-skills-wrap', 'r-next-wrap', 'r-deaths-wrap']) {
+  for (const id of ['r-moments-wrap', 'r-skills-wrap', 'r-next-wrap', 'r-deaths-wrap', 'r-death-wrap', 'r-obj-wrap']) {
     const n = $(id);
     if (n) n.hidden = false;
   }
@@ -1318,6 +1318,10 @@ function paint(r) {
   if (r.work) { progressFor = null; paintBuilding(r.work); return; }
   const wasBuilding = !$('building').hidden;
   paintBuilding(null);
+  // LOCKED (8.7): its numbers and the upgrade card, and nothing else: no
+  // Verdict, no progress, no reveal and no sound (paintLocked).
+  if (r.locked === true) { paintLocked(r); return; }
+  $('locked').hidden = true;
   // The Verdict, built by the preload from the review as served, or null
   // with no grade to show (shared/verdict.js of()). Share image goes with it.
   const verdict = window.occlara.verdictOf ? window.occlara.verdictOf(r) : null;
@@ -1380,6 +1384,117 @@ function paint(r) {
     $('r-next-open').onclick = () => window.occlara.openLearn();
   }
 }
+
+/*
+ * A LOCKED REVIEW (8.7, docs/claude/ui.md). The account had no games left
+ * when the match was played (the server's 402 on the read, the look or the
+ * narrative, or a claim refused for a review from Riot's record or a League
+ * game), so main saved it `locked: true` with Riot's record its only numbers.
+ * The page shows the result and those numbers, then the upgrade card, and
+ * nothing that grades or reads the match: no Verdict and no share image, no
+ * progress strip, no grade or lists, no coach's read, no rounds and no Ask
+ * about this match. It is painted as it is, never revealed, and so never
+ * heard: startReveal is the only way to the reveal's sound.
+ *
+ * The card's lines are main's (usage.js capState, through the account's view
+ * when this page's bridge carries it): "You have used your 3 free games" and
+ * its way on. A page with no account to ask, or an account with games again
+ * since, keeps the card's own plain lines, which count nothing.
+ */
+const LOCK_TITLE = 'This review is locked';
+const LOCK_BODY = 'Upgrade for more games each month, or invite friends for free games.';
+const UPGRADE_TO = { pro: 'Upgrade to Pro', max: 'Upgrade to Max' };
+let lockAsk = 0;
+
+function paintLockCard(view) {
+  const cap = view && view.cap && typeof view.cap.title === 'string' ? view.cap : null;
+  $('lk-title').textContent = cap ? cap.title : LOCK_TITLE;
+  $('lk-body').textContent = cap && typeof cap.body === 'string' && cap.body ? cap.body : LOCK_BODY;
+  const canUpgrade = typeof window.occlara.openUpgrade === 'function';
+  // From Max there is no plan above: its card says to invite friends.
+  const offer = cap ? cap.upgrade : 'any';
+  $('lk-upgrade').hidden = !canUpgrade || offer === null;
+  $('lk-upgrade').textContent = UPGRADE_TO[offer] || 'Upgrade';
+  $('lk-invite').hidden = typeof window.occlara.openInvite !== 'function';
+}
+
+function paintLocked(r) {
+  const valorant = r.kind === 'valorant';
+  // Nothing that grades, compares or reads the match.
+  shareVerdict = null;
+  $('share').hidden = true;
+  closeShare(false);
+  progressFor = null;
+  progressAsked = null;
+  for (const id of ['v-prog', 'r-prog']) { $(id).replaceChildren(); $(id).hidden = true; }
+  for (const id of ['common', 'grade-host', 'insights-host']) $(id).hidden = true;
+  $('grade-host').replaceChildren();
+  $('insights-host').replaceChildren();
+  $('ask').hidden = true;
+  const card = $('locked');
+  if (valorant) {
+    releaseClips($('r-deaths'));
+    releaseClips($('v-rounds'));
+    $('review').hidden = true;
+    $('vreview').hidden = false;
+    $('vreview').classList.remove('v-arrive', 'revealing', 'reveal-done');
+    paintLockedValorant(r);
+    $('v-verdict').after(card);
+  } else {
+    releaseClips($('v-rounds'));
+    releaseClips($('r-deaths'));
+    $('vreview').hidden = true;
+    $('review').hidden = false;
+    resetSections();
+    const g = r.game || {};
+    $('r-champ').textContent = g.champion || 'Your game';
+    $('r-meta').textContent = [g.role, g.mode, g.duration].filter(Boolean).join('  ·  ');
+    paintLolVerdict(null);
+    paintScores(r.scoreline || {});
+    for (const id of ['r-death-wrap', 'r-deaths-wrap', 'r-moments-wrap', 'r-obj-wrap', 'r-skills-wrap', 'r-next-wrap']) $(id).hidden = true;
+    $('r-deaths').replaceChildren();
+    $('r-scores').after(card);
+  }
+  paintLockCard(null);
+  card.hidden = false;
+  // The account's own lines, when this page can ask for them.
+  const mine = ++lockAsk;
+  if (typeof window.occlara.getAccount === 'function') {
+    Promise.resolve(window.occlara.getAccount()).then((view) => {
+      if (mine !== lockAsk || !current || current.id !== r.id || current.locked !== true) return;
+      paintLockCard(view);
+    }).catch(() => {});
+  }
+}
+
+/** The result, where it came from, and Riot's scoreboard: what a locked review keeps. */
+function paintLockedValorant(r) {
+  const g = r.game || {};
+  $('v-vd-label').hidden = true;
+  $('v-grade').replaceChildren();
+  $('v-grade').hidden = true;
+  $('v-reason').textContent = '';
+  $('v-reason').hidden = true;
+  $('v-verdict').classList.remove('graded');
+  const resultEl = $('v-result');
+  resultEl.textContent = g.result ? g.result.toUpperCase() : 'MATCH REVIEW';
+  resultEl.className = 'v-result' + (g.result === 'Victory' ? ' win' : g.result === 'Defeat' ? ' loss' : '');
+  const score = String(g.score || '').split('-');
+  $('v-score').textContent = score.length === 2 ? `${score[0]} : ${score[1]}` : '';
+  $('v-score').hidden = score.length !== 2;
+  $('v-meta').textContent = [g.agent, g.map, g.mode, r.scoreline || r.source === 'riot' ? "From Riot's record" : null].filter(Boolean).join('  ·  ');
+  $('v-verified').hidden = true;
+  $('v-verified').textContent = '';
+  paintStats(r);
+  // The comparison under each number is the player's own average, kept: it
+  // is Riot's numbers against Riot's numbers, no grade in it.
+  for (const id of ['v-summary-wrap', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap']) $(id).hidden = true;
+  $('v-rounds').replaceChildren();
+  $('v-strip').replaceChildren();
+}
+
+$('lk-upgrade').addEventListener('click', () => { if (typeof window.occlara.openUpgrade === 'function') window.occlara.openUpgrade(); });
+$('lk-invite').addEventListener('click', () => { if (typeof window.occlara.openInvite === 'function') window.occlara.openInvite(); });
 
 /*
  * SHARE IMAGE (8.7, docs/claude/verdict.md "The share image"): a sheet under

@@ -122,7 +122,38 @@
         </div>
       </section>
 
-      <section class="license">
+      <!-- THE ACCOUNT (8.7): who is signed in, the plan, the games left and
+           the account key, every line as main hands it (account-service.js
+           view, usage.js), the key copied by main. Signed in through the
+           browser it ends on Sign out; on a licence key alone it offers the
+           browser sign in, the key working on either way. -->
+      <section class="license account" id="acct" aria-labelledby="acct-title">
+        <h3 id="acct-title">Account</h3>
+        <div class="kv" id="acct-email-row" hidden><span>Email</span><span id="acct-email" class="acct-val"></span></div>
+        <div class="kv" id="acct-tier-row" hidden><span>Plan</span><b id="acct-tier"></b></div>
+        <div class="kv" id="acct-games-row" hidden><span>Games</span><span id="acct-games" class="acct-val"></span></div>
+        <div class="kv" id="acct-key-row" hidden>
+          <span>Account key</span>
+          <span class="acct-key-wrap">
+            <span id="acct-key" class="acct-key"></span>
+            <button id="acct-copy" class="btn btn-ghost sm" type="button">Copy</button>
+          </span>
+        </div>
+        <p id="acct-out" class="hint acct-out" hidden>Sign in with your browser to see your games and invite friends. Your licence key keeps working.</p>
+        <p id="acct-wait" class="acct-wait" aria-live="polite" hidden>Continue in your browser. This page updates once you have signed in.</p>
+        <p id="acct-error" class="trk-status err" hidden></p>
+        <div class="acct-actions">
+          <button id="acct-signin" class="btn btn-primary sm" type="button" hidden>Sign in with your browser</button>
+          <button id="acct-cancel" class="btn btn-ghost sm" type="button" hidden>Cancel</button>
+          <button id="acct-manage" class="btn btn-ghost sm" type="button">Manage plan</button>
+          <button id="acct-upgrade" class="btn btn-ghost sm" type="button" hidden>Upgrade</button>
+          <button id="acct-invite" class="btn btn-ghost sm" type="button">Invite friends</button>
+          <button id="acct-signout" class="btn btn-ghost sm danger" type="button" hidden>Sign out</button>
+        </div>
+        <p id="acct-said" class="sr-only" aria-live="polite"></p>
+      </section>
+
+      <section class="license" id="lic">
         <h3>License</h3>
         <div class="kv"><span>Plan</span><b id="lic-plan">·</b></div>
         <div class="kv"><span>Status</span><span id="lic-status" class="badge">·</span></div>

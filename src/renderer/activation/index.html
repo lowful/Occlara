@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
-  <title>Activate Occlara</title>
+  <title>Sign in to Occlara</title>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="activation.css" />
@@ -25,22 +25,48 @@
       <p class="sub">Post-match AI coaching for Valorant and League of Legends</p>
     </div>
 
-    <form id="form" autocomplete="off">
-      <label class="lbl" for="key">License key</label>
+    <!-- One box for both ways in: a sign in that did not finish, a key that
+         was refused, or the notice the window was opened with (?notice=). -->
+    <div id="error" class="error" role="status" hidden></div>
+
+    <!-- SIGN IN (8.7): through the browser on occlara.app, the account's
+         games and its key come with it. The licence key form is kept, as it
+         was, behind Use a licence key. -->
+    <section id="signin" class="pane" aria-label="Sign in">
+      <button id="signin-browser" class="btn btn-primary full" type="button">
+        <span class="label">Sign in with your browser</span>
+      </button>
+      <button id="use-key" class="btn btn-ghost full" type="button">Use a licence key</button>
+    </section>
+
+    <!-- Waiting on the browser: it says where to look, and Cancel ends it. -->
+    <section id="waiting" class="pane" aria-label="Waiting for your browser" hidden>
+      <div class="wait">
+        <span class="spinner" aria-hidden="true"></span>
+        <div class="wait-text">
+          <p class="wait-title">Continue in your browser</p>
+          <p class="wait-sub">Sign in on the page that opened. Occlara opens here once you have.</p>
+        </div>
+      </div>
+      <button id="cancel" class="btn btn-ghost full" type="button">Cancel</button>
+    </section>
+
+    <form id="form" class="pane" autocomplete="off" hidden>
+      <label class="lbl" for="key">Licence key</label>
       <!-- The shape every key has (key.js PLACEHOLDER). It showed
            XXXX-XXXX-XXXX-XXXX, and a key typed that way, with no GC-, was
            refused. -->
       <input id="key" class="input" type="text" placeholder="GC-XXXX-XXXX-XXXX-XXXX"
              spellcheck="false" maxlength="40" autocomplete="off" />
-      <div id="error" class="error" hidden></div>
       <button id="activate" class="btn btn-primary full" type="submit">
         <span class="label">Activate</span>
         <span class="spinner" hidden></span>
         <span class="check" hidden><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 7"/></svg></span>
       </button>
+      <button id="back" class="link no-drag" type="button">Sign in with your browser instead</button>
     </form>
 
-    <button id="purchase" class="link no-drag">Don't have a key? Get one →</button>
+    <button id="purchase" class="link no-drag" type="button">Create a free account</button>
   </main>
 
   <script src="../shared/i18n-apply.js"></script>

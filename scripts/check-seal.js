@@ -271,6 +271,16 @@ setTimeout(async () => {
       e.live = true;
       const during = await invoke(C.SHELL_GET);
       const hiddenDuring = shownViews();
+      // THE INVITE PAGE IS SEALED LIKE EVERY PAGE (8.7): asked for mid match,
+      // through the real index.js, no page shows and its button is locked.
+      send(C.SHELL_NAV, 'invite');
+      await wait(400);
+      const inviteMid = await invoke(C.SHELL_GET);
+      const inviteLocked = await until(() => sjs("document.getElementById('nav-invite').disabled && document.getElementById('nav-settings').disabled"), 3000);
+      const inviteShown = shownViews();
+      lines.push(`${game} match: Invite asked for mid match: shown=${inviteMid.shown} pages shown=${inviteShown.join(',') || 'none'} button locked=${!!inviteLocked}`);
+      if (inviteMid.shown !== null || inviteShown.length || !inviteLocked) return report(false, `mid ${game} match, the Invite page or its button is not sealed`);
+      send(C.SHELL_NAV, 'matches');
       e.live = false;
       const over = await invoke(C.SHELL_GET);
       const back = await until(() => mainWindow.current().shown === 'matches', 4000);

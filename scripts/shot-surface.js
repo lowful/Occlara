@@ -57,7 +57,14 @@ const SIZES = {
   ailog: [900, 640], chat: [420, 600], weekly: [520, 680], onboarding: [480, 528],
   activation: [424, 524], dock: [84, 84], splash: [360, 340],
   learn: [560, 720],
+  // A page of the main window, beside the sidebar, as home is (8.7).
+  invite: [968, 740],
 };
+
+// name@state shoots a surface in one of its named states, through the
+// surface's own function for it (8.7): the Sign in window's panes, signin,
+// waiting and key. Written to name-state.png.
+const STATE_FN = { activation: 'showPane' };
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const wanted = process.argv.includes('--all') ? Object.keys(SIZES) : (args.length ? args : ['shell']);
@@ -75,7 +82,8 @@ app.whenReady().then(async () => {
 
   for (const spec of wanted) {
     const [name, pageArg] = String(spec).split('@');
-    const page = pageArg === undefined ? null : Number(pageArg);
+    const named = pageArg !== undefined && STATE_FN[name] && /^[a-z]+$/.test(pageArg) ? pageArg : null;
+    const page = pageArg === undefined || named ? null : Number(pageArg);
     if (page !== null && !(Number.isInteger(page) && page >= 0)) { console.log(`skip ${spec}: the page is a number from 0`); continue; }
     const file = path.join(ROOT, 'src', 'renderer', name, 'index.html');
     if (!fs.existsSync(file)) { console.log(`skip ${name}: no index.html`); continue; }
@@ -108,6 +116,11 @@ app.whenReady().then(async () => {
         win.setIgnoreMouseEvents(true);
         win.showInactive();
       }
+      if (named) {
+        const fn = STATE_FN[name];
+        const moved = await win.webContents.executeJavaScript(`typeof ${fn} === 'function' ? (${fn}(${JSON.stringify(named)}), true) : false`);
+        if (!moved) { console.log(`skip ${spec}: ${name} has no ${fn}`); continue; }
+      }
       // Let fonts settle and entrance animations finish, or every shot catches
       // the interface mid-fade and looks broken.
       //
@@ -121,7 +134,7 @@ app.whenReady().then(async () => {
       // far more than a second per surface.
       await new Promise((r) => setTimeout(r, 3000));
       const img = await win.capturePage();
-      const out = path.join(OUT, page === null ? `${name}.png` : `${name}-${page}.png`);
+      const out = path.join(OUT, named ? `${name}-${named}.png` : page === null ? `${name}.png` : `${name}-${page}.png`);
       fs.writeFileSync(out, img.toPNG());
       console.log(`shot ${spec} -> ${path.relative(ROOT, out)}`);
     } catch (e) {

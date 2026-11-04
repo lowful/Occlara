@@ -74,3 +74,7 @@ hover rule outranked the pressed one, and its `--text` over the pressed
 button's `--text` ground drew that logo white on white (`test:surfaces`
 cascades the rules). Rank marks stay ours (above): that decision was about the
 picker alone.
+
+Since 8.7 a League game of 5 minutes or more is claimed as `lol:<startedAt>`
+(`/api/usage/claim`, 10 s timeout, then granted); refused, its review is saved
+`locked: true` (accounts.md).

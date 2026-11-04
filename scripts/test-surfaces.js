@@ -4608,7 +4608,7 @@ async function openShell(cfg, state, opts) {
     ok(part.sent === 'GC-AB12-CD34', 'text that is not a whole key is sent as typed, trimmed and upper cased, for the server to say so', JSON.stringify(part.sent));
     const empty = await open();
     const none = await submit(empty, '   ');
-    ok(none.count === 0 && !empty.$('error').hidden && empty.$('error').textContent === 'Enter your license key.',
+    ok(none.count === 0 && !empty.$('error').hidden && empty.$('error').textContent === 'Enter your licence key.',
       'an empty box sends nothing and asks for the key', empty.$('error').textContent);
     // As it is typed and pasted, with the caret at the end.
     const typing = await open();
@@ -5589,6 +5589,374 @@ async function openShell(cfg, state, opts) {
       'Record gameplay: Valorant and League, about 30 fps, and the video stays on this PC', recCard);
     ok(/Nothing is recorded/.test(framesCard) && /no clips/.test(framesCard), 'Frames only: nothing is recorded, so no clips', framesCard);
     ok(!words.some((w) => /Rivals|Marvel/.test(w)), 'and nothing names a game Occlara no longer coaches');
+  });
+
+  // ── ACCOUNTS, TIERS, GAME CAPS AND REFERRAL (8.7) ────────────────────────
+  // Every line a page shows about the account is main's (usage.js through
+  // account-service.js view and referral), so the views below are written by
+  // the real usage.js, never by hand: a page that worked a line out itself
+  // would drift from it.
+  const usage = require('../src/shared/usage');
+  const viewOf = (st, extra) => ({
+    signedIn: true, via: 'session', pending: false, waiting: false, email: st.email || null,
+    tier: st.tier, tierLabel: usage.tierLabel(st), gamesLeft: usage.gamesLeft(st, { utc: true }), cap: usage.capState(st, { utc: true }),
+    capped: !!st.capped, accountKey: st.account_key || null, invites: { pending: 0, qualified: 0, refused: 0 },
+    urls: { upgrade: usage.UPGRADE_URL, account: usage.ACCOUNT_URL, signup: usage.SIGNUP_URL }, ...(extra || {}),
+  });
+  const FREE_USED = { tier: 'free', left: 0, free_total: 3, bonus_pool: 0, email: 'player@example.com', account_key: 'GC-AAAA-BBBB-CCCC-DDDD' };
+  const FREE_TWO = { tier: 'free', left: 2, free_total: 3, bonus_pool: 0, email: 'player@example.com', account_key: 'GC-AAAA-BBBB-CCCC-DDDD' };
+  const PRO_LEFT = { tier: 'pro', left: 18, cap_monthly: 25, bonus_pool: 0, period_end: '2026-11-30T12:00:00Z', email: 'pro@example.com', account_key: 'GC-PPPP-BBBB-CCCC-DDDD' };
+  const PRO_USED = { tier: 'pro', left: 0, cap_monthly: 25, bonus_pool: 0, period_end: '2026-11-30T12:00:00Z', email: 'pro@example.com', account_key: 'GC-PPPP-BBBB-CCCC-DDDD' };
+  const MAX_USED = { tier: 'max', left: 0, cap_monthly: 70, bonus_pool: 0, period_end: '2026-11-30T12:00:00Z', email: 'max@example.com', account_key: 'GC-MMMM-BBBB-CCCC-DDDD' };
+  const textOf = (q) => q.document.body.textContent.replace(/\s+/g, ' ');
+  const shown = (q, id) => { const n = q.$(id); return !!n && !n.hidden; };
+  // Code and markup with their comments out, for what they say and name.
+  const uncommented = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/^\s*\/\/.*$/gm, '');
+  // The element before this one among its parent's children (the fake DOM has no previousElementSibling).
+  const before = (n) => { const kids = n && n.parentNode ? n.parentNode.children : []; const i = kids.indexOf(n); return i > 0 ? kids[i - 1] : null; };
+  ok(uncommented('a /* occlara.app */ b <!-- https://x --> c\n  // https://y\nd') === 'a  b  c\n\nd', 'comments come out of code and markup alike');
+
+  await section('the Sign in window: the browser first, a licence key behind it, and a free account:', async () => {
+    let answer = null;
+    const open = async (handlers) => {
+      const q = loadSurface('activation', { handlers: {
+        [C.ACCOUNT_SIGNIN]: () => new Promise((r) => { answer = r; }),
+        [C.ACCOUNT_GET]: () => ({ signedIn: false, via: null, pending: false }),
+        ...(handlers || {}),
+      } });
+      await settle();
+      return q;
+    };
+    const q = await open();
+    ok(shown(q, 'signin') && !shown(q, 'waiting') && !shown(q, 'form') && q.$('signin-browser').textContent.trim() === 'Sign in with your browser'
+      && q.$('use-key').textContent === 'Use a licence key' && q.$('purchase').textContent === 'Create a free account',
+    'it opens on Sign in with your browser, Use a licence key under it and Create a free account', textOf(q));
+    ok(/post-match/i.test(q.document.querySelector('.logo .sub').textContent), 'the line under the name still sells post-match coaching');
+    q.$('purchase').click();
+    ok(same(q.bridge.sent.filter(([ch]) => ch === C.OPEN_PURCHASE), [[C.OPEN_PURCHASE, 'signup']]),
+      'Create a free account asks main for the sign up page, naming no URL');
+    q.$('signin-browser').click();
+    await settle();
+    ok(q.bridge.invoked.filter(([ch]) => ch === C.ACCOUNT_SIGNIN).length === 1 && shown(q, 'waiting') && !shown(q, 'signin') && shown(q, 'cancel'),
+      'Sign in asks main once and the window waits, with Cancel');
+    q.$('signin-browser').click();
+    await settle();
+    ok(q.bridge.invoked.filter(([ch]) => ch === C.ACCOUNT_SIGNIN).length === 1, 'a second press while it waits asks nothing more');
+    q.$('cancel').click();
+    ok(q.bridge.sent.some(([ch]) => ch === C.ACCOUNT_SIGNIN_CANCEL), 'Cancel tells main to end the sign in');
+    answer({ ok: false, error: 'cancelled' });
+    await settle();
+    ok(shown(q, 'signin') && q.$('error').hidden, 'cancelled, it is back on Sign in and says nothing: the player knows');
+    for (const [why, said] of [['timeout', /took too long/], ['unreachable', /could not reach/], ['browser', /browser could not be opened/],
+      ['listen', /could not start/], ['refused', /not accepted/], ['something-new', /did not finish/]]) {
+      q.$('signin-browser').click();
+      await settle();
+      answer({ ok: false, error: why });
+      await settle();
+      ok(shown(q, 'signin') && !q.$('error').hidden && said.test(q.$('error').textContent) && !DASHES.test(q.$('error').textContent),
+        `a sign in that ended ${why} says so plainly`, q.$('error').textContent);
+    }
+    q.$('signin-browser').click();
+    await settle();
+    answer({ ok: true, account: viewOf(FREE_TWO) });
+    await settle();
+    ok(shown(q, 'waiting') && q.$('error').hidden, 'signed in, the window stays as it is for main to close');
+
+    const k = await open();
+    k.$('use-key').click();
+    ok(shown(k, 'form') && !shown(k, 'signin') && k.$('key').getAttribute('placeholder') === 'GC-XXXX-XXXX-XXXX-XXXX',
+      'Use a licence key shows the key form as it was');
+    k.$('back').click();
+    ok(shown(k, 'signin') && !shown(k, 'form'), 'and the way back is Sign in with your browser');
+
+    const pending = await open({ [C.ACCOUNT_GET]: () => ({ signedIn: false, via: null, pending: true }) });
+    ok(shown(pending, 'waiting'), 'opened while a sign in waits, it waits too');
+    pending.bridge.emit(C.ACCOUNT_CHANGED, { signedIn: false, via: null, pending: false });
+    await settle();
+    ok(shown(pending, 'signin'), 'and goes back to Sign in once main says the wait ended');
+
+    const html = fs.readFileSync(path.join(RENDERER, 'activation', 'index.html'), 'utf8');
+    const js = fs.readFileSync(path.join(RENDERER, 'activation', 'activation.js'), 'utf8');
+    ok(!DASHES.test(html) && !DASHES.test(js), 'no dash in the window\'s markup or script');
+    ok(!/https?:\/\/|occlara\.app/.test(uncommented(js) + uncommented(html)), 'and the window names no URL: main opens every page');
+    ok(/https?:\/\/|occlara\.app/.test('opens https://occlara.app/signup'), 'the URL detector matches a URL');
+  });
+
+  await section('the Invite page: the link with Copy, the friends and games, and how it works, all main\'s:', async () => {
+    const REF = { code: 'abcd1234', link: 'https://occlara.app/invite/abcd1234', invited: 2, qualified: 1, earned: 4, max_friends: 5, max_games: 20 };
+    const finished = (r) => ({ ...r, line: usage.inviteProgress(r), how: usage.INVITE_HOW.slice() });
+    const open = async (view, ref, copied) => {
+      const q = loadSurface('invite', { handlers: {
+        [C.ACCOUNT_GET]: () => view,
+        [C.REFERRAL_GET]: () => ref,
+        [C.REFERRAL_COPY]: () => (copied === false ? { ok: false } : { ok: true, link: ref && ref.link }),
+      } });
+      await settle();
+      return q;
+    };
+    const q = await open(viewOf(FREE_TWO), finished(REF));
+    ok(shown(q, 'inv-body') && !shown(q, 'inv-wait') && !shown(q, 'inv-out') && !shown(q, 'inv-error'), 'signed in, it shows the link');
+    ok(q.$('inv-link').textContent === REF.link && q.$('inv-progress').textContent === '1 of 5 friends joined, 4 games earned, 1 still to record a match',
+      'the link main gave and the line usage.js wrote', `${q.$('inv-link').textContent} | ${q.$('inv-progress').textContent}`);
+    ok(same(q.document.querySelectorAll('#inv-how li').map((l) => l.textContent), usage.INVITE_HOW) && usage.INVITE_HOW.length === 2,
+      'how it works, in main\'s two lines');
+    ok(q.$('inv-games').textContent === '2 of 3 free games left', 'and the games left, quietly, as main wrote them', q.$('inv-games').textContent);
+    q.$('inv-copy').click();
+    await settle();
+    ok(q.bridge.invoked.filter(([ch]) => ch === C.REFERRAL_COPY).length === 1 && q.$('inv-copy').textContent === 'Copied'
+      && /copied/.test(q.$('inv-said').textContent), 'Copy asks main to copy it, and says Copied');
+    q.clock.advance(1400);
+    await settle();
+    ok(q.$('inv-copy').textContent === 'Copy link', 'then reads Copy link again');
+    q.$('inv-upgrade').click();
+    ok(q.bridge.sent.some(([ch]) => ch === C.OPEN_UPGRADE), 'See plans asks main for the pricing page');
+    const failed = await open(viewOf(FREE_TWO), finished(REF), false);
+    failed.$('inv-copy').click();
+    await settle();
+    ok(failed.$('inv-copy').textContent === 'Could not copy', 'a copy that failed says so');
+
+    const out = await open({ signedIn: false, via: null }, null);
+    ok(shown(out, 'inv-out') && !shown(out, 'inv-body') && out.bridge.invoked.every(([ch]) => ch !== C.REFERRAL_GET),
+      'with no account on this PC it says invites need one, and asks for no link');
+    out.$('inv-settings').click();
+    ok(out.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'settings'), 'Open Settings goes to Settings');
+    const keyOnly = await open({ signedIn: false, via: 'key' }, null);
+    ok(shown(keyOnly, 'inv-out'), 'a licence key alone with no link says the same');
+    const down = await open(viewOf(FREE_TWO), null);
+    ok(shown(down, 'inv-error') && !shown(down, 'inv-body'), 'signed in with no answer, it says the link could not be fetched');
+    let again = 0;
+    let now = viewOf(FREE_TWO);
+    const retry = loadSurface('invite', { handlers: { [C.ACCOUNT_GET]: () => now, [C.REFERRAL_GET]: () => (again++ ? finished(REF) : null) } });
+    await settle();
+    retry.$('inv-retry').click();
+    await settle();
+    ok(shown(retry, 'inv-body') && retry.$('inv-link').textContent === REF.link, 'and Try again asks again');
+    now = viewOf(FREE_USED);
+    retry.bridge.emit(C.ACCOUNT_CHANGED, now);
+    await settle();
+    ok(retry.$('inv-games').textContent === 'You have used your 3 free games', 'a change of the account paints it again');
+
+    const files = ['index.html', 'invite.js', 'invite.css'].map((f) => fs.readFileSync(path.join(RENDERER, 'invite', f), 'utf8'));
+    ok(files.every((s) => !DASHES.test(s)), 'no dash in the page');
+    ok(!/https?:\/\/|occlara\.app/.test(uncommented(files[0]) + uncommented(files[1])), 'and it names no URL: the link is main\'s, copied by main');
+    ok(!/\b\d+\s*(?:games?|friends?)\b/i.test(files[0] + files[1]), 'and counts nothing of its own: every number is in main\'s lines');
+    ok(/\b\d+\s*(?:games?|friends?)\b/i.test('3 games'), 'the counting detector matches a counted line');
+  });
+
+  await section('the sidebar\'s Invite button sits directly above Settings, and the seal locks it like every page:', async () => {
+    const nav = require('../src/shared/shell-nav');
+    const inv = nav.pageOf('invite');
+    ok(inv && inv.surface === 'invite' && inv.preload === 'invite-preload.js' && inv.nav === false,
+      'Invite is a page of its own, out of the nav list, with its own preload', JSON.stringify(inv));
+    ok(nav.PAGES.findIndex((p) => p.id === 'invite') === nav.PAGES.findIndex((p) => p.id === 'settings') - 1,
+      'and comes just before Settings, so the window moves forward into it from the pages above and on to Settings');
+    const s = await openShell({ game: 'valorant' });
+    const foot = s.document.querySelector('.foot');
+    const kids = foot.children.map((c) => c.id);
+    ok(kids[0] === 'nav-invite' && kids[1] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite',
+      'the foot leads with Invite, directly above Settings', kids.join(', '));
+    s.$('nav-invite').click();
+    ok(s.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'invite'), 'Invite goes to the Invite page');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'invite', shown: 'invite', sealed: false, held: false });
+    await settle();
+    ok(s.$('nav-invite').getAttribute('aria-current') === 'page' && !s.$('nav-settings').getAttribute('aria-current'),
+      'on the Invite page the sidebar marks Invite');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'invite', shown: null, sealed: true, held: false });
+    await settle();
+    ok(s.$('nav-invite').disabled && s.$('nav-settings').disabled && !s.$('nav-invite').getAttribute('aria-current')
+      && s.$('nav-invite').querySelector('svg').innerHTML.includes('rect'), 'sealed mid match, Invite is locked with the rest, its icon the lock');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'invite', shown: null, sealed: true, held: true });
+    await settle();
+    ok(!s.$('nav-invite').disabled, 'held after a stop, it is open like the rest: the player\'s own choice');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: 'home', sealed: false, held: false });
+    await settle();
+    ok(!s.$('nav-invite').disabled && s.$('nav-invite').querySelector('svg').innerHTML.includes('circle'), 'and the seal lifted, its own icon is back');
+  });
+
+  await section('Settings\' Account section: the email, the plan, the games, the key and Sign out, all main\'s:', async () => {
+    const open = async (view) => {
+      const q = loadSurface('settings', { handlers: {
+        [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', devGames: false }),
+        [C.LICENSE_GET]: () => ({}), [C.STATE_GET]: () => ({}),
+        [C.APP_VERSION]: () => ({ current: '8.7.0', state: 'current' }),
+        [C.ACCOUNT_GET]: () => view, [C.ACCOUNT_COPY_KEY]: () => ({ ok: true }), [C.ACCOUNT_SIGNOUT]: () => ({ ok: true }),
+        [C.ACCOUNT_SIGNIN]: () => ({ ok: false, error: 'timeout' }),
+      } });
+      await settle();
+      return q;
+    };
+    const q = await open(viewOf(PRO_LEFT));
+    ok(q.$('acct-email').textContent === 'pro@example.com' && q.$('acct-tier').textContent === 'Pro'
+      && q.$('acct-games').textContent === '18 of 25 games left this month, renews Nov 30' && q.$('acct-key').textContent === PRO_LEFT.account_key,
+    'signed in: the email, the plan, the games and the key, as main wrote them', [q.$('acct-email').textContent, q.$('acct-tier').textContent, q.$('acct-games').textContent].join(' | '));
+    ok(shown(q, 'acct-signout') && !shown(q, 'acct-signin') && shown(q, 'acct-upgrade') && shown(q, 'acct-manage') && shown(q, 'acct-invite') && !shown(q, 'acct-out'),
+      'with Sign out, Manage plan, Upgrade from Pro and Invite friends, and no Sign in');
+    ok(!shown(q, 'lic') && !shown(q, 'purchase') && !shown(q, 'logout') && shown(q, 'quit'),
+      'signed in, the old License section and the footer Manage subscription and Log out step aside, Quit stays');
+    q.$('acct-copy').click();
+    await settle();
+    ok(q.bridge.invoked.some(([ch]) => ch === C.ACCOUNT_COPY_KEY) && q.$('acct-copy').textContent === 'Copied', 'Copy asks main to copy the key, and says Copied');
+    q.$('acct-manage').click();
+    q.$('acct-upgrade').click();
+    q.$('acct-invite').click();
+    ok(q.bridge.sent.some(([ch]) => ch === C.OPEN_ACCOUNT) && q.bridge.sent.some(([ch]) => ch === C.OPEN_UPGRADE)
+      && q.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'invite'),
+    'Manage plan and Upgrade ask main for their pages, Invite friends goes to the Invite page');
+    q.$('acct-signout').click();
+    await settle();
+    ok(q.bridge.invoked.some(([ch]) => ch === C.ACCOUNT_SIGNOUT), 'Sign out asks main');
+    const max = await open(viewOf(MAX_USED));
+    ok(!shown(max, 'acct-upgrade') && max.$('acct-games').textContent === "You have used this month's 70 games, renews Nov 30",
+      'on Max there is no plan above, so no Upgrade', max.$('acct-games').textContent);
+    const key = await open({ signedIn: false, via: 'key', pending: false, email: null, tier: 'pro', tierLabel: 'Pro',
+      gamesLeft: usage.gamesLeft(PRO_LEFT, { utc: true }), cap: null, accountKey: 'GC-KKKK-BBBB-CCCC-DDDD' });
+    ok(!shown(key, 'acct-email-row') && shown(key, 'acct-signin') && !shown(key, 'acct-signout') && shown(key, 'acct-out')
+      && key.$('acct-key').textContent === 'GC-KKKK-BBBB-CCCC-DDDD',
+    'on a licence key alone: no email, the key, and Sign in with your browser in place of Sign out');
+    ok(shown(key, 'lic') && shown(key, 'purchase') && shown(key, 'logout') && !shown(key, 'acct-manage'),
+      'on a key alone the License section and the footer stay, and Manage plan is not said twice');
+    key.$('acct-signin').click();
+    await settle();
+    ok(key.bridge.invoked.some(([ch]) => ch === C.ACCOUNT_SIGNIN) && shown(key, 'acct-error') && /took too long/.test(key.$('acct-error').textContent),
+      'Sign in asks main, and a sign in that ended says why', key.$('acct-error').textContent);
+    key.bridge.emit(C.ACCOUNT_CHANGED, viewOf(FREE_TWO));
+    await settle();
+    ok(key.$('acct-email').textContent === 'player@example.com' && shown(key, 'acct-signout') && key.$('acct-games').textContent === '2 of 3 free games left',
+      'and once main says the account changed, it paints the new one');
+    const none = await open(null);
+    ok(shown(none, 'acct-signin') && !shown(none, 'acct-games-row') && !shown(none, 'acct-key-row'), 'no account at all: Sign in, and nothing made up');
+    const js = fs.readFileSync(path.join(RENDERER, 'settings', 'settings.js'), 'utf8');
+    const block = js.slice(js.indexOf('THE ACCOUNT SECTION (8.7)'), js.indexOf('load();\r\n') > 0 ? js.indexOf('load();\r\n') : js.indexOf('load();\n'));
+    ok(block.length > 200 && !DASHES.test(block) && !/https?:\/\//.test(block), 'the section\'s code has no dash and names no URL');
+  });
+
+  await section('Home\'s games line: one quiet line, main\'s words, and nothing when there is nothing to say:', async () => {
+    const open = async (view) => {
+      const h = loadSurface('home', { handlers: {
+        [C.STATE_GET]: () => ({ ...BASE }), [C.CONFIG_GET]: () => ({ game: 'valorant' }),
+        [C.REVIEWS_LIST]: () => [], [C.PATTERNS_GET]: () => null, [C.ACCOUNT_GET]: () => view,
+      } });
+      await settle();
+      return h;
+    };
+    const h = await open(viewOf(FREE_TWO));
+    ok(shown(h, 'h-games') && h.$('h-games').textContent === '2 of 3 free games left', 'it says the games left as main wrote them', h.$('h-games').textContent);
+    h.bridge.emit(C.ACCOUNT_CHANGED, viewOf(PRO_USED));
+    await settle();
+    ok(h.$('h-games').textContent === "You have used this month's 25 games, renews Nov 30", 'and follows a change of the account', h.$('h-games').textContent);
+    h.bridge.emit(C.ACCOUNT_CHANGED, { signedIn: false, via: null, gamesLeft: '' });
+    await settle();
+    ok(!shown(h, 'h-games') && h.$('h-games').textContent === '', 'with nothing to say it is gone, not an empty line');
+    const none = await open(null);
+    ok(!shown(none, 'h-games'), 'and with no account it was never there');
+  });
+
+  await section('a locked review: its numbers and the upgrade card, no Verdict, no progress, no reveal and no sound:', async () => {
+    const VID = 'valorant-1759341600000-lk0001';
+    const VREV = { id: VID, kind: 'valorant', source: 'watched', aiLog: null, verified: true, locked: true,
+      game: { map: 'Abyss', agent: 'Jett', mode: 'Competitive', result: 'Victory', score: '13-11' },
+      scoreline: { kills: 31, deaths: 21, assists: 4, acs: 382, adr: 160, headshotPct: 24 },
+      grade: { score: 78, letter: 'B', provisional: false, notes: [], categories: [{ key: 'survival', label: 'Survival', score: 62, evidence: ['8 deaths'] }] },
+      summary: 'You won 13 to 11.', focus: 'Trade your entry.', insights: { mistakes: [{ title: 'Died alone', detail: 'x', fix: 'y' }], strengths: [], missed: [] },
+      rounds: [] };
+    const WORK = { path: 'screen', steps: ['saved', 'writing'], step: 'writing', endedAt: Date.now() - 20000, until: null, scoreboard: false };
+    const page = async (rev, o) => {
+      const x = o || {};
+      const v = loadSurface('review', {
+        handlers: { [C.LOL_REVIEW_GET]: () => rev, [C.PROGRESS_GET]: () => ({ id: rev.id, lines: [{ kind: 'last', tone: 'good', text: 'Up 4.' }], best: { grade: { over: 80 } } }),
+          [C.STATE_GET]: () => ({ ...BASE }), [C.ACCOUNT_GET]: () => x.view },
+        // The account's lines, as review-preload.js carries them now that it has
+        // getAccount, openUpgrade and openInvite (8.7), with a view chosen here.
+        preload: x.bridge ? (api) => ({ ...api,
+          getAccount: () => Promise.resolve(x.view), openUpgrade: () => { v.upgraded = (v.upgraded || 0) + 1; }, openInvite: () => { v.invited = (v.invited || 0) + 1; } }) : undefined,
+      });
+      v.heard = [];
+      const sfx = v.window.occlaraSfx || (v.window.occlaraSfx = { play() {} });
+      sfx.play = (kind) => { v.heard.push(kind); };
+      await settle();
+      return v;
+    };
+    const asked = (v, ch) => v.bridge.invoked.filter(([c]) => c === ch).length;
+    const v = await page(VREV, { bridge: true, view: viewOf(FREE_USED) });
+    const card = v.$('locked');
+    ok(shown(v, 'vreview') && shown(v, 'locked') && before(card) && before(card).id === 'v-verdict',
+      'the upgrade card sits under the result and Riot\'s scoreboard');
+    ok(v.$('v-result').textContent === 'VICTORY' && v.$('v-score').textContent === '13 : 11' && shown(v, 'v-stats-wrap')
+      && v.document.querySelectorAll('#v-stats .v-stat').length === 4, 'the result, the score and Riot\'s four numbers are there');
+    ok(!shown(v, 'v-vd-label') && !shown(v, 'v-grade') && !shown(v, 'v-reason') && !shown(v, 'share'), 'no Verdict and no share image');
+    ok(!shown(v, 'v-prog') && asked(v, C.PROGRESS_GET) === 0, 'no progress strip, and main is not even asked for it');
+    ok(!shown(v, 'common') && !shown(v, 'grade-host') && !shown(v, 'insights-host') && !shown(v, 'v-summary-wrap') && !shown(v, 'v-rounds-wrap')
+      && !shown(v, 'v-study-wrap') && !shown(v, 'v-refused-wrap') && !shown(v, 'ask'),
+    'no grade, no lists, no coach\'s read, no rounds and no Ask about this match');
+    ok(v.$('lk-title').textContent === 'You have used your 3 free games' && v.$('lk-body').textContent === usage.capState(FREE_USED).body
+      && v.$('lk-upgrade').textContent === 'Upgrade to Pro' && shown(v, 'lk-upgrade') && shown(v, 'lk-invite'),
+    'its lines are main\'s: the free games used, Upgrade to Pro and Invite friends', `${v.$('lk-title').textContent} | ${v.$('lk-upgrade').textContent}`);
+    v.$('lk-upgrade').click();
+    v.$('lk-invite').click();
+    ok(v.upgraded === 1 && v.invited === 1, 'Upgrade and Invite friends ask main');
+    const pro = await page({ ...VREV, id: VID + 'p' }, { bridge: true, view: viewOf(PRO_USED) });
+    ok(pro.$('lk-title').textContent === "You have used this month's 25 games" && pro.$('lk-upgrade').textContent === 'Upgrade to Max',
+      'on Pro: this month\'s 25 games, and Upgrade to Max', pro.$('lk-title').textContent);
+    const max = await page({ ...VREV, id: VID + 'm' }, { bridge: true, view: viewOf(MAX_USED) });
+    ok(!shown(max, 'lk-upgrade') && shown(max, 'lk-invite'), 'on Max there is no plan above: Invite friends alone');
+    const plain = await page({ ...VREV, id: VID + 'q' }, { bridge: true, view: viewOf(FREE_TWO) });
+    ok(plain.$('lk-title').textContent === 'This review is locked' && shown(plain, 'lk-upgrade') && plain.$('lk-upgrade').textContent === 'Upgrade',
+      'with games again since, the card keeps its own plain lines, which count nothing');
+    // The real review-preload.js carries getAccount, openUpgrade and
+    // openInvite: with main answering no view, the card keeps its plain
+    // lines and still offers both ways on, each sent to main.
+    const bare = await page({ ...VREV, id: VID + 'b' });
+    ok(shown(bare, 'locked') && bare.$('lk-title').textContent === 'This review is locked'
+      && shown(bare, 'lk-upgrade') && bare.$('lk-upgrade').textContent === 'Upgrade' && shown(bare, 'lk-invite'),
+    'on the real bridge with no account view, the plain lines, Upgrade and Invite friends',
+    `${bare.$('lk-title').textContent} | ${shown(bare, 'lk-upgrade')} ${bare.$('lk-upgrade').textContent} | ${shown(bare, 'lk-invite')}`);
+    bare.$('lk-upgrade').click();
+    bare.$('lk-invite').click();
+    ok(bare.bridge.sent.some(([c]) => c === C.OPEN_UPGRADE) && bare.bridge.sent.some(([c, p]) => c === C.SHELL_NAV && p === 'invite'),
+      'and the real bridge sends Upgrade to main and Invite friends to the Invite page',
+      JSON.stringify(bare.bridge.sent.slice(-4)));
+
+    // Never revealed and never heard, from the loading screen or opened later.
+    const built = await page({ ...VREV, id: VID + 'w', work: WORK }, { bridge: true, view: viewOf(FREE_USED) });
+    ok(shown(built, 'building'), 'while it is built it is a loading screen like any other');
+    built.bridge.emit(C.PUSH_REVIEW_WORK, { id: VID + 'w', work: null });
+    await settle();
+    built.clock.advance(3000);
+    await settle();
+    ok(shown(built, 'locked') && !built.$('vreview').classList.contains('revealing') && !built.$('vreview').classList.contains('v-arrive')
+      && !built.heard.length && asked(built, C.PROGRESS_GET) === 0, 'whole, it is painted as it is: no reveal, no sound, no progress', built.heard.join(' '));
+    // And the next review that is not locked is a review again.
+    built.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...VREV, id: VID + 'u', locked: false });
+    await settle();
+    ok(!shown(built, 'locked') && shown(built, 'v-vd-label') && shown(built, 'v-summary-wrap') && shown(built, 'grade-host'),
+      'a review that is not locked after it has its Verdict, read and grade back, and no card');
+
+    // League: its numbers, the card under them, and none of what reads the game.
+    const LREV = { id: 'lol-1759348800000-lk0002', kind: 'lol', aiLog: null, locked: true,
+      game: { champion: 'Ahri', role: 'Mid', mode: 'Ranked Solo', duration: '31:20' },
+      scoreline: { kills: 7, deaths: 4, assists: 9, cs: 220, csAt10: 71, ward: 18 },
+      grade: { score: 70, letter: 'B', provisional: false, notes: [], categories: [] },
+      deaths: { headline: 'You died 4 times', detail: 'x' }, deathList: [], moments: [], objectives: {}, scored: [], unmeasured: [],
+      gamesRecorded: 0, next: { title: 'Wave control', mistake: 'z' } };
+    const l = await page(LREV, { bridge: true, view: viewOf(FREE_USED) });
+    const lcard = l.$('locked');
+    ok(shown(l, 'review') && shown(l, 'locked') && before(lcard) && before(lcard).id === 'r-scores'
+      && l.$('r-champ').textContent === 'Ahri' && l.document.querySelectorAll('#r-scores .stat').length >= 3,
+    'a locked League review: the champion, its numbers and the card under them', before(lcard) && before(lcard).id);
+    ok(!shown(l, 'r-verdict') && !shown(l, 'r-prog') && !shown(l, 'common') && !shown(l, 'r-death-wrap') && !shown(l, 'r-deaths-wrap')
+      && !shown(l, 'r-moments-wrap') && !shown(l, 'r-obj-wrap') && !shown(l, 'r-skills-wrap') && !shown(l, 'r-next-wrap') && asked(l, C.PROGRESS_GET) === 0,
+    'with no Verdict, no progress, no grade, no deaths, no moments, no objectives, no comparison and no lesson');
+    l.bridge.emit(C.PUSH_LOL_REVIEW, { ...LREV, id: 'lol-1759348800000-lk0003', locked: false });
+    await settle();
+    ok(!shown(l, 'locked') && shown(l, 'r-death-wrap') && shown(l, 'r-obj-wrap') && shown(l, 'r-skills-wrap'),
+      'and a League review that is not locked after it has every section back');
+
+    const src = fs.readFileSync(path.join(RENDERER, 'review', 'review.js'), 'utf8');
+    // From the opening of its comment, so the comment comes out whole.
+    const lockSrc = src.slice(src.lastIndexOf('/*', src.indexOf('A LOCKED REVIEW (8.7')), src.lastIndexOf('/*', src.indexOf('SHARE IMAGE (8.7')));
+    ok(lockSrc.length > 500 && !/startReveal|occlaraSfx|progressOf/.test(lockSrc.replace(/\/\*[\s\S]*?\*\//g, '')),
+      'the locked painter never starts the reveal, plays a sound or asks for the progress');
+    ok(!DASHES.test(lockSrc) && !/https?:\/\//.test(lockSrc), 'and has no dash and names no URL');
   });
 
   console.log(fails ? `\nFAIL: ${fails} problem(s)` : '\nPASS: every surface does the right thing with what arrives');

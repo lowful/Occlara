@@ -68,7 +68,48 @@ router.get('/primer', (req, res) => {
 // carried a cost of their own. `global` is the calls as the routes count them
 // and the flat estimate beside them, as before; `topUsers` carries each
 // licence's spend too. All of it since the process started (`since`).
-router.get('/costs', (req, res) => {
+/*
+ * GAMES COUNTED (8.7): this month's game_usage rows (UTC month), by status,
+ * kind and source, how many were past a cap (over_cap, the shadow count while
+ * ENFORCE_CAPS is off) and how many of those were shadow. Counts only, no
+ * user. `live: false` before the accounts migration is applied (42P01,
+ * PGRST205), and `error` when the table could not be read.
+ */
+const USAGE_ROWS = 20000;
+const MISSING = new Set(['42P01', 'PGRST205', 'PGRST202', '42883']);
+async function usageCounts(now = Date.now()) {
+  const month = new Date(now).toISOString().slice(0, 7);
+  const day = new Date(now).toISOString().slice(0, 10);
+  try {
+    const { data, error } = await supabase.from('game_usage')
+      .select('status,kind,source,over_cap,created_at')
+      .gte('created_at', `${month}-01T00:00:00.000Z`).limit(USAGE_ROWS);
+    if (error) return MISSING.has(String(error.code || '')) ? { live: false } : { live: true, error: error.code || 'lookup failed' };
+    const rows = Array.isArray(data) ? data : [];
+    const tally = (list) => {
+      const out = { rows: list.length, byStatus: {}, byKind: {}, bySource: {}, overCap: 0, shadow: 0 };
+      for (const r of list) {
+        out.byStatus[r.status] = (out.byStatus[r.status] || 0) + 1;
+        out.byKind[r.kind] = (out.byKind[r.kind] || 0) + 1;
+        out.bySource[r.source] = (out.bySource[r.source] || 0) + 1;
+        if (r.over_cap) out.overCap++;
+        if (r.source === 'shadow') out.shadow++;
+      }
+      return out;
+    };
+    return { live: true, enforce: String(process.env.ENFORCE_CAPS || '0').trim() === '1',
+      month: tally(rows), today: tally(rows.filter((r) => String(r.created_at || '').slice(0, 10) === day)),
+      truncated: rows.length >= USAGE_ROWS };
+  } catch (e) {
+    return { live: true, error: 'lookup failed' };
+  }
+}
+
+// A ledger's id as the admin view shows it: an account (u:<uuid>) as it is,
+// a licence key upper cased, as presence keeps them.
+const ledgerId = (key) => (/^u:/i.test(String(key)) ? String(key).trim().toLowerCase() : String(key).trim().toUpperCase());
+
+router.get('/costs', async (req, res) => {
   if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
 
   // Lazy-require to avoid circular deps
@@ -87,8 +128,8 @@ router.get('/costs', (req, res) => {
   // a licence key leaves the server: this used to print its first 8 characters.
   const byKey = [];
   for (const [key, stats] of costStore.entries()) {
-    const own = costs.report(String(key).trim().toUpperCase());
-    byKey.push({ user: hashOf(String(key).trim().toUpperCase()), callsToday: stats.callsToday, callsMonth: stats.callsMonth,
+    const own = costs.report(ledgerId(key));
+    byKey.push({ user: hashOf(ledgerId(key)), callsToday: stats.callsToday, callsMonth: stats.callsMonth,
       costToday: own.today.cost, costMonth: own.month.cost,
       estCostToday: +stats.costToday.toFixed(4), estCostMonth: +stats.costMonth.toFixed(4),
       spendToday: own.today, spendMonth: own.month });
@@ -107,6 +148,7 @@ router.get('/costs', (req, res) => {
     spend: { today: spend.today, month: spend.month, routes: costs.routes, flatPerCall: costs.perCall,
       asksProvider: costs.asking() },
     topUsers: byKey.slice(0, 10),
+    usage: await usageCounts(),
     since: costs.since,
     asOf: new Date().toISOString(),
   });
@@ -175,18 +217,43 @@ async function resolveOnce() {
   const batch = missing.slice(0, WHO_BATCH);
   if (batch.length) {
     try {
-      const { data, error } = await supabase.from('licenses').select('license_key,plan,user_id')
-        .in('license_key', batch.map((m) => m.key));
-      // A failed lookup writes nothing, so the next refresh asks again rather
-      // than showing everyone as unknown for ten minutes.
-      if (error) throw new Error(error.message || error.code || 'licence lookup failed');
-      const rows = new Map((data || []).map((r) => [r.license_key, r]));
-      const emails = await emailsOf([...rows.values()].map((r) => r.user_id).filter(Boolean));
+      // 8.7: presence names a signed in player by account (u:<user id>), and
+      // a licence key only when it has no user. An account is its email and
+      // its newest licence's plan.
+      const byKey = batch.filter((m) => !m.key.startsWith('u:'));
+      const byUser = batch.filter((m) => m.key.startsWith('u:'));
+      let data = [];
+      if (byKey.length) {
+        const r = await supabase.from('licenses').select('license_key,plan,user_id')
+          .in('license_key', byKey.map((m) => m.key));
+        // A failed lookup writes nothing, so the next refresh asks again rather
+        // than showing everyone as unknown for ten minutes.
+        if (r.error) throw new Error(r.error.message || r.error.code || 'licence lookup failed');
+        data = r.data || [];
+      }
+      let userRows = [];
+      if (byUser.length) {
+        const r = await supabase.from('licenses').select('license_key,plan,user_id,created_at')
+          .in('user_id', byUser.map((m) => m.key.slice(2)));
+        if (r.error) throw new Error(r.error.message || r.error.code || 'licence lookup failed');
+        userRows = r.data || [];
+      }
+      const rows = new Map(data.map((r) => [r.license_key, r]));
+      const planOf = new Map();
+      for (const r of userRows.slice().sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))) {
+        planOf.set(r.user_id, r.plan);
+      }
+      const emails = await emailsOf([...rows.values()].map((r) => r.user_id).filter(Boolean)
+        .concat(byUser.map((m) => m.key.slice(2))));
       const at = Date.now();
-      for (const m of batch) {
+      for (const m of byKey) {
         const row = rows.get(m.key);
         who.set(m.hash, { email: (row && row.user_id && emails.get(row.user_id)) || null,
           plan: row ? row.plan : null, at });
+      }
+      for (const m of byUser) {
+        const id = m.key.slice(2);
+        who.set(m.hash, { email: emails.get(id) || null, plan: planOf.get(id) || null, at });
       }
     } catch (e) {
       console.warn('[admin] could not resolve accounts:', e.message);

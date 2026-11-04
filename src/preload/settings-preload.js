@@ -65,4 +65,18 @@ contextBridge.exposeInMainWorld('occlara', {
   onReviews:     (cb) => subscribe(C.PUSH_REVIEWS, cb),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),
   onStatus: (cb) => subscribe(C.PUSH_STATUS, cb),
+
+  // The Account section (8.7): email, tier, games left and the account key,
+  // all as main hands them (account-service.js view, usage.js strings), the
+  // key copied by main, Sign out, and Manage plan and Upgrade on occlara.app.
+  getAccount:   () => ipcRenderer.invoke(C.ACCOUNT_GET),
+  onAccount:    (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
+  copyAccountKey: () => ipcRenderer.invoke(C.ACCOUNT_COPY_KEY),
+  signOut:      () => ipcRenderer.invoke(C.ACCOUNT_SIGNOUT),
+  // A player on a key alone can sign in from here too (the view's via 'key').
+  signIn:       () => ipcRenderer.invoke(C.ACCOUNT_SIGNIN),
+  cancelSignIn: () => ipcRenderer.send(C.ACCOUNT_SIGNIN_CANCEL),
+  openAccount:  () => ipcRenderer.send(C.OPEN_ACCOUNT),
+  openUpgrade:  () => ipcRenderer.send(C.OPEN_UPGRADE),
+  openInvite:   () => ipcRenderer.send(C.SHELL_NAV, 'invite'),
 });

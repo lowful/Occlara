@@ -4,7 +4,8 @@ const stripe   = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const supabase = require('../db/supabase');
 const {
   DAY_MS, GRACE_MS, LICENCE_ENDED: ENDED, LICENCE_REVOKED: REVOKED, SUB_BILLING: BILLING, SUB_ENDED,
-  idOf, subscriptionOf, latestLineEnd, periodEndOf, withGrace, dbError,
+  idOf, subscriptionOf, latestLineEnd, periodStartOf, periodEndOf, withGrace, dbError,
+  LOOKUP_KEY, INTERVAL_PLAN, accountsMissing, tierOfPlan, tierOfPrice, priceOfSubscription,
 } = require('../services/billing');
 
 /*
@@ -42,7 +43,6 @@ const {
 // The plans the licences table knows, once the site's migration adds yearly.
 const PLANS = new Set(['weekly', 'monthly', 'yearly', 'lifetime']);
 const PLAN_DAYS = { weekly: 7, monthly: 30, yearly: 365 };
-const INTERVAL_PLAN = { week: 'weekly', month: 'monthly', year: 'yearly' };
 
 // The reason a revoked licence carries, and what is written while the
 // licences table's status CHECK does not allow it yet.
@@ -70,7 +70,19 @@ const FOREIGN_USER = new Set(['23503', '22P02']);
 /** A Checkout Session one of Occlara's checkouts made: the site's (user_id) or the old Railway one's (userId). */
 function occlaraCheckout(session) {
   const meta = (session && session.metadata) || {};
-  return PLANS.has(meta.plan) && !!(meta.user_id || meta.userId);
+  return occlaraPlanName(meta.plan) && !!(meta.user_id || meta.userId);
+}
+
+/*
+ * A plan name one of Occlara's checkouts writes: an old plan (weekly, monthly,
+ * yearly, lifetime), or from 8.7 a tier and period (pro_monthly, max_yearly)
+ * or the price's own lookup key (occlara_pro_monthly). The site's checkout
+ * decides which it writes; all three are read as Occlara's.
+ */
+const TIER_PLAN = /^(pro|max)_(monthly|yearly)$/;
+function occlaraPlanName(name) {
+  const s = String(name || '');
+  return PLANS.has(s) || TIER_PLAN.test(s) || LOOKUP_KEY.test(s);
 }
 
 /*
@@ -122,17 +134,43 @@ function planFromMode(session) {
   return 'monthly';
 }
 
-async function planOfCheckout(session) {
+/**
+ * The price a checkout charged, asked of Stripe once per event however many
+ * readers want it (the plan below, the tier further down), or null when
+ * Stripe could not list it, which is logged and read as "nothing says".
+ */
+function checkoutPrice(session) {
+  let asked = null;
+  return () => {
+    if (!asked) {
+      asked = (async () => {
+        try {
+          const items = await stripe.checkout.sessions.listLineItems(session.id);
+          return (items && items.data && items.data[0] && items.data[0].price) || null;
+        } catch (e) {
+          console.error(`[webhook] could not list the line items of ${session.id}:`, e.message);
+          return null;
+        }
+      })();
+    }
+    return asked;
+  };
+}
+
+/*
+ * A KEY IS NEVER MINTED WITH PLAN 'pro' OR 'max'. An 8.6 client's usable() is
+ * shipped and knows weekly, monthly, yearly and lifetime, so a tier price
+ * (lookup key occlara_{pro,max}_{monthly,yearly}) mints the period, monthly or
+ * yearly, and the tier lives on the account (entitlements, below).
+ */
+async function planOfCheckout(session, price = checkoutPrice(session)) {
   const named = session.metadata && session.metadata.plan;
   if (PLANS.has(named)) return named;
-  try {
-    const items = await stripe.checkout.sessions.listLineItems(session.id);
-    const price = items && items.data && items.data[0] && items.data[0].price;
-    const interval = price && price.recurring && price.recurring.interval;
-    if (session.mode === 'subscription' && INTERVAL_PLAN[interval]) return INTERVAL_PLAN[interval];
-  } catch (e) {
-    console.error(`[webhook] could not list the line items of ${session.id}:`, e.message);
-  }
+  const p = await price();
+  const tier = LOOKUP_KEY.exec(String((p && p.lookup_key) || ''));
+  if (session.mode === 'subscription' && tier) return tier[2];
+  const interval = p && p.recurring && p.recurring.interval;
+  if (session.mode === 'subscription' && INTERVAL_PLAN[interval]) return INTERVAL_PLAN[interval];
   return planFromMode(session);
 }
 
@@ -165,17 +203,22 @@ function dbFailure(what, error) {
  * locks out a paying customer, while one Stripe ends early is cut by its status
  * (customer.subscription.deleted, invoice.payment_failed) all the same.
  */
+/*
+ * Answers the licences of the subscription as they were read (their user and
+ * key too, for the account below), [] when none carries it yet, or null when
+ * the invoice is too old to renew anything.
+ */
 async function renew(subId, endSec, invoiceId) {
   const expiresAt = withGrace(endSec);
   if (Date.parse(expiresAt) <= Date.now()) {
     console.warn(`[webhook] invoice ${invoiceId} paid for a period that ended over two days ago, nothing renewed`);
-    return;
+    return null;
   }
   // A lifetime licence that names a subscription (one made lifetime by hand)
   // is not billed by it, so a renewal never gives it an expiry.
   const { data: rows, error } = await supabase
     .from('licenses')
-    .select('id,status,expires_at')
+    .select('id,status,expires_at,user_id,license_key,plan')
     .eq('stripe_subscription_id', subId)
     .neq('plan', 'lifetime');
   if (error) throw dbFailure(`read the licences of subscription ${subId}`, error);
@@ -183,7 +226,7 @@ async function renew(subId, endSec, invoiceId) {
     // The site mints the licence when the buyer reaches /success, from the
     // same period, so the first invoice of a subscription often lands here.
     console.warn(`[webhook] no licence carries subscription ${subId} yet, nothing renewed (invoice ${invoiceId})`);
-    return;
+    return [];
   }
   let ids = rows.filter((r) => !ENDED.has(r.status)).map((r) => r.id);
   const revoked = rows.filter((r) => REVOKED.has(r.status));
@@ -213,6 +256,7 @@ async function renew(subId, endSec, invoiceId) {
     if (!done || !done.length) throw new Error(`renewing subscription ${subId} changed no row for licence ${id}`);
     console.log(`[webhook] subscription ${subId} renewed licence ${id} to ${until}`);
   }
+  return rows;
 }
 
 // ── Revoking a licence after a refund or a chargeback ──────────────────────
@@ -257,7 +301,7 @@ async function renew(subId, endSec, invoiceId) {
  */
 async function revokeWhere(column, value, reason, label) {
   const at = new Date().toISOString();
-  const pick = 'id,plan,status,stripe_subscription_id';
+  const pick = 'id,plan,status,stripe_subscription_id,user_id';
   let { data, error } = await supabase
     .from('licenses')
     .update({ status: reason, expires_at: at })
@@ -279,12 +323,15 @@ async function revokeWhere(column, value, reason, label) {
 async function revokeOnlyActive(customer, reason, label) {
   const { data: owned, error } = await supabase
     .from('licenses')
-    .select('id,status')
+    .select('id,status,plan')
     .eq('stripe_customer_id', customer);
   if (error) throw dbFailure(`read the licences of customer ${customer}`, error);
   // A failed payment's licence works through its grace (license.js usable),
-  // so it is one of the customer's live licences too.
-  const live = (owned || []).filter((l) => l.status === 'active' || l.status === 'payment_failed');
+  // so it is one of the customer's live licences too. A FREE key is never one
+  // a charge bought, so it neither counts toward "exactly one" nor is revoked
+  // for one: the refund zeroes the account's free games instead (below).
+  const live = (owned || []).filter((l) => l.plan !== 'free'
+    && (l.status === 'active' || l.status === 'payment_failed'));
   if (live.length !== 1) {
     // Deliberately loud and deliberately inert. Revoking the wrong licence of a
     // repeat customer is worse than a refund that needs a human, so this asks
@@ -294,6 +341,30 @@ async function revokeOnlyActive(customer, reason, label) {
     return [];
   }
   return revokeWhere('id', live[0].id, reason, label);
+}
+
+/*
+ * A RETRY OF A REFUND THE CUSTOMER FALLBACK MATCHED. The first delivery
+ * revoked the customer's one live licence and then failed on the account (a
+ * transient database error), so Stripe retried. On the retry revokeOnlyActive
+ * finds no live licence, since it was revoked, and the account was never
+ * ended. So when the fallback matches nothing, the customer's ONE licence
+ * already revoked for a refund or a dispute names the account to end, with no
+ * live one beside it: a customer with several is left for a human, as above.
+ */
+async function alreadyRevokedUsers(customer, label) {
+  const { data: owned, error } = await supabase
+    .from('licenses')
+    .select('id,status,plan,user_id')
+    .eq('stripe_customer_id', customer);
+  if (error) throw dbFailure(`read the licences of customer ${customer}`, error);
+  const paid = (owned || []).filter((l) => l.plan !== 'free');
+  const live = paid.filter((l) => l.status === 'active' || l.status === 'payment_failed');
+  // Refunded or disputed only: 'cancelled' is also an ordinary subscription's end.
+  const revoked = paid.filter((l) => REVOKED.has(l.status));
+  if (live.length || revoked.length !== 1 || !revoked[0].user_id) return [];
+  console.log(`[webhook] ${label}: customer ${customer}'s one licence was revoked already (a retry), its account is ended`);
+  return [revoked[0].user_id];
 }
 
 /**
@@ -350,7 +421,8 @@ async function revokeForCharge({ chargeId, customer, paymentIntent, reason, labe
   if (inv) subId = subscriptionOf(typeof inv === 'string' ? await stripe.invoices.retrieve(inv) : inv);
 
   const cancelled = new Set();
-  if (subId && await occlaraSubscription(subId, label)) await cancelSubscription(subId, label, cancelled);
+  const occlara = !!subId && await occlaraSubscription(subId, label);
+  if (occlara) await cancelSubscription(subId, label, cancelled);
 
   let revoked = [];
   if (subId) revoked = await revokeWhere('stripe_subscription_id', subId, reason, label);
@@ -366,6 +438,19 @@ async function revokeForCharge({ chargeId, customer, paymentIntent, reason, labe
     console.error(`[webhook] ${label} on charge ${chargeId}: no licence matched (subscription ${subId}, `
       + `payment_intent ${pi}, customer ${who}), licence NOT revoked`);
   }
+
+  // AND THEN THE ACCOUNT, only after the licence is revoked and the billing
+  // stopped: the order above is unchanged, and a refused write here throws
+  // like any licence write, so Stripe retries the whole event. A retry the
+  // customer fallback can no longer match still finds its account
+  // (alreadyRevokedUsers).
+  const users = revoked.map((r) => r.user_id);
+  if (!revoked.length && !subId && who) users.push(...await alreadyRevokedUsers(who, label));
+  await endAccounts({
+    users: [...new Set(users.filter(Boolean))],
+    subId: occlara ? subId : null,
+    label,
+  });
   return revoked.length > 0;
 }
 
@@ -378,22 +463,28 @@ async function revokeForCharge({ chargeId, customer, paymentIntent, reason, labe
  * so a site purchase is one quiet line here, not an "UNLINKED PURCHASE": that
  * line, logged for every site sale, hid the real orphans it was written to find.
  */
-async function mintFromCheckout(session, userId) {
-  const plan = await planOfCheckout(session);
+/*
+ * Answers { key } with the licence key the checkout holds (minted here or
+ * before), { key: null } when it was minted meanwhile by someone else, or null
+ * when the checkout is no Occlara purchase (its user is unknown).
+ */
+async function mintFromCheckout(session, userId, price) {
+  const plan = await planOfCheckout(session, price);
 
   const { data: existing, error: lookupError } = await supabase
     .from('licenses')
-    .select('id')
+    .select('id,license_key')
     .eq('stripe_session_id', session.id);
   if (lookupError) throw dbFailure(`look up a licence for checkout ${session.id}`, lookupError);
   if (existing && existing.length) {
     console.log(`[webhook] checkout ${session.id} already has its licence`);
-    return;
+    return { key: existing[0].license_key || null };
   }
 
+  const key = generateLicenseKey();
   const { error: insertError } = await supabase.from('licenses').insert({
     user_id:                userId,
-    license_key:            generateLicenseKey(),
+    license_key:            key,
     plan,
     status:                 'active',
     expires_at:             getExpiresAt(plan),
@@ -403,16 +494,302 @@ async function mintFromCheckout(session, userId) {
   });
   if (insertError && insertError.code === '23505') {
     console.log(`[webhook] checkout ${session.id} was minted meanwhile, nothing to add`);
-    return;
+    return { key: null };
   }
   if (insertError && FOREIGN_USER.has(insertError.code)) {
     // Not a buyer Occlara has: another app's checkout (FOREIGN_USER, above).
     console.warn(`[webhook] checkout ${session.id} names a user Occlara does not have (${insertError.code}), `
       + 'so it is no Occlara purchase: nothing minted');
-    return;
+    return null;
   }
   if (insertError) throw dbFailure(`mint the ${plan} licence of checkout ${session.id}`, insertError);
   console.log(`[webhook] checkout ${session.id}: minted a ${plan} licence`);
+  return { key };
+}
+
+// ── The account (8.7): tier, monthly cap and free games ────────────────────
+
+/*
+ * WHAT A PURCHASE ENTITLES LIVES ON THE ACCOUNT, the entitlements table: the
+ * tier (free, pro, max), the monthly cap (25 or 70), the free games and the
+ * referral bonus. The licence key above stays exactly as it was for every 8.6
+ * client; this is written beside it.
+ *
+ *   A purchase or a renewal (checkout.session.completed, invoice.paid) sets
+ *   the tier from the price (billing.js tierOfPrice), cap, source, the
+ *   subscription and period_anchor, the subscription's current period start,
+ *   which the monthly cap counts from. A key minted here becomes the account's
+ *   account_key.
+ *   Stripe ending the subscription sets the tier free and the cap 0, the free
+ *   games kept.
+ *   A full refund or any dispute, after the licence is revoked and billing
+ *   stopped (unchanged, above), sets the tier free and zeroes the free games
+ *   and the bonus too, status ended: a refunded buyer does not keep games.
+ *
+ * Two kinds of row a subscription never moves: one made Max for life
+ * (legacy_lifetime) and one given by hand (comp). A refund still ends them,
+ * as it revokes anything the charge bought.
+ *
+ * EVERY WRITE CHECKS ITS ERROR AND THROWS, as the licence writes do, so Stripe
+ * retries the event. Until the migration is live (accountsMissing) the
+ * account is skipped with one line and the licence path is all there is.
+ */
+const NOT_LIVE = Symbol('accounts not live');
+const HELD_SOURCES = new Set(['legacy_lifetime', 'comp']);
+
+function accountsNotLive(label) {
+  console.log(`[webhook] ${label}: accounts are not live yet (no entitlements table), the licence alone was handled`);
+  return NOT_LIVE;
+}
+
+/** The user's entitlement row, made if missing (ensure_entitlement), null for a user Occlara does not have. */
+async function ensureEntitlement(userId, label) {
+  const { data, error } = await supabase.rpc('ensure_entitlement', { p_user: userId });
+  if (accountsMissing(error)) return accountsNotLive(label);
+  if (error && FOREIGN_USER.has(error.code)) {
+    console.warn(`[webhook] ${label}: no such user for an account (${error.code}), account left`);
+    return null;
+  }
+  if (error) throw dbFailure(`${label}: make the account of a buyer`, error);
+  return (Array.isArray(data) ? data[0] : data) || null;
+}
+
+/**
+ * One checked write to entitlements, its filters added by `where`. Answers the
+ * rows it changed, or NOT_LIVE. An account_key another account already holds
+ * (23505, the column is unique) is left as it is and the rest written, since
+ * a retry could never land it.
+ */
+async function writeEntitlements(where, patch, what) {
+  const run = (p) => where(supabase.from('entitlements').update({ ...p, updated_at: new Date().toISOString() })).select('user_id');
+  let { data, error } = await run(patch);
+  if (accountsMissing(error)) return accountsNotLive(what);
+  if (error && error.code === '23505' && 'account_key' in patch) {
+    console.warn(`[webhook] ${what}: that account key is another account's, written without it`);
+    const rest = { ...patch };
+    delete rest.account_key;
+    ({ data, error } = await run(rest));
+  }
+  if (error) throw dbFailure(what, error);
+  return data || [];
+}
+
+/**
+ * A paid tier on one user's account. `ent` is the row ensureEntitlement gave.
+ * A subscription's late event never revives an account its own refund ended,
+ * and never moves a lifetime or comp account (above).
+ */
+async function grantPaid(userId, ent, grant, { subId, anchor, accountKey, label, boughtAt }) {
+  if (!ent || ent === NOT_LIVE) return;
+  if (ent.status === 'ended' && subId && ent.stripe_subscription_id === subId) {
+    console.warn(`[webhook] ${label}: subscription ${subId} ended this account for a refund or a dispute, left ended. Needs a human.`);
+    return;
+  }
+  // A purchase made before a refund or a dispute ended the account never
+  // revives it: a replayed or late event of a one-time (lifetime) purchase has
+  // no subscription to match above. Only a purchase made after it moves it.
+  const endedAt = Date.parse(ent.updated_at || '');
+  if (ent.status === 'ended' && Number.isFinite(boughtAt) && Number.isFinite(endedAt) && boughtAt <= endedAt) {
+    console.warn(`[webhook] ${label}: bought before this account was ended for a refund or a dispute, left ended. Needs a human.`);
+    return;
+  }
+  if (HELD_SOURCES.has(ent.source) && grant.source !== 'legacy_lifetime') {
+    console.warn(`[webhook] ${label}: the account is ${ent.source}, which a subscription does not move, left as it is`);
+    return;
+  }
+  const patch = {
+    tier: grant.tier,
+    cap_monthly: grant.cap,
+    source: grant.source,
+    stripe_subscription_id: subId || null,
+    period_anchor: anchor,
+    status: 'active',
+    renew_as: grant.renewAs,
+  };
+  if (accountKey && accountKey !== ent.account_key) patch.account_key = accountKey;
+  const done = await writeEntitlements((q) => q.eq('user_id', userId), patch, `${label}: set the ${grant.tier} tier`);
+  if (done === NOT_LIVE) return;
+  if (!done.length) throw new Error(`${label}: setting the ${grant.tier} tier changed no account`);
+  console.log(`[webhook] ${label}: account set to ${grant.tier} (${grant.source}, ${grant.cap} a month)`);
+}
+
+/** The licence key of a user that this purchase bought, for account_key: never a free one. */
+function keyOf(rows, userId) {
+  const row = (rows || []).find((r) => r.user_id === userId && r.license_key && r.plan !== 'free' && !ENDED.has(r.status));
+  return row ? row.license_key : null;
+}
+
+/** A checkout's account: the tier its price (or plan) entitles, from the period it started. */
+async function entitleCheckout(session, userId, mintedKey, price) {
+  const label = `checkout ${session.id}`;
+  const ent = await ensureEntitlement(userId, label);
+  if (!ent || ent === NOT_LIVE) return;
+
+  const subId = idOf(session.subscription);
+  let grant = null;
+  let anchor = null;
+  if (subId) {
+    let sub = null;
+    try {
+      sub = await stripe.subscriptions.retrieve(subId);
+    } catch (e) {
+      if (!(e && e.code === 'resource_missing')) throw e;
+      console.warn(`[webhook] ${label}: subscription ${subId} is not in Stripe, the tier is read from the checkout`);
+    }
+    if (sub && SUB_ENDED.has(sub.status)) {
+      console.warn(`[webhook] ${label}: subscription ${subId} is ${sub.status} already, account left`);
+      return;
+    }
+    grant = tierOfPrice(priceOfSubscription(sub));
+    const start = periodStartOf(sub);
+    if (start) anchor = new Date(start * 1000).toISOString();
+  }
+  if (!grant) grant = tierOfPrice(await price());
+  if (!grant) grant = tierOfPlan(session.mode === 'payment' ? 'lifetime' : await planOfCheckout(session, price));
+  if (!grant) {
+    console.error(`[webhook] ${label}: nothing says what this purchase entitles, account left. Needs a human.`);
+    return;
+  }
+  if (!anchor) anchor = new Date((Number(session.created) > 0 ? Number(session.created) * 1000 : Date.now())).toISOString();
+
+  // The checkout's own licences: one revoked for a refund or a dispute means
+  // this purchase was taken back, and a redelivered (or manually resent)
+  // completion of it must never grant it again.
+  const { data: bought, error: boughtError } = await supabase
+    .from('licenses')
+    .select('user_id,license_key,plan,status')
+    .eq('stripe_session_id', session.id);
+  if (boughtError) throw dbFailure(`${label}: read its licence for the account`, boughtError);
+  if ((bought || []).some((r) => REVOKED.has(r.status))) {
+    console.warn(`[webhook] ${label}: this purchase was refunded or disputed, account left as it is`);
+    return;
+  }
+  const key = mintedKey || keyOf(bought, userId);
+  const boughtAt = Number(session.created) > 0 ? Number(session.created) * 1000 : NaN;
+  await grantPaid(userId, ent, grant, { subId, anchor, accountKey: key, label, boughtAt });
+}
+
+/**
+ * The users a paid invoice's subscription belongs to: its licences' first,
+ * then an account already naming it, then the Occlara checkout that started
+ * it (the site mints the licence at /success, often after the first invoice).
+ * NOT_LIVE when the accounts tables are not there.
+ */
+async function usersOfSubscription(subId, licences, label) {
+  const { data: named, error } = await supabase
+    .from('entitlements')
+    .select('user_id')
+    .eq('stripe_subscription_id', subId);
+  if (accountsMissing(error)) return accountsNotLive(label);
+  if (error) throw dbFailure(`${label}: read the accounts of subscription ${subId}`, error);
+  const users = new Set((licences || []).map((r) => r.user_id).filter(Boolean));
+  for (const r of named || []) if (r.user_id) users.add(r.user_id);
+  if (!users.size) {
+    const list = await stripe.checkout.sessions.list({ subscription: subId, limit: 1 });
+    const started = list && list.data && list.data[0];
+    const meta = (started && started.metadata) || {};
+    const user = started && occlaraCheckout(started) ? (meta.user_id || meta.userId) : null;
+    if (user) users.add(user);
+  }
+  return [...users];
+}
+
+/** A paid invoice's account: the tier its subscription's price entitles, from its current period. */
+async function entitleInvoice(invoice, subId, licences) {
+  const label = `invoice ${invoice.id}`;
+  if (licences === null) return;   // too old to renew anything (renew)
+  if ((licences || []).some((r) => REVOKED.has(r.status))) return;   // renew logged it for a human
+  const users = await usersOfSubscription(subId, licences, label);
+  if (users === NOT_LIVE) return;
+  if (!users.length) {
+    console.warn(`[webhook] ${label}: no account or Occlara checkout names subscription ${subId}, account left`);
+    return;
+  }
+  const sub = await stripe.subscriptions.retrieve(subId);
+  if (SUB_ENDED.has(sub.status)) {
+    console.warn(`[webhook] ${label}: subscription ${subId} is ${sub.status}, account left`);
+    return;
+  }
+  // A yearly bought before 8.7 is Max until it renews and Pro from then on:
+  // a renewal is billing_reason subscription_cycle.
+  const grant = tierOfPrice(priceOfSubscription(sub), { renewal: invoice.billing_reason === 'subscription_cycle' });
+  if (!grant) {
+    console.error(`[webhook] ${label}: subscription ${subId} has no price to read a tier from, account left`);
+    return;
+  }
+  const start = periodStartOf(sub);
+  const anchor = new Date(start ? start * 1000 : Date.now()).toISOString();
+  for (const userId of users) {
+    const ent = await ensureEntitlement(userId, label);
+    if (ent === NOT_LIVE) return;
+    await grantPaid(userId, ent, grant, { subId, anchor, accountKey: keyOf(licences, userId), label,
+      boughtAt: Number(invoice.created) > 0 ? Number(invoice.created) * 1000 : NaN });
+  }
+}
+
+/** Stripe ended a subscription: its accounts go free, cap 0, their free games kept. */
+async function endSubscriptionAccounts(subId) {
+  const label = `subscription ${subId} ended`;
+  const done = await writeEntitlements(
+    (q) => q.eq('stripe_subscription_id', subId).eq('status', 'active')
+      .not('source', 'in', `(${[...HELD_SOURCES].join(',')})`),
+    { tier: 'free', cap_monthly: 0, renew_as: null },
+    `${label}: set its accounts free`);
+  if (done !== NOT_LIVE) console.log(`[webhook] ${label}: ${done.length} account(s) set free`);
+}
+
+/*
+ * A full refund or a dispute: every account the charge bought for ends, free
+ * games and bonus zeroed. The users of the revoked licences, each made sure
+ * of first (an account made later would start with free games), and any
+ * account naming the subscription, which is how a refund that lands before
+ * the site minted its licence still reaches the buyer.
+ */
+const ENDED_ACCOUNT = { tier: 'free', cap_monthly: 0, free_total: 0, bonus_pool: 0, status: 'ended', renew_as: null };
+/*
+ * The buyer an Occlara checkout that started a subscription names (metadata
+ * user_id, or userId on the old checkout), as usersOfSubscription reads it.
+ * A refund that lands before the site minted the licence AND before any event
+ * set the account's subscription id ended nothing: the retried checkout event
+ * then saw the subscription cancelled and left the account its free games.
+ */
+async function buyerOfSubscription(subId) {
+  const list = await stripe.checkout.sessions.list({ subscription: subId, limit: 1 });
+  const started = list && list.data && list.data[0];
+  if (!started || !occlaraCheckout(started)) return null;
+  const meta = started.metadata || {};
+  return meta.user_id || meta.userId || started.client_reference_id || null;
+}
+
+async function endAccounts({ users, subId, label }) {
+  let ended = 0;
+  const buyers = new Set();
+  if (subId) {
+    const done = await writeEntitlements((q) => q.eq('stripe_subscription_id', subId), ENDED_ACCOUNT,
+      `${label}: end the accounts of subscription ${subId}`);
+    if (done === NOT_LIVE) return;
+    ended += done.length;
+    if (!done.length) {
+      const buyer = await buyerOfSubscription(subId);
+      if (buyer && !users.includes(buyer)) buyers.add(buyer);
+    }
+  }
+  for (const userId of [...users, ...buyers]) {
+    const ent = await ensureEntitlement(userId, label);
+    if (ent === NOT_LIVE) return;
+    if (!ent) continue;
+    // Found only through the checkout: an account already paid for by ANOTHER
+    // subscription is that purchase's, left for a human rather than ended.
+    if (buyers.has(userId) && ent.stripe_subscription_id && ent.stripe_subscription_id !== subId && ent.status === 'active') {
+      console.error(`[webhook] ${label}: the buyer of subscription ${subId} is on another subscription, account left. Needs a human.`);
+      continue;
+    }
+    const done = await writeEntitlements((q) => q.eq('user_id', userId), ENDED_ACCOUNT, `${label}: end an account`);
+    if (done === NOT_LIVE) return;
+    if (!done.length) throw new Error(`${label}: ending an account changed no row`);
+    ended += done.length;
+  }
+  console.log(`[webhook] ${label}: ${ended} account write(s) ended, free games zeroed`);
 }
 
 // POST /api/payments/webhook
@@ -440,9 +817,13 @@ async function webhookHandler(req, res) {
         const session = event.data.object;
         const meta = session.metadata || {};
         const userId = session.client_reference_id || meta.userId || null;
+        const price = checkoutPrice(session);
         if (!userId) {
           if (meta.user_id) {
             console.log(`[webhook] checkout ${session.id}: a site purchase (${meta.plan || 'plan not named'}), the site mints its licence`);
+            // The site mints the key; the account is set here, at once, so
+            // the tier holds before the buyer reaches /success.
+            if (occlaraCheckout(session)) await entitleCheckout(session, meta.user_id, null, price);
             break;
           }
           // A PAID PURCHASE WITH NO LICENCE: neither the site's checkout nor
@@ -452,7 +833,8 @@ async function webhookHandler(req, res) {
             + `mode ${session.mode}. No licence was created; find the buyer on the session in Stripe.`);
           break;
         }
-        await mintFromCheckout(session, userId);
+        const minted = await mintFromCheckout(session, userId, price);
+        if (minted) await entitleCheckout(session, userId, minted.key, price);
         break;
       }
 
@@ -466,7 +848,8 @@ async function webhookHandler(req, res) {
         let end = latestLineEnd(invoice);
         if (!end) end = periodEndOf(await stripe.subscriptions.retrieve(subId));
         if (!end) throw new Error(`invoice ${invoice.id}: no period end on its lines or on subscription ${subId}`);
-        await renew(subId, end, invoice.id);
+        const licences = await renew(subId, end, invoice.id);
+        await entitleInvoice(invoice, subId, licences);
         break;
       }
 
@@ -513,6 +896,7 @@ async function webhookHandler(req, res) {
           .select('id');
         if (error) throw dbFailure(`cancel the licences of subscription ${subId}`, error);
         console.log(`[webhook] subscription ${subId} ended, ${data ? data.length : 0} licence(s) cancelled`);
+        await endSubscriptionAccounts(subId);
         break;
       }
 
@@ -571,4 +955,4 @@ async function webhookHandler(req, res) {
 
 module.exports = webhookHandler;
 // For the offline tests.
-module.exports.__test = { getExpiresAt, generateLicenseKey, planFromMode, PLAN_DAYS };
+module.exports.__test = { getExpiresAt, generateLicenseKey, planFromMode, PLAN_DAYS, occlaraPlanName };

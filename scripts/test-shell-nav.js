@@ -40,6 +40,21 @@ ok(pageOf('matches') && pageOf('matches').query.section === 'list'
 ok(!pageOf('nope'), 'an unknown page is none');
 ok(PAGES.filter((p) => p.nav).map((p) => p.id).join() === 'home,matches,patterns,breakdown,stats,coach',
   'the sidebar lists Home, Matches, Patterns, Breakdown, Stats and Ask Coach, in that order');
+// THE INVITE PAGE (8.7): its own surface and preload, out of the nav list (its
+// button is in the sidebar's foot, directly above Settings), and just before
+// Settings, so the window moves forward into it from every page above it.
+ok(pageOf('invite') && pageOf('invite').surface === 'invite' && pageOf('invite').preload === 'invite-preload.js' && pageOf('invite').nav === false,
+  'Invite is a page with its own surface and preload, not in the nav list');
+ok(ids.indexOf('invite') === ids.indexOf('settings') - 1, 'and sits directly before Settings', ids.join(', '));
+ok(direction('coach', 'invite') === 'forward' && direction('invite', 'settings') === 'forward' && direction('settings', 'invite') === 'back'
+  && direction('invite', 'review') === 'forward' && direction('review', 'invite') === 'back',
+  'down the sidebar into Invite and on to Settings is forward, back up is back, and the review is deeper still');
+{
+  const n = createNav();
+  n.seal(true);
+  const s = n.go('invite');
+  ok(s.shown === null && s.page === 'invite' && n.seal(false).shown === 'invite', 'sealed, Invite is only remembered, and shows once the seal lifts');
+}
 
 // ── Navigation, and the seal ──────────────────────────────────────────────
 {

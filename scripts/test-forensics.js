@@ -1009,6 +1009,8 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
       fs: { readFileSync: () => Buffer.from('frame') }, path: { join: (...p) => p.join('/') },
       API: { DEATH_FORENSICS: '/api/coach/death-forensics' },
       store: { get: () => 'GC-TEST' },
+      // The account's auth (8.7, index.js authed): what api-client sends.
+      authed: () => ({ 'X-License-Key': 'GC-TEST' }),
       api: { post: async (p, body) => { posted.push(body); return { ok: true, data: answer }; } },
     });
     const askMain = vm.runInContext(`${ask}\n;({ askForensics })`, lookBox);
@@ -1050,6 +1052,7 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
     const linkBox = vm.createContext({
       console: { log: (...a) => logged.push(a.join(' ')) }, JSON, String, encodeURIComponent,
       store: { get: (k) => (k === 'riotId' ? 'Me#EUW' : 'GC-TEST') },
+      authed: () => ({ 'X-License-Key': 'GC-TEST' }),
       api: { get: async () => ({ ok: true, data: { perRound: [{ n: 1 }], shape: { top: ['metadata', 'rounds'], 'kills[0].weapon': ['name', 'type'] } } }) },
     });
     const linkMain = vm.runInContext(`${roundsSrc}\n;({ riotRoundsFor })`, linkBox);

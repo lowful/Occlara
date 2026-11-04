@@ -440,7 +440,7 @@ class Backfill {
     // wanted, and what it filed so far is taken back (takeBack()).
     if (this.running) { this.takeBack(this.running); this.running.cancelled = true; }
     const run = { account: acct, late, cancelled: false, resume: null, saved: [], changed: [], pruned: [], evicted: [],
-      rowsAdded: new Set(), rows: [], open: [], real: new Map() };
+      claimed: [], rowsAdded: new Set(), rows: [], open: [], real: new Map() };
     // AND WHAT IT DID IS THE FULL RUN'S TO TAKE BACK. Left with the late run,
     // a Riot ID corrected during the full run took back the full run's work
     // alone, and the recordings the late link had checked against that other
@@ -620,6 +620,19 @@ class Backfill {
     const pruned = take('pruned');
     const ours = new Set(saved.map((s) => s.id));
     const evicted = new Map(take('evicted').filter((e) => e && !ours.has(e.id)).map((e) => [e.id, e]));
+    // AND THE GAMES IT CLAIMED GO BACK (8.7). Each review it graded from
+    // Riot's record claimed a counted game first; a wrong Riot ID briefly
+    // connected spent a free account's three games on another player's
+    // matches. Each is released (POST /api/usage/release, within the server's
+    // refund cap), in the background: a release that fails costs a game,
+    // never the take back.
+    const claimed = take('claimed');
+    if (d.release) {
+      for (const id of claimed) {
+        Promise.resolve().then(() => d.release(id))
+          .catch((e) => d.log('[backfill] could not give back the game of', id, e && e.message));
+      }
+    }
     if (!saved.length && !changed.length && !added.size && !evicted.size) return;
     // Removed first, so what is put back never pushes anything out again.
     for (const s of saved) {
@@ -986,6 +999,23 @@ class Backfill {
       let evicted = [];
       if (now.action === 'new' && d.evicts) {
         try { evicted = d.evicts(built.review) || []; } catch (e) { d.log('[backfill] could not read what a save pushes out', e && e.message); }
+      }
+      // A REVIEW FROM RIOT'S RECORD ALONE COUNTS AS A GAME (8.7): claimed by
+      // its Riot match id before it is saved, and saved locked when the
+      // account has none left (the review page then shows Riot's numbers
+      // and the upgrade card). Anything but the server's own no is granted
+      // (account-service.js claim), and an upgrade of a recording is the
+      // recording's game, counted as it was read.
+      if (now.action === 'new' && d.claim && built.review.matchId) {
+        let got = null;
+        const clientMatchId = `riot:${built.review.matchId}`;
+        try { got = await d.claim({ game: 'valorant', kind: 'riot', clientMatchId }); }
+        catch (e) { got = null; }
+        // A game the server granted is the run's to give back if the run is
+        // taken back (takeBack: the Riot ID was someone else's).
+        if (got && got.granted !== false && !got.skipped && Array.isArray(run.claimed)) run.claimed.push(clientMatchId);
+        if (run.cancelled) return;
+        if (got && got.granted === false) built.review.locked = true;
       }
       // A review that never reached the library is not graded, and gets no
       // baseline row: the library and the baseline would disagree about it.

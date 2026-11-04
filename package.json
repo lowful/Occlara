@@ -1,6 +1,6 @@
 {
   "name": "occlara",
-  "version": "8.6.0",
+  "version": "8.7.0",
   "description": "Occlara, a post-match AI coach for Valorant and League of Legends. Reads the screen, never the game, shows nothing during a match, and grades every match after it.",
   "main": "src/main/index.js",
   "scripts": {
@@ -28,6 +28,7 @@
     "check:recorder": "node scripts/check-recorder.js",
     "check:release": "node scripts/check-release-ready.js",
     "check:seal": "node scripts/check-seal.js",
+    "check:sessionend": "node scripts/check-session-end.js",
     "check:server": "node scripts/check-server-boot.js",
     "check:splash": "node scripts/check-splash-timing.js",
     "check:webmplay": "node scripts/check-webm-play.js",
@@ -43,6 +44,7 @@
     "sync:patch": "node scripts/sync-patch-notes.js",
     "sync:valorant": "node scripts/sync-valorant-data.js",
     "test": "node scripts/run-all.js",
+    "test:accountservice": "node scripts/test-account-service.js",
     "test:advancedtips": "node scripts/test-advanced-tips.js",
     "test:aicost": "node scripts/test-ai-cost.js",
     "test:agentdetect": "node scripts/test-agent-detect.js",
@@ -58,6 +60,7 @@
     "test:chatgates": "node scripts/test-chat-gates.js",
     "test:homemodel": "node scripts/test-home-model.js",
     "test:checkoutplan": "node scripts/test-checkout-plan.js",
+    "test:claimgame": "node scripts/test-claim-game.js",
     "test:clips": "node scripts/test-clips.js",
     "test:costrollover": "node scripts/test-cost-rollover.js",
     "test:deathhp": "node scripts/test-death-hp.js",
@@ -81,6 +84,7 @@
     "test:presence": "node scripts/test-presence.js",
     "test:sessionreplay": "node scripts/test-session-replay.js",
     "test:readpolicy": "node scripts/test-read-policy.js",
+    "test:readcap": "node scripts/test-read-cap.js",
     "test:readscore": "node scripts/test-read-score.js",
     "test:scoreguards": "node scripts/test-score-guards.js",
     "test:reviewreplay": "node scripts/test-review-replay.js",
@@ -91,6 +95,10 @@
     "test:statsrefresh": "node scripts/test-stats-refresh.js",
     "test:licenceoutage": "node scripts/test-licence-outage.js",
     "test:accountauth": "node scripts/test-account-auth.js",
+    "test:caller": "node scripts/test-caller.js",
+    "test:usageroutes": "node scripts/test-usage-routes.js",
+    "test:readgate": "node scripts/test-read-gate.js",
+    "test:referral": "node scripts/test-referral.js",
     "test:trackerroutes": "node scripts/test-tracker-routes.js",
     "test:agentroster": "node scripts/test-agent-roster.js",
     "test:serverguards": "node scripts/test-server-guards.js",
@@ -99,12 +107,14 @@
     "test:refundrevoke": "node scripts/test-refund-revoke.js",
     "test:renewals": "node scripts/test-renewals.js",
     "test:billingroutes": "node scripts/test-billing-routes.js",
+    "test:entitlementwebhook": "node scripts/test-entitlement-webhook.js",
     "test:aiprivacy": "node scripts/test-ai-privacy.js",
     "test:tiproutes": "node scripts/test-tip-routes.js",
     "test:scoreboard": "node scripts/test-scoreboard.js",
     "test:spectate": "node scripts/test-spectate.js",
     "test:telemetry": "node scripts/test-telemetry.js",
     "test:updater": "node scripts/test-updater.js",
+    "test:usage": "node scripts/test-usage-strings.js",
     "test:valorantreview": "node scripts/test-valorant-review.js",
     "test:webm": "node scripts/test-webm.js",
     "verify:ai": "node scripts/bench-read.js live --gate"
@@ -112,6 +122,14 @@
   "build": {
     "appId": "com.ghostcoach.app2",
     "productName": "Occlara",
+    "protocols": [
+      {
+        "name": "Occlara",
+        "schemes": [
+          "occlara"
+        ]
+      }
+    ],
     "artifactName": "Occlara Setup.${ext}",
     "copyright": "Copyright © 2025 Occlara",
     "files": [

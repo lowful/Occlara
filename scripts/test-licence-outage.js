@@ -423,6 +423,19 @@ const ACTIVE = { id: 'lic_1', license_key: KEY, plan: 'monthly', status: 'active
     ok(differ.length === 0, `and it is the server's rule, on every status and expiry (${differ.join('; ') || 'all agree'})`);
   }
   {
+    // A free account's key (8.7): plan 'free', active, no expiry. The app's
+    // rule reads the status and expiry alone, as the server's does, so it is
+    // usable on this PC, and the plan word is one the app knows.
+    const { usable } = licenseRouter;
+    seed('active');
+    store.set('licensePlan', 'free');
+    store.set('licenseExpiry', '');
+    ok(licenseService.usable('active', null) === usable('active', null) && licenseService.usable('active', null) === true
+      && licenseService.isLocallyValid() && Array.isArray(licenseService.PLANS) && licenseService.PLANS.includes('free'),
+    'a free account\'s key, active with no expiry, is usable to the app and the server alike');
+    store.set('licensePlan', 'monthly');
+  }
+  {
     // The server's own answer to a key in its grace, through the real app.
     seed('active');
     db.rows = [{ ...ACTIVE, status: 'payment_failed', expires_at: GRACE, device_id: licenseService.computeDeviceId() }];

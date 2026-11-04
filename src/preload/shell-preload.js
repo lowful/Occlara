@@ -51,4 +51,10 @@ contextBridge.exposeInMainWorld('occlara', {
   onStatus: (cb) => subscribe(C.PUSH_STATUS, cb),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),
   onGame:   (cb) => subscribe(C.PUSH_GAME, cb),
+  // The sidebar's Invite button (8.7), above Settings in its foot: go('invite')
+  // opens the page, locked by the seal like every page. The account's view
+  // too, should the foot show the tier.
+  openInvite: () => ipcRenderer.send(C.SHELL_NAV, 'invite'),
+  getAccount: () => ipcRenderer.invoke(C.ACCOUNT_GET),
+  onAccount:  (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
 });

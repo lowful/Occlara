@@ -97,6 +97,10 @@ function harness(opts = {}) {
     activeIds: () => h.active,
     account: opts.account ? () => opts.account(h) : undefined,
     keeps: opts.keeps,
+    // As index.js wires it (8.7): account-service claim, { granted, left, reason }.
+    claim: opts.claim,
+    // And release (8.7): a taken back run gives back each game it claimed.
+    release: opts.release,
     save: (review) => {
       if (opts.saveFails && opts.saveFails(review)) throw new Error('disk full');
       if (opts.onSave) opts.onSave(review, h);
@@ -1634,6 +1638,56 @@ function watched(store, startedAt, over = {}) {
     await h.bf.promise;
     ok(JSON.stringify(h.store.get(e.id).review) === before && h.bf.getStatus().state === 'idle' && !h.history.length,
       'a Riot ID changed while it ran stops it, and the recording is left as it was');
+    h.done();
+  }
+
+  // ── A review from Riot's record alone counts as a game (8.7) ─────────────
+  {
+    // Each new one is claimed by its Riot match id before it is saved; the
+    // server's no saves it locked, anything else (a yes, a throw, no answer)
+    // saves it as before.
+    const asked = [];
+    const answer = { a: { granted: true, left: 2 }, b: { granted: false, left: 0, reason: 'cap' }, c: 'throw' };
+    const h = harness({ rows: [row('c', 3, { map: 'Ascent' }), row('b', 2, { map: 'Bind' }), row('a', 1)],
+      claim: async (c) => {
+        asked.push(c);
+        const id = c.clientMatchId.slice(5);
+        if (answer[id] === 'throw') throw new Error('offline');
+        return answer[id];
+      } });
+    const s = await h.run();
+    ok(asked.map((c) => c.clientMatchId).join() === 'riot:a,riot:b,riot:c'
+      && asked.every((c) => c.game === 'valorant' && c.kind === 'riot'),
+      `each new review is claimed once as riot:<matchId> (${asked.map((c) => c.clientMatchId).join()})`);
+    const byMatch = Object.fromEntries(h.store.list('valorant').map((m) => [m.matchId, m]));
+    ok(s.graded === 3 && Object.keys(byMatch).length === 3, `all three are still filed (${s.graded} graded)`);
+    ok(byMatch.b && byMatch.b.locked === true && h.store.get(byMatch.b.id).review.locked === true,
+      'the refused one is saved locked, in the review and its library row');
+    ok(byMatch.a && byMatch.c && !byMatch.a.locked && !byMatch.c.locked && !h.store.get(byMatch.c.id).review.locked,
+      'a granted one and one whose claim threw are not locked');
+    const again = await h.run();
+    ok(asked.length === 3 && again.graded === 0, `a second run claims nothing again (${asked.length} claims)`);
+    h.done();
+  }
+  {
+    // A run taken back (the Riot ID was someone else's) gives back every game
+    // it claimed: a free account's three were spent on another player's matches.
+    let acct = 'Me#EUW';
+    const released = [];
+    const claimed = [];
+    let saves = 0;
+    const h = harness({ rows: [row('d', 4), row('c', 3), row('b', 2), row('a', 1)], account: () => acct,
+      claim: async (c) => { claimed.push(c.clientMatchId); return { granted: claimed.length !== 2, left: 1 }; },
+      release: async (id) => { released.push(id); return { released: true }; },
+      // The Riot ID corrected for good after three saves: the run is taken back.
+      onSave: () => { if (++saves === 3) acct = 'Typo#EUW'; } });
+    await h.run();
+    await new Promise((r) => setImmediate(r));
+    const granted = claimed.filter((_, i) => i !== 1).slice(0, 2);
+    ok(saves === 3 && h.store.list('valorant').length === 0 && claimed.length === 3
+      && released.slice().sort().join() === claimed.filter((_, i) => i !== 1).sort().join(),
+      `a run taken back releases each game it was granted, never the one refused (${released.join() || 'none'})`);
+    ok(granted.length === 2, 'two were granted');
     h.done();
   }
 
