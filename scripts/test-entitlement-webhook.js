@@ -97,7 +97,7 @@ function reset({ rows = [], accounts = [], schema = 'migrated' } = {}) {
   st.reset();
   base.reset({ rows, schema });
   sb.accounts.rows = accounts.map((a) => ({
-    tier: 'free', cap_monthly: null, free_total: 3, bonus_pool: 0, bonus_earned: 0, source: 'free',
+    tier: 'free', cap_monthly: null, free_total: 2, bonus_pool: 0, bonus_earned: 0, source: 'free',
     stripe_subscription_id: null, period_anchor: null, status: 'active', renew_as: null, account_key: null, ...a,
   }));
   sb.accounts.writes = [];
@@ -142,7 +142,7 @@ const refundOf = (n, over = {}) => {
         `a site checkout on ${lookupKey} (metadata plan ${plan}) sets the account ${tier}, ${cap} a month, source stripe (${e && e.tier} ${e && e.cap_monthly})`);
       ok(e && e.stripe_subscription_id === 'sub_A' && e.period_anchor === iso(start) && e.status === 'active',
         'with its subscription and period_anchor at the subscription\'s current period start');
-      ok(e && e.free_total === 3 && e.bonus_pool === 0, 'and the free games and the bonus as they were');
+      ok(e && e.free_total === 2 && e.bonus_pool === 0, 'and the free games and the bonus as they were');
       ok(base._db.rows.length === 0, 'and the site still mints the key, so nothing is minted here');
     }
   }
@@ -223,12 +223,12 @@ const refundOf = (n, over = {}) => {
 
   // ── Stripe ending the subscription ────────────────────────────────────────
   {
-    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, source: 'stripe', stripe_subscription_id: 'sub_H', free_total: 5, bonus_pool: 4 }] });
+    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, source: 'stripe', stripe_subscription_id: 'sub_H', free_total: 4, bonus_pool: 4 }] });
     subscription({ n: 'H', lookupKey: 'occlara_pro_monthly' });
     st.s.subs.get('sub_H').status = 'canceled';
     const { res } = await fire(st.event('customer.subscription.deleted', 'subscription', st.s.subs.get('sub_H')));
     const e = ent(U1);
-    ok(res.code === 200 && e.tier === 'free' && e.cap_monthly === 0 && e.free_total === 5 && e.bonus_pool === 4 && e.status === 'active',
+    ok(res.code === 200 && e.tier === 'free' && e.cap_monthly === 0 && e.free_total === 4 && e.bonus_pool === 4 && e.status === 'active',
       `a subscription Stripe ended sets the account free, cap 0, its free games and bonus kept (${e.tier} ${e.cap_monthly} ${e.free_total})`);
   }
   {
@@ -240,7 +240,7 @@ const refundOf = (n, over = {}) => {
 
   // ── A full refund or a dispute: the licence first, then the account ───────
   for (const kind of ['refund', 'dispute']) {
-    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, source: 'stripe', stripe_subscription_id: 'sub_J', free_total: 5, bonus_pool: 8, bonus_earned: 8 }] });
+    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, source: 'stripe', stripe_subscription_id: 'sub_J', free_total: 4, bonus_pool: 8, bonus_earned: 8 }] });
     const { end } = subscription({ n: 'J', lookupKey: 'occlara_pro_monthly' });
     base.reset({ rows: [licenceOf({ n: 'J', key: 'GC-JJJJ-JJJJ-JJJJ-JJJJ', end })], schema: 'migrated' });
     const evt = kind === 'refund' ? refundOf('J')
@@ -270,7 +270,7 @@ const refundOf = (n, over = {}) => {
   }
   {
     // A refund that lands before the site minted the key still reaches the buyer.
-    reset({ accounts: [{ user_id: U1, tier: 'max', cap_monthly: 70, source: 'stripe', stripe_subscription_id: 'sub_M', free_total: 3 }] });
+    reset({ accounts: [{ user_id: U1, tier: 'max', cap_monthly: 70, source: 'stripe', stripe_subscription_id: 'sub_M', free_total: 2 }] });
     subscription({ n: 'M', lookupKey: 'occlara_max_monthly' });
     const { res } = await fire(refundOf('M'));
     ok(res.code === 200 && ent(U1).status === 'ended' && ent(U1).free_total === 0 && st.s.subs.get('sub_M').status === 'canceled',
@@ -286,11 +286,11 @@ const refundOf = (n, over = {}) => {
   }
   {
     // Partial refund: nothing.
-    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, source: 'stripe', stripe_subscription_id: 'sub_O', free_total: 3 }] });
+    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, source: 'stripe', stripe_subscription_id: 'sub_O', free_total: 2 }] });
     const { end } = subscription({ n: 'O', lookupKey: 'occlara_pro_monthly' });
     base.reset({ rows: [licenceOf({ n: 'O', key: 'GC-OOOO-OOOO-OOOO-OOOO', end })], schema: 'migrated' });
     const { res } = await fire(refundOf('O', { amount_refunded: 500, refunded: false }));
-    ok(res.code === 200 && ent(U1).tier === 'pro' && ent(U1).free_total === 3 && sb.accounts.writes.length === 0 && sb.accounts.ensures.length === 0,
+    ok(res.code === 200 && ent(U1).tier === 'pro' && ent(U1).free_total === 2 && sb.accounts.writes.length === 0 && sb.accounts.ensures.length === 0,
       'a partial refund changes nothing on the account, not one write');
     ok(lic('lic_O').status === 'active' && st.s.subs.get('sub_O').status === 'active', 'nor on the licence or the subscription');
   }
@@ -307,7 +307,7 @@ const refundOf = (n, over = {}) => {
 
   // ── A retried refund the customer fallback matched still ends the account ─
   {
-    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, source: 'stripe', free_total: 3, bonus_pool: 4 }] });
+    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, source: 'stripe', free_total: 2, bonus_pool: 4 }] });
     st.s.charges.set('ch_S', { id: 'ch_S', customer: 'cus_S', invoice: null, payment_intent: 'pi_S', amount: 2499 });
     base.reset({ rows: [{ id: 'lic_S', user_id: U1, license_key: 'GC-SSSS-SSSS-SSSS-SSSS', plan: 'monthly', status: 'active',
       expires_at: iso(now() + 20 * DAY), stripe_customer_id: 'cus_S' }], schema: 'migrated' });
@@ -356,7 +356,7 @@ const refundOf = (n, over = {}) => {
 
   // ── A refund before the licence and before the checkout event ended nothing ─
   {
-    reset({ accounts: [{ user_id: U1, tier: 'free', cap_monthly: 0, free_total: 3, bonus_pool: 2, source: 'free' }] });
+    reset({ accounts: [{ user_id: U1, tier: 'free', cap_monthly: 0, free_total: 2, bonus_pool: 2, source: 'free' }] });
     subscription({ n: 'T', lookupKey: 'occlara_pro_monthly' });
     const { res } = await fire(refundOf('T'));
     ok(res.code === 200 && st.s.subs.get('sub_T').status === 'canceled' && ent(U1).status === 'ended'
@@ -366,7 +366,7 @@ const refundOf = (n, over = {}) => {
     ok(ent(U1).status === 'ended', 'and the checkout event retried after it leaves the account ended');
   }
   {
-    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, free_total: 3, source: 'stripe', stripe_subscription_id: 'sub_OTHER' }] });
+    reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, free_total: 2, source: 'stripe', stripe_subscription_id: 'sub_OTHER' }] });
     subscription({ n: 'T2', lookupKey: 'occlara_pro_monthly' });
     await fire(refundOf('T2'));
     ok(ent(U1).status === 'active' && ent(U1).tier === 'pro', 'but a buyer whose account another live subscription pays for is left for a human');
@@ -445,7 +445,7 @@ const refundOf = (n, over = {}) => {
       `fake-billing accounts: a site checkout on occlara_max_yearly sets the account max, 70 a month (${r.code} ${entOf(U1) && entOf(U1).tier})`);
     st.s.subs.get('sub_X').status = 'canceled';
     r = await send(st.event('customer.subscription.deleted', 'subscription', st.s.subs.get('sub_X')));
-    ok(r.code === 200 && entOf(U1).tier === 'free' && entOf(U1).cap_monthly === 0 && entOf(U1).free_total === 3,
+    ok(r.code === 200 && entOf(U1).tier === 'free' && entOf(U1).cap_monthly === 0 && entOf(U1).free_total === 2,
       'fake-billing accounts: Stripe ending it sets the account free, cap 0, free games kept');
 
     st.reset();

@@ -5642,8 +5642,8 @@ async function openShell(cfg, state, opts) {
     capped: !!st.capped, accountKey: st.account_key || null, invites: { pending: 0, qualified: 0, refused: 0 },
     urls: { upgrade: usage.UPGRADE_URL, account: usage.ACCOUNT_URL, signup: usage.SIGNUP_URL }, ...(extra || {}),
   });
-  const FREE_USED = { tier: 'free', left: 0, free_total: 3, bonus_pool: 0, email: 'player@example.com', account_key: 'GC-AAAA-BBBB-CCCC-DDDD' };
-  const FREE_TWO = { tier: 'free', left: 2, free_total: 3, bonus_pool: 0, email: 'player@example.com', account_key: 'GC-AAAA-BBBB-CCCC-DDDD' };
+  const FREE_USED = { tier: 'free', left: 0, free_total: 2, bonus_pool: 0, email: 'player@example.com', account_key: 'GC-AAAA-BBBB-CCCC-DDDD' };
+  const FREE_LEFT = { tier: 'free', left: 1, free_total: 2, bonus_pool: 0, email: 'player@example.com', account_key: 'GC-AAAA-BBBB-CCCC-DDDD' };
   const PRO_LEFT = { tier: 'pro', left: 18, cap_monthly: 25, bonus_pool: 0, period_end: '2026-11-30T12:00:00Z', email: 'pro@example.com', account_key: 'GC-PPPP-BBBB-CCCC-DDDD' };
   const PRO_USED = { tier: 'pro', left: 0, cap_monthly: 25, bonus_pool: 0, period_end: '2026-11-30T12:00:00Z', email: 'pro@example.com', account_key: 'GC-PPPP-BBBB-CCCC-DDDD' };
   const MAX_USED = { tier: 'max', left: 0, cap_monthly: 70, bonus_pool: 0, period_end: '2026-11-30T12:00:00Z', email: 'max@example.com', account_key: 'GC-MMMM-BBBB-CCCC-DDDD' };
@@ -5697,7 +5697,7 @@ async function openShell(cfg, state, opts) {
     }
     q.$('signin-browser').click();
     await settle();
-    answer({ ok: true, account: viewOf(FREE_TWO) });
+    answer({ ok: true, account: viewOf(FREE_LEFT) });
     await settle();
     ok(shown(q, 'waiting') && q.$('error').hidden, 'signed in, the window stays as it is for main to close');
 
@@ -5722,7 +5722,7 @@ async function openShell(cfg, state, opts) {
   });
 
   await section('the Invite page: the link with Copy, the friends and games, and how it works, all main\'s:', async () => {
-    const REF = { code: 'abcd1234', link: 'https://occlara.app/invite/abcd1234', invited: 2, qualified: 1, earned: 4, max_friends: 5, max_games: 20 };
+    const REF = { code: 'K7QM2XWP', link: 'https://occlara.app/invite/K7QM2XWP', invited: 2, qualified: 1, earned: 4, max_friends: 5, max_games: 20 };
     const finished = (r) => ({ ...r, line: usage.inviteProgress(r), how: usage.INVITE_HOW.slice() });
     const open = async (view, ref, copied) => {
       const q = loadSurface('invite', { handlers: {
@@ -5733,7 +5733,7 @@ async function openShell(cfg, state, opts) {
       await settle();
       return q;
     };
-    const q = await open(viewOf(FREE_TWO), finished(REF));
+    const q = await open(viewOf(FREE_LEFT), finished(REF));
     ok(shown(q, 'inv-body') && !shown(q, 'inv-wait') && !shown(q, 'inv-out') && !shown(q, 'inv-error'), 'signed in, it shows the link');
     ok(q.$('inv-link').textContent === REF.link && q.$('inv-progress').textContent === '1 of 5 friends joined, 4 games earned, 1 still to record a match',
       'the link main gave and the line usage.js wrote', `${q.$('inv-link').textContent} | ${q.$('inv-progress').textContent}`);
@@ -5749,7 +5749,7 @@ async function openShell(cfg, state, opts) {
     ok(q.$('inv-copy').textContent === 'Copy link', 'then reads Copy link again');
     q.$('inv-upgrade').click();
     ok(q.bridge.sent.some(([ch]) => ch === C.OPEN_UPGRADE), 'See plans asks main for the pricing page');
-    const failed = await open(viewOf(FREE_TWO), finished(REF), false);
+    const failed = await open(viewOf(FREE_LEFT), finished(REF), false);
     failed.$('inv-copy').click();
     await settle();
     ok(failed.$('inv-copy').textContent === 'Could not copy', 'a copy that failed says so');
@@ -5761,10 +5761,10 @@ async function openShell(cfg, state, opts) {
     ok(out.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'settings'), 'Open Settings goes to Settings');
     const keyOnly = await open({ signedIn: false, via: 'key' }, null);
     ok(shown(keyOnly, 'inv-out'), 'a licence key alone with no link says the same');
-    const down = await open(viewOf(FREE_TWO), null);
+    const down = await open(viewOf(FREE_LEFT), null);
     ok(shown(down, 'inv-error') && !shown(down, 'inv-body'), 'signed in with no answer, it says the link could not be fetched');
     let again = 0;
-    let now = viewOf(FREE_TWO);
+    let now = viewOf(FREE_LEFT);
     const retry = loadSurface('invite', { handlers: { [C.ACCOUNT_GET]: () => now, [C.REFERRAL_GET]: () => (again++ ? finished(REF) : null) } });
     await settle();
     retry.$('inv-retry').click();
@@ -6034,9 +6034,9 @@ async function openShell(cfg, state, opts) {
     await settle();
     ok(key.bridge.invoked.some(([ch]) => ch === C.ACCOUNT_SIGNIN) && shown(key, 'acct-error') && /took too long/.test(key.$('acct-error').textContent),
       'Sign in asks main, and a sign in that ended says why', key.$('acct-error').textContent);
-    key.bridge.emit(C.ACCOUNT_CHANGED, viewOf(FREE_TWO));
+    key.bridge.emit(C.ACCOUNT_CHANGED, viewOf(FREE_LEFT));
     await settle();
-    ok(key.$('acct-email').textContent === 'player@example.com' && shown(key, 'acct-signout') && key.$('acct-games').textContent === '2 of 3 free games left',
+    ok(key.$('acct-email').textContent === 'player@example.com' && shown(key, 'acct-signout') && key.$('acct-games').textContent === '1 of 2 free games left',
       'and once main says the account changed, it paints the new one');
     const none = await open(null);
     ok(shown(none, 'acct-signin') && !shown(none, 'acct-games-row') && !shown(none, 'acct-key-row'), 'no account at all: Sign in, and nothing made up');
@@ -6054,10 +6054,10 @@ async function openShell(cfg, state, opts) {
       await settle();
       return p;
     };
-    const h = await open(viewOf(FREE_TWO));
+    const h = await open(viewOf(FREE_LEFT));
     const line = h.$('rail-games');
     const underRec = line.parentNode && line.parentNode.children.indexOf(line) === line.parentNode.children.indexOf(h.$('rec')) + 1;
-    ok(shown(h, 'rail-games') && line.textContent === '2 of 3 free games left' && underRec,
+    ok(shown(h, 'rail-games') && line.textContent === '1 of 2 free games left' && underRec,
       'it says the games left as main wrote them, directly under the record buttons', line.textContent);
     h.bridge.emit(C.ACCOUNT_CHANGED, viewOf(PRO_USED));
     await settle();
@@ -6118,7 +6118,7 @@ async function openShell(cfg, state, opts) {
     ok(!shown(v, 'common') && !shown(v, 'grade-host') && !shown(v, 'insights-host') && !shown(v, 'v-summary-wrap') && !shown(v, 'v-rounds-wrap')
       && !shown(v, 'v-study-wrap') && !shown(v, 'v-refused-wrap') && !shown(v, 'ask'),
     'no grade, no lists, no coach\'s read, no rounds and no Ask about this match');
-    ok(v.$('lk-title').textContent === 'You have used your 3 free games' && v.$('lk-body').textContent === usage.capState(FREE_USED).body
+    ok(v.$('lk-title').textContent === 'You have used your 2 free games' && v.$('lk-body').textContent === usage.capState(FREE_USED).body
       && v.$('lk-upgrade').textContent === 'Upgrade to Pro' && shown(v, 'lk-upgrade') && shown(v, 'lk-invite'),
     'its lines are main\'s: the free games used, Upgrade to Pro and Invite friends', `${v.$('lk-title').textContent} | ${v.$('lk-upgrade').textContent}`);
     v.$('lk-upgrade').click();
@@ -6129,7 +6129,7 @@ async function openShell(cfg, state, opts) {
       'on Pro: this month\'s 25 games, and Upgrade to Max', pro.$('lk-title').textContent);
     const max = await page({ ...VREV, id: VID + 'm' }, { bridge: true, view: viewOf(MAX_USED) });
     ok(!shown(max, 'lk-upgrade') && shown(max, 'lk-invite'), 'on Max there is no plan above: Invite friends alone');
-    const plain = await page({ ...VREV, id: VID + 'q' }, { bridge: true, view: viewOf(FREE_TWO) });
+    const plain = await page({ ...VREV, id: VID + 'q' }, { bridge: true, view: viewOf(FREE_LEFT) });
     ok(plain.$('lk-title').textContent === 'This review is locked' && shown(plain, 'lk-upgrade') && plain.$('lk-upgrade').textContent === 'Upgrade',
       'with games again since, the card keeps its own plain lines, which count nothing');
     // The real review-preload.js carries getAccount, openUpgrade and

@@ -622,7 +622,7 @@ class Backfill {
     const evicted = new Map(take('evicted').filter((e) => e && !ours.has(e.id)).map((e) => [e.id, e]));
     // AND THE GAMES IT CLAIMED GO BACK (8.7). Each review it graded from
     // Riot's record claimed a counted game first; a wrong Riot ID briefly
-    // connected spent a free account's three games on another player's
+    // connected spent a free account's free games on another player's
     // matches. Each is released (POST /api/usage/release, within the server's
     // refund cap), in the background: a release that fails costs a game,
     // never the take back.

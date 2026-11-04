@@ -25,6 +25,9 @@
  * itself, this file can go.
  */
 
+const path = require('path');
+const { FREE_GAMES } = require(path.join(__dirname, '..', '..', 'server', 'services', 'caller.js'));
+
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const pgError = (code, message, details = null) => ({ code, message, details, hint: null });
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -74,7 +77,7 @@ function withAccounts(sb, opts = {}) {
   function blank(userId) {
     keys++;
     return {
-      user_id: userId, tier: 'free', cap_monthly: null, free_total: 3, bonus_pool: 0, bonus_earned: 0, source: 'free',
+      user_id: userId, tier: 'free', cap_monthly: null, free_total: FREE_GAMES, bonus_pool: 0, bonus_earned: 0, source: 'free',
       stripe_subscription_id: null, period_anchor: null, status: 'active', renew_as: null,
       account_key: `GC-ACCT-${String(keys).padStart(4, '0')}-0000-0000`,
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),

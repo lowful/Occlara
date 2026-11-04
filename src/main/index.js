@@ -371,7 +371,7 @@ function pushNotice(text, kind) {
 
 /*
  * THE ACCOUNT'S NOTICES AND PUSHES, NEVER MID MATCH (8.7). A cap's notice
- * ("You have used your 3 free games ...") is said only while nothing is being
+ * ("You have used your 2 free games ...") is said only while nothing is being
  * recorded and the window is not sealed, live or held: one that comes up mid
  * session waits, and is said as the seal lifts or the recording stops
  * (flushAccountWaits, from syncSeal and controller.stop). It is written when

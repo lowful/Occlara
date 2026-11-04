@@ -34,7 +34,10 @@ const express = require('express');
 const crypto = require('crypto');
 const callers = require('../services/caller');
 
-const { sha256, safeEqual, enforced, ipPrefixHash, isMissing } = callers;
+const { sha256, safeEqual, enforced, ipPrefixHash, isMissing, FREE_GAMES, INVITE_EXTRA_GAMES } = callers;
+
+// An invited account's free games: the Free tier's own and the friend's extra.
+const INVITED_FREE_TOTAL = FREE_GAMES + INVITE_EXTRA_GAMES;
 
 const MATCH_READS_COUNTED = 120;      // a live game with this many in-match reads is counted
 const FLUSH_MS = 10 * 1000;           // match_reads written at most this often per row
@@ -702,7 +705,7 @@ function createRouter(deps = {}) {
     });
     if (ins.error && ins.error.code === '23505') return refuse('already-redeemed');
     must(ins, 'redemption insert');
-    const raised = must(await db().from('entitlements').update({ free_total: 5, updated_at: iso(now()) })
+    const raised = must(await db().from('entitlements').update({ free_total: INVITED_FREE_TOTAL, updated_at: iso(now()) })
       .eq('user_id', invitee).eq('status', 'active').select('user_id'), 'invitee free games') || [];
     if (!raised.length) {
       // Ended between the read and the write: the redemption goes too.
@@ -710,7 +713,7 @@ function createRouter(deps = {}) {
       return refuse('account-ended');
     }
     resolver.forgetEntitlement(invitee);
-    res.json({ ok: true, free_total: 5 });
+    res.json({ ok: true, free_total: INVITED_FREE_TOTAL });
   }));
 
   return router;
@@ -724,5 +727,7 @@ module.exports.meter = meter;
 module.exports.ipLimiter = ipLimiter;
 module.exports.LIMITS = { MATCH_READS_COUNTED, FLUSH_MS, ALLOW_MS, MATCH_GAP_MS, SHORT_END_MS, REVIEW_WINDOW_MS,
   OPEN_MS, LATE_REVIEW_GAP_MS,
-  REFUNDS_PER_DAY, HANDOFF_MS, NEW_INVITEE_MS, MAX_FRIENDS, MAX_EARNED };
+  REFUNDS_PER_DAY, HANDOFF_MS, NEW_INVITEE_MS, MAX_FRIENDS, MAX_EARNED, FREE_GAMES, INVITE_EXTRA_GAMES, INVITED_FREE_TOTAL };
 module.exports.PATTERNS = { B64URL, VERIFIER, REF_CODE };
+module.exports.CODE_ALPHABET = CODE_ALPHABET;
+module.exports.INVITE_BASE = INVITE_BASE;

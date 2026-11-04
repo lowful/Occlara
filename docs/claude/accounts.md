@@ -8,7 +8,8 @@ unchanged underneath all of it, and a server without the new tables serves
 ## What an account is
 
 A Supabase user with one `entitlements` row: tier `free`, `pro` (25 games a
-month) or `max` (70 a month), `free_total` (3 for life, 5 if invited),
+month) or `max` (70 a month), `free_total` (2 for life, 4 if invited; 3 and
+5 before 2026-11-04),
 `bonus_pool` and `bonus_earned` (referral games), `source`, the Stripe
 subscription, `period_anchor`, status `active` or `ended`, `renew_as`, and
 `account_key`, the GC key shown on the account and accepted as the fallback
@@ -22,6 +23,17 @@ they cancel, yearly becomes Max until its renewal and then renews as Pro yearly
 licence gets a `plan 'free'` licence (active, no expiry), so the key fallback
 works for free accounts too. `server/scripts/backfill-entitlements.js` makes the
 rows for every licence holder, dry run by default, `--apply` to write.
+
+**The free count lives in one place per side.** Server: `FREE_GAMES` and
+`INVITE_EXTRA_GAMES` in `server/services/caller.js` (used by `usage.js` redeem,
+`INVITED_FREE_TOTAL`, and by `backfill-entitlements.js`). Client:
+`src/shared/usage.js FREE_GAMES` and `FRIEND_GIFT`. The SQL must say the same:
+`free_total`'s DEFAULT and the two `ELSE n` in `ensure_entitlement`. Moving
+Free from 3 to 2 took a follow up migration (`ALTER COLUMN free_total SET
+DEFAULT 2`, `ensure_entitlement` again with `ELSE 2`, and untouched rows moved
+3 to 2 and invited 5 to 4); `test:claimgame` with `OCCLARA_SITE_DIR` checks the
+last word of the site's migrations against `FREE_GAMES`. The site's own copy is
+`src/data/plans.ts FREE_GAMES` in the site repo.
 
 New sales still mint a licence with plan `monthly` or `yearly`, never `pro` or
 `max`, because the 8.6 client's `usable()` is shipped and only knows the old
@@ -153,15 +165,21 @@ Routes (`server/routes/usage.js`, under /api): `account/handoff`,
 
 ## Referral
 
-`GET /api/referral` makes an 8 character code and the link
-`https://occlara.app/invite/<code>`. The site keeps the code 7 days and redeems
+`GET /api/referral` makes an 8 character code (`CODE_ALPHABET`, capitals and
+digits 2 to 9, no 0 O 1 I) and the link `https://occlara.app/invite/<code>`;
+the app hands a page only a link of that shape (`account-service.js
+INVITE_LINK`, 4 to 16 letters and digits, the redeem's `REF_CODE`), which the
+site's `isInviteCode` also accepts. The site keeps the code 7 days and redeems
 it once after signup with the invitee's JWT. Redeem refuses self referral, an
-account older than 30 min, one that has played, a sixth friend, the
+account older than 30 min, an email not confirmed (401 `email-unconfirmed`,
+which the site treats as "try again later" and keeps the code), one that has
+played, a sixth friend, the
 inviter's network (/24 hash), an inviter known on no network
 (`inviter-unverified`: never signed in to the app) and an ended account
 (`account-ended`). A key whose user never signed in to the app gets 403
 `sign-in-required` from `GET /api/referral` (the Invite page says "Invites
-need an account"). The friend gets `free_total` 5; on their first counted
+need an account"). The friend gets `free_total` 4 (`INVITED_FREE_TOTAL`); on
+their first counted
 real game (source free, allowance or bonus, not over the cap, never shadow)
 on a device that is not the inviter's, the inviter gets 4 games, up to 20
 earned. The inviter's devices are their app sessions', the devices their
@@ -182,8 +200,9 @@ All default off, read from env on Railway:
 
 ## Not in this repo
 
-- The migration `supabase/migrations/20261104000000_accounts_tiers_referral.sql`
-  in the site repo, applied by the owner. It has never run against a real
+- The migration, in the site repo as `drizzle/migrations/0004_accounts_tiers_referral.sql`
+  (once `supabase/migrations/20261104000000_accounts_tiers_referral.sql`),
+  applied by the owner through Lovable, and the follow up that moved Free to 2. It has never run against a real
   Postgres: run it on a branch database first. Server first or migration first
   are both safe: every missing table or function (42P01, PGRST205, PGRST202,
   42883) reads as "accounts not live".

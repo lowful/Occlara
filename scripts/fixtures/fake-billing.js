@@ -47,6 +47,7 @@
  */
 
 const crypto = require('crypto');
+const { FREE_GAMES } = require(require('path').join(__dirname, '..', '..', 'server', 'services', 'caller.js'));
 
 const LIVE_COLUMNS = ['id', 'user_id', 'license_key', 'plan', 'status', 'device_id', 'device_name',
   'stripe_customer_id', 'stripe_subscription_id', 'stripe_session_id', 'created_at', 'expires_at'];
@@ -361,7 +362,7 @@ const REFERRAL_MAX_EARNED = 20;
 // value never conflicts, as in Postgres.
 const ACCOUNT_TABLES = {
   entitlements: {
-    columns: { user_id: null, tier: 'free', cap_monthly: 0, free_total: 3, bonus_pool: 0, bonus_earned: 0,
+    columns: { user_id: null, tier: 'free', cap_monthly: 0, free_total: FREE_GAMES, bonus_pool: 0, bonus_earned: 0,
       source: 'free', stripe_subscription_id: null, period_anchor: null, status: 'active', renew_as: null,
       account_key: null, created_at: (t) => t, updated_at: (t) => t },
     notNull: ['user_id', 'tier', 'cap_monthly', 'free_total', 'bonus_pool', 'bonus_earned', 'source', 'status'],

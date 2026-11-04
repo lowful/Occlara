@@ -56,6 +56,10 @@ const ROUTES = {
 const TOKEN_SHAPE = /^occ_[A-Za-z0-9_-]{20,200}$/;
 // A state or a code from the browser: base64url of sane length.
 const PARAM_SHAPE = /^[A-Za-z0-9_-]{8,200}$/;
+// The invite link GET /api/referral answers: the site's /invite/<code> route,
+// the code as server/routes/usage.js REF_CODE takes it (4 to 16 letters and
+// digits), which the site's isInviteCode accepts too.
+const INVITE_LINK = /^https:\/\/occlara\.app\/invite\/[A-Za-z0-9]{4,16}$/;
 
 const CLOSE_PAGE = '<!doctype html><html><head><meta charset="utf-8"><title>Occlara</title>'
   + '<style>body{background:#0b0b0d;color:#f5f5f7;font:16px system-ui,sans-serif;display:flex;'
@@ -445,7 +449,9 @@ function createAccountService(deps) {
       const r = res.data;
       return {
         code: typeof r.code === 'string' ? r.code : null,
-        link: typeof r.link === 'string' && /^https:\/\/occlara\.app\/invite\//.test(r.link) ? r.link : null,
+        // Only the site's /invite/<code> route, with a code the server's
+        // redeem (REF_CODE) and the site's isInviteCode both accept.
+        link: typeof r.link === 'string' && INVITE_LINK.test(r.link) ? r.link : null,
         invited: Number(r.invited) || 0,
         qualified: Number(r.qualified) || 0,
         earned: Number(r.earned) || 0,
@@ -508,4 +514,4 @@ function createAccountService(deps) {
   };
 }
 
-module.exports = { createAccountService, normalizeState, challengeOf, ROUTES, SITE, TOKEN_KEY, FLOW_MS, ME_TTL_MS };
+module.exports = { createAccountService, normalizeState, challengeOf, ROUTES, SITE, TOKEN_KEY, FLOW_MS, ME_TTL_MS, INVITE_LINK };

@@ -10,7 +10,7 @@
  *   weekly, monthly  Pro, 25 games a month, at their price until they cancel
  *   yearly           Max, 70 a month until renewal, then renews as Pro yearly
  *   lifetime         Max, 70 a month, for life
- *   none live        Free, 3 games; none at all after a refund or a dispute
+ *   none live        Free, FREE_GAMES (2) games; none at all after a refund or a dispute
  *
  * A licence is live when it is active, or payment_failed in its grace, and its
  * expiry has not passed. The best live one decides (lifetime, then yearly, then
@@ -30,6 +30,8 @@
  *
  * Run from server/:  node scripts/backfill-entitlements.js [--apply]
  */
+
+const { FREE_GAMES } = require('../services/caller');
 
 const PAID = ['weekly', 'monthly', 'yearly', 'lifetime'];
 const RANK = { lifetime: 4, yearly: 3, monthly: 2, weekly: 1 };
@@ -59,7 +61,7 @@ function mapLicences(licences, now = Date.now()) {
     return {
       tier: max ? 'max' : 'pro',
       cap_monthly: max ? 70 : 25,
-      free_total: revoked ? 0 : 3,
+      free_total: revoked ? 0 : FREE_GAMES,
       source: `legacy_${best.plan}`,
       stripe_subscription_id: best.stripe_subscription_id || null,
       period_anchor: best.created_at || null,
@@ -78,7 +80,7 @@ function mapLicences(licences, now = Date.now()) {
   return {
     tier: 'free',
     cap_monthly: 0,
-    free_total: revoked ? 0 : 3,
+    free_total: revoked ? 0 : FREE_GAMES,
     source: 'free',
     stripe_subscription_id: null,
     period_anchor: null, // ensure_entitlement writes now()

@@ -66,6 +66,11 @@ const LOOKUP_MS = 5000;
 const DOWN_MS = 30 * 1000;               // after a failed lookup, none is asked for this long
 const OUTAGE_MS = 10 * 60 * 1000;        // and an answer held is served at once this long after one
 const FREE_KEYS_FROM = [8, 7, 0];        // the first app that knows a free account
+// The Free tier: FREE_GAMES for the life of the account, INVITE_EXTRA_GAMES
+// more for a friend who redeems an invite. The site's SQL (free_total's
+// DEFAULT and ensure_entitlement) must say the same number.
+const FREE_GAMES = 2;
+const INVITE_EXTRA_GAMES = 2;
 const JWT_LEEWAY_S = 5;
 const MAX_CACHE = 5000;
 
@@ -564,4 +569,5 @@ module.exports = {
   enforced, tierOfPlan, isMissing, sha256, safeEqual, bearerOf, hasCredentials, clientAtLeast, knowsFreeKeys,
   ipPrefix, ipPrefixHash, ipBucket,
   KEY_REGEX, SESSION_TOKEN, MISSING_CODES, SESSION_MS, LAST_SEEN_MS, JWKS_MS, DOWN_MS, FREE_KEYS_FROM,
+  FREE_GAMES, INVITE_EXTRA_GAMES,
 };

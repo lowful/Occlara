@@ -101,7 +101,7 @@ function harness(opts) {
     'POST /api/account/exchange': (body) => {
       exchanged.push(body);
       if (o.refuse) return { ok: false, status: 400, data: { error: 'bad code' } };
-      return { ok: true, status: 200, data: { token, account: { tier: 'free', used: 0, left: 3, free_total: 3, account_key: 'GC-AAAA-BBBB-CCCC-DDDD' } } };
+      return { ok: true, status: 200, data: { token, account: { tier: 'free', used: 0, left: 2, free_total: 2, account_key: 'GC-AAAA-BBBB-CCCC-DDDD' } } };
     },
     'POST /api/account/signout': { ok: true, status: 200, data: { ok: true } },
     ...(o.routes || {}),
@@ -197,7 +197,7 @@ async function main() {
     'the token is kept encrypted in the store, never in plain text');
     ok(JSON.stringify(h.svc.auth()) === JSON.stringify({ Authorization: `Bearer ${h.token}` }), 'auth() sends the session bearer');
     const view = h.svc.view();
-    ok(!JSON.stringify(view).includes(h.token) && view.gamesLeft === '3 of 3 free games left' && view.accountKey === 'GC-AAAA-BBBB-CCCC-DDDD',
+    ok(!JSON.stringify(view).includes(h.token) && view.gamesLeft === '2 of 2 free games left' && view.accountKey === 'GC-AAAA-BBBB-CCCC-DDDD',
       'the view a page gets has the games left and the account key, never the token', JSON.stringify(view));
 
     // The next run reads it back through safeStorage.
@@ -382,6 +382,24 @@ async function main() {
       'GET /api/referral': { ok: true, status: 200, data: { code: 'X', link: 'https://evil.example/invite/X', qualified: 0 } },
     } });
     ok((await bad.svc.referral()).link === null, 'a link anywhere but occlara.app/invite is never handed to a page');
+
+    // The link the app copies is the site's /invite/<code> route, with a code
+    // the server makes, the server's redeem takes and the site's route keeps.
+    const { INVITE_LINK } = require('../src/main/services/account-service');
+    const { PATTERNS, CODE_ALPHABET } = require('../server/routes/usage');
+    // The site's isInviteCode (site repo src/lib/invite.ts), copied here: the site is another repo.
+    const SITE_INVITE_CODE = /^[A-Za-z0-9_-]{4,32}$/;
+    const made = Array.from({ length: 8 }, (_, i) => CODE_ALPHABET[(i * 7) % CODE_ALPHABET.length]).join('');
+    ok(INVITE_LINK.test(`https://occlara.app/invite/${made}`) && PATTERNS.REF_CODE.test(made) && SITE_INVITE_CODE.test(made),
+      `a code the server makes (${made}) is a link the app shows, a code redeem takes and one the site route keeps`);
+    ok(['https://occlara.app/invite/', 'https://occlara.app/invite/AB', 'https://occlara.app/invite/ABCD1234?x=1',
+      'https://occlara.app/invite/ABCD/1234', 'https://occlara.app.evil.example/invite/ABCD1234', 'http://occlara.app/invite/ABCD1234',
+      'https://www.occlara.app/invite/ABCD1234', 'https://occlara.app/invite/ABCD-1234'].every((l) => !INVITE_LINK.test(l)),
+    'and nothing else: no empty or short code, no query, no deeper path, no other host or scheme, no dash the redeem refuses');
+    const odd = harness({ store: memStore({ [TOKEN_KEY]: stubSafe(true).encryptString(tok).toString('base64') }), routes: {
+      'GET /api/referral': { ok: true, status: 200, data: { code: 'X', link: 'https://occlara.app/invite/../signup', qualified: 0 } },
+    } });
+    ok((await odd.svc.referral()).link === null, 'a link on occlara.app that is not an invite code is not handed to a page either');
   }
 
   console.log('\n[accountservice] api-client.js, the third argument');

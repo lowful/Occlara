@@ -11,8 +11,8 @@
  *
  * `left` is everything the account can still record: the tier's own
  * allowance and the earned games (bonus_pool) after it. The line names the
- * allowance against its total and the earned games beside it, so "2 of 3"
- * never reads as "6 of 3" once a friend has joined.
+ * allowance against its total and the earned games beside it, so "1 of 2"
+ * never reads as "5 of 2" once a friend has joined.
  *
  * Pure: no Electron, no clock but the one handed in.
  */
@@ -25,6 +25,9 @@ const TIERS = {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// The Free tier's games for the life of the account; an invited friend gets
+// FRIEND_GIFT more. The server says the same (server/services/caller.js).
+const FREE_GAMES = 2;
 const MAX_FRIENDS = 5;
 const MAX_EARNED = 20;
 const GAMES_PER_FRIEND = 4;
@@ -90,15 +93,15 @@ function figures(state) {
   let total;
   if (tier === 'free') total = int(state.free_total);
   else total = int(state.cap_monthly) || TIERS[tier].cap;
-  if (total === null) total = tier === 'free' ? 3 : TIERS[tier].cap;
+  if (total === null) total = tier === 'free' ? FREE_GAMES : TIERS[tier].cap;
   const own = Math.min(total, Math.max(0, left - earned));
   return { tier, total, own, earned, left };
 }
 
 /**
- * The one quiet line for Home and Settings, e.g. "2 of 3 free games left",
+ * The one quiet line for Home and Settings, e.g. "1 of 2 free games left",
  * "18 of 25 games left this month, renews Nov 30", or "You have used your
- * 3 free games". '' when the state cannot say.
+ * 2 free games". '' when the state cannot say.
  */
 function gamesLeft(state, opts) {
   const f = figures(state);
@@ -177,7 +180,7 @@ function inviteProgress(ref) {
 }
 
 module.exports = {
-  TIERS, MAX_FRIENDS, MAX_EARNED, GAMES_PER_FRIEND, FRIEND_GIFT, INVITE_HOW,
+  TIERS, FREE_GAMES, MAX_FRIENDS, MAX_EARNED, GAMES_PER_FRIEND, FRIEND_GIFT, INVITE_HOW,
   UPGRADE_URL, ACCOUNT_URL, SIGNUP_URL,
   tierLabel, dayOf, figures, gamesLeft, capState, capNotice, inviteProgress,
 };

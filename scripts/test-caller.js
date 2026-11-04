@@ -38,6 +38,7 @@ process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'test-key
 process.env.OCCLARA_NO_METER_SWEEP = '1';
 
 const SERVER = path.join(__dirname, '..', 'server');
+const { FREE_GAMES } = require(path.join(SERVER, 'services', 'caller.js'));
 
 // ─── The in-memory Supabase ─────────────────────────────────────────────────
 
@@ -176,7 +177,7 @@ function makeDb({ now = () => Date.now() } = {}) {
     ensure_entitlement({ p_user }) {
       let e = ent(p_user);
       if (!e) {
-        e = { user_id: p_user, tier: 'free', cap_monthly: 0, free_total: 3, bonus_pool: 0, bonus_earned: 0, source: 'free',
+        e = { user_id: p_user, tier: 'free', cap_monthly: 0, free_total: FREE_GAMES, bonus_pool: 0, bonus_earned: 0, source: 'free',
           stripe_subscription_id: null, period_anchor: iso(now()), status: 'active', renew_as: null,
           account_key: `GC-${crypto.randomBytes(8).toString('hex').toUpperCase().match(/.{4}/g).join('-')}`.slice(0, 22),
           created_at: iso(now()), updated_at: iso(now()) };
@@ -411,7 +412,7 @@ if (require.main === module) {
     const token = newToken();
     db.tables.app_sessions.push({ id: 'sess-1', user_id: USER_A, token_hash: sha(token), device_hash: sha('device-1'),
       device_name: 'PC', created_at: new Date(clock).toISOString(), last_seen: new Date(clock - 10 * 60e3).toISOString(), revoked_at: null });
-    db.tables.entitlements.push({ user_id: USER_A, tier: 'pro', account_key: 'GC-PROA-AAAA-AAAA-AAAA', cap_monthly: 25, free_total: 3, bonus_pool: 0, status: 'active', source: 'stripe' });
+    db.tables.entitlements.push({ user_id: USER_A, tier: 'pro', account_key: 'GC-PROA-AAAA-AAAA-AAAA', cap_monthly: 25, free_total: 2, bonus_pool: 0, status: 'active', source: 'stripe' });
     r._caches.entitlements.clear();   // the JWT checks above remembered USER_A with none
     const sreq = () => ({ headers: { authorization: `Bearer ${token}` } });
     db.calls.length = 0;
