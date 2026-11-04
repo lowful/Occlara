@@ -72,7 +72,7 @@ const { app } = require('electron');
 const surfaces = require('./fixtures/surfaces');
 // THE SAMPLE LIBRARY (8.7, scripts/fixtures/proof-reviews.js): four saved
 // Valorant reviews built from the real match, the older three looked at with
-// a clip kept beside the second, a seeded Free account with its three games
+// a clip kept beside the second, a seeded Free account with its two games
 // used, and the stand-in reader step 5b records with. Shared with the site
 // proof exporter, so the website's pictures are of what this check holds.
 const proof = require('./fixtures/proof-reviews');
@@ -188,7 +188,7 @@ setTimeout(async () => {
     const gamesLine = await until(() => sjs("(() => { const g = document.getElementById('rail-games'); return g && !g.hidden ? g.textContent : null; })()"), 3000);
     const homeGames = await hjs("!!document.getElementById('h-games') || !!document.querySelector('.h-aside')");
     lines.push(`rail games line: "${gamesLine}" | a copy on Home: ${homeGames}`);
-    if (gamesLine !== SEEDED_VIEW.gamesLeft || gamesLine !== 'You have used your 3 free games' || homeGames) {
+    if (gamesLine !== SEEDED_VIEW.gamesLeft || gamesLine !== 'You have used your 2 free games' || homeGames) {
       return report(false, `the rail's games line reads "${gamesLine}", not main's "${SEEDED_VIEW.gamesLeft}" (copy on Home: ${homeGames})`);
     }
     // THE INVITE BUTTON (8.7), in the sidebar's foot directly above Settings.

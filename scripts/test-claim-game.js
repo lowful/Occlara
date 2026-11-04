@@ -8,7 +8,7 @@
  * so the fake must do what the SQL does. This drives the fake through every
  * rule of the contract:
  *
- *   Free 3 games for life, then refused; 5 when invited
+ *   Free 2 games for life, then refused; 4 when invited
  *   Pro 25 a month, the month stepped from the anchor, a new month gives 25 again
  *   Max 70 a month
  *   the bonus pool used after the allowance, given back when its game is refunded
@@ -35,6 +35,8 @@ const fs = require('fs');
 const path = require('path');
 const { makeSupabase, entitlementPeriod, addMonthsUTC, ACCOUNT_TABLES } = require('./fixtures/fake-billing');
 const { mapLicences, backfill } = require('../server/scripts/backfill-entitlements');
+const { FREE_GAMES, INVITE_EXTRA_GAMES } = require('../server/services/caller');
+const { LIMITS: { INVITED_FREE_TOTAL } } = require('../server/routes/usage');
 
 let fails = 0;
 let checks = 0;
@@ -85,22 +87,22 @@ async function main() {
     ok(r.start <= Date.UTC(2026, 3, 1) && r.end > Date.UTC(2026, 3, 1), 'an anchor in the future steps back');
   }
 
-  // ── Free: 3 for life, then refused ───────────────────────────────────────
+  // ── Free: 2 for life, then refused ───────────────────────────────────────
   {
+    ok(FREE_GAMES === 2 && INVITE_EXTRA_GAMES === 2, 'Free is 2 games for life, and an invite adds 2');
     fresh();
     const u = user();
     const a = await claim(u);
     const b = await claim(u);
     const c = await claim(u);
-    const d = await claim(u);
-    ok(a.granted && b.granted && c.granted && [a.left, b.left, c.left].join() === '2,1,0',
-      'a free account gets 3 games, left 2, 1, 0');
-    ok(!d.granted && d.reason === 'cap' && d.left === 0 && d.usage_id === null, 'the fourth is refused, reason cap');
-    ok(rows(u).length === 3 && rows(u).every((g) => g.source === 'free' && g.status === 'counted'),
+    ok(a.granted && b.granted && [a.left, b.left].join() === '1,0',
+      'a free account gets 2 games, left 1, 0');
+    ok(!c.granted && c.reason === 'cap' && c.left === 0 && c.usage_id === null, 'the third is refused, reason cap');
+    ok(rows(u).length === 2 && rows(u).every((g) => g.source === 'free' && g.status === 'counted'),
       'a riot claim is counted at once, from the free games');
     const s = await state(u);
-    ok(s.tier === 'free' && s.used === 3 && s.left === 0 && s.period_end === null && s.free_total === 3,
-      'account_state says free, 3 used, none left, no period end');
+    ok(s.tier === 'free' && s.used === 2 && s.left === 0 && s.period_end === null && s.free_total === 2,
+      'account_state says free, 2 used, none left, no period end');
     const l = sb._db.rows.find((r) => r.user_id === u);
     ok(l && l.plan === 'free' && l.status === 'active' && l.expires_at === null && KEY_RE.test(l.license_key)
       && ent(u).account_key === l.license_key && s.account_key === l.license_key,
@@ -109,16 +111,16 @@ async function main() {
     ok(!(await claim(u)).granted, 'free games do not come back with time');
   }
 
-  // ── Invited: 5 ───────────────────────────────────────────────────────────
+  // ── Invited: 4 ───────────────────────────────────────────────────────────
   {
     fresh();
     const u = user();
     await rpc('ensure_entitlement', { p_user: u });
-    const { error } = await sb.from('entitlements').update({ free_total: 5 }).eq('user_id', u);
-    ok(!error, 'the redeem route can set free_total 5');
+    const { error } = await sb.from('entitlements').update({ free_total: INVITED_FREE_TOTAL }).eq('user_id', u);
+    ok(!error && INVITED_FREE_TOTAL === 4, 'the redeem route can set free_total 4 (2 free and 2 from the invite)');
     const got = [];
-    for (let i = 0; i < 6; i++) got.push((await claim(u)).granted);
-    ok(got.join() === 'true,true,true,true,true,false', 'an invited account gets 5 games, then refused');
+    for (let i = 0; i < 5; i++) got.push((await claim(u)).granted);
+    ok(got.join() === 'true,true,true,true,false', 'an invited account gets 4 games, then refused');
   }
 
   // ── Pro: 25 a month, a new month gives 25 again ──────────────────────────
@@ -143,7 +145,7 @@ async function main() {
     const s2 = await state(u);
     ok(next.granted && next.left === 24 && s2.used === 1 && s2.period_start === '2026-11-20T08:00:00.000Z',
       'at the month step the allowance rolls over: granted, 24 left');
-    ok(rows(u).filter((g) => g.source === 'free').length === 0 && s2.free_total === 3, 'Pro games never eat the free games');
+    ok(rows(u).filter((g) => g.source === 'free').length === 0 && s2.free_total === FREE_GAMES, 'Pro games never eat the free games');
   }
 
   // ── Max: 70 ──────────────────────────────────────────────────────────────
@@ -212,7 +214,7 @@ async function main() {
     const old = rows(u).find((g) => g.id === a.usage_id);
     ok(c.usage_id !== a.usage_id && old.status === 'refunded' && old.reason === 'stale' && old.settled_at,
       'after 3 h the open row is refunded (stale) and a new one is made');
-    ok(c.left === 1, 'the stale refund gave its free game back');
+    ok(c.granted && c.left === 0, 'the stale refund gave its free game back: the new one is granted from it');
   }
   {
     fresh();
@@ -275,12 +277,12 @@ async function main() {
   {
     fresh();
     const u = user();
-    for (let i = 0; i < 3; i++) await claim(u, { enforce: false });
+    for (let i = 0; i < FREE_GAMES; i++) await claim(u, { enforce: false });
     const s = await claim(u, { enforce: false });
     const row = rows(u).find((g) => g.id === s.usage_id);
     ok(s.granted && s.reason === 'cap' && row.source === 'shadow' && row.over_cap === true,
       'in shadow mode a game past the cap is granted, source shadow, over_cap');
-    ok(rows(u).filter((g) => !g.over_cap).length === 3, 'the three within the allowance are not over cap');
+    ok(rows(u).filter((g) => !g.over_cap).length === FREE_GAMES, 'the games within the allowance are not over cap');
     const v = user();
     const w = user();
     await claim(v, { device: 'dev-s', enforce: false });
@@ -327,7 +329,7 @@ async function main() {
     ok(s.invites.qualified === 6 && s.invites.refused === 1 && s.invites.pending === 1 && s.invites.total === 8,
       'account_state counts the invites by status');
     const used = (await claim(inviter)).left;
-    ok(used === 2 + 20, 'the inviter\'s left is the free games plus the pool');
+    ok(used === (FREE_GAMES - 1) + 20, 'the inviter\'s left is the free games plus the pool');
   }
 
   // ── A refund or a dispute ended the account: no games come back ──────────
@@ -438,12 +440,11 @@ async function main() {
     fresh();
     const u = user();
     await claim(u);
-    await claim(u);
     await claim(u, { kind: 'live', id: null, device: 'dev-r' });
-    ok((await state(u)).left === 0, 'two counted and one reserved: none left');
+    ok((await state(u)).left === 0, 'one counted and one reserved: none left');
     sb.advance(4 * HOUR);
     const s = await state(u);
-    ok(s.left === 1 && rows(u)[2].status === 'refunded' && rows(u)[2].reason === 'stale',
+    ok(s.left === 1 && rows(u)[1].status === 'refunded' && rows(u)[1].reason === 'stale',
       'past 3 h account_state gives the stale game back (no claim needed)');
   }
 
@@ -451,10 +452,13 @@ async function main() {
   {
     fresh();
     const u = user();
+    // Three games to play with: an invite's worth past the Free tier's own.
+    await rpc('ensure_entitlement', { p_user: u });
+    await sb.from('entitlements').update({ free_total: 3 }).eq('user_id', u);
     await claim(u, { id: 'riot:1' });
     await claim(u, { id: 'riot:2' });
     await claim(u, { kind: 'live', id: null, device: 'dev-l' });
-    ok((await state(u)).left === 0, 'three free games used');
+    ok((await state(u)).left === 0, 'three games used');
     const r = await rpc('release_game', { p_user: u, p_client_match_id: 'riot:1' });
     ok(r.changed && r.status === 'refunded' && r.reason === 'taken-back' && (await state(u)).left === 1,
       'releasing a counted riot game gives it back');
@@ -487,7 +491,7 @@ async function main() {
     const pf = mapLicences([L('monthly', { status: 'payment_failed' })], now);
     ok(pf.tier === 'pro', 'a payment_failed licence in its grace is still a payer');
     const exp = mapLicences([L('monthly', { expires_at: iso(-1) })], now);
-    ok(exp.tier === 'free' && exp.free_total === 3 && exp.account_key === L('monthly').license_key && !exp.mintFree,
+    ok(exp.tier === 'free' && exp.free_total === FREE_GAMES && exp.account_key === L('monthly').license_key && !exp.mintFree,
       'an expired payer is free, keeping their key as the account key');
     const ref = mapLicences([L('lifetime', { status: 'refunded', expires_at: iso(-1) })], now);
     ok(ref.tier === 'free' && ref.free_total === 0 && ref.status === 'ended', 'a refunded payer has no free games');
@@ -558,8 +562,15 @@ async function main() {
   {
     const candidates = [process.env.OCCLARA_SITE_DIR, path.join(__dirname, '..', '..', 'ghostcoach-9a45ac05'),
       path.join(__dirname, '..', '..', 'occlara-site')].filter(Boolean);
-    const file = candidates.map((d) => path.join(d, 'supabase', 'migrations', '20261104000000_accounts_tiers_referral.sql'))
-      .find((p) => fs.existsSync(p));
+    // The site keeps it as a Supabase migration or, since Lovable applies it,
+    // as drizzle's 0004: either name in either folder is taken.
+    const MIGRATION_DIRS = [['supabase', 'migrations'], ['drizzle', 'migrations']];
+    const isAccountsSql = (f) => /accounts_tiers_referral\.sql$/.test(f);
+    ok(isAccountsSql('0004_accounts_tiers_referral.sql') && isAccountsSql('20261104000000_accounts_tiers_referral.sql')
+      && !isAccountsSql('0005_free_two.sql'), 'the migration name pattern matches both known names and nothing else');
+    const file = candidates.flatMap((d) => MIGRATION_DIRS.map((m) => path.join(d, ...m)))
+      .filter((dir) => fs.existsSync(dir))
+      .flatMap((dir) => fs.readdirSync(dir).filter(isAccountsSql).sort().map((f) => path.join(dir, f)))[0];
     if (!file) {
       console.log('SKIP  the migration SQL was not found (set OCCLARA_SITE_DIR to the site repo to check it)');
     } else {
@@ -637,6 +648,33 @@ async function main() {
       ok(/CHECK \(plan IN \('weekly', 'monthly', 'yearly', 'lifetime', 'free'\)\)/.test(sql), 'licenses.plan allows free and every old value');
       ok(/NEW\.plan IS DISTINCT FROM OLD\.plan/.test(sql) && /NEW\.expires_at IS DISTINCT FROM OLD\.expires_at/.test(sql)
         && /BEFORE UPDATE ON public\.licenses/.test(sql), 'the privilege trigger still refuses a user writing plan or expiry');
+      // THE FREE COUNT. free_total's DEFAULT and ensure_entitlement's two
+      // `ELSE n` must say FREE_GAMES. A later migration in the same folder
+      // (the one that moved Free from 3 to 2) may set them again: the last
+      // word wins, as it does when the migrations run in order.
+      {
+        const dir = path.dirname(file);
+        const later = fs.readdirSync(dir).filter((f) => f.endsWith('.sql') && f > path.basename(file)).sort()
+          .map((f) => fs.readFileSync(path.join(dir, f), 'utf8'));
+        const TABLE_DEFAULT = /\n\s+free_total INTEGER NOT NULL DEFAULT (\d+)/;
+        const SET_DEFAULT = /ALTER COLUMN free_total SET DEFAULT (\d+)/g;
+        const ELSE_FREE = /CASE WHEN revoked THEN 0 ELSE (\d+) END/g;
+        ok(TABLE_DEFAULT.test('\n  free_total INTEGER NOT NULL DEFAULT 3 CHECK (free_total >= 0),')
+          && [...'ALTER TABLE public.entitlements ALTER COLUMN free_total SET DEFAULT 2;'.matchAll(SET_DEFAULT)].length === 1
+          && [...'CASE WHEN revoked THEN 0 ELSE 2 END,'.matchAll(ELSE_FREE)].length === 1,
+        'the free count patterns match a known table default, a later SET DEFAULT and an ensure_entitlement line');
+        let def = Number((sql.match(TABLE_DEFAULT) || [])[1]);
+        let ens = body('ensure_entitlement');
+        for (const text of later) {
+          for (const m of text.matchAll(SET_DEFAULT)) def = Number(m[1]);
+          const b = text.match(/CREATE OR REPLACE FUNCTION public\.ensure_entitlement\([\s\S]*?\$function\$([\s\S]*?)\$function\$/);
+          if (b) ens = b[1];
+        }
+        const elses = [...ens.matchAll(ELSE_FREE)].map((m) => Number(m[1]));
+        ok(def === FREE_GAMES && elses.length === 2 && elses.every((v) => v === FREE_GAMES),
+          `the SQL gives a new account ${FREE_GAMES} free games: free_total DEFAULT ${def}, ensure_entitlement ELSE ${elses.join(' and ')}`
+          + (later.length ? ` (with ${later.length} later migration(s))` : ''));
+      }
       const DASHES = new RegExp('[' + String.fromCharCode(0x2013) + String.fromCharCode(0x2014) + ']');
       ok(DASHES.test(`a${String.fromCharCode(0x2014)}b`) && !DASHES.test('a, b'), 'the dash pattern matches a known dash');
       ok(!DASHES.test(sql), 'no em or en dash in the SQL');

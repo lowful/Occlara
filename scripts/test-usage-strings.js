@@ -29,18 +29,22 @@ const lines = [];
 const say = (s) => { lines.push(s); return s; };
 
 console.log('\n[usage] games left, Free');
-eq(say(usage.gamesLeft({ tier: 'free', left: 3, free_total: 3 }, U)), '3 of 3 free games left', 'a new free account');
-eq(say(usage.gamesLeft({ tier: 'free', left: 2, free_total: 3 }, U)), '2 of 3 free games left', 'one used');
-eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 3 }, U)), '1 of 3 free games left', 'one left');
-eq(say(usage.gamesLeft({ tier: 'free', left: 0, free_total: 3 }, U)), 'You have used your 3 free games', 'none left');
-eq(say(usage.gamesLeft({ tier: 'free', left: 5, free_total: 5 }, U)), '5 of 5 free games left', 'invited: 5 free games');
-eq(say(usage.gamesLeft({ tier: 'free', left: 6, free_total: 3, bonus_pool: 4 }, U)), '2 of 3 free games left, plus 4 earned games',
-  'earned games beside the free ones, never "6 of 3"');
-eq(say(usage.gamesLeft({ tier: 'free', left: 4, free_total: 3, bonus_pool: 4 }, U)), '4 earned games left', 'the free ones spent, earned ones left');
-eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 3, bonus_pool: 1 }, U)), '1 earned game left', 'one earned game, singular');
+eq([usage.FREE_GAMES, usage.FRIEND_GIFT, usage.FREE_GAMES + usage.FRIEND_GIFT], [2, 2, 4],
+  'Free is 2 games for life, an invited friend 2 more: 4 (the server says the same)');
+eq(require('../server/services/caller').FREE_GAMES, usage.FREE_GAMES, 'and the server\'s FREE_GAMES is the same number');
+eq(require('../server/services/caller').INVITE_EXTRA_GAMES, usage.FRIEND_GIFT, 'and its INVITE_EXTRA_GAMES the friend\'s gift');
+eq(say(usage.gamesLeft({ tier: 'free', left: 2, free_total: 2 }, U)), '2 of 2 free games left', 'a new free account');
+eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 2 }, U)), '1 of 2 free games left', 'one used, one left');
+eq(say(usage.gamesLeft({ tier: 'free', left: 0, free_total: 2 }, U)), 'You have used your 2 free games', 'none left');
+eq(say(usage.gamesLeft({ tier: 'free', left: 4, free_total: 4 }, U)), '4 of 4 free games left', 'invited: 4 free games');
+eq(say(usage.gamesLeft({ tier: 'free', left: 3, free_total: 4 }, U)), '3 of 4 free games left', 'invited, one used');
+eq(say(usage.gamesLeft({ tier: 'free', left: 5, free_total: 2, bonus_pool: 4 }, U)), '1 of 2 free games left, plus 4 earned games',
+  'earned games beside the free ones, never "5 of 2"');
+eq(say(usage.gamesLeft({ tier: 'free', left: 4, free_total: 2, bonus_pool: 4 }, U)), '4 earned games left', 'the free ones spent, earned ones left');
+eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 2, bonus_pool: 1 }, U)), '1 earned game left', 'one earned game, singular');
 eq(say(usage.gamesLeft({ tier: 'free', left: 1, free_total: 1 }, U)), '1 of 1 free game left', 'a total of one, singular');
 eq(say(usage.gamesLeft({ tier: 'free', left: 0, free_total: 0 }, U)), 'You have no free games left', 'a refunded account (free_total 0)');
-eq(usage.gamesLeft({ tier: 'free', left: 2 }, U), '2 of 3 free games left', 'no free_total: the default 3');
+eq(usage.gamesLeft({ tier: 'free', left: 1 }, U), '1 of 2 free games left', 'no free_total: the default 2');
 
 console.log('\n[usage] games left, Pro and Max');
 eq(say(usage.gamesLeft({ tier: 'pro', left: 18, cap_monthly: 25, period_end: NOV30 }, U)), '18 of 25 games left this month, renews Nov 30', 'Pro');
@@ -65,12 +69,12 @@ eq(usage.gamesLeft({ tier: 'gold', left: 3 }), '', 'a tier this build does not k
 eq(usage.gamesLeft({ tier: 'free' }), '', 'no left');
 eq(usage.gamesLeft({ tier: 'free', left: 'x' }), '', 'a left that is no number');
 eq(usage.capState(null), null, 'no cap card for no state');
-eq(usage.capState({ tier: 'free', left: 2, free_total: 3 }), null, 'nor while games are left');
+eq(usage.capState({ tier: 'free', left: 1, free_total: 2 }), null, 'nor while games are left');
 eq(usage.inviteProgress(null), '', 'no invite line for no referral');
 
 console.log('\n[usage] the cap card');
-const freeCap = usage.capState({ tier: 'free', left: 0, free_total: 3, capped: true }, U);
-eq(freeCap, { capped: true, title: 'You have used your 3 free games',
+const freeCap = usage.capState({ tier: 'free', left: 0, free_total: 2, capped: true }, U);
+eq(freeCap, { capped: true, title: 'You have used your 2 free games',
   body: 'Upgrade to Pro for 25 games a month, or invite friends for more free games.', upgrade: 'pro' }, 'Free');
 const proCap = usage.capState({ tier: 'pro', left: 0, cap_monthly: 25, period_end: NOV30 }, U);
 eq(proCap, { capped: true, title: "You have used this month's 25 games",
@@ -78,11 +82,11 @@ eq(proCap, { capped: true, title: "You have used this month's 25 games",
 const maxCap = usage.capState({ tier: 'max', left: 0, cap_monthly: 70 }, U);
 eq(maxCap, { capped: true, title: "You have used this month's 70 games",
   body: 'They renew with your plan. Invite friends for more games meanwhile.', upgrade: null }, 'Max, no period end');
-eq(usage.capState({ tier: 'free', left: 2, free_total: 3, capped: true }, U).title, 'You have used your 3 free games',
+eq(usage.capState({ tier: 'free', left: 1, free_total: 2, capped: true }, U).title, 'You have used your 2 free games',
   'the server\'s capped decides even with a number left (a device refusal)');
-eq(say(usage.capNotice({ tier: 'free', left: 0, free_total: 3 }, U)),
-  'You have used your 3 free games. Upgrade at occlara.app/pricing or invite friends for more.', 'the notice line for a cap');
-eq(usage.capNotice({ tier: 'free', left: 1, free_total: 3 }, U), '', 'and none while games are left');
+eq(say(usage.capNotice({ tier: 'free', left: 0, free_total: 2 }, U)),
+  'You have used your 2 free games. Upgrade at occlara.app/pricing or invite friends for more.', 'the notice line for a cap');
+eq(usage.capNotice({ tier: 'free', left: 1, free_total: 2 }, U), '', 'and none while games are left');
 for (const c of [freeCap, proCap, maxCap]) lines.push(c.title, c.body);
 
 console.log('\n[usage] the invite');

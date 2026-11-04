@@ -11,8 +11,12 @@
  *   minute per IP. Refused: an unknown code, the inviter's own code, an
  *   account older than 30 minutes, an invitee with any game counted, a second
  *   redemption, an inviter with 5 friends already, and an invitee on the same
- *   /24 as one of the inviter's app sessions. Otherwise the invitee has 5
- *   free games and a pending redemption, which settle_game qualifies later.
+ *   /24 as one of the inviter's app sessions, and an invitee whose email is
+ *   not confirmed. Otherwise the invitee has 4 free games (Free's 2 and the
+ *   invite's 2) and a pending redemption, which settle_game qualifies later.
+ *   THE WHOLE WAY. The redeemed invitee plays on the SQL's model
+ *   (fake-billing.js): 4 games, and their first counted game gives the inviter
+ *   4, never past 20.
  *
  * Against the in-memory Supabase of test-caller.js. Nothing leaves the machine.
  *
@@ -25,6 +29,8 @@ const { makeDb, makeIssuer, call, newToken, sha, USER_A, USER_B } = require('./t
 const SERVER = path.join(__dirname, '..', 'server');
 const callers = require(path.join(SERVER, 'services', 'caller.js'));
 const usage = require(path.join(SERVER, 'routes', 'usage.js'));
+const { makeSupabase } = require('./fixtures/fake-billing');
+const { INVITED_FREE_TOTAL, FREE_GAMES, INVITE_EXTRA_GAMES } = usage.LIMITS;
 
 let fails = 0;
 let checks = 0;
@@ -91,13 +97,22 @@ function account(id, ageMin = 5) {
   ok(pl.status === 409 && pl.body.reason === 'already-played', 'an invitee who has a game already is refused');
   const net = await redeem(account(uid(5)), code, '198.51.100.77');
   ok(net.status === 409 && net.body.reason === 'same-network', 'an invitee on the same /24 as the inviter\'s app is refused');
+  const unconfirmed = account('bcbcbcbc-0000-4000-8000-bcbcbcbcbcbc');
+  db.users.get(unconfirmed).email_confirmed_at = null;
+  const unc = await redeem(unconfirmed, code, '192.0.2.150');
+  ok(unc.status === 401 && unc.body.error === 'email-unconfirmed' && !db.tables.referral_redemptions.some((r) => r.invitee_id === unconfirmed),
+    `an invitee whose email is not confirmed is refused, nothing written (${unc.status} ${unc.body && unc.body.error})`);
+  const oldOk = await redeem(account('bdbdbdbd-0000-4000-8000-bdbdbdbdbdbd', 29), code, '192.0.2.151');
+  ok(oldOk.status === 200, `an account 29 minutes old may still redeem (${oldOk.status} ${oldOk.body && oldOk.body.reason})`);
+  db.tables.referral_redemptions = db.tables.referral_redemptions.filter((r) => r.invitee_id !== 'bdbdbdbd-0000-4000-8000-bdbdbdbdbdbd');
 
   // ── Success, once ──────────────────────────────────────────────────────
   const good = await redeem(USER_B);
   const ent = db.tables.entitlements.find((e) => e.user_id === USER_B);
   const red = db.tables.referral_redemptions.find((r) => r.invitee_id === USER_B);
-  ok(good.status === 200 && good.body.free_total === 5 && ent && ent.free_total === 5 && red && red.status === 'pending' && red.inviter_id === USER_A,
-    `a new friend redeems: 5 free games and a pending redemption (${good.status})`);
+  ok(FREE_GAMES === 2 && INVITE_EXTRA_GAMES === 2 && INVITED_FREE_TOTAL === 4, 'an invite gives Free\'s 2 games and 2 more: 4');
+  ok(good.status === 200 && good.body.free_total === 4 && ent && ent.free_total === 4 && red && red.status === 'pending' && red.inviter_id === USER_A,
+    `a new friend redeems: 4 free games and a pending redemption (${good.status})`);
   const twice = await redeem(USER_B);
   ok(twice.status === 409 && twice.body.reason === 'already-redeemed', 'and cannot redeem twice');
   const st = await call(router, 'GET', '/referral', { headers: A });
@@ -184,6 +199,59 @@ function account(id, ageMin = 5) {
       body: { code: 'NONETWRK' }, ip: '192.0.2.212' });
     ok(r.status === 409 && r.body.reason === 'inviter-unverified',
       'an inviter with no app session (no network to tell the invitee apart from their own alt) is refused');
+  }
+
+  // ── The whole way: what redeem wrote, played on the SQL's model ────────
+  // The route above wrote the invitee's free_total and a pending redemption.
+  // Crediting is the SQL's (settle_game and claim_game call
+  // entitlement_qualify_referral); fake-billing.js models it, and
+  // test-claim-game.js holds that model to the migration's text.
+  {
+    const sb = makeSupabase();
+    sb.reset({ accounts: true, now: clock });
+    const rpc = async (name, args) => {
+      const r = await sb.rpc(name, args);
+      if (r.error) throw new Error(`${name}: ${r.error.code} ${r.error.message}`);
+      return r.data;
+    };
+    const entOf = (u) => sb._db.tables.entitlements.find((e) => e.user_id === u);
+    const claimOn = (u, device, id) => rpc('claim_game', { p_user: u, p_game: 'valorant', p_kind: 'riot',
+      p_client_match_id: id, p_device_hash: device, p_enforce: true });
+    const INV = '10101010-0000-4000-8000-101010101010';
+    await rpc('ensure_entitlement', { p_user: INV });
+    await sb.from('app_sessions').insert({ user_id: INV, token_hash: 'th-inv', device_hash: 'dev-inviter' });
+    ok(entOf(INV).free_total === FREE_GAMES && entOf(INV).bonus_pool === 0, `a new inviter starts with ${FREE_GAMES} free games and no bonus`);
+
+    // Seven friends, each as redeem leaves them: free_total 4, a pending redemption.
+    const friends = Array.from({ length: 7 }, (_, i) => `2020202${i}-0000-4000-8000-20202020202${i}`);
+    for (const f of friends) {
+      await rpc('ensure_entitlement', { p_user: f });
+      await sb.from('entitlements').update({ free_total: INVITED_FREE_TOTAL }).eq('user_id', f);
+      await sb.from('referral_redemptions').insert({ invitee_id: f, inviter_id: INV, code: 'K7QM2XWP' });
+    }
+    const first = friends[0];
+    const got = [];
+    for (let i = 0; i < INVITED_FREE_TOTAL + 1; i++) got.push((await claimOn(first, 'dev-f0', `f0-${i}`)).granted);
+    ok(got.join() === 'true,true,true,true,false', `the invited friend plays 4 games, the fifth refused (${got.join()})`);
+    ok(entOf(INV).bonus_pool === 4 && entOf(INV).bonus_earned === 4, `their first counted game gives the inviter 4 (${entOf(INV).bonus_earned})`);
+    for (let i = 1; i < friends.length; i++) await claimOn(friends[i], `dev-f${i}`, `f${i}-0`);
+    const reds = sb._db.tables.referral_redemptions;
+    ok(entOf(INV).bonus_earned === 20 && entOf(INV).bonus_pool === 20, `seven friends earn the inviter 20, never more (${entOf(INV).bonus_earned})`);
+    ok(reds.filter((r) => r.status === 'qualified' && r.reason === 'max-earned').length === 2, 'the friends past 20 qualify with nothing added (max-earned)');
+    const left = (await rpc('account_state', { p_user: INV })).left;
+    ok(left === FREE_GAMES + 20, `the inviter has their ${FREE_GAMES} free games and the 20 earned (${left})`);
+
+    // A friend who plays on the inviter's own PC earns the inviter nothing.
+    const alt = '30303030-0000-4000-8000-303030303030';
+    const INV2 = '40404040-0000-4000-8000-404040404040';
+    await rpc('ensure_entitlement', { p_user: INV2 });
+    await sb.from('app_sessions').insert({ user_id: INV2, token_hash: 'th-inv2', device_hash: 'dev-inviter2' });
+    await rpc('ensure_entitlement', { p_user: alt });
+    await sb.from('referral_redemptions').insert({ invitee_id: alt, inviter_id: INV2, code: 'ALTCODE2' });
+    await claimOn(alt, 'dev-inviter2', 'alt-0');
+    const altRed = reds.find((r) => r.invitee_id === alt);
+    ok(altRed.status === 'refused' && altRed.reason === 'inviter-device' && entOf(INV2).bonus_pool === 0,
+      'a friend playing on the inviter\'s own PC is refused (inviter-device), nothing earned');
   }
 
 

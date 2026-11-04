@@ -328,7 +328,7 @@ four Valorant reviews built from the real Abyss match (a Jett, 13 : 11, a B of
 71 as the newest, three older graded 58, 61 and 64 so the grade rises and the
 newest is a best), the older three looked at in rounds 2 and 6 with a clip kept
 beside the second and gone from the third, the coach's two lines (the read and
-the fix) stood in for, a seeded Free account with its three games used, and the
+the fix) stood in for, a seeded Free account with its two games used, and the
 stand-in reader. `seed(ud, { now })` writes the profile; `installStandIns()`
 puts the reader and the account view in place of index.js's. The window is
 pictured through `scripts/fixtures/window-shot.js` (the shell and the page

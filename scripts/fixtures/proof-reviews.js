@@ -59,12 +59,12 @@ them: [{ agent: 'Skye', role: 'Initiator' }, { agent: 'Cypher', role: 'Sentinel'
   { agent: 'Phoenix', role: 'Duelist' }, { agent: 'Killjoy', role: 'Sentinel' }] };
 
 // AN ACCOUNT ON THIS PC (8.7), seeded: what the pages are handed, as the
-// real account service's view hands it for a Free account with its three
+// real account service's view hands it for a Free account with its free
 // games used, every line written by the real usage.js. Only what a page is
 // told is stood in for (view, referral); the service is the real one, so
 // main still has no session and asks the network nothing. The referral is
 // what GET /api/referral gives, finished as main finishes it.
-const SEEDED_STATE = { tier: 'free', used: 3, left: 0, free_total: 3, bonus_pool: 0, bonus_earned: 0,
+const SEEDED_STATE = { tier: 'free', used: usage.FREE_GAMES, left: 0, free_total: usage.FREE_GAMES, bonus_pool: 0, bonus_earned: 0,
   email: 'player@example.com', account_key: 'GC-TEST-AB12-CD34-EF56', invites: { pending: 1, qualified: 1, refused: 0 } };
 const SEEDED_VIEW = {
   signedIn: true, via: 'session', pending: false, waiting: false, email: SEEDED_STATE.email,
@@ -72,7 +72,7 @@ const SEEDED_VIEW = {
   cap: usage.capState(SEEDED_STATE), capped: false, accountKey: SEEDED_STATE.account_key, invites: SEEDED_STATE.invites,
   urls: { upgrade: usage.UPGRADE_URL, account: usage.ACCOUNT_URL, signup: usage.SIGNUP_URL },
 };
-const SEEDED_REF = { code: 'abcd1234', link: 'https://occlara.app/invite/abcd1234', invited: 2, qualified: 1, earned: 4,
+const SEEDED_REF = { code: 'K7QM2XWP', link: 'https://occlara.app/invite/K7QM2XWP', invited: 2, qualified: 1, earned: 4,
   max_friends: usage.MAX_FRIENDS, max_games: usage.MAX_EARNED };
 const SEEDED_REFERRAL = { ...SEEDED_REF, line: usage.inviteProgress(SEEDED_REF), how: usage.INVITE_HOW.slice() };
 function seededAccounts(mod) {

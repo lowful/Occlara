@@ -146,7 +146,7 @@ const chatLimiter = rateLimit({
   standardHeaders: true, legacyHeaders: false,
 });
 // RIOT'S DATA ON A FREE ACCOUNT (8.7): the stats routes cost HenrikDev's
-// quota, not a model's, and a free account has three games, so it gets a
+// quota, not a model's, and a free account has two games, so it gets a
 // tighter budget there: 40 calls in ten minutes covers the Stats page, a
 // review's record and a backfill, and stops one free account spending the
 // quota every paying player shares. Paid tiers and 8.6 keys are untouched.

@@ -131,11 +131,11 @@ const uid = (n) => `${String(n).repeat(8)}-0000-4000-8000-${String(n).repeat(12)
 
   // ── ENFORCE_CAPS=1: refused BEFORE the model ───────────────────────────
   process.env.ENFORCE_CAPS = '1';
-  const B = await player(USER_B, { used: 3 });
+  const B = await player(USER_B, { used: callers.FREE_GAMES });
   const before = ai.calls;
   const capped = await read(B);
   ok(capped.status === 402 && capped.body.error === 'cap' && capped.body.left === 0 && ai.calls === before,
-    `a free account with its three games used and no game open is 402 cap, and the model is never called (${capped.status})`);
+    `a free account with its free games used and no game open is 402 cap, and the model is never called (${capped.status})`);
   const look = await call(coach, 'POST', '/death-forensics', { headers: B, body: { agent: 'Jett', map: 'Ascent',
     deaths: [{ n: 3, frames: ['x'.repeat(5000)], side: 'attack' }] } });
   const rev = await call(coach, 'POST', '/match-review', { headers: B, body: { tips: ['a', 'b', 'c'] } });
@@ -201,11 +201,11 @@ const uid = (n) => `${String(n).repeat(8)}-0000-4000-8000-${String(n).repeat(12)
   {
     process.env.ENFORCE_CAPS = '1';
     const G_ID = uid(8);
-    const G = await player(G_ID, { used: 2 });
+    const G = await player(G_ID, { used: callers.FREE_GAMES - 1 });
     ai.reply = IN_MATCH;
     for (let i = 0; i < 3; i++) await read(G);
     await wait();
-    ok(usageOf(G_ID).filter((g) => g.kind === 'live').length === 1, 'the third free game is claimed live');
+    ok(usageOf(G_ID).filter((g) => g.kind === 'live').length === 1, 'the last free game is claimed live');
     // A Railway deploy: the meter's memory is gone, the reserved row is only in the database.
     meter.rows.clear(); meter.allow.clear(); meter.opens.clear();
     const after = await read(G);

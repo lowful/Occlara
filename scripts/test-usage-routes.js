@@ -28,6 +28,7 @@ const { makeDb, makeIssuer, call, USER_A, USER_B, sha, newToken } = require('./t
 
 const SERVER = path.join(__dirname, '..', 'server');
 const callers = require(path.join(SERVER, 'services', 'caller.js'));
+const { FREE_GAMES } = callers;
 const usage = require(path.join(SERVER, 'routes', 'usage.js'));
 
 let fails = 0;
@@ -110,7 +111,7 @@ const pkce = () => {
   const good = await ex({ code: h4.body.code, verifier: p4.verifier, state: p4.state, device_id: 'machine-guid-1', device_name: 'Gaming PC' }, '203.0.113.40');
   const token = good.body && good.body.token;
   ok(good.status === 200 && /^occ_[A-Za-z0-9_-]{43}$/.test(token || '') && good.body.account && good.body.account.tier === 'free'
-    && good.body.account.left === 3, `the right code, state and verifier give an app session and the account (${good.status})`);
+    && good.body.account.left === FREE_GAMES, `the right code, state and verifier give an app session and the account (${good.status})`);
   const sess = db.tables.app_sessions[0] || {};
   ok(sess.token_hash === sha(token) && !JSON.stringify(db.tables.app_sessions).includes(token) && sess.device_hash === sha('machine-guid-1')
     && sess.device_name === 'Gaming PC' && sess.ip_prefix_hash === callers.ipPrefixHash('203.0.113.99') && !JSON.stringify(sess).includes('203.0.113'),
@@ -124,11 +125,11 @@ const pkce = () => {
 
   // ── Me, and signout ──────────────────────────────────────────────────────
   const me = await call(router, 'GET', '/account/me', { headers: auth(token) });
-  ok(me.status === 200 && me.body.live === true && me.body.tier === 'free' && me.body.left === 3 && me.body.capped === false
+  ok(me.status === 200 && me.body.live === true && me.body.tier === 'free' && me.body.left === FREE_GAMES && me.body.capped === false
     && me.body.via === 'session' && me.body.email === 'a@example.com' && me.body.account_key,
   'GET /account/me answers account_state for the session: tier, games left, account key, email');
   const meJwt = await call(router, 'GET', '/account/me', { headers: auth(t.jwt(USER_A)) });
-  ok(meJwt.status === 200 && meJwt.body.via === 'jwt' && meJwt.body.left === 3, 'and for a Supabase token too');
+  ok(meJwt.status === 200 && meJwt.body.via === 'jwt' && meJwt.body.left === FREE_GAMES, 'and for a Supabase token too');
   const out = await call(router, 'POST', '/account/signout', { headers: auth(token) });
   ok(out.status === 200 && db.tables.app_sessions[0].revoked_at, 'signout revokes the session');
   ok((await call(router, 'GET', '/account/me', { headers: auth(token) })).status === 401, 'at once: the token no longer works');
@@ -150,17 +151,16 @@ const pkce = () => {
     ok(viaSite.status === 401 && c.db.tables.game_usage.length === 0, 'a site token (no device) cannot claim a game');
     const a = await claim({ game: 'valorant', kind: 'riot', client_match_id: 'riot-1', device_id: 'dev-x' });
     const row = c.db.tables.game_usage[0] || {};
-    ok(a.status === 200 && a.body.granted === true && a.body.left === 2 && row.status === 'counted' && row.kind === 'riot',
+    ok(a.status === 200 && a.body.granted === true && a.body.left === FREE_GAMES - 1 && row.status === 'counted' && row.kind === 'riot',
       `a Riot record review claims a game and it is counted at once (${JSON.stringify(a.body)})`);
     ok(row.device_hash === sha('dev-session'),
       'on the session\'s own device, never the device_id the body names (a fresh one per request walked past the device rule)');
     const again = await claim({ game: 'valorant', kind: 'riot', client_match_id: 'riot-1' });
     ok(again.body.granted === true && c.db.tables.game_usage.length === 1, 'the same match claimed twice is one game');
     await claim({ game: 'lol', kind: 'league', client_match_id: 'lol-1' });
-    await claim({ game: 'lol', kind: 'league', client_match_id: 'lol-2' });
-    const fourth = await claim({ game: 'lol', kind: 'league', client_match_id: 'lol-3' });
-    ok(fourth.body.granted === true && c.db.tables.game_usage[3].source === 'shadow' && c.db.tables.game_usage[3].over_cap === true,
-      'with ENFORCE_CAPS off a fourth free game is granted, counted in shadow, past the cap');
+    const third = await claim({ game: 'lol', kind: 'league', client_match_id: 'lol-3' });
+    ok(FREE_GAMES === 2 && third.body.granted === true && c.db.tables.game_usage[2].source === 'shadow' && c.db.tables.game_usage[2].over_cap === true,
+      'with ENFORCE_CAPS off a third free game is granted, counted in shadow, past the 2');
     c.env.ENFORCE_CAPS = '1';
     const fifth = await claim({ game: 'lol', kind: 'league', client_match_id: 'lol-4' });
     ok(fifth.body.granted === false && fifth.body.reason === 'cap', 'with ENFORCE_CAPS=1 it is refused');

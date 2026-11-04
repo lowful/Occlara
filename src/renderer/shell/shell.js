@@ -222,7 +222,7 @@ $('account').addEventListener('click', () => window.occlara.go('settings'));
 
 /*
  * THE GAMES LEFT (8.7): one quiet line under Start, exactly as main writes
- * it (usage.js gamesLeft, "2 of 3 free games left"), and nothing when it has
+ * it (usage.js gamesLeft, "1 of 2 free games left"), and nothing when it has
  * nothing to say. Said here once for the whole window: Home, Invite and the
  * pages carry no copy. Hidden while a match is read: main holds a change
  * until the match ends, and the rail says nothing mid match.
