@@ -111,3 +111,40 @@ it on both sets**: measured on real contexts alone, all twelve came back "no
 agent", so `agents` notes, the highest scoring tag at +4, were never exercised.
 It also pins what the primer changed in retrieval (below): the pistol rounds by
 mode, the computed buy lines, and the four notes that lost a typed number.
+
+## The cause tag, and the coaching rubric (8.7, 2026-11-04)
+
+**A note may carry `cause`**, an array of the labels the death look gives
+(`death-forensics.js CAUSES`: dry-peek, isolated, repeek, crossfire, rotating,
+overextend, exposed, lost-duel). `retrieve()` serves a cause tagged note only
+when the context carries one of its causes (`ctx.cause`, one label, which Ask
+Coach sets from the asked round's look; `ctx.causes`, a list, which the review
+sets from its counted `cause:` mistakes and its rounds' causes, for a client of
+8.5.0 or later, the same `byCause` gate as `study()`), and scores it +5, above
+general advice. `check:playbook` fails a `cause` that is not one of the eight.
+Notes also keep `when` (the observable situation that should bring the note
+up) and `why`; neither is rendered to a model or a player, they document the
+tagging. exposed, rotating and overextend have the fewest cause notes.
+
+**Where the 2026 imports came from.** 159 notes were added from coach VOD
+transcripts and guides (fundamentals and death causes, roles and every agent's
+kit checked against valorant-api, macro, and how a coach runs a review), and
+about 36 hand written notes were corrected or dropped (Harbor's Cove, Clove's
+Ruse, the minimap and counter strafe lines, the trade rule). Notes the
+researchers flagged "verify" (shotguns after patch 12.09, scoping, crossfire
+spacing) were left as they were.
+
+**The review and Ask Coach prompts follow one rubric** (match-review.js
+`promptRounds` and `GROUNDING`, chat-prompt.js `VALORANT_RULES`, whose copy in
+`test-chat-gates.js SPEC_RULES` is held word for word): one fix, not a list;
+rule out whether the fight needed taking, whether anyone could trade it and
+whether there was information or utility before the shot, and call it aim only
+where the look said a fair fight was lost on the shot; every fix is when this
+happens, do that, because; praise a habit and why it works, never a scoreboard
+number; never blame teammates or luck; size the advice to a rank only where
+Ask Coach is given one. The chat rules must not contain the words "THE PLAYER":
+the budget test slices the prompt at that heading. A fix has no count or timer
+of its own, because the number gate would drop the sentence. Not done: a rank
+band line for the review (the route is sent no rank), and the look prompt's
+"better play" wording (needs the forensics bench). Run `bench:review` and
+`bench:chat` before the next release: neither has been run on this wording.

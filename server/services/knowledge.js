@@ -59,20 +59,20 @@ const SPECTRE_BAND = primer.bandEnd('spectre');
 const PLAYBOOK = [
   // ── universal fundamentals ──────────────────────────────────────────────
   { text: 'Clear one angle at a time from cover, never wide swing into multiple uncleared angles at once.', weight: 3 },
-  { text: 'Keep your crosshair at head height on the edge of the nearest corner, pre aim where a head will appear.', weight: 3 },
-  { text: 'Counter strafe before shooting, release your movement key, tap the opposite one, and fire the first accurate shot.', weight: 2 },
+  { text: 'Keep your crosshair at head height and on the spot where a head will first show, deeper into the wall for a wide swing and further from it if they may peek into you, because that is where your first shot has to land.', weight: 3 },
+  { text: 'Come to a full stop before your first shot, tapping the opposite key if it helps you stop faster, because bullets fired while you are still sliding spread away from the head.', weight: 2 },
   { text: 'Reposition immediately after a kill, repeeking the same pixel is how you hand the kill back.', weight: 3 },
-  { text: 'Only take fights with a trade partner in view, if nobody can trade your death, do not take the duel.', weight: 3 },
+  { text: 'Take first contact when a teammate is close enough to swing the moment you fight, and when nobody is, play for information or time instead, because a death nobody can punish is a free kill for them.', weight: 3 },
   { text: 'Jiggle peek for info with quick side taps, wide swing only when you intend to commit to the fight.', weight: 2 },
-  { text: 'Glance at the minimap every 5 seconds, most deaths were visible on the map before they happened.', weight: 3 },
+  { text: 'Glance at the minimap whenever you are safe and whenever a teammate dies or gets a kill, because the map shows where the enemy was last seen and where nobody has looked.', weight: 3 },
   { text: 'Count footsteps and call them, sound tells you enemy numbers before your eyes do.', weight: 1 },
   { text: 'Shift walk once you are within earshot of enemies, run only while your position is not useful information.', weight: 1 },
   { text: 'Play the range of your gun, a Spectre wants close angles, rifles want mid range, an Operator wants the longest sightline.', weight: 1 },
-  { text: 'Never look at the floor or a wall while moving, keep the crosshair working head height every step you take.', weight: 1 },
+  { text: 'Keep your crosshair at head height wherever you walk, and at a corner put it on the spot where the first head would show, because a crosshair that drifts low costs you a flick.', weight: 1 },
   { text: 'Isolate your duels, fight where only one enemy can see you, back off when two can shoot you at once.', weight: 2 },
   { text: 'Play your life when your gun matters, throwing away a rifle costs your team this round and the next.', weight: 1 },
   { text: 'Win the fights you choose, not the fights they offer, if a peek feels forced, back off and reset.', weight: 1 },
-  { situations: ['clutch'], text: 'In a clutch, isolate one duel at a time and use the spike timer to force them to come to you.', weight: 3 },
+  { situations: ['clutch'], text: 'In a clutch, isolate a duel at a time and play the timer for your side, because on defense before a plant they have to come to you while after a plant the defenders are the ones under the clock.', weight: 3 },
   { situations: ['clutch'], text: 'Solo means nobody can trade you, only take fights you choose, play the time, and make them walk into your crosshair.', weight: 3 },
   { situations: ['clutch'], text: 'In a 1vX play for information first, sound and the minimap tell you which duel is actually isolated.', weight: 2 },
   { text: 'Patterns repeat until punished, if they hit the same site twice in a row, expect it again and pre stack util there.', weight: 2 },
@@ -86,26 +86,26 @@ const PLAYBOOK = [
   { text: 'Call enemy positions in three words, place, number, action, "two B main pushing" wins rounds, essays lose them.', weight: 1 },
 
   // ── aim ─────────────────────────────────────────────────────────────────
-  { text: 'Burst 2 to 4 bullets at range and reset the spray, holding the trigger past 6 bullets is throwing bullets.', weight: 1 },
+  { text: 'Fire short bursts and stop to reset, because holding the trigger past the opening bullets sprays away from the head.', weight: 1 },
   { text: 'First bullet accuracy decides rifle duels, be standing fully still for the first shot, always.', weight: 2 },
-  { text: 'Aim at the head of the model, not the chest, one headshot beats four body shots in every economy.', weight: 2 },
-  { text: 'If you whiffed a fight, check your crosshair placement first, most whiffs start at the wrong height, not slow flicks.', weight: 1 },
+  { text: 'Aim at the head, not the chest, because one headshot ends a duel that would take several body shots.', weight: 2 },
+  { text: 'If you lost a fair fight, check whether you were still moving when you fired, then your crosshair height, then whether you sprayed or crouched, because slow flicks are rarely the cause.', weight: 1 },
   { text: 'Do not ADS a rifle in close fights, hip fire is faster and just as accurate up close.', weight: 1 },
   { text: 'Warm up before queueing, 10 minutes of deathmatch on counter strafe headshots beats an hour of mindless fragging.', weight: 1 },
 
   // ── movement and peeking ────────────────────────────────────────────────
-  { text: 'Wide swing when you know exactly where they are, shoulder peek when you do not, never half commit a peek.', weight: 2 },
+  { text: 'Jiggle to find out who is there, wide swing only when you know a single enemy is on the angle, and once a jiggle shows a body either commit or leave, because lingering half exposed is the easiest kill.', weight: 2 },
   { text: 'Peek with a plan, know your cover and your exit before you step out of safety.', weight: 1 },
   { text: 'Clear close corners before long angles, the close enemy kills you first.', weight: 2 },
   { text: 'Use peekers advantage, the swinger sees the holder first, so swing with intent instead of creeping into view.', weight: 1 },
-  { text: 'Do not panic crouch mid duel, it slows you into a free headshot, strafe instead.', weight: 1 },
+  { text: 'Do not crouch out of habit mid duel, because it slows your strafe and keeps a still head in front of them, crouch only as a deliberate trick.', weight: 1 },
   { text: 'Jump spot only for info you can call out, you cannot shoot accurately in the air.', weight: 1 },
   { text: 'Fall back through your util, a retreat covered by a smoke or flash is a reset, a naked retreat is a free kill for them.', weight: 1 },
   { text: 'Hold angles at different depths each round, close one round and far the next, never be standing where you died.', weight: 2 },
 
   // ── utility craft ───────────────────────────────────────────────────────
   { text: 'Use util to answer util, if they smoke your angle then reposition or molly the push, do not dry hold a smoke.', weight: 2 },
-  { text: 'Never die with full util, an unused ability is value thrown away for nothing.', weight: 2 },
+  { text: 'Do not die holding utility that would have won the fight, but never throw an ability without a reason, because a charge wasted on nothing is lost value too.', weight: 2 },
   { text: 'Throw util for a purpose you can name, info, space, delay, or a kill, never just because it is up.', weight: 2 },
   { text: 'Combo your utility, a flash into a swing, a stun into an entry, solo util is half value.', weight: 1 },
   { text: 'Respect enemy util timings, most teams burn util early in the round, play patient through it then take the space.', weight: 1 },
@@ -137,12 +137,12 @@ const PLAYBOOK = [
   { side: 'attack', text: 'Lurk with purpose, cut the rotation or catch the flank exactly when your team hits, not while they wait.', weight: 1 },
   { side: 'attack', text: 'Hit a split together, both prongs must swing within seconds of each other or each dies alone.', weight: 1 },
   { side: 'attack', text: 'Assign one player to watch the flank on every hit, a single defender walking in behind undoes the entire entry.', weight: 2 },
-  { side: 'attack', text: 'Start the execute with at least 25 seconds on the clock, hits that start later get cut apart by the timer and the retake.', weight: 1 },
-  { side: 'attack', text: 'When a teammate opens the site with a pick, hit NOW, a site is weakest in the three seconds after first blood.', weight: 2 },
+  { side: 'attack', text: 'Start the execute early enough that you can still plant and set up after it, because a hit that begins with almost no clock left has no time for the post plant while a very early one lets them rotate back.', weight: 1 },
+  { side: 'attack', text: 'When a teammate opens with a pick, hit right away only if your team is already in position with utility ready, because the site is weakest just after the first kill but an unready hit wastes it.', weight: 2 },
   { side: 'attack', text: 'If the call is fast, commit fast, slow rolling a rush hands the defense free seconds to reset.', weight: 1 },
   { side: 'attack', text: 'If first contact shows a stacked site, rotate early as five, do not force into a prepared defense.', weight: 1 },
-  { side: 'attack', phase: 'postplant', text: 'Plant for cover, then play off site with crossed angles on the spike, never stand on top of it.', weight: 3 },
-  { side: 'attack', phase: 'postplant', text: 'Hold the defuse from range with a molly or ability lined up, utility wins post plants without a duel.', weight: 3 },
+  { side: 'attack', phase: 'postplant', text: 'Plant for cover, then hold angles that watch the spike from different places and not on top of it, because players stacked on the plant die to a single flash.', weight: 3 },
+  { side: 'attack', phase: 'postplant', text: 'Hold the defuse from range with a molly or lineup when the numbers are even or better, because with fewer players alive utility alone will not stop the retake.', weight: 3 },
   { side: 'attack', phase: 'postplant', text: 'Numbers up in the post plant, play time, every second without a fight is a second won.', weight: 2 },
   { side: 'attack', phase: 'postplant', text: 'Spread out after the plant, two attackers holding the same angle die to a single flash.', weight: 2 },
   { side: 'attack', phase: 'postplant', text: 'Watch the flank in the post plant, retakes love to send one player around the back while the rest make noise.', weight: 2 },
@@ -167,7 +167,7 @@ const PLAYBOOK = [
   { side: 'defense', phase: 'postplant', situations: ['retake'], text: DEFUSE !== null && HALF_DEFUSE !== null
     ? `Play the defuse math, full defuse is ${DEFUSE} seconds and half is ${HALF_DEFUSE}, tap the half defuse to bait their peek.`
     : 'Play the defuse math, a defuse keeps its progress past the halfway mark, tap the half defuse to bait their peek.', weight: 2 },
-  { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Clear the common post plant spots before touching the spike, tapping into three crosshairs is a throw.', weight: 2 },
+  { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'On a retake clear the spots that can see the spike before you start the defuse, but use smokes and the half defuse so the clock does not beat you, because the spike area is where you cannot shoot back.', weight: 2 },
   { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Use the spike audio, the fast beeps mean commit now, before that you still have time to clear properly.', weight: 1 },
   { side: 'defense', phase: 'postplant', text: 'If the retake is not winnable, save your gun and util, winning the next two rounds beats a hero attempt.', weight: 2 },
 
@@ -187,7 +187,7 @@ const PLAYBOOK = [
   { situations: ['deathstreak'], text: 'Dying first means you are taking first contact alone, wait for a teammate in trade range before you peek.', weight: 3 },
   { situations: ['deathstreak'], text: 'Reset the tilt, play one simple round with your team, no hero plays, just trades and discipline.', weight: 2 },
   { situations: ['deathstreak'], text: 'Change WHO you play off of, shadow the teammate who is winning fights and trade for them.', weight: 2 },
-  { situations: ['winstreak'], text: 'Keep the same pace on a win streak, streaks end on overconfident dry peeks, stay disciplined.', weight: 2 },
+  { situations: ['winstreak'], text: 'Stay disciplined on a win streak, because streaks end on overconfident dry peeks, and still change your tempo from round to round.', weight: 2 },
   { situations: ['winstreak'], text: 'A losing team forces or rushes out of impatience, hold your discipline and punish the desperation.', weight: 1 },
   { text: 'Mistakes are data, name what killed you in one sentence, fix that one thing next round, then move on.', weight: 1 },
   { text: 'Do not relive the last round during this round, reviewing one mid fight is how you lose two.', weight: 1 },
@@ -266,22 +266,21 @@ const PLAYBOOK = [
   { agents: ['Neon'], text: 'Use your wall to cut the site in half on entry, enemies behind it cannot trade the first fight.', weight: 1 },
   { agents: ['Yoru'], text: 'Place your teleport before the fight so every aggressive peek has an exit.', weight: 2 },
   { agents: ['Yoru'], text: 'Bounce the flash off a wall so it pops behind the angle, then swing the blind, not before it.', weight: 1 },
-  { agents: ['Iso'], text: 'Take your shield before every planned duel, one absorbed bullet decides rifle fights.', weight: 2 },
+  { agents: ['Iso'], text: 'Take Double Tap before a planned duel and shoot the orb after each kill, because the shield absorbs a hit and the orb gives you another.', weight: 2 },
   { agents: ['Iso'], text: 'Isolate one enemy at a time, your kit rewards clean 1v1s, not spray downs into a crowd.', weight: 1 },
   { agents: ['Waylay'], text: 'Set your beacon before taking the aggressive angle, Refract is a free exit from any peek.', weight: 2 },
   { agents: ['Waylay'], text: 'Your dashes take space fast, but land behind cover, speed into open ground is a fast death.', weight: 1 },
   { agents: ['Sova'], text: 'Learn one recon lineup per site and fire it before every hit, your team should never enter blind.', weight: 2 },
   { agents: ['Sova'], text: 'Walk your duelist in with the drone, tag the holder and let them swing on the dart.', weight: 1 },
   { agents: ['Sova'], text: 'Shock darts finish low enemies hiding behind cover, learn the basic two bounces before fancy lineups.', weight: 1 },
-  { agents: ['Breach'], text: 'Flash through the wall for your team swing, your util needs no exposure, so lead every fight with it.', weight: 2 },
+  { agents: ['Breach'], text: 'Flashpoint blinds your own team too, so count your swinger in and throw it through the wall ahead of them, not across their path.', weight: 2 },
   { agents: ['Breach'], text: 'Stun the push as it commits, a stunned rush walking into your crossfire is a free round.', weight: 1 },
   { agents: ['Skye'], text: 'Run the flash for your entry and call the pop, a bird nobody swings on is wasted.', weight: 2 },
   { agents: ['Skye'], text: 'Send the dog into the corner your team fears most just before they walk in.', weight: 1 },
   { agents: ['KAY/O'], text: 'Pop the knife before the hit, suppressed defenders cannot flash, trip, or smoke your entry.', weight: 2 },
   { agents: ['KAY/O'], text: 'Throw the flash high and short so it pops right on their screen, then swing instantly with your team.', weight: 1 },
   { agents: ['Fade'], text: 'Haunt the site before entry, a revealed defender is half dead, and send the prowler at whoever it marks.', weight: 2 },
-  { agents: ['Fade'], text: 'Seize the anchor spot, a held enemy cannot escape the trade.', weight: 1 },
-  { agents: ['Gekko'], text: 'Wingman can plant and defuse, send it for the plant while you hold the angle, it flips post plants.', weight: 2 },
+  { agents: ['Fade'], text: 'Seize the corner a defender is holding just before your team swings, so the tethered, deafened, and decayed holder cannot reposition or hear the swing.', weight: 1 },
   { agents: ['Gekko'], text: 'Dizzy pops fast, throw it just before your team swings, then pick the blinded holder.', weight: 1 },
   { agents: ['Tejo'], text: 'Save the guided missiles for locked setups and post plants, they force players off positions without a peek.', weight: 2 },
   { agents: ['Tejo'], text: 'Fly the drone for quiet info before the hit, walking in blind wastes your kit.', weight: 1 },
@@ -294,10 +293,10 @@ const PLAYBOOK = [
   { agents: ['Viper'], text: 'One wall set at the barrier can cut the whole site, place it early and manage fuel through the round.', weight: 1 },
   { agents: ['Astra'], text: 'Set your stars during the buy phase for where fights will happen, repositioning mid fight takes you out of the game.', weight: 2 },
   { agents: ['Astra'], text: 'Gravity well the off angle or retake corner, it drags them into your team crosshairs.', weight: 1 },
-  { agents: ['Harbor'], text: 'Cove blocks bullets, plant inside it or reset a broken fight behind it.', weight: 2 },
+  { agents: ['Harbor'], text: 'Reactivate Cove into a shield before you plant or defuse inside it, because the smoke alone hides you but does not stop bullets.', weight: 2 },
   { agents: ['Harbor'], text: 'Ride High Tide with your team, a wall nobody follows is just noise.', weight: 1 },
-  { agents: ['Clove'], text: 'You can smoke even while dead, keep smoking for your team every fight, that is your value.', weight: 2 },
-  { agents: ['Clove'], text: 'Pick Me Up after a kill buys the tempo for the next fight, chain duels while it lasts.', weight: 1 },
+  { agents: ['Clove'], text: 'Smoke with Ruse while dead only for the fight that is about to happen, because your smoke from the grave is brief and limited.', weight: 2 },
+  { agents: ['Clove'], text: 'Pick Me Up off an enemy you damaged buys a little speed and health for the next fight, use it to take the trade, not to sprint into a new angle.', weight: 1 },
   { agents: ['Clove'], text: 'Ruse smokes travel from anywhere, smoke for lurkers and retakes across the map, not only your own fights.', weight: 1 },
   { agents: ['Sage'], text: 'Wall to slow the push or split the site in half, and save resurrection for a player in a winning position.', weight: 2 },
   { agents: ['Sage'], text: 'Slow orb the choke as they commit, a slowed rush dies to any crossfire.', weight: 1 },
@@ -350,18 +349,17 @@ const PLAYBOOK = [
   { side: 'attack', phase: 'active', text: 'Do not execute before your team is set, a site hit with two players in position and three still walking is five separate duels.', weight: 3 },
   { side: 'attack', text: 'Fast, default and slow are three different plans, pick one as a team, a half fast hit is the worst of all of them.', weight: 2 },
   { side: 'attack', text: 'A fake only works if it costs them something, show yourself and burn one piece of util, then leave before you trade lives for the lie.', weight: 2 },
-  { side: 'attack', text: 'Hit the site with 25 to 20 seconds left, earlier gives them time to rotate back, later leaves no time to plant and set up.', weight: 2 },
   { text: 'Tempo is a weapon, if you lost the last two rounds slow, the fast hit catches a defense that has settled into holding deep.', weight: 2 },
-  { side: 'defense', text: 'Defense wins by delay, not by kills, every second you cost them without dying is a second closer to the timer beating them.', weight: 3 },
+  { side: 'defense', text: 'Defense wins by delay, but take a safe pick when it is there, because every second you cost them is closer to the timer and a man advantage makes the retake easier.', weight: 3 },
   { side: 'defense', text: 'Give ground for free only where it costs them time, fight where you have a crossfire and fall back where you do not.', weight: 2 },
   { text: 'The round clock is a resource, at 20 seconds attackers must commit and defenders can stop guessing, play the clock deliberately.', weight: 2 },
   { text: 'When your team has the man advantage, slow the round down, time is on your side and every trade favours you.', weight: 2 },
-  { text: 'When you are down a player, speed up or fully save, a slow round a man short just gives them time to close the trap.', weight: 2 },
+  { text: 'When you are a player down on defense, delay with utility and fall back to a group retake instead of gambling, because fewer players need trades and not speed.', weight: 2 },
 
   // ── economy as a system ─────────────────────────────────────────────────
   // Kept qualitative on purpose: exact credit prices shift between patches, so
   // these teach the decision rather than a number that can quietly go stale.
-  { situations: ['eco'], text: 'On a real eco, buy nothing and stack for one site, five pistols in one place beat five spread out with nothing.', weight: 3 },
+  { situations: ['eco'], text: 'On a real eco, buy only what a kill will pay back and stay together in one place, because a team grouped around a single trade beats a team spread out with nothing.', weight: 3 },
   { situations: ['eco'], text: 'The point of an eco is the round AFTER it, dying with a bought pistol you did not need is how ecos cost two rounds.', weight: 2 },
   { situations: ['eco'], text: 'Play for a gun on eco, take close angles where a pistol trades evenly with a rifle, never duel a rifle across open ground.', weight: 2 },
   { situations: ['forcebuy'], text: 'A force buy needs a plan, commit everyone to one push, a scattered force is just a slower eco.', weight: 2 },
@@ -370,26 +368,26 @@ const PLAYBOOK = [
   { situations: ['antieco'], text: 'Do not over push an eco, stay grouped at distance, the free round is lost by walking into a shotgun corner alone.', weight: 2 },
   { situations: ['fullbuy'], text: 'On a full buy your life IS the round, a rifle traded for nothing hands them the next round too.', weight: 2 },
   { situations: ['pistol'], text: 'Pistol rounds are decided by numbers and armour, stay together and let the first contact be traded instantly.', weight: 2 },
-  { situations: ['lostpistol'], text: 'After a lost pistol, either full save or full commit, the half buy that follows is what turns one lost round into four.', weight: 2 },
+  { situations: ['lostpistol'], text: 'After a lost pistol, save by default and force only with a plant, kills or the score behind it, and then do it as a team, because a half hearted buy is what turns one lost round into several.', weight: 2 },
   { text: 'Track their economy, not just yours, a team that just lost two rounds cannot afford rifles and shields, so play the angles their guns are bad at.', weight: 2 },
   { text: 'Picking up an enemy rifle is worth more than most kills, it buys your next round as well as this one.', weight: 1 },
   { text: 'Drop for a teammate before buying your own third utility, one more rifle in the round beats one more ability.', weight: 1 },
 
   // ── mid round adaptation ────────────────────────────────────────────────
   { phase: 'active', text: 'When the first contact goes badly, stop the execute, reset and take the space back with util rather than feeding one at a time.', weight: 3 },
-  { phase: 'active', text: 'If two enemies show on one side, the other side is thin, call the rotate immediately instead of finishing the fight you are losing.', weight: 3 },
+  { phase: 'active', text: 'If much of their team and their utility show on one side, call the rotate, but a couple of sightings is not proof the other side is thin, because it may be pressure meant to pull you.', weight: 3 },
   { phase: 'active', text: 'A round with no contact by mid clock means they are stacked or lurking, stop walking blind and force contact with util.', weight: 2 },
   { phase: 'active', text: 'Adapt to what you find, not to what you planned, the best players change site the moment the read says to.', weight: 2 },
   { side: 'defense', phase: 'active', text: 'Do not rotate off one enemy sighting, one body can be the fake, rotate on committed contact or on the spike.', weight: 3 },
-  { side: 'defense', phase: 'active', text: 'Rotate early or not at all, arriving to a site halfway through the fight is just a free kill for them.', weight: 2 },
+  { side: 'defense', phase: 'active', text: 'Rotate early or change to a retake plan, because arriving in the middle of the fight is just a free kill for them.', weight: 2 },
   { text: 'Lurking is only useful if it threatens something, sit where a rotation must walk past you, not in an empty corner.', weight: 2 },
   { text: 'Play off your teammates fights, when you hear their contact, that is the moment their attention is elsewhere, take your space then.', weight: 2 },
 
   // ── post plant and retake geometry ──────────────────────────────────────
-  { phase: 'postplant', text: 'After the plant the round is already yours, do not hunt, hold angles that force them to come to you.', weight: 3 },
+  { phase: 'postplant', text: 'After the plant, time is on your side, so hold angles that make them come to you, and take a pick only when it keeps the numbers even, because the round is not won until the spike explodes.', weight: 3 },
   { phase: 'postplant', text: 'Spread out post plant, two players in one spot die to one piece of util, spread means they have to win several fights.', weight: 3 },
   { phase: 'postplant', text: 'Hold different distances from the spike post plant, one close to punish the defuse, one far to catch the entry.', weight: 2 },
-  { phase: 'postplant', text: 'Watch the defuse bar, half a defuse means they will finish it, so peek on the tick not before, and let the timer do the work.', weight: 2 },
+  { phase: 'postplant', text: 'Watch the defuse for the halfway checkpoint, because a defender who reaches it usually steps off to meet your peek, so keep your crosshair on that exit and let the timer help you.', weight: 2 },
   { phase: 'postplant', text: 'Never all peek the same angle post plant, stagger your peeks so a lost duel does not lose the round.', weight: 2 },
   { phase: 'postplant', text: 'A fake defuse pulls a peek, tap the spike once and hold the angle they show themselves in.', weight: 2 },
   { situations: ['retake'], text: 'Retake together on a count, arriving one at a time is how a 4v2 retake gets lost.', weight: 3 },
@@ -397,7 +395,7 @@ const PLAYBOOK = [
   { situations: ['retake'], text: 'Use util to isolate the defuse, a smoke over the spike or a molly on the far angle buys the seconds a retake needs.', weight: 2 },
   { situations: ['retake'], text: 'On a retake, check the common post plant spots first, players hide in the same three places every round.', weight: 2 },
   { side: 'attack', phase: 'postplant', text: 'Plant for your setup, not for speed, a plant your team can actually hold beats a fast plant in the open.', weight: 3 },
-  { side: 'attack', phase: 'postplant', text: 'Plant where the spike is hidden from the retake entrance, a defuse they cannot see is a defuse they cannot start safely.', weight: 2 },
+  { side: 'attack', phase: 'postplant', text: 'Plant out of long sightlines but where your team can see the spike from the lanes they hold, because defenders then have to walk into your crosshairs to defuse.', weight: 2 },
 
   // ── crossfires and site holds ───────────────────────────────────────────
   { side: 'defense', text: 'A crossfire means two angles the enemy cannot watch at once, if you can both see the same door from the same side, it is not a crossfire.', weight: 3 },
@@ -443,12 +441,10 @@ const PLAYBOOK = [
   { agents: ['Raze'], text: 'Blast pack moves you as well as damages, use one to enter fast and keep the second as your way out.', weight: 2 },
   { agents: ['Reyna'], text: 'Reyna only snowballs off kills, so pick fights you can win cleanly, and use dismiss the instant a fight turns.', weight: 2 },
   { agents: ['Reyna'], text: 'Leer is a self flash for the swing behind it, throw it and move, standing still behind your own leer wastes it.', weight: 2 },
-  { agents: ['Phoenix'], text: 'Curveball around the corner you intend to take, then swing with it, a flash nobody follows is a wasted ability.', weight: 2 },
   { agents: ['Neon'], text: 'Fast lane cuts sightlines for a whole entry, run it into site rather than using it to cross empty ground.', weight: 2 },
   { agents: ['Sova'], text: 'Recon bolt is worth more before the fight than during it, scan the site before you commit, not after you are already in it.', weight: 2 },
   { agents: ['Sova'], text: 'Owl drone tags enemies for your whole team, send it into the space you are about to take, not into space you already own.', weight: 1 },
   { agents: ['Fade'], text: 'Haunt reveals before the execute, use it to pick the site rather than to confirm what you already committed to.', weight: 2 },
-  { agents: ['Breach'], text: 'Flashpoint through the wall is unavoidable, but only if your team swings with it, count them in before you throw.', weight: 2 },
   { agents: ['Skye'], text: 'Guiding light is a flash you can steer, hold it until your entry is moving, then pop it right on their angle.', weight: 2 },
   { agents: ['KAY/O'], text: 'Zero point suppression stops abilities, throw it into the site right before the hit so their util cannot answer yours.', weight: 2 },
   { agents: ['Omen'], text: 'Dark cover one ways and blinds are the real value, paranoia through a wall before an entry beats any fancy teleport.', weight: 2 },
@@ -463,7 +459,6 @@ const PLAYBOOK = [
   { agents: ['Cypher'], text: 'Spycam is a second pair of eyes for the whole team, place it where you are not looking and call what it sees.', weight: 1 },
   { agents: ['Sage'], text: 'Barrier orb buys time and space, wall the choke to delay the hit rather than walling yourself into a corner.', weight: 2 },
   { agents: ['Sage'], text: 'Slow orb into the site stops a fast execute dead, throw it as they enter rather than saving it for a fight you already lost.', weight: 2 },
-  { agents: ['Chamber'], text: 'Rendezvous is your escape, hold the aggressive angle only while the anchor is placed and in range.', weight: 2 },
   { agents: ['Deadlock'], text: 'Barrier mesh and gravnet buy time on a retake, place them to slow the plant rather than to win a duel.', weight: 1 },
   { agents: ['Gekko'], text: 'Wingman can plant and defuse the spike, use it when the angle onto the spike is too dangerous to take yourself.', weight: 2 },
   { agents: ['Yoru'], text: 'Fakeout sells a fake push, run it in without you and take the space they leave when they rotate to answer it.', weight: 2 },
@@ -566,7 +561,14 @@ function situationOf(ctx) {
   const map    = typeof ctx.map === 'string' && ctx.map ? ctx.map.toLowerCase() : null;
   const weapon = typeof ctx.playerWeapon === 'string' && ctx.playerWeapon ? ctx.playerWeapon.toLowerCase() : null;
 
-  return { phase, side: sideKey, flags, agent, role, map, weapon };
+  // THE CAUSE OF A DEATH THE COACH LOOKED AT (8.7). A note tagged `cause` is
+  // the fix for one labelled kind of death (death-forensics.js CAUSES), so it
+  // is served only when the context carries that cause: `cause` is one label
+  // (Ask Coach's asked round), `causes` the labels a review counted.
+  const causes = new Set();
+  for (const c of [].concat(ctx.cause || [], ctx.causes || [])) if (typeof c === 'string' && c) causes.add(c);
+
+  return { phase, side: sideKey, flags, agent, role, map, weapon, causes };
 }
 
 /**
@@ -623,6 +625,7 @@ function retrieve(ctx, limit = 8, opts = {}) {
     if (note.maps   && (!s.map   || !note.maps.some((m) => m.toLowerCase() === s.map))) continue;
     if (note.weapons && (!s.weapon || !note.weapons.some((w) => s.weapon.includes(w)))) continue;
     if (note.situations && !note.situations.some((f) => s.flags.has(f))) continue;
+    if (note.cause && !note.cause.some((c) => s.causes.has(c))) continue;
 
     // Score: specificity of the match, plus base weight, plus a tiny jitter so
     // near ties rotate between requests instead of always serving one order.
@@ -634,6 +637,8 @@ function retrieve(ctx, limit = 8, opts = {}) {
     if (note.side)    score += 2;
     if (note.phase)   score += 2;
     if (note.roles)   score += 2;
+    // A note that answers the death being discussed outranks general advice.
+    if (note.cause)   score += 5;
     score += Math.random() * 0.8;
 
     scored.push({ text: note.text, score, advanced: note.tier === 'advanced' });

@@ -89,6 +89,8 @@ const VALID = {
   // comes to look like a typo.
   situations: new Set(['pistol', 'eco', 'forcebuy', 'fullbuy', 'antieco', 'lostpistol',
     'deathstreak', 'winstreak', 'retake', 'early', 'clutch']),
+  // The labels of death-forensics.js CAUSES that a note can answer (8.7).
+  cause: new Set(['dry-peek', 'isolated', 'repeek', 'crossfire', 'rotating', 'overextend', 'exposed', 'lost-duel']),
 };
 
 const problems = [];
@@ -259,12 +261,17 @@ for (const note of notes) {
       fail(note, `situation "${s}" is never produced by situationOf, so this note is unreachable`);
     }
   }
+  for (const c of (note.cause || [])) {
+    if (!VALID.cause.has(c)) {
+      fail(note, `cause "${c}" is not a death label the coach gives (death-forensics.js CAUSES), so this note is unreachable`);
+    }
+  }
   for (const r of (note.roles || [])) {
     if (!VALID.roles.has(r)) {
       fail(note, `role "${r}" is not a Valorant role, so this note is unreachable`);
     }
   }
-  for (const key of ['agents', 'maps', 'situations', 'roles', 'weapons']) {
+  for (const key of ['agents', 'maps', 'situations', 'roles', 'weapons', 'cause']) {
     if (note[key] !== undefined && !Array.isArray(note[key])) {
       fail(note, `${key} must be an array, got ${typeof note[key]}`);
     } else if (Array.isArray(note[key]) && !note[key].length) {

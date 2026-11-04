@@ -359,6 +359,9 @@ const GROUNDING = 'GROUNDING RULES. The ledger was built by reading the screen a
   + 'In the SUMMARY write no counts or fractions such as 6 of 12 except the first counted mistake\'s own count, '
   + 'exactly as given; the computed patterns show every other number beside it. The final score and round numbers are fine. '
   + 'Write round numbers as digits and never list more than four of them in one sentence. '
+  + 'Start from the player\'s own choice: never blame teammates, luck, the enemy\'s aim, the lobby or the map, and never '
+  + 'tell the player they were unlucky. When a death was a traded entry, a fair fight or a sound take, say so plainly '
+  + 'instead of inventing a mistake. '
   + 'Only name places that appear in the ledger. Do not use dashes. No markdown, no lists, no bold.';
 
 /** The old review, kept as variant A so the bench has a baseline. */
@@ -396,13 +399,24 @@ function promptRounds(input, withKnowledge) {
     const seen = new Set();
     const add = (t) => { if (t && !seen.has(t)) { seen.add(t); notes.push(t); } };
     for (const n of study(input, 4)) add(n.text);
-    for (const t of knowledge.retrieve({ agent: context.agent, map: context.map }, 6,
+    // The causes of the deaths the coach looked at (8.5.0 clients and later,
+    // the same gate as study()): notes tagged for a cause are served by it.
+    const causes = [];
+    if (input.byCause === true) {
+      for (const m of input.mistakes || []) {
+        const c = /^cause:(.+)$/.exec(String((m && m.key) || ''));
+        if (c) causes.push(c[1]);
+      }
+      for (const r of rounds || []) if (r && r.cause) causes.push(r.cause);
+    }
+    for (const t of knowledge.retrieve({ agent: context.agent, map: context.map, causes }, 6,
       { advanced: context.advancedTips })) add(t);
     if (notes.length) {
       // Never where it comes from: the review speaks these notes in its own
       // voice and names no coach, player, team or video behind them.
       knowledgeBlock = '\n\nCOACHING KNOWLEDGE (verified habits). Use one to explain WHY a round went wrong '
-        + 'only when that round\'s facts actually match it. Never quote it word for word, and never say where '
+        + 'only when that round\'s facts actually match it, and prefer the one that answers the first counted mistake. '
+        + 'Put it in the player\'s own situation and give its reason in your own words. Never quote it word for word, and never say where '
         + 'it comes from: no coach, player, team or video is ever named as its source:\n'
         + notes.slice(0, 8).map((t) => '- ' + t).join('\n');
     }
@@ -431,18 +445,25 @@ function promptRounds(input, withKnowledge) {
     + 'SUMMARY: three sentences on one line, under 70 words. First, starting with You won or You lost and the score '
     + 'if the score says so, what decided it for the player, drawn from the counted mistakes, the strengths and the patterns. '
     + 'Second, the first counted mistake in your own words, with its count exactly as given and up to four of its '
-    + 'rounds; if no mistake was counted, what cost the most rounds by the round facts, never called a repeated '
-    + 'mistake. Third, what went right, from the counted strengths if there are any, otherwise from the round facts.\n'
+    + 'rounds, and in a few words why it cost them (nobody could trade it, the team was ahead, the clock); if no '
+    + 'mistake was counted, what cost the most rounds by the round facts, never called a repeated '
+    + 'mistake. Name no second mistake. Third, what went right, from the counted strengths if there are any, otherwise '
+    + 'from the round facts, as a habit worth repeating and why it works, never as a scoreboard number.\n'
     + (picks.length
       ? `Then one round line for each of these rounds, in this order: ${picks.map((n) => 'R' + n).join(', ')}.\n`
-        + 'R<number>: one sentence, at most 30 words, on what to do differently next time in that round, with the one fact '
-        + 'that makes it the lesson (the numbers standing when you died, that nobody could trade you, the plant). The player '
+        + 'R<number>: one sentence, at most 30 words, written as when this happens, do that, because of the one fact '
+        + 'that makes it the lesson (the numbers standing when you died, that nobody could trade you, the plant). Teach the '
+        + 'choice the player could make with what they could see at that moment, never what only the replay shows. Explain '
+        + 'a death by the situation, the timing, the numbers or the trade first, and blame aim, reflexes or luck only where '
+        + 'the coach\'s look called the fight fair and lost on the shot. The player '
         + 'sees that round\'s facts right beside your line, so never restate them: no killer, weapon, seconds or place '
         + 'unless the lesson needs that one. What was seen in play is the last the screen showed of the player before the '
         + 'death; use it only where it agrees with the facts. If the facts give you no lesson, leave that round out.\n'
       : 'Write no round lines: no round was lost to a death.\n')
-    + 'FOCUS: one concrete habit for the next match that fixes the first counted mistake, something a player can do '
-    + 'in a round. Being traded means a teammate killed your killer within five seconds, which is good: never call it '
+    + 'FOCUS: one concrete habit for the next match that fixes the first counted mistake, written as the moment to '
+    + 'notice and the move to make (when you are about to swing, do this first), something a player can do in a round '
+    + 'and see in their next review. One habit only, never two joined by and. Never a prohibition on its own (do not '
+    + 'over peek) and never an attitude (be patient, stay aware, play smarter): say what to do instead. Being traded means a teammate killed your killer within five seconds, which is good: never call it '
     + 'the problem.\n\n'
     + GROUNDING
     + languageRule(context.language);
