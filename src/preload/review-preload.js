@@ -58,5 +58,10 @@ contextBridge.exposeInMainWorld('occlara', {
   // so the log opens at that moment of the match (8.2).
   openAiLog:   (id, at) => (typeof at === 'number' && Number.isFinite(at)
     ? ipcRenderer.send(C.REVIEW_AILOG, id, at) : ipcRenderer.send(C.REVIEW_AILOG, id)),
+  // The locked review's upgrade card (8.7): the account's view for its lines
+  // (usage.js capState), and its two ways on, opened by main.
+  getAccount:  () => ipcRenderer.invoke(C.ACCOUNT_GET),
+  openUpgrade: () => ipcRenderer.send(C.OPEN_UPGRADE),
+  openInvite:  () => ipcRenderer.send(C.SHELL_NAV, 'invite'),
   close:     () => window.close(),
 });

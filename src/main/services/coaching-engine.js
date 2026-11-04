@@ -100,6 +100,7 @@ class CoachingEngine extends EventEmitter {
     this.warnedFailure    = false; // one-time server "why no AI tips" notice
     this.failStreak       = 0;     // consecutive analyze failures (1 is a hiccup, 2+ is real)
     this.aiCreditsOutAt   = 0;     // when the AI last reported out of credits (402), 0 = fine
+    this.capped           = null;  // { at } the account had no games left (402 cap), null = reading (8.7)
     this.warnedCapture    = false; // one-time capture-failure notice
     this.lastAuthSuspect  = 0;     // throttle for 401/403 -> license re-check
 
@@ -168,6 +169,7 @@ class CoachingEngine extends EventEmitter {
     this.readErrors = 0;
     this.lastSendAt = 0;
     this.rateLimitedAt = 0;
+    this.capped = null;
     this.captureTimes = [];
     this.readCadence.reset();
     this.skipped = {};
@@ -463,6 +465,9 @@ class CoachingEngine extends EventEmitter {
         language: this.experiments().language || 'en' },
       startedAt: this.matchStartedAt,
       endedAt: Date.now(),
+      // The account had no games left as the match ended (8.7): its review is
+      // saved locked, and nothing is asked of the model for it.
+      ...(this.capped ? { capped: true } : {}),
     };
   }
 
@@ -648,6 +653,9 @@ class CoachingEngine extends EventEmitter {
   tick() {
     if (!this.isRunning || this.paused || this.isCapturing) return;
     if (this.aiCreditsOutAt && Date.now() - this.aiCreditsOutAt < AI_CREDITS_BACKOFF_MS) return;
+    // No games left (callServer): one read every CAP_PROBE_MS asks whether
+    // there are again, answered by the server without a model call.
+    if (this.capped && Date.now() - this.capped.at < CAP_PROBE_MS) return;
     if (this.rateLimitedAt && Date.now() - this.rateLimitedAt < RATE_LIMIT_PAUSE_MS) return;
     if (this.inFlight >= this.inFlightLimit()) return;
     const now = Date.now();
@@ -742,9 +750,11 @@ class CoachingEngine extends EventEmitter {
       this.warnedCapture = false;
 
       const at = Date.now();
-      const { data, status } = await this.callServer(API.READ, { image: shot, context: this.readContext() },
+      const { data, status, capped } = await this.callServer(API.READ, { image: shot, context: this.readContext() },
         { timeoutMs: READ_TIMEOUT_MS });
       if (this.shouldAbort) return;
+      // No games left: nothing is said and nothing counts as a failure.
+      if (capped) return;
       if (!data) {
         this.onReadFailed();
         // A 429 has a rule of its own. Counted as failed reads too, three
@@ -1224,6 +1234,16 @@ class CoachingEngine extends EventEmitter {
       const { ok, status, data } = await api.post(path, body, this.licenseKey, opts.timeoutMs || 30000, headers);
       this.lastServerStatus = status;
       if (!ok) {
+        // THE ACCOUNT HAS NO GAMES LEFT (8.7): 402 { error: 'cap' }, answered
+        // before any model call. Silent, as everything mid match is: no
+        // notice, no failed read counted, and the reads stop for this match
+        // (capped, tick()) while the recording goes on. The review it ends
+        // with is saved locked (matchSnapshot, index.js).
+        if (status === 402 && data && data.error === 'cap') {
+          if (!this.capped) console.log('[engine] the account has no games left: reads stop for this match');
+          this.capped = { at: Date.now() };
+          return { data: null, status, capped: true };
+        }
         // 402 = the AI account is out of credits. Not transient, so record it
         // and let the loop idle instead of retrying every few seconds.
         if (status === 402) {
@@ -1235,6 +1255,12 @@ class CoachingEngine extends EventEmitter {
         return { data: null, status };
       }
       this.aiCreditsOutAt = 0;   // a success proves credits are back
+      // A read the server took again: the account has games once more (an
+      // upgrade, a new month), and the server counted this match.
+      if (path === API.READ && this.capped) {
+        console.log('[engine] the account has games again: reading resumes');
+        this.capped = null;
+      }
       return { data, status };
     } catch (e) {
       this.lastServerStatus = 0; // network/unreachable
@@ -2571,6 +2597,11 @@ class CoachingEngine extends EventEmitter {
     // or pointed its death frames at the next session's empty log.
     this.emit('match-ended', snap);
     let data = null;
+    // A locked review (8.7) is written by nobody: no game was counted for it.
+    if (snap.capped) {
+      if (!snap.voided) this.emit('match-review', null, { ...snap, ai: null });
+      return;
+    }
     try {
       const body = valorantReview.requestBody(snap);
       body.context = { ...body.context, proPlaybook: snap.context.proPlaybook };
@@ -2578,7 +2609,9 @@ class CoachingEngine extends EventEmitter {
       // writes up to ten round explanations, and the player is in a menu.
       const res = await api.post(API.MATCH_REVIEW, body, this.licenseKey, 60000);
       data = res && res.ok ? res.data : null;
-      if (!data) console.error('[engine] match-review status', res && res.status);
+      // Refused for the cap (8.7): the review is saved locked.
+      if (res && res.status === 402 && res.data && res.data.error === 'cap') snap.capped = true;
+      else if (!data) console.error('[engine] match-review status', res && res.status);
     } catch (e) {
       console.error('[engine] match-review error:', e.message);
     }
@@ -2724,6 +2757,8 @@ const SWAP_READS = 4;
 // credits. Long enough that an outage costs almost nothing, short enough that
 // topping up resumes coaching on its own without a restart.
 const AI_CREDITS_BACKOFF_MS = 3 * 60 * 1000;
+// With no games left, how often one read asks whether there are again (8.7).
+const CAP_PROBE_MS = 5 * 60 * 1000;
 
 // How long sending stops after the server's read limiter answers 429. The
 // limiter counts reads a minute per licence, and the cadence steps down once

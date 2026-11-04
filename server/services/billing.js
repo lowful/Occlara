@@ -168,8 +168,80 @@ function dbError(error) {
   return `${(error && error.code) || 'no code'} ${(error && error.message) || String(error)}`;
 }
 
+/*
+ * ── TIERS (8.7): what a purchase entitles, read from the price ──────────────
+ *
+ * A licence key keeps the plan an 8.6 client understands (weekly, monthly,
+ * yearly, lifetime, and now free): its usable() is shipped and cannot change,
+ * so a key is never minted with plan 'pro' or 'max'. The TIER lives on the
+ * account (the entitlements table) and is read from the Stripe price's
+ * lookup_key, occlara_{pro,max}_{monthly,yearly}. A price without one is an
+ * old price, and the payer rules say what it becomes:
+ *
+ *   weekly, monthly  Pro, at the price they pay, until they cancel.
+ *   yearly           Max until its renewal, then Pro yearly (renew_as
+ *                    'pro_yearly' says so until it renews).
+ *   lifetime         Max for life.
+ *
+ * The cap is per month on every paid tier, yearly included.
+ */
+const TIER_CAP = Object.freeze({ pro: 25, max: 70 });
+const LOOKUP_KEY = /^occlara_(pro|max)_(monthly|yearly)$/;
+const INTERVAL_PLAN = Object.freeze({ week: 'weekly', month: 'monthly', year: 'yearly' });
+
+/*
+ * THE ACCOUNTS TABLES MAY NOT EXIST YET. The site's migration adds them and the
+ * owner applies it; until then every query of them is refused as a relation
+ * PostgREST does not know (PGRST205, or 42P01 from Postgres itself), and the
+ * SQL functions as unknown (PGRST202, or 42883). Any of those means "accounts
+ * not live": the licence is handled exactly as before and the account is left.
+ */
+const ACCOUNTS_MISSING = new Set(['42P01', 'PGRST205', 'PGRST202', '42883']);
+function accountsMissing(error) {
+  return !!(error && ACCOUNTS_MISSING.has(error.code));
+}
+
+/**
+ * What an old plan entitles, by the payer rules (above), or null for a plan
+ * that is none of them. `renewal` says a yearly is being renewed, which is
+ * where it moves from Max to Pro.
+ */
+function tierOfPlan(plan, { renewal = false } = {}) {
+  if (plan === 'weekly') return { tier: 'pro', cap: TIER_CAP.pro, source: 'legacy_weekly', plan, renewAs: null };
+  if (plan === 'monthly') return { tier: 'pro', cap: TIER_CAP.pro, source: 'legacy_monthly', plan, renewAs: null };
+  if (plan === 'yearly') {
+    return renewal
+      ? { tier: 'pro', cap: TIER_CAP.pro, source: 'legacy_yearly', plan, renewAs: null }
+      : { tier: 'max', cap: TIER_CAP.max, source: 'legacy_yearly', plan, renewAs: 'pro_yearly' };
+  }
+  if (plan === 'lifetime') return { tier: 'max', cap: TIER_CAP.max, source: 'legacy_lifetime', plan, renewAs: null };
+  return null;
+}
+
+/**
+ * What a Stripe price entitles: its lookup_key when it is one of Occlara's
+ * tiers (source 'stripe', the licence plan monthly or yearly), else the old
+ * plan its interval names (a price with no recurring interval is a one-time
+ * charge, the old lifetime). Null when there is no price to read.
+ */
+function tierOfPrice(price, { renewal = false } = {}) {
+  if (!price || typeof price !== 'object') return null;
+  const m = LOOKUP_KEY.exec(String(price.lookup_key || ''));
+  if (m) return { tier: m[1], cap: TIER_CAP[m[1]], source: 'stripe', plan: m[2], renewAs: null };
+  const interval = price.recurring && price.recurring.interval;
+  if (interval) return tierOfPlan(INTERVAL_PLAN[interval] || null, { renewal });
+  return tierOfPlan('lifetime');
+}
+
+/** The price a subscription bills: its first item's (Occlara's have one). */
+function priceOfSubscription(sub) {
+  const item = sub && sub.items && sub.items.data && sub.items.data[0];
+  return (item && item.price) || null;
+}
+
 module.exports = {
   DAY_MS, GRACE_MS, LICENCE_ENDED, LICENCE_REVOKED, SUB_BILLING, SUB_ENDED,
   idOf, subscriptionOf, latestLineEnd, periodStartOf, periodEndOf, withGrace, expiryFor, failingExpiryFor,
   licenceStatusOf, dbError,
+  TIER_CAP, LOOKUP_KEY, INTERVAL_PLAN, accountsMissing, tierOfPlan, tierOfPrice, priceOfSubscription,
 };

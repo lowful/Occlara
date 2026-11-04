@@ -64,6 +64,13 @@ async function licenceByKey(cleanKey) {
  * expiry at all (nothing bounds it) it is not usable. Active is as it always
  * was. Cancelled, expired, refunded, disputed and anything else never are.
  *
+ * A FREE KEY (plan 'free', 8.7) is usable like any other: the rule reads the
+ * status and the expiry, never the plan, so an active free key with no expiry
+ * answers valid with plan 'free'. What a free account may do (its games) is
+ * held by the account's entitlement and the usage routes, never here. But an
+ * app older than 8.7 is refused a free key on /activate and /validate
+ * (FREE_NEEDS_UPDATE, below), since it cannot show a free account's cap.
+ *
  * One rule, for /activate, /validate and the coach routes' checkKey
  * (routes/coach.js), and the same one the app keeps for a licence it holds
  * (src/main/services/license-service.js usable, which test:licenceoutage holds
@@ -96,6 +103,19 @@ function knowsGrace(req) {
   return true;
 }
 
+/*
+ * A FREE KEY NEEDS 8.7. The shipped 8.6 knows no free account: once the
+ * account's games were used, the coach routes' cap 402 reads to it as "The
+ * coach AI is out of credits". So a free key is refused to an app older than
+ * 8.7 (caller.js knowsFreeKeys, the same version line the coach routes use),
+ * with a reason that says what to do.
+ */
+const FREE_NEEDS_UPDATE = {
+  valid: false, status: 'update-required', reason: 'update-required',
+  error: 'Update Occlara to use a free account.',
+};
+const freeRefused = (license, req) => !!license && license.plan === 'free' && !require('../services/caller').knowsFreeKeys(req);
+
 // POST /api/license/activate
 // Body: { key, device_id, device_name }
 // First activation locks the license to device_id; same device can reactivate freely.
@@ -116,6 +136,7 @@ router.post('/activate', async (req, res) => {
     return res.status(503).json(UNAVAILABLE);
   }
   if (!license) return res.status(404).json({ valid: false, error: 'License key not found' });
+  if (freeRefused(license, req)) return res.json(FREE_NEEDS_UPDATE);
 
   if (license.expires_at && new Date(license.expires_at) < new Date())
     return res.json({ valid: false, status: 'expired', error: 'License has expired' });
@@ -237,6 +258,7 @@ router.post('/validate', async (req, res) => {
     return res.status(503).json(UNAVAILABLE);
   }
   if (!license) return res.status(404).json({ valid: false, error: 'License key not found' });
+  if (freeRefused(license, req)) return res.json(FREE_NEEDS_UPDATE);
 
   if (license.expires_at && new Date(license.expires_at) < new Date())
     return res.json({ valid: false, status: 'expired', error: 'License has expired' });

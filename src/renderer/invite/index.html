@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Invite friends</title>
+  <!-- Before the body: a page of the main window never paints its old window chrome. -->
+  <script src="../shared/embed.js"></script>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="invite.css" />
+</head>
+<body>
+  <!-- THE INVITE PAGE (8.7). The player's invite link with Copy, how many
+       friends joined and the games earned, and how it works in two lines.
+       Every line is main's (account-service.js referral, usage.js
+       inviteProgress and INVITE_HOW): this page only paints, and names no
+       URL. Opened from the button above Settings, locked by the seal like
+       every page. -->
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
+        <h2>Invite friends</h2>
+      </div>
+    </header>
+
+    <main class="body">
+      <!-- Asking main for the link. -->
+      <p id="inv-wait" class="inv-wait" aria-live="polite">Getting your invite link</p>
+
+      <!-- No account here (a licence key alone, or nobody): invites need one. -->
+      <section id="inv-out" class="inv-card" hidden>
+        <h3 class="inv-title">Invites need an account</h3>
+        <p class="inv-hint">Sign in with your browser from Settings, then your invite link shows here.</p>
+        <button id="inv-settings" class="btn btn-ghost md" type="button">Open Settings</button>
+      </section>
+
+      <!-- Signed in, and the server did not answer. -->
+      <section id="inv-error" class="inv-card" hidden>
+        <h3 class="inv-title">Your invite link could not be fetched</h3>
+        <p class="inv-hint">Check your connection and try again.</p>
+        <button id="inv-retry" class="btn btn-ghost md" type="button">Try again</button>
+      </section>
+
+      <div id="inv-body" class="inv-body" hidden>
+        <section class="inv-card" aria-labelledby="inv-link-label">
+          <span id="inv-link-label" class="mono">Your link</span>
+          <div class="inv-link-row">
+            <span id="inv-link" class="inv-link"></span>
+            <button id="inv-copy" class="btn btn-primary md inv-copy" type="button">Copy link</button>
+          </div>
+          <p id="inv-progress" class="inv-progress"></p>
+          <p id="inv-said" class="sr-only" aria-live="polite"></p>
+        </section>
+
+        <section class="inv-card" aria-labelledby="inv-how-label">
+          <span id="inv-how-label" class="mono">How it works</span>
+          <ol id="inv-how" class="inv-how"></ol>
+        </section>
+
+        <p class="inv-foot">
+          <span id="inv-games" class="inv-games"></span>
+          <button id="inv-upgrade" class="btn btn-link sm" type="button">See plans</button>
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <script src="invite.js"></script>
+</body>
+</html>

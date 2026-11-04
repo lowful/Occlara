@@ -1173,6 +1173,8 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       recorder: { cutClip: (...a) => { cutsAt.push(rec.holds.length); cutArgs.push(a); const got = rec.cutClip(...a); cutGot.push(got); return got; } },
       releaseRecording: (h) => rec.release(h),
       store: { get: (k) => ({ recordingMode: mode, licenseKey: 'TEST' })[k] },
+      // The account's auth (8.7, index.js authed): what api-client sends.
+      authed: () => ({ 'X-License-Key': 'TEST' }),
       CAPTURE: { profiles: { standard: { targetW: 1280, targetH: 720, jpegQuality: 70 } } },
       API: { DEATH_FORENSICS: '/api/coach/death-forensics' },
       api: { post: async (_p, body) => {

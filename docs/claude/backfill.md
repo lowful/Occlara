@@ -192,3 +192,5 @@ server falls back to `/last-match`.
   logout cancels it.
 - `npm run test:riotreview`, `npm run test:backfill`, `npm run test:matchlink`,
   `npm run check:onboardingriot`, `npm run check:latelink`.
+- Since 8.7 each new Riot-record-only review is claimed as `riot:<matchId>`
+  (`/api/usage/claim`); refused, it is saved `locked: true` (accounts.md).

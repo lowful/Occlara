@@ -123,8 +123,34 @@ class StandInValorant extends EventEmitter {
   const realLoad = Module._load;
   Module._load = function patched(request, parent, isMain) {
     if (parent && parent.filename && same(parent.filename, INDEX) && request === './services/coaching-engine') return StandInValorant;
+    if (parent && parent.filename && same(parent.filename, INDEX) && request === './services/account-service') return seededAccounts(realLoad(request, parent, isMain));
     return realLoad(request, parent, isMain);
   };
+}
+
+// AN ACCOUNT ON THIS PC (8.7), seeded: what the pages are handed, as the
+// real account service's view hands it for a Free account with its three
+// games used, every line written by the real usage.js. Only what a page is
+// told is stood in for (view, referral); the service is the real one, so
+// main still has no session and asks the network nothing. The referral is
+// what GET /api/referral gives, finished as main finishes it.
+const usage = require(path.join(REPO, 'src/shared/usage'));
+const SEEDED_STATE = { tier: 'free', used: 3, left: 0, free_total: 3, bonus_pool: 0, bonus_earned: 0,
+  email: 'player@example.com', account_key: 'GC-TEST-AB12-CD34-EF56', invites: { pending: 1, qualified: 1, refused: 0 } };
+const SEEDED_VIEW = {
+  signedIn: true, via: 'session', pending: false, waiting: false, email: SEEDED_STATE.email,
+  tier: 'free', tierLabel: usage.tierLabel(SEEDED_STATE), gamesLeft: usage.gamesLeft(SEEDED_STATE),
+  cap: usage.capState(SEEDED_STATE), capped: false, accountKey: SEEDED_STATE.account_key, invites: SEEDED_STATE.invites,
+  urls: { upgrade: usage.UPGRADE_URL, account: usage.ACCOUNT_URL, signup: usage.SIGNUP_URL },
+};
+const SEEDED_REF = { code: 'abcd1234', link: 'https://occlara.app/invite/abcd1234', invited: 2, qualified: 1, earned: 4,
+  max_friends: usage.MAX_FRIENDS, max_games: usage.MAX_EARNED };
+const SEEDED_REFERRAL = { ...SEEDED_REF, line: usage.inviteProgress(SEEDED_REF), how: usage.INVITE_HOW.slice() };
+function seededAccounts(mod) {
+  return { ...mod, createAccountService: (deps) => {
+    const real = mod.createAccountService(deps);
+    return { ...real, view: () => ({ ...SEEDED_VIEW }), referral: async () => ({ ...SEEDED_REFERRAL, how: SEEDED_REFERRAL.how.slice() }) };
+  } };
 }
 const played = replay(load('valorant-match-abyss-13-11.json').frames, 'standard');
 const { rounds } = verify.reconcile(played.rounds, load('riot-abyss-13-11.json'));
@@ -266,7 +292,24 @@ setTimeout(async () => {
     }
     if (!foot.rank) return report(false, 'Home shows a rank card with no Riot ID');
     if (statusRow) return report(false, 'the record card still has its status row');
-    // THE RECORD CARD IS ITS TWO BUTTONS (8.3), measured on the real layout:
+    // THE GAMES LEFT (8.7): one quiet line on Home, main's words alone.
+    const gamesLine = await until(() => hjs("(() => { const g = document.getElementById('h-games'); return g && !g.hidden ? g.textContent : null; })()"), 3000);
+    lines.push(`home games line: "${gamesLine}"`);
+    if (gamesLine !== SEEDED_VIEW.gamesLeft || gamesLine !== 'You have used your 3 free games') {
+      return report(false, `Home's games line reads "${gamesLine}", not main's "${SEEDED_VIEW.gamesLeft}"`);
+    }
+    // THE INVITE BUTTON (8.7), in the sidebar's foot directly above Settings.
+    const footer = await sjs(`(() => {
+      const f = document.querySelector('.side .foot');
+      const kids = [...f.children].filter((c) => !c.hidden).map((c) => c.dataset.page || c.id);
+      const inv = document.getElementById('nav-invite').getBoundingClientRect();
+      const set = document.getElementById('nav-settings').getBoundingClientRect();
+      return { kids: kids.join(), text: document.getElementById('nav-invite').textContent.trim(), gap: Math.round(set.top - inv.bottom), sameX: inv.left === set.left };
+    })()`);
+    lines.push(`sidebar foot: ${JSON.stringify(footer)}`);
+    if (!footer.kids.startsWith('invite,settings') || footer.text !== 'Invite' || footer.gap < 0 || footer.gap > 4 || !footer.sameX) {
+      return report(false, `the Invite button is not directly above Settings in the sidebar's foot: ${JSON.stringify(footer)}`);
+    }    // THE RECORD CARD IS ITS TWO BUTTONS (8.3), measured on the real layout:
     // no line of text under them, and the card's one padding the same above
     // them as below.
     const card = await sjs(`(() => {
@@ -616,7 +659,7 @@ setTimeout(async () => {
     await wait(400);
     const anyShown = [...mainWindow.pageViews().values()].some((v) => v.getVisible());
     const sealedScreen = await sjs("!document.getElementById('sealed').hidden");
-    const navLocked = await sjs("[...document.querySelectorAll('#nav .nav-item')].every((b) => b.disabled)");
+    const navLocked = await sjs("[...document.querySelectorAll('#nav .nav-item'), document.getElementById('nav-invite'), document.getElementById('nav-settings')].every((b) => b.disabled)");
     lines.push(`sealed: any page shown=${anyShown} recording screen=${sealedScreen} nav locked=${navLocked}`);
     if (anyShown) return report(false, 'a page still shows while sealed');
     if (!sealedScreen || !navLocked) return report(false, 'sealed, the shell does not paint the Recording screen and lock the pages');
@@ -661,6 +704,82 @@ setTimeout(async () => {
       await shot('review-comps', mainWindow, win);
       await review.webContents.executeJavaScript('window.scrollTo(0, 0); true');
     }
+    // A LOCKED REVIEW (8.7), on the real page: the review as main serves it
+    // once the account had no games left (locked: true), painted by the
+    // page's own paint(). Its result and Riot's scoreboard, then the upgrade
+    // card; no Verdict, no share image, no progress strip, no grade, no read,
+    // no rounds, no Ask about this match, and no reveal.
+    const rjs = (s) => review.webContents.executeJavaScript(s);
+    await rjs("window.__unlocked = current; paint(Object.assign({}, current, { id: current.id + '-locked', locked: true })); true");
+    await wait(600);
+    const lockedPage = await rjs(`(() => {
+      const shown = (id) => { const n = document.getElementById(id); return !!n && !n.hidden; };
+      const card = document.getElementById('locked');
+      return { card: shown('locked'), under: card.previousElementSibling && card.previousElementSibling.id,
+        title: document.getElementById('lk-title').textContent, body: document.getElementById('lk-body').textContent,
+        upgrade: shown('lk-upgrade') ? document.getElementById('lk-upgrade').textContent : null, invite: shown('lk-invite'),
+        stats: shown('v-stats-wrap') ? document.querySelectorAll('#v-stats .v-stat').length : 0, score: document.getElementById('v-score').textContent,
+        verdict: shown('v-vd-label') || shown('v-grade'), share: shown('share'), prog: shown('v-prog'), grade: shown('grade-host') || shown('common'),
+        read: shown('v-summary-wrap'), rounds: shown('v-rounds-wrap'), ask: shown('ask'),
+        revealing: document.getElementById('vreview').classList.contains('revealing'),
+        canAsk: typeof window.occlara.getAccount === 'function' };
+    })()`);
+    lines.push(`locked review: ${JSON.stringify(lockedPage)}`);
+    if (!lockedPage.card || lockedPage.under !== 'v-verdict' || !lockedPage.stats || lockedPage.score !== '13 : 11') {
+      return report(false, `a locked review does not show its numbers and the upgrade card under them: ${JSON.stringify(lockedPage)}`);
+    }
+    if (lockedPage.verdict || lockedPage.share || lockedPage.prog || lockedPage.grade || lockedPage.read || lockedPage.rounds || lockedPage.ask || lockedPage.revealing) {
+      return report(false, `a locked review shows what grades or reads the match: ${JSON.stringify(lockedPage)}`);
+    }
+    // The card's lines are main's when this page's bridge can ask for the
+    // account (review-preload.js getAccount), and its own plain ones before.
+    if (lockedPage.canAsk ? lockedPage.title !== SEEDED_VIEW.cap.title : lockedPage.title !== 'This review is locked') {
+      return report(false, `the locked review's card reads "${lockedPage.title}"`);
+    }
+    await shot('review-locked', mainWindow, win);
+    await rjs('paint(window.__unlocked); delete window.__unlocked; true');
+
+    // THE INVITE PAGE (8.7), from its button above Settings: the link main
+    // gave, the progress line usage.js wrote and how it works in two lines.
+    await sjs("document.getElementById('nav-invite').click(); true");
+    if (!await until(settled('invite'), 4000)) return report(false, 'the Invite button did not bring the Invite page in');
+    const ijs = (s) => mainWindow.pageViews().get('invite').webContents.executeJavaScript(s);
+    const invitePage = await until(() => ijs(`(() => {
+      if (document.getElementById('inv-body').hidden) return null;
+      return { link: document.getElementById('inv-link').textContent, progress: document.getElementById('inv-progress').textContent,
+        how: [...document.querySelectorAll('#inv-how li')].map((l) => l.textContent), games: document.getElementById('inv-games').textContent,
+        copy: !document.getElementById('inv-copy').disabled };
+    })()`), 4000);
+    const inviteMark = await sjs("(() => { const b = document.querySelector('.nav-item[aria-current=page]'); return b ? b.id : null; })()");
+    lines.push(`invite page: ${JSON.stringify(invitePage)} | marked ${inviteMark}`);
+    if (!invitePage || invitePage.link !== SEEDED_REFERRAL.link || invitePage.progress !== SEEDED_REFERRAL.line
+      || invitePage.how.join('|') !== usage.INVITE_HOW.join('|') || !invitePage.copy || inviteMark !== 'nav-invite') {
+      return report(false, `the Invite page does not show main's link, line and how: ${JSON.stringify(invitePage)} marked ${inviteMark}`);
+    }
+    await shot('invite', mainWindow, win);
+
+    // SETTINGS' ACCOUNT SECTION (8.7): email, plan, games, key, Sign out.
+    mainWindow.show('settings');
+    if (!await until(settled('settings'), 4000)) return report(false, 'Settings never came in');
+    const setjs = (s) => mainWindow.pageViews().get('settings').webContents.executeJavaScript(s);
+    const acctPage = await until(() => setjs(`(() => {
+      const t = (id) => { const n = document.getElementById(id); return n && !n.hidden ? n.textContent : null; };
+      if (!t('acct-email')) return null;
+      return { email: t('acct-email'), tier: t('acct-tier'), games: t('acct-games'), key: t('acct-key'),
+        signOut: t('acct-signout'), signIn: t('acct-signin'), upgrade: t('acct-upgrade'), manage: t('acct-manage'), invite: t('acct-invite') };
+    })()`), 4000);
+    lines.push(`settings account: ${JSON.stringify(acctPage)}`);
+    if (!acctPage || acctPage.email !== SEEDED_VIEW.email || acctPage.tier !== 'Free' || acctPage.games !== SEEDED_VIEW.gamesLeft
+      || acctPage.key !== SEEDED_VIEW.accountKey || acctPage.signOut !== 'Sign out' || acctPage.signIn !== null
+      || acctPage.upgrade !== 'Upgrade' || acctPage.manage !== 'Manage plan' || acctPage.invite !== 'Invite friends') {
+      return report(false, `Settings' Account section does not say what main handed it: ${JSON.stringify(acctPage)}`);
+    }
+    if (process.env.OCCLARA_SHOTS === '1') {
+      await setjs("document.getElementById('acct').scrollIntoView({ block: 'start' }); true");
+      await shot('settings-account', mainWindow, win);
+      await setjs("document.querySelector('.body').scrollTop = 0; true");
+    }
+
     if (process.env.OCCLARA_SHOTS === '1') {
       for (const page of ['patterns', 'breakdown', 'stats', 'coach', 'settings']) {
         mainWindow.show(page);

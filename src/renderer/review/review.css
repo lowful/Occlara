@@ -764,3 +764,25 @@ header {
 @media (prefers-reduced-motion: reduce) {
   .share, .sh-opt { animation: none; transition: none; }
 }
+
+/* A LOCKED REVIEW (8.7): the upgrade card under the match's numbers, in
+   place of the grade, the read and the rounds. A card like the Verdict's,
+   flat on the hairline, its title the plain fact and the two ways on under
+   it. No colour of its own: it is not an outcome and not the signal. */
+.locked {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+}
+#vreview > .locked { margin-top: 0; }
+.locked[hidden] { display: none; }
+.lk-title { font-size: 18px; font-weight: 600; letter-spacing: var(--track-display); line-height: 1.3; }
+.lk-body { font-size: 14px; line-height: 1.5; color: var(--text); max-width: 60ch; }
+.lk-note { font-size: 12.5px; line-height: 1.5; color: var(--text-mute); max-width: 60ch; }
+.lk-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.lk-actions [hidden] { display: none; }
+/* With neither way on to offer, no empty row under the note. */
+.lk-actions:not(:has(> :not([hidden]))) { display: none; }

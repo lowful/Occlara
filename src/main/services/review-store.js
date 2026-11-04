@@ -90,6 +90,10 @@ function metaOf(id, game, review, at) {
     // 'riot' when it was graded from Riot's record of a match the coach never
     // watched, so the list can say so (backfill.js).
     source: r.source || null,
+    // Saved while the account had no games left (8.7): the list shows Riot's
+    // numbers and the upgrade card's line for it. Only on a locked one, so
+    // every row saved before is written as it was.
+    ...(r.locked === true ? { locked: true } : {}),
     // Where its frames are in the AI log (8.2, index.js), so the list can say
     // whether they are still kept without opening the review. Null when the
     // log was off; left out for a review saved before 8.2, which kept none

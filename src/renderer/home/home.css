@@ -160,3 +160,8 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .r-rr { flex: none; }
 .r-score { font-family: var(--font-mono); font-size: 18px; font-weight: 500; }
 .r-row .gv-letter { width: 30px; height: 30px; font-size: 14px; }
+
+/* The games left (8.7): one quiet line under the hint, in the header's
+   corner, main's words alone (usage.js gamesLeft). */
+.h-aside { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); text-align: right; }
+.h-games { font-size: 12px; line-height: 1.5; color: var(--text-mute); }

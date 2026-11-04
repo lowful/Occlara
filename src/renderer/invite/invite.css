@@ -1,0 +1,67 @@
+/* palette: tokens only */
+/* The Invite page (8.7): the link with Copy, the friends joined and the games
+   earned, and how it works in two lines. The same ground, cards and type as
+   every other page; the page title is the embedded header's (ui.css). */
+
+html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
+
+.sheet { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.sheet > header { display: flex; align-items: center; padding: var(--space-4); }
+.h-brand { display: flex; align-items: center; gap: var(--space-2); }
+.h-brand h2 { font-size: 15.5px; font-weight: 700; }
+
+.body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: var(--space-2) var(--space-4) var(--space-10);
+  display: flex; flex-direction: column; gap: var(--space-4);
+}
+
+.inv-wait { font-size: 13px; color: var(--text-mute); }
+.inv-body { display: flex; flex-direction: column; gap: var(--space-4); max-width: 640px; }
+
+.inv-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3);
+  max-width: 640px;
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--bg-2);
+}
+.inv-title { font-size: 16px; font-weight: 600; letter-spacing: var(--track-display); }
+.inv-hint { font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+
+/* The link in the mono face beside Copy, one line, cut with an ellipsis and
+   whole in its title. Selectable, so it can be taken by hand too. */
+.inv-link-row { display: flex; align-items: stretch; gap: var(--space-2); width: 100%; }
+.inv-link {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center;
+  height: 40px; padding: 0 var(--space-3);
+  border: 1px solid var(--line-2); border-radius: var(--r-control);
+  background: var(--bg);
+  font: 400 13px var(--font-mono); color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  user-select: text; cursor: text;
+}
+.inv-copy { flex: none; min-width: 112px; }
+.inv-progress { font-size: 14px; line-height: 1.5; color: var(--text); }
+
+.inv-how {
+  list-style: none; counter-reset: how;
+  display: flex; flex-direction: column; gap: var(--space-2);
+}
+.inv-how li {
+  counter-increment: how;
+  display: flex; gap: var(--space-3);
+  font-size: 13px; line-height: 1.5; color: var(--text-dim);
+}
+.inv-how li::before {
+  content: counter(how);
+  flex: none; width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line-2); border-radius: var(--r-card);
+  font: 500 11px var(--font-mono); color: var(--text-mute);
+}
+
+.inv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--text-mute); }
+.inv-games:empty { display: none; }

@@ -16,6 +16,12 @@ const telemetry = require('../services/telemetry');
 const { isAdmin } = require('../services/admin-auth');
 const crypto    = require('crypto');
 const { AsyncLocalStorage } = require('async_hooks');
+// Who is calling (8.7): an app session, a Supabase token or a licence key,
+// one accountKey for every ledger. The meter counts games (routes/usage.js),
+// asked lazily so a test can hand the router its own.
+const callers   = require('../services/caller');
+let meterOverride = null;
+const usageMeter = () => meterOverride || require('./usage').meter;
 const router = express.Router();
 
 // ─── Cost tracking (in-memory, resets on server restart) ──────────────────────
@@ -140,7 +146,9 @@ router.use((req, res, next) => {
   const key = String((req.headers && req.headers['x-license-key']) || '').trim().toUpperCase() || null;
   const bench = benchCall(req);
   // `entry` is an Ask Coach question's own line in the daily cap, when there
-  // is one: every call booked under this request adds its cost to it.
+  // is one: every call booked under this request adds its cost to it. `key`
+  // is the header's licence until admit() names the caller, then its
+  // accountKey (8.7), so a signed in player's calls are booked to them.
   costScope.run({ route: bench ? 'bench' : (ROUTE_OF_PATH[pathName] || 'other'), key: bench ? null : key, bench, entry: null }, next);
 });
 
@@ -2194,6 +2202,10 @@ const LICENCE_LOOKUP_MS = 5000;
 const LICENCE_PROBE_MS = 15 * 1000;
 const licenceDb = { downAt: 0 };   // when a lookup last failed for an outage
 const validKeys = new Map();   // key -> when Supabase last confirmed it (ms)
+// key -> { userId, plan, deviceId } from the same lookup (8.7), for caller.js:
+// whose key it is, so a key's ledgers are the account's. Kept through an
+// outage with the stale answer it belongs to.
+const keyOwners = new Map();
 const LICENCE_UNAVAILABLE = { error: 'licence-check-unavailable', retry: true };
 let licenceWarnedAt = 0;
 
@@ -2211,7 +2223,7 @@ async function checkKey(k) {
     try {
       ({ data, error } = await supabase
         .from('licenses')
-        .select('status,expires_at')
+        .select('status,expires_at,user_id,plan,device_id')
         .eq('license_key', k)
         .abortSignal(AbortSignal.timeout(LICENCE_LOOKUP_MS))
         .single());
@@ -2232,9 +2244,11 @@ async function checkKey(k) {
   }
   if (!data || !licenceUsable(data.status, data.expires_at)) {
     validKeys.delete(k);
+    keyOwners.delete(k);
     return 'invalid';
   }
   cacheSet(validKeys, k, Date.now(), 5000);
+  cacheSet(keyOwners, k, { userId: data.user_id || null, plan: data.plan || null, deviceId: data.device_id || null }, 5000);
   return 'valid';
 }
 
@@ -2244,15 +2258,38 @@ async function validateKey(k) {
 }
 
 /**
- * Let the request through, or answer it: 403 with `denied` for a key that is
- * not valid, 503 with retry when the licence could not be checked at all.
+ * Let the request through with its caller, or answer it and return null.
+ *
+ * Who is calling is caller.js's: an app session (Bearer occ_...), a Supabase
+ * access token, or the licence key through checkKey above, asked once a
+ * request (the limiters in server.js asked first). The answers are the ones
+ * every 8.6 client knows: 403 with `opts.denied` for a key that is not valid
+ * (and for no credentials at all), 503 with retry when it could not be
+ * checked. A session or token that is not valid is 401, which only an 8.7
+ * client sends. The caller's accountKey becomes the request's cost scope key,
+ * so its model calls are booked to the account.
  */
-async function admit(res, key, denied = { error: 'Invalid license' }) {
-  const v = await checkKey(key);
-  if (v === 'valid') return true;
-  if (v === 'unavailable') res.status(503).json(LICENCE_UNAVAILABLE);
+async function admit(req, res, opts = {}) {
+  const denied = opts.denied || { error: 'Invalid license' };
+  const r = await callers.identify(req);
+  if (r.status === 'valid') {
+    req.caller = r.caller;
+    const scope = costScope.getStore();
+    if (scope && !scope.bench) scope.key = r.caller.accountKey;
+    return r.caller;
+  }
+  if (r.status === 'unavailable') res.status(503).json(LICENCE_UNAVAILABLE);
+  else if (r.status === 'invalid' && r.via && r.via !== 'key') res.status(401).json(r.body || { error: 'session-invalid' });
   else res.status(403).json(denied);
-  return false;
+  return null;
+}
+
+/** Whether a read's reply is a frame of a live match: its STATE names a round's phase, number or score. */
+function inMatchState(outCtx, parsed) {
+  if (!parsed || !outCtx || typeof outCtx !== 'object') return false;
+  if (outCtx.phase) return true;
+  if (outCtx.roundNumber != null) return true;
+  return outCtx.teamScore != null && outCtx.enemyScore != null;
 }
 
 /**
@@ -2542,8 +2579,9 @@ async function trackerStats(name, tag) {
 
 // GET /api/coach/player-stats?username=Name%23TAG
 router.get('/player-stats', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
+  const caller = await admit(req, res);
+  if (!caller) return;
+  const licenseKey = caller.accountKey;
 
   const username = String(req.query.username || '');
   if (!username.includes('#')) return res.json({ error: 'Enter your Riot ID as Name#TAG.' });
@@ -2602,8 +2640,9 @@ const queueCache = new Map();     // riotId|mode|queue -> { rows, at }
 // fetched, and a cached history put the game before it there.
 const rankHistoryCache = new Map();   // riotId(lower) -> { at, data, lastManualRefresh }
 router.get('/rank-history', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
+  const caller = await admit(req, res);
+  if (!caller) return;
+  const licenseKey = caller.accountKey;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
   const username = String(req.query.username || '');
   if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
@@ -2809,8 +2848,9 @@ function killerAgentOf(d) {
 
 // GET /api/coach/match-deaths?matchId=...&username=Name%23TAG
 router.get('/match-deaths', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
+  const caller = await admit(req, res);
+  if (!caller) return;
+  const licenseKey = caller.accountKey;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
 
   const matchId = String(req.query.matchId || '').trim();
@@ -2884,8 +2924,9 @@ router.get('/match-deaths', async (req, res) => {
 const matchRoundsCache = new Map();
 const roundsRetry = (res, error) => res.status(503).json({ error, retry: true });
 router.get('/match-rounds', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
+  const caller = await admit(req, res);
+  if (!caller) return;
+  const licenseKey = caller.accountKey;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
 
   const matchId = String(req.query.matchId || '').trim();
@@ -2941,8 +2982,9 @@ router.get('/match-rounds', async (req, res) => {
 const MODE_QUEUES = { competitive: ['competitive'], unrated: ['unrated', 'swiftplay'] };
 
 router.get('/matches', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
+  const caller = await admit(req, res);
+  if (!caller) return;
+  const licenseKey = caller.accountKey;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
 
   const username = String(req.query.username || '');
@@ -3109,8 +3151,9 @@ router.get('/matches', async (req, res) => {
 // Failures here are silent by design: telemetry must never cost a player a tip.
 router.post('/session-report', async (req, res) => {
   try {
-    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!await admit(res, licenseKey)) return;
+    const caller = await admit(req, res);
+    if (!caller) return;
+    const licenseKey = caller.accountKey;
     const hash = crypto.createHash('sha256').update(licenseKey).digest('hex').slice(0, 8);
     telemetry.record(req.body || {}, hash);
     res.json({ ok: true });
@@ -3122,8 +3165,9 @@ router.post('/session-report', async (req, res) => {
 
 router.post('/score-session', async (req, res) => {
   try {
-    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!await admit(res, licenseKey)) return;
+    const caller = await admit(req, res);
+    if (!caller) return;
+    const licenseKey = caller.accountKey;
 
     const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30).map((t) => String(t).slice(0, 160)) : [];
     if (tips.length < 1) return res.json({ error: 'Not enough tips to score.' });
@@ -3314,8 +3358,9 @@ function lastMatchRow(m) {
 // a simple performance grade. (There is no live in-match API; matches appear
 // here a few minutes after they end.) Grade: ACS ladder, adjusted by K/D.
 router.get('/last-match', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
+  const caller = await admit(req, res);
+  if (!caller) return;
+  const licenseKey = caller.accountKey;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
 
   const username = String(req.query.username || '');
@@ -3372,8 +3417,9 @@ const recentMatchesCache = new Map();
 const RECENT_MATCHES_TTL_MS = 2 * 60 * 1000;
 const RECENT_MATCHES_MAX = 10;
 router.get('/recent-matches', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
+  const caller = await admit(req, res);
+  if (!caller) return;
+  const licenseKey = caller.accountKey;
   if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
 
   const username = String(req.query.username || '');
@@ -3451,13 +3497,25 @@ router.get('/recent-matches', async (req, res) => {
 // fraction of /analyze's, which is what pays for reading every few seconds.
 // /analyze stays as it is for clients that have not updated yet.
 router.post('/read', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey) return res.status(400).json({ error: 'X-License-Key header required' });
-  if (!await admit(res, licenseKey, { error: 'Invalid or expired license key' })) return;
+  if (!callers.hasCredentials(req)) return res.status(400).json({ error: 'X-License-Key header required' });
+  const caller = await admit(req, res, { denied: { error: 'Invalid or expired license key' } });
+  if (!caller) return;
+  const licenseKey = caller.accountKey;
 
   const image = req.body && req.body.image;
   const context = (req.body && req.body.context) || {};
   if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image data' });
+
+  // THE READ GATE (8.7), BEFORE the model is called: with caps enforced, a
+  // caller with no live game open and no game left is answered 402 { error:
+  // 'cap', left: 0 } and costs nothing. A bench is never metered.
+  const metered = !(costScope.getStore() || {}).bench;
+  if (metered) {
+    const gate = await usageMeter().gate(caller);
+    if (!gate.ok) return res.status(gate.status).json(gate.body);
+  }
+  // No client match id is taken here (8.7): a live claim with one the client
+  // chose would answer an old counted game every match (usage.js claim).
 
   const t0 = Date.now();
   // A bench asks which model answered, so a request whose benchModel was not
@@ -3475,6 +3533,7 @@ router.post('/read', async (req, res) => {
     trackCall(licenseKey, 1);
     const text = String(raw || '').replace(/```(?:json)?/gi, '').trim();
     if (/^LOBBY\b/i.test(text)) {
+      if (metered) usageMeter().noteRead(caller, { inMatch: false });
       return res.json({ lobby: true, context: {}, ms: Date.now() - t0, ...told });
     }
 
@@ -3485,6 +3544,9 @@ router.post('/read', async (req, res) => {
     }
     resolveLocation(outCtx, context);
     delete outCtx.mmPos;
+    // In a match is the model's STATE of a live round, not LOBBY and not a
+    // menu: the first such reply claims the game, each one bumps match_reads.
+    if (metered) usageMeter().noteRead(caller, { inMatch: inMatchState(outCtx, !!m) });
     res.json({ lobby: false, context: outCtx, parsed: !!m, ms: Date.now() - t0, ...told });
   } catch (e) {
     // Out of credits is reported honestly, exactly as /analyze does, so the
@@ -3530,12 +3592,19 @@ router.post('/read', async (req, res) => {
 // a word off a list: a name in one would leave the server. No other request
 // is ever sent `raw`.
 router.post('/death-forensics', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!await admit(res, licenseKey)) return;
+  const caller = await admit(req, res);
+  if (!caller) return;
+  const licenseKey = caller.accountKey;
   const rawWanted = !!(req.body && req.body.raw === true) && isAdmin(req) && typeof deathForensics.rawLabels === 'function';
   const variant = forensicsVariant(req);
   const input = deathForensics.normalise(req.body, { variant: variant || 'a' });
   if (!input.deaths.length) return res.json({ deaths: [] });
+  // THE REVIEW GATE (8.7): with caps enforced, the look needs its live game,
+  // open or counted, before any model is asked (usage.js reviewGate).
+  if (!(costScope.getStore() || {}).bench) {
+    const gate = await usageMeter().reviewGate(caller);
+    if (!gate.ok) return res.status(gate.status).json(gate.body);
+  }
   const model = benchModel(req) || AI.forensicsModel;
   const told = (req.body && req.body.variant) || clientAtLeast(req, V85) ? { variant: variant || 'a' } : {};
   if (!input.variant) input.variant = variant || 'a';
@@ -3620,9 +3689,19 @@ function gateWord(d) {
 // parses to no summary is review: null and summary: null with its round lines
 // and focus kept.
 router.post('/match-review', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  let licenseKey = null;
+  // A review carrying Riot's matchId is the late one (riotLook, once Riot
+  // publishes), often landing while the next match is played: usage.js
+  // reviewDone never counts that next match for it.
+  const reviewed = { late: !!(req.body && typeof req.body.matchId === 'string' && req.body.matchId) };
   try {
-    if (!await admit(res, licenseKey)) return;
+    const caller = await admit(req, res);
+    if (!caller) return;
+    licenseKey = caller.accountKey;
+    // THE REVIEW GATE (8.7): with caps enforced, a review needs the live game
+    // it reviews, open or counted, before any model is asked (usage.js).
+    const gate = (costScope.getStore() || {}).bench ? { ok: true } : await usageMeter().reviewGate(caller);
+    if (!gate.ok) return res.status(gate.status).json({ ...gate.body, review: null });
 
     /*
      * THE ROUND AWARE REVIEW, for clients that send a round ledger.
@@ -3683,6 +3762,8 @@ router.post('/match-review', async (req, res) => {
       const clean = (t) => (t ? matchReview.roundDigits(sanitize(t)) : t);
       const rounds = {};
       for (const [n, why] of Object.entries(parsed.rounds)) rounds[n] = clean(why);
+      // A review written counts its live game (8.7); one that failed leaves it.
+      if (clean(parsed.summary)) usageMeter().reviewDone(caller, reviewed);
       return res.json({
         review: clean(parsed.summary) || null,
         summary: clean(parsed.summary) || null,
@@ -3717,6 +3798,7 @@ router.post('/match-review', async (req, res) => {
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 24000)),
     ]);
     trackCall(licenseKey);
+    if (review) usageMeter().reviewDone(caller, reviewed);
     res.json({ review: review || null });
   } catch (e) {
     console.error('[review] Error:', e.message);
@@ -3953,8 +4035,9 @@ router.post('/detect-agent', async (req, res) => {
   const model = benchModel(req) || AI.visionModel;
   const told = { ...(benching ? { model } : {}), ...(asksVariant ? { variant } : {}) };
   try {
-    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!await admit(res, licenseKey)) return;
+    const caller = await admit(req, res);
+    if (!caller) return;
+    const licenseKey = caller.accountKey;
 
     const image = req.body && req.body.image;
     if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image' });
@@ -4395,8 +4478,9 @@ function riotFrameFacts(r) {
 // explained by what was happening just before it.
 router.post('/frame-chat', async (req, res) => {
   try {
-    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!await admit(res, licenseKey)) return;
+    const caller = await admit(req, res);
+    if (!caller) return;
+    const licenseKey = caller.accountKey;
 
     const body = req.body || {};
     const question = String(body.question || '').trim().slice(0, 500);
@@ -4491,8 +4575,9 @@ router.post('/chat', async (req, res) => {
   // The v2 budget runs from here, the licence check inside it.
   const t0 = Date.now();
   try {
-    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-    if (!await admit(res, licenseKey)) return;
+    const caller = await admit(req, res);
+    if (!caller) return;
+    const licenseKey = caller.accountKey;
 
     // ASK COACH V2 (8.5.0): served by chatV2 when this request may have it,
     // today's answer otherwise, which is everything below, byte for byte.
@@ -4656,7 +4741,14 @@ module.exports.trackCall   = trackCall;            // exported for tests
 module.exports.detectAgentName = detectAgentName;  // exported for tests
 module.exports.buildContextPrompt = buildContextPrompt;
 // For the offline tests of the guards above, nothing else reads these.
+module.exports.checkKey = checkKey;
+// The retired tip paths, which server.js never identifies a caller for: they
+// answer 410 and look nothing up.
+module.exports.RETIRED_PATHS = new Set(['/analyze', '/summary/round', '/summary/match', '/recap', '/suggest-library-tip']);
 module.exports.__test = {
+  // 8.7: whose key it is, the caller check, what a read in a match is, and a
+  // stand in meter for the read and review gates' tests (null puts the real one back).
+  keyOwners, admit, inMatchState, setMeter: (m) => { meterOverride = m || null; },
   checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,
   benchModel, readVariant, TELL_MAX, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,
   // The agent look's prompt and who may ask for its variant (8.4.4).

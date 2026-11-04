@@ -37,6 +37,8 @@ const paymentRoutes = require('./routes/payments');
 const licenseRoutes = require('./routes/license');
 const accountRoutes = require('./routes/account');
 const coachRoutes   = require('./routes/coach');
+const usageRoutes   = require('./routes/usage');
+const callers       = require('./services/caller');
 const retiredRoutes = require('./routes/retired');
 const adminRoutes   = require('./routes/admin');
 const webhookHandler = require('./routes/webhook');
@@ -108,12 +110,16 @@ const checkoutLimiter = rateLimit({
   standardHeaders: true, legacyHeaders: false,
 });
 
-// AI endpoints cost real money per call, so they are capped, but PER LICENSE
-// KEY, not per IP. IP buckets collide players behind the same NAT or proxy
-// chain and were throttling legit sessions (Ultra mode alone is ~20 analyzes
-// per minute plus agent detection). Keyless requests share one bucket; the
-// routes reject them with 400/403 before any AI cost anyway.
-const licenseKeyOrIp = (req) => String(req.headers['x-license-key'] || '').trim().toUpperCase() || 'no-key';
+// AI endpoints cost real money per call, so they are capped, but PER ACCOUNT,
+// not per IP, once the caller is known. IP buckets collide players behind the
+// same NAT or proxy chain and were throttling legit sessions (Ultra mode alone
+// is ~20 analyzes per minute plus agent detection). Since 8.7 the bucket is
+// the caller's accountKey (services/caller.js: the account when its user is
+// known, else the licence key, the old bucket), asked before the limiter runs
+// (identifyFirst below); a caller not verified is bucketed by its IP (an IPv6
+// one by its /64), never by whatever key it typed, so made up keys share one
+// bucket per address.
+const licenseKeyOrIp = (req) => (req.caller && req.caller.accountKey) || callers.ipBucket(req.ip);
 const coachLimiter = rateLimit({
   windowMs: 60 * 1000, max: 90,   // headroom for the 1s capture tier
   keyGenerator: licenseKeyOrIp,
@@ -139,6 +145,20 @@ const chatLimiter = rateLimit({
   message: { error: 'Too many chat messages. Give it a few minutes.' },
   standardHeaders: true, legacyHeaders: false,
 });
+// RIOT'S DATA ON A FREE ACCOUNT (8.7): the stats routes cost HenrikDev's
+// quota, not a model's, and a free account has three games, so it gets a
+// tighter budget there: 40 calls in ten minutes covers the Stats page, a
+// review's record and a backfill, and stops one free account spending the
+// quota every paying player shares. Paid tiers and 8.6 keys are untouched.
+const RIOT_DATA_PATHS = ['/api/coach/player-stats', '/api/coach/rank-history', '/api/coach/match-deaths',
+  '/api/coach/match-rounds', '/api/coach/matches', '/api/coach/last-match', '/api/coach/recent-matches'];
+const freeRiotLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, max: 40,
+  keyGenerator: licenseKeyOrIp,
+  skip: (req) => !(req.caller && req.caller.tier === 'free' && req.caller.userId),
+  message: { error: 'Slow down. Too many match lookups.' },
+  standardHeaders: true, legacyHeaders: false,
+});
 // Failed admin passwords, ten an hour per IP. One instance for the API and the
 // page, so the count is shared. See services/admin-auth.js.
 const adminLimiter = makeAdminLimiter();
@@ -159,14 +179,33 @@ app.use('/api/coach/death-forensics', express.json({ limit: '8mb' }));
 // Global (2mb so /api/coach/analyze and /read can carry a base64 JPEG).
 app.use(express.json({ limit: '2mb' }));
 
+// ─── Who is calling (8.7) ───────────────────────────────────────────────────
+// The caller is named BEFORE the limiters, so they can bucket it by account
+// (services/caller.js), and the route's admit() reuses the same answer, asked
+// once a request. Only where a caller matters: the coach routes (not the
+// retired tip paths, which answer 410 and look nothing up) and the account
+// and usage routes. A request with no credentials is not asked about at all.
+const IDENTIFIED = ['/api/coach', '/api/usage', '/api/referral', '/api/account/me', '/api/account/signout'];
+async function identifyFirst(req, res, next) {
+  try {
+    if (req.baseUrl === '/api/coach' && coachRoutes.RETIRED_PATHS.has(req.path)) return next();
+    if (!callers.hasCredentials(req)) return next();
+    const r = await callers.identify(req);
+    if (r.status === 'valid') req.caller = r.caller;
+  } catch (e) { /* the route asks again and answers for itself */ }
+  next();
+}
+app.use(IDENTIFIED, identifyFirst);
+
 // ─── Who is using it ────────────────────────────────────────────────────────
-// Every client call carries its licence, so the server knows who was last seen
-// and doing what. See services/presence.js and the /admin page.
+// Every client call carries its licence or its session, so the server knows
+// who was last seen and doing what. See services/presence.js and the /admin page.
 app.use('/api', (req, res, next) => {
   const path = req.originalUrl.split('?')[0];
   const t0 = Date.now();
   presence.touch({
     key: req.headers['x-license-key'] || (req.body && (req.body.key || req.body.licenseKey)),
+    account: req.caller && req.caller.accountKey,
     path,
     version: req.headers['x-occlara-version'],
   });
@@ -184,6 +223,7 @@ app.use('/api/license/activate',        activationLimiter);
 app.use('/api/payments/create-checkout', checkoutLimiter);
 app.use('/api/coach/chat',               chatLimiter);
 app.use('/api/coach/read',               readLimiter);
+app.use(RIOT_DATA_PATHS,                 freeRiotLimiter);
 app.use('/api/coach',                    coachLimiter);
 app.use('/api/admin',                    adminLimiter);
 app.use('/admin',                        adminLimiter);
@@ -192,6 +232,11 @@ app.use('/admin',                        adminLimiter);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/license',  licenseRoutes);
 app.use('/api/account',  accountRoutes);
+// Accounts, games and invites (8.7): /api/account/handoff, /exchange,
+// /signout and /me, /api/usage/claim, /api/referral and /redeem. After the
+// account router, which serves only /dashboard and /portal. Its own per IP
+// limits sit on the routes that take no account (routes/usage.js).
+app.use('/api',          usageRoutes);
 app.use('/api/coach',    coachRoutes);
 // A game Occlara no longer coaches: an older install still calling its routes
 // is answered 410 on every path, and nothing is looked up or called. See

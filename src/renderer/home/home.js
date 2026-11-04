@@ -379,6 +379,23 @@ $('rank-more').addEventListener('click', () => window.occlara.openRankJourney())
 $('empty-settings').addEventListener('click', () => window.occlara.go('settings'));
 
 /*
+ * THE GAMES LEFT (8.7): one quiet line under the header's hint, exactly as
+ * main writes it (usage.js gamesLeft, "2 of 3 free games left"), and nothing
+ * when it has nothing to say. Main holds a change mid match, and Home is not
+ * on screen then anyway (the seal).
+ */
+function paintGames(view) {
+  const line = view && typeof view.gamesLeft === 'string' ? view.gamesLeft : '';
+  const el = $('h-games');
+  if (el.textContent !== line) el.textContent = line;
+  el.hidden = !line;
+}
+if (typeof window.occlara.getAccount === 'function') {
+  Promise.resolve(window.occlara.getAccount()).then(paintGames).catch(() => {});
+}
+if (typeof window.occlara.onAccount === 'function') window.occlara.onAccount(paintGames);
+
+/*
  * LISTENING BEFORE THE FIRST PAINT (8.2.1). The first load waits for the rank,
  * a network read that can take fifteen seconds, and with the listeners set up
  * after it, a game picked in the sidebar meanwhile was never heard (PUSH_GAME

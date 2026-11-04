@@ -177,3 +177,48 @@ WebCodecs itself. Ask Coach asks `CHAT_SEND` with the match on its chip
 (the ten newest of the game, held ones left out, the one chosen and its
 starters) and moves the chip with `CHAT_MATCH` (8.5.0), and hears
 `PUSH_REVIEWS` and `PUSH_GAME` to list again.
+
+### The account's channels (8.7)
+
+The account lives in main (`src/main/services/account-service.js`, wired in
+`index.js` as `accountIpc`), and a page is handed its view, never the session
+token: `{ signedIn, via ('session' | 'key' | null), pending, waiting, email,
+tier, tierLabel, gamesLeft, cap (null or { capped, title, body, upgrade }),
+capped, accountKey, invites, urls }`. Every line in it is a finished string
+from `src/shared/usage.js` (`gamesLeft`, `capState`, `capNotice`,
+`inviteProgress`, `INVITE_HOW`), so no renderer does arithmetic on games or
+dates (`test:usage`).
+
+- `ACCOUNT_GET` (invoke): the view, asked of the server first when its 60 s
+  cache is old, never while a match is in progress.
+- `ACCOUNT_SIGNIN` (invoke): the browser sign in, resolved once it ends,
+  `{ ok: true, account }` or `{ ok: false, error }` with error one of
+  cancelled, timeout, refused, unreachable, browser, listen. On ok main closes
+  the Sign in window and opens the app. `ACCOUNT_SIGNIN_CANCEL` (send) ends a
+  waiting one.
+- `ACCOUNT_SIGNOUT` (invoke): signed out here and on the server, the licence
+  key cleared too, and back to the Sign in window (`controller.logout`, the
+  same as `LICENSE_LOGOUT`).
+- `ACCOUNT_COPY_KEY` (invoke): main writes the account key to the clipboard.
+- `REFERRAL_GET` (invoke): `GET /api/referral` with `line` and `how`, or null
+  (null mid match). `REFERRAL_COPY` (invoke): main copies the invite link,
+  only ever an `https://occlara.app/invite/` one.
+- `OPEN_UPGRADE` and `OPEN_ACCOUNT` (send): occlara.app/pricing and
+  occlara.app/account, opened by main; `OPEN_PURCHASE` with 'signup' is
+  "Create a free account".
+- `ACCOUNT_CHANGED` (push, in `PUSH_LIST`): the view, on a sign in or out and
+  whenever the games move. HELD while a match is in progress or the window is
+  sealed, and sent once it is free (`flushAccountWaits`, from `syncSeal` and
+  `controller.stop`). A cap's notice line waits the same way, and further:
+  only while nothing is being recorded and the window is not sealed.
+
+The preloads that carry them: `activation-preload.js` (signIn, cancelSignIn,
+openSignup, getAccount, onAccount, beside the key form's activate),
+`settings-preload.js` (getAccount, onAccount, copyAccountKey, signOut,
+signIn, cancelSignIn, openAccount, openUpgrade, openInvite), `home-preload.js` (getAccount,
+onAccount, openUpgrade), `shell-preload.js` (openInvite, getAccount,
+onAccount) and `invite-preload.js` for the Invite page (getReferral,
+copyLink, getAccount, onAccount, openUpgrade, go, and the page motion). The
+Invite page is the page id `invite`, opened with `SHELL_NAV`; its entry in
+`src/shared/shell-nav.js` PAGES names `invite-preload.js`. `CONFIG_SET` never
+writes a key that begins with `account`: the sign in is main's alone.

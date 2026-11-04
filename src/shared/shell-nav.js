@@ -26,6 +26,9 @@ const PAGES = [
   { id: 'breakdown', label: 'Breakdown', surface: 'matches', query: { section: 'breakdown' }, preload: 'matches-preload.js', nav: true },
   { id: 'stats', label: 'Stats', surface: 'stats', query: {}, preload: 'stats-preload.js', nav: true },
   { id: 'coach', label: 'Ask Coach', surface: 'chat', query: {}, preload: 'chat-preload.js', nav: true },
+  // The Invite page (8.7): a button in the sidebar's foot directly above
+  // Settings, not a nav entry, and locked by the seal like every page.
+  { id: 'invite', label: 'Invite', surface: 'invite', query: {}, preload: 'invite-preload.js', nav: false },
   { id: 'settings', label: 'Settings', surface: 'settings', query: {}, preload: 'settings-preload.js', nav: false },
   { id: 'review', label: 'Review', surface: 'review', query: {}, preload: 'review-preload.js', nav: false },
 ];

@@ -358,3 +358,16 @@ until its engine says one (`state.cadence`), so a League session after a
 Valorant one shows no Valorant tier. The licence window's "Get one" opens the sign up page
 (`OPEN_PURCHASE` with 'signup', `SIGNUP_URL`), Settings' Manage subscription
 the account page, and a page names which, never a URL (`test:surfaces`).
+
+### Accounts in the UI (8.7)
+
+The activation window is the Sign in window: "Sign in with your browser"
+first (a waiting state with Cancel), "Use a licence key" opening the old key
+form, and "Create a free account" (`OPEN_PURCHASE 'signup'`). Settings has an
+Account section above License (email, tier, games line, account key with
+Copy, Manage plan, Upgrade, Invite friends, Sign out). Home has one quiet
+games line (`#h-games`). The Invite page (`src/renderer/invite/`, shell-nav
+`invite`, the sidebar `.foot` button directly above Settings) shows the link,
+the progress line and how it works. A locked review shows Riot's record and
+the upgrade card only. Every line is a finished string from
+`src/shared/usage.js`; no renderer counts. See accounts.md.

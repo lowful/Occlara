@@ -52,6 +52,18 @@ const CHANNELS = {
   AILOG_ASK:        'ailog:ask',         // ({ session, scope?, index, question, history }) → { reply } ask the coach about one logged frame
   APP_VERSION:      'app:version',       // () → { current, state, version } running version + update status
   APP_UPDATE_CHECK: 'app:updateCheck',   // () → same shape, after forcing a fresh feed check
+  // The account (8.7, src/main/services/account-service.js). A page is handed
+  // the account's view, finished strings from src/shared/usage.js and flags,
+  // never the session token: { signedIn, via: 'session' | 'key' | null,
+  // pending, waiting, email, tier, tierLabel, gamesLeft, cap: null | { capped,
+  // title, body, upgrade }, capped, accountKey, invites, urls }.
+  ACCOUNT_GET:      'account:get',       // () → the view, refreshed from the server when its 60 s cache is old
+  ACCOUNT_SIGNIN:   'account:signIn',    // () → { ok: true, account } | { ok: false, error: 'cancelled' | 'timeout' | 'refused' | 'unreachable' | 'browser' | 'listen' } once the browser flow ends
+  ACCOUNT_SIGNOUT:  'account:signOut',   // () → { ok } signed out here and on the server, back to the Sign in window
+  ACCOUNT_COPY_KEY: 'account:copyKey',   // () → { ok } the account key to the clipboard, by main
+  // The Invite page: GET /api/referral with its line, and the link copied by main.
+  REFERRAL_GET:     'referral:get',      // () → { code, link, invited, qualified, earned, max_friends, max_games, line, how: [two lines] } | null
+  REFERRAL_COPY:    'referral:copy',     // () → { ok } the invite link to the clipboard
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',
@@ -104,6 +116,12 @@ const CHANNELS = {
   PAGE_READY:      'page:ready',         // (pageId) from that page's own view only
   OPEN_CHAT_SEEDED:'window:openChatSeeded', // (sessionSeed) open Ask Coach preloaded with a session's context
   OPEN_PURCHASE:   'window:openPurchase',
+  // The account's pages on occlara.app (8.7): pricing for Upgrade, the
+  // account page for Manage plan. Main opens them; a page names no URL.
+  OPEN_UPGRADE:    'window:openUpgrade',
+  OPEN_ACCOUNT:    'window:openAccount',
+  // Cancel the browser sign in that is waiting (ACCOUNT_SIGNIN then resolves cancelled).
+  ACCOUNT_SIGNIN_CANCEL: 'account:signInCancel',
   LICENSE_LOGOUT:  'license:logout',      // clear license + return to activation screen
   ONBOARDING_DONE: 'onboarding:done',     // close the welcome card + never show again
   APP_QUIT:        'app:quit',
@@ -144,6 +162,9 @@ const CHANNELS = {
   // page: { phase: 'arm', dir } paint yourself invisible and say PAGE_READY,
   // { phase: 'enter', dir } come in, { phase: 'leave' } another page is coming.
   PUSH_PAGE:         'push:page',
+  // The account's view changed (signed in or out, games counted). Held while
+  // a match is in progress or the window is sealed, sent once it lifts.
+  ACCOUNT_CHANGED:   'push:account',
 
   // ── the match recorder (8.3, src/main/services/recorder.js) ───────────────
   // Between main and the recorder's hidden page (src/renderer/recorder) and
@@ -186,6 +207,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_REVIEW_WORK,
   CHANNELS.PUSH_SHELL,
   CHANNELS.PUSH_PAGE,
+  CHANNELS.ACCOUNT_CHANGED,
   CHANNELS.PUSH_RECORDER,
   CHANNELS.PUSH_FRAMES,
 ];

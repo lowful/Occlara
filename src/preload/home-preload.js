@@ -68,4 +68,9 @@ contextBridge.exposeInMainWorld('occlara', {
   onReviewWork: (cb) => subscribe(C.PUSH_REVIEW_WORK, cb),
   onGame:     (cb) => subscribe(C.PUSH_GAME, cb),
   onState:    (cb) => subscribe(C.PUSH_STATE, cb),
+  // Games left (8.7): one quiet line, written by main (usage.js gamesLeft),
+  // '' when there is nothing to say.
+  getAccount: () => ipcRenderer.invoke(C.ACCOUNT_GET),
+  onAccount:  (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
+  openUpgrade: () => ipcRenderer.send(C.OPEN_UPGRADE),
 });

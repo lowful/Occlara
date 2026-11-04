@@ -32,6 +32,10 @@ const PAGE_ICO = {
   breakdown: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
   stats: '<path d="M5 20V11M12 20V4M19 20v-6"/>',
   coach: '<path d="M4 5h16v11H10l-6 4z"/>',
+  // The two in the sidebar's foot, drawn in index.html and put back here
+  // once the seal's lock goes.
+  invite: '<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
 };
 const LOCK = '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>';
 const svg = (inner) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
@@ -69,7 +73,11 @@ for (const p of pages.filter((x) => x.nav)) {
   $('nav').append(b);
   navButtons.set(p.id, b);
 }
+// The foot's two pages (8.7: Invite directly above Settings). They are in
+// navButtons, so the seal locks them and the marker finds them like the rest.
+navButtons.set('invite', $('nav-invite'));
 navButtons.set('settings', $('nav-settings'));
+$('nav-invite').addEventListener('click', () => window.occlara.go('invite'));
 $('nav-settings').addEventListener('click', () => window.occlara.go('settings'));
 $('learn').addEventListener('click', () => window.occlara.openLearn());
 
@@ -91,9 +99,7 @@ function paintNav() {
     else b.removeAttribute('aria-current');
     b.disabled = locked;
     const ico = b.querySelector('svg');
-    if (ico) ico.innerHTML = locked ? LOCK : (id === 'settings'
-      ? '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>'
-      : PAGE_ICO[id] || '');
+    if (ico) ico.innerHTML = locked ? LOCK : (PAGE_ICO[id] || '');
   }
   $('learn').disabled = locked;
   $('sealed-note').hidden = !locked;

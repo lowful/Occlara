@@ -41,6 +41,8 @@ const hashOf = (key) => crypto.createHash('sha256').update(String(key)).digest('
 // key of eight characters used to count, so a mistyped activation or a junk
 // header became a user, and enough of them evicted the real ones at MAX_USERS.
 const KEY_FORMAT = /^GC-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+// An account (8.7): `u:` and the user's uuid, as caller.js names it.
+const ACCOUNT_FORMAT = /^u:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_ROUTES = 200;
 
 /** Which game and what kind of call a path is. */
@@ -59,18 +61,27 @@ class Presence {
     this.now = opts.now || (() => Date.now());
     this.startedAt = this.now();
     this.users = new Map();     // hash -> entry
-    this.keys = new Map();      // hash -> licence key, ONLY to look the account up for the admin view
+    this.keys = new Map();      // hash -> licence key or u:<user id>, ONLY to look the account up for the admin view
     this.errors = [];           // newest last
     this.routes = new Map();    // route -> { calls, errors5xx, slow, lastError }
     this.peakHeapMB = 0;
     this.day = new Date(this.startedAt).toISOString().slice(0, 10);
   }
 
-  /** One request from a client. Never throws. */
-  touch({ key, path, version }) {
+  /**
+   * One request from a client. Never throws. `account` (8.7) is the caller's
+   * accountKey when the server named it (services/caller.js): `u:<user id>`
+   * for an account, else the licence key. It wins over `key`, so a player
+   * is one person whether they call with their session or their key, and
+   * the hash of a key with no account is the same hash as before.
+   */
+  touch({ key, account, path, version }) {
     try {
-      const clean = typeof key === 'string' ? key.trim().toUpperCase() : '';
-      if (!KEY_FORMAT.test(clean)) return;
+      const named = typeof account === 'string' ? account.trim() : '';
+      const clean = ACCOUNT_FORMAT.test(named) ? named.toLowerCase()
+        : KEY_FORMAT.test(named.toUpperCase()) ? named.toUpperCase()
+          : typeof key === 'string' ? key.trim().toUpperCase() : '';
+      if (!KEY_FORMAT.test(clean) && !ACCOUNT_FORMAT.test(clean)) return;
       const at = this.now();
       const hash = hashOf(clean);
       const c = classify(path);
@@ -199,4 +210,4 @@ class Presence {
 /** The one shared tracker the server and the admin routes use. */
 const presence = new Presence();
 
-module.exports = { Presence, presence, classify, hashOf, KEY_FORMAT, RECORDING_MS, REVIEWING_MS, OPEN_MS };
+module.exports = { Presence, presence, classify, hashOf, KEY_FORMAT, ACCOUNT_FORMAT, RECORDING_MS, REVIEWING_MS, OPEN_MS };
