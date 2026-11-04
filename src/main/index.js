@@ -71,6 +71,7 @@ const { ReviewStore, newId, MAX_REVIEWS } = require('./services/review-store');
 const grader      = require('../shared/grade');
 const insightsOf  = require('../shared/insights');
 const patternsOf  = require('../shared/patterns');
+const progressOf  = require('../shared/progress');
 const breakdownOf = require('../shared/breakdown');
 const { Backfill } = require('./services/backfill');
 const { RankHistory } = require('./services/rank-history');
@@ -2045,11 +2046,24 @@ const controller = {
   /**
    * What keeps happening across the last matches of one game. The lists are
    * the last ten RECORDED matches' (patterns.js), so more are read than ten,
-   * to find them behind the matches graded from Riot's record.
+   * to find them behind the matches graded from Riot's record. The library's
+   * and Home's progress (8.7, progress.js libraryProgress) comes from the same
+   * read, so neither page asks again.
    */
   getPatterns(game) {
     const g = game || gameRegistry.get(store.get('game')).id;
-    return { game: g, ...patternsOf.summarise(reviewStore.recent(g, patternsOf.LOOK_BACK)) };
+    const recent = reviewStore.recent(g, patternsOf.LOOK_BACK);
+    return { game: g, ...patternsOf.summarise(recent), progress: progressOf.libraryProgress(recent) };
+  },
+  /**
+   * One review against the ones before it (8.7, progress.js matchProgress),
+   * for the review page: its own game's last LOOK_BACK reviews. Null for a
+   * review the store does not hold, or one older than that window.
+   */
+  getProgress(id) {
+    const e = id ? reviewStore.get(id) : null;
+    if (!e) return null;
+    return progressOf.matchProgress(reviewStore.recent(e.game, patternsOf.LOOK_BACK), id);
   },
   /** By map and agent (champion), counted from every saved review of one game. */
   getBreakdown(game, opts) {

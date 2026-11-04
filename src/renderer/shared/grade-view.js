@@ -84,12 +84,31 @@
     return el('span', 'gv-letter ' + (l ? gradeTone(grade) : 'none') + size, l || '?');
   }
 
+  /*
+   * A LEADING NUMBER IN BOLD (8.7), for display only: "8 deaths in 13 rounds"
+   * draws its 8 in <b>, so a row of chips reads as numbers first. A pattern on
+   * the text grade.js wrote, never a sum, the same kind as the review's
+   * versus() reading a sign. Text with no number first is drawn as it is.
+   */
+  const LEAD_NUM = /^(\d+(?:[.,]\d+)?%?)(\s[\s\S]*)$/;
+
+  /** One piece of evidence as a stat chip. */
+  function chip(text, cls) {
+    const c = el('span', cls || 'gv-chip');
+    const m = LEAD_NUM.exec(String(text));
+    if (m) c.append(el('b', null, m[1]), document.createTextNode(m[2]));
+    else c.textContent = String(text);
+    return c;
+  }
+
   /**
    * The grade card: the number, the letter, and each category with the facts
    * it was built on. A category that could not be measured says so rather than
    * showing a zero. `opts.compact` leaves out the row of the number and the
    * letter, for a page that shows them already (the review, under its
-   * Verdict); the categories and their evidence stay.
+   * Verdict); the categories and their evidence stay. `opts.reveal` gives each
+   * bar its place in the order (--i), for the review's reveal to stagger by;
+   * the card draws the same without it.
    */
   function gradeCard(grade, opts) {
     const o = opts || {};
@@ -109,7 +128,7 @@
     }
 
     const cats = el('div', 'gv-cats');
-    for (const c of grade.categories || []) {
+    (grade.categories || []).forEach((c, i) => {
       const row = el('div', 'gv-cat' + (c.score === null ? ' unmeasured' : ''));
       const head = el('div', 'gv-cat-head');
       head.append(el('span', 'gv-cat-name', c.label));
@@ -118,11 +137,18 @@
       const bar = el('div', 'gv-bar');
       const fill = el('i', c.score === null ? '' : scoreTone(c.score));
       fill.style.setProperty('--w', (c.score === null ? 0 : Math.max(2, Math.min(100, c.score))) + '%');
+      if (o.reveal) fill.style.setProperty('--i', String(i));
       bar.append(fill);
       row.append(bar);
-      if (c.evidence && c.evidence.length) row.append(el('div', 'gv-ev', c.evidence.join('  ·  ')));
+      // The facts the category was built on, a chip each, where they were one
+      // line joined by dots.
+      if (c.evidence && c.evidence.length) {
+        const chips = el('div', 'gv-chips');
+        for (const e of c.evidence) chips.append(chip(e));
+        row.append(chips);
+      }
       cats.append(row);
-    }
+    });
     card.append(cats);
     for (const n of grade.notes || []) card.append(el('p', 'gv-note', n));
     return card;
@@ -167,6 +193,56 @@
     return li;
   }
 
+  /** The fix as the line to act on: an arrow, its label, the sentence, larger than the detail. */
+  function action(fix) {
+    const p = el('p', 'gv-action');
+    const mark = el('span', 'gv-action-mark', '→');
+    mark.setAttribute('aria-hidden', 'true');
+    p.append(mark, el('span', 'gv-fix-label', 'Fix'), document.createTextNode(fix));
+    return p;
+  }
+
+  /*
+   * THE LISTS RANKED (8.7, `opts.hero`, the review's): the top mistake is a
+   * card of its own, its fix the line to act on, and every other entry one
+   * line, closed, that opens to its detail and fix. A wall of entries each as
+   * loud as the next read as none of them mattering more.
+   */
+  function hero(e, kind, onRound) {
+    const li = el('li', 'gv-item gv-hero ' + kind);
+    const head = el('div', 'gv-item-head');
+    head.append(el('span', 'gv-dot'), el('b', 'gv-item-title', e.title));
+    if (e.judged) head.append(el('span', 'gv-badge', "coach's look"));
+    li.append(head);
+    if (e.detail) li.append(el('p', 'gv-item-detail', e.detail));
+    if (e.fix && e.fix !== e.detail) li.append(action(e.fix));
+    if (e.rounds && e.rounds.length && onRound !== false) li.append(roundChips(e.rounds, onRound));
+    return li;
+  }
+
+  /** One entry, closed: its title and how many rounds, opening to the rest. */
+  function closedRow(e, kind, onRound) {
+    const li = el('li', 'gv-item gv-rowed ' + kind);
+    const row = el('details', 'gv-row');
+    const head = el('summary', 'gv-item-head');
+    head.append(el('span', 'gv-dot'), el('b', 'gv-item-title', e.title));
+    const n = Array.isArray(e.rounds) ? e.rounds.length : 0;
+    if (n) head.append(el('span', 'gv-count', `${n} round${n === 1 ? '' : 's'}`));
+    if (e.judged) head.append(el('span', 'gv-badge', "coach's look"));
+    row.append(head);
+    const body = el('div', 'gv-row-body');
+    if (e.detail) body.append(el('p', 'gv-item-detail', e.detail));
+    if (e.fix && e.fix !== e.detail) {
+      const fix = el('p', 'gv-item-fix');
+      fix.append(el('span', 'gv-fix-label', 'Fix'), document.createTextNode(e.fix));
+      body.append(fix);
+    }
+    if (n && onRound !== false) body.append(roundChips(e.rounds, onRound));
+    if (body.children.length) row.append(body);
+    li.append(row);
+    return li;
+  }
+
   /**
    * WHAT RIOT'S RECORD SHOWS, for a review graded from it alone: one neutral
    * list in place of the three. Riot records what happened and never why, so
@@ -200,6 +276,8 @@
    *   sentences in its round's own row: the review page passes it for a death
    *   the coach looked at, so it is said once. Taken only with an onRound to
    *   jump there; the library and Home pass neither.
+   * @param opts.hero  the lists ranked (hero() above): the top mistake a card,
+   *   the rest closed rows. An entry said in its round stays brief.
    */
   function insightLists(insights, opts) {
     const o = opts || {};
@@ -221,7 +299,12 @@
       const block = el('section', 'gv-block');
       block.append(el('h3', null, title));
       const ul = el('ul', 'gv-list');
-      for (const e of list.slice(0, o.limit || 6)) ul.append(item(e, kind, o.onRound, brief(e)));
+      list.slice(0, o.limit || 6).forEach((e, i) => {
+        const b = brief(e);
+        if (!o.hero || b) ul.append(item(e, kind, o.onRound, b));
+        else if (key === 'mistakes' && i === 0) ul.append(hero(e, kind, o.onRound));
+        else ul.append(closedRow(e, kind, o.onRound));
+      });
       block.append(ul);
       wrap.append(block);
     }
@@ -259,7 +342,31 @@
     return card;
   }
 
-  const api = { gradeCard, insightLists, factList, roundChips, letter, letterOf, tone, scoreTone, gradeTone, checking, el };
+  /*
+   * THIS MATCH AGAINST THE ONES BEFORE IT (8.7): the finished lines
+   * shared/progress.js wrote ("Best grade in your last 23 graded matches.",
+   * "Up 6 on your last match."), a chip each in its tone. Each line carries its
+   * sign and its window in words, so the colour is never the only signal and
+   * nothing here counts. `opts.omit` leaves out lines of the kinds named, for a
+   * page that says one elsewhere (the review says the focus line above its
+   * focus). Null when there is nothing to say.
+   */
+  const PROG_TONES = new Set(['good', 'bad', 'even']);
+  function progressStrip(progress, opts) {
+    const omit = new Set((opts && opts.omit) || []);
+    const lines = (progress && Array.isArray(progress.lines) ? progress.lines : [])
+      .filter((l) => l && typeof l.text === 'string' && l.text && !omit.has(l.kind));
+    if (!lines.length) return null;
+    const ul = el('ul', 'gv-progs');
+    for (const l of lines) {
+      const li = el('li', 'gv-prog ' + (PROG_TONES.has(l.tone) ? l.tone : 'even'), l.text);
+      if (l.kind) li.dataset.kind = String(l.kind);
+      ul.append(li);
+    }
+    return ul;
+  }
+
+  const api = { gradeCard, insightLists, factList, roundChips, progressStrip, chip, LEAD_NUM, letter, letterOf, tone, scoreTone, gradeTone, checking, el };
   if (typeof window !== 'undefined') window.GradeView = api;
   // Node, for the test that holds the colour rule to grade.js. Nothing here
   // touches the DOM until a card is drawn, so requiring it is safe.

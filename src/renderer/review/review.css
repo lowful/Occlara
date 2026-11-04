@@ -150,21 +150,78 @@ header {
 
 #vreview { display: flex; flex-direction: column; gap: var(--space-6); }
 
-/* The result, with Riot's scoreboard beside it (8.3.1). The scoreboard was a
-   row of four boxes of its own under this card, and with the comparison
-   further down repeating its numbers, the grade and the coach's read did not
-   make the first screen. */
-.v-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-3) var(--space-6);
-  padding: var(--space-4);
+/* THE VERDICT (8.7), the first thing on the page: the letter and the number
+   out of 100, the one counted reason beside them, the match's score at the
+   right, and Riot's scoreboard in a row under a hairline. It took the place
+   of the result's card (8.3.1), whose scoreboard and comparison it keeps.
+   Without a grade to show it is the result, the score and the scoreboard. */
+.vd {
+  display: flex; flex-direction: column; gap: var(--space-4);
+  padding: var(--space-5);
   background: var(--bg-2);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
 }
-.v-hero-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.vd-top { display: flex; align-items: center; gap: var(--space-3); min-height: 14px; }
+.vd-label {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.3;
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text);
+}
+.vd.graded .vd-top .v-result, .vd.lol .vd-top .v-result { margin-left: auto; }
+.vd-main { display: flex; align-items: center; gap: var(--space-6); min-width: 0; }
+/* The letter large in its tone (GradeView.gradeTone), the number beside it,
+   so the colour is never the only signal. Geist 600, figures one width. */
+.vd-grade { flex: none; display: flex; align-items: flex-end; gap: var(--space-3); }
+.vd-letter {
+  font-family: var(--font); font-size: 76px; font-weight: 600; line-height: 0.82;
+  letter-spacing: var(--track-display); color: var(--text);
+}
+.vd-letter.good { color: var(--good); }
+.vd-letter.warn { color: var(--warn); }
+.vd-letter.bad  { color: var(--bad); }
+.vd-num { display: flex; flex-direction: column; gap: 4px; }
+.vd-num-line { display: flex; align-items: baseline; gap: 3px; }
+.vd-score {
+  font-family: var(--font); font-size: 32px; font-weight: 600; line-height: 0.9;
+  letter-spacing: var(--track-display); color: var(--text); font-variant-numeric: tabular-nums;
+}
+.vd-out, .vd-prov {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1.2;
+  color: var(--text-mute); font-variant-numeric: tabular-nums;
+}
+.vd-prov { font-size: 10px; letter-spacing: var(--track-label); text-transform: uppercase; }
+/* THE REVEAL (8.7, review.js startReveal): once, as the loading screen gives
+   way, and only on screen. The number counts up over --t-slow twice, the
+   letter stamps in after --t-slow on the spring, then the bars fill and the
+   progress chips rise (grade-view.css). The count is CSS alone: an integer
+   --n run from 0 to --to, which the page sets, and drawn by counter() over
+   the real number, which stays the text, there for a test or a screen reader.
+   .reveal-done, a click or a key or the clock, is the end state at once.
+   Nothing reads an animation event (theme.css). */
+@property --n { syntax: '<integer>'; initial-value: 0; inherits: false; }
+.vd-score.counting { position: relative; color: transparent; counter-reset: n var(--n); }
+.vd-score.counting::after { content: counter(n); position: absolute; top: 0; right: 0; color: var(--text); }
+#vreview.revealing:not(.reveal-done) .vd-score.counting {
+  animation: vdCount calc(var(--t-slow) * 2) var(--ease-expo) both;
+}
+#vreview.revealing:not(.reveal-done) .vd-letter {
+  animation: vdStamp var(--t-slow) var(--ease-spring) both;
+  animation-delay: var(--t-slow);
+}
+@keyframes vdCount { from { --n: 0; } to { --n: var(--to); } }
+@keyframes vdStamp {
+  from { opacity: 0; transform: scale(1.35); }
+  to   { opacity: 1; transform: scale(1); }
+}
+/* Less motion: no count (review.js), and nothing waits. */
+@media (prefers-reduced-motion: reduce) {
+  #vreview.revealing:not(.reveal-done) .vd-letter { animation-delay: 0s; transition-delay: 0s; }
+}
+.vd-said { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.vd-reason {
+  margin: 0; font-size: 17px; font-weight: 600; line-height: 1.35; letter-spacing: -0.01em;
+  color: var(--text); text-wrap: pretty;
+}
 .v-result {
   font-size: 11px; font-weight: 700; letter-spacing: 0.18em;
   color: var(--text-mute);
@@ -176,14 +233,19 @@ header {
   letter-spacing: -1px; line-height: 1.1; color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-.v-meta { font-size: 12px; color: var(--text-dim); letter-spacing: 0.01em; margin-top: 2px; }
+.vd-main > .v-score { flex: none; margin-left: auto; }
+.v-meta { font-size: 12px; color: var(--text-dim); letter-spacing: 0.01em; }
 
-/* Riot's four numbers, each right aligned over its label, and under each how
-   it compares with the player's own average. No box round each one: they sit
-   inside the result's card, and a card in a card is a frame round nothing. */
-.v-stats-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
-.v-stats { display: flex; gap: var(--space-6); }
-.v-stat { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+/* Riot's four numbers in the Verdict's row, each over its label, and under
+   each how it compares with the player's own average. No box round each one:
+   they sit inside the Verdict, and a card in a card is a frame round nothing. */
+.v-stats-wrap {
+  display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  padding-top: var(--space-4); border-top: 1px solid var(--line);
+}
+.v-stats { display: flex; gap: var(--space-8); }
+.v-stat { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .v-stat-value {
   font-family: var(--font-mono); font-size: 18px; font-weight: 600; line-height: 1.2;
   color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap;
@@ -195,12 +257,11 @@ header {
 }
 .v-stat-vs.good { color: var(--good); }
 .v-stat-vs.bad  { color: var(--bad); }
-.v-against-note { font-size: 10.5px; line-height: 1.4; color: var(--text-mute); margin: 0; text-align: right; max-width: 380px; }
+.v-against-note { font-size: 10.5px; line-height: 1.4; color: var(--text-mute); margin: 0; text-align: right; max-width: 300px; }
 
 /* Riot's record was applied. Quiet, because it is a reassurance, not news,
    and across the card under the score and the scoreboard both. */
 .v-verified {
-  grid-column: 1 / -1;
   margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--text-dim);
   display: flex; gap: 6px; align-items: baseline;
 }
@@ -250,7 +311,17 @@ header {
 .lg.died { width: 6px; height: 6px; border-radius: 50%; background: var(--bad); }
 .lg.planted { width: 6px; height: 6px; border-radius: 1px; background: var(--warn); }
 
-.v-summary { font-size: 14px; line-height: 1.6; color: var(--text); margin: 0; }
+/* The coach's read in short lines (8.7), a sentence a line, where it was one
+   paragraph. */
+.v-summary { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.v-summary-line {
+  position: relative; padding-left: var(--space-4);
+  font-size: 14px; line-height: 1.55; color: var(--text); text-wrap: pretty;
+}
+.v-summary-line::before {
+  content: ''; position: absolute; left: 2px; top: 0.66em;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--text-mute);
+}
 .v-focus {
   margin-top: var(--space-2);
   padding: var(--space-3) var(--space-4);
@@ -263,7 +334,18 @@ header {
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-mute); margin-bottom: 4px;
 }
-.v-focus-text { font-size: 13.5px; font-weight: 600; line-height: 1.5; color: var(--text); margin: 0; }
+/* The focus as the line to act on (8.7): the arrow and larger type the top
+   mistake's fix has, and above it how last match's top mistake went. */
+.v-focus-text { font-size: 15.5px; font-weight: 600; line-height: 1.45; letter-spacing: -0.005em; color: var(--text); margin: 0; }
+.v-focus-text::before { content: '\2192'; margin-right: 8px; font-weight: 500; color: var(--text-dim); }
+.v-focus-was {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 0 0 var(--space-3); padding-bottom: var(--space-3); border-bottom: 1px solid var(--line);
+  font-size: 12.5px; line-height: 1.45; color: var(--text-dim);
+}
+.v-focus-was::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); transform: translateY(-1px); }
+.v-focus-was.good::before { background: var(--good); }
+.v-focus-was.bad::before { background: var(--bad); }
 
 /* Both team comps (8.5.0): one quiet line under the legend, agents only. */
 .v-comps { margin: var(--space-1) 0 0; font-size: 12px; line-height: 1.5; color: var(--text-dim); }
@@ -380,8 +462,9 @@ header {
 .v-foot { font-size: 11px; color: var(--text-mute); text-align: center; margin: 0; }
 
 @media (max-width: 620px) {
-  .v-hero { grid-template-columns: minmax(0, 1fr); }
-  .v-stats-wrap { align-items: flex-start; }
+  .vd-main { flex-wrap: wrap; gap: var(--space-4); }
+  .vd-main > .v-score { margin-left: 0; }
+  .v-stats { gap: var(--space-5); }
   .v-against-note { text-align: left; }
 }
 
@@ -574,3 +657,110 @@ header {
 
 /* A clip the cap or Settings took: said where it was, quietly. */
 .v-clip-gone { font-size: 11px; line-height: 1.45; color: var(--text-mute); margin: 0; }
+
+/* ── Every round's facts as tags, and rounds folded (8.7) ──────────────────
+   A tag is the fact's own words beside an icon by its kind (review.js
+   TAG_ICON), its tone the colour of its edge and its icon: a death --bad, an
+   untraded death or an ult held --warn, a kill or a survived round --good,
+   everything else ink. The words say it either way. */
+.v-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.v-round-head > .v-tags { flex: 1 1 0; min-width: 0; }
+.v-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px 2px 6px; border-radius: var(--r-pill);
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
+  font-size: 11.5px; line-height: 1.35; color: var(--text-dim);
+}
+.v-tag-icon { flex: none; width: 11px; height: 11px; color: var(--text-mute); }
+.v-tag.good { border-color: rgba(var(--good-rgb), 0.32); }
+.v-tag.good .v-tag-icon { color: var(--good); }
+.v-tag.warn { border-color: rgba(var(--warn-rgb), 0.32); }
+.v-tag.warn .v-tag-icon { color: var(--warn); }
+.v-tag.bad { border-color: rgba(var(--bad-rgb), 0.32); }
+.v-tag.bad .v-tag-icon { color: var(--bad); }
+
+/* A round with something to say, not one served() opens: one line, the
+   whole line the control, the chevron saying which way it goes. */
+.v-round.fold .v-round-head { cursor: pointer; }
+.v-round.fold:not(.open) { padding-top: var(--space-2); padding-bottom: var(--space-2); }
+.v-round.fold:not(.open):hover { background: rgba(255, 255, 255, 0.02); }
+.v-fold {
+  flex: none; margin-left: auto; width: 24px; height: 24px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: var(--r-sm); background: transparent; cursor: pointer;
+}
+.v-fold::before {
+  content: ''; width: 6px; height: 6px;
+  border-right: 1.5px solid var(--text-mute); border-bottom: 1.5px solid var(--text-mute);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform var(--t-fast) var(--ease);
+}
+.v-round.open .v-fold::before { transform: translateY(1px) rotate(225deg); }
+.v-fold:hover { border-color: var(--line-2); }
+.v-fold:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+.v-round-head .log-eye + .v-fold { margin-left: 0; }
+
+/* Study notes and the refusals, closed under the rounds until asked for. */
+.v-more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: var(--space-2); }
+.v-more > summary::-webkit-details-marker { display: none; }
+.v-more > summary::after {
+  content: ''; width: 6px; height: 6px;
+  border-right: 1.5px solid var(--text-mute); border-bottom: 1.5px solid var(--text-mute);
+  transform: translateY(-2px) rotate(45deg);
+}
+.v-more[open] > summary::after { transform: translateY(1px) rotate(225deg); }
+.v-more > summary:hover h3 { color: var(--text-dim); }
+.v-more > summary:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: var(--r-sm); }
+.v-more[open] > summary { margin-bottom: var(--space-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .v-fold::before { transition: none; }
+}
+
+/* ── Share image (8.7, review.js openShare) ────────────────────────────────
+   A sheet under the header: the image as it will be saved on the left, its
+   size, its ground and Save and Copy on the right. The image is the
+   canvas VerdictCard drew, scaled to fit and never stretched. */
+.share {
+  display: grid; grid-template-columns: minmax(0, 1fr) 264px; gap: var(--space-4);
+  align-items: start;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--bg-2);
+  animation: riseIn var(--t-med) var(--ease-expo) both;
+}
+.sh-preview { display: flex; align-items: center; justify-content: center; min-height: 160px; }
+.sh-canvas {
+  display: block; width: auto; height: auto; max-width: 100%; max-height: 300px;
+  border-radius: var(--r-card); border: 1px solid var(--line);
+}
+.sh-none { margin: 0; font-size: 12px; color: var(--text-mute); }
+.sh-controls { display: flex; flex-direction: column; gap: var(--space-3); }
+.sh-group { display: flex; flex-direction: column; gap: 6px; }
+.sh-label {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; line-height: 1.3;
+  letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-mute);
+}
+.sh-seg {
+  display: flex; gap: 2px; padding: 2px;
+  border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--glass-border);
+}
+.sh-opt {
+  flex: 1 1 0; font: 600 12px var(--font); color: var(--text-dim);
+  padding: 5px 8px; border: 0; border-radius: calc(var(--r-sm) - 2px);
+  background: transparent; cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.sh-opt:hover { color: var(--text); }
+.sh-opt[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.sh-opt:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.sh-acts { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); }
+.sh-acts .btn { flex: 1 1 0; white-space: nowrap; padding-left: 8px; padding-right: 8px; }
+.sh-acts .icon-btn { flex: none; }
+.btn.said { pointer-events: none; }
+@media (max-width: 620px) {
+  .share { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .share, .sh-opt { animation: none; transition: none; }
+}

@@ -74,7 +74,9 @@ const CHANNELS = {
   // finds the session and the frames from it. The eye on one death the coach
   // looked at adds when its frame was captured, to open the log at it.
   REVIEW_AILOG:    'reviews:ailog',      // (id, at?) open the AI log on one saved review's match, at the frame captured at `at`
-  PATTERNS_GET:    'reviews:patterns',   // (game) -> repeated mistakes, strengths, misses, grade trend
+  PATTERNS_GET:    'reviews:patterns',   // (game) -> repeated mistakes, strengths, misses, grade trend, progress
+  // One review against the ones before it (8.7, src/shared/progress.js).
+  PROGRESS_GET:    'reviews:progress',   // (id) -> matchProgress() of that review, or null
   // The breakdown in Matches: by map and agent (champion), counted from
   // the saved reviews of one game (src/shared/breakdown.js).
   BREAKDOWN_GET:   'reviews:breakdown',  // (game, { queue }) -> { game, matches, dims, rows, headline, ... }

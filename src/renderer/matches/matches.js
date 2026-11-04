@@ -47,13 +47,29 @@ function paintTabs(games) {
  * through A and S saw a flat line. matches.css takes the number out of that
  * column.
  */
-function paintTrend(grades) {
+/*
+ * A RECORD IS OUTLINED, A RUN UNDERLINED (8.7), from what main counted
+ * (progress.js libraryProgress): a bar whose match carries a best or a first
+ * mark is `.best`, and the newest `run.count` grades, the run the newest match
+ * stands in, are `.run`. A run skips no graded match and a provisional grade
+ * ends one, so those are the first grades of the list, newest first. Each says
+ * so on hover as well, so the outline is never the only sign.
+ */
+const RECORD_KINDS = new Set(['best', 'first']);
+
+function paintTrend(grades, progress) {
   const host = $('p-trend');
   host.replaceChildren();
   host.hidden = grades.length < 2;
+  const marks = (progress && progress.marks) || {};
+  const run = progress && progress.run && typeof progress.run.count === 'number' ? progress.run : null;
+  const inRun = new Set(run ? grades.slice(0, run.count).map((g) => g.id) : []);
   for (const g of grades.slice().reverse()) {
-    const bar = el('div', 'p-bar');
-    bar.title = `${fmtWhen(g.at)}: ${g.score} (${g.letter})${g.provisional ? ', provisional' : ''}`;
+    const record = (marks[g.id] || []).find((k) => RECORD_KINDS.has(k.kind));
+    const bar = el('div', 'p-bar' + (record ? ' best' : '') + (inRun.has(g.id) ? ' run' : ''));
+    bar.title = `${fmtWhen(g.at)}: ${g.score} (${g.letter})${g.provisional ? ', provisional' : ''}`
+      + (record ? `. ${record.text}` : '')
+      + (inRun.has(g.id) ? `. One of ${run.count} in a row at ${run.floor || 'B'} or better` : '');
     bar.style.setProperty('--h', Math.max(4, Math.min(100, g.score)) + '%');
     const fill = el('i', gradeTone(g) + (g.provisional ? ' prov' : ''));
     bar.append(fill, el('span', null, g.score));
@@ -73,15 +89,18 @@ function paintCats(cats) {
   }
 }
 
-/** A pattern as an insight item, with how often and which way it is going. */
-function asItem(p, total) {
+/**
+ * A pattern as an insight item. How often it came up is its chips
+ * (patternChips), so the detail is the latest sighting alone, in its own
+ * words and labelled, so its round numbers are not read as belonging to every
+ * match. Under the ranked lists every entry but the top mistake keeps it
+ * closed in its row.
+ */
+function asItem(p) {
+  const latest = p.examples && p.examples[0] && p.examples[0].detail ? p.examples[0].detail : null;
   return {
     title: p.title,
-    // How often across the RECORDED matches (patterns.js), then the latest
-    // sighting in its own words, labelled, so its round numbers are not read
-    // as belonging to every match.
-    detail: `In ${p.matches} of your last ${total} recorded matches.`
-      + (p.examples[0] && p.examples[0].detail ? ` Latest match: ${p.examples[0].detail}` : ''),
+    detail: latest ? `Latest match: ${latest}` : null,
     fix: p.fix || null,
     judged: p.judged,
     rounds: [],
@@ -89,10 +108,32 @@ function asItem(p, total) {
   };
 }
 
+const TREND_WORDS = { steady: 'steady', rising: 'more often lately', falling: 'less often lately' };
+
+/**
+ * How often and which way, as chips beside the title: "2 of 5 recorded
+ * matches" across the RECORDED matches (patterns.js), "7 times" in all, then
+ * the trend word. Rising is bad news for a mistake and good news for a
+ * strength.
+ */
+function patternChips(p, total, bad) {
+  const box = el('span', 'gv-chips p-chips');
+  box.append(window.GradeView.chip(`${p.matches} of ${total} recorded matches`));
+  if (typeof p.total === 'number' && p.total > p.matches) {
+    box.append(window.GradeView.chip(`${p.total} ${p.total === 1 ? 'time' : 'times'}`));
+  }
+  const t = p.trend;
+  if (TREND_WORDS[t]) {
+    const good = t === 'steady' ? null : (t === 'falling') === bad;
+    box.append(el('span', 'gv-chip p-trendword ' + (good === null ? 'steady' : good ? 'better' : 'worse'), TREND_WORDS[t]));
+  }
+  return box;
+}
+
 function paintPatterns(p) {
   $('p-avg').hidden = p.average === null;
   $('p-avg-num').textContent = p.average === null ? '' : p.average;
-  paintTrend(p.grades || []);
+  paintTrend(p.grades || [], p.progress);
   paintCats(p.categories || []);
   const host = $('p-lists');
   host.replaceChildren();
@@ -110,19 +151,22 @@ function paintPatterns(p) {
     ? `Grades across your last ${p.matches} matches, patterns across the last ${p.recorded} you recorded. A pattern needs two of them to count.`
     : `Across your last ${p.matches} matches. A pattern needs two of them to count.`;
   const view = window.GradeView.insightLists({
-    mistakes: p.mistakes.map((x) => asItem(x, p.recorded)),
-    strengths: p.strengths.map((x) => asItem(x, p.recorded)),
-    missed: p.missed.map((x) => asItem(x, p.recorded)),
+    mistakes: p.mistakes.map(asItem),
+    strengths: p.strengths.map(asItem),
+    missed: p.missed.map(asItem),
   }, {
     mistakesTitle: 'Your most serious repeated mistakes',
     strengthsTitle: 'What you keep doing well',
     missedTitle: 'What you keep missing',
     onRound: false,
     limit: 5,
+    // Ranked, as the review's are (8.7): the top mistake a card, the rest
+    // closed rows that open to the latest sighting and the fix.
+    hero: true,
     empty: 'Nothing has repeated across your matches yet.',
   });
-  // Which way each one is going, beside its title. Rising is bad news for a
-  // mistake and good news for a strength.
+  // Each entry's chips beside its title, in the head of the card or the
+  // closed row alike (GradeView.insightLists draws both as .gv-item).
   const lists = [['mistakes', true], ['strengths', false], ['missed', true]];
   const blocks = view.querySelectorAll('.gv-block');
   let b = 0;
@@ -130,12 +174,8 @@ function paintPatterns(p) {
     if (!p[key].length) continue;
     const nodes = blocks[b++].querySelectorAll('.gv-item');
     nodes.forEach((node, i) => {
-      const t = p[key][i] && p[key][i].trend;
-      if (!t) return;
-      const good = t === 'steady' ? null : (t === 'falling') === bad;
-      node.querySelector('.gv-item-head').append(el('span',
-        'p-trendword ' + (good === null ? 'steady' : good ? 'better' : 'worse'),
-        t === 'steady' ? 'steady' : t === 'rising' ? 'more often lately' : 'less often lately'));
+      if (!p[key][i]) return;
+      node.querySelector('.gv-item-head').append(patternChips(p[key][i], p.recorded, bad));
     });
   }
   host.append(view);
@@ -667,8 +707,12 @@ $('bf-go').addEventListener('click', async () => {
  *
  * @param gutter  the list has eyes, so a row without one keeps its room and
  *   the grades still line up down the list
+ * @param marks  the row's milestones as main counted them (8.7, progress.js
+ *   libraryProgress marks[id]): [{ kind, text }], a badge each beside the
+ *   result, "Best in 23", "First A", "3 in a row", "3 without ...". None
+ *   while the match is still being checked, since its grade is not yet its own.
  */
-function row(m, gutter) {
+function row(m, gutter, marks) {
   const item = el('div', 'm-item');
   item.setAttribute('role', 'listitem');
   const b = el('button', 'm-row');
@@ -684,6 +728,14 @@ function row(m, gutter) {
   if (m.result && !checking) {
     top.append(el('span', 'm-res ' + (/vict|win/i.test(m.result) ? 'win' : /defeat|loss/i.test(m.result) ? 'loss' : ''),
       [m.result, m.score].filter(Boolean).join(' ')));
+  }
+  if (!checking && Array.isArray(marks)) {
+    for (const k of marks) {
+      if (!k || typeof k.text !== 'string' || !k.text) continue;
+      const mark = el('span', 'm-mark' + (k.kind ? ' ' + k.kind : ''), k.text);
+      mark.title = k.text;
+      top.append(mark);
+    }
   }
   main.append(top);
   main.append(el('div', 'm-meta', [fmtWhen(m.at), m.map, m.mode,
@@ -743,8 +795,9 @@ async function load() {
   const host = $('list');
   host.replaceChildren();
   const eyes = rows.some((m) => m.aiLog === 'kept' || m.aiLog === 'gone');
+  const marks = (patterns && patterns.progress && patterns.progress.marks) || {};
   rows.forEach((m, i) => {
-    const r = row(m, eyes);
+    const r = row(m, eyes, marks[m.id]);
     r.style.animationDelay = Math.min(i * 40, 360) + 'ms';
     host.append(r);
   });

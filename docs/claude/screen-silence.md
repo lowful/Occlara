@@ -41,6 +41,14 @@ What still counts as "reaching the screen", and is sealed mid match:
   decided on the session a read would serve, never the id asked for, and an id
   the log no longer keeps is gone, never replaced by the newest folder, which
   mid match is the session being recorded.
+- The review's reveal (8.7, ui.md "The reveal"), its count, its stamp and
+  its sound, waits for the seal to lift. It runs inside `occlaraOnShown`
+  (embed.js), and a sealed page is never on screen, so a review made whole
+  while the next match records is revealed only once the player opens a
+  page. Its sound then asks main first and plays only with sounds on and
+  `isCoaching` false. Both guards are needed: the first keeps it off the
+  screen, the second keeps a page shown between a Start and the seal quiet
+  (`test:surfaces`, "revealed once, and heard once, only on screen").
 - Ctrl+Shift+E opens the last review, and does nothing while a match is in
   progress (`matchInProgress()`).
 - The window's notice line, in the top strip and shown only when there is

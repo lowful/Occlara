@@ -23,6 +23,7 @@ const verify = require('../src/shared/valorant-verify');
 const valorantReview = require('../src/shared/valorant-review');
 const riotReview = require('../src/shared/riot-review');
 const patterns = require('../src/shared/patterns');
+const progress = require('../src/shared/progress');
 const { metaOf } = require('../src/main/services/review-store');
 const { homeModel, winLoss, rankModel, rrForRows, rrWaiting, RR_WINDOW_MS, RR_EXACT_MS } = require('../src/shared/home-model');
 
@@ -81,6 +82,17 @@ const summary = patterns.summarise(saved);
   const one = homeModel({ rows: rows.slice(0, 1), patterns: patterns.summarise(saved.slice(0, 1)), review: saved[0].review });
   ok(one.last && one.top === null && one.average === null,
     'one match has a last match, but no pattern and no average, since a pattern needs two');
+}
+// The milestone (8.7): the newest match's first progress line, as main
+// counted it (getPatterns' progress), passed through whole.
+{
+  const lib = progress.libraryProgress(saved);
+  const m = homeModel({ rows, patterns: { ...summary, progress: lib }, review: saved[0].review });
+  ok(lib.latest && m.milestone && m.milestone.text === lib.latest.text && m.milestone.tone === lib.latest.tone
+    && m.milestone.kind === lib.latest.kind, `the milestone is the newest match's first progress line (${m.milestone && m.milestone.text})`);
+  ok(homeModel({ rows, patterns: summary, review: null }).milestone === null, 'no progress, no milestone');
+  ok(homeModel({ rows, patterns: { ...summary, progress: { latest: { kind: 'best', text: '' } } }, review: null }).milestone === null,
+    'and a line with no text is none');
 }
 
 // ── Matches graded from Riot's record alone ────────────────────────────────

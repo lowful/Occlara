@@ -302,7 +302,11 @@ setTimeout(async () => {
     const grade = await js("(document.querySelector('#list .m-row .m-score') || {}).textContent || ''");
     const pats = await js("document.querySelectorAll('#p-lists .gv-item').length");
     const avg = await js("document.getElementById('p-avg-num').textContent");
+    // 8.7: the patterns ranked and chipped, and the marks main counted.
+    const ranked = await js("({ hero: document.querySelectorAll('#p-lists .gv-hero').length, chips: document.querySelectorAll('#p-lists .p-chips').length, marks: [...document.querySelectorAll('#list .m-mark')].map((x) => x.textContent) })");
     lines.push(`rows=${rows} first grade=${grade} pattern items=${pats} average=${avg}`);
+    lines.push(`ranked: hero=${ranked.hero} chipped=${ranked.chips} marks=${JSON.stringify(ranked.marks)}`);
+    if (ranked.chips !== pats) return report(false, `${pats} pattern items, ${ranked.chips} with their chips`);
     if (rows !== 4) return report(false, `listed ${rows} matches, expected 4`);
     if (String(grade) !== String(built.grade.score)) return report(false, `the row shows grade ${grade}, the review says ${built.grade.score}`);
     if (!pats) return report(false, 'three matches painted no patterns');
@@ -591,7 +595,8 @@ setTimeout(async () => {
     if (mainWindow.current().shown !== 'review') return report(false, `the page showing is ${mainWindow.current().shown}, not the review`);
     const rjs = (s) => rwin.webContents.executeJavaScript(s);
     const shown = await rjs("!document.getElementById('vreview').hidden");
-    const letter = await rjs("(document.querySelector('.gv-letter') || {}).textContent || ''");
+    // The letter is the Verdict's since 8.7, the grade card under it compact.
+    const letter = await rjs("(document.querySelector('#v-verdict .vd-letter') || document.querySelector('.gv-letter') || {}).textContent || ''");
     // The kept frame is painted in round 2's own row (8.3.1), where it was a
     // section of its own at the bottom of the review with a link down from
     // the round. Every round has its row, and no raw read is shown.

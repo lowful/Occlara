@@ -62,6 +62,29 @@ matches the newest look's prompt looked at (a look saved with no variant was a;
 a match never looked at, or by both, is none's), with no trend before four of
 them; its counts, in how many matches and how often, are every match's.
 
+**Progress (8.7, `src/shared/progress.js`)**, pure, from the same saved reviews
+newest first. `matchProgress(saved, id)` is one match against the ones before
+it: `vsLast` and `vsAverage` (2 or more graded before, up to `WINDOW`), `best`
+(the grade, a first S or A, per category bests compared as the card shows them,
+capped at 100; each needs 3 graded matches before it, `BEST_FLOOR`), `run` (B or
+better in a row, 2 or more; the letter set is `RUN_LETTERS` in progress.js and
+never a renderer's), `cleared` (a key in `MIN_MATCHES` or more recorded matches
+older than a streak of 2 or more without it; judged entries and `cause:` keys
+skipped) and `focus` (the previous recorded review's top counted unjudged
+mistake: `before`, `now`, `outcome` gone, fewer, same or more; null unless both
+reviews are recorded and Riot verified). **A provisional grade makes no best
+and no run, and a run stops at one**; its delta is still given, flagged.
+`lines` are the finished sentences all three surfaces show: each names its
+window ("Best grade in your last 23 graded matches."), says its sign as a word
+("Up 6", "Down 4"), has no dash, and every number in it is a field beside it.
+League reviews get the grade parts only. `libraryProgress(saved)` gives the
+library's row badges (`marks`, a run or a streak on its newest match only),
+the newest `run` and `latest`, the newest match's first line, which Home shows
+as `milestone` (home-model.js). Main serves it as `PROGRESS_GET` (index.js
+`getProgress`) and as `progress` on `getPatterns`, from the one read.
+`npm run test:progress` covers each rule, the lines, the marks, the real Abyss
+review and a League one.
+
 `npm run test:grade` covers the graders on the real fixture, the lists, the
 frame picker, the store, the patterns and the weekly report, the short match
 rule on the Fracture and Pearl swiftplays, repeek counted as one lesson and the

@@ -150,7 +150,7 @@ const strip = (rv) => {
   ok(JSON.stringify(saved.insights.strengths.find((e) => e.key === 'clutch').detail) === JSON.stringify(then)
     && saved.grade.categories.find((c) => c.key === 'decisions').evidence[0] === 'no avoidable death on record',
     'and the saved review itself is left as it was');
-  ok(JSON.stringify(valorantReview.served(fresh)) === JSON.stringify(fresh),
+  ok(JSON.stringify(valorantReview.withoutView(valorantReview.served(fresh))) === JSON.stringify(fresh),
     'a review built today comes through the same conversion unchanged');
   ok(JSON.stringify(insights.asFacts(f)) === JSON.stringify(f), 'facts made into facts again are the same facts');
 

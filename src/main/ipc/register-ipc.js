@@ -49,6 +49,7 @@ function registerIpc(deps) {
   safeHandle(C.REVIEWS_LIST, async (_e, game) => controller.listReviews(game));
   safeHandle(C.REVIEW_GET, async (_e, id) => controller.getReview(id));
   safeHandle(C.PATTERNS_GET, async (_e, game) => controller.getPatterns(game));
+  safeHandle(C.PROGRESS_GET, async (_e, id) => controller.getProgress(typeof id === 'string' ? id : null));
   safeHandle(C.BREAKDOWN_GET, async (_e, game, opts) => controller.getBreakdown(game, opts));
   safeHandle(C.BACKFILL_START, async () => controller.startBackfill());
   safeHandle(C.BACKFILL_STATUS, async () => controller.getBackfillStatus());

@@ -843,6 +843,79 @@ async function openShell(cfg, state, opts) {
       'the rows colour the same grades the same way');
   });
 
+  // 8.7: the milestones main counted (progress.js libraryProgress) on the
+  // rows and the trend, the patterns ranked and chipped, and Home's line.
+  await section('the library and Home show the milestones main counted:', async () => {
+    const at = Date.UTC(2026, 9, 1, 20);
+    const grades = [88, 81, 64, 70].map((score, i) => ({ id: `g${i}`, at: at - i * 3600000, score, letter: grade.letter(score) }));
+    const rows = grades.map((g) => ({ id: g.id, at: g.at, title: 'Jett', result: 'Victory', grade: { score: g.score, letter: g.letter } }));
+    rows.push({ id: 'w', at: at + 1, title: 'Jett', work: { path: 'riot' } });
+    const progress = {
+      marks: { g0: [{ kind: 'best', text: 'Best in 4' }, { kind: 'run', text: '2 in a row' }],
+        g2: [{ kind: 'cleared', text: '2 without Died where nobody could trade' }],
+        w: [{ kind: 'best', text: 'Best in 5' }] },
+      run: { count: 2, floor: 'B' },
+      latest: { kind: 'best', tone: 'good', text: 'Best grade in your last 4 graded matches.' },
+    };
+    const pat = (key, title, trend) => ({ key, title, matches: 2, total: 7, judged: false, fix: 'Do the other thing.', trend,
+      examples: [{ id: 'g0', at, detail: `${title} in round 4.` }] });
+    const m = loadSurface('matches', {
+      handlers: {
+        [C.STATE_GET]: () => ({ gameId: 'valorant' }),
+        [C.REVIEWS_LIST]: () => rows,
+        [C.PATTERNS_GET]: () => ({ matches: 4, fromRiot: 0, recorded: 4, enough: true, grades, categories: [], average: 76, progress,
+          mistakes: [pat('a', 'Peeked alone', 'rising'), pat('b', 'Died where nobody could trade', 'falling')], strengths: [], missed: [] }),
+      },
+    });
+    await settle();
+    const items = m.document.querySelectorAll('#list .m-item');
+    const marksOf = (n) => n.querySelectorAll('.m-mark').map((x) => x.textContent);
+    const byTitle = (n) => items.find((it) => it.querySelector('.m-letter') && it.querySelector('.m-score').textContent === String(n));
+    ok(same(marksOf(byTitle(88)), ['Best in 4', '2 in a row']), 'a row carries its marks as badges, in main\'s order', JSON.stringify(marksOf(byTitle(88))));
+    ok(same(marksOf(byTitle(64)), ['2 without Died where nobody could trade']) && marksOf(byTitle(81)).length === 0,
+      'a cleared habit on its own row, and a row with none carries none');
+    const checkingRow = items.find((it) => !it.querySelector('.m-letter'));
+    ok(checkingRow && marksOf(checkingRow).length === 0, 'a match still being checked shows no mark');
+    const bars = m.document.querySelectorAll('#p-trend .p-bar');
+    // Oldest on the left: 70, 64, 81, 88.
+    ok(same(bars.map((b) => b.classList.contains('best')), [false, false, false, true]), 'the record\'s bar is outlined, and only it');
+    ok(same(bars.map((b) => b.classList.contains('run')), [false, false, true, true]), 'the run\'s bars, the newest run.count, are marked');
+    ok(/Best in 4/.test(bars[3].title) && /One of 2 in a row at B or better/.test(bars[2].title), 'and each says so on hover', bars[3].title);
+    const hero = m.document.querySelector('#p-lists .gv-hero');
+    const closed = m.document.querySelectorAll('#p-lists .gv-rowed details.gv-row');
+    ok(hero && hero.querySelector('.gv-item-title').textContent === 'Peeked alone' && closed.length === 1,
+      'the patterns are ranked: the top mistake a card, the rest closed rows');
+    const chips = (n) => n.querySelectorAll('.p-chips .gv-chip').map((x) => x.textContent);
+    ok(same(chips(hero), ['2 of 4 recorded matches', '7 times', 'more often lately']), 'its chips: how often, how many times, the trend', JSON.stringify(chips(hero)));
+    ok(hero.querySelector('.p-trendword').classList.contains('worse') && closed[0].querySelector('.p-trendword').classList.contains('better'),
+      'a mistake rising is worse, falling better');
+    ok(closed[0].querySelector('.gv-row-body .gv-item-detail').textContent === 'Latest match: Died where nobody could trade in round 4.',
+      'the latest sighting is inside the closed row');
+
+    const homeRows = rows.filter((r) => !r.work).map((r) => ({ ...r, map: 'Abyss', score: '13-11' }));
+    const home = (prog, list) => loadSurface('home', {
+      handlers: {
+        [C.STATE_GET]: () => ({ ...BASE }), [C.CONFIG_GET]: () => ({ language: 'en' }),
+        [C.REVIEWS_LIST]: () => list || homeRows,
+        [C.PATTERNS_GET]: () => ({ matches: 4, enough: true, mistakes: [], strengths: [], missed: [], grades, average: 76, categories: [], progress: prog }),
+        [C.REVIEW_GET]: (id) => ({ id, kind: 'valorant', grade: { score: 88, letter: 'A', categories: [] } }),
+      },
+    });
+    const h = home(progress);
+    await settle();
+    const line = h.$('last').querySelectorAll('.gv-prog');
+    ok(line.length === 1 && line[0].textContent === 'Best grade in your last 4 graded matches.' && line[0].classList.contains('good'),
+      'Home\'s last match carries its milestone line, in its tone', line.map((x) => x.textContent).join(' | '));
+    const order = h.$('last').children.map((c) => c.className.split(' ')[0]);
+    ok(order.indexOf('gv-progs') === 1 && order.indexOf('gv-progs') < order.indexOf('gv-grade'), 'under the match\'s facts, above its grade', order.join(' | '));
+    const none = home({ marks: {}, run: null, latest: null });
+    await settle();
+    ok(!none.$('last').querySelector('.gv-progs'), 'and nothing where there is no milestone');
+    const busy = home(progress, [{ ...homeRows[0], work: { path: 'riot' } }, ...homeRows.slice(1)]);
+    await settle();
+    ok(!busy.$('last').querySelector('.gv-progs'), 'nor while the last match is still being checked');
+  });
+
   // K/D/A took K/D's place in the breakdown (8.2): the cell is an average
   // match as a scoreboard prints it, the tooltip the K/D it sorts on and its
   // sample, and it is still one of the columns a narrow window drops.
@@ -1014,8 +1087,12 @@ async function openShell(cfg, state, opts) {
     const mixed = await open({ matches: 9, fromRiot: 7, recorded: 2, enough: true, mistakes: [mistake] });
     ok(mixed.$('p-sub').textContent === 'Grades across your last 9 matches, patterns across the last 2 you recorded. A pattern needs two of them to count.',
       'with Riot only matches among them, the grades and the patterns each say what they are over', mixed.$('p-sub').textContent);
+    // Its count is a chip since 8.7, the detail the latest sighting alone.
+    const count = mixed.document.querySelector('#p-lists .p-chips .gv-chip');
+    ok(count && count.textContent === '2 of 2 recorded matches', 'and a pattern is counted out of the recorded ones',
+      count && count.textContent);
     const detail = mixed.document.querySelector('#p-lists .gv-item-detail');
-    ok(detail && detail.textContent.startsWith('In 2 of your last 2 recorded matches.'), 'and a pattern is counted out of the recorded ones',
+    ok(detail && detail.textContent === 'Latest match: 3 of your 5 deaths went unanswered.', 'with the latest sighting as its detail',
       detail && detail.textContent);
     const plain = await open({ matches: 3, fromRiot: 0, recorded: 3, enough: true, mistakes: [mistake] });
     ok(plain.$('p-sub').textContent === 'Across your last 3 matches. A pattern needs two of them to count.',
@@ -1340,7 +1417,8 @@ async function openShell(cfg, state, opts) {
     v.bridge.emit(C.PUSH_REVIEW_WORK, { id: BUILT.id, work: null });
     await settle();
     ok(v.$('building').hidden && !v.$('vreview').hidden && v.$('v-summary').textContent === "Riot's read of the match."
-      && (v.document.querySelector('#grade-host .gv-score') || {}).textContent === '61' && !v.$('ask').hidden,
+      && (v.document.querySelector('#v-verdict .vd-score') || {}).textContent === '61' && v.document.querySelector('#grade-host .gv-grade.compact')
+      && !v.$('ask').hidden,
     'its work done, the review is painted whole from the version the page holds, its grade, its read and Ask with it');
     ok(v.$('vreview').classList.contains('v-arrive'), 'and it rises in where the loading screen was');
 
@@ -1706,14 +1784,17 @@ async function openShell(cfg, state, opts) {
     ok(lv.document.activeElement === lv.$('round-9') && lv.$('round-9').classList.contains('flash')
       && lv.$('round-9').querySelector('.v-look-what').textContent === looksOf(9).what && lv.$('round-9').querySelector('.v-look-better').textContent === 'Better' + looksOf(9).better,
     'and its chip lands on the round, where both of them are');
-    const WHOLE = 'whole gv-item-head gv-item-detail gv-item-fix gv-rounds gv-dot gv-item-title gv-badge';
-    ok(same(misses.slice(3).map(shape), ['whole gv-item-head gv-item-detail gv-rounds gv-dot gv-item-title', WHOLE, WHOLE])
+    // Ranked on the review (8.7, insightLists hero): any other entry is one
+    // closed row with its sentences inside, rather than said in full.
+    const ROW = 'whole gv-row gv-dot gv-item-title gv-count gv-badge';
+    ok(same(misses.slice(3).map(shape), ['whole gv-row gv-dot gv-item-title gv-count', ROW, ROW])
+      && misses.slice(3).every((li) => li.querySelector('details.gv-row') && !li.querySelector('details.gv-row').open)
       && misses[4].querySelector('.gv-item-detail').textContent === 'Round 9: You were somewhere else entirely.'
       && misses[5].querySelector('.gv-item-fix').textContent === 'FixStay where a teammate can trade you.',
-    'any other entry is whole: a miss that is no look\'s, one whose sentences its round does not say, and one for a round whose frame was unclear',
+    'any other entry keeps its sentences, closed: a miss that is no look\'s, one whose sentences its round does not say, and one for a round whose frame was unclear',
     misses.slice(3).map(shape).join(' / '));
     const repeated = items('Your repeated mistakes').find((li) => li.querySelector('.gv-item-title').textContent === 'Dry peeks');
-    ok(repeated && shape(repeated) === WHOLE,
+    ok(repeated && shape(repeated) === ROW && repeated.querySelector('.gv-count').textContent === '2 rounds',
       'and so is a cause the coach saw twice, which is a count of looks, said nowhere else', repeated && shape(repeated));
     const elsewhere = lv.window.GradeView.insightLists(listed, { onRound: false, saidInRound: () => true });
     const elsewhereBrief = lv.window.GradeView.insightLists(listed, { onRound: () => {} });
@@ -1722,8 +1803,8 @@ async function openShell(cfg, state, opts) {
     'the lists drawn with no round to jump to, or without the review\'s rule, keep every sentence: the library\'s and Home\'s are as they were');
     // The order of the page: the score, the grade and the read, then the mistakes, then the rounds.
     const order = v.$('vreview').children.filter((c) => !c.hidden).map((c) => c.id || c.className);
-    ok(same(order, ['v-hero', 'grade-host', 'v-summary-wrap', 'insights-host', 'v-rounds-wrap', 'v-foot']),
-      'the result, the grade and the coach\'s read first, then the repeated mistakes, then the rounds', order.join(' | '));
+    ok(same(order, ['v-verdict', 'grade-host', 'v-summary-wrap', 'insights-host', 'v-rounds-wrap', 'v-foot']),
+      'the Verdict, the grade and the coach\'s read first, then the repeated mistakes, then the rounds', order.join(' | '));
     ok(!DASHES.test(vText), 'with no dash anywhere on the page');
     const gone = await open({ ...base, aiLog: 'gone' });
     ok(!gone.document.querySelectorAll('#v-rounds .log-eye').length && gone.document.querySelectorAll('#v-rounds .v-shot img').length === 9,
@@ -1788,7 +1869,7 @@ async function openShell(cfg, state, opts) {
       game: { map: 'Abyss', agent: 'Jett', mode: 'Competitive', result: 'Victory', score: '13-11' },
       scoreline: { kills: 31, deaths: 21, assists: 4, acs: 382, adr: 243, headshotPct: 25, kd: 1.48 }, against };
     const v = await open(base);
-    const stats = v.document.querySelectorAll('#v-hero #v-stats .v-stat');
+    const stats = v.document.querySelectorAll('#v-verdict #v-stats .v-stat');
     const part = (s, cls) => (s.querySelector(cls) || { textContent: null }).textContent;
     ok(same(stats.map((s) => part(s, '.v-stat-label')), ['K / D / A', 'ACS', 'ADR', 'Headshot'])
       && same(stats.map((s) => part(s, '.v-stat-value')), ['31/21/4', '382', '243', '25%']), 'Riot\'s four numbers, inside the result\'s card');
@@ -1862,6 +1943,377 @@ async function openShell(cfg, state, opts) {
     ok(v.$('v-summary').hidden && !v.$('v-summary-wrap').hidden && !v.$('v-focus-wrap').hidden
       && !read.$('v-summary').hidden && read.$('v-summary').textContent === 'You lost 2 to 5.',
     'the coach\'s read with only a focus shows the focus under its heading, and no empty line for the read');
+  });
+
+  // STRUCTURE INSTEAD OF TEXT WALLS (8.7): the Verdict first, then this
+  // match against the ones before it, then the grade compact; the coach's
+  // read in short lines and the focus as the line to act on, last match's
+  // result on its top mistake above it; the lists ranked; the rounds' facts as
+  // tags, the rounds served() does not open folded to one line; the study
+  // notes and the refusals closed; and Share image, whose sheet Esc closes
+  // before the page.
+  await section('the review leads with its Verdict, ranks its lists and folds the rounds it does not open:', async () => {
+    const { makeEvent } = require('./fixtures/fake-dom');
+    const verdictOf = require('../src/shared/verdict').of;
+    const valorantReview = require('../src/shared/valorant-review');
+    const ID = 'valorant-1759341600000-vd0001';
+    const PROGRESS = { id: ID, lines: [
+      { kind: 'best', tone: 'good', text: 'Best grade in your last 5 graded matches.' },
+      { kind: 'last', tone: 'bad', text: 'Down 4 on your last match.' },
+      { kind: 'focus', tone: 'good', text: "Died where nobody could trade, last match's top mistake: down to 1 from 4." },
+    ] };
+    const tag = (kind, tone, text) => ({ kind, tone, text });
+    const base = {
+      id: ID, kind: 'valorant', source: 'watched', aiLog: null, verified: true, at: Date.UTC(2026, 9, 4, 18, 0, 0),
+      game: { map: 'Abyss', agent: 'Jett', mode: 'Competitive', result: 'Victory', score: '13-11' },
+      scoreline: { kills: 31, deaths: 21, assists: 4, acs: 382, adr: 243, headshotPct: 25, kd: 1.48 },
+      grade: { score: 78, letter: 'B', provisional: false, notes: [], categories: [
+        { key: 'survival', label: 'Survival', score: 62, evidence: ['8 deaths in 13 rounds', 'first to die in 3 of 13 rounds'] },
+        { key: 'impact', label: 'Impact', score: 91, evidence: ['382 combat score a round'] },
+      ] },
+      summary: 'You won 13 to 11. Your entries opened the site.',
+      summaryLines: ['You won 13 to 11.', 'Your entries opened the site.'],
+      focus: 'Enter second: let a teammate take first contact, then trade.',
+      insights: {
+        mistakes: [
+          { key: 'untraded', title: 'Died where nobody could trade', detail: '3 of your 4 deaths went unanswered.', fix: 'Check someone can see the same angle.', rounds: [2, 3] },
+          { key: 'same-spot', title: 'Dying at A Site', detail: 'Died at A Site in 2 rounds.', fix: 'Change the angle you hold.', rounds: [2, 3] },
+        ],
+        strengths: [{ key: 'first-kill', title: 'First kills', detail: 'First kill of the round 3 times.', rounds: [1] }], missed: [],
+      },
+      rounds: [
+        { n: 1, side: 'Attack', result: 'won', died: false, facts: ['Survived', '2 kills'], tags: [tag('survived', 'good', 'Survived'), tag('kill', 'good', '2 kills')], why: null, forensics: null, open: false },
+        { n: 2, side: 'Attack', result: 'lost', died: true, facts: ['Died at A Site'], tags: [tag('death', 'bad', 'Died at A Site'), tag('untraded', 'warn', 'Nobody traded you')],
+          why: 'Alone on A with nobody near.', forensics: null, open: false },
+        { n: 3, side: 'Attack', result: 'lost', died: true, facts: ['Died at A Site'], tags: [tag('death', 'bad', 'Died at A Site'), tag('nope', 'odd', 'An old saved line')],
+          why: 'The same angle again.', forensics: null, open: true },
+      ],
+      study: [{ text: 'Entry in checkpoints, take one piece of space at a time.' }],
+      refused: ['Where your teammates stood is not in the record.'],
+    };
+    let closed = 0;
+    const open = async (r, more) => {
+      const v = loadSurface('review', { handlers: { [C.LOL_REVIEW_GET]: () => r, [C.PROGRESS_GET]: (id) => (id === ID ? PROGRESS : null), ...(more || {}) },
+        preload: (api) => ({ ...api, close: () => { closed++; } }) });
+      await settle();
+      return v;
+    };
+    const v = await open(base);
+    const want = verdictOf(base);
+    const letter = v.document.querySelector('#v-verdict .vd-letter');
+    ok(want && !v.$('v-grade').hidden && letter && letter.textContent === 'B' && toneOf(letter) === toneFor(78)
+      && v.document.querySelector('#v-verdict .vd-score').textContent === '78' && !v.$('v-vd-label').hidden
+      && v.$('v-reason').textContent === want.reason && !v.$('v-reason').hidden,
+    'the Verdict first: its letter in the one grade colour, the number out of 100 and the one counted reason', want && want.reason);
+    ok(v.document.querySelectorAll('#v-verdict #v-stats .v-stat').length === 4 && v.$('v-score').textContent === '13 : 11',
+      'with the result\'s score and Riot\'s scoreboard folded into it');
+    const order = v.$('vreview').children.filter((c) => !c.hidden).map((c) => c.id || c.className);
+    ok(same(order, ['v-verdict', 'v-prog', 'grade-host', 'v-summary-wrap', 'insights-host', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap', 'v-foot']),
+      'the Verdict, the strip against the matches before, the grade, the read, the lists, the rounds, then what is kept closed', order.join(' | '));
+    const progs = v.document.querySelectorAll('#v-prog .gv-prog');
+    ok(same(progs.map((p) => p.textContent), [PROGRESS.lines[0].text, PROGRESS.lines[1].text]) && same(progs.map(toneOf), ['good', 'bad'])
+      && same(v.bridge.invoked.filter((x) => x[0] === C.PROGRESS_GET), [[C.PROGRESS_GET, ID]]),
+    'the progress lines a chip each in their tone, asked of main by this review\'s id, the sign in their words', progs.map((p) => p.textContent).join(' | '));
+    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...base });
+    await settle();
+    ok(v.document.querySelectorAll('#v-prog .gv-progs').length === 1 && v.document.querySelectorAll('#v-prog .gv-prog').length === 2,
+      'painted again, the strip is drawn again rather than a second time under the first');
+    const was = v.$('v-focus-was');
+    ok(!was.hidden && was.textContent === PROGRESS.lines[2].text && was.classList.contains('good')
+      && v.$('v-focus-wrap').children.indexOf(was) < v.$('v-focus-wrap').children.indexOf(v.$('v-focus')),
+    'last match\'s top mistake and how it went, above the focus and not among the chips', was.textContent);
+    ok(same(v.$('v-summary').children.map((li) => li.textContent), base.summaryLines) && v.$('v-focus').textContent === base.focus,
+      'the coach\'s read a line a sentence, the focus under it');
+    // The grade compact, its evidence chips, its bars indexed for the reveal.
+    const card = v.document.querySelector('#grade-host .gv-grade');
+    const chips = card ? card.querySelectorAll('.gv-chip') : [];
+    ok(card && card.classList.contains('compact') && !card.querySelector('.gv-score') && !card.querySelector('.gv-top'),
+      'the grade compact under the Verdict, its letter and number said once');
+    ok(same(chips.map((c) => c.textContent), ['8 deaths in 13 rounds', 'first to die in 3 of 13 rounds', '382 combat score a round'])
+      && same(chips.map((c) => (c.querySelector('b') || { textContent: null }).textContent), ['8', null, '382'])
+      && same(card.querySelectorAll('.gv-bar i').map((i) => i.style['--i']), ['0', '1']),
+    'each piece of evidence a chip, its leading number bold, and each bar its place for the reveal', chips.map((c) => c.textContent).join(' | '));
+    const LEAD = v.window.GradeView.LEAD_NUM;
+    ok(LEAD.test('8 deaths in 13 rounds') && LEAD.test('25% headshots') && LEAD.test('1.45 kills a round')
+      && !LEAD.test('first to die in 3 of 13 rounds') && !LEAD.test('2026') && !LEAD.test('3rd round'),
+    'the bold number is a leading number and a space, nothing else');
+    ok(!v.window.GradeView.gradeCard(base.grade).querySelectorAll('.gv-bar i').some((i) => i.style['--i'] !== undefined),
+      'and a card drawn without the reveal carries no index');
+    // The lists ranked.
+    const heroes = v.document.querySelectorAll('#insights-host .gv-hero');
+    const action = heroes[0] && heroes[0].querySelector('.gv-action');
+    ok(heroes.length === 1 && heroes[0].querySelector('.gv-item-title').textContent === 'Died where nobody could trade'
+      && action && action.textContent === '→Fix' + base.insights.mistakes[0].fix,
+    'the top mistake is the hero, its fix the line to act on', action && action.textContent);
+    const rows = v.document.querySelectorAll('#insights-host details.gv-row');
+    ok(rows.length === 2 && rows.every((d) => !d.open) && same(rows.map((d) => d.querySelector('.gv-count').textContent), ['2 rounds', '1 round'])
+      && rows[0].querySelector('.gv-item-detail').textContent === base.insights.mistakes[1].detail,
+    'every other entry one closed row, its rounds counted, its sentences inside', rows.map((d) => d.textContent).join(' | '));
+    const lib = v.window.GradeView.insightLists(base.insights, {});
+    ok(!lib.querySelectorAll('.gv-hero').length && !lib.querySelectorAll('.gv-row').length && lib.querySelectorAll('.gv-item-detail').length === 3,
+      'the library and Home, asking for no ranking, draw the lists as they were');
+    // The rounds: tags as chips, rows not open folded.
+    const r1 = v.$('round-1');
+    const tags1 = r1.querySelectorAll('.v-tag');
+    ok(r1.classList.contains('quiet') && same(tags1.map((t) => t.textContent), ['Survived', '2 kills'])
+      && same(tags1.map((t) => t.dataset.kind), ['survived', 'kill']) && tags1.every((t) => t.classList.contains('good') && t.querySelector('svg')),
+    'a round\'s facts are tags, an icon by its kind and the fact\'s own words', tags1.map((t) => t.className).join(' | '));
+    const odd = v.$('round-3').querySelectorAll('.v-tag')[1];
+    ok(odd && odd.textContent === 'An old saved line' && odd.classList.contains('even') && !odd.querySelector('svg'),
+      'a kind the page does not know is its words with no icon, in no colour');
+    const r2 = v.$('round-2');
+    const body2 = r2.querySelector('.v-round-body');
+    const more2 = r2.querySelector('.v-fold');
+    ok(r2.classList.contains('fold') && body2 && body2.hidden && more2 && more2.getAttribute('aria-expanded') === 'false'
+      && more2.getAttribute('aria-controls') === body2.id && r2.querySelector('.v-round-head .v-tags'),
+    'a round served() does not open is one line, its tags beside its number, closed');
+    r2.querySelector('.v-round-head').click();
+    ok(!body2.hidden && r2.classList.contains('open') && more2.getAttribute('aria-expanded') === 'true' && body2.querySelector('.v-why').textContent === base.rounds[1].why,
+      'and opens on a click, to what the coach said');
+    more2.click();
+    ok(body2.hidden && !r2.classList.contains('open'), 'and closes again from its chevron');
+    const r3 = v.$('round-3');
+    ok(!r3.classList.contains('fold') && !r3.querySelector('.v-round-body') && r3.querySelector('.v-why').textContent === base.rounds[2].why,
+      'an open round is drawn whole, as before');
+    v.document.querySelectorAll('#v-strip .v-cell').find((c) => c.querySelector('.v-cell-n').textContent === '2').click();
+    ok(!body2.hidden && r2.classList.contains('open') && v.document.activeElement === r2,
+      'a jump to a folded round opens it before it scrolls there');
+    ok(v.$('v-study-wrap').tagName === 'DETAILS' && !v.$('v-study-wrap').open && v.$('v-refused-wrap').tagName === 'DETAILS' && !v.$('v-refused-wrap').open
+      && v.document.querySelectorAll('#v-study .v-study-note').length === 1,
+    'the study notes and the refusals kept closed under the rounds');
+    ok(!DASHES.test(v.$('vreview').textContent), 'with no dash anywhere on the page');
+
+    // Share image: the sheet, its preview, its options, Save and Copy, and Esc.
+    const drawn = [];
+    v.window.VerdictCard.render = (vd, o) => { drawn.push([vd.score, o.size, o.paper]); return Promise.resolve(v.document.createElement('canvas')); };
+    v.window.VerdictCard.save = () => Promise.resolve(true);
+    v.window.VerdictCard.copy = () => Promise.resolve(false);
+    const sheet = v.$('share-sheet');
+    ok(!v.$('share').hidden && sheet.hidden && v.$('share').parentNode === v.$('ask').parentNode
+      && v.scripts.some((s) => /verdict-card\.js$/.test(s)),
+    'Share image beside Ask, its sheet closed, VerdictCard on the page');
+    v.$('share').click();
+    await settle();
+    ok(!sheet.hidden && v.$('share').getAttribute('aria-expanded') === 'true' && v.$('sh-preview').querySelector('canvas.sh-canvas')
+      && same(drawn, [[78, 'card', true]]),
+    'opened, it shows the image as it will be saved, the card on paper first', JSON.stringify(drawn));
+    sheet.querySelector('.sh-opt[data-size="post"]').click();
+    sheet.querySelector('.sh-opt[data-ground="dark"]').click();
+    await settle();
+    ok(same(drawn.slice(-1), [[78, 'post', false]]) && sheet.querySelector('.sh-opt[data-size="post"]').getAttribute('aria-pressed') === 'true'
+      && sheet.querySelector('.sh-opt[data-size="card"]').getAttribute('aria-pressed') === 'false' && sheet.querySelector('.sh-opt[data-ground="dark"]').getAttribute('aria-pressed') === 'true',
+    'Post and Dark drawn again live, the buttons pressed by what is picked', JSON.stringify(drawn));
+    v.$('sh-save').click();
+    v.$('sh-copy').click();
+    await settle();
+    ok(v.$('sh-save').textContent === 'Saved' && v.$('sh-copy').textContent === 'Could not copy', 'Save says Saved, a Copy that failed says so');
+    v.clock.advance(1399);
+    const still = v.$('sh-save').textContent;
+    v.clock.advance(1);
+    ok(still === 'Saved' && v.$('sh-save').textContent === 'Save image' && v.$('sh-copy').textContent === 'Copy image', 'for 1.4 s, then the buttons\' own words');
+    const esc = () => { for (const fn of v.document._listeners.keydown || []) fn.call(v.document, makeEvent('keydown', { key: 'Escape' })); };
+    esc();
+    ok(sheet.hidden && closed === 0 && v.$('share').getAttribute('aria-expanded') === 'false', 'Esc closes the sheet first, the page staying open');
+    esc();
+    ok(closed === 1, 'and only with the sheet closed, the page');
+    v.$('share').click();
+    await settle();
+    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...base, id: 'valorant-1759341600000-vd0002' });
+    await settle();
+    ok(sheet.hidden && !v.$('v-prog').children.length, 'another review painted closes the sheet, and the other review\'s progress is not shown');
+
+    // No grade to show: no Verdict, no Share image, the result and scoreboard still.
+    const bare = await open({ ...base, grade: null });
+    ok(bare.$('v-grade').hidden && bare.$('v-vd-label').hidden && bare.$('v-reason').hidden && bare.$('share').hidden
+      && bare.document.querySelectorAll('#v-stats .v-stat').length === 4,
+    'a review with no grade keeps its result and scoreboard, and has no Verdict and nothing to share');
+    const thin = await open({ ...base, scoreline: { ...base.scoreline, adr: null, headshotPct: null } });
+    ok(same(thin.document.querySelectorAll('#v-stats .v-stat-label').map((x) => x.textContent), ['K / D / A', 'ACS'])
+      && !/--/.test(thin.$('v-stats').textContent),
+    'a number the review does not have is left out of the row, never drawn as "--", as the Verdict leaves it out');
+    // Served as main serves it: the 8.0.1 Split fixture's tags and lines.
+    const split = valorantReview.served(require('./fixtures/valorant-review-split-801.json').review);
+    const sv = await open({ ...split, id: ID });
+    ok(sv.document.querySelectorAll('#v-rounds .v-tag').length === split.rounds.reduce((a, c) => a + c.tags.length, 0)
+      && sv.document.querySelectorAll('#v-rounds .v-tag.bad').length > 0 && same(sv.$('v-summary').children.map((li) => li.textContent), split.summaryLines),
+    'a saved review as served(): its rounds\' tags and its read in lines');
+
+    // League: the Verdict and the strip where the game has a grade.
+    const lol = { id: 'lol-1759348800000-vd0003', kind: 'lol', aiLog: null,
+      game: { champion: 'Ahri', role: 'Middle', mode: 'CLASSIC', duration: '31:04' },
+      scoreline: { kills: 10, deaths: 5, assists: 20, cs: 210, csAt10: 70, ward: 14 },
+      grade: { score: 84, letter: 'A', provisional: false, categories: [], notes: [] },
+      insights: { mistakes: [], strengths: [{ key: 'cs', title: 'CS at 10', detail: 'CS at 10:00: 70 this game, against your average of 61.' }], missed: [] },
+      deaths: { headline: '', detail: '' }, deathList: [], moments: [], objectives: {}, scored: [], unmeasured: [], next: null, gamesRecorded: 0 };
+    const lv = await open(lol, { [C.PROGRESS_GET]: () => ({ id: lol.id, lines: [PROGRESS.lines[0]] }) });
+    const lLetter = lv.document.querySelector('#r-verdict .vd-letter');
+    ok(!lv.$('r-verdict').hidden && lLetter && lLetter.textContent === 'A' && toneOf(lLetter) === toneFor(84)
+      && lv.document.querySelector('#r-verdict .vd-reason').textContent === verdictOf(lol).reason
+      && same(lv.document.querySelectorAll('#r-prog .gv-prog').map((p) => p.textContent), [PROGRESS.lines[0].text])
+      && lv.document.querySelector('#grade-host .gv-grade.compact') && !lv.$('share').hidden,
+    'a League review has its Verdict, its strip and Share image too', verdictOf(lol) && verdictOf(lol).reason);
+  });
+
+  // THE REVEAL (8.7): once, as the loading screen gives way, and only on
+  // screen. The number counts up in CSS from the --to the page sets, the
+  // letter stamps, the bars fill, the chips rise, and the letter landing is
+  // heard, by a timer and never an animation event. Never with sounds off,
+  // never while coaching, never before the page is on screen, never twice,
+  // and never for a review opened later.
+  await section('the review the loading screen gives way to is revealed once, and heard once, only on screen:', async () => {
+    const { makeEvent } = require('./fixtures/fake-dom');
+    const vm = require('vm');
+    const ID = 'valorant-1759341600000-rv0001';
+    const REV = { id: ID, kind: 'valorant', source: 'watched', aiLog: null, verified: true,
+      game: { map: 'Abyss', agent: 'Jett', mode: 'Competitive', result: 'Victory', score: '13-11' },
+      grade: { score: 78, letter: 'B', provisional: false, notes: [], categories: [
+        { key: 'survival', label: 'Survival', score: 62, evidence: ['8 deaths in 13 rounds'] },
+        { key: 'impact', label: 'Impact', score: 91, evidence: ['382 combat score a round'] },
+      ] },
+      summary: 'You won 13 to 11.', insights: { mistakes: [], strengths: [], missed: [] }, rounds: [] };
+    const WORK = { path: 'screen', steps: ['saved', 'writing', 'look'], step: 'writing', endedAt: Date.now() - 20000, until: null, scoreboard: false };
+    const LINES = [{ kind: 'last', tone: 'good', text: 'Up 4 on your last match.' }];
+    const PLAIN = { id: ID, lines: LINES, best: { grade: null, firstLetter: null, categories: [] } };
+    const BEST = { id: ID, lines: LINES, best: { grade: { over: 80, matches: 5 }, firstLetter: null, categories: [] } };
+    /** The page with its review still being built, every sound it asks for heard by a spy. */
+    const page = async (o) => {
+      const x = o || {};
+      const win = {};
+      if (x.embed) win.location = { hash: '', search: '?embed=1&page=review' };
+      if (x.still) win.matchMedia = (q) => ({ matches: q.includes('prefers-reduced-motion: reduce') });
+      const v = loadSurface('review', { window: win, handlers: {
+        [C.LOL_REVIEW_GET]: () => ({ ...REV, ...(x.work === false ? {} : { work: WORK }) }),
+        [C.PROGRESS_GET]: () => x.progress || PLAIN,
+        [C.STATE_GET]: () => ({ ...BASE, ...(x.state || {}) }),
+      } });
+      v.heard = [];
+      // The page's own shared/sfx.js when it loads one, its play spied on;
+      // a stand in that only listens when it does not.
+      const sfx = v.window.occlaraSfx || (v.window.occlaraSfx = { play() {} });
+      const real = sfx.play;
+      sfx.play = (kind) => { v.heard.push(kind); };
+      v.realPlay = real;
+      await settle();
+      v.whole = async () => { v.bridge.emit(C.PUSH_REVIEW_WORK, { id: ID, work: null }); await settle(); };
+      v.after = async (ms) => { v.clock.advance(ms); await settle(); };
+      v.root = () => v.$('vreview');
+      v.score = () => v.document.querySelector('#v-verdict .vd-score');
+      return v;
+    };
+
+    const v = await page();
+    ok(!v.$('building').hidden && !v.root().classList.contains('revealing'), 'while it is built, nothing is revealed');
+    await v.whole();
+    const sc = v.score();
+    ok(v.root().classList.contains('revealing') && !v.root().classList.contains('reveal-done')
+      && sc && sc.classList.contains('counting') && sc.style['--to'] === '78' && sc.textContent === '78',
+    'whole, it is revealed: the number counted up in CSS to the --to the page sets, the real number still its text',
+    sc && `${sc.className} --to=${sc.style['--to']} "${sc.textContent}"`);
+    ok(same(v.document.querySelectorAll('#grade-host .gv-bar i').map((i) => i.style['--i']), ['0', '1']),
+      'each bar has its place in the stagger');
+    await v.after(419);
+    ok(!v.heard.length, 'nothing heard before the letter has stamped in', v.heard.join(' '));
+    await v.after(1);
+    ok(same(v.heard, ['reveal']), 'the letter landing is heard, once, as the reveal cue', v.heard.join(' '));
+    await v.after(2000);
+    ok(v.root().classList.contains('reveal-done') && !v.score().classList.contains('counting') && same(v.heard, ['reveal']),
+      'then it ends on its own, the end state the page as it is painted, and heard no more', v.root().className);
+    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...REV, summary: 'Rewritten.' });
+    await settle();
+    await v.after(3000);
+    ok(!v.root().classList.contains('revealing') && same(v.heard, ['reveal']), 'painted again, it is not revealed or heard again');
+    // The same review again as a loading screen and whole again: once per review.
+    v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...REV, work: WORK });
+    await settle();
+    await v.whole();
+    await v.after(3000);
+    ok(!v.root().classList.contains('revealing') && same(v.heard, ['reveal']), 'once per review, even through a second loading screen');
+
+    const later = await page({ work: false });
+    await later.after(3000);
+    ok(!later.$('vreview').hidden && !later.root().classList.contains('revealing') && !later.score().classList.contains('counting') && !later.heard.length,
+      'a review opened later is painted as it ends, with no count, no stamp and no sound');
+
+    const quiet = await page({ state: { sounds: false } });
+    await quiet.whole();
+    await quiet.after(3000);
+    ok(quiet.root().classList.contains('reveal-done') && !quiet.heard.length, 'with sounds off it is revealed and nothing is heard');
+    const coaching = await page({ state: { isCoaching: true } });
+    await coaching.whole();
+    await coaching.after(3000);
+    ok(!coaching.heard.length, 'while coaching nothing is heard', coaching.heard.join(' '));
+    ok(coaching.bridge.invoked.some((c) => c[0] === C.STATE_GET), 'main is asked, as the letter lands');
+
+    // A page of the main window: nothing until it is on screen.
+    const sealed = await page({ embed: true });
+    await sealed.whole();
+    await sealed.after(3000);
+    ok(sealed.document.documentElement.classList.contains('page-armed') && !sealed.root().classList.contains('revealing') && !sealed.heard.length,
+      'a page not on screen (the seal on, or another page shown) reveals nothing and plays nothing');
+    sealed.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'forward' });
+    await settle();
+    ok(sealed.root().classList.contains('revealing') && !sealed.heard.length, 'on screen at last, it is revealed then');
+    await sealed.after(420);
+    ok(same(sealed.heard, ['reveal']), 'and heard as its letter lands', sealed.heard.join(' '));
+
+    // A click or a key ends it at once, the letter heard as it lands then.
+    const skip = await page();
+    await skip.whole();
+    for (const fn of skip.document._listeners.keydown || []) fn.call(skip.document, makeEvent('keydown', { key: 'a' }));
+    await settle();
+    ok(skip.root().classList.contains('reveal-done') && !skip.score().classList.contains('counting') && same(skip.heard, ['reveal']),
+      'a key ends it at once, and the letter lands, heard, then', skip.root().className);
+    await skip.after(3000);
+    ok(same(skip.heard, ['reveal']) && (skip.document._listeners.pointerdown || []).length === 0
+      && (skip.document._listeners.keydown || []).length === (later.document._listeners.keydown || []).length,
+    'and only once, its listeners gone');
+    const click = await page();
+    await click.whole();
+    for (const fn of click.document._listeners.pointerdown || []) fn.call(click.document, makeEvent('pointerdown'));
+    ok(click.root().classList.contains('reveal-done'), 'a click ends it at once too');
+
+    const best = await page({ progress: BEST });
+    await best.whole();
+    await best.after(420);
+    ok(same(best.heard, ['best']), 'with a best in the progress, the best cue instead', best.heard.join(' '));
+
+    const still = await page({ still: true });
+    await still.whole();
+    ok(still.root().classList.contains('revealing') && !still.score().classList.contains('counting'), 'asked for less motion, nothing counts');
+    await still.after(0);
+    ok(same(still.heard, ['reveal']), 'and nothing waits: the letter is there, and heard, at once', still.heard.join(' '));
+
+    // The sounds themselves (shared/sfx.js), run against a stand in for Web Audio.
+    const audio = fakeAudio();
+    const box = { window: { AudioContext: audio.AudioContext }, Math };
+    box.globalThis = box;
+    vm.createContext(box);
+    vm.runInContext(fs.readFileSync(path.join(RENDERER, 'shared', 'sfx.js'), 'utf8'), box);
+    const voices = (kind) => { const was = audio.stats.started; box.window.occlaraSfx.play(kind); return audio.stats.started - was; };
+    const counts = ['start', 'stop', 'reveal', 'best', 'nope'].map(voices);
+    ok(same(counts, [4, 4, 4, 6, 0]), 'the reveal is four voices with no latch, a best two more, and a cue it does not know is silence', counts.join(' '));
+
+    // In the CSS alone, on the tokens, and not when asked for less motion.
+    const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
+    const gcss = fs.readFileSync(path.join(RENDERER, 'shared', 'grade-view.css'), 'utf8');
+    const rpart = rcss.slice(rcss.indexOf('THE REVEAL (8.7'), rcss.indexOf('.vd-said {'));
+    const gpart = gcss.slice(gcss.indexOf("The review's reveal (8.7"), gcss.indexOf('@keyframes gvFill'));
+    ok(rpart.includes("@property --n { syntax: '<integer>'; initial-value: 0; inherits: false; }")
+      && rpart.includes('counter-reset: n var(--n)') && rpart.includes('content: counter(n)')
+      && rpart.includes('to { --n: var(--to); }') && rpart.includes('transform: scale(1.35)')
+      && rpart.includes('vdStamp var(--t-slow) var(--ease-spring) both') && rpart.includes('animation-delay: var(--t-slow)')
+      && rpart.includes('animation-delay: 0s'),
+    'the count is @property and counter(), the letter stamps from 1.35 on the spring after --t-slow, and less motion waits for nothing');
+    ok(gpart.includes('calc(var(--t-slow) * 2 + var(--i, 0) * 80ms)') && gcss.includes('from { transform: scaleX(0); }')
+      && gpart.includes('animation: riseIn') && gcss.includes('.revealing:not(.reveal-done) .gv-prog { animation-delay: 0s'),
+    'the bars fill from nothing by their place, the chips rise after them, and less motion waits for nothing');
+    ok(![rpart, gpart].some((c) => c.includes('gradient') || c.includes('--signal') || c.includes('--red')),
+      'with no gradient, and no signal: a reveal is no alarm');
+    const js = fs.readFileSync(path.join(RENDERER, 'review', 'review.js'), 'utf8');
+    const EVENTS = /animationend|animationstart|transitionend|onanimation/;
+    ok(EVENTS.test("el.addEventListener('animationend', f)") && EVENTS.test('x.addEventListener("transitionend")')
+      && !EVENTS.test('el.addEventListener("click", f)'), 'the animation event rule is held by a pattern that knows one');
+    ok(!EVENTS.test(js), 'and review.js listens for none: its sound and its end are timers');
   });
 
   // BOTH TEAM COMPS, ONE LINE UNDER THE STRIP (8.5.0, the player's choice),
