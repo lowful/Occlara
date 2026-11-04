@@ -5,9 +5,11 @@ const C = require('../../shared/channels');
 const { PURCHASE_URL, SIGNUP_URL } = require('../../shared/config');
 const { capGB } = require('../../shared/clips');
 const { UPGRADE_URL, ACCOUNT_URL } = require('../../shared/usage');
+const gamesRegistry = require('../../shared/games');
 const store = require('../services/store');
 const updater = require('../updater');
 const pcCheck = require('../services/pc-check');
+const { resOf } = require('../services/recorder');
 
 /**
  * Registers every ipcMain handler in one place. All channel names come from the
@@ -46,7 +48,12 @@ function registerIpc(deps) {
   safeHandle(C.CONFIG_SET, async (_e, partial) => {
     if (partial && typeof partial === 'object') {
       // The sign in is main's alone (account-service.js): a page never writes it.
-      for (const [k, v] of Object.entries(partial)) if (!/^account/i.test(k)) store.set(k, v);
+      for (const [k, v] of Object.entries(partial)) {
+        if (/^account/i.test(k)) continue;
+        // A game that is coming soon cannot be chosen (games.js comingSoon).
+        if (k === 'game' && gamesRegistry.isComingSoon(v)) continue;
+        store.set(k, v);
+      }
     }
     controller.onConfigChanged?.();
     return { ok: true, config: snapshotConfig() };
@@ -166,7 +173,8 @@ function snapshotConfig() {
     // writes, and why Auto is off if it turned itself off, and how the last
     // session went, which only main writes.
     recordingMode:    store.get('recordingMode') === 'off' ? 'off' : 'auto',
-    recordingRes:     String(store.get('recordingRes')) === '1080' ? '1080' : '720',
+    // '480', '720' or '1080' (recorder.js resOf), anything else saved '720'.
+    recordingRes:     resOf(store.get('recordingRes')),
     recordingAutoOff: store.get('recordingAutoOff') || null,
     recordingLast:    store.get('recordingLast') || null,
     // The cap on the clips kept beside the reviews, in GB (5, 10, 20, 50).

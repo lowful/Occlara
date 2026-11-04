@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld('occlara', {
   pages: () => PAGES.map((p) => ({ id: p.id, label: p.label, nav: p.nav })),
   // The games a player is offered, the rule Settings' picker keeps.
   games: (includeUnavailable) => GAMES.list(includeUnavailable)
-    .map((g) => ({ id: g.id, label: g.label, coaching: GAMES.canCoach(g.id), preview: !!g.preview })),
+    .map((g) => ({ id: g.id, label: g.label, coaching: GAMES.canCoach(g.id), preview: !!g.preview, comingSoon: !!g.comingSoon })),
 
   // the record controls
   startCoaching: () => ipcRenderer.send(C.COACH_START),

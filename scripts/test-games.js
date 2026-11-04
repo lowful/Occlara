@@ -58,6 +58,9 @@ check('  Valorant has every feature without listing them',
   games.hasFeature('valorant', 'review') === true && games.hasFeature('valorant', 'live') === true);
 check('  an unknown feature is not silently granted',
   games.hasFeature('lol', 'nonsense') === false);
+check('  League is coming soon: listed, but not selectable',
+  games.isComingSoon('lol') && games.isComingSoon('LOL') && !games.isComingSoon('valorant') && !games.isComingSoon('nope')
+    && games.list().some((g) => g.id === 'lol'));
 check('  and League is flagged preview so the UI can say so',
   games.get('lol').preview === true,
   'without this the picker offers it as if it were finished');

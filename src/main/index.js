@@ -4454,6 +4454,9 @@ if (!app.requestSingleInstanceLock()) {
     // their folders and rows, none of which can be opened any more. After the
     // first launch there is nothing left to do, and nothing is said.
     retiredGames.putAway({ store, reviewStore });
+    // A game that is coming soon (League for now) cannot stay chosen: an
+    // install that had it picked goes back to Valorant. Its reviews are kept.
+    if (gameRegistry.isComingSoon(store.get('game'))) store.set('game', gameRegistry.DEFAULT_GAME);
     // Whatever recording a run before this one left (a crash, a kill) is a
     // picture of somebody's screen that no review is waiting for any more.
     try { recorder.sweep(); } catch (e) { console.warn('[recorder] sweep failed:', e.message); }

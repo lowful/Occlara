@@ -75,6 +75,12 @@ const GAMES = {
     // is not built. It stayed false until there was something worth
     // previewing: 173 champions of real data and a twelve lesson curriculum.
     preview: true,
+    // COMING SOON (8.7, the player's decision of 2026-11-04): League is paused
+    // for now. It still shows in the game picker, but hovering it says "Coming
+    // soon" and it cannot be chosen: main drops a write of it (register-ipc
+    // CONFIG_SET) and puts a stored choice of it back to Valorant at launch.
+    // Its saved reviews, data and code are all kept for when it comes back.
+    comingSoon: true,
     // Not 'live'. Learning is a player sitting down to study, which is
     // neither a tip stream nor a one-shot read.
     cadence: 'learn',
@@ -96,6 +102,12 @@ const RETIRED = Object.freeze(['rivals']);
 /** Is this the id of a game Occlara no longer coaches? */
 function isRetired(id) {
   return RETIRED.includes(String(id || '').toLowerCase());
+}
+
+/** Is this game paused, shown in the picker but not selectable? */
+function isComingSoon(id) {
+  const g = GAMES[String(id || '').toLowerCase()];
+  return !!(g && g.comingSoon);
 }
 
 /** The game record for an id, falling back to the default rather than throwing. */
@@ -139,4 +151,4 @@ function hasFeature(id, name) {
   return !!g.coaching;          // a game with no feature map has all of them
 }
 
-module.exports = { GAMES, DEFAULT_GAME, RETIRED, isRetired, get, list, canCoach, hasFeature };
+module.exports = { GAMES, DEFAULT_GAME, RETIRED, isRetired, isComingSoon, get, list, canCoach, hasFeature };
