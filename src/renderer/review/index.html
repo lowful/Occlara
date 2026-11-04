@@ -104,7 +104,7 @@
            of its own when main has none to give. No Verdict, no progress, no
            reveal and no sound. -->
       <section id="locked" class="locked" aria-labelledby="lk-title" hidden>
-        <span class="mono">No games left</span>
+        <span class="lk-label">No games left</span>
         <h3 id="lk-title" class="lk-title">This review is locked</h3>
         <p id="lk-body" class="lk-body">Upgrade for more games each month, or invite friends for free games.</p>
         <p id="lk-note" class="lk-note">This match was played with no games left, so it shows its numbers alone: no grade, no coach's read and no look at your deaths.</p>
@@ -141,6 +141,15 @@
             </div>
             <div id="v-score" class="v-score"></div>
           </div>
+          <!-- THE FIX FOR NEXT MATCH (8.7): the one 44px line on the page,
+               straight under the Verdict's row and before the numbers, so it
+               is read before anything is counted. Last match's top mistake
+               and how it went in this one above it (progress.js focus). -->
+          <div id="v-focus-wrap" class="v-focus" hidden>
+            <p id="v-focus-was" class="v-focus-was" hidden></p>
+            <div class="v-focus-label">Next match</div>
+            <p id="v-focus" class="v-focus-text"></p>
+          </div>
           <div id="v-stats-wrap" class="v-stats-wrap" hidden>
             <div id="v-stats" class="v-stats"></div>
             <p id="v-against-note" class="v-against-note" hidden></p>
@@ -155,30 +164,18 @@
         <section class="block" id="v-summary-wrap">
           <h3>The coach's read</h3>
           <ul id="v-summary" class="v-summary"></ul>
-          <div id="v-focus-wrap" class="v-focus">
-            <!-- Last match's top mistake and how it went in this one, counted
-                 (progress.js focus), above the focus it led to. -->
-            <p id="v-focus-was" class="v-focus-was" hidden></p>
-            <div class="v-focus-label">Next match</div>
-            <p id="v-focus" class="v-focus-text"></p>
-          </div>
         </section>
 
-        <!-- EVERY ROUND, ONCE (8.3.1). The strip on top is the match at a
-             glance and the way to a round; under it what the numbers say
-             about the rounds and nothing the lists above said; then one row
-             a round. A death the coach looked at carries its clip, its
-             frames and what the coach saw in its own row, where it used to
-             be a section of its own at the bottom of the page. -->
+        <!-- EVERY ROUND, ONCE (8.3.1). What the numbers say about the rounds
+             and nothing the lists above said; then one row a round, the two
+             halves headed by their side (review.js paintRounds), each row's
+             mark saying won or lost. The strip of cells and its legend that
+             stood over the list said the same rounds twice (8.7). A death
+             the coach looked at carries its clip, its frames and what the
+             coach saw in its own row, where it used to be a section of its
+             own at the bottom of the page. -->
         <section class="block" id="v-rounds-wrap">
           <h3>Round by round</h3>
-          <div id="v-strip" class="v-strip" role="list"></div>
-          <div class="v-legend">
-            <span><i class="lg won"></i>Won</span>
-            <span><i class="lg lost"></i>Lost</span>
-            <span><i class="lg died"></i>You died</span>
-            <span><i class="lg planted"></i>Spike down</span>
-          </div>
           <!-- Both team comps from Riot's record (8.5.0), agents only, one line. -->
           <p id="v-comps" class="v-comps" hidden></p>
           <ul id="v-patterns" class="v-patterns" hidden></ul>
@@ -264,6 +261,8 @@
   </div>
 
   <script src="../shared/i18n-apply.js"></script>
+  <!-- The share sheet's two segmented capsules (8.7 redesign), one thumb each. -->
+  <script src="../shared/seg.js"></script>
   <script src="../shared/grade-view.js"></script>
   <script src="../shared/log-eye.js"></script>
   <!-- The share image (8.6.0), drawn here from the Verdict on the page. -->

@@ -148,9 +148,11 @@ const STORE_DEFAULTS = {
   // The match recorded on this PC (8.3, src/main/services/recorder.js). 'auto'
   // records and measures what it costs while a match is played, and stops for
   // the session when the PC cannot afford it; 'off' never records. 720p is
-  // the default and 1080p a choice: the display's own shape fitted to either.
+  // the default, 1080p and 480p choices: the display's own shape fitted to
+  // each. 480p (8.7) is the light one, asked for 30 frames a second and
+  // recorded at 15 (recorder.js RES).
   recordingMode:    'auto',       // auto | off
-  recordingRes:     '720',        // 720 | 1080
+  recordingRes:     '720',        // 480 | 720 | 1080
   // When the sessions given up as busy were, the last week's. Two turn Auto
   // off, and recordingAutoOff says so to Settings, which offers to try again.
   recordingStrikes: [],

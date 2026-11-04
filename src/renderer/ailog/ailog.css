@@ -1,282 +1,277 @@
-html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg-2); }
+/* palette: tokens only */
+/* THE AI LOG (8.7 redesign): one ruled page. The frame the coach read on the
+   left with a hairline scrub bar under it, what it read on the right as ruled
+   rows. Nothing here is a card: a section is a label, then rows divided by
+   --line, and the only framed things are the frame itself and the run up's
+   stills. The controls are the shared capsules (ui.css). */
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
 /* The window eases in as it opens (8.2): it is shown on its first frame, so
    the whole of this plays on screen. The body moves; html's ground stays. */
 body { display: flex; flex-direction: column; animation: sheetIn var(--t-slow) var(--ease-expo) both; }
 
 header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; border-bottom: 1px solid var(--glass-border); flex: none;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
+  height: 56px; padding: 0 var(--space-5); border-bottom: 1px solid var(--line); flex: none;
 }
-.h-brand { display: flex; align-items: center; gap: 10px; }
-.h-brand h2 { font-size: 14px; font-weight: 700; line-height: 1.1; }
-.sub { font-size: 10.5px; color: var(--text-mute); }
-.h-right { display: flex; align-items: center; gap: 8px; }
+.h-brand { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.h-brand h2 { font-size: 15px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
+.sub { display: block; font-size: 12px; line-height: 1.3; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-right { display: flex; align-items: center; gap: var(--space-2); flex: none; }
 
-/* Session picker. The option list is drawn by the OS, so both it and the closed
-   control need explicit colours or Windows paints dark text on a dark field. */
+/* Session picker: a capsule. The option list is drawn by the OS, so both it
+   and the closed control need explicit colours or Windows paints dark text on
+   a dark field. */
 .session-pick {
-  max-width: 300px; padding: 6px 8px;
-  font-family: var(--font); font-size: 11px; color: var(--text);
-  background: var(--glass-fill-2); border: 1px solid var(--glass-border);
-  border-radius: var(--r-sm); cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease);
+  -webkit-app-region: no-drag;
+  max-width: 320px; height: 30px; padding: 0 var(--space-3);
+  font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text);
+  background: rgba(255, 255, 255, 0.055); border: 1px solid var(--line-2);
+  border-radius: var(--r-btn); box-shadow: var(--hi), var(--drop); cursor: pointer;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
-.session-pick:hover { border-color: rgba(var(--cyan-rgb), 0.4); }
-.session-pick:disabled { opacity: 0.5; cursor: default; }
+.session-pick:hover { background: rgba(255, 255, 255, 0.095); }
+.session-pick:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
 .session-pick option { background: var(--bg-2); color: var(--text); }
 
-/* "Whole session", in a log opened on one match from its review: the same
-   size as the picker it stands in for, quieter, since it widens what is shown
-   rather than doing anything. */
-.whole {
-  padding: 6px 10px;
-  font-family: var(--font); font-size: 11px; font-weight: 600; color: var(--text-dim);
-  background: transparent; border: 1px solid var(--glass-border);
-  border-radius: var(--r-sm); cursor: pointer;
-  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+.empty {
+  flex: 1; display: grid; place-items: center; text-align: center;
+  padding: var(--space-10); color: var(--text-dim); font-size: 14px; line-height: 1.6; max-width: 48ch; margin: 0 auto;
 }
-.whole:hover { color: var(--text); border-color: rgba(var(--cyan-rgb), 0.4); }
-.whole:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 
-.empty { flex: 1; display: grid; place-items: center; text-align: center; padding: 40px; color: var(--text-dim); font-size: 13px; line-height: 1.6; }
+.main { flex: 1; display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); min-height: 0; }
 
-.main { flex: 1; display: grid; grid-template-columns: 1.5fr 1fr; min-height: 0; }
-
-/* ── Frame pane ─────────────────────────────────────────────────────────── */
-.frame-pane { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--glass-border); padding: 14px; gap: 12px; }
+/* ── The frame pane ─────────────────────────────────────────────────────── */
+.frame-pane {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  border-right: 1px solid var(--line); padding: var(--space-5); gap: var(--space-3);
+  overflow-y: auto;
+}
 .frame-wrap {
-  flex: 1; min-height: 0; display: grid; place-items: center;
-  background: #000; border: 1px solid var(--glass-border); border-radius: 10px; overflow: hidden;
+  flex: none; display: grid; place-items: center; aspect-ratio: 16 / 9;
+  background: rgb(0, 0, 0); border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden;
 }
 #frame { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
 
-.scrub { display: flex; align-items: center; gap: 10px; }
-.scrub .track { position: relative; flex: 1; }
-.scrub input[type="range"] { display: block; width: 100%; }
-
-/* Death markers sit under the scrubber on their own row, so they never cover
-   the thumb or block dragging. */
-.marks { position: relative; height: 14px; margin-top: 2px; pointer-events: none; }
-.mark-death {
-  position: absolute; top: 0; transform: translateX(-50%);
-  font-size: 11px; line-height: 1; pointer-events: auto; cursor: pointer;
-  filter: drop-shadow(0 0 5px rgba(255,255,255,0.5));
-  background: none; border: 0; padding: 0;
+/* The scrub bar: a 2px hairline with a precise thumb, a capsule each side. */
+.scrub { display: flex; align-items: center; gap: var(--space-2); }
+.scrub .track { position: relative; flex: 1; min-width: 0; }
+.scrub input[type="range"] {
+  display: block; width: 100%; height: 24px; margin: 0;
+  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
 }
-.mark-death:hover { transform: translateX(-50%) scale(1.25); }
+.scrub input[type="range"]::-webkit-slider-runnable-track { height: 2px; border-radius: 1px; background: var(--line-2); }
+.scrub input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 12px; height: 12px; margin-top: -5px; border-radius: 50%; border: 0;
+  background: var(--text); box-shadow: var(--hi-ink), 0 0 0 2px var(--bg), var(--drop);
+  transition: transform var(--t-fast) var(--ease);
+}
+.scrub input[type="range"]:hover::-webkit-slider-thumb, .scrub input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.15); }
+.scrub input[type="range"]:focus-visible { outline: none; }
+.scrub input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--hi-ink), 0 0 0 2px var(--bg), 0 0 0 4px rgba(var(--cyan-rgb), 0.55); }
+.nav-btn { width: 32px; height: 32px; }
+
+/* The marks sit on their own row under the bar, so they never cover the thumb
+   or block a drag: a death is a tick in --bad, 2px wide; a map change a
+   mono word on a hairline. */
+.marks { position: relative; height: 14px; pointer-events: none; }
+.mark-death {
+  position: absolute; top: 0; width: 10px; height: 14px; margin-left: -5px;
+  background: none; border: 0; padding: 0; cursor: pointer; pointer-events: auto;
+  transition: transform var(--t-fast) var(--ease);
+}
+.mark-death::before {
+  content: ''; position: absolute; left: 4px; top: 0; width: 2px; height: 10px;
+  background: var(--bad); border-radius: 1px;
+}
+.mark-death:hover { transform: scaleY(1.2); }
+.mark-death:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: 2px; }
 /* A death the coach never reviewed, in a log from before 8.0, when the coach
    spoke during a match. ailog.js never sets this on a later session, where
-   silence during the match is the design. Dimmed rather than hidden, because
+   silence during the match is the design. Hollow rather than hidden, because
    it is still a moment worth scrubbing to, and the contrast with the solid
-   marks is the point: it shows where the coaching went quiet.
-   And dimmed the same way, a death the screen read in a round Riot's record
-   has none in (8.4.1): still the frame the engine registered it on. */
-.mark-death.unreviewed, .mark-death.refuted { opacity: 0.45; filter: grayscale(1) drop-shadow(0 0 4px rgba(255,255,255,0.35)); }
-.mark-death.unreviewed:hover, .mark-death.refuted:hover { opacity: 1; }
+   ticks is the point: it shows where the coaching went quiet.
+   Hollow the same way, a death the screen read in a round Riot's record has
+   none in (8.4.1): still the frame the engine registered it on. Form before
+   hue: an outline, not only a dimmer red. */
+.mark-death.unreviewed::before, .mark-death.refuted::before {
+  background: transparent; border: 1px solid var(--bad); width: 2px; left: 3px; opacity: 0.7;
+}
 
 /* Map changes. Only confirmed ones are ever drawn, so a marker here means the
    map genuinely changed rather than the AI having a bad frame. */
 .mark-map {
-  position: absolute; top: -1px; transform: translateX(-50%);
-  padding: 1px 6px; border-radius: 999px;
-  font-family: var(--font); font-size: 9px; font-weight: 800;
-  letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
-  color: var(--text); background: rgba(var(--cyan-rgb), 0.16);
-  border: 1px solid rgba(var(--cyan-rgb), 0.45);
-  pointer-events: auto; cursor: pointer; line-height: 1.3;
+  position: absolute; top: 0; transform: translateX(-50%);
+  padding: 0 0 0 var(--space-1); border: 0; border-left: 1px solid var(--text-mute);
+  font-family: var(--font); font-size: 11px; font-weight: 500; line-height: 14px;
+  white-space: nowrap;
+  color: var(--text-dim); background: none;
+  pointer-events: auto; cursor: pointer;
+  transition: color var(--t-fast) var(--ease);
 }
-.mark-map:hover { background: rgba(var(--cyan-rgb), 0.3); }
+.mark-map:hover { color: var(--text); }
 
-.death-tag {
-  display: inline-block; margin-right: 8px; padding: 2px 8px;
-  border: 1px solid rgba(255,255,255,0.22); border-radius: 999px;
-  background: rgba(255,255,255,0.07);
-  font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
-  vertical-align: 1px; white-space: nowrap;
+/* The frame's place, its confirmed map and its time: one mono line. */
+.frame-meta {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
 }
-.nav-btn {
-  flex: none; width: 34px; height: 30px; font-size: 18px; line-height: 1;
-  color: var(--text); background: var(--glass-fill-2); border: 1px solid var(--glass-border);
-  border-radius: 8px; cursor: pointer; transition: all var(--t-fast) var(--ease);
-}
-.nav-btn:hover { border-color: rgba(var(--cyan-rgb),0.4); }
-.nav-btn:active { transform: scale(0.95); }
+.frame-meta .muted { color: var(--text-mute); }
+/* The confirmed map for this stretch. Dimmed and italic when the two reads
+   disagreed, so an uncertain answer never looks like a certain one. */
+.seg { font-family: var(--font); font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.005em; }
+.seg.unsure { font-weight: 500; font-style: italic; color: var(--text-mute); }
+
 /* DEATH REVIEW MODE. Walking the deaths rather than every frame, which is what
-   the match review card's eye button opens into. The stepper's own buttons are
-   smaller than the frame ones on purpose: this list is short. */
+   the match review card's eye button opens into: a ruled row, the count in
+   ink and the death's facts beside it. The stepper's capsules are a size
+   down from the frame ones on purpose: this list is short. */
 .deathnav {
   display: flex; align-items: center; gap: var(--space-2);
-  margin-top: var(--space-2);
-  padding: 7px 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
+  padding: var(--space-3) 0; border-top: 1px solid var(--line);
 }
-.deathnav .nav-btn { width: 26px; height: 24px; font-size: 15px; }
+.deathnav .nav-btn { width: 28px; height: 28px; }
 .deathnav-pos {
-  flex: none; font-size: 11.5px; font-weight: 700;
-  color: var(--text); white-space: nowrap;
+  flex: none; font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap;
+  font-variant-numeric: tabular-nums; margin: 0 var(--space-1);
 }
-.deathnav-why {
-  font-size: 11px; color: var(--text-mute); line-height: 1.35;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+.deathnav-why { font-size: 13px; color: var(--text-dim); line-height: 1.35; margin-left: var(--space-2); min-width: 0; }
 /* In a log from before 8.0, a death the coach never said anything about is the
    interesting one, so it is the one that gets the accent. A later session
    never carries this class. */
 .deathnav-why.unreviewed { color: var(--warn); }
 
+/* Riot's verdict on the timeline's deaths: one ruled line, its dot the
+   outcome. Green when they agree, amber when the coach missed some, red when
+   it marked one that never happened; the words say which, never the dot alone. */
+.confirm {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) 0; border-top: 1px solid var(--line);
+  font-size: 13px; line-height: 1.45; color: var(--text-dim);
+}
+.confirm .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--text-mute); }
+.confirm.agrees, .confirm.missed, .confirm.overcounted { color: var(--text); }
+.confirm.agrees .dot { background: var(--good); }
+.confirm.missed .dot { background: var(--warn); }
+.confirm.overcounted .dot { background: var(--bad); }
+
+/* The run up to a death, as the frames either side of it. The selected one is
+   the frame currently in the viewer above, so the strip and the big image never
+   disagree about what is being looked at. A still is a framed image, the one
+   kind of frame that stays: selected, its edge is the ink; the first dead
+   frame's edge is --bad, and its caption says so. */
+.deathstrip { padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.strip-frames { display: flex; gap: var(--space-2); align-items: flex-start; }
+.strip-shot {
+  position: relative; flex: 1 1 0; min-width: 0; padding: 0;
+  background: none; border: 0; cursor: pointer;
+  transition: transform var(--t-fast) var(--ease);
+}
+.strip-shot img {
+  display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
+  border: 1px solid var(--line); border-radius: var(--r-card);
+  transition: border-color var(--t-fast) var(--ease);
+}
+.strip-shot:hover img { border-color: var(--text-mute); }
+.strip-shot:hover { transform: translateY(-1px); }
+.strip-shot:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: var(--r-card); }
+.strip-shot.is-dead img { border-color: rgba(var(--bad-rgb), 0.6); }
+.strip-shot[aria-selected="true"] img { border-color: var(--text); }
+.strip-cap {
+  display: block; padding: var(--space-1) 0 0;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500; line-height: 1.3;
+  color: var(--text-mute); text-align: left; font-variant-numeric: tabular-nums;
+}
+.strip-shot[aria-selected="true"] .strip-cap { color: var(--text); }
+.strip-shot.is-dead .strip-cap { color: var(--bad); }
+.strip-note { margin: var(--space-2) 0 0; font-size: 12px; color: var(--text-dim); line-height: 1.45; }
+
 /* ── The keyboard hint ───────────────────────────────────────────────────────
-   Deliberately quiet. It sits under the scrubber for the first few opens and
+   Deliberately quiet. It sits under the rest for the first few opens and
    then never appears again, so it teaches the shortcut once and stops. It is
    NOT a tooltip on the buttons: the shortcut people miss is the one on the keys
    they never think to press, and a tooltip only reaches someone already
-   reaching for the mouse. */
+   reaching for the mouse. One ruled row of keycaps (ui.css kbd). */
 .keyhint {
-  display: flex; align-items: center; gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-top: var(--space-2);
-  padding: 7px 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-sm);
-  font-size: 11px; color: var(--text-mute);
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-3) 0; border-top: 1px solid var(--line);
+  font-size: 12px; color: var(--text-mute);
   animation: keyhintIn var(--t-slow) var(--ease-expo) both;
 }
 @keyframes keyhintIn {
   from { opacity: 0; transform: translateY(-4px); }
   to   { opacity: 1; transform: none; }
 }
-.kh-row { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.kh-sep { width: 1px; height: 13px; background: var(--glass-border); }
-.kh-x {
-  margin-left: auto; flex: none;
-  background: none; border: 0; padding: 3px 2px;
-  font: inherit; font-size: 11px; color: var(--text-dim);
-  cursor: pointer;
-  transition: color var(--t-fast) var(--ease);
-}
-.kh-x:hover { color: var(--text); }
+.kh-row { display: inline-flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
+.kh-x { margin-left: auto; font-size: 12px; height: 26px; padding: 0 var(--space-2); }
 @media (prefers-reduced-motion: reduce) { .keyhint { animation: none; } }
 
-/* The run up to a death, as the frames either side of it. The selected one is
-   the frame currently in the viewer above, so the strip and the big image never
-   disagree about what is being looked at. */
-.deathstrip { margin-top: var(--space-2); }
-.strip-frames { display: flex; gap: var(--space-2); align-items: flex-start; }
-.strip-shot {
-  position: relative; flex: 1 1 0; min-width: 0; padding: 0;
-  background: none; border: 1px solid var(--glass-border);
-  border-radius: var(--r-sm); overflow: hidden; cursor: pointer;
-  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease);
-}
-.strip-shot img { display: block; width: 100%; height: auto; }
-.strip-shot:hover { border-color: var(--text-mute); }
-.strip-shot[aria-selected="true"] {
-  border-color: var(--cyan);
-  box-shadow: 0 0 0 2px rgba(var(--cyan-rgb), 0.22);
-}
-/* The first frame that reads dead. Not the death: the death is in the gap
-   before it, which is what the note underneath says. */
-.strip-shot.is-dead { border-color: rgba(var(--bad-rgb), 0.55); }
-.strip-cap {
-  display: block; padding: 3px 5px 4px;
-  font-size: 10px; line-height: 1.25; color: var(--text-mute);
-  text-align: left;
-}
-.strip-shot.is-dead .strip-cap { color: var(--bad); }
-.strip-note {
-  margin: var(--space-2) 0 0; font-size: 11.5px; color: var(--warn);
-  line-height: 1.45;
+/* ── The read pane ──────────────────────────────────────────────────────── */
+.read-pane { padding: var(--space-5); overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-5); min-height: 0; }
+/* The pane's labels: the shared one, Geist 12/500 quiet, sentence case (8.7). */
+.block .lbl { margin-bottom: var(--space-2); font-family: var(--font); font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
+.shown { font-size: 14px; line-height: 1.5; color: var(--text); }
+.shown.none { color: var(--text-mute); }
+.raw { font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+/* The round and the death on this frame, before the note: the shared label,
+   sentence case (8.7). */
+.death-tag {
+  display: inline-block; margin-right: var(--space-2);
+  font-family: var(--font); font-size: 12px; font-weight: 500;
+  color: var(--text-dim); vertical-align: 1px; white-space: nowrap;
 }
 
-/* Riot's verdict on the timeline's deaths. Green when they agree, amber when
-   the coach missed some, red when it marked one that never happened. */
-.confirm {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 10px; border-radius: var(--r-sm); font-size: 11px; line-height: 1.4;
-  background: var(--glass-fill-2); border: 1px solid var(--glass-border); color: var(--text-dim);
+/* STATE table: field name -> value the AI parsed, as ruled rows. */
+.state { display: flex; flex-direction: column; }
+.srow {
+  display: flex; align-items: baseline; gap: var(--space-3);
+  font-size: 13px; line-height: 1.4; padding: 6px 0; border-bottom: 1px solid var(--line);
 }
-.confirm .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--text-mute); }
-.confirm.agrees      { border-color: rgba(var(--good-rgb), 0.35); color: var(--text); }
-.confirm.agrees .dot { background: var(--good); }
-.confirm.missed      { border-color: rgba(var(--warn-rgb), 0.35); color: var(--text); }
-.confirm.missed .dot { background: var(--warn); }
-.confirm.overcounted      { border-color: rgba(var(--bad-rgb), 0.4); color: var(--text); }
-.confirm.overcounted .dot { background: var(--bad); }
-
-.frame-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-dim); }
-.frame-meta .muted { color: var(--text-mute); }
-/* The confirmed map for this stretch. Dimmed and italic when the two reads
-   disagreed, so an uncertain answer never looks like a certain one. */
-.seg { font-weight: 700; color: var(--text); letter-spacing: 0.02em; }
-.seg.unsure { font-weight: 500; font-style: italic; color: var(--text-mute); }
-
-/* ── Read pane ──────────────────────────────────────────────────────────── */
-.read-pane { padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
-.read-pane::-webkit-scrollbar { width: 8px; }
-.read-pane::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
-.block .lbl { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--text-mute); margin-bottom: 6px; }
-.shown { font-size: 13.5px; line-height: 1.5; color: var(--text); }
-.shown.none { color: var(--text-mute); font-style: italic; }
-.raw { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
-
-/* STATE table: field name -> value the AI parsed */
-.state { display: flex; flex-direction: column; gap: 4px; }
-.srow { display: flex; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .srow .k { flex: none; width: 96px; color: var(--text-mute); text-transform: capitalize; }
-.srow .v { flex: 1; color: var(--text); word-break: break-word; }
-/* Highlight the location + alive reads, since those are the usual culprits. */
-.srow.key .v { color: var(--cyan); font-weight: 600; }
-.srow.dead .v { color: var(--bad); font-weight: 600; }
+.srow .v { flex: 1; color: var(--text); word-break: break-word; font-variant-numeric: tabular-nums; }
+/* The location and alive reads are the usual culprits: in ink, a weight up. */
+.srow.key .v { font-weight: 500; }
+.srow.dead .v { color: var(--bad); font-weight: 500; }
 /* Flags a frame whose map read disagrees with the confirmed map for its stretch,
    so the two readouts never quietly contradict each other. */
-.srow .misread {
-  flex: none; align-self: center; padding: 1px 6px; border-radius: 999px;
-  font-size: 9.5px; font-weight: 700; white-space: nowrap;
-  color: var(--bad); background: rgba(var(--bad-rgb), 0.12);
-  border: 1px solid rgba(var(--bad-rgb), 0.35);
-}
+.srow .misread { flex: none; font-size: 11px; color: var(--bad); white-space: nowrap; }
 
 /* Why a tip the model produced never reached the player. */
-.why { margin-top: 6px; font-size: 11px; color: var(--bad); line-height: 1.45; }
+.why { margin-top: var(--space-2); font-size: 12px; color: var(--bad); line-height: 1.45; }
 
 /* ── Ask the coach about this frame ──────────────────────────────────────── */
-.block.ask { border-top: 1px solid var(--glass-border); padding-top: 12px; }
-.ask-log { display: flex; flex-direction: column; gap: 7px; margin-bottom: 8px; }
+.block.ask { border-top: 1px solid var(--line); padding-top: var(--space-4); }
+.ask-log { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-3); }
 .ask-log:empty { display: none; }
-.ask-msg {
-  font-size: 12px; line-height: 1.5; border-radius: 9px; padding: 8px 10px;
-  border: 1px solid var(--glass-border); word-break: break-word;
-}
-.ask-msg.you   { background: rgba(255,255,255,0.05); color: var(--text-dim); align-self: flex-end; max-width: 92%; }
-.ask-msg.coach { background: rgba(var(--cyan-rgb),0.07); border-color: rgba(var(--cyan-rgb),0.28); color: var(--text); }
-.ask-msg.err   { background: rgba(var(--bad-rgb),0.08); border-color: rgba(var(--bad-rgb),0.30); color: var(--bad); }
+/* A turn is a line, not a bubble: yours is dim with a hairline at its left,
+   the coach's is the ink, an error --bad. */
+.ask-msg { font-size: 13px; line-height: 1.5; word-break: break-word; max-width: 100%; }
+.ask-msg.you   { color: var(--text-dim); padding-left: var(--space-3); border-left: 2px solid var(--line-2); }
+.ask-msg.coach { color: var(--text); }
+.ask-msg.err   { color: var(--bad); }
 .ask-msg.wait  { color: var(--text-mute); font-style: italic; }
 
-.ask-row { display: flex; gap: 6px; }
+.ask-row { display: flex; gap: var(--space-2); }
 .ask-input {
-  flex: 1; min-width: 0; font-family: var(--font); font-size: 12px; color: var(--text);
-  background: rgba(0,0,0,0.30); border: 1px solid var(--glass-border);
-  border-radius: 8px; padding: 8px 10px; outline: none;
+  flex: 1; min-width: 0; height: 32px; padding: 0 var(--space-3);
+  font-family: var(--font); font-size: 13px; color: var(--text);
+  background: transparent; border: 1px solid var(--line-2); border-radius: var(--r-control); outline: none;
+  transition: border-color var(--t-fast) var(--ease);
 }
-.ask-input:focus { border-color: rgba(var(--cyan-rgb),0.5); }
+.ask-input:focus { border-color: rgba(var(--cyan-rgb), 0.5); }
 .ask-input::placeholder { color: var(--text-mute); }
-.ask-send {
-  flex: none; font-family: var(--font); font-size: 12px; font-weight: 700; color: var(--bg);
-  background: var(--text); border: none;
-  border-radius: 8px; padding: 0 14px; cursor: pointer;
-  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
-}
-.ask-send:hover  { background: var(--cyan); }
-.ask-send:active { transform: scale(0.97); }
-.ask-send:disabled { opacity: 0.5; cursor: default; }
+.ask-send { flex: none; height: 32px; padding: 0 var(--space-4); }
 
-.ask-hints { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+/* The three questions most asked, each a small capsule. */
+.ask-hints { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
 .hint {
-  font-family: var(--font); font-size: 10.5px; color: var(--text-dim);
-  background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border);
-  border-radius: 999px; padding: 4px 9px; cursor: pointer;
-  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  height: 26px; padding: 0 var(--space-3);
+  font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-2);
+  border-radius: var(--r-btn); box-shadow: var(--hi), var(--drop); cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
-.hint:hover { color: var(--text); border-color: rgba(var(--cyan-rgb),0.35); }
+.hint:hover { color: var(--text); background: rgba(255, 255, 255, 0.09); transform: translateY(-1px); box-shadow: var(--hi), var(--drop-hover); }
+.hint:active { transform: translateY(0) scale(0.985); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); transition-duration: var(--t-press); }
+.hint:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }

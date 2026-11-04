@@ -292,11 +292,13 @@ setTimeout(async () => {
     }
     if (!foot.rank) return report(false, 'Home shows a rank card with no Riot ID');
     if (statusRow) return report(false, 'the record card still has its status row');
-    // THE GAMES LEFT (8.7): one quiet line on Home, main's words alone.
-    const gamesLine = await until(() => hjs("(() => { const g = document.getElementById('h-games'); return g && !g.hidden ? g.textContent : null; })()"), 3000);
-    lines.push(`home games line: "${gamesLine}"`);
-    if (gamesLine !== SEEDED_VIEW.gamesLeft || gamesLine !== 'You have used your 3 free games') {
-      return report(false, `Home's games line reads "${gamesLine}", not main's "${SEEDED_VIEW.gamesLeft}"`);
+    // THE GAMES LEFT (8.7): one quiet line in the rail under Start, main's
+    // words alone, and no copy of it on Home.
+    const gamesLine = await until(() => sjs("(() => { const g = document.getElementById('rail-games'); return g && !g.hidden ? g.textContent : null; })()"), 3000);
+    const homeGames = await hjs("!!document.getElementById('h-games') || !!document.querySelector('.h-aside')");
+    lines.push(`rail games line: "${gamesLine}" | a copy on Home: ${homeGames}`);
+    if (gamesLine !== SEEDED_VIEW.gamesLeft || gamesLine !== 'You have used your 3 free games' || homeGames) {
+      return report(false, `the rail's games line reads "${gamesLine}", not main's "${SEEDED_VIEW.gamesLeft}" (copy on Home: ${homeGames})`);
     }
     // THE INVITE BUTTON (8.7), in the sidebar's foot directly above Settings.
     const footer = await sjs(`(() => {
@@ -323,27 +325,26 @@ setTimeout(async () => {
     lines.push(`record card: ${JSON.stringify(card)}`);
     if (card.line || card.texts || card.buttons !== 2) return report(false, `the record card is not its two buttons alone: ${JSON.stringify(card)}`);
     if (card.controls !== 48 || card.above !== card.below) return report(false, `the record card is not balanced on its buttons: ${JSON.stringify(card)}`);
-    // THE GRADE TREND FILLS ITS CARD (8.2.1), measured on the real layout: with
-    // Recent matches beside it made tall, the trend card stretches with the row
-    // and its bars stand on the card's foot, rather than stopping at a fixed
-    // height over a band of empty card. The tallest bar is its grade of the
-    // whole track.
+    // THE GRADE TREND KEEPS ITS HEIGHT (8.7), measured on the real layout:
+    // with Recent matches beside it made tall, the bars stay 120px tall over
+    // their baseline rather than growing into a second hero, no map is
+    // printed under a bar, and the tallest bar is its grade of the whole
+    // track.
     const fill = await hjs(`(async () => {
       const recentCard = document.getElementById('recent');
       recentCard.style.minHeight = '440px';
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       const trend = document.getElementById('trend');
-      const card = trend.getBoundingClientRect();
-      const labels = Math.max(...[...trend.querySelectorAll('.bar-map')].map((m) => m.getBoundingClientRect().bottom));
-      const pad = parseFloat(getComputedStyle(trend).paddingBottom) + parseFloat(getComputedStyle(trend).borderBottomWidth);
+      const bars = trend.querySelector('.bars').getBoundingClientRect();
       const track = trend.querySelector('.bar-track').getBoundingClientRect().height;
       const bar = Math.max(...[...trend.querySelectorAll('.bar')].map((b) => b.getBoundingClientRect().height));
+      const maps = trend.querySelectorAll('.bar-map').length;
       recentCard.style.minHeight = '';
-      return { card: Math.round(card.height), under: Math.round(card.bottom - labels - pad), track: Math.round(track), bar: Math.round(bar) };
+      return { bars: Math.round(bars.height), track: Math.round(track), bar: Math.round(bar), maps };
     })()`);
     lines.push(`home trend beside a tall Recent matches: ${JSON.stringify(fill)} for a grade of ${built.grade.score}`);
-    if (fill.card < 430 || fill.under > 3 || Math.abs(fill.bar - Math.round((built.grade.score / 100) * fill.track)) > 2) {
-      return report(false, `the grade trend does not fill its card: ${JSON.stringify(fill)}`);
+    if (fill.bars !== 120 || fill.maps || Math.abs(fill.bar - Math.round((built.grade.score / 100) * fill.track)) > 2) {
+      return report(false, `the grade trend does not keep its 120px over a tall list: ${JSON.stringify(fill)}`);
     }
     // The window's first page came in (8.2): staged, armed as it loaded, then
     // placed and let in, its cards arriving one after another as it did.
@@ -702,7 +703,15 @@ setTimeout(async () => {
       // The strip and the comps line under it (8.5.0), scrolled into view.
       await review.webContents.executeJavaScript("document.getElementById('v-rounds-wrap').scrollIntoView({ block: 'start' }); true");
       await shot('review-comps', mainWindow, win);
-      await review.webContents.executeJavaScript('window.scrollTo(0, 0); true');
+      // The ranked lists (8.7), and the share sheet open over the page.
+      await review.webContents.executeJavaScript("document.getElementById('insights-host').scrollIntoView({ block: 'start' }); true");
+      await shot('review-lists', mainWindow, win);
+      await review.webContents.executeJavaScript("document.getElementById('v-rounds-wrap').scrollIntoView({ block: 'end' }); true");
+      await shot('review-bottom', mainWindow, win);
+      await review.webContents.executeJavaScript("document.querySelector('.body').scrollTo(0, 0); document.getElementById('share').click(); true");
+      await wait(600);
+      await shot('review-share', mainWindow, win);
+      await review.webContents.executeJavaScript("document.getElementById('share').click(); document.querySelector('.body').scrollTo(0, 0); true");
     }
     // A LOCKED REVIEW (8.7), on the real page: the review as main serves it
     // once the account had no games left (locked: true), painted by the
@@ -719,7 +728,8 @@ setTimeout(async () => {
         title: document.getElementById('lk-title').textContent, body: document.getElementById('lk-body').textContent,
         upgrade: shown('lk-upgrade') ? document.getElementById('lk-upgrade').textContent : null, invite: shown('lk-invite'),
         stats: shown('v-stats-wrap') ? document.querySelectorAll('#v-stats .v-stat').length : 0, score: document.getElementById('v-score').textContent,
-        verdict: shown('v-vd-label') || shown('v-grade'), share: shown('share'), prog: shown('v-prog'), grade: shown('grade-host') || shown('common'),
+        verdict: !!document.querySelector('#v-grade .vd-letter') || !!document.querySelector('#v-grade .vd-score') || shown('v-focus-wrap'),
+        share: shown('share'), prog: shown('v-prog'), grade: shown('grade-host') || shown('common'),
         read: shown('v-summary-wrap'), rounds: shown('v-rounds-wrap'), ask: shown('ask'),
         revealing: document.getElementById('vreview').classList.contains('revealing'),
         canAsk: typeof window.occlara.getAccount === 'function' };
@@ -747,13 +757,13 @@ setTimeout(async () => {
     const invitePage = await until(() => ijs(`(() => {
       if (document.getElementById('inv-body').hidden) return null;
       return { link: document.getElementById('inv-link').textContent, progress: document.getElementById('inv-progress').textContent,
-        how: [...document.querySelectorAll('#inv-how li')].map((l) => l.textContent), games: document.getElementById('inv-games').textContent,
+        how: [...document.querySelectorAll('#inv-how li')].map((l) => l.textContent), games: !!document.getElementById('inv-games'),
         copy: !document.getElementById('inv-copy').disabled };
     })()`), 4000);
     const inviteMark = await sjs("(() => { const b = document.querySelector('.nav-item[aria-current=page]'); return b ? b.id : null; })()");
     lines.push(`invite page: ${JSON.stringify(invitePage)} | marked ${inviteMark}`);
     if (!invitePage || invitePage.link !== SEEDED_REFERRAL.link || invitePage.progress !== SEEDED_REFERRAL.line
-      || invitePage.how.join('|') !== usage.INVITE_HOW.join('|') || !invitePage.copy || inviteMark !== 'nav-invite') {
+      || invitePage.how.join('|') !== usage.INVITE_HOW.join('|') || !invitePage.copy || invitePage.games || inviteMark !== 'nav-invite') {
       return report(false, `the Invite page does not show main's link, line and how: ${JSON.stringify(invitePage)} marked ${inviteMark}`);
     }
     await shot('invite', mainWindow, win);

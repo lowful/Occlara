@@ -54,7 +54,10 @@
   // The frames before one that its running average is taken over: Chromium's
   // runs over a few, and a long gap lifts it for about six frames after.
   const AVERAGE_OVER = [6, 16];
-  // A step without the clip's frames: a frame at the rate clips are recorded at.
+  // A step without the clip's frames: a frame at the rate 720p and 1080p
+  // record at. A 480p clip is 15 a second (8.7), where this steps onto the
+  // same frame every other press; only a clip main could not read the frames
+  // of steps by it, and every clip main can read is stepped on its own frames.
   const FALLBACK_S = 1 / 30;
   // How near a still's own frame its seconds put it: they are kept to the hundredth.
   const STILL_MS = 5;

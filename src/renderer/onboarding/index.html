@@ -17,18 +17,21 @@
     <!-- ── 1. Welcome ─────────────────────────────────────────────────── -->
     <section class="page" data-page="0">
       <div class="hero">
-        <img class="mark" src="../../../assets/logo-mark.svg" alt="" width="36" height="36" />
+        <img class="mark" src="../../../assets/logo-mark.svg" alt="" width="28" height="28" />
         <h1>You're in.</h1>
         <p class="sub">Five quick things, then you're playing.</p>
       </div>
       <!-- Language first, before anything else is read, so the rest of the tour
            and every review arrive in the player's own language. One row with
            its label, so the welcome page fits its card (onboarding.css). -->
-      <div class="ob-lang ob-lang-row">
+      <!-- Hidden until the picker is drawn (onboarding.js), so the label never
+           stands over nothing. -->
+      <div class="ob-lang ob-lang-row" id="ob-lang-row" hidden>
         <label for="ob-language" data-i18n="onboarding.chooseLanguage">Choose your language</label>
         <div id="ob-language" class="ob-lang-pick"></div>
         <p class="ob-lang-note" id="ob-language-note" hidden></p>
       </div>
+      <!-- Three ruled steps, each its index, its title and one line. -->
       <ol class="steps">
         <li><span class="n">1</span><div><b>Press Start before your match</b><span>Set your game to Windowed Fullscreen and press the red button. Nothing appears on screen while you play.</span></div></li>
         <!-- No agent to confirm since 8.4.4: the engine reads it off the
@@ -69,9 +72,10 @@
            scripts/fixtures, checked against Riot's record. A hand made sample
            here once claimed a grade and a mistake the product would never
            give that match, on the first review a new player ever sees. If the
-           grader changes, rerun it on the fixture and update these numbers. -->
+           grader changes, rerun it on the fixture and update these numbers.
+           Drawn as one ruled entry, the way the review itself is. -->
       <div class="ob-review" aria-hidden="true">
-        <div class="obr-head"><span class="obr-result">VICTORY</span><span class="obr-score">13 : 11</span>
+        <div class="obr-head"><span class="obr-result">Victory</span><span class="obr-score">13 : 11</span>
           <span class="obr-grade"><b>71</b><i>B</i></span></div>
         <div class="obr-cats">
           <span>Survival <b>61</b></span><span>Impact <b>100</b></span><span>Teamplay <b>54</b></span><span>Decisions <b>60</b></span>
@@ -107,13 +111,15 @@
         <p class="ob-pc-line checking" id="ob-pc-line" aria-live="polite">Checking this PC</p>
         <dl class="ob-pc-facts" id="ob-pc-facts" hidden></dl>
       </div>
+      <!-- Two ruled rows, each a radio: the ring fills for the one chosen. -->
       <div class="ob-opts" role="radiogroup" aria-label="How Occlara watches">
         <div class="ob-opt has-res">
           <button type="button" class="ob-opt-main" id="ob-rec" role="radio" aria-checked="true">
             <span class="ob-opt-title">Record gameplay <span class="ob-tag" id="ob-rec-tag" hidden>Recommended</span></span>
-            <span class="ob-opt-text">Valorant and League are recorded at about 30 fps, so your review can show clips of your deaths. The video stays on this PC.</span>
+            <span class="ob-opt-text">Valorant and League are recorded at about 30 fps (15 at 480p, the lightest), so your review can show clips of your deaths. The video stays on this PC.</span>
           </button>
-          <div class="ob-res" id="ob-res" role="radiogroup" aria-label="Recording quality">
+          <div class="ob-res seg" id="ob-res" role="radiogroup" aria-label="Recording quality">
+            <button type="button" data-res="480" role="radio" aria-checked="false">480p</button>
             <button type="button" data-res="720" role="radio" aria-checked="true" class="active">720p</button>
             <button type="button" data-res="1080" role="radio" aria-checked="false">1080p</button>
           </div>
@@ -149,14 +155,18 @@
     </section>
 
     <!-- ── Footer nav ─────────────────────────────────────────────────── -->
+    <!-- Back, the progress rule (one segment a page, filled as far as the
+         tour has come; each segment is still the button it was, so a page
+         can be skimmed to), and the one primary capsule. -->
     <div class="nav">
-      <button id="back" class="btn btn-ghost">Back</button>
-      <div class="dots" id="dots"></div>
-      <button id="next" class="btn btn-primary">Next</button>
+      <button id="back" class="btn btn-ghost md">Back</button>
+      <div class="dots" id="dots" aria-label="Progress"></div>
+      <button id="next" class="btn btn-primary md">Next</button>
     </div>
   </main>
 
   <script src="../shared/dropdown.js"></script>
+  <script src="../shared/seg.js"></script>
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/grade-view.js"></script>
   <!-- How Occlara watches: its rules, a file of their own so test:pccheck runs them. -->

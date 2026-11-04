@@ -80,16 +80,17 @@ function renderCategories(r) {
     wrap.appendChild(top);
     const bar = el('div', 'bar');
     const fill = el('i');
-    const pct = Math.max(0, Math.min(100, c.avg)) + '%';
+    // The fill is SCALED, never resized, so it runs on the compositor.
+    const scale = `scaleX(${Math.max(0, Math.min(100, c.avg)) / 100})`;
     bar.appendChild(fill);
     wrap.appendChild(bar);
     wrap.style.setProperty('--i', i);
     box.appendChild(stagger(wrap, i));
-    // Width starts at 0 in CSS; set the real value on the next frame so the
-    // transition actually runs instead of the browser collapsing both values
-    // into a single style resolution.
-    if (REDUCED) fill.style.width = pct;
-    else requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = pct; }));
+    // The scale starts at 0 in CSS; set the real value on the next frame so
+    // the transition actually runs instead of the browser collapsing both
+    // values into a single style resolution.
+    if (REDUCED) fill.style.transform = scale;
+    else requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.transform = scale; }));
   });
   $('cat-section').hidden = cats.length === 0;
 }

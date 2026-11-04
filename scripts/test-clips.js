@@ -1038,6 +1038,53 @@ const b64 = (s) => Buffer.from(s).toString('base64');
     ok(!DASHES.test(said), 'with no dash in any of it');
   });
 
+  // A 480P CLIP, 15 FRAMES A SECOND (8.7). Nothing that cuts a clip, plays it
+  // or takes its stills counts a frame as a thirtieth of a second: the cut's
+  // end is its own frames' mean, the player steps on the clip's own frames,
+  // and a still is the frame on screen at its second. A thirtieth is only the
+  // fallback for a clip of one frame, or one main could not read the frames
+  // of, where 15 a second steps onto the same frame every other press.
+  await section('a 480p clip at 15 frames a second: cut, stepped and stilled on its own frames, never a thirtieth of a second:', () => {
+    const CT = require('../src/renderer/review/clip-time');
+    // Fifteen a second for 15 s, each frame up to 3 ms early or late, a Cluster a second on its keyframe.
+    let seed = 7;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    const T = [];
+    for (let k = 0; k < 225; k++) T.push(Math.round(k * 1000 / 15 + (k ? (rnd() * 2 - 1) * 3 : 0)));
+    const clusters = [];
+    for (let s = 0; s < 15; s++) {
+      const own = T.filter((x) => x >= s * 1000 && x < (s + 1) * 1000);
+      clusters.push({ timecode: own[0], first: own[0], last: own[own.length - 1], frames: own.length, keyframe: true });
+    }
+    const plan = webm.planClip(clusters, 4000, 14999);
+    const lastPicked = plan && plan.clusters[plan.clusters.length - 1];
+    const span = lastPicked.last - plan.clusters[0].first;
+    const frames = plan.clusters.reduce((n, c) => n + c.frames, 0);
+    ok(plan && Math.abs(plan.end - (lastPicked.last + span / (frames - 1))) < 1e-9 && plan.end - lastPicked.last > 60 && plan.end - lastPicked.last < 73,
+      `the cut's last frame lasts its own frames' mean, ${(plan.end - lastPicked.last).toFixed(1)} ms, never a thirtieth's 33`);
+    const F = CT.framesOf({ times: T, end: T[T.length - 1] + 1000 / 15 });
+    const inFrame = (t, k) => CT.frameIndex(T, t * 1000) === k && t * 1000 > T[k] && t * 1000 < (k + 1 < T.length ? T[k + 1] : F.end);
+    let t = CT.startOf(F);
+    const missed = [];
+    for (let k = 1; k < T.length; k++) { t = CT.stepFrom(F, t, 1); if (!inFrame(t, k)) missed.push(k); }
+    for (let k = T.length - 2; k >= 0; k--) { t = CT.stepFrom(F, t, -1); if (!inFrame(t, k)) missed.push(k); }
+    ok(!missed.length, `every step forward and back lands inside its own frame, all ${2 * (T.length - 1)} of them${missed.length ? `: missed ${missed.slice(0, 5).join(', ')}` : ''}`);
+    let fixed = CT.startOf(F);
+    let same30 = 0;
+    for (let k = 1; k < 60; k++) { const before = CT.frameIndex(T, fixed * 1000); fixed += CT.FALLBACK_S; if (CT.frameIndex(T, fixed * 1000) === before) same30++; }
+    ok(same30 >= 25, `stepped a thirtieth at a time instead (the fallback with no frames), ${same30} of 59 steps stay on the frame they were on: the reason the frames are read`);
+    // The stills a look takes, the frame on screen at each second before the death (clips.LOOK_AT).
+    const clipLike = { frames: T.map((ms, i) => ({ ms, key: i % 15 === 0 })), endMs: F.end };
+    const death = T[150] + 20;
+    const at = [-3, -1.5, -0.7, -0.3, 0.7].map((s) => death + s * 1000);
+    const picked = clipFrames.planFrames(clipLike, at).picks.map((p) => p.frame);
+    const want = at.map((x) => CT.frameIndex(T, x));
+    ok(same(picked, want) && picked.every((k, i) => T[k] <= at[i] && (k + 1 >= T.length || T[k + 1] > at[i])),
+      `a look's stills at 3, 1.5, 0.7 and 0.3 s before the death and 0.7 after are the frames on screen then: ${picked.join(', ')}`);
+    const words = CT.timeWords(CT.insideOf(F, 150), { frames: F, death });
+    ok(words.death === true && words.text === 'At the death', `the frame the death falls in says so at 15 a second too: "${words.text}"`);
+  });
+
   await section('the scheme serves a clip by range, and nothing else:', async () => {
     ok(scheme.SCHEME === 'occlara-clip' && same(scheme.PRIVILEGED, { scheme: 'occlara-clip', privileges: { standard: true, secure: true, stream: true } }),
       'occlara-clip, registered standard, secure and stream');

@@ -309,7 +309,10 @@ function buildMarks() {
   // never spoke about; since 8.0 it speaks about none of them during a match.
   deaths.forEach((d) => {
     const unreviewed = tipEra && !d.reviewed;
-    const b = el('button', 'mark-death' + (unreviewed ? ' unreviewed' : ''), '\u{1F480}');
+    // A tick drawn by ailog.css, 2px of --bad (hollow when unreviewed or
+    // refuted), named by its title: a skull emoji drew in whatever face
+    // Windows had, with a glow, and the 8.7 log is a ruled page.
+    const b = el('button', 'mark-death' + (unreviewed ? ' unreviewed' : ''));
     b.type = 'button';
     b.style.left = `${(d.at / (records.length - 1)) * 100}%`;
     const who = d.killedBy ? ` to ${d.killedBy}` : '';

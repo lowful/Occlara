@@ -357,6 +357,8 @@
       v.playbackRate = s;
       v.defaultPlaybackRate = s;
       rates.forEach((b, i) => b.setAttribute('aria-pressed', SPEEDS[i] === s ? 'true' : 'false'));
+      // The speed capsule's thumb slides to the rate chosen (review.css, --i).
+      speed.style.setProperty('--i', String(Math.max(0, SPEEDS.indexOf(s))));
     }
 
     // Moved before it was ever played: the clip loads now, its seek kept for

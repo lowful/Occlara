@@ -344,7 +344,8 @@ setTimeout(async () => {
 
     // WON AND LOST BESIDE THE TITLE, on the list page alone, through the real
     // bridge. Abyss is 2-1 and Bind's match from Riot's record a win, so 3:1,
-    // in Geist Mono at the title's size, wins in --good and losses in --bad.
+    // in Geist 600 at the title's size (8.7, the type scale's big number),
+    // wins in --good and losses in --bad.
     // The Patterns and Breakdown pages, titled for what they count, carry none.
     const recordOf = (pjs) => pjs(`(() => {
       const b = document.getElementById('wl');
@@ -360,7 +361,7 @@ setTimeout(async () => {
     if (!rec.shown || rec.w !== '3' || rec.l !== '1' || rec.sr !== '3 wins, 1 loss') {
       return report(false, `the Matches title reads ${rec.w}:${rec.l} ("${rec.sr}"), expected 3:1`);
     }
-    if (rec.size !== rec.titleSize || rec.weight !== '800' || !/Geist Mono/.test(rec.family)) {
+    if (rec.size !== rec.titleSize || rec.weight !== '600' || !/^Geist\b/.test(rec.family) || /Geist Mono/.test(rec.family)) {
       return report(false, `the record is ${rec.weight} ${rec.size} ${rec.family}, beside a ${rec.titleSize} title`);
     }
     if (rec.win !== rec.good || rec.loss !== rec.bad) return report(false, `wins are ${rec.win} and losses ${rec.loss}, not --good and --bad`);

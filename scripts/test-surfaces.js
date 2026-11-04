@@ -662,20 +662,27 @@ async function openShell(cfg, state, opts) {
   // inline in currentColor, so the picker's colours hold, and each is held to
   // its source file in assets/games. Two games, Valorant and League.
   await section('the game picker shows each game\'s own logo, named in full:', async () => {
-    const NAMES = ['Valorant', 'League of Legends'];
-    const p = await openShell({ language: 'en' }, { gameId: 'lol' });
+    // League is coming soon (games.js comingSoon, 2026-11-04): it keeps its
+    // place and its logo, says so in a popup, and cannot be pressed.
+    const NAMES = ['Valorant', 'League of Legends, coming soon'];
+    const p = await openShell({ language: 'en' }, { gameId: 'valorant' });
     const buttons = () => p.$('gamepick').querySelectorAll('button');
     ok(!p.$('gamepick').hidden && buttons().length === 2, 'two buttons, one per game', `${buttons().length} buttons`);
-    ok(same(buttons().map((b) => b.getAttribute('aria-label')), NAMES) && buttons().every((b) => b.title === b.getAttribute('aria-label')),
-      'each named in full, as its accessible name and its tooltip', buttons().map((b) => `${b.getAttribute('aria-label')}/${b.title}`).join(', '));
-    ok(same(buttons().map((b) => b.getAttribute('aria-pressed')), ['false', 'true']), 'the game in use, and only it, is pressed');
-    ok(buttons().every((b) => b.querySelectorAll('svg').length === 1 && !b.textContent.trim()), 'each is a logo with no text in it');
+    ok(same(buttons().map((b) => b.getAttribute('aria-label')), NAMES) && buttons()[0].title === 'Valorant' && !buttons()[1].title,
+      'each named in full as its accessible name, Valorant as its tooltip too, League by its popup alone', buttons().map((b) => `${b.getAttribute('aria-label')}/${b.title}`).join(', '));
+    ok(same(buttons().map((b) => b.getAttribute('aria-pressed')), ['true', 'false']), 'the game in use, and only it, is pressed');
+    const soon = () => buttons()[1];
+    ok(buttons().every((b) => b.querySelectorAll('svg').length === 1) && !buttons()[0].textContent.trim(),
+      'each is a logo, and Valorant has no text in it');
+    ok(soon().classList.contains('soon') && soon().getAttribute('aria-disabled') === 'true'
+      && soon().querySelector('.soon-pop') && soon().querySelector('.soon-pop').textContent === 'Coming soon',
+      'League is marked coming soon, with a popup that says so');
     ok(p.scripts.some((x) => /game-logos\.js$/.test(x)) && !p.scripts.some((x) => /game-marks\.js$/.test(x)),
       'drawn by shared/game-logos.js, the marks Occlara drew gone');
     p.bridge.emit(C.PUSH_STATUS, { status: 'coaching' });
-    ok(buttons().every((b) => b.disabled && b.title === 'Stop recording to switch game')
+    ok(buttons()[0].disabled && buttons()[0].title === 'Stop recording to switch game'
       && same(buttons().map((b) => b.getAttribute('aria-label')), NAMES),
-      'recording, every logo is locked with the tooltip saying why, and keeps its name');
+      'recording, Valorant is locked with the tooltip saying why, and both keep their names');
 
     const logos = require('../src/renderer/shared/game-logos');
     ok(same(logos.ids(), ['valorant', 'lol']) && logos.svg('nope') === '' && logos.path('nope') === null
@@ -729,52 +736,34 @@ async function openShell(cfg, state, opts) {
       && !/\.game-logo\[data-game=/.test(css) && logos.ids().every((id) => logos.svg(id).includes(`data-game="${id}"`)),
     'the logos are the icon size, on the tokens, with no logo sized apart', (css.match(/\.game-logo\[[^\n]*/) || [''])[0]);
 
-    // THE PICKED GAME'S LOGO STAYS ON ITS GROUND UNDER THE POINTER. A logo is
-    // drawn in currentColor, and the hover rule outranked the pressed one, so
-    // over the pressed button's --text ground it set --text: white on white.
-    // Every rule on a picker button itself is cascaded here, by specificity
-    // and then source order, for a button picked or not, hovered or not.
-    const cascade = (text) => {
-      const rules = [];
-      for (const m of text.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?:^|\n)([^{}\n]+)\{([^}]*)\}/g)) {
-        for (const sel of m[1].split(',').map((x) => x.trim())) {
-          // The button itself only: a rule on the logo inside it has a space.
-          if (sel.startsWith('.game-seg button') && !/\s/.test(sel.slice(16))) rules.push({ rest: sel.slice(16), body: m[2] });
-        }
-      }
-      const partsOf = (rest) => rest.match(/:not\([^)]*\)|:[a-z-]+|\[[^\]]*\]|\.[\w-]+/g) || [];
-      const holds = (part, st) => {
-        if (part.startsWith(':not(')) return !holds(part.slice(5, -1), st);
-        if (part === ':hover') return st.hover;
-        if (part === ':disabled') return false;
-        if (part === '[aria-pressed="true"]') return st.pressed;
-        if (part === '.named') return false;
-        throw new Error(`unread picker selector part ${part}`);
-      };
-      const declared = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
-      // Past ".game-seg button", which every rule shares, each part weighs one
-      // class, a :not() its argument's: the specificity is the count.
-      return (st, name) => {
-        let best = null;
-        rules.forEach((r, i) => {
-          const parts = partsOf(r.rest);
-          const v = declared(r.body, name);
-          if (!v || parts.join('') !== r.rest || !parts.every((p) => holds(p, st))) return;
-          if (!best || parts.length >= best.w) best = { w: parts.length, v, i };
-        });
-        return best ? best.v : '';
-      };
+    // THE PICKER IS ONE CAPSULE WITH ONE SLIDING THUMB (8.7, shared/seg.js):
+    // the thumb under the game picked is the only fill, and the buttons are
+    // drawn flat over it by ui.css. So shell.css paints no fill and no hover
+    // colour of its own on a picker button: the one it had (8.2.0) let the
+    // hover rule outrank the pressed one and set the picked logo, drawn in
+    // currentColor, to --text over its --text ground, white on white.
+    const js = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.js'), 'utf8');
+    ok(p.scripts.some((x) => /shared\/seg\.js$/.test(x)) && /occlaraSeg\(host\)/.test(js) && p.$('gamepick').classList.contains('seg-slide')
+      && p.$('gamepick').querySelectorAll('.seg-thumb').length === 1 && p.$('gamepick').querySelector('.seg-thumb').getAttribute('aria-hidden') === 'true',
+    'the picker is a seg-slide capsule with one aria-hidden thumb, kept as the buttons are built again');
+    const ruleOf = (text, sel) => {
+      const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return (text.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
     };
-    const seg = cascade(css);
-    const PICKED = { pressed: true, hover: false };
-    const PICKED_HOVER = { pressed: true, hover: true };
-    ok(seg(PICKED, 'color') === 'var(--bg)' && seg(PICKED, 'background') === 'var(--text)'
-      && seg({ pressed: false, hover: false }, 'color') === 'var(--text-dim)', 'the cascade reads the picker: the picked game dark on white, the others dim');
-    ok(seg(PICKED_HOVER, 'color') === seg(PICKED, 'color') && seg(PICKED_HOVER, 'color') !== seg(PICKED_HOVER, 'background'),
-      'hovered, the picked game\'s logo keeps its colour on its ground', `${seg(PICKED_HOVER, 'color')} on ${seg(PICKED_HOVER, 'background')}`);
-    ok(seg({ pressed: false, hover: true }, 'color') === 'var(--text)', 'while hovering a game not picked still lights it');
-    const was = cascade(css.replace(':hover:not(:disabled):not([aria-pressed="true"])', ':hover:not(:disabled)'));
-    ok(was(PICKED_HOVER, 'color') === was(PICKED_HOVER, 'background'), 'the cascade catches the rule as 8.2.0 wrote it, white on white');
+    const declared = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
+    const shellRules = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?:^|\n)([^{}\n]+)\{([^}]*)\}/g)]
+      .filter((m) => /^\.game-seg button/.test(m[1].trim()) && !/\s/.test(m[1].trim().slice(16)));
+    ok(shellRules.length > 0 && shellRules.every((m) => !/(?:^|[;\s])(?:background|color)\s*:/.test(m[2])),
+      'shell.css gives a picker button no fill and no colour of its own', shellRules.map((m) => m[1].trim()).join(' | '));
+    const ui = fs.readFileSync(path.join(RENDERER, 'shared', 'ui.css'), 'utf8');
+    const PICKED = '.seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked)';
+    const picked = (ui.match(new RegExp(`(?:^|\\n)${PICKED.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}, ${PICKED.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:hover\\s*\\{([^}]*)\\}`)) || [])[1] || '';
+    ok(declared(ruleOf(ui, '.seg-thumb'), 'background') === 'var(--text)' && declared(picked, 'color') === 'var(--bg)'
+      && declared(ruleOf(ui, '.seg-slide > button'), 'color') === 'var(--text-dim)',
+    'ui.css: the thumb is the ink, the picked game dark on it, the others dim', picked.trim());
+    const hoverAt = ui.indexOf('.seg-slide > button:hover:not(:disabled)');
+    ok(declared(ruleOf(ui, '.seg-slide > button:hover:not(:disabled)'), 'color') === 'var(--text)' && hoverAt >= 0 && ui.indexOf(`${PICKED}:hover`) > hoverAt,
+      'hovering a game not picked lights it, and the picked game hovered keeps its colour on its ground: its rule comes after the hover');
   });
 
   await section('Home\'s grades:', async () => {
@@ -831,7 +820,7 @@ async function openShell(cfg, state, opts) {
       const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       return (css.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
     };
-    ok(/border-radius/.test(rule('.p-trend')), 'the rule reader finds a known rule');
+    ok(/border-radius/.test(rule('.m-letter')), 'the rule reader finds a known rule');
     ok(/position:\s*absolute/.test(rule('.p-bar span')) && /position:\s*absolute/.test(rule('.p-bar i'))
       && /position:\s*relative/.test(rule('.p-bar')) && !/flex-direction/.test(rule('.p-bar')),
       'the number is positioned off the fill, outside the layout that sizes it');
@@ -1194,8 +1183,9 @@ async function openShell(cfg, state, opts) {
         `the ${s} page, titled for what it counts, carries no record`);
     }
 
-    // The look, read off the stylesheets: Geist Mono 800 at the title's two
-    // sizes, a window's 13px and a page's 24px, wins --good and losses --bad.
+    // The look, read off the stylesheets: a big number of the type scale (8.7,
+    // Geist 600, figures one width) at the title's two sizes, a window's 13px
+    // and a page's 24px, wins --good and losses --bad.
     const css = fs.readFileSync(path.join(RENDERER, 'matches', 'matches.css'), 'utf8');
     const ui = fs.readFileSync(path.join(RENDERER, 'shared', 'ui.css'), 'utf8');
     const rule = (src, sel) => {
@@ -1203,11 +1193,12 @@ async function openShell(cfg, state, opts) {
       return (src.match(new RegExp(`(?:^|\\n)${esc}\\s*\\{([^}]*)\\}`)) || [])[1] || '';
     };
     const prop = (body, name) => ((body.match(new RegExp(`(?:^|[;\\s])${name}\\s*:\\s*([^;]+);`)) || [])[1] || '').trim();
-    ok(prop(rule(css, '.p-trend'), 'border-radius') === 'var(--r-md)' && prop('a: 1; font-size: 13px;', 'font-size') === '13px',
+    ok(prop(rule(css, '.m-letter'), 'border-radius') === 'var(--r-btn)' && prop('a: 1; font-size: 13px;', 'font-size') === '13px',
       'the rule and property readers find a known rule and property');
     const base = rule(css, '.wl');
-    ok(prop(base, 'font-family') === 'var(--font-mono)' && prop(base, 'font-weight') === '800'
-      && prop(rule(css, '.wl b'), 'font-weight') === 'inherit', 'Geist Mono at 800, its bold tags inheriting it', base.trim());
+    ok(prop(base, 'font-family') === 'var(--font)' && prop(base, 'font-weight') === '600'
+      && prop(base, 'font-variant-numeric') === 'tabular-nums'
+      && prop(rule(css, '.wl b'), 'font-weight') === 'inherit', 'Geist 600 with tabular figures, its bold tags inheriting it', base.trim());
     ok(prop(base, 'font-size') === prop(rule(css, '.h-brand h2'), 'font-size')
       && prop(rule(css, 'html.embedded .sheet > header .wl'), 'font-size') === prop(rule(ui, 'html.embedded .sheet > header .h-brand h2'), 'font-size')
       && prop(rule(css, 'html.embedded .sheet > header .wl'), 'font-size') === '24px',
@@ -1451,8 +1442,11 @@ async function openShell(cfg, state, opts) {
     // In the app's own design: tokens, no gradient, and still asked for less motion.
     const css = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
     const part = css.slice(css.indexOf('A review still being built (8.4.1)'), css.indexOf('Every game: the grade, the lists'));
-    ok(part.length > 200 && !/gradient/i.test(part) && !/#[0-9a-f]{3,8}\b/i.test(part) && /var\(--bg-2\)/.test(part) && /var\(--r-md\)/.test(part),
-      'its rules use the theme\'s tokens and no gradient');
+    // Ruled rows since the 8.7 redesign: the hairline parts the steps, and no
+    // step is a card (no fill, no radius of its own).
+    ok(part.length > 200 && !/gradient/i.test(part) && !/#[0-9a-f]{3,8}\b/i.test(part) && /var\(--line\)/.test(part) && /var\(--text-mute\)/.test(part)
+      && !/\.b-step \{[^}]*(background|border-radius)/.test(part),
+    'its rules use the theme\'s tokens and no gradient, and a step is a ruled row, not a card');
     // NOTHING ON IT MOVES FOR LONG: an animation that never ends kept the page
     // composited every frame, and the look's stills, decoded on the GPU while
     // it waits, timed out in check:clips. Its arrival alone moves, and not
@@ -1607,8 +1601,8 @@ async function openShell(cfg, state, opts) {
       && !v.document.querySelectorAll('h3').some((h) => h.textContent === 'Where you died, and how'),
     'no section of its own at the bottom for the deaths, and no link down to one');
     ok(v.document.querySelectorAll('#vreview h3').filter((h) => h.textContent === 'Round by round').length === 1
-      && v.$('v-rounds-wrap').querySelector('#v-strip') && v.$('v-rounds-wrap').querySelector('#v-rounds'),
-    'one "Round by round", the strip on top of the list it leads to');
+      && !v.$('v-strip') && !v.document.querySelectorAll('.v-cell, .v-legend').length && v.$('v-rounds-wrap').querySelector('#v-rounds'),
+    'one "Round by round", the list alone: no strip of cells and no legend over it (8.7)');
     const rows = v.document.querySelectorAll('#v-rounds .v-round');
     ok(same(rows.map((r) => r.id), ['round-1', 'round-2', 'round-5', 'round-9', 'round-14', 'round-19']), 'a row for every round, in order',
       rows.map((r) => r.id).join());
@@ -1742,11 +1736,14 @@ async function openShell(cfg, state, opts) {
     const row14 = rc(14);
     const focusOf = row14.focus;
     row14.focus = function (o) { asked = o || {}; return focusOf.call(this, o); };
-    const cell14 = v.document.querySelectorAll('#v-strip .v-cell').find((c) => c.querySelector('.v-cell-n').textContent === '14');
+    // The row's own number is the anchor since 8.7 (the strip of cells is gone).
+    const cell14 = row14.querySelector('.v-rn');
+    ok(cell14 && cell14.tagName === 'BUTTON' && cell14.tabIndex === -1 && cell14.textContent === 'R14',
+      'a round\'s number is a button out of the tab order', cell14 && cell14.outerHTML);
     cell14.focus();
     cell14.click();
     ok(row14.classList.contains('flash') && v.document.activeElement === row14 && row14.tabIndex === -1 && !!asked && asked.preventScroll === true,
-      'a round in the strip brings its row into view, flashes it and hands it the focus, out of the tab order',
+      'a round\'s number brings its row into view, flashes it and hands it the focus, out of the tab order',
       `focus on ${id(v.document.activeElement)}, tabindex ${row14.tabIndex}, asked ${JSON.stringify(asked)}`);
     ok(nextTab(v.document) === eyeOf(14), 'so the next Tab is that death\'s own eye', `next Tab: ${id(nextTab(v.document))}`);
     const chip19 = v.document.querySelectorAll('#insights-host .gv-rchip').find((c) => c.textContent === 'R19');
@@ -1837,10 +1834,10 @@ async function openShell(cfg, state, opts) {
         window: { matchMedia: (q) => ({ matches: reduce && /prefers-reduced-motion: reduce/.test(q) }) } });
       await settle();
       j.$('round-14').scrollIntoView = (o) => jumps.push(o && o.behavior);
-      j.document.querySelectorAll('#v-strip .v-cell').find((c) => c.querySelector('.v-cell-n').textContent === '14').click();
+      j.$('round-14').querySelector('.v-rn').click();
     }
     const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
-    ok(same(jumps, ['smooth', 'auto']) && /@media \(prefers-reduced-motion: reduce\) \{\s*\.v-cell, \.v-round\.flash, \.v-shot img \{ transition: none; animation: none; \}/.test(rcss),
+    ok(same(jumps, ['smooth', 'auto']) && /@media \(prefers-reduced-motion: reduce\) \{\s*\.v-round\.flash, \.v-shot img \{ transition: none; animation: none; \}/.test(rcss),
       'asked for reduced motion, a jump to a round does not scroll smoothly, and the flash and the zoom do not move', JSON.stringify(jumps));
     v.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...base, rounds: [] });
     await settle();
@@ -1940,9 +1937,9 @@ async function openShell(cfg, state, opts) {
     ok(none.$('v-patterns').hidden && !none.document.querySelectorAll('#v-patterns li').length, 'and no pattern left is no lines at all');
     // A focus with no read written above it: no empty line under the heading.
     const read = await open({ ...base, summary: 'You lost 2 to 5.' });
-    ok(v.$('v-summary').hidden && !v.$('v-summary-wrap').hidden && !v.$('v-focus-wrap').hidden
-      && !read.$('v-summary').hidden && read.$('v-summary').textContent === 'You lost 2 to 5.',
-    'the coach\'s read with only a focus shows the focus under its heading, and no empty line for the read');
+    ok(v.$('v-summary').hidden && v.$('v-summary-wrap').hidden && !v.$('v-focus-wrap').hidden && v.$('v-focus-wrap').parentNode === v.$('v-verdict')
+      && !read.$('v-summary').hidden && !read.$('v-summary-wrap').hidden && read.$('v-summary').textContent === 'You lost 2 to 5.',
+    'with no read written there is no heading over nothing: the focus is the Verdict\'s own line (8.7), and the read shows only with lines');
   });
 
   // STRUCTURE INSTEAD OF TEXT WALLS (8.7): the Verdict first, then this
@@ -2075,7 +2072,7 @@ async function openShell(cfg, state, opts) {
     const r3 = v.$('round-3');
     ok(!r3.classList.contains('fold') && !r3.querySelector('.v-round-body') && r3.querySelector('.v-why').textContent === base.rounds[2].why,
       'an open round is drawn whole, as before');
-    v.document.querySelectorAll('#v-strip .v-cell').find((c) => c.querySelector('.v-cell-n').textContent === '2').click();
+    r2.querySelector('.v-rn').click();
     ok(!body2.hidden && r2.classList.contains('open') && v.document.activeElement === r2,
       'a jump to a folded round opens it before it scrolls there');
     ok(v.$('v-study-wrap').tagName === 'DETAILS' && !v.$('v-study-wrap').open && v.$('v-refused-wrap').tagName === 'DETAILS' && !v.$('v-refused-wrap').open
@@ -2122,11 +2119,14 @@ async function openShell(cfg, state, opts) {
     await settle();
     ok(sheet.hidden && !v.$('v-prog').children.length, 'another review painted closes the sheet, and the other review\'s progress is not shown');
 
-    // No grade to show: no Verdict, no Share image, the result and scoreboard still.
+    // No grade to show: the one header, "Not graded" over a dashed rule in
+    // the grade's slot (8.7), no reason, no Share image, the result and
+    // scoreboard still.
     const bare = await open({ ...base, grade: null });
-    ok(bare.$('v-grade').hidden && bare.$('v-vd-label').hidden && bare.$('v-reason').hidden && bare.$('share').hidden
+    ok(!bare.$('v-grade').hidden && !bare.$('v-vd-label').hidden && !bare.document.querySelector('#v-grade .vd-letter')
+      && bare.$('v-grade').textContent === 'Not graded' && bare.$('v-reason').hidden && bare.$('share').hidden
       && bare.document.querySelectorAll('#v-stats .v-stat').length === 4,
-    'a review with no grade keeps its result and scoreboard, and has no Verdict and nothing to share');
+    'a review with no grade keeps its result and scoreboard, says "Not graded" in the grade\'s slot, and has nothing to share');
     const thin = await open({ ...base, scoreline: { ...base.scoreline, adr: null, headshotPct: null } });
     ok(same(thin.document.querySelectorAll('#v-stats .v-stat-label').map((x) => x.textContent), ['K / D / A', 'ACS'])
       && !/--/.test(thin.$('v-stats').textContent),
@@ -2895,9 +2895,13 @@ async function openShell(cfg, state, opts) {
     ok(tracks.length === 5 && same(read.map((r) => r.num), ['58', '97', '74', '64', '83']) && read.every((r) => r.bar && r.h === `${r.num}%`),
       'a track per match, oldest first, its --h the grade as a share of the whole', JSON.stringify(read.map((r) => r.h)));
     ok(read.every((r) => toneOf(r.bar) === toneFor(Number(r.num))), 'each bar its letter\'s colour, the number beside it');
-    ok(cssProp(homeRule('.hint'), 'font-size') === '13px', 'the rule reader finds a known rule');
-    ok(cssProp(homeRule('.bars'), 'flex') === '1 1 auto' && !cssProp(homeRule('.bars'), 'height') && cssProp(homeRule('#trend'), 'flex') === '1 1 auto'
-      && cssProp(homeRule('.bar-track'), 'flex') === '1 1 auto', 'the bars\' area grows to the card\'s foot, with no fixed height to stop short of it');
+    ok(cssProp(homeRule('.hint'), 'font-size') === '14px', 'the rule reader finds a known rule');
+    // 120px tall whatever stands beside it (8.7): the chart is a section, not
+    // a second hero, and no map is printed under a bar.
+    const homeCss = fs.readFileSync(path.join(RENDERER, 'home', 'home.css'), 'utf8');
+    ok(cssProp(homeRule('.bars'), 'height') === '120px' && !cssProp(homeRule('#trend'), 'flex') && /\.rows > \.row:last-child \{[^}]*align-items: flex-start;/.test(homeCss)
+      && cssProp(homeRule('.bar-track'), 'flex') === '1 1 auto' && !h.document.querySelectorAll('#trend-bars .bar-map').length,
+    'the bars keep to 120px over their baseline beside any list, and carry no map under them');
     ok(cssProp(homeRule('.bar'), 'position') === 'absolute' && cssProp(homeRule('.bar'), 'height') === 'var(--h, 0%)'
       && cssProp(homeRule('.bar-num'), 'position') === 'absolute' && /^calc\(var\(--h, 0%\)/.test(cssProp(homeRule('.bar-num'), 'bottom')),
     'the bar and its number both read --h, the number off the bar\'s top rather than stacked in its column');
@@ -3178,7 +3182,7 @@ async function openShell(cfg, state, opts) {
     ok(r && /graded after every/i.test(note) && !/not built|look and layout/i.test(note) && !DASHES.test(note),
       'lol: the tooltip says how it is graded, never that coaching is not built', `read "${note}"`);
     const tag = r && r.querySelector('.dd-opt-tag');
-    ok(tag && tag.textContent === 'preview', 'lol: still labelled preview, the registry\'s own flag');
+    ok(tag && tag.textContent === 'coming soon', 'lol: labelled coming soon, the registry\'s own flag');
     const v = row('valorant');
     ok(v && !v.title && !v.querySelector('.dd-opt-tag'), 'Valorant carries no label');
   });
@@ -3229,7 +3233,9 @@ async function openShell(cfg, state, opts) {
     const active = (se, id) => { const b = se.document.querySelector(`#${id} button.active`); return b ? b.dataset.val : null; };
     const lastSet = (se) => (se.bridge.invoked.filter(([ch]) => ch === C.CONFIG_SET).pop() || [])[1] || null;
     const plain = await open({ recordingMode: 'auto', recordingRes: '720' });
-    const sec = plain.$('recording').parentNode;
+    // The two segments share a control row since 8.7, so the section is the
+    // row's section, not the segment's parent.
+    const sec = plain.$('recording').closest('section');
     const buttons = plain.document.querySelectorAll('#recording button').map((b) => `${b.dataset.val}:${b.textContent}`);
     ok(sec.querySelector('h3').textContent === 'Record match video' && same(buttons, ['auto:On', 'off:Off']),
       'the section is Record match video, On and Off, On stored as the auto it shipped as', buttons.join(', '));
@@ -3245,6 +3251,19 @@ async function openShell(cfg, state, opts) {
     plain.$('recordingres').querySelector('button[data-val="1080"]').click();
     await settle();
     ok(lastSet(plain) && lastSet(plain).recordingRes === '1080' && active(plain, 'recordingres') === '1080', '1080p is a choice', JSON.stringify(lastSet(plain)));
+    // 480p (8.7), the light one, first of the three, saying on itself what it costs.
+    const sizesShown = plain.document.querySelectorAll('#recordingres button').map((b) => `${b.dataset.val}:${b.textContent}`);
+    const b480 = plain.$('recordingres').querySelector('button[data-val="480"]');
+    ok(same(sizesShown, ['480:480p', '720:720p', '1080:1080p']) && /lightest/.test(b480.getAttribute('title') || '') && /less sharp/.test(b480.getAttribute('title') || ''),
+      'three sizes, 480p first, its title saying it is the lightest and its death moments less sharp', sizesShown.join(', '));
+    b480.click();
+    await settle();
+    ok(lastSet(plain) && lastSet(plain).recordingRes === '480' && active(plain, 'recordingres') === '480', '480p is a choice, saved as 480', JSON.stringify(lastSet(plain)));
+    const saved480 = await open({ recordingMode: 'auto', recordingRes: '480' });
+    const savedOld = await open({ recordingMode: 'auto', recordingRes: 1080 });
+    const savedJunk = await open({ recordingMode: 'auto', recordingRes: '1440' });
+    ok(active(saved480, 'recordingres') === '480' && active(savedOld, 'recordingres') === '1080' && active(savedJunk, 'recordingres') === '720',
+      'a saved 480 shows 480p, a 1080 saved as a number 1080p, anything else 720p');
     const off = await open({ recordingMode: 'off', recordingRes: '720', recordingAutoOff: autoOff });
     const note = off.$('rec-note').textContent;
     ok(active(off, 'recording') === 'off' && !off.$('rec-note').hidden
@@ -3270,7 +3289,7 @@ async function openShell(cfg, state, opts) {
     // screen is read.
     const hint = (se) => se.$('rec-hint').textContent;
     const val = hint(plain);
-    ok(val === 'On records each match on this PC at about 30 frames a second while the coach reads your screen; if your PC cannot keep up while you play, '
+    ok(val === 'On records each match on this PC at about 30 frames a second (15 at 480p, the lightest size, whose death moments are less sharp) while the coach reads your screen; if your PC cannot keep up while you play, '
       + 'recording stops for that session and the coach keeps reading. Off records nothing, and the coach still reads your screen at the speed set above. '
       + 'The video stays on this PC: once a review is built, a short clip of each moment it looked at is kept beside it and the rest is deleted.',
     'Valorant: what On and Off do, and that the coach reads the screen either way', val);
@@ -3395,6 +3414,10 @@ async function openShell(cfg, state, opts) {
       && rowsOf({ res: '720', fps: 30 }) === 'Recording now at 720p, about 30 fps.'
       && rowsOf({ res: '1080', height: '1024', fps: 30 }) === 'Recording now at 1080p, about 30 fps.',
     'with no height given, or one that is no number, the setting\'s', note(live));
+    ok(rowsOf({ res: '480', width: 854, height: 480, fps: 15 }) === 'Recording now at 480p, about 15 fps.'
+      && rowsOf({ res: '480', fps: 15 }) === 'Recording now at 480p, about 15 fps.'
+      && rowsOf({ res: '480', width: 1146, height: 480, fps: 15 }) === 'Recording now at 480p, about 15 fps.',
+    '480p says its size and its 15 frames a second, a 3440x1440 display\'s 1146x480 included', note(live));
     live.bridge.emit(C.PUSH_STATE, { recording: view({ res: '1080', recording: true, live: { res: '1080', width: 1920, height: 1080, fps: null }, session: { outcome: null } }) });
     ok(note(live) === 'Recording now at 1080p.', 'a still screen has no frame rate to give, so none is said', note(live));
     live.bridge.emit(C.PUSH_STATE, { recording: view({ session: { outcome: 'busy' }, last: { outcome: 'recorded', at: 1 } }) });
@@ -5234,6 +5257,7 @@ async function openShell(cfg, state, opts) {
     const rules = require('../src/renderer/onboarding/pc-rules');
     const GB = 1024 * 1024 * 1024;
     const ASKS = [
+      { res: '480', width: 854, height: 480, codec: 'avc1.42E01F', bitrate: 1.33e6 },
       { res: '720', width: 1280, height: 720, codec: 'avc1.42E01F', bitrate: 3e6 },
       { res: '1080', width: 1920, height: 1080, codec: 'avc1.42E028', bitrate: 6e6 },
     ];
@@ -5300,14 +5324,14 @@ async function openShell(cfg, state, opts) {
     ok(v.rec && !v.frames && v.res === '1080' && v.recTag && !v.framesTag && v.line === 'This PC can record at 1080p.',
       'a capable PC on a first run: Record at 1080p pre selected, and tagged Recommended', JSON.stringify(v));
     ok(wrote(big) === '[{"recordingMode":"auto","recordingRes":"1080"}]', 'and saved at once, as recordingMode and recordingRes', wrote(big));
-    ok(same(v.facts, ['NVIDIA GeForce RTX 5060', '720p and 1080p', '16 threads', '32 GB', '1920x1080', '103 GB on C:']),
+    ok(same(v.facts, ['NVIDIA GeForce RTX 5060', '480p, 720p and 1080p', '16 threads', '32 GB', '1920x1080', '103 GB on C:']),
       'what the check found is listed: GPU, encoder, threads, RAM, display, free space', JSON.stringify(v.facts));
     ok(same(big.asked, ASKS.map((a) => ({ codec: a.codec, width: a.width, height: a.height, bitrate: a.bitrate, framerate: 30, hardwareAcceleration: 'prefer-hardware' }))),
-      'main\'s two asks are put to the encoder as they came, prefer-hardware at 30 fps', JSON.stringify(big.asked));
+      'main\'s three asks (480p since 8.7) are put to the encoder as they came, prefer-hardware at 30 fps', JSON.stringify(big.asked));
     big.p.window.go(2);
     await settle();
     await big.open();
-    ok(big.checks() === 1 && big.asked.length === 2, 'once: back and forward again asks nothing more');
+    ok(big.checks() === 1 && big.asked.length === 3, 'once: back and forward again asks nothing more');
 
     // Both choices save the moment they are made.
     big.p.$('ob-frames').click();
@@ -5330,17 +5354,25 @@ async function openShell(cfg, state, opts) {
     ok(same(big.writes.slice(-2), [{ recordingMode: 'off', recordingRes: '720' }, { recordingMode: 'auto', recordingRes: '720' }]),
       'Frames only, then Record: each saved as it is made', wrote(big));
 
-    // A modest PC: Frames only recommended, Record still a choice.
+    // A modest PC (8.7): Record at 480p, the lightest, recommended where it
+    // was told Frames only, and Frames only still a choice.
     const modest = await tour({ facts: { ...BIG, ramBytes: 3.8 * GB } });
     tours.push(modest);
     await modest.open();
     v = modest.view();
-    ok(v.frames && !v.rec && v.framesTag && !v.recTag && !v.recOff && wrote(modest) === '[{"recordingMode":"off","recordingRes":"720"}]',
-      'a modest PC on a first run: Frames only pre selected, tagged and saved, Record still open', JSON.stringify(v));
-    modest.p.$('ob-rec').click();
+    ok(v.rec && !v.frames && v.res === '480' && v.recTag && !v.framesTag && !v.recOff && wrote(modest) === '[{"recordingMode":"auto","recordingRes":"480"}]'
+      && v.line === 'With 4 GB of RAM, 480p is the lightest way to record. It stops by itself if the PC cannot keep up.',
+    'a modest PC on a first run: Record at 480p pre selected, tagged and saved, its line saying why', JSON.stringify(v));
+    modest.p.$('ob-frames').click();
     await settle();
-    ok(modest.view().rec && same(modest.writes[modest.writes.length - 1], { recordingMode: 'auto', recordingRes: '720' }),
-      'and Record can still be chosen there', wrote(modest));
+    ok(modest.view().frames && same(modest.writes[modest.writes.length - 1], { recordingMode: 'off', recordingRes: '480' }),
+      'and Frames only can still be chosen there', wrote(modest));
+    // Its encoder never asked of 480p (a main from before 8.7): Frames only, as before.
+    const modestOld = await tour({ facts: { ...BIG, ramBytes: 3.8 * GB, asks: ASKS.filter((a) => a.res !== '480') } });
+    await modestOld.open();
+    v = modestOld.view();
+    ok(v.frames && !v.rec && v.framesTag && wrote(modestOld) === '[{"recordingMode":"off","recordingRes":"720"}]',
+      'with no answer for 480p, a modest PC is told Frames only as before', JSON.stringify(v));
 
     // No encoder: Record cannot be chosen, and Frames only is saved over a Record the player chose.
     const none = await tour({ saved: { recordingRes: '1080' }, encoder: () => ({ supported: false }) });
@@ -5412,15 +5444,15 @@ async function openShell(cfg, state, opts) {
     hung.p.clock.advance(5000);
     await settle(20);
     v = hung.view();
-    ok(/could not be checked/.test(v.line) && v.rec && hung.writes.length === 0 && hung.asked.length === 2,
-      'and after five seconds both asks count as unanswered, not as a no: they wait at once, not one after the other', v.line);
+    ok(/could not be checked/.test(v.line) && v.rec && hung.writes.length === 0 && hung.asked.length === 3,
+      'and after five seconds every ask counts as unanswered, not as a no: they wait at once, not one after the other', v.line);
 
     // A size the encoder refused cannot be picked.
     const no1080 = await tour({ encoder: (c) => ({ supported: c.width < 1900 }) });
     tours.push(no1080);
     await no1080.open();
     v = no1080.view();
-    ok(v.sizes === '720' && v.res === '720' && v.line === 'This PC can record at 720p. Its encoder does not take 1080p.' && no1080.writes.length === 0,
+    ok(v.sizes === '480,720' && v.res === '720' && v.line === 'This PC can record at 720p. Its encoder does not take 1080p.' && no1080.writes.length === 0,
       'an encoder that refuses 1080p: 1080p disabled, Record at 720p, which was saved already', JSON.stringify(v));
     no1080.size('1080').click();
     await settle();
@@ -5438,7 +5470,7 @@ async function openShell(cfg, state, opts) {
     tours.push(saved1080);
     await saved1080.open();
     v = saved1080.view();
-    ok(v.rec && v.res === '720' && v.sizes === '720' && saved1080.size('1080').getAttribute('aria-checked') === 'false'
+    ok(v.rec && v.res === '720' && v.sizes === '480,720' && saved1080.size('1080').getAttribute('aria-checked') === 'false'
       && saved1080.size('1080').title === 'Its encoder does not take 1080p.' && v.line === 'This PC can record at 720p. Its encoder does not take 1080p.'
       && wrote(saved1080) === '[{"recordingMode":"auto","recordingRes":"720"}]',
     'a saved 1080p the encoder refuses: shown unavailable, the line saying why, and Record at 720p picked and saved in its place', `${JSON.stringify(v)} ${wrote(saved1080)}`);
@@ -5446,9 +5478,9 @@ async function openShell(cfg, state, opts) {
     tours.push(modest1080);
     await modest1080.open();
     v = modest1080.view();
-    ok(v.rec && v.res === '720' && v.framesTag && v.line === `${rules.recommend({ ...BIG, ramBytes: 3.8 * GB, encoder: { 720: true, 1080: false } }).why} Its encoder does not take 1080p.`
-      && wrote(modest1080) === '[{"recordingMode":"auto","recordingRes":"720"}]',
-    'on a modest PC too: the player\'s Record kept at 720p, Frames only still tagged, and the reason added to the line, which did not say it', `${v.line} ${wrote(modest1080)}`);
+    ok(v.rec && v.res === '480' && v.recTag && v.line === `${rules.recommend({ ...BIG, ramBytes: 3.8 * GB, encoder: { 480: true, 720: true, 1080: false } }).why} Its encoder does not take 1080p.`
+      && wrote(modest1080) === '[{"recordingMode":"auto","recordingRes":"480"}]',
+    'on a modest PC too: the player\'s Record kept, at 480p, the size recommended there, and the reason added to the line, which did not say it', `${v.line} ${wrote(modest1080)}`);
     const off1080 = await tour({ saved: { recordingMode: 'off', recordingRes: '1080' }, encoder: refuses });
     await off1080.open();
     v = off1080.view();
@@ -5494,14 +5526,20 @@ async function openShell(cfg, state, opts) {
     await settle();
     const leftTo = keys.p.document.activeElement;
     const leftSaved = last(keys);
-    // and round again within its own two, never out to the cards
+    // on to 480p, then round again within its own three, never out to the cards
     press(keys, keys.size('720'), 'ArrowLeft');
     await settle();
+    const leftTo2 = keys.p.document.activeElement;
+    const leftSaved2 = last(keys);
+    press(keys, keys.size('480'), 'ArrowLeft');
+    await settle();
     ok(pageOf(keys) === 3 && leftTo === keys.size('720') && same(leftSaved, { recordingMode: 'auto', recordingRes: '720' })
+      && leftTo2 === keys.size('480') && same(leftSaved2, { recordingMode: 'auto', recordingRes: '480' })
       && keys.p.document.activeElement === keys.size('1080') && keys.view().res === '1080' && keys.view().rec
       && keys.size('1080').getAttribute('aria-checked') === 'true' && keys.size('720').getAttribute('aria-checked') === 'false'
+      && keys.size('480').getAttribute('aria-checked') === 'false'
       && same(last(keys), { recordingMode: 'auto', recordingRes: '1080' }),
-    'the size is a group of its own: an arrow moves between 720p and 1080p and round again, Record at that size, and no page turns', wrote(keys));
+    'the size is a group of its own: an arrow moves from 1080p to 720p to 480p and round again, Record at that size, and no page turns', wrote(keys));
     const noneBefore = none.writes.length;
     none.p.$('ob-frames').focus();
     press(none, none.p.$('ob-frames'), 'ArrowUp');
@@ -5700,7 +5738,7 @@ async function openShell(cfg, state, opts) {
       'the link main gave and the line usage.js wrote', `${q.$('inv-link').textContent} | ${q.$('inv-progress').textContent}`);
     ok(same(q.document.querySelectorAll('#inv-how li').map((l) => l.textContent), usage.INVITE_HOW) && usage.INVITE_HOW.length === 2,
       'how it works, in main\'s two lines');
-    ok(q.$('inv-games').textContent === '2 of 3 free games left', 'and the games left, quietly, as main wrote them', q.$('inv-games').textContent);
+    ok(!q.$('inv-games'), 'and no games line of its own: the rail says it (8.7)');
     q.$('inv-copy').click();
     await settle();
     ok(q.bridge.invoked.filter(([ch]) => ch === C.REFERRAL_COPY).length === 1 && q.$('inv-copy').textContent === 'Copied'
@@ -5734,7 +5772,7 @@ async function openShell(cfg, state, opts) {
     now = viewOf(FREE_USED);
     retry.bridge.emit(C.ACCOUNT_CHANGED, now);
     await settle();
-    ok(retry.$('inv-games').textContent === 'You have used your 3 free games', 'a change of the account paints it again');
+    ok(!retry.$('inv-games') && shown(retry, 'inv-body'), 'a change of the account leaves the page as it was');
 
     const files = ['index.html', 'invite.js', 'invite.css'].map((f) => fs.readFileSync(path.join(RENDERER, 'invite', f), 'utf8'));
     ok(files.every((s) => !DASHES.test(s)), 'no dash in the page');
@@ -5830,25 +5868,38 @@ async function openShell(cfg, state, opts) {
     ok(block.length > 200 && !DASHES.test(block) && !/https?:\/\//.test(block), 'the section\'s code has no dash and names no URL');
   });
 
-  await section('Home\'s games line: one quiet line, main\'s words, and nothing when there is nothing to say:', async () => {
-    const open = async (view) => {
-      const h = loadSurface('home', { handlers: {
-        [C.STATE_GET]: () => ({ ...BASE }), [C.CONFIG_GET]: () => ({ game: 'valorant' }),
-        [C.REVIEWS_LIST]: () => [], [C.PATTERNS_GET]: () => null, [C.ACCOUNT_GET]: () => view,
+  await section('the rail\'s games line (8.7): one quiet line under Start, main\'s words, said once in the window, and nothing mid match:', async () => {
+    const open = async (view, state) => {
+      const p = loadSurface('shell', { handlers: {
+        [C.STATE_GET]: () => ({ ...BASE, ...(state || {}) }), [C.CONFIG_GET]: () => ({ game: 'valorant' }),
+        [C.SHELL_GET]: () => ({ page: 'home', shown: 'home', sealed: false, maximized: false }), [C.ACCOUNT_GET]: () => view,
       } });
       await settle();
-      return h;
+      return p;
     };
     const h = await open(viewOf(FREE_TWO));
-    ok(shown(h, 'h-games') && h.$('h-games').textContent === '2 of 3 free games left', 'it says the games left as main wrote them', h.$('h-games').textContent);
+    const line = h.$('rail-games');
+    const underRec = line.parentNode && line.parentNode.children.indexOf(line) === line.parentNode.children.indexOf(h.$('rec')) + 1;
+    ok(shown(h, 'rail-games') && line.textContent === '2 of 3 free games left' && underRec,
+      'it says the games left as main wrote them, directly under the record buttons', line.textContent);
     h.bridge.emit(C.ACCOUNT_CHANGED, viewOf(PRO_USED));
     await settle();
-    ok(h.$('h-games').textContent === "You have used this month's 25 games, renews Nov 30", 'and follows a change of the account', h.$('h-games').textContent);
+    ok(line.textContent === "You have used this month's 25 games, renews Nov 30", 'and follows a change of the account', line.textContent);
+    h.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: true, status: 'coaching' });
+    await settle();
+    ok(!shown(h, 'rail-games') && line.textContent === '', 'mid match the rail says nothing of it');
+    h.bridge.emit(C.PUSH_STATE, { ...BASE, isCoaching: false, status: 'idle' });
+    await settle();
+    ok(shown(h, 'rail-games') && line.textContent === "You have used this month's 25 games, renews Nov 30", 'and says it again once the match is over');
     h.bridge.emit(C.ACCOUNT_CHANGED, { signedIn: false, via: null, gamesLeft: '' });
     await settle();
-    ok(!shown(h, 'h-games') && h.$('h-games').textContent === '', 'with nothing to say it is gone, not an empty line');
+    ok(!shown(h, 'rail-games') && line.textContent === '', 'with nothing to say it is gone, not an empty line');
     const none = await open(null);
-    ok(!shown(none, 'h-games'), 'and with no account it was never there');
+    ok(!shown(none, 'rail-games'), 'and with no account it was never there');
+    // Said once: no page carries a copy of it.
+    const home = fs.readFileSync(path.join(RENDERER, 'home', 'index.html'), 'utf8');
+    const invite = fs.readFileSync(path.join(RENDERER, 'invite', 'index.html'), 'utf8');
+    ok(!/h-games|h-aside/.test(home) && !/inv-games/.test(invite), 'Home and Invite carry no games line of their own');
   });
 
   await section('a locked review: its numbers and the upgrade card, no Verdict, no progress, no reveal and no sound:', async () => {
@@ -5883,7 +5934,9 @@ async function openShell(cfg, state, opts) {
       'the upgrade card sits under the result and Riot\'s scoreboard');
     ok(v.$('v-result').textContent === 'VICTORY' && v.$('v-score').textContent === '13 : 11' && shown(v, 'v-stats-wrap')
       && v.document.querySelectorAll('#v-stats .v-stat').length === 4, 'the result, the score and Riot\'s four numbers are there');
-    ok(!shown(v, 'v-vd-label') && !shown(v, 'v-grade') && !shown(v, 'v-reason') && !shown(v, 'share'), 'no Verdict and no share image');
+    ok(shown(v, 'v-vd-label') && shown(v, 'v-grade') && !v.document.querySelector('#v-grade .vd-letter') && !v.document.querySelector('#v-grade .vd-score')
+      && v.$('v-grade').textContent === 'Not graded' && !shown(v, 'v-reason') && !shown(v, 'v-focus-wrap') && !shown(v, 'share'),
+    'the one header: the Verdict label and the grade\'s slot stay, "Not graded" over a dashed rule in it, no letter, no focus and no share image');
     ok(!shown(v, 'v-prog') && asked(v, C.PROGRESS_GET) === 0, 'no progress strip, and main is not even asked for it');
     ok(!shown(v, 'common') && !shown(v, 'grade-host') && !shown(v, 'insights-host') && !shown(v, 'v-summary-wrap') && !shown(v, 'v-rounds-wrap')
       && !shown(v, 'v-study-wrap') && !shown(v, 'v-refused-wrap') && !shown(v, 'ask'),

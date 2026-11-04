@@ -39,41 +39,82 @@ durations:
 - Paper, the Verdict's share image alone: `--paper`, `--paper-ink`,
   `--paper-ink-2`, `--paper-ink-3`, `--paper-line`
 - Glass: `--glass-fill`, `--glass-border`, `--glass-blur`
-- Geometry, by role: `--r-card` 6px (a card or a panel), `--r-control` 10px
-  (a control), `--r-pill` 999px. The legacy `--r-sm` `--r-md` `--r-lg` keep 8,
-  12 and 16 for a window shaped frame and the focus ring; a surface moves its
-  own rules to the roles, never by a remap here
+- Geometry, by role (8.7): `--r-btn` 999px (every capsule control, the
+  segmented track and thumb, a letter mark), `--r-control` 10px (an input, a
+  nav row, a window button), `--r-card` 6px (a keycap or a framed image only;
+  there is no card), `--r-pill` 999px. The legacy `--r-sm` `--r-md` `--r-lg`
+  keep 8, 12 and 16 for a window shaped frame in a window of its own and the
+  focus ring; a surface moves its own rules to the roles, never by a remap here
+- Depth (8.7), the button's alone, offset shadows and inset lit edges, never a
+  gradient or a halo: `--hi` the lit top edge on a dark capsule, `--hi-ink` the
+  same on the ink capsule and the segmented thumb, `--hi-signal` the same on
+  Start, `--drop` the resting shadow, `--drop-hover` the one under the pointer
+- Spacing: `--space-1` (4px) to `--space-10` (40px), the 4px grid. Space between
+  groups (`--space-10`) beats space within one (8 to 12px); `--space-1` binds a
+  label to its control
 - Type: `--track-display` -0.02em and `--lh-display` 1 for titles and big
-  numbers, `--track-label` 0.08em for the mono label
-- Motion: `--ease`, `--ease-expo`, `--ease-spring`, `--t-press` (a keycap
-  going down), `--t-fast` `--t-med` `--t-slow`
+  numbers, `--track-label` 0.08em for the stat block's label
+- Motion: `--ease`, `--ease-out` (an arrival), `--ease-expo`, `--ease-spring`,
+  `--t-press` (a keycap or a capsule going down), `--t-fast` `--t-med` `--t-slow`
 
 `src/renderer/shared/ui.css` holds the shared component styles. If two surfaces
-need the same thing, it belongs there, not copied into both. Since 8.6:
+need the same thing, it belongs there, not copied into both. Since 8.7 (the
+system as built is `DESIGN.md` at the repo root):
 
-- **Buttons are flat**: `.btn` 44px, `--r-control`, Geist 500 15px, no lit
-  edge, no shadow, no lift; `.md` 40px, `.sm` 32px. A bare `.btn` and
-  `.btn-ghost` are the bordered secondary; `.btn-primary` is the ink with the
-  ground on it, white under the pointer; `.btn-link` the borderless in card
-  link; `.btn-ghost.danger` takes the signal under the pointer; `.btn-rec` is
-  Start. Hovers sit inside `:where(:not(:disabled))`, so a surface's own state
-  still outweighs them.
+- **Buttons are capsules with depth**: `.btn` 40px, `--r-btn`, Geist 500
+  14px, white at .055 with the `--line-2` border, the lit top edge (`--hi`)
+  and the resting shadow (`--drop`); under the pointer it rises 1px and its
+  shadow opens (`--drop-hover`), pressed it goes to `scale(0.985)` into an
+  inset shadow over `--t-press`; `.md` 36px, `.sm` 30px. A bare `.btn` and
+  `.btn-ghost` are the dark capsule; `.btn-primary` is the ink with the ground
+  on it and `--hi-ink`, white under the pointer, one per view at most;
+  `.btn-link` is borderless and flat and does not rise; `.btn-ghost.danger`
+  takes the signal under the pointer; `.btn-rec` is Start, 48px, `--hi-signal`;
+  `.icon-btn` is the 34px round capsule with the same rise and press, `.lg`
+  48px. The dropdown's `.dd-btn` is the same capsule at 36px. Hovers sit
+  inside `:where(:not(:disabled))`, so a surface's own state still outweighs
+  them. Never restyle a button locally.
+- **The segmented capsule** (`.seg-slide`, `.seg-thumb`): a row of buttons
+  with one thumb that slides to the chosen one. `occlaraSeg(el)` from
+  `shared/seg.js` (loaded with `<script src="../shared/seg.js">`) adds the
+  class and an `aria-hidden` thumb and keeps it on the button whose state the
+  surface already sets (`aria-pressed`, `aria-selected`, `aria-checked`,
+  `.on`, `.active`, `.picked`), through a `MutationObserver` and a
+  `ResizeObserver`; the markup and what a test reads do not change. A
+  surface's own `.seg` rule fills the chosen button itself only
+  `:not(.seg-slide)`, so a page painted without the script looks the same.
 - **Keycaps**: `kbd` and `.kbd`, 22px, the control hairline, `--r-card`,
   Geist Mono 500 11px; `.keys` a chord, one key a cap; `.is-pressed` for
   `--t-press`. A control whose text a test reads carries its cap as
   `data-keys` (`[data-keys]::after`, hidden until the surface shows it) and
   the chord in `aria-keyshortcuts`. Only a shortcut that exists gets a cap.
-- **`.mono`**, every small uppercase label: Geist Mono 500 11px on
-  `--track-label`, ink-3. **`.eyebrow`** is a mono label led by its index,
-  [ 01 ], drawn from a counter the container resets (`counter-reset: sec`),
-  so its text stays the label; only where the order never changes.
-- **`.vf`, the viewfinder**, only on a card that frames one moment: four 16px
+- **The label**: every small label is Geist 12/500 in `--text-mute`, sentence
+  case, set by each surface. The mono uppercase kicker (`.mono`) and the
+  indexed eyebrow (`.eyebrow`, "[ 01 ]") are gone and must not come back:
+  Geist Mono is for columns of digits, keycaps, round numbers and the match
+  id alone, and no heading carries a section number.
+- **`.vf`, the viewfinder**, only on what frames one moment: four 16px
   corner brackets, one border clipped by `clip-path`, never a gradient, and
   never inside an `overflow: hidden` ancestor, which cuts them off.
 - **The stat block**, `.stats` of `.stat` with `.stat-n` and `.stat-l`,
   columns divided by the hairline; `.sm` 36px and `.xs` 24px numbers.
 - `.display`, `.colgrid` (Home's header band only), `.sig-dot`, `.input`
-  (44px, Geist Mono 14px), and page titles in Geist 600 24px.
+  (44px, Geist Mono 14px, `--r-control`), `.reveal` (opening in place by
+  height), `.rise-in` (a row rising 6px, 40ms a row by `--i`), and page
+  titles in Geist 600 24px.
+
+**No cards (8.7).** A section is a heading, then rows parted by
+`1px solid var(--line)`; a list opens and closes on a hairline; a row's hover
+is a faint fill (white at .035) across the whole row. Never a border and a
+fill around a block of content, and never a box inside a box. What stays
+framed: an input, a keycap, a frame or clip image, the letter mark, the share
+image, and a window shaped frame in a window of its own. One hero per page
+(Home's fix line at 44px, the review's Verdict and its fix line, the library's
+first repeated mistake, Settings' first group); 40px between groups, 8 to 12px
+inside one. A paragraph of explanation is one sentence and a `<details>` line
+holding the rest, every fact kept. State is form before hue: a counted grade a
+solid rule or filled mark, a provisional one dashed, an unmeasured category a
+dashed hairline.
 
 A stylesheet held to tokens says so on its first line,
 `/* palette: tokens only */`, and `check:palette` then refuses any colour
@@ -94,9 +135,9 @@ is, never as a faked bold. Before it, every Mono rule at 600 or 800 (the
 grade, round numbers, scores, the Matches record) was the 500 thickened by
 the browser. The type scale has no such weight: a digit in a column is Geist
 Mono 500, a big number Geist 600 with `tabular-nums`, and `check:palette`
-fails a Mono rule at any other weight but the few its `MONO_PENDING` names,
-each left for its surface's task to move. A real heavier Mono means bundling
-its file with an `@font-face` in `theme.css`.
+fails a Mono rule at any other weight. Its `MONO_PENDING` list, the rules each
+surface's task was to move, is empty since 8.7 and can only shrink. A real
+heavier Mono means bundling its file with an `@font-face` in `theme.css`.
 
 Settled decisions that keep getting reintroduced by accident:
 
@@ -120,13 +161,21 @@ Settled decisions that keep getting reintroduced by accident:
   and white (a stylesheet it names that the scan no longer reads, renamed or
   moved, fails the check rather than being held to nothing).
 - **Start stays the signal**: `--red` `#FF5A3C` with the `--on-accent`
-  `#0A0B0E` label, 19px 600, by its own class, `.btn-rec`, so the primary
+  `#0A0B0E` label, 18px 600, by its own class, `.btn-rec`, so the primary
   being ink never turns it white. Its hover and press are scoped to
-  `:not(.active)`, or pressing Stop flashes the signal. Ended, it is a ghost
+  `:not(.active)`, or pressing Stop flashes the signal. Recording, it is the
+  dark capsule with its stop icon in the signal. Ended, it is a ghost
   at full opacity (7.7:1), never the faded signal (2.40:1). It is the one
   control a player must find without looking, and the one saturated fill.
 - **A grade's colour is never its only signal.** The number and the letter are
   always beside it.
+- **Motion is transform, opacity, shadow and clip**, never layout: feedback
+  140 to 220ms, the one authored moment on a page 420ms, rows rising 6px with a
+  40ms stagger capped at eight, once, when a list first appears and never on a
+  repaint; numbers count up through CSS (`@property --n` over `counter()`),
+  never JS arithmetic. Nothing loops, and nothing moves, shows or plays mid
+  match. `prefers-reduced-motion` collapses every duration in `theme.css`, and
+  a surface zeroes its delays, so every state is still seen.
 
 **Every surface must stay visually synchronised.** A change to a shared
 component or a token is not done until Settings, onboarding, the review and the

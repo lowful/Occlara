@@ -1,5 +1,8 @@
-/* The match library. Same sheet, header and row shapes as every other surface;
-   the grade chip carries the only colour, and always beside its number. */
+/* palette: tokens only */
+/* The match library as a ruled log (8.7). No card anywhere: a section is a
+   heading, then rows parted by the hairline, and a row's hover is a faint fill
+   across it. The only tactile objects are the controls, which ui.css draws as
+   capsules. A grade's colour always sits beside its number and its letter. */
 
 html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
 
@@ -13,54 +16,64 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 header {
   display: flex; align-items: center; gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--line);
 }
 .h-brand { display: flex; align-items: center; gap: var(--space-2); flex: none; }
-.h-brand h2 { font-size: 13px; font-weight: 700; letter-spacing: -0.1px; }
+.h-brand h2 { font-size: 13px; font-weight: 600; letter-spacing: -0.1px; }
 
-/* WON AND LOST beside the title (matches.js paintWinLoss), in Geist Mono at
-   the title's own size: 13px here, 24px as a page (below, after ui.css).
-   Wins in --good, losses in --bad, the colon between them dim. Each colour
-   sits on its number, so the colour is never the only signal. */
+/* WON AND LOST beside the title (matches.js paintWinLoss): a big number of
+   the type scale, Geist 600 with figures one width, at the title's own size,
+   13px here and 24px as a page (below, after ui.css). Wins in --good, losses
+   in --bad, the colon between them quiet. Each colour sits on its number, so
+   the colour is never the only signal. */
 .wl {
   display: inline-flex; align-items: baseline; margin-left: var(--space-2);
-  font-family: var(--font-mono); font-size: 13px; font-weight: 800; line-height: 1;
+  font-family: var(--font); font-size: 13px; font-weight: 600; line-height: 1;
+  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums;
 }
 .wl b { font-weight: inherit; }
 .wl-w { color: var(--good); }
 .wl-l { color: var(--bad); }
-.wl-sep { color: var(--text-mute); }
+.wl-sep { color: var(--text-mute); margin: 0 2px; }
 
-.tabs { display: flex; gap: 2px; margin-left: auto; padding: 2px; border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--glass-border); }
+/* The game tabs, drawn as a window of its own alone (html.embedded hides them). */
+.tabs { display: flex; gap: 2px; margin-left: auto; padding: 3px; border-radius: var(--r-btn); border: 1px solid var(--line-2); }
 .tab {
-  font: 600 12px var(--font); color: var(--text-dim);
-  padding: 5px 11px; border-radius: 6px; border: 0; background: transparent; cursor: pointer;
+  font: 500 12px var(--font); color: var(--text-dim);
+  padding: 5px 12px; border-radius: var(--r-btn); border: 0; background: transparent; cursor: pointer;
   transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .tab:hover { color: var(--text); }
 .tab[aria-selected="true"] { background: var(--text); color: var(--bg); }
-.tab:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.tab:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
 
 .body {
   flex: 1; overflow-y: auto;
-  padding: var(--space-4) var(--space-4) var(--space-8);
-  display: flex; flex-direction: column; gap: var(--space-8);
+  padding: var(--space-4) var(--space-4) var(--space-10);
+  display: flex; flex-direction: column; gap: var(--space-10);
 }
 .body::-webkit-scrollbar { width: 8px; }
 .body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 4px; }
 
+/* Inside a group 8 to 12px; between groups 40px (.body's gap). */
 .block, .patterns { display: flex; flex-direction: column; gap: var(--space-3); }
-h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-mute); margin: 0; }
-.hint { font-size: 11.5px; color: var(--text-mute); line-height: 1.45; margin: 4px 0 0; }
-.empty { font-size: 12.5px; color: var(--text-mute); line-height: 1.55; margin: 0; }
+h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); margin: 0; }
+.hint { font-size: 13px; color: var(--text-dim); line-height: 1.5; margin: 0; }
+.empty { font-size: 14px; color: var(--text-dim); line-height: 1.55; margin: 0; }
 
-.p-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
-.p-avg { display: flex; flex-direction: column; align-items: flex-end; }
-.p-avg-num { font-family: var(--font-mono); font-size: 28px; font-weight: 600; line-height: 1; color: var(--text); }
-.p-avg-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-mute); margin-top: 4px; }
+/* ── Patterns ──────────────────────────────────────────────────────────────
+   The line under the title on the left, the average grade on the right as
+   one quiet line, the number and its words (8.7): the same treatment Home
+   gives it, since the hero here is the first repeated mistake. */
+.p-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); }
+.p-head > div:first-child { min-width: 0; }
+.p-avg { flex: none; display: flex; align-items: baseline; gap: var(--space-1); white-space: nowrap; }
+.p-avg-num { font-family: var(--font); font-size: 14px; font-weight: 600; line-height: 1.5; font-variant-numeric: tabular-nums; color: var(--text); }
+.p-avg-label { font-size: 14px; font-weight: 400; color: var(--text-dim); }
 
 /* The grade trend: one bar per match, oldest on the left, so improvement reads
-   as a line climbing to the right. The number sits on every bar.
+   as a line climbing to the right, standing on one hairline. The number sits
+   over every bar.
 
    The fill's height is the score as a share of the WHOLE bar, so 0 to 100 uses
    every pixel. The number is positioned off the fill's top instead of stacked
@@ -69,203 +82,260 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
    the same bar. The bar's top margin is the room the number needs over a 100.
    Both read --h, which matches.js sets on the bar. */
 .p-trend {
-  display: flex; gap: 6px; height: 112px;
-  padding: var(--space-3); background: var(--bg-2);
-  border: 1px solid var(--glass-border); border-radius: var(--r-md);
+  display: flex; gap: var(--space-2); height: 128px;
+  padding: 0 0 var(--space-2);
+  border-bottom: 1px solid var(--line);
 }
-.p-bar { position: relative; flex: 1; min-width: 0; margin-top: 16px; }
+/* A bar takes up to 56px, so four matches stand together at the left rather
+   than spread across the page; twenty shrink to share it. */
+.p-bar { position: relative; flex: 0 1 56px; min-width: 0; margin-top: 16px; --c: var(--text); }
 .p-bar i {
   position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto;
-  width: 100%; max-width: 34px; height: var(--h, 0%);
-  border-radius: 4px 4px 2px 2px; background: var(--text);
+  width: 100%; max-width: 28px; height: var(--h, 0%);
+  border-radius: 2px 2px 0 0; background: var(--c);
 }
-.p-bar i.good { background: var(--good); }
-.p-bar i.warn { background: var(--warn); }
-.p-bar i.bad  { background: var(--bad); }
-.p-bar i.prov { opacity: 0.55; }
+.p-bar i.good { --c: var(--good); }
+.p-bar i.warn { --c: var(--warn); }
+.p-bar i.bad  { --c: var(--bad); }
+/* A provisional grade is a dashed outline, not a fill: form before hue. */
+.p-bar i.prov { background: transparent; border: 1.5px dashed var(--c); opacity: 0.8; }
 .p-bar span {
   position: absolute; left: 0; right: 0; bottom: calc(var(--h, 0%) + 4px);
-  text-align: center; font: 600 10px/12px var(--font-mono); color: var(--text-dim);
+  text-align: center; font: 500 11px/12px var(--font-mono); color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
 }
-/* A record outlined and the run underlined (8.7, matches.js paintTrend, from
-   progress.js): a ring off the fill in --good, and a short rule under each bar
-   of the run. The bar's hover says which, so neither rests on colour alone. */
-.p-bar.best i { box-shadow: 0 0 0 2px var(--bg-2), 0 0 0 3.5px var(--good); }
-.p-bar.best span { color: var(--good); }
+/* A record in the ink with its number in --good, and the run underlined
+   (8.7, matches.js paintTrend, from progress.js): form before hue, and no
+   ring round a bar (a box round a box). The bar's hover says which. */
+.p-bar.best i { --c: var(--text); }
+.p-bar.best span { color: var(--good); font-weight: 600; }
 .p-bar.run::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: -7px; margin: 0 auto;
+  content: ''; position: absolute; left: 0; right: 0; bottom: -6px; margin: 0 auto;
   width: 60%; max-width: 20px; height: 2px; border-radius: 1px;
-  background: rgba(var(--good-rgb), 0.75);
+  background: var(--good);
 }
 
-.p-cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); }
-.p-cat {
-  padding: var(--space-3); text-align: center;
-  background: rgba(0, 0, 0, 0.24); border: 1px solid var(--glass-border); border-radius: var(--r-md);
+/* The four categories as a stat row: columns parted by the hairline, a big
+   number each, its name and its last match under it. */
+.p-cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.p-cat { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; padding: 0 var(--space-6); border-left: 1px solid var(--line); }
+.p-cat:first-child { padding-left: 0; border-left: 0; }
+.p-cat b {
+  display: block; font-family: var(--font); font-size: 28px; font-weight: 600; line-height: 1;
+  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text);
 }
-.p-cat b { display: block; font-family: var(--font-mono); font-size: 18px; font-weight: 600; color: var(--text); }
-.p-cat span { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-mute); margin-top: 4px; }
-.p-cat small { display: block; font-size: 10.5px; color: var(--text-mute); margin-top: 2px; }
+.p-cat span { display: block; font-size: 12px; font-weight: 500; color: var(--text-mute); margin-top: var(--space-1); }
+.p-cat small { display: block; font-size: 12px; color: var(--text-dim); }
 
-.p-freq { font-size: 11px; color: var(--text-mute); }
+/* THE LISTS AS RULED ROWS. grade-view.css draws each entry as a card for the
+   review; here the host draws them as rows of the log: a heading over a
+   hairline, then one row per entry, the top mistake set larger with its fix
+   the biggest line on the page, every other entry one closed line. */
+/* The lists are their own group: 40px under the stat row, like every group. */
+#p-lists:not(:empty) { margin-top: calc(var(--space-10) - var(--space-3)); }
+#p-lists .gv-insights { gap: var(--space-10); }
+#p-lists .gv-block { gap: 0; }
+#p-lists .gv-block h3 {
+  font-family: var(--font); font-size: 15px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
+  text-transform: none; color: var(--text);
+  padding-bottom: var(--space-3); border-bottom: 1px solid var(--line);
+}
+#p-lists .gv-list { gap: 0; }
+#p-lists .gv-item {
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  background: transparent; border: 0; border-radius: 0;
+  border-bottom: 1px solid var(--line);
+}
+#p-lists .gv-item-title { font-size: 14px; }
+#p-lists .gv-item-detail, #p-lists .gv-item-fix { font-size: 13px; }
+#p-lists .gv-hero { padding: var(--space-5) 0; }
+#p-lists .gv-hero .gv-item-title { font-size: 17px; letter-spacing: -0.01em; }
+#p-lists .gv-hero .gv-item-detail { font-size: 14px; }
+/* The fix runs on from its label as one sentence (display: block), where the
+   flex row it is elsewhere broke the whole sentence onto its own line. */
+#p-lists .gv-action { display: block; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.3; margin-top: var(--space-2); }
+#p-lists .gv-rowed { padding: 0; }
+#p-lists .gv-row > summary {
+  margin: 0 calc(-1 * var(--space-3)); padding: var(--space-3);
+  border-radius: 0;
+  transition: background var(--t-fast) var(--ease);
+}
+#p-lists .gv-row > summary:hover { background: rgba(255, 255, 255, 0.035); }
+#p-lists .gv-row > summary:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
+#p-lists .gv-row-body { padding: 0 0 var(--space-3); }
+
 /* A pattern's chips beside its title (8.7, matches.js patternChips): how
-   often, how many times, and the trend word, a chip in its tone. */
-.p-chips { flex: 0 1 auto; min-width: 0; }
+   often and how many times, each a chip since each carries a count; the trend
+   word is a word in its tone and no chip. */
+.p-chips { flex: 0 1 auto; min-width: 0; align-items: center; }
 .gv-row .p-chips { margin-right: var(--space-2); }
-.p-trendword.worse { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.35); }
-.p-trendword.better { color: var(--good); border-color: rgba(var(--good-rgb), 0.35); }
+#p-lists .p-trendword { font-weight: 500; }
+/* The chevron of a closed row sits at the row's end, where the eye expects
+   the thing that opens it. */
+#p-lists .gv-row > summary::after { margin-left: auto; }
+.p-trendword.worse { color: var(--bad); }
+.p-trendword.better { color: var(--good); }
 .p-trendword.steady { color: var(--text-mute); }
 
-/* The match rows. The card is the item, holding two buttons side by side:
-   the row, which opens the review, and the eye at its end, which opens the
-   match's AI log (matches.js row()). The card answers the pointer as one. */
-.list { display: flex; flex-direction: column; gap: var(--space-2); }
+/* ── The match rows ────────────────────────────────────────────────────────
+   One ruled row per match, holding two buttons side by side: the row, which
+   opens the review, and the eye at its end, which opens the match's AI log
+   (matches.js row()). The item answers the pointer as one, with a faint fill
+   across it and nothing that moves. */
+.list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .m-item {
-  display: flex; align-items: center;
-  background: rgba(0, 0, 0, 0.24); border: 1px solid var(--glass-border); border-radius: var(--r-md);
-  transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
-  animation: rowIn 220ms var(--ease) both;
+  display: flex; align-items: center; gap: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  transition: background var(--t-fast) var(--ease);
 }
-.m-item:hover { border-color: rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.03); transform: translateY(-1px); }
+.m-item:hover { background: rgba(255, 255, 255, 0.035); }
+/* The rows rise once, as the list first appears on screen (matches.js load,
+   occlaraOnShown), 40ms apart and capped at the eighth; a repaint draws them
+   as they are. */
+.m-item.rise { animation: rowIn var(--t-slow) var(--ease-expo) both; animation-delay: calc(var(--i, 0) * 40ms); }
+@keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .m-row {
   flex: 1; min-width: 0;
-  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--space-3);
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--space-4);
   text-align: left;
-  padding: var(--space-3) var(--space-4);
-  background: transparent; border: 0; border-radius: var(--r-md);
+  padding: var(--space-4) 0;
+  background: transparent; border: 0; border-radius: 0;
   color: var(--text); font: inherit; cursor: pointer;
 }
-.m-row:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.m-row:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
 /* A row with no eye, in a list where others have one, keeps the eye's room
    (its 30px in ui.css), so the grades line up down the list. */
-.m-item .log-eye,
-.m-eye-gap { margin-right: var(--space-3); }
 .m-eye-gap { flex: none; width: 30px; }
-@keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.m-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.m-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .m-top { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
-.m-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m-res { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-mute); flex: none; }
-.m-res.win { color: var(--text); }
+.m-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The result and the score, one word and one number, in the outcome's tone. */
+.m-res { font-size: 13px; font-weight: 500; color: var(--text-mute); flex: none; font-variant-numeric: tabular-nums; }
+.m-res.win { color: var(--good); }
 .m-res.loss { color: var(--bad); }
 /* A milestone beside the result (8.7, matches.js row(), progress.js marks):
-   "Best in 23", "First A", "3 in a row", "3 without ...". A long habit's
-   name is cut to fit, whole on hover. */
+   "Best in 23", "First A", "3 in a row", "3 without ...", the one mark Home's
+   rows draw (home.css .r-mark): a filled dot, then its words, in --good, so
+   the tone is never alone. No capsule. A long habit's name is cut to fit,
+   whole on hover. */
 .m-mark {
   flex: 0 1 auto; min-width: 0; max-width: 45%; align-self: center;
-  font-size: 10.5px; font-weight: 600; line-height: 1.4; color: var(--good);
-  padding: 1px 8px; border-radius: var(--r-pill);
-  border: 1px solid rgba(var(--good-rgb), 0.40); background: rgba(var(--good-rgb), 0.07);
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--good);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.m-meta { font-size: 11.5px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m-top-mistake { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m-grade { display: flex; align-items: center; gap: 8px; }
-.m-score { font-family: var(--font-mono); font-size: 18px; font-weight: 600; color: var(--text); min-width: 26px; text-align: right; }
+.m-mark::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.m-mark.run, .m-mark.cleared { color: var(--text-dim); }
+.m-meta { font-size: 12px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-top-mistake { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-top-mistake .m-tm-label { color: var(--text-mute); }
+/* The grade: the number of the type scale and the letter as a small capsule
+   mark in its tone. A provisional grade's capsule is dashed. */
+.m-grade { display: flex; align-items: center; gap: var(--space-2); }
+.m-score {
+  font-family: var(--font); font-size: 20px; font-weight: 600; line-height: 1;
+  letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text);
+  min-width: 28px; text-align: right;
+}
 .m-letter {
-  width: 28px; height: 28px; border-radius: var(--r-sm);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 800; border: 1px solid var(--glass-border);
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 22px; min-width: 30px; padding: 0 8px; border-radius: var(--r-btn);
+  font-size: 11px; font-weight: 600; line-height: 1; letter-spacing: 0.02em;
+  border: 1px solid var(--line-2); color: var(--text);
 }
 .m-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
 .m-letter.mid  { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
 .m-letter.warn { color: var(--warn); border-color: rgba(var(--warn-rgb), 0.45); }
 .m-letter.bad  { color: var(--bad); border-color: rgba(var(--bad-rgb), 0.45); }
 .m-letter.none { color: var(--text-mute); }
+.m-letter.prov { border-style: dashed; }
 
 @media (max-width: 620px) {
-  .p-cats { grid-template-columns: repeat(2, 1fr); }
+  .p-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--space-4); }
+  .p-cat:nth-child(3) { padding-left: 0; border-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .m-item { animation: none; transition: none; }
+  .m-item, .m-item.rise { animation: none; transition: none; }
 }
 
-/* ── The breakdown ───────────────────────────────────────────────────────────
-   A table of rows that open in place. Digits in Geist Mono so columns line up;
-   a grade always shows its number and letter beside its colour; a rate under
-   its floor is drawn muted as "3 of 7", never as a percentage. */
-.b-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
-.seg-mini { display: flex; gap: 2px; padding: 2px; border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.28); border: 1px solid var(--glass-border); flex: none; }
-.seg-mini button {
-  font: 600 11.5px var(--font); color: var(--text-dim);
-  padding: 4px 10px; border-radius: 6px; border: 0; background: transparent; cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+/* ── The breakdown ─────────────────────────────────────────────────────────
+   A table of ruled rows that open in place. Digits in Geist Mono so columns
+   line up; a grade always shows its number and letter beside its colour; a
+   rate under its floor is drawn quiet as "3 of 7", never as a percentage. */
+.b-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-6); }
+.b-head > div:first-child { min-width: 0; }
+/* The cut and the queue are segmented capsules (shared/seg.js occlaraSeg,
+   called once from matches.js): the thumb slides to the chosen button. The
+   buttons keep their own state, aria-selected and aria-pressed. */
+.seg-mini { flex: none; }
+.b-queues { align-self: flex-start; }
+.b-chip small { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: inherit; opacity: 0.7; margin-left: 6px; font-variant-numeric: tabular-nums; }
+#b-dims > button:focus-visible, #b-queues > button:focus-visible, .bf-go:focus-visible {
+  outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px;
 }
-.seg-mini button:hover { color: var(--text); }
-.seg-mini button[aria-selected="true"] { background: var(--text); color: var(--bg); }
-.seg-mini button:focus-visible, .b-chip:focus-visible, .bf-go:focus-visible {
-  outline: 2px solid var(--text); outline-offset: 2px;
-}
-/* INSIDE THE TABLE A RING DRAWN OUTSIDE IS CUT OFF by its rounded clip, so a
-   row's ring is drawn inset, and a header, which reads as text, is underlined
-   instead: a ring around it was cut at the top and ran over the sort arrow. */
-.b-row:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+/* A row's ring is drawn inset, inside the scrolling body, and a header, which
+   reads as text, is underlined instead of ringed. */
+.b-row:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
 .b-sort:focus-visible {
   outline: none; color: var(--text);
   text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px;
 }
 
-.b-queues { display: flex; flex-wrap: wrap; gap: 6px; }
-.b-chip {
-  font: 600 11px var(--font); color: var(--text-dim);
-  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--glass-border); background: transparent; cursor: pointer;
-  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-.b-chip small { font-family: var(--font-mono); color: var(--text-mute); margin-left: 5px; }
-.b-chip[aria-pressed="true"] { color: var(--text); border-color: rgba(255, 255, 255, 0.4); }
-
-/* auto-fill, not auto-fit: one call is a tile the width of three, never a
-   banner across the whole window. */
-.b-headline { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--space-2); }
+/* A call (strongest map, best agent, most played): one ruled row each, its
+   label, its name and what it rests on. */
+.b-headline { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .b-call {
-  display: flex; flex-direction: column; gap: 3px; padding: var(--space-3);
-  background: rgba(0, 0, 0, 0.24); border: 1px solid var(--glass-border); border-radius: var(--r-md);
+  display: grid; grid-template-columns: 136px 1fr; align-items: baseline; column-gap: var(--space-4); row-gap: 2px;
+  padding: var(--space-3) 0; border-bottom: 1px solid var(--line);
 }
-.b-call span { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-mute); }
-.b-call b { font-size: 15px; font-weight: 700; color: var(--text); }
-.b-call small { font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
-.b-note { font-size: 11.5px; color: var(--text-mute); line-height: 1.45; margin: 0; }
+.b-call span { grid-column: 1; grid-row: 1; font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.b-call b { grid-column: 2; grid-row: 1; font-size: 15px; font-weight: 600; color: var(--text); }
+.b-call small { grid-column: 2; font-size: 13px; color: var(--text-dim); line-height: 1.4; }
+.b-note { font-size: 13px; color: var(--text-dim); line-height: 1.5; margin: 0; }
 
-.b-table { display: flex; flex-direction: column; border: 1px solid var(--glass-border); border-radius: var(--r-md); overflow: hidden; }
-.b-tr { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: var(--space-2); padding: 0 var(--space-3); }
+.b-table { display: flex; flex-direction: column; }
+.b-tr { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: var(--space-2); }
 /* A HEADER WIDER THAN ITS COLUMN WRAPS onto a second line, bottom aligned with
    the rest, because on one line "First death" ran into "Defence" at the
    window's own 760 width. The sort arrow sits in the gap after the header
    rather than inside it, so it never pushes a header past its column. */
-.b-th { background: rgba(0, 0, 0, 0.28); border-bottom: 1px solid var(--glass-border); align-items: end; }
+.b-th { border-bottom: 1px solid var(--line); align-items: end; }
 .b-th-cell { display: flex; justify-content: flex-end; min-width: 0; }
 .b-th-cell:first-child { justify-content: flex-start; }
 .b-sort {
   position: relative;
-  font: 700 10px/1.3 var(--font); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-mute);
-  background: transparent; border: 0; padding: 9px 0; cursor: pointer; text-align: right;
+  font: 500 12px/1.3 var(--font); color: var(--text-mute);
+  background: transparent; border: 0; padding: var(--space-2) 0; cursor: pointer; text-align: right;
+  transition: color var(--t-fast) var(--ease);
 }
 .b-sort.left { text-align: left; }
-.b-sort:hover { color: var(--text-dim); }
+.b-sort:hover { color: var(--text); }
 [aria-sort="ascending"] > .b-sort::after,
-[aria-sort="descending"] > .b-sort::after { position: absolute; left: 100%; bottom: 9px; margin-left: 2px; }
+[aria-sort="descending"] > .b-sort::after { position: absolute; left: 100%; bottom: var(--space-2); margin-left: 3px; }
 [aria-sort="ascending"] > .b-sort::after { content: '\2191'; }
 [aria-sort="descending"] > .b-sort::after { content: '\2193'; }
 .b-row {
-  min-height: 42px; border-top: 1px solid var(--glass-border); cursor: pointer;
+  min-height: 44px; border-bottom: 1px solid var(--line); cursor: pointer;
   transition: background var(--t-fast) var(--ease);
 }
-.b-th + .b-row { border-top: 0; }
-.b-row:hover { background: rgba(255, 255, 255, 0.03); }
-.b-row[aria-expanded="true"] { background: rgba(255, 255, 255, 0.05); }
+.b-row:hover { background: rgba(255, 255, 255, 0.035); }
+.b-row[aria-expanded="true"] { background: rgba(255, 255, 255, 0.05); border-bottom-color: transparent; }
 .b-td {
-  font: 500 12.5px/1.2 var(--font-mono); color: var(--text); text-align: right;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 10px 0; min-width: 0;
+  font: 500 13px/1.2 var(--font-mono); color: var(--text); text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: var(--space-3) 0; min-width: 0;
 }
-.b-td.raw { color: var(--text-mute); font-size: 11.5px; }
+.b-td.raw { color: var(--text-mute); font-size: 12px; }
 .b-td.none { color: var(--text-mute); }
-.b-td small { display: block; font: 500 10px var(--font); color: var(--text-mute); }
-.b-name { font: 600 13px var(--font); text-align: left; display: flex; flex-direction: column; gap: 1px; }
+.b-td small { display: block; font: 400 11px var(--font); color: var(--text-mute); }
+.b-name { font: 500 14px var(--font); text-align: left; display: flex; flex-direction: column; gap: 1px; }
 .b-name span { overflow: hidden; text-overflow: ellipsis; }
-.b-grade { display: inline-flex; align-items: center; gap: 6px; }
+.b-grade { display: inline-flex; align-items: center; gap: var(--space-2); }
 .b-letter {
-  width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--glass-border);
-  display: inline-flex; align-items: center; justify-content: center; font: 800 11px var(--font);
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 20px; min-width: 26px; padding: 0 7px; border-radius: var(--r-btn);
+  border: 1px solid var(--line-2); font: 600 11px/1 var(--font); letter-spacing: 0.02em;
 }
 .b-letter.good { color: var(--good); border-color: rgba(var(--good-rgb), 0.45); }
 .b-letter.mid  { color: var(--text); border-color: rgba(255, 255, 255, 0.28); }
@@ -274,16 +344,16 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 
 /* An open row's detail grows from its row by height and closes back into it
    (.reveal, ui.css; toggleRow in matches.js): the row is the reveal, its cell
-   the clip, and this the box in it. */
+   the clip, and this the ruled block in it, labels down the left. */
 .b-detail {
-  display: grid; grid-template-columns: 128px 1fr; gap: 8px var(--space-3);
-  padding: var(--space-3) var(--space-4) var(--space-4);
-  border-top: 1px solid var(--glass-border); background: rgba(0, 0, 0, 0.18);
+  display: grid; grid-template-columns: 136px 1fr; gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) 0 var(--space-5);
+  border-bottom: 1px solid var(--line);
 }
-.b-dt { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-mute); padding-top: 3px; }
-.b-dd { font-size: 12.5px; color: var(--text); line-height: 1.5; margin: 0; }
-.b-fix { display: block; color: var(--text-dim); margin-top: 3px; }
-.b-src { grid-column: 1 / -1; font-size: 11px; color: var(--text-mute); margin: 2px 0 0; }
+.b-dt { font-size: 12px; font-weight: 500; color: var(--text-mute); padding-top: 2px; }
+.b-dd { font-size: 13px; color: var(--text); line-height: 1.5; margin: 0; }
+.b-fix { display: block; color: var(--text-dim); margin-top: 2px; }
+.b-src { grid-column: 1 / -1; font-size: 12px; color: var(--text-mute); margin: var(--space-1) 0 0; }
 
 /* The grading line WRAPS rather than hiding when the window is narrow: it is
    where a run says it could not find the account or reach Riot, and a
@@ -291,16 +361,15 @@ h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacin
 .l-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .l-head h3 { flex: none; }
 .bf { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); min-width: 0; flex: 1; }
-.bf-status { font-size: 11.5px; color: var(--text-mute); line-height: 1.4; text-align: right; min-width: 0; }
-.bf-go { font-size: 11.5px; padding: 6px 10px; border-radius: var(--r-sm); flex: none; }
-.bf-go:disabled, .bf-go:disabled:hover { cursor: default; color: var(--text-mute); background: transparent; }
+.bf-status { font-size: 13px; color: var(--text-dim); line-height: 1.4; text-align: right; min-width: 0; }
+.bf-go { flex: none; }
 
 @media (max-width: 700px) {
   .b-tr { grid-template-columns: var(--cols-narrow); }
   .b-opt { display: none; }
   .b-detail { grid-template-columns: 1fr; gap: 4px; }
   /* Stacked, each label sits nearer its own line than the one above it. */
-  .b-dt { padding-top: 8px; }
+  .b-dt { padding-top: var(--space-2); }
   .b-dt:first-child { padding-top: 0; }
 }
 
@@ -323,3 +392,5 @@ html[data-section="breakdown"] #breakdown .b-head h3 { display: none; }
    baseline. */
 html.embedded .sheet > header .h-brand { align-items: baseline; }
 html.embedded .sheet > header .wl { font-size: 24px; }
+/* On its page the list's grading line stands alone over the rows. */
+html[data-section="list"] #every .l-head { justify-content: flex-end; }

@@ -177,9 +177,14 @@ function paintValorant(r, verdict) {
   const g = r.game || {};
   // The Verdict's letter, number and reason, when the review has a grade to
   // show; the result, the score and the scoreboard are there either way.
-  $('v-vd-label').hidden = !verdict;
-  $('v-grade').replaceChildren(...(verdict ? [verdictGrade(verdict)] : []));
-  $('v-grade').hidden = !verdict;
+  // ONE HEADER FOR EVERY STATE (8.7): the label and the grade's slot stay
+  // where they are; without a grade to show the slot is the dashed "Not
+  // graded", with the one reason the grade card used to carry beside its
+  // question mark (not enough measured, grade.js).
+  $('v-vd-label').hidden = false;
+  $('v-grade').replaceChildren(verdict ? verdictGrade(verdict) : notGraded(
+    r.grade && typeof r.grade.score !== 'number' ? 'Not enough measured to grade this match' : 'Not graded'));
+  $('v-grade').hidden = false;
   $('v-reason').textContent = (verdict && verdict.reason) || '';
   $('v-reason').hidden = !(verdict && verdict.reason);
   $('v-verdict').classList.toggle('graded', !!verdict);
@@ -212,7 +217,9 @@ function paintValorant(r, verdict) {
   // summary as served() split it into its sentences, a line each, where it was
   // one paragraph; a review served without them is its summary in one line.
   const summary = r.summary;
-  $('v-summary-wrap').hidden = !summary && !r.focus && !r.aiUnavailable && !r.thin && !r.narrativePending;
+  // The focus is the Verdict's own line now (8.7), so the read is shown only
+  // with a line to read.
+  $('v-summary-wrap').hidden = !summary && !r.aiUnavailable && !r.thin && !r.narrativePending;
   const said = summary
     || (r.narrativePending ? "Rewriting the coach's read with Riot's record of the match. This takes a few seconds."
       : r.thin ? 'Too little of this match was seen to write a read of it.'
@@ -228,7 +235,6 @@ function paintValorant(r, verdict) {
   $('v-focus-was').hidden = true;
   $('v-focus-was').textContent = '';
 
-  paintStrip(r);
   paintComps(r);
   paintPatterns(r);
   paintRounds(r);
@@ -261,6 +267,11 @@ function verdictGrade(v) {
   num.append(line);
   box.append(num);
   return box;
+}
+
+/** The grade's slot with no grade in it (8.7): the words over a dashed rule. */
+function notGraded(text) {
+  return el('span', 'vd-none', text);
 }
 
 /** League's Verdict: the grade and the reason, its numbers in the scoreline under it. */
@@ -461,7 +472,7 @@ function paintStudy(r) {
 }
 
 /*
- * BOTH TEAM COMPS, ONE LINE UNDER THE STRIP (8.5.0, the player's choice):
+ * BOTH TEAM COMPS, ONE LINE OVER THE ROUNDS (8.5.0, the player's choice):
  * "Your team: Breach, Jett (you), Killjoy, Omen, Sova. Theirs: ...", as
  * valorant-review.js compsLine computed it from Riot's record when main
  * presented the review, agents only. Set by textContent; no line without one.
@@ -473,40 +484,6 @@ function paintComps(r) {
   host.hidden = !line;
 }
 
-/** One cell per round, halftime as a gap, the side named over each half. */
-function paintStrip(r) {
-  const host = $('v-strip');
-  host.replaceChildren();
-  const rounds = Array.isArray(r.rounds) ? r.rounds : [];
-  if (!rounds.length) return;
-  const half = r.halftimeAfter;
-  let group = null;
-  let groupSide = null;
-  const flush = () => { if (group) host.append(group); };
-  for (const c of rounds) {
-    const h = half && c.n > half ? 2 : 1;
-    if (!group || group.dataset.half !== String(h)) {
-      flush();
-      group = el('div', 'v-half');
-      group.dataset.half = String(h);
-      groupSide = el('div', 'v-half-side', c.side || '');
-      group.append(groupSide, el('div', 'v-cells'));
-    }
-    if (!groupSide.textContent && c.side) groupSide.textContent = c.side;
-    const cell = el('button', 'v-cell ' + (c.result || 'unknown'));
-    cell.type = 'button';
-    cell.setAttribute('role', 'listitem');
-    cell.title = `Round ${c.n}${c.result ? ', ' + c.result : ''}${c.facts.length ? '. ' + c.facts.join('. ') : ''}`;
-    cell.append(el('span', 'v-cell-n', c.n));
-    const marks = el('span', 'v-cell-marks');
-    if (c.died) marks.append(el('i', 'mk died'));
-    if (c.planted) marks.append(el('i', 'mk planted'));
-    cell.append(marks);
-    cell.addEventListener('click', () => goRound(c.n));
-    group.lastChild.append(cell);
-  }
-  flush();
-}
 
 /**
  * EVERY ROUND, ONCE (8.3.1). A round the coach has something to say about is
@@ -547,7 +524,14 @@ function paintRounds(r) {
   $('v-rounds-wrap').hidden = !rounds.length;
   const frames = r.frameData || {};
   const kept = openedFor(r);
+  // The two halves headed by their side (8.7): one heading where the half
+  // changes, the strip of cells that used to say it gone.
+  const half = r.halftimeAfter;
+  let lastHalf = 0;
   for (const c of rounds) {
+    const h = half && c.n > half ? 2 : 1;
+    if (h !== lastHalf && c.side) host.append(el('div', 'v-half-side', c.side));
+    lastHalf = h;
     const row = roundRow(r, c, frames);
     host.append(row);
     if (kept.rounds.has(c.n)) openRow(row);
@@ -570,7 +554,14 @@ function roundRow(r, c, frames) {
   const row = el('article', 'v-round' + (f || why ? '' : ' quiet'));
   row.id = `round-${c.n}`;
   const head = el('div', 'v-round-head');
-  head.append(el('span', 'v-rn', `R${c.n}`));
+  // The number is the row's anchor (8.7): a click brings the row into view
+  // and flashes it, as the mistakes' round chips do. Out of the tab order.
+  const rn = el('button', 'v-rn', `R${c.n}`);
+  rn.type = 'button';
+  rn.tabIndex = -1;
+  rn.title = `Round ${c.n}`;
+  rn.addEventListener('click', (e) => { e.stopPropagation(); goRound(c.n); });
+  head.append(rn);
   if (c.result) head.append(el('span', 'v-chip ' + c.result, c.result === 'won' ? 'Won' : 'Lost'));
   if (c.side) head.append(el('span', 'v-side', c.side));
   row.append(head);
@@ -1035,7 +1026,9 @@ function paintCommon(r, at, verdict) {
   iHost.hidden = !r.insights;
   // Under a Verdict the grade is compact: the Verdict says the letter and the
   // number, so the card keeps the categories and their evidence (8.7).
-  if (r.grade) gHost.append(window.GradeView.gradeCard(r.grade, { compact: !!verdict, reveal: true }));
+  // A Valorant review's header says the letter and the number, or that there
+  // is none (8.7, notGraded), so its card is always the categories alone.
+  if (r.grade) gHost.append(window.GradeView.gradeCard(r.grade, { compact: !!verdict || r.kind === 'valorant', reveal: true }));
   if (r.insights) {
     iHost.append(window.GradeView.insightLists(r.insights, {
       hero: true,
@@ -1470,9 +1463,11 @@ function paintLocked(r) {
 /** The result, where it came from, and Riot's scoreboard: what a locked review keeps. */
 function paintLockedValorant(r) {
   const g = r.game || {};
-  $('v-vd-label').hidden = true;
-  $('v-grade').replaceChildren();
-  $('v-grade').hidden = true;
+  $('v-vd-label').hidden = false;
+  $('v-grade').replaceChildren(notGraded('Not graded'));
+  $('v-grade').hidden = false;
+  $('v-focus-wrap').hidden = true;
+  $('v-focus').textContent = '';
   $('v-reason').textContent = '';
   $('v-reason').hidden = true;
   $('v-verdict').classList.remove('graded');
@@ -1490,7 +1485,6 @@ function paintLockedValorant(r) {
   // is Riot's numbers against Riot's numbers, no grade in it.
   for (const id of ['v-summary-wrap', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap']) $(id).hidden = true;
   $('v-rounds').replaceChildren();
-  $('v-strip').replaceChildren();
 }
 
 $('lk-upgrade').addEventListener('click', () => { if (typeof window.occlara.openUpgrade === 'function') window.occlara.openUpgrade(); });
@@ -1565,6 +1559,11 @@ function sayOn(btn, text) {
   }, SAID_FOR_MS);
 }
 
+// Each group one capsule with a sliding thumb (shared/seg.js), where the page
+// can watch its buttons; the buttons' own aria-pressed stays the state.
+if (typeof window.occlaraSeg === 'function' && typeof MutationObserver === 'function') {
+  for (const g of $('share-sheet').querySelectorAll('.sh-seg')) window.occlaraSeg(g);
+}
 for (const b of $('share-sheet').querySelectorAll('.sh-opt')) {
   b.addEventListener('click', () => {
     if (b.dataset.size) share.size = b.dataset.size;

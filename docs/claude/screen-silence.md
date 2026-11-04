@@ -23,7 +23,11 @@ What still counts as "reaching the screen", and is sealed mid match:
 - The main window shows no page at all mid match, only a Recording screen, and
   its sidebar's pages are locked (`syncSeal`, below under The UI), because an
   open page on a second monitor is the same live feed. A stop in the middle of
-  a match holds that seal until the player opens a page.
+  a match holds that seal until the player opens a page. The screen's look
+  changed in 8.7 (the crescent, one line, the three facts as ruled rows,
+  `shell.css .sealed`) and its behaviour did not: it rises in once and nothing
+  on it moves after that, the live dot never pulses, and no capsule thumb or
+  reveal runs while it is up.
 - The corner mark, the always on top crescent the window leaves at the top
   right of the screen while it is hidden, goes while the seal is on, live or
   held, and comes back once it lifts with the window still hidden (8.3.2,

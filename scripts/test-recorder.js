@@ -91,6 +91,9 @@ async function section(title, fn) {
 
 // ── The spec's numbers ──────────────────────────────────────────────────────
 const SPEC = {
+  // 480p (8.7): 1280x720's bitrate in proportion to its pixels, asked for 30
+  // a second and recorded at 15, its busy floor 6 of them delivered.
+  res480: { width: 854, height: 480, bitrate: 1.33e6, ask: 30, record: 15, minFps: 6 },
   res720: { width: 1280, height: 720, bitrate: 3e6 },
   res1080: { width: 1920, height: 1080, bitrate: 6e6 },
   // The read's frame (the Standard profile), which a recording covers, and
@@ -710,6 +713,108 @@ function readerAfter(frames, menus) {
     ok(b3 && b3.outcome === 'error', 'and the session says error', JSON.stringify(b3));
   });
 
+  // 480P (8.7), the light size the owner asked for: the display's own shape
+  // never under 854x480, the bitrate in proportion to its pixels, asked for
+  // 30 a second and recorded at 15, the busy floor sized to that, and the
+  // read left on the GDI helper (as with recording Off) unless the read's
+  // frame is Performance's 854x480, which it covers.
+  await section('480p, the light size: its shape, its bitrate, its rate, its busy floor, and the read it cannot serve:', async () => {
+    // Every display the doc names: 16:9, 21:9, 16:10, a 1366x768 laptop, 32:9, 5:4 and 4:3.
+    const cases = [
+      [[1920, 1080], [854, 480]], [[2560, 1440], [854, 480]], [[3840, 2160], [854, 480]], [[3440, 1440], [1146, 480]],
+      [[1920, 1200], [854, 534]], [[1366, 768], [854, 480]], [[5120, 1440], [1706, 480]], [[1280, 1024], [854, 684]], [[1024, 768], [854, 640]],
+    ];
+    for (const [[w, hh], want] of cases) {
+      const got = fitSize({ width: w, height: hh }, 480);
+      const shape = Math.abs(got.width / got.height - w / hh) / (w / hh);
+      ok(same([got.width, got.height], want) && got.width % 2 === 0 && got.height % 2 === 0 && shape < 0.01
+        && got.width >= SPEC.res480.width && got.height >= SPEC.res480.height && got.width <= w && got.height <= hh
+        && same(fitSize({ width: w, height: hh }, '480'), got) && codecFor(got) === 'avc1.42E01F',
+      `${w}x${hh} at 480p records ${want.join('x')}: its own shape, never cropped, never under 854x480, level 3.1`, JSON.stringify(got));
+    }
+    ok(same(fitSize({ width: 800, height: 450 }, 480), { width: 800, height: 450 }), 'a display smaller than the box is recorded whole, never above itself');
+    // The read's frame is never covered by it at Standard, and is at Performance.
+    ok(!covers(fitSize({ width: 1920, height: 1080 }, 480), SPEC.read) && !covers(fitSize({ width: 3440, height: 1440 }, 480), SPEC.read)
+      && covers(fitSize({ width: 1920, height: 1080 }, 480, { width: 854, height: 480 }), { width: 854, height: 480 })
+      && same(fitSize({ width: 3440, height: 1440 }, 480, { width: 854, height: 480 }), { width: 1146, height: 480 }),
+    '480p never covers the Standard read\'s 1280x720 (the read stays on GDI) and covers Performance\'s 854x480');
+    // 720p and 1080p as they were: every read's frame is within their boxes.
+    ok(same(fitSize({ width: 3440, height: 1440 }, 720), { width: 1720, height: 720 }) && same(fitSize({ width: 3440, height: 1440 }, 720, { width: 854, height: 480 }), { width: 1280, height: 536 })
+      && same(fitSize({ width: 5120, height: 1440 }, 1080), { width: 2560, height: 720 }),
+    'and 720p and 1080p record what they did');
+    const rate = (w, hh) => bitrateFor({ width: w, height: hh }, 480);
+    ok(rate(854, 480) === SPEC.res480.bitrate && Math.abs(SPEC.res480.bitrate - SPEC.res720.bitrate * (854 * 480) / (1280 * 720)) < 0.01e6
+      && rate(1146, 480) === Math.round(SPEC.res480.bitrate * (1146 * 480) / (854 * 480)) && rate(5120, 1440) === 2 * SPEC.res480.bitrate
+      && rate(800, 450) === SPEC.res480.bitrate && bitrateFor({ width: 854, height: 480 }, '480') === SPEC.res480.bitrate,
+    `480p's bitrate is 720p's in proportion to its pixels (${SPEC.res480.bitrate / 1e6} Mbps), more past its box, twice it at most`);
+    // Old saved values, and junk, read as they always were; 480 as itself.
+    ok(R.resOf('480') === '480' && R.resOf(480) === '480' && R.resOf('1080') === '1080' && R.resOf(1080) === '1080'
+      && R.resOf('720') === '720' && R.resOf(720) === '720' && R.resOf(undefined) === '720' && R.resOf(null) === '720'
+      && R.resOf('1440') === '720' && R.resOf('480p') === '720' && same(R.RES_CHOICES, ['480', '720', '1080']),
+    'a saved size: 480 and 1080 as they are, anything else 720, as every reader said before there were three');
+    ok(reportBlock({ res: '480', outcome: 'recorded' }).res === '480' && reportBlock({ res: 1080, outcome: 'off' }).res === '1080'
+      && reportBlock({ res: 'huge', outcome: 'off' }).res === '720', 'the counts name 480p as itself, and nothing off the list');
+
+    const lines = [];
+    const h = harness({ prefsInit: { recordingRes: '480' }, log: (...a) => lines.push(a.join(' ')) });
+    h.env.inMatch = true;
+    const s = (await h.start()).started;
+    ok(s && s.width === 854 && s.height === 480 && s.bitrate === SPEC.res480.bitrate && s.codec === 'avc1.42E01F'
+      && s.fps === SPEC.res480.ask && s.recordFps === SPEC.res480.record && s.keyframeMs === SPEC.keyframeMs,
+    '480p from Settings: 854x480 of a 1920x1080 display, 1.33 Mbps, the capture asked for 30 a second and 15 recorded', JSON.stringify(s));
+    const started = lines.find((l) => l.startsWith('[recorder] recording '));
+    ok(started && / asked 854x480 at up to 30 fps, recorded at up to 15, 1\.3 Mbps, /.test(started),
+      'the start line says what 480p asks and records', started);
+    ok(lines.some((l) => /the recording, 854x480, is smaller than the read's 1280x720 frame: the read stays on the GDI helper/.test(l)),
+      'and that the read stays on the GDI helper, the recording too small to hand it its frame');
+    ok(h.rec.rules.limits.minFps === SPEC.res480.minFps && h.rec.rules.limits.sustainMs === SPEC.sustainS * 1000,
+      `the busy floor is 480p's ${SPEC.res480.minFps} frames a second delivered, held 20 s as at every size`, JSON.stringify(h.rec.rules.limits));
+    // 25 a second delivered and 15 recorded, the picture changing: Settings says 480p, about 15 fps.
+    await h.run(12, () => ({ health: { fps: 25, recordedFps: 15, changing: true } }));
+    ok(h.capture.stream === null && !h.capture.calls.includes('stream'), 'compared with GDI and seeing the game, it still never serves the Standard read');
+    ok(same(h.rec.liveView(), { res: '480', width: 854, height: 480, fps: 15 }), 'Settings is told 480p, 854x480, about 15 frames a second', JSON.stringify(h.rec.liveView()));
+    // A capture delivering 10 a second, under 720p's 12 but over 480p's 6, for a minute: not busy.
+    await h.run(60, () => ({ health: { fps: 10, recordedFps: 10, changing: true } }));
+    ok(h.rec.state === 'recording' && !h.notices.length && !h.rec.session.gaveUp,
+      'a minute of 10 a second delivered, under 720p\'s floor and over 480p\'s, is not busy at 480p: still recording, no notice');
+    let n = 0;
+    while (h.rec.state === 'recording' && n < 40) { await h.run(1, () => ({ health: { fps: 5, recordedFps: 5, changing: true } })); n += 1; }
+    ok(h.rec.state !== 'recording' && n >= SPEC.sustainS && n <= SPEC.sustainS + 2 && h.notices.length === 1 && h.notices[0].text === SPEC.busyText,
+      `5 a second, under its floor, for 20 s straight: given up as busy after ${n} s with the one notice`);
+    const b = await h.stop();
+    ok(b && b.res === '480' && b.outcome === 'busy', 'and its counts say 480 and busy', JSON.stringify(b));
+    // The same 10 a second at 720p gives up: the floor is the size's.
+    const at720 = harness();
+    at720.env.inMatch = true;
+    await at720.start();
+    await at720.run(5);
+    let m = 0;
+    while (at720.rec.state === 'recording' && m < 40) { await at720.run(1, () => ({ health: { fps: 10, changing: true } })); m += 1; }
+    ok(at720.rec.state !== 'recording' && m >= SPEC.sustainS && m <= SPEC.sustainS + 2, `at 720p the same 10 a second is under its 12 and gives up after ${m} s`);
+    await at720.stop();
+    // A dev limit lies over the size's floor; one not set lays nothing.
+    const dev = harness({ prefsInit: { recordingRes: '480' }, limits: { minFps: 1000, sustainMs: null } });
+    await dev.start();
+    ok(dev.rec.rules.limits.minFps === 1000 && dev.rec.rules.limits.sustainMs === SPEC.sustainS * 1000, 'a dev floor set lies over 480p\'s, one not set lays nothing', JSON.stringify(dev.rec.rules.limits));
+    await dev.stop();
+    // Performance's read is covered, so the read is served from it.
+    const perf = harness({ prefsInit: { recordingRes: '480' }, readSize: { width: 854, height: 480 } });
+    await perf.start();
+    await perf.run(5);
+    ok(perf.capture.stream && perf.page().started.width === 854 && perf.page().started.height === 480,
+      'with Performance\'s 854x480 read, the 480p recording covers it and serves the read');
+    await perf.stop();
+    // An old saved number reads as before: 1080 records 1080p, 720 720p.
+    const old = harness({ prefsInit: { recordingRes: 1080 } });
+    const so = (await old.start()).started;
+    ok(so.width === 1920 && so.fps === 60 && so.recordFps === 30 && old.rec.res() === '1080', 'a size saved as the number 1080 records 1080p, asked 60 and recorded at 30', JSON.stringify(so));
+    await old.stop();
+    const junk = harness({ prefsInit: { recordingRes: '4k' } });
+    const sj = (await junk.start()).started;
+    ok(sj.width === 1280 && sj.fps === 60 && sj.recordFps === 30 && junk.rec.view().res === '720', 'and anything else 720p, as before', JSON.stringify(sj));
+    await junk.stop();
+  });
+
   // THE MINUTE LINE SAYS WHAT HAPPENED (8.4.1). On the player's Fracture
   // swiftplay the recording fell from about 57 to 32 frames a second for its
   // last two minutes with no line saying why, and at 57 its pages ran about
@@ -834,6 +939,40 @@ function readerAfter(frames, menus) {
     ok(ks >= 299 && ks <= 301, `60 a second, one timestamp half a second back each second: ${ks} recorded in ten seconds, none more for it`);
     const ku = kept(sixtyNows.map(() => NaN), sixtyNows).length;
     ok(ku >= 299 && ku <= 301, `60 a second with no timestamps at all: ${ku} recorded in ten seconds, by the page's own clock`);
+  });
+
+  // 480p, THE LIGHT ONE (8.7): asked for 30 a second and recorded at 15, the
+  // same grid at half the slots. Asked for 30 the capture delivered 29 on this
+  // PC's 240 Hz screen and about 21 in the 8.3 spike, so 15 is kept of
+  // anything from 21 to 60, and every frame of a capture slower than 15.
+  await section('480p records 15 a second by the same grid, of a capture asked for 30 (grid.js at the 480p rate):', () => {
+    const Grid = require('../src/renderer/recorder/grid.js');
+    ok(R.RES[480].ask === SPEC.res480.ask && R.RES[480].record === SPEC.res480.record && same(R.ratesFor('480'), { ask: 30, record: 15, minFps: 6 })
+      && same(R.ratesFor('720'), { ask: 60, record: 30, minFps: 12 }) && same(R.ratesFor('1080'), { ask: 60, record: 30, minFps: 12 })
+      && same(R.ratesFor('1440'), R.ratesFor('720')),
+    '480p asks the capture for 30 and records 15, its busy floor 6; 720p and 1080p ask 60 and record 30, their floor 12, as before', JSON.stringify(R.ratesFor('480')));
+    const rng = (seed) => { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+    const capture = (fps, seconds, jitterMs, seed) => {
+      const r = rng(seed || 1);
+      const out = [];
+      for (let k = 0; k * 1000 / fps < seconds * 1000; k++) out.push(Math.round((k * 1000 / fps + (r() * 2 - 1) * (jitterMs || 0)) * 1000) + 5e6);
+      return out.sort((a, b) => a - b);
+    };
+    const kept = (times, fps) => { const g = Grid.createGrid(fps); return times.filter((t) => g.take(t, NaN)); };
+    const most = (xs) => { let m = 0; for (let i = 0, j = 0; i < xs.length; i++) { while (j < xs.length && xs[j] - xs[i] < 1e6) j++; m = Math.max(m, j - i); } return m; };
+    for (const [fps, jitter, what] of [[29.2, 1, '29 a second, what 30 asked delivered here'], [21.4, 2, '21 a second, what the 8.3 spike\'s 30 delivered'], [60, 0.3, '60 a second'], [17, 3, '17 a second, jittered']]) {
+      const src = capture(fps, 20, jitter, Math.round(fps * 7));
+      const k = kept(src, SPEC.res480.record);
+      ok(k.length >= 299 && k.length <= 301 && most(k) <= 16, `${what}, twenty seconds: ${k.length} of ${src.length} recorded, ${most(k)} in any one second at most`);
+    }
+    for (const [fps, jitter] of [[15, 1], [12, 4], [8, 2]]) {
+      const src = capture(fps, 20, jitter, fps * 3);
+      ok(kept(src, SPEC.res480.record).length === src.length, `a capture at ${fps} a second, at or under the rate: every frame recorded (${src.length})`);
+    }
+    // The page builds its grid from the start's own rate, never a 30 of its own.
+    const g15 = Grid.createGrid(15);
+    const at60 = capture(60, 4, 0, 9).filter((t) => g15.take(t, NaN)).length;
+    ok(at60 >= 59 && at60 <= 61 && Grid.createGrid(undefined).open() === 1, `createGrid(15) keeps 15 a second of 60 (${at60} in four seconds), and one named no rate takes RECORD_FPS`);
   });
 
   await section('the pump: a frame the writer cannot take now is closed at once, never queued, and nothing it held is left open (grid.js pump):', async () => {

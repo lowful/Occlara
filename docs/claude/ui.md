@@ -6,6 +6,15 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
 
 Every surface is a plain folder with `index.html`, a `.css` and usually a `.js`.
 
+**The Training Log (8.7).** Every page is one ruled column on the dark ground:
+a section is a heading and rows parted by the hairline, no card and no box in a
+box, one hero per page (Home's fix for the next match at 44px, the review's
+Verdict), and the controls are the only tactile objects, capsules lit from above
+(`ui.css`). The system as built is `DESIGN.md` at the repo root; the rules are
+in ui-rules-ipc.md. Where this file says "card" below for a thing on a page, it
+names the element and its id as the scripts and tests still do (Home's
+`.card`, the record card), not a drawn frame: nothing on a page has one.
+
 **One window since 8.1** (`src/main/windows/main-window.js`): frameless, in the
 taskbar, never on top, so it sits behind the game like any app. Its own
 document is the shell, and each page is a surface in a WebContentsView of its
@@ -176,10 +185,13 @@ opened (`dd-closing`, then hidden); Stats' rank notes, its match rows and a
 breakdown row open by height in place (`.reveal`, one grid row from 0fr to
 1fr), the breakdown no longer rebuilding its table to open a row; the review's
 frame zoom scales from
-where the frame was (`zoomShot`); Home's cards arrive one after another on its
-first paint and on a change of game, once it is on screen (`occlaraOnShown`);
-the Recording screen rises in; the AI log and the weekly
-report ease in. `npm run test:surfaces` pins each.
+where the frame was (`zoomShot`); Home's sections arrive one after another on
+its first paint and on a change of game, once it is on screen
+(`occlaraOnShown`, `.card-in`), their rows and the trend's bars rising 40ms
+apart; the library's rows rise once as a game's list first appears
+(`.m-item.rise`, capped at the eighth), never on a repaint; every segmented
+capsule's thumb slides (`shared/seg.js`); the Recording screen rises in; the
+AI log and the weekly report ease in. `npm run test:surfaces` pins each.
 
 **The reveal (8.7).** The review the loading screen gives way to (the
 `wasBuilding` branch of `paint()` in review.js, `startReveal`) arrives in
@@ -230,8 +242,14 @@ recent match opening its review.
 `npm run test:shellnav` and `npm run test:homemodel` cover the navigation and
 Home offline.
 
-**Home (8.2.1), as the player asked for it.** Every card is read from the
-library or the rank history, nothing invented (`src/shared/home-model.js`):
+**Home (8.2.1), as the player asked for it.** Every section is read from the
+library or the rank history, nothing invented (`src/shared/home-model.js`).
+Since 8.7 it is one column in the log's order (home.css: the fix for the next
+match first, at 44px, the one large thing on the page; the last match as one
+ruled line with its grade, its four categories as thin rules under it and the
+milestone as a dotted line; the rank; the trend beside the recent matches as
+ruled rows; the most repeated mistake last), each section a hairline over a
+label, with no frame around any:
 
 - **The last match ends on two buttons and no words**: the eye's "View match"
   (`log-eye.js labelled()`, the eye the Matches rows draw, by the same
@@ -286,8 +304,9 @@ library or the rank history, nothing invented (`src/shared/home-model.js`):
   older answer over a newer read's (`seq`). And Home asks again six minutes on
   for the newest Competitive match still without its RR, twice at most after
   a paint, only for one that ended within the hour (`rrWaiting`).
-- **The grade trend fills its card**: its bars stand on the card's foot
-  whatever height Recent matches gives the row, each its grade of the whole
+- **The grade trend keeps to 120px** (8.7; it filled its row's height before,
+  and taller than the fix line it was a second hero): its bars stand on one
+  ruled baseline whatever stands beside them, each its grade of the whole
   track, the number positioned off the bar rather than stacked over it.
 
 `test:surfaces` holds Home's and Stats' answers to the same history equal,
@@ -304,12 +323,14 @@ the player's own HUD in the match now (below, "The agent is read off the
 player's own HUD"), so nothing opens on the card, at Start, in a match or
 after it, and no channel carries an agent to a window (`AGENT_SET`,
 `AGENT_CONFIRM` and `PUSH_AGENT` went, and Ask Coach's agent chip with
-them). Start fills the width beside the square pause button, both
-48px, one padding all round. The state is the button's word (Start, Stop, "Subscription
-ended"), the pause button's icon and the live colour while recording. Start is
+them). The box around the two went in 8.7: Start fills the width beside the
+round pause button, both 48px, sitting directly in the rail with one padding
+all round. The state is the button's word (Start, Stop, "Subscription
+ended"), the pause button's icon and, recording, the Stop icon in the signal
+on the dark capsule. Start is
 `btn btn-rec toggle` (8.6): the signal by its own class, `.btn-rec` in
 `ui.css`, never the primary, which is the ink; ended, a ghost at full
-opacity. What
+opacity. Under it the games left line (`.rail-games`, 8.7). What
 the line said when there was something to say is **the notice line** in the
 top strip, left of the window's buttons (`shell.js noticeLine`), empty
 otherwise, never hidden, because a live region shown and filled in the same

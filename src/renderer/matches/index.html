@@ -60,6 +60,8 @@
             <h3>Breakdown</h3>
             <p id="b-sub" class="hint"></p>
           </div>
+          <!-- The cut and the queue below are segmented capsules whose thumb
+               slides (shared/seg.js, occlaraSeg in matches.js). -->
           <div id="b-dims" class="seg-mini" role="tablist" aria-label="Break down by"></div>
         </div>
         <div id="b-queues" class="b-queues" role="group" aria-label="Queue" hidden></div>
@@ -74,7 +76,7 @@
           <h3>Every match</h3>
           <div id="bf" class="bf" hidden>
             <span id="bf-status" class="bf-status" aria-live="polite"></span>
-            <button id="bf-go" class="btn btn-link bf-go" type="button">Grade my recent matches</button>
+            <button id="bf-go" class="btn sm bf-go" type="button">Grade my recent matches</button>
           </div>
         </div>
         <div id="list" class="list" role="list"></div>
@@ -84,6 +86,7 @@
   </div>
 
   <script src="../shared/i18n-apply.js"></script>
+  <script src="../shared/seg.js"></script>
   <script src="../shared/grade-view.js"></script>
   <script src="../shared/log-eye.js"></script>
   <script src="matches.js"></script>

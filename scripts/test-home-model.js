@@ -161,6 +161,23 @@ const summary = patterns.summarise(saved);
     .recent.map((r) => r.aiLog).join() === 'kept,gone', 'the recent rows carry it the same way');
 }
 
+// ── The marks on a recent row (8.7) ─────────────────────────────────────────
+// The badges the library draws (progress.js libraryProgress marks[id]), read
+// whole as main counted them, [] where it counted none, and never one
+// without its text.
+{
+  const marked = { ...summary, progress: { ...(summary.progress || {}), marks: {
+    [rows[0].id]: [{ kind: 'best', text: 'Best in 4' }, { kind: 'run', text: '3 in a row' }, { text: '' }, null],
+    [rows[1].id]: 'no',
+  } } };
+  const m = homeModel({ rows, patterns: marked, review: null });
+  ok(same(m.recent[0].marks, [{ kind: 'best', text: 'Best in 4' }, { kind: 'run', text: '3 in a row' }]),
+    `a recent row carries its marks as main counted them, a mark with no text dropped (${JSON.stringify(m.recent[0].marks)})`);
+  ok(same(m.recent[1].marks, []) && same(m.recent[2].marks, []), 'and none where main counted none, or not a list');
+  ok(same(homeModel({ rows, patterns: { ...summary, progress: null }, review: null }).recent[0].marks, []),
+    'with no progress counted, every row has none');
+}
+
 // ── A review still being built (8.4.1) ──────────────────────────────────────
 // The step main puts on its library row (review-work.js workOf, index.js
 // listReviews), so Home's last match and its row say it is being checked

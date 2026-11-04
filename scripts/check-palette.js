@@ -117,7 +117,7 @@ const SIGNAL_ALLOWED = {
                             '.btn-ghost.danger:hover:not(:disabled)', '.sig-dot'],
   'shell/shell.css':       ['.rec.live', '.toggle.active .t-ico', '.win-btn.close:hover',
                             '.sealed h1::before', '.top-notice.urgent::before'],
-  'settings/settings.css': ['.rec-clear.armed', '.btn-danger:hover'],
+  'settings/settings.css': ['.rec-clear.armed'],
 };
 /** The rules of a stylesheet that name the signal and are not its places. */
 function strayReds(rel, css) {
@@ -148,10 +148,6 @@ function monoWeights(css) {
 // names a rule no longer at a wrong weight fails too, so this list can only
 // shrink. Until then each draws at 500, as synthesis off draws it.
 const MONO_PENDING = {
-  'home/home.css':             ['.rank-rr, .r-rr'],                                                        // S2
-  'matches/matches.css':       ['.wl', '.p-avg-num', '.p-bar span', '.p-cat b', '.m-score'],                // S3
-  'review/review.css':         ['.stat-value', '.moment-at', '.v-score', '.v-stat-value', '.v-cell', '.v-rn'], // S4
-  'onboarding/onboarding.css': ['.obr-score', '.obr-rn', '.obr-grade b', '.ob-bf-grade'],                  // S8
 };
 
 let problems = 0;

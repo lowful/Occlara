@@ -39,31 +39,33 @@
         <p id="nostats-body" class="empty"></p>
       </section>
 
+      <!-- The rank on a line of its own, the page's hero, and the five numbers
+           under it in columns (stats.js renderCards). -->
       <section id="sec-overview">
         <h3>Overview</h3>
         <div class="cards" id="cards"></div>
-        <!-- The rank tile's notes open under it by height (.reveal, ui.css). -->
+        <!-- The rank line's notes open under it by height (.reveal, ui.css). -->
         <div id="rank-reveal" class="reveal" hidden>
           <div class="reveal-clip"><div id="rank-notes" class="rank-notes"></div></div>
         </div>
       </section>
 
       <section id="sec-agents">
-        <h3 id="agents-title">Top Agents</h3>
+        <h3 id="agents-title">Top agents</h3>
         <div id="agent-tiles" class="agent-tiles"></div>
         <p id="agent-empty" class="empty" hidden>Play a few matches to see your most played agents here.</p>
       </section>
 
       <section id="sec-matches">
         <div class="sec-head">
-          <h3>Recent Matches</h3>
+          <h3>Recent matches</h3>
           <div class="sec-tools">
-            <div class="mode-seg" id="modeseg">
-              <button data-mode="competitive" class="active">Competitive</button>
-              <button data-mode="unrated">Unrated</button>
-            </div>
             <span id="updated" class="updated"></span>
-            <button id="refresh" class="mini-btn no-drag">Refresh</button>
+            <div class="mode-seg" id="modeseg" role="group" aria-label="Queue">
+              <button type="button" data-mode="competitive" class="active">Competitive</button>
+              <button type="button" data-mode="unrated">Unrated</button>
+            </div>
+            <button id="refresh" class="btn sm no-drag">Refresh</button>
           </div>
         </div>
         <div id="match-list" class="list"></div>
@@ -82,6 +84,8 @@
   <!-- For the grade colour only: Graded matches colour a grade by its letter
        exactly as the review, the library and the panel do. -->
   <script src="../shared/grade-view.js"></script>
+  <!-- The Competitive / Unrated capsule's sliding thumb. -->
+  <script src="../shared/seg.js"></script>
   <script src="stats.js"></script>
 </body>
 </html>

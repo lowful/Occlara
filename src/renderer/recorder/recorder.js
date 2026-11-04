@@ -12,7 +12,9 @@
  * for H.264, no for VP9, which then took a whole core in software).
  *
  * ONE CAPTURE, TWO USES. The capture is asked for up to 60 frames a second,
- * and the recording is handed 30 of them (8.4.2): a MediaStreamTrackProcessor
+ * and the recording is handed 30 of them (8.4.2), or at 480p asked for 30
+ * and handed 15 (8.7): both numbers come with the start (`fps`, `recordFps`,
+ * main's recorder.js RES), so this page assumes neither. A MediaStreamTrackProcessor
  * on the capture track hands this page every frame, grid.js keeps thirty a
  * second by each frame's own timestamp and writes them to a track generator,
  * and MediaRecorder records the generator, a chunk a second with the page's
@@ -170,7 +172,8 @@
 
   /**
    * What MediaRecorder records: a track generator, written by the grid
-   * (grid.js) from a processor on the capture track, thirty frames a second.
+   * (grid.js) from a processor on the capture track, `cmd.recordFps` frames a
+   * second (30, or 15 at 480p).
    * start() begins the pump once the recorder has started; end() cancels the
    * processor, waits for the pump to hand back every frame it held, then
    * closes the generator. Built again for every recording: a page records

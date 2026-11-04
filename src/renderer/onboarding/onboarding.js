@@ -14,6 +14,16 @@ const dotsEl  = document.getElementById('dots');
 const backBtn = document.getElementById('back');
 const nextBtn = document.getElementById('next');
 let index = 0;
+
+// THE SLIDING THUMB (8.7): shared/seg.js lays one thumb behind the Advanced
+// coaching switch and the recording size and slides it to the chosen button
+// (.active). The buttons and their state are untouched. Guarded on
+// MutationObserver, which the offline DOM the tests run the page in does
+// not have; there the chosen button draws its own fill (onboarding.css).
+for (const id of ['advanced', 'ob-res']) {
+  const el = document.getElementById(id);
+  if (el && typeof window.occlaraSeg === 'function' && typeof MutationObserver === 'function') window.occlaraSeg(el);
+}
 // THE RIOT ID PAGE IS ABOUT ONE RIOT ID: the one in the field. Connect
 // connects one (connectedId, '' until it does), the line under the field is
 // about one (statusAbout), and the run main pushes is for one (its account).
@@ -237,13 +247,23 @@ function paintWatch() {
   framesTag.hidden = !(rec && rec.recordable && rec.mode === 'off');
 }
 
+/** A saved size as the tour shows it: '480' and '1080' as they are, anything else '720' (recorder.js resOf). */
+function resOf(v) {
+  const s = String(v);
+  return s === '480' || s === '1080' ? s : '720';
+}
+
 /** Save a choice the moment it is made, as every choice in the tour is. */
 function choose(mode, res) {
   const m = mode === 'off' ? 'off' : 'auto';
-  let r = res === '1080' ? '1080' : '720';
-  // Record at a size the encoder refused would never record: the other one.
-  const other = r === '1080' ? '720' : '1080';
-  if (m === 'auto' && rec && rec.sizes[r] === false && rec.sizes[other] !== false) r = other;
+  let r = resOf(res);
+  // Record at a size the encoder refused would never record: the recommended
+  // size where the encoder took it, else the first it did not refuse (8.7:
+  // three sizes, so there is no one "other").
+  if (m === 'auto' && rec && rec.sizes[r] === false) {
+    const open = [rec.res, '720', '480', '1080'].find((x) => rec.sizes[x] !== false);
+    if (open) r = open;
+  }
   const changed = m !== watch.mode || r !== watch.res;
   watch = { mode: m, res: r };
   paintWatch();
@@ -300,7 +320,7 @@ async function checkPc() {
   try { cfg = await window.occlara.getConfig(); } catch { cfg = null; }
   // A pick made while the config was on its way is newer than its answer.
   if (cfg && typeof cfg === 'object' && !pickedHere) {
-    watch = { mode: cfg.recordingMode === 'off' ? 'off' : 'auto', res: String(cfg.recordingRes) === '1080' ? '1080' : '720' };
+    watch = { mode: cfg.recordingMode === 'off' ? 'off' : 'auto', res: resOf(cfg.recordingRes) };
     untouched = watch.mode === 'auto' && watch.res === '720' && !cfg.recordingAutoOff;
   }
   paintWatch();
@@ -309,7 +329,7 @@ async function checkPc() {
   const found = facts && typeof facts === 'object' && facts.ok !== false ? facts : {};
   // BOTH ASKS AT ONCE. One after the other, an encoder that never answers
   // held "Checking this PC" up for two waits, ten seconds, not one.
-  const asks = (Array.isArray(found.asks) ? found.asks : []).filter((a) => a && (a.res === '720' || a.res === '1080'));
+  const asks = (Array.isArray(found.asks) ? found.asks : []).filter((a) => a && (a.res === '480' || a.res === '720' || a.res === '1080'));
   const answers = await Promise.all(asks.map(askEncoder));
   const encoder = {};
   asks.forEach((a, i) => { encoder[a.res] = answers[i]; });
@@ -574,6 +594,10 @@ if (obLang && window.occlara.i18n && window.Dropdown) {
       },
     });
     obShowNote(current);
+    // The row shows once the picker is in it (8.7): a label over nothing is
+    // what the page drew while the dropdown or the catalogue was missing.
+    const row = document.getElementById('ob-lang-row');
+    if (row && obLang.children.length) row.hidden = false;
   }).catch(() => {});
 }
 

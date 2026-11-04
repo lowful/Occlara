@@ -39,7 +39,9 @@ const ID = {
 };
 const TICK_NS = 1000000;
 // A frame lasts this long when nothing after it says how long: a frame at 30
-// a second, as webm.js reckons a clip's last one.
+// a second, as webm.js reckons a clip's last one. Only for a clip of one
+// frame: any other's last frame lasts its frames' own mean, 67 ms at 480p's
+// 15 a second (8.7, test:clips), so nothing here assumes a rate.
 const FALLBACK_FRAME_MS = 1000 / 30;
 
 function vlen(first) {

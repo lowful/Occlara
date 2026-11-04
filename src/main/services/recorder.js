@@ -6,7 +6,8 @@
  * WHAT IT IS. One capture of the primary display, taken the way OBS's Display
  * Capture takes it: a hidden page (src/renderer/recorder, opened by
  * src/main/windows/recorder-window.js) opens the screen with getUserMedia and
- * records thirty frames a second of it (RECORD_FPS, 8.4.2) with MediaRecorder,
+ * records thirty frames a second of it (RECORD_FPS, 8.4.2; fifteen at 480p,
+ * 8.7, RES) with MediaRecorder,
  * H.264 on the GPU's own encoder, a keyframe every second and a chunk every
  * second. The same stream hands the live read
  * its frame once a second (capture.js useStream), so while it runs the GDI
@@ -64,14 +65,38 @@ const EventEmitter = require('events');
 const webm = require('../../shared/webm');
 
 // ── What a recording is asked for ──────────────────────────────────────────
-// 720p is the default and 1080p a Setting. Either box is filled with the
+// 720p is the default; 1080p and 480p are choices in Settings. Each box is filled with the
 // display's own shape (fitSize), never cropped to the box: asked for a box of
 // another shape, this Chromium hands back exactly the box (a 1280x600 ask on a
 // 1920x1080 display came back 1280x600), which would cut or squash the game.
+//
+// EACH SIZE ITS OWN FRAME RATE (8.7). `ask` is what the capture is asked for
+// and `record` what the recording keeps of it (grid.js); `minFps` is the busy
+// rule's floor on what the capture delivers (HEALTH), sized to the record
+// rate, so a tier recorded at 15 a second is not given up as busy for
+// delivering what it records. 480p is the light one the owner asked for ("add
+// an option for something below 720p. making it more lightweight is better"):
+// asked for 30 and recorded at 15, at a bitrate in proportion to its pixels
+// (1280x720's 3 Mbps times 854x480 over 1280x720, 1.33 Mbps), so each frame
+// keeps the bits per pixel a 720p frame has; Chromium gives each frame a
+// thirtieth of a second's bits whatever comes (grid.js), so at 15 a second it
+// writes about half of that. Measured on this PC (docs/claude/recorder.md).
 const RES = {
-  720: { width: 1280, height: 720, bitrate: 3e6 },
-  1080: { width: 1920, height: 1080, bitrate: 6e6 },
+  480: { width: 854, height: 480, bitrate: 1.33e6, ask: 30, record: 15, minFps: 6 },
+  720: { width: 1280, height: 720, bitrate: 3e6, ask: 60, record: 30, minFps: 12 },
+  1080: { width: 1920, height: 1080, bitrate: 6e6, ask: 60, record: 30, minFps: 12 },
 };
+// The sizes Settings and onboarding offer, the lightest first.
+const RES_CHOICES = ['480', '720', '1080'];
+/**
+ * A stored recordingRes as one of RES_CHOICES: '480' and '1080' as they are,
+ * anything else (720, a number, a value from before 8.7, junk) '720', the
+ * default, as every reader of it said before there were three.
+ */
+function resOf(v) {
+  const s = String(v);
+  return s === '480' || s === '1080' ? s : '720';
+}
 // The read's frame, the capture profile's size (CAPTURE.profiles in
 // src/shared/config.js) unless index.js says another: the recording covers it.
 const READ_SIZE = { width: 1280, height: 720 };
@@ -90,8 +115,14 @@ const BITRATE_MAX_SCALE = 2;
 // frames a second whatever comes, so every frame past 30 was a frame's worth
 // of bits more. The player's Fracture swiftplay, recorded at 57 a second,
 // wrote 74 to 91 MB a minute where its 6 Mbps is 43, a constant 24 KB a frame.
+// These are 720p's and 1080p's; 480p asks and records less (RES, 8.7).
 const ASK_FPS = 60;
 const RECORD_FPS = 30;
+/** What a size asks the capture for, records, and holds the busy rule to: { ask, record, minFps }. */
+function ratesFor(res) {
+  const t = RES[resOf(res)];
+  return { ask: t.ask, record: t.record, minFps: t.minFps };
+}
 // Every Cluster then opens on a keyframe that carries its own SPS and PPS
 // (measured in the spike), so a clip can begin at any Cluster.
 const KEYFRAME_MS = 1000;
@@ -208,10 +239,21 @@ function macroblocks(size) {
  * even numbers because H.264 counts its picture in pairs of pixels, and where
  * that is past H.264 level 4.0's frame (MB_LEVEL_40) it is brought down to
  * it, which can leave the read uncovered (covers()).
+ *
+ * A BOX SMALLER THAN THE READ'S FRAME (480p, 8.7) covers the box itself, not
+ * the read: what is covered is the read's frame within the box, so 480p is
+ * never fewer rows or columns than 854x480 (a 3440x1440 display 1146x480, a
+ * 1920x1200 one 854x534), the way 720p is never fewer than 1280x720. Covering
+ * the Standard read's 1280x720 it would be 720p under another name. Such a
+ * recording cannot hand the read its frame (covers() says no), so the read
+ * stays on the GDI helper, as it is with recording Off; covering the
+ * Performance profile's 854x480, it can. 720p and 1080p are as they were,
+ * every read's frame being within their boxes.
  */
 function fitSize(display, res, read) {
   const box = RES[res] || RES[720];
-  const r = read && read.width > 0 && read.height > 0 ? read : READ_SIZE;
+  const r0 = read && read.width > 0 && read.height > 0 ? read : READ_SIZE;
+  const r = { width: Math.min(r0.width, box.width), height: Math.min(r0.height, box.height) };
   const W = Math.round(Number(display && display.width)) || box.width;
   const H = Math.round(Number(display && display.height)) || box.height;
   let scale = Math.min(1, Math.max(Math.min(box.width / W, box.height / H), Math.max(r.width / W, r.height / H)));
@@ -239,8 +281,8 @@ function covers(size, read, display) {
 }
 
 /**
- * The bitrate a size is asked for: its box's (3 Mbps at 720p, 6 at 1080p),
- * and for a recording bigger than the box, more in proportion to its pixels,
+ * The bitrate a size is asked for: its box's (1.33 Mbps at 480p, 3 at 720p, 6
+ * at 1080p), and for a recording bigger than the box, more in proportion to its pixels,
  * twice the box's at most. A recording within its box keeps the box's.
  */
 function bitrateFor(size, res) {
@@ -300,6 +342,12 @@ function compareVerdict(c) {
  *   systemCpu    the machine over maxSystemCpu %
  */
 const RULES = ['fps', 'lag', 'recorderCpu', 'systemCpu'];
+/** The finite numbers of `limits` alone: a dev limit not set (null) lays nothing over the size's own. */
+function finiteOnly(limits) {
+  const out = {};
+  for (const [k, v] of Object.entries(limits || {})) if (Number.isFinite(v)) out[k] = v;
+  return out;
+}
 function createHealth(limits) {
   const L = { ...HEALTH };
   for (const [k, v] of Object.entries(limits || {})) if (Number.isFinite(v)) L[k] = v;
@@ -448,7 +496,7 @@ function reportBlock(s, version) {
     version: String(version || 'unknown').slice(0, 12),
     game: GAMES.includes(s.game) ? s.game : GAMES[0],
     mode: s.mode === 'off' ? 'off' : 'auto',
-    res: String(s.res) === '1080' ? '1080' : '720',
+    res: resOf(s.res),
     outcome: OUTCOMES.includes(s.outcome) ? s.outcome : 'error',
     minutes: Math.round((s.recordedMs || 0) / 6000) / 10,
     fpsP50: round1(quantile(s.fps, 0.5)),
@@ -873,7 +921,7 @@ class Recorder extends EventEmitter {
   }
 
   mode() { return this.prefs && this.prefs.get('recordingMode') === 'off' ? 'off' : 'auto'; }
-  res() { return this.prefs && String(this.prefs.get('recordingRes')) === '1080' ? '1080' : '720'; }
+  res() { return resOf(this.prefs && this.prefs.get('recordingRes')); }
 
   /** What Settings and the state show: the choice, and why Auto is off if it turned itself off. */
   view() {
@@ -1284,6 +1332,8 @@ class Recorder extends EventEmitter {
     try { read = this.readSize() || READ_SIZE; } catch { read = READ_SIZE; }
     const size = fitSize(display, s.res, read);
     const bitrate = bitrateFor(size, s.res);
+    // What the capture is asked for and what is recorded of it, by the size (RES).
+    const rates = ratesFor(s.res);
     let page = null;
     try { page = await this.openPage(); } catch (e) { page = null; this.log('[recorder] the page did not open: ' + e.message); }
     if (!this.wanted(s)) {
@@ -1304,10 +1354,13 @@ class Recorder extends EventEmitter {
     seg.session = s;
     seg.display = display;
     seg.bitrate = bitrate;
+    seg.rates = rates;
     seg.displayId = source && source.displayId !== undefined && source.displayId !== null ? source.displayId : null;
     this.segments.push(seg);
     this.resetSegmentState();
-    this.rules = createHealth(s.limits);
+    // The busy rule's floor is the size's (480p records 15 a second, and is
+    // not busy for delivering 10), and a dev limit set lies over it.
+    this.rules = createHealth({ minFps: rates.minFps, ...finiteOnly(s.limits) });
     this.page = page;
     this.seg = seg;
     page.onMessage((kind, m) => this.fromPage(page, kind, m));
@@ -1315,7 +1368,7 @@ class Recorder extends EventEmitter {
     if (fake) { try { fakeFps = Number(this.devFakeFps()) > 0 ? Number(this.devFakeFps()) : null; } catch { fakeFps = null; } }
     page.send({
       type: 'start', fake, fakeFps, sourceId: source ? source.sourceId : null,
-      width: size.width, height: size.height, fps: ASK_FPS, recordFps: RECORD_FPS, bitrate, codec: codecFor(size),
+      width: size.width, height: size.height, fps: rates.ask, recordFps: rates.record, bitrate, codec: codecFor(size),
       mimeTypes: MIME_TYPES, keyframeMs: KEYFRAME_MS, timesliceMs: TIMESLICE_MS,
     });
     const started = await this.waitFor(page, 'started', START_TIMEOUT_MS);
@@ -1343,8 +1396,8 @@ class Recorder extends EventEmitter {
     const kept = aspectKept(st, display);
     const took = Number(started.videoBitsPerSecond);
     this.log(`[recorder] recording ${st.width}x${st.height} of a ${display.width}x${display.height} display`
-      + ` (${kept ? 'its own shape' : 'NOT its own shape'}), asked ${size.width}x${size.height} at up to ${ASK_FPS} fps,`
-      + ` recorded at up to ${RECORD_FPS}, ${round1(bitrate / 1e6)} Mbps, ${started.mime || 'H.264'}${fake ? ', from a generated canvas' : ''};`
+      + ` (${kept ? 'its own shape' : 'NOT its own shape'}), asked ${size.width}x${size.height} at up to ${rates.ask} fps,`
+      + ` recorded at up to ${rates.record}, ${round1(bitrate / 1e6)} Mbps, ${started.mime || 'H.264'}${fake ? ', from a generated canvas' : ''};`
       + ` the track's own settings ${Number.isFinite(st.frameRate) ? `${round1(st.frameRate)} fps` : 'with no frame rate'},`
       + ` MediaRecorder at ${took > 0 ? `${round1(took / 1e6)} Mbps` : 'a bitrate it did not say'}`);
     // A track that cannot cover the read's frame (fitSize stopped at H.264
@@ -1793,6 +1846,7 @@ class Recorder extends EventEmitter {
 module.exports = {
   current: () => current,
   Recorder, Segment, fitSize, covers, bitrateFor, macroblocks, aspectKept, codecFor, compareVerdict, createHealth,
+  resOf, ratesFor, finiteOnly, RES_CHOICES,
   strikeOut, reportBlock, valorantInMatch, valorantKeepSince,
   everyText, quantile, trackText, stoppedText, realFreeBytes, NOTICE, OUTCOMES, GAMES, HEALTH, STRIKES, RES, READ_SIZE, MB_LEVEL_31, MB_LEVEL_40,
   BITRATE_MAX_SCALE, MIME_TYPES, ASK_FPS, RECORD_FPS,

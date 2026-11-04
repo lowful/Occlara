@@ -187,8 +187,11 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   clip and says it was cleared in Settings. A clip missing for no reason given
   (a review restored without it) is left out and its frames show.
 - **Settings**: "Record match video", On or Off (the player asked for a
-  setting that toggles it; On is the stored 'auto', never renamed), 720p or
-  1080p, a hint per game (`REC_HINT`: Valorant's recorded while its screen is
+  setting that toggles it; On is the stored 'auto', never renamed), 480p,
+  720p or 1080p (480p since 8.7, first of the three, its title and the
+  folded hint saying it is the lightest, 15 frames a second, and that its
+  death moments are less sharp; the status line then says "Recording now at
+  480p, about 15 fps"), a hint per game (`REC_HINT`: Valorant's recorded while its screen is
   read, League's while its own record is, never saying its screen is read),
   and one status line: "Recording now at 720p, about 30 fps" (`liveView`: the
   track's own height when it gives one, so a 1280x1024 display at 1080p says
@@ -208,21 +211,31 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   (`CLIPS_USAGE`, `CLIPS_CLEAR`, read again on every `PUSH_REVIEWS`).
 - **Onboarding asks first** (8.3.1, the tour's fourth page of five, How
   Occlara watches): Record gameplay or Frames only, the stored 'auto' and
-  'off', and 720p or 1080p, with a PC check behind them run as the page
+  'off', and 480p, 720p or 1080p (480p since 8.7), with a PC check behind them run as the page
   opens. Main reads what Node can (`src/main/services/pc-check.js`, over
   `PC_CHECK`): the GPU's name (getGPUInfo('basic'), 22 ms here where
   'complete' took 260, the "Microsoft Basic Render Driver" passed over), the
   CPU's threads, the RAM, the primary display in physical pixels, the free
-  space where the recordings go, and the recorder's own two encoder asks for
-  that display (fitSize, codecFor, bitrateFor: 1280x720 at avc1.42E01F and
-  1920x1080 at avc1.42E028 on a 1080p display), which the page puts to
+  space where the recordings go, and the recorder's own three encoder asks for
+  that display (fitSize, codecFor, bitrateFor: 854x480 at avc1.42E01F and
+  1.33 Mbps, 1280x720 at avc1.42E01F and 1920x1080 at avc1.42E028 on a 1080p
+  display), which the page puts to
   VideoEncoder exactly as the recorder page's gate does. The rules are
   `src/renderer/onboarding/pc-rules.js`, one pure file the page loads and the
-  test runs: no hardware encoder or under 8 GB free, Frames only and Record
-  cannot be chosen; under 8 GB of RAM or 4 threads, Frames only recommended,
-  Record still open; otherwise Record, at 1080p when the encoder takes it,
-  the display is 1920x1080 or more and there are 16 GB and 8 threads, else
-  720p, the line saying what 1080p was short of. RAM is read as the size it
+  test runs: no hardware encoder (720p and 1080p refused and no yes to 480p)
+  or under 8 GB free, Frames only and Record
+  cannot be chosen; under 8 GB of RAM or 4 threads, Record at 480p
+  recommended where the encoder said yes to it (8.7: "With 4 GB of RAM, 480p
+  is the lightest way to record."), Frames only still open, and Frames only
+  recommended as before where it did not; otherwise Record, at 1080p when the encoder takes it,
+  the display is 1920x1080 or more and there are 16 GB and 8 threads; at
+  480p (8.7) where the RAM or the threads are known to fall short of that and
+  the encoder said yes to 480p ("This PC can record at 480p, the lightest
+  size. 720p and 1080p are for 16 GB of RAM or more."); else
+  720p, the line saying what 1080p was short of (the display, the encoder's
+  1080p, or a fact not read: a strong PC stays at 720p); an encoder that
+  takes 480p alone records at 480p. So a PC once told to record nothing, or
+  720p for want of RAM or threads, is offered 480p first. RAM is read as the size it
   is sold in (os.totalmem() is 31.8 on a 32 GB PC, under 14 on a 16 GB laptop
   sharing 2 with its graphics). The recommendation is pre selected and saved
   only over the store's defaults, which nobody chose, so a tour shown again
@@ -246,7 +259,9 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   keys sent as trusted input, so the browser's own click on Enter is in play.
 - **Counts for the developer**: one block a session to
   `POST /api/coach/session-report` (`reportBlock`): version, the game
-  (valorant or lol), mode, res, the outcome from a closed list (recorded, off,
+  (valorant or lol), mode, res (480, 720 or 1080, `RES_CHOICES`, which
+  `server/services/telemetry.js RECORDING_RES` holds the same, test:telemetry
+  holding the two equal), the outcome from a closed list (recorded, off,
   no-hw-encoder, busy, disk, black, error), minutes recorded, fps p50 (the
   frames recorded, in a match, picture changing), the recorder's CPU p50 and
   the PC's p90, whether the gate passed. Nothing else; `server/services/telemetry.js` keeps only
@@ -271,8 +286,9 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   bitrate asked ("1770 frames and 42.7 MB written in the last 61 s (29 a
   second, 5.9 Mbps against the 6 Mbps asked, 25 KB a frame)", the real
   screen after; before, "3034 frames and 71.7 MB ... (50.2 a second, 9.9
-  Mbps ...)"); the start line adds the track's frame rate, that it is
-  recorded at up to 30, and the bitrate MediaRecorder took, and the stop's
+  Mbps ...)"); the start line adds the track's frame rate, what the capture
+  was asked for and that it is recorded at up to 30 (at 480p "asked 854x480
+  at up to 30 fps, recorded at up to 15, 1.3 Mbps"), and the bitrate MediaRecorder took, and the stop's
   line the chunks and frames handed over against those that came, the frames
   left open and the tracks still live, and the chunks' 0 against the page's
   (`stoppedText`). On the
@@ -310,7 +326,15 @@ counts saying the frames recorded and the busy rule the frames delivered;
 the 0 the page's first frame where the first chunks allow it, and a clip
 forty minutes in cut within 2 ms of its moment with the wall clock gaining
 or losing 75 ppm on the recording's own, where one offset put it 179 ms out
-(a second's Cluster early, losing). `npm run
+(a second's Cluster early, losing). And 8.7's 480p: its size on nine
+displays (16:9, 21:9, 16:10, a 1366x768 laptop, 32:9, 5:4, 4:3) and never
+covering the Standard read, its bitrate, its 30 asked and 15 recorded, the
+grid keeping 15 of a capture at 17 to 60 and every frame of one at 15 or
+under, its busy floor of 6 (a minute at 10 delivered is not busy there and
+is at 720p; 5 gives up in 20 s), a dev floor laid over it only when set,
+Performance's read served from it, Settings told "480p, about 15", its
+counts naming 480, and old saved sizes (a number 1080, junk) read as
+before. `npm run
 check:recorder` boots the app and runs the real page on generated frames,
 the busy picture drawn 60 times a second: paged, served, the gate (H.264
 yes, VP9 no on this PC), the track's settings reported each second and the
@@ -324,11 +348,15 @@ cleanly with every chunk the page said it handed over on disk, held at a
 match's end, not judged before a read lands, busy back to GDI with its
 notice, black stopped, a display change stopping the page with nothing open
 and building the 30 a second again on a new one, the displays' events
-reaching the recorder, Windows ending its session and an update's restart
+reaching the recorder, 480p recorded by the real page (854x480 on disk,
+15 a second of the 60 drawn, within the band of its 1.33 Mbps, every read on
+the GDI helper, Settings and its counts saying 480), Windows ending its session and an update's restart
 deleting everything in the call, a quit leaving nothing, none of the three
 posting its counts into the exit, and counts one kept sent at the next
 launch.
-`npm run test:clips` holds the names, the seconds, the moments on the real
+`npm run test:clips` holds, since 8.7, a 480p clip at 15 frames a second cut, stepped and
+stilled on its own frames (its last frame 67 ms, never a thirtieth), and
+the names, the seconds, the moments on the real
 Abyss match, and on the real Split and Abyss sessions through the real reader
 (`scripts/fixtures/replay-session.js`), the cut and only from a recording
 that holds the moment, Off, the store, the cap, a late link's clips and the

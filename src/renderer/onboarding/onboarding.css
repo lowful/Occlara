@@ -1,334 +1,272 @@
+/* palette: tokens only */
+/* The welcome tour, THE TRAINING LOG (8.7). Five calm pages in one window
+   shaped frame: a heading, ruled rows, one primary capsule, and a progress
+   rule in place of dots. No step, key, option or sample sits in a box; a
+   hairline between rows does the grouping, and the only framed things are
+   the Riot ID field, the keycaps and the graded rows. Every page is measured
+   by npm run check:onboardingriot, which fails when a block leaves the card. */
+
 html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
 
 /* The whole card is a drag handle so the window can be moved; every control
-   inside it opts back out with .no-drag, otherwise buttons stop responding. */
+   inside it opts back out with .no-drag, otherwise buttons stop responding.
+   A solid ground, not glass: the window is a frame on the desktop, and a
+   blurred one read as a smudge over whatever sat behind it. */
 .card {
   position: relative;
   -webkit-app-region: drag;
   margin: 14px;
   height: calc(100% - 28px);
-  border-radius: 20px;
-  padding: 22px 24px 18px;
+  border-radius: var(--r-lg);
+  padding: var(--space-6) 28px var(--space-5);
   display: flex; flex-direction: column;
-  animation: rise 320ms var(--ease) both;
+  background: var(--bg);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  border: 1px solid var(--line-2);
+  animation: rise var(--t-slow) var(--ease-expo) both;
 }
 .card button,
 .card input,
-.card .seg { -webkit-app-region: no-drag; }
-@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+.card .seg,
+.card summary { -webkit-app-region: no-drag; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-/* The close button sits INSIDE the card's rounded corner. At a 10px inset a
-   34px button overlaps the 20px corner radius, so its edge poked outside the
-   card and read as floating off the panel. Inset past the radius instead, and
-   keep it above the page content so a tall page can never overlap it.
-   8.6: at 14px it still sat 10px outside the column everything else lines up
-   on (the Next button's edge, the cards' edges), and read as hanging off the
-   panel. Its right edge now IS that column, the card's 24px padding, and the
-   headline keeps clear of it (.hero h1 below). */
+/* The close button sits inside the card's corner, its right edge on the
+   column everything else lines up on (the card's 28px padding), above the
+   page content so a tall page can never overlap it. */
 .icon-btn.x {
   position: absolute;
-  top: 18px; right: 24px;
+  top: 20px; right: 28px;
   z-index: 3;
   width: 28px; height: 28px;
 }
 
-.hero { text-align: center; margin-bottom: 18px; }
-.mark { margin-bottom: 8px; animation: float 4.5s ease-in-out infinite; }
-@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.hero { text-align: center; margin-bottom: var(--space-4); }
+.mark { display: block; margin: 0 auto var(--space-2); }
 /* Clear of the close button on both sides, so a long headline ("Grade your
    last matches") never runs under it and stays centred. */
-.hero h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; padding: 0 36px; }
-.hero .sub { color: var(--text-dim); font-size: 12.5px; margin-top: 3px; }
+.hero h1 { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); line-height: 1.1; padding: 0 36px; }
+.hero .sub { color: var(--text-dim); font-size: 13px; line-height: 1.5; margin-top: var(--space-1); }
 
-.steps { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+/* The three steps: ruled rows, the index in the mono face. */
+.steps { list-style: none; display: flex; flex-direction: column; }
 .steps li {
-  display: flex; align-items: flex-start; gap: 12px;
-  background: rgba(0,0,0,0.20); border: 1px solid var(--glass-border);
-  border-radius: 12px; padding: 10px 13px;
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
 }
+.steps li:last-child { border-bottom: 1px solid var(--line); }
 .steps .n {
-  flex: none; width: 22px; height: 22px; margin-top: 1px;
-  display: grid; place-items: center;
-  font-size: 11.5px; font-weight: 800; color: var(--text-dim);
-  border: 1px solid var(--line-2);
-  border-radius: 50%;
+  flex: none; width: 20px; margin-top: 2px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: var(--track-label);
+  color: var(--text-mute); font-variant-numeric: tabular-nums;
 }
-.steps b { display: block; font-size: 13px; margin-bottom: 2px; }
+.steps b { display: block; font-size: 13px; font-weight: 600; margin-bottom: 2px; }
 .steps b kbd { font-size: 10.5px; }
-.steps span { font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
+.steps span { display: block; font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
 .steps li > div { flex: 1; min-width: 0; }
 
-/* The Advanced coaching choice, off or on, saved straight to config. */
+/* The Advanced coaching choice, off or on, saved straight to config: one
+   segmented capsule, drawn here as shared/seg.js draws it once its thumb is
+   in (ui.css .seg-slide); without the thumb the chosen button carries the
+   fill itself. Centred under its line. */
 .seg {
-  display: flex; gap: 5px; margin-top: 9px;
-  background: rgba(0,0,0,0.28); padding: 4px;
-  border-radius: 10px; border: 1px solid var(--glass-border);
+  display: inline-flex; align-self: center; padding: 3px; margin-top: var(--space-3);
+  border: 1px solid var(--line-2); border-radius: var(--r-btn);
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
 }
-.seg button {
-  flex: 1; font-family: var(--font); font-size: 11.5px; font-weight: 600;
-  color: var(--text-dim); background: transparent; border: none; cursor: pointer;
-  padding: 7px 6px; border-radius: 7px; transition: all var(--t-fast) var(--ease);
+.seg > button {
+  height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-btn);
+  background: transparent; color: var(--text-dim);
+  font: 500 13px var(--font); white-space: nowrap; cursor: pointer;
 }
-.seg button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
-.seg button.active { background: var(--text); color: var(--bg); }
+.seg > button:hover:not(:disabled) { color: var(--text); }
+.seg:not(.seg-slide) > button.active { background: var(--text); color: var(--bg); }
 
-.keys {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px;
-  background: rgba(0,0,0,0.18); border: 1px solid var(--glass-border);
-  border-radius: 12px; padding: 12px 14px;
-  margin-bottom: 16px;
+/* The shortcuts: ruled rows, the cap at the right. ui.css's .keys is a chord
+   of keycaps (inline, centred); this list is the other thing by that name,
+   so it sets the two back. */
+.keys { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+.k {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  min-height: 36px; padding: var(--space-1) 0;
+  font-size: 13px; color: var(--text-dim);
+  border-top: 1px solid var(--line);
 }
-.k { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--text-dim); }
-
-.full { width: 100%; height: 44px; font-size: 14px; margin-top: auto; }
+.k:last-child { border-bottom: 1px solid var(--line); }
 
 /* ── Paged tour ────────────────────────────────────────────────────────────
-   Each page fills the space between the hero and the footer, and CENTERS its
-   content vertically. Pages differ in length (page 1 is two steps, page 3 is a
-   four-card grid), so centering balances the leftover whitespace above and
-   below instead of dumping short content at the top with a large gap before the
-   nav, which is the deadspace the screenshots showed. */
+   Each page fills the space between the hero and the footer and CENTRES its
+   content, so a short page is balanced rather than dumped at the top. */
 .page {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
-  animation: pageIn 280ms var(--ease-expo) both;
+  gap: var(--space-1);
+  animation: pageIn var(--t-med) var(--ease-expo) both;
 }
-/* The hero sits at the top of each page, its own spacing handled by the page
-   gap, so drop the large fixed margin that widened the text-to-content gap. */
-.page .hero { margin-bottom: 12px; }
-.page .steps { margin-bottom: 0; }
-.page .keys  { margin-bottom: 0; }
+.page .hero { margin-bottom: var(--space-3); }
 @keyframes pageIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 
-.lead {
-  font-size: 13px; line-height: 1.6; color: var(--text-dim);
-  margin-bottom: 14px;
-}
+.lead { font-size: 13px; line-height: 1.6; color: var(--text-dim); margin-bottom: var(--space-3); }
 
-/* Footer: back on the left, dots centred, next on the right. */
+/* Footer: Back on the left, the progress rule in the middle, the one primary
+   capsule on the right. */
 .nav {
-  display: flex; align-items: center; gap: 12px;
-  margin-top: 18px; padding-top: 14px;
-  border-top: 1px solid var(--glass-border);
+  display: flex; align-items: center; gap: var(--space-4);
+  margin-top: var(--space-4); padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
 }
-/* 40px, the shared .md size: at the shared 44 (8.6) the longest page, How
-   Occlara watches, overflowed its 480x528 card by 2px. */
-.nav .btn { min-width: 96px; height: 40px; }
-.dots { flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.nav .btn { min-width: 96px; }
+/* THE PROGRESS RULE. One segment a page, the pages done and the page open
+   filled with the ink, the rest a hairline; each segment is still the button
+   it was (onboarding.js, .dot-nav), so a page can be skimmed to. The open
+   page's segment is the taller, so the place reads as a shape before it
+   reads as a tone. */
+.dots { flex: 1; display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); }
 .dot-nav {
-  width: 7px; height: 7px; padding: 0;
-  border-radius: 50%; border: none; cursor: pointer;
-  background: rgba(255,255,255,0.18);
-  transition: background var(--t-med) var(--ease), transform var(--t-med) var(--ease-spring), width var(--t-med) var(--ease);
+  flex: 1; height: 12px; padding: 0;
+  /* A 2px line in a 12px button: the transparent borders are the hit area,
+     the fill is clipped to the 2px between them. */
+  border: 5px solid transparent; border-left: 0; border-right: 0;
+  background-clip: padding-box;
+  border-radius: 1px; cursor: pointer;
+  background-color: var(--line-2);
+  transition: background-color var(--t-med) var(--ease), transform var(--t-med) var(--ease-expo);
 }
-.dot-nav:hover  { background: rgba(255,255,255,0.34); }
-.dot-nav.done   { background: rgba(var(--cyan-rgb),0.45); }
-.dot-nav.active { width: 20px; border-radius: 4px; background: var(--cyan); box-shadow: 0 0 10px rgba(var(--cyan-rgb),0.5); }
+.dot-nav:hover  { background-color: var(--text-mute); }
+.dot-nav.done   { background-color: var(--text-dim); }
+.dot-nav.active { background-color: var(--text); transform: scaleY(1.5); }
+.dot-nav:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 4px; }
 
-/* Each page assembles: the hero settles first, then its content follows in
-   sequence. Short and expo-eased so it reads as polish, not as waiting. */
-.page .hero { animation: riseIn 340ms var(--ease-expo) both; }
+/* Each page assembles: the hero settles first, then its rows follow in
+   sequence, 6px up, 40ms apart, once. */
+.page .hero { animation: riseIn var(--t-slow) var(--ease-expo) both; }
 .page .steps li,
-.page .keys .k {
-  animation: riseIn 380ms var(--ease-expo) both;
+.page .keys .k,
+.page .ob-opt,
+.page .ob-pc {
+  animation: riseIn var(--t-slow) var(--ease-expo) both;
 }
-.page .steps li:nth-child(1),
-.page .keys .k:nth-child(1) { animation-delay: 70ms; }
-.page .steps li:nth-child(2),
-.page .keys .k:nth-child(2) { animation-delay: 125ms; }
-.page .keys .k:nth-child(3) { animation-delay: 180ms; }
-.page .keys .k:nth-child(4) { animation-delay: 235ms; }
-.page .lead, .page .seg {
-  animation: riseIn 380ms var(--ease-expo) both;
-  animation-delay: 150ms;
+.page .steps li:nth-child(1), .page .keys .k:nth-child(1), .page .ob-pc { animation-delay: 40ms; }
+.page .steps li:nth-child(2), .page .keys .k:nth-child(2), .page .ob-opt:nth-child(1) { animation-delay: 80ms; }
+.page .steps li:nth-child(3), .page .keys .k:nth-child(3), .page .ob-opt:nth-child(2) { animation-delay: 120ms; }
+.page .keys .k:nth-child(4) { animation-delay: 160ms; }
+.page .lead, .page .seg, .page .ob-review {
+  animation: riseIn var(--t-slow) var(--ease-expo) both;
+  animation-delay: 120ms;
 }
-
-/* The mark gets a gentle settle on top of its float. */
-.hero .mark { animation: float 4.5s ease-in-out infinite, countIn 520ms var(--ease-expo) both; }
 
 /* Language picker on the first page. Sits under the hero so it is the first
-   real choice, before any of the copy it changes. */
-.ob-lang {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin: 2px auto 18px;
-  max-width: 320px;
-  text-align: left;
-}
-.ob-lang label {
-  color: var(--text-dim);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-}
-.ob-lang-note {
-  margin: 0;
-  color: var(--text-mute);
-  font-size: 10.5px;
-  line-height: 1.45;
-}
-
-/* THE WELCOME PAGE HAS TO FIT. It is the first screen a player ever sees, and
-   at its old size the logo was cut off at the top of the card and the third
-   step ran under the footer: 135px over a 387px page, measured in the real
-   app. The mark is smaller, the language picker shares one row with its
-   label, and each step says the same thing in two lines.
-   npm run check:onboardingriot measures every page of the tour. */
-.page[data-page="0"] .hero { margin-bottom: 8px; }
-.page[data-page="0"] .mark { margin-bottom: 2px; }
+   real choice, before any of the copy it changes: one row, its label at the
+   left, the picker at the right. */
 .ob-lang.ob-lang-row {
   display: grid;
   grid-template-columns: auto minmax(0, 190px);
   align-items: center;
   justify-content: center;
-  gap: 6px var(--space-3);
-  margin: 0 auto 8px;
-  max-width: none;
+  gap: var(--space-1) var(--space-3);
+  margin: 0 auto var(--space-3);
+  text-align: left;
 }
-.ob-lang-row .ob-lang-note { grid-column: 1 / -1; text-align: center; }
-.page[data-page="0"] .steps { gap: 6px; }
-.page[data-page="0"] .steps li { padding: 8px 12px; }
-/* A block, not an inline run: inline, the line box added its own leading
-   under the title, five pixels a step that the page did not have. */
-.page[data-page="0"] .steps li > div > span { display: block; }
+.ob-lang label { color: var(--text-dim); font-size: 13px; }
+.ob-lang-note { grid-column: 1 / -1; text-align: center; margin: 0; color: var(--text-mute); font-size: 11px; line-height: 1.45; }
+.ob-lang-pick .dd-btn {
+  height: 32px; border-radius: var(--r-btn); border-color: var(--line-2);
+  font-weight: 500; background: rgba(255, 255, 255, 0.055);
+  box-shadow: var(--hi), var(--drop);
+}
+
+/* THE WELCOME PAGE HAS TO FIT: the first screen a player ever sees, measured
+   by check:onboardingriot with the language picker drawn. */
+.page[data-page="0"] .hero { margin-bottom: var(--space-2); }
+.page[data-page="0"] .mark { width: 24px; height: 24px; margin-bottom: var(--space-1); }
+.page[data-page="0"] .hero h1 { line-height: 1.05; }
+.page[data-page="0"] .ob-lang-row { margin-bottom: var(--space-2); }
 
 /* The note under the shortcut list. Quieter than .lead, which is the section's
-   main paragraph, and sized to match .k so the block reads as one group. */
-.keys-note {
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--text-mute);
-  margin: 10px 0 0;
-}
+   main paragraph. */
+.keys-note { font-size: 12px; line-height: 1.5; color: var(--text-mute); margin: var(--space-3) 0 0; }
 .keys-note kbd { font-size: 10.5px; }
 
-/* ── Live tips closed ───────────────────────────────────────────────────────
-   A small, static picture of the review, drawn with the review's own shapes
-   (solid cell won, hollow cell lost, red dot died), so the first time a player
-   sees the real one it is already familiar. */
-.ob-review {
-  display: flex; flex-direction: column; gap: var(--space-3);
-  padding: var(--space-4);
-  background: var(--bg-2);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-}
+/* ── The sample review ──────────────────────────────────────────────────────
+   One ruled entry, drawn with the review's own type: the result, the score,
+   the grade, four categories divided by hairlines, then the repeated mistake.
+   Big numbers Geist 600 with tabular figures, the label the shared one
+   (Geist 12/500, quiet, sentence case), no faked bold. */
+.ob-review { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .ob-review[hidden] { display: none; }
 .obr-head { display: flex; align-items: baseline; gap: var(--space-3); }
-.obr-result { font-size: 10px; font-weight: 700; letter-spacing: 0.18em; color: var(--text); }
-.obr-score { font-family: var(--font-mono); font-size: 22px; font-weight: 600; color: var(--text); }
-.obr-strip { display: flex; gap: 4px; }
-.obr-strip i {
-  position: relative; display: block; width: 16px; height: 18px; border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-.obr-strip i.w { background: var(--text); border-color: var(--text); }
-.obr-strip i.d::after {
-  content: ''; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px;
-  margin-left: -2px; border-radius: 50%; background: var(--bad);
-}
-.obr-strip i.p::after {
-  content: ''; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px;
-  margin-left: -2px; border-radius: 1px; background: var(--bg);
-}
-.obr-card {
-  padding: var(--space-3);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-sm);
-  background: rgba(0, 0, 0, 0.24);
-}
-.obr-rn { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--text); }
-.obr-rn span {
-  margin-left: 6px; font-family: var(--font); font-size: 9px; font-weight: 700;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim);
-}
-.obr-why { font-size: 12px; line-height: 1.5; color: var(--text); margin: 4px 0 0; }
-
-.obr-grade { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
-.obr-grade b { font-family: var(--font-mono); font-size: 20px; font-weight: 600; color: var(--text); }
-.obr-grade i {
-  font-style: normal; font-size: 12px; font-weight: 800; color: var(--text);
-  width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-}
-.obr-cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.obr-result { font-size: 13px; font-weight: 600; color: var(--text); }
+.obr-score { font-family: var(--font); font-size: 22px; font-weight: 600; letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text); }
+.obr-grade { margin-left: auto; display: inline-flex; align-items: baseline; gap: var(--space-2); }
+.obr-grade b { font-family: var(--font); font-size: 22px; font-weight: 600; letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text); }
+.obr-grade i { font-style: normal; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.obr-cats { display: grid; grid-template-columns: repeat(4, 1fr); }
 .obr-cats span {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-mute);
-  padding: 6px; border: 1px solid var(--glass-border); border-radius: var(--r-sm); text-align: center;
+  font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-mute);
+  padding: 0 var(--space-3); border-left: 1px solid var(--line);
 }
-.obr-cats b { display: block; font-family: var(--font-mono); font-size: 14px; color: var(--text); letter-spacing: 0; margin-top: 2px; }
-.ob-riot { margin: 4px 0 14px; }
-.ob-riot .input { width: 100%; }
+.obr-cats span:first-child { padding-left: 0; border-left: 0; }
+.obr-cats b { display: block; font-family: var(--font); font-size: 18px; font-weight: 600; letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text); margin-top: 2px; }
+.obr-card { padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.obr-rn { font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.obr-why { font-size: 12.5px; line-height: 1.5; color: var(--text); margin: var(--space-1) 0 0; }
 
 /* The Riot ID page: the field and Connect side by side, a status line, and
    the matches graded so far in a short scrolling list. */
-.ob-riot { display: flex; gap: var(--space-2); }
-.ob-riot .input { flex: 1; min-width: 0; }
+.ob-riot { display: flex; gap: var(--space-2); margin: var(--space-1) 0 var(--space-3); }
+.ob-riot .input { flex: 1; min-width: 0; height: 40px; }
 .ob-connect { flex: none; }
-.ob-riot-status { font-size: 12px; color: var(--text-dim); margin: 6px 0 0; }
-.ob-riot-status.ok { color: var(--good); }
+.ob-riot-status { display: flex; align-items: baseline; gap: var(--space-2); font-size: 12.5px; line-height: 1.45; color: var(--text-dim); margin: 0; }
+.ob-riot-status::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); transform: translateY(-1px); }
+.ob-riot-status.ok { color: var(--text); }
+.ob-riot-status.ok::before { background: var(--good); }
 .ob-riot-status.err { color: var(--bad); }
+.ob-riot-status.err::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--bad); }
 /* THE LIST GIVES WAY. min-height: 0 lets this box shrink below its content,
    so when a two line status and a two line summary arrive with the rows, the
    scrolling list takes the squeeze instead of the centred page spilling out
    of the card at both ends. */
-.ob-bf { display: flex; flex-direction: column; gap: 6px; margin-top: var(--space-2); min-height: 0; }
-.ob-bf-line { font-size: 11.5px; color: var(--text-mute); }
+.ob-bf { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); min-height: 0; }
+.ob-bf-line { font-size: 12px; color: var(--text-mute); line-height: 1.45; }
 .ob-bf-line.err { color: var(--bad); }
 /* NO-DRAG, because the whole card is a drag handle, and a drag region on
    Windows takes the mouse wheel and the scrollbar as well as the click: the
-   list would show its first rows and never scroll to the rest. */
-.ob-bf-list { -webkit-app-region: no-drag; display: flex; flex-direction: column; max-height: 132px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: var(--r-md); }
-.ob-bf-row { display: grid; grid-template-columns: 1fr auto auto; gap: var(--space-3); align-items: center; padding: 7px var(--space-3); border-top: 1px solid var(--glass-border); font-size: 12px; animation: obRowIn 200ms var(--ease) both; }
-.ob-bf-row:first-child { border-top: 0; }
+   list would show its first rows and never scroll to the rest. Ruled rows,
+   under one hairline, not a bordered box. */
+.ob-bf-list { -webkit-app-region: no-drag; display: flex; flex-direction: column; max-height: 132px; overflow-y: auto; border-top: 1px solid var(--line); }
+.ob-bf-row { display: grid; grid-template-columns: 1fr auto auto; gap: var(--space-3); align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px; animation: riseIn var(--t-med) var(--ease-expo) both; }
 .ob-bf-row.settled { animation: none; }
-.ob-bf-name { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ob-bf-res { color: var(--text-mute); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.ob-bf-name { color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-bf-res { color: var(--text-mute); font-size: 12px; white-space: nowrap; }
 .ob-bf-res.win { color: var(--text); }
 .ob-bf-res.loss { color: var(--bad); }
-.ob-bf-grade { font-family: var(--font-mono); font-weight: 600; color: var(--text); min-width: 44px; text-align: right; }
+.ob-bf-grade { font-family: var(--font-mono); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text); min-width: 44px; text-align: right; }
 .ob-bf-grade.good { color: var(--good); }
 .ob-bf-grade.warn { color: var(--warn); }
 .ob-bf-grade.bad { color: var(--bad); }
 .ob-bf-row.failed .ob-bf-name { color: var(--text-mute); }
-/* 11px, the size of the other notes in the tour: at 12px the Advanced
-   coaching line wrapped to three lines and the After every match page
-   overflowed its card. */
-.lead.small { font-size: 11px; line-height: 1.5; margin: var(--space-2) 0 0; }
+.lead.small { font-size: 12px; line-height: 1.5; margin: var(--space-2) 0 0; }
 
 /* After every match carries the Advanced coaching switch as well as the
-   sample review, so the sample sits a little tighter than it used to. The
-   page is measured by npm run check:onboardingriot, which fails when any
-   block leaves the card. */
+   sample review, measured by check:onboardingriot. */
 .page[data-page="2"] .hero { margin-bottom: var(--space-2); }
-.page[data-page="2"] .ob-review { padding: var(--space-3) 14px; gap: 9px; }
-.page[data-page="2"] .obr-card { padding: 9px var(--space-3); }
-.page[data-page="2"] .lead.small { margin-top: var(--space-3); }
-.page[data-page="2"] .seg { margin-top: 7px; }
-@keyframes obRowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .ob-bf-row { animation: none; } }
+.page[data-page="2"] .lead.small { margin-top: var(--space-2); }
+.page[data-page="2"] .seg { margin-top: var(--space-1); }
 
 /* ── How Occlara watches (8.3.1) ──────────────────────────────────────────────
-   What the PC check found, then Record gameplay and Frames only as two cards,
-   the one saved marked like a radio and the recommendation tagged. The
-   recording's size sits in the Record card's top right, quiet while Frames
-   only is chosen. Measured by npm run check:onboardingriot with its longest
-   line, the low disk one, like every page of the tour. */
+   What the PC check found, then Record gameplay and Frames only as two ruled
+   rows, each a radio, the one saved marked by its filled ring and the
+   recommendation tagged. The recording's size sits at the right of the
+   Record row, quiet while Frames only is chosen. */
 .page[data-page="3"] .hero { margin-bottom: var(--space-2); }
-.ob-pc {
-  padding: 10px var(--space-3);
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-  margin-bottom: var(--space-1);
-}
-.ob-pc-line { font-size: 12px; font-weight: 600; line-height: 1.45; color: var(--text); }
-.ob-pc-line.checking { color: var(--text-mute); font-weight: 500; animation: pulse 1.6s var(--ease) infinite; }
+.ob-pc { padding-bottom: var(--space-2); }
+.ob-pc-line { font-size: 13px; font-weight: 500; line-height: 1.45; color: var(--text); }
+.ob-pc-line.checking { color: var(--text-mute); font-weight: 400; animation: pulse 1.6s var(--ease) infinite; }
 .ob-pc-line.good { color: var(--good); }
 .ob-pc-line.warn { color: var(--warn); }
 /* Two facts a row, each a label and its value, the GPU's name on a row of its
@@ -337,79 +275,60 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .ob-pc-facts {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr);
-  gap: 3px 10px;
-  margin-top: var(--space-2);
-  font-size: 11px;
+  gap: 2px var(--space-3);
+  margin-top: var(--space-1);
+  font-size: 11.5px;
   line-height: 1.4;
-  animation: riseIn 240ms var(--ease-expo) both;
+  animation: riseIn var(--t-med) var(--ease-expo) both;
 }
-.ob-pc-facts dt { color: var(--text-mute); font-weight: 600; }
+.ob-pc-facts dt { color: var(--text-mute); }
 .ob-pc-facts dd { color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .ob-pc-facts dd.wide { grid-column: 2 / -1; }
 
-.ob-opts { display: flex; flex-direction: column; gap: var(--space-2); }
-.ob-opt { position: relative; }
+.ob-opts { display: flex; flex-direction: column; }
+.ob-opt { position: relative; border-top: 1px solid var(--line); }
+.ob-opt:last-child { border-bottom: 1px solid var(--line); }
 .ob-opt-main {
   position: relative;
   width: 100%;
-  display: flex; flex-direction: column; gap: 3px;
-  padding: 10px var(--space-3) 10px 34px;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px var(--space-2) 10px 28px;
   text-align: left;
   font-family: var(--font);
   color: var(--text);
-  background: rgba(0, 0, 0, 0.20);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
+  background: transparent;
+  border: 0;
   cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  transition: background var(--t-fast) var(--ease);
 }
-.ob-opt-main:hover { border-color: rgba(255, 255, 255, 0.16); }
+.ob-opt-main:hover:not(:disabled) { background: rgba(255, 255, 255, 0.035); }
 /* The radio: a ring, filled with a dot once chosen. */
 .ob-opt-main::before {
   content: '';
-  position: absolute; left: var(--space-3); top: 15px;
+  position: absolute; left: var(--space-1); top: 14px;
   width: 12px; height: 12px; border-radius: 50%;
   border: 1.5px solid var(--text-mute);
-  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
-.ob-opt-main[aria-checked="true"] { border-color: rgba(var(--cyan-rgb), 0.5); background: rgba(var(--cyan-rgb), 0.04); }
-.ob-opt-main[aria-checked="true"]::before { border-color: var(--cyan); background: var(--cyan); box-shadow: inset 0 0 0 2px var(--bg-2); }
+.ob-opt-main[aria-checked="true"]::before { border-color: var(--text); background: var(--text); box-shadow: inset 0 0 0 2.5px var(--bg); }
 .ob-opt-main:disabled { opacity: 0.45; cursor: default; }
-.ob-opt-main:disabled:hover { border-color: var(--glass-border); }
-.ob-opt-main:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+.ob-opt-main:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; border-radius: var(--r-card); }
 /* One height for both titles, the size switch's, so the two radios line up. */
-.ob-opt-title { display: flex; align-items: center; gap: var(--space-2); min-height: 22px; font-size: 13px; font-weight: 700; }
-.ob-opt.has-res .ob-opt-title { padding-right: 112px; }
-.ob-tag {
-  font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--text); line-height: 1.4;
-  padding: 1px 7px;
-  border: 1px solid rgba(var(--cyan-rgb), 0.3);
-  border-radius: 999px;
-}
-.ob-opt-text { font-size: 11px; line-height: 1.45; color: var(--text-dim); }
-.ob-res {
-  position: absolute; top: 10px; right: var(--space-3); z-index: 1;
-  display: flex; gap: 2px; padding: 1px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-sm);
-}
-.ob-res button {
-  font-family: var(--font); font-size: 10.5px; font-weight: 600; line-height: 1.3;
-  color: var(--text-dim); background: transparent;
-  border: none; border-radius: 6px; padding: 2px 9px; cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-.ob-res button:hover { color: var(--text); }
-.ob-res button.active { background: var(--cyan); color: var(--bg); }
-.ob-res.quiet button.active { background: rgba(var(--cyan-rgb), 0.16); color: var(--text); }
-.ob-res button:disabled { opacity: 0.35; cursor: default; }
-.ob-res button:disabled:hover { color: var(--text-dim); }
-.ob-res button:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 1px; }
+.ob-opt-title { display: flex; align-items: center; gap: var(--space-2); min-height: 24px; font-size: 13px; font-weight: 600; }
+.ob-opt.has-res .ob-opt-title { padding-right: 124px; }
+.ob-tag { font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-mute); line-height: 1.4; }
+.ob-opt-text { font-size: 11.5px; line-height: 1.4; color: var(--text-dim); }
+/* The size: a small segmented capsule at the right of the Record row, its
+   thumb from shared/seg.js, dimmed while Frames only is chosen. */
+.ob-res { position: absolute; top: 10px; right: 0; z-index: 1; margin: 0; align-self: auto; padding: 2px; }
+.ob-res > button { height: 22px; padding: 0 10px; font-size: 11.5px; }
+.ob-res.quiet .seg-thumb { opacity: 0.3; }
+.ob-res.quiet > button.active { color: var(--text-dim); }
+.ob-res:not(.seg-slide).quiet > button.active { background: rgba(var(--cyan-rgb), 0.16); color: var(--text); }
+.ob-res > button:disabled { opacity: 0.35; cursor: default; }
+.ob-res > button:disabled:hover { color: var(--text-dim); }
+.ob-res > button:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 1px; }
 
-/* The page assembles as the others do: the check, then the two cards. */
-.page .ob-pc, .page .ob-opt { animation: riseIn 380ms var(--ease-expo) both; }
-.page .ob-pc { animation-delay: 70ms; }
-.page .ob-opt:nth-child(1) { animation-delay: 125ms; }
-.page .ob-opt:nth-child(2) { animation-delay: 180ms; }
+@media (prefers-reduced-motion: reduce) {
+  .ob-bf-row, .page .hero, .page .steps li, .page .keys .k, .page .ob-opt, .page .ob-pc, .page .lead, .page .seg, .page .ob-review { animation: none; }
+}

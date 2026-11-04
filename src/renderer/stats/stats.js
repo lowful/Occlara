@@ -8,7 +8,7 @@ const sessionEmptyEl = document.getElementById('session-empty');
 const updatedEl      = document.getElementById('updated');
 const refreshBtn     = document.getElementById('refresh');
 
-const ARROW = { up: '▲', down: '▼', flat: '-' };
+const ARROW = { up: '▲', down: '▼', flat: '·' };
 let lastFetchedAt = 0;
 let refreshBlockedUntil = 0;
 let matchMode = 'competitive';   // always opens on Competitive; Unrated = unrated + swiftplay
@@ -58,6 +58,9 @@ async function loadMatches(mode) {
 }
 
 const modeSeg = document.getElementById('modeseg');
+// One capsule, one thumb that slides to the chosen mode (shared/seg.js). The
+// buttons keep their .active, which is what the thumb follows.
+try { if (typeof window.occlaraSeg === 'function') window.occlaraSeg(modeSeg); } catch { /* the buttons stand as they are */ }
 modeSeg.addEventListener('click', (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
@@ -78,11 +81,12 @@ function card(label, value, direction, small) {
   const row = document.createElement('div');
   row.className = 'val-row';
   const v = document.createElement('span');
-  v.className = 'value' + (small ? ' small' : '');
+  v.className = 'value' + (small ? ' small' : '') + (value == null ? ' none' : '');
   v.textContent = value == null ? '·' : value;
   const a = document.createElement('span');
   a.className = `arrow ${direction || 'flat'}`;
-  a.textContent = ARROW[direction] || ARROW.flat;
+  // No number, no trend: a flat mark beside nothing would read as "no change".
+  a.textContent = value == null ? '' : (ARROW[direction] || ARROW.flat);
   row.append(v, a);
   el.append(l, row);
   return el;
@@ -226,7 +230,7 @@ async function renderRankGraph(host, opts) {
     </div>
     <div class="rg-foot">
       <span>${points[0].tier || ''}</span>
-      <span>${last.tier || ''}${last.change != null ? ' · last game ' + (last.change >= 0 ? '+' : '') + last.change + 'RR' : ''}</span>
+      <span>${last.tier || ''}${last.change != null ? ' · last game ' + (last.change >= 0 ? '+' : '') + last.change + ' RR' : ''}</span>
     </div>`;
 }
 
@@ -315,6 +319,13 @@ async function paintRankDelta(el) {
   el.title = 'RR from your last rated game';
 }
 
+/** Nothing to count yet: no rank and no number, as before a Riot ID is connected. */
+function nothingToShow(d) {
+  const c = d.categories || {};
+  return !(d.rank && d.rank.value) && ['impact', 'positioning', 'utility', 'aim'].every((k) => c[k] == null || c[k].avg == null)
+    && !(d.winRate && d.winRate.value != null);
+}
+
 function renderCards(d) {
   cardsEl.innerHTML = '';
   const rankCard = card('Rank', d.rank?.value, d.rank?.direction, true);
@@ -329,19 +340,54 @@ function renderCards(d) {
   chev.textContent = '▾';
   rankCard.querySelector('.label').append(' ', chev);
   rankCard.title = 'What holds players back at this rank';
+  // The whole line opens the notes, from the keyboard as well.
+  rankCard.setAttribute('role', 'button');
+  rankCard.tabIndex = 0;
   rankCard.addEventListener('click', () => toggleRankNotes(d.rank && d.rank.value));
+  rankCard.addEventListener('keydown', (e) => {
+    if (e.target !== rankCard || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    toggleRankNotes(d.rank && d.rank.value);
+  });
   // Built again by the mode toggle, Refresh and a Riot ID switch, any of which
   // can come while the notes stay open under it, so the chevron is read off
   // rankOpen here too, not only as the notes open and close (markRankCard).
   rankCard.classList.toggle('notes-open', rankOpen);
+  // NO RIOT ID, NO EMPTY COLUMNS (8.7): six quiet marks under their labels
+  // read as a broken page. The rank row alone stays, its value one line
+  // saying what is missing and one ghost button to Settings; its notes still
+  // open under it (the journey Home asks for), and the five columns are
+  // painted once there is a number to show.
+  if (nothingToShow(d)) {
+    const p = document.createElement('p');
+    p.id = 'cards-none';
+    p.textContent = 'Connect your Riot ID in Settings to see your rank and numbers here.';
+    const row = rankCard.querySelector('.val-row');
+    row.replaceChildren(p);
+    if (typeof window.occlara.go === 'function') {
+      const go = document.createElement('button');
+      go.type = 'button';
+      go.id = 'cards-settings';
+      go.className = 'btn btn-ghost sm';
+      go.textContent = 'Open Settings';
+      go.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.go('settings'); });
+      row.append(go);
+    }
+    cardsEl.append(rankCard);
+    shownRank = null;
+    showJourney();
+    return;
+  }
   const c = d.categories || {};
+  // The rank first, the page's hero on a line of its own; the five numbers
+  // under it in columns (stats.css .cards).
   cardsEl.append(
+    rankCard,
     card('Impact',      c.impact?.avg,      c.impact?.direction),
     card('Positioning', c.positioning?.avg, c.positioning?.direction),
     card('Utility',     c.utility?.avg,     c.utility?.direction),
     card('Aim',         c.aim?.avg,         c.aim?.direction),
-    rankCard,
-    card('Win Rate',    d.winRate?.value != null ? d.winRate.value + '%' : null, d.winRate?.direction),
+    card('Win rate',    d.winRate?.value != null ? d.winRate.value + '%' : null, d.winRate?.direction),
   );
   shownRank = (d.rank && d.rank.value) || null;
   showJourney();   // Home asked for the journey before the tile was painted
@@ -394,6 +440,28 @@ function statTile(label, value, gradeClass) {
  * grows it from nothing (stats.css). Closed, what is in it is out of reach as
  * well as out of sight.
  */
+/** A row that opens on a click, and on Enter or Space from the keyboard. */
+function expandable(row) {
+  row.setAttribute('role', 'button');
+  row.tabIndex = 0;
+  row.setAttribute('aria-expanded', 'false');
+  const toggle = () => {
+    row.classList.toggle('open');
+    row.setAttribute('aria-expanded', row.classList.contains('open') ? 'true' : 'false');
+  };
+  row.addEventListener('click', (e) => {
+    // A click on what the row opened (a number, the team) is reading, not folding.
+    const t = e && e.target;
+    if (t && t !== row && typeof t.closest === 'function' && t.closest('.detail')) return;
+    toggle();
+  });
+  row.addEventListener('keydown', (e) => {
+    if (e.target !== row || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    toggle();
+  });
+}
+
 function dropDown(detail) {
   const reveal = document.createElement('div');
   reveal.className = 'reveal';
@@ -497,7 +565,7 @@ function matchRow(m) {
   detail.append(tiles);
   if (teamEl) detail.append(teamEl);
   row.append(top, dropDown(detail));
-  row.addEventListener('click', () => row.classList.toggle('open'));
+  expandable(row);
   return row;
 }
 
@@ -516,19 +584,36 @@ function renderMatches(res) {
 
   if (!matches.length) {
     matchEmptyEl.hidden = false;
-    matchEmptyEl.textContent = res && res.error === 'no-riot-id'
+    const noRiot = !!(res && res.error === 'no-riot-id');
+    matchEmptyEl.textContent = noRiot
       ? 'Connect your Riot ID in Settings to see your recent matches here.'
       : 'No recent matches found yet. Matches appear a few minutes after they end.';
+    // The queue switch and Refresh wait for a Riot ID too (8.7): with none,
+    // nothing they do can answer.
+    matchTools(!noRiot);
     return;
   }
+  matchTools(true);
   matchEmptyEl.hidden = true;
+  // A row already on screen is settled (8.7): it does not rise again on a
+  // Refresh or a dashboard repaint, as a graded match's row does not.
+  const had = new Set(knownMatches.keys());
   for (const m of matches) if (m.id) knownMatches.set(m.id, m);
   annotateSessionMvps();
   matches.forEach((m, i) => {
     const r = matchRow(m);
-    r.style.animationDelay = Math.min(i * 40, 400) + 'ms';   // staggered entrance
+    if (m.id && had.has(m.id)) r.classList.add('settled');
+    else r.style.animationDelay = Math.min(i, 8) * 40 + 'ms';   // rows rise once, 40ms apart, eight at most
     matchListEl.append(r);
   });
+}
+
+/** The queue capsule and Refresh, shown only where a Riot ID can answer them. */
+function matchTools(on) {
+  const seg = document.getElementById('modeseg');
+  if (seg) seg.hidden = !on;
+  refreshBtn.hidden = !on;
+  updatedEl.hidden = !on;
 }
 
 // Manual refresh, rate limited to once per 3 minutes (mirrored on the server).
@@ -573,21 +658,15 @@ function fmtDate(ts) {
          d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-/** Anticipation-then-reveal: the overall score counts up from 0, matching the
- *  match-review flow's reveal treatment instead of dropping a static number.
- *  The colour lands with the final number, and it is the grade's letter tone. */
-function revealScore(el, target, delay, tone) {
-  const start = performance.now() + delay;
-  const DUR = 700;
-  function frame(now) {
-    if (now < start) return requestAnimationFrame(frame);
-    const t = Math.min(1, (now - start) / DUR);
-    const eased = 1 - Math.pow(1 - t, 3);
-    el.textContent = Math.round(target * eased);
-    if (t < 1) requestAnimationFrame(frame);
-    else if (tone) el.classList.add(tone);
-  }
-  requestAnimationFrame(frame);
+/** The grade counts up from 0 as the review's does, in CSS alone (stats.css
+ *  .grade-chip.counting, @property --n): the real number is the text from the
+ *  start, and the count is drawn over it, so nothing here does arithmetic. */
+function revealScore(el, target, delay) {
+  // Less motion: the number, at once (the count drew a 0 through its delay).
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  el.style.setProperty('--to', String(target));
+  el.style.animationDelay = delay + 'ms';
+  el.classList.add('counting');
 }
 
 /**
@@ -602,7 +681,7 @@ function sessionRow(s, i, settled) {
   const row = document.createElement('div');
   row.className = 'row expandable session' + (settled ? ' settled' : '');
   row.dataset.id = s.id || '';
-  if (!settled) row.style.animationDelay = Math.min(i * 50, 400) + 'ms';   // staggered entrance
+  if (!settled) row.style.animationDelay = Math.min(i, 8) * 40 + 'ms';   // rows rise once, 40ms apart, eight at most
   const top = document.createElement('div');
   top.className = 'top';
   const chev = document.createElement('span');
@@ -630,13 +709,9 @@ function sessionRow(s, i, settled) {
   const score = document.createElement('span');
   score.className = 'grade-chip';
   score.title = s.grade && s.grade.provisional ? 'Match grade, provisional' : 'Match grade';
-  if (settled) {
-    score.textContent = String(target);
-    if (tone) score.classList.add(tone);
-  } else {
-    score.textContent = '0';
-    revealScore(score, target, 150 + i * 120, tone);
-  }
+  score.textContent = String(target);
+  if (tone) score.classList.add(tone);
+  if (!settled) revealScore(score, target, Math.min(i, 8) * 40);
   const letter = document.createElement('span');
   letter.className = 'grade-letter' + (tone ? ' ' + tone : '');
   letter.textContent = s.grade ? s.grade.letter : '';
@@ -656,17 +731,17 @@ function sessionRow(s, i, settled) {
   const actions = document.createElement('div');
   actions.className = 'd-actions';
   const open = document.createElement('button');
-  open.className = 'ask-btn no-drag';
+  open.className = 'btn sm ask-btn no-drag';
   open.textContent = 'Open the review';
   open.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.openReview(s.id); });
   const ask = document.createElement('button');
-  ask.className = 'ask-btn no-drag';
+  ask.className = 'btn sm ask-btn no-drag';
   ask.textContent = 'Ask Coach about this';
   ask.addEventListener('click', (e) => { e.stopPropagation(); window.occlara.askAboutSession({ reviewId: s.id }); });
   actions.append(open, ask);
   detail.append(actions);
   row.append(top, dropDown(detail));
-  row.addEventListener('click', () => row.classList.toggle('open'));
+  expandable(row);
   return row;
 }
 
@@ -789,7 +864,6 @@ async function renderAgents(topAgents) {
   list.forEach((a, i) => {
     const tile = document.createElement('div');
     tile.className = 'agent-tile';
-    tile.style.animationDelay = (i * 70) + 'ms';
     const entry = icons[String(a.name || '').toLowerCase()];
     const url = entry && entry.icon;
     let icon;
@@ -807,12 +881,14 @@ async function renderAgents(topAgents) {
     const nm = document.createElement('div');
     nm.className = 'agent-name';
     nm.textContent = a.name || 'Unknown';
-    const played = document.createElement('div');
-    played.className = 'agent-sub';
-    played.textContent = `${a.matches} ${a.matches === 1 ? 'match' : 'matches'} · ${a.pct}%`;
-    played.title = `${a.pct}% of your recent games`;
     const chips = document.createElement('div');
     chips.className = 'agent-chips';
+    // How often the agent was played, in the row's numbers, said once.
+    const count = document.createElement('span');
+    count.className = 'agent-chip played';
+    count.textContent = `${a.matches} ${a.matches === 1 ? 'match' : 'matches'} · ${a.pct}%`;
+    count.title = `${a.pct}% of your recent games`;
+    chips.append(count);
     const wr = document.createElement('span');
     wr.className = `agent-chip ${a.winRate >= 55 ? 'good' : a.winRate <= 45 ? 'bad' : 'mid'}`;
     wr.textContent = `${a.winRate}% WR`;
@@ -823,8 +899,9 @@ async function renderAgents(topAgents) {
     acs.className = `agent-chip ${a.acs >= 220 ? 'good' : a.acs < 150 ? 'bad' : 'mid'}`;
     acs.textContent = `${a.acs} ACS`;
     chips.append(wr, kd, acs);
-    info.append(nm, played, chips);
+    info.append(nm, chips);
     tile.append(icon, info);
+    tile.style.animationDelay = Math.min(i, 8) * 40 + 'ms';
     agentTilesEl.append(tile);
   });
 }

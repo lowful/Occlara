@@ -21,10 +21,10 @@
     <div class="h-right no-drag">
       <!-- Opened on one match from its review (8.2), the picker goes and this
            opens the rest of that match's session, around the frame on screen. -->
-      <button id="whole" class="whole" type="button" title="The rest of the session this match was in" hidden>Whole session</button>
+      <button id="whole" class="btn btn-ghost sm whole" type="button" title="The rest of the session this match was in" hidden>Whole session</button>
       <!-- Session picker. Only the frames of the chosen session are loaded, so
            switching costs one read rather than the viewer holding every session. -->
-      <select id="session" class="session-pick" title="Choose a session" aria-label="Session"></select>
+      <select id="session" class="session-pick" title="Choose a session" aria-label="Session" hidden></select>
       <button id="close" class="icon-btn" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
     </div>
   </header>
@@ -38,44 +38,14 @@
         <img id="frame" alt="frame the coach analyzed" />
       </div>
       <div class="scrub no-drag">
-        <button id="prev" class="nav-btn" title="Previous frame (Left arrow)">‹</button>
+        <button id="prev" class="icon-btn nav-btn" type="button" title="Previous frame (Left arrow)" aria-label="Previous frame"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
         <div class="track">
-          <input id="slider" type="range" min="0" max="0" value="0" />
+          <input id="slider" type="range" min="0" max="0" value="0" aria-label="Frame" />
           <!-- Death reviews are pinned here, so you can find the moments that
                matter without scrubbing the whole session frame by frame. -->
           <div id="marks" class="marks" aria-hidden="true"></div>
         </div>
-        <button id="next" class="nav-btn" title="Next frame (Right arrow)">›</button>
-      </div>
-      <!-- Riot's own record of the match, checked against the deaths read off
-           the screen. Appears only once the check comes back. -->
-      <div id="confirm" class="confirm" hidden></div>
-      <!-- DEATH REVIEW MODE. The match review card's eye opens straight into
-           this: walk the deaths rather than 240 frames, since the deaths are
-           the only frames anyone came here to look at. -->
-      <div id="deathnav" class="deathnav" hidden>
-        <button id="death-prev" class="nav-btn" title="Previous death">&#8249;</button>
-        <span id="death-pos" class="deathnav-pos"></span>
-        <button id="death-next" class="nav-btn" title="Next death">&#8250;</button>
-        <span id="death-why" class="deathnav-why"></span>
-      </div>
-      <!-- The shortcuts, for the first few opens only. Both bindings already
-           worked before this existed and nobody could have known: an arrow key
-           is not something a window advertises on its own. -->
-      <div id="keyhint" class="keyhint" hidden>
-        <span class="kh-row"><kbd>&#8592;</kbd><kbd>&#8594;</kbd> frame by frame</span>
-        <span class="kh-sep" aria-hidden="true"></span>
-        <span class="kh-row"><kbd>Shift</kbd> + <kbd>&#8592;</kbd><kbd>&#8594;</kbd> death to death</span>
-        <span class="kh-sep" aria-hidden="true"></span>
-        <span class="kh-row"><kbd>Esc</kbd> close</span>
-        <button id="keyhint-x" class="kh-x" type="button" aria-label="Got it, hide this">Got it</button>
-      </div>
-      <!-- THE RUN UP. The moment of death was never photographed: the capture
-           runs on an interval and the kill lands between two frames. So this
-           shows the window instead of pretending one frame is the death. -->
-      <div id="deathstrip" class="deathstrip" hidden>
-        <div id="strip-frames" class="strip-frames"></div>
-        <p id="strip-note" class="strip-note"></p>
+        <button id="next" class="icon-btn nav-btn" type="button" title="Next frame (Right arrow)" aria-label="Next frame"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
       </div>
       <div class="frame-meta">
         <span id="pos">0 / 0</span>
@@ -83,6 +53,34 @@
              not the same as the map the AI read on this one frame. -->
         <span id="seg" class="seg"></span>
         <span id="time" class="muted"></span>
+      </div>
+      <!-- DEATH REVIEW MODE. The match review card's eye opens straight into
+           this: walk the deaths rather than 240 frames, since the deaths are
+           the only frames anyone came here to look at. -->
+      <div id="deathnav" class="deathnav" hidden>
+        <button id="death-prev" class="icon-btn nav-btn" type="button" title="Previous death" aria-label="Previous death"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <span id="death-pos" class="deathnav-pos"></span>
+        <button id="death-next" class="icon-btn nav-btn" type="button" title="Next death" aria-label="Next death"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <span id="death-why" class="deathnav-why"></span>
+      </div>
+      <!-- Riot's own record of the match, checked against the deaths read off
+           the screen. Appears only once the check comes back. -->
+      <div id="confirm" class="confirm" hidden></div>
+      <!-- THE RUN UP. The moment of death was never photographed: the capture
+           runs on an interval and the kill lands between two frames. So this
+           shows the window instead of pretending one frame is the death. -->
+      <div id="deathstrip" class="deathstrip" hidden>
+        <div id="strip-frames" class="strip-frames"></div>
+        <p id="strip-note" class="strip-note"></p>
+      </div>
+      <!-- The shortcuts, for the first few opens only. Both bindings already
+           worked before this existed and nobody could have known: an arrow key
+           is not something a window advertises on its own. -->
+      <div id="keyhint" class="keyhint" hidden>
+        <span class="kh-row"><span class="keys"><kbd>&#8592;</kbd><kbd>&#8594;</kbd></span> frame by frame</span>
+        <span class="kh-row"><span class="keys"><kbd>Shift</kbd><kbd>&#8592;</kbd><kbd>&#8594;</kbd></span> death to death</span>
+        <span class="kh-row"><kbd>Esc</kbd> close</span>
+        <button id="keyhint-x" class="btn btn-link sm kh-x" type="button" aria-label="Got it, hide this">Got it</button>
       </div>
     </section>
 
@@ -110,7 +108,7 @@
         <form id="ask-form" class="ask-row">
           <input id="ask-input" class="ask-input" type="text" autocomplete="off"
                  placeholder="Why did I die here?" maxlength="300" />
-          <button id="ask-send" class="ask-send" type="submit" title="Ask">Ask</button>
+          <button id="ask-send" class="btn btn-primary sm ask-send" type="submit" title="Ask">Ask</button>
         </form>
         <div class="ask-hints">
           <button type="button" class="hint" data-q="Why did I die here?">Why did I die here?</button>
