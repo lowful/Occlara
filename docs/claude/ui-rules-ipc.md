@@ -12,11 +12,11 @@ build pipeline to add a component.
 every surface. Use the variables, do not hardcode colours, radii, easings or
 durations:
 
-- Brand (8.6): `--red` `#FF5A3C`, THE SIGNAL, with `--red-2` `#FE6347` (Start
-  under the pointer), `--red-3` `#E65136` (Start pressed) and `--red-rgb`;
+- Brand (8.6): `--red` `#E5383B`, THE SIGNAL, with `--red-2` `#F04A4D` (Start
+  under the pointer), `--red-3` `#C9302F` (Start pressed) and `--red-rgb`;
   `--signal` and `--signal-rgb` are the same colour by the name of its job, and
-  what new code writes. `--on-accent` `#0A0B0E` is the label on it (6.35:1;
-  white measured 3.10:1). `--cyan` `#FFFFFF`, `--bg` `#0A0B0E` (cool
+  what new code writes. `--on-accent` `#0A0B0E` is the label on it (4.65:1;
+  white measures 4.23:1). `--cyan` `#FFFFFF`, `--bg` `#0A0B0E` (cool
   charcoal), `--bg-2` `#0F1116`.
   The token NAMES are historical. `--red` is the signal, `--cyan` is white. They
   mean "primary accent" and "secondary accent", the same in every game (one
@@ -160,7 +160,7 @@ Settled decisions that keep getting reintroduced by accident:
   stylesheet marked on its first line to tokens and the glass's neutral black
   and white (a stylesheet it names that the scan no longer reads, renamed or
   moved, fails the check rather than being held to nothing).
-- **Start stays the signal**: `--red` `#FF5A3C` with the `--on-accent`
+- **Start stays the signal**: `--red` `#E5383B` with the `--on-accent`
   `#0A0B0E` label, 18px 600, by its own class, `.btn-rec`, so the primary
   being ink never turns it white. Its hover and press are scoped to
   `:not(.active)`, or pressing Stop flashes the signal. Recording, it is the

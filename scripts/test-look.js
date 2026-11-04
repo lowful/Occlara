@@ -58,7 +58,7 @@ ok(prop(rule('.a { color: red; }\n.b { height: 44px; }', '.b'), 'height') === '4
 // ── F1: the tokens and the grounds ────────────────────────────────────────
 const theme = read('shared/theme.css');
 const want = {
-  '--red': '#FF5A3C', '--red-2': '#FE6347', '--red-3': '#E65136', '--red-rgb': '255, 90, 60',
+  '--red': '#E5383B', '--red-2': '#F04A4D', '--red-3': '#C9302F', '--red-rgb': '229, 56, 59',
   '--signal': 'var(--red)', '--signal-rgb': 'var(--red-rgb)', '--on-accent': '#0A0B0E',
   '--cyan': '#FFFFFF', '--cyan-rgb': '255, 255, 255', '--bg': '#0A0B0E', '--bg-2': '#0F1116',
   '--text': '#F5F5F7', '--text-dim': '#A1A1A6', '--text-mute': '#808086',
@@ -73,7 +73,7 @@ const want = {
   '--ease': 'cubic-bezier(0.22, 1, 0.36, 1)', '--ease-expo': 'cubic-bezier(0.16, 1, 0.30, 1)',
 };
 const off = Object.entries(want).filter(([k, v]) => token(theme, k) !== v).map(([k, v]) => `${k} is "${token(theme, k)}", not "${v}"`);
-ok(!off.length, 'theme.css holds the 8.6 tokens: the signal #FF5A3C, the ground #0A0B0E, the app\'s own ink, lines, paper, roles and tracking', off.join('; '));
+ok(!off.length, 'theme.css holds the 8.6 tokens: the signal #E5383B, the ground #0A0B0E, the app\'s own ink, lines, paper, roles and tracking', off.join('; '));
 ok(/\nhtml \{ font-synthesis-weight: none; \}/.test(theme), 'and draws no faked bold: font-synthesis-weight is none on html');
 ok(contrast(token(theme, '--on-accent'), token(theme, '--red')) >= 4.5 && contrast('#FFFFFF', token(theme, '--red')) < 4.5,
   `Start's label, the ground on the signal, passes at ${contrast(token(theme, '--on-accent'), token(theme, '--red')).toFixed(2)}:1, where white on it fails at ${contrast('#FFFFFF', token(theme, '--red')).toFixed(2)}:1`);

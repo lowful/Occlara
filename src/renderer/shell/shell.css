@@ -119,8 +119,8 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .rec-controls { display: flex; align-items: stretch; gap: var(--space-2); }
 /* START STAYS THE SIGNAL (CLAUDE.md, 8.6): the one control a player must find
    without looking, and the one saturated fill in the app. Its fill, hover and
-   press are .btn-rec's (ui.css), the ground's colour on it at 6.35:1, where
-   white measured 3.10:1; 19px at 600. */
+   press are .btn-rec's (ui.css), the ground's colour on it at 4.65:1, where
+   white measures 4.23:1; 19px at 600. */
 .toggle {
   flex: 1 1 auto; min-width: 0; height: 48px; padding: 0 var(--space-3);
   font-size: 19px; font-weight: 600; letter-spacing: -0.2px; white-space: nowrap;

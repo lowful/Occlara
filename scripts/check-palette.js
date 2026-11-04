@@ -30,7 +30,7 @@
  *     and the neutral black and white of the glass (TOKENS_ONLY, or a first
  *     line of its own saying so)
  *
- * THE SIGNAL ONLY WHERE IT BELONGS (8.6). --red is the signal, #FF5A3C, and
+ * THE SIGNAL ONLY WHERE IT BELONGS (8.6). --red is the signal, #E5383B, and
  * it is Start's fill, the live record card, the Recording screen's live dot,
  * the notice line's urgent dot and a destructive action under the pointer,
  * and nothing else: every other red the app drew became --bad (an outcome) or
@@ -61,10 +61,10 @@ const BANNED = [
   ['status warn', /#f5c451\b/gi,                            'var(--warn)'],
   ['status good', /rgba\(\s*79\s*,\s*211\s*,\s*148\s*,/g,   'rgba(var(--good-rgb), …)'],
   // The signal and its two states (8.6), each by its token.
-  ['the signal',  /#FF5A3C\b/gi,                            'var(--signal)'],
-  ['the signal',  /rgba\(\s*255\s*,\s*90\s*,\s*60\s*,/g,    'rgba(var(--signal-rgb), …)'],
-  ['Start hover', /#FE6347\b/gi,                            'var(--red-2)'],
-  ['Start press', /#E65136\b/gi,                            'var(--red-3)'],
+  ['the signal',  /#E5383B\b/gi,                            'var(--signal)'],
+  ['the signal',  /rgba\(\s*229\s*,\s*56\s*,\s*59\s*,/g,    'rgba(var(--signal-rgb), …)'],
+  ['Start hover', /#F04A4D\b/gi,                            'var(--red-2)'],
+  ['Start press', /#C9302F\b/gi,                            'var(--red-3)'],
 ];
 
 // No decorative gradients anywhere (CLAUDE.md). The kinds a renderer file can
@@ -164,14 +164,14 @@ const selfTest = [
   [GRADIENTS[2][1], 'the no gradient rule', false],
   [BANNED[3][1], 'stroke="#00F0FF" stroke-width="2.2"', true],
   [BANNED[3][1], 'stroke: var(--text-dim);', false],
-  [BANNED[8][1], 'background: #FF5A3C;', true],
-  [BANNED[8][1], 'background: #FF5A3CAA; color: var(--signal);', false],
-  [BANNED[9][1], 'box-shadow: 0 0 0 1px rgba(255, 90, 60, 0.45);', true],
-  [BANNED[9][1], 'background: rgba(255, 90, 600);', false],
-  [BANNED[10][1], 'background: #fe6347;', true],
+  [BANNED[8][1], 'background: #E5383B;', true],
+  [BANNED[8][1], 'background: #E5383BAA; color: var(--signal);', false],
+  [BANNED[9][1], 'box-shadow: 0 0 0 1px rgba(229, 56, 59, 0.45);', true],
+  [BANNED[9][1], 'background: rgba(229, 56, 590);', false],
+  [BANNED[10][1], 'background: #f04a4d;', true],
   [BANNED[10][1], 'background: var(--red-2);', false],
-  [BANNED[11][1], 'background: #E65136;', true],
-  [BANNED[11][1], 'background: #E651360;', false],
+  [BANNED[11][1], 'background: #C9302F;', true],
+  [BANNED[11][1], 'background: #C9302F0;', false],
   [SIGNAL, 'color: var(--red);', true],
   [SIGNAL, 'background: rgba(var(--signal-rgb), 0.08);', true],
   [SIGNAL, 'background: var(--red-3);', true],
