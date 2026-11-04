@@ -1092,7 +1092,7 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     + 'wait for the team to reach you before pushing further.', input);
   ok(!(3 in harm.rounds) && harm.rounds[7] && harm.dropped.some((d) => d.n === 3),
     'a line warning that something "gets you traded" goes: being traded is your killer dying, never the harm');
-  ok(/one sentence, at most 30 words, on what to do differently next time/.test(prompt)
+  ok(/one sentence, at most 30 words, written as when this happens, do that, because of the one fact/.test(prompt)
     && /never restate them/.test(prompt) && /starting with You won or You lost/.test(prompt)
     && /Being traded means a teammate killed your killer within five seconds, which is good/.test(prompt),
   'the model is asked for one lesson a round, never the facts again, the summary from the player\'s own result');
