@@ -170,8 +170,8 @@ digits 2 to 9, no 0 O 1 I) and the link `https://occlara.app/invite/<code>`;
 the app hands a page only a link of that shape (`account-service.js
 INVITE_LINK`, 4 to 16 letters and digits, the redeem's `REF_CODE`), which the
 site's `isInviteCode` also accepts. The site keeps the code 7 days and redeems
-it once after signup with the invitee's JWT. Redeem refuses self referral, an
-account older than 30 min, an email not confirmed (401 `email-unconfirmed`,
+it once after signup with the invitee's JWT. Redeem refuses self referral (an
+account's age is no limit since 8.7, only that it has played nothing), an email not confirmed (401 `email-unconfirmed`,
 which the site treats as "try again later" and keeps the code), one that has
 played, a sixth friend, the
 inviter's network (/24 hash), an inviter known on no network
