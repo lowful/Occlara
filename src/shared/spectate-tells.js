@@ -15,7 +15,7 @@
  *     own HP 100 and Ghost bottom center      <- really theirs
  *     own HP 100 and Bandit bottom center     <- weapon changed mid round
  *     own HP 19 and Sova abilities bottom center
- *     Spectating iggly, teammate ... killed by Sage
+ *     Spectating playerone, teammate ... killed by Sage
  *
  * The player was Iso. By the third frame the model was describing SOVA's
  * abilities as "own", and the existing tell vocabulary matched none of it,
