@@ -3,7 +3,7 @@ const crypto   = require('crypto');
 const stripe   = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const supabase = require('../db/supabase');
 const {
-  DAY_MS, GRACE_MS, LICENCE_ENDED: ENDED, LICENCE_REVOKED: REVOKED, SUB_BILLING: BILLING, SUB_ENDED,
+  DAY_MS, GRACE_MS, LICENCE_ENDED: ENDED, LICENCE_REVOKED: REVOKED, SUB_BILLING: BILLING, SUB_ENDED, SUB_LAPSED,
   idOf, subscriptionOf, latestLineEnd, periodStartOf, periodEndOf, withGrace, dbError,
   LOOKUP_KEY, INTERVAL_PLAN, accountsMissing, tierOfPlan, tierOfPrice, priceOfSubscription,
   GAME_PRICE_CENTS, wholeGames,
@@ -522,7 +522,8 @@ async function mintFromCheckout(session, userId, price) {
  *   which the monthly cap counts from. A key minted here becomes the account's
  *   account_key.
  *   Stripe ending the subscription sets the tier free and the cap 0, the free
- *   games kept.
+ *   games kept, and so does Stripe stopping it without ending it (unpaid,
+ *   paused, read off customer.subscription.updated). past_due keeps the plan.
  *   A full refund or any dispute, after the licence is revoked and billing
  *   stopped (unchanged, above), sets the tier free and zeroes the free games
  *   and the bonus too, status ended: a refunded buyer does not keep games.
@@ -637,7 +638,9 @@ async function entitleCheckout(session, userId, mintedKey, price) {
       if (!(e && e.code === 'resource_missing')) throw e;
       console.warn(`[webhook] ${label}: subscription ${subId} is not in Stripe, the tier is read from the checkout`);
     }
-    if (sub && SUB_ENDED.has(sub.status)) {
+    // Ended, or lapsed (unpaid, paused): a late or redelivered completion
+    // never gives back a plan customer.subscription.updated took away.
+    if (sub && (SUB_ENDED.has(sub.status) || SUB_LAPSED.has(sub.status))) {
       console.warn(`[webhook] ${label}: subscription ${subId} is ${sub.status} already, account left`);
       return;
     }
@@ -711,6 +714,14 @@ async function entitleInvoice(invoice, subId, licences) {
     console.warn(`[webhook] ${label}: subscription ${subId} is ${sub.status}, account left`);
     return;
   }
+  // Paying the latest invoice is what brings a lapsed (unpaid, paused)
+  // subscription back, and this event is how its plan comes back. An OLDER
+  // invoice paid while it stays lapsed does not bring the plan back.
+  const latest = idOf(sub.latest_invoice);
+  if (SUB_LAPSED.has(sub.status) && latest && latest !== invoice.id) {
+    console.warn(`[webhook] ${label}: subscription ${subId} is still ${sub.status} (its latest invoice is unpaid), account left`);
+    return;
+  }
   // A yearly bought before 8.7 is Max until it renews and Pro from then on:
   // a renewal is billing_reason subscription_cycle.
   const grant = tierOfPrice(priceOfSubscription(sub), { renewal: invoice.billing_reason === 'subscription_cycle' });
@@ -728,7 +739,12 @@ async function entitleInvoice(invoice, subId, licences) {
   }
 }
 
-/** Stripe ended a subscription: its accounts go free, cap 0, their free games kept. */
+/**
+ * Stripe ended a subscription, or stopped collecting it (unpaid, paused): its
+ * accounts go free, cap 0, their free games kept. Only rows naming THIS
+ * subscription, still active, and neither lifetime nor comp, so a repeat is a
+ * no-op in effect and another purchase of the same customer is never touched.
+ */
 async function endSubscriptionAccounts(subId) {
   const label = `subscription ${subId} ended`;
   const done = await writeEntitlements(
@@ -737,6 +753,31 @@ async function endSubscriptionAccounts(subId) {
     { tier: 'free', cap_monthly: 0, renew_as: null },
     `${label}: set its accounts free`);
   if (done !== NOT_LIVE) console.log(`[webhook] ${label}: ${done.length} account(s) set free`);
+}
+
+/*
+ * Stripe ended a subscription (customer.subscription.deleted, or an update to
+ * canceled or incomplete_expired). A licence revoked for a refund or a
+ * chargeback keeps that reason rather than becoming merely cancelled, and a
+ * lifetime licence that names it is not billed by it.
+ */
+async function endSubscription(subId) {
+  const { data, error } = await supabase
+    .from('licenses')
+    .update({ status: 'cancelled' })
+    .eq('stripe_subscription_id', subId)
+    .in('status', ['active', 'payment_failed', 'expired'])
+    .neq('plan', 'lifetime')
+    .select('id');
+  if (error) throw dbFailure(`cancel the licences of subscription ${subId}`, error);
+  console.log(`[webhook] subscription ${subId} ended, ${data ? data.length : 0} licence(s) cancelled`);
+  await endSubscriptionAccounts(subId);
+}
+
+/** Stripe stopped collecting a subscription (unpaid, paused): the plan ends, the licence runs to its expiry. */
+async function lapseSubscription(subId, status) {
+  console.log(`[webhook] subscription ${subId} is ${status}, its plan ends, its licence runs to its expiry`);
+  await endSubscriptionAccounts(subId);
 }
 
 /*
@@ -1095,17 +1136,46 @@ async function webhookHandler(req, res) {
       // chargeback keeps that reason rather than becoming merely cancelled,
       // and a lifetime licence that names it is not billed by it.
       case 'customer.subscription.deleted': {
+        await endSubscription(event.data.object.id);
+        break;
+      }
+
+      /*
+       * STRIPE CAN STOP A SUBSCRIPTION WITHOUT ENDING IT, and then no
+       * customer.subscription.deleted ever comes: with its retries done it
+       * leaves it unpaid (or cancels it, by the account's setting), and a
+       * trial that ends with no payment method leaves it paused. The licence
+       * ran out at its expiry, but the account kept its Pro or Max tier and its
+       * monthly games renewed. So an update is read here, the subscription
+       * asked how it stands NOW (Stripe does not promise order: an unpaid
+       * delivered after the payment that brought it back must not end it):
+       *
+       *   canceled, incomplete_expired  ended, exactly as deleted.
+       *   unpaid, paused                the account goes free, cap 0, free games
+       *                                 kept. The licence is left: it runs to
+       *                                 its expiry as it always did (a legacy
+       *                                 key included), invoice.payment_failed
+       *                                 having marked it.
+       *   past_due                      nothing: Stripe is still trying the card,
+       *                                 the grace invoice.payment_failed gives.
+       *   active, trialing              nothing: the plan comes back with the
+       *                                 payment that brought it back, invoice.paid
+       *                                 (tier, anchor, the yearly rule and the
+       *                                 licence's expiry all live there).
+       */
+      case 'customer.subscription.updated': {
         const subId = event.data.object.id;
-        const { data, error } = await supabase
-          .from('licenses')
-          .update({ status: 'cancelled' })
-          .eq('stripe_subscription_id', subId)
-          .in('status', ['active', 'payment_failed', 'expired'])
-          .neq('plan', 'lifetime')
-          .select('id');
-        if (error) throw dbFailure(`cancel the licences of subscription ${subId}`, error);
-        console.log(`[webhook] subscription ${subId} ended, ${data ? data.length : 0} licence(s) cancelled`);
-        await endSubscriptionAccounts(subId);
+        let sub;
+        try {
+          sub = await stripe.subscriptions.retrieve(subId);
+        } catch (e) {
+          if (!(e && e.code === 'resource_missing')) throw e;
+          console.warn(`[webhook] subscription ${subId} updated, and Stripe has no record of it, nothing changed`);
+          break;
+        }
+        if (SUB_ENDED.has(sub.status)) await endSubscription(subId);
+        else if (SUB_LAPSED.has(sub.status)) await lapseSubscription(subId, sub.status);
+        else console.log(`[webhook] subscription ${subId} updated, ${sub.status}, the plan left as it is`);
         break;
       }
 

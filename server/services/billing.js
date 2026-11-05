@@ -41,6 +41,12 @@ const LICENCE_REVOKED = new Set(['refunded', 'disputed']);
 // A subscription Stripe is billing, and one it has finished with.
 const SUB_BILLING = new Set(['active', 'trialing']);
 const SUB_ENDED = new Set(['canceled', 'incomplete_expired']);
+// A subscription Stripe has stopped collecting without ending it: unpaid (its
+// retries are done) or paused (a trial ended with no payment method). No
+// customer.subscription.deleted ever comes for either, so the plan ends on
+// customer.subscription.updated. past_due is NOT here: Stripe is still trying
+// the card, and that is the grace.
+const SUB_LAPSED = new Set(['unpaid', 'paused']);
 
 /** An id, whether Stripe sent the id or the expanded object. */
 function idOf(x) {
@@ -257,7 +263,7 @@ function wholeGames(v) {
 }
 
 module.exports = {
-  DAY_MS, GRACE_MS, LICENCE_ENDED, LICENCE_REVOKED, SUB_BILLING, SUB_ENDED,
+  DAY_MS, GRACE_MS, LICENCE_ENDED, LICENCE_REVOKED, SUB_BILLING, SUB_ENDED, SUB_LAPSED,
   idOf, subscriptionOf, latestLineEnd, periodStartOf, periodEndOf, withGrace, expiryFor, failingExpiryFor,
   licenceStatusOf, dbError,
   GAME_PRICE_CENTS, MAX_GAMES_PER_PURCHASE, wholeGames,

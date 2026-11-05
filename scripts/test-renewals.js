@@ -282,6 +282,71 @@ const failed = (inv, version) => st.event('invoice.payment_failed', 'invoice', s
     ok(res.code === 500 && row('lic_1').status === 'active', `and answers 500 when the database refuses (${res.code})`);
   }
 
+  // ── customer.subscription.updated: the licence side ───────────────────────
+  // Stripe can stop a subscription with no deleted event. An update to
+  // canceled or incomplete_expired ends it exactly as deleted does; unpaid,
+  // paused and past_due leave the licence to run to its expiry as before.
+  for (const version of VERSIONS) {
+    for (const status of ['canceled', 'incomplete_expired']) {
+      const r = renewal();
+      const life = { ...r.lic, id: 'lic_life', license_key: 'GC-LLLL-LLLL-LLLL-LLLL', plan: 'lifetime', expires_at: null, stripe_session_id: null };
+      const gone = { ...r.lic, id: 'lic_ref', license_key: 'GC-RRRR-RRRR-RRRR-RRRR', status: 'refunded', stripe_session_id: null };
+      const other = { ...r.lic, id: 'lic_other', license_key: 'GC-OOOO-OOOO-OOOO-OOOO', stripe_subscription_id: 'sub_2' };
+      sb.reset({ rows: [r.lic, life, gone, other], schema: 'migrated' });
+      st.s.subs.get('sub_1').status = status;
+      const { res } = await fire(st.event('customer.subscription.updated', 'subscription', st.s.subs.get('sub_1'), version));
+      ok(res.code === 200 && row('lic_1').status === 'cancelled', `${version}: an update to ${status} cancels the licence, as deleted does`);
+      ok(row('lic_ref').status === 'refunded' && row('lic_life').status === 'active' && row('lic_other').status === 'active',
+        `${version}: a refunded licence keeps its reason, a lifetime one and another subscription's licence are untouched`);
+      const again = await fire(st.event('customer.subscription.updated', 'subscription', st.s.subs.get('sub_1'), version));
+      ok(again.res.code === 200 && row('lic_1').status === 'cancelled', `${version}: and a repeated delivery changes nothing`);
+    }
+    for (const status of ['unpaid', 'paused', 'past_due']) {
+      const r = renewal();
+      const marked = { ...r.lic, status: status === 'paused' ? 'active' : 'payment_failed' };
+      sb.reset({ rows: [marked], schema: 'migrated' });
+      st.s.subs.get('sub_1').status = status;
+      const { res } = await fire(st.event('customer.subscription.updated', 'subscription', st.s.subs.get('sub_1'), version));
+      ok(res.code === 200 && row('lic_1').status === marked.status && row('lic_1').expires_at === marked.expires_at,
+        `${version}: an update to ${status} leaves the licence (${row('lic_1').status}) and its expiry as they were`);
+    }
+  }
+  {
+    // A legacy payer's key (an app that does not know the grace) keeps working to its expiry.
+    const r = renewal();
+    const live = { ...r.lic, expires_at: iso(now() + 5 * DAY) };
+    sb.reset({ rows: [live], schema: 'migrated' });
+    st.s.subs.get('sub_1').status = 'unpaid';
+    await fire(st.event('customer.subscription.updated', 'subscription', st.s.subs.get('sub_1')));
+    let v;
+    await captureLogs(async () => {
+      v = await callRouter(license, 'POST', '/validate', { headers: { 'X-Occlara-Version': '8.0.0' },
+        body: { key: live.license_key, device_id: 'pc-1' } });
+    });
+    ok(row('lic_1').status === 'active' && v.body.valid === true,
+      `an unpaid update leaves a legacy key valid until its expiry, as before (${JSON.stringify(v.body)})`);
+  }
+  {
+    // The subscription is asked how it stands NOW: a late canceled update of one Stripe bills again ends nothing.
+    const r = renewal();
+    sb.reset({ rows: [r.lic], schema: 'migrated' });
+    const evt = st.event('customer.subscription.updated', 'subscription', { ...st.s.subs.get('sub_1'), status: 'canceled' });
+    const { res } = await fire(evt);
+    ok(res.code === 200 && row('lic_1').status === 'active', 'an update whose subscription is active again by now changes nothing');
+  }
+  {
+    const r = renewal();
+    sb.reset({ rows: [r.lic], schema: 'migrated', trigger: 'broken' });
+    st.s.subs.get('sub_1').status = 'canceled';
+    const { res } = await fire(st.event('customer.subscription.updated', 'subscription', st.s.subs.get('sub_1')));
+    ok(res.code === 500 && row('lic_1').status === 'active', `an update to canceled answers 500 when the database refuses (${res.code})`);
+    st.s.fail.add('subscriptions.retrieve');
+    sb.reset({ rows: [r.lic], schema: 'migrated' });
+    const down = await fire(st.event('customer.subscription.updated', 'subscription', st.s.subs.get('sub_1')));
+    ok(down.res.code === 500 && row('lic_1').status === 'active', `and 500 when Stripe cannot be asked, so Stripe retries (${down.res.code})`);
+    st.s.fail.delete('subscriptions.retrieve');
+  }
+
   // ── checkout.session.completed: what is minted, and what is logged ────────
   const checkout = (session, version = '2023-10-16') => {
     st.s.sessions.set(session.id, session);

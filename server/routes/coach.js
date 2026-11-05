@@ -268,7 +268,7 @@ function costReport(key) {
 }
 
 /**
- * A Riot ID that slipped into a tip, e.g. "MILFSLAYER69#EUW" or "candy#1234".
+ * A Riot ID that slipped into a tip, e.g. "Player#0000" or "Player#EUW".
  *
  * The prompt now forbids naming players, but a prompt is a request and this is
  * the enforcement. Only the unambiguous form is scrubbed: a handle followed by
