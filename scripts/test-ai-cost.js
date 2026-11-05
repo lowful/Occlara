@@ -82,6 +82,11 @@ global.fetch = async (url, init = {}) => {
 const priced = (content, cost) => () => ({ content, cost });
 
 const coach = require(path.join(__dirname, '..', 'server', 'routes', 'coach.js'));
+// The same question asked again and again on one licence, to hold what each
+// books: the spam guard would answer a repeat from memory and refuse the
+// rest, so here it lets every question through (test:chatspam holds it).
+coach.__test.setChatGuard(require(path.join(__dirname, '..', 'server', 'services', 'chat-guard.js'))
+  .createChatGuard({ limits: { BURST_MAX: 1e9, GAP_MS: 0, REPEAT_MS: 0, IN_FLIGHT_MS: 0 } }));
 const admin = require(path.join(__dirname, '..', 'server', 'routes', 'admin.js'));
 const { hashOf } = require(path.join(__dirname, '..', 'server', 'services', 'presence.js'));
 

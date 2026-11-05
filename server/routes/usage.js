@@ -185,22 +185,40 @@ function createMeter(deps = {}) {
    * caps are enforced for this caller, it has no live game open, and
    * account_state says no game is left. Any doubt lets the read through.
    */
-  async function gate(caller) {
+  // Ask Coach asks the same gate (coach.js chatLocked) with count: false, so
+  // `gated` stays the reads and reviews refused.
+  async function gate(caller, { count = true } = {}) {
     if (!caller || !caller.userId || !live() || !isEnforced(caller)) return { ok: true };
     const at = now();
     const row = rowOf(caller);
+    const refuse = () => { if (count) counts.gated++; return capped(); };
     if (row && row.status !== 'refunded' && !row.refused && !ended(row, at)) return { ok: true };
-    if (row && row.refused && at - row.refusedAt < ALLOW_MS) { counts.gated++; return capped(); }
+    if (row && row.refused && at - row.refusedAt < ALLOW_MS) return refuse();
     const left = await leftOf(caller);
     if (typeof left === 'number' && left <= 0) {
       // After a restart the open game is only in the database, and it counts
       // as used in account_state: the player's own last game must not be
       // refused mid match. claim_game reuses that row (reason 'open').
       if (await openInDb(caller)) return { ok: true };
-      counts.gated++;
-      return capped();
+      return refuse();
     }
     return { ok: true };
+  }
+
+  /*
+   * GAMES BOUGHT ARE PLAYABLE AT ONCE (8.7.3): the webhook's grant forgets
+   * what the gate remembers of the buyer's account, by its user id (its games
+   * left, a refused read's row), so the next read or Ask Coach question asks account_state again
+   * instead of waiting out ALLOW_MS.
+   */
+  function forget(userId) {
+    if (!userId) return;
+    allow.delete(`u:${userId}`);
+    for (const [k, row] of rows) {
+      if (row.userId !== userId) continue;
+      allow.delete(row.accountKey);   // a legacy key's account is keyed by its key
+      if (row.refused) rows.delete(k);
+    }
   }
 
   /** Whether the caller has a reserved live row under 3 hours old on this device, remembered ALLOW_MS. */
@@ -475,7 +493,7 @@ function createMeter(deps = {}) {
     return t;
   }
 
-  return { gate, noteRead, reviewGate, reviewDone, sweep, start, ensure, rpc, leftOf, rowKey,
+  return { gate, forget, noteRead, reviewGate, reviewDone, sweep, start, ensure, rpc, leftOf, rowKey,
     rows, allow, opens, ensured, refunds, spent, trim, counts, _endShort: endShort, _flush: flush };
 }
 

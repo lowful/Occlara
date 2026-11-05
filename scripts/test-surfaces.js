@@ -5248,6 +5248,17 @@ async function openShell(cfg, state, opts) {
     const cap = capped.lines().find((l) => /cap/.test(l.kind));
     ok(cap && /^You've used today's questions\. Ask Coach is back at .+\.$/.test(cap.text) && capped.bubbles().every((b) => b.who === 'user'),
       'THE CAP IS A LINE OF ITS OWN, IN THE PLAYER\'S CLOCK, never a coach bubble', JSON.stringify(capped.lines()));
+    // Every game used (8.7.3): a calm line of its own, with the way to the Profile page.
+    const locked = await open({ replies: [{ ok: false, kind: 'chat-cap', error: 'x' }] });
+    locked.document.querySelectorAll('#starters .starter')[1].click();
+    await settle(8);
+    const lockLine = locked.lines().find((l) => /cap/.test(l.kind));
+    const toProfile = locked.document.querySelector('.chat-line.cap .chat-line-action');
+    ok(lockLine && lockLine.text.startsWith('You have used all your games. Get more games in your Profile or upgrade your plan to ask me about your matches.')
+      && !new RegExp(`[${String.fromCharCode(0x2013, 0x2014)};]`).test(lockLine.text) && locked.bubbles().every((b) => b.who === 'user') && toProfile && toProfile.textContent === 'Open Profile',
+    'EVERY GAME USED IS A LINE OF ITS OWN, never a coach bubble or an error, with an Open Profile button', JSON.stringify(locked.lines()));
+    toProfile.click();
+    ok(locked.bridge.sent.some(([ch, pg]) => ch === C.SHELL_NAV && pg === 'profile'), 'and Open Profile goes to the Profile page');
     const held = await open({ seed: { reviewId: 'valorant-1790000000003-stop01', held: true, until: 5 } });
     ok(held.lines().some((l) => /held/.test(l.kind) && l.text === "This match may still be going on. Ask Coach can talk about it once Riot's record has it, or in 90 minutes.")
       && !held.sent.length, 'THE HELD LINE, and no question is asked about it');

@@ -104,6 +104,7 @@
     "test:usageroutes": "node scripts/test-usage-routes.js",
     "test:caplock": "node scripts/test-cap-lock.js",
     "test:ratelimits": "node scripts/test-rate-limits.js",
+    "test:chatspam": "node scripts/test-chat-spam.js",
     "test:readgate": "node scripts/test-read-gate.js",
     "test:referral": "node scripts/test-referral.js",
     "test:trackerroutes": "node scripts/test-tracker-routes.js",

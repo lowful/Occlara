@@ -132,11 +132,32 @@ whose count cannot be had, is as before. `test:caplock` drives every model
 route for Free 2 of 2, Pro 25 of 25, bonus games used and a legacy key, in
 shadow and enforced, plus refunds and bought games.
 
-**Ask Coach is not under the game cap.** `/chat` and `/frame-chat` answer a
-capped account (its own daily cap, `CHAT_DAY_QUESTIONS` and `CHAT_DAY_USD`,
-bounds it), because a 402 there reads as "out of credits" in every shipped
-client. Locking it needs the reply shaped cap line (`chatGate`'s), an owner
-decision.
+**Ask Coach is locked with the games (8.7.3).** With `ENFORCE_CAPS=1`, an
+account the read gate would refuse (`usage.js gate`, asked with `count:
+false` so `gated` stays reads and reviews: `account_state` says 0 left and no
+live game of this device is open) gets no model on `/chat` (v1 and v2) or
+`/frame-chat`, nothing booked and no daily cap line (`coach.js chatLocked`,
+before the spam guard and the daily cap). Never a 402, which every shipped
+client says as "out of credits". Said per client version:
+
+| Client | Answer | What the player sees |
+| --- | --- | --- |
+| 8.7.3 and later | 429 `{ error: 'chat-cap', left: 0 }` | Ask Coach: a calm line (`chat.locked`) with an Open Profile button; frame chat: the same sentence (index.js `chatFailureText`) |
+| 8.7.2 | 200 `{ reply }`, `CHAT_LOCK_LINES.profile` | the coach's answer: "You have used all your games. Get more games in your Profile or upgrade your plan to ask me about your matches." |
+| before 8.7.2, or no version | 200 `{ reply }`, `CHAT_LOCK_LINES.site` | the same, naming occlara.app instead: those builds have no Profile page |
+
+A 429 `chat-daily` was not used for 8.5.0 to 8.7.2: those clients say it as
+"Ask Coach is back at" a time, which a game cap has not. Shadow, a legacy key
+before `LEGACY_CAP_FROM`, accounts not live and an `account_state` that
+cannot be read are answered as before: never locked on an unknown. Games
+bought lift it at once: the webhook's grant calls `forgetGamesLeft`, which
+forgets the meter's 30 s memory of the buyer (`meter.forget(userId)`: the
+games left, a refused read's row) and the resolver's entitlement. A new month
+lifts it within 30 s. The player's last game counted, its review is not open
+to Ask Coach either: that is the read gate's rule, as asked. `test:caplock`
+holds every version on chat, v2 chat and frame chat for Free 2 of 2 and Pro
+25 of 25 (no model, no cost, no cap line), shadow, an outage, games left,
+bought games and a new month.
 
 ## Signing the app in
 
@@ -262,6 +283,7 @@ network is not.
 | `/api/coach/read` | account | 150 a min (unchanged) | the read gate is the real limit; the busiest recorded minute read 57 |
 | `/api/coach/*` (all) | account | 90 a min (unchanged, read skipped) | model calls, agent look |
 | `/api/coach/chat`, `/frame-chat` | account | 25 in 5 min, one bucket (frame chat joined 8.7.3) | model calls, plus the daily cap |
+| same, inside the routes (8.7.3, `chat-guard.js`) | account | one question in flight; 2 s from the last one's start; 5 a minute; the same question about the same match or frame within 30 s is the remembered answer, no model | spam from an account with games (below) |
 | `/api/coach/match-review` | account | 60 an hour, bench skipped | the costliest call: two a match |
 | `/api/coach/death-forensics` | account | 60 an hour, bench skipped | up to twenty stills a call: two a match |
 | Riot data (`player-stats`, `rank-history`, `match-deaths`, `match-rounds`, `matches`, `last-match`, `recent-matches`) | account | 120 in 10 min, and free 40 in 10 min (unchanged) | HenrikDev's shared quota |
@@ -281,6 +303,26 @@ network is not.
 | `/api/admin/*`, `/admin` | address | 10 FAILED passwords an hour (unchanged) | password guessing |
 | credentials refused (`identifyFirst`) | address | 60 in 10 min, then 429 before the lookup | made up keys and tokens each cost a lookup |
 | `/api/payments/webhook` | none | never | Stripe |
+
+**Ask Coach's spam guard** (`server/services/chat-guard.js`, `CHAT_LIMITS`,
+the one place its numbers live, the server.js chat limiter's included):
+`BURST_MAX` 5 in `BURST_WINDOW_MS` 60 s, `GAP_MS` 2 s, one in flight
+(`IN_FLIGHT_MS` 60 s before a turn that never ended stops counting),
+`REPEAT_MS` 30 s, `MAX_KEYS` 20000. Keyed by `rate-limits.js byCaller`, chat
+and frame chat together; a bench is never guarded. Refused is 429 `{ error:
+'rate-limited', what: 'chat-one-at-a-time' | 'chat-gap' | 'chat-burst',
+retryAfter, message }` with Retry-After, which every client says as "Too
+many questions too quickly. Wait a few seconds and ask again." and 8.7.3 says
+`chat-one-at-a-time` as "One question at a time. Ask again once this answer
+is in." Only accepted questions count, so a client that keeps knocking is
+free once the window turns. The gap runs from the last question's start, so
+a player asking as soon as an answer lands is never refused. A repeat is
+answered from memory rather than refused, since a remembered answer cannot
+break a retry: only an answer is kept (never a failure, the honest line, the
+v1 fallback line or a cap line), so a retry after an error reaches the model.
+The question was already clipped before any prompt: frame chat at 500
+characters, each chat message at 1,200, the last eight (v2) or twelve (v1).
+`test:chatspam` holds each of these.
 
 `test:ratelimits` trips each at its number, resets it, keeps two accounts
 apart, sweeps old keys, and replays the five recorded sessions back to back

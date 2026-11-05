@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('occlara', {
   },
   // The page's language (shared/i18n-apply.js initI18n reads it).
   getConfig: () => ipcRenderer.invoke(C.CONFIG_GET),
+  // To another page of the window: the Profile page, when every game is used (8.7.3).
+  go: (page) => ipcRenderer.send(C.SHELL_NAV, page),
 
   // One question: the thread since the last divider, and the match on the chip.
   sendChat: (messages, opts) => ipcRenderer.invoke(C.CHAT_SEND, messages, opts || {}),

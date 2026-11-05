@@ -10,7 +10,8 @@
  * question that names another match moves the chip by itself (main decides,
  * services/ask-coach.js). A match a Stop may have left being played is never
  * listed, and asking about it says why. The day's questions used is a line of
- * its own, never a coach bubble. A reply keeps its paragraphs (pre-line).
+ * its own, never a coach bubble, and so is every game used (8.7.3), with a
+ * button to the Profile page. A reply keeps its paragraphs (pre-line).
  *
  * Every string is the page's i18n keys (shared/i18n.js chat.*), and every
  * sentence of a reply is set as text, never markup.
@@ -41,6 +42,8 @@ const EN = {
   'chat.held': "This match may still be going on. Ask Coach can talk about it once Riot's record has it, or in 90 minutes.",
   'chat.cap': "You've used today's questions. Ask Coach is back at {time}.",
   'chat.capTomorrow': "You've used today's questions. Ask Coach is back tomorrow.",
+  'chat.locked': 'You have used all your games. Get more games in your Profile or upgrade your plan to ask me about your matches.',
+  'chat.openProfile': 'Open Profile',
   'chat.which': '{count} of your last ten matches are on {map}. Which one do you mean? Pick it from the match list above.',
   'chat.noneOnMap': 'None of your last ten matches is on {map}. Pick a match from the list above, or ask about this one.',
   'chat.failed': 'Could not reach your coach right now. Try again in a moment.',
@@ -103,6 +106,25 @@ function addLine(kind, text, opts = {}) {
   el.textContent = text;
   place(el, opts.before);
   scrollDown();
+  return el;
+}
+
+/*
+ * EVERY GAME USED (8.7.3): the server answers no question for an account with
+ * no games left. Said calmly as a line, never a bubble or an error, with the
+ * way to the Profile page, where games are bought. Never mid match: main
+ * refuses the question before it is sent, and the Profile page is sealed then.
+ */
+function addLocked(opts = {}) {
+  const el = addLine('cap', t('chat.locked'), opts);
+  if (window.occlara && typeof window.occlara.go === 'function') {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-ghost sm chat-line-action';
+    b.textContent = t('chat.openProfile');
+    b.addEventListener('click', () => window.occlara.go('profile'));
+    el.append(b);
+  }
   return el;
 }
 
@@ -248,6 +270,7 @@ async function send(text) {
       own.pop();
       const kind = res && res.kind;
       if (kind === 'chat-daily') addLine('cap', res.resetsAt ? say('chat.cap', { time: clock(res.resetsAt) }) : t('chat.capTomorrow'), at);
+      else if (kind === 'chat-cap') addLocked(at);
       else if (kind === 'held') addLine('held', t('chat.held'), at);
       else if (kind === 'mid-match') addLine('note', t('chat.midMatch'), at);
       else addMsg('assistant', (res && res.error) || t('chat.failed'), { error: true, ...at });

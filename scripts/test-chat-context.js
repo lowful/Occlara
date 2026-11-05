@@ -470,6 +470,10 @@ function harness(opts) {
     const capped = harness({ reviews: [fracture], post: () => ({ ok: false, status: 429, data: { error: 'chat-daily', resetsAt: '2026-10-16T04:40:00.000Z' } }) });
     const cap = await capped.coach.chat([{ role: 'user', content: 'How was my aim?' }]);
     ok(cap.ok === false && cap.kind === 'chat-daily' && cap.resetsAt === Date.parse('2026-10-16T04:40:00.000Z'), 'THE CAP COMES BACK AS ITS OWN KIND, with when it lifts');
+    // Every game used (8.7.3, the server's chatLocked): its own kind, never an error or credits.
+    const locked = harness({ reviews: [fracture], post: () => ({ ok: false, status: 429, data: { error: 'chat-cap', left: 0 } }) });
+    const lk = await locked.coach.chat([{ role: 'user', content: 'How was my aim?' }]);
+    ok(lk.ok === false && lk.kind === 'chat-cap', 'EVERY GAME USED COMES BACK AS ITS OWN KIND (chat-cap)');
     const down = harness({ reviews: [fracture], post: () => ({ ok: false, status: 503, data: { error: 'busy' } }) });
     const dn = await down.coach.chat([{ role: 'user', content: 'How was my aim?' }]);
     ok(dn.ok === false && dn.kind === 'error' && dn.error === 'failed 503', 'and a failure in index.js\'s words (chatFailureText)');
@@ -518,6 +522,9 @@ function harness(opts) {
       'frame chat asks the hold before anything is sent, and sends no tip');
     const fail = between('\nfunction chatFailureText(status, data) {', '\n}');
     ok(/data\.error === 'chat-daily'/.test(fail) && /Ask Coach is back at/.test(fail), 'chatFailureText learns chat-daily');
+    ok(/data\.error === 'chat-cap'/.test(fail) && /You have used all your games\./.test(fail)
+      && fail.indexOf("'chat-cap'") < fail.indexOf('status === 402') && /chat-one-at-a-time/.test(fail),
+    'and chat-cap, said before any credits line, and the one at a time refusal (8.7.3)');
     ok(/openChatSeeded\(seed\) \{[\s\S]*?askCoach\(\)\.seed\(seed\)/.test(src) && !/Review my coached session/.test(src), 'the seed is the service\'s, and no tip era seed is left');
   }
 

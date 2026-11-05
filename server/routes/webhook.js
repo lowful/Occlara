@@ -883,9 +883,29 @@ async function grantGames(session) {
     return;
   }
   console.log(`[webhook] ${label}: ${games} game(s) added to the account, ${r.bonus_pool} bonus game(s) now`);
+  forgetGamesLeft(user);
   if (r.account_status === 'ended') {
     console.error(`[webhook] ${label}: the buyer's account was ended by a refund or a dispute, so the games are held but `
       + 'cannot be played until a human reopens it. Needs a human.');
+  }
+}
+
+/*
+ * PLAYABLE AT ONCE (8.7.3): the read gate and Ask Coach's lock remember an
+ * account's games left for 30 s (usage.js ALLOW_MS), so a capped buyer was
+ * refused for up to that long after paying. The grant forgets it here, in
+ * this process, only when the meter is loaded (never loading it for a
+ * webhook), and a failure leaves the 30 s to run out by itself.
+ */
+function forgetGamesLeft(user) {
+  try {
+    const loaded = require.cache[require.resolve('./usage')];
+    const meter = loaded && loaded.exports && loaded.exports.meter;
+    if (meter && typeof meter.forget === 'function') meter.forget(user);
+    const callers = require.cache[require.resolve('../services/caller')];
+    if (callers && callers.exports && callers.exports.shared) callers.exports.shared.forgetEntitlement(user);
+  } catch (e) {
+    console.warn('[webhook] the games left were not forgotten, they refresh within 30 s:', e.message);
   }
 }
 
@@ -1155,4 +1175,4 @@ async function webhookHandler(req, res) {
 
 module.exports = webhookHandler;
 // For the offline tests.
-module.exports.__test = { getExpiresAt, generateLicenseKey, planFromMode, PLAN_DAYS, occlaraPlanName };
+module.exports.__test = { getExpiresAt, generateLicenseKey, planFromMode, PLAN_DAYS, occlaraPlanName, forgetGamesLeft };

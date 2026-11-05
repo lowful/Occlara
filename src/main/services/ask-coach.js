@@ -314,7 +314,7 @@ class AskCoach {
    *
    * @returns { ok: true, reply, honest, match, moved, from }
    *        | { ok: true, which: { map, count }, match } | { ok: true, none: { map }, match }
-   *        | { ok: false, kind: 'mid-match' | 'held' | 'chat-daily' | 'error', error, resetsAt?, until? }
+   *        | { ok: false, kind: 'mid-match' | 'held' | 'chat-daily' | 'chat-cap' | 'error', error, resetsAt?, until? }
    */
   async chat(messages, opts) {
     const d = this.d;
@@ -381,6 +381,11 @@ class AskCoach {
     const match = label(pick.id);
     if (res && res.ok && typeof data.reply === 'string' && data.reply) {
       return { ok: true, reply: data.reply, honest: !!data.honest, match, moved: !!pick.moved, from: from ? chatContext.labelOf(from) : null };
+    }
+    // NO GAMES LEFT (8.7.3, the server's chatLocked): the page says it as a
+    // line of its own with the way to the Profile page, never as an error.
+    if (res && res.status === 429 && data.error === 'chat-cap') {
+      return { ok: false, kind: 'chat-cap', error: d.failureText(429, data) };
     }
     if (res && res.status === 429 && data.error === 'chat-daily') {
       const at = Date.parse(data.resetsAt);

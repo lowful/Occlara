@@ -3289,6 +3289,14 @@ function chatFailureText(status, data) {
       ? `You've used today's questions. Ask Coach is back at ${new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`
       : "You've used today's questions. Ask Coach is back tomorrow.";
   }
+  // NO GAMES LEFT (8.7.3): every game is used, said plainly, never as credits.
+  if (status === 429 && data && data.error === 'chat-cap') {
+    return 'You have used all your games. Get more games in your Profile or upgrade your plan to ask me about your matches.';
+  }
+  // ONE QUESTION AT A TIME (8.7.3): the spam guard's own sentence for it.
+  if (status === 429 && data && data.error === 'rate-limited' && data.what === 'chat-one-at-a-time') {
+    return 'One question at a time. Ask again once this answer is in.';
+  }
   const said = String((data && (data.error || data.message)) || '').toLowerCase();
   if (status === 402 || said.includes('credit')) {
     return 'The coach is out of credits on the server. This is not your connection, and it comes back when the balance does.';
