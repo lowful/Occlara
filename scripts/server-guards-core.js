@@ -473,18 +473,36 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
         ok(asks.slice(0, 3).every((a) => a.status === 200 && a.calls === 1) && fourth.status === 429 && fourth.body.error === 'chat-daily'
           && fourth.calls === 0 && fourth.body.resetsAt === new Date(Date.parse('2030-03-01T12:00:00.000Z') + 24 * 3600 * 1000).toISOString(),
         `three questions at $0.06 book $0.18, and the next is 429 chat-daily before any model is called, back when the first leaves the day (${fourth.status} ${JSON.stringify(fourth.body)})`);
+        // S4: the version is the client's word and v1 had no cap, so any
+        // licence could leave the day's cap by sending no v: 2 or an old
+        // version. Every question is inside it now: a client before 8.5.0 is
+        // told so as the reply it knows, a 200 with one key, the model never
+        // asked, and a v1 shape from a client of 8.5.0 or later is 429.
+        prov.sent.length = 0;
         const oldClient = await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': KEY, 'X-Occlara-Version': OLD }, body: SEEDED });
-        ok(oldClient.status === 200 && JSON.stringify(Object.keys(oldClient.body)) === '["reply"]', 'a client before 8.5.0 on the same licence is never capped');
+        ok(oldClient.status === 200 && JSON.stringify(Object.keys(oldClient.body)) === '["reply"]' && prov.sent.length === 0
+          && /today's Ask Coach questions/.test(oldClient.body.reply) && !/;/.test(oldClient.body.reply),
+        `a client before 8.5.0 on the same licence is inside the cap too, told so in the shape it knows and no model asked (${JSON.stringify(oldClient.body)})`);
+        const v1New = await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': KEY, 'X-Occlara-Version': NEW }, body: SEEDED });
+        ok(v1New.status === 429 && v1New.body.error === 'chat-daily' && prov.sent.length === 0,
+          `and a v1 question (no v: 2) from 8.5.0 or later is 429 chat-daily (${v1New.status})`);
         const ledger = (T.chatLedger.get(KEY) || []).length;
         const bench = await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': KEY, 'X-Admin-Password': PW }, body: v2body({ variant: 'v2' }) });
         ok(bench.status === 200 && bench.body.v === 2 && (T.chatLedger.get(KEY) || []).length === ledger,
           'an admin bench on the same licence is answered and never counted in it');
         const frameBody = { question: 'Why did I die here?', images: ['x'.repeat(200)], state: { map: 'Fracture' } };
         const frameNew = await call(coach, 'POST', '/frame-chat', { headers: { 'X-License-Key': KEY, 'X-Occlara-Version': NEW }, body: frameBody });
+        prov.sent.length = 0;
         const frameOld = await call(coach, 'POST', '/frame-chat', { headers: { 'X-License-Key': KEY, 'X-Occlara-Version': OLD }, body: frameBody });
-        ok(frameNew.status === 429 && frameNew.body.error === 'chat-daily' && frameOld.status === 200 && frameOld.body.reply,
-          `from 8.5.0 frame chat is inside the cap, and before it never (${frameNew.status}, ${frameOld.status})`);
-        now = Date.parse('2030-03-02T12:00:30.000Z');
+        const frameNone = await call(coach, 'POST', '/frame-chat', { headers: { 'X-License-Key': KEY }, body: frameBody });
+        // S5: the version decides the reply's shape, never whether the cap applies.
+        ok(frameNew.status === 429 && frameNew.body.error === 'chat-daily' && frameOld.status === 200 && /today's Ask Coach questions/.test(frameOld.body.reply)
+          && frameNone.status === 200 && frameNone.body.reply === frameOld.body.reply && prov.sent.length === 0,
+          `frame chat is inside the cap for every client, one before 8.5.0 or with no version told so as a reply and no model asked (${frameNew.status}, ${frameOld.status}, ${prov.sent.length} calls)`);
+        const frameFresh = await call(coach, 'POST', '/frame-chat', { headers: { 'X-License-Key': licence(11), 'X-Occlara-Version': OLD }, body: frameBody });
+        ok(frameFresh.status === 200 && frameFresh.body.reply && !/today's Ask Coach/.test(frameFresh.body.reply) && prov.sent.length === 1,
+          'and below the cap a client before 8.5.0 is answered by the model as it always was');
+        now =Date.parse('2030-03-02T12:00:30.000Z');
         prov.sent.length = 0;
         const nextDay = await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': KEY, 'X-Occlara-Version': NEW }, body: v2body() });
         ok(nextDay.status === 200 && nextDay.body.v === 2 && prov.sent.length === 1, 'and 24 hours after the first question, the next is answered');

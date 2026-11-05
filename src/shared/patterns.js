@@ -115,6 +115,23 @@ function tally(reviews, list) {
 }
 
 /**
+ * THE AVERAGE LEAVES A PROVISIONAL GRADE OUT once MIN_MATCHES final ones are
+ * in the window, as breakdown.js gradeOf does: one verified 80 and two
+ * provisional 40s averaged 53 on Home. Below that it is every grade's, and
+ * averageProvisional says so. averageOver is how many grades it is over.
+ */
+function averageOf(grades) {
+  const finals = grades.filter((g) => !g.provisional);
+  const over = finals.length >= MIN_MATCHES ? finals : grades;
+  if (!over.length) return { average: null, averageOver: 0, averageProvisional: false };
+  return {
+    average: Math.round(over.reduce((a, g) => a + g.score, 0) / over.length),
+    averageOver: over.length,
+    averageProvisional: over.some((g) => g.provisional),
+  };
+}
+
+/**
  * @param saved  whole saved reviews ({ id, at, game, review }), newest first:
  *               up to LOOK_BACK of them, for the lists' last WINDOW recorded
  * @returns matches    the last WINDOW matches, which the grades and categories are over
@@ -137,7 +154,7 @@ function summarise(saved) {
     enough: recorded.length >= MIN_MATCHES,
     mistakes: [], strengths: [], missed: [],
     grades,
-    average: grades.length ? Math.round(grades.reduce((a, g) => a + g.score, 0) / grades.length) : null,
+    ...averageOf(grades),
     categories: [],
   };
 

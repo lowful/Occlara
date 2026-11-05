@@ -439,6 +439,22 @@ const PW = 'correct horse battery staple';
     const bench = await look({ variant: 'b' }, { 'X-Admin-Password': PW });
     ok(bench.r.status === 200 && bench.prompt === detectPrompt('b') && bench.prompt !== detectPrompt(null)
       && bench.body.variant === 'b' && bench.body.agent === 'Jett', 'an admin bench naming b is answered with b, and told so');
+    // S2: the variant echo was an oracle for the admin password outside
+    // adminLimiter. Ten wrong guesses an hour per IP, then even the right
+    // password is not honoured from that address, so the guess learns nothing.
+    {
+      const { adminGuesses, ADMIN_GUESS_MAX } = coach.__test;
+      adminGuesses.clear();
+      const guesses = [];
+      for (let i = 0; i < ADMIN_GUESS_MAX; i++) guesses.push((await look({ variant: 'b' }, { 'X-Admin-Password': `guess-${i}` })).body.variant);
+      const right = await look({ variant: 'b' }, { 'X-Admin-Password': PW });
+      ok(ADMIN_GUESS_MAX === 10 && guesses.every((v) => v === null) && right.r.status === 200 && right.body.variant === null
+        && right.prompt === detectPrompt(null),
+      `after ten wrong admin passwords on a coach route the right one is not honoured from that IP for the hour (${right.body.variant})`);
+      adminGuesses.clear();
+      const again = await look({ variant: 'b' }, { 'X-Admin-Password': PW });
+      ok(again.body.variant === 'b' && !adminGuesses.size, 'and the right password is never counted as a guess');
+    }
     model.reply = null;
   }
 
@@ -465,7 +481,11 @@ const PW = 'correct horse battery staple';
     const cap = coach.__test.TELL_MAX.live;
     ok(NONE.every((t) => t.length <= cap) && STILL.every((t) => t.length <= cap),
       `every tell here fits the live prompt's ${cap} characters, so the rule weighs it whole`);
-    ok(none.every((x) => x.status === 200 && x.ctx.playerAlive === true && x.ctx.playerHp === 100 && x.ctx.aliveTell === x.t),
+    // The tell comes back with its semicolons turned into sentence ends, as
+    // every line a player may read does (sanitize, services/plain-text.js):
+    // the guard weighs the words, which that leaves alone.
+    const { noSemicolons } = require(path.join(SERVER, 'services', 'plain-text.js'));
+    ok(none.every((x) => x.status === 200 && x.ctx.playerAlive === true && x.ctx.playerHp === 100 && x.ctx.aliveTell === noSemicolons(x.t)),
       `a death word its own clause negates ("SWITCH PLAYER not shown", "no SWITCH PLAYER or KILLED BY printed") leaves the living player's 100 as the model read it (${none.map((x) => `${x.ctx.playerAlive}/${x.ctx.playerHp}`).join(', ')})`);
     ok(still.every((x) => x.status === 200 && x.ctx.playerAlive === false && x.ctx.playerHp === undefined),
       `where the "no" is the health's, SWITCH PLAYER and KILLED BY still name the screen, and the 100 beside them, a teammate's, is dropped (${still.map((x) => `${x.ctx.playerAlive}/${x.ctx.playerHp}`).join(', ')})`);
@@ -498,6 +518,68 @@ const PW = 'correct horse battery staple';
     ok(chatFn.length > 1000 && /api\.post\('\/api\/coach\/chat'/.test(chatFn) && oldShape.length > 500
       && ![chatFn, oldShape, srcOf('src', 'shared', 'chat-context.js')].some((s) => /coachTrend\s*:/.test(s)),
       `and the app sends none: chat()'s context, the old shape and v2's, has no coachTrend (${chatFn.length} and ${oldShape.length} characters read)`);
+    // S4: the old shape interpolated its matches, graded matches and tracker
+    // fields whole, so one question carried 1.5M characters to the model.
+    // Every field is clipped now, which no real client's short fields reach.
+    const huge = 'y'.repeat(300000);
+    const many = Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`cat${i}${huge.slice(0, 1000)}`, i]));
+    model.sent.length = 0;
+    const fat = await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': 'GC-CHAT-FAT1-AAAA-BBBB' },
+      body: { messages: [{ role: 'user', content: 'What should I work on?' }], context: { game: 'valorant', agent: huge,
+        stats: { rank: huge, peakRank: huge, kd: huge, winRate: huge, headshotPct: huge, bodyshotPct: huge, topAgent: huge, matches: huge, kpr: huge, dpr: huge, apr: huge, adr: huge, acs: huge },
+        recentMatches: Array.from({ length: 5 }, () => ({ when: huge, map: huge, agent: huge, queue: huge, result: huge, score: huge,
+          kills: huge, deaths: huge, assists: huge, acs: huge, adr: huge, headshotPct: huge, rating: huge })),
+        recentSessions: Array.from({ length: 3 }, () => ({ date: huge, map: huge, overall: huge, strengths: huge, weaknesses: huge, scores: many })) } } });
+    const fatPrompt = promptOf(model.sent[0]);
+    ok(fat.status === 200 && fatPrompt.length > 500 && fatPrompt.length < 40000,
+      `an old shape question's context fields are clipped before the model (${fatPrompt.length} characters sent)`);
+    // And a real one's prompt is what it was, byte for byte: short fields pass whole.
+    model.sent.length = 0;
+    const realCtx = { game: 'valorant', agent: 'Jett', stats: { rank: 'Gold 2', peakRank: 'Plat 1', kd: 1.1, winRate: 52, headshotPct: 21, topAgent: 'Jett', matches: 20, kpr: 0.8, dpr: 0.7, apr: 0.2, adr: 140, acs: 210 },
+      recentMatches: [{ when: '2h ago', map: 'Bind', agent: 'Jett', queue: 'competitive', result: 'Win', score: '13-9', kills: 20, deaths: 14, assists: 3, acs: 250, adr: 160, headshotPct: 24, rating: 71 }],
+      recentSessions: [{ date: 'Nov 3', map: 'Bind', overall: 68, strengths: 'trades', weaknesses: 'first deaths', scores: { aim: 70, positioning: 55 } }] };
+    await call(coach, 'POST', '/chat', { headers: { 'X-License-Key': 'GC-CHAT-FAT2-AAAA-BBBB' },
+      body: { messages: [{ role: 'user', content: 'What should I work on?' }], context: realCtx } });
+    const realPrompt = promptOf(model.sent[0]);
+    ok(['rank Gold 2, peak Plat 1, K/D 1.1, win rate 52%, headshot 21%, top agent Jett.', 'Per round: 0.8 kills, 0.7 deaths, 0.2 assists, 140 ADR, 210 ACS.',
+      '- 2h ago, Bind (Jett, competitive): Win 13-9, 20/14/3, ACS 250, ADR 160, HS 24%, rating 71',
+      '- Nov 3 on Bind: overall 68, aim 70, positioning 55. Went well: trades. Repeated mistakes: first deaths', "Player's agent this session: Jett."]
+      .every((line) => realPrompt.includes(line)), 'and a real client\'s short fields reach the prompt whole, as they always did');
+  }
+
+  // ── No Riot ID in Railway's logs (S10) ────────────────────────────────────
+  {
+    // A stats lookup every provider failed logged the Riot ID whole.
+    const had = process.env.HENRIKDEV_API_KEY;
+    process.env.HENRIKDEV_API_KEY = 'test-henrik-key';
+    const lines = [];
+    const realWarn = console.warn;
+    console.warn = (...a) => { lines.push(a.join(' ')); };
+    let r;
+    try {
+      r = await call(coach, 'GET', `/player-stats?username=${encodeURIComponent('Secretplayer#EUW1')}`, { headers: { 'X-License-Key': 'GC-READ-TEST-AAAA-BBBB' } });
+    } finally {
+      console.warn = realWarn;
+      if (had === undefined) delete process.env.HENRIKDEV_API_KEY; else process.env.HENRIKDEV_API_KEY = had;
+    }
+    const failedLine = lines.find((l) => l.includes('[stats] all providers failed'));
+    ok(r.status === 200 && r.body.error && failedLine && !/secretplayer/i.test(lines.join('\n')) && /[0-9a-f]{8}/.test(failedLine),
+      `a stats lookup that failed logs a short hash of the Riot ID, never the ID (${failedLine})`);
+  }
+
+  // ── A death look body normalise cannot read is 400 (S6) ──────────────────
+  {
+    // {"toString": null} is valid JSON, and String() of it throws. Outside a
+    // try in an async handler, Express 4 never answered and the process
+    // logged an unhandled rejection.
+    const { normalise } = require(path.join(SERVER, 'services', 'death-forensics.js'));
+    const bad = { agent: 'Jett', map: 'Ascent', deaths: [{ n: 3, side: 'attack', killer: { toString: null }, spot: { toString: null }, frames: ['x'.repeat(5000)] }] };
+    let threw = false;
+    try { normalise(bad, { variant: 'a' }); } catch { threw = true; }
+    let r = null;
+    try { r = await call(coach, 'POST', '/death-forensics', { headers: { 'X-License-Key': 'GC-READ-TEST-AAAA-BBBB' }, body: bad }); } catch (e) { r = { status: 0, body: String(e.message) }; }
+    ok(threw && r.status === 400 && r.body && r.body.error === 'bad-request',
+      `a death whose killer is {"toString": null} is answered 400, never left hanging (normalise threw: ${threw}, ${r.status})`);
   }
 
   // ── Client errors are 4xx and stay out of Recent errors ──────────────────

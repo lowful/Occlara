@@ -75,7 +75,13 @@ skill measured without its numbers gives no reason at all.
 **The trade denominator is Riot's, under `riot`.** A round card carries its
 trade as `riot.traded` (`valorant-review.js` cards), never on itself. Read off
 the card, every death counted as unknown and the Abyss match said "20 of your
-deaths went untraded." where Riot knows the trade of all 21.
+deaths went untraded." where Riot knows the trade of all 21. **Since 8.7.2
+the entry's own `of` comes first**: the untraded count leaves out a death as
+the last one alive, so its denominator is the deaths a teammate was alive to
+trade, and the cards are read only for an entry saved without one. A
+`first-death` or `lost-advantage` entry with `untradedOnly` says so ("First to
+die and not traded in 4 of 24 rounds.", "Died untraded with the team up in
+numbers in 3 lost rounds."), see grade-breakdown.md.
 
 The values the site shows, from the public fixture and the player's saved
 reviews (spec 7.2, `test:verdict`):

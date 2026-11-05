@@ -269,6 +269,13 @@ function attackersOf(n, halfLength) {
 const TRADE_MS = 5000;
 
 /**
+ * The least time from a player's death to a gun kill of theirs that is read
+ * as a revive. Sage's resurrection and Clove's ultimate take seconds; a
+ * mutual kill lands within a tick or two of the shooter's own death.
+ */
+const REVIVE_MS = 2000;
+
+/**
  * What the kill feed says about teamwork in one round, from the player's side.
  *
  *   traded       the player died and a teammate killed the killer within TRADE_MS
@@ -291,17 +298,46 @@ function teamworkOf(feed, deathMs) {
       && p.ms !== null && p.ms <= k.ms && k.ms - p.ms <= TRADE_MS);
     if (avenged) out.trades++;
   }
-  // Numbers standing, walked through the feed in order.
-  let mates = 5; let enemies = 5; let clutchAt = null;
+  // Numbers standing, walked through the feed in order, by who is down on
+  // each side. A REVIVE PUTS A PLAYER BACK (read-1): Sage's resurrection and
+  // Clove's ultimate bring one back, and the feed then shows that player
+  // killing or dying a second time. Counted by category alone, a revived
+  // teammate's two kills left the player "last one standing against 4" and
+  // the grade 4 Decisions points richer. So a kill BY a player who is down,
+  // or ON a player already down, takes them off the down list first. A kill
+  // with no id for an end counts that end as one more down, as before.
+  // A KILL BY A DOWN PLAYER IS NOT ALWAYS A REVIVE: a molly or a grenade
+  // thrown before dying kills after it, and a mutual kill can land a few ms
+  // after the shooter's own death in the feed. Read as a revive, either one
+  // withdrew a real clutch. So only a gun kill (a weapon by name) at least
+  // REVIVE_MS after that player's death, both times known, is a revive.
+  const down = { mate: new Map(), enemy: new Map() };
+  const sideOf = (who) => (who === 'me' || who === 'mate' ? 'mate' : who === 'enemy' ? 'enemy' : null);
+  const keyOf = (who, id) => (who === 'me' ? 'me' : id || Symbol('unknown'));
+  const revivedBy = (side, key, k) => {
+    if (!down[side].has(key)) return false;
+    const diedAt = down[side].get(key);
+    return !!k.w && diedAt !== null && k.ms !== null && k.ms - diedAt >= REVIVE_MS;
+  };
+  let clutchAt = null;
   for (const k of feed) {
+    let revivedMate = false;
+    const bySide = sideOf(k.by); const onSide = sideOf(k.on);
+    const byKey = keyOf(k.by, k.killer); const onKey = keyOf(k.on, k.victim);
+    if (bySide && revivedBy(bySide, byKey, k) && down[bySide].delete(byKey) && k.by === 'mate') revivedMate = true;
+    if (onSide && down[onSide].delete(onKey) && onSide === 'mate' && k.on === 'mate') revivedMate = true;
+    // A clutch is withdrawn once a revived teammate turns up after it: the
+    // player was never alone.
+    if (revivedMate && clutchAt) clutchAt = null;
+    const mates = 5 - down.mate.size; const enemies = 5 - down.enemy.size;
     if (deathMs !== null && k.on === 'me' && k.ms === deathMs) {
       out.aliveAtDeath = { mates, enemies };
     }
-    if (k.on === 'me' || k.on === 'mate') mates--;
-    else if (k.on === 'enemy') enemies--;
+    if (onSide) down[onSide].set(onKey, typeof k.ms === 'number' ? k.ms : null);
+    const matesAfter = 5 - down.mate.size; const enemiesAfter = 5 - down.enemy.size;
     // The player is the last one up on their side, with somebody left to beat.
-    if (clutchAt === null && mates === 1 && enemies > 0 && !feed.some((p) => p.on === 'me' && p.ms <= k.ms)) {
-      clutchAt = { vs: enemies, won: null };
+    if (clutchAt === null && matesAfter === 1 && enemiesAfter > 0 && !feed.some((p) => p.on === 'me' && p.ms <= k.ms)) {
+      clutchAt = { vs: enemiesAfter, won: null };
     }
   }
   out.clutch = clutchAt;
@@ -386,7 +422,25 @@ function parse(d, name, tag) {
   const rounds = Array.isArray(d.rounds) ? d.rounds : [];
   const queue = lower(d.metadata && (d.metadata.queue && (d.metadata.queue.id || d.metadata.queue.name)
     || d.metadata.mode));
-  const halfLength = /swift/.test(queue) ? 4 : /spike ?rush/.test(queue) ? 3 : (rounds.length ? 12 : null);
+  // RIOT'S SIDE ONLY WHERE THE QUEUE'S HALVES ARE KNOWN (stale F2). Riot's
+  // side beats the screen's (valorant-verify.js), so a queue given halves it
+  // does not play labels the player's rounds wrong: Replication is first to 5
+  // (halves of four), a New Map queue plays whichever format its patch says
+  // (Summit Only, 13.00: "the Swiftplay mode format"), so it is read off the
+  // score, and Retake swaps every round. Any queue not named here gives no
+  // side, and the screen's ATTACKING or DEFENDING stands.
+  const teamWins = (Array.isArray(d.teams) ? d.teams : Object.values((d && d.teams) || {}))
+    .map((t) => (t && t.rounds && (t.rounds.won != null ? t.rounds.won : t.rounds.win)) ?? (t && t.rounds_won))
+    .map((v) => (typeof v === 'number' ? v : null));
+  // Someone reached five within nine rounds: first to five, a swiftplay format.
+  const firstToFive = rounds.length > 0 && rounds.length <= 9 && teamWins.length === 2 && teamWins.every((v) => v !== null)
+    && Math.max(...teamWins) === 5;
+  const standardHalf = rounds.length ? 12 : null;
+  const halfLength = /swift/.test(queue) ? 4 : /spike ?rush/.test(queue) ? 3
+    : /^(onefa|replication)$/.test(queue) ? 4
+    : /^new ?map$/.test(queue) ? (firstToFive ? 4 : standardHalf)
+    : (!queue || /competitive|unrated|premier|custom|standard/.test(queue)) ? standardHalf
+    : null;
 
   const kills = killsOf(d).map((k) => ({
     // Riot counts rounds from 0. The existing match-deaths route and the 24

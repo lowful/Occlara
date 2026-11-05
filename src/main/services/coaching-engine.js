@@ -128,6 +128,8 @@ class CoachingEngine extends EventEmitter {
     this.pendingMode      = null; // vision-reported mode awaiting a 2nd agreeing read
     this.standardEvidence = 0;    // consecutive frames whose score/round prove standard
     this.swapEvidence     = 0;    // consecutive flipped buy phase side reads in rounds 5-8
+    this.swapAtFour       = 0;    // the same in round 4's own buy phase (Spike Rush swaps after 3)
+    this.spikeRushOver    = 0;    // reads past Spike Rush's first to 4 while it is locked
     this.economyEvidence  = 0;    // round 5 buy reads with more than pistol credits (standard)
     this.pistolEvidence   = 0;    // round 5 buy reads with a pistol round's timer (swiftplay)
     this.buyAtFiveEvidence = 0;   // buy phases with a team on 5 wins (standard)
@@ -209,6 +211,8 @@ class CoachingEngine extends EventEmitter {
     this.pendingMode = null;
     this.standardEvidence = 0;
     this.swapEvidence = 0;
+    this.swapAtFour = 0;
+    this.spikeRushOver = 0;
     this.economyEvidence = 0;
     this.pistolEvidence = 0;
     this.buyAtFiveEvidence = 0;
@@ -1676,6 +1680,8 @@ class CoachingEngine extends EventEmitter {
       this.pendingMode = null;
       this.standardEvidence = 0;
       this.swapEvidence = 0;
+      this.swapAtFour = 0;
+      this.spikeRushOver = 0;
       this.economyEvidence = 0;
       this.pistolEvidence = 0;
       this.buyAtFiveEvidence = 0;
@@ -1703,6 +1709,9 @@ class CoachingEngine extends EventEmitter {
       this.rollbackReads = 0;
       this.finalCandidate = null;
       this.lastRoundClock = null;
+      this.lastLiveClock = null;
+      this.roundEndCountdown = null;
+      this.scoreboardMidRound = null;
       newMatch = true;
     }
 
@@ -1850,7 +1859,29 @@ class CoachingEngine extends EventEmitter {
         // At a read a second that costs one frame, and it is the difference
         // between a misread digit and a round the match never played.
         const sig = `${updates.roundNumber}|${updates.teamScore}|${updates.enemyScore}`;
-        if (this.scoreboardChallenge === sig) {
+        // A SCORE NEVER CHANGES IN THE MIDDLE OF A ROUND (read-2). On the
+        // Abyss unrated session a "buy 0:08" at 3-4 was followed by "active
+        // 1:39" and "active 1:30" both reading 3-5: two agreeing reads, so
+        // the step was taken in the first seconds of the round that buy phase
+        // opened, and round 8 lost its death and its win (Riot: won, died 17 s
+        // in), and round 10 took round 8's result. A step first read on an
+        // active frame whose clock carries on from the buy phase the ledger
+        // last saw (buyEndsAt) is held until a buy phase at the new score, a
+        // clock at ten seconds or under, or the round's whole length since
+        // that buy phase confirms it.
+        const buyEnd = this.ledger && Number.isFinite(this.ledger.buyEndsAt) ? this.ledger.buyEndsAt : null;
+        const left = clockSeconds(updates.clock);
+        const mid = this.scoreboardMidRound && this.scoreboardMidRound.sig === sig ? this.scoreboardMidRound : null;
+        const confirmsMid = isBuyPhase(updates.phase, updates.clock) || (left !== null && left <= MID_HOLD_LOW_LEFT)
+          || (mid && now - mid.buyEnd >= MID_HOLD_MS);
+        if (this.scoreboardChallenge === sig && mid && !confirmsMid) {
+          console.log(`[engine] score step to ${updates.teamScore}-${updates.enemyScore} held: read in the round `
+            + `the buy phase at ${prevTeam}-${prevEnemy} opened (${updates.clock || 'no clock'})`);
+          delete updates.roundNumber;
+          delete updates.teamScore;
+          delete updates.enemyScore;
+        } else if (this.scoreboardChallenge === sig) {
+          this.scoreboardMidRound = null;
           // Twice in a row: believe it. Covers a genuinely missed stretch of
           // frames (alt-tab, a long death) rather than a one-off misread.
           if (jump > 1 || inconsistent) console.log(`[engine] scoreboard jump confirmed, accepting round ${updates.roundNumber}`);
@@ -1865,6 +1896,10 @@ class CoachingEngine extends EventEmitter {
           }
         } else {
           this.scoreboardChallenge = sig;
+          this.scoreboardMidRound = updates.phase === 'active' && left !== null && left > MID_HOLD_LOW_LEFT
+            && buyEnd !== null && now >= buyEnd - 1000 && now - buyEnd < MID_HOLD_MS
+            && Math.abs((ROUND_SECONDS - left) - (now - buyEnd) / 1000) <= MID_HOLD_CARRY_S
+            ? { sig, buyEnd } : null;
           // A final score read once is kept, in case the next frame is the end
           // screen (adoptFinalCandidate).
           this.finalCandidate = jump === 1 && !inconsistent
@@ -1927,7 +1962,7 @@ class CoachingEngine extends EventEmitter {
     // Game mode from the HUD (agent select header, loading screen, scoreboard,
     // end-of-round banner): two agreeing reads lock it for the match, exactly
     // like the side lock, so one misread frame cannot set the halftime math.
-    if (updates.gameMode === 'swiftplay' || updates.gameMode === 'standard') {
+    if (updates.gameMode === 'swiftplay' || updates.gameMode === 'standard' || updates.gameMode === 'spikerush') {
       if (!this.matchContext.gameMode) {
         if (this.pendingMode === updates.gameMode) {
           this.matchContext.gameMode = updates.gameMode;
@@ -2082,6 +2117,43 @@ class CoachingEngine extends EventEmitter {
       if (updates.phase === 'dead') delete updates.phase;
       this.matchContext.spectateSuspected = false;
     }
+    // THE ROUND END COUNTDOWN IS NOT PLAY (read-6). On the player's Fracture
+    // swiftplay round 1, "active 1:06" at 100 health was followed a second
+    // later by "dead 0:06" and "SWITCH PLAYER", a strong tell, and the death
+    // registered at once, where Riot has the player alive and the round won.
+    // The clock fell sixty seconds in one: that is the countdown after the
+    // round ended, not the round. So a dead read whose clock fell more than
+    // CLOCK_JUMP_S further than the time since the last live read (within
+    // CLOCK_JUMP_WITHIN_MS of it), with no score step printed on it and no
+    // spike down (whose timer replaces the round clock), is no death read, and
+    // neither is any dead read after it until a buy phase or the player's own
+    // HUD (COUNTDOWN_MS at most): the round is over. The Fracture's next two
+    // were "postplant 0:03" and "postplant 0:00" at 1-0, both read dead.
+    // A score step PRINTED on the first frame, taken or still waiting for its
+    // second read, keeps it a death read: the round ended, and the player may
+    // have died in it. On the Abyss unrated round 6 "dead 0:05" at 2-4 with
+    // SWITCH PLAYER came after a stale "active 1:20", and Riot has that death.
+    const liveClock = this.lastLiveClock;
+    const deadLeft = clockSeconds(updates.clock);
+    const steppedHere = typeof printedTeam === 'number' && typeof printedEnemy === 'number'
+      && (printedTeam !== prevTeam || printedEnemy !== prevEnemy);
+    const saysDead = updates.playerAlive === false || updates.phase === 'dead';
+    if (this.roundEndCountdown && (now - this.roundEndCountdown.at > COUNTDOWN_MS
+        || isBuyPhase(updates.phase, updates.clock) || updates.playerAlive === true)) {
+      this.roundEndCountdown = null;
+    }
+    const countdownStarts = saysDead && !this.roundEndCountdown && liveClock && deadLeft !== null && !steppedHere
+      && prevSpike !== 'planted' && updates.spike !== 'planted' && now - liveClock.at <= CLOCK_JUMP_WITHIN_MS
+      && (liveClock.left - deadLeft) - (now - liveClock.at) / 1000 > CLOCK_JUMP_S;
+    if (countdownStarts) this.roundEndCountdown = { at: now };
+    if (saysDead && this.roundEndCountdown) {
+      console.log(countdownStarts
+        ? `[engine] ignoring a dead read on the round end countdown: the clock fell from ${liveClock.left} s`
+          + ` to ${deadLeft} s in ${Math.round((now - liveClock.at) / 100) / 10} s`
+        : '[engine] ignoring a dead read after the round ended');
+      delete updates.playerAlive;
+      if (updates.phase === 'dead') delete updates.phase;
+    }
     // ONE PROOF, WHICHEVER SIGNAL SAYS DEAD. The phase "dead" used to skip all
     // of this and register a death on one frame of its own, so the false death
     // on that Sunset banner went in unchecked. And the alive flag's proof knew
@@ -2110,6 +2182,11 @@ class CoachingEngine extends EventEmitter {
       }
     } else if (updates.playerAlive === true || updates.phase === 'active') {
       this.aliveFalseStreak = 0;
+      // The last live read with the round clock on it, for the countdown above.
+      const liveLeft = clockSeconds(updates.clock);
+      if (updates.playerAlive === true && updates.phase === 'active' && liveLeft !== null && liveLeft > BUY_MAX_LEFT) {
+        this.lastLiveClock = { at: now, left: liveLeft };
+      }
     }
     if (updates.aliveTell) this.lastAliveTell = String(updates.aliveTell).slice(0, 60);
 
@@ -2496,6 +2573,43 @@ class CoachingEngine extends EventEmitter {
       this.buyAtFiveEvidence++;
       if (this.buyAtFiveEvidence >= 2) this.lockStandard(`a buy phase at ${team}-${enemy}, and swiftplay ends at 5`);
     }
+    // SPIKE RUSH SWAPS AFTER ROUND 3 (read-3), first to 4. With no mode read,
+    // round 4 was forced onto the first half's side (both other modes agree
+    // rounds 1 to 4 are the first half), although every read of it said the
+    // other, and the swap seen again in rounds 5 to 8 then locked swiftplay.
+    // Round 4's own buy phase (the ledger's round 4, no play seen since its
+    // buy timer began, as round 5's rule above reads its own) printing the
+    // other side on SWAP_READS reads in a row locks Spike Rush.
+    const roundFour = buying && team + enemy === 3 && !!L && L.base === 4 && L.offset === 0
+      && !(L.since && L.since.played) && L.beganAfterPlay(now, clockSeconds(updates.clock));
+    if (!this.matchContext.gameMode && this.firstHalfSide && sideRead && roundFour) {
+      if (sideRead === flipSide(this.firstHalfSide)) {
+        this.swapAtFour++;
+        if (this.swapAtFour >= SWAP_READS) {
+          this.matchContext.gameMode = 'spikerush';
+          console.log('[engine] game mode locked: spikerush (sides swapped in the buy phase of round 4)');
+        }
+      } else {
+        this.swapAtFour = 0;
+      }
+    }
+    // And a team on 5 wins is past Spike Rush's first to 4: the lock was wrong,
+    // and so is a first-half side derived from its 3 round halves.
+    if (this.matchContext.gameMode === 'spikerush' && this.scoreReadThisFrame
+        && Math.max(updates.teamScore, updates.enemyScore) >= 5) {
+      this.spikeRushOver++;
+      if (this.spikeRushOver >= 2) {
+        console.log(`[engine] spikerush unlocked: ${team}-${enemy} is past first to 4, side locks reset`);
+        this.matchContext.gameMode = null;
+        if (this.firstHalfLockedAt === null || this.firstHalfLockedAt > 3) {
+          this.firstHalfSide = null;
+          this.pendingFirstSide = null;
+          this.firstHalfLockedAt = null;
+        }
+      }
+    } else if (this.matchContext.gameMode === 'spikerush') {
+      this.spikeRushOver = 0;
+    }
     // THE SIDE SWAP, the fallback for a session that missed round 5's buy
     // phase. Only buy phase reads count, where the prompt reads the printed
     // ATTACKING or DEFENDING banner instead of guessing from the spike, and it
@@ -2568,9 +2682,9 @@ class CoachingEngine extends EventEmitter {
    * locked in rounds 1 to 4 stays: both modes agree those are the first half.
    */
   lockStandard(why) {
-    if (this.matchContext.gameMode === 'swiftplay') {
+    if (this.matchContext.gameMode === 'swiftplay' || this.matchContext.gameMode === 'spikerush') {
       console.log(`[engine] mode corrected to standard (${why}), side locks reset`);
-      if (this.firstHalfLockedAt === null || this.firstHalfLockedAt > 4) {
+      if (this.firstHalfLockedAt === null || this.firstHalfLockedAt > (this.matchContext.gameMode === 'spikerush' ? 3 : 4)) {
         this.firstHalfSide = null;
         this.pendingFirstSide = null;
         this.firstHalfLockedAt = null;
@@ -2685,6 +2799,7 @@ function exactAgent(name) {
  * Which half a round belongs to, or null when the side must be trusted from
  * the HUD instead of derived:
  *   swiftplay  rounds 1-4 first half, 5-8 second, 9 (sudden death) HUD
+ *   spikerush  rounds 1-3 first half, 4-6 second, 7 (the decider) HUD
  *   standard   rounds 1-12 first half, 13-24 second, 25+ (overtime) HUD
  *   unknown    rounds 1-4 first half (both modes agree), 5-9 ambiguous (a
  *              swiftplay may already have swapped), 10-24 standard halves by
@@ -2693,6 +2808,7 @@ function exactAgent(name) {
 function halfOfRound(rn, mode) {
   if (rn < 1) return null;
   if (mode === 'swiftplay') return rn <= 4 ? 1 : rn <= 8 ? 2 : null;
+  if (mode === 'spikerush') return rn <= 3 ? 1 : rn <= 6 ? 2 : null;
   if (mode === 'standard')  return rn <= 12 ? 1 : rn <= 24 ? 2 : null;
   if (rn <= 4) return 1;
   if (rn >= 10 && rn <= 24) return rn <= 12 ? 1 : 2;
@@ -2731,6 +2847,22 @@ function prettySpot(spot) {
 // reads banks enough time for the bad value to walk in anyway, which is exactly
 // what 30 seconds did when replayed against the session that prompted this.
 const MIN_ROUND_MS = 40000;
+
+// A score step read in the round a buy phase just opened is held (read-2):
+// until a clock at MID_HOLD_LOW_LEFT seconds or under, a buy phase at the new
+// score, or MID_HOLD_MS after that buy phase ended (100 seconds of play and the
+// 45 of a spike timer, so the round is over whatever happened in it). The
+// first read must carry on that buy phase's end to within MID_HOLD_CARRY_S.
+const MID_HOLD_LOW_LEFT = 10;
+const MID_HOLD_MS = 145000;
+const MID_HOLD_CARRY_S = 10;
+
+// A dead read whose clock fell this many seconds more than the time since the
+// last live read, within CLOCK_JUMP_WITHIN_MS of it, is the round end
+// countdown, not the round (read-6, the Fracture round 1 false death).
+const CLOCK_JUMP_S = 20;
+const CLOCK_JUMP_WITHIN_MS = 10000;
+const COUNTDOWN_MS = 15000;
 
 // How long a score step can still be taken back as a misread: a round and a
 // buy phase. Past it, a buy phase has confirmed the step or the match moved on.

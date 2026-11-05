@@ -141,7 +141,7 @@ function valorant(rounds, opts = {}) {
       key: 'first-death', title: 'First to die',
       detail: `You were the first player down and nobody traded it in ${plural(firsts.length, 'round')}, ${roundList(firsts)}, `
         + 'so your team played those rounds a player down.',
-      rounds: firsts, weight: WEIGHT['first-death'],
+      rounds: firsts, weight: WEIGHT['first-death'], untradedOnly: true,
       fix: role === 'Duelist'
         ? 'Take first contact only when a teammate is close enough to swing the moment you fire, and only after the flash or the smoke has landed.'
         : 'Let a teammate or your utility make first contact. Take the second fight, the one you can trade.',
@@ -161,7 +161,7 @@ function valorant(rounds, opts = {}) {
     push(out.mistakes, {
       key: 'lost-advantage', title: 'Gave back the advantage',
       detail: `In ${roundList(thrown.map((r) => r.n))} your team was up in numbers when you died, and the round was lost.`,
-      rounds: thrown.map((r) => r.n), weight: WEIGHT['lost-advantage'],
+      rounds: thrown.map((r) => r.n), weight: WEIGHT['lost-advantage'], untradedOnly: true,
       fix: attackPre
         ? 'When your team is up in numbers, take the site together behind one piece of utility and plant, then hold from cover.'
         : 'When your team is up in numbers, stop taking duels. Group, hold the space you have and make them come to you.',
@@ -178,7 +178,7 @@ function valorant(rounds, opts = {}) {
       key: 'untraded', title: 'Died where nobody could trade',
       detail: `${untraded.length} of your ${plural(knownTrade.length, 'death')} went unanswered: no teammate killed your killer `
         + 'within five seconds.',
-      rounds: untraded.map((r) => r.n), weight: WEIGHT.untraded,
+      rounds: untraded.map((r) => r.n), weight: WEIGHT.untraded, untradedOnly: true, of: knownTrade.length,
       fix: 'Before you swing, check someone can see the same angle. If nobody can, wait or reposition.',
     });
   }
@@ -362,7 +362,7 @@ function valorant(rounds, opts = {}) {
     push(out.missed, {
       key: 'lost-advantage', title: 'An advantage given back',
       detail: `Round ${r.n}: ${r.aliveAtDeath.mates} against ${r.aliveAtDeath.enemies} when you died, and the round was lost.`,
-      rounds: [r.n],
+      rounds: [r.n], untradedOnly: true,
     });
   }
   const clutchLost = verified.filter((r) => r.clutch && r.clutch.won === false && r.clutch.vs === 1);
@@ -502,14 +502,19 @@ function specificOf(e, map) {
  * judgement, and a new insight reaches a Riot only review once it has a title
  * true of its count.
  */
+const newCount = (e) => !!(e && (e.untradedOnly === true || /\bnobody traded it\b/.test(String(e.detail || ''))));
 const FACTS = [
   ['first-kill', 'Kills in the first fight'],
-  ['first-death', 'First to die in the round'],
+  // Since 8.7.2 a traded death leaves these three counts, and a death as the
+  // last one alive leaves the untraded one (untradedOnly, above): a title by
+  // key said "First to die in the round = 4" where Riot has 7. A count saved
+  // before keeps the title it was made for.
+  ['first-death', (e) => (newCount(e) ? 'First to die and not traded' : 'First to die in the round')],
   ['multi-kill', 'Rounds with three or more kills'],
   ['trades', 'Kills that traded a teammate'],
-  ['untraded', 'Deaths not traded within five seconds'],
+  ['untraded', (e) => (newCount(e) ? 'Deaths not traded, a teammate alive to trade' : 'Deaths not traded within five seconds')],
   ['early', 'Deaths in the first 30 seconds'],
-  ['lost-advantage', 'Died with your team ahead, round lost'],
+  ['lost-advantage', (e) => (newCount(e) ? 'Died with your team ahead, untraded, round lost' : 'Died with your team ahead, round lost')],
   ['same-killer', (e) => (e.agent ? `Deaths to ${e.agent}` : 'Deaths to one agent')],
   ['clutch', 'Rounds won as the last one standing'],
   ['one-v-one', 'Rounds lost one against one'],
@@ -560,6 +565,9 @@ function factsView(e) {
     key: e.key, title: typeof title === 'function' ? title(e) : title, detail, rounds,
     count: typeof e.count === 'number' ? e.count : rounds.length,
     ...(e.agent ? { agent: e.agent } : {}),
+    // Carried, so a fact made again from a fact keeps its title (above).
+    ...(e.untradedOnly === true ? { untradedOnly: true } : {}),
+    ...(typeof e.of === 'number' ? { of: e.of } : {}),
   };
 }
 

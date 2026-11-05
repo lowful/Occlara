@@ -102,7 +102,11 @@ const PLAIN_WORDS = `a an the and or but of by for to in on at into onto from wi
 const GAME_WORDS = `c q e x competitive unrated swiftplay spike rush deathmatch team premier escalation replication range
   iron bronze silver gold platinum diamond ascendant immortal radiant
   duelist duelists initiator initiators controller controllers sentinel sentinels
-  attacker attackers attacking defender defenders defending riot valorant occlara vs`;
+  attacker attackers attacking defender defenders defending riot valorant occlara vs
+  skirmish retake retakes knockout gauntlet glitched ascension
+  performance score rating accolade accolades mastery agent map`;
+// The second and third lines are the modes and the headline stats of 2026
+// (13.06 and 13.08): each was read as a player's name and its sentence dropped.
 
 /** Every word of `s`, lower case, as the client splits a note. */
 function wordsOf(s) {

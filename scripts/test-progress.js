@@ -55,7 +55,7 @@ function numbersMatch(p) {
   const allowed = new Set();
   const add = (v) => { if (typeof v === 'number') allowed.add(String(Math.abs(v))); };
   if (p.vsLast) add(p.vsLast.delta);
-  if (p.vsAverage) { add(p.vsAverage.delta); add(p.vsAverage.average); add(p.vsAverage.matches); }
+  if (p.vsAverage) { add(p.vsAverage.delta); add(p.vsAverage.average); add(p.vsAverage.matches); add(p.vsAverage.of); }
   if (p.best.grade) add(p.best.grade.matches);
   if (p.best.firstLetter) add(p.best.firstLetter.matches);
   for (const c of p.best.categories) { add(c.matches); add(c.score); }
@@ -102,6 +102,21 @@ const check = (p, what) => {
   const lower = matchProgress([rv(0, 60), rv(1, 70), rv(2, 72)], `valorant-${T0}-t0`);
   ok(lower.lines.some((l) => l.tone === 'bad' && l.text === 'Down 10 on your last match.'), 'a lower match says Down, never a minus');
   check(lower, 'a lower match');
+
+  // A provisional grade is no final one (breakdown.js gradeOf leaves it out).
+  // A verified 80 over two provisional 40s said "Up 40 on your average of 40
+  // over your last 2 graded matches." with no provisional mark.
+  const prov = matchProgress([rv(0, 80), rv(1, 40, { provisional: true }), rv(2, 40, { provisional: true })], `valorant-${T0}-t0`);
+  ok(prov.vsAverage && prov.vsAverage.provisional === true
+    && prov.lines.some((l) => l.kind === 'average' && /Provisional grade\.$/.test(l.text)),
+  `an average of provisional grades says it is provisional (${JSON.stringify(prov.vsAverage)})`);
+  check(prov, 'an average of provisional grades');
+  const finals = matchProgress([rv(0, 80), rv(1, 40, { provisional: true }), rv(2, 70), rv(3, 72)], `valorant-${T0}-t0`);
+  ok(finals.vsAverage && finals.vsAverage.average === 71 && finals.vsAverage.matches === 2 && finals.vsAverage.left === 1
+    && finals.vsAverage.provisional === false
+    && finals.lines.some((l) => l.kind === 'average' && l.text === 'Up 9 on your average of 71 over 2 of your last 3 graded matches, provisional grades left out.'),
+  `with two final grades or more, the provisional ones are left out and the line says so (${JSON.stringify(finals.vsAverage)})`);
+  check(finals, 'an average with a provisional grade left out');
   ok(matchProgress(saved, 'valorant-1-nope') === null, 'an id not in the list is null');
   ok(matchProgress([rv(0, 80)], `valorant-${T0}-t0`).vsLast === null, 'the first match has nothing to compare with');
 }
@@ -172,6 +187,28 @@ const check = (p, what) => {
   const r = matchProgress(riotBetween, riotBetween[0].id);
   ok(r.cleared.length === 1 && r.cleared[0].streak === 2, 'a match graded from Riot\'s record alone is not counted in a streak');
   ok(matchProgress(riotBetween, riotBetween[1].id).cleared.length === 0, 'and a Riot only match clears nothing');
+  // A recorded match Riot's record never reached cannot count a first death,
+  // an advantage given back or an untraded death (insights.js counts them on
+  // verified rounds only), so it is no match "without" one. Two unverified
+  // matches said "2 recorded matches in a row without First to die".
+  const early = m('early', 4);
+  const unlinked = [rv(0, 55, { verified: false, mistakes: [early] }), rv(1, 50, { verified: false, mistakes: [early] }),
+    rv(2, 70, { mistakes: [m('first-death', 4), m('untraded', 5), early] }), rv(3, 72, { mistakes: [m('first-death', 3), m('untraded', 4)] }),
+    rv(4, 68, { mistakes: [m('first-death', 3), m('lost-advantage', 2)] }), rv(5, 68, { mistakes: [m('lost-advantage', 2), m('untraded', 4)] })];
+  const u = matchProgress(unlinked, unlinked[0].id);
+  ok(!u.cleared.some((c) => ['first-death', 'lost-advantage', 'untraded'].includes(c.key)),
+    `an unverified match is no streak without a Riot only key (${JSON.stringify(u.cleared)})`);
+  const um = libraryProgress(unlinked).marks;
+  ok(![unlinked[0].id, unlinked[1].id].some((id) => (um[id] || []).some((x) => x.kind === 'cleared')),
+    `and the library marks neither unverified match (${JSON.stringify(um)})`);
+  const linkedAgain = [rv(0, 70, { mistakes: [early] }), rv(1, 70, { mistakes: [early] }), ...unlinked.slice(2)];
+  const la = matchProgress(linkedAgain, linkedAgain[0].id);
+  ok(la.cleared.some((c) => c.key === 'first-death' && c.streak === 2), 'two verified matches without it still clear it');
+  const partial = rv(1, 70, { verified: false, mistakes: [early] });
+  partial.review.rounds = [{ n: 1, verified: true }, { n: 2, verified: false }];
+  const mixed = [rv(0, 70, { mistakes: [early] }), partial, ...unlinked.slice(2)];
+  ok(matchProgress(mixed, mixed[0].id).cleared.some((c) => c.key === 'first-death' && c.streak === 2),
+    'and one with Riot\'s rounds laid over some of it counts');
   check(p, 'cleared');
 }
 

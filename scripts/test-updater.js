@@ -76,6 +76,69 @@ const updater = require(path.join(__dirname, '..', 'src', 'main', 'updater.js'))
   console.log = quiet;
   ok(asked.length === 2 && installs === 1, 'a busy() that throws counts as not playing, and "Restart now" installs', `${asked.length} asked, ${installs} installs`);
 
+  // C2 (2026-11-04): the question opened while the player was idle, stayed
+  // open as a match began, and "Restart now" pressed mid match quit it at once.
+  // An answer is checked against playing again, and the box closes itself the
+  // moment a match starts, to be asked again once it is over.
+  const fresh = () => {
+    for (const k of Object.keys(require.cache)) if (k.endsWith(`${path.sep}updater.js`)) delete require.cache[k];
+    autoUpdater.removeAllListeners();
+    return require(path.join(__dirname, '..', 'src', 'main', 'updater.js'));
+  };
+  {
+    const held = [];
+    electron.dialog.showMessageBox = (o) => new Promise((resolve) => {
+      held.push({ o, resolve });
+      asked.push(o);
+    });
+    throwing = false;
+    busy = false;
+    const before = installs;
+    const asksBefore = asked.length;
+    const u = fresh();
+    console.log = (...a) => { if (!String(a[0]).startsWith('[updater]')) quiet(...a); };
+    u.init({ busy: () => busy, retryMs: 20 });
+    autoUpdater.emit('update-downloaded', { version: '8.3.3' });
+    await wait(10);
+    busy = true;
+    held[0].resolve({ response: 0 });
+    await wait(60);
+    ok(installs === before, '"Restart now" answered after a match began installs nothing while it is played', `${installs - before} installs`);
+    busy = false;
+    await wait(80);
+    ok(asked.length === asksBefore + 2 && installs === before,
+      'and the question is asked again once the match is over, nothing installed meanwhile', `${asked.length - asksBefore} asked`);
+    held[1].resolve({ response: 0 });
+    await wait(30);
+    ok(installs === before + 1, 'and "Restart now" then installs', `${installs - before} installs`);
+    console.log = quiet;
+  }
+  {
+    // The box closes itself as a match starts, by its signal.
+    const held = [];
+    electron.dialog.showMessageBox = (o) => new Promise((resolve) => {
+      held.push({ o, resolve });
+      asked.push(o);
+      if (o.signal) o.signal.addEventListener('abort', () => resolve({ response: o.cancelId }));
+    });
+    busy = false;
+    const before = installs;
+    const u = fresh();
+    console.log = (...a) => { if (!String(a[0]).startsWith('[updater]')) quiet(...a); };
+    u.init({ busy: () => busy, retryMs: 20 });
+    autoUpdater.emit('update-downloaded', { version: '8.3.4' });
+    await wait(10);
+    const first = held[0];
+    busy = true;
+    await wait(80);
+    ok(first && first.o.signal && first.o.signal.aborted && held.length === 1,
+      'a question left open as a match starts closes itself, and is not asked again while it is played', `${held.length} asked`);
+    busy = false;
+    await wait(80);
+    ok(held.length === 2 && installs === before, 'and is asked again once it is over', `${held.length} asked`);
+    console.log = quiet;
+  }
+
   // What playing is, as index.js hands it over.
   const idx = require('fs').readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8');
   const call = /updater\.init\(\{\s*busy:\s*\(\)\s*=>\s*([^}]+)\}\)/.exec(idx);

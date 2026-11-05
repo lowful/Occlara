@@ -125,6 +125,85 @@ function playTo(e, team, enemy) {
     ok(score(e) === '6-3', `a step a buy phase has confirmed is never taken back (${score(e)})`);
   }
 
+  // ── A score never changes in the middle of a round (read-2) ─────────────
+  // The Abyss unrated session: "buy 0:08" at 3-4, then "active 1:39" and
+  // "active 1:30" at 3-5 took the step in the first seconds of the round.
+  {
+    const e = engine();
+    playTo(e, 3, 4);
+    read(e, 30, { phase: 'buy', clock: '0:08', teamScore: 3, enemyScore: 4, playerAlive: true, playerHp: 100 });
+    read(e, 9.5, { phase: 'active', clock: '1:39', teamScore: 3, enemyScore: 5, playerAlive: true, playerHp: 100 });
+    const lines = read(e, 11.8, { phase: 'active', clock: '1:30', teamScore: 3, enemyScore: 5, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '3-4', `two reads of 3-5 in the round a buy phase at 3-4 just opened are held (${score(e)})`);
+    ok(lines.some((l) => /held/.test(l)), 'and the log says so');
+    read(e, 40, { phase: 'active', clock: '0:49', teamScore: 3, enemyScore: 5, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '3-4', `still held half a round later (${score(e)})`);
+    read(e, 45, { phase: 'active', clock: '0:05', teamScore: 3, enemyScore: 5, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '3-5', `a clock at the round's last seconds confirms it (${score(e)})`);
+  }
+  {
+    const e = engine();
+    playTo(e, 3, 4);
+    read(e, 30, { phase: 'buy', clock: '0:08', teamScore: 3, enemyScore: 4, playerAlive: true, playerHp: 100 });
+    read(e, 9.5, { phase: 'active', clock: '1:39', teamScore: 3, enemyScore: 5, playerAlive: true, playerHp: 100 });
+    read(e, 60, { phase: 'buy', clock: '0:20', teamScore: 3, enemyScore: 5, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '3-5', `a buy phase at the new score confirms a step first read mid round (${score(e)})`);
+  }
+  {
+    // A step first read at the round's end, not carrying on a buy phase, is
+    // two reads as before.
+    const e = engine();
+    playTo(e, 3, 4);
+    read(e, 30, { phase: 'buy', clock: '0:08', teamScore: 3, enemyScore: 4, playerAlive: true, playerHp: 100 });
+    read(e, 70, { phase: 'active', clock: '0:30', teamScore: 3, enemyScore: 4, playerAlive: true, playerHp: 100 });
+    read(e, 30, { phase: 'active', clock: '0:00', teamScore: 3, enemyScore: 5, playerAlive: true, playerHp: 100 });
+    read(e, 2, { phase: 'dead', teamScore: 3, enemyScore: 5, playerAlive: true, playerHp: 100 });
+    ok(score(e) === '3-5', `a step read at the round's end takes its two reads, as ever (${score(e)})`);
+  }
+
+  // ── Spike Rush swaps sides after round 3 (read-3) ───────────────────────
+  // First to 4, rounds 1 to 3 attacking and 4 to 7 defending, every frame
+  // reading its own side and no mode read. Round 4 was forced onto the first
+  // half's side and the swap seen in rounds 5 to 8 locked swiftplay.
+  {
+    const spikeRush = (modeRead) => {
+      const e = engine();
+      const res = [[1, 0], [2, 0], [2, 1], [2, 2], [3, 2], [3, 3], [4, 3]];
+      let ts = 0; let es = 0;
+      for (let rn = 1; rn <= 7; rn++) {
+        const side = rn <= 3 ? 'attacking' : 'defending';
+        const extra = modeRead ? { gameMode: 'spikerush' } : {};
+        for (let k = 0; k < 15; k++) {
+          read(e, k ? 1 : 8, { phase: 'buy', clock: `0:${String(29 - k).padStart(2, '0')}`, teamScore: ts, enemyScore: es,
+            side, playerAlive: true, playerHp: 100, aliveTell: 'own HP 100 and Classic bottom left', ...extra });
+        }
+        for (let k = 0; k < 40; k++) {
+          const left = 99 - k;
+          read(e, 1, { phase: 'active', clock: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, teamScore: ts,
+            enemyScore: es, side, playerAlive: true, playerHp: 100, aliveTell: 'own HP 100 and Vandal bottom left' });
+        }
+        [ts, es] = res[rn - 1];
+      }
+      return e;
+    };
+    const e = spikeRush(false);
+    const sides = e.ledger.list().map((r) => `${r.n}${r.side ? r.side[0] : '?'}`).join(' ');
+    ok(sides === '1a 2a 3a 4d 5d 6d 7d', `round 4 of Spike Rush is filed on the side every read of it gave (${sides})`);
+    ok(e.matchContext.gameMode === 'spikerush', `and the match is Spike Rush, not swiftplay (${e.matchContext.gameMode})`);
+    const read2 = spikeRush(true);
+    ok(read2.matchContext.gameMode === 'spikerush'
+      && read2.ledger.list().map((r) => `${r.n}${r.side ? r.side[0] : '?'}`).join(' ') === '1a 2a 3a 4d 5d 6d 7d',
+    'two reads of SPIKE RUSH on screen lock it too, with its halves of three');
+  }
+  {
+    // A swiftplay whose round 4 buy phase reads the first half's side is not
+    // taken for Spike Rush.
+    const e = engine();
+    playTo(e, 2, 1);
+    for (let i = 0; i < 6; i++) read(e, 1, { phase: 'buy', clock: '0:20', teamScore: 2, enemyScore: 1, side: 'attacking', playerAlive: true, playerHp: 100 });
+    ok(e.matchContext.gameMode !== 'spikerush', `round 4 bought on the first half's side is no Spike Rush (${e.matchContext.gameMode})`);
+  }
+
   // ── A frame with no score is no evidence for a step either way ──────────
   // A read with a round number and no scores took the place of a step read
   // once with its scores, so the step's second read was a first read again.

@@ -65,7 +65,11 @@ What still counts as "reaching the screen", and is sealed mid match:
   landed, over the game mid round and in agent select, and "Restart now" quit
   the recording and the review being checked with it. It is asked again
   every 30 seconds until then, and names the newest version downloaded
-  meanwhile, the one a restart installs (`test:updater`).
+  meanwhile, the one a restart installs (`test:updater`). A question asked
+  while idle and left open as a match starts closes itself (its `signal`),
+  and an answer is checked against `busy` again, so a "Restart now" pressed
+  mid match installs nothing: either way it is asked again once the match is
+  over (8.7.2).
 - Accounts (8.7, accounts.md): a 402 cap mid match is silent (the engine
   stops reading, recording goes on, the review is saved locked), every cap or
   games left notice and the `ACCOUNT_CHANGED` push wait for the seal to lift

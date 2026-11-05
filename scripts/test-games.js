@@ -315,7 +315,10 @@ console.log('\nthe library\'s index, read once by the launch and never written b
     check('  the disk stand in holds the index back from the read it is told to, and only the index',
       (() => {
         holdIndex(2);
-        try { return store.index().length === 3 && store.index().length === 0 && !!store.get(keep[0]); } finally { fs.readFileSync = realRead; }
+        // Since 8.7.2 an index held back is rebuilt from the reviews on disk
+        // (review-store.js index()), so the stand in is seen on a read of its own.
+        const held = () => { try { fs.readFileSync(INDEX, 'utf8'); return false; } catch (e) { return e.code === 'EBUSY'; } };
+        try { return store.index().length === 3 && held() && !!store.get(keep[0]); } finally { fs.readFileSync = realRead; }
       })());
 
     holdIndex(2);

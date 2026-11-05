@@ -158,6 +158,20 @@ const hist = [300, 320, 280].map((acs) => ({ role: 'Duelist', acs }));
 const gh = grade.valorant({ rounds, scoreline: { ...scoreline, acs: 250 }, role: 'Duelist', history: hist });
 ok(/your Duelist average is 300/.test(gh.categories.find((c) => c.key === 'impact').evidence[0]),
   'with three matches of history, impact compares the player with themselves');
+// A history row at 0 combat score (an AFK or a remake) is no match to compare
+// with: three of them made the average 0, acs / 0 was NaN, the curve gave its
+// top value, and a 0 ACS match scored Impact 97 against "your Duelist average is 0".
+{
+  const afk = [0, 0, 0].map((acs) => ({ role: 'Duelist', acs }));
+  const gz = grade.valorant({ rounds, scoreline: { ...scoreline, acs: 0 }, role: 'Duelist', history: afk });
+  const imp = gz.categories.find((c) => c.key === 'impact');
+  ok(Number.isFinite(imp.score) && imp.score < 50 && !/average is 0/.test(imp.evidence.join(' ')),
+    `a 0 combat score is never graded against an average of 0 (${Math.round(imp.score)}, ${imp.evidence[0]})`);
+  const mixedHist = [0, 300, 320, 280].map((acs) => ({ role: 'Duelist', acs }));
+  const gm = grade.valorant({ rounds, scoreline: { ...scoreline, acs: 250 }, role: 'Duelist', history: mixedHist });
+  ok(/your Duelist average is 300/.test(gm.categories.find((c) => c.key === 'impact').evidence[0]),
+    'and a 0 among real matches is left out of the average');
+}
 
 // ── Insights on the real match ──────────────────────────────────────────────
 const ins = insights.valorant(rounds, { role: 'Duelist' });
@@ -484,6 +498,21 @@ ok(conceded({ dragonsAgainst: 1, baronsAgainst: 2 }) === 'The enemy took 1 drago
   ok(missP && missP.matches === 2 && missP.title === 'Repeeks' && tradeP
     && tradeP.examples[0].detail === 'Twice you killed an enemy right after they killed a teammate.',
   `a cause seen once a match, counted across two, is "Repeeks", and the patterns quote today's trades line (${missP && missP.title})`);
+}
+
+// ── A provisional grade is left out of the average (F5) ─────────────────────
+// breakdown.js gradeOf leaves it out, and Home's average of one verified 80
+// and two provisional 40s was 53. With two final grades or more the average is
+// theirs; with fewer it is every grade's and says it is provisional.
+{
+  const g = (i, score, provisional) => ({ id: `valorant-${1758000000000 - i}-prv${i}`, at: 1758000000000 - i, game: 'valorant',
+    review: { kind: 'valorant', source: 'watched', grade: { score, letter: grade.letter(score), provisional }, insights: { mistakes: [], strengths: [], missed: [] } } });
+  const mixed = patterns.summarise([g(0, 80, false), g(1, 40, true), g(2, 70, false), g(3, 40, true)]);
+  ok(mixed.average === 75 && mixed.averageOver === 2 && mixed.averageProvisional === false && mixed.grades.length === 4,
+    `two final grades make the average, the provisional ones left out (${mixed.average} over ${mixed.averageOver})`);
+  const thin = patterns.summarise([g(0, 80, false), g(1, 40, true), g(2, 40, true)]);
+  ok(thin.average === 53 && thin.averageOver === 3 && thin.averageProvisional === true,
+    `one final grade: the average is every grade's, flagged provisional (${thin.average}, ${thin.averageProvisional})`);
 }
 
 // ── The lists count recorded matches, the grades every match ───────────────

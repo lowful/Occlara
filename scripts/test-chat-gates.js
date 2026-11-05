@@ -1212,5 +1212,63 @@ const riotOnly = (file, row, edit) => {
   'SIDEBAR-FRACTURE: CLOVE, THE PLAYER\'S FRACTURE TEAMMATE, IS NO MARKER OF THE PEARL MATCH, and --dry names a key that says otherwise');
 }
 
+// ── The game's current modes and headline stats are no names (stale F4) ────
+// Skirmish, Retake, Knockout, Gauntlet and the Performance Score and Map
+// Rating of 13.06 and 13.08 were each read as a player's name, and the
+// sentence dropped by the review, the look and Ask Coach.
+{
+  console.log('\nthe game\'s own words:');
+  const ng = require('../server/services/name-gate');
+  const said = (s) => ng.namesSomeone(gates.lowerGameWords(s));
+  for (const s of ['Warm up in Skirmish before you queue.', 'Your Performance Score of 310 was the best on your team.',
+    'Your Map Rating on Bind is low.', 'Win the Retake as a team.', 'Play a few rounds of Knockout to practise the first fight.',
+    'The Gauntlet mode rewards the same habits.', 'Your Accolades show the first kills.', 'Your Agent Mastery on Jett is growing.']) {
+    ok(said(s) === null, `no name in "${s}"`, String(said(s)));
+  }
+  ok(said('Warm up with Varkalen before you queue.') !== null, 'and a word no game says is still read as a name');
+}
+
+// ── Whose first death, first kill, trade and plant it is (review F3, F4, F9) ─
+// Round 5 in Riot's record: the enemy Jett killed the player's Sova first,
+// then the player. The player had no first death and no first kill, nobody
+// traded the death, and nobody planted. A first death or a first kill is held
+// to the record only when it is the player's: three true sentences about the
+// Sova and the Jett were dropped. And a teammate trading or avenging the
+// player, or the player planting, said every way, was kept on a round with no
+// trade and no plant.
+{
+  console.log('\nwhose claim it is:');
+  const r5 = { n: 5, side: 'attacking', result: 'lost', died: true, verified: true, watched: true, pistol: false, matchPoint: false,
+    planted: false, afterPlant: false, firstDeath: false, firstKill: false, kills: 0, traded: false, trades: 0, clutch: null,
+    killer: 'Jett', killerWeapon: 'Vandal', sec: 30,
+    feed: [{ ms: 20000, by: 'enemy', on: 'mate', ka: 'Jett', va: 'Sova', w: 'Vandal' }, { ms: 30000, by: 'enemy', on: 'me', ka: 'Jett', va: 'Omen', w: 'Vandal' }],
+    times: [], standings: [[5, 5], [4, 5]], weapons: { mine: new Set(), theirs: new Set(['Vandal']), mates: new Set(), all: new Set(['Vandal']) },
+    atDeath: [4, 5], after: [3, 5], look: null, lookDigits: [], before: null };
+  const R5 = { game: 'valorant', language: 'en', agent: 'Omen', map: 'Ascent', rounds: new Map([[5, r5]]), scores: [], counted: { titles: [] }, numbers: new Map() };
+  for (const s of ['In round 5 your Sova died first, and you were caught 4 against 5.',
+    'In round 5 their Jett got the first kill on your Sova, then killed you too.',
+    'In round 5 the enemy Jett opened the round by killing your Sova.',
+    'In round 5 nobody traded your death.',
+    'In round 5 nobody planted the spike.']) {
+    ok(keeps(s, R5), `kept, true of round 5: "${s}"`, why(s, R5));
+  }
+  for (const s of ['In round 5 you were the first to die.', 'In round 5 you died first.', 'In round 5 you got the first kill.',
+    'In round 5 their Jett got the first kill on you.', 'In round 5 the enemy Jett opened the round by killing you.',
+    'In round 5 your Sova traded your death right away.', 'In round 5 a teammate avenged you within a second.',
+    'In round 5 your teammates avenged your death.', 'In round 5 you planted the spike on A.', 'In round 5 you got the plant down.']) {
+    ok(drops(s, R5, 'timeline'), `dropped, false of round 5: "${s}"`, why(s, R5));
+  }
+  // The same words on a round that has them stay.
+  const r6 = { ...r5, n: 6, firstDeath: true, traded: true, planted: true };
+  const R6 = { ...R5, rounds: new Map([[6, r6]]) };
+  for (const s of ['In round 6 you were the first to die.', 'In round 6 their Jett got the first kill on you.',
+    'In round 6 your Sova traded your death right away.', 'In round 6 a teammate avenged you within a second.', 'In round 6 you planted the spike on A.']) {
+    ok(keeps(s, R6), `kept, true of round 6: "${s}"`, why(s, R6));
+  }
+  ok(gates.MATE_TRADED_YOU.test('your Sova traded your death') && gates.MATE_TRADED_YOU.test('a teammate avenged you')
+    && !gates.MATE_TRADED_YOU.test('Skye traded KAY/O') && gates.YOU_PLANTED.test('you planted the spike') && !gates.YOU_PLANTED.test('they planted the spike'),
+  'the trade and plant regexes match a known positive and not a known negative');
+}
+
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');
 process.exit(fails ? 1 : 0);

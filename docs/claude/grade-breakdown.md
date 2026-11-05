@@ -34,6 +34,23 @@ Decisions.
   Sentinel's or a Controller's is a site tool a coach says to hold, and
   Resurrection cannot save Sage), while the "Died holding your ultimate" miss
   stays for everyone. `test:grade`'s thrown fixture is untraded on purpose.
+  **Every line says the count it counts** (8.7.2, the review audit's F1):
+  the three entries counted that way carry `untradedOnly: true`, and the
+  untraded one its own denominator, `of` (the deaths a teammate was alive to
+  trade). The Verdict says "First to die and not traded in 4 of 24 rounds.",
+  "8 of your 11 deaths went untraded." and "Died untraded with the team up in
+  numbers in ..."; a Riot only review's facts are titled "First to die and not
+  traded", "Deaths not traded, a teammate alive to trade" and "Died with your
+  team ahead, untraded, round lost" (`insights.js FACTS`, `factsView` carries
+  the flag and `of`). Before, the untraded line took every death Riot knew the
+  trade of for its denominator and said "8 of your 16" where Riot has 13 of
+  16 untraded. An entry saved without the flag keeps its old line and title,
+  which were true of its count (`test:verdict`, `test:riotreview`).
+- **Impact's role average leaves out a 0** (8.7.2, `grade.js roleBaseline`).
+  A history row at 0 combat score or below (an AFK, a remake) is no match:
+  three of them made the mean 0, acs / 0 was NaN, `curve()` gave its top value
+  and a 0 ACS match scored Impact 97 against "your Duelist average is 0"
+  (`test:grade`).
   Not done: the Teamplay curve's middle (about 17% of deaths are traded across
   real players per the trackers, and the curve reads that as a D) and
   `riot-rounds.js` writing `traded: null` for a death alone, which the two
@@ -101,6 +118,19 @@ library's row badges (`marks`, a run or a streak on its newest match only),
 the newest `run` and `latest`, the newest match's first line, which Home shows
 as `milestone` (home-model.js). Main serves it as `PROGRESS_GET` (index.js
 `getProgress`) and as `progress` on `getPatterns`, from the one read.
+**A streak without a Riot only key stops at a match that could not count it**
+(8.7.2, `progress.js RIOT_KEYS`, `couldCount`). `first-death`,
+`lost-advantage` and `untraded` are counted on verified rounds only, so a
+recorded match the Riot link never reached (no round verified) holds none of
+them whatever happened, and two such matches said "2 recorded matches in a
+row without First to die". **The average leaves a provisional grade out**
+once `MIN_MATCHES` final grades are in its window, as `breakdown.js gradeOf`
+does; with fewer it is every grade's and flagged provisional. In progress
+`vsAverage` carries `of` and `left`, and a line with grades left out says
+"over 2 of your last 3 graded matches, provisional grades left out"; in
+`patterns.js summarise` `average` comes with `averageOver` and
+`averageProvisional` (a verified 80 and two provisional 40s averaged 53 on
+Home and said "Up 40 on your average of 40" with no mark).
 `npm run test:progress` covers each rule, the lines, the marks, the real Abyss
 review and a League one.
 

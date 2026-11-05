@@ -86,6 +86,31 @@ const url = (id, name) => `occlara-clip://review/${id}/${name}`;
   ok(b.enough === true, 'two recorded matches are enough for the patterns');
 }
 
+// ── The compilation counts the pattern's own window (F6) ─────────────────
+// The pattern counts the last WINDOW recorded matches; with 14 saved, the
+// compilation said "N deaths over 14 matches" beside a pattern of 10 of 10.
+{
+  const many = saved(patterns.WINDOW + 4, built);
+  const p = patterns.summarise(many);
+  const b = moments.build('valorant', many, { patterns: p, clips: () => [], url, recordingMode: 'auto' });
+  const untraded = p.mistakes.find((e) => e.key === 'untraded');
+  const row = b.compilation.find((c) => c.key === 'untraded');
+  ok(untraded && untraded.matches === patterns.WINDOW && row && row.matches === patterns.WINDOW
+    && row.items.every((k) => many.slice(0, patterns.WINDOW).some((s) => k.startsWith(`${s.id}:`))),
+  `the compilation counts only the matches its pattern counts (${row && row.line}, pattern ${untraded && untraded.matches})`);
+  ok(b.matches.length === patterns.WINDOW + 4, 'while every match is still listed on the page');
+}
+
+// ── A gun with a vowel takes "an" (F7) ─────────────────────────────────────
+{
+  const guns = ['Operator', 'Outlaw', 'Odin', 'Ares', 'Vandal'];
+  const rows = guns.map((w, i) => ({ n: i + 1, died: true, riot: { killer: 'Chamber', weapon: w } }));
+  const titles = moments.valorantDeaths({ id: 'valorant-1-art', review: { rounds: rows } }, new Set(),
+    { url: () => '', frames: () => null }, new Set()).map((x) => x.title);
+  ok(titles.join('|') === 'Killed by Chamber with an Operator|Killed by Chamber with an Outlaw|Killed by Chamber with an Odin|'
+    + 'Killed by Chamber with an Ares|Killed by Chamber with a Vandal', 'a gun that starts with a vowel takes "an"', titles.join(' | '));
+}
+
 // ── A look, its clip, and the clip gone ───────────────────────────────────
 {
   const look = (r, cause, extra) => (r.died ? { ...r, forensics: { cause, what: 'You swung the angle alone.', better: 'Wait for a teammate.', source: 'riot', at: T0, ...extra } } : r);

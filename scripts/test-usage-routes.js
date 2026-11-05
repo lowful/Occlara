@@ -211,6 +211,70 @@ const pkce = () => {
     ok(signed.status === 200 && /^https:\/\/occlara\.app\/invite\//.test(signed.body.link || ''), 'and gives the link once the user has signed in to the app');
   }
 
+  // ── A counted live game is finished when the next match starts (S1) ───────
+  {
+    // Six matches of 130 in-match reads, 5 s apart, 3.5 minutes between them
+    // and no review (a review that failed, or a client that skips it): the
+    // first is counted at 120 and every later match is a game of its own.
+    // Before, the counted row stayed open under the 4 minute gap, gate() let
+    // every read through and one game was charged for six.
+    const s = rig({ env: { ENFORCE_CAPS: '1' } });
+    await s.db.client.rpc('ensure_entitlement', { p_user: USER_A });
+    const e = s.db.tables.entitlements.find((x) => x.user_id === USER_A);
+    Object.assign(e, { tier: 'pro', cap_monthly: 3, source: 'stripe' });
+    const caller = { userId: USER_A, accountKey: 'GC-METR-AAAA-BBBB-CCCC', deviceHash: sha('dev-meter') };
+    let refused = 0;
+    let readsLeft = 0;
+    for (let match = 0; match < 6; match++) {
+      for (let i = 0; i < 130; i++) {
+        const g = await s.meter.gate(caller);
+        if (!g.ok) { refused++; continue; }
+        if (match >= 4) readsLeft++;
+        // The score as the reply read it: 0-0 for the first reads, climbing a round a minute.
+        const round = Math.floor((i * 5) / 60);
+        await s.meter.noteRead(caller, { inMatch: true, score: { team: Math.ceil(round / 2), enemy: Math.floor(round / 2) } });
+        s.tick(5000);
+      }
+      s.tick(3.5 * 60 * 1000);
+    }
+    const live = s.db.tables.game_usage.filter((g) => g.user_id === USER_A && g.kind === 'live');
+    ok(live.length === 3 && live.every((g) => g.status === 'counted'),
+      `a counted game whose next match reads 0-0 again is over: three games for a cap of three (${live.map((g) => `${g.status}/${g.match_reads}`).join(', ')})`);
+    ok(refused > 0 && readsLeft <= 3 * 4,
+      `and with no game left the matches after them are refused at the gate (${refused} refused, ${readsLeft} let through past the cap)`);
+  }
+  {
+    // A score misread once (a 7 in round 2) and then the true 1-0 is no new match.
+    const s = rig({ env: { ENFORCE_CAPS: '1' } });
+    await s.db.client.rpc('ensure_entitlement', { p_user: USER_A });
+    Object.assign(s.db.tables.entitlements.find((x) => x.user_id === USER_A), { tier: 'pro', cap_monthly: 25, source: 'stripe' });
+    const caller = { userId: USER_A, accountKey: 'GC-METR-AAAA-BBBB-DDDD', deviceHash: sha('dev-meter-2') };
+    for (let i = 0; i < 125; i++) {
+      const score = i === 121 ? { team: 7, enemy: 0 } : { team: 1, enemy: 0 };
+      await s.meter.noteRead(caller, { inMatch: true, score });
+      s.tick(5000);
+    }
+    const live = s.db.tables.game_usage.filter((g) => g.user_id === USER_A && g.kind === 'live');
+    ok(live.length === 1, `one misread score inside a counted match never starts a new game (${live.length} rows)`);
+    // And a counted row is finished two hours after its claim whatever the
+    // reads say, even with one every three minutes, under the 4 minute gap.
+    for (let i = 0; i < 41; i++) { s.tick(3 * 60 * 1000); await s.meter.noteRead(caller, { inMatch: true, score: { team: 1, enemy: 0 } }); }
+    const after = s.db.tables.game_usage.filter((g) => g.user_id === USER_A && g.kind === 'live');
+    ok(after.length === 2, `a counted game read on for two hours is over, the next read claims a new one (${after.length} rows)`);
+  }
+  {
+    // S12: the meter's small maps are bounded like `opens`.
+    const s = rig();
+    for (let i = 0; i < 10050; i++) {
+      s.meter.allow.set(`k${i}`, { at: 0, left: 1 });
+      s.meter.refunds.set(`k${i}`, { day: 'x', n: 1 });
+      s.meter.ensured.set(`u${i}`, 0);
+    }
+    s.meter.trim();
+    ok(s.meter.allow.size <= 10000 && s.meter.refunds.size <= 10000 && s.meter.ensured.size <= 10000,
+      `the allowance, refund and entitlement maps are evicted past 10000 entries (${s.meter.allow.size}, ${s.meter.refunds.size}, ${s.meter.ensured.size})`);
+  }
+
   // ── Not live: 8.6 exactly ────────────────────────────────────────────────
   for (const code of ['42P01', 'PGRST205', 'PGRST202']) {
     const n = rig({ env: { ENFORCE_CAPS: '1' } });

@@ -77,6 +77,11 @@ not told the Overview is a trend** (8.4.1):
   uses Occlara was handed the first requester's badge and roster, their row
   marked as the player's. It is keyed `matchId|name#tag` in lower case
   (`test:trackerroutes`).
+- **The badge says "Top score", never "MVP"** (8.7.2, `stats.js mvpText`).
+  It is the top combat score (on the winning team, or on the player's team),
+  and since 13.06 the game names its MVP by Performance Score, so "MVP" named
+  a player the game did not. The field and the classes keep the name `mvp`
+  (`test:statsrefresh`).
 - **Riot's death check names the killer by agent** (`coach.js
   killerAgentOf`, `/match-deaths`). It answered the killer's full Riot ID,
   and the AI log painted it on every death Riot confirmed, a name its owner

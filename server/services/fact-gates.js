@@ -1022,6 +1022,47 @@ function gateLeftAcross(prev, sentence, facts) {
 /** Whether a negation governs the words at `at`: within two words before them, no comma between (NEG_BEFORE). */
 const negatedAt = (t, at) => NEG_BEFORE.test(String(t || '').slice(Math.max(0, at - 48), at));
 
+/*
+ * WHOSE A FIRST DEATH OR A FIRST KILL IS (review audit, 8.7.2). Riot's
+ * firstDeath and firstKill are the player's, so only the player's is held to
+ * them. Round 5 of the probe, where the enemy Jett killed the player's Sova
+ * first and then the player, dropped three true sentences: "your Sova died
+ * first", "their Jett got the first kill on your Sova", "the enemy Jett
+ * opened the round by killing your Sova". The owner is read as a clutch's is
+ * (clutchOwner), past the words that only carry it to the claim ("got the",
+ * "had the", "made the"); anything else stays the player's, as before. An
+ * enemy's first kill ON THE PLAYER ("their Jett got the first kill on you",
+ * "opened the round by killing you") is the player's first death, and held to
+ * that.
+ */
+const FIRST_CARRIES = new Set(['got', 'get', 'gets', 'getting', 'had', 'made', 'make', 'scored', 'secured', 'took', 'take']);
+function firstOwner(t, at, facts) {
+  // Drop the carrying words first, so clutchOwner reads the player before them.
+  let head = String(t).slice(0, at);
+  for (let m = /([A-Za-z']+)\s*$/.exec(head); m && (FIRST_CARRIES.has(lower(m[1])) || /^(?:the|a|an)$/i.test(m[1]));
+    m = /([A-Za-z']+)\s*$/.exec(head)) head = head.slice(0, m.index);
+  return clutchOwner(head, head.length, facts);
+}
+const ON_YOU = /^[^.;!?]{0,20}?\b(?:on|against|by killing)\s+you\b(?!r)/i;
+
+/*
+ * A TEAMMATE TRADING OR AVENGING THE PLAYER, as a chat says it: "your Sova
+ * traded your death", "a teammate avenged you". WAS_TRADED (the review's words,
+ * held equal to match-review.js) and TRADED_YOU read "was traded" and "a
+ * teammate traded you" only, so both were kept on a round Riot has untraded.
+ * Never under a negation (negatedAt).
+ */
+const MATE_TRADED_YOU = new RegExp(`\\b(?:${AGENT_ALT}|teammates?|ally|allies)\\s+(?:quickly\\s+|instantly\\s+|then\\s+|immediately\\s+)?(?:traded|avenged)\\s+(?:you\\b(?!r)|your death\\b)|\\bavenged you\\b(?!r)`, 'i');
+/* The player's own plant, which AFTER_PLANT did not read: "you planted the spike on A" passed on a round with no plant. */
+// "No teammate traded you", "nobody avenged you": the negation before the
+// teammate, which NEG_BEFORE does not read, within two words, no comma between.
+const NO_ONE_BEFORE = /\b(?:no|nobody|no one|none|neither|nor|without|never|not)\s+(?:[a-z']+\s+){0,2}$/i;
+const mateTradedClaim = (t) => {
+  const m = MATE_TRADED_YOU.exec(t);
+  return !!m && !negatedAt(t, m.index) && !NO_ONE_BEFORE.test(t.slice(Math.max(0, m.index - 48), m.index));
+};
+const YOU_PLANTED = /\byou\s+(?:planted|got the plant|got the spike down|got the plant down)\b/i;
+
 function gateStanding(s, facts, rs) {
   const f = facts || {};
   if (!rs || !rs.round || f.language !== 'en' || !(f.rounds instanceof Map)) return null;
@@ -1057,22 +1098,34 @@ function gateStanding(s, facts, rs) {
     // round: in "you opened the round strong, but the team could not hold the
     // site" (bench:chat, 15 Oct) the "not" is the team's, and a round the player
     // opened with the first kill was dropped as one they never opened.
-    const fd = FIRST_DEATH.exec(t);
-    if (fd && r.verified) {
-      const no = negatedAt(t, fd.index);
-      if (no ? r.firstDeath : !r.firstDeath) return say(no ? 'no first death' : 'the first death');
+    // Only the player's own (firstOwner): a teammate's first death or an
+    // enemy's first kill is no claim about the player, and an enemy's first
+    // kill on the player is the player's first death.
+    if (r.verified) {
+      for (const fd of t.matchAll(new RegExp(FIRST_DEATH.source, 'gi'))) {
+        if (firstOwner(t, fd.index, f) !== 'me') continue;
+        const no = negatedAt(t, fd.index);
+        if (no ? r.firstDeath : !r.firstDeath) return say(no ? 'no first death' : 'the first death');
+      }
+      for (const ok of t.matchAll(new RegExp(OPENING_KILL.source, 'gi'))) {
+        const owner = firstOwner(t, ok.index, f);
+        const no = negatedAt(t, ok.index);
+        if (owner === 'enemy' && ON_YOU.test(t.slice(ok.index + ok[0].length))) {
+          if (no ? r.firstDeath : !r.firstDeath) return say(no ? 'no first death' : 'the first death');
+          continue;
+        }
+        if (owner !== 'me') continue;
+        if (no ? r.firstKill : !r.firstKill) return say(no ? 'no first kill' : 'the first kill');
+      }
     }
-    const ok = OPENING_KILL.exec(t);
-    if (ok && r.verified) {
-      const no = negatedAt(t, ok.index);
-      if (no ? r.firstKill : !r.firstKill) return say(no ? 'no first kill' : 'the first kill');
-    }
+    const planted = YOU_PLANTED.exec(t);
+    if (planted && !negatedAt(t, planted.index) && !r.planted) return say('a plant');
     if (MATCH_POINT.test(t) && !neg && !r.matchPoint) return say('match point');
     if (PISTOL_CLAIM.test(t) && !neg && !r.pistol) return say('a pistol round');
     if (ATTACK_SIDE.test(t) && r.side === 'defending' && !ABOUT_THEM.test(t)) return say('attack');
     if (DEFENCE_SIDE.test(t) && r.side === 'attacking' && !ABOUT_THEM.test(t)) return say('defence');
     if (r.traded === true && NOT_TRADED.test(t)) return drop('timeline', `your reply said round ${n}'s death was not traded, and Riot's record has it traded`);
-    if (r.traded === false && (WAS_TRADED.test(t) || TRADED_YOU.test(t))) return drop('timeline', `your reply said round ${n}'s death was traded, and Riot's record has it not traded`);
+    if (r.traded === false && (WAS_TRADED.test(t) || TRADED_YOU.test(t) || mateTradedClaim(t))) return drop('timeline', `your reply said round ${n}'s death was traded, and Riot's record has it not traded`);
     if (TRADE_AS_HARM.test(t)) return drop('timeline', 'your reply called being traded the harm; a trade is a teammate killing your killer');
   }
   return null;
@@ -1852,7 +1905,7 @@ module.exports = {
   gateMapAndKit, gateStanding, gateWeapon, gateEconomy, gateCount, gateBuyBlame, gateTimeFormat,
   roundSentence, roundsNamed, isHypothetical, isInstruction, sentencesOf, paragraphsOf, digitsOf, resultClaims,
   labelsIn, phraseHit, shapeOf, nameSetFor, gunsIn, agentsIn, abilitiesIn, partOf, bandNamed, attributeOf, hitsOk, primerHas, matchHas,
-  PHRASES, CAUSE_TITLES, CAUSE_WORDS, NOT_TRADED, WAS_TRADED, TRADE_AS_HARM, TRADED_YOU, RIOT_ID, META, ATTRIBUTION,
+  PHRASES, CAUSE_TITLES, CAUSE_WORDS, NOT_TRADED, WAS_TRADED, TRADE_AS_HARM, TRADED_YOU, MATE_TRADED_YOU, YOU_PLANTED, RIOT_ID, META, ATTRIBUTION,
   HYPOTHETICAL, IMPERATIVE, INSTRUCTION_WORDS, STANDING, CLOCK, ECONOMY, SPELLED, NUMBER_WORDS, LABELLING,
   KILLED_YOU, YOU_DIED_TO, YOU_KILLED, PAST_ABOUT_YOU, AFTER_UNITS, BEFORE_UNITS, ARMOR_NAMED,
   GUNS, AGENTS, MAPS, GEAR, KIT, CALLOUTS,

@@ -180,7 +180,13 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
 - **The cap** (`clipCapGB`, 5, 10, 20 or 50 GB, 10 by default). After every
   clip kept, at launch, and when the cap is lowered, the clips past it go a
   review at a time, the oldest first and a folder no review owns before any
-  (`capClips`). A review that lost its clips keeps its frames, facts and grade
+  (`capClips`). A folder is owned when its `<id>.json` is on disk, listed in
+  `index.json` or not, and only a folder with no review is deleted whole
+  (8.7.2). An `index.json` that is missing or cannot be read is rebuilt from
+  the `<id>.json` files, never read as an empty library: read as one, the next
+  save wrote an index of one review, and the cap then deleted every other
+  review's folder, frames and all (`review-store.js index()`,
+  `test:reviewstore`). A review that lost its clips keeps its frames, facts and grade
   and says "Its clip was cleared to keep your clips under the space set in
   Settings" (`clipsCleared` on the saved review, carried by every later
   version of one still being improved); Clear clips in Settings takes every

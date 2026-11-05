@@ -101,13 +101,54 @@ ok(!!av && Object.keys(av).sort().join() === 'at,game,letter,provisional,reason,
   const known = abyss.rounds.filter((r) => r.died && r.riot && typeof r.riot.traded === 'boolean').length;
   ok(known === 21 && abyss.rounds.every((r) => r.traded === undefined),
     "every one of the 21 deaths carries its trade under riot, and no card carries one on itself", `${known}`);
+  // Since 8.7.2 the entry carries its own denominator (of), and the cards are
+  // read only for an entry saved without one, as here.
+  const ownOf = abyss.insights.mistakes.find((e) => e.key === 'untraded');
+  ok(!!ownOf && ownOf.of === 21, 'the untraded entry carries its own denominator, 21', ownOf && `${ownOf.of}`);
   const noTrade = copy(abyss);
+  for (const e of noTrade.insights.mistakes) delete e.of;
   for (const r of noTrade.rounds) if (r.riot) r.riot.traded = null;
   ok(verdict.reason(noTrade) === '20 of your deaths went untraded.',
     'with no trade known on any card the line keeps its count and says no denominator', verdict.reason(noTrade));
   const onItself = copy(noTrade);
   for (const r of onItself.rounds) if (r.died) r.traded = false;
   ok(verdict.reason(onItself) === '20 of your deaths went untraded.', 'and a trade written on the card itself is not Riot\'s, so it is not read', verdict.reason(onItself));
+}
+
+// ── 8.7.2: each line says the count it counts ───────────────────────────────
+// Since 8.7.2 a traded first death and a death as the last one alive leave
+// the counts. 24 verified rounds: first deaths in rounds 1 to 7 (1 to 3
+// traded), deaths alone in 8 to 12, untraded deaths with mates in 13 to 16.
+// Riot has 7 first deaths and 13 of 16 deaths untraded; the counts are 4 and
+// 8 of 11, and the Verdict said "First to die in 4 of 24 rounds" and "8 of
+// your 16 deaths went untraded", each false.
+{
+  const rows = [];
+  for (let n = 1; n <= 24; n++) {
+    const r = { n, verified: true, side: n <= 12 ? 'attacking' : 'defending', result: n % 2 ? 'won' : 'lost', died: false,
+      kills: 1, firstKill: false, firstDeath: false, trades: 0, feedKnown: true };
+    if (n <= 7) Object.assign(r, { died: true, firstDeath: true, traded: n <= 3, aliveAtDeath: { mates: 5, enemies: 5 }, deathSec: 10 });
+    else if (n <= 12) Object.assign(r, { died: true, traded: false, aliveAtDeath: { mates: 1, enemies: 3 }, deathSec: 80 });
+    else if (n <= 16) Object.assign(r, { died: true, traded: false, aliveAtDeath: { mates: 3, enemies: 3 }, deathSec: 40 });
+    rows.push(r);
+  }
+  const base = { rounds: rows, context: { map: 'Ascent', agent: 'Sova', teamScore: 13, enemyScore: 11 }, endedBy: 'score', ai: {},
+    tracker: null, role: 'Initiator', history: [], riotMe: { agent: 'Sova', kills: 24, deaths: 16, assists: 5, score: 4800, damage: 3000 },
+    queue: 'competitive', riotIdSet: true };
+  const rv = review.served(review.build(base));
+  const only = (key) => ({ ...rv, grade: { ...rv.grade, letter: 'C' }, insights: { ...rv.insights, strengths: [], mistakes: rv.insights.mistakes.filter((e) => e.key === key) } });
+  ok(verdict.reason(only('untraded')) === '8 of your 11 deaths went untraded.',
+    'the untraded line takes its denominator from its own count, the deaths a teammate was alive to trade', verdict.reason(only('untraded')));
+  ok(verdict.reason(only('first-death')) === 'First to die and not traded in 4 of 24 rounds.',
+    'the first death line says it counts the ones nobody traded', verdict.reason(only('first-death')));
+  // A review saved before 8.7.2 counted every first death, and keeps its words.
+  const old = only('first-death');
+  old.insights.mistakes = old.insights.mistakes.map((e) => ({ ...e, untradedOnly: undefined, detail: 'You were the first player down in 4 rounds.' }));
+  ok(verdict.reason(old) === 'First to die in 4 of 24 rounds.', 'one saved before keeps the line its count was made for', verdict.reason(old));
+  const ro = review.build({ ...base, source: 'riot' });
+  const title = (key) => (ro.insights.facts.find((f) => f.key === key) || {}).title;
+  ok(title('first-death') === 'First to die and not traded' && title('untraded') === 'Deaths not traded, a teammate alive to trade',
+    'a Riot only review\'s facts are titled for what they count', `${title('first-death')} | ${title('untraded')}`);
 }
 
 // ── No Verdict without a grade ───────────────────────────────────────────────

@@ -28,8 +28,16 @@ const profileMigration = require('./services/profile-migration');
 
 // OCCLARA_DEV_USERDATA is a dev-only escape hatch: it runs this build against a
 // throwaway profile, so a smoke test can boot alongside an installed copy
-// without touching its config, license, or session history.
-app.setPath('userData', process.env.OCCLARA_DEV_USERDATA || profileMigration.migrate(LEGACY_USER_DATA, USER_DATA, console));
+// without touching its config, license, or session history. Only a build run
+// from the repo takes it, as every other dev switch (RECORDER_DEV): an
+// installed build pointed at another profile by a leftover variable looks to
+// the player like a wiped licence and library (test:webguard).
+app.setPath('userData', (!app.isPackaged && process.env.OCCLARA_DEV_USERDATA) || profileMigration.migrate(LEGACY_USER_DATA, USER_DATA, console));
+
+// Every page the app makes is held to our own files: no navigation or
+// redirect elsewhere, no window opened by a page (windows/web-guard.js).
+const webGuard = require('./windows/web-guard');
+app.on('web-contents-created', (_e, contents) => webGuard.guard(contents, { log: (m) => console.log(m) }));
 
 const logger   = require('./logger');
 const store    = require('./services/store');
