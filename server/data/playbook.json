@@ -94,6 +94,7 @@
       "topic": "checkpoints"
     },
     "agents": [
+      "Hush",
       "Iso",
       "Jett",
       "Neon",
@@ -103,7 +104,8 @@
       "Waylay",
       "Yoru"
     ],
-    "tier": "advanced"
+    "tier": "advanced",
+    "side": "attack"
   },
   {
     "text": "Do not move to the next piece of space before your team reaches the last one, you are the fastest player there and they cannot trade what they cannot reach.",
@@ -116,6 +118,7 @@
       "topic": "checkpoints"
     },
     "agents": [
+      "Hush",
       "Iso",
       "Jett",
       "Neon",
@@ -125,10 +128,11 @@
       "Waylay",
       "Yoru"
     ],
-    "tier": "advanced"
+    "tier": "advanced",
+    "side": "attack"
   },
   {
-    "text": "Sitting far up forces them to respect you, watch the minimap and punish the moment they overstep toward the rest of your team.",
+    "text": "Sitting far up forces them to respect you, watch the minimap and punish the moment they overstep toward the rest of your team, but only while a teammate can trade your fall back.",
     "roles": [
       "duelist"
     ],
@@ -137,7 +141,8 @@
       "kind": "vod-review",
       "topic": "being a thorn"
     },
-    "tier": "advanced"
+    "tier": "advanced",
+    "side": "defense"
   },
   {
     "text": "The agent you picked does not decide whether you are allowed to flank or take space, that is a choice about the round, not about your role.",
@@ -194,7 +199,7 @@
     "tier": "core"
   },
   {
-    "text": "Decide how you are taking an angle before you arrive at it, the way you pick the lane before the turn, hesitating at the corner is what gets you traded.",
+    "text": "Decide how you are taking an angle before you arrive at it, the way you pick the lane before the turn, hesitating at the corner is what gets you killed.",
     "weight": 3,
     "source": {
       "kind": "vod-review",
@@ -203,7 +208,7 @@
     "tier": "core"
   },
   {
-    "text": "Scoping a rifle roots you in place, take the angle unscoped and keep moving unless the range genuinely demands it.",
+    "text": "Scoping a rifle slows you to a crawl, take the angle unscoped and keep moving unless the range genuinely demands it.",
     "weight": 1,
     "source": {
       "kind": "vod-review",
@@ -313,7 +318,11 @@
       "kind": "vod-review",
       "topic": "building a pattern"
     },
-    "tier": "advanced"
+    "tier": "advanced",
+    "agents": [
+      "Astra",
+      "Viper"
+    ]
   },
   {
     "text": "When your team commits, get the smoke down fast and get back on your gun, a perfect smoke that lands after the entry is a wasted round.",
@@ -346,7 +355,8 @@
       "kind": "vod-review",
       "topic": "smoke depth"
     },
-    "tier": "advanced"
+    "tier": "advanced",
+    "side": "defense"
   },
   {
     "text": "Gun in hand is the priority, utility is how you win the fight, not something you do instead of taking it.",
@@ -520,7 +530,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Your pistol does 55 to the body out to 30 meters, so on a save it beats a rifle at range if the first shot lands.",
+    "text": "Your pistol one taps a head out to 30 meters, so on a save hold a long angle where the first shot you take is a head shot, because in a race of body hits it loses to every rifle.",
     "weapons": [
       "sheriff"
     ],
@@ -528,7 +538,16 @@
     "source": {
       "kind": "computed",
       "topic": "sheriff falloff",
-      "numbers": "valorant-api.com damage table"
+      "numbers": "valorant-api.com damage table",
+      "claims": [
+        {
+          "weapon": "sheriff",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 1,
+          "band": "near"
+        }
+      ]
     }
   },
   {
@@ -546,7 +565,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Your pistol keeps 26 to the body out to 30 meters, so on a pistol round range matters far less than the first shot landing.",
+    "text": "Your pistol's body damage holds to 30 meters but its spread does not, so take the close fight where the first head shot is possible and tap, never trade body shots across a lane.",
     "weapons": [
       "classic"
     ],
@@ -559,7 +578,7 @@
   },
   {
     "tier": "advanced",
-    "text": "Your pistol stays at 39 to the body all the way to 30 meters before it drops, so it punishes a long hold.",
+    "text": "Your pistol one taps a head inside 10 meters and only there against Heavy Armor, so hold the close corner where they walk into you, never the long lane where the one tap is gone.",
     "weapons": [
       "bandit"
     ],
@@ -567,7 +586,16 @@
     "source": {
       "kind": "computed",
       "topic": "bandit falloff",
-      "numbers": "valorant-api.com damage table"
+      "numbers": "valorant-api.com damage table",
+      "claims": [
+        {
+          "weapon": "bandit",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 1,
+          "band": "near"
+        }
+      ]
     }
   },
   {
@@ -1975,7 +2003,7 @@
     "why": "Waylay is easy to hit mid dash, so the hinder has to land first."
   },
   {
-    "text": "Shoot the energy orbs that drop from enemies you damaged, because every orb you shoot gives you another shield and keeps Focus running into the next duel.",
+    "text": "Shoot the energy orbs that drop from enemies you damaged when they die, because every orb you shoot gives you another shield and keeps Focus running into the next duel.",
     "agents": [
       "Iso"
     ],
@@ -2050,7 +2078,7 @@
     "why": "The dead Ruse is limited and brief, so its value is all in timing."
   },
   {
-    "text": "Only use Not Dead Yet where you can find damage quickly from safe cover, because dying again rewards the player who kills you.",
+    "text": "Only use Not Dead Yet where you can find damage quickly from safe cover, because dying again rewards the player who kills you with an ultimate point and a refreshed signature.",
     "agents": [
       "Clove"
     ],
@@ -2208,7 +2236,7 @@
     "why": "The plant bonus is paid to every attacker win or lose (unchanged as of patch 13.06), and a group rush with leftover abilities beats defenders holding angles with a gun advantage."
   },
   {
-    "text": "After winning the pistol, buy heavy armor with your gun and not light armor, because a close range headshot from the broke team's pistol can kill through light armor and you lose your gun and your numbers.",
+    "text": "After winning the pistol, buy heavy armor with your gun and not light armor, because a Ghost head hit plus one body hit kills through light armor and not through heavy, and losing the gun in a round you should win gives them a rifle.",
     "phase": "buy",
     "situations": [
       "antieco"
@@ -2220,7 +2248,7 @@
     },
     "tier": "core",
     "when": "Round after a won pistol, player buys a rifle or SMG with light armor, or dies to a Classic or Sheriff on the anti eco.",
-    "why": "The alternate fire of the free pistol can one shot through light armor at close range, and losing the gun in a round you should win gives the enemy a free rifle."
+    "why": "A pistol head hit alone kills either armour or neither, it is the head plus body combination and the mixed hits of a close fight that light armor lets through, and losing the gun in a round you should win gives the enemy a free rifle."
   },
   {
     "text": "In the anti eco do not send a lone lurker, because a lurker who dies hands the broke team a rifle and a man advantage on a round you were already winning.",
@@ -2324,7 +2352,7 @@
     "why": "The flat payout for a save is below the loss bonus, so saving a cheap gun costs more credits than the gun is worth, while saving a rifle or sniper pays back."
   },
   {
-    "text": "On the attack pistol, hit the site their sentinel usually does not hold, because that setup is the hardest thing for a team with no utility to break.",
+    "text": "On the second pistol hit the site their sentinel did not hold in the first half, and on the first pistol expect the sentinel on the site their comp usually anchors, because that setup is the hardest thing for a team with no utility to break.",
     "side": "attack",
     "situations": [
       "pistol"
@@ -2826,7 +2854,7 @@
     ]
   },
   {
-    "text": "As the last attacker against several, do not plant and then stand on the site, because the plant shows where you are and lets them take the site apart, so plant only if you leave straight away to look for a timing.",
+    "text": "As the last attacker, plant and then leave the spike at once, because the plant shows where you are and lets them take the site apart, while the timer makes them come to you wherever you hold.",
     "side": "attack",
     "phase": "active",
     "situations": [
@@ -2839,7 +2867,7 @@
     },
     "tier": "advanced",
     "when": "Last attacker plants against several defenders and holds the spike from the site, then loses to utility and a gradual push.",
-    "why": "Standing at the spike lets the defense focus utility and fights on one spot, while moving away from it keeps a chance of isolating someone. Other coaches say to be patient before planting, so this is a style choice that depends on the read."
+    "why": "Standing at the spike lets the defense focus utility and fights on one spot, while moving away from it keeps a chance of isolating someone, and the plant itself is almost always right because the defenders must then come to you."
   },
   {
     "text": "In a clutch, peek in small slices from cover so only a single enemy can see you and step back after each fight, because that turns a crowd into separate duels.",
@@ -3234,5 +3262,1483 @@
     "tier": "core",
     "when": "Ask Coach questions about how to review a match, a death the player cannot explain, or a death streak.",
     "why": "The player already knows what they saw, and the missing half is what the enemy knew about them."
+  },
+  {
+    "text": "Your rifle does 50 to the body at every range, so 3 body hits kill through Heavy Armor where the Vandal needs 4, but it holds only 18 and fires slowly, so plan the long duel, scope early at head height, and hip fire anything inside a room.",
+    "weapons": [
+      "warden"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "computed",
+      "topic": "warden flat",
+      "numbers": "valorant-api.com damage table",
+      "claims": [
+        {
+          "weapon": "warden",
+          "part": "body",
+          "armor": "heavy",
+          "hits": 3
+        },
+        {
+          "weapon": "vandal",
+          "part": "body",
+          "armor": "heavy",
+          "hits": 4
+        },
+        {
+          "weapon": "warden",
+          "field": "magazine",
+          "value": 18
+        }
+      ]
+    },
+    "when": "the player holds the Warden",
+    "why": "the gun is a long lane rifle, its 18 rounds and slow fire lose the close spray fight that the other two rifles win"
+  },
+  {
+    "text": "Buy your rifle for the lane you will hold, the slow heavy one for a long sightline you can scope before they arrive, the Vandal for a fight that may turn close, because the slow rifle gives a close enemy time to recover from a missed opening shot.",
+    "phase": "buy",
+    "situations": [
+      "fullbuy"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "choose the gun for the position"
+    },
+    "when": "a full buy on a map with a long lane the player anchors",
+    "why": "the Warden is a full price rifle that only pays off in planned duels"
+  },
+  {
+    "text": "Prepare Flashbulb with alt fire before you Flow into the site, so it pops as you land, because the anchor dash has a windup in which you are as shootable as anyone and a flash that lands after you do is a flash for them.",
+    "agents": [
+      "Hush"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "cause": [
+      "dry-peek"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "Hush entry combo"
+    },
+    "when": "a Hush entry that died in the dash",
+    "why": "Flow is a delayed dash, not an instant one like Jett's"
+  },
+  {
+    "text": "After the plant, steer Suspension onto the spike the moment the defuse starts rather than at the first retaker you see, because a lifted defuser is off the bomb and in the air for your whole team to shoot.",
+    "agents": [
+      "Hush"
+    ],
+    "side": "attack",
+    "phase": "postplant",
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "Hush ultimate"
+    },
+    "when": "Hush holds her ultimate in a post plant",
+    "why": "the ultimate levitates everyone it catches and it cannot be shot down"
+  },
+  {
+    "text": "When a Hush anchor appears, aim at where the dash will land and not at where she stands, because Flow fires after a delay she cannot shorten and she is not protected while it winds up.",
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "playing against Hush"
+    },
+    "when": "the player died to a Hush dash",
+    "why": "untagged on purpose so it can reach any agent, it competes on weight alone"
+  },
+  {
+    "text": "On Summit a dropped wall stays down for the whole round, so on defense wait for the hit to commit before you shoot the switch, because a wall dropped on a fake closes your own rotation and tells them which site is thin.",
+    "maps": [
+      "Summit"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "Summit walls"
+    },
+    "when": "a defender on Summit before first contact",
+    "why": "the three walls cannot be reopened once dropped"
+  },
+  {
+    "text": "On Summit, time the wall drop with the entry so it cuts the defenders' sightline or rotation as you go in, because a dropped wall stays down for the round and blocks that line for the rest of it.",
+    "maps": [
+      "Summit"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "Summit walls"
+    },
+    "when": "an attack on Summit dropped a wall before the hit",
+    "why": "a wall is a free smoke that never fades, which is worth most in the seconds the entry is exposed"
+  },
+  {
+    "text": "On Corrode walk through the water or take the dry route, because running through the flooded walkways splashes loud enough to call your lane, and on defense a splash with no footsteps under it still tells you exactly where they are.",
+    "maps": [
+      "Corrode"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "Corrode water"
+    },
+    "when": "any round on Corrode",
+    "why": "the map has shallow water in its walkways that is audible at run speed"
+  },
+  {
+    "text": "On Corrode take Mid Stairs with utility before you split a site, because a defender holding Mid Window from height sees the split form before it starts and A Link is reachable unseen only once mid is yours.",
+    "maps": [
+      "Corrode"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "Corrode mid"
+    },
+    "when": "an attacker on Corrode planning a split",
+    "why": "every guide and the Riot change notes put mid control first on this map"
+  },
+  {
+    "text": "On Corrode two players with utility can hold B against a full execute, so do not stack a third there and leave mid and A Yard thin.",
+    "maps": [
+      "Corrode"
+    ],
+    "side": "defense",
+    "phase": "buy",
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "Corrode B hold"
+    },
+    "when": "a Corrode defense that stacked B and lost A or mid",
+    "why": "B is the compact defender sided site, the map guides make the two player hold its default"
+  },
+  {
+    "text": "Recall Interceptor whenever its site goes quiet, because the reclaim comes back well inside a round now and a trap left on a dead site is a trap you do not have for the retake.",
+    "agents": [
+      "Veto"
+    ],
+    "roles": [
+      "sentinel"
+    ],
+    "side": "defense",
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "riot-notes",
+      "topic": "Veto Interceptor"
+    },
+    "when": "Veto whose site is not being hit",
+    "why": "a patch cut the reclaim cooldown by a third"
+  },
+  {
+    "text": "Fire your signature on the first contact rather than saving it for the site, because it comes back faster now and is up again by the time the hit starts, while information you held back is information nobody used.",
+    "roles": [
+      "initiator"
+    ],
+    "agents": [
+      "Sova",
+      "Fade",
+      "Skye",
+      "Breach",
+      "KAY/O"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "riot-notes",
+      "topic": "signature cooldown"
+    },
+    "when": "an initiator holding the signature through the default",
+    "why": "a patch cut the five signatures' cooldowns"
+  },
+  {
+    "text": "Past 20 meters a head hit from your rifle leaves a full shield standing, so at a long angle land the head and keep firing for the next bullet instead of pausing on the hit, and inside 20 meters trust the one tap.",
+    "weapons": [
+      "phantom"
+    ],
+    "cause": [
+      "lost-duel"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "computed",
+      "topic": "phantom head range",
+      "numbers": "valorant-api.com damage table",
+      "claims": [
+        {
+          "weapon": "phantom",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 2,
+          "band": "far"
+        },
+        {
+          "weapon": "phantom",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 1,
+          "band": "near"
+        }
+      ]
+    },
+    "when": "the player holds a Phantom and lost a long duel after landing a head hit",
+    "why": "the far head hit is under the total of full health and Heavy Armor"
+  },
+  {
+    "text": "On a pistol round a head hit from your pistol kills nobody who bought even Light Armor, so land the first head shot and keep tapping until they fall rather than stopping to see if it worked.",
+    "weapons": [
+      "ghost"
+    ],
+    "situations": [
+      "pistol"
+    ],
+    "cause": [
+      "lost-duel"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "computed",
+      "topic": "ghost against light armor",
+      "numbers": "valorant-api.com damage table",
+      "claims": [
+        {
+          "weapon": "ghost",
+          "part": "head",
+          "armor": "light",
+          "hits": 2,
+          "band": "near"
+        },
+        {
+          "weapon": "ghost",
+          "part": "head",
+          "armor": "none",
+          "hits": 1,
+          "band": "near"
+        }
+      ]
+    },
+    "when": "a pistol round duel lost after a head hit landed",
+    "why": "the head hit is under the total of full health and Light Armor"
+  },
+  {
+    "text": "Walking keeps you quiet but it does not make your rifle accurate, the first bullet still wanders off the head while you creep, so stop completely before the shot even when you were only walking.",
+    "cause": [
+      "lost-duel"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "riot-notes",
+      "topic": "walking is not standing"
+    },
+    "when": "a lost duel where the player was shift walking into the angle when they fired",
+    "why": "rifle walking error is several times the standing error in Riot's own numbers"
+  },
+  {
+    "text": "Inside close range hold the trigger, at mid range fire 3 or 4 bullets then step sideways and fire 3 or 4 more, and at long range tap single shots and let the gun settle, because the first bullets of a spray climb on one line you can pull down and the later ones jump sideways at random.",
+    "weapons": [
+      "vandal",
+      "phantom",
+      "bulldog"
+    ],
+    "cause": [
+      "lost-duel"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "riot-notes",
+      "topic": "burst length by range"
+    },
+    "when": "a rifle duel lost to a long spray",
+    "why": "Riot protects the first bullets of a spray from a yaw switch, after that the spray can change direction"
+  },
+  {
+    "text": "Make an information jiggle a single tap out and back, shorter than a holder can react to, because a holder needs about a fifth of a second to see you and fire, and a jiggle that lingers any longer becomes a duel on their terms.",
+    "cause": [
+      "dry-peek"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "jiggle length"
+    },
+    "when": "the player died on what they meant as an information peek",
+    "why": "exposure beyond human reaction time is a committed peek, whatever it was called"
+  },
+  {
+    "text": "Spend one deathmatch moving your crosshair only sideways and never up or down, and count every time you had to flick down to a head, because each one is a spot where your resting crosshair is too high or too low and that count is what you are training to zero.",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "head height drill"
+    },
+    "when": "lost duels keep coming from low crosshair placement",
+    "why": "the drill makes head height a habit and the count makes the habit measurable"
+  },
+  {
+    "text": "Set a sensitivity where one comfortable swipe from the middle of your pad turns you about 180 degrees, then stop touching it, and when you must change it move it by about 5 percent for a miss that repeats and never after one bad game.",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "sensitivity"
+    },
+    "when": "the player asks about aim or sensitivity, or overflicks repeat across matches",
+    "why": "repeated overflicks mean too high, short flicks too low, and every change resets muscle memory"
+  },
+  {
+    "text": "Run while the round is loud and switch to walking two corners before the spot you expect them, not at the last one, because running is heard through walls and the steps you took to reach the corner have already told the holder where to pre aim.",
+    "cause": [
+      "dry-peek",
+      "overextend"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "walk timing"
+    },
+    "when": "a death where the player ran up to the corner they died at",
+    "why": "running is audible and walking is not, so the switch has to come before the information matters"
+  },
+  {
+    "text": "Take height by jumping up, which makes no sound, and leave it by walking around rather than dropping, and swap guns, scope and pick up a weapon freely, because none of those is heard while a drop, a reload and a jump down to lower ground all are.",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "what the enemy hears"
+    },
+    "when": "the player was found on or after leaving a perch, or asks about sound",
+    "why": "players avoid silent actions and perform loud ones because they do not know which is which"
+  },
+  {
+    "text": "If you keep having to flick at a wide swing, hold farther from the corner, because the player farther from the edge sees the other one first and a swing from distance arrives inside your crosshair instead of past it, and tuck in tighter only when your reaction is quick enough to win the flick.",
+    "side": "defense",
+    "cause": [
+      "lost-duel"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "hold distance by reaction"
+    },
+    "when": "a holder lost to a wide swing they saw but flicked past",
+    "why": "distance from the dividing edge decides who sees whom first"
+  },
+  {
+    "text": "Measure your entry by whether your teammates are on the site behind you a few seconds after your first contact, not by the kill, because a duelist who is still alone on site after the first fight has taken space nobody is using.",
+    "side": "attack",
+    "phase": "active",
+    "roles": [
+      "duelist"
+    ],
+    "agents": [
+      "Hush",
+      "Iso",
+      "Jett",
+      "Neon",
+      "Phoenix",
+      "Raze",
+      "Reyna",
+      "Waylay",
+      "Yoru"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "cause": [
+      "isolated",
+      "overextend"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "entry is a four on five"
+    },
+    "when": "the duelist's first kill or death comes with no teammate close and the team still outside the site",
+    "why": "every coaching guide defines the entry as turning a five on five into a four on five that the team walks in on"
+  },
+  {
+    "text": "In the buy phase tell your initiator which corner you want flashed or scanned first and swing on that pop, because a set piece agreed before the barrier drops lands on time and one improvised at the choke lands after you have already swung.",
+    "phase": "buy",
+    "roles": [
+      "duelist"
+    ],
+    "agents": [
+      "Hush",
+      "Iso",
+      "Jett",
+      "Neon",
+      "Phoenix",
+      "Raze",
+      "Reyna",
+      "Waylay",
+      "Yoru"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "agree the set piece in the buy"
+    },
+    "when": "a duelist on a team with an initiator keeps dying on dry swings while initiator utility goes unused or lands late",
+    "why": "the dry entry before the initiator's set piece is the most named duelist mistake from Gold to Diamond"
+  },
+  {
+    "text": "When your drone, recon or the first contact shows three or more defenders on the site, call the rotate instead of entering, because an entry into a stack is a trade at best and finding the stack was the whole point of sending the scout.",
+    "side": "attack",
+    "phase": "active",
+    "roles": [
+      "duelist"
+    ],
+    "agents": [
+      "Hush",
+      "Iso",
+      "Jett",
+      "Neon",
+      "Phoenix",
+      "Raze",
+      "Reyna",
+      "Waylay",
+      "Yoru"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "cause": [
+      "crossfire",
+      "overextend"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "do not entry into a stack"
+    },
+    "when": "the duelist dies to two or more defenders on a site a scout had already shown to be stacked",
+    "why": "coaches list entering a stacked site among the times a duelist must not entry"
+  },
+  {
+    "text": "Your flash blinds your own teammates as much as the holder, so when you flash for your own swing say it before it leaves your hand and throw it so it pops past the corner rather than in the lane your team is walking.",
+    "agents": [
+      "Hush",
+      "Phoenix",
+      "Yoru"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "cause": [
+      "dry-peek",
+      "lost-duel"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "a duelist's self flash"
+    },
+    "when": "a flash agent duelist swings a corner while a teammate is in the same lane",
+    "why": "Curveball, Blindside and Flashbulb all flash every player looking at them in the game's own text"
+  },
+  {
+    "text": "If your entry dies before your flash or recon is out, do not step into their place, throw the utility you were holding for the player behind you and swing with them, because a second body through the same door without a set piece dies the same way.",
+    "side": "attack",
+    "phase": "active",
+    "roles": [
+      "initiator"
+    ],
+    "agents": [
+      "Breach",
+      "Fade",
+      "Gekko",
+      "KAY/O",
+      "Skye",
+      "Sova",
+      "Tejo"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "cause": [
+      "isolated",
+      "dry-peek"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "initiator after the entry dies"
+    },
+    "when": "an initiator dies at the same entrance seconds after the duelist, with a flash, stun or recon still unused",
+    "why": "the coaching fix for a dead entry is to reflash at once for the next swinger"
+  },
+  {
+    "text": "Count the defenders your scan showed and say where the rest must be, because two seen on the site means three are elsewhere, and that number is what your lurker and your flank watch need more than the positions you saw.",
+    "roles": [
+      "initiator"
+    ],
+    "agents": [
+      "Breach",
+      "Fade",
+      "Gekko",
+      "KAY/O",
+      "Skye",
+      "Sova",
+      "Tejo"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "call the remainder"
+    },
+    "when": "a recon, drone or knife count reveals part of the defence and a teammate is then killed from the side nobody called",
+    "why": "coaches teach the count and the remainder together"
+  },
+  {
+    "text": "Fire your recon as the team starts its last approach rather than once they are standing in the choke, because defenders move the moment they are revealed and a scan fired while your team is still a corridor away shows where they were.",
+    "side": "attack",
+    "phase": "active",
+    "roles": [
+      "initiator"
+    ],
+    "agents": [
+      "Fade",
+      "Gekko",
+      "KAY/O",
+      "Skye",
+      "Sova",
+      "Tejo"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "recon on the last approach"
+    },
+    "when": "a recon or drone is used well before the team is in position and the hit then meets defenders who have shifted",
+    "why": "guides put the recon a couple of seconds ahead of the team's arrival"
+  },
+  {
+    "text": "Pilot your drone or creature only from behind cover or a teammate and keep the flight short, because you are blind to your own body while you steer it and a defender who hears it deploy pushes you rather than it.",
+    "agents": [
+      "Gekko",
+      "Skye",
+      "Sova",
+      "Tejo"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "cause": [
+      "exposed",
+      "isolated"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "piloting from safety"
+    },
+    "when": "an initiator dies while piloting a drone or a creature from an open position",
+    "why": "every piloted ability leaves the player stationary and defenceless"
+  },
+  {
+    "text": "Aim Displacement at the wall beside the holder rather than at the holder, because the pull only concusses a player who is slammed into a surface or another player, and a clean pull into open air hands them a free turn onto you.",
+    "agents": [
+      "Hush"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "cause": [
+      "lost-duel"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "Hush Displacement needs a wall"
+    },
+    "when": "Hush pulls a defender and loses the duel that follows, with the defender never concussed",
+    "why": "the game's own text says the concuss happens only on collision with a surface or a player"
+  },
+  {
+    "text": "Prepare your flash and your pull with alt fire before you commit so your rifle is out when you turn the corner, and steer each one past the corner instead of throwing it blind, because a projectile redirected after the corner reaches a holder a thrown one never would.",
+    "side": "attack",
+    "agents": [
+      "Hush"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "cause": [
+      "dry-peek"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "Hush primes before the entry"
+    },
+    "when": "Hush enters with her utility unprimed and either swings dry or is caught with a projectile in hand",
+    "why": "Flashbulb and Displacement both read alt fire to prepare and reactivate to direct toward your crosshair"
+  },
+  {
+    "text": "Do not stay in the air after an updraft, rise, take the one shot and land behind cover, because you cannot change direction up there and a floating head is the easiest shot on the map.",
+    "agents": [
+      "Jett"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "cause": [
+      "exposed",
+      "lost-duel"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "Jett updraft discipline"
+    },
+    "when": "Jett dies mid air or just after landing from an updraft peek over a wall",
+    "why": "guides list staying airborne after Updraft among Jett's common mistakes"
+  },
+  {
+    "text": "Throw Leer above head height and off to the side of where the holder is looking, because an eye they can shoot without moving their crosshair dies before it nearsights anyone and a nearsighted holder is the duel your kit is built on.",
+    "agents": [
+      "Reyna"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "cause": [
+      "dry-peek",
+      "lost-duel"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "Reyna Leer placement"
+    },
+    "when": "Reyna's Leer is shot before the swing or placed in the holder's crosshair, and the duel is lost dry",
+    "why": "Leer is destructible in the game's text and head level placement is why it is shot down before it works"
+  },
+  {
+    "text": "Place your Run it Back marker behind a box or around a wall before the entry and move it to a new spot each time, because a defender who has seen the marker waits on it and kills you as you return.",
+    "side": "attack",
+    "agents": [
+      "Phoenix"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "cause": [
+      "repeek",
+      "exposed"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "Phoenix marker placement"
+    },
+    "when": "Phoenix dies shortly after Run it Back returns him, or his marker sits in a lane the enemy has seen",
+    "why": "Run it Back returns him to the marker at full health, so a seen marker turns the ultimate into a second death"
+  },
+  {
+    "text": "Send Wingman to plant while you and your team hold the angles onto the spike, because the planter is the easiest kill of the round and the one body you can afford to lose is the little one.",
+    "side": "attack",
+    "phase": "active",
+    "agents": [
+      "Gekko"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "cause": [
+      "exposed"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "Gekko Wingman plants"
+    },
+    "when": "a Gekko or a teammate dies on the plant while Wingman was available",
+    "why": "Wingman's alt fire plants or defuses in the game's text"
+  },
+  {
+    "text": "Cast your execute smokes as the entry starts moving so they land a moment before the first player steps onto the site, because a smoke thrown while the team is still gathering fades during the fight and tells the defence where you are going.",
+    "agents": [
+      "Astra",
+      "Brimstone",
+      "Clove",
+      "Harbor",
+      "Miks",
+      "Omen",
+      "Viper"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "execute smoke timing"
+    },
+    "when": "a controller's smokes went down long before the hit, or the entry walked in as they were fading",
+    "why": "a smoke has a life, and the part of it that matters is the seconds the entry is exposed"
+  },
+  {
+    "text": "On an execute, smoke the spots the defenders shoot from and leave your own doorway clear, because a smoke on the entrance hides their crossfire from you and you still have to walk out of it into every angle at once.",
+    "agents": [
+      "Astra",
+      "Brimstone",
+      "Clove",
+      "Harbor",
+      "Miks",
+      "Omen",
+      "Viper"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "cause": [
+      "crossfire"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "execute smokes block angles not entrances"
+    },
+    "when": "deaths stepping out of the team's own smoke on the choke, several angles firing at the exit",
+    "why": "a deny smoke and an execute smoke are opposite shapes, one closes a doorway and the other closes the eyes watching it"
+  },
+  {
+    "text": "On defence put your smoke a few steps in front of where you hold rather than on top of yourself, because a player who steps out of a smoke into your face has the first shot while one who has to cross open ground after it walks into yours.",
+    "agents": [
+      "Astra",
+      "Brimstone",
+      "Clove",
+      "Harbor",
+      "Miks",
+      "Omen",
+      "Viper"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "cause": [
+      "lost-duel"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "defensive smoke distance"
+    },
+    "when": "a defender dies at point blank to an attacker emerging from the defender's own smoke",
+    "why": "a smoke is a wall the attacker chooses when to cross, so the ground behind it must be yours, not your feet"
+  },
+  {
+    "text": "Pair the smoke on a choke with a molly, slow or trap just behind it, because a smoke alone only asks the push to walk through blind and the damage behind it is what makes them stop and wait for it to clear.",
+    "agents": [
+      "Astra",
+      "Brimstone",
+      "Clove",
+      "Harbor",
+      "Miks",
+      "Omen",
+      "Viper",
+      "Chamber",
+      "Cypher",
+      "Deadlock",
+      "Killjoy",
+      "Sage",
+      "Veto",
+      "Vyse"
+    ],
+    "roles": [
+      "controller",
+      "sentinel"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "layer damage behind the smoke"
+    },
+    "when": "a site fell through a smoked choke with no delay bought, the rotators arrived after the plant",
+    "why": "defence buys seconds, and a smoke buys them only when crossing it costs something"
+  },
+  {
+    "text": "Hold a one way only from a spot where you can stand still behind cover, and leave it the moment it is sprayed or cleared, because a one way shows their feet once and after that the attackers know exactly which spot is watching.",
+    "agents": [
+      "Astra",
+      "Brimstone",
+      "Clove",
+      "Harbor",
+      "Miks",
+      "Omen",
+      "Viper"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "cause": [
+      "repeek"
+    ],
+    "weight": 1,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "one way smokes"
+    },
+    "when": "a defender dies on a one way after its first kill or after the attackers started shooting through it",
+    "why": "the one way is surprise, and surprise is spent on the first shot"
+  },
+  {
+    "text": "Keep two setups for every site and switch after a round where they cleared your utility, because a trap they broke last round is a trap they walk around this round and the corner it covered is now the one they take.",
+    "agents": [
+      "Chamber",
+      "Cypher",
+      "Deadlock",
+      "Killjoy",
+      "Sage",
+      "Veto",
+      "Vyse"
+    ],
+    "roles": [
+      "sentinel"
+    ],
+    "side": "defense",
+    "phase": "buy",
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "two setups per site"
+    },
+    "when": "the same trap or turret is destroyed in back to back rounds, the site falls the same way twice",
+    "why": "a setup is information the attackers keep, so a repeated setup is a map of what you cannot see"
+  },
+  {
+    "text": "Layer your utility at different depths, one piece at the entrance, one halfway in and one on the site, because a single line of traps tells them the site is clear the moment they are past it.",
+    "agents": [
+      "Chamber",
+      "Cypher",
+      "Deadlock",
+      "Killjoy",
+      "Sage",
+      "Veto",
+      "Vyse"
+    ],
+    "roles": [
+      "sentinel"
+    ],
+    "side": "defense",
+    "phase": "buy",
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "layered setup"
+    },
+    "when": "all of a sentinel's utility sat on the choke, the attackers walked onto the site freely once through it",
+    "why": "delay is bought in stages, and every stage is another call to the rotators"
+  },
+  {
+    "text": "Leave your site only once your team has seen three or more attackers at the other one, and leave a trap or turret behind that still watches your entrance, because a single footstep is the cheapest fake there is and a site with nothing on it is taken in silence.",
+    "agents": [
+      "Chamber",
+      "Cypher",
+      "Deadlock",
+      "Killjoy",
+      "Sage",
+      "Veto",
+      "Vyse"
+    ],
+    "roles": [
+      "sentinel"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "cause": [
+      "rotating"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "rotate on a count, not a sound"
+    },
+    "when": "a sentinel rotated off the first noise and the attackers planted on the empty site, or died mid rotation",
+    "why": "the sentinel is the last to leave by design, because their utility is the site's memory while they are gone"
+  },
+  {
+    "text": "Call the push the moment your first piece of utility triggers and keep delaying from behind the rest rather than peeking it, because the rotators need about the time one trap and one fall back buys, and a dead anchor buys nothing.",
+    "agents": [
+      "Chamber",
+      "Cypher",
+      "Deadlock",
+      "Killjoy",
+      "Sage",
+      "Veto",
+      "Vyse"
+    ],
+    "roles": [
+      "sentinel"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "cause": [
+      "isolated",
+      "overextend"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "the anchor buys time"
+    },
+    "when": "the anchor died early in the choke before any call, the site was lost before the rotation started",
+    "why": "an anchor's round is measured in seconds, a trade for a trade with a call is a won retake"
+  },
+  {
+    "text": "Place your flank trap behind the team as soon as the first piece of ground is taken, not when the hit starts, because a late flank watch is no flank watch and the defender walking in behind arrives while you are still planting.",
+    "agents": [
+      "Chamber",
+      "Cypher",
+      "Deadlock",
+      "Killjoy",
+      "Sage",
+      "Veto",
+      "Vyse"
+    ],
+    "roles": [
+      "sentinel"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "situations": [
+      "early"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "flank watch timing"
+    },
+    "when": "a sentinel on attack dies, or a teammate does, to a defender who came through ground the team had already taken",
+    "why": "ground you took and stopped watching belongs to whoever walks through it next"
+  },
+  {
+    "text": "If your team is losing the first fights on the main side, stop lurking and join them, because a lurk only pays against a defence that is busy, and a defence that just won its duels is free to come and find you.",
+    "side": "attack",
+    "phase": "active",
+    "cause": [
+      "isolated",
+      "overextend"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "when not to lurk"
+    },
+    "when": "a lurker dies alone after two or more teammates already fell on the other side of the map",
+    "why": "the lurk is a bet on the defence being pulled, and once the pull has failed the bet is off"
+  },
+  {
+    "text": "On Abyss, commit to one site when you rotate rather than drifting halfway through mid, because mid is open ground watched from both ends and a half rotation gets shot from the side it did not pick.",
+    "maps": [
+      "Abyss"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "cause": [
+      "rotating"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "Abyss half rotation"
+    },
+    "when": "a defender on Abyss died in mid between the two sites",
+    "why": "the map guides name the half rotation through mid as the death that keeps repeating on Abyss"
+  },
+  {
+    "text": "On Bind, keep a trap or a crosshair on the teleporter exit on your side whenever the other site is loud, because the split through the teleporter is how a hit on one site becomes a plant on yours.",
+    "maps": [
+      "Bind"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "Bind teleporter exit"
+    },
+    "when": "a Bind defender lost the quiet site to attackers who arrived through the teleporter",
+    "why": "the teleporters are the map's only fast rotate and the guides list ignoring the exit as the first Bind mistake"
+  },
+  {
+    "text": "On Haven, the B anchor holds the cross between Mid Window and B Back and calls the push rather than fighting it, because B is the site both rotators reach fastest and a live anchor makes it a three player retake.",
+    "maps": [
+      "Haven"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "cause": [
+      "overextend",
+      "isolated"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "Haven B anchor"
+    },
+    "when": "the Haven B holder died fighting the hit at the entrance before anyone rotated",
+    "why": "B is the smallest site and the one the rotations reach first, so the anchor's job is the call"
+  },
+  {
+    "text": "On Lotus, break the A wall only as part of a hit you are about to run, because it stays broken all round and an early break hands the defenders a new angle on A Main for free.",
+    "maps": [
+      "Lotus"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "Lotus wall break"
+    },
+    "when": "an attack on Lotus broke the wall early and the A hit later died to the angle it opened",
+    "why": "the broken wall is a one way change to the map and the guides name an early break as a Lotus mistake"
+  },
+  {
+    "text": "On Sunset clear A Elbow or B Market before you commit onto a site, because a hit through main with the connector unchecked gets shot from behind by the player who was watching mid.",
+    "maps": [
+      "Sunset"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "cause": [
+      "crossfire",
+      "exposed"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "Sunset connectors"
+    },
+    "when": "an attacker on Sunset died on site to a defender coming from the connector",
+    "why": "the two connectors join mid to each site, so a mid player reaches the back of either hit"
+  },
+  {
+    "text": "Call the count first, then the place, then what they are doing, as in two A main pushing, and say at least two when you are not sure, because the count is what tells your team whether to rotate and a guess sends them the wrong way.",
+    "phase": "active",
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "call order"
+    },
+    "when": "the player's calls name a place without a number, or give a number they did not see",
+    "why": "comms guides teach count, location, state, count first because the listener decides the rotate on it"
+  },
+  {
+    "text": "Make one position call within three seconds of dying and then go quiet apart from spent utility and credits you can see while spectating, because the survivors need the footsteps you are talking over more than they need your story.",
+    "phase": "dead",
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "dead player brevity"
+    },
+    "when": "a review round where the player died early and the round was still live for a while",
+    "why": "one final position call, then silence, chatter blocks audio cues"
+  },
+  {
+    "text": "Answer a rotate or site call with one word and move, and keep your disagreement for after the round, because a team that argues for five seconds arrives at the fight after it is over.",
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "confirm then move"
+    },
+    "when": "a round where the team split between two sites or arrived to a retake one at a time",
+    "why": "confirm with one word, disagreements wait for the debrief, never criticise mid round"
+  },
+  {
+    "text": "Keep each call to about three seconds and make only a handful a round, and never narrate your own duel or reload, because continuous talk covers the footstep and ability sounds your teammates need to swing on.",
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "comms silence"
+    },
+    "when": "a player whose calls are long or constant, which the review cannot see directly, so this serves as general active round advice",
+    "why": "about three seconds a call, a few bursts a round, mute after your call"
+  },
+  {
+    "text": "When contact starts, listen for a full second before you speak, because the footsteps and the utility sounds in that second tell you how many are there and a call shouted over them tells the team nothing new.",
+    "phase": "active",
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "listen then call"
+    },
+    "when": "a round lost to a misread of numbers or a rotate called on a first sound",
+    "why": "the first second of a mid round contact is listening, hear footsteps and utility, register positions, then speak"
+  },
+  {
+    "text": "Follow your entry about five meters behind on a different line, close enough to shoot their killer within a second or two and far enough that one flash or one spray does not take you both, because a trade that arrives after the killer has reset is not a trade.",
+    "side": "attack",
+    "phase": "active",
+    "cause": [
+      "isolated"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "trade distance"
+    },
+    "when": "an entry's death that nobody traded, or a second player who died to the same utility as the first",
+    "why": "spacing lessons give about five meters and the trackers give a few seconds for the killer to die"
+  },
+  {
+    "text": "If you are losing a fight, lose it moving toward your team rather than backing out alone, because a death taken while entering with a teammate behind you gets traded and a death taken while retreating almost never does.",
+    "cause": [
+      "isolated",
+      "overextend"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "stats",
+      "topic": "die forward"
+    },
+    "when": "a death while retreating from a lost fight with no trade",
+    "why": "trade statistics show deaths while entering with teammates behind are usually traded and deaths while retreating rarely are"
+  },
+  {
+    "text": "With two duelists on the team, settle in the buy phase who enters first and who trades, because two players who both think they are the entry swing into the same angle together and two who both think they are the trade leave nobody in front.",
+    "roles": [
+      "duelist"
+    ],
+    "agents": [
+      "Iso",
+      "Jett",
+      "Neon",
+      "Phoenix",
+      "Raze",
+      "Reyna",
+      "Waylay",
+      "Yoru",
+      "Hush"
+    ],
+    "side": "attack",
+    "phase": "buy",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "entry order"
+    },
+    "when": "a double duelist comp where the player's first death was alongside or behind the other duelist",
+    "why": "in a double duelist comp decide in advance who enters first and who trades"
+  },
+  {
+    "text": "Make the buy call before the site call, then change the plan at most once in the round, because a second change mid round leaves five players in five places with their utility already spent on the first plan.",
+    "phase": "buy",
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "one adjustment"
+    },
+    "when": "a round where the team rotated twice or re planned after utility was gone",
+    "why": "economy check first, then the comp call, then utility and ultimates, and only a single mid round adjustment"
+  },
+  {
+    "text": "After a death, take one slow breath on the death screen and turn the verdict into an instruction, not I am bad but I swung without clearing so next round I clear first, because an instruction changes the next round and a verdict only changes your mood.",
+    "situations": [
+      "deathstreak"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "verdict to instruction"
+    },
+    "when": "a deathstreak pattern",
+    "why": "one deliberate breath after a death, turn verdicts into instructions, anger is the strongest predictor of tilt"
+  },
+  {
+    "text": "After a lost round say one short supportive line and nothing about who was wrong, because the first seconds after a round are when a bad mood spreads to the team and criticism there costs the next round as well.",
+    "situations": [
+      "deathstreak"
+    ],
+    "phase": "buy",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "after a lost round"
+    },
+    "when": "a run of lost rounds, the streak pattern",
+    "why": "be supportive right after a thrown or narrow round, do not dwell, negativity spreads quickly"
+  },
+  {
+    "text": "Stop queueing after two losses in a row and take at least fifteen minutes away from the screen, because tilt carried into a third match tends to play worse than the first two and a short break is the simplest reset there is.",
+    "situations": [
+      "deathstreak"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "loss limit"
+    },
+    "when": "a match lost after another loss, which the review cannot see today, so the deathstreak tag is the nearest hook",
+    "why": "two losses means a break, the common ranked rule against playing tilted"
+  },
+  {
+    "text": "After you win the pistol, carry the cheap gun you bought into the third round instead of upgrading to a rifle, because that round is your bonus and a lost bonus with a saved rifle budget still leaves you a full buy while an upgraded rifle lost there does not.",
+    "phase": "buy",
+    "situations": [
+      "antieco",
+      "winstreak"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "carry the bonus round gun"
+    },
+    "when": "buy phase of round three or fifteen with the pistol and the second round won",
+    "why": "every economy guide names round three after two wins as the bonus, the existing bonus round note says how to play it and not what to buy"
+  },
+  {
+    "text": "On the last round of a half and on the round before overtime, spend every credit you have, because nothing carries over the side swap and a bank you did not spend is a free round handed to them.",
+    "phase": "buy",
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "spend out before the swap"
+    },
+    "when": "buy phase of the last round of a half in a standard match",
+    "why": "credits reset at the half and overtime starts everyone fresh, so the usual save logic is void"
+  },
+  {
+    "text": "When you are the only one who can afford a rifle, buy what the four others are buying instead, because a lone rifle on a save round dies alone, hands them a free gun and leaves you short for the real buy.",
+    "phase": "buy",
+    "situations": [
+      "eco",
+      "forcebuy"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "no solo buy on a team save"
+    },
+    "when": "the player's credits are far above the team's during a save or force",
+    "why": "the existing buy with your team note covers the team rule, this one covers the richest player's temptation"
+  },
+  {
+    "text": "If you are on attack and the round is lost with no plant, or on defense and the spike will go off, and all you hold is a sidearm, do not hide to survive, because a survivor in those two cases is paid 1000 credits instead of the loss bonus and a sidearm is worth less than the difference.",
+    "phase": "active",
+    "situations": [
+      "eco",
+      "forcebuy"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "survivor penalty"
+    },
+    "when": "last alive on a lost round with only a sidearm, an attacker with no plant or a defender before detonation",
+    "why": "Riot's patch notes 1.11 pay 1000 to an attacker who survives a lost round without planting and to a defender who survives a detonation, below the 1900 loss bonus floor, and every sidearm costs less than that gap"
+  },
+  {
+    "text": "On a save round, a rifle you pick up off the ground is only worth something if you are alive when the round ends, so once you have it stop hunting and hide, because the gun you carry over is next round's buy.",
+    "phase": "active",
+    "situations": [
+      "eco",
+      "lostpistol"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "pickup and live"
+    },
+    "when": "the player picks up a primary during an eco or lost pistol round",
+    "why": "a carried rifle is a full rifle's price saved, a dead body with it is nothing"
+  },
+  {
+    "text": "Take the ultimate orb before the spike goes down when it sits on your path, because every orb vanishes the moment the plant finishes and the point is gone with it.",
+    "side": "attack",
+    "phase": "active",
+    "weight": 1,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "orbs vanish at the plant"
+    },
+    "when": "attack side, orb near the site being hit, plant about to happen",
+    "why": "the existing orb note says grab orbs when a fight is over, this adds the deadline"
+  },
+  {
+    "text": "On a save round, play for one kill and the orb on your side, because kills and orbs still charge your ultimate on a round you expect to lose and a charged ultimate is what makes your next buy round different.",
+    "phase": "active",
+    "situations": [
+      "eco"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "charge on the eco"
+    },
+    "when": "eco round in the active phase, ultimate not yet charged",
+    "why": "ultimate points come in equal from kills, deaths, orbs and the spike, so an eco is the cheapest round to charge on"
+  },
+  {
+    "text": "When you start the retake late and the spike is already beeping fast, go straight for the half defuse, step off with your gun ready and finish it after, because a full defuse started that late is a coin flip against anyone still watching the spike.",
+    "side": "defense",
+    "phase": "postplant",
+    "situations": [
+      "retake"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "late retake defuse plan"
+    },
+    "when": "defender arriving on site with the fast beeps already playing",
+    "why": "the existing half defuse note covers the clutch, this covers the arrival timing that decides whether a full stick is even possible"
+  },
+  {
+    "text": "After the plant, keep one piece of utility for the last seconds instead of throwing it at the first noise, because a molly on the spike as the defuse starts wins the round and the same molly on a wall earlier wins nothing.",
+    "side": "attack",
+    "phase": "postplant",
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "last seconds utility"
+    },
+    "when": "attacker with a damage or slow ability still up after the plant",
+    "why": "a defuse must be interrupted to lose time, so the utility is worth most once it starts"
+  },
+  {
+    "text": "Never reload while you are watching the spike, swap to your sidearm or reload behind cover before you take the angle, because a half defuse that starts during your reload is one you cannot punish.",
+    "side": "attack",
+    "phase": "postplant",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "reload off the spike"
+    },
+    "when": "attacker holding the spike with a partly empty magazine",
+    "why": "the defuse checkpoint banks in a few seconds, about the length of a rifle reload"
+  },
+  {
+    "text": "When you hear the defuse start, break their line of sight to the spike with a smoke, a wall or your body before you fight, because any interruption throws away everything they had before the halfway mark and buys you the time your teammate needs.",
+    "side": "attack",
+    "phase": "postplant",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "guide",
+      "topic": "interrupt the defuse"
+    },
+    "when": "the defuse audio plays while the attacker still has smoke or a wall",
+    "why": "progress before the checkpoint is lost on any interruption, so the cheapest interruption is enough"
+  },
+  {
+    "text": "After your first kill in a clutch, aim at the spot the next enemy will come from before you loot, reload or move, because the fight is lost most often in the two seconds right after the first kill.",
+    "phase": "active",
+    "situations": [
+      "clutch"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "cause": [
+      "repeek",
+      "lost-duel"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "pre aim the trade in a clutch"
+    },
+    "when": "the player takes a kill while alone against two or more",
+    "why": "the existing clutch kill note says move off the spot, this covers the beat before the move where the trade comes"
+  },
+  {
+    "text": "In a clutch with no information, hold a spot they must cross rather than search for them, because a searcher meets the enemy on the enemy's terms and the clock or the spike makes them come to you.",
+    "phase": "active",
+    "situations": [
+      "clutch"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "cause": [
+      "overextend",
+      "isolated"
+    ],
+    "source": {
+      "kind": "guide",
+      "topic": "hold do not search"
+    },
+    "when": "last alive, no read on any enemy, no spike pressure on the player",
+    "why": "the existing clutch notes assume some information, this is the rule when there is none"
+  },
+  {
+    "text": "End the default once you have a live read on at least two defenders, and if you still have no read when utility runs low, lurk and drag the round out rather than execute dry, because an execute without a read or utility is five separate duels.",
+    "side": "attack",
+    "phase": "active",
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "guide",
+      "topic": "commit on two reads"
+    },
+    "when": "attack default past the middle of the round with little contact",
+    "why": "the existing call the end of the default note says someone must call it, this says what the call should wait for"
   }
 ]

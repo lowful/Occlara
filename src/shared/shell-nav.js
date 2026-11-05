@@ -32,6 +32,9 @@ const PAGES = [
   // The Invite page (8.7): a button in the sidebar's foot directly above
   // Settings, not a nav entry, and locked by the seal like every page.
   { id: 'invite', label: 'Invite', surface: 'invite', query: {}, preload: 'invite-preload.js', nav: false },
+  // The Profile page (8.8): the games left, buying more, the player's own
+  // figures and the plans, a button in the foot between Invite and Settings.
+  { id: 'profile', label: 'Profile', surface: 'profile', query: {}, preload: 'profile-preload.js', nav: false },
   { id: 'settings', label: 'Settings', surface: 'settings', query: {}, preload: 'settings-preload.js', nav: false },
   { id: 'review', label: 'Review', surface: 'review', query: {}, preload: 'review-preload.js', nav: false },
 ];

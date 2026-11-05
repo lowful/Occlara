@@ -191,17 +191,21 @@ setTimeout(async () => {
     if (gamesLine !== SEEDED_VIEW.gamesLeft || gamesLine !== 'You have used your 2 free games' || homeGames) {
       return report(false, `the rail's games line reads "${gamesLine}", not main's "${SEEDED_VIEW.gamesLeft}" (copy on Home: ${homeGames})`);
     }
-    // THE INVITE BUTTON (8.7), in the sidebar's foot directly above Settings.
+    // THE INVITE AND PROFILE BUTTONS (8.7, 8.8), in the sidebar's foot: Invite,
+    // then Profile directly above Settings, one column, no gap between them.
     const footer = await sjs(`(() => {
       const f = document.querySelector('.side .foot');
       const kids = [...f.children].filter((c) => !c.hidden).map((c) => c.dataset.page || c.id);
       const inv = document.getElementById('nav-invite').getBoundingClientRect();
+      const pro = document.getElementById('nav-profile').getBoundingClientRect();
       const set = document.getElementById('nav-settings').getBoundingClientRect();
-      return { kids: kids.join(), text: document.getElementById('nav-invite').textContent.trim(), gap: Math.round(set.top - inv.bottom), sameX: inv.left === set.left };
+      return { kids: kids.join(), text: document.getElementById('nav-invite').textContent.trim(), profile: document.getElementById('nav-profile').textContent.trim(),
+        gap: Math.round(pro.top - inv.bottom), gap2: Math.round(set.top - pro.bottom), sameX: inv.left === set.left && pro.left === set.left };
     })()`);
     lines.push(`sidebar foot: ${JSON.stringify(footer)}`);
-    if (!footer.kids.startsWith('invite,settings') || footer.text !== 'Invite' || footer.gap < 0 || footer.gap > 4 || !footer.sameX) {
-      return report(false, `the Invite button is not directly above Settings in the sidebar's foot: ${JSON.stringify(footer)}`);
+    if (!footer.kids.startsWith('invite,profile,settings') || footer.text !== 'Invite' || footer.profile !== 'Profile'
+      || footer.gap < 0 || footer.gap > 4 || footer.gap2 < 0 || footer.gap2 > 4 || !footer.sameX) {
+      return report(false, `the Invite and Profile buttons are not directly above Settings in the sidebar's foot: ${JSON.stringify(footer)}`);
     }    // THE RECORD CARD IS ITS TWO BUTTONS (8.3), measured on the real layout:
     // no line of text under them, and the card's one padding the same above
     // them as below.
@@ -551,7 +555,7 @@ setTimeout(async () => {
     await wait(400);
     const anyShown = [...mainWindow.pageViews().values()].some((v) => v.getVisible());
     const sealedScreen = await sjs("!document.getElementById('sealed').hidden");
-    const navLocked = await sjs("[...document.querySelectorAll('#nav .nav-item'), document.getElementById('nav-invite'), document.getElementById('nav-settings')].every((b) => b.disabled)");
+    const navLocked = await sjs("[...document.querySelectorAll('#nav .nav-item'), document.getElementById('nav-invite'), document.getElementById('nav-profile'), document.getElementById('nav-settings')].every((b) => b.disabled)");
     lines.push(`sealed: any page shown=${anyShown} recording screen=${sealedScreen} nav locked=${navLocked}`);
     if (anyShown) return report(false, 'a page still shows while sealed');
     if (!sealedScreen || !navLocked) return report(false, 'sealed, the shell does not paint the Recording screen and lock the pages');
@@ -658,6 +662,41 @@ setTimeout(async () => {
       return report(false, `the Invite page does not show main's link, line and how: ${JSON.stringify(invitePage)} marked ${inviteMark}`);
     }
     await shot('invite', mainWindow, win);
+
+    // THE PROFILE PAGE (8.8), from its button between Invite and Settings: the
+    // games left as profile.js wrote them from main's account view, the buy
+    // section at 5 games for $10, three figures of the sample library's play
+    // and the three plans with Free marked.
+    await sjs("document.getElementById('nav-profile').click(); true");
+    if (!await until(settled('profile'), 4000)) return report(false, 'the Profile button did not bring the Profile page in');
+    const pjs = (s) => mainWindow.pageViews().get('profile').webContents.executeJavaScript(s);
+    const profileWant = require(path.join(REPO, 'src/shared/profile')).hero(SEEDED_VIEW);
+    const profilePage = await until(() => pjs(`(() => {
+      if (document.getElementById('pr-body').hidden) return null;
+      const r = (el) => el.getBoundingClientRect();
+      const page = document.querySelector('.body');
+      return { number: document.getElementById('pr-number').textContent, plan: document.getElementById('pr-plan').textContent,
+        buy: document.getElementById('pr-buy').textContent, picks: [...document.querySelectorAll('#pr-picks button')].map((b) => b.textContent),
+        figs: [...document.querySelectorAll('.pr-fig')].map((f) => [f.querySelector('.pr-fig-v').textContent, f.querySelector('.pr-fig-s').textContent]),
+        plans: [...document.querySelectorAll('.pr-plan-row')].map((p) => p.querySelector('.pr-plan-name').textContent),
+        numberPx: parseFloat(getComputedStyle(document.getElementById('pr-number')).fontSize),
+        overflow: page.scrollWidth > page.clientWidth + 1 };
+    })()`), 4000);
+    const profileMark = await sjs("(() => { const b = document.querySelector('.nav-item[aria-current=page]'); return b ? b.id : null; })()");
+    lines.push(`profile page: ${JSON.stringify(profilePage)} | marked ${profileMark}`);
+    if (!profilePage || profilePage.number !== profileWant.number || profilePage.plan !== profileWant.plan || profilePage.buy !== 'Buy 5 games for $10'
+      || profilePage.picks.join('|') !== '1 for $2|5 for $10|10 for $20|25 for $50' || profilePage.figs.length !== 3
+      || profilePage.figs[1][0] !== 'Jett' || profilePage.plans.join('|') !== 'FreeYour plan|Pro|Max' || profilePage.numberPx < 48
+      || profilePage.overflow || profileMark !== 'nav-profile') {
+      return report(false, `the Profile page does not show main's games, the buy section, the figures and the plans: ${JSON.stringify(profilePage)} marked ${profileMark}`);
+    }
+    await shot('profile', mainWindow, win);
+    if (process.env.OCCLARA_SHOTS === '1') {
+      await pjs("document.querySelector('.body').scrollTop = 99999; true");
+      await wait(200);
+      await shot('profile-plans', mainWindow, win);
+      await pjs("document.querySelector('.body').scrollTop = 0; true");
+    }
 
     // SETTINGS' ACCOUNT SECTION (8.7): email, plan, games, key, Sign out.
     mainWindow.show('settings');

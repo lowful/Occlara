@@ -6,6 +6,7 @@ const {
   DAY_MS, GRACE_MS, LICENCE_ENDED: ENDED, LICENCE_REVOKED: REVOKED, SUB_BILLING: BILLING, SUB_ENDED,
   idOf, subscriptionOf, latestLineEnd, periodStartOf, periodEndOf, withGrace, dbError,
   LOOKUP_KEY, INTERVAL_PLAN, accountsMissing, tierOfPlan, tierOfPrice, priceOfSubscription,
+  GAME_PRICE_CENTS, wholeGames,
 } = require('../services/billing');
 
 /*
@@ -792,6 +793,180 @@ async function endAccounts({ users, subId, label }) {
   console.log(`[webhook] ${label}: ${ended} account write(s) ended, free games zeroed`);
 }
 
+// ── Games bought one by one (8.8) ──────────────────────────────────────────
+
+/*
+ * A GAME IS GAME_PRICE_CENTS ($2), ANY WHOLE NUMBER FROM 1 TO 500 IN ONE
+ * CHECKOUT. The site's create-games-checkout makes a mode payment Checkout
+ * Session with one line (unit_amount 200, quantity N) and the metadata
+ * { kind: 'games', games: N, user_id } on the session and on its payment
+ * intent, the user taken from the buyer's verified JWT.
+ *
+ *   CREDIT. checkout.session.completed (or async_payment_succeeded) of kind
+ *   games, paid, is held to what Stripe charged: amount_total exactly N times
+ *   the price in usd, one line, quantity N. Anything else is refused with
+ *   "GAMES PURCHASE REFUSED" in the log and answered 200, since a retry can
+ *   never make it match (a human finds the buyer on the session). Then
+ *   grant_purchased_games adds N to the account's bonus_pool, once per
+ *   checkout session: game_purchases.ref is unique, so a redelivery grants
+ *   nothing. Never to bonus_earned, which is the referral cap. A failed write
+ *   throws, as every licence write does, and Stripe retries.
+ *
+ *   REFUND. A full refund or any dispute of a games payment takes back the
+ *   unused games of THAT purchase (refund_purchased_games: bonus_pool less
+ *   the smaller of the games it granted and what the pool holds, never below
+ *   0) and RETURNS. It never reaches the licence code: the customer fallback
+ *   there revokes a customer's ONE live licence, so a $2 pack refunded by a
+ *   Pro subscriber revoked their Pro licence, cancelled their subscription
+ *   and ended their account. A partial refund does nothing, as for a licence.
+ *
+ * A GAMES PAYMENT IS TOLD by the kind on its charge, then on its payment
+ * intent, then on the checkout session of that payment intent, then by a
+ * game_purchases row for that session. A charge with an invoice is a
+ * subscription's and never a games payment.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isGamesMeta = (meta) => !!meta && meta.kind === 'games';
+
+/** A games checkout refused for good: logged for a human and answered 200. */
+function refuseGames(label, why) {
+  console.error(`[webhook] GAMES PURCHASE REFUSED: ${label}, ${why}. Nothing granted; find the buyer on the session in Stripe. Needs a human.`);
+}
+
+async function grantGames(session) {
+  const label = `games checkout ${session.id}`;
+  const meta = session.metadata || {};
+  if (session.payment_status !== 'paid') {
+    console.log(`[webhook] ${label} is ${session.payment_status || 'not paid'}, nothing granted until it is paid`);
+    return;
+  }
+  const games = wholeGames(meta.games);
+  if (!games) return refuseGames(label, 'its metadata names no whole number of games from 1 to 500');
+  const user = meta.user_id;
+  if (!user || !UUID.test(String(user))) return refuseGames(label, 'its metadata names no user');
+  const want = games * GAME_PRICE_CENTS;
+  // ADAPTIVE PRICING: a buyer abroad may pay in their own currency, and then
+  // the session's amount_total and currency are that currency's, while
+  // currency_conversion (set by Stripe, never by the buyer) keeps what the
+  // checkout was priced at, in usd. Held to that, or a paid buyer abroad
+  // would be refused. Without a conversion, the session's own figures.
+  const conv = session.currency_conversion && typeof session.currency_conversion === 'object'
+    ? session.currency_conversion : null;
+  const charged = conv ? conv.amount_total : session.amount_total;
+  const chargedIn = conv ? conv.source_currency : session.currency;
+  if (charged !== want) {
+    return refuseGames(label, `it charged ${charged} for ${games} game(s), where ${want} was due`);
+  }
+  if (String(chargedIn || '').toLowerCase() !== 'usd') {
+    return refuseGames(label, `it charged in ${chargedIn || 'no currency'}, not usd`);
+  }
+  // A Stripe failure here throws, and Stripe retries the event.
+  const items = await stripe.checkout.sessions.listLineItems(session.id);
+  const lines = (items && items.data) || [];
+  const line = lines[0];
+  const unit = line && line.price && line.price.unit_amount;
+  if (lines.length !== 1 || line.quantity !== games || (unit != null && unit !== GAME_PRICE_CENTS)
+    || (typeof line.amount_total === 'number' && String(line.currency || 'usd').toLowerCase() === 'usd'
+      && line.amount_total !== want)) {
+    return refuseGames(label, `its line items do not say ${games} game(s) at ${GAME_PRICE_CENTS}`);
+  }
+
+  const { data, error } = await supabase.rpc('grant_purchased_games',
+    { p_user: user, p_games: games, p_ref: session.id, p_amount_cents: want });
+  if (error && FOREIGN_USER.has(error.code)) return refuseGames(label, `it names a user Occlara does not have (${error.code})`);
+  // Not live yet (the games migration) is a failed write too: the buyer paid,
+  // so Stripe retries until the functions are there.
+  if (error) throw dbFailure(`${label}: grant ${games} game(s)`, error);
+  const r = (Array.isArray(data) ? data[0] : data) || {};
+  if (!r.granted) {
+    console.log(`[webhook] ${label}: granted before or refunded (${r.reason || 'no reason'}), nothing added`);
+    return;
+  }
+  console.log(`[webhook] ${label}: ${games} game(s) added to the account, ${r.bonus_pool} bonus game(s) now`);
+  if (r.account_status === 'ended') {
+    console.error(`[webhook] ${label}: the buyer's account was ended by a refund or a dispute, so the games are held but `
+      + 'cannot be played until a human reopens it. Needs a human.');
+  }
+}
+
+/**
+ * Whether a charge paid for games, decided before any licence is looked at.
+ * Answers { sessionId, meta } for a games payment (sessionId null when no
+ * checkout session can be found for it), or null for anything else.
+ */
+async function gamesPaymentOf({ chargeId, paymentIntent, eventCharge }) {
+  let charge = null;
+  if (chargeId) {
+    try {
+      charge = await stripe.charges.retrieve(chargeId);
+    } catch (e) {
+      // The licence path below asks for the same charge and answers for it.
+      if (e && e.code === 'resource_missing') return null;
+      throw e;
+    }
+  }
+  const chargeMeta = (eventCharge && eventCharge.metadata) || (charge && charge.metadata) || {};
+  let meta = isGamesMeta(chargeMeta) ? chargeMeta : null;
+  // A subscription's charge (it has an invoice) is never a games payment.
+  if (!meta && charge && charge.invoice) return null;
+
+  const pi = idOf(charge && charge.payment_intent) || idOf(eventCharge && eventCharge.payment_intent) || paymentIntent || null;
+  if (!meta && !pi) return null;
+  if (!meta && pi) {
+    let intent = null;
+    try {
+      intent = await stripe.paymentIntents.retrieve(pi);
+    } catch (e) {
+      if (!(e && e.code === 'resource_missing')) throw e;
+    }
+    if (intent && intent.invoice) return null;
+    if (isGamesMeta(intent && intent.metadata)) meta = intent.metadata;
+  }
+
+  let session = null;
+  if (pi) {
+    const list = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
+    session = (list && list.data && list.data[0]) || null;
+  }
+  if (!meta && session && isGamesMeta(session.metadata)) meta = session.metadata;
+  if (!meta && session) {
+    // The row is the last word: a games purchase whose metadata were lost.
+    const { data, error } = await supabase.from('game_purchases').select('ref,user_id,games').eq('ref', session.id).limit(1);
+    if (error && !accountsMissing(error)) throw dbFailure(`read the games purchase of checkout ${session.id}`, error);
+    const row = !error && data && data[0];
+    if (row) meta = { kind: 'games', games: String(row.games), user_id: row.user_id };
+  }
+  if (!meta) return null;
+  return { sessionId: session ? session.id : null, meta };
+}
+
+/** A full refund or a dispute of a games payment: the purchase's unused games taken back, nothing else. */
+async function refundGames({ sessionId, meta }, label) {
+  if (!sessionId) {
+    console.error(`[webhook] ${label} of a games payment: no checkout session names it, no games taken back. `
+      + 'The licence is left alone. Needs a human.');
+    return;
+  }
+  const user = meta.user_id && UUID.test(String(meta.user_id)) ? meta.user_id : null;
+  const { data, error } = await supabase.rpc('refund_purchased_games',
+    { p_ref: sessionId, p_user: user, p_games: wholeGames(meta.games) });
+  if (error && FOREIGN_USER.has(error.code)) {
+    console.warn(`[webhook] ${label} of games checkout ${sessionId}: no such user (${error.code}), nothing to take back`);
+    return;
+  }
+  if (error) throw dbFailure(`${label}: take back the games of checkout ${sessionId}`, error);
+  const r = (Array.isArray(data) ? data[0] : data) || {};
+  if (r.reason === 'none') {
+    console.error(`[webhook] ${label} of games checkout ${sessionId}: no purchase and no buyer to record it under. Needs a human.`);
+  } else if (r.reason === 'recorded') {
+    console.warn(`[webhook] ${label} of games checkout ${sessionId} arrived before its grant: recorded, so the grant adds nothing`);
+  } else if (!r.refunded) {
+    console.log(`[webhook] ${label} of games checkout ${sessionId}: taken back before, nothing changed`);
+  } else {
+    console.log(`[webhook] ${label} of games checkout ${sessionId}: ${r.taken_back} unused game(s) taken back, licence untouched`);
+  }
+}
+
 // POST /api/payments/webhook
 async function webhookHandler(req, res) {
   const sig = req.headers['stripe-signature'];
@@ -813,9 +988,23 @@ async function webhookHandler(req, res) {
   try {
     switch (event.type) {
 
+      // Only a games checkout is paid later (a delayed payment method); a
+      // licence checkout's is left as it always was.
+      case 'checkout.session.async_payment_succeeded': {
+        const session = event.data.object;
+        if (isGamesMeta(session.metadata)) await grantGames(session);
+        else console.log(`[webhook] checkout ${session.id} paid later, not a games checkout, nothing to do`);
+        break;
+      }
+
       case 'checkout.session.completed': {
         const session = event.data.object;
         const meta = session.metadata || {};
+        // Games are credited on their own and never mint or move a licence.
+        if (isGamesMeta(meta)) {
+          await grantGames(session);
+          break;
+        }
         const userId = session.client_reference_id || meta.userId || null;
         const price = checkoutPrice(session);
         if (!userId) {
@@ -915,6 +1104,12 @@ async function webhookHandler(req, res) {
             + `(${charge.amount_refunded} of ${charge.amount}), licence left alone`);
           break;
         }
+        // A games payment takes back its games and RETURNS, before any licence lookup.
+        const games = await gamesPaymentOf({ chargeId: charge.id, paymentIntent: idOf(charge.payment_intent), eventCharge: charge });
+        if (games) {
+          await refundGames(games, 'refund');
+          break;
+        }
         await revokeForCharge({
           chargeId: charge.id,
           customer: idOf(charge.customer),
@@ -933,6 +1128,11 @@ async function webhookHandler(req, res) {
        */
       case 'charge.dispute.created': {
         const dispute = event.data.object;
+        const games = await gamesPaymentOf({ chargeId: idOf(dispute.charge), paymentIntent: idOf(dispute.payment_intent) });
+        if (games) {
+          await refundGames(games, 'chargeback');
+          break;
+        }
         await revokeForCharge({
           chargeId: idOf(dispute.charge),
           paymentIntent: idOf(dispute.payment_intent),

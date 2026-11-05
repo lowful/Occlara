@@ -77,13 +77,19 @@ if (!process.versions.electron) {
   if (!rec) { console.error('FAIL: the check wrote no result (exit ' + r.status + ')'); process.exit(1); }
   for (const l of rec.lines) console.log('  ' + l);
   if (!rec.ok) { console.error('FAIL: ' + rec.detail); process.exit(1); }
-  console.log('PASS: a held seal is taken over by a League recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts, the tray icon brings the window up, the Recording screen mid match, and closing quits by the tray\'s path, asking first, once each, when a match is being recorded (counting only the rounds a stop keeps) and when a review is still being built');
+  console.log('PASS: a held seal is taken over by a League recording, which the seal then follows, a review withdrawn because its match resumed is sealed in the same tick, never switched to Home on screen, the corner mark is gone while a match is in progress or a stop holds the seal and back once it lifts, the Profile page and its checkout sealed mid match, the tray icon brings the window up, the Recording screen mid match, and closing quits by the tray\'s path, asking first, once each, when a match is being recorded (counting only the rounds a stop keeps) and when a review is still being built');
   process.exit(0);
 }
 
 const Module = require('module');
 const { EventEmitter } = require('events');
 const { app, ipcMain } = require('electron');
+// Every link main would open in the browser, kept here and never opened: the
+// Profile page's checkout must not open mid match (8.8), and a check opens no
+// browser at all. index.js calls shell.openExternal at the time, so this is
+// what it calls.
+const browserOpened = [];
+require('electron').shell.openExternal = async (url) => { browserOpened.push(String(url)); };
 const { replay, load } = require('./fixtures/replay-match');
 const surfaces = require('./fixtures/surfaces');
 const C = require(path.join(REPO, 'src/shared/channels'));
@@ -290,6 +296,23 @@ setTimeout(async () => {
       const momentsShown = shownViews();
       lines.push(`${game} match: Moments asked for mid match: shown=${momentsMid.shown} pages shown=${momentsShown.join(',') || 'none'} button locked=${!!momentsLocked}`);
       if (momentsMid.shown !== null || momentsShown.length || !momentsLocked) return report(false, `mid ${game} match, the Moments page or its button is not sealed`);
+      // AND THE PROFILE PAGE (8.8), whose buy button opens a checkout: asked
+      // for mid match no page shows and its button is locked, and its three
+      // channels, called as the page would, answer nothing and open nothing.
+      send(C.SHELL_NAV, 'profile');
+      await wait(400);
+      const profileMid = await invoke(C.SHELL_GET);
+      const profileLocked = await until(() => sjs("document.getElementById('nav-profile').disabled"), 3000);
+      const profileShown = shownViews();
+      const buyMid = await invoke(C.PROFILE_BUY, 5);
+      const plansMid = await invoke(C.PROFILE_PLANS);
+      const pageMid = await invoke(C.PROFILE_GET);
+      lines.push(`${game} match: Profile asked for mid match: shown=${profileMid.shown} pages shown=${profileShown.join(',') || 'none'} button locked=${!!profileLocked}`
+        + ` | buy=${JSON.stringify(buyMid)} plans=${JSON.stringify(plansMid)} page=${JSON.stringify(pageMid)} opened=${browserOpened.length}`);
+      if (profileMid.shown !== null || profileShown.length || !profileLocked) return report(false, `mid ${game} match, the Profile page or its button is not sealed`);
+      if (!buyMid || buyMid.ok !== false || !plansMid || plansMid.ok !== false || pageMid !== null || browserOpened.length) {
+        return report(false, `mid ${game} match, the Profile page's channels answered or opened a link: ${JSON.stringify({ buyMid, plansMid, pageMid, opened: browserOpened })}`);
+      }
       send(C.SHELL_NAV, 'matches');
       e.live = false;
       const over = await invoke(C.SHELL_GET);
@@ -297,6 +320,15 @@ setTimeout(async () => {
       lines.push(`${game} match: sealed while played=${during.sealed} pages shown=${hiddenDuring.join(',') || 'none'} | over: sealed=${over.sealed} Matches back=${!!back}`);
       if (!during.sealed || hiddenDuring.length) return report(false, `a ${game} match in progress left a page on screen`);
       if (over.sealed || !back) return report(false, `the ${game} match over, the seal did not lift`);
+      // The match over, the same buy opens the site's checkout, and only a
+      // whole number from 1 to 500 does (profile.isBuyUrl, in main).
+      const buyAfter = await invoke(C.PROFILE_BUY, 5);
+      const refused = await Promise.all([501, 0, 2.5, '5', null].map((n) => invoke(C.PROFILE_BUY, n)));
+      lines.push(`${game} match over: buy 5=${JSON.stringify(buyAfter)} opened=${JSON.stringify(browserOpened)} | 501, 0, 2.5, "5", null: ${refused.map((r) => r && r.ok).join(',')}`);
+      if (!buyAfter || !buyAfter.ok || browserOpened.length !== 1 || browserOpened[0] !== 'https://occlara.app/buy?games=5' || refused.some((r) => !r || r.ok !== false)) {
+        return report(false, `after the ${game} match, the checkout did not open as it should: ${JSON.stringify({ buyAfter, opened: browserOpened, refused })}`);
+      }
+      browserOpened.length = 0;
       send(C.COACH_STOP);
       if ((await invoke(C.STATE_GET)).isCoaching) return report(false, `${game} did not stop`);
     }

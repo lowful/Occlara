@@ -218,3 +218,63 @@ partial refund still writes nothing. Every entitlement write checks its error
 and throws, and with the tables missing the licence path runs unchanged. The
 detail, the payer rules and the switches are in accounts.md;
 `test:entitlementwebhook` holds it.
+
+### Games bought one by one (8.8), and their refund never reaches the licence
+
+A game is $2.00 (`GAME_PRICE_CENTS` 200 in `services/billing.js`), any whole
+number from 1 to 500 (`MAX_GAMES_PER_PURCHASE`) in one checkout, the app's
+quick picks (1, 5, 10, 25) only that rate times the count. The app opens
+`https://occlara.app/buy?games=N`; the site's `create-games-checkout` edge
+function takes the user from the verified JWT and makes a mode payment Checkout
+Session, one line of quantity N at unit_amount 200 usd, metadata
+`{ kind: 'games', games, user_id }` on the session and on its payment intent.
+
+**The credit.** `checkout.session.completed` (or
+`checkout.session.async_payment_succeeded`) of kind games, paid, is held to what
+Stripe charged: amount_total exactly N times 200, usd, one line of quantity N at
+200, a uuid user. Anything else is refused, logged `GAMES PURCHASE REFUSED`
+(search Railway for it) and answered 200, since a retry can never make it match;
+an unpaid session grants nothing until its async payment succeeds. Then the
+database function `grant_purchased_games(p_user, p_games, p_ref, p_amount_cents)`
+adds N to `entitlements.bonus_pool`, NOT to `bonus_earned` (the referral cap),
+once per session: `game_purchases.ref` is the session id and unique, so a
+redelivery grants nothing. Its error is checked and thrown like every licence
+write, so Stripe retries, the functions not being live yet included (the buyer
+paid). A user Occlara does not have (23503, 22P02) is refused with a 200. A
+grant to an account a refund or a dispute ended is held and logged for a human:
+claim_game plays no bonus game on an ended account.
+
+**The refund.** A full `charge.refunded` or any `charge.dispute.created` of a
+games payment calls `refund_purchased_games(p_ref)`, which takes back the
+smaller of the games that purchase granted and what bonus_pool holds (never
+below 0, never a game already played), marks the purchase refunded, once, and
+RETURNS. It never revokes, expires or cancels a licence or a subscription, and
+never writes the tier, free_total, bonus_earned or the account's status. A
+partial refund does nothing. **This check runs before any licence lookup**,
+because the customer fallback (above) finds a customer's ONE live licence: a $2
+pack refunded by a Pro subscriber revoked their Pro licence, cancelled their
+subscription and ended their account. A games payment is told by, in order, the
+kind on its charge, on its payment intent (retrieved), on the checkout session
+of that payment intent, or a `game_purchases` row for that session; a charge
+with an invoice is a subscription's and never one. A refund that arrives before
+its grant is recorded refunded with nothing granted (`p_user` and `p_games`
+from the metadata), so the grant that follows adds nothing. Games are not tagged
+with the purchase they came from, so with invite games or another purchase in
+the pool, this purchase's games are the unused ones first.
+
+**Unchanged:** a full refund or a dispute of a LICENCE payment revokes, cancels
+and ends the account exactly as above, and that end still zeroes bonus_pool,
+bought games included (the owner's call to keep or change).
+
+`games left` (`account_state.left`, `GET /api/account/me`) is the allowance plus
+bonus_pool, so bought games count and nothing caps them at the referral's 20;
+`/api/referral` alone reads bonus_earned.
+
+**NOT IN THIS REPO:** the games SQL (table `game_purchases`, both functions,
+service_role only), applied by the site after 0004, BEFORE this server deploys;
+the site's `/buy` page and `create-games-checkout`; and the Stripe endpoint
+subscribed to `checkout.session.async_payment_succeeded` as well. The webhook's
+own refund handling needs nothing new. `npm run test:gamespurchase` runs the real
+handler against `fake-billing.js` (whose two functions follow the SQL), and
+checks the SQL itself when `OCCLARA_SITE_DIR` or `OCCLARA_GAMES_SQL` finds it.
+Removing the games check makes its Pro licence checks fail.

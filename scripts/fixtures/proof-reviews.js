@@ -70,6 +70,8 @@ const SEEDED_VIEW = {
   signedIn: true, via: 'session', pending: false, waiting: false, email: SEEDED_STATE.email,
   tier: 'free', tierLabel: usage.tierLabel(SEEDED_STATE), gamesLeft: usage.gamesLeft(SEEDED_STATE),
   cap: usage.capState(SEEDED_STATE), capped: false, accountKey: SEEDED_STATE.account_key, invites: SEEDED_STATE.invites,
+  // The Profile page's games (8.8), picked as the real view picks them.
+  games: require(path.join(REPO, 'src/shared/profile')).gamesState(SEEDED_STATE),
   urls: { upgrade: usage.UPGRADE_URL, account: usage.ACCOUNT_URL, signup: usage.SIGNUP_URL },
 };
 const SEEDED_REF = { code: 'K7QM2XWP', link: 'https://occlara.app/invite/K7QM2XWP', invited: 2, qualified: 1, earned: 4,

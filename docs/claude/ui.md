@@ -499,3 +499,44 @@ games line (`#h-games`). The Invite page (`src/renderer/invite/`, shell-nav
 the progress line and how it works. A locked review shows Riot's record and
 the upgrade card only. Every line is a finished string from
 `src/shared/usage.js`; no renderer counts. See accounts.md.
+
+### The Profile page (8.8)
+
+`src/renderer/profile/`, shell-nav `profile` (`nav: false`), the sidebar
+`.foot` button `#nav-profile` between Invite and Settings, locked by the seal
+like every page (`paintNav`, `check:seal`). Main builds the whole page
+(`PROFILE_GET`, `index.js profileIpc.get`, `src/shared/profile.js build`) and
+answers null mid match or sealed; the page counts nothing and names no URL
+(`test:surfaces`). Top to bottom:
+
+1. **The hero**: the games left now (Geist 600 at 72px, the biggest thing on
+   the page, no rule over it), the plan and its games, the split into the
+   plan's own and bonus games (only when there are bonus games), and when the
+   month's games start again. Signed out it says to sign in, and with no
+   state it says the games could not be fetched, with Try again.
+2. **Buy more games**: the quick picks as one `occlaraSeg` capsule (1, 5, 10,
+   25 with their prices), a stepper and a field for any whole 1 to 500, and
+   the one primary capsule, "Buy N games for $X". The words as the number
+   changes are `profile.js quote` and `step` through the preload, never the
+   page's own sums. Buy is `PROFILE_BUY` (accounts.md, "Buying games, in the
+   app"); signed out the same button signs in first.
+3. **Your play in Valorant**: three figures, label, value and its sample.
+   Most used weapon: the player's own kills by gun in Riot's kill feed kept on
+   linked reviews (`rounds[].riot.feed`, `by: 'me'`, `w` a gun the game data
+   knows or Melee, never an ability). Most played agent: by matches, Riot's
+   agent or one the engine confirmed off the HUD (`ledger.context
+   .agentConfirmed`), never a detection alone. Peak rank: Riot's highest rank
+   on the account (the tracker profile's `peakRank`, HenrikDev's
+   `highest_rank`) or, higher or without it, the best rated game in the rank
+   history main keeps, with its day. Each says its sample or an honest empty
+   state (Play a match, Connect your Riot ID, no gun named yet, could not be
+   fetched). League is never counted.
+4. **Plans**: Free, Pro and Max as ruled rows (prices in `profile.js PLANS`,
+   games from `usage.js`), a Monthly and Yearly capsule, the current plan
+   marked "Your plan" in a ringed capsule, the others a ghost capsule that asks
+   main for `occlara.app/#pricing` (`PROFILE_PLANS`).
+
+The page asks again on `ACCOUNT_CHANGED`, `PUSH_REVIEWS` and on coming back to
+the front after 30 s, so games bought in the browser show on return.
+`OCCLARA_SHOTS=1 npm run check:mainwindow` writes `main-profile.png` and
+`main-profile-plans.png` on the sample library.

@@ -252,6 +252,12 @@ dates (`test:usage`).
 - `REFERRAL_GET` (invoke): `GET /api/referral` with `line` and `how`, or null
   (null mid match). `REFERRAL_COPY` (invoke): main copies the invite link,
   only ever an `https://occlara.app/invite/` one.
+- `PROFILE_GET` (invoke, 8.8): the Profile page as `profile.js build` makes it
+  (`{ hero, signedIn, buy, play, plans }`), null mid match or sealed.
+  `PROFILE_BUY` (invoke, the number): main opens `occlara.app/buy?games=N`
+  only for a whole 1 to 500 that `profile.isBuyUrl` passes, never mid match.
+  `PROFILE_PLANS` (invoke): `occlara.app/#pricing`, never mid match. The
+  account's view carries `games` (`profile.gamesState`) for the page's hero.
 - `OPEN_UPGRADE` and `OPEN_ACCOUNT` (send): occlara.app/pricing and
   occlara.app/account, opened by main; `OPEN_PURCHASE` with 'signup' is
   "Create a free account".

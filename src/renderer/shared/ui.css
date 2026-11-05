@@ -267,6 +267,11 @@ kbd.is-pressed, .kbd.is-pressed { transform: translateY(1px); border-color: var(
 .seg-slide > button { position: relative; z-index: 1; height: 32px; padding: 0 16px; border: 0; border-radius: var(--r-btn); background: transparent; color: var(--text-dim); font: 500 13px var(--font); cursor: pointer; transition: color var(--t-fast) var(--ease); }
 .seg-slide > button:hover:not(:disabled) { color: var(--text); }
 .seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked), .seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked):hover { color: var(--bg); }
+/* A page's own `.seg > button:hover:not(:disabled) { color: var(--text) }` (onboarding, settings, learn)
+   ties the rule above at 0,3,1 and loads after it, so the chosen button went white on its white thumb on
+   hover (8.8): this one, at 0,4,1, outweighs it, and the chosen label stays dark whatever the page says.
+   test-surfaces.js holds every page's hover rule under it. */
+.seg-slide > button:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .on, .active, .picked):hover:not(:disabled) { color: var(--bg); }
 /* Transform and opacity alone (8.7): seg.js writes the new width before the
    transform, so the thumb takes its size as the slide starts and only the
    slide is animated; a width tween relaid the thumb out every frame. */

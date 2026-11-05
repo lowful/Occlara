@@ -339,11 +339,19 @@ function create(opts = {}) {
    * X.00 is the patch that changes the systems (the sync reads the patches
    * from Riot's own index and records one it could not read, so the history
    * has no hole of its own making).
+   *
+   * A number Riot never released is no hole: the sync records those in the
+   * file's `skipped` list (13.03 and 13.07 were never patches), and only a
+   * number in that list may sit between two patches that still follow.
    */
+  const SKIPPED = new Set((PATCHES && Array.isArray(PATCHES.skipped) ? PATCHES.skipped : [])
+    .map((p) => patchNum(p)).filter((n) => n !== null));
   const contiguous = (newer, older) => {
     const a = patchNum(newer); const b = patchNum(older);
     if (a === null || b === null || a <= b) return false;
-    return Math.floor(a / 1000) === Math.floor(b / 1000) ? a - b === 1 : a % 1000 === 0;
+    if (Math.floor(a / 1000) !== Math.floor(b / 1000)) return a % 1000 === 0;
+    for (let n = b + 1; n < a; n++) if (!SKIPPED.has(n)) return false;
+    return true;
   };
   /** A newest first run of patches with no hole in it. */
   const unbroken = (entries) => entries.every((e, i) => i === 0 || contiguous(entries[i - 1].patch, e.patch));
@@ -1127,7 +1135,7 @@ function create(opts = {}) {
     });
     doc.bullet('', (u) => {
       u((x) => x.t('Crouching lowers the head out of a line aimed at standing height but slows every step, so it is a surprise, not a habit.'));
-      u((x) => x.t('Peeking: the player who swings into view sees the holder a moment before the holder sees them. A holder beats that by holding an angle the swinger does not expect, from cover, and by letting utility make first contact.'));
+      u((x) => x.t('Peeking: at equal distance from the corner, the player who swings into view sees the holder a moment before the holder sees them, and a holder farther back from the edge sees the swinger first. A holder beats the swing by holding from farther back or from an angle the swinger does not expect, from cover, and by letting utility make first contact.'));
     });
     // The matchups, every number computed from the table, every comparison
     // said only while the computation behind it holds.
@@ -1229,8 +1237,8 @@ function create(opts = {}) {
   function counts(doc, mode) {
     doc.heading('WHAT THE REVIEW COUNTS');
     for (const line of [
-      'First death and first kill: the first player to die in the round, on either team. A team that loses its first player plays a player down.',
-      'Traded or not: see the trade above. Being traded is good; dying untraded means nobody could answer the fight.',
+      'First death and first kill: the first player to die in the round, on either team. A team that loses its first player plays a player down until the death is traded.',
+      'Traded or not: see the trade above. Being traded is good; dying untraded means nobody answered the fight, which the record states and never why.',
     ]) doc.bullet('', (u) => u((x) => x.t(line)));
     doc.bullet('', (u) => u((x) => x.t('Early death: dead before any plant and within the first ')
       .n(valueOf('rule.earlySeconds'), statedN('rule.earlySeconds', 'seconds', ['early'], { subject: 'early death' }))
@@ -1249,7 +1257,7 @@ function create(opts = {}) {
     doc.bullet('', (u) => u((x) => x.t('Pistol rounds: the first round of each half, round ')
       .n(1, ruleN('pistol round', 'round', ['pistol'], { tier: 'definition', source: 'definition: the first round of a half' }))
       .t(' and round ').n(half + 1, ruleN('pistol round', 'round', ['pistol'], { tier: 'computed', source: 'computed: half + 1', deps: [halfDep] }))
-      .t('. Nobody has armour or a gun beyond what the starting credits buy.')));
+      .t('. Everyone has only what the starting credits buy: a sidearm, Light Armor or abilities, never a rifle, and never a rifle with armour.')));
   }
 
   // ── what the module answers ─────────────────────────────────────────────

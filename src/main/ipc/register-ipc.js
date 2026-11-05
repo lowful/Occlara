@@ -20,10 +20,11 @@ const { resOf } = require('../services/recorder');
  *   controller: { start, stop, pauseResume, getState, openSettings, openReviewById, listReviews, quit },
  *   license:    { activate(key) → result, getCached() → {...} },
  *   account:    { view(), signIn(), cancel(), signOut(), copyKey(), referral(), copyLink() } (8.7, index.js)
+ *   profile:    { get(), buy(n), plans() } (8.8, index.js)
  * }
  */
 function registerIpc(deps) {
-  const { controller, license, account } = deps;
+  const { controller, license, account, profile } = deps;
 
   // ── the account (8.7) ─────────────────────────────────────────────────────
   if (account) {
@@ -34,6 +35,14 @@ function registerIpc(deps) {
     safeHandle(C.REFERRAL_GET, async () => account.referral());
     safeHandle(C.REFERRAL_COPY, async () => account.copyLink());
     ipcMain.on(C.ACCOUNT_SIGNIN_CANCEL, () => guard('signInCancel', () => account.cancel()));
+  }
+  // ── the Profile page (8.8) ────────────────────────────────────────────────
+  // Main builds the page and opens its two links, each checked in index.js
+  // (profile.isBuyUrl), and refuses both mid match.
+  if (profile) {
+    safeHandle(C.PROFILE_GET, async () => profile.get());
+    safeHandle(C.PROFILE_BUY, async (_e, n) => profile.buy(n));
+    safeHandle(C.PROFILE_PLANS, async () => profile.plans());
   }
   ipcMain.on(C.OPEN_UPGRADE, () => guard('upgrade', () => shell.openExternal(UPGRADE_URL)));
   ipcMain.on(C.OPEN_ACCOUNT, () => guard('account', () => shell.openExternal(ACCOUNT_URL)));

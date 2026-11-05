@@ -27,13 +27,19 @@
  *     side:       'attack' | 'defense',
  *     phase:      'buy' | 'active' | 'postplant' | 'dead',
  *     situations: ['pistol','eco','forcebuy','fullbuy','antieco','lostpistol',
- *                  'deathstreak','winstreak','retake','early'],
+ *                  'deathstreak','winstreak','retake','early','clutch'],
  *     roles:      ['duelist','controller','initiator','sentinel'],
  *     agents:     ['Jett', ...],   // only served once the agent is CONFIRMED
  *     maps:       ['Ascent', ...],
  *     weapons:    ['operator', ...], // substring match on the player's weapon
+ *     cause:      ['dry-peek', ...], // the death labels the note answers
+ *                                    // (death-forensics.js CAUSES), served
+ *                                    // only when the context carries one
+ *     tier:       'core' | 'advanced' // core is the default
+ *     source:     { kind, topic }  // required on an imported note, never a name
  *     weight:     1..3             // base priority (default 1)
  *   }
+ *   scripts/check-playbook.js VALID is the vocabulary that is enforced.
  */
 
 const fs   = require('fs');
@@ -83,7 +89,7 @@ const PLAYBOOK = [
   { text: 'Judge your games by decisions, not kills, clean calls in a loss teach more than lucky frags in a win.', weight: 1 },
   { text: 'Review one lost round after each match, ask what information you had before the fight that you did not use.', weight: 1 },
   { text: 'Read the minimap for absence, no contact anywhere by mid round means a stack or a late hit, call it before the timer forces panic.', weight: 1 },
-  { text: 'Call enemy positions in three words, place, number, action, "two B main pushing" wins rounds, essays lose them.', weight: 1 },
+  { text: 'Call enemy positions in three words, number, place, action, "two B main pushing" wins rounds, and say at least two when unsure, essays lose them.', weight: 1 },
 
   // ── aim ─────────────────────────────────────────────────────────────────
   { text: 'Fire short bursts and stop to reset, because holding the trigger past the opening bullets sprays away from the head.', weight: 1 },
@@ -97,7 +103,7 @@ const PLAYBOOK = [
   { text: 'Jiggle to find out who is there, wide swing only when you know a single enemy is on the angle, and once a jiggle shows a body either commit or leave, because lingering half exposed is the easiest kill.', weight: 2 },
   { text: 'Peek with a plan, know your cover and your exit before you step out of safety.', weight: 1 },
   { text: 'Clear close corners before long angles, the close enemy kills you first.', weight: 2 },
-  { text: 'Use peekers advantage, the swinger sees the holder first, so swing with intent instead of creeping into view.', weight: 1 },
+  { text: 'Use peekers advantage, the swinger who comes from a step back sees the holder first, so swing with intent from off the wall instead of creeping into view.', weight: 1 },
   { text: 'Do not crouch out of habit mid duel, because it slows your strafe and keeps a still head in front of them, crouch only as a deliberate trick.', weight: 1 },
   { text: 'Jump spot only for info you can call out, you cannot shoot accurately in the air.', weight: 1 },
   { text: 'Fall back through your util, a retreat covered by a smoke or flash is a reset, a naked retreat is a free kill for them.', weight: 1 },
@@ -118,7 +124,7 @@ const PLAYBOOK = [
   { text: 'Count the enemies seen this round, five accounted for means your flank is safe, three means it is not.', weight: 2 },
   { text: 'Use the round timer as info, a quiet first 30 seconds means a default or a late hit is coming.', weight: 1 },
   { text: 'If you are going to die anyway, burn their util and count bodies out loud for your team.', weight: 1 },
-  { text: 'Keep comms short, position, number, action, then quiet, backseat comms while dead lose retakes.', weight: 1 },
+  { text: 'Keep comms short, number, position, action, then quiet, backseat comms while dead lose retakes.', weight: 1 },
 
   // ── sound ───────────────────────────────────────────────────────────────
   { text: 'Play off sound, running steps give a player away well before you see them, silence means shift walkers or nobody.', weight: 1 },
@@ -204,25 +210,26 @@ const PLAYBOOK = [
   { text: 'If your ult is up and the round is already won or lost, hold it, next round starts with a weapon in hand.', weight: 1 },
 
   // ── weapons (matched to what the player is actually holding) ────────────
-  { weapons: ['operator'], text: 'With the Operator hold one long sightline at max range and reposition the moment you fire, never re scope the same pixel.', weight: 3 },
-  { weapons: ['operator'], text: 'Pick the sightline they must cross and let them walk into your Operator, you win by holding, not hunting.', weight: 2 },
-  { weapons: ['operator'], text: 'Do not push with the Operator, a moving Op is just a very expensive knife, let the fight come to your scope.', weight: 2 },
+  { weapons: ['operator'], text: 'With your sniper hold one long sightline at max range and reposition the moment you fire, never re scope the same pixel.', weight: 3 },
+  { weapons: ['operator'], text: 'Pick the sightline they must cross and let them walk into your scope, you win by holding, not hunting.', weight: 2 },
+  { weapons: ['operator'], text: 'Do not push with your sniper, a moving sniper is just a very expensive knife, let the fight come to your scope.', weight: 2 },
   { weapons: ['spectre', 'stinger'], text: SPECTRE_BAND
-    ? `The Spectre loses every long duel, play elbows, corners, and smoke edges, force fights inside ${SPECTRE_BAND} meters.`
-    : 'The Spectre loses every long duel, play elbows, corners, and smoke edges, force the close fights.', weight: 3 },
+    ? `Your SMG loses every long duel, play elbows, corners, and smoke edges, force fights inside ${SPECTRE_BAND} meters.`
+    : 'Your SMG loses every long duel, play elbows, corners, and smoke edges, force the close fights.', weight: 3 },
   { weapons: ['spectre', 'stinger'], text: 'Your SMG wins inside rooms and around tight corners, take the close fight there and leave the long angles to rifles.', weight: 2 },
   { weapons: ['judge', 'bucky', 'shorty'], text: 'A shotgun owns doorways and tight corners, hold the pixel where they funnel and take one body per shell.', weight: 3 },
   { weapons: ['judge', 'bucky', 'shorty'], text: 'Never hold open ground with a shotgun, hide close and let them walk past your corner.', weight: 2 },
-  { weapons: ['sheriff'], text: 'The Sheriff one taps heads at close and mid range, aim head height only and refuse spray fights.', weight: 2 },
-  { weapons: ['sheriff'], text: 'A Sheriff eco wants off angles and single peeks, take one pick then immediately relocate.', weight: 2 },
-  { weapons: ['guardian'], text: 'The Guardian wins standing still at range, take the long angle, tap heads, and back off when they close distance.', weight: 2 },
-  { weapons: ['marshal', 'outlaw'], text: 'A Marshal or Outlaw is an eco Operator, take one long jiggle pick from range then rotate away before they close.', weight: 2 },
-  { weapons: ['odin', 'ares'], text: 'The Odin sprays through thin cover, pre fire the known spots and wall bang the plant, but never take a clean open duel with it.', weight: 2 },
-  { weapons: ['classic'], text: 'The Classic right click is a tiny shotgun, use it inside 5 meters only, single taps beyond that.', weight: 2 },
-  { weapons: ['ghost'], text: 'The Ghost rewards head taps at ranges other pistols cannot reach, play it like a mini Guardian.', weight: 2 },
-  { weapons: ['phantom'], text: 'The Phantom sprays through smokes with no tracers up close, spray the smoke edge where they cross.', weight: 1 },
-  { weapons: ['vandal'], text: 'The Vandal one taps at every range, slow your fights down to single accurate shots, especially at distance.', weight: 1 },
-  { weapons: ['bulldog'], text: 'The Bulldog burst fires on ADS, take mid range angles and burst heads, do not spray it like a Vandal.', weight: 2 },
+  { weapons: ['sheriff'], text: 'Your pistol one taps heads at close and mid range, aim head height only and refuse spray fights.', weight: 2 },
+  { weapons: ['sheriff'], text: 'A save round with your pistol wants off angles and single peeks, take one pick then immediately relocate.', weight: 2 },
+  { weapons: ['guardian'], text: 'Your rifle wins standing still at range, take the long angle, tap heads, and back off when they close distance.', weight: 2 },
+  { weapons: ['marshal'], text: 'Your sniper is an eco Operator, take one long jiggle pick from range then rotate away before they close.', weight: 2 },
+  { weapons: ['outlaw'], text: 'Your sniper is a half buy Operator with two shots before the reload, take one long pick from range, and if the first shot misses take the second from cover or leave.', weight: 2 },
+  { weapons: ['odin', 'ares'], text: 'Your machine gun sprays through thin cover, pre fire the known spots and wall bang the plant, but never take a clean open duel with it.', weight: 2 },
+  { weapons: ['classic'], text: 'Your pistol\'s right click is a tiny shotgun, use it inside 5 meters only, single taps beyond that.', weight: 2 },
+  { weapons: ['ghost'], text: 'Your pistol rewards head taps at ranges the Classic and Frenzy cannot reach, play it like a mini Guardian.', weight: 2 },
+  { weapons: ['phantom'], text: 'Your rifle sprays through smokes with no tracers up close, spray the smoke edge where they cross.', weight: 1 },
+  { weapons: ['vandal'], text: 'Your rifle one taps at every range, slow your fights down to single accurate shots, especially at distance.', weight: 1 },
+  { weapons: ['bulldog'], text: 'Your rifle burst fires when you aim down sights, take mid range angles and burst heads, do not spray it like a Vandal.', weight: 2 },
   { weapons: ['frenzy'], text: FRENZY_BAND
     ? `Your pistol melts inside ${FRENZY_BAND} meters, play it like a shotgun angle, not like a Ghost.`
     : 'Your pistol melts up close, play it like a shotgun angle, not like a Ghost.', weight: 2,
@@ -285,9 +292,9 @@ const PLAYBOOK = [
   { agents: ['Tejo'], text: 'Save the guided missiles for locked setups and post plants, they force players off positions without a peek.', weight: 2 },
   { agents: ['Tejo'], text: 'Fly the drone for quiet info before the hit, walking in blind wastes your kit.', weight: 1 },
   { agents: ['Omen'], text: 'Teleport behind your own smoke for the unexpected angle, and re smoke the choke as fights reset.', weight: 2 },
-  { agents: ['Omen'], text: 'Paranoia through the wall as your team swings, a blinded crossfire is two free kills.', weight: 1 },
+  { agents: ['Omen'], text: 'Paranoia through the wall as your team swings, thrown past your teammates and never through them, a blinded crossfire is two free kills.', weight: 1 },
   { agents: ['Omen'], text: 'Shrouded Step to height and off angles nobody checks, but only when the round gives you a quiet window to cast it.', weight: 1 },
-  { agents: ['Brimstone'], text: 'Drop smokes the second the hit starts, yours land instantly from the map, there is no excuse for a dry entry.', weight: 2 },
+  { agents: ['Brimstone'], text: 'Drop smokes the second the hit starts, yours arrive within a second or two from the map, there is no excuse for a dry entry.', weight: 2 },
   { agents: ['Brimstone'], text: 'Hold the molly for the defuse, lineup or not, it wins post plants on its own.', weight: 1 },
   { agents: ['Viper'], text: 'Your molly on the spike wins post plants, hold it until the defuse actually starts.', weight: 2 },
   { agents: ['Viper'], text: 'One wall set at the barrier can cut the whole site, place it early and manage fuel through the round.', weight: 1 },
@@ -352,7 +359,7 @@ const PLAYBOOK = [
   { text: 'Tempo is a weapon, if you lost the last two rounds slow, the fast hit catches a defense that has settled into holding deep.', weight: 2 },
   { side: 'defense', text: 'Defense wins by delay, but take a safe pick when it is there, because every second you cost them is closer to the timer and a man advantage makes the retake easier.', weight: 3 },
   { side: 'defense', text: 'Give ground for free only where it costs them time, fight where you have a crossfire and fall back where you do not.', weight: 2 },
-  { text: 'The round clock is a resource, at 20 seconds attackers must commit and defenders can stop guessing, play the clock deliberately.', weight: 2 },
+  { text: 'The round clock is a resource, by the time it shows about 35 seconds the hit must already be going in, because the plant alone takes seconds and a hit that starts later has no post plant, while defenders can stop guessing once it does.', weight: 2 },
   { text: 'When your team has the man advantage, slow the round down, time is on your side and every trade favours you.', weight: 2 },
   { text: 'When you are a player down on defense, delay with utility and fall back to a group retake instead of gambling, because fewer players need trades and not speed.', weight: 2 },
 
@@ -371,7 +378,7 @@ const PLAYBOOK = [
   { situations: ['lostpistol'], text: 'After a lost pistol, save by default and force only with a plant, kills or the score behind it, and then do it as a team, because a half hearted buy is what turns one lost round into several.', weight: 2 },
   { text: 'Track their economy, not just yours, a team that just lost two rounds cannot afford rifles and shields, so play the angles their guns are bad at.', weight: 2 },
   { text: 'Picking up an enemy rifle is worth more than most kills, it buys your next round as well as this one.', weight: 1 },
-  { text: 'Drop for a teammate before buying your own third utility, one more rifle in the round beats one more ability.', weight: 1 },
+  { text: 'Drop a rifle for a teammate only when you still afford your own next round and your smokes or flashes are already bought, because a dropped gun with no utility behind it dies at the first corner.', weight: 1 },
 
   // ── mid round adaptation ────────────────────────────────────────────────
   { phase: 'active', text: 'When the first contact goes badly, stop the execute, reset and take the space back with util rather than feeding one at a time.', weight: 3 },
@@ -415,7 +422,7 @@ const PLAYBOOK = [
   { maps: ['Haven'], side: 'attack', text: 'Fake one site on Haven and hit another, the third site is always the thinnest once they commit.', weight: 2 },
   { maps: ['Split'], text: 'Split rewards vertical play, clear A Rafters and B Rafters on every site take, that is where the free kills live.', weight: 2 },
   { maps: ['Split'], side: 'attack', text: 'Mid Mail and Mid Vent open both Split sites, taking mid is worth more than any single entry.', weight: 2 },
-  { maps: ['Lotus'], side: 'attack', text: 'C Waterfall and A Main are the loud entrances on Lotus, the doors give you away, so plan the noise into the fake.', weight: 2 },
+  { maps: ['Lotus'], side: 'attack', text: 'The A Door and the C Door are the loud entrances on Lotus, their rotation gives you away, so plan the noise into the fake.', weight: 2 },
   { maps: ['Lotus'], side: 'defense', text: 'With three sites on Lotus a single defender must delay rather than duel, use the door audio to time the rotate.', weight: 1 },
   { maps: ['Icebox'], text: 'Plant near cover on Icebox, an open plant on either site is defusable from angles you cannot hold.', weight: 2 },
   { maps: ['Icebox'], text: 'Icebox fights are vertical and close, clear A Nest and B Green style high angles before you look at ground level.', weight: 1 },
@@ -484,7 +491,7 @@ try {
 const ALL = PLAYBOOK.concat(EXTRA);
 
 // Team-dependent advice, excluded from retrieval during a solo clutch.
-const TEAM_PLAY = /\btrad(?:e|es|ed|ing)\b|\bteammates?\b|\bcrossfire\b|\bswing (?:with|together)\b|\bas five\b|\bregroup\b|\btrade partner\b|\bentry\b|\bretake as\b|\byour team\b/i;
+const TEAM_PLAY = /\btrad(?:e|es|ed|ing)\b|\bteammates?\b|\bcrossfire\b|\bswing (?:with|together)\b|\bas five\b|\bregroup\b|\btrade partner\b|\bentry\b|\bretake as\b|\byour team\b|\b(?:a|the|whole) team\b|\bthe default\b|\bgroup on a site\b|\bsplit a hit\b|\bfive players\b|\byour real hits\b/i;
 
 // Agent -> role, so role notes fire off the confirmed agent.
 //
@@ -503,6 +510,7 @@ const ROLE_OF = {
   fade: 'initiator', gekko: 'initiator', tejo: 'initiator',
   sage: 'sentinel', killjoy: 'sentinel', cypher: 'sentinel',
   chamber: 'sentinel', deadlock: 'sentinel', vyse: 'sentinel',
+  hush: 'duelist', veto: 'sentinel', miks: 'controller',
 };
 try {
   const agents = require('../valorant-data.generated.json').agents || {};

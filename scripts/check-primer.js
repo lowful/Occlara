@@ -662,8 +662,19 @@ function fakeApi(raw, opts = {}) {
         { patch: '13.08', date: '2026-10-01T20:00:00Z', notesFound: true, linesKept: 'all', capped: false, lines },
         { patch: '13.07', date: '2026-09-17T20:00:00Z', notesFound: true, linesKept: 'all', capped: false, lines: [] },
       ],
+      // A synthetic world where 13.07 was a real patch: the real file records
+      // it as skipped, which would close the holes these cases build.
+      skipped: [],
     };
-    const p = primerMod.create({ patches: hist });
+    // The facts as verified on the synthetic history's head, 13.08: the real
+    // file is re-stamped after every patch read (13.09 on 2026-11-04) and
+    // these cases are about the history's shape, not the file's stamp.
+    const rules8 = clone(RULES);
+    for (const f of Object.values(rules8.facts)) f.verifiedPatch = '13.08';
+    // And the data synced on it, since the synced patch must be the history's
+    // head for anything to be stated at all.
+    const d8 = clone(DATA); d8.patch = '13.08'; d8.version = '13.08.00.1';
+    const p = primerMod.create({ rules: rules8, data: d8, patches: hist });
     const sep20 = Date.parse('2026-09-20T12:00:00Z');
     const gate = p.matchGate(sep20);
     ok(gate.includes('s:credits.loss') && gate.includes('s:credits.win') && gate.includes('w:vandal:') && !gate.includes('s:spike.defuse') && !gate.includes('s:'),
@@ -687,37 +698,37 @@ function fakeApi(raw, opts = {}) {
     ok(/within 5 seconds/.test(old) && /within the first 30 seconds/.test(old) && /is 3 kills or more/.test(old),
       "and Occlara's own rules, the trade, the early death and the multi kill, stay for it: the review it was graded by says them");
     const named = { ...hist, history: [{ ...hist.history[0], linesKept: 'named' }, hist.history[1]] };
-    const gNamed = primerMod.create({ patches: named }).matchGate(sep20);
+    const gNamed = primerMod.create({ rules: rules8, data: d8, patches: named }).matchGate(sep20);
     ok(TOUCHABLE.every((k) => gNamed.includes(k)) && !gNamed.some((k) => OWN.includes(k.slice(2))),
       'notes of a later patch kept only in part withhold every stated fact a patch can touch');
     // The stated facts gate: facts verified on 13.07, synced on 13.08.
     const rules = clone(RULES);
     for (const f of Object.values(rules.facts)) f.verifiedPatch = '13.07';
-    const g1 = primerMod.create({ rules, patches: hist }).statedGate();
+    const g1 = primerMod.create({ rules, data: d8, patches: hist }).statedGate();
     ok(g1['credits.loss'] && g1['credits.win'] && !g1['spike.defuse'] && !g1['rule.tradeSeconds'],
       'facts verified on 13.07 are held where 13.08 tags their topic, and only there', Object.keys(g1).join(', '));
-    ok(!/A win pays 3000/.test(primerMod.create({ rules, patches: hist }).core('standard')), 'and the held ones are said in words');
-    const g2 = primerMod.create({ rules, patches: { ...hist, history: [{ ...hist.history[0], lines: [] }, hist.history[1]] } }).statedGate();
+    ok(!/A win pays 3000/.test(primerMod.create({ rules, data: d8, patches: hist }).core('standard')), 'and the held ones are said in words');
+    const g2 = primerMod.create({ rules, data: d8, patches: { ...hist, history: [{ ...hist.history[0], lines: [] }, hist.history[1]] } }).statedGate();
     ok(!Object.keys(g2).length, 'with 13.08 found whole and no line on their topics they pass');
-    const g3 = primerMod.create({ rules, patches: named }).statedGate();
+    const g3 = primerMod.create({ rules, data: d8, patches: named }).statedGate();
     ok(g3['credits.win'] && g3['spike.defuse'], 'with 13.08 kept only in part every tagged fact is held');
-    const g4 = primerMod.create({ rules, patches: { ...hist, history: [hist.history[1]] } }).statedGate();
+    const g4 = primerMod.create({ rules, data: d8, patches: { ...hist, history: [hist.history[1]] } }).statedGate();
     ok(g4['spike.defuse'] && /not in the history/.test(g4['spike.defuse']), 'with no notes for the synced patch at all every tagged fact is held');
     // A hole: 13.07 missing between 13.08 and 13.06.
     const holed = { ...hist, history: [hist.history[0], { patch: '13.06', date: '2026-09-03T20:00:00Z', notesFound: true, linesKept: 'all', capped: false, lines: [] }] };
-    const ph = primerMod.create({ patches: holed });
+    const ph = primerMod.create({ rules: rules8, data: d8, patches: holed });
     ok(ph.patchesAfter(Date.parse('2026-09-10T00:00:00Z')) === null && JSON.stringify(ph.matchGate(Date.parse('2026-09-10T00:00:00Z'))) === JSON.stringify(TOUCHABLE),
       'a hole in the history above a match is a patch nobody read: every stated fact a patch can touch is withheld');
     const rules6 = clone(RULES);
     for (const f of Object.values(rules6.facts)) f.verifiedPatch = '13.06';
-    const g5 = primerMod.create({ rules: rules6, patches: { ...holed, history: [{ ...hist.history[0], lines: [] }, holed.history[1]] } }).statedGate();
+    const g5 = primerMod.create({ rules: rules6, data: d8, patches: { ...holed, history: [{ ...hist.history[0], lines: [] }, holed.history[1]] } }).statedGate();
     ok(g5['spike.defuse'] && /between 13\.06 and 13\.08/.test(g5['spike.defuse']), 'and facts verified on 13.06 are held when 13.07 is missing, though 13.08 is clean');
     // Riot's own patch for the match (Phase D's game_version).
     ok(JSON.stringify(p.patchesAfterPatch('13.07')) === '["13.08"]' && JSON.stringify(p.matchGate(undefined, '13.07')) === JSON.stringify(gate),
       "a match placed by Riot's patch, 13.07, loses what 13.08 touched, as one placed by its date");
     ok(JSON.stringify(p.patchesAfterPatch('13.08')) === '[]' && p.patchesAfterPatch('13.05') === null,
       'on the synced patch it loses nothing, and from a patch the history does not reach it is unknown');
-    const gap = primerMod.create({ patches: { ...hist, history: [hist.history[0], { ...hist.history[1], patch: '13.05' }] } });
+    const gap = primerMod.create({ rules: rules8, data: d8, patches: { ...hist, history: [hist.history[0], { ...hist.history[1], patch: '13.05' }] } });
     ok(gap.patchesAfterPatch('13.05') === null, "a match on 13.05 with 13.06 and 13.07 missing is unknown, though 13.05 itself is kept");
     // Across a major only its X.00 follows the last major's patch: 14.01 over
     // 13.08 is 14.00 missing, and 14.00 is where the systems change.
@@ -726,8 +737,8 @@ function fakeApi(raw, opts = {}) {
     const no14 = { ...hist, history: [e('14.01', '2026-11-20T00:00:00Z'), e('13.08', '2026-10-01T20:00:00Z')] };
     const with14 = { ...hist, history: [e('14.01', '2026-11-20T00:00:00Z'), e('14.00', '2026-11-05T00:00:00Z'), e('13.08', '2026-10-01T20:00:00Z')] };
     const oct10 = Date.parse('2026-10-10T00:00:00Z');
-    const pNo = primerMod.create({ data: d14, patches: no14 });
-    const pWith = primerMod.create({ data: d14, patches: with14 });
+    const pNo = primerMod.create({ rules: rules8, data: d14, patches: no14 });
+    const pWith = primerMod.create({ rules: rules8, data: d14, patches: with14 });
     ok(pNo.patchesAfter(oct10) === null && JSON.stringify(pWith.patchesAfter(oct10)) === '["14.01","14.00"]',
       'across a major, 14.01 straight over 13.08 is a hole (14.00 missing), and 14.01, 14.00, 13.08 is none');
     ok(pNo.statedGate()['spike.defuse'] && !Object.keys(pWith.statedGate()).length && pNo.patchesAfterPatch('13.08') === null,
@@ -783,13 +794,50 @@ function fakeApi(raw, opts = {}) {
     // Those lines as the synced patch's notes, facts verified on the patch before.
     const d9 = clone(DATA); d9.patch = '13.09'; d9.version = '13.09.00.1';
     const h9 = { ...PATCHES, history: [{ patch: '13.09', date: '2026-10-14T17:00:00Z', notesFound: rn.substantive > 0, linesKept: 'all', capped: false, lines: rn.lines },
-      { ...PATCHES.history[0], linesKept: 'all' }] };
-    const g9 = primerMod.create({ data: d9, patches: h9 }).statedGate();
+      // The real 13.08 entry below it: the file's head is whatever is synced
+      // (13.09 since 2026-11-04, read with no lines), not always 13.08.
+      { ...(PATCHES.history.find((e) => e.patch === '13.08') || PATCHES.history[0]), linesKept: 'all' }] };
+    // Facts verified on the patch before, 13.08, as the file was until 13.09 was read.
+    const rules8 = clone(RULES);
+    for (const f of Object.values(rules8.facts)) f.verifiedPatch = '13.08';
+    const g9 = primerMod.create({ rules: rules8, data: d9, patches: h9 }).statedGate();
     ok(g9['armor.regen.capacity'] && g9['spike.plant'] && g9['spike.defuse'] && g9['credits.win'] && !g9['round.seconds'] && !g9.health,
       "so a 13.09 that moved the shield, the plant and the pay withholds the shield's 25, the spike and the economy, and nothing it did not touch", Object.keys(g9).join(', '));
     ok(notes.date === '2026-09-30T17:00:00.000Z' && patchSync.dateOf('<p>no date here</p>') === null, 'the article date is read, and none is invented');
     ok(JSON.stringify(patchSync.slugsFromIndex(page)) === JSON.stringify(['13.07', '12.11']) && patchSync.slugsFromIndex('<a href="/x/">').length === 0,
       "the index's patches are read newest first, and a page with none gives none");
+    // 13.09 went up without the hyphen; a sync that knew only "13-08" recorded it as read with no notes.
+    const slugOk = (s) => { const re = new RegExp(patchSync.SLUG_RE.source, 'i'); const m = s.match(re); return m ? `${Number(m[1])}.${m[2]}` : null; };
+    ok(slugOk('valorant-patch-notes-13-08') === '13.08' && slugOk('valorant-patch-notes-1309') === '13.09'
+      && slugOk('valorant-patch-notes-9-10') === '9.10' && slugOk('valorant-patch-notes-13090') === null,
+    'the slug is read with or without the hyphen: 13-08, 1309 and 9-10, never a longer number');
+    const both = '<a href="/en-us/news/game-updates/valorant-patch-notes-1309/">a</a><a href="/en-us/news/game-updates/valorant-patch-notes-13-08/">b</a>'
+      + '<a href="/en-us/news/game-updates/valorant-patch-notes-13-06/">c</a>';
+    ok(JSON.stringify(patchSync.slugsFromIndex(both)) === JSON.stringify(['13.09', '13.08', '13.06']),
+      'an index linking 1309 next to 13-08 reads all three patches', JSON.stringify(patchSync.slugsFromIndex(both)));
+    ok(patchSync.RIOT_SKIPPED.includes('13.07') && patchSync.RIOT_SKIPPED.includes('13.03')
+      && patchSync.unexplainedGaps(['13.09', '13.08', '13.06', '13.05', '13.04', '13.02', '13.01']).length === 0
+      && JSON.stringify(patchSync.unexplainedGaps(['13.12', '13.10'])) === '["13.11"]',
+    'Riot skipped 13.03 and 13.07, and a gap nobody has confirmed is reported, never recorded');
+  }
+  {
+    // A number Riot never released is no hole: with 13.07 recorded as skipped,
+    // 13.08 straight over 13.06 is unbroken, and without it the hole stays.
+    const e = (p, date) => ({ patch: p, date, notesFound: true, linesKept: 'all', capped: false, lines: [] });
+    const d8 = clone(DATA); d8.patch = '13.08'; d8.version = '13.08.00.1';
+    const rules6 = clone(RULES);
+    for (const f of Object.values(rules6.facts)) f.verifiedPatch = '13.06';
+    const hist = { history: [e('13.08', '2026-10-13T17:00:00Z'), e('13.06', '2026-09-22T17:00:00Z')] };
+    const skip = primerMod.create({ rules: rules6, data: d8, patches: { ...hist, skipped: ['13.07'] } });
+    const hole = primerMod.create({ rules: rules6, data: d8, patches: hist });
+    ok(JSON.stringify(skip.patchesAfterPatch('13.06')) === '["13.08"]' && hole.patchesAfterPatch('13.06') === null,
+      'a match on 13.06 sees 13.08 after it when 13.07 is recorded skipped, and is unknown when it is not');
+    ok(!Object.keys(skip.statedGate()).length && hole.statedGate()['spike.defuse'],
+      'so facts verified on 13.06 pass over a skipped 13.07 and a clean 13.08, and are held over a real hole');
+    ok(JSON.stringify(primerMod.create({ rules: rules6, data: d8, patches: { history: [e('13.08', '2026-10-13T17:00:00Z'), e('13.05', '2026-09-01T17:00:00Z')], skipped: ['13.07'] } })
+      .patchesAfterPatch('13.05')) === 'null', 'a skipped 13.07 does not excuse a missing 13.06');
+    ok(Array.isArray(PATCHES.skipped) && PATCHES.skipped.includes('13.07') && PATCHES.skipped.includes('13.03'),
+      'the synced file records the numbers Riot skipped', JSON.stringify(PATCHES.skipped));
   }
 
   // ── 10. where it goes ─────────────────────────────────────────────────────

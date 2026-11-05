@@ -1,21 +1,781 @@
 {
-  "generatedAt": "2026-11-04T20:59:17.741Z",
+  "generatedAt": "2026-11-05T01:31:30.104Z",
   "patch": "13.09",
   "buildDate": "2026-10-28T06:11:26Z",
-  "source": null,
-  "headline": null,
-  "changes": [],
-  "notesFound": false,
+  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-1309/",
+  "headline": "The definitive source on all updates coming to the game.",
+  "changes": [
+    {
+      "type": "agent",
+      "names": [
+        "Hush",
+        "Warden"
+      ],
+      "line": "TL;DR: New Agent Hush is here, along with some updated tooltips, Warden buffs, and a plethora of bug fixes."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Hush"
+      ],
+      "line": "HELLOOO everybody 🙂Get ready to meet our latest Agent, Hush, as she changes the game. Try her out and let us know what you think!"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Hush"
+      ],
+      "line": "New Agent Hush is now in game!"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Hush"
+      ],
+      "line": "Hush can pick up weapons, the Spike (when on attacker side), and INTERACT with switches from an increased range."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Hush"
+      ],
+      "line": "INSTANTLY create an anchor. If Hush is in the air, briefly levitate in place. After a delay, propel towards it."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Cypher"
+      ],
+      "line": "Snapshot refers to the still image silhouette reveal debuff (Cypher's Neural Theft/Spycam)"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Waylay"
+      ],
+      "line": "Since they have identical effects, Waylay's Convergent Paths buff has been renamed to the new Haste buff"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Clove"
+      ],
+      "line": "Killing Clove after they cast Not Dead Yet will now grant an ultimate point and signature refresh point to the player who killed them"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Jett"
+      ],
+      "line": "Removed Jett's passive from the Buy Menu to be consistent with other non-purchaseable passives"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Hush"
+      ],
+      "line": "Hush is our first new Agent since Performance Score launched. Your scores on Hush may be a bit bumpy in the first few days as we tune what good utility use looks like"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Clove"
+      ],
+      "line": "Fixed an issue where Clove's Ruse ability map could be visible to enemies positioned below Clove"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Clove"
+      ],
+      "line": "Fixed an issue where Clove's Pick-Me-Up timer could remain visible on the HUD after the ability was used"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Cypher"
+      ],
+      "line": "Fixed an issue where Cypher's Cyber Cage could change orientation when placed on angled surfaces"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Deadlock"
+      ],
+      "line": "Fixed an issue where Deadlock's Annihilation capture voice line would not play for the captured enemy"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Gekko"
+      ],
+      "line": "Fixed an issue where Gekko's Mosh Pit could damage destructible objects outside its intended area of effect"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Omen"
+      ],
+      "line": "Fixed an issue where Omen's Shrouded Step arrival visual effects could end prematurely"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Raze"
+      ],
+      "line": "Fixed an issue where Raze's Boom Bot could continue tracking an enemy's location after they teleported"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Sova"
+      ],
+      "line": "Fixed an issue where Sova's Hunter's Fury could affect players positioned behind him"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Tejo"
+      ],
+      "line": "Fixed an issue where Tejo's Special Delivery could persist into the next round, occasionally damaging or concussing players after the round transition"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Tejo"
+      ],
+      "line": "Fixed an issue where Tejo's Guided Salvo could target an unintended location or fail to cast after a selected target moved out of range"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Yoru"
+      ],
+      "line": "Fixed an issue where Yoru's Gatecrash sound effects could repeatedly play when attempting to use the ability while suppressed."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Gekko",
+        "Raze",
+        "Killjoy"
+      ],
+      "line": "Fixed an issue where Vulnerable visual effects were incorrectly positioned on Gekko's Wingman , Killjoy's Turret, and Raze's Boom Bot"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Tejo",
+        "Brimstone"
+      ],
+      "line": "Fixed an issue where Tejo's Guided Salvo and Brimstone's Orbital Strike placement indicators could initially appear offset from the player's position"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Chamber",
+        "Omen"
+      ],
+      "line": "Fixed an issue where Chamber's and Omen's locations could briefly be revealed to enemies on the minimap after teleporting"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Cypher",
+        "Killjoy",
+        "Vyse",
+        "Viper"
+      ],
+      "line": "Fixed an issue where certain abilities belonging to Cypher, Vyse, Viper, and Killjoy could be visible to opponents through barriers during the Buy Phase"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Vyse",
+        "Veto"
+      ],
+      "line": "Veto and Vyse's in-game UI have been updated from PICK UP to RECALL to be consistent with other similar retrieval methods"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Neon"
+      ],
+      "line": "Fixed an issue where Neon's Fast Lane visual effects could be invisible to spectators observing the Spike."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Miks"
+      ],
+      "line": "Fixed an issue where Miks' M-Pulse and Bassquake abilities did not provide controller vibration feedback when equipped or cast"
+    }
+  ],
+  "notesFound": true,
   "history": [
     {
       "patch": "13.09",
-      "date": "2026-10-28T06:11:26Z",
-      "dateFrom": "buildDate",
-      "source": null,
-      "notesFound": false,
+      "date": "2026-10-27T13:00:00.000Z",
+      "dateFrom": "article",
+      "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-1309/",
+      "notesFound": true,
       "linesKept": "all",
       "capped": false,
-      "lines": []
+      "lines": [
+        {
+          "line": "VALORANT Patch Notes 13.09",
+          "names": []
+        },
+        {
+          "line": "Hush is here.",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Game Updates JOY",
+          "names": []
+        },
+        {
+          "line": "2026-10-27T13:00:00.000Z",
+          "names": []
+        },
+        {
+          "line": "TL;DR: New Agent Hush is here, along with some updated tooltips, Warden buffs, and a plethora of bug fixes.",
+          "names": [
+            "Hush",
+            "Warden"
+          ]
+        },
+        {
+          "line": "HELLOOO everybody 🙂Get ready to meet our latest Agent, Hush, as she changes the game. Try her out and let us know what you think!",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "ALL PLATFORMS",
+          "names": []
+        },
+        {
+          "line": "AGENTS UPDATES",
+          "names": []
+        },
+        {
+          "line": "New Agent Hush is now in game!",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Hailing from Guangdong province, Hush uses her telekinesis to close the most classified cases. Fighting with precision and finesse, she redirects her combat utility in midair to disrupt and displace the enemy team before suspending them helplessly for the killing blow.",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Abilities:",
+          "names": []
+        },
+        {
+          "line": "Telekinesis (Passive)",
+          "names": []
+        },
+        {
+          "line": "Hush can pick up weapons, the Spike (when on attacker side), and INTERACT with switches from an increased range.",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Displacement",
+          "names": []
+        },
+        {
+          "line": "EQUIP Displacement. FIRE to throw. ALT FIRE to prepare it instead. REACTIVATE to direct it towards your crosshair. Explodes on any surface or after a delay, pulling all players towards the center and concussing them if they collide with any surface or another player. Resets every two kills.",
+          "names": []
+        },
+        {
+          "line": "Flashbulb",
+          "names": []
+        },
+        {
+          "line": "EQUIP Flashbulb. FIRE to throw. ALT FIRE to prepare it instead. REACTIVATE to direct it towards your crosshair. Explodes on any surface or after a delay, flashing all players looking at it.",
+          "names": []
+        },
+        {
+          "line": "Flow",
+          "names": []
+        },
+        {
+          "line": "INSTANTLY create an anchor. If Hush is in the air, briefly levitate in place. After a delay, propel towards it.",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "Suspension",
+          "names": []
+        },
+        {
+          "line": "INSTANTLY prepare Suspension. FIRE to send it forward, steering with your crosshair. REACTIVATE or press FIRE again to detonate, levitating all players.",
+          "names": []
+        },
+        {
+          "line": "Updated ability descriptions and tooltips",
+          "names": []
+        },
+        {
+          "line": "All ability descriptions have been updated for improved clarity and consistency",
+          "names": []
+        },
+        {
+          "line": "Passive descriptions have been added to more Agents across relevant areas, including Agent Select, the Agent Hub, and Ability Tooltips. This includes passives that were not previously described in-game or explicitly categorized, like Neon's Battery",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "The Ability Description Tooltip has been redesigned to improve readability at a glance by including baseline details such as Agent, role, and keybinds. Tooltips now appear during relevant moments, such as testing a new Agent in the Range",
+          "names": []
+        },
+        {
+          "line": "Updated Buffs",
+          "names": []
+        },
+        {
+          "line": "We've added Haste and Snapshot as official buff terms!",
+          "names": []
+        },
+        {
+          "line": "Haste refers to the increased movement speed buff you receive, as opposed to a Combat Stim buff, which increases your fire rate, equip speed, reload speed, and recovery speed",
+          "names": []
+        },
+        {
+          "line": "This should add clarity to when you receive or refresh a Combat Stim buff, a Haste buff, or both.",
+          "names": []
+        },
+        {
+          "line": "Snapshot refers to the still image silhouette reveal debuff (Cypher's Neural Theft/Spycam)",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Brimstone",
+          "names": [
+            "Brimstone"
+          ]
+        },
+        {
+          "line": "Stim Beacon will show an applied Haste buff to affected players",
+          "names": []
+        },
+        {
+          "line": "Clove",
+          "names": [
+            "Clove"
+          ]
+        },
+        {
+          "line": "Pick-me-up will show an applied Haste buff",
+          "names": []
+        },
+        {
+          "line": "With the newly named Haste buff adding a timer bar to the UI, we've removed the previous timer bar to reduce unnecessary clutter",
+          "names": []
+        },
+        {
+          "line": "Miks",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Harmonize will show an applied Haste buff to affected players",
+          "names": []
+        },
+        {
+          "line": "Neon",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "Our fastest Agent will see an applied Haste buff while using High Gear or Overdrive",
+          "names": []
+        },
+        {
+          "line": "Waylay",
+          "names": [
+            "Waylay"
+          ]
+        },
+        {
+          "line": "Since they have identical effects, Waylay's Convergent Paths buff has been renamed to the new Haste buff",
+          "names": [
+            "Waylay"
+          ]
+        },
+        {
+          "line": "Clove While auditing our buffs we spotted some inconsistencies with Clove and are standardizing them to some of the roster values and rules. Clove had a higher movement speed bonus value compared to similar movement speed bonus abilities and different kill rewards after casting Not Dead Yet.",
+          "names": [
+            "Clove"
+          ]
+        },
+        {
+          "line": "Pick-me-up",
+          "names": []
+        },
+        {
+          "line": "Bonus movement speed decreased from 15% &gt;&gt;&gt; 10%",
+          "names": []
+        },
+        {
+          "line": "Not Dead Yet",
+          "names": []
+        },
+        {
+          "line": "Killing Clove after they cast Not Dead Yet will now grant an ultimate point and signature refresh point to the player who killed them",
+          "names": [
+            "Clove"
+          ]
+        },
+        {
+          "line": "Jett",
+          "names": [
+            "Jett"
+          ]
+        },
+        {
+          "line": "Removed Jett's passive from the Buy Menu to be consistent with other non-purchaseable passives",
+          "names": [
+            "Jett"
+          ]
+        },
+        {
+          "line": "COMPETITIVE UPDATES",
+          "names": []
+        },
+        {
+          "line": "Performance Score",
+          "names": []
+        },
+        {
+          "line": "Hush is our first new Agent since Performance Score launched. Your scores on Hush may be a bit bumpy in the first few days as we tune what good utility use looks like",
+          "names": [
+            "Hush"
+          ]
+        },
+        {
+          "line": "We've made some small quality of life improvements in the end-of-game pages to provide more info about Performance Score",
+          "names": []
+        },
+        {
+          "line": "PC only- Hover text for trades on the scoreboard",
+          "names": []
+        },
+        {
+          "line": "A new \"learn more\" screen with more information about what Performance Score is",
+          "names": []
+        },
+        {
+          "line": "Map Rating",
+          "names": []
+        },
+        {
+          "line": "Your Act Best Match now has a bigger impact on your Map Rating each Act to better highlight consistency and peaks",
+          "names": []
+        },
+        {
+          "line": "Accolades",
+          "names": []
+        },
+        {
+          "line": "The First Blood Accolade was showing up a bit too often. We've updated the threshold to make it harder to earn",
+          "names": []
+        },
+        {
+          "line": "This will not impact your historic count of Accolades earned",
+          "names": []
+        },
+        {
+          "line": "STORE UPDATES",
+          "names": []
+        },
+        {
+          "line": "Korea only: Players can now purchase Radianite Points in-game.",
+          "names": []
+        },
+        {
+          "line": "WEAPONS UPDATES",
+          "names": []
+        },
+        {
+          "line": "Warden",
+          "names": [
+            "Warden"
+          ]
+        },
+        {
+          "line": "We've been monitoring player feedback on how the Warden has been playing out in games. One thing we'd like to improve is the Warden's base versatility and handling to better fit its current 2900 pricing. We're adding these buffs to help make the gun feel more controllable and comfortable to learn.",
+          "names": [
+            "Warden"
+          ]
+        },
+        {
+          "line": "Pitch recoil smoothed out for the first few bullets",
+          "names": []
+        },
+        {
+          "line": "Reduced spread on bullets follow up shots",
+          "names": []
+        },
+        {
+          "line": "2nd bullet error reduced from .25 &gt;&gt;&gt; .2",
+          "names": []
+        },
+        {
+          "line": "3rd bullet error reduced from .6 &gt;&gt;&gt; .5",
+          "names": []
+        },
+        {
+          "line": "BUG FIXES",
+          "names": []
+        },
+        {
+          "line": "Agent",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Clove's Ruse ability map could be visible to enemies positioned below Clove",
+          "names": [
+            "Clove"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Clove's Pick-Me-Up timer could remain visible on the HUD after the ability was used",
+          "names": [
+            "Clove"
+          ]
+        },
+        {
+          "line": "Cypher",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Cypher's Cyber Cage could change orientation when placed on angled surfaces",
+          "names": [
+            "Cypher"
+          ]
+        },
+        {
+          "line": "Deadlock",
+          "names": [
+            "Deadlock"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Deadlock's Annihilation capture voice line would not play for the captured enemy",
+          "names": [
+            "Deadlock"
+          ]
+        },
+        {
+          "line": "Gekko",
+          "names": [
+            "Gekko"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Gekko's Mosh Pit could damage destructible objects outside its intended area of effect",
+          "names": [
+            "Gekko"
+          ]
+        },
+        {
+          "line": "Omen",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Omen's Shrouded Step arrival visual effects could end prematurely",
+          "names": [
+            "Omen"
+          ]
+        },
+        {
+          "line": "Raze",
+          "names": [
+            "Raze"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Raze's Boom Bot could continue tracking an enemy's location after they teleported",
+          "names": [
+            "Raze"
+          ]
+        },
+        {
+          "line": "Sova",
+          "names": [
+            "Sova"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Sova's Hunter's Fury could affect players positioned behind him",
+          "names": [
+            "Sova"
+          ]
+        },
+        {
+          "line": "Tejo",
+          "names": [
+            "Tejo"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Tejo's Special Delivery could persist into the next round, occasionally damaging or concussing players after the round transition",
+          "names": [
+            "Tejo"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Tejo's Guided Salvo could target an unintended location or fail to cast after a selected target moved out of range",
+          "names": [
+            "Tejo"
+          ]
+        },
+        {
+          "line": "Yoru",
+          "names": [
+            "Yoru"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Yoru's Gatecrash sound effects could repeatedly play when attempting to use the ability while suppressed.",
+          "names": [
+            "Yoru"
+          ]
+        },
+        {
+          "line": "Multiple Agents",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Vulnerable visual effects were incorrectly positioned on Gekko's Wingman , Killjoy's Turret, and Raze's Boom Bot",
+          "names": [
+            "Gekko",
+            "Raze",
+            "Killjoy"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Tejo's Guided Salvo and Brimstone's Orbital Strike placement indicators could initially appear offset from the player's position",
+          "names": [
+            "Tejo",
+            "Brimstone"
+          ]
+        },
+        {
+          "line": "Fixed an issue where Chamber's and Omen's locations could briefly be revealed to enemies on the minimap after teleporting",
+          "names": [
+            "Chamber",
+            "Omen"
+          ]
+        },
+        {
+          "line": "Fixed an issue where certain abilities belonging to Cypher, Vyse, Viper, and Killjoy could be visible to opponents through barriers during the Buy Phase",
+          "names": [
+            "Cypher",
+            "Killjoy",
+            "Vyse",
+            "Viper"
+          ]
+        },
+        {
+          "line": "Veto and Vyse's in-game UI have been updated from PICK UP to RECALL to be consistent with other similar retrieval methods",
+          "names": [
+            "Vyse",
+            "Veto"
+          ]
+        },
+        {
+          "line": "General",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where placing an ability using the ability map could unintentionally consume multiple charges or place abilities at unintended locations",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where ability map cursors and placement indicators could disappear while equipping or using certain abilities",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where enemies outside the affected vision range could appear on the minimap while a player was Nearsighted",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where ability maps could remain visible instead of being obscured by consecutive flashes",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where ability descriptions could be missing or display incorrect information while controlling certain Agent abilities",
+          "names": []
+        },
+        {
+          "line": "Spectator",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Neon's Fast Lane visual effects could be invisible to spectators observing the Spike.",
+          "names": [
+            "Neon"
+          ]
+        },
+        {
+          "line": "Personalisation",
+          "names": []
+        },
+        {
+          "line": "Corrected the position of the yellow notification icon on new Player Cards",
+          "names": []
+        },
+        {
+          "line": "PC ONLY",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where the mouse cursor could briefly disappear when moved outside the boundaries of certain ability maps",
+          "names": []
+        },
+        {
+          "line": "CONSOLE ONLY",
+          "names": []
+        },
+        {
+          "line": "Fixed an issue where Miks' M-Pulse and Bassquake abilities did not provide controller vibration feedback when equipped or cast",
+          "names": [
+            "Miks"
+          ]
+        },
+        {
+          "line": "Related Articles",
+          "names": []
+        },
+        {
+          "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "<div class=\"sc-ce9b75fd-0 lmZfRs\"",
+          "names": []
+        }
+      ]
     },
     {
       "patch": "13.08",
@@ -3184,7 +3944,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-10-13T13:00:00.000Z",
           "names": []
         },
         {
@@ -3816,7 +4576,7 @@
           "names": []
         },
         {
-          "line": "2026-10-27T13:00:00.000Z",
+          "line": "2026-10-13T13:00:00.000Z",
           "names": []
         },
         {
@@ -4305,5 +5065,9 @@
         }
       ]
     }
+  ],
+  "skipped": [
+    "13.07",
+    "13.03"
   ]
 }

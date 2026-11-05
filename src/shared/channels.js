@@ -56,7 +56,8 @@ const CHANNELS = {
   // the account's view, finished strings from src/shared/usage.js and flags,
   // never the session token: { signedIn, via: 'session' | 'key' | null,
   // pending, waiting, email, tier, tierLabel, gamesLeft, cap: null | { capped,
-  // title, body, upgrade }, capped, accountKey, invites, urls }.
+  // title, body, upgrade }, capped, accountKey, invites, games (8.8: the
+  // Profile page's, profile.js gamesState), urls }.
   ACCOUNT_GET:      'account:get',       // () → the view, refreshed from the server when its 60 s cache is old
   ACCOUNT_SIGNIN:   'account:signIn',    // () → { ok: true, account } | { ok: false, error: 'cancelled' | 'timeout' | 'refused' | 'unreachable' | 'browser' | 'listen' } once the browser flow ends
   ACCOUNT_SIGNOUT:  'account:signOut',   // () → { ok } signed out here and on the server, back to the Sign in window
@@ -64,6 +65,11 @@ const CHANNELS = {
   // The Invite page: GET /api/referral with its line, and the link copied by main.
   REFERRAL_GET:     'referral:get',      // () → { code, link, invited, qualified, earned, max_friends, max_games, line, how: [two lines] } | null
   REFERRAL_COPY:    'referral:copy',     // () → { ok } the invite link to the clipboard
+  // The Profile page (8.8): the page as profile.js builds it, and the two
+  // links it opens, both by main and both checked there (profile.isBuyUrl).
+  PROFILE_GET:      'profile:get',       // () → { hero, signedIn, buy, play, plans } (profile.js build) | null mid match
+  PROFILE_BUY:      'profile:buy',       // (n) → { ok } opens occlara.app/buy?games=n in the browser, n a whole 1 to 500, never mid match
+  PROFILE_PLANS:    'profile:plans',     // () → { ok } opens occlara.app/#pricing in the browser, never mid match
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',

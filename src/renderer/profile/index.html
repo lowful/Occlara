@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Profile</title>
+  <!-- Before the body: a page of the main window never paints its old window chrome. -->
+  <script src="../shared/embed.js"></script>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="profile.css" />
+</head>
+<body>
+  <!-- THE PROFILE PAGE (8.8). The games left as the page's one hero, buying
+       more games, three figures of the player's own Valorant play, and the
+       plans, as one calm column of ruled sections. Every line and number is
+       main's (profile.js build, PROFILE_GET), the price as the number changes
+       is profile.js quote through the preload, and both links are opened and
+       checked by main: this page counts nothing and names no URL. Opened from
+       the button between Invite and Settings, locked by the seal like every
+       page. -->
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
+        <h2>Profile</h2>
+      </div>
+    </header>
+
+    <main class="body">
+      <!-- Asking main for the page. -->
+      <p id="pr-wait" class="pr-wait" aria-live="polite">Getting your profile</p>
+
+      <div id="pr-body" class="pr-body" hidden>
+        <!-- THE HERO: the games left now, the plan, when they start again. -->
+        <section id="pr-hero" class="pr-hero" aria-labelledby="pr-plan">
+          <p id="pr-count" class="pr-count"><span id="pr-number" class="pr-number"></span><span id="pr-unit" class="pr-unit"></span></p>
+          <p id="pr-plan" class="pr-plan"></p>
+          <p id="pr-split" class="pr-line"></p>
+          <p id="pr-renew" class="pr-line"></p>
+          <button id="pr-retry" class="btn btn-ghost md" type="button" hidden>Try again</button>
+        </section>
+
+        <!-- BUY MORE GAMES: a quick pick or any whole number, the total as it
+             changes, and the checkout in the browser. -->
+        <section class="pr-sec" aria-labelledby="pr-buy-title">
+          <div class="pr-head">
+            <h3 id="pr-buy-title" class="pr-title">Buy more games</h3>
+            <p id="pr-rate" class="pr-hint"></p>
+          </div>
+          <div class="pr-pick">
+            <div id="pr-picks" class="seg pr-picks" role="group" aria-label="Quick picks"></div>
+            <div class="pr-step" role="group" aria-label="Any number of games">
+              <button id="pr-less" class="icon-btn" type="button" aria-label="One game fewer">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>
+              </button>
+              <input id="pr-games" class="input pr-games" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="6" aria-label="Number of games" />
+              <button id="pr-more" class="icon-btn" type="button" aria-label="One game more">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12M12 6v12"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="pr-act">
+            <button id="pr-buy" class="btn btn-primary" type="button"></button>
+            <p id="pr-note" class="pr-note" aria-live="polite"></p>
+          </div>
+        </section>
+
+        <!-- YOUR PLAY: three figures from the record, Valorant's alone. -->
+        <section class="pr-sec" aria-labelledby="pr-play-title">
+          <h3 id="pr-play-title" class="pr-title"></h3>
+          <dl id="pr-figs" class="pr-figs"></dl>
+        </section>
+
+        <!-- PLANS: all three, the current one marked, monthly or yearly. -->
+        <section class="pr-sec" aria-labelledby="pr-plans-title">
+          <div class="pr-head row">
+            <h3 id="pr-plans-title" class="pr-title">Plans</h3>
+            <div id="pr-billing" class="seg" role="group" aria-label="Billing">
+              <button id="pr-monthly" type="button" data-billing="monthly" aria-pressed="true">Monthly</button>
+              <button id="pr-yearly" type="button" data-billing="yearly" aria-pressed="false">Yearly</button>
+            </div>
+          </div>
+          <ul id="pr-plans" class="pr-plans"></ul>
+        </section>
+        <p id="pr-said" class="sr-only" aria-live="polite"></p>
+      </div>
+    </main>
+  </div>
+
+  <script src="../shared/seg.js"></script>
+  <script src="profile.js"></script>
+</body>
+</html>

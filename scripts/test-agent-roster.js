@@ -76,9 +76,16 @@ for (const name of Object.keys(ICON_HINTS)) {
   ok(hintFits(name), `${name}'s hand written icon hint still names every ability the data lists`);
 }
 
-// Role notes now reach a role that used to have none.
+// Role notes now reach a role that used to have none. A role note is one
+// tagged with the role and written for the whole role: either it names no
+// agent, or (docs/claude/playbook.md, since the 2026-11 audit) it carries the
+// role's roster as its agent list. A note for one agent's kit (Miks's own
+// M Pulse note) is not a role note, and a note narrowed to the agents whose
+// kit it describes (the smoke you can pull back: Astra and Viper) rightly
+// leaves Miks out.
 {
-  const roleNotes = knowledge.all().filter((n) => Array.isArray(n.roles) && n.roles.includes('controller') && !n.agents);
+  const roleNotes = knowledge.all().filter((n) => Array.isArray(n.roles) && n.roles.includes('controller')
+    && (!n.agents || (n.agents.length > 1 && n.agents.includes('Miks'))));
   let reached = 0;
   for (let i = 0; i < 20; i++) {
     const got = new Set(knowledge.retrieve({ agent: 'Miks', map: 'Ascent' }, 8));
