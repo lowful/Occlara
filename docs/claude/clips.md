@@ -67,7 +67,7 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   video/webm), no caching, and a 404 with no body for anything but a file
   named as a clip (`CLIP_RE`) in a review's own folder (`clipFile`). The review
   page's CSP adds `media-src 'self' occlara-clip:`. In its death's round the
-  clip plays above the frames, a filmstrip under it: muted, inline, looping,
+  clip plays alone (8.7: the filmstrip of stills under it is gone): muted, inline, looping,
   the frame the coach looked at nearest before the death as its poster, with
   no caption (its row says what it is), nothing loaded until it is
   played or moved (preload none: measured, a clip loading its metadata took
@@ -89,8 +89,10 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
   frame the death falls in, to the hundredth within a twentieth of a second
   of it, where a tenth says nothing; a look from the screen counts from its
   read, that frame "Read as dead"), and the speed, 1x, 0.5x and 0.25x. A
-  still under its clip is a place in it: a click moves the clip to that
-  still's own frame, paused, and marks the still. The keyboard only while
+  still under its clip was a place in it (a click moved the clip to that
+  still's own frame); since 8.7 no strip of stills is drawn under a clip at
+  all (death-look.md, "No strip of stills under a clip"), the timeline's
+  marks say where each was, and `showStill` and `keysFrom` wait unused. The keyboard only while
   the player has focus, which a click on the picture or a control gives its
   root (out of the tab order): Space or K plays and pauses, comma and full
   stop step a frame, the arrows a second, Home the start; Space on a control
@@ -177,6 +179,15 @@ Moved out of CLAUDE.md word for word, nothing reworded or dropped (CLAUDE.md as 
     walk unchecked; `check:clips` the player in the real review page by the
     frame the <video> presents, the keys as trusted input with the page never
     scrolled, slow motion, the timeline clicked and the stills.
+- **Ask Coach plays them too.** A reply about a death can carry that round's
+  clip under the paragraph about it (ask-coach.md, "The coach shows the
+  player's own clips"). The chat page loads `clip-time.js`, `clip-player.js`
+  and `clip-player.css` as the Moments page does, its CSP adds `media-src
+  'self' occlara-clip:`, and the clip is found by main the Moments page's way
+  (index.js AskCoach deps `clips`, over `moments.js build`). The server only
+  ever hears round numbers and answers round numbers: the URL is main's, of
+  the review asked about, and a "Watch round N" capsule becomes the player
+  only when clicked.
 - **The cap** (`clipCapGB`, 5, 10, 20 or 50 GB, 10 by default). After every
   clip kept, at launch, and when the cap is lowered, the clips past it go a
   review at a time, the oldest first and a folder no review owns before any

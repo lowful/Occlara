@@ -1,16 +1,18 @@
 # The Verdict and its share image
 
-New in 8.6.0. Sections here: "What the Verdict says", "Why the reason is counted", "The share image", "Tests and rerunning the values", "Traps". The site's export, `scripts/export-site-proof.js` with `test:siteproof`, is added in its own change, and that change adds its section here. The table in CLAUDE.md says which file to read for which work.
+New in 8.6.0. Sections here: "What the Verdict says", "Why the reason is counted", "The standout and the icon (8.7.x)", "The card on the review page (8.8)", "The share image", "Tests and rerunning the values", "Traps". The site's export, `scripts/export-site-proof.js` with `test:siteproof`, is added in its own change, and that change adds its section here. The table in CLAUDE.md says which file to read for which work.
 
 ## What the Verdict says
 
-`src/shared/verdict.js`, pure, no Electron and no DOM. `of(review)` takes a
+`src/shared/verdict.js`, pure, no Electron and no DOM (its one require is
+`agent-icons.js`, which requires only the generated data). `of(review)` takes a
 review as the page is served it (`valorant-review.js served()`, or a League
 review as `finishLolGame()` saves it) and gives the card at the top of a
-graded review, labelled VERDICT, and the share image drawn from it:
+graded review, with no VERDICT word on it since 8.8, and the share image drawn
+from it:
 
 ```
-{ game, title, right, letter, score, provisional, reason, stats, sub, at }
+{ game, title, right, letter, score, provisional, reason, stat, stats, sub, icon, at }
 ```
 
 - `game` 'valorant' or 'lol', by the review's `kind`. A review of neither
@@ -23,13 +25,19 @@ graded review, labelled VERDICT, and the share image drawn from it:
   against a live patch.
 - `letter`, `score`, `provisional` the grade's own (`grade.js`), never
   recomputed.
-- `reason` the one counted reason, or null (below).
+- `reason` the one counted reason, or null (below). Neither the share image
+  (8.7.x) nor the review page (8.8) shows it any more; it is kept, counted,
+  for `test:verdict` and anything that asks for it.
+- `stat` the standout, `{ value, label }`, or null: what the share image
+  and the review page show beside the grade (below).
 - `stats` [label, value] pairs. Valorant: K/D/A, ACS, ADR, HS. League: K/D/A,
   CS, CS at 10, Ward. A number the review does not have is left out, never
   shown as "--", so a card shows what it has: a review built from Riot's own
   line has no headshot share (the tracker has one, Riot's line has head, body
   and leg shots the review does not turn into one), and its Verdict has no HS.
 - `sub` Valorant agent and mode, League role and mode.
+- `icon` the character the player used, a path under `assets/`
+  ("valorant/agents/Jett.png", "lol/champions/Ahri.png"), or null.
 - `at` the review's own timestamp, for the date on the image.
 
 It is null while the review is still being built (`work` set), when the grade
@@ -103,6 +111,67 @@ way `test:grade` builds it (Riot's line cut to kills, deaths, assists and
 score, no agent) the fixture prints no ADR and no agent, which is not how the
 app links a match.
 
+## The standout and the icon (8.7.x)
+
+The player asked for the line under the grade on the share image to go ("14
+of your 16 deaths went untraded." read as a telling off on a picture meant to
+be posted) and for something worth showing instead. `standout(review)` in
+`verdict.js` counts it from the review's own record, never the model's, in a
+fixed order, the first that holds wins:
+
+| Game | Order | Example |
+|---|---|---|
+| Valorant, from the rounds with `riot` (Riot's verified rounds only) | 1. an ace or a four kill round, every round at the most named, 2. a clutch won, the most enemies, the earliest of a tie, 3. a three kill round, 4. first kills of the round, two or more | "4K, Four kills in rounds 11 and 17", "1v3, Clutch won in round 8", "2, First kills of the round" |
+| League, from the scoreline | 1. CS per minute, 6 or more, over a game of 5 minutes or more, never for a support (Support or UTILITY), 2. a KDA of 3 or more | "6.8, CS per minute", "8.00, KDA ratio" |
+| Either, the calm fallback | Valorant kills per death, League the KDA, and no deaths says so | "1.48, Kills per death", "12, Kills without dying" |
+
+With no numbers at all it is null and the image leaves the line out (the
+reason is never put back). A clutch lost or of unknown result is never a
+standout, and a round off the screen alone (no `riot`) is never counted.
+The Abyss fixture's is "4K, Four kills in rounds 11 and 17".
+
+The icon is `src/shared/agent-icons.js` `iconOf(game, name)`: only a name
+the generated data knows gets a path (KAY/O is `KAYO.png`), a string with a
+'#' is never looked up, and League goes through `lol-champions.js` (Kai'Sa
+is `Kaisa.png`). Valorant's icons are bundled by `npm run sync:agenticons`
+(`scripts/sync-agent-icons.js`): the API serves each at 1024 by 1024, about
+420 KB, so the script scales each to 256 with Electron's own `nativeImage`
+(about 2.9 MB for 30 agents), restarting itself in Electron with
+`ELECTRON_RUN_AS_NODE` removed, and writes only bytes that differ. It fails
+when the data knows an agent with no icon. The review's killer card
+(`valorant-icons.js`) reads the same files.
+
+## The card on the review page (8.8)
+
+The card at the top of a review is drawn as the share image is, from the same
+fields, so the two never say different things. `review.js`
+`paintVerdictIcon` and `paintVerdictStat`, for Valorant (`#v-icon`, `#v-stat`
+in `index.html`) and League (`paintLolVerdict`, built in `#r-verdict`):
+
+- **No VERDICT word.** The top row is the character's icon in a 36 px
+  rounded tile (`--bg-2` under it, a `--line` edge), the agent, map and mode
+  beside it (`#v-meta`, moved up from under the grade; League: `sub`), and
+  the result on the right. No icon and the line starts on the margin.
+- **The icon's URL is `VerdictCard.iconUrl(v.icon)`**, the share image's own
+  resolver, so the page loads the very file the image draws, and only a path
+  of the two bundled shapes (`ICON_PATH`). An icon that fails to load takes
+  its tile away. The renderer has no path rule of its own.
+- **The standout where the reason was**: `stat.value` in Geist 600 at 28 px
+  and `stat.label` in 500 `--text-dim` beside it on the same baseline,
+  wrapping under it when the row is narrow. No standout and the slot is
+  hidden, and the reason is never put back. The reveal raises it in as the
+  letter lands (`.vd-stat`, where `.vd-reason` was).
+- No arithmetic in the renderer: both fields are `verdict.js`'s.
+- Ungraded or locked: no tile, no standout, the dashed "Not graded" in the
+  grade's slot, the result and the scoreboard (one header for every state).
+
+`test:surfaces` holds it: the standout's value and label, no VERDICT word and
+no reason line in the card, the tile holding `iconUrl`'s URL (and no tile
+when there is no URL, as in its stand in page, which has no script src), none
+of it on an ungraded or locked review, and League's card with its standout.
+`export:siteproof` reads `icon` and `stat` where it read `label` and
+`reason`, and `test:siteproof` asks for the standout.
+
 ## The share image
 
 `src/renderer/shared/verdict-card.js`, a plain script that sets
@@ -121,13 +190,28 @@ throw, `fileName(v)` and `dateLabel(at)` name and date it.
   colour rule (S and A `--good`, B ink, C `--warn`, D `--bad`); without
   GradeView on the page the letter is ink, since the card keeps no letter
   table of its own.
-- **What it draws and nothing else**: four corner brackets as lines; the
-  crescent from its path, one scale on both axes so never stretched; VERDICT;
-  the right line; the letter and the number out of 100, PROVISIONAL just
-  above the number when the grade is; the reason in up to two lines (three on
-  the post), cut with an ellipsis; the numbers, nulls left out with their
-  labels; the sub line; "occlara.app" as typed; the date in mono ("4 OCT
-  2026"), none when the Verdict has no `at`. A string with a '#' is not drawn.
+- **What it draws and nothing else** (8.7.x): four corner brackets as lines;
+  on the top row the character's icon in a rounded tile (36 on the card and
+  the post, 30 on Discord, `--paper-line` or `--bg-2` under it), the
+  agent and mode beside it in ink (League: role and mode), and the right line
+  in `ink3`; the letter and the number out of 100, PROVISIONAL just above
+  the number when the grade is; the standout, its value in Geist 600 ink and
+  its line in Geist 500 `ink2` beside it on the same baseline, or under it
+  in up to two lines cut with an ellipsis when it does not fit; the numbers,
+  nulls left out with their labels; the crescent (one scale on both axes, so
+  never stretched) beside "occlara.app" as typed on the bottom row; the date
+  in mono ("4 OCT 2026"), none when the Verdict has no `at`. No VERDICT word
+  and no reason any more. Without an icon the top line starts on the margin.
+  When the agent and mode would meet the right line the mode goes first,
+  then the whole line. A string with a '#' is not drawn.
+- **The icon is a file beside the script, never the network.** `render()`
+  loads it (`loadIcon`) with the faces, from `../../../assets/<icon>`
+  resolved against `document.currentScript`, so any page that links the
+  script finds the same file. Same origin as the page, so the canvas is not
+  tainted and Save and Copy still work (seen in the real review page through
+  `export:siteproof`). Only a path of the two bundled shapes is asked for
+  (`ICON_PATH`), and one that fails to load leaves the slot out. `draw()`
+  stays synchronous and takes the loaded image as `opts.icon`.
 - **Tokens off `:root` with getComputedStyle**, because a canvas cannot read
   `var()`: handed one as a fillStyle or a font it refuses it without a word and
   keeps the one before. `--font` and `--font-mono` give the families,
@@ -163,7 +247,13 @@ them. The card is drawn in all three sizes on both grounds on a stand in
 canvas with the real theme tokens: the sizes, no gradient, no `var()` in any
 fillStyle, strokeStyle or font, the faces and weights, every word drawn, the
 letter's colour on each ground, the mark square, the ellipsis, the
-fallbacks, the file name, Save and Copy. Every rule it pins was reverted once
+fallbacks, the file name, Save and Copy. Since 8.7.x it also pins the
+standout in each step of its order and its fallbacks (and the support and
+dash detectors on a known positive), no VERDICT word, the standout beside or
+under its value, the icon's tile and the line moved beside it, an icon that
+fails to load left out, only the bundled path shapes asked for and resolved
+beside the script, every agent the data knows with its file at most 256
+square, and verdict.js requiring only agent-icons. Every rule it pins was reverted once
 and seen to fail.
 
 Look at the images, not only the test: render each size on both grounds in
@@ -181,7 +271,10 @@ Chromium (an offscreen BrowserWindow loading a page that links `theme.css`,
   a comment. The signal's tokens never appear in it: it has no use for them.
 - **Measure without drawing.** A label is measured with no colour, which
   draws nothing; drawn off canvas to measure it, it would still be a draw.
-- **The Discord reason takes two lines.** It has 224 of the 480 at 15px, and
+- **The Discord standout has 224 of the 480.** Its line goes under its value
+  when it does not fit beside it, so the grade sits at 140 and the standout
+  at 180, high enough that a second line clears the bottom row.
+- **The Discord reason took two lines** (before 8.7.x). It had 224 of the 480 at 15px, and
   "20 of your 21 deaths went untraded." already wraps there, so the grade
   sits at 140, high enough that a second line clears the bottom row. Move the
   grade down and the second line runs into "occlara.app".

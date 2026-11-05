@@ -395,6 +395,36 @@ function weaponOf(k) {
   return s && !NOT_A_WEAPON.includes(s.toLowerCase().replace(/\s+/g, '')) ? s : null;
 }
 
+/*
+ * WHAT THE KILLER DEALT THE PLAYER IN THE ROUND (8.7, the review's killer
+ * card). HenrikDev's round keeps each player's damage events, the damage that
+ * player dealt each target with its head, body and leg hits (v4: stats[].
+ * damage_events[] { player, damage, headshots, bodyshots, legshots }; v2:
+ * player_stats[] with receiver_puuid). The killer's events on the player,
+ * summed: numbers only, never a name. Null where the round has no events for
+ * the killer, or none on the player, so a card never shows a guess.
+ */
+function killerDamageOf(round, killer, isMe) {
+  const kid = idOf(killer);
+  if (!round || !kid) return null;
+  const stats = Array.isArray(round.stats) ? round.stats : Array.isArray(round.player_stats) ? round.player_stats : [];
+  const mine = stats.find((s) => s && idOf(s.player || (s.player_puuid ? { puuid: s.player_puuid } : null)) === kid);
+  const events = mine && Array.isArray(mine.damage_events) ? mine.damage_events : [];
+  let damage = 0; let head = 0; let body = 0; let legs = 0; let hit = false;
+  for (const e of events) {
+    const to = e && (e.player || e.receiver || (e.receiver_puuid ? { puuid: e.receiver_puuid } : null));
+    if (!to || !isMe(to)) continue;
+    const dmg = num(e.damage);
+    if (dmg === null || dmg < 0) continue;
+    hit = true;
+    damage += dmg;
+    head += num(e.headshots) || 0;
+    body += num(e.bodyshots) || 0;
+    legs += num(e.legshots) || 0;
+  }
+  return hit && damage > 0 ? { damage: Math.round(damage), head, body, legs } : null;
+}
+
 /**
  * @param d     the v4 `data` object
  * @param name  Riot name
@@ -487,6 +517,8 @@ function parse(d, name, tag) {
       deathMs: death ? death.ms : null,
       killerAgent: death && death.killer ? (agentById.get(idOf(death.killer)) || null) : null,
       weapon: death ? death.weapon : null,
+      // The killer's damage on the player this round (8.7, killerDamageOf).
+      killerDamage: death && death.killer && !isMe(death.killer) ? killerDamageOf(r, death.killer, isMe) : null,
       // The first death of the round belongs to one of ten players, and being
       // it on repeat is the most specific thing a review can say about entries.
       firstDeath: !!(inRound[0] && isMe(inRound[0].victim)),
@@ -548,5 +580,5 @@ function parse(d, name, tag) {
   };
 }
 
-module.exports = { parse, attackersOf, killsOf, playersOf, teamworkOf, plantSiteOf, weaponOf, NOT_A_WEAPON, TRADE_MS,
+module.exports = { parse, attackersOf, killsOf, playersOf, teamworkOf, plantSiteOf, weaponOf, killerDamageOf, NOT_A_WEAPON, TRADE_MS,
   compsOf, roleOf, noteNames, nameSetOf, NAME_SET_MS, NAME_SETS_MAX };

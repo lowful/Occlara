@@ -22,6 +22,7 @@ const spectate = require('../../shared/spectate-tells');
 const { RoundLedger, clockSeconds, isBuyPhase, BUY_MAX_LEFT, ROUND_SECONDS } = require('../../shared/valorant-rounds');
 const { MatchEndWatch, isFinalScore } = require('../../shared/match-end');
 const { ReadCadence } = require('../../shared/read-cadence');
+const { validBand } = require('../../shared/rank-band');
 const valorantReview = require('../../shared/valorant-review');
 
 /**
@@ -2719,6 +2720,9 @@ class CoachingEngine extends EventEmitter {
     try {
       const body = valorantReview.requestBody(snap);
       body.context = { ...body.context, proPlaybook: snap.context.proPlaybook };
+      // The player's rank band (8.8, index.js rankBandNow), only when known.
+      const band = validBand(this.experiments().rankBand);
+      if (band) body.context.rankBand = band;
       // 60s rather than the 30s every frame gets: this is one call a match, it
       // writes up to ten round explanations, and the player is in a menu.
       const res = await api.post(API.MATCH_REVIEW, body, this.licenseKey, 60000);

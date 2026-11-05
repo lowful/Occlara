@@ -216,5 +216,97 @@ ok(onPct >= 50, `and shifts it decisively, not marginally (${onPct}%)`);
     "the Spectre's accuracy claim is gone, and its range note reads the table");
 }
 
+// ── THE RANK BAND (8.8): a bias inside retrieve(), never past its cap ───────
+// A note above the player's band is never served, one narrowed to the band is
+// +2, one for lower bands only -3 unless the player's data shows it missing.
+// Unknown rank is today's retrieval byte for byte: the same notes in the same
+// order on the same random draws, and the same number of draws.
+{
+  const BANDS = knowledge.RANK_BANDS;
+  const lowest = (n) => Math.min(...n.ranks.map((r) => BANDS.indexOf(r)));
+  const ranked = knowledge.all().filter((n) => Array.isArray(n.ranks) && n.ranks.length);
+  const ascOnly = new Set(ranked.filter((n) => lowest(n) === 3).map((n) => n.text));
+  const aboveGold = new Set(ranked.filter((n) => lowest(n) > 1).map((n) => n.text));
+  ok(ascOnly.size >= 2 && aboveGold.size >= 60, `the corpus carries asc_plus only notes (${ascOnly.size}) and notes above Gold (${aboveGold.size})`);
+
+  // One seeded draw per call, counted, so two calls can be compared exactly.
+  const seeded = (fn) => {
+    const random = Math.random;
+    let x = 7;
+    let draws = 0;
+    Math.random = () => { draws++; x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return { out: fn(), draws }; } finally { Math.random = random; }
+  };
+  const CTXS = [
+    {}, { agent: 'Jett', map: 'Ascent' }, { agent: 'Sova', side: 'attack' }, { agent: 'Killjoy', side: 'defense' },
+    { causes: ['lost-duel'] }, { causes: ['dry-peek', 'isolated'], agent: 'Omen' }, { cause: 'exposed', phase: 'postplant', side: 'attack' },
+    { roundNumber: 1, side: 'defense' }, { consecutiveDeaths: 3, causes: ['lost-duel'] }, { teammatesAlive: 0, playerAlive: true },
+    ...CONTEXTS.slice(0, 8),
+  ];
+  let same = 0;
+  let total = 0;
+  for (const ctx of CTXS) {
+    for (const adv of [false, true]) {
+      const base = seeded(() => knowledge.retrieve(ctx, 8, { advanced: adv }));
+      for (const unknown of [undefined, null, '', 'Gold 2', 'gold', 'immortal', 42, { band: 'asc_plus' }]) {
+        total++;
+        const got = seeded(() => knowledge.retrieve({ ...ctx, rankBand: unknown }, 8, { advanced: adv }));
+        if (JSON.stringify(got.out) === JSON.stringify(base.out) && got.draws === base.draws) same++;
+      }
+    }
+  }
+  ok(same === total, `unknown rank is byte for byte today's retrieval, the same notes and draws (${same} of ${total})`);
+  ok(knowledge.all().every((n) => knowledge.rankAdjust(n, null, false) === 0), 'and with no band no note moves by a point');
+
+  // A Gold player never gets a note whose lowest band is above Gold, at the
+  // prompt's eight or at the whole pool, advanced on or off.
+  let goldLeak = 0;
+  let goldShort = 0;
+  for (const ctx of CTXS) {
+    for (const adv of [false, true]) {
+      const gold = knowledge.retrieve({ ...ctx, rankBand: 'silver_gold' }, 8, { advanced: adv });
+      const plain = knowledge.retrieve(ctx, 8, { advanced: adv });
+      goldLeak += gold.filter((t) => aboveGold.has(t)).length;
+      goldLeak += knowledge.retrieve({ ...ctx, rankBand: 'silver_gold' }, 2000, { advanced: adv }).filter((t) => aboveGold.has(t)).length;
+      if (gold.length > 8 || gold.length < Math.min(8, plain.length) - 0) goldShort++;
+    }
+  }
+  ok(goldLeak === 0, `a Gold player's retrieval never contains a Platinum or Ascendant only note (${goldLeak} leaked)`);
+  ok(goldShort === 0, 'and the cap holds: never more than eight, never fewer than the plain retrieval gives');
+
+  // An Immortal player's does: the asc_plus only notes reach the pool for
+  // the contexts they are tagged for, and score above the same notes unranked.
+  const imm = new Set(knowledge.retrieve({ causes: ['lost-duel'], rankBand: 'asc_plus' }, 2000));
+  const immDef = new Set(knowledge.retrieve({ side: 'defense', rankBand: 'asc_plus' }, 2000));
+  ok([...ascOnly].every((t) => imm.has(t) || immDef.has(t)), "an Immortal player's retrieval contains the asc_plus only notes");
+  const goldDuel = new Set(knowledge.retrieve({ causes: ['lost-duel'], rankBand: 'silver_gold' }, 2000));
+  ok([...ascOnly].every((t) => !goldDuel.has(t)), 'which the same Gold context never reaches');
+  const crouch = knowledge.all().find((n) => ascOnly.has(n.text) && Array.isArray(n.cause));
+  ok(crouch && knowledge.rankAdjust(crouch, 'asc_plus', true) === knowledge.RANK_FIT && knowledge.rankAdjust(crouch, 'silver_gold', true) === null,
+    'a narrowed note fits its band at +2 and is excluded below it');
+
+  // A note for lower bands only is demoted for a higher player, unless the
+  // player's own data shows the fundamental missing.
+  const low = knowledge.all().find((n) => Array.isArray(n.ranks) && n.ranks.join() === 'iron_bronze,silver_gold');
+  ok(low && knowledge.rankAdjust(low, 'asc_plus', false) === null && knowledge.rankAdjust(low, 'asc_plus', true) === 0
+    && knowledge.rankAdjust(low, 'silver_gold', false) === knowledge.RANK_FIT,
+  `a low band note is left out above its bands, 0 when the data shows it missing, +2 at its band (${low && low.text.slice(0, 40)})`);
+  // The case the score penalty missed: an agent and role tagged "Gold and below" note never reaches a Plat Sova.
+  const goldInit = knowledge.all().find((n) => /in gold and below/i.test(n.text) && Array.isArray(n.roles) && n.roles.includes('initiator'));
+  ok(!goldInit || !knowledge.retrieve({ agent: 'Sova', role: 'initiator', rankBand: 'plat_diamond' }, 2000).includes(goldInit.text),
+    'a Gold and below initiator note is never handed to a Plat Sova');
+  const lowCause = knowledge.all().find((n) => Array.isArray(n.ranks) && n.ranks.join() === 'iron_bronze,silver_gold' && Array.isArray(n.cause));
+  ok(!lowCause || knowledge.retrieve({ causes: lowCause.cause, rankBand: 'asc_plus' }, 2000).includes(lowCause.text),
+    'a cause note for the low bands still reaches an Immortal whose deaths show that cause');
+
+  // The reserve keeps its share with a band: advanced on, a Gold player still
+  // gets a core floor and the death streak still hands core the majority.
+  const tierOfText = (t) => (knowledge.all().find((n) => n.text === t) || {}).tier || 'core';
+  const g = knowledge.retrieve({ agent: 'Jett', map: 'Ascent', rankBand: 'silver_gold' }, 8, { advanced: true });
+  const gs = knowledge.retrieve({ agent: 'Jett', map: 'Ascent', consecutiveDeaths: 3, rankBand: 'silver_gold' }, 8, { advanced: true });
+  ok(g.length === 8 && g.some((t) => tierOfText(t) === 'core'), 'with a band, Advanced coaching still keeps a core floor in eight');
+  ok(gs.filter((t) => tierOfText(t) === 'core').length >= knowledge.STREAK_CORE_SLOTS, 'and a death streak still gives core the majority');
+}
+
 console.log(`\n${fails ? fails + ' failure(s)' : 'all advanced tip checks passed'}`);
 process.exit(fails ? 1 : 0);

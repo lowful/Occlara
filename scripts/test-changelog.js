@@ -245,7 +245,8 @@ function send(port, p, method = 'GET', headers = {}) {
     try { parsed = JSON.parse(dry.stdout); } catch { parsed = null; }
     ok(dry.status === 0 && parsed && parsed.embeds && parsed.embeds[0].title === 'Occlara 8.7.3', '--dry prints the payload as JSON and exits 0');
     ok(!`${dry.stdout}${dry.stderr}`.includes(FAKE_URL) && !`${dry.stdout}${dry.stderr}`.includes('fake-token'), 'and with a webhook set prints nothing of it')
-    const unset = { ...process.env };
+    // OCCLARA_NO_DOTENV: without it the script reads the owner's real webhook from .env and posts for real.
+    const unset = { ...process.env, OCCLARA_NO_DOTENV: '1' };
     delete unset.DISCORD_WEBHOOK_URL;
     const skip = spawnSync(process.execPath, [script], { encoding: 'utf8', env: unset });
     ok(skip.status === 0 && skip.stdout.trim() === 'no Discord webhook set, skipping', `unset, the script says so and exits 0 (${skip.stdout.trim()})`);

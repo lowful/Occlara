@@ -84,6 +84,35 @@
           </div>
           <ul id="pr-plans" class="pr-plans"></ul>
         </section>
+
+        <!-- GIFTS (8.8): Pro or Max for a friend at the cycle the Plans toggle
+             shows (main opens the site's checkout), a field to redeem a gift
+             link or code (main redeems it), and the gifts the player bought,
+             each with its state and Copy link (main copies the link it
+             holds). Every word is main's (profile.js giftSection). -->
+        <section class="pr-sec" aria-labelledby="pr-gifts-title">
+          <div class="pr-head">
+            <h3 id="pr-gifts-title" class="pr-title"></h3>
+            <p id="pr-gifts-hint" class="pr-hint"></p>
+          </div>
+          <div class="pr-act">
+            <div id="pr-gift-offers" class="pr-gift-offers" role="group" aria-labelledby="pr-gifts-title"></div>
+            <p id="pr-gift-note" class="pr-note" aria-live="polite"></p>
+          </div>
+          <p id="pr-gift-received" class="pr-line" hidden></p>
+          <form id="pr-redeem" class="pr-redeem" autocomplete="off">
+            <label id="pr-redeem-label" for="pr-redeem-code" class="pr-redeem-label"></label>
+            <div class="pr-redeem-row">
+              <input id="pr-redeem-code" class="input pr-redeem-code" type="text" spellcheck="false" maxlength="200" />
+              <button id="pr-redeem-go" class="btn btn-ghost md" type="submit"></button>
+            </div>
+            <p id="pr-redeem-said" class="pr-note" aria-live="polite"></p>
+          </form>
+          <div id="pr-bought-wrap" class="pr-bought-wrap" hidden>
+            <h4 id="pr-bought-title" class="pr-redeem-label"></h4>
+            <ul id="pr-bought" class="pr-gift-list"></ul>
+          </div>
+        </section>
         <p id="pr-said" class="sr-only" aria-live="polite"></p>
       </div>
     </main>

@@ -66,6 +66,13 @@ const LOOKUP_MS = 5000;
 const DOWN_MS = 30 * 1000;               // after a failed lookup, none is asked for this long
 const OUTAGE_MS = 10 * 60 * 1000;        // and an answer held is served at once this long after one
 const FREE_KEYS_FROM = [8, 7, 0];        // the first app that knows a free account
+// The first app whose free games the free allowance can tie to a person: it
+// sends the Windows machine id and purpose=live on its live link. An older
+// one sends neither, so with caps enforced a free game claimed from it is
+// refused with UPDATE_FOR_FREE (usage.js), never a paid tier's game or a
+// bought one.
+const FREE_PLAY_FROM = [8, 7, 4];
+const UPDATE_FOR_FREE = 'Update Occlara to keep playing your free games.';
 // The Free tier: FREE_GAMES for the life of the account, INVITE_EXTRA_GAMES
 // more for a friend who redeems an invite. The site's SQL (free_total's
 // DEFAULT and ensure_entitlement) must say the same number.
@@ -105,6 +112,8 @@ function clientAtLeast(req, from) {
 }
 /** An app that knows a free account (8.7): an older one reads a cap's 402 as the AI out of credits. */
 const knowsFreeKeys = (req) => clientAtLeast(req, FREE_KEYS_FROM);
+/** An app whose free games can be tied to a person (FREE_PLAY_FROM). */
+const playsFree = (req) => clientAtLeast(req, FREE_PLAY_FROM);
 
 /** A relation or function the accounts migration adds is missing. */
 function isMissing(error) {
@@ -566,8 +575,8 @@ module.exports = {
   createResolver, shared,
   identify: (req) => shared.identify(req),
   resolveCaller: (req) => shared.resolveCaller(req),
-  enforced, tierOfPlan, isMissing, sha256, safeEqual, bearerOf, hasCredentials, clientAtLeast, knowsFreeKeys,
+  enforced, tierOfPlan, isMissing, sha256, safeEqual, bearerOf, hasCredentials, clientAtLeast, knowsFreeKeys, playsFree,
   ipPrefix, ipPrefixHash, ipBucket,
-  KEY_REGEX, SESSION_TOKEN, MISSING_CODES, SESSION_MS, LAST_SEEN_MS, JWKS_MS, DOWN_MS, FREE_KEYS_FROM,
+  KEY_REGEX, SESSION_TOKEN, MISSING_CODES, SESSION_MS, LAST_SEEN_MS, JWKS_MS, DOWN_MS, FREE_KEYS_FROM, FREE_PLAY_FROM, UPDATE_FOR_FREE,
   FREE_GAMES, INVITE_EXTRA_GAMES,
 };

@@ -33,6 +33,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const callers = require('../services/caller');
+const freeAllowance = require('../services/free-allowance');
 
 const { sha256, safeEqual, enforced, ipPrefixHash, isMissing, FREE_GAMES, INVITE_EXTRA_GAMES } = callers;
 
@@ -67,6 +68,9 @@ const REF_CODE = /^[A-Za-z0-9]{4,16}$/;
 const GAMES = new Set(['valorant', 'lol']);
 const CLAIM_KINDS = new Set(['riot', 'league']);
 
+// What an app before FREE_PLAY_FROM is told beside its refusal (needsUpdate).
+const UPDATE_REFUSAL = { reason: 'update-required', message: callers.UPDATE_FOR_FREE };
+
 const one = (data) => (Array.isArray(data) ? data[0] || null : data || null);
 const clip = (s, n) => (typeof s === 'string' ? s.trim().slice(0, n) : '');
 const iso = (ms) => new Date(ms).toISOString();
@@ -79,6 +83,10 @@ function createMeter(deps = {}) {
   const db = () => deps.supabase || require('../db/supabase');
   const resolver = deps.resolver || callers.shared;
   const isEnforced = (caller) => enforced(caller, env(), now());
+  // Free games are one per player (free-allowance.js): the keys go in before a claim.
+  const allowance = deps.allowance || (deps.supabase
+    ? freeAllowance.createAllowance({ supabase: deps.supabase, resolver, now: deps.now, env: deps.env })
+    : freeAllowance.shared);
 
   const rows = new Map();     // accountKey|device -> the live game being metered
   const opens = new Map();    // accountKey|device -> { at, open } (an open live row in the database)
@@ -88,8 +96,8 @@ function createMeter(deps = {}) {
   /** Every per account map is bounded: past MAP_MAX the oldest entries go (S12). */
   const trimMap = (map) => { while (map.size > MAP_MAX) map.delete(map.keys().next().value); };
   const put = (map, k, v) => { map.delete(k); map.set(k, v); trimMap(map); };
-  const trim = () => { for (const map of [opens, allow, ensured, refunds, spent]) trimMap(map); };
-  const counts = { claims: 0, refused: 0, gated: 0, counted: 0, refunded: 0, flushes: 0 };
+  const trim = () => { for (const map of [opens, allow, ensured, refunds, spent, olds]) trimMap(map); };
+  const counts = { claims: 0, refused: 0, gated: 0, counted: 0, refunded: 0, flushes: 0, oldFree: 0, oldRefused: 0 };
 
   const live = () => resolver.accountsLive();
   const quiet = (where) => (r) => {
@@ -167,6 +175,39 @@ function createMeter(deps = {}) {
     row.lastSum = sum;
   }
 
+  /*
+   * FREE GAMES NEED AN APP THE FREE ALLOWANCE CAN SEE (caller.js
+   * FREE_PLAY_FROM). An app before it sends no Windows machine id and never
+   * purpose=live, so a person on it gives the server nothing but an email,
+   * a device id and a network to tie their accounts by: a new Windows user
+   * name and a new email per account walked past "one per player". So the
+   * next game an old app would play on the FREE ALLOWANCE is refused, with
+   * caps enforced, in the shapes an 8.7 app already reads as no game (402
+   * { error: 'cap' } on a read, { granted: false } on a claim) and the
+   * sentence UPDATE_FOR_FREE beside them. A paid tier's month, games bought
+   * or earned from invites (bonus_pool, which a game would be drawn from
+   * once the free ones are gone), an account with no free game left and
+   * every doubt (no account_state) are untouched. In shadow it is counted
+   * (counts.oldFree), never refused. account_state is remembered ALLOW_MS.
+   */
+  const olds = new Map();    // accountKey -> { at, free }
+  async function needsUpdate(caller, req) {
+    if (!req || !caller || !caller.userId || callers.playsFree(req)) return false;
+    let hit = olds.get(caller.accountKey);
+    if (!hit || now() - hit.at >= ALLOW_MS) {
+      const { data, error } = await rpc('account_state', { p_user: caller.userId });
+      const st = !error && one(data);
+      const paid = !!st && (st.tier === 'pro' || st.tier === 'max') && (st.status || 'active') === 'active';
+      const free = !!st && !paid && Number(st.allowance_left) > 0 && !(Number(st.bonus_pool) > 0);
+      hit = { at: now(), free };
+      put(olds, caller.accountKey, hit);
+    }
+    if (!hit.free) return false;
+    if (!isEnforced(caller)) { counts.oldFree++; return false; }
+    counts.oldRefused++;
+    return true;
+  }
+
   /** account_state's games left, remembered ALLOW_MS, or null when it cannot be said. */
   async function leftOf(caller) {
     const hit = allow.get(caller.accountKey);
@@ -187,13 +228,22 @@ function createMeter(deps = {}) {
    */
   // Ask Coach asks the same gate (coach.js chatLocked) with count: false, so
   // `gated` stays the reads and reviews refused.
-  async function gate(caller, { count = true } = {}) {
-    if (!caller || !caller.userId || !live() || !isEnforced(caller)) return { ok: true };
+  async function gate(caller, { count = true, req = null } = {}) {
+    if (!caller || !caller.userId || !live()) return { ok: true };
+    if (!isEnforced(caller)) {
+      // In shadow an old client's free game is only counted (needsUpdate).
+      if (req) needsUpdate(caller, req).catch(() => {});
+      return { ok: true };
+    }
     const at = now();
     const row = rowOf(caller);
     const refuse = () => { if (count) counts.gated++; return capped(); };
     if (row && row.status !== 'refunded' && !row.refused && !ended(row, at)) return { ok: true };
     if (row && row.refused && at - row.refusedAt < ALLOW_MS) return refuse();
+    if (req && await needsUpdate(caller, req)) {
+      if (count) counts.gated++;
+      return { ok: false, status: 402, body: { ...capped().body, ...UPDATE_REFUSAL } };
+    }
     const left = await leftOf(caller);
     if (typeof left === 'number' && left <= 0) {
       // After a restart the open game is only in the database, and it counts
@@ -299,6 +349,9 @@ function createMeter(deps = {}) {
    */
   async function claim(caller, row) {
     if (!await ensure(caller.userId)) { row.claimFailedAt = now(); return; }
+    // The person's keys before the claim, so claim_game can tell a second
+    // account of one player (never refuses here, never waits past CALL_MS).
+    await allowance.noteCaller(caller);
     const p = {
       p_user: caller.userId, p_game: 'valorant', p_kind: 'live',
       p_client_match_id: null, p_device_hash: caller.deviceHash || null,
@@ -493,8 +546,8 @@ function createMeter(deps = {}) {
     return t;
   }
 
-  return { gate, forget, noteRead, reviewGate, reviewDone, sweep, start, ensure, rpc, leftOf, rowKey,
-    rows, allow, opens, ensured, refunds, spent, trim, counts, _endShort: endShort, _flush: flush };
+  return { gate, forget, noteRead, reviewGate, reviewDone, sweep, start, ensure, rpc, leftOf, rowKey, needsUpdate,
+    rows, allow, opens, ensured, refunds, spent, olds, trim, counts, allowance, _endShort: endShort, _flush: flush };
 }
 
 const meter = createMeter();
@@ -532,6 +585,9 @@ function createRouter(deps = {}) {
   const m = deps.meter || meter;
   const env = () => deps.env || process.env;
   const now = deps.now || (() => Date.now());
+  const allowance = deps.allowance || (deps.supabase
+    ? freeAllowance.createAllowance({ supabase: deps.supabase, resolver, now: deps.now, env: deps.env })
+    : freeAllowance.shared);
 
   const NOT_LIVE = { error: 'accounts-not-live' };
   const UNAVAILABLE = { error: 'account-unavailable', retry: true };
@@ -617,6 +673,10 @@ function createRouter(deps = {}) {
       ip_prefix_hash: ipPrefixHash(req.ip, env()),
       created_at: iso(at), last_seen: iso(at), revoked_at: null,
     }), 'session insert');
+    // The person's keys (free-allowance.js): the email, this PC (its device id
+    // and, from 8.8, its Windows machine id) and the network, a weak key.
+    await allowance.noteCaller({ userId: h.user_id, deviceHash: deviceId ? sha256(deviceId) : null },
+      { machineId: clip(b.machine_id, 100), netHash: ipPrefixHash(req.ip, env()) });
     let account = null;
     try {
       const r = await db().rpc('account_state', { p_user: h.user_id });
@@ -640,6 +700,12 @@ function createRouter(deps = {}) {
     if (!caller) return;
     const base = { via: caller.via, tier: caller.tier || null, enforce: enforced(caller, env(), now()) };
     if (!caller.userId || !resolver.accountsLive()) return res.json({ ...base, live: false, capped: false });
+    // Keys first, so a second account of one player sees 0 free games at once.
+    // The app (8.7.4 on) sends this PC's Windows machine id on every /me, the
+    // same hashed value it sends at exchange, so a session made before it
+    // gains its machine key on its first launch of 8.7.4. Noted as at the
+    // exchange (keysFor drops anything not 64 hex). An old app sends none.
+    const fa = await allowance.noteCaller(caller, { machineId: clip(req.headers['x-occlara-machine'], 100) }, { fresh: true });
     let r = await m.rpc('account_state', { p_user: caller.userId });
     let st = one(r.data);
     if (!r.error && !st) {
@@ -651,9 +717,20 @@ function createRouter(deps = {}) {
     }
     let email = caller.email || null;
     if (!email) { try { const u = await resolver.userOf(caller.userId); email = (u && u.email) || null; } catch { /* no email shown */ } }
+    // Free games are one per player: said on a free account whose free games
+    // another account of the same player used (the app adds one calm sentence).
+    const freeShared = fa.shared === true && st.tier === 'free';
     res.json({ ...st, email, via: caller.via, live: true, enforce: base.enforce,
-      capped: base.enforce && typeof st.left === 'number' && st.left <= 0 });
+      capped: base.enforce && typeof st.left === 'number' && st.left <= 0, free_shared: freeShared });
   }));
+
+  /** Whether this account already holds a row for this client match id (any doubt: no). */
+  async function claimedBefore(userId, clientMatchId) {
+    try {
+      const r = await db().from('game_usage').select('id').eq('user_id', userId).eq('client_match_id', clientMatchId).limit(1);
+      return !!(r && !r.error && Array.isArray(r.data) && r.data.length);
+    } catch { return false; }
+  }
 
   /*
    * POST /api/usage/claim  { game, kind ('riot'|'league'), client_match_id, device_id } -> { granted, left, reason }
@@ -679,9 +756,17 @@ function createRouter(deps = {}) {
       return res.json({ granted: true, left: null, reason: resolver.accountsLive() ? 'unavailable' : 'not-live' });
     }
     const deviceId = caller.deviceHash ? '' : clip(b.device_id, 200);
+    const deviceHash = caller.deviceHash || (deviceId ? sha256(deviceId) : null);
+    await allowance.noteCaller({ ...caller, deviceHash });
+    // A free game from an app the free allowance cannot see (the meter's
+    // needsUpdate): refused with caps enforced, unless this match was claimed
+    // already (a retry answers what it got the first time).
+    if (m.needsUpdate && await m.needsUpdate(caller, req) && !await claimedBefore(caller.userId, clientMatchId)) {
+      return res.json({ granted: false, left: 0, ...UPDATE_REFUSAL });
+    }
     const { data, error } = await m.rpc('claim_game', {
       p_user: caller.userId, p_game: game, p_kind: kind, p_client_match_id: clientMatchId,
-      p_device_hash: caller.deviceHash || (deviceId ? sha256(deviceId) : null),
+      p_device_hash: deviceHash,
       p_enforce: enforced(caller, env(), now()),
     });
     // Never refused on an error: a review is only locked on a definite no.
@@ -790,6 +875,13 @@ function createRouter(deps = {}) {
     // good: an invite never gives them back.
     const mineEnt = one(must(await db().rpc('ensure_entitlement', { p_user: invitee }), 'ensure_entitlement'));
     if (!mineEnt || mineEnt.status === 'ended' || Number(mineEnt.free_total) === 0) return refuse('account-ended');
+    // Free games are one per player (free-allowance.js): an invite between two
+    // accounts of one person is self referral, and an account whose player
+    // already used their free games on another account gets no invited ones.
+    // Unknown (the SQL not applied, an outage) refuses nothing.
+    const fa = await allowance.noteCaller(caller, { netHash: net }, { fresh: true });
+    if (await allowance.related(inviter, invitee) === true) return refuse('self');
+    if (fa.shared === true) return refuse('free-used');
     const ins = await db().from('referral_redemptions').insert({
       invitee_id: invitee, inviter_id: inviter, code, status: 'pending', created_at: iso(now()),
     });

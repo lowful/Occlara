@@ -180,6 +180,10 @@ function normalise(body) {
       map: typeof ctx.map === 'string' ? clip(ctx.map, 20) : null,
       advancedTips: ctx.advancedTips === true,
       language: typeof ctx.language === 'string' ? clip(ctx.language, 8) : 'en',
+      // The player's rank band (8.8, src/shared/rank-band.js), untrusted: one
+      // of the four keys or left out, so a client that sends none is read as
+      // before, byte for byte.
+      ...(knowledge.validBand(ctx.rankBand) ? { rankBand: ctx.rankBand } : {}),
     },
     final: {
       team: Number.isInteger(final.team) ? final.team : null,
@@ -263,6 +267,19 @@ function study(input, limit = 3) {
   }
   const weak = weakSide(rounds);
   const advancedOn = context.advancedTips === true;
+  // THE RANK BAND (8.8, knowledge.js rankAdjust): a note above the player's
+  // band is never homework, one narrowed to it is +2, one for lower bands only
+  // is -3 unless this match points to it (its topic is wanted or looked at,
+  // or it answers a cause of these deaths). No band changes nothing.
+  const band = knowledge.validBand(context.rankBand);
+  const causesHere = new Set();
+  if (band) {
+    for (const m of input.mistakes || []) {
+      const c = /^cause:(.+)$/.exec(String((m && m.key) || ''));
+      if (c) causesHere.add(c[1]);
+    }
+    for (const r of rounds || []) if (r && r.cause) causesHere.add(r.cause);
+  }
 
   const scored = [];
   for (const note of knowledge.all()) {
@@ -274,7 +291,11 @@ function study(input, limit = 3) {
     if (note.maps && (!s.map || !note.maps.some((m) => m.toLowerCase() === s.map))) continue;
     const advanced = note.tier === 'advanced';
     if (advanced && !advancedOn) continue;
+    const ranked = band ? knowledge.rankAdjust(note, band, wanted.has(src.topic) || looked.has(src.topic)
+      || (Array.isArray(note.cause) && note.cause.some((c) => causesHere.has(c)))) : 0;
+    if (ranked === null) continue;
     let score = note.weight || 1;
+    score += ranked;
     // A role note carries its role's agent list so retrieve() reaches it
     // (docs/claude/playbook.md), but to the study list it is still a role
     // note (8.7.2): counted as both, the two checkpoints notes outscored every
@@ -422,7 +443,8 @@ function promptRounds(input, withKnowledge) {
       }
       for (const r of rounds || []) if (r && r.cause) causes.push(r.cause);
     }
-    for (const t of knowledge.retrieve({ agent: context.agent, map: context.map, causes }, 6,
+    for (const t of knowledge.retrieve({ agent: context.agent, map: context.map, causes,
+      ...(context.rankBand ? { rankBand: context.rankBand } : {}) }, 6,
       { advanced: context.advancedTips })) add(t);
     if (notes.length) {
       // Never where it comes from: the review speaks these notes in its own
@@ -483,8 +505,31 @@ function promptRounds(input, withKnowledge) {
     + 'and see in their next review. One habit only, never two joined by and. Never a prohibition on its own (do not '
     + 'over peek) and never an attitude (be patient, stay aware, play smarter): say what to do instead. Being traded means a teammate killed your killer within five seconds, which is good: never call it '
     + 'the problem.\n\n'
+    + rankRule(context.rankBand)
     + GROUNDING
     + languageRule(context.language);
+}
+
+/*
+ * THE PLAYER'S LEVEL (8.8), only when a client sends a band: a review for a
+ * client that sends none is today's prompt byte for byte. The same ladder as
+ * Ask Coach's rule (chat-prompt.js VALORANT_RULES): below Platinum one basic
+ * habit, Platinum and Diamond one decision, Ascendant and up the specific
+ * timing or utility change. No dashes, no semicolons, no numbers (the number
+ * gate would drop a fix that carried one).
+ */
+const RANK_WORDS = {
+  iron_bronze: ['Iron or Bronze', 'the one basic habit that matters most there, such as crosshair height, stopping before the shot or one angle at a time'],
+  silver_gold: ['Silver or Gold', 'the one basic habit that matters most there, such as staying where a teammate can trade you, information before a peek or one angle at a time'],
+  plat_diamond: ['Platinum or Diamond', 'the one decision that matters most there, such as being predictable, taking a fight the round did not need or playing the team plan'],
+  asc_plus: ['Ascendant or above', 'the specific timing, utility or read that matters there and what it risks, and no basic they already have unless the rounds show it missing'],
+};
+
+function rankRule(band) {
+  const w = RANK_WORDS[knowledge.validBand(band)];
+  if (!w) return '';
+  return `PLAYER LEVEL: the player is ranked ${w[0]}. Fit the round lines and the focus to that level and teach ${w[1]}. `
+    + 'Never prescribe a high rank micro decision to a player below it, and never say the rank back to the player.\n\n';
 }
 
 /** "rounds 2, 3, 6 and 7", "round 4". */
@@ -941,4 +986,4 @@ function roundLabels(text) {
 
 module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, roundLabels, teachable, lineWorthy,
   namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, REPEAT_WORDS, ROUND_LABELS, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS,
-  CAUSE_TOPICS };
+  CAUSE_TOPICS, rankRule };

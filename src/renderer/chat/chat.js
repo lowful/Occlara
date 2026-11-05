@@ -49,6 +49,9 @@ const EN = {
   'chat.failed': 'Could not reach your coach right now. Try again in a moment.',
   'chat.midMatch': 'A match is in progress. Ask Coach is back once it ends.',
   'chat.honest': "I couldn't give you an answer I can stand behind for that one. Ask me about a round, a death or your agent in this match.",
+  'chat.clipOpen': 'Watch round {n}',
+  'chat.clipLabel': 'Your death in round {n}',
+  'chat.clipFailed': 'This clip could not be played.',
 };
 let tr = (key) => EN[key] || key;
 const t = (key) => {
@@ -92,11 +95,83 @@ function addMsg(role, text, opts = {}) {
   introEl.hidden = true;
   const el = document.createElement('div');
   el.className = `msg ${role === 'user' ? 'user' : 'coach'}${opts.error ? ' error' : ''}`;
+  const clips = role === 'user' || opts.error ? [] : clipsOf(opts.clips);
   // A reply's paragraphs are kept: the bubble is pre-line (chat.css).
-  el.textContent = text;
+  if (!clips.length) el.textContent = text;
+  else paintWithClips(el, text, clips);
   place(el, opts.before);
   scrollDown();
   return el;
+}
+
+/*
+ * THE PLAYER'S CLIPS IN A REPLY. The coach may attach the clip of a death it
+ * talks about (server chat-clips.js, main's ask-coach.js clipsFor): each one
+ * is a round of the match on the chip whose clip main found on this PC, and
+ * goes under the paragraph that talks about it. Nothing loads and nothing
+ * plays until the player clicks: the capsule then becomes the review's own
+ * clip player (review/clip-player.js, the Moments page's too), 1x, 0.5x and
+ * 0.25x, the death marked. Never autoplay, and nothing of it mid match: the
+ * question is refused then, the page is sealed, and a hidden page pauses
+ * every clip (clip-player.js).
+ */
+const CLIP_URL = /^occlara-clip:\/\/review\/[^/\s]+\/[^/\s]+$/;
+
+/** The clips main handed over, three at most, one a round, each a clip URL. */
+function clipsOf(list) {
+  const seen = new Set();
+  return (Array.isArray(list) ? list : []).filter((c) => {
+    if (!c || !Number.isInteger(c.round) || !Number.isInteger(c.para) || c.para < 0) return false;
+    if (typeof c.url !== 'string' || !CLIP_URL.test(c.url) || seen.has(c.round)) return false;
+    seen.add(c.round);
+    return true;
+  }).slice(0, 3);
+}
+
+/** A reply's paragraphs, each its own text, with the clips under theirs. */
+function paintWithClips(el, text, clips) {
+  el.classList.add('with-clips');
+  const paras = String(text || '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  paras.forEach((para, i) => {
+    const p = document.createElement('p');
+    p.className = 'msg-para';
+    p.textContent = para;
+    el.append(p);
+    for (const c of clips) if (c.para === i) el.append(clipCard(c));
+  });
+}
+
+/** A capsule naming the round, the clip's player once it is clicked. */
+function clipCard(c) {
+  const box = document.createElement('div');
+  box.className = 'chat-clip';
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'chat-clip-open';
+  open.setAttribute('aria-label', say('chat.clipOpen', { n: c.round }));
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M8 5.5v13l10.5-6.5z');
+  icon.append(path);
+  const words = document.createElement('span');
+  words.textContent = say('chat.clipOpen', { n: c.round });
+  open.append(icon, words);
+  open.addEventListener('click', () => {
+    if (!window.ClipPlayer || typeof window.ClipPlayer.create !== 'function') return;
+    const p = window.ClipPlayer.create({ url: c.url, death: c.death, frames: c.frames || null, label: say('chat.clipLabel', { n: c.round }) });
+    const cap = document.createElement('p');
+    cap.className = 'chat-clip-cap';
+    cap.textContent = say('chat.clipLabel', { n: c.round });
+    box.replaceChildren(cap, p.el);
+    const played = p.video && typeof p.video.play === 'function' ? p.video.play() : null;
+    if (played && typeof played.catch === 'function') {
+      played.catch(() => { cap.textContent = t('chat.clipFailed'); cap.classList.add('bad'); });
+    }
+  });
+  box.append(open);
+  return box;
 }
 
 /** A line of its own, never a bubble: the cap, the hold, a match in progress. */
@@ -256,7 +331,7 @@ async function send(text) {
         own = history;
       }
       const reply = res.honest ? t('chat.honest') : res.reply;
-      addMsg('assistant', reply, at);
+      addMsg('assistant', reply, { ...at, clips: res.honest ? null : res.clips });
       own.push({ role: 'assistant', content: reply });
     } else if (res && res.ok && res.which) {
       const reply = say('chat.which', { count: res.which.count, map: res.which.map });

@@ -115,6 +115,8 @@ function harness(opts) {
     lastHenrikAt: () => (o.lastHenrik ? o.lastHenrik() : 0),
     language: () => o.language || 'en',
     advanced: () => false,
+    // The rank band main derives (8.8, index.js rankBandNow), absent unless a case sets one.
+    ...(o.rankBand !== undefined ? { rankBand: () => o.rankBand } : {}),
     failureText: (status) => `failed ${status}`,
     lastShownKind: () => null,
     now: () => now,
@@ -186,6 +188,24 @@ function harness(opts) {
     await lifted.coach.chat([{ role: 'user', content: 'What should I work on?' }]);
     const lp = lifted.calls.find((c) => c.kind === 'post').body.context.player.patterns.find((x) => x.key === K);
     ok(lp && lp.matches === 3, 'and with nothing held they are the library\'s own', JSON.stringify(lp));
+  }
+  // THE RANK BAND (8.8): sent as its key when main knows one, never a tier or
+  // a Riot ID, and nothing at all when it does not, or for League.
+  {
+    const one = small('valorant-1790000000301-band01', NOW - 2 * 60 * MIN, 'Split', 'Jett');
+    const sent = async (opts) => {
+      const h = harness({ reviews: [one], ...opts });
+      await h.coach.chat([{ role: 'user', content: 'What should I work on?' }]);
+      const post = h.calls.find((c) => c.kind === 'post');
+      return post ? post.body.context : null;
+    };
+    const none = await sent({});
+    const nullBand = await sent({ rankBand: null });
+    const gold = await sent({ rankBand: 'silver_gold' });
+    const league = await sent({ rankBand: 'silver_gold', game: 'lol' });
+    ok(none && !('rankBand' in none) && nullBand && !('rankBand' in nullBand), 'no band known sends no rankBand, today\'s context');
+    ok(gold && gold.rankBand === 'silver_gold' && !/Gold \d|#/.test(JSON.stringify({ b: gold.rankBand })), 'a known band goes as its key alone');
+    ok(!league || !('rankBand' in league), 'and League is sent none');
   }
   // A match older than the ten newest stays the match it was asked about (the
   // verifier's probe, 15 Oct): seeded from the library's eleventh review, the

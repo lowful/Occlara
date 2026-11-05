@@ -44,6 +44,7 @@
  */
 
 const gates = require('./fact-gates');
+const chatClips = require('./chat-clips');
 const { promptName, PROMPT_NAMES } = require('./languages');
 
 let DATA = {};
@@ -90,6 +91,15 @@ const kitOf = (a) => {
 const LANGS = new Set(Object.keys(PROMPT_NAMES));
 const MODES = ['Competitive', 'Unrated', 'Swiftplay', 'Premier', 'Standard', 'Spike Rush', 'Deathmatch', 'Team Deathmatch',
   'Escalation', 'Replication', 'Custom', 'New Map', 'Snowball Fight'];
+// The four rank bands (knowledge.js RANK_BANDS, which test:chatgates holds
+// this copy to), and how the player's facts say each one.
+const RANK_BANDS = ['iron_bronze', 'silver_gold', 'plat_diamond', 'asc_plus'];
+const BAND_WORDS = {
+  iron_bronze: ['Iron or Bronze', 'basic habit'],
+  silver_gold: ['Silver or Gold', 'basic habit'],
+  plat_diamond: ['Platinum or Diamond', 'decision'],
+  asc_plus: ['Ascendant or above', 'timing or utility change, with what it risks,'],
+};
 const RANK_WORDS = /^(?:Unranked|(?:Iron|Bronze|Silver|Gold|Platinum|Diamond|Ascendant|Immortal) [1-3]|Radiant)$/;
 const SIDES = new Set(['attacking', 'defending']);
 const FIGHTS = new Set(['right', 'wrong-spot', 'wrong-time', 'not-needed', 'unclear']);
@@ -409,11 +419,20 @@ function normalise(context) {
   const sw = a.switchedFrom && typeof a.switchedFrom === 'object' ? a.switchedFrom : null;
   const asked = int(a.round, 1, 40);
   const inMatch = (n) => n !== null && !!match && match.kind === 'valorant' && match.cards.some((x) => x.n === n);
+  // THE ROUNDS WITH A CLIP ON THE PC (chat-clips.js): round numbers alone, each
+  // a death of this match's own cards, never a path, a URL or a name.
+  if (match && match.kind === 'valorant') {
+    const raw = c.match && typeof c.match === 'object' ? c.match.clips : null;
+    match.clips = chatClips.roundsOf(list(raw, 40)).filter((n) => match.cards.some((x) => x.n === n && x.died)).sort((p, q) => p - q);
+  }
   return {
     v: 2,
     game,
     language,
     advanced: c.advanced === true,
+    // The player's rank band (8.8, src/shared/rank-band.js), untrusted: one of
+    // the four keys or left out, so a client that sends none is read as before.
+    ...(RANK_BANDS.includes(c.rankBand) ? { rankBand: c.rankBand } : {}),
     match,
     player: playerOf(c.player, language),
     ask: {
@@ -1076,6 +1095,11 @@ function renderPlayer(input, trim) {
       lines.push(`- Riot's tracker profile, over their last ${fin(t.matches) ? `${t.matches} ` : ''}${t.queue || 'competitive'} matches, not this match's numbers: ${bits.join(', ')}.${ag ? ` Most played: ${ag}.` : ''}`);
     }
   }
+  // Only when the client sent a band (8.8): none leaves this block as it was.
+  const band = input.game === 'lol' ? null : BAND_WORDS[input.rankBand];
+  if (band) {
+    lines.push(`- Their rank band: ${band[0]}. Fit the advice to that level and name the one ${band[1]} that matters most there, and never prescribe a high rank micro decision to a lower band.`);
+  }
   const recent = (p.recent || []).slice(0, trim ? 3 : 8).map((r) => [dayLabel(r.at, r.day), r.map, r.agent, r.result && r.score ? `${resultWord(r.result)} ${scoreWords(r.score)}` : resultWord(r.result),
     r.mode, fin(r.grade) ? `grade ${r.grade}` : null].filter(Boolean).join(', '));
   if (recent.length) lines.push(`- Their recent matches in the library, newest first: ${recent.join('; ')}.`);
@@ -1205,7 +1229,22 @@ function renderMatch(input, facts, trim) {
   // is about are told in full after it (renderAsked).
   const ledger = m.cards.map((c) => (trim ? cardLine(c, m).replace(/ Coach's look: [^.]*\./, '') : cardLine(c, m)));
   if (ledger.length) lines.push(`ROUNDS (Riot's record unless marked; times are seconds into the round)\n${ledger.join('\n')}`);
+  const clips = renderClips(m);
+  if (clips) lines.push(clips);
   return lines.join('\n');
+}
+
+/*
+ * THE PLAYER'S CLIPS (chat-clips.js): which deaths of this match the player
+ * can watch, and how to put one under the paragraph about it. Nothing at all
+ * when no round has a clip, so a match without one is told as before, byte
+ * for byte.
+ */
+function renderClips(m) {
+  const rounds = m && Array.isArray(m.clips) ? m.clips : [];
+  if (!rounds.length) return '';
+  const one = rounds[0];
+  return `CLIPS\nThe player has a recorded clip of their death in ${roundsText(rounds)}. When a death in one of these rounds is a main example in your answer, name the round by its number in that paragraph and end the paragraph with [clip:r${one}] for round ${one}, so the clip plays under your words. At most ${chatClips.MAX_CLIPS} clips in a reply, one a round, only for the rounds listed here, and never mention the marker or the clip's file.`;
 }
 
 /**
@@ -1323,7 +1362,7 @@ function pickNotes(input, messages) {
       // The review's own list as either kind of client was given it: by cause
       // since 8.5.0 (match-review.js CAUSE_TOPICS), without before it.
       for (const byCause of [false, true]) {
-        for (const n of rev.study({ context: { agent, map, advancedTips: advanced }, patterns: m.patterns, rounds,
+        for (const n of rev.study({ context: { agent, map, advancedTips: advanced, ...(input.rankBand ? { rankBand: input.rankBand } : {}) }, patterns: m.patterns, rounds,
           mistakes: m.lists.mistakes, byCause }, 3)) own.add(n.text);
       }
     } catch { /* no study list to leave out */ }
@@ -1354,7 +1393,12 @@ function pickNotes(input, messages) {
     if (note.agents && (!s.agent || !note.agents.some((a) => lower(a) === lower(s.agent)))) continue;
     if (note.roles && (!s.role || !note.roles.includes(s.role))) continue;
     if (note.maps && (!s.map || !note.maps.some((x) => lower(x) === s.map))) continue;
-    topical.push({ text: note.text, topic: src.topic, score: (note.weight || 1) + (note.agents ? 4 : 0) + (note.maps ? 3 : 0) + (note.roles ? 2 : 0) });
+    // The rank band (8.8, knowledge.js rankAdjust): every note here is one the
+    // player's own patterns point to, which is the data showing it, so a note
+    // for lower bands is not demoted, only one above the band is left out.
+    const ranked = input.rankBand && typeof k.rankAdjust === 'function' ? k.rankAdjust(note, input.rankBand, true) : 0;
+    if (ranked === null) continue;
+    topical.push({ text: note.text, topic: src.topic, score: (note.weight || 1) + (note.agents ? 4 : 0) + (note.maps ? 3 : 0) + (note.roles ? 2 : 0) + ranked });
   }
   topical.sort((a, b) => b.score - a.score);
   const topics = new Set();
@@ -1366,7 +1410,7 @@ function pickNotes(input, messages) {
     seen.add(n.text);
   }
   // The asked round as the situation (the first of them), and the question's own words.
-  const ctx = { agent, map };
+  const ctx = { agent, map, ...(input.rankBand ? { rankBand: input.rankBand } : {}) };
   const first = askedRounds(input, messages)[0];
   const asked = m && first ? m.cards.find((c) => c.n === first) : null;
   if (asked) {
@@ -1606,8 +1650,10 @@ function parseReply(raw, input, opts) {
   const inp = input && input.v === 2 ? input : normalise(input);
   const facts = factsOf(inp, o.messages || []);
   const nameOpts = { nameSet: o.nameSet || o.names || null, isName: o.isName };
-  const out = { reply: '', retry: false, reasons: [], dropped: {}, logged: {}, sentences: 0, kept: 0, firstDropped: false };
-  const paras = cleanReply(raw);
+  const out = { reply: '', retry: false, reasons: [], dropped: {}, logged: {}, sentences: 0, kept: 0, firstDropped: false, clipAsks: [] };
+  // Every clip marker out before a gate reads a word (chat-clips.js extract).
+  const marked = chatClips.extract(raw, inp.match && inp.match.clips);
+  const paras = cleanReply(marked.text);
   if (!paras.length) {
     out.retry = true;
     out.reasons.push('your reply was empty');
@@ -1639,6 +1685,10 @@ function parseReply(raw, input, opts) {
     reply = (stop > MAX_CHARS / 2 ? head.slice(0, stop + 1) : head).trim();
   }
   out.reply = reply;
+  // A clip goes with a paragraph of which a sentence was kept (chat-clips.js place).
+  const shown = kept.filter(Boolean).length;
+  out.clipAsks = chatClips.asksOf(marked, cleanReply).filter((a) => kept[a.para] && kept[a.para].length)
+    .map((a) => ({ round: a.round, para: kept.slice(0, a.para).filter(Boolean).length, of: shown, kept: kept[a.para].map((s) => s.trim()) }));
   out.retry = out.firstDropped || out.kept < 2;
   if (out.retry && out.kept < 2 && !out.reasons.length) out.reasons.push('your reply was too short to answer the question; answer it in full');
   out.reasons = out.reasons.slice(0, 6);
@@ -1666,4 +1716,5 @@ module.exports = {
   factsOf, cleanReply, gateReply, askedRounds, matchName, pickNotes, primerFacts, normEntry, echoOf, gateText, stated, standingsOf, deathStandingsOf, LEANS_REASON,
   renderPlayer, renderMatch, renderAsked, renderEarlier, renderSlices, staticPrefix, languageLine, gunsInCore,
   VALORANT_RULES, LEAGUE_RULES, RIOT_ONLY, NO_MATCH, DYNAMIC_MAX_CHARS, MATCH_MAX_CHARS, MAX_CHARS, MAX_ASKED_ROUNDS, VERDICT, VERDICT_REASON,
+  RANK_BANDS,
 };

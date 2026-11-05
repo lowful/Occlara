@@ -1670,21 +1670,28 @@ async function openShell(cfg, state, opts) {
     ok(same(classes(rc(2)), ['v-round-head', 'v-facts', 'v-moment']) && rc(2).querySelector('.v-facts').textContent === base.rounds[1].facts.join('  ·  '),
       'a death the coach looked at is its round\'s row: the round, its facts once, then the look', classes(rc(2)).join(' | '));
     const m2 = v.$('moment-2');
-    ok(m2 && m2.parentNode === rc(2) && same(classes(m2), ['v-media', 'v-advice']) && same(classes(m2.children[0]), ['v-clip', 'v-shots']),
-      'the clip and its frames on one side, what the coach made of them on the other', m2 && classes(m2).join(' | '));
+    // NO STRIP UNDER A CLIP (8.7, the player's ask): the clip plays every
+    // still and its timeline marks each, so the row of stills only took room.
+    ok(m2 && m2.parentNode === rc(2) && same(classes(m2), ['v-media', 'v-advice']) && same(classes(m2.children[0]), ['v-clip'])
+      && !m2.querySelector('.v-shots'),
+    'the clip on one side with no strip of stills under it, what the coach made of it on the other', m2 && classes(m2).join(' | '));
     const caps = (m) => m.querySelectorAll('.v-shot figcaption').map((f) => f.textContent);
     const imgs = (m) => m.querySelectorAll('.v-shot img');
-    ok(same(caps(m2), ['3 s before', '1 s before', 'Just after', '2 s after'])
-      && same(imgs(m2).map((i) => i.src), ['f1', 'f2', 'f3', 'f4'].map((k) => base.frameData[`r2-${k}.jpg`]))
-      && same(imgs(m2).map((i) => i.alt), ['3 s before the death', '1 s before the death', 'Just after the death', '2 s after the death']),
-    'four frames from the recording, in time order, each named by its seconds against the death', caps(m2).join(' | '));
-    ok(m2.querySelector('.v-shots').style['--n'] === '4' && m2.querySelector('video').getAttribute('poster') === base.frameData['r2-f2.jpg'],
-      'a filmstrip under the clip, the clip\'s picture the frame nearest the death from before it',
-      `${m2.querySelector('.v-shots').style['--n']} ${m2.querySelector('video').getAttribute('poster')}`);
+    // The stills a moment keeps are shown where its clip is gone or never was:
+    // the same round with no clip.
+    const noClip2 = (forensics) => [{ ...base.rounds[1], forensics: { ...base.rounds[1].forensics, clip: null, clipUrl: null, ...(forensics || {}) } }];
+    const m2s = (await open({ ...base, rounds: noClip2() })).$('moment-2');
+    ok(same(caps(m2s), ['3 s before', '1 s before', 'Just after', '2 s after'])
+      && same(imgs(m2s).map((i) => i.src), ['f1', 'f2', 'f3', 'f4'].map((k) => base.frameData[`r2-${k}.jpg`]))
+      && same(imgs(m2s).map((i) => i.alt), ['3 s before the death', '1 s before the death', 'Just after the death', '2 s after the death']),
+    'four frames from the recording with no clip, in time order, each named by its seconds against the death', caps(m2s).join(' | '));
+    ok(m2s.querySelector('.v-shots').style['--n'] === '3' && m2.querySelector('video').getAttribute('poster') === base.frameData['r2-f2.jpg'],
+      'with no clip they are three a row, and with one the clip\'s picture is still the frame nearest the death from before it',
+      `${m2s.querySelector('.v-shots').style['--n']} ${m2.querySelector('video').getAttribute('poster')}`);
     // The look takes stills at half seconds too (shared/clips.js LOOK_AT), and
     // each is named by the second it was taken at: rounded to whole seconds,
     // the 1.5 s still read "2 s before" and the 4.5 s one "5 s before".
-    const halves = await open({ ...base, rounds: [{ ...base.rounds[1], forensics: { ...base.rounds[1].forensics, frameAt: [-4.5, -1.5, -0.3, 0.7] } }] });
+    const halves = await open({ ...base, rounds: noClip2({ frameAt: [-4.5, -1.5, -0.3, 0.7] }) });
     ok(same(caps(halves.$('moment-2')), ['4.5 s before', '1.5 s before', '0.3 s before', 'Just after'])
       && imgs(halves.$('moment-2'))[1].alt === '1.5 s before the death',
     'a still taken at a half second is named by it, never by the second rounded up', caps(halves.$('moment-2')).join(' | '));
@@ -1692,8 +1699,7 @@ async function openShell(cfg, state, opts) {
     // last second before the death, and both read "Just before": two frames,
     // one name. Each before the death is named by its own tenth.
     const riotStills = clipsAt.LOOK_AT.riot;
-    const five = await open({ ...base, rounds: [{ ...base.rounds[1], forensics: { ...base.rounds[1].forensics,
-      frames: riotStills.map((_s, k) => `r2-f${k + 1}.jpg`), frameAt: riotStills } }],
+    const five = await open({ ...base, rounds: noClip2({ frames: riotStills.map((_s, k) => `r2-f${k + 1}.jpg`), frameAt: riotStills }),
     frameData: { ...base.frameData, 'r2-f5.jpg': 'data:image/jpeg;base64,AAA2f5' } });
     const fiveCaps = caps(five.$('moment-2'));
     ok(same(riotStills, [-3, -1.5, -0.7, -0.3, 0.7]) && same(fiveCaps, ['3 s before', '1.5 s before', '0.7 s before', '0.3 s before', 'Just after'])
@@ -1768,10 +1774,50 @@ async function openShell(cfg, state, opts) {
     'so its round\'s why is the advice it gives, marked as the coach\'s read');
     ok(same(classes(rc(5)), ['v-round-head', 'v-facts', 'v-why-line']) && rc(5).querySelector('.v-why').textContent === base.rounds[2].why
       && !rc(5).querySelector('.log-eye'), 'a round with no look carries its why, and no eye');
-    const fig = imgs(m2)[0].parentNode;
-    imgs(m2)[0].click();
+    // THE KILLER CARD (8.7): served() wrote it from Riot's record, and the
+    // round draws it under the coach's words, or under a why with no look.
+    const KC = { label: 'Killed by', agent: 'Viper', agentIcon: 'valorant/agents/Viper.png', weapon: 'Marshal',
+      weaponIcon: 'valorant/weapons/Marshal.png', damage: '142', damageLabel: 'damage to you this round',
+      hits: [{ label: 'Head', value: '1' }, { label: 'Body', value: '2' }, { label: 'Legs', value: '0' }] };
+    const kp = await open({ ...base, rounds: [{ ...base.rounds[1], killerCard: KC }, { ...base.rounds[2], killerCard: { ...KC, agent: 'Skye',
+      agentIcon: 'valorant/agents/Skye.png', weapon: 'Headhunter', weaponIcon: null, damage: null, damageLabel: null, hits: null } },
+    { ...base.rounds[3], killerCard: { ...KC, agentIcon: '../../secret.png' } }] });
+    const k2 = kp.$('moment-2').querySelector('.v-advice .v-killer');
+    const imgOf = (k, cls) => k.querySelector(`.${cls}`);
+    ok(k2 && k2.parentNode.lastChild === k2 && imgOf(k2, 'v-killer-face').src === '../../../assets/valorant/agents/Viper.png'
+      && k2.querySelector('.v-killer-label').textContent === 'Killed by' && k2.querySelector('.v-killer-agent').textContent === 'Viper'
+      && k2.querySelector('.v-killer-gun').textContent === 'Marshal' && imgOf(k2, 'v-killer-gun-icon').src === '../../../assets/valorant/weapons/Marshal.png'
+      && k2.querySelector('.v-killer-dmg-n').textContent === '142' && k2.querySelector('.v-killer-dmg-label').textContent === 'damage to you this round'
+      && same(k2.querySelectorAll('.v-killer-hit').map((h) => h.textContent), ['1Head', '2Body', '0Legs']),
+    'a death with Riot\'s record has the killer card last under the coach\'s look: the agent and its icon, the gun and its icon, the damage, head, body and legs',
+    k2 && k2.textContent);
+    const k5 = kp.$('round-5').querySelector('.v-why-block .v-killer');
+    ok(k5 && kp.$('round-5').querySelector('.v-why-block').firstChild.classList.contains('v-why-line')
+      && k5.querySelector('.v-killer-gun').textContent === 'Headhunter' && !imgOf(k5, 'v-killer-gun-icon') && !k5.querySelector('.v-killer-dmg'),
+    'a round with a why and no look has it under the why, an ability with no gun icon, and no damage where Riot kept none', k5 && k5.textContent);
+    const k9 = kp.$('moment-9').querySelector('.v-killer');
+    ok(k9 && !imgOf(k9, 'v-killer-face') && k9.querySelector('.v-killer-agent').textContent === 'Viper',
+      'an icon path that is not one of the bundled ones is never loaded, and the words stay');
+    // 8.8: a died round with neither a look nor a why still has Riot's card,
+    // folded as served() says, or open; with no card it stays one quiet line.
+    const kq = await open({ ...base, rounds: [row(7, 'lost', 'Attack', ['Died at A Site'], { killerCard: KC, open: false }),
+      row(8, 'lost', 'Attack', ['Died at B Main'], { killerCard: KC, open: true }), row(10, 'lost', 'Attack', ['Died at Mid'], { open: false })] });
+    const r7 = kq.$('round-7');
+    const fold7 = r7.querySelector('.v-fold');
+    ok(!r7.classList.contains('quiet') && r7.classList.contains('fold') && r7.querySelector('.v-round-body > .v-killer')
+      && r7.querySelector('.v-round-body').hidden && fold7 && fold7.getAttribute('aria-label') === 'Round 7, show what killed you'
+      && !r7.querySelector('.v-why-line'),
+    'a died round with no look and no why still has the killer card, folded under its line until asked', r7.className);
+    const r8 = kq.$('round-8');
+    ok(!r8.classList.contains('fold') && [...r8.children].some((x) => x.classList && x.classList.contains('v-killer')),
+      'and open in its row when served open');
+    ok(kq.$('round-10').classList.contains('quiet') && !kq.$('round-10').querySelector('.v-killer, .v-fold'),
+      'a died round with no card and nothing said stays one quiet line');
+    ok(!v.document.querySelectorAll('.v-killer').length, 'and a round served with no card draws none');
+    const fig = imgs(m9)[0].parentNode;
+    imgs(m9)[0].click();
     const zoomed = fig.classList.contains('zoom');
-    imgs(m2)[0].click();
+    imgs(m9)[0].click();
     ok(zoomed && !fig.classList.contains('zoom'), 'a click zooms a frame, and another puts it back');
     // The eye at the moment, in the round's own line.
     const eyeOf = (n) => rc(n).querySelector('.v-round-head .log-eye');
@@ -1857,7 +1903,8 @@ async function openShell(cfg, state, opts) {
       'the Verdict, the grade and the coach\'s read first, then the repeated mistakes, then the rounds', order.join(' | '));
     ok(!DASHES.test(vText), 'with no dash anywhere on the page');
     const gone = await open({ ...base, aiLog: 'gone' });
-    ok(!gone.document.querySelectorAll('#v-rounds .log-eye').length && gone.document.querySelectorAll('#v-rounds .v-shot img').length === 9,
+    // Five frames, round 2's four being under its clip, which shows no strip (8.7).
+    ok(!gone.document.querySelectorAll('#v-rounds .log-eye').length && gone.document.querySelectorAll('#v-rounds .v-shot img').length === 5,
       'with the AI log gone, the rounds keep their frames and lose their eyes');
     const older = await open({ ...base, rounds: base.rounds.map((c) => (c.forensics ? { ...c, forensics: { ...c.forensics, source: undefined, at: undefined } } : c)) });
     ok(older.document.querySelectorAll('#v-rounds .v-moment').length === 4 && !older.document.querySelectorAll('#v-rounds .log-eye').length
@@ -2052,9 +2099,26 @@ async function openShell(cfg, state, opts) {
     const want = verdictOf(base);
     const letter = v.document.querySelector('#v-verdict .vd-letter');
     ok(want && !v.$('v-grade').hidden && letter && letter.textContent === 'B' && toneOf(letter) === toneFor(78)
-      && v.document.querySelector('#v-verdict .vd-score').textContent === '78' && !v.$('v-vd-label').hidden
-      && v.$('v-reason').textContent === want.reason && !v.$('v-reason').hidden,
-    'the Verdict first: its letter in the one grade colour, the number out of 100 and the one counted reason', want && want.reason);
+      && v.document.querySelector('#v-verdict .vd-score').textContent === '78'
+      && want.stat && !v.$('v-stat').hidden && v.$('v-stat').querySelector('.vd-stat-value').textContent === want.stat.value
+      && v.$('v-stat').querySelector('.vd-stat-label').textContent === want.stat.label
+      && !/verdict/i.test(v.$('v-verdict').querySelector('.vd-top').textContent) && !v.$('v-verdict').textContent.includes(want.reason),
+    'the Verdict first, as the share image draws it: its letter in the one grade colour, the number out of 100 and the standout, no VERDICT word and no reason line',
+    want && JSON.stringify(want.stat));
+    // The tile's URL is VerdictCard.iconUrl's, resolved against the script's
+    // own src: this stand in page has none, so no URL and no tile, and with
+    // one the tile holds that very URL.
+    ok(v.$('v-icon').hidden && !v.$('v-icon').querySelector('.vd-icon-img'), 'an icon with no URL to load leaves the tile out');
+    const vi = await open(base);
+    const askedIcon = [];
+    vi.window.VerdictCard.iconUrl = (p) => { askedIcon.push(p); return `file:///occlara/assets/${p}`; };
+    vi.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...base });
+    await settle();
+    const tile = vi.$('v-icon');
+    const tileImg = tile && tile.querySelector('.vd-icon-img');
+    ok(want.icon === 'valorant/agents/Jett.png' && askedIcon.includes(want.icon) && !tile.hidden && tileImg
+      && tileImg.src === 'file:///occlara/assets/valorant/agents/Jett.png',
+    'the agent\'s icon in its tile, the same bundled file the share image draws', tileImg && tileImg.src);
     ok(v.document.querySelectorAll('#v-verdict #v-stats .v-stat').length === 4 && v.$('v-score').textContent === '13 : 11',
       'with the result\'s score and Riot\'s scoreboard folded into it');
     const order = v.$('vreview').children.filter((c) => !c.hidden).map((c) => c.id || c.className);
@@ -2176,8 +2240,8 @@ async function openShell(cfg, state, opts) {
     // the grade's slot (8.7), no reason, no Share image, the result and
     // scoreboard still.
     const bare = await open({ ...base, grade: null });
-    ok(!bare.$('v-grade').hidden && !bare.$('v-vd-label').hidden && !bare.document.querySelector('#v-grade .vd-letter')
-      && bare.$('v-grade').textContent === 'Not graded' && bare.$('v-reason').hidden && bare.$('share').hidden
+    ok(!bare.$('v-grade').hidden && !bare.document.querySelector('#v-grade .vd-letter')
+      && bare.$('v-grade').textContent === 'Not graded' && bare.$('v-stat').hidden && bare.$('v-icon').hidden && bare.$('share').hidden
       && bare.document.querySelectorAll('#v-stats .v-stat').length === 4,
     'a review with no grade keeps its result and scoreboard, says "Not graded" in the grade\'s slot, and has nothing to share');
     const thin = await open({ ...base, scoreline: { ...base.scoreline, adr: null, headshotPct: null } });
@@ -2201,10 +2265,12 @@ async function openShell(cfg, state, opts) {
     const lv = await open(lol, { [C.PROGRESS_GET]: () => ({ id: lol.id, lines: [PROGRESS.lines[0]] }) });
     const lLetter = lv.document.querySelector('#r-verdict .vd-letter');
     ok(!lv.$('r-verdict').hidden && lLetter && lLetter.textContent === 'A' && toneOf(lLetter) === toneFor(84)
-      && lv.document.querySelector('#r-verdict .vd-reason').textContent === verdictOf(lol).reason
+      && lv.document.querySelector('#r-verdict .vd-stat-value').textContent === verdictOf(lol).stat.value
+      && lv.document.querySelector('#r-verdict .vd-stat-label').textContent === verdictOf(lol).stat.label
+      && !lv.document.querySelector('#r-verdict .vd-label') && !lv.document.querySelector('#r-verdict .vd-reason')
       && same(lv.document.querySelectorAll('#r-prog .gv-prog').map((p) => p.textContent), [PROGRESS.lines[0].text])
       && lv.document.querySelector('#grade-host .gv-grade.compact') && !lv.$('share').hidden,
-    'a League review has its Verdict, its strip and Share image too', verdictOf(lol) && verdictOf(lol).reason);
+    'a League review has its Verdict, the standout where the reason was, its strip and Share image too', verdictOf(lol) && JSON.stringify(verdictOf(lol).stat));
   });
 
   // THE REVEAL (8.7): once, as the loading screen gives way, and only on
@@ -3598,15 +3664,15 @@ async function openShell(cfg, state, opts) {
     const m = (n) => v.$(`moment-${n}`);
     const kids = (n) => m(n).children.map((c) => c.className.split(' ')[0]);
     const side = (n) => m(n).children[0].children.map((c) => c.className.split(' ')[0]);
-    ok(same(kids(2), ['v-media', 'v-advice']) && same(side(2), ['v-clip', 'v-shots']) && m(2).parentNode === v.$('round-2'),
-      'a moment with its clip, in its round: the clip, the frames still under it, and the coach\'s words beside', `${kids(2).join(' | ')} / ${side(2).join(' | ')}`);
+    ok(same(kids(2), ['v-media', 'v-advice']) && same(side(2), ['v-clip']) && m(2).parentNode === v.$('round-2'),
+      'a moment with its clip, in its round: the clip with no strip of stills under it (8.7), and the coach\'s words beside', `${kids(2).join(' | ')} / ${side(2).join(' | ')}`);
     const rcss = fs.readFileSync(path.join(RENDERER, 'review', 'review.css'), 'utf8');
     const across = (n) => m(n).querySelector('.v-shots').style['--n'];
     ok(m(2).classList.contains('has-clip') && !m(9).classList.contains('has-clip') && !m(19).classList.contains('has-clip')
-      && across(2) === '4' && across(9) === '1' && across(19) === '1'
+      && !m(2).querySelector('.v-shots') && across(9) === '1' && across(19) === '1'
       && /\.v-shots \{ display: grid; grid-template-columns: repeat\(var\(--n, 1\), minmax\(0, 1fr\)\);/.test(rcss),
-    'the frames under a clip are a filmstrip four to the row; a moment with no clip keeps its frame across its side',
-    `${across(2)} ${across(9)} ${across(19)}`);
+    'no frames under a clip; a moment with no clip keeps its frame across its side',
+    `${across(9)} ${across(19)}`);
     ok(!m(2).querySelector('.v-clip figcaption') && !/From your recording/.test(v.$('vreview').textContent),
       'and no caption under the clip saying what its row already says');
     const vid = m(2).querySelector('.v-clip .v-clip-frame video.v-clip-video');
@@ -3999,30 +4065,12 @@ async function openShell(cfg, state, opts) {
     ok(range.value === '3200', 'and the timeline follows it as it plays again', range.value);
     vid.pause();
 
-    // ── A still under its clip is a place in it ──
-    const gos = p.$('moment-2').querySelectorAll('.v-shot .v-shot-go');
-    ok(gos.length === 5 && gos.every((g) => g.tagName === 'BUTTON' && g.querySelector('img'))
-      && same(gos.map((g) => g.getAttribute('aria-label')), AT.map((a) => (a < 0 ? `Show the clip at ${CT.secondsOf(a)} s before the death` : a <= 1 ? 'Show the clip at just after the death' : `Show the clip at ${CT.secondsOf(a)} s after the death`)))
-      && same(p.$('moment-2').querySelectorAll('.v-shot figcaption').map((c) => c.textContent).slice(0, 4), AT.slice(0, 4).map((a) => `${Math.round(Math.abs(a) * 10) / 10} s before`)),
-    'under its clip each still is a button named for its moment, its caption as it was', gos.map((g) => g.getAttribute('aria-label')).join(' | '));
-    vid.play();
-    gos[2].click();
-    ok(vid.paused === true && vid.seeks[vid.seeks.length - 1] === CT.stillAt(F, DEATH, AT[2]) && CT.frameIndex(TIMES, vid.seeks[vid.seeks.length - 1] * 1000) === STILL_FRAMES[2]
-      && gos[2].getAttribute('aria-current') === 'true' && gos[2].parentNode.classList.contains('shown') && !gos[1].hasAttribute('aria-current'),
-    'a click on one moves the clip to that still\'s own frame and pauses it there, the still marked as the one shown');
-    land(vid);
-    // The still keeps the focus it was clicked with, and the player's keys work from it.
-    const fromStill = vid.seeks.length;
-    ok(!p.fire(gos[2], 'keydown', { key: '.' }) && vid.seeks.length === fromStill + 1
-      && vid.seeks[vid.seeks.length - 1] === CT.insideOf(F, STILL_FRAMES[2] + 1),
-    'full stop pressed on the still clicked steps the clip on from that still\'s frame: the stills hear the player\'s keys');
-    land(vid);
-    btn('forwardFrame').click();
-    ok(!gos[2].hasAttribute('aria-current') && !gos[2].parentNode.classList.contains('shown'), 'and once the clip moves on, it no longer is');
-    land(vid);
-    const fig0 = gos[0].parentNode;
-    gos[0].querySelector('img').click();
-    ok(!fig0.classList.contains('zoom'), 'a still under its clip shows in the clip, the clip at the width a zoomed frame takes');
+    // ── No strip of stills under its clip (8.7) ──
+    // The player asked for the row of stills gone: the clip plays every one of
+    // them, and its timeline still marks each one's place.
+    ok(!p.$('moment-2').querySelectorAll('.v-shot').length && !p.$('moment-2').querySelector('.v-shots')
+      && fig.querySelectorAll('.cp-track .cp-mark').length === AT.length + 1,
+    'under its clip there is no strip of stills, and the timeline still marks the death and each still');
 
     // ── SEEN, NOT ASSUMED: a step checked against the frame presented ──
     // Beside a capture stall Chromium shows the frame before the one a step
@@ -4149,11 +4197,7 @@ async function openShell(cfg, state, opts) {
       && of.querySelector('.cp-time').textContent === `0 s of ${Math.round(FR.end / 100) / 10} s`
       && of.querySelector('.cp-seek').getAttribute('aria-valuetext') === `0 s into the clip, of ${Math.round(FR.end / 100) / 10} s`,
     `a review saved before 8.4.4 marks nothing and times the clip by its own seconds ("${of.querySelector('.cp-time').textContent}")`);
-    const oldShot = older.$('moment-2').querySelectorAll('.v-shot')[0];
-    ok(!older.$('moment-2').querySelectorAll('.v-shot-go').length && oldShot.querySelector('img').parentNode === oldShot,
-      'and its stills, with no place in the clip, are frames as they were');
-    oldShot.querySelector('img').click();
-    ok(oldShot.classList.contains('zoom'), 'a click zooms one, as before');
+    ok(!older.$('moment-2').querySelectorAll('.v-shot').length, 'and, as every clip since 8.7, no strip of stills under it');
 
     // ── A review with no clip times: a thirtieth of a second a step ──
     const bare = await open({ ...base, rounds: [card(2, { ...look, clipFrames: undefined })] });
@@ -6294,9 +6338,9 @@ async function openShell(cfg, state, opts) {
       'the upgrade card sits under the result and Riot\'s scoreboard');
     ok(v.$('v-result').textContent === 'VICTORY' && v.$('v-score').textContent === '13 : 11' && shown(v, 'v-stats-wrap')
       && v.document.querySelectorAll('#v-stats .v-stat').length === 4, 'the result, the score and Riot\'s four numbers are there');
-    ok(shown(v, 'v-vd-label') && shown(v, 'v-grade') && !v.document.querySelector('#v-grade .vd-letter') && !v.document.querySelector('#v-grade .vd-score')
-      && v.$('v-grade').textContent === 'Not graded' && !shown(v, 'v-reason') && !shown(v, 'v-focus-wrap') && !shown(v, 'share'),
-    'the one header: the Verdict label and the grade\'s slot stay, "Not graded" over a dashed rule in it, no letter, no focus and no share image');
+    ok(shown(v, 'v-grade') && !shown(v, 'v-icon') && !v.document.querySelector('#v-grade .vd-letter') && !v.document.querySelector('#v-grade .vd-score')
+      && v.$('v-grade').textContent === 'Not graded' && !shown(v, 'v-stat') && !shown(v, 'v-focus-wrap') && !shown(v, 'share'),
+    'the one header: the grade\'s slot stays, "Not graded" over a dashed rule in it, no icon, no letter, no standout, no focus and no share image');
     ok(!shown(v, 'v-prog') && asked(v, C.PROGRESS_GET) === 0, 'no progress strip, and main is not even asked for it');
     ok(!shown(v, 'common') && !shown(v, 'grade-host') && !shown(v, 'insights-host') && !shown(v, 'v-summary-wrap') && !shown(v, 'v-rounds-wrap')
       && !shown(v, 'v-study-wrap') && !shown(v, 'v-refused-wrap') && !shown(v, 'ask'),
@@ -6341,7 +6385,7 @@ async function openShell(cfg, state, opts) {
     // And the next review that is not locked is a review again.
     built.bridge.emit(C.PUSH_VALORANT_REVIEW, { ...VREV, id: VID + 'u', locked: false });
     await settle();
-    ok(!shown(built, 'locked') && shown(built, 'v-vd-label') && shown(built, 'v-summary-wrap') && shown(built, 'grade-host'),
+    ok(!shown(built, 'locked') && shown(built, 'v-stat') && shown(built, 'v-summary-wrap') && shown(built, 'grade-host'),
       'a review that is not locked after it has its Verdict, read and grade back, and no card');
 
     // League: its numbers, the card under them, and none of what reads the game.

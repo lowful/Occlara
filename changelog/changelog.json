@@ -1,5 +1,21 @@
 [
   {
+    "version": "8.7.4",
+    "date": "2026-11-05",
+    "title": "Gifts, clips in Ask Coach and a smarter coach",
+    "summary": "Gift Pro or Max to a friend with a link, watch your own clips inside Ask Coach, and get advice that fits your rank.",
+    "items": [
+      { "kind": "new", "text": "Gift Pro or Max for a month or a year. You get a link to send, and your friend redeems it in one click." },
+      { "kind": "new", "text": "Ask Coach can show the clips it is talking about, right under its answer." },
+      { "kind": "new", "text": "Each round you died in shows who killed you, with their agent, weapon and the damage they did." },
+      { "kind": "new", "text": "A Discord button in the sidebar and a What's new page in Settings." },
+      { "kind": "improved", "text": "The coach learned from top coaches and Radiant players, and its advice now fits your rank." },
+      { "kind": "improved", "text": "Your Verdict shows your agent and your standout stat of the match, like an ace or a clutch." },
+      { "kind": "improved", "text": "Rounds are cleaner, without the row of small frames under each clip." },
+      { "kind": "fixed", "text": "Free games are now one set per player." }
+    ]
+  },
+  {
     "version": "8.7.3",
     "date": "2026-11-04",
     "title": "Ask Coach and your games",

@@ -369,7 +369,52 @@ which wins whether it lands first or while the screen's is out.
   with no comps, or only its own team's, has no line (`test:surfaces`;
   `check:mainwindow` paints it in the real window). Riot's record of each
   death in a line of its own (what was bought, the damage each way) is Phase
-  D's.
+  D's; the damage the killer dealt is the killer card's (below).
+- **No strip of stills under a clip** (8.7, the player's ask: the frames 3 s
+  before to just after "take up space"). `look()` in review.js draws the
+  strip only for a moment with no clip (its clip cleared, or never
+  recorded), where the stills are all it has. Under a clip they are gone: the
+  clip plays every one, and its timeline still marks the death and each still
+  (`clip-player.js`, `stills`). The stills stay in the review (`lookFrames`,
+  the poster, the marks, the look's own evidence), and `shotStrip`'s
+  place-in-the-clip branch is no longer reached.
+- **The killer card** (8.7, the player's ask, beside the clip under "Coach's
+  look"): the game's death recap again, under the coach's look, or under the
+  why in a round with no look, or alone in a died round the coach said
+  nothing of (8.8: `roundRow` used to return the quiet one line row before
+  the card was built, so only rounds the coach wrote about had it). The card
+  is Riot's, not the coach's: whenever the data has one it is drawn, in the
+  row's body, folded or open as `served()` says (`open`), the fold's key
+  saying "show what killed you"; with no card such a row stays one quiet
+  line. The killer's agent with its icon, the gun by
+  Riot's name with its kill feed icon, and the damage that killer dealt the
+  player in the round, its head, body and leg hits under the number. View
+  only: `valorant-review.js killerCard` writes it in `withView` (`killerCard`,
+  one of `VIEW_CARD_FIELDS`), finished strings and icon paths under assets/
+  (`valorant-icons.js`, the agents' through `agent-icons.js`), and
+  `review.js killerCardEl` sets it by textContent, an icon path that is not
+  `valorant/(agents|weapons)/<letters>.png` never loaded. **Riot's record
+  only, never a guess**: the killer is `riot.killer`, an agent the game data
+  knows, else no card; no card where Riot's kill feed has the player killed
+  by a teammate or by themselves, or names another agent as the killer; the
+  gun's icon only for a gun the data knows (an ability Riot names, the
+  Headhunter, keeps its name with no icon); the damage only where Riot's
+  round kept the killer's damage events on the player. The server sums them
+  (`riot-rounds.js killerDamageOf`: HenrikDev's round `stats[].damage_events`
+  of the killer, `player` the target, or v2's `player_stats` with
+  `receiver_puuid`; numbers only) into `perRound[].killerDamage`, the link
+  keeps whole counts (`valorant-verify.js damageOf`, `killerDamage`), and
+  `build()` keeps it as `riot.damage` only where it came. Riot gives no
+  location for the killing hit itself, so the card says the hits, not which
+  one killed. A screen only review has no card: the screen's look names no
+  killer by rule (above), and a kill feed line read off the screen is a read,
+  never a fact. The server half deploys separately: until it does, a card
+  shows the killer and the gun with no damage. `test:valorantreview` (the
+  real Abyss round 2 with damage, a round with none, a teammate's kill, the
+  player's own, a killer that is no agent, a feed naming another killer, an
+  ability) and `test:surfaces` (the card's place and parts, a why only round,
+  a round with neither a look nor a why, folded and open, and one with no
+  card staying quiet, a path that is not an icon).
 
 The frames the review looked at are saved beside it in the library, so the
 moment survives the AI log rolling past it, and a version painted after a look

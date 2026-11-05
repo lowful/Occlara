@@ -181,7 +181,112 @@ function setBilling(which) {
   billing = which === 'yearly' ? 'yearly' : 'monthly';
   $('pr-monthly').setAttribute('aria-pressed', String(billing === 'monthly'));
   $('pr-yearly').setAttribute('aria-pressed', String(billing === 'yearly'));
-  if (model) paintPlans(model.plans);
+  if (model) { paintPlans(model.plans); paintGiftOffers(model.gifts); }
+}
+
+// ── Gifts (8.8) ────────────────────────────────────────────────────────────
+// Gift Pro and Gift Max at the cycle the Plans toggle shows, a field to redeem
+// a link or code, and the gifts bought with Copy link. Main opens, redeems and
+// copies; signed out, each action signs in first.
+
+async function signInFirst() {
+  if (typeof api.signIn !== 'function') return;
+  const r = await Promise.resolve(api.signIn()).catch(() => null);
+  if (r && r.ok) load();
+}
+
+function paintGiftOffers(g) {
+  const offers = g && g.offers ? (billing === 'yearly' ? g.offers.yearly : g.offers.monthly) : [];
+  $('pr-gift-offers').replaceChildren(...(Array.isArray(offers) ? offers : []).map((o) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-ghost pr-gift';
+    b.dataset.offer = o.id;
+    b.setAttribute('aria-label', o.aria || o.label);
+    const name = document.createElement('span');
+    name.className = 'pr-gift-name';
+    name.textContent = o.label;
+    const price = document.createElement('span');
+    price.className = 'pr-gift-price';
+    price.textContent = o.price;
+    b.append(name, price);
+    b.addEventListener('click', () => giftOffer(o.id));
+    return b;
+  }));
+}
+
+async function giftOffer(id) {
+  if (!model || !model.gifts) return;
+  if (!model.gifts.signedIn) { signInFirst(); return; }
+  if (typeof api.gift !== 'function') return;
+  const r = await Promise.resolve(api.gift(id)).catch(() => null);
+  const said = r && r.ok ? model.gifts.checkout : 'The checkout could not be opened. Try again.';
+  $('pr-gift-note').textContent = said;
+  $('pr-said').textContent = said;
+}
+
+function paintGifts(g) {
+  if (!g) return;
+  $('pr-gifts-title').textContent = g.title || '';
+  $('pr-gifts-hint').textContent = g.signedIn ? (g.hint || '') : (g.signIn || '');
+  paintGiftOffers(g);
+  $('pr-gift-received').textContent = g.received || '';
+  $('pr-gift-received').hidden = !g.received;
+  const r = g.redeem || {};
+  $('pr-redeem-label').textContent = r.label || '';
+  $('pr-redeem-code').placeholder = r.placeholder || '';
+  $('pr-redeem-go').textContent = r.button || '';
+  const list = Array.isArray(g.bought) ? g.bought : [];
+  $('pr-bought-wrap').hidden = !list.length;
+  $('pr-bought-title').textContent = g.boughtTitle || '';
+  $('pr-bought').replaceChildren(...list.map((x) => {
+    const li = document.createElement('li');
+    li.className = 'pr-gift-row';
+    const what = document.createElement('span');
+    what.className = 'pr-gift-what';
+    what.textContent = x.what;
+    const state = document.createElement('span');
+    state.className = 'pr-gift-state';
+    state.textContent = x.state;
+    const when = document.createElement('span');
+    when.className = 'pr-gift-when';
+    when.textContent = x.when || '';
+    const act = document.createElement('span');
+    act.className = 'pr-gift-act';
+    if (x.canCopy) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn btn-ghost sm';
+      b.textContent = g.copy;
+      b.addEventListener('click', async () => {
+        if (typeof api.copyGift !== 'function') return;
+        const c = await Promise.resolve(api.copyGift(x.id)).catch(() => null);
+        if (c && c.ok) {
+          b.textContent = g.copied;
+          $('pr-said').textContent = g.copied;
+          setTimeout(() => { b.textContent = g.copy; }, 2000);
+        }
+      });
+      act.append(b);
+    }
+    li.append(what, state, when, act);
+    return li;
+  }));
+}
+
+async function redeem(e) {
+  if (e) e.preventDefault();
+  if (!model || !model.gifts) return;
+  if (!model.gifts.signedIn) { signInFirst(); return; }
+  const text = $('pr-redeem-code').value;
+  if (!text.trim() || typeof api.redeemGift !== 'function') return;
+  $('pr-redeem-go').disabled = true;
+  const r = await Promise.resolve(api.redeemGift(text)).catch(() => null);
+  $('pr-redeem-go').disabled = false;
+  const said = (r && r.said) || 'The gift could not be redeemed just now. Try again.';
+  $('pr-redeem-said').textContent = said;
+  $('pr-said').textContent = said;
+  if (r && r.ok) { $('pr-redeem-code').value = ''; load(); }
 }
 
 // ── The page ───────────────────────────────────────────────────────────────
@@ -201,6 +306,7 @@ function paint(m) {
     $('pr-yearly').textContent = m.plans.yearly || 'Yearly';
   }
   paintPlans(m.plans);
+  paintGifts(m.gifts);
   show('body');
   if (!segsReady && typeof window.occlaraSeg === 'function') {
     segsReady = true;
@@ -239,6 +345,7 @@ $('pr-buy').addEventListener('click', buy);
 $('pr-retry').addEventListener('click', () => load());
 $('pr-monthly').addEventListener('click', () => setBilling('monthly'));
 $('pr-yearly').addEventListener('click', () => setBilling('yearly'));
+$('pr-redeem').addEventListener('submit', redeem);
 
 if (typeof api.onAccount === 'function') api.onAccount(() => load());
 if (typeof api.onReviews === 'function') api.onReviews(() => load());

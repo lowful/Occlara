@@ -258,6 +258,12 @@ dates (`test:usage`).
   only for a whole 1 to 500 that `profile.isBuyUrl` passes, never mid match.
   `PROFILE_PLANS` (invoke): `occlara.app/#pricing`, never mid match. The
   account's view carries `games` (`profile.gamesState`) for the page's hero.
+  Gifts (8.8, accounts.md "Gifts"): `PROFILE_GIFT` (invoke, an offer id)
+  opens `occlara.app/buy?gift=<offer>` only as `gifts.isGiftBuyUrl` passes it,
+  `PROFILE_REDEEM` (invoke, the text pasted) redeems a gift link or code on
+  the signed in account and answers `{ ok, said }`, `PROFILE_GIFT_COPY`
+  (invoke, a gift id) copies the link main holds for a gift this account
+  bought. All three answer nothing mid match or sealed.
 - `OPEN_UPGRADE` and `OPEN_ACCOUNT` (send): occlara.app/pricing and
   occlara.app/account, opened by main; `OPEN_PURCHASE` with 'signup' is
   "Create a free account".

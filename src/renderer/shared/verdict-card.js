@@ -15,12 +15,15 @@
  * its tints. A token that still reads as a var() is never handed over; the
  * fallback beside it is, and every fallback is the token's own value.
  *
- * WHAT IT DRAWS, AND NOTHING ELSE: four corner brackets, the crescent from its
- * path (square, never stretched), VERDICT, the map, score and result (League's
- * champion and the game's length), the letter AND the number out of 100 with
- * PROVISIONAL above it when it is, the one reason, up to four numbers (one the
- * review does not have is left out, never drawn as "--"), the agent and mode,
- * occlara.app as typed, and the date. No Riot ID, the player's own included,
+ * WHAT IT DRAWS, AND NOTHING ELSE: four corner brackets, the character's icon
+ * (a bundled file, left out when there is none) with the agent and mode beside
+ * it, the map, score and result (League's champion and the game's length),
+ * the letter AND the number out of 100 with PROVISIONAL above it when it is,
+ * the one standout number with its line (verdict.js standout, 8.7.x, where
+ * the reason was), up to four numbers (one the review does not have is left
+ * out, never drawn as "--"), the crescent from its path (square, never
+ * stretched) beside occlara.app as typed, and the date. No VERDICT word since
+ * 8.7.x. No Riot ID, the player's own included,
  * and no other player's name: the Verdict has no field for one, and a string
  * with a '#' in it is not drawn whatever brought it.
  *
@@ -74,6 +77,8 @@
       return {
         ground: tok('--paper', '#E9EBF0'), ink, ink2: tok('--paper-ink-2', '#484A4E'), ink3: tok('--paper-ink-3', '#636568'),
         line: tok('--paper-line', 'rgba(10, 11, 14, 0.14)'), bracket: tok('--paper-ink-2', '#484A4E'),
+        // The icon's tile: the paper's own line, filled.
+        tile: tok('--paper-line', 'rgba(10, 11, 14, 0.14)'),
         tone: () => ink,
       };
     }
@@ -81,6 +86,7 @@
     return {
       ground: tok('--bg', '#0A0B0E'), ink, ink2: tok('--text-dim', '#A1A1A6'), ink3: tok('--text-mute', '#808086'),
       line: tok('--line', 'rgba(255, 255, 255, 0.09)'), bracket: tok('--text-dim', '#A1A1A6'),
+      tile: tok('--bg-2', '#0F1116'),
       tone: (t) => (t === 'good' ? tok('--good', '#52C88A') : t === 'warn' ? tok('--warn', '#D9A441')
         : t === 'bad' ? tok('--bad', '#E8636F') : ink),
     };
@@ -130,6 +136,58 @@
     ctx.moveTo(x + w - len, y + o); ctx.lineTo(x + w - o, y + o); ctx.lineTo(x + w - o, y + len);
     ctx.moveTo(x + w - o, y + h - len); ctx.lineTo(x + w - o, y + h - o); ctx.lineTo(x + w - len, y + h - o);
     ctx.moveTo(x + len, y + h - o); ctx.lineTo(x + o, y + h - o); ctx.lineTo(x + o, y + h - len);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /*
+   * THE CHARACTER'S ICON (8.7.x): the agent or the champion the player used,
+   * a bundled file under assets/ (shared/agent-icons.js names it), loaded
+   * from this script's own folder, so the review page and any page that links
+   * the script find the same file. Same origin as the page, so the canvas is
+   * never tainted and Save still works. A path of any other shape is never
+   * asked for, and one that fails to load leaves the slot out.
+   */
+  const ICON_PATH = /^(?:valorant\/agents|lol\/champions)\/[A-Za-z0-9]+\.png$/;
+  const HERE = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) || '';
+
+  /** The icon's URL, or null for a path that is not one of the bundled icons'. */
+  function iconUrl(icon) {
+    if (typeof icon !== 'string' || !ICON_PATH.test(icon)) return null;
+    try { return new URL(`../../../assets/${icon}`, HERE || document.baseURI).href; } catch (e) { return null; }
+  }
+
+  /** The icon loaded as an image, or null; never rejects. */
+  function loadIcon(icon) {
+    const url = iconUrl(icon);
+    if (!url || typeof Image === 'undefined') return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img.naturalWidth > 0 ? img : null);
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+
+  /** The icon in a rounded tile at (x, y), `size` square, on a quiet ground of its own. */
+  function portrait(ctx, img, x, y, size, ground, edge) {
+    const r = size * 0.18;
+    const shape = () => {
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, size, size, r);
+      else ctx.rect(x, y, size, size);
+    };
+    ctx.save();
+    shape();
+    ctx.fillStyle = ground;
+    ctx.fill();
+    ctx.clip();
+    ctx.drawImage(img, x, y, size, size);
+    ctx.restore();
+    ctx.save();
+    shape();
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
   }
@@ -224,8 +282,9 @@
   /**
    * Draw a Verdict (verdict.js of()) into a new canvas, synchronously: call
    * ready() first, or use render(), so the faces are loaded.
-   * @param v     { title, right, letter, score, provisional, reason, stats: [[label, value]], sub, at }
-   * @param opts  { size: 'card' | 'post' | 'discord', paper: false for the dark ground }
+   * @param v     { title, right, letter, score, provisional, stat: { value, label }, stats: [[label, value]], sub, icon, at }
+   * @param opts  { size: 'card' | 'post' | 'discord', paper: false for the dark ground,
+   *                icon: the character's image, loaded (render() loads it), or none }
    */
   function draw(v, opts) {
     const o = opts || {};
@@ -251,11 +310,26 @@
     ctx.fillRect(0, 0, W, H);
     brackets(ctx, 12, 12, W - 24, H - 24, 16, 1.5, P.bracket);
 
-    // The top row: the mark and VERDICT; the map, the score and the result on
-    // the right. The crescent's ink starts 21 of its 120 in, so the mark is
-    // drawn that much left to stand on the margin the letter and reason share.
-    mark(ctx, pad - 14 * (21 / 120), 33, 14, P.ink);
-    t.mono('Verdict', pad + 20, 45, 11, P.ink);
+    // The top row (8.7.x): the character's icon, then the agent and mode (the
+    // role and mode for League) in ink, and the map, the score and the result
+    // on the right. No VERDICT any more: the crescent signs the bottom row,
+    // beside the address. Without an icon the line starts on the margin.
+    const icon = o.icon && o.icon.naturalWidth !== 0 ? o.icon : null;
+    const iconPx = size === 'discord' ? 30 : 36;
+    const rightW = t.mono(v.right, 0, 0, 11, null);
+    let subX = pad;
+    if (icon) {
+      // Centred on the line's capitals, which stand about 8 above its baseline.
+      portrait(ctx, icon, pad, 41 - iconPx / 2, iconPx, P.tile, P.line);
+      subX = pad + iconPx + 12;
+    }
+    // The left line never runs into the right one: the mode goes first, then the line.
+    const room = W - pad - rightW - 16 - subX;
+    const parts = clean(v.sub).split(' · ').filter(Boolean);
+    let sub = parts.join(' · ');
+    if (t.mono(sub, 0, 0, 11, null) > room && parts.length > 1) sub = parts[0];
+    if (t.mono(sub, 0, 0, 11, null) > room) sub = '';
+    t.mono(sub, subX, 45, 11, P.ink);
     t.mono(v.right, W - pad, 45, 11, P.ink3, 'right');
 
     /** The letter, then the number out of 100: the colour is never the only signal. */
@@ -272,8 +346,28 @@
       // Just above the number it qualifies: Geist's figures stand 0.71 of the size.
       if (v.provisional) t.mono('Provisional', nx, base - spx * 0.71 - 12, 10, P.ink3);
     };
-    const reasonLines = (px, maxW, maxLines, y, lead) => {
-      t.wrap(v.reason, px, 500, maxW, maxLines).forEach((l, i) => t.sans(l, pad, y + i * lead, px, 500, P.ink2, 0));
+    /*
+     * The standout under the grade (verdict.js standout), where the reason
+     * was: its value large in ink, its line beside it on the same baseline in
+     * the reason's old voice, or under the value when it does not fit beside
+     * it. No standout, no line.
+     */
+    const standout = (y, vpx, lpx, maxW, lead) => {
+      const s = v.stat && typeof v.stat === 'object' ? v.stat : null;
+      const value = s ? clean(s.value) : '';
+      const label = s ? clean(s.label) : '';
+      if (!value || !label) return;
+      const vm = t.sans(value, 0, y, vpx, 600, null, F.display);
+      const vx = pad + vm.left;
+      t.sans(value, vx, y, vpx, 600, P.ink, F.display);
+      const gap = vpx * 0.35;
+      const beside = maxW - vm.width - gap;
+      const one = t.wrap(label, lpx, 500, beside, 1);
+      if (one.length === 1 && !one[0].endsWith('…') && one[0] === label) {
+        t.sans(label, vx + vm.width + gap, y, lpx, 500, P.ink2, 0);
+        return;
+      }
+      t.wrap(label, lpx, 500, maxW, 2).forEach((l, i) => t.sans(l, pad, y + lead * (i + 1), lpx, 500, P.ink2, 0));
     };
     /** The numbers in one row of columns, each as wide as it needs: from x1 (`left`) or ending at it. Its left edge. */
     const statRow = (x1, y, px, gap, left) => {
@@ -301,32 +395,30 @@
     };
 
     if (size === 'post') {
-      // 432 by 540: stacked, the grade large, the reason in up to three lines.
+      // 432 by 540: stacked, the grade large, the standout under it.
       gradeBlock(250, 160);
-      reasonLines(22, W - pad * 2, 3, 298, 30);
+      standout(318, 40, 18, W - pad * 2, 26);
       ctx.fillStyle = P.line;
       ctx.fillRect(pad, 392, W - pad * 2, 1);
       statRow(pad, 426, 20, 30, true);
-      t.mono(v.sub, pad, 486, 10, P.ink3);
     } else if (size === 'discord') {
       // 480 by 251.2: the grade on the left, the numbers two by two on the
-      // right. The grade sits high enough that a reason of two lines clears
-      // the bottom row.
+      // right, the standout under the grade. The grade sits high enough that
+      // a standout whose line falls under its value clears the bottom row.
       gradeBlock(140, 92);
-      reasonLines(15, 224, 2, 172, 20);
-      const x0 = W - pad - 178;
-      statGrid(x0, 92, 18, 104);
-      t.mono(v.sub, x0, stats.length ? 92 + Math.ceil(stats.length / 2) * 52 : 140, 10, P.ink3);
+      standout(180, 24, 13, 224, 17);
+      statGrid(W - pad - 178, 104, 18, 104);
     } else {
       // 634.4 by 400: the grade on the left, the numbers in a row on the right.
       gradeBlock(226, 112);
-      reasonLines(15, 300, 2, 262, 21);
-      const x0 = statRow(W - pad, 168, 18, 26, false);
-      if (x0 === null) t.mono(v.sub, W - pad, 262, 10, P.ink3, 'right');
-      else t.mono(v.sub, x0, 262, 10, P.ink3);
+      standout(276, 30, 15, 300, 21);
+      statRow(W - pad, 186, 18, 26, false);
     }
-    // The bottom row: the address as typed, the date on the right.
-    t.mono('occlara.app', pad, H - 32, 10, P.ink3, 'left', true);
+    // The bottom row: the crescent and the address as typed, the date on the
+    // right. The crescent's ink starts 21 of its 120 in, so the mark is drawn
+    // that much left to stand on the margin the letter shares.
+    mark(ctx, pad - 11 * (21 / 120), H - 32 - 9.5, 11, P.ink2);
+    t.mono('occlara.app', pad + 16, H - 32, 10, P.ink3, 'left', true);
     const day = dateLabel(v.at);
     if (day) t.mono(day, W - pad, H - 32, 10, P.ink3, 'right');
     ctx.restore();
@@ -345,9 +437,10 @@
     }
   }
 
-  /** The faces loaded, then the image drawn. */
+  /** The faces and the character's icon loaded, then the image drawn. */
   function render(v, opts) {
-    return ready().then(() => draw(v, opts));
+    return Promise.all([ready(), loadIcon(v && v.icon)])
+      .then(([, icon]) => draw(v, { ...(opts || {}), icon }));
   }
 
   /** The image as a PNG blob. */
@@ -391,7 +484,7 @@
     }
   }
 
-  const api = { draw, render, ready, save, copy, fileName, dateLabel, palette, fonts, SIZES, SCALE, MARK };
+  const api = { draw, render, ready, save, copy, fileName, dateLabel, palette, fonts, iconUrl, loadIcon, SIZES, SCALE, MARK, ICON_PATH };
   if (typeof window !== 'undefined') window.VerdictCard = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

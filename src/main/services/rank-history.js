@@ -51,6 +51,16 @@ class RankHistory {
     this.links++;
   }
 
+  /**
+   * The history held for `riotId`, whatever its age, with no read: what the
+   * rank band sent with a review is derived from (src/shared/rank-band.js).
+   * Null for another Riot ID or nothing held.
+   */
+  held(riotId) {
+    const id = String(riotId || '').trim();
+    return id && this.cache.riotId === id && this.cache.data ? this.cache.data : null;
+  }
+
   /** Whether a link came since the last read past both caches. */
   stale() {
     return this.links > this.followed;

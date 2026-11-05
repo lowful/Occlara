@@ -70,6 +70,10 @@ const CHANNELS = {
   PROFILE_GET:      'profile:get',       // () → { hero, signedIn, buy, play, plans } (profile.js build) | null mid match
   PROFILE_BUY:      'profile:buy',       // (n) → { ok } opens occlara.app/buy?games=n in the browser, n a whole 1 to 500, never mid match
   PROFILE_PLANS:    'profile:plans',     // () → { ok } opens occlara.app/#pricing in the browser, never mid match
+  // Gifts (8.8, gifts.js): the gift checkout, redeeming a link or code, and copying a bought gift's link, all main's, never mid match.
+  PROFILE_GIFT:     'profile:gift',      // (offer) → { ok } opens occlara.app/buy?gift=<offer> in the browser, only gifts.isGiftBuyUrl
+  PROFILE_REDEEM:   'profile:redeem',    // (text) → { ok, said } redeems a pasted link or code on the signed in account
+  PROFILE_GIFT_COPY: 'profile:giftCopy', // (id) → { ok } copies the link of a gift this account bought, only an occlara.app/gift/ one
   // The community (src/main/ipc/community.js): the Discord invite, opened by
   // main only when the URL is exactly config.js DISCORD_URL, never mid match
   // or sealed, and the What's new page's changelog (src/shared/changelog.js).

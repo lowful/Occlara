@@ -8,7 +8,7 @@
  * verdictOf), the share image draws it (renderer/shared/verdict-card.js), and
  * test:verdict builds it from the fixtures.
  *
- *   { game, title, right, letter, score, provisional, reason, stats, sub, at }
+ *   { game, title, right, letter, score, provisional, reason, stat, stats, sub, icon, at }
  *
  * THE ONE REASON IS COUNTED, NEVER WRITTEN. It is the review's own top entry
  * (insights.js, every number in it arithmetic): the first strength for an S or
@@ -28,6 +28,8 @@
  * ONE GAME'S VERDICT. A review is Valorant's or League's by its kind, and one
  * of neither (a retired game's) has no Verdict, never another game's.
  */
+
+const { iconOf } = require('./agent-icons');
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
 const times = (n) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
@@ -143,6 +145,100 @@ function reason(review) {
   return null;
 }
 
+/*
+ * THE STANDOUT (8.7.x): the one number the share image shows under the grade,
+ * where the reason was. Counted from the review's own record, never the
+ * model's, in a fixed order, the first that holds wins:
+ *
+ *   Valorant, from the rounds Riot's record verified (round.riot):
+ *     1. an ace or a four kill round, every round at the most named
+ *     2. a clutch won, the most enemies, the earliest of a tie
+ *     3. a three kill round
+ *     4. first kills of the round, two or more
+ *   League, from the scoreline:
+ *     1. CS per minute, 6 or more over a game of five minutes or more, never
+ *        for a support, whose job is not the wave
+ *     2. a KDA of 3 or more
+ *   Then the calm fallback, the same arithmetic for any match: kills per death
+ *   (Valorant) or the KDA (League), and a game with no deaths says so. With no
+ *   numbers at all there is no standout, and the image leaves the line out.
+ *
+ * { value, label }: a short value drawn large and a finished line beside it.
+ */
+const ratio = (a, b) => (Math.round((a / b) * 100) / 100).toFixed(2);
+
+function valorantStandout(r) {
+  const rows = (Array.isArray(r.rounds) ? r.rounds : []).filter((x) => x && x.riot && typeof x.n === 'number');
+  const killsOf = (x) => (typeof x.riot.kills === 'number' ? x.riot.kills : 0);
+  const top = rows.reduce((m, x) => Math.max(m, killsOf(x)), 0);
+  // Every round at the most, so a second one is never hidden behind the first.
+  const where = (k) => {
+    const ns = rows.filter((x) => killsOf(x) === k).map((x) => x.n);
+    return ns.length === 1 ? `round ${ns[0]}` : ns.length === 2 ? `rounds ${ns[0]} and ${ns[1]}` : `each of ${ns.length} rounds`;
+  };
+  // A Sage revive can make six: the count is said as it was, never rounded down to five.
+  // It can also make five kills that are not all five enemies, so a round is an
+  // ace only when its kill feed shows the player killing five different enemy
+  // agents (va, valorant-verify.js killFeedOf). A round without that proof is
+  // its count, 5K, never an ace by its number alone.
+  const isAce = (x) => {
+    const feed = Array.isArray(x.riot.feed) ? x.riot.feed : (Array.isArray(x.feed) ? x.feed : []);
+    const victims = new Set(feed.filter((k) => k && k.by === 'me' && k.on === 'enemy' && typeof k.va === 'string' && k.va)
+      .map((k) => k.va.toLowerCase()));
+    return victims.size >= 5;
+  };
+  if (top >= 5) {
+    const ace = rows.some((x) => killsOf(x) === top && isAce(x));
+    return { value: ace ? 'Ace' : `${top}K`, label: `${top === 5 ? 'Five' : top} kills in ${where(top)}` };
+  }
+  if (top === 4) return { value: '4K', label: `Four kills in ${where(4)}` };
+  const clutch = rows.filter((x) => x.riot.clutch && x.riot.clutch.won === true && num(x.riot.clutch.vs) !== null && x.riot.clutch.vs >= 1)
+    .reduce((best, x) => (!best || x.riot.clutch.vs > best.riot.clutch.vs ? x : best), null);
+  if (clutch) return { value: `1v${clutch.riot.clutch.vs}`, label: `Clutch won in round ${clutch.n}` };
+  if (top === 3) return { value: '3K', label: `Three kills in ${where(3)}` };
+  const first = rows.filter((x) => x.riot.firstKill === true).length;
+  if (first >= 2) return { value: String(first), label: 'First kills of the round' };
+  return null;
+}
+
+function lolStandout(r) {
+  const sl = r.scoreline || {};
+  const game = r.game || {};
+  const cs = num(sl.cs);
+  const sec = num(game.durationSec);
+  const support = /^(support|utility)$/i.test(String(game.role || '').trim());
+  if (!support && cs !== null && sec !== null && sec >= 300) {
+    const perMin = Math.round((cs / (sec / 60)) * 10) / 10;
+    if (perMin >= 6) return { value: perMin.toFixed(1), label: 'CS per minute' };
+  }
+  const [k, d, a] = [num(sl.kills), num(sl.deaths), num(sl.assists)];
+  if (k !== null && d !== null && a !== null && d > 0 && (k + a) / d >= 3) return { value: ratio(k + a, d), label: 'KDA ratio' };
+  return null;
+}
+
+/** The calm fallback: kills per death, or League's KDA, and a game with no deaths says so. */
+function fallbackStandout(r, lol) {
+  const sl = r.scoreline || {};
+  const [k, d, a] = [num(sl.kills), num(sl.deaths), num(sl.assists)];
+  if (k === null || d === null) return null;
+  if (lol) {
+    if (a === null) return null;
+    if (d === 0) return k + a > 0 ? { value: String(k + a), label: 'Kills and assists without dying' } : null;
+    return { value: ratio(k + a, d), label: 'KDA ratio' };
+  }
+  if (d === 0) return k > 0 ? { value: String(k), label: 'Kills without dying' } : null;
+  return { value: ratio(k, d), label: 'Kills per death' };
+}
+
+/** The one standout number of a review (above), or null. */
+function standout(review) {
+  const r = review || {};
+  if (r.kind !== 'valorant' && r.kind !== 'lol') return null;
+  const lol = r.kind === 'lol';
+  const s = (lol ? lolStandout(r) : valorantStandout(r)) || fallbackStandout(r, lol);
+  return s && said(s.value) && said(s.label) ? { value: s.value, label: s.label } : null;
+}
+
 /** [label, value] for each number the review has; an unknown one is left out, never shown as "--". */
 function statsOf(pairs) {
   return pairs.filter(([, value]) => value !== null && value !== undefined).map(([label, value]) => [label, value]);
@@ -178,12 +274,17 @@ function of(review) {
     score,
     provisional: !!g.provisional,
     reason: reason(r),
+    // The image's line under the grade (standout, above). The page keeps the reason.
+    stat: standout(r),
     stats: statsOf(lol
       ? [['K/D/A', kda], ['CS', num(sl.cs)], ['CS at 10', num(sl.csAt10)], ['Ward', num(sl.ward)]]
       : [['K/D/A', kda], ['ACS', num(sl.acs)], ['ADR', num(sl.adr)], ['HS', hs !== null ? `${hs}%` : null]]),
     sub: join(lol ? [game.role, game.mode] : [game.agent, game.mode]),
+    // The character the player used, as a path under assets/ the image draws
+    // (agent-icons.js), or null, and the image leaves the slot out.
+    icon: iconOf(lol ? 'lol' : 'valorant', lol ? game.champion : game.agent),
     at: num(r.at),
   };
 }
 
-module.exports = { of, reason, firstClause, LINES, CLAUSE_CUT };
+module.exports = { of, reason, standout, firstClause, LINES, CLAUSE_CUT };

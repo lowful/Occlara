@@ -36,6 +36,8 @@
  *                                    // (death-forensics.js CAUSES), served
  *                                    // only when the context carries one
  *     tier:       'core' | 'advanced' // core is the default
+ *     ranks:      ['silver_gold', ...] // the rank bands the note is for
+ *                                    // (RANK_BANDS), none means every band
  *     source:     { kind, topic }  // required on an imported note, never a name
  *     weight:     1..3             // base priority (default 1)
  *   }
@@ -81,9 +83,8 @@ const PLAYBOOK = [
   { situations: ['clutch'], text: 'In a clutch, isolate a duel at a time and play the timer for your side, because on defense before a plant they have to come to you while after a plant the defenders are the ones under the clock.', weight: 3 },
   { situations: ['clutch'], text: 'Solo means nobody can trade you, only take fights you choose, play the time, and make them walk into your crosshair.', weight: 3 },
   { situations: ['clutch'], text: 'In a 1vX play for information first, sound and the minimap tell you which duel is actually isolated.', weight: 2 },
-  { text: 'Patterns repeat until punished, if they hit the same site twice in a row, expect it again and pre stack util there.', weight: 2 },
+  { ranks: ['plat_diamond', 'asc_plus'], text: 'Patterns repeat until punished, if they hit the same site twice in a row, expect it again and pre stack util there.', weight: 2 },
   { text: 'The first 15 seconds set the map, take your space early, taking it late costs util or blood.', weight: 1 },
-  { text: 'Change your pace between rounds, a fast round after three slow ones catches rotations sleeping.', weight: 1 },
   { text: 'Call your own death instantly, where you died and how many, it is the most valuable comm you will ever give.', weight: 2 },
   { text: 'Silence is a comm too, keep the channel clear during a teammate clutch.', weight: 1 },
   { text: 'Judge your games by decisions, not kills, clean calls in a loss teach more than lucky frags in a win.', weight: 1 },
@@ -97,14 +98,12 @@ const PLAYBOOK = [
   { text: 'Aim at the head, not the chest, because one headshot ends a duel that would take several body shots.', weight: 2 },
   { text: 'If you lost a fair fight, check whether you were still moving when you fired, then your crosshair height, then whether you sprayed or crouched, because slow flicks are rarely the cause.', weight: 1 },
   { text: 'Do not ADS a rifle in close fights, hip fire is faster and just as accurate up close.', weight: 1 },
-  { text: 'Warm up before queueing, 10 minutes of deathmatch on counter strafe headshots beats an hour of mindless fragging.', weight: 1 },
 
   // ── movement and peeking ────────────────────────────────────────────────
   { text: 'Jiggle to find out who is there, wide swing only when you know a single enemy is on the angle, and once a jiggle shows a body either commit or leave, because lingering half exposed is the easiest kill.', weight: 2 },
   { text: 'Peek with a plan, know your cover and your exit before you step out of safety.', weight: 1 },
   { text: 'Clear close corners before long angles, the close enemy kills you first.', weight: 2 },
   { text: 'Use peekers advantage, the swinger who comes from a step back sees the holder first, so swing with intent from off the wall instead of creeping into view.', weight: 1 },
-  { text: 'Do not crouch out of habit mid duel, because it slows your strafe and keeps a still head in front of them, crouch only as a deliberate trick.', weight: 1 },
   { text: 'Jump spot only for info you can call out, you cannot shoot accurately in the air.', weight: 1 },
   { text: 'Fall back through your util, a retreat covered by a smoke or flash is a reset, a naked retreat is a free kill for them.', weight: 1 },
   { text: 'Hold angles at different depths each round, close one round and far the next, never be standing where you died.', weight: 2 },
@@ -115,7 +114,7 @@ const PLAYBOOK = [
   { text: 'Throw util for a purpose you can name, info, space, delay, or a kill, never just because it is up.', weight: 2 },
   { text: 'Combo your utility, a flash into a swing, a stun into an entry, solo util is half value.', weight: 1 },
   { text: 'Respect enemy util timings, most teams burn util early in the round, play patient through it then take the space.', weight: 1 },
-  { text: 'Bait enemy util before committing, a fake peek that pulls their flash makes the real swing free.', weight: 1 },
+  { ranks: ['plat_diamond', 'asc_plus'], text: 'Bait enemy util before committing, a fake peek that pulls their flash makes the real swing free.', weight: 1 },
 
   // ── info, comms, minimap ────────────────────────────────────────────────
   { text: 'Call what you see the instant you see it, one enemy spotted changes the whole round for your team.', weight: 2 },
@@ -129,7 +128,7 @@ const PLAYBOOK = [
   // ── sound ───────────────────────────────────────────────────────────────
   { text: 'Play off sound, running steps give a player away well before you see them, silence means shift walkers or nobody.', weight: 1 },
   { text: 'Your reload is a callout to the enemy, reload behind cover, never in the open after a kill.', weight: 2 },
-  { text: 'Fake sound cues work, run a few loud steps one way then shift walk the other to sell a rotation.', weight: 1 },
+  { ranks: ['plat_diamond', 'asc_plus'], text: 'Fake sound cues work, run a few loud steps one way then shift walk the other to sell a rotation.', weight: 1 },
   { text: 'Listen for ability audio, a plant, a teleport, an ult voice line, each is a free minimap ping in your head.', weight: 1 },
 
   // ── attack ──────────────────────────────────────────────────────────────
@@ -137,7 +136,7 @@ const PLAYBOOK = [
   { side: 'attack', text: 'Trade your entry, when your duelist swings you swing within one second, not after they die.', weight: 3 },
   { side: 'attack', text: 'Use util before contact, flash or smoke the angle you fear, then peek off your own utility.', weight: 3 },
   { side: 'attack', text: 'Save one smoke or flash for the post plant, a naked post plant loses to any organized retake.', weight: 2 },
-  { side: 'attack', text: 'If all the noise is on one site, the opposite lurk gets a free flank or a free read, use the weak side.', weight: 1 },
+  { side: 'attack', ranks: ['plat_diamond', 'asc_plus'], text: 'If all the noise is on one site, the opposite lurk gets a free flank or a free read, use the weak side.', weight: 1 },
   { side: 'attack', text: 'Push tempo through space your team already owns, do not re clear what is already held.', weight: 1 },
   { side: 'attack', text: 'If the entry dies untraded, regroup and reset the hit, do not trickle one by one into the same angle.', weight: 2 },
   { side: 'attack', text: 'Lurk with purpose, cut the rotation or catch the flank exactly when your team hits, not while they wait.', weight: 1 },
@@ -166,7 +165,7 @@ const PLAYBOOK = [
   { side: 'defense', text: 'Take one aggressive info peek at round start only with an escape planned and a teammate covering the fall back.', weight: 1 },
   { side: 'defense', text: 'A quiet early round means a default or a late hit, keep your util and do not burn smokes at nothing.', weight: 1 },
   { side: 'defense', text: 'Retreat off site before you are surrounded, alive behind them beats dead on them, then retake with your team.', weight: 1 },
-  { side: 'defense', text: 'Once they fully commit to the far site, a timed flank through their entry path arrives behind the post plant, go with a call, not alone.', weight: 2 },
+  { side: 'defense', ranks: ['plat_diamond', 'asc_plus'], text: 'Once they fully commit to the far site, a timed flank through their entry path arrives behind the post plant, go with a call, not alone.', weight: 2 },
   { side: 'defense', text: 'Anchor with your gun on the choke and your feet near cover, holding from open ground wastes the defender advantage.', weight: 1 },
   { side: 'defense', text: 'After your team gets the opening pick, tighten the map as five, a man advantage grows by denying info, not by everyone hunting.', weight: 1 },
   { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Retake as a unit behind util, flash or smoke the planter cover and swing together, never one by one.', weight: 3 },
@@ -193,7 +192,7 @@ const PLAYBOOK = [
   { situations: ['deathstreak'], text: 'Dying first means you are taking first contact alone, wait for a teammate in trade range before you peek.', weight: 3 },
   { situations: ['deathstreak'], text: 'Reset the tilt, play one simple round with your team, no hero plays, just trades and discipline.', weight: 2 },
   { situations: ['deathstreak'], text: 'Change WHO you play off of, shadow the teammate who is winning fights and trade for them.', weight: 2 },
-  { situations: ['winstreak'], text: 'Stay disciplined on a win streak, because streaks end on overconfident dry peeks, and still change your tempo from round to round.', weight: 2 },
+  { situations: ['winstreak'], text: 'Stay disciplined on a win streak and keep playing what is winning until they show an answer, because streaks end on overconfident dry peeks.', weight: 2 },
   { situations: ['winstreak'], text: 'A losing team forces or rushes out of impatience, hold your discipline and punish the desperation.', weight: 1 },
   { text: 'Mistakes are data, name what killed you in one sentence, fix that one thing next round, then move on.', weight: 1 },
   { text: 'Do not relive the last round during this round, reviewing one mid fight is how you lose two.', weight: 1 },
@@ -219,7 +218,9 @@ const PLAYBOOK = [
   { weapons: ['spectre', 'stinger'], text: 'Your SMG wins inside rooms and around tight corners, take the close fight there and leave the long angles to rifles.', weight: 2 },
   { weapons: ['judge', 'bucky', 'shorty'], text: 'A shotgun owns doorways and tight corners, hold the pixel where they funnel and take one body per shell.', weight: 3 },
   { weapons: ['judge', 'bucky', 'shorty'], text: 'Never hold open ground with a shotgun, hide close and let them walk past your corner.', weight: 2 },
-  { weapons: ['sheriff'], text: 'Your pistol one taps heads at close and mid range, aim head height only and refuse spray fights.', weight: 2 },
+  { weapons: ['sheriff'], text: 'Your pistol one taps heads at close and mid range, so keep your crosshair at head height and refuse spray fights, and only against a player with no armour, as on the pistol round, is a second body hit also a kill.', weight: 2,
+    source: { kind: 'computed', topic: 'sheriff one tap', numbers: 'valorant-api.com damage table: Sheriff head 159.5 and body 55 to 30 m',
+      claims: [{ weapon: 'sheriff', part: 'head', armor: 'heavy', hits: 1, band: 'near' }, { weapon: 'sheriff', part: 'body', armor: 'none', hits: 2, band: 'near' }] } },
   { weapons: ['sheriff'], text: 'A save round with your pistol wants off angles and single peeks, take one pick then immediately relocate.', weight: 2 },
   { weapons: ['guardian'], text: 'Your rifle wins standing still at range, take the long angle, tap heads, and back off when they close distance.', weight: 2 },
   { weapons: ['marshal'], text: 'Your sniper is an eco Operator, take one long jiggle pick from range then rotate away before they close.', weight: 2 },
@@ -245,7 +246,9 @@ const PLAYBOOK = [
   { roles: ['controller'], text: 'Keep one smoke in reserve for the post plant or retake, an empty controller loses late rounds.', weight: 2 },
   { roles: ['controller'], text: 'Smoke for the plan, ask for the call before barriers drop so your first smokes match the hit.', weight: 1 },
   { roles: ['initiator'], text: 'Recon before the swing and act on your own info within seconds, scans expire fast.', weight: 2 },
-  { roles: ['initiator'], text: 'Flash for your teammate swing, not your own peek, a flash nobody swings on is wasted util.', weight: 2 },
+  // Plat and up only (8.8): at Gold and below a flash is for your own fight or
+  // for one teammate who asked (the consensus, playbook.json's own band note).
+  { roles: ['initiator'], ranks: ['plat_diamond', 'asc_plus'], text: 'Flash for your teammate swing, not your own peek, a flash nobody swings on is wasted util.', weight: 2 },
   { roles: ['initiator'], text: 'Fire the set piece then enter WITH your team, initiators who stay behind to watch die last for nothing.', weight: 1 },
   { roles: ['initiator'], text: 'Re gather info mid round, a second recon or drone at 40 seconds catches the rotation everyone missed.', weight: 1 },
   { roles: ['sentinel'], side: 'attack', text: 'The moment your team commits to a site, set your utility watching the flank, that is your job before your gun.', weight: 2 },
@@ -277,7 +280,7 @@ const PLAYBOOK = [
   { agents: ['Iso'], text: 'Isolate one enemy at a time, your kit rewards clean 1v1s, not spray downs into a crowd.', weight: 1 },
   { agents: ['Waylay'], text: 'Set your beacon before taking the aggressive angle, Refract is a free exit from any peek.', weight: 2 },
   { agents: ['Waylay'], text: 'Your dashes take space fast, but land behind cover, speed into open ground is a fast death.', weight: 1 },
-  { agents: ['Sova'], text: 'Learn one recon lineup per site and fire it before every hit, your team should never enter blind.', weight: 2 },
+  { agents: ['Sova'], text: 'Learn two or three recon lineups per map and fire the bolt as your team makes its last approach, so a teammate can shoot into the scan the moment it lands.', weight: 2 },
   { agents: ['Sova'], text: 'Walk your duelist in with the drone, tag the holder and let them swing on the dart.', weight: 1 },
   { agents: ['Sova'], text: 'Shock darts finish low enemies hiding behind cover, learn the basic two bounces before fancy lineups.', weight: 1 },
   { agents: ['Breach'], text: 'Flashpoint blinds your own team too, so count your swinger in and throw it through the wall ahead of them, not across their path.', weight: 2 },
@@ -334,7 +337,6 @@ const PLAYBOOK = [
   { maps: ['Split'], text: 'Split is close quarters, Spectres, shotguns, and off angles shine, and clear heaven on every site take.', weight: 1 },
   { maps: ['Split'], text: 'Split retakes arrive fast through ropes, a post plant that does not hold heaven dies to it.', weight: 1 },
   { maps: ['Icebox'], text: 'Icebox is vertical, clear high angles first and only take ziplines when someone covers the ride.', weight: 2 },
-  { maps: ['Icebox'], text: 'Plant behind cover on Icebox, open plants die to the long sightlines onto both sites.', weight: 1 },
   { maps: ['Icebox'], text: 'Kitchen and boiler decide Icebox rotations, mid control opens both sites at once.', weight: 1 },
   { maps: ['Breeze'], text: 'Breeze sightlines are long, rifles and Operators rule, do not force close range buys on gun rounds.', weight: 2 },
   { maps: ['Breeze'], text: 'Take space slowly on Breeze, the open ground punishes dry crosses, move behind util or not at all.', weight: 1 },
@@ -346,7 +348,6 @@ const PLAYBOOK = [
   { maps: ['Lotus'], text: 'Lotus has three sites, defense cannot hold all of them, read the lean and rotate off first contact.', weight: 1 },
   { maps: ['Sunset'], text: 'Sunset mid is the hinge, control it to threaten both sites and cut their rotations.', weight: 2 },
   { maps: ['Sunset'], text: 'Sunset sites are tight with strong close corners, clear with util, dry entries die to a shotgun every time.', weight: 1 },
-  { maps: ['Abyss'], text: 'You can fall off Abyss, mind the edges in fights and never strafe blind near the void.', weight: 2 },
   { maps: ['Abyss'], text: 'Abyss drops enable surprise rotations, but you cannot climb back up, drop only with a plan.', weight: 1 },
 
   // ── tempo and round structure ───────────────────────────────────────────
@@ -355,7 +356,7 @@ const PLAYBOOK = [
   { text: 'Default first means spreading out to touch three areas without dying, you are buying information with position, not looking for a fight.', weight: 2 },
   { side: 'attack', phase: 'active', text: 'Do not execute before your team is set, a site hit with two players in position and three still walking is five separate duels.', weight: 3 },
   { side: 'attack', text: 'Fast, default and slow are three different plans, pick one as a team, a half fast hit is the worst of all of them.', weight: 2 },
-  { side: 'attack', text: 'A fake only works if it costs them something, show yourself and burn one piece of util, then leave before you trade lives for the lie.', weight: 2 },
+  { side: 'attack', ranks: ['silver_gold', 'plat_diamond', 'asc_plus'], text: 'A fake only works if it costs them something, show yourself and burn one piece of util, then leave before you trade lives for the lie.', weight: 2 },
   { text: 'Tempo is a weapon, if you lost the last two rounds slow, the fast hit catches a defense that has settled into holding deep.', weight: 2 },
   { side: 'defense', text: 'Defense wins by delay, but take a safe pick when it is there, because every second you cost them is closer to the timer and a man advantage makes the retake easier.', weight: 3 },
   { side: 'defense', text: 'Give ground for free only where it costs them time, fight where you have a crossfire and fall back where you do not.', weight: 2 },
@@ -385,14 +386,13 @@ const PLAYBOOK = [
   { phase: 'active', text: 'If much of their team and their utility show on one side, call the rotate, but a couple of sightings is not proof the other side is thin, because it may be pressure meant to pull you.', weight: 3 },
   { phase: 'active', text: 'A round with no contact by mid clock means they are stacked or lurking, stop walking blind and force contact with util.', weight: 2 },
   { phase: 'active', text: 'Adapt to what you find, not to what you planned, the best players change site the moment the read says to.', weight: 2 },
-  { side: 'defense', phase: 'active', text: 'Do not rotate off one enemy sighting, one body can be the fake, rotate on committed contact or on the spike.', weight: 3 },
   { side: 'defense', phase: 'active', text: 'Rotate early or change to a retake plan, because arriving in the middle of the fight is just a free kill for them.', weight: 2 },
   { text: 'Lurking is only useful if it threatens something, sit where a rotation must walk past you, not in an empty corner.', weight: 2 },
   { text: 'Play off your teammates fights, when you hear their contact, that is the moment their attention is elsewhere, take your space then.', weight: 2 },
 
   // ── post plant and retake geometry ──────────────────────────────────────
   { phase: 'postplant', text: 'After the plant, time is on your side, so hold angles that make them come to you, and take a pick only when it keeps the numbers even, because the round is not won until the spike explodes.', weight: 3 },
-  { phase: 'postplant', text: 'Spread out post plant, two players in one spot die to one piece of util, spread means they have to win several fights.', weight: 3 },
+  { phase: 'postplant', ranks: ['plat_diamond', 'asc_plus'], text: 'After the plant hold a different angle from your nearest teammate, so a retaker has to check two directions at once, but stay within one swing of each other in a loose triangle where any one of you who takes a fight can be seen and traded by the other two, because two players on one side die to one flash and two players on islands die one at a time.', weight: 3 },
   { phase: 'postplant', text: 'Hold different distances from the spike post plant, one close to punish the defuse, one far to catch the entry.', weight: 2 },
   { phase: 'postplant', text: 'Watch the defuse for the halfway checkpoint, because a defender who reaches it usually steps off to meet your peek, so keep your crosshair on that exit and let the timer help you.', weight: 2 },
   { phase: 'postplant', text: 'Never all peek the same angle post plant, stagger your peeks so a lost duel does not lose the round.', weight: 2 },
@@ -579,6 +579,68 @@ function situationOf(ctx) {
   return { phase, side: sideKey, flags, agent, role, map, weapon, causes };
 }
 
+/*
+ * ── THE RANK BAND (8.8) ─────────────────────────────────────────────────────
+ *
+ * A note may carry `ranks`, the bands it is for (the same four keys as the
+ * client's src/shared/rank-band.js, which this file may not require). A client
+ * of 8.8 or later sends the player's band as `rankBand`; it is untrusted, so
+ * anything but one of the four keys is no band, and NO BAND IS TODAY'S
+ * RETRIEVAL BYTE FOR BYTE: rankAdjust answers 0 for every note, the loop below
+ * runs the same exclusions and draws the same jitter.
+ *
+ * With a band:
+ *   - a note whose LOWEST band is above the player's is excluded, so an
+ *     Ascendant micro decision never reaches a Gold player;
+ *   - a note narrowed to bands that include the player's scores +2 (a note
+ *     for all four bands is a note for everyone and gets nothing);
+ *   - a note for lower bands only is excluded for a higher player, unless the
+ *     player's own data shows the fundamental missing: a cause of their deaths
+ *     the note answers, or a death streak. A Diamond dying untraded on repeat
+ *     still hears the trade rule.
+ * The eight note cap, the reserve, and the agent, role, map and cause filters
+ * are untouched: the band only removes notes and moves scores.
+ */
+const RANK_BANDS = ['iron_bronze', 'silver_gold', 'plat_diamond', 'asc_plus'];
+const RANK_FIT = 2;
+const RANK_BELOW = 3;
+
+/** The band when it is one of the four keys, else null. */
+function validBand(x) {
+  return typeof x === 'string' && RANK_BANDS.includes(x) ? x : null;
+}
+
+/**
+ * How a note's `ranks` sit against the player's band: 'above' (its lowest band
+ * is higher), 'fit' (it lists the band), 'below' (its highest band is lower),
+ * or null (no ranks, no band, or a band between two it lists).
+ */
+function rankFit(note, band) {
+  const me = RANK_BANDS.indexOf(validBand(band));
+  if (me < 0 || !note || !Array.isArray(note.ranks)) return null;
+  const idx = note.ranks.map((r) => RANK_BANDS.indexOf(r)).filter((i) => i >= 0);
+  if (!idx.length) return null;
+  if (Math.min(...idx) > me) return 'above';
+  if (idx.includes(me)) return 'fit';
+  if (Math.max(...idx) < me) return 'below';
+  return null;
+}
+
+/**
+ * The score change the band makes, or null when the note is excluded.
+ * `shown` is whether the player's data shows the fundamental missing.
+ */
+function rankAdjust(note, band, shown) {
+  const fit = rankFit(note, band);
+  if (fit === 'above') return null;
+  if (fit === 'fit' && note.ranks.length < RANK_BANDS.length) return RANK_FIT;
+  // A note narrowed to lower bands only is excluded for a higher player unless
+  // their own data shows the fundamental missing. A score penalty alone let an
+  // agent and role tagged "in Gold and below" note outscore its Plat+ opposite.
+  if (fit === 'below') return shown ? 0 : null;
+  return 0;
+}
+
 /**
  * Retrieve the most relevant playbook notes for this exact situation.
  * Contradicting notes (wrong side, wrong phase, another agent's note, a gun
@@ -621,6 +683,8 @@ function retrieve(ctx, limit = 8, opts = {}) {
 
   // Solo clutch: notes built on living teammates are impossible right now.
   const solo = s.flags.has('clutch');
+  // The player's rank band, untrusted (validBand): none changes nothing.
+  const band = validBand(ctx && ctx.rankBand);
 
   for (const note of ALL) {
     // Exclusions: a tagged note never fires outside its tags.
@@ -634,6 +698,10 @@ function retrieve(ctx, limit = 8, opts = {}) {
     if (note.weapons && (!s.weapon || !note.weapons.some((w) => s.weapon.includes(w)))) continue;
     if (note.situations && !note.situations.some((f) => s.flags.has(f))) continue;
     if (note.cause && !note.cause.some((c) => s.causes.has(c))) continue;
+    // Above the player's band: never served. A cause note reaching here
+    // answers one of the player's own deaths, which is the data showing it.
+    const ranked = band ? rankAdjust(note, band, !!note.cause || s.flags.has('deathstreak')) : 0;
+    if (ranked === null) continue;
 
     // Score: specificity of the match, plus base weight, plus a tiny jitter so
     // near ties rotate between requests instead of always serving one order.
@@ -647,6 +715,7 @@ function retrieve(ctx, limit = 8, opts = {}) {
     if (note.roles)   score += 2;
     // A note that answers the death being discussed outranks general advice.
     if (note.cause)   score += 5;
+    score += ranked;
     score += Math.random() * 0.8;
 
     scored.push({ text: note.text, score, advanced: note.tier === 'advanced' });
@@ -693,4 +762,4 @@ function block(ctx, limit) {
 
 module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: () => ALL,
   roleOf: (agent) => ROLE_OF[String(agent || '').toLowerCase()] || null,
-  ADVANCED_SLOTS, STREAK_CORE_SLOTS };
+  ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust };

@@ -310,3 +310,50 @@ own refund handling needs nothing new. `npm run test:gamespurchase` runs the rea
 handler against `fake-billing.js` (whose two functions follow the SQL), and
 checks the SQL itself when `OCCLARA_SITE_DIR` or `OCCLARA_GAMES_SQL` finds it.
 Removing the games check makes its Pro licence checks fail.
+
+### Gifts (8.8), and their refund never reaches the licence either
+
+A gift is Pro or Max for someone else, a month or a year, at the plan's own
+price, a one time payment made by the site's `create-gift-checkout`, metadata
+`{ kind: 'gift', offer, user_id, from_name }` on the session and its payment
+intent. What it does on the recipient's account and the stacking rule are in
+accounts.md, "Gifts".
+
+**The mint.** `checkout.session.completed` (or async_payment_succeeded) of
+kind gift, paid, is held to what Stripe charged (`gifts.checkoutGift`): the
+offer's price exactly, usd (or the adaptive pricing conversion's usd), one
+line of quantity 1, a uuid buyer, a payment mode session. Anything else is
+logged `GIFT PURCHASE REFUSED` and answered 200. Then `gift_mint`, once per
+session (`gifts.ref` unique, and the code is made from the session id, so a
+redelivery is the same gift). A database error, gifts.sql not live, or
+`GIFT_CODE_SECRET` not set answers 500 and Stripe retries: the buyer paid.
+
+**The refund.** A full `charge.refunded` or any `charge.dispute.created` of a
+gift payment calls `void_gift(p_ref, 'refunded' | 'disputed')` and RETURNS,
+before any licence lookup, through the same check as games (`oneTimePaymentOf`:
+the kind on the charge, its payment intent, the checkout session of that
+intent, then `gift_of_ref` for a gift whose metadata were lost; a charge with
+an invoice is never one). So the buyer's own licence, plan, subscription and
+account are never touched, the customer fallback included. What it voids:
+
+- unredeemed: the link answers "refunded" and can never be redeemed;
+- redeemed and waiting (behind a paid plan or another gift): it never starts;
+- running: it ends now and the recipient's account goes back to what it had
+  (free, its free games untouched, never ended), and the next waiting gift
+  starts;
+- used up: marked void, nothing to take back (the time was spent).
+
+A refund that lands before the mint mints the gift first (when the metadata
+and the secret allow) and voids it, so the late mint makes nothing
+redeemable. A second refund event changes nothing. A partial refund does
+nothing. `void_gift` raises 40001 when the gift was redeemed between its first
+read and its lock, and Stripe's retry finds it redeemed and takes its time away.
+
+**NOT IN THIS REPO:** gifts.sql in the site's migrations, applied BEFORE this
+server deploys (until then every gift route answers 503 and a paid gift is
+retried by Stripe), `GIFT_CODE_SECRET` on Railway, and the site's
+`create-gift-checkout`. The Stripe endpoint needs no new event types: it
+already takes `checkout.session.completed`, `async_payment_succeeded`,
+`charge.refunded` and `charge.dispute.created`. `npm run test:gifts` runs the
+real handler and routes against `fake-gifts.js`; removing the gift check from
+the refund path makes its licence checks fail.

@@ -64,8 +64,8 @@ ok(p.label === 'Sample match', 'the proof is labelled "Sample match"', p.label);
 ok(/^[0-9a-f]{40}$/.test(p.commit) && typeof p.dirty === 'boolean', 'the proof is stamped with the git commit', p.commit);
 ok(p.window && p.window.width === 1280 && p.window.height === 800 && p.window.scale === 2, 'the proof names the window its pictures are of');
 const v = p.review && p.review.verdict;
-ok(v && v.letter === 'B' && v.score === '71' && v.out === '/100' && v.reason && v.result === 'VICTORY' && v.scoreline === '13 : 11',
-  'the Verdict is a B of 71 on a 13 : 11 victory with a reason', JSON.stringify(v));
+ok(v && v.letter === 'B' && v.score === '71' && v.out === '/100' && v.stat && v.stat.value && v.stat.label && v.result === 'VICTORY' && v.scoreline === '13 : 11',
+  'the Verdict is a B of 71 on a 13 : 11 victory with its standout', JSON.stringify(v));
 ok(v && v.stats.length >= 2 && v.stats.every((s) => s.value && s.label), "Riot's numbers are there, each a value and a label");
 const cats = p.review && p.review.grade.categories;
 ok(Array.isArray(cats) && cats.length === 4 && cats.every((c) => c.name && /^\d+$/.test(c.score) && c.evidence.length > 0),

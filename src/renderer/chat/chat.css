@@ -83,6 +83,29 @@ header h2 { font-size: 15px; font-weight: 600; }
 .typing i:nth-child(3) { animation-delay: 0.36s; }
 @keyframes tp { 0%,100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
 
+/* ── The player's clips in a reply ── */
+/* A reply with a clip is its paragraphs as their own blocks, a blank line's
+   room between them as pre-line gives, and each clip under the paragraph
+   that talks about it: a ghost capsule naming the round until it is clicked,
+   then the review's own clip player (clip-player.css). */
+.msg.coach.with-clips { white-space: normal; width: 78%; }
+.msg-para { margin: 0; white-space: pre-line; }
+.msg-para + .msg-para, .chat-clip + .msg-para { margin-top: 1.6em; }
+.chat-clip { margin-top: var(--space-3); max-width: 520px; }
+.chat-clip-open {
+  display: inline-flex; align-items: center; gap: var(--space-2); height: 34px; padding: 0 var(--space-4) 0 var(--space-3);
+  font-family: var(--font); font-size: 13px; font-weight: 500; line-height: 1; color: var(--text);
+  background: rgba(255,255,255,0.055); border: 1px solid var(--line-2); border-radius: var(--r-btn);
+  cursor: pointer; box-shadow: var(--hi), var(--drop);
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+.chat-clip-open svg { width: 14px; height: 14px; fill: currentColor; flex: none; }
+.chat-clip-open:hover { background: rgba(255,255,255,0.095); transform: translateY(-1px); box-shadow: var(--hi), var(--drop-hover); }
+.chat-clip-open:active { transform: translateY(0) scale(0.985); box-shadow: none; transition-duration: var(--t-press); }
+.chat-clip-open:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+.chat-clip-cap { margin: 0 0 var(--space-2); font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.chat-clip-cap.bad { color: var(--bad); }
+
 /* ── Composer: one capsule to write in, one capsule to send ── */
 .composer { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) 16px var(--space-4); border-top: 1px solid var(--line); flex: none; }
 #input {
@@ -111,4 +134,5 @@ header h2 { font-size: 15px; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   .msg, .chat-line { animation: none; }
   .typing i { animation: none; opacity: 0.7; }
+  .chat-clip-open, .chat-clip-open:hover { transition: none; transform: none; }
 }

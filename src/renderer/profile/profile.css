@@ -108,11 +108,37 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .pr-plan-games { font-size: 14px; color: var(--text-dim); }
 .pr-plan-act { display: flex; justify-content: flex-end; min-width: 96px; }
 
+/* ── Gifts (8.8): two offers, the redeem field, the gifts bought ───────── */
+.pr-body > .pr-sec:nth-child(5) { --i: 4; }
+.pr-gift-offers { display: inline-flex; flex-wrap: wrap; gap: var(--space-2); }
+.pr-gift {
+  display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
+  min-width: 180px; height: auto; min-height: 52px; padding: var(--space-2) var(--space-4); text-align: left;
+}
+.pr-gift-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.pr-gift-price { font-size: 12.5px; font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.pr-redeem { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; }
+.pr-redeem-label { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); margin: 0; }
+.pr-redeem-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.pr-redeem-code.input { flex: 1 1 280px; max-width: 420px; height: 38px; font: 500 13.5px var(--font-mono); letter-spacing: 0; }
+.pr-bought-wrap { display: flex; flex-direction: column; gap: var(--space-2); }
+.pr-gift-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.pr-gift-row {
+  display: grid; grid-template-columns: minmax(140px, 1.1fr) minmax(150px, 1fr) minmax(110px, 0.8fr) auto;
+  align-items: center; gap: var(--space-4); min-height: 52px; padding: var(--space-2) 0;
+}
+.pr-gift-row + .pr-gift-row { border-top: 1px solid var(--line); }
+.pr-gift-what { font-size: 14px; font-weight: 600; color: var(--text); }
+.pr-gift-state, .pr-gift-when { font-size: 13px; color: var(--text-dim); }
+.pr-gift-act { display: flex; justify-content: flex-end; min-width: 96px; }
+
 /* A narrow window: the figures stack, a plan's row wraps under its name. */
 @media (max-width: 600px) {
   .pr-figs { grid-template-columns: minmax(0, 1fr); }
   .pr-plan-row { grid-template-columns: minmax(0, 1fr) auto; }
   .pr-plan-games { grid-column: 1; }
+  .pr-gift-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .pr-gift-state, .pr-gift-when { grid-column: 1; }
 }
 
 /* Reduced motion: no entrance at all, every state at once. */

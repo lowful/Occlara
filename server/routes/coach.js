@@ -20,6 +20,7 @@ const { AsyncLocalStorage } = require('async_hooks');
 // one accountKey for every ledger. The meter counts games (routes/usage.js),
 // asked lazily so a test can hand the router its own.
 const callers   = require('../services/caller');
+const freeAllowance = require('../services/free-allowance');
 // Ask Coach's spam guard (8.7.3) and the per account key every limiter uses.
 const chatGuardMod = require('../services/chat-guard');
 const { byCaller } = require('../services/rate-limits');
@@ -1180,6 +1181,7 @@ function forensicsVariant(req) {
 const LAZY = {
   chatPrompt: () => require('../services/chat-prompt'),
   nameGate: () => require('../services/name-gate'),
+  chatClips: () => require('../services/chat-clips'),
 };
 const lazyLoaded = {};
 function service(name) {
@@ -2998,7 +3000,14 @@ router.get('/match-rounds', async (req, res) => {
   if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
   const [name, tag] = username.split('#').map((s) => s.trim());
   const cacheKey = matchId + '|' + username.toLowerCase();
-  if (matchRoundsCache.has(cacheKey)) return res.json(matchRoundsCache.get(cacheKey));
+  if (matchRoundsCache.has(cacheKey)) {
+    // Free games are one per player: the Riot account of a match this caller
+    // recorded is one of its keys, on the live link only (linkMayNote).
+    const cached = matchRoundsCache.get(cacheKey);
+    freeAllowance.shared.noteLinkPuuid(caller, freeAllowance.shared.puuidOf(matchId, username),
+      { purpose: req.query.purpose, startedAt: cached && cached.startedAt });
+    return res.json(cached);
+  }
 
   // A fill waits its turn on the shared key (fillRefused); a live link never does.
   if (req.query.purpose === 'fill') {
@@ -3030,6 +3039,13 @@ router.get('/match-rounds', async (req, res) => {
       cacheSet(matchRoundsCache, cacheKey, out, 200);
       // The match's name set, for its name gates and nothing else (5.6).
       riotRounds.noteNames(matchId, d);
+      // The player's Riot account, from Riot's record and never from the
+      // client, is one key of the person (free-allowance.js), noted only on
+      // the live link of a match the app recorded: a Riot ID typed into
+      // Settings or Connect never merges two players. Not awaited.
+      const puuid = freeAllowance.puuidInMatch(riotRounds.playersOf(d), name, tag);
+      freeAllowance.shared.rememberPuuid(matchId, username, puuid);
+      freeAllowance.shared.noteLinkPuuid(caller, puuid, { purpose: req.query.purpose, startedAt: out.startedAt });
     }
     res.json(out);
   } catch (e) {
@@ -3461,7 +3477,7 @@ router.post('/read', async (req, res) => {
   // 'cap', left: 0 } and costs nothing. A bench is never metered.
   const metered = !(costScope.getStore() || {}).bench;
   if (metered) {
-    const gate = await usageMeter().gate(caller);
+    const gate = await usageMeter().gate(caller, { req });
     if (!gate.ok) return res.status(gate.status).json(gate.body);
   }
   // No client match id is taken here (8.7): a live claim with one the client
@@ -4014,7 +4030,7 @@ router.post('/detect-agent', async (req, res) => {
     // refuses (caps enforced, no live game open, no game left) is refused
     // here too, before the model, as the client already reads any 402 cap.
     if (!(costScope.getStore() || {}).bench) {
-      const gate = await usageMeter().gate(caller);
+      const gate = await usageMeter().gate(caller, { req });
       if (!gate.ok) return res.status(gate.status).json(gate.body);
     }
 
@@ -4349,6 +4365,8 @@ function gatedReply(out) {
     dropped: counts(o.dropped),
     logged: counts(o.logged),
     sentences: Number.isInteger(o.sentences) && o.sentences >= 0 ? o.sentences : 0,
+    // The player's clips the reply attached, each a round of the match's own list (chat-clips.js).
+    clipAsks: Array.isArray(o.clipAsks) ? o.clipAsks.slice(0, 3) : [],
   };
 }
 
@@ -4503,6 +4521,10 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
   reply = cutReply(reply, CHAT_MAX_CHARS);
   const honest = !reply;
   if (honest) reply = HONEST_LINE;
+  // THE PLAYER'S CLIPS, under the paragraphs that kept their words: round
+  // numbers of this match's own list alone, never on the honest line.
+  const clipMod = service('chatClips');
+  const clips = !honest && g && clipMod ? clipMod.place(reply, g.clipAsks) : [];
 
   counts.answered++;
   if (retried) counts.retried++;
@@ -4520,7 +4542,7 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
     ...(retried ? { rawRetry: rawForBench(said.retry, names) } : {}),
     ...(scope.usage ? { usage: { prompt: scope.usage.prompt, completion: scope.usage.completion, cached: scope.usage.cached, calls: scope.usage.calls } } : {}),
   } : {};
-  const answer = { reply, v: 2, honest, retried, dropped, logged, sentences,
+  const answer = { reply, v: 2, honest, retried, dropped, logged, sentences, ...(clips.length ? { clips } : {}),
     ...(body.benchModel ? { model } : {}), ...(body.variant ? { variant } : {}), ...bench };
   // The honest line is never remembered: asked again, the question goes to the model.
   if (!honest) turn.keep(answer);

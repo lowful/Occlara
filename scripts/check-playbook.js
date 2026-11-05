@@ -17,6 +17,8 @@
  *   - no em or en dashes, and no curly quotes (they break the tip sanitiser)
  *   - every tag VALUE is one retrieve() can actually match (see below)
  *   - weight is 1 to 3
+ *   - every `ranks` value is one of the four rank bands, each listed once, and
+ *     the bands are the same here, in knowledge.js and in src/shared/rank-band.js
  *   - no duplicate note text
  *   - every note merged from server/data/playbook.json carries a source.topic,
  *     and none carries a coach key
@@ -91,11 +93,29 @@ const VALID = {
     'deathstreak', 'winstreak', 'retake', 'early', 'clutch']),
   // The labels of death-forensics.js CAUSES that a note can answer (8.7).
   cause: new Set(['dry-peek', 'isolated', 'repeek', 'crossfire', 'rotating', 'overextend', 'exposed', 'lost-duel']),
+  // The rank bands a note is for (8.8, knowledge.js RANK_BANDS). A note with
+  // none suits every band. A misspelled band is not dead, it is ignored: the
+  // note would serve every rank and its intent would be lost without a word.
+  ranks: new Set(['iron_bronze', 'silver_gold', 'plat_diamond', 'asc_plus']),
 };
 
 const problems = [];
 function fail(note, msg) {
   problems.push({ msg, text: String(note.text || '').slice(0, 100) });
+}
+
+/*
+ * THE FOUR BANDS LIVE IN THREE PLACES: this list, the server's retrieval
+ * (knowledge.js RANK_BANDS) and the client that derives a player's band
+ * (src/shared/rank-band.js BANDS), since neither side may require the other.
+ * They are held equal here, in order, because the order is the ladder.
+ */
+{
+  const clientBands = require(path.join(__dirname, '..', 'src', 'shared', 'rank-band.js')).BANDS;
+  const want = JSON.stringify([...VALID.ranks]);
+  const serverBands = require(path.join(__dirname, '..', 'server', 'services', 'knowledge.js')).RANK_BANDS;
+  if (JSON.stringify(serverBands) !== want) problems.push({ msg: `knowledge.js RANK_BANDS is ${JSON.stringify(serverBands)}, not ${want}`, text: '' });
+  if (JSON.stringify(clientBands) !== want) problems.push({ msg: `src/shared/rank-band.js BANDS is ${JSON.stringify(clientBands)}, not ${want}`, text: '' });
 }
 
 /*
@@ -271,7 +291,15 @@ for (const note of notes) {
       fail(note, `role "${r}" is not a Valorant role, so this note is unreachable`);
     }
   }
-  for (const key of ['agents', 'maps', 'situations', 'roles', 'weapons', 'cause']) {
+  for (const r of (Array.isArray(note.ranks) ? note.ranks : [])) {
+    if (!VALID.ranks.has(r)) {
+      fail(note, `rank band "${r}" is not iron_bronze, silver_gold, plat_diamond or asc_plus, so the band is ignored`);
+    }
+  }
+  if (Array.isArray(note.ranks) && new Set(note.ranks).size !== note.ranks.length) {
+    fail(note, 'lists a rank band twice');
+  }
+  for (const key of ['agents', 'maps', 'situations', 'roles', 'weapons', 'cause', 'ranks']) {
     if (note[key] !== undefined && !Array.isArray(note[key])) {
       fail(note, `${key} must be an array, got ${typeof note[key]}`);
     } else if (Array.isArray(note[key]) && !note[key].length) {

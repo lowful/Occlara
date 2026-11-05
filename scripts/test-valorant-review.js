@@ -360,7 +360,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(!off.some((n) => /checkpoint|piece of space/i.test(n.text)) && off.some((n) => /angle|peek/i.test(n.text)),
     'which are advanced, so with it off they go to the core notes on taking an angle');
   const streak = matchReview.study(matchReview.normalise(withAdvanced({ ...base, patterns: [{ key: 'streak', text: 'x' }] })), 3);
-  ok(cores(streak) === 2 && streak.some((n) => /letting the scor/i.test(n.text)),
+  // A tilt note, whichever: since 8.8 the consensus note on not fighting to
+  // fix the scoreboard (weight 3) outranks the scoreline one on the same topic.
+  const topicOf = (text) => { const n = knowledge.all().find((x) => x.text === text); return n && n.source ? n.source.topic : null; };
+  ok(cores(streak) === 2 && streak.some((n) => topicOf(n.text) === 'tilt'),
     `a run of lost rounds gives core the majority back, as a death streak does in retrieve() (${streak.map((n) => tierOf(n.text)).join(', ')})`);
   const four = matchReview.study(matchReview.normalise(withAdvanced(base)), 4);
   ok(four.length === 4 && cores(four) === 1, 'four notes for the prompt keep the same reserve, one core');
@@ -369,6 +372,69 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     ai: { study: [{ text: 'Wait for the team.', coach: 'Someone (Team)' }, null, { coach: 'Someone' }] } });
   ok(JSON.stringify(built.study) === '[{"text":"Wait for the team."}]',
     `a note that arrives with a source is kept as its text alone (${JSON.stringify(built.study)})`);
+}
+
+// ── The rank band in the review (8.8, knowledge.js rankAdjust) ──────────────
+// The study list and the notes the review is written with: a Gold player
+// never gets a note whose lowest band is above Gold, an Immortal player gets
+// the asc_plus only ones, and a review whose client sent no band, or a band
+// no key matches, is today's, byte for byte, prompt included.
+{
+  const knowledge = require('../server/services/knowledge');
+  const BANDS = knowledge.RANK_BANDS;
+  const lowestOf = (text) => {
+    const n = knowledge.all().find((x) => x.text === text);
+    return n && Array.isArray(n.ranks) && n.ranks.length ? Math.min(...n.ranks.map((r) => BANDS.indexOf(r))) : 0;
+  };
+  const seeded = (fn) => {
+    const random = Math.random;
+    let x = 11;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const rounds = [1, 2, 3, 4, 5, 6].map((n) => ({ n, side: n < 4 ? 'defending' : 'attacking', result: n % 2 ? 'lost' : 'won', died: n % 2 === 1,
+    verified: true, cause: n === 1 ? 'lost-duel' : n === 3 ? 'dry-peek' : null }));
+  const bodyOf = (band, extra) => ({ rounds, patterns: [{ key: 'early', text: 'x' }, { key: 'spot', text: 'y' }],
+    mistakes: [{ key: 'cause:lost-duel', title: 'Lost duels', detail: 'x', rounds: [1, 5], count: 2 }],
+    context: { agent: 'Sova', map: 'Ascent', ...(band === undefined ? {} : { rankBand: band }), ...(extra || {}) }, final: { team: 7, enemy: 13 } });
+  const inputOf = (band, extra) => ({ ...matchReview.normalise(bodyOf(band, extra)), byCause: true });
+  // The notes the review prompt carries, read back out of its knowledge block.
+  const notesIn = (prompt) => {
+    const i = prompt.indexOf('COACHING KNOWLEDGE');
+    if (i < 0) return [];
+    return prompt.slice(i).split('\n').slice(1).filter((l) => l.startsWith('- ')).map((l) => l.slice(2));
+  };
+  const plainPrompt = seeded(() => matchReview.buildPrompt({ ...inputOf(undefined), variant: 'C' }));
+  let same = true;
+  for (const junk of [null, '', 'Gold 2', 'gold', 'radiant', 7]) {
+    if (seeded(() => matchReview.buildPrompt({ ...inputOf(junk), variant: 'C' })) !== plainPrompt) same = false;
+    if (JSON.stringify(matchReview.study(inputOf(junk), 3)) !== JSON.stringify(matchReview.study(inputOf(undefined), 3))) same = false;
+  }
+  ok(same, 'a review with no band, or a band no key matches, is today\'s prompt and study list byte for byte');
+  for (const adv of [false, true]) {
+    const gold = seeded(() => matchReview.buildPrompt({ ...inputOf('silver_gold', { advancedTips: adv }), variant: 'C' }));
+    const goldStudy = matchReview.study(inputOf('silver_gold', { advancedTips: adv }), 3);
+    const notes = notesIn(gold).concat(goldStudy.map((n) => n.text));
+    const plainNotes = notesIn(seeded(() => matchReview.buildPrompt({ ...inputOf(undefined, { advancedTips: adv }), variant: 'C' })))
+      .concat(matchReview.study(inputOf(undefined, { advancedTips: adv }), 3).map((n) => n.text));
+    ok(plainNotes.some((t) => lowestOf(t) > 1), `the same review with no band does carry a note above Gold, so the next check means something (advanced ${adv ? 'on' : 'off'})`);
+    ok(notes.length >= 6 && notes.every((t) => lowestOf(t) <= 1),
+      `a Gold player's review notes and study list never reach above Gold, advanced ${adv ? 'on' : 'off'} (${notes.length} notes)`);
+    ok(goldStudy.length === 3 && notesIn(gold).length <= 8, 'and the study list keeps three, the knowledge block at most eight');
+  }
+  const ascOnly = knowledge.all().filter((n) => Array.isArray(n.ranks) && n.ranks.length === 1 && n.ranks[0] === 'asc_plus' && Array.isArray(n.cause));
+  const immNotes = new Set(knowledge.retrieve({ agent: 'Sova', map: 'Ascent', causes: ['lost-duel'], rankBand: 'asc_plus' }, 2000));
+  const goldNotes = new Set(knowledge.retrieve({ agent: 'Sova', map: 'Ascent', causes: ['lost-duel'], rankBand: 'silver_gold' }, 2000));
+  ok(ascOnly.length >= 1 && ascOnly.every((n) => immNotes.has(n.text) && !goldNotes.has(n.text)),
+    "an Immortal player's review context reaches the asc_plus only notes, the same context at Gold never does");
+  const imm = seeded(() => matchReview.buildPrompt({ ...inputOf('asc_plus'), variant: 'C' }));
+  ok(/PLAYER LEVEL: the player is ranked Ascendant or above\./.test(imm) && !/PLAYER LEVEL/.test(plainPrompt),
+    'the review prompt names the level only when a band came');
+  // The study list for an Immortal: a note for the low bands is left out
+  // unless this match points to it.
+  const lowNote = knowledge.all().find((n) => n.source && Array.isArray(n.ranks) && n.ranks.join() === 'iron_bronze,silver_gold' && !n.weapons);
+  ok(lowNote && knowledge.rankAdjust(lowNote, 'asc_plus', false) === null && knowledge.rankAdjust(lowNote, 'asc_plus', true) === 0,
+    'a low band note is left out for an Immortal, and kept when the match shows it missing');
 }
 
 // ── Study by cause (8.5.0, match-review.js CAUSE_TOPICS) ────────────────────
@@ -1868,6 +1934,71 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(swift === link.LINK_RETRY_LONG_MS && HOLD_MAX_MS > scoreEnd,
     `and a score end that may have gone on, asking for every early end's record it may on every try, still fits it `
     + `(${Math.round(scoreEnd / 60000)} minutes)`);
+}
+
+// ── The killer card (8.7) ───────────────────────────────────────────────────
+// The game's death recap again, beside the round's clip: the killer's agent
+// and icon, the gun and its kill feed icon, and the damage the killer dealt
+// the player that round, all Riot's, as finished strings served() works out
+// (valorant-review.js killerCard). The server sums the killer's damage events
+// on the player (riot-rounds.js killerDamageOf), numbers only.
+{
+  const riotRounds = require('../server/services/riot-rounds');
+  const me = { puuid: 'p-me' }; const fade = { puuid: 'p-fade' };
+  const round = { stats: [
+    { player: fade, damage_events: [{ player: me, damage: 39, headshots: 0, bodyshots: 1, legshots: 0 },
+      { player: { puuid: 'p-mate' }, damage: 150, headshots: 1, bodyshots: 0, legshots: 0 },
+      { player: me, damage: 103, headshots: 1, bodyshots: 1, legshots: 0 }] },
+    { player: me, damage_events: [{ player: fade, damage: 20, headshots: 0, bodyshots: 0, legshots: 1 }] }] };
+  const isMe = (x) => !!x && x.puuid === 'p-me';
+  ok(JSON.stringify(riotRounds.killerDamageOf(round, fade, isMe)) === '{"damage":142,"head":1,"body":2,"legs":0}',
+    `the server sums the killer's damage on the player and nobody else's (${JSON.stringify(riotRounds.killerDamageOf(round, fade, isMe))})`);
+  ok(riotRounds.killerDamageOf({ player_stats: [{ player_puuid: 'p-fade', damage_events: [{ receiver_puuid: 'p-me', damage: 80, headshots: 0, bodyshots: 2, legshots: 1 }] }] }, fade, isMe).damage === 80,
+    'and reads the older v2 shape too');
+  ok(riotRounds.killerDamageOf({}, fade, isMe) === null && riotRounds.killerDamageOf(round, { puuid: 'p-nobody' }, isMe) === null,
+    'a round with no events for the killer has no damage, never a guess');
+
+  const riot = JSON.parse(JSON.stringify(load('riot-abyss-13-11.json')));
+  const p2 = riot.perRound.find((r) => r.n === 2);
+  p2.killerDamage = { damage: 142, head: 1, body: 2, legs: 0, name: 'Someone#NA1' };
+  p2.feed[0].ka = 'Viper';
+  const p3 = riot.perRound.find((r) => r.died && r.n !== 2);
+  const { rounds } = verify.reconcile(abyss.rounds, riot);
+  ok(JSON.stringify(rounds.find((r) => r.n === 2).killerDamage) === '{"damage":142,"head":1,"body":2,"legs":0}',
+    'the link keeps the damage as whole counts, and nothing else the server could send');
+  const shown = review.served({ kind: 'valorant', ...review.build({ rounds, context: { ...abyss.context, agent: 'Jett' }, endedBy: 'score' }) });
+  const k2 = shown.rounds.find((c) => c.n === 2).killerCard;
+  ok(k2 && k2.label === 'Killed by' && k2.agent === 'Viper' && k2.agentIcon === 'valorant/agents/Viper.png'
+    && k2.weapon === 'Marshal' && k2.weaponIcon === 'valorant/weapons/Marshal.png'
+    && k2.damage === '142' && k2.damageLabel === 'damage to you this round'
+    && JSON.stringify(k2.hits) === '[{"label":"Head","value":"1"},{"label":"Body","value":"2"},{"label":"Legs","value":"0"}]',
+  `the real round 2 shows Viper, the Marshal and 142 damage, head 1, body 2, legs 0 (${JSON.stringify(k2)})`);
+  const k3 = shown.rounds.find((c) => c.n === p3.n).killerCard;
+  ok(k3 && k3.agent === p3.killerAgent && k3.damage === null && k3.hits === null && k3.damageLabel === null,
+    `a death Riot's record kept no damage for shows the killer and the gun with the damage left out (round ${p3.n}, ${JSON.stringify(k3)})`);
+  ok(shown.rounds.filter((c) => c.killerCard).length === 21 && shown.rounds.filter((c) => !c.died).every((c) => !c.killerCard),
+    'every one of the 21 deaths has a card, and a round survived has none');
+  ok(!/#|Someone|puuid/.test(JSON.stringify(shown.rounds.map((c) => c.killerCard || null))), 'no card holds a name, a tag or an id');
+  ok(JSON.stringify(review.withoutView(shown).rounds.map((c) => Object.keys(c).includes('killerCard'))).indexOf('true') === -1,
+    'and the card is view only, taken off with the rest');
+
+  // A round the card must stay out of: a screen only review, a death to a
+  // teammate or to the player themself, a killer no agent the data knows, a
+  // feed that names another killer than the record.
+  const card = (riotPart, extra) => review.served({ kind: 'valorant', rounds: [{ n: 4, died: true, facts: [], riot: riotPart, ...(extra || {}) }] })
+    .rounds[0].killerCard || null;
+  ok(card(null) === null, 'a screen only round, with no Riot record, has no card');
+  ok(card({ killer: 'Sova', weapon: 'Vandal', feed: [{ by: 'mate', on: 'me', ka: 'Sova' }] }) === null, 'a death to a teammate has no card');
+  ok(card({ killer: 'Jett', weapon: null, feed: [{ by: 'me', on: 'me', ka: 'Jett' }] }) === null, 'nor one to the player themself');
+  ok(card({ killer: 'Someone#NA1', weapon: 'Vandal' }) === null && card({ killer: 'puuid-1234', weapon: 'Vandal' }) === null,
+    'a killer that is no agent the game data knows is never shown');
+  ok(card({ killer: 'Raze', weapon: 'Vandal', feed: [{ by: 'enemy', on: 'me', ka: 'Neon' }] }) === null,
+    'a feed that names another killer than the record shows nothing');
+  const odd = card({ killer: 'KAY/O', weapon: 'Headhunter', damage: { damage: 0, head: 0, body: 0, legs: 0 } });
+  ok(odd && odd.agent === 'KAY/O' && odd.agentIcon === 'valorant/agents/KAYO.png' && odd.weapon === 'Headhunter'
+    && odd.weaponIcon === null && odd.damage === null,
+  `an ability Riot names keeps its name with no gun icon, and no damage is no number (${JSON.stringify(odd)})`);
+  ok(card({ killer: 'Fade', weapon: 'Phantom' }, { died: false }) === null, 'a round survived has no card');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);
