@@ -134,9 +134,22 @@ const FIELDS = `STATE: {"side":null,"phase":null,"round":null,"clock":null,"team
  * verify:ai (plain and at --lag 4) and npm run bench:sessions with --engine
  * have passed it against c, which spends money and is the owner's call.
  */
-const VARIANTS = ['a', 'b', 'c', 'e'];
-// The variants sent as parts around the image (buildReadParts), not one text.
-const PARTED = new Set(['e']);
+/*
+ * VARIANT F, FOR THE BENCH ONLY, served as e is. Measured on 5 Nov 2026, e was
+ * about 15% cheaper a read and less accurate: with the context line last,
+ * right before the answer, the model copied it (more living players read
+ * dead, a side not switched at halftime, deaths lost). f keeps e's prefix,
+ * c's words with no context line, the same bytes every read, and puts the
+ * context line after it and BEFORE the image, so the frame is the last thing
+ * the model sees before it answers: buildReadParts gives { prefix, context },
+ * and routes/coach.js sends [prefix, context, image]. It replaces the live
+ * prompt only on the same runs as e, against c, and that is the owner's call.
+ */
+const VARIANTS = ['a', 'b', 'c', 'e', 'f'];
+// The variants sent as parts around the image (buildReadParts), not one text,
+// and where each one's context line goes: after the image as its tail (e), or
+// after the prefix and before the image as its context (f).
+const PARTED = new Map([['e', 'tail'], ['f', 'context']]);
 // Every variant this file can build, d before routes/coach.js serves it.
 const BUILT = [...VARIANTS, 'd'];
 const SIDE_BEFORE = `- side: in the buy phase read the ATTACKING or DEFENDING banner at the top, it is authoritative. Otherwise "attack" if your team has the spike, "defense" if you see a defuser, else null.`;
@@ -172,6 +185,11 @@ LINES.alive.e = LINES.alive.c;
 LINES.clock.e = LINES.clock.c;
 LINES.side.e = LINES.side.c;
 LINES.mode.e = LINES.mode.c;
+// f is c word for word too; its context line sits between e's prefix and the image.
+LINES.alive.f = LINES.alive.c;
+LINES.clock.f = LINES.clock.c;
+LINES.side.f = LINES.side.c;
+LINES.mode.f = LINES.mode.c;
 // The live prompt is c's, word for word; a bench naming c is read with it.
 LINES.alive.live = LINES.alive.c;
 LINES.clock.live = LINES.clock.c;
@@ -196,35 +214,39 @@ function contextLine(ctx) {
 
 /**
  * @param ctx      what the last applied read showed (contextLine)
- * @param variant  'a', 'b', 'c', 'd' or 'e' for a bench's variant ('c' is the
- *                 live prompt's own text), anything else the live prompt.
- *                 e is sent in parts (buildReadParts); here it is those parts
- *                 joined, its prefix then its tail, for a caller that sends
- *                 one text (the Gemini path).
+ * @param variant  'a', 'b', 'c', 'd', 'e' or 'f' for a bench's variant ('c' is
+ *                 the live prompt's own text), anything else the live prompt.
+ *                 e and f are sent in parts (buildReadParts); here they are
+ *                 those parts joined, the prefix, a blank line, then the
+ *                 context line, for a caller that sends one text (the Gemini
+ *                 path).
  */
 function buildReadPrompt(ctx, variant) {
   if (PARTED.has(variant)) {
-    const { prefix, tail } = buildReadParts(ctx, variant);
-    return tail ? `${prefix}\n\n${tail}` : prefix;
+    const prefix = promptText(variant, '');
+    const line = contextLine(ctx);
+    return line ? `${prefix}\n\n${line}` : prefix;
   }
   const v = BUILT.includes(variant) ? variant : 'live';
   return promptText(v, `${contextLine(ctx)}\n\n`);
 }
 
 /**
- * A parted variant (e) as { prefix, tail }: prefix is the instructions with
- * no context line, the same bytes every read, and tail the context line alone
- * ('' when there is none). Null for every other variant and the live prompt,
+ * A parted variant in its parts: prefix is the instructions with no context
+ * line, the same bytes every read, and the context line alone ('' when there
+ * is none) is e's tail, sent after the image, or f's context, sent after the
+ * prefix and before the image. So e is { prefix, tail } and f is
+ * { prefix, context }. Null for every other variant and the live prompt,
  * which are sent as one text exactly as before.
  */
 function buildReadParts(ctx, variant) {
   if (!PARTED.has(variant)) return null;
-  return { prefix: promptText(variant, ''), tail: contextLine(ctx) };
+  return { prefix: promptText(variant, ''), [PARTED.get(variant)]: contextLine(ctx) };
 }
 
 // The prompt's text, `ctxBlock` where the context line stands in it: the
 // line and its blank line after for a, b, c, d and the live prompt, nothing
-// for e, whose context line goes after the image.
+// for e and f, whose context line is a part of its own (buildReadParts).
 function promptText(v, ctxBlock) {
   return `You are reading one Valorant screenshot for a match recorder. You do not coach and you do not advise. You report what the screen shows.
 

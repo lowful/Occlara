@@ -128,7 +128,7 @@ async function variantRuns() {
       try { j = JSON.parse(body); } catch (e) { /* not JSON */ }
       const asked = Object.prototype.hasOwnProperty.call(j, 'variant');
       const admin = req.headers['x-admin-password'] || null;
-      seen.push({ url: req.url, admin, asked, variant: j.variant });
+      seen.push({ url: req.url, admin, asked, variant: j.variant, usage: j.usage });
       const out = { lobby: false, context: { phase: 'buy' }, parsed: true, ms: 3,
         ...(asked ? { variant: honour && admin ? (answerAs || j.variant) : null } : {}) };
       res.writeHead(200, { 'content-type': 'application/json' });
@@ -185,6 +185,25 @@ async function variantRuns() {
     ok(seen.length === 1 && /the server read with variant b, not variant c/.test(asB.out),
       'nor does a run the server read with b pass for c: it stops at its first frame, saying so', asB.out.trim());
     answerAs = null;
+    // Variant f, e's prefix with the context line before the image, the same
+    // way, asking for usage so the run can show the cached share.
+    seen.length = 0;
+    const f = await bench(['live', '--variant', 'f']);
+    ok(f.status === 0 && seen.length === 3 && seen.every((s) => s.variant === 'f' && s.admin === 'offline-test' && s.usage === true)
+      && /read with the read prompt's variant f/.test(f.out) && !/not variant f/.test(f.out),
+    'with --variant f every frame asks for variant f and its usage beside the admin password, and the run says it read with it', f.out.trim());
+    answerAs = 'e';
+    seen.length = 0;
+    const asE = await bench(['live', '--variant', 'f']);
+    ok(seen.length === 1 && /the server read with variant e, not variant f/.test(asE.out),
+      'nor does a run the server read with e pass for f: it stops at its first frame, saying so', asE.out.trim());
+    answerAs = null;
+    honour = false;
+    seen.length = 0;
+    const refusedF = await bench(['live', '--variant', 'f']);
+    ok(seen.length === 1 && /the server read with the live prompt, not variant f/.test(refusedF.out),
+      'and a server that read f\'s frames with the live prompt stops the run at its first frame, saying so', refusedF.out.trim());
+    honour = true;
   } finally {
     server.close();
     fs.rmSync(tmp, { recursive: true, force: true });
