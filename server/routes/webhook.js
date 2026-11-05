@@ -8,6 +8,7 @@ const {
   LOOKUP_KEY, INTERVAL_PLAN, accountsMissing, tierOfPlan, tierOfPrice, priceOfSubscription,
   GAME_PRICE_CENTS, wholeGames,
 } = require('../services/billing');
+const gifts = require('../services/gifts');
 
 /*
  * ── THE LICENCE FOLLOWS STRIPE, AND EVERY WRITE TO IT IS CHECKED ────────────
@@ -868,6 +869,9 @@ async function endAccounts({ users, subId, label }) {
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isGamesMeta = (meta) => !!meta && meta.kind === 'games';
+// A gift (8.8, below) is a one time payment of its own kind, told the same way.
+const isGiftMeta = (meta) => !!meta && meta.kind === 'gift';
+const isOneTimeMeta = (meta) => isGamesMeta(meta) || isGiftMeta(meta);
 
 /** A games checkout refused for good: logged for a human and answered 200. */
 function refuseGames(label, why) {
@@ -951,11 +955,12 @@ function forgetGamesLeft(user) {
 }
 
 /**
- * Whether a charge paid for games, decided before any licence is looked at.
- * Answers { sessionId, meta } for a games payment (sessionId null when no
- * checkout session can be found for it), or null for anything else.
+ * Whether a charge paid for games or for a gift (8.8), decided before any
+ * licence is looked at. Answers { sessionId, meta } for such a payment
+ * (meta.kind says which, sessionId null when no checkout session can be found
+ * for it), or null for anything else.
  */
-async function gamesPaymentOf({ chargeId, paymentIntent, eventCharge }) {
+async function oneTimePaymentOf({ chargeId, paymentIntent, eventCharge }) {
   let charge = null;
   if (chargeId) {
     try {
@@ -967,7 +972,7 @@ async function gamesPaymentOf({ chargeId, paymentIntent, eventCharge }) {
     }
   }
   const chargeMeta = (eventCharge && eventCharge.metadata) || (charge && charge.metadata) || {};
-  let meta = isGamesMeta(chargeMeta) ? chargeMeta : null;
+  let meta = isOneTimeMeta(chargeMeta) ? chargeMeta : null;
   // A subscription's charge (it has an invoice) is never a games payment.
   if (!meta && charge && charge.invoice) return null;
 
@@ -981,7 +986,7 @@ async function gamesPaymentOf({ chargeId, paymentIntent, eventCharge }) {
       if (!(e && e.code === 'resource_missing')) throw e;
     }
     if (intent && intent.invoice) return null;
-    if (isGamesMeta(intent && intent.metadata)) meta = intent.metadata;
+    if (isOneTimeMeta(intent && intent.metadata)) meta = intent.metadata;
   }
 
   let session = null;
@@ -989,13 +994,18 @@ async function gamesPaymentOf({ chargeId, paymentIntent, eventCharge }) {
     const list = await stripe.checkout.sessions.list({ payment_intent: pi, limit: 1 });
     session = (list && list.data && list.data[0]) || null;
   }
-  if (!meta && session && isGamesMeta(session.metadata)) meta = session.metadata;
+  if (!meta && session && isOneTimeMeta(session.metadata)) meta = session.metadata;
   if (!meta && session) {
     // The row is the last word: a games purchase whose metadata were lost.
     const { data, error } = await supabase.from('game_purchases').select('ref,user_id,games').eq('ref', session.id).limit(1);
     if (error && !accountsMissing(error)) throw dbFailure(`read the games purchase of checkout ${session.id}`, error);
     const row = !error && data && data[0];
     if (row) meta = { kind: 'games', games: String(row.games), user_id: row.user_id };
+  }
+  if (!meta && session) {
+    // A gift whose metadata were lost: the gifts table says (null while gifts are not live).
+    const g = await gifts.ofRef(supabase, session.id);
+    if (g && g.found) meta = { kind: 'gift', user_id: g.buyer_id };
   }
   if (!meta) return null;
   return { sessionId: session ? session.id : null, meta };
@@ -1028,6 +1038,87 @@ async function refundGames({ sessionId, meta }, label) {
   }
 }
 
+// ── Gifts (8.8) ────────────────────────────────────────────────────────────
+
+/*
+ * A GIFT IS PRO OR MAX FOR SOMEONE ELSE, one month or one year, at the plan's
+ * own price, bought with a one time payment by the site's create-gift-checkout:
+ * metadata { kind: 'gift', offer, user_id, from_name } on the session and on
+ * its payment intent. services/gifts.js and docs/claude/accounts.md, "Gifts".
+ *
+ *   MINT. checkout.session.completed (or async_payment_succeeded) of kind
+ *   gift, paid, is held to what Stripe charged: the offer's price exactly, in
+ *   usd, one line of quantity 1 (gifts.checkoutGift). Anything else is refused
+ *   ("GIFT PURCHASE REFUSED" in the log) and answered 200, since a retry can
+ *   never make it match. Then gift_mint keeps the gift, once per session: the
+ *   code is made from the session id, so a redelivery is the same gift. A
+ *   failed write, the gifts SQL not being live, or GIFT_CODE_SECRET not set
+ *   throws, and Stripe retries: the buyer paid.
+ *
+ *   REFUND. A full refund or any dispute voids the gift (void_gift): an
+ *   unredeemed one can never be redeemed, a waiting one never starts, a
+ *   running one ends now and its account goes back to what it had. A refund
+ *   that lands before the mint mints it first (when the secret and the
+ *   metadata allow), so the mint that follows finds it void. It RETURNS, before
+ *   any licence lookup, so the buyer's own licence and plan are never touched.
+ *   A partial refund does nothing, as for a licence.
+ */
+
+/** A gift checkout refused for good: logged for a human and answered 200. */
+function refuseGift(label, why) {
+  console.error(`[webhook] GIFT PURCHASE REFUSED: ${label}, ${why}. No gift was made; find the buyer on the session in Stripe. Needs a human.`);
+}
+
+async function mintGift(session) {
+  const label = `gift checkout ${session.id}`;
+  if (session.payment_status !== 'paid') {
+    console.log(`[webhook] ${label} is ${session.payment_status || 'not paid'}, no gift until it is paid`);
+    return;
+  }
+  // A Stripe failure here throws, and Stripe retries the event.
+  const items = await stripe.checkout.sessions.listLineItems(session.id);
+  const gift = gifts.checkoutGift(session, (items && items.data) || []);
+  if (!gift.ok) {
+    if (gift.unpaid) return;
+    return refuseGift(label, gift.why);
+  }
+  const secret = gifts.secretOf();
+  if (!secret) throw new Error(`${label}: GIFT_CODE_SECRET is not set on the server, so the gift cannot be made yet`);
+  const r = await gifts.mint(supabase, session, gift, secret);
+  if (r.minted) console.log(`[webhook] ${label}: a ${gift.tier} gift of ${gift.months} month(s) made`);
+  else console.log(`[webhook] ${label}: made before (${r.status || 'unknown'}), nothing new`);
+}
+
+/** A full refund or a dispute of a gift payment: the gift voided, nothing else. */
+async function voidGiftOf({ sessionId, meta }, label) {
+  if (!sessionId) {
+    console.error(`[webhook] ${label} of a gift payment: no checkout session names it, no gift voided. `
+      + 'The licence is left alone. Needs a human.');
+    return;
+  }
+  // Arrived before the mint: made now, so the mint that follows finds it void.
+  const offer = gifts.isOffer(meta.offer) ? gifts.GIFT_OFFERS[meta.offer] : null;
+  const secret = gifts.secretOf();
+  if (offer && secret && meta.user_id && UUID.test(String(meta.user_id))) {
+    await gifts.mint(supabase, { id: sessionId, payment_intent: null }, gifts.giftOfOffer(meta.offer, meta.user_id, meta.from_name), secret);
+  }
+  const reason = label === 'chargeback' ? 'disputed' : 'refunded';
+  const r = await gifts.voidRef(supabase, sessionId, reason);
+  if (r.reason === 'none') {
+    console.error(`[webhook] ${label} of gift checkout ${sessionId}: no gift was made for it and none could be. Needs a human.`);
+    return;
+  }
+  if (!r.voided) {
+    console.log(`[webhook] ${label} of gift checkout ${sessionId}: void before, nothing changed`);
+    return;
+  }
+  if (r.user) forgetGamesLeft(r.user);
+  const what = r.running ? 'its time was running and ends now, the account back to what it had'
+    : r.was === 'redeemed' ? 'redeemed, its time not running, it never runs now'
+      : 'not redeemed, its link no longer works';
+  console.log(`[webhook] ${label} of gift checkout ${sessionId}: gift voided (${what}), licence untouched`);
+}
+
 // POST /api/payments/webhook
 async function webhookHandler(req, res) {
   const sig = req.headers['stripe-signature'];
@@ -1054,6 +1145,7 @@ async function webhookHandler(req, res) {
       case 'checkout.session.async_payment_succeeded': {
         const session = event.data.object;
         if (isGamesMeta(session.metadata)) await grantGames(session);
+        else if (isGiftMeta(session.metadata)) await mintGift(session);
         else console.log(`[webhook] checkout ${session.id} paid later, not a games checkout, nothing to do`);
         break;
       }
@@ -1064,6 +1156,11 @@ async function webhookHandler(req, res) {
         // Games are credited on their own and never mint or move a licence.
         if (isGamesMeta(meta)) {
           await grantGames(session);
+          break;
+        }
+        // A gift is minted on its own and never mints or moves a licence either.
+        if (isGiftMeta(meta)) {
+          await mintGift(session);
           break;
         }
         const userId = session.client_reference_id || meta.userId || null;
@@ -1194,10 +1291,11 @@ async function webhookHandler(req, res) {
             + `(${charge.amount_refunded} of ${charge.amount}), licence left alone`);
           break;
         }
-        // A games payment takes back its games and RETURNS, before any licence lookup.
-        const games = await gamesPaymentOf({ chargeId: charge.id, paymentIntent: idOf(charge.payment_intent), eventCharge: charge });
-        if (games) {
-          await refundGames(games, 'refund');
+        // A games or gift payment is settled on its own and RETURNS, before any licence lookup.
+        const paid = await oneTimePaymentOf({ chargeId: charge.id, paymentIntent: idOf(charge.payment_intent), eventCharge: charge });
+        if (paid) {
+          if (isGiftMeta(paid.meta)) await voidGiftOf(paid, 'refund');
+          else await refundGames(paid, 'refund');
           break;
         }
         await revokeForCharge({
@@ -1218,9 +1316,10 @@ async function webhookHandler(req, res) {
        */
       case 'charge.dispute.created': {
         const dispute = event.data.object;
-        const games = await gamesPaymentOf({ chargeId: idOf(dispute.charge), paymentIntent: idOf(dispute.payment_intent) });
-        if (games) {
-          await refundGames(games, 'chargeback');
+        const paid = await oneTimePaymentOf({ chargeId: idOf(dispute.charge), paymentIntent: idOf(dispute.payment_intent) });
+        if (paid) {
+          if (isGiftMeta(paid.meta)) await voidGiftOf(paid, 'chargeback');
+          else await refundGames(paid, 'chargeback');
           break;
         }
         await revokeForCharge({

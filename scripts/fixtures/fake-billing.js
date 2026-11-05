@@ -110,6 +110,8 @@ function makeSupabase(opts = {}) {
     // The games migration (game_purchases, grant_purchased_games,
     // refund_purchased_games) is live with the accounts unless told otherwise.
     db.games = db.accounts && next.games !== false;
+    // The free allowance SQL of 8.8 only when asked for (free-allowance.sql).
+    db.allowance = db.accounts && next.allowance === true;
     db.schema = next.schema || (db.accounts ? 'accounts' : 'today');
     db.tables = Object.fromEntries(Object.keys(TABLES).map((t) => [t, []]));
     for (const [t, rows] of Object.entries(next.tables || {})) {
@@ -437,7 +439,28 @@ const GAMES_TABLES = {
   },
 };
 const GAMES_FUNCTIONS = ['grant_purchased_games', 'refund_purchased_games'];
-const TABLES = { ...ACCOUNT_TABLES, ...GAMES_TABLES };
+// Free games are one per player (8.8, scratchpad free-allowance.sql): which
+// account was seen with which salted key. Live only with reset({ allowance:
+// true }), so every test before it runs as though that SQL had not been
+// applied, which is the server's degrade path. No foreign key to auth.users.
+const ALLOWANCE_TABLES = {
+  free_allowance_keys: {
+    columns: { key_hash: null, kind: null, user_id: null, first_seen: (t) => t, last_seen: (t) => t },
+    notNull: ['key_hash', 'kind', 'user_id'],
+    checks: { kind: ['puuid', 'device', 'machine', 'email', 'net'] },
+    pk: ['key_hash', 'user_id'], unique: [], users: [],
+  },
+  // Every account a refund or a dispute ever ended, kept after a later
+  // purchase makes it active again (the SQL's trigger free_allowance_mark_ended,
+  // modelled in put, patch and runQuery below).
+  free_allowance_ended: {
+    columns: { user_id: null, ended_at: (t) => t },
+    notNull: ['user_id', 'ended_at'],
+    pk: ['user_id'], unique: [], users: [],
+  },
+};
+const ALLOWANCE_FUNCTIONS = ['free_allowance_note', 'free_allowance_related', 'free_allowance_key_counts', 'free_allowance_apart'];
+const TABLES = { ...ACCOUNT_TABLES, ...GAMES_TABLES, ...ALLOWANCE_TABLES };
 
 function withDefaults(table, input, nowMs) {
   const spec = TABLES[table];
@@ -534,6 +557,7 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
     const err = violates(table, row, T(table));
     if (err) throw Object.assign(new Error(err.message), { pg: err });
     T(table).push(row);
+    markEnded(table, row);
     return row;
   }
   function patch(table, row, changes) {
@@ -541,7 +565,15 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
     const err = violates(table, next, T(table).filter((o) => o !== row));
     if (err) throw Object.assign(new Error(err.message), { pg: err });
     Object.assign(row, changes);
+    markEnded(table, row);
     return row;
+  }
+  // free_allowance_mark_ended (free-allowance.sql): an entitlements row written
+  // with status 'ended' is remembered, live with db.allowance.
+  function markEnded(table, row) {
+    if (table !== 'entitlements' || !db.allowance || !row || row.status !== 'ended') return;
+    if (T('free_allowance_ended').some((x) => x.user_id === row.user_id)) return;
+    T('free_allowance_ended').push(withDefaults('free_allowance_ended', { user_id: row.user_id }, now()));
   }
 
   // ── the SQL functions ──
@@ -593,7 +625,129 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
         allowance_left: Math.max((e.cap_monthly || 0) - used, 0) };
     }
     const used = T('game_usage').filter((g) => g.user_id === e.user_id && g.source === 'free' && live(g)).length;
-    return { period_start: null, period_end: null, used, allowance_left: Math.max((e.free_total || 0) - used, 0) };
+    let left = Math.max((e.free_total || 0) - used, 0);
+    // Free games are one per player: another account of this person played first.
+    if (left > 0 && sharedAllowance(e.user_id)) left = 0;
+    return { period_start: null, period_end: null, used, allowance_left: left };
+  }
+
+  // ── free-allowance.sql (8.8), live with db.allowance ──
+  const ALLOWANCE_KINDS = ['puuid', 'device', 'machine', 'email', 'net'];
+  /** free_allowance_first_free: the account's first free game it still holds, or null. */
+  function firstFree(user) {
+    const t = T('game_usage').filter((g) => g.user_id === user && g.source === 'free' && live(g)).map((g) => ms(g.created_at));
+    return t.length ? Math.min(...t) : null;
+  }
+  /**
+   * free_allowance_key_counts: a key still says "one person". Never 'net', an
+   * email always. The others are crowded (a shared Riot ID, a cloned Windows
+   * image) only when their holders are different people by an independent
+   * key, never by a count of accounts one person can make: a puuid when its
+   * holders span at least 3 distinct machines (machine keys, or device keys
+   * of an account with no machine key) and 3 distinct emails, a device or a
+   * machine when its holders span at least 4 distinct puuids. An account with
+   * no value for the independent key adds nothing.
+   */
+  const ALLOWANCE_CROWD = { puuid: { machines: 3, emails: 3 }, device: { puuids: 4 }, machine: { puuids: 4 } };
+  /**
+   * free_allowance_first_puuid: the account's one Riot account, its FIRST
+   * noted puuid (first_seen, then key), or null. Accounts meet through it only.
+   */
+  function firstPuuidOf(user) {
+    let best = null;
+    for (const k of T('free_allowance_keys')) {
+      if (k.user_id !== user || k.kind !== 'puuid') continue;
+      if (!best || ms(k.first_seen) < ms(best.first_seen)
+        || (ms(k.first_seen) === ms(best.first_seen) && k.key_hash < best.key_hash)) best = k;
+    }
+    return best ? best.key_hash : null;
+  }
+  /** A key row an account meets through: anything but a puuid that is not its first. */
+  const heldRow = (k) => k.kind !== 'puuid' || firstPuuidOf(k.user_id) === k.key_hash;
+  function keyCounts(key, kind) {
+    if (kind === 'email') return true;
+    const crowd = ALLOWANCE_CROWD[kind];
+    if (!crowd) return false;
+    const keys = T('free_allowance_keys');
+    const holders = new Set(keys.filter((k) => k.key_hash === key && (kind !== 'puuid' || firstPuuidOf(k.user_id) === key)).map((k) => k.user_id));
+    const theirs = keys.filter((k) => holders.has(k.user_id));
+    const distinct = (rows) => new Set(rows.map((k) => k.key_hash)).size;
+    if (kind === 'puuid') {
+      const withMachine = new Set(theirs.filter((k) => k.kind === 'machine').map((k) => k.user_id));
+      const machines = distinct(theirs.filter((k) => k.kind === 'machine' || (k.kind === 'device' && !withMachine.has(k.user_id))));
+      const emails = distinct(theirs.filter((k) => k.kind === 'email'));
+      return !(machines >= crowd.machines && emails >= crowd.emails);
+    }
+    // Each holder's FIRST noted puuid only (first_seen, then key_hash).
+    const firstPuuid = new Map();
+    for (const k of theirs.filter((x) => x.kind === 'puuid')) {
+      const have = firstPuuid.get(k.user_id);
+      if (!have || ms(k.first_seen) < ms(have.first_seen)
+        || (ms(k.first_seen) === ms(have.first_seen) && k.key_hash < have.key_hash)) firstPuuid.set(k.user_id, k);
+    }
+    return distinct([...firstPuuid.values()]) < crowd.puuids;
+  }
+  /** free_allowance_apart: both accounts have their one puuid noted and the two differ. */
+  function apart(a, b) {
+    const pa = firstPuuidOf(a);
+    const pb = firstPuuidOf(b);
+    return !!pa && !!pb && pa !== pb;
+  }
+  /**
+   * free_allowance_shared: a strong key that still counts met on another
+   * account that played a free game first, or on an account a refund ended
+   * that was made before this one played its first and met on an email, a
+   * machine or a device (never a puuid alone). Met on the machine key alone,
+   * the account plays one free game, and its second only once its Riot
+   * account is told apart from the other's (free_allowance_apart).
+   */
+  function sharedAllowance(user) {
+    if (!db.allowance) return false;
+    const keys = T('free_allowance_keys');
+    const me = firstFree(user);
+    const met = new Map();   // other user -> { beyondMachine, direct }
+    for (const m of keys) {
+      if (m.user_id !== user || m.kind === 'net' || !heldRow(m) || !keyCounts(m.key_hash, m.kind)) continue;
+      for (const o of keys) {
+        if (o.key_hash !== m.key_hash || o.user_id === user || !heldRow(o)) continue;
+        const v = met.get(o.user_id) || { beyondMachine: false, direct: false };
+        if (m.kind !== 'machine') v.beyondMachine = true;
+        if (['email', 'machine', 'device'].includes(m.kind)) v.direct = true;
+        met.set(o.user_id, v);
+      }
+    }
+    for (const [other, v] of met) {
+      if (!v.beyondMachine && !(me != null && !apart(user, other))) continue;
+      const t = firstFree(other);
+      if (t != null && (me == null || t < me || (t === me && String(other) < String(user)))) return true;
+      // Ended now, or ever (free_allowance_ended): made active again by a later
+      // purchase, a refunded payer is still the first holder.
+      const oe = T('entitlements').find((e) => e.user_id === other);
+      const everEnded = T('free_allowance_ended').some((x) => x.user_id === other);
+      if (v.direct && ((oe && oe.status === 'ended') || everEnded) && (me == null || (oe && ms(oe.created_at) < me))) return true;
+    }
+    return false;
+  }
+  /** free_allowance_related: two accounts share a strong key that still counts. */
+  function relatedAllowance(a, b) {
+    if (!db.allowance || !a || !b || a === b) return false;
+    const keys = T('free_allowance_keys');
+    return keys.some((x) => x.user_id === a && x.kind !== 'net' && heldRow(x) && keyCounts(x.key_hash, x.kind)
+      && keys.some((y) => y.user_id === b && y.key_hash === x.key_hash && heldRow(y)));
+  }
+  function noteAllowance({ p_user, p_keys }) {
+    if (!p_user) raise('free_allowance_note: no user');
+    let n = 0;
+    for (const k of (Array.isArray(p_keys) ? p_keys : []).slice(0, 8)) {
+      if (!k || typeof k !== 'object' || !ALLOWANCE_KINDS.includes(k.kind) || !/^[0-9a-f]{64}$/.test(String(k.key || ''))) continue;
+      // One Riot account per account: never a puuid beside another one.
+      if (k.kind === 'puuid' && T('free_allowance_keys').some((x) => x.user_id === p_user && x.kind === 'puuid' && x.key_hash !== k.key)) continue;
+      const have = T('free_allowance_keys').find((x) => x.key_hash === k.key && x.user_id === p_user);
+      if (have) patch('free_allowance_keys', have, { last_seen: iso(now()) });
+      else put('free_allowance_keys', { key_hash: k.key, kind: k.kind, user_id: p_user });
+      n++;
+    }
+    return { noted: n, shared: sharedAllowance(p_user) };
   }
 
   const refundsToday = (user) => T('game_usage').filter((g) => g.user_id === user && g.status === 'refunded'
@@ -614,6 +768,11 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
     if (!r) return;
     if (inviterDevice(r.inviter_id, device)) {
       patch('referral_redemptions', r, { status: 'refused', reason: 'inviter-device' });
+      return;
+    }
+    // One person on both sides of the invite (free-allowance.sql).
+    if (relatedAllowance(r.inviter_id, user)) {
+      patch('referral_redemptions', r, { status: 'refused', reason: 'same-person' });
       return;
     }
     ensureEntitlement(r.inviter_id);
@@ -686,13 +845,17 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
 
     const al = allowance(e);
     const deviceBlocked = !paidActive(e) && !!d && d.first_user_id !== p_user && d.free_used;
+    // The person's free games used by another of their accounts (free-allowance.sql).
+    const personBlocked = !paidActive(e) && !deviceBlocked && Math.max((e.free_total || 0) - al.used, 0) > 0
+      && al.allowance_left === 0;
+    const why = deviceBlocked ? 'device' : personBlocked ? 'person' : 'cap';
     let source;
     let overCap = false;
     let reason = null;
     if (al.allowance_left > 0 && !deviceBlocked) source = paidActive(e) ? 'allowance' : 'free';
     else if (e.bonus_pool > 0 && e.status !== 'ended') source = 'bonus';
-    else if (p_enforce) return { granted: false, usage_id: null, left: 0, reason: deviceBlocked ? 'device' : 'cap' };
-    else { source = 'shadow'; overCap = true; reason = deviceBlocked ? 'device' : 'cap'; }
+    else if (p_enforce) return { granted: false, usage_id: null, left: 0, reason: why };
+    else { source = 'shadow'; overCap = true; reason = why; }
 
     const status = p_kind === 'live' ? 'reserved' : 'counted';
     const u = put('game_usage', {
@@ -705,7 +868,7 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
     if (status === 'counted' && realGame(source, overCap)) qualifyReferral(p_user, p_device_hash);
 
     let left = source === 'allowance' || source === 'free' ? al.allowance_left - 1 : al.allowance_left;
-    if (deviceBlocked) left = 0;
+    if (deviceBlocked || personBlocked) left = 0;
     return { granted: true, usage_id: u.id, left: Math.max(left, 0) + e.bonus_pool, reason };
   }
 
@@ -816,6 +979,10 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
     settle_game: settleGame,
     release_game: releaseGame,
     account_state: accountState,
+    free_allowance_note: noteAllowance,
+    free_allowance_related: (a) => relatedAllowance(a.p_a, a.p_b),
+    free_allowance_key_counts: (a) => keyCounts(a.p_key, a.p_kind),
+    free_allowance_apart: (a) => apart(a.p_a, a.p_b),
   };
 
   // A function runs as one transaction: a raise leaves every table as it was.
@@ -836,7 +1003,8 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
     const run = () => {
       db.rpcCalls.push({ name, args: clone(args) });
       if (db.outage) return OUTAGE;
-      if (!FUNCS[name] || !db.accounts || (GAMES_FUNCTIONS.includes(name) && !db.games)) {
+      if (!FUNCS[name] || !db.accounts || (GAMES_FUNCTIONS.includes(name) && !db.games)
+        || (ALLOWANCE_FUNCTIONS.includes(name) && !db.allowance)) {
         return { data: null, error: pgError('PGRST202',
           `Could not find the function public.${name} without parameters in the schema cache`) };
       }
@@ -904,7 +1072,7 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
 
   function runQuery(q) {
     if (db.outage) return OUTAGE;
-    if (!db.accounts || (GAMES_TABLES[q.table] && !db.games)) return missingTable(q.table);
+    if (!db.accounts || (GAMES_TABLES[q.table] && !db.games) || (ALLOWANCE_TABLES[q.table] && !db.allowance)) return missingTable(q.table);
     const spec = TABLES[q.table];
     const rows = T(q.table);
     for (const f of q.filters) {
@@ -944,7 +1112,7 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
           return { data: null, error: err };
         }
       }
-      hit.forEach((r, i) => Object.assign(r, next[i]));
+      hit.forEach((r, i) => { Object.assign(r, next[i]); markEnded(q.table, r); });
       record(null, { patch: clone(q.patch), count: hit.length });
       if (!q.returning) return { data: null, error: null };
       return shape(q, hit.map((r) => projectRow(r, q.cols)), hit.length);
@@ -983,6 +1151,7 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
       }
       for (const [r, n] of touched) Object.assign(r, n);
       rows.push(...made);
+      for (const r of made.concat(touched.map((t) => t[0]))) markEnded(q.table, r);
       record(null, { rows: clone(made.concat(touched.map((t) => t[0]))) });
       if (!q.returning) return { data: null, error: null };
       const out = made.concat(touched.map((t) => t[0]));
@@ -1315,7 +1484,7 @@ const DAY = 24 * 60 * 60;
 module.exports = {
   LIVE_COLUMNS, CHECKS, PROTECTED, SERVER_VERSION, VERSIONS, DAY,
   makeSupabase, makeStripe, render, loadWith, callRouter, deliver, captureLogs,
-  ACCOUNT_TABLES, ACCOUNT_FUNCTIONS, GAMES_TABLES, GAMES_FUNCTIONS, entitlementPeriod, addMonthsUTC,
+  ACCOUNT_TABLES, ACCOUNT_FUNCTIONS, GAMES_TABLES, GAMES_FUNCTIONS, ALLOWANCE_TABLES, ALLOWANCE_FUNCTIONS, entitlementPeriod, addMonthsUTC,
   STALE_MS, MATCH_READS_COUNTED, REFUND_CAP, REFERRAL_BONUS, REFERRAL_MAX_EARNED,
   SERVER: path.join(__dirname, '..', '..', 'server'),
 };

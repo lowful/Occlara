@@ -93,6 +93,27 @@ for (const name of Object.keys(ICON_HINTS)) {
   }
   ok(roleNotes.length > 0 && reached > 0,
     `controller role notes reach a Miks review (${reached} of 20 retrievals, from ${roleNotes.length} notes)`);
+
+  // THE RANK BAND (8.8) keeps the agent and role filters: with a band, every
+  // agent still gets only its own notes and its role's, never another agent's
+  // kit, and the role notes still reach it.
+  const roster = Object.keys(require(path.join(ROOT, 'server', 'valorant-data.generated.json')).agents || {});
+  let foreign = 0;
+  let roleless = 0;
+  for (const agent of roster) {
+    const role = knowledge.roleOf(agent);
+    for (const band of knowledge.RANK_BANDS) {
+      const got = knowledge.retrieve({ agent, map: 'Ascent', rankBand: band }, 2000);
+      for (const t of got) {
+        const n = knowledge.all().find((x) => x.text === t);
+        if (n.agents && !n.agents.some((a) => a.toLowerCase() === agent.toLowerCase())) foreign++;
+        if (n.roles && !n.roles.includes(role)) foreign++;
+      }
+      if (role && !got.some((t) => { const n = knowledge.all().find((x) => x.text === t); return n.roles && n.roles.includes(role); })) roleless++;
+    }
+  }
+  ok(roster.length >= 28 && foreign === 0, `with any rank band no agent is served another agent's or role's note (${roster.length} agents, ${foreign} foreign)`);
+  ok(roleless === 0, `and every agent with a role still reaches its role notes at every band (${roleless} missing)`);
 }
 
 // The refusals still hold with the longer roster.

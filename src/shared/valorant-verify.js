@@ -75,6 +75,15 @@ function weaponName(w) {
   return s && !NOT_A_WEAPON.includes(s.toLowerCase().replace(/\s+/g, '')) ? s : null;
 }
 
+/** The killer's damage on the player as the server sends it, whole counts only, or null. */
+function damageOf(d) {
+  if (!d || typeof d !== 'object') return null;
+  const whole = (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 9999 ? v : null);
+  const damage = whole(d.damage);
+  if (!damage) return null;
+  return { damage, head: whole(d.head) ?? 0, body: whole(d.body) ?? 0, legs: whole(d.legs) ?? 0 };
+}
+
 /*
  * A KILLER IS AN AGENT, NEVER A PLAYER (8.4.1). The server names the killer in
  * Riot's death check by the agent they played (coach.js killerAgentOf), and
@@ -306,6 +315,9 @@ function reconcile(rounds, riot, opts) {
       kills: typeof rr.kills === 'number' ? rr.kills : null,
       killerAgent: rr.killerAgent || null,
       weapon: weaponName(rr.weapon),
+      // What the killer dealt the player this round (8.7, riot-rounds.js
+      // killerDamageOf): whole numbers only, or null, for the killer card.
+      killerDamage: rr.died ? damageOf(rr.killerDamage) : null,
       firstDeath: !!rr.firstDeath,
       firstKill: !!rr.firstKill,
       // From Riot's kill feed, null when the feed could not say (a record

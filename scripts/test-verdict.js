@@ -93,8 +93,11 @@ ok(!!av && av.sub === `Jett${DOT}Unrated`, "its agent is Riot's and its mode Rio
 ok(!!av && same(av.stats, [['K/D/A', '31/21/4'], ['ACS', 382], ['ADR', 243]]),
   "Riot's numbers, and no HS: a review built from Riot's own line has no headshot share, so it is left out", av && JSON.stringify(av.stats));
 ok(!!av && typeof av.at === 'number', 'it keeps when the review was made, for the date on its image');
-ok(!!av && Object.keys(av).sort().join() === 'at,game,letter,provisional,reason,right,score,stats,sub,title',
-  'and nothing else: game, title, right, letter, score, provisional, reason, stats, sub, at', av && Object.keys(av).join());
+ok(!!av && Object.keys(av).sort().join() === 'at,game,icon,letter,provisional,reason,right,score,stat,stats,sub,title',
+  'and nothing else: game, title, right, letter, score, provisional, reason, stat, stats, sub, icon, at', av && Object.keys(av).join());
+ok(!!av && same(av.stat, { value: '4K', label: 'Four kills in rounds 11 and 17' }),
+  "its standout is counted off Riot's rounds: four kills in rounds 11 and 17, both named", av && JSON.stringify(av.stat));
+ok(!!av && av.icon === 'valorant/agents/Jett.png', "its icon is Jett's, the bundled file", av && av.icon);
 
 // ── Change 3: the trade denominator is Riot's, under riot ───────────────────
 {
@@ -309,6 +312,83 @@ function leagueReview() {
   measured.insights = { mistakes: [{ key: 'skill:csAt10', title: 'CS at 10:00', detail: 'CS at 10:00: 52 this game, against your average of 61.', rounds: [], count: 1 }], strengths: [], missed: [] };
   ok(verdict.reason(measured) === 'CS at 10:00: 52 this game, against your average of 61.', 'and one measured says its number against the player\'s own average', verdict.reason(measured));
   ok(leaks(lv).length === 0 && !JSON.stringify(lv).includes('Summoner'), "and no summoner name or '#' anywhere in it", leaks(lv).join(', '));
+  ok(!!lv && same(lv.stat, { value: '6.8', label: 'CS per minute' }) && lv.icon === 'lol/champions/Ahri.png',
+    "its standout is 212 CS over 31:05, 6.8 a minute, and its icon is Ahri's", lv && `${JSON.stringify(lv.stat)} ${lv.icon}`);
+}
+
+// ── 8.7.x: the standout, in its fixed order, and the calm fallback ──────────
+{
+  const round = (n, riot) => ({ n, riot: { kills: 0, firstKill: false, clutch: null, ...riot } });
+  const val = (rounds, sl) => ({ kind: 'valorant', rounds, scoreline: sl || { kills: 20, deaths: 16, assists: 4 } });
+  const S = verdict.standout;
+  const kill = (va) => ({ ms: 1000, by: 'me', on: 'enemy', va });
+  const five = ['Jett', 'Sage', 'Omen', 'Sova', 'Reyna'].map(kill);
+  // Sage revived Jett, who died twice: five kills, four different enemies.
+  const revived = ['Jett', 'Sage', 'Omen', 'Sova', 'Jett'].map(kill);
+  const cases = [
+    ['an ace beats everything', val([round(3, { kills: 3 }), round(7, { kills: 5, feed: five }), round(9, { clutch: { vs: 4, won: true } })]), { value: 'Ace', label: 'Five kills in round 7' }],
+    ['five kills with no feed to show five enemies are 5K, never an ace', val([round(3, { kills: 3 }), round(7, { kills: 5 })]), { value: '5K', label: 'Five kills in round 7' }],
+    ['a Sage revive: five kills on four different enemies are 5K', val([round(7, { kills: 5, feed: revived })]), { value: '5K', label: 'Five kills in round 7' }],
+    ['six kills after a revive, all five enemies among them, are an ace said as six', val([round(7, { kills: 6, feed: [...five, { by: 'me', on: 'enemy', va: 'Sage' }] })]), { value: 'Ace', label: '6 kills in round 7' }],
+    ['six kills that never reach the fifth enemy are 6K', val([round(7, { kills: 6, feed: [...revived, { by: 'me', on: 'enemy', va: 'Jett' }] })]), { value: '6K', label: '6 kills in round 7' }],
+    ['a feed kill by a teammate is not the player\'s', val([round(7, { kills: 5, feed: [...five.slice(0, 4), { by: 'mate', on: 'enemy', va: 'Reyna' }] })]), { value: '5K', label: 'Five kills in round 7' }],
+    ['a four kill round beats a clutch', val([round(2, { kills: 4 }), round(9, { clutch: { vs: 3, won: true } })]), { value: '4K', label: 'Four kills in round 2' }],
+    ['two four kill rounds are both named', val([round(2, { kills: 4 }), round(15, { kills: 4 })]), { value: '4K', label: 'Four kills in rounds 2 and 15' }],
+    ['three are counted', val([round(2, { kills: 4 }), round(5, { kills: 4 }), round(15, { kills: 4 })]), { value: '4K', label: 'Four kills in each of 3 rounds' }],
+    ['a clutch won, the most enemies, the earliest of a tie', val([round(4, { kills: 3, clutch: { vs: 2, won: true } }), round(8, { clutch: { vs: 3, won: true } }), round(12, { clutch: { vs: 3, won: true } })]), { value: '1v3', label: 'Clutch won in round 8' }],
+    ['a clutch lost or unknown is no standout', val([round(4, { clutch: { vs: 3, won: false } }), round(5, { clutch: { vs: 2, won: null } }), round(6, { kills: 3 })]), { value: '3K', label: 'Three kills in round 6' }],
+    ['first kills, two or more', val([round(1, { firstKill: true, kills: 1 }), round(4, { firstKill: true, kills: 2 })]), { value: '2', label: 'First kills of the round' }],
+    ['one first kill falls to the fallback, kills per death', val([round(1, { firstKill: true, kills: 1 })], { kills: 31, deaths: 21, assists: 4 }), { value: '1.48', label: 'Kills per death' }],
+    ['a round off Riot\'s record (no riot) is never counted', val([{ n: 3, kills: 5 }], { kills: 10, deaths: 5, assists: 0 }), { value: '2.00', label: 'Kills per death' }],
+    ['no deaths says so', val([], { kills: 12, deaths: 0, assists: 1 }), { value: '12', label: 'Kills without dying' }],
+    ['no numbers at all, no standout', val([], {}), null],
+    ['no kills and no deaths, no standout', val([], { kills: 0, deaths: 0, assists: 0 }), null],
+  ];
+  const lolOf = (game, sl) => ({ kind: 'lol', game: { durationSec: 1800, role: 'Mid', ...game }, scoreline: { kills: 4, deaths: 4, assists: 4, cs: 240, ...sl } });
+  cases.push(
+    ['League: CS per minute, 6 or more', lolOf({}, {}), { value: '8.0', label: 'CS per minute' }],
+    ['League: a support never gets CS per minute', lolOf({ role: 'Support' }, { kills: 1, deaths: 2, assists: 15 }), { value: '8.00', label: 'KDA ratio' }],
+    ['League: Riot\'s UTILITY is a support too', lolOf({ role: 'UTILITY' }, { cs: 300, kills: 1, deaths: 2, assists: 15 }), { value: '8.00', label: 'KDA ratio' }],
+    ['League: under 6 a minute falls to the KDA', lolOf({}, { cs: 150, kills: 9, deaths: 2, assists: 3 }), { value: '6.00', label: 'KDA ratio' }],
+    ['League: a game under five minutes has no CS per minute', lolOf({ durationSec: 240 }, { cs: 40 }), { value: '2.00', label: 'KDA ratio' }],
+    ['League: no deaths says so', lolOf({}, { cs: 50, kills: 2, deaths: 0, assists: 5 }), { value: '7', label: 'Kills and assists without dying' }],
+    ['League: no numbers, no standout', { kind: 'lol', game: {}, scoreline: {} }, null],
+    ['a retired game has none', { kind: 'rivals', scoreline: { kills: 3, deaths: 1 } }, null],
+  );
+  for (const [what, r, want] of cases) ok(same(S(r), want), `standout: ${what}`, JSON.stringify(S(r)));
+  const SUPPORT = /^(support|utility)$/i;
+  ok(SUPPORT.test('Support') && SUPPORT.test('UTILITY') && !SUPPORT.test('Mid'), 'the support detector matches Support and UTILITY and passes Mid');
+  // Every line is a finished sentence of the player's own numbers: no dash, no semicolon.
+  const lines = cases.map(([, r]) => S(r)).filter(Boolean).map((s) => `${s.value} ${s.label}`);
+  const BANNED = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ';]');
+  ok(lines.every((l) => !BANNED.test(l)) && BANNED.test('a' + String.fromCharCode(0x2014) + 'b') && BANNED.test('a;b') && !BANNED.test('a, b'), 'no standout says a dash or a semicolon (the detector matches both)');
+}
+
+// ── 8.7.x: the character's icon, bundled ─────────────────────────────────────
+{
+  const icons = require('../src/shared/agent-icons');
+  const data = require('../src/shared/valorant-data.generated.json');
+  const ASSETS = path.join(ROOT, 'assets');
+  const agents = Object.keys(data.agents);
+  const missing = agents.filter((a) => { const p = icons.iconOf('valorant', a); return !p || !fs.existsSync(path.join(ASSETS, p)); });
+  ok(agents.length >= 20 && !missing.length, `every one of the ${agents.length} agents the data knows has its icon under assets/`, missing.join(', '));
+  ok(icons.iconOf('valorant', 'KAY/O') === 'valorant/agents/KAYO.png' && icons.iconOf('valorant', 'kayo') === 'valorant/agents/KAYO.png',
+    'KAY/O is KAYO.png, however it is written');
+  ok(icons.iconOf('valorant', 'Somebody') === null && icons.iconOf('valorant', 'Jett#EUW') === null && icons.iconOf('valorant', '') === null
+    && icons.iconOf('rivals', 'Jett') === null, "an agent the data does not know, a string with a '#', nothing, and another game have no icon");
+  ok(icons.iconOf('lol', "Kai'Sa") === 'lol/champions/Kaisa.png' && fs.existsSync(path.join(ASSETS, 'lol/champions/Kaisa.png'))
+    && icons.iconOf('lol', 'Nobody') === null, "League's champion by its own name, Kai'Sa as Kaisa.png, and an unknown one has none");
+  const big = fs.readdirSync(path.join(ASSETS, 'valorant', 'agents')).filter((f) => {
+    const b = fs.readFileSync(path.join(ASSETS, 'valorant', 'agents', f));
+    return b.readUInt32BE(16) > 256 || b.readUInt32BE(20) > 256;
+  });
+  ok(!big.length, 'every agent icon is at most 256 by 256 (the API serves 1024)', big.join(', '));
+  const vsrc = fs.readFileSync(path.join(ROOT, 'src', 'shared', 'verdict.js'), 'utf8');
+  const isrc = fs.readFileSync(path.join(ROOT, 'src', 'shared', 'agent-icons.js'), 'utf8');
+  const reqs = (s) => [...s.matchAll(/require\('([^']+)'\)/g)].map((m) => m[1]);
+  ok(same(reqs(vsrc), ['./agent-icons']) && same(reqs(isrc), ['./valorant-data.generated.json', './lol-champions'])
+    && same(reqs("require('./x')"), ['./x']),
+  'verdict.js requires only agent-icons, which requires only the generated data: pure, no Electron and no DOM', `${reqs(vsrc)} | ${reqs(isrc)}`);
 }
 
 // ── The player's saved reviews, the values the site shows (spec 7.2) ─────────
@@ -392,6 +472,10 @@ function harness(opts) {
       translate(x, y) { calls.push(['translate', x, y]); },
       fillRect(x, y, w, h) { calls.push(['fillRect', state.fillStyle, x, y, w, h]); },
       beginPath() {}, moveTo() {}, lineTo() {},
+      roundRect(x, y, w, h, r) { calls.push(['roundRect', x, y, w, h, r]); },
+      rect(x, y, w, h) { calls.push(['rect', x, y, w, h]); },
+      clip() { calls.push(['clip']); },
+      drawImage(img, x, y, w, h) { calls.push(['drawImage', img, x, y, w, h]); },
       stroke() { calls.push(['stroke', state.strokeStyle]); },
       fill(p) { calls.push(['fill', state.fillStyle, p && p.d]); },
       fillText(text, x, y) { texts.push({ text: String(text), font: state.font, fill: state.fillStyle, x, y, spacing: state.letterSpacing, align: state.textAlign }); },
@@ -408,7 +492,28 @@ function harness(opts) {
     }
     return ctx;
   }
+  const images = [];
+  // An image that loads (or fails, imageFails) once its src is set, as a browser's does.
+  class Image {
+    constructor() { this.naturalWidth = 0; images.push(this); }
+    set src(v) {
+      this._src = v;
+      Promise.resolve().then(() => {
+        if (o.imageFails) { if (this.onerror) this.onerror(new Error('404')); return; }
+        this.naturalWidth = 256;
+        if (this.onload) this.onload();
+      });
+    }
+    get src() { return this._src; }
+  }
+  // The real URL, with the blob calls a page has.
+  class PageURL extends URL {
+    static createObjectURL() { return 'blob:occlara/1'; }
+    static revokeObjectURL() {}
+  }
   const document = {
+    // The script as the review page loads it, so the icon resolves beside it.
+    currentScript: { src: 'file:///C:/app/src/renderer/shared/verdict-card.js' },
     documentElement: {},
     body: { append(a) { anchors.push(a); } },
     fonts: { load(face) { fontsLoaded.push(face); return Promise.resolve([]); } },
@@ -426,14 +531,15 @@ function harness(opts) {
     window, document, console, Promise, setTimeout: (fn) => fn,
     getComputedStyle: () => ({ getPropertyValue: (name) => (name in tokens ? ` ${tokens[name]}` : '') }),
     Path2D: class { constructor(d) { this.d = d; } },
-    URL: { createObjectURL: () => 'blob:occlara/1', revokeObjectURL() {} },
+    URL: PageURL,
+    Image,
     ClipboardItem: class { constructor(items) { this.items = items; } },
     navigator: { clipboard: { write: async (items) => { if (o.refuse) throw new Error('denied'); clip.push(items); } } },
   };
   vm.createContext(sandbox);
   if (o.gradeView !== false) vm.runInContext(fs.readFileSync(GRADE_VIEW, 'utf8'), sandbox, { filename: 'grade-view.js' });
   vm.runInContext(fs.readFileSync(CARD, 'utf8'), sandbox, { filename: 'verdict-card.js' });
-  return { VC: window.VerdictCard, calls, texts, canvases, anchors, clip, fontsLoaded, reset() { calls.length = 0; texts.length = 0; } };
+  return { VC: window.VerdictCard, calls, texts, canvases, anchors, clip, fontsLoaded, images, reset() { calls.length = 0; texts.length = 0; } };
 }
 
 const AT = new Date(2026, 9, 4, 18, 30).getTime();   // 4 Oct 2026, local
@@ -461,11 +567,17 @@ const ABYSS_V = { ...av, at: AT };
       const weightOk = (f) => (f.includes(P['--font-mono']) ? /^500 /.test(f) : f.includes(P['--font']) && /^(500|600) /.test(f));
       ok(fontsUsed.length && fontsUsed.every(weightOk), `${where}: Geist 500 and 600 and Geist Mono 500 only, the token stacks`, fontsUsed.filter((f) => !weightOk(f)).join(' | '));
       const said = h.texts.map((x) => x.text);
-      const want = ['VERDICT', `ABYSS${DOT}13-11${DOT}WIN`, 'B', '71', '/100', 'K/D/A', '31/21/4', 'ACS', '382', 'ADR', '243', `JETT${DOT}UNRATED`, 'occlara.app', '4 OCT 2026'];
-      ok(want.every((w) => said.includes(w)), `${where}: VERDICT, the right line, the letter, the score, /100, the numbers, the sub line, occlara.app and the date`,
+      const want = [`ABYSS${DOT}13-11${DOT}WIN`, 'B', '71', '/100', 'K/D/A', '31/21/4', 'ACS', '382', 'ADR', '243', `JETT${DOT}UNRATED`, 'occlara.app', '4 OCT 2026'];
+      ok(want.every((w) => said.includes(w)), `${where}: the right line, the letter, the score, /100, the numbers, the agent and mode, occlara.app and the date`,
         want.filter((w) => !said.includes(w)).join(', '));
-      const reasonText = h.texts.filter((x) => /^500 /.test(x.font) && x.font.includes(P['--font'])).map((x) => x.text).join(' ');
-      ok(reasonText === ABYSS_V.reason, `${where}: the reason, in Geist 500, every word of it`, reasonText);
+      ok(!said.some((s) => /verdict/i.test(s)), `${where}: no VERDICT word any more (8.7.x)`);
+      const subAt = h.texts.find((x) => x.text === `JETT${DOT}UNRATED`);
+      ok(subAt && subAt.y === 45 && subAt.x === 32 && subAt.fill === (paper ? P['--paper-ink'] || '#0A0B0E' : P['--text']),
+        `${where}: the agent and mode on the top row, in ink, on the margin when there is no icon`, subAt && `${subAt.x},${subAt.y} ${subAt.fill}`);
+      const label = h.texts.filter((x) => /^500 /.test(x.font) && x.font.includes(P['--font']) && !x.font.includes(P['--font-mono'])).map((x) => x.text).join(' ');
+      const value = h.texts.find((x) => x.text === ABYSS_V.stat.value);
+      ok(label === ABYSS_V.stat.label && value && /^600 /.test(value.font) && !said.includes(ABYSS_V.reason),
+        `${where}: the standout under the grade, its value in Geist 600 and its line in Geist 500, and no reason`, `${label} | ${value && value.font}`);
       ok(!said.includes('HS') && !said.includes('--') && !said.includes('PROVISIONAL') && !said.some((s) => s.includes('#')),
         `${where}: no HS (the review has none), no "--", no PROVISIONAL on a grade that is not, no '#'`);
       const ground = h.calls.find((c) => c[0] === 'fillRect');
@@ -505,32 +617,76 @@ const ABYSS_V = { ...av, at: AT };
   const COPY = /letter\s*===\s*'[SABCD]'/;
   ok(COPY.test("v.letter === 'S'") && !COPY.test(fs.readFileSync(CARD, 'utf8')), 'and none is written in it (the detector matches a copy)');
 
-  // PROVISIONAL, and a long reason cut with an ellipsis.
+  // PROVISIONAL, and a long standout line put under its value and cut with an
+  // ellipsis on its second line. A short one stands beside its value.
   const LONG = 'Died with the team up in numbers in 6 lost rounds, and then again in the overtime rounds after that, which is a long line to wrap on any card at all.';
-  for (const [size, lines] of [['card', 2], ['post', 3], ['discord', 2]]) {
+  const labelLines = () => h.texts.filter((x) => /^500 /.test(x.font) && x.font.includes(TOKENS['--font']) && !x.font.includes(TOKENS['--font-mono']));
+  for (const size of ['card', 'post', 'discord']) {
     h.reset();
-    VC.draw({ ...ABYSS_V, provisional: true, reason: LONG }, { size });
-    const reasonLines = h.texts.filter((x) => /^500 /.test(x.font) && x.font.includes(TOKENS['--font']) && !x.font.includes(TOKENS['--font-mono']));
-    ok(reasonLines.length === lines && reasonLines[lines - 1].text.endsWith('…'), `${size}: a long reason wraps to ${lines} lines, the last cut with an ellipsis`,
-      reasonLines.map((x) => x.text).join(' / '));
+    VC.draw({ ...ABYSS_V, provisional: true, stat: { value: '4K', label: LONG } }, { size });
+    const ls = labelLines();
+    const val = h.texts.find((x) => x.text === '4K');
+    ok(ls.length === 2 && ls[1].text.endsWith('…') && val && ls[0].y > val.y && ls[0].x === 32,
+      `${size}: a long standout line goes under its value in 2 lines, the last cut with an ellipsis`, ls.map((x) => x.text).join(' / '));
     ok(h.texts.some((x) => x.text === 'PROVISIONAL'), `${size}: PROVISIONAL when the grade is`);
+    h.reset();
+    VC.draw({ ...ABYSS_V, stat: { value: '2', label: 'First kills' } }, { size });
+    const short = labelLines();
+    const v2 = h.texts.find((x) => x.text === '2' && /^600 /.test(x.font));
+    ok(short.length === 1 && v2 && short[0].y === v2.y && short[0].x > v2.x, `${size}: a short one stands beside its value, on its baseline`);
+    h.reset();
+    VC.draw({ ...ABYSS_V, stat: null }, { size });
+    ok(!labelLines().length && !h.texts.some((x) => x.text === '4K') && !h.texts.some((x) => x.text === ABYSS_V.reason),
+      `${size}: with no standout the line is left out, and the reason is not put back`);
   }
   // The cut line loses the punctuation it ends on before its ellipsis, and
   // keeps a word that ends in none. The stand in measures 9 a letter at
   // 15px, so the card's 300 holds 33: three words of ten to a line.
   const w10 = 'aaaaaaaaaa';
   h.reset();
-  VC.draw({ ...ABYSS_V, reason: `${w10} ${w10} ${w10} ${w10} ${w10} aaaaaaaaa, ${w10} ${w10}` });
+  VC.draw({ ...ABYSS_V, stat: { value: '4K', label: `${w10} ${w10} ${w10} ${w10} ${w10} aaaaaaaaa, ${w10} ${w10}` } });
   const cutComma = h.texts.filter((x) => /^500 15px /.test(x.font)).map((x) => x.text);
   h.reset();
-  VC.draw({ ...ABYSS_V, reason: `${w10} ${w10} ${w10} ${w10} ${w10} ${w10} ${w10} ${w10}` });
+  VC.draw({ ...ABYSS_V, stat: { value: '4K', label: `${w10} ${w10} ${w10} ${w10} ${w10} ${w10} ${w10} ${w10}` } });
   const cutWord = h.texts.filter((x) => /^500 15px /.test(x.font)).map((x) => x.text);
   ok(cutComma[1] === `${w10} ${w10} aaaaaaaaa…` && cutWord[1] === `${w10} ${w10} ${w10}…`,
     'a cut line drops the comma it ends on before the ellipsis, and a whole word keeps every letter', `${cutComma[1]} / ${cutWord[1]}`);
   h.reset();
   VC.draw(ABYSS_V);
   const markAt = h.calls.find((c) => c[0] === 'translate');
-  ok(markAt && Math.abs(markAt[1] + 14 * (21 / 120) - 32) < 1e-9, "the crescent's ink stands on the left margin, where the letter and the reason start", markAt && markAt[1]);
+  const H_CARD = 1000 / 2.5;
+  ok(markAt && Math.abs(markAt[1] + 11 * (21 / 120) - 32) < 1e-9 && Math.abs(markAt[2] - (H_CARD - 32 - 9.5)) < 1e-9,
+    "the crescent signs the bottom row, its ink on the left margin beside occlara.app", markAt && `${markAt[1]},${markAt[2]}`);
+  const addr = h.texts.find((x) => x.text === 'occlara.app');
+  ok(addr && addr.x === 48 && addr.y === H_CARD - 32, 'and the address follows it', addr && `${addr.x},${addr.y}`);
+
+  // The character's icon: drawn in a tile on the top row, the agent and mode
+  // moved beside it; none given, none drawn.
+  for (const size of ['card', 'post', 'discord']) {
+    h.reset();
+    const img = { naturalWidth: 256, naturalHeight: 256 };
+    VC.draw(ABYSS_V, { size, icon: img });
+    const drawn = h.calls.find((c) => c[0] === 'drawImage');
+    const px = size === 'discord' ? 30 : 36;
+    const subAt = h.texts.find((x) => x.text === `JETT${DOT}UNRATED`);
+    ok(drawn && drawn[1] === img && drawn[2] === 32 && drawn[3] === 41 - px / 2 && drawn[4] === px && drawn[5] === px && h.calls.some((c) => c[0] === 'clip'),
+      `${size}: the icon in a ${px} tile on the top row, clipped to its corners`, drawn && drawn.slice(2).join(','));
+    ok(subAt && subAt.x === 32 + px + 12, `${size}: the agent and mode beside it`, subAt && subAt.x);
+    h.reset();
+    VC.draw(ABYSS_V, { size, icon: { naturalWidth: 0 } });
+    ok(!h.calls.some((c) => c[0] === 'drawImage'), `${size}: an image that did not load is left out`);
+  }
+  // The top row never collides: the mode goes first when the two lines meet.
+  h.reset();
+  VC.draw({ ...ABYSS_V, sub: `Jett${DOT}A very long mode name for a test`, right: 'Abyss · 13-11 · Win' }, { size: 'discord', icon: { naturalWidth: 256 } });
+  ok(h.texts.some((x) => x.text === 'JETT') && !h.texts.some((x) => /LONG MODE/.test(x.text)), 'a sub line that would meet the right line drops the mode');
+  ok(VC.ICON_PATH.test('valorant/agents/KAYO.png') && VC.ICON_PATH.test('lol/champions/Kaisa.png')
+    && !VC.ICON_PATH.test('../secret.png') && !VC.ICON_PATH.test('valorant/agents/../../x.png') && !VC.ICON_PATH.test('valorant/agents/Jett.png?x'),
+  'only a bundled icon\'s path is asked for (the detector matches the two shapes and refuses the rest)');
+  ok(VC.iconUrl('valorant/agents/Jett.png') === 'file:///C:/app/assets/valorant/agents/Jett.png' && VC.iconUrl('https://x/y.png') === null && VC.iconUrl(null) === null,
+    "the icon loads from assets/, beside this script's own folder, and nothing else does", VC.iconUrl('valorant/agents/Jett.png'));
+  h.reset();
+  VC.draw(ABYSS_V);
   const bigB = h.texts.find((x) => x.text === 'B');
   ok(bigB && bigB.spacing === `${Number((112 * parseFloat(TOKENS['--track-display'] || '-0.02em')).toFixed(2))}px`,
     'the letter is tracked at --track-display', bigB && bigB.spacing);
@@ -553,12 +709,12 @@ const ABYSS_V = { ...av, at: AT };
   broken.reset();
   broken.VC.draw(ABYSS_V, { paper: false });
   ok(broken.texts.find((x) => x.text === 'B').fill === '#F5F5F7', 'the same for the ink on the dark ground');
-  const verdictLabel = broken.texts.find((x) => x.text === 'VERDICT');
+  const verdictLabel = broken.texts.find((x) => x.text === `JETT${DOT}UNRATED`);
   ok(verdictLabel && verdictLabel.spacing === '0.88px' && /Geist Mono/.test(verdictLabel.font),
     'a tracking token that is not in ems gives the app\'s 0.08em, and a missing mono stack its fallback', verdictLabel && `${verdictLabel.spacing} ${verdictLabel.font}`);
   const good = harness();
   good.VC.draw(ABYSS_V);
-  const vl = good.texts.find((x) => x.text === 'VERDICT');
+  const vl = good.texts.find((x) => x.text === `JETT${DOT}UNRATED`);
   ok(vl && vl.spacing === `${Number((11 * parseFloat(TOKENS['--track-label'] || '0.08em')).toFixed(2))}px`,
     'labels are tracked at --track-label', vl && vl.spacing);
 
@@ -605,7 +761,18 @@ const ABYSS_V = { ...av, at: AT };
       && NET.test("fetch('x')") && NET.test('https://occlara.app') && !NET.test('occlara.app'),
     'the signal and network detectors match a positive and pass a negative');
     ok(!SIGNAL.test(src) && !NET.test(src), 'verdict-card.js names no channel, no network call, no URL and none of the signal\'s tokens');
-    ok(!/require\(/.test(fs.readFileSync(path.join(ROOT, 'src', 'shared', 'verdict.js'), 'utf8')), 'verdict.js requires nothing: pure');
+    // render() loads the icon first and draws it; one that fails is left out and the rest still draws.
+    const loaded = harness();
+    await loaded.VC.render(ABYSS_V, { size: 'post' });
+    const di = loaded.calls.find((c) => c[0] === 'drawImage');
+    ok(di && di[1].src === 'file:///C:/app/assets/valorant/agents/Jett.png', 'render() loads the icon from assets/ and draws it', di && di[1].src);
+    const failing = harness({ imageFails: true });
+    const fcv = await failing.VC.render(ABYSS_V, { size: 'post' });
+    ok(fcv && fcv.width === 1080 && !failing.calls.some((c) => c[0] === 'drawImage') && failing.texts.some((x) => x.text === `JETT${DOT}UNRATED` && x.x === 32),
+      'an icon that fails to load is left out, and the image still draws with the line on the margin');
+    const none = harness();
+    await none.VC.render({ ...ABYSS_V, icon: null });
+    ok(!none.calls.some((c) => c[0] === 'drawImage') && !none.images.length, 'no icon, nothing asked for');
 
     console.log(`\n${fails ? 'FAIL' : 'PASS'}: ${checks - fails} of ${checks} checks`);
     process.exit(fails ? 1 : 0);

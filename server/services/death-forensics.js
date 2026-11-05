@@ -462,7 +462,7 @@ ${sees}${late}- Where the player is: read the location name printed above the mi
 - Ignore any text boxes or cards drawn over the game by other apps. Judge from the game itself.
 - Weapons and health are in the bottom HUD. Do not call a pistol a knife or an Operator a rifle.
 ${fairRule}- Speak to the player as "you". Name no ability they do not have and no callout that is not in the list. ${killerRule}
-- No dashes. Plain sentences, each ending with a period.
+${rankRule(input)}- No dashes. Plain sentences, each ending with a period.
 
 ${language}${reply}`;
 }
@@ -787,7 +787,28 @@ function normalise(body, opts) {
     language: typeof b.language === 'string' ? clip(b.language, 8) : 'en',
     source: screen ? 'screen' : 'riot', deaths,
     variant: opts && judgesFight(opts.variant) ? opts.variant : 'a',
-    matchId: typeof b.matchId === 'string' && b.matchId.trim() ? clip(b.matchId, 80) : null };
+    matchId: typeof b.matchId === 'string' && b.matchId.trim() ? clip(b.matchId, 80) : null,
+    // The player's rank band (8.8, src/shared/rank-band.js), untrusted: one of
+    // the four keys or left out, so a look a client sends without one is
+    // today's prompt byte for byte.
+    ...(BAND_WORDS[b.rankBand] ? { rankBand: b.rankBand } : {}) };
+}
+
+/*
+ * THE PLAYER'S LEVEL IN THE LOOK (8.8): one rule, only with a band, so the
+ * better play fits the rank (a basic habit below Platinum, never a high rank
+ * micro decision). It sets no label: the cause is judged the same at every rank.
+ */
+const BAND_WORDS = {
+  iron_bronze: 'Iron or Bronze', silver_gold: 'Silver or Gold',
+  plat_diamond: 'Platinum or Diamond', asc_plus: 'Ascendant or above',
+};
+
+function rankRule(input) {
+  const w = BAND_WORDS[input && input.rankBand];
+  if (!w) return '';
+  const low = input.rankBand === 'iron_bronze' || input.rankBand === 'silver_gold';
+  return `- The player is ranked ${w}. Write the better play for that level${low ? ', one basic habit,' : ''} and never a high rank micro decision the player is not ready for. The cause is judged the same at every rank.\n`;
 }
 
 /** The reply's room for one look: b's and b2's are longer by the judgement, change and alt. */
@@ -799,4 +820,5 @@ module.exports = {
   CAUSES, CAUSES_B, AVOIDABLE, FIGHTS, CHANGES, PHRASES, PHRASE_ORDER, VARIANTS, TOKENS, LABELS, MAX_FRAMES, MAX_TIMED_FRAMES, MAX_FRAME_AT,
   buildPrompt, parse, normalise, wrongMap, foreignAbility, wrongKiller, calloutsOf,
   phraseHits, movesPlayer, replyJson, rawLabels, logLines, replyOf, tokensFor, judgement, judgementB2, judgesFight,
+  rankRule, BAND_WORDS,
 };

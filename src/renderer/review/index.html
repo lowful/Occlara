@@ -124,21 +124,26 @@
            first; the repeated mistakes; then every round in one list, each
            death the coach looked at inside its own round. -->
       <div id="vreview" hidden>
-        <!-- THE VERDICT (8.7, shared/verdict.js through the preload): the
-             letter and the number, the one counted reason, the result and
-             where it came from, and Riot's scoreboard in its row, against
-             the player's own average under each number. A review with no
-             grade to show keeps the result and the scoreboard alone. -->
+        <!-- THE VERDICT (8.7, shared/verdict.js through the preload), drawn
+             as the share image draws it (8.8): the agent's icon in its tile
+             and the agent, map and mode beside it, the result on the right,
+             then the letter and the number with the standout beside them,
+             and Riot's scoreboard in its row, against the player's own
+             average under each number. No VERDICT word and no reason line.
+             A review with no grade to show keeps the result and the
+             scoreboard alone. -->
         <section class="vd" id="v-verdict">
           <div class="vd-top">
-            <span id="v-vd-label" class="vd-label">Verdict</span>
+            <div class="vd-who">
+              <span id="v-icon" class="vd-icon" hidden></span>
+              <div id="v-meta" class="v-meta"></div>
+            </div>
             <div id="v-result" class="v-result"></div>
           </div>
           <div class="vd-main">
             <div id="v-grade" class="vd-grade-host" hidden></div>
             <div class="vd-said">
-              <p id="v-reason" class="vd-reason" hidden></p>
-              <div id="v-meta" class="v-meta"></div>
+              <p id="v-stat" class="vd-stat" hidden></p>
             </div>
             <div id="v-score" class="v-score"></div>
           </div>

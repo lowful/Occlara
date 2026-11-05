@@ -84,6 +84,7 @@ const breakdownOf = require('../shared/breakdown');
 const momentsOf   = require('../shared/moments');
 const { Backfill } = require('./services/backfill');
 const { RankHistory } = require('./services/rank-history');
+const rankBandOf = require('../shared/rank-band');
 const deathFrames = require('../shared/death-frames');
 const clips = require('../shared/clips');
 const clipScheme = require('./services/clip-scheme');
@@ -106,6 +107,8 @@ const account = createAccountService({
   openExternal: (url) => shell.openExternal(url),
   deviceId: () => licenseService.computeDeviceId(),
   deviceName: () => require('os').hostname() || 'Unknown Device',
+  // Free games are one per player (8.8): Windows' MachineGuid, hashed, at sign in.
+  machineId: () => require('./services/machine-id').machineId(),
   log: (...a) => console.log(...a),
 });
 /** The auth every request to the server sends (api-client.js authHeaders). */
@@ -875,7 +878,9 @@ async function riotRoundsFor(lm) {
   if (!lm || !lm.matchId || !riotId.includes('#')) return null;
   try {
     const { ok, data } = await api.get(
-      `/api/coach/match-rounds?matchId=${encodeURIComponent(lm.matchId)}&username=${encodeURIComponent(riotId)}`,
+      // purpose=live: the one call verified against the recording, the only
+      // one whose puuid the server may note (free-allowance.js linkMayNote).
+      `/api/coach/match-rounds?matchId=${encodeURIComponent(lm.matchId)}&username=${encodeURIComponent(riotId)}&purpose=live`,
       authed, 30000);
     if (!ok || !data || data.error || !Array.isArray(data.perRound) || !data.perRound.length) {
       console.log('[review] no Riot round record:', (data && data.error) || 'no answer');
@@ -1014,6 +1019,8 @@ async function askForensics(looks, stills, snap, source, log, matchId) {
   }
   if (!deaths.length) return empty;
   try {
+    // The rank band (8.8, rankBandNow), sent only when one is known.
+    const band = rankBandNow();
     const body = {
       // From the screen, only an agent the engine locked off the player's own
       // HUD, two answers on buy phase frames (lookForAgent), the rule every
@@ -1024,6 +1031,7 @@ async function askForensics(looks, stills, snap, source, log, matchId) {
       map: snap.context.map, language: snap.context.language || 'en',
       source,
       ...(typeof matchId === 'string' && matchId ? { matchId } : {}),
+      ...(band ? { rankBand: band } : {}),
       deaths: deaths.map(({ names, at, moment, frames, frameAt, framesFrom, ...d }) => {
         if (!frameAt) return { ...d, frames };
         // The last frame before the death and the first after it lead, as the
@@ -1779,6 +1787,9 @@ function linkRiotRecord(job) {
         },
       });
       body.context = { ...body.context, proPlaybook: snap.context.proPlaybook };
+      // The rank band (8.8, rankBandNow), only when one is known.
+      const band = rankBandNow();
+      if (band) body.context.rankBand = band;
       // Riot's match id (8.5.0): the key to the match's own name set, which the
       // server holds for its review's name gate and never sends back.
       if (lm.matchId) body.matchId = lm.matchId;
@@ -1933,6 +1944,20 @@ function askCoach() {
     },
     present,
     matchInProgress,
+    // The clips of a review's deaths kept on disk, by round, read as the
+    // Moments page reads them (moments.js): Ask Coach plays them under a reply.
+    clips: (id) => {
+      const e = reviewStore.get(id);
+      if (!e || e.game !== 'valorant') return [];
+      const built = momentsOf.build('valorant', [e], {
+        clips: (rid) => reviewStore.clipsOf(rid).map((c) => c.name),
+        url: (rid, name) => clipScheme.urlFor(rid, name),
+        frames: (rid, name) => reviewClips.frameTimes(reviewStore.clipFile(rid, name)),
+      });
+      const m = built && built.matches && built.matches[0];
+      return (m ? m.moments : []).filter((x) => x.kind === 'death' && x.clip)
+        .map((x) => ({ round: x.round, url: x.clip.url, death: x.clip.death, frames: x.clip.frames }));
+    },
     game: () => gameRegistry.get(store.get('game')).id,
     patterns: (game) => controller.getPatterns(game),
     breakdown: (game) => controller.getBreakdown(game),
@@ -1946,6 +1971,7 @@ function askCoach() {
     lastHenrikAt: () => backfill.lastCall || 0,
     language: () => normalizeLang(store.get('language')),
     advanced: () => store.get('advancedTips') === true,
+    rankBand: rankBandNow,
     failureText: chatFailureText,
     lastShownKind: () => (lastReviewShown ? lastReviewShown.kind : null),
     now: () => Date.now(),
@@ -2099,6 +2125,8 @@ const controller = {
         // Read when the match ends, so the review uses the setting as it is
         // then, not as it was when recording started.
         advancedTips: store.get('advancedTips') === true,
+        // The rank band the review is sized to (rankBandNow), read as it ends.
+        rankBand: rankBandNow(),
       }),
       // AI decision log: per-frame screenshot + parsed STATE + tip, to disk.
       diagnostics: (rec) => recordAiFrame(rec),
@@ -3408,6 +3436,32 @@ function rollWeeklyBaseline() {
   }
 }
 
+/**
+ * THE PLAYER'S RANK BAND (8.8, src/shared/rank-band.js), sent with the
+ * review, the look at a death and Ask Coach so the advice fits the level:
+ * one of four keys, never a tier name and never a Riot ID. Read from what is
+ * already held for the Riot ID in Settings, with no request of its own: the
+ * rank history's newest rated game, then the tracker profile's rank, then
+ * its peak. Null for League, with no Riot ID, or when nothing names a tier,
+ * and a null band is sent as nothing, today's request byte for byte.
+ */
+function rankBandNow() {
+  try {
+    if (gameRegistry.get(store.get('game')).id !== 'valorant') return null;
+    const riotId = (store.get('riotId') || '').trim();
+    if (!riotId.includes('#')) return null;
+    const st = guardedTrackerPair().stats;
+    const hist = rankHistory.held(riotId);
+    return rankBandOf.rankBand({
+      current: hist && hist.current ? hist.current.tier : null,
+      rank: st ? st.rank : null,
+      peak: st ? st.peakRank : null,
+    });
+  } catch {
+    return null;
+  }
+}
+
 /** Riot-ID-guarded tracker snapshots (current profile + last-match snapshot). */
 function guardedTrackerPair() {
   const riotId  = (store.get('riotId') || '').trim();
@@ -4107,7 +4161,10 @@ const accountIpc = {
  * number and signs the player in, so no payment passes through the app.
  */
 const profileModel = require('../shared/profile');
+const giftsModel = require('../shared/gifts');
 const PROFILE_HISTORY_MS = 6000;
+// The links of the gifts this account bought, by id, from the last PROFILE_GET.
+let profileGiftLinks = new Map();
 const profileIpc = {
   async get() {
     if (matchInProgress() || windowSealed()) return null;
@@ -4125,7 +4182,45 @@ const profileIpc = {
       : null;
     const tracker = linked ? guardedTrackerPair().stats : null;
     const entries = reviewStore.recent('valorant', MAX_REVIEWS);
-    return profileModel.build(view, entries, { riotId: linked ? riotId : '', peak: tracker ? tracker.peakRank || null : null, history });
+    // Gifts (8.8): the ones this account bought and redeemed, within a few
+    // seconds or none. Their links stay in main for Copy link.
+    const giftList = view && view.signedIn
+      ? await Promise.race([
+        account.gifts().catch(() => null),
+        new Promise((r) => setTimeout(() => r(null), PROFILE_HISTORY_MS)),
+      ])
+      : null;
+    profileGiftLinks = new Map(((giftList && giftList.bought) || [])
+      .filter((g) => g && g.id && giftsModel.isGiftLink(g.link) && g.state !== 'void').map((g) => [String(g.id), g.link]));
+    if (matchInProgress() || windowSealed()) return null;
+    return profileModel.build(view, entries, { riotId: linked ? riotId : '', peak: tracker ? tracker.peakRank || null : null, history },
+      undefined, giftList);
+  },
+  /** The site's gift checkout for an offer (pro_monthly and so on), only as gifts.isGiftBuyUrl passes it. */
+  async gift(offer) {
+    if (matchInProgress() || windowSealed()) return { ok: false, error: 'match' };
+    const url = giftsModel.giftBuyUrl(offer);
+    if (!url || !giftsModel.isGiftBuyUrl(url)) return { ok: false, error: 'offer' };
+    await shell.openExternal(url);
+    console.log(`[profile] opened the gift checkout for ${offer}`);
+    return { ok: true };
+  },
+  /** Redeems a pasted link or code on the signed in account: { ok, said }. */
+  async redeem(text) {
+    if (matchInProgress() || windowSealed()) return { ok: false, said: giftsModel.redeemSentence({ ok: false, reason: 'match' }) };
+    const code = giftsModel.normalizeCode(typeof text === 'string' ? text : '');
+    if (!code) return { ok: false, said: giftsModel.redeemSentence({ ok: false, reason: 'code' }) };
+    const r = await account.redeemGift(code);
+    console.log(`[profile] a gift redemption: ${r.ok ? 'redeemed' : `refused (${r.reason})`}`);
+    return { ok: !!r.ok, said: giftsModel.redeemSentence(r) };
+  },
+  /** Copies the link of a gift this account bought, as the last list named it. */
+  async copyGift(id) {
+    if (matchInProgress() || windowSealed()) return { ok: false, error: 'match' };
+    const link = profileGiftLinks.get(String(id || ''));
+    if (!giftsModel.isGiftLink(link)) return { ok: false, error: 'gift' };
+    clipboard.writeText(link);
+    return { ok: true };
   },
   async buy(n) {
     if (matchInProgress() || windowSealed()) return { ok: false, error: 'match' };

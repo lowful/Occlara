@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('occlara', {
   step:        (v, by) => profile.step(v, by),
   buy:         (n) => ipcRenderer.invoke(C.PROFILE_BUY, n),
   openPlans:   () => ipcRenderer.invoke(C.PROFILE_PLANS),
+  // Gifts (8.8): main opens the gift checkout, redeems and copies; the page sends an offer id, the text pasted, a gift id.
+  gift:        (offer) => ipcRenderer.invoke(C.PROFILE_GIFT, offer),
+  redeemGift:  (text) => ipcRenderer.invoke(C.PROFILE_REDEEM, text),
+  copyGift:    (id) => ipcRenderer.invoke(C.PROFILE_GIFT_COPY, id),
   signIn:      () => ipcRenderer.invoke(C.ACCOUNT_SIGNIN),
   onAccount:   (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
   onReviews:   (cb) => subscribe(C.PUSH_REVIEWS, cb),

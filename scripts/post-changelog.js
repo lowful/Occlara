@@ -34,7 +34,7 @@ const ROOT = path.join(__dirname, '..');
 // The webhook lives in the gitignored .env at the repo root (DISCORD_WEBHOOK_URL=...), read only when
 // the environment does not already hold it. Never printed.
 try {
-  if (!process.env.DISCORD_WEBHOOK_URL) {
+  if (!process.env.DISCORD_WEBHOOK_URL && process.env.OCCLARA_NO_DOTENV !== '1') {
     for (const line of fs.readFileSync(path.join(ROOT, '.env'), 'utf8').split(/\r?\n/)) {
       const m = /^\s*DISCORD_WEBHOOK_URL\s*=\s*(.+?)\s*$/.exec(line);
       if (m) process.env.DISCORD_WEBHOOK_URL = m[1].replace(/^["']|["']$/g, '');

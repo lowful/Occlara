@@ -190,6 +190,12 @@ function routeLimits(deps = {}) {
     { paths: ['/api/usage'], mw: L({ name: 'usage', windowMs: 10 * MIN, max: 60 }) },
     // The Invite page asks once a visit; the site redeems once after signup.
     { paths: ['/api/referral'], mw: L({ name: 'referral', windowMs: 10 * MIN, max: 30 }) },
+    // Gifts (8.8): the /gift page peeks once a visit, a redemption is one call,
+    // the Profile and Account pages list once a visit. Codes cannot be guessed
+    // (130 bits), and routes/gifts.js stops an address after 10 unknown codes an hour.
+    { paths: ['/api/gifts/peek'], mw: L({ name: 'gift-peek', windowMs: 10 * MIN, max: 60, key: byIp }) },
+    { paths: ['/api/gifts/redeem'], mw: L({ name: 'gift-redeem', windowMs: 10 * MIN, max: 20 }) },
+    { paths: ['/api/gifts'], mw: L({ name: 'gifts', windowMs: 10 * MIN, max: 60 }) },
     // A sign in is one handoff; a sign out one call. Per IP limits stay in usage.js.
     { paths: ['/api/account/handoff', '/api/account/signout'], mw: L({ name: 'account-session', windowMs: 10 * MIN, max: 30 }) },
     // The licence check: the app re-checks every three minutes through

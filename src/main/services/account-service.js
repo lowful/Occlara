@@ -51,6 +51,8 @@ const ROUTES = {
   CLAIM: '/api/usage/claim',
   RELEASE: '/api/usage/release',
   REFERRAL: '/api/referral',
+  GIFTS: '/api/gifts',
+  GIFT_REDEEM: '/api/gifts/redeem',
 };
 // The app session token the exchange hands back: occ_ and 43 base64url
 // characters by the contract, taken loosely so a longer one still works.
@@ -105,6 +107,9 @@ function normalizeState(data) {
     // A definite cap: the server enforces and nothing is left. Start refuses
     // on this alone (index.js), never on a number worked out here.
     capped: (data.capped === true || a.capped === true),
+    // Free games are one per player (8.8): another account of this player used
+    // them, so this one has none (usage.js says it in one calm sentence).
+    free_shared: (data.free_shared === true || a.free_shared === true),
   };
 }
 
@@ -116,6 +121,7 @@ function createAccountService(deps) {
     openExternal: async () => {},
     deviceId: () => '',
     deviceName: () => '',
+    machineId: () => '',
     log: (...a) => console.log(...a),
     now: () => Date.now(),
     setTimeout: (fn, ms) => setTimeout(fn, ms),
@@ -219,10 +225,19 @@ function createAccountService(deps) {
     emit();
     let res;
     try {
-      res = await d.api.post(ROUTES.EXCHANGE, {
+      const body = {
         code, verifier: f.verifier, state: f.state,
         device_id: d.deviceId(), device_name: d.deviceName(),
-      }, null, 15000);
+      };
+      // This PC as Windows names it, hashed (machine-id.js): one key of the
+      // player for free games, sent only when it could be read. Read off the
+      // main thread (a promise, at most 3 s, once per run), never blocking it.
+      let machine = '';
+      try { machine = (await d.machineId()) || ''; } catch { machine = ''; }
+      if (typeof machine !== 'string') machine = '';
+      if (f.done) return;
+      if (machine) body.machine_id = machine;
+      res = await d.api.post(ROUTES.EXCHANGE, body, null, 15000);
     } catch (e) {
       d.log('[account] sign in exchange could not reach the server:', e.message);
       finish(f, { ok: false, error: 'unreachable' });
@@ -374,7 +389,15 @@ function createAccountService(deps) {
     const ask = { gen: mine, promise: null };
     ask.promise = (async () => {
       try {
-        const res = await d.api.get(ROUTES.ME, auth, o.timeoutMs || 8000);
+        // This PC's machine id, the value the sign in sends (machine-id.js,
+        // read once per run), on every /me as X-Occlara-Machine: a session
+        // made before 8.7.4 never sent it, and gains it here. None when it
+        // could not be read.
+        let machine = '';
+        try { machine = (await d.machineId()) || ''; } catch { machine = ''; }
+        if (typeof machine !== 'string') machine = '';
+        const headers = () => (machine ? { ...auth(), 'X-Occlara-Machine': machine } : auth());
+        const res = await d.api.get(ROUTES.ME, headers, o.timeoutMs || 8000);
         if (mine !== gen) return null;
         if (res && res.ok) {
           const st = normalizeState(res.data);
@@ -479,6 +502,49 @@ function createAccountService(deps) {
     }
   }
 
+  /**
+   * GET /api/gifts (8.8): the gifts this account bought, each with its link,
+   * and the ones it redeemed. Null when signed out or on any failure.
+   */
+  async function gifts() {
+    if (!signedIn()) return null;
+    try {
+      const res = await d.api.get(ROUTES.GIFTS, auth, 8000);
+      if (!res || !res.ok || !res.data || typeof res.data !== 'object') return null;
+      return { bought: Array.isArray(res.data.bought) ? res.data.bought : [], received: Array.isArray(res.data.received) ? res.data.received : [] };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * POST /api/gifts/redeem (8.8) with a code already made exact (gifts.js
+   * normalizeCode). { ok: true, tier, months, started, ends_at, waits_for,
+   * again } or { ok: false, reason }. A redeemed gift moves the plan, so the
+   * account is asked for again and every page told.
+   */
+  async function redeemGift(code) {
+    if (!signedIn()) return { ok: false, reason: 'signin' };
+    let res;
+    try {
+      res = await d.api.post(ROUTES.GIFT_REDEEM, { code }, auth, 12000);
+    } catch {
+      return { ok: false, reason: 'network' };
+    }
+    const b = (res && res.data && typeof res.data === 'object') ? res.data : {};
+    if (res && res.ok && b.ok) {
+      stale();
+      try { await meNow({ force: true }); } catch { /* asked again on the next minute */ }
+      emit();
+      return { ok: true, tier: b.tier, months: Number(b.months) || 1, started: !!b.started, ends_at: b.ends_at || null,
+        waits_for: b.waits_for || null, again: !!b.again };
+    }
+    if (res && res.status === 429) return { ok: false, reason: 'rate-limited' };
+    if (res && res.status === 503 && b.error === 'gifts-not-live') return { ok: false, reason: 'not-live' };
+    if (res && (res.status === 401 || res.status === 403)) return { ok: false, reason: 'signin' };
+    return { ok: false, reason: typeof b.reason === 'string' ? b.reason : 'network' };
+  }
+
   /** Sign out: the server is told when it can be, the token goes either way. */
   async function signOut() {
     const t = token();
@@ -524,7 +590,7 @@ function createAccountService(deps) {
 
   return {
     signIn, cancel, pending, handleDeepLink, deepLinkIn,
-    signedIn, hasAuth, auth, me: meNow, cached, fresh, age, claim, release, referral, signOut, view,
+    signedIn, hasAuth, auth, me: meNow, cached, fresh, age, claim, release, referral, gifts, redeemGift, signOut, view,
     onChange, onRefused, sessionRefused,
     // For the tests: the flow's state and port, never its verifier.
     _flow: () => (flow ? { state: flow.state, port: flow.port, url: flow.url } : null),

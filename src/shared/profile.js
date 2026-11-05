@@ -151,6 +151,8 @@ function gamesState(st) {
     free_total: st.free_total === undefined ? null : st.free_total,
     bonus_pool: st.bonus_pool || 0,
     period_end: st.period_end || null,
+    // Only when it is so: free games are one per player (8.8).
+    ...(st.free_shared === true ? { free_shared: true } : {}),
   };
 }
 
@@ -186,7 +188,10 @@ function hero(view, opts) {
     split = f.tier === 'free' ? `${f.own} of your ${plural(f.total, 'free game')}${bonus}` : `${f.own} of this month's ${f.total}${bonus}`;
   }
   let renew;
-  if (f.tier === 'free') renew = 'Free games do not renew. Upgrade for games every month.';
+  // Free games are one per player (8.8): said calmly when another account of
+  // this player used them, never more than that.
+  if (f.tier === 'free' && view.games.free_shared === true && !f.own) renew = `${usage.ONE_PER_PLAYER} Upgrade for games every month.`;
+  else if (f.tier === 'free') renew = 'Free games do not renew. Upgrade for games every month.';
   else {
     const day = usage.dayOf(view.games.period_end, opts);
     renew = day ? `Your month's games start again ${day}.` : 'Your month\'s games start again with your plan.';
@@ -353,13 +358,81 @@ const BUY = {
   signInNote: 'Bought games go to your Occlara account, so sign in first.',
 };
 
+// ── Gifts (8.8) ────────────────────────────────────────────────────────────
+
+/*
+ * GIFTS: Pro or Max for someone else, a month or a year, at the plan's own
+ * price, bought on the site (gifts.js giftBuyUrl, opened by main) and sent as
+ * a link the friend redeems. The section offers both paid plans at the cycle
+ * the Plans toggle shows, a field to redeem a link or code, and the gifts the
+ * player bought, each with its state and a Copy link that main fills in.
+ */
+const giftsModule = require('./gifts');
+
+/** Gift Pro and Gift Max, for each cycle. */
+function giftOffers() {
+  const out = { monthly: [], yearly: [] };
+  for (const p of PLANS) {
+    if (!p.monthly) continue;
+    out.monthly.push({ id: `${p.id}_monthly`, label: `Gift ${p.label}`, price: `${money(p.monthlyCents)} for a month`,
+      aria: `Gift ${p.label} for a month, ${money(p.monthlyCents)}` });
+    out.yearly.push({ id: `${p.id}_yearly`, label: `Gift ${p.label}`, price: `${money(p.yearlyCents)} for a year`,
+      aria: `Gift ${p.label} for a year, ${money(p.yearlyCents)}` });
+  }
+  return out;
+}
+
+/**
+ * The Gifts section.
+ * @param list      GET /api/gifts as main got it ({ bought, received }), or null
+ * @param signedIn  whether this PC is signed in to an account
+ */
+function giftSection(list, signedIn, opts) {
+  const l = list && typeof list === 'object' ? list : {};
+  const bought = (Array.isArray(l.bought) ? l.bought : []).slice(0, 20).map((g) => {
+    const day = usage.dayOf(g.created_at, opts);
+    return {
+      id: String(g.id || ''),
+      what: giftsModule.giftName(g.tier, g.months),
+      state: giftsModule.boughtState(g.state),
+      when: day ? `Bought ${day}` : '',
+      canCopy: g.state !== 'void' && giftsModule.isGiftLink(g.link),
+    };
+  });
+  const running = (Array.isArray(l.received) ? l.received : []).find((g) => g.state === 'running');
+  const waiting = (Array.isArray(l.received) ? l.received : []).filter((g) => g.state === 'waiting');
+  let received = '';
+  if (running) {
+    const day = usage.dayOf(running.ends_at, opts);
+    const from = running.from_name ? ` from ${running.from_name}` : '';
+    received = `Your gift of ${giftsModule.giftName(running.tier, running.months)}${from} runs${day ? ` until ${day}` : ''}.`;
+  } else if (waiting.length) {
+    received = `${waiting.length === 1 ? 'A gift' : `${waiting.length} gifts`} you redeemed ${waiting.length === 1 ? 'starts' : 'start'} when your current plan ends.`;
+  }
+  return {
+    title: 'Gifts',
+    hint: 'Give Pro or Max to a friend. You get a link to send them, and they redeem it on their own account.',
+    offers: giftOffers(),
+    checkout: 'Checkout opens in your browser.',
+    signIn: 'Sign in to send or redeem a gift',
+    signedIn: !!signedIn,
+    redeem: { label: 'Redeem a gift', placeholder: 'Paste a gift link or code', button: 'Redeem' },
+    boughtTitle: bought.length ? 'Gifts you bought' : '',
+    bought,
+    received,
+    copy: 'Copy link',
+    copied: 'Link copied',
+  };
+}
+
 /**
  * The whole page, for PROFILE_GET.
  * @param view     the account's view
  * @param entries  the saved Valorant reviews
  * @param ctx      { riotId, peak, history }
+ * @param giftList GET /api/gifts, or null (8.8)
  */
-function build(view, entries, ctx, opts) {
+function build(view, entries, ctx, opts, giftList) {
   const h = hero(view, opts);
   return {
     hero: h,
@@ -367,10 +440,12 @@ function build(view, entries, ctx, opts) {
     buy: { ...BUY, picks: picks(), start: quote(QUICK_PICKS[1]), max: MAX_GAMES_PER_PURCHASE },
     play: play(entries, ctx, opts),
     plans: { title: 'Plans', items: plans(h.tier), monthly: 'Monthly', yearly: 'Yearly' },
+    gifts: giftSection(giftList, h.state !== 'out', opts),
   };
 }
 
 module.exports = {
   GAME_PRICE_CENTS, MAX_GAMES_PER_PURCHASE, QUICK_PICKS, PLANS, SITE, BUY_PATH, PRICING_URL, BUY,
   money, wholeOf, clampGames, quote, step, picks, buyUrl, isBuyUrl, gamesState, hero, play, plans, rankIndex, agentOf, build,
+  giftOffers, giftSection,
 };

@@ -175,18 +175,18 @@ function paintSkills(r) {
  */
 function paintValorant(r, verdict) {
   const g = r.game || {};
-  // The Verdict's letter, number and reason, when the review has a grade to
+  // The Verdict's letter, number and standout, when the review has a grade to
   // show; the result, the score and the scoreboard are there either way.
-  // ONE HEADER FOR EVERY STATE (8.7): the label and the grade's slot stay
-  // where they are; without a grade to show the slot is the dashed "Not
-  // graded", with the one reason the grade card used to carry beside its
-  // question mark (not enough measured, grade.js).
-  $('v-vd-label').hidden = false;
+  // ONE HEADER FOR EVERY STATE (8.7): the grade's slot stays where it is;
+  // without a grade to show it is the dashed "Not graded", with the one
+  // reason the grade card used to carry beside its question mark (not enough
+  // measured, grade.js). AS THE SHARE IMAGE DRAWS IT (8.8): the agent's icon
+  // in its tile, no VERDICT word, and the standout where the reason was.
+  paintVerdictIcon($('v-icon'), verdict);
   $('v-grade').replaceChildren(verdict ? verdictGrade(verdict) : notGraded(
     r.grade && typeof r.grade.score !== 'number' ? 'Not enough measured to grade this match' : 'Not graded'));
   $('v-grade').hidden = false;
-  $('v-reason').textContent = (verdict && verdict.reason) || '';
-  $('v-reason').hidden = !(verdict && verdict.reason);
+  paintVerdictStat($('v-stat'), verdict);
   $('v-verdict').classList.toggle('graded', !!verdict);
   const resultEl = $('v-result');
   resultEl.textContent = g.result ? g.result.toUpperCase() : 'MATCH REVIEW';
@@ -274,19 +274,55 @@ function notGraded(text) {
   return el('span', 'vd-none', text);
 }
 
-/** League's Verdict: the grade and the reason, its numbers in the scoreline under it. */
+/*
+ * THE VERDICT AS THE SHARE IMAGE DRAWS IT (8.8, docs/claude/verdict.md): the
+ * character's icon in a rounded tile, and the standout, its value large and
+ * its line beside it, where the reason sentence was. Both are verdict.js's
+ * own fields (icon, stat), counted there; the page does no arithmetic. The
+ * icon's URL is VerdictCard.iconUrl's, the same file the image draws and the
+ * same two bundled shapes only, and one that fails to load takes its tile
+ * away. No icon, or no standout, and the slot is hidden.
+ */
+function paintVerdictIcon(host, v) {
+  host.replaceChildren();
+  const url = v && v.icon && window.VerdictCard && typeof window.VerdictCard.iconUrl === 'function'
+    ? window.VerdictCard.iconUrl(v.icon) : null;
+  host.hidden = !url;
+  if (!url) return;
+  const img = document.createElement('img');
+  img.className = 'vd-icon-img';
+  img.src = url;
+  img.alt = '';
+  img.addEventListener('error', () => { host.replaceChildren(); host.hidden = true; });
+  host.append(img);
+}
+function paintVerdictStat(host, v) {
+  const s = v && v.stat;
+  host.replaceChildren();
+  host.hidden = !(s && s.value && s.label);
+  if (host.hidden) return;
+  host.append(el('span', 'vd-stat-value', s.value), el('span', 'vd-stat-label', s.label));
+}
+
+/** League's Verdict, as the Valorant one: the icon and the role, the grade and the standout. */
 function paintLolVerdict(v) {
   const host = $('r-verdict');
   host.replaceChildren();
   host.hidden = !v;
   if (!v) return;
   const top = el('div', 'vd-top');
-  top.append(el('span', 'vd-label', 'Verdict'));
+  const who = el('div', 'vd-who');
+  const icon = el('span', 'vd-icon');
+  paintVerdictIcon(icon, v);
+  who.append(icon);
+  if (v.sub) who.append(el('div', 'v-meta', v.sub));
+  top.append(who);
   if (v.right) top.append(el('span', 'v-result', v.right));
   const main = el('div', 'vd-main');
   const said = el('div', 'vd-said');
-  if (v.reason) said.append(el('p', 'vd-reason', v.reason));
-  if (v.sub) said.append(el('div', 'v-meta', v.sub));
+  const stat = el('p', 'vd-stat');
+  paintVerdictStat(stat, v);
+  said.append(stat);
   main.append(verdictGrade(v), said);
   host.append(top, main);
 }
@@ -551,7 +587,11 @@ function roundRow(r, c, frames) {
   // then the why, each a block of its own under its own label (look()).
   const speaks = !!(f && f.cause !== 'unclear' && (f.what || f.better));
   const why = c.why && !(speaks && f.source !== 'screen') ? c.why : null;
-  const row = el('article', 'v-round' + (f || why ? '' : ' quiet'));
+  // THE KILLER CARD IS RIOT'S, NOT THE COACH'S (8.8): a died round the coach
+  // neither looked at nor wrote about still has the card when the record
+  // has one, alone in the row's body, folded or open as served() says.
+  const killerOnly = !f && !why ? killerCardEl(c.killerCard) : null;
+  const row = el('article', 'v-round' + (f || why || killerOnly ? '' : ' quiet'));
   row.id = `round-${c.n}`;
   const head = el('div', 'v-round-head');
   // The number is the row's anchor (8.7): a click brings the row into view
@@ -565,7 +605,7 @@ function roundRow(r, c, frames) {
   if (c.result) head.append(el('span', 'v-chip ' + c.result, c.result === 'won' ? 'Won' : 'Lost'));
   if (c.side) head.append(el('span', 'v-side', c.side));
   row.append(head);
-  if (!f && !why) {
+  if (!f && !why && !killerOnly) {
     const facts = factsOf(c, 'span');
     if (facts) head.append(facts);
     return row;
@@ -574,7 +614,7 @@ function roundRow(r, c, frames) {
   // match: the eye in the page's header opens the match on its first death.
   const eye = f && r.id && r.aiLog === 'kept' && typeof f.at === 'number' && window.LogEye
     ? window.LogEye.button('kept', () => window.occlara.openAiLog(r.id, f.at), window.LogEye.MOMENT) : null;
-  const said = f ? look(c, frames, why) : whyLine(why);
+  const said = f ? look(c, frames, why) : why ? whyWithKiller(c, why) : killerOnly;
   /*
    * A ROUND NOT OPEN IS ONE LINE UNTIL ASKED (8.7): served() opens a round
    * with a look or a why, or one of the top mistake's, and the rest of the
@@ -594,7 +634,7 @@ function roundRow(r, c, frames) {
     more.type = 'button';
     more.setAttribute('aria-expanded', 'false');
     more.setAttribute('aria-controls', body.id);
-    more.setAttribute('aria-label', `Round ${c.n}, show what the coach said`);
+    more.setAttribute('aria-label', killerOnly ? `Round ${c.n}, show what killed you` : `Round ${c.n}, show what the coach said`);
     head.append(more);
     row.classList.add('fold');
     head.addEventListener('click', (e) => {
@@ -698,6 +738,71 @@ function whyLine(why, apart) {
   const p = el('p', 'v-why-line' + (apart ? ' apart' : ''));
   p.append(el('span', 'gv-fix-label', "Coach's read"), el('span', 'v-why', why));
   return p;
+}
+
+/** A round with a why and no look: the why, and the killer card under it when Riot's record has one. */
+function whyWithKiller(c, why) {
+  const line = whyLine(why);
+  const killer = killerCardEl(c.killerCard);
+  if (!killer) return line;
+  const box = el('div', 'v-why-block');
+  box.append(line, killer);
+  return box;
+}
+
+/*
+ * THE KILLER CARD (8.7): the game's death recap again, under the coach's
+ * words. valorant-review.js killerCard wrote every string from Riot's record
+ * (the killer's agent, the gun, the damage it dealt the player, head, body
+ * and legs) and named each icon under assets/, bundled, so nothing loads off
+ * the network. Set by textContent; an icon that does not load is taken away
+ * and its words stay. A round with no card (no Riot record, a screen only
+ * review, a death not to an enemy) draws nothing.
+ */
+const ASSETS = '../../../assets/';
+function iconImg(path, cls) {
+  if (typeof path !== 'string' || !/^valorant\/(agents|weapons)\/[A-Za-z0-9]+\.png$/.test(path)) return null;
+  const img = document.createElement('img');
+  img.className = cls;
+  img.src = ASSETS + path;
+  img.alt = '';
+  img.loading = 'lazy';
+  img.addEventListener('error', () => img.remove());
+  return img;
+}
+function killerCardEl(k) {
+  if (!k || typeof k !== 'object' || !k.agent) return null;
+  const card = el('div', 'v-killer');
+  card.setAttribute('role', 'group');
+  card.setAttribute('aria-label', `${k.label || 'Killed by'} ${k.agent}${k.weapon ? `, ${k.weapon}` : ''}`);
+  const face = iconImg(k.agentIcon, 'v-killer-face');
+  if (face) card.append(face);
+  const who = el('div', 'v-killer-who');
+  who.append(el('span', 'v-killer-label', k.label || 'Killed by'), el('span', 'v-killer-agent', k.agent));
+  if (k.weapon) {
+    const gun = el('span', 'v-killer-gun');
+    const icon = iconImg(k.weaponIcon, 'v-killer-gun-icon');
+    if (icon) gun.append(icon);
+    gun.append(el('span', null, k.weapon));
+    who.append(gun);
+  }
+  card.append(who);
+  if (k.damage) {
+    const dmg = el('div', 'v-killer-dmg');
+    dmg.append(el('span', 'v-killer-dmg-n', k.damage), el('span', 'v-killer-dmg-label', k.damageLabel || 'damage to you'));
+    if (Array.isArray(k.hits) && k.hits.length) {
+      const hits = el('div', 'v-killer-hits');
+      for (const h of k.hits) {
+        if (!h || !h.label) continue;
+        const cell = el('span', 'v-killer-hit');
+        cell.append(el('span', 'v-killer-hit-n', String(h.value)), el('span', 'v-killer-hit-label', h.label));
+        hits.append(cell);
+      }
+      dmg.append(hits);
+    }
+    card.append(dmg);
+  }
+  return card;
 }
 
 /**
@@ -859,10 +964,13 @@ function look(c, frames, why) {
   // Where a cleared clip was, above the frames that stay, or with the words
   // when no frame stayed either.
   if (gone && shots.length) media.append(gone);
-  if (shots.length) {
-    strip = shotStrip(shots, player, f.source === 'screen');
-    // A still is a place in the clip: the player's keys work from it too.
-    if (player) player.keysFrom(strip);
+  // NO STRIP UNDER A CLIP (8.7, the player's ask): the row of stills ("3 s
+  // before" to "Just after") only took room, since the clip plays every one
+  // of them and its timeline still marks each still's place. The stills stay
+  // in the review (the look's evidence, the clip's poster, the marks), and a
+  // moment with no clip still shows them: then they are all it has.
+  if (shots.length && !player) {
+    strip = shotStrip(shots, null, f.source === 'screen');
     media.append(strip);
   }
   const advice = el('div', 'v-advice');
@@ -884,6 +992,8 @@ function look(c, frames, why) {
   if (f.source === 'screen') advice.append(el('p', 'v-moment-src', SCREEN_TIMING));
   if (why) advice.append(whyLine(why, said));
   if (gone && !shots.length) advice.append(gone);
+  const killer = killerCardEl(c.killerCard);
+  if (killer) advice.append(killer);
   if (media.children.length) box.append(media);
   else box.classList.add('no-media');
   box.append(advice);
@@ -1484,13 +1594,12 @@ function paintLocked(r) {
 /** The result, where it came from, and Riot's scoreboard: what a locked review keeps. */
 function paintLockedValorant(r) {
   const g = r.game || {};
-  $('v-vd-label').hidden = false;
+  paintVerdictIcon($('v-icon'), null);
   $('v-grade').replaceChildren(notGraded('Not graded'));
   $('v-grade').hidden = false;
   $('v-focus-wrap').hidden = true;
   $('v-focus').textContent = '';
-  $('v-reason').textContent = '';
-  $('v-reason').hidden = true;
+  paintVerdictStat($('v-stat'), null);
   $('v-verdict').classList.remove('graded');
   const resultEl = $('v-result');
   resultEl.textContent = g.result ? g.result.toUpperCase() : 'MATCH REVIEW';

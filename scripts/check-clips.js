@@ -603,14 +603,13 @@ setTimeout(async () => {
       `the review on screen repainted with the clip in its moment, its frame the poster (${livePlayer && livePlayer.src})`);
     // Nothing loaded until it is played, here while the next match is recorded.
     ok(livePlayer && livePlayer.preload === 'none' && livePlayer.readyState === 0, `and nothing of it loaded yet (preload ${livePlayer && livePlayer.preload}, readyState ${livePlayer && livePlayer.readyState})`);
-    // Its five stills under it, each labelled by its seconds from the screen's
-    // read of the death: the card keeps every frame the look was sent, with
-    // frameAt (valorant-review.js lookFrames), where it kept two.
+    // No strip of stills under the clip (8.7): the card keeps every frame the
+    // look was sent (valorant-review.js lookFrames), shown once the clip is
+    // gone (below), and the clip's timeline marks each.
     const liveShots = await inPage(`(() => [...document.querySelectorAll('#moment-2 .v-shot')]
       .map((s) => (s.querySelector('img') ? s.querySelector('figcaption').textContent : null)))()`);
-    ok(Array.isArray(liveShots) && liveShots.length === 5 && liveShots.every(Boolean) && liveShots[0] === '4.5 s before'
-      && liveShots.slice(1, 3).every((t) => / s before$/.test(t)),
-    `and the five stills it was sent under it, each labelled by its seconds (${liveShots && liveShots.join(', ')})`);
+    ok(Array.isArray(liveShots) && liveShots.length === 0,
+      `and no strip of stills under it (${liveShots && liveShots.join(', ')})`);
 
     // Cleared while that review is still being improved. A Riot ID given now
     // makes the link's last try save the review once more, saying Riot's
@@ -765,9 +764,10 @@ setTimeout(async () => {
     const wantBack = Array.from({ length: STEPS }, (_v, i) => FROM + STEPS - i - 1);
     ok(sameList(dr.forward, wantFwd), `a frame step forward presents the next frame each time, across the dropped one after frame ${gapAt}: ${JSON.stringify(dr.forward)}`);
     ok(sameList(dr.back, wantBack), `and a step back the one before: ${JSON.stringify(dr.back)}`);
-    ok(Array.isArray(dr.stills) && dr.stills.length === 5 && sameList(dr.stills.map((s) => s.frame), seedStills)
-      && dr.stills.every((s) => s.current === 'true' && s.paused),
-    `a click on a still under the clip presents that still's own frame, paused, and marks it: ${JSON.stringify(dr.stills && dr.stills.map((s) => s.frame))}, ${JSON.stringify(seedStills)} wanted`);
+    // No strip of stills under a clip since 8.7 (the player's ask): the
+    // timeline's marks above say where each still is.
+    ok(Array.isArray(dr.stills) && dr.stills.length === 0,
+      `no strip of stills under the clip to click (${JSON.stringify(dr.stills && dr.stills.map((s) => s.frame))})`);
     ok(dr.death && dr.death.text === 'Read as dead' && dr.afterDeath && /^0\.0\d s after$/.test(dr.afterDeath.text),
       `at the read of the death the time says "${dr.death && dr.death.text}", and a frame on "${dr.afterDeath && dr.afterDeath.text}"`);
     const sp = dr.speeds || [];
@@ -822,9 +822,6 @@ setTimeout(async () => {
       `the timeline clicked at three fifths of it moves the clip there, paused: ${clicked && clicked.t} s of ${clipLen.toFixed(2)}`);
     if (process.env.OCCLARA_SHOTS) {
       await rwShot('#moment-2', 'clip-player-timeline');
-      await inPage("document.querySelectorAll('#moment-2 .v-shot-go')[3].click(); true");
-      await wait(900);
-      await rwShot('#moment-2', 'clip-player-still');
       await inPage(`(() => { const r = document.querySelector('#moment-2 .cp-seek'); r.value = String(${Math.round(SEED_DEATH)}); r.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
       await wait(900);
       await rwShot('#moment-2', 'clip-player-death');

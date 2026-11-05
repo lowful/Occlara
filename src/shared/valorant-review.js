@@ -24,6 +24,7 @@ const { CLIP_RE, LOOK_AT } = require('./clips');
 const { roleOf } = require('./agent-roles');
 const { weaponName } = require('./valorant-verify');
 const { FIGHTS, CHANGES } = require('./death-causes');
+const icons = require('./valorant-icons');
 
 let DATA = {};
 try {
@@ -599,6 +600,9 @@ function build(input) {
       sec: typeof r.deathSec === 'number' ? r.deathSec : null,
       killer: r.killerAgent || null,
       weapon: r.weapon || null,
+      // What the killer dealt the player this round (8.7, the killer card),
+      // only where Riot's record had it, so a card saved before keeps its keys.
+      ...(r.killerDamage && typeof r.killerDamage.damage === 'number' ? { damage: { ...r.killerDamage } } : {}),
       firstDeath: !!r.firstDeath,
       firstKill: !!r.firstKill,
       kills: typeof r.kills === 'number' ? r.kills : null,
@@ -858,7 +862,7 @@ function served(review) {
  * again, for a test that holds the rest of what is shown unchanged.
  */
 const VIEW_FIELDS = ['summaryLines'];
-const VIEW_CARD_FIELDS = ['tags', 'open'];
+const VIEW_CARD_FIELDS = ['tags', 'open', 'killerCard'];
 
 function withView(review) {
   if (!review || typeof review !== 'object') return review;
@@ -867,10 +871,60 @@ function withView(review) {
   const top = insights.countable(review).mistakes[0];
   const hot = new Set(top && Array.isArray(top.rounds) ? top.rounds : []);
   const rounds = Array.isArray(review.rounds)
-    ? review.rounds.map((c) => (c && typeof c === 'object'
-      ? { ...c, tags: factTags(c.facts), open: !!(c.forensics || c.why || hot.has(c.n)) } : c))
+    ? review.rounds.map((c) => {
+      if (!c || typeof c !== 'object') return c;
+      const card = { ...c, tags: factTags(c.facts), open: !!(c.forensics || c.why || hot.has(c.n)) };
+      const killer = killerCard(c);
+      if (killer) card.killerCard = killer;
+      return card;
+    })
     : review.rounds;
   return { ...review, rounds, summaryLines: summaryLines(review.summary) };
+}
+
+/*
+ * THE KILLER CARD (8.7): the game's own death recap again, beside the round's
+ * clip. Who killed the player by agent and icon, the gun by name and kill feed
+ * icon, and what that killer dealt the player in the round, head, body and
+ * legs, as finished strings the page sets by textContent.
+ *
+ * RIOT'S RECORD ONLY. The killer is Riot's (riot-rounds.js killerAgent), an
+ * agent the game data knows or no card; the gun is Riot's name for it, its
+ * icon only for a gun the data knows; the damage only where Riot's round kept
+ * the killer's damage events on the player (killerDamageOf), else left out. A
+ * screen only review gets no card: the screen's look names no killer by rule
+ * (death-forensics.js parse), and a kill feed line read off the screen is a
+ * read, never a fact. A round whose kill feed says the player fell to a
+ * teammate or to themselves, or names another agent as the killer than the
+ * record does, gets no card either. Never a name: agents and numbers only
+ * (docs/claude/games.md).
+ */
+function killerCard(c) {
+  const riot = c && c.died && c.riot;
+  if (!riot || !riot.killer) return null;
+  const agent = icons.agentName(riot.killer);
+  if (!agent) return null;
+  if (Array.isArray(riot.feed)) {
+    const end = riot.feed.find((k) => k && k.on === 'me');
+    if (end && end.by && end.by !== 'enemy') return null;
+    if (end && end.ka && icons.agentName(end.ka) !== agent) return null;
+  }
+  const gun = typeof riot.weapon === 'string' && riot.weapon.trim() ? riot.weapon.trim() : null;
+  const d = riot.damage && typeof riot.damage === 'object' ? riot.damage : null;
+  const whole = (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null);
+  const dealt = d && whole(d.damage) ? d.damage : null;
+  const parts = dealt ? [['Head', whole(d.head)], ['Body', whole(d.body)], ['Legs', whole(d.legs)]] : [];
+  const hits = parts.some(([, n]) => n) ? parts.map(([label, n]) => ({ label, value: String(n || 0) })) : null;
+  return {
+    label: 'Killed by',
+    agent,
+    agentIcon: icons.agentIcon(agent),
+    weapon: gun,
+    weaponIcon: gun ? icons.weaponIcon(gun) : null,
+    damage: dealt ? String(dealt) : null,
+    damageLabel: dealt ? 'damage to you this round' : null,
+    hits,
+  };
 }
 
 /** The review without what withView added: as served() gave it before B2. */

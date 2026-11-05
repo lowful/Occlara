@@ -38,6 +38,7 @@ const licenseRoutes = require('./routes/license');
 const accountRoutes = require('./routes/account');
 const coachRoutes   = require('./routes/coach');
 const usageRoutes   = require('./routes/usage');
+const giftRoutes    = require('./routes/gifts');
 const callers       = require('./services/caller');
 const retiredRoutes = require('./routes/retired');
 const adminRoutes   = require('./routes/admin');
@@ -204,7 +205,8 @@ app.use(express.json({ limit: '2mb' }));
 // sixty times in ten minutes is answered 429 for the rest of that window
 // without a lookup. A valid caller and an outage are never counted.
 // The sign in handoff is named here too (8.7.3), so its limit is per account.
-const IDENTIFIED = ['/api/coach', '/api/usage', '/api/referral', '/api/account/me', '/api/account/signout', '/api/account/handoff'];
+// Gifts (8.8) too: their redeem is limited per account, and the peek says "yours".
+const IDENTIFIED = ['/api/coach', '/api/usage', '/api/referral', '/api/account/me', '/api/account/signout', '/api/account/handoff', '/api/gifts'];
 const guessGuard = rateLimits.createGuessGuard();
 async function identifyFirst(req, res, next) {
   try {
@@ -272,6 +274,8 @@ app.use('/api/account',  accountRoutes);
 // account router, which serves only /dashboard and /portal. Its own per IP
 // limits sit on the routes that take no account (routes/usage.js).
 app.use('/api',          usageRoutes);
+// Gifts (8.8): /api/gifts/peek, /redeem and the list (routes/gifts.js).
+app.use('/api/gifts',    giftRoutes);
 app.use('/api/coach',    coachRoutes);
 // A game Occlara no longer coaches: an older install still calling its routes
 // is answered 410 on every path, and nothing is looked up or called. See

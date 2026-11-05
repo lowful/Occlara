@@ -1222,6 +1222,8 @@ const b64 = (s) => Buffer.from(s).toString('base64');
       store: { get: (k) => ({ recordingMode: mode, licenseKey: 'TEST' })[k] },
       // The account's auth (8.7, index.js authed): what api-client sends.
       authed: () => ({ 'X-License-Key': 'TEST' }),
+      // The player's rank band (8.8, index.js rankBandNow): none known here.
+      rankBandNow: () => null,
       CAPTURE: { profiles: { standard: { targetW: 1280, targetH: 720, jpegQuality: 70 } } },
       API: { DEATH_FORENSICS: '/api/coach/death-forensics' },
       api: { post: async (_p, body) => {

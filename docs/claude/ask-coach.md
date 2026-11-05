@@ -255,6 +255,36 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   joins the new thread's conversation: it had landed under the new match's
   divider and gone to the model with that match's next question.
 
+- **The coach shows the player's own clips** (the player's ask: bring up
+  their clips "so the player knows what its talking about").
+  `src/main/services/ask-coach.js clipsOf` reads which rounds of the asked
+  Valorant review have a death clip on disk, the Moments page's own read
+  (index.js deps `clips`, over `moments.js build`), and sends their ROUND
+  NUMBERS alone as `context.match.clips`: no path, no URL, no file name
+  leaves the PC. The server keeps only deaths of the match's own cards
+  (`chat-prompt.js normalise`), and the match part of the prompt gains a
+  CLIPS block saying those rounds and the marker `[clip:r5]` to end a
+  paragraph with, three at most (`renderClips`); with no clips the prompt
+  is byte for byte what it was. `server/services/chat-clips.js` takes every
+  marker out before any gate reads a word (`extract`: well formed or not, a
+  path or a URL in one, a marker inside thinking), keeps a round in the list
+  as an ask (three, one a round, in order), ties it to the paragraph it was
+  written in (`asksOf`), keeps it only when a sentence of that paragraph
+  survives the gates (`parseReply clipAsks`) and the route's passes
+  (`place`, by the kept sentence's words, else by place when every paragraph
+  stood), and the answer carries `clips: [{ round, para }]` only when there
+  is one, never on the honest line. Main plays each from THIS review's own
+  clip of that round (`clipsFor`): a round of another match, a clip gone, a
+  URL or a path in the answer, a paragraph the reply lacks, none of it shows.
+  The page draws a reply with clips as its paragraphs, each set as text, with
+  a ghost capsule "Watch round N" under the paragraph; a click makes it the
+  review's own clip player (clip-player.js: 1x, 0.5x, 0.25x, the death
+  marked), nothing loaded before it and never autoplay. A reply without one
+  is the one pre-line bubble it was. Nothing mid match: the question is
+  refused before any request, the page is sealed, and a hidden page pauses
+  every clip. League has no round clips and is never told any.
+  `npm run test:chatclips` holds all of it, the page on a fake clip list.
+
 `npm run test:chatcontext` holds the hold (a held match's counts out of the
 patterns too), the map rule and the rounds, a review older than the ten
 newest kept as the match, what is never sent, the cards and looks (old cards

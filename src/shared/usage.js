@@ -33,6 +33,10 @@ const MAX_EARNED = 20;
 const GAMES_PER_FRIEND = 4;
 const FRIEND_GIFT = 2;
 
+// Said, calmly, on a free account whose free games another account of the
+// same player already used (server/services/free-allowance.js, 8.8).
+const ONE_PER_PLAYER = 'Free games are one per player.';
+
 const UPGRADE_URL = 'https://occlara.app/pricing';
 const ACCOUNT_URL = 'https://occlara.app/account';
 const SIGNUP_URL = 'https://occlara.app/signup';
@@ -108,6 +112,7 @@ function gamesLeft(state, opts) {
   if (!f) return '';
   const extra = f.earned ? `, plus ${plural(f.earned, 'earned game')}` : '';
   if (f.tier === 'free') {
+    if (!f.left && state.free_shared === true) return 'You have no free games left, free games are one per player';
     if (!f.left) return f.total ? `You have used your ${plural(f.total, 'free game')}` : 'You have no free games left';
     if (!f.own) return `${plural(f.earned, 'earned game')} left`;
     return `${f.own} of ${plural(f.total, 'free game')} left${extra}`;
@@ -130,6 +135,14 @@ function capState(state, opts) {
   const capped = state.capped === true || f.left === 0;
   if (!capped) return null;
   const day = dayOf(state.period_end, opts);
+  if (f.tier === 'free' && state.free_shared === true) {
+    return {
+      capped: true,
+      title: 'You have no free games left',
+      body: `${ONE_PER_PLAYER} Upgrade to Pro for ${TIERS.pro.cap} games a month, or invite friends for more games.`,
+      upgrade: 'pro',
+    };
+  }
   if (f.tier === 'free') {
     return {
       capped: true,
@@ -180,7 +193,7 @@ function inviteProgress(ref) {
 }
 
 module.exports = {
-  TIERS, FREE_GAMES, MAX_FRIENDS, MAX_EARNED, GAMES_PER_FRIEND, FRIEND_GIFT, INVITE_HOW,
+  TIERS, FREE_GAMES, MAX_FRIENDS, MAX_EARNED, GAMES_PER_FRIEND, FRIEND_GIFT, INVITE_HOW, ONE_PER_PLAYER,
   UPGRADE_URL, ACCOUNT_URL, SIGNUP_URL,
   tierLabel, dayOf, figures, gamesLeft, capState, capNotice, inviteProgress,
 };

@@ -17,6 +17,9 @@ What is in this folder, and where each file comes from.
   games/          Valorant's and League's own logos, the source of the game
                   picker's (shared/game-logos.js inlines their paths).
   lol/champions/  League's champion icons, written by npm run sync:lol.
+  valorant/       Valorant's agent icons (agents/, npm run sync:agenticons)
+                  and the guns' kill feed icons (weapons/, npm run
+                  sync:weaponicons, drawn by the review's killer card).
 
 The four icons are DRAWN, not converted: run
 

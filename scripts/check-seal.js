@@ -313,6 +313,15 @@ setTimeout(async () => {
       if (!buyMid || buyMid.ok !== false || !plansMid || plansMid.ok !== false || pageMid !== null || browserOpened.length) {
         return report(false, `mid ${game} match, the Profile page's channels answered or opened a link: ${JSON.stringify({ buyMid, plansMid, pageMid, opened: browserOpened })}`);
       }
+      // Its gift channels (8.8) the same: no checkout opened, nothing
+      // redeemed, nothing copied mid match.
+      const giftMid = await invoke(C.PROFILE_GIFT, 'pro_monthly');
+      const redeemMid = await invoke(C.PROFILE_REDEEM, 'https://occlara.app/gift/0123456789abcdefghjkmnpqrs');
+      const copyMid = await invoke(C.PROFILE_GIFT_COPY, 'g1');
+      lines.push(`${game} match: gift=${JSON.stringify(giftMid)} redeem=${JSON.stringify(redeemMid)} copy=${JSON.stringify(copyMid)} opened=${browserOpened.length}`);
+      if (!giftMid || giftMid.ok !== false || !redeemMid || redeemMid.ok !== false || !copyMid || copyMid.ok !== false || browserOpened.length) {
+        return report(false, `mid ${game} match, a gift channel answered or opened a link: ${JSON.stringify({ giftMid, redeemMid, copyMid, opened: browserOpened })}`);
+      }
       // AND WHAT'S NEW AND THE DISCORD (the changelog): asked for mid match,
       // the page does not show, the Discord icon is locked with the pages,
       // the invite asked for exactly as the page would opens nothing, and

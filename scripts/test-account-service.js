@@ -224,6 +224,51 @@ async function main() {
     ok(!harness({ store: h.store, safe: stubSafe(false) }).svc.signedIn(), 'so the next run asks again');
   }
 
+  console.log('\n[accountservice] the machine id is awaited, never blocking, sent only when read');
+  {
+    const HASH = 'a'.repeat(64);
+    const signInWith = async (machineId) => {
+      const h = harness({ deps: { machineId } });
+      const done = h.svc.signIn();
+      const f = await opened(h);
+      h.svc.handleDeepLink(`occlara://auth?code=thecode123&state=${f.state}`);
+      return { r: await done, ex: h.exchanged[0] || {} };
+    };
+    const slow = await signInWith(() => new Promise((res) => setTimeout(() => res(HASH), 30)));
+    ok(slow.r.ok && slow.ex.machine_id === HASH, 'a machine id read asynchronously is waited on and sent', JSON.stringify({ ok: slow.r.ok, m: slow.ex.machine_id }));
+    const failed = await signInWith(() => Promise.reject(new Error('reg timed out')));
+    ok(failed.r.ok && !('machine_id' in failed.ex), 'a read that fails still signs in, with no machine id', JSON.stringify({ ok: failed.r.ok, m: failed.ex.machine_id }));
+    const empty = await signInWith(async () => '');
+    ok(empty.r.ok && !('machine_id' in empty.ex), 'and an empty read sends none');
+    const odd = await signInWith(async () => ({ not: 'a string' }));
+    ok(odd.r.ok && !('machine_id' in odd.ex), 'nor does a read that is not a string');
+
+    // Every /me sends it too, as X-Occlara-Machine: a session made before
+    // 8.7.4 never sent it at sign in, and gains it on its first launch.
+    const meWith = async (machineId, keyed) => {
+      const tok = newToken();
+      const store = keyed ? memStore({ licenseKey: 'GC-1111-2222-3333-4444' })
+        : memStore({ [TOKEN_KEY]: stubSafe(true).encryptString(tok).toString('base64') });
+      const h = harness({ store, deps: { machineId },
+        routes: { 'GET /api/account/me': { ok: true, status: 200, data: { tier: 'free', used: 0, left: 2, free_total: 2 } } } });
+      const st = await h.svc.me();
+      return { st, call: h.api.calls.find((c) => c.path === '/api/account/me') || { headers: {} }, tok };
+    };
+    const kept = await meWith(() => new Promise((res) => setTimeout(() => res(HASH), 20)));
+    ok(kept.st && kept.call.headers['X-Occlara-Machine'] === HASH && kept.call.headers.Authorization === `Bearer ${kept.tok}`,
+      'an authed /me sends the machine id, the value the sign in sends, beside the session', JSON.stringify(kept.call.headers));
+    const keyedMe = await meWith(async () => HASH, true);
+    ok(keyedMe.call.headers['X-Occlara-Machine'] === HASH && keyedMe.call.headers['X-License-Key'] === 'GC-1111-2222-3333-4444',
+      'and beside a key');
+    const noneMe = await meWith(async () => '');
+    const failMe = await meWith(() => Promise.reject(new Error('reg timed out')));
+    const oddMe = await meWith(async () => 42);
+    ok([noneMe, failMe, oddMe].every((x) => x.st && !('X-Occlara-Machine' in x.call.headers)),
+      'an empty, failed or odd read sends no header, and /me still answers');
+    const only = harness({ store: memStore({ licenseKey: 'GC-1111-2222-3333-4444' }), deps: { machineId: async () => HASH } });
+    ok(!('X-Occlara-Machine' in only.svc.auth()), 'the header is added for /me only, auth() is unchanged');
+  }
+
   console.log('\n[accountservice] the deep link, only while pending');
   {
     const h = harness();

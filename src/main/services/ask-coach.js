@@ -267,6 +267,18 @@ class AskCoach {
     };
   }
 
+  /**
+   * The clips of a Valorant review's deaths kept on this PC, by round, as the
+   * Moments page plays them: [{ round, url, death, frames }] (deps.clips,
+   * index.js, over moments.js). None for League, none without the dep.
+   */
+  clipsOf(entry) {
+    if (!entry || entry.game !== 'valorant' || typeof this.d.clips !== 'function') return [];
+    const out = safe(() => this.d.clips(entry.id));
+    return (Array.isArray(out) ? out : []).filter((c) => c && Number.isInteger(c.round) && c.round >= 1 && c.round <= 40
+      && typeof c.url === 'string' && CLIP_URL.test(c.url));
+  }
+
   /** Today's fields, as a server that does not read v2 answers from them. */
   async oldShape(game, entry, review, tracker) {
     const d = this.d;
@@ -368,6 +380,16 @@ class AskCoach {
       ...chatContext.build(review, { rows: this.rows(), ...this.library(game) },
         tracker, last.content, { game, language: d.language(), advanced: d.advanced(), switchedFrom: from, now: this.now() }),
     };
+    // THE ROUNDS WITH A CLIP ON THIS PC, by number alone: the model may attach
+    // one to a paragraph, and only these (server chat-clips.js). Never a path.
+    const have = entry ? this.clipsOf(entry) : [];
+    if (have.length && context.match && typeof context.match === 'object') {
+      context.match = { ...context.match, clips: have.map((c) => c.round) };
+    }
+    // THE PLAYER'S RANK BAND (8.8, deps.rankBand over src/shared/rank-band.js):
+    // one of four keys, never a tier or a Riot ID, and nothing when unknown.
+    const band = game === 'valorant' && typeof d.rankBand === 'function' ? safe(() => d.rankBand()) : null;
+    if (band) context.rankBand = band;
     // Asked again here: the fill and the tracker took time, and a match may have begun.
     if (d.matchInProgress()) return { ok: false, kind: 'mid-match', error: MID_MATCH };
     let res;
@@ -380,7 +402,9 @@ class AskCoach {
     const data = (res && res.data) || {};
     const match = label(pick.id);
     if (res && res.ok && typeof data.reply === 'string' && data.reply) {
-      return { ok: true, reply: data.reply, honest: !!data.honest, match, moved: !!pick.moved, from: from ? chatContext.labelOf(from) : null };
+      const clips = data.honest ? [] : clipsFor(data.clips, have, data.reply);
+      return { ok: true, reply: data.reply, honest: !!data.honest, match, moved: !!pick.moved, from: from ? chatContext.labelOf(from) : null,
+        ...(clips.length ? { clips } : {}) };
     }
     // NO GAMES LEFT (8.7.3, the server's chatLocked): the page says it as a
     // line of its own with the way to the Profile page, never as an error.
@@ -436,4 +460,34 @@ function safe(fn) {
   try { return fn(); } catch { return null; }
 }
 
-module.exports = { AskCoach, MID_MATCH, HELD_FRAME, FILL_GAP_MS, FILL_WAIT_MS, CHAT_TIMEOUT_MS };
+/*
+ * THE CLIPS A REPLY ATTACHED, PLAYED FROM THIS PC ALONE. The server answers
+ * { round, para } and nothing else (chat-clips.js place); each is played only
+ * when THIS review holds a clip of that round on disk (`have`, read before
+ * the question went), under a paragraph the reply has. A round of another
+ * match, one whose clip is gone, a URL or a path the answer carried: none of
+ * it is read, so none of it plays. Three at most, one a round.
+ */
+const CLIP_URL = /^occlara-clip:\/\/review\/[^/\s]+\/[^/\s]+$/;
+const MAX_CLIPS = 3;
+
+function clipsFor(asked, have, reply) {
+  const paras = String(reply || '').split(/\n\s*\n/).filter((p) => p.trim()).length;
+  const byRound = new Map((Array.isArray(have) ? have : []).filter((c) => c && typeof c.url === 'string' && CLIP_URL.test(c.url))
+    .map((c) => [c.round, c]));
+  const out = [];
+  const seen = new Set();
+  for (const a of Array.isArray(asked) ? asked : []) {
+    if (!a || typeof a !== 'object' || !Number.isInteger(a.round) || seen.has(a.round)) continue;
+    if (!Number.isInteger(a.para) || a.para < 0 || a.para >= paras) continue;
+    const c = byRound.get(a.round);
+    if (!c) continue;
+    seen.add(a.round);
+    out.push({ round: a.round, para: a.para, url: c.url,
+      death: typeof c.death === 'number' && Number.isFinite(c.death) ? c.death : null, frames: c.frames || null });
+    if (out.length >= MAX_CLIPS) break;
+  }
+  return out;
+}
+
+module.exports = { AskCoach, clipsFor, CLIP_URL, MID_MATCH, HELD_FRAME, FILL_GAP_MS, FILL_WAIT_MS, CHAT_TIMEOUT_MS };

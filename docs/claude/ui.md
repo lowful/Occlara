@@ -302,6 +302,20 @@ false (screen-silence.md). review/index.html must load `../shared/sfx.js`
 for it to be heard; without it the reveal is silent. `test:surfaces` holds
 each part with a spy on the sound.
 
+**A death's round: the clip alone, and the killer card (8.7, the player's
+ask).** Under a moment's clip there is no row of stills any more ("3 s
+before" to "Just after" only took room: the clip plays every one and its
+timeline marks each); a moment with no clip still shows them, all it has.
+Beside it, under the coach's look (or under the why in a round with no look),
+the killer card: the killer's agent icon and name, the gun's name and kill
+feed icon, and the damage that killer dealt the player that round with head,
+body and legs, from Riot's record only (`valorant-review.js killerCard`,
+served() as view data; `review.js killerCardEl`; docs/claude/death-look.md,
+"The killer card"). The icons are bundled under `assets/valorant/`
+(`sync:agenticons`, `sync:weaponicons`), loaded as 'self', and one that fails
+to load is taken away with its words kept. No card is a box: it opens on a
+hairline, the agent's face the one framed image.
+
 Separate windows, because they are not pages:
 
 ```

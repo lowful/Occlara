@@ -645,6 +645,46 @@ HOW TO ANSWER
   const byCauseOnly = studied(true).filter((t) => !studied(false).includes(t));
   ok(notes.length >= 3 && byCauseOnly.length > 0 && [...studied(false), ...studied(true)].every((t) => !notes.includes(t)),
     'the chat\'s notes leave out the review\'s own study list as either kind of client was given it, by cause or not', `${byCauseOnly.length} by cause alone`);
+
+  // THE RANK BAND (8.8): a Gold player's notes never reach above Gold, an
+  // Immortal's reach the asc_plus only ones, and a client that sends no band,
+  // or a band no key matches, gets today's notes and prompt byte for byte.
+  const knowledge = require('../server/services/knowledge');
+  const lowestOf = (text) => {
+    const n = knowledge.all().find((x) => x.text === text);
+    return n && Array.isArray(n.ranks) && n.ranks.length ? Math.min(...n.ranks.map((r) => knowledge.RANK_BANDS.indexOf(r))) : 0;
+  };
+  const seeded = (fn) => {
+    const random = Math.random;
+    let x = 5;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const ctxOf = (band) => ({ v: 2, game: 'valorant', language: 'en', advanced: false, ...(band === undefined ? {} : { rankBand: band }),
+    match: { id: 'valorant-1790000000000-omen01', map: 'Pearl', agent: 'Omen', mode: 'Swiftplay', result: 'Defeat', score: '1-5', rounds: 2,
+      verified: true, lists: { mistakes: [{ key: 'cause:dry-peek', title: 'Dry peeks', detail: 'Died 2 times', rounds: [2, 5], count: 2 }] },
+      cards: [dry, { ...dry, n: 5 }] }, player: {}, ask: {} });
+  const ask = [{ role: 'user', content: 'How do I hold a site on defence?' }];
+  const plainNotes = seeded(() => cp.pickNotes(cp.normalise(ctxOf(undefined)), ask));
+  const junkSame = [null, 'Gold 2', 'plat', 9].every((j) => JSON.stringify(seeded(() => cp.pickNotes(cp.normalise(ctxOf(j)), ask))) === JSON.stringify(plainNotes)
+    && JSON.stringify(cp.normalise(ctxOf(j))) === JSON.stringify(cp.normalise(ctxOf(undefined))));
+  ok(junkSame, 'no band, or a band no key matches, gives today\'s notes and input byte for byte');
+  ok(cp.renderPlayer(cp.normalise(ctxOf(undefined))) === cp.renderPlayer(cp.normalise(ctxOf('nonsense'))) && !/rank band/.test(cp.renderPlayer(cp.normalise(ctxOf(undefined)))),
+    'and the player facts carry no band line without one');
+  let leak = 0;
+  for (const q of ['How do I hold a site on defence?', 'What should I work on?', 'How do I win a retake?', 'Why did I lose that duel?']) {
+    const gold = cp.pickNotes(cp.normalise(ctxOf('silver_gold')), [{ role: 'user', content: q }]);
+    leak += gold.filter((t) => lowestOf(t) > 1).length;
+    if (gold.length > 8) leak += 100;
+  }
+  ok(leak === 0, `a Gold player's Ask Coach notes never reach above Gold, and never pass eight (${leak})`);
+  const immPool = new Set(knowledge.retrieve({ agent: 'Omen', map: 'Pearl', side: 'defending', rankBand: 'asc_plus' }, 2000));
+  const goldPool = new Set(knowledge.retrieve({ agent: 'Omen', map: 'Pearl', side: 'defending', rankBand: 'silver_gold' }, 2000));
+  const ascDef = knowledge.all().filter((n) => Array.isArray(n.ranks) && n.ranks.join() === 'asc_plus' && n.side === 'defense');
+  ok(ascDef.length >= 1 && ascDef.every((n) => immPool.has(n.text) && !goldPool.has(n.text)),
+    'the question\'s situation for an Immortal reaches the asc_plus only defence note, at Gold it never does');
+  ok(/Their rank band: Silver or Gold\. Fit the advice to that level and name the one basic habit that matters most there/.test(cp.renderPlayer(cp.normalise(ctxOf('silver_gold')))),
+    'with a band, the player facts size the advice to it');
 }
 
 // ── bench:chat counts a sentence the server withheld from a raw reply ───────

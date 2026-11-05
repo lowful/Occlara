@@ -35,8 +35,8 @@ module has always documented. It merges at startup, `check:playbook` covers it
 automatically through `knowledge.all()`, and extra fields such as `source` pass
 through untouched. It began as 69 notes (42 imported from pro VOD reviews and
 27 of Occlara's own, computed from the damage table or written from round
-shapes), grew to 227 with the 2026 imports and to 308 with the 8.7.2 audit
-(below); the live count is `knowledge.all().length` minus the hand written
+shapes), grew to 227 with the 2026 imports, to 308 with the 8.7.2 audit and to 469
+with the 8.8 coach consensus (below); the live count is `knowledge.all().length` minus the hand written
 set, and the boot line `[knowledge] merged N` says it. **An imported note must
 carry `source.topic`**, which is what `study()` picks by, or the checker fails
 it.
@@ -169,9 +169,9 @@ happens, do that, because; praise a habit and why it works, never a scoreboard
 number; never blame teammates or luck; size the advice to a rank only where
 Ask Coach is given one. The chat rules must not contain the words "THE PLAYER":
 the budget test slices the prompt at that heading. A fix has no count or timer
-of its own, because the number gate would drop the sentence. Not done: a rank
-band line for the review (the route is sent no rank), and the look prompt's
-"better play" wording (needs the forensics bench). Run `bench:review` and
+of its own, because the number gate would drop the sentence. The rank band line
+for the review came in 8.8 (below). Not done: the look prompt's "better play"
+wording (needs the forensics bench). Run `bench:review` and
 `bench:chat` before the next release: neither has been run on this wording.
 
 **8.7.2 added to the prompts, each a sentence** (from the audit of what the
@@ -188,3 +188,90 @@ it does (Iso's Undercut "checked" an angle in a shipped look), reads
 by the fight and the exit rather than the distance to the team. None of it
 has been benched either: `bench:review`, `bench:chat` and `bench:forensics`
 are the next step.
+
+## The rank band, and the coach consensus (8.8, 2026-11-05)
+
+**A note may carry `ranks`**, the rank bands it is for: `iron_bronze` (Iron
+and Bronze), `silver_gold`, `plat_diamond`, `asc_plus` (Ascendant, Immortal,
+Radiant). A note with no `ranks` suits every band, which is every note written
+before 8.8, so nothing existing changed. A band is where the habit first pays,
+not who may hear it: the fundamentals carry the low bands (and usually every
+band above), the micro decisions start at Platinum. `check:playbook` fails a
+value that is not one of the four, a band listed twice, an empty list, and the
+four lists falling out of step: its own, `knowledge.js RANK_BANDS` and the
+client's `src/shared/rank-band.js BANDS` (neither side may require the other).
+It is a different axis from `tier`: the Advanced coaching toggle stays the
+player's choice, and its reserve is unchanged.
+
+**How the coach knows the rank.** The client sends a band, never a tier name
+and never a Riot ID, as `rankBand` on the review (`context.rankBand`, from
+`coaching-engine.js` through `experiments().rankBand` and from `index.js
+riotLook`), on the look at a death (`rankBand` on the body) and on Ask Coach
+(`context.rankBand`, deps.rankBand). `index.js rankBandNow` derives it from
+what main already holds for the Riot ID in Settings, with no request of its
+own: the rank history's newest rated game (`RankHistory.held`), then the
+tracker profile's `rank`, then its `peakRank` (`rank-band.js rankBand`, pure,
+`test:rank-band`). The history leads because a promotion shows there a game
+before the profile catches up; the peak stands in for a player unrated this
+act. Unranked, Unrated or a word the file does not know is no band, and League
+is sent none. Every server reader (`match-review.js normalise`,
+`death-forensics.js normalise`, `chat-prompt.js normalise`) keeps the field
+only when it is one of the four keys and otherwise leaves it out, so a client
+before 8.8, or one sending junk, gets today's input, prompt and notes byte for
+byte (held in `test:rank-band`, `test:valorantreview`, `test:advancedtips`,
+`test:chatgates`).
+
+**The retrieval rule** (`knowledge.js rankAdjust`, used by `retrieve()`,
+`match-review.js study()` and Ask Coach's topical notes):
+
+- a note whose LOWEST band is above the player's is excluded, so an Ascendant
+  micro decision never reaches a Gold player;
+- a note narrowed to bands that include the player's scores +2 (`RANK_FIT`; a
+  note listing all four is a note for everyone and gets nothing);
+- a note for lower bands only is excluded for a higher player (a -3 score
+  alone let an agent and role tagged "in Gold and below" initiator note
+  outscore its Plat+ opposite for a Plat Sova), unless the player's own data shows the fundamental missing: in `retrieve()`
+  a cause note the context carries or a death streak, in `study()` a topic the
+  match's patterns or causes point to or a cause of its deaths, in Ask Coach
+  every topical note (they are all the player's own patterns);
+- no band changes nothing: `rankAdjust` answers 0 for every note, the loop
+  runs the same exclusions and draws the same jitter.
+
+The eight note cap, the reserve, the death streak override and the agent, role,
+map and cause filters are untouched: the band only removes notes and moves
+scores. `test:advancedtips` and `test:agentroster` hold all of it at every band.
+
+**The prompts.** With a band, the review gets a `PLAYER LEVEL` paragraph
+before `GROUNDING` (`match-review.js rankRule`: below Platinum the one basic
+habit that matters most there, Platinum and Diamond the one decision,
+Ascendant and up the specific timing, utility or read and what it risks, never
+a high rank micro decision for a lower band, never the rank said back), Ask
+Coach a line in the player's facts (`chat-prompt.js renderPlayer`, beside the
+rank rule `VALORANT_RULES` already had), and the look one rule
+(`death-forensics.js rankRule`: the better play fits the level, the cause is
+judged the same at every rank). Without a band none of the three is there.
+None of the three has been benched: `bench:review`, `bench:chat` and
+`bench:forensics` before a release that ships them.
+
+**The coach consensus import.** 167 notes (`source.kind: 'coach-consensus'`)
+came from a research pass over VOD reviews, guides and threads by high level
+coaches and Radiant or Immortal players only, every claim restated as a
+teaching habit in Occlara's own words: claims were clustered by topic,
+independence counted by person (one coach's channel, AMA and threads are one
+source), a candidate kept only with two or more independent teaching sources
+and no contradiction, or one source plus a Riot fact the damage table,
+`game-rules.json` or the 13.09 notes verify, and every candidate then read by
+a separate verifier pass that kept, edited (text and bands) or dropped it (14
+dropped). Weapon numbers were checked against the synced table and the ones a
+note states are declared in `source.claims`. Weight follows the independent
+sources (one 1, two or three 2, four or more 3), `tier` is advanced when the
+lowest band is Platinum or above, and a candidate on a subject a pattern or a
+cause already points to carries that topic. The same pass replaced or removed
+the existing notes the verified consensus contradicts or supersedes (the
+fixed tempo switch, the recon fired before every hit, the flash only for a
+teammate at Gold and below, three duplicated pairs and others). **The
+evidence lives outside the repo**, in the research scratch folder of the
+session that ran it (sources, claims, candidates, verifier verdicts, the
+conflict list and the change list with every removal's reason): it holds the
+names and links of the sources, which no file in this repo may carry
+(`check:attribution`).

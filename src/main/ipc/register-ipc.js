@@ -45,6 +45,11 @@ function registerIpc(deps) {
     safeHandle(C.PROFILE_GET, async () => profile.get());
     safeHandle(C.PROFILE_BUY, async (_e, n) => profile.buy(n));
     safeHandle(C.PROFILE_PLANS, async () => profile.plans());
+    // Gifts (8.8): the checkout (gifts.isGiftBuyUrl), a redemption and a
+    // bought gift's link, each refused mid match in index.js.
+    safeHandle(C.PROFILE_GIFT, async (_e, offer) => profile.gift(offer));
+    safeHandle(C.PROFILE_REDEEM, async (_e, text) => profile.redeem(text));
+    safeHandle(C.PROFILE_GIFT_COPY, async (_e, id) => profile.copyGift(id));
   }
   // ── the community and What's new ──────────────────────────────────────────
   // The Discord invite opens only as exactly config.js DISCORD_URL, never mid

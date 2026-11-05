@@ -284,6 +284,23 @@ function menu(e) {
     ok(reviews[0] && reviews[0].snap.rounds.length === 1, 'and the computed rounds intact');
   }
 
+  // ── The rank band (8.8, index.js rankBandNow through experiments) ─────────
+  // The review is sent the band as its key when main knows one, and nothing
+  // when it does not or when the word is no band: today's body.
+  for (const [band, want] of [['plat_diamond', 'plat_diamond'], ['Gold 2', null], [undefined, null], [null, null]]) {
+    posted.length = 0;
+    const e = new CoachingEngine({ licenseKey: 'TEST', captureFunction: async () => null,
+      experiments: () => (band === undefined ? {} : { rankBand: band }) });
+    e.isRunning = true;
+    frame(e, { team: 3, enemy: 2, phase: 'buy' });
+    frame(e, { team: 3, enemy: 2, died: true });
+    e.stop();
+    await new Promise((r) => setTimeout(r, 20));
+    const ctx = posted[0] && posted[0].body && posted[0].body.context;
+    ok(ctx && (want ? ctx.rankBand === want : !('rankBand' in ctx)),
+      `the review is sent ${want ? `the band ${want}` : 'no band'} for ${JSON.stringify(band)} (${ctx ? JSON.stringify(ctx.rankBand) : 'no request'})`);
+  }
+
   console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' match lifecycle checks passed'}`);
   process.exit(fails ? 1 : 0);
 })();

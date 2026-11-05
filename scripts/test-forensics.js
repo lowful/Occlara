@@ -1001,7 +1001,10 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
     const ask = fnOf('\nasync function askForensics(');
     const posted = [];
     let answer = null;
+    // The player's rank band (8.8, index.js rankBandNow): none until a test sets one.
+    let bandNow = null;
     const lookBox = vm.createContext({
+      rankBandNow: () => bandNow,
       console: { log() {} }, Date, Math, Number, JSON, Object, Array, String, Promise, Map, Set, Buffer,
       require: (m) => { if (m !== '../shared/valorant-review') throw new Error(`${m} is not in the sandbox`); return review; },
       clips: { momentOf: () => 1000, stillName: (n, k) => `r${n}-rec${k}.jpg` },
@@ -1030,6 +1033,12 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
     answer = { variant: 'a', deaths: [{ n: 2, cause: 'repeek', what: 'You stayed on the angle.', better: 'Fall back.' }] };
     const a = await askMain.askForensics([look(2)], new Map(), lookSnap, 'riot', { dir: 'd', records: [] }, 'riot-match-1');
     ok(a.byRound[2].variant === 'a', 'a look the reply says was asked with a keeps a');
+    // THE RANK BAND (8.8): sent only when main knows one, as the band alone.
+    ok(posted.every((b) => !('rankBand' in b)), 'a look with no rank band known sends no rankBand, today\'s body');
+    bandNow = 'silver_gold';
+    await askMain.askForensics([look(2)], new Map(), lookSnap, 'riot', { dir: 'd', records: [] }, 'riot-match-1');
+    ok(posted[posted.length - 1].rankBand === 'silver_gold', 'and with one known sends it as the band key');
+    bandNow = null;
     // And what main hands it: Riot's match id from Riot's look, the
     // scoreboard's for the look from the screen; the review written again is
     // sent it too, and the review keeps Riot's comps.

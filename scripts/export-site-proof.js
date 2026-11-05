@@ -247,8 +247,9 @@ const READ_REVIEW = `(() => { ${READ_HELPERS}
     look: Q('.v-look-tag', r) ? { cause: txt('.v-cause', r), what: txt('.v-look-what', r), better: txt('.v-look-better', r).replace(/^Better\\s*/, '') } : null,
     read: txt('.v-why', r), folded: r.classList.contains('fold') && !r.classList.contains('open') });
   return {
-    verdict: { label: txt('#v-vd-label'), letter: txt('#v-grade .vd-letter'), score: txt('#v-grade .vd-score'), out: txt('#v-grade .vd-out'),
-      provisional: !!Q('#v-grade .vd-prov'), reason: txt('#v-reason'), result: txt('#v-result'), scoreline: txt('#v-score'), meta: txt('#v-meta'),
+    verdict: { icon: shown(Q('#v-icon')) && !!Q('#v-icon .vd-icon-img'), letter: txt('#v-grade .vd-letter'), score: txt('#v-grade .vd-score'), out: txt('#v-grade .vd-out'),
+      provisional: !!Q('#v-grade .vd-prov'), stat: { value: txt('#v-stat .vd-stat-value'), label: txt('#v-stat .vd-stat-label') },
+      result: txt('#v-result'), scoreline: txt('#v-score'), meta: txt('#v-meta'),
       stats: QA('#v-stats .v-stat').map((s) => ({ value: txt('.v-stat-value', s), label: txt('.v-stat-label', s), versus: txt('.v-stat-vs', s) })),
       verified: shown(Q('#v-verified')) ? txt('#v-verified') : '' },
     fix: { heading: txt('#v-focus-wrap .label, #v-focus-wrap h3, #v-focus-wrap .v-focus-label'), text: txt('#v-focus'), was: shown(Q('#v-focus-was')) ? txt('#v-focus-was') : '' },
@@ -382,14 +383,14 @@ setTimeout(async () => {
     await until(() => rjs("document.querySelectorAll('#v-prog .gv-prog').length > 0"), 4000);
     await wait(500);
     out.review = await rjs(READ_REVIEW);
-    lines.push(`review: ${out.review.verdict.letter} ${out.review.verdict.score} "${out.review.verdict.reason.slice(0, 40)}" cats ${out.review.grade.categories.length} rounds ${out.review.rounds.rows.length} progress ${out.review.progress.length}`);
+    lines.push(`review: ${out.review.verdict.letter} ${out.review.verdict.score} "${out.review.verdict.stat.value} ${out.review.verdict.stat.label}" cats ${out.review.grade.categories.length} rounds ${out.review.rounds.rows.length} progress ${out.review.progress.length}`);
     const v = out.review.verdict;
     if (v.letter !== seeded.built.grade.letter || v.score !== String(seeded.built.grade.score) || out.review.grade.categories.length !== 4
       || !out.review.rounds.rows.length || !out.review.fix.text || !out.review.read.lines.length) {
       return finish(false, `the review does not show the sample match whole: ${JSON.stringify({ v, cats: out.review.grade.categories.length })}`);
     }
     await rjs("document.querySelector('.body').scrollTo(0, 0); true");
-    await shot('review-top', 'The review: the Verdict with its letter, number and reason, Riot\'s numbers, the fix for next match, the progress lines and the four categories');
+    await shot('review-top', 'The review: the Verdict with its icon, letter, number and standout, Riot\'s numbers, the fix for next match, the progress lines and the four categories');
     await rjs("document.getElementById('v-rounds-wrap').scrollIntoView({ block: 'start' }); true");
     await shot('review-rounds', 'The review\'s rounds: the two halves headed by their side, every round a ruled row with its tags, the rounds with something to say opened');
     await rjs("document.querySelector('.body').scrollTo(0, 0); true");
