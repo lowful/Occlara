@@ -1,6 +1,6 @@
 # Occlara
 
-A post-match AI coach for **Valorant** and **League of Legends**. Occlara
+An AI coach for **Valorant** (**League of Legends** is coming soon). Occlara
 reads your game while you play (the display, the way OBS captures it) and
 shows **nothing** during the match. When the match ends it opens a graded
 review: a score out of 100 with four categories and the facts behind each,
