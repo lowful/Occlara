@@ -102,6 +102,8 @@
     "test:accountauth": "node scripts/test-account-auth.js",
     "test:caller": "node scripts/test-caller.js",
     "test:usageroutes": "node scripts/test-usage-routes.js",
+    "test:caplock": "node scripts/test-cap-lock.js",
+    "test:ratelimits": "node scripts/test-rate-limits.js",
     "test:readgate": "node scripts/test-read-gate.js",
     "test:referral": "node scripts/test-referral.js",
     "test:trackerroutes": "node scripts/test-tracker-routes.js",

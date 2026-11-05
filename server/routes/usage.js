@@ -53,6 +53,7 @@ const NEW_MATCH_AT = 1;               // ...and then reads this or less...
 const NEW_MATCH_READS = 3;            // ...this many in-match reads in a row is the next match
 const MAP_MAX = 10000;                // every per account map here is trimmed to this
 const REFUNDS_PER_DAY = 3;
+const REVIEWS_PER_GAME = 4;          // reviews (and looks) one live game gets while the account has none left
 const CLAIM_RETRY_MS = 30 * 1000;
 const HANDOFF_MS = 120 * 1000;
 const MAX_FRIENDS = 5;
@@ -87,7 +88,7 @@ function createMeter(deps = {}) {
   /** Every per account map is bounded: past MAP_MAX the oldest entries go (S12). */
   const trimMap = (map) => { while (map.size > MAP_MAX) map.delete(map.keys().next().value); };
   const put = (map, k, v) => { map.delete(k); map.set(k, v); trimMap(map); };
-  const trim = () => { for (const map of [opens, allow, ensured, refunds]) trimMap(map); };
+  const trim = () => { for (const map of [opens, allow, ensured, refunds, spent]) trimMap(map); };
   const counts = { claims: 0, refused: 0, gated: 0, counted: 0, refunded: 0, flushes: 0 };
 
   const live = () => resolver.accountsLive();
@@ -370,20 +371,47 @@ function createMeter(deps = {}) {
    * enforced the caller needs a live game open or counted in the last six
    * hours, else 402. Any doubt lets it through.
    */
-  async function reviewGate(caller) {
+  /*
+   * A CAPPED ACCOUNT'S LAST GAME IS NOT A PASS FOR SIX HOURS (8.7.3). The
+   * window lets the late review of a counted game through (riotLook, often
+   * during the next match), but it let through ANY review: an account with no
+   * game left, whose next match the read gate had refused, was still handed
+   * the model's review and look of it for six hours after its last counted
+   * game, as many as the coach limiter allowed. So while the account has no
+   * game left (account_state, the read gate's own answer) each live game in
+   * the window carries a budget of REVIEWS_PER_GAME reviews and as many looks:
+   * the engine's, the late one and two spare. Past it, 402 cap, before the
+   * model. An account with games left, or one whose count cannot be had, is
+   * as before.
+   */
+  const spent = new Map();   // usage id|what -> reviews asked while capped
+  function withinBudget(usageId, what) {
+    const k = `${usageId}|${what}`;
+    const n = spent.get(k) || 0;
+    if (n >= REVIEWS_PER_GAME) return false;
+    put(spent, k, n + 1);
+    return true;
+  }
+
+  async function reviewGate(caller, { what = 'review' } = {}) {
     if (!caller || !caller.userId || !live() || !isEnforced(caller)) return { ok: true };
     const row = rowOf(caller);
+    let gameId = null;
     if (row && row.usageId && (row.status === 'reserved' || row.status === 'counted')
-      && now() - row.claimedAt < REVIEW_WINDOW_MS) return { ok: true };
-    try {
-      const r = await db().from('game_usage').select('id')
-        .eq('user_id', caller.userId).eq('kind', 'live').in('status', ['reserved', 'counted'])
-        .gte('created_at', iso(now() - REVIEW_WINDOW_MS)).limit(1);
-      if (r && r.error) { quiet('review gate')(r); return { ok: true }; }
-      if (r && Array.isArray(r.data) && r.data.length) return { ok: true };
-    } catch { return { ok: true }; }
-    counts.gated++;
-    return capped();
+      && now() - row.claimedAt < REVIEW_WINDOW_MS) gameId = row.usageId;
+    if (!gameId) {
+      try {
+        const r = await db().from('game_usage').select('id')
+          .eq('user_id', caller.userId).eq('kind', 'live').in('status', ['reserved', 'counted'])
+          .gte('created_at', iso(now() - REVIEW_WINDOW_MS)).order('created_at', { ascending: false }).limit(1);
+        if (r && r.error) { quiet('review gate')(r); return { ok: true }; }
+        if (r && Array.isArray(r.data) && r.data.length) gameId = r.data[0].id || 'unknown';
+      } catch { return { ok: true }; }
+    }
+    if (!gameId) { counts.gated++; return capped(); }
+    const left = await leftOf(caller);
+    if (typeof left === 'number' && left <= 0 && !withinBudget(gameId, what)) { counts.gated++; return capped(); }
+    return { ok: true };
   }
 
   /*
@@ -448,7 +476,7 @@ function createMeter(deps = {}) {
   }
 
   return { gate, noteRead, reviewGate, reviewDone, sweep, start, ensure, rpc, leftOf, rowKey,
-    rows, allow, opens, ensured, refunds, trim, counts, _endShort: endShort, _flush: flush };
+    rows, allow, opens, ensured, refunds, spent, trim, counts, _endShort: endShort, _flush: flush };
 }
 
 const meter = createMeter();
@@ -464,7 +492,10 @@ function ipLimiter({ windowMs, max, name }) {
     const list = (hits.get(k) || []).filter((t) => at - t < windowMs);
     if (list.length >= max) {
       hits.set(k, list);
-      return res.status(429).json({ error: 'rate-limited', what: name });
+      // When the oldest request in the window leaves it, in whole seconds (8.7.3).
+      const retryAfter = Math.max(1, Math.ceil((list[0] + windowMs - at) / 1000));
+      if (typeof res.set === 'function') res.set('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: 'rate-limited', what: name, retryAfter });
     }
     list.push(at);
     hits.delete(k);
@@ -768,7 +799,7 @@ module.exports.meter = meter;
 module.exports.ipLimiter = ipLimiter;
 module.exports.LIMITS = { MATCH_READS_COUNTED, FLUSH_MS, ALLOW_MS, MATCH_GAP_MS, SHORT_END_MS, REVIEW_WINDOW_MS,
   OPEN_MS, LATE_REVIEW_GAP_MS,
-  REFUNDS_PER_DAY, HANDOFF_MS, MAX_FRIENDS, MAX_EARNED, FREE_GAMES, INVITE_EXTRA_GAMES, INVITED_FREE_TOTAL };
+  REFUNDS_PER_DAY, REVIEWS_PER_GAME, HANDOFF_MS, MAX_FRIENDS, MAX_EARNED, FREE_GAMES, INVITE_EXTRA_GAMES, INVITED_FREE_TOTAL };
 module.exports.PATTERNS = { B64URL, VERIFIER, REF_CODE };
 module.exports.CODE_ALPHABET = CODE_ALPHABET;
 module.exports.INVITE_BASE = INVITE_BASE;

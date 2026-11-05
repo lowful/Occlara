@@ -44,6 +44,7 @@ const adminRoutes   = require('./routes/admin');
 const webhookHandler = require('./routes/webhook');
 const { errorHandler, corsRefusal } = require('./services/http-errors');
 const { makeAdminLimiter, isAdmin } = require('./services/admin-auth');
+const rateLimits = require('./services/rate-limits');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -185,12 +186,25 @@ app.use(express.json({ limit: '2mb' }));
 // once a request. Only where a caller matters: the coach routes (not the
 // retired tip paths, which answer 410 and look nothing up) and the account
 // and usage routes. A request with no credentials is not asked about at all.
-const IDENTIFIED = ['/api/coach', '/api/usage', '/api/referral', '/api/account/me', '/api/account/signout'];
+//
+// MADE UP CREDENTIALS ARE LIMITED BEFORE THEIR LOOKUP (8.7.3, services/
+// rate-limits.js createGuessGuard): an address whose credentials were refused
+// sixty times in ten minutes is answered 429 for the rest of that window
+// without a lookup. A valid caller and an outage are never counted.
+// The sign in handoff is named here too (8.7.3), so its limit is per account.
+const IDENTIFIED = ['/api/coach', '/api/usage', '/api/referral', '/api/account/me', '/api/account/signout', '/api/account/handoff'];
+const guessGuard = rateLimits.createGuessGuard();
 async function identifyFirst(req, res, next) {
   try {
     if (req.baseUrl === '/api/coach' && coachRoutes.RETIRED_PATHS.has(req.path)) return next();
     if (!callers.hasCredentials(req)) return next();
+    const wait = guessGuard.blocked(req);
+    if (wait) {
+      res.set('Retry-After', String(wait));
+      return res.status(429).json({ error: 'rate-limited', what: 'credentials', retryAfter: wait });
+    }
     const r = await callers.identify(req);
+    guessGuard.note(req, r.status);
     if (r.status === 'valid') req.caller = r.caller;
   } catch (e) { /* the route asks again and answers for itself */ }
   next();
@@ -219,14 +233,23 @@ app.use('/api', (req, res, next) => {
 });
 
 // ─── Route-level rate limits ──────────────────────────────────────────────────
-app.use('/api/license/activate',        activationLimiter);
+// The activation limiter counts failed keys on /validate too (8.7.3): no
+// client calls it, so a made up key there was a free lookup.
+app.use(['/api/license/activate', '/api/license/validate'], activationLimiter);
 app.use('/api/payments/create-checkout', checkoutLimiter);
-app.use('/api/coach/chat',               chatLimiter);
+// Frame chat shares Ask Coach's limiter (8.7.3): one bucket for both.
+app.use(['/api/coach/chat', '/api/coach/frame-chat'], chatLimiter);
 app.use('/api/coach/read',               readLimiter);
 app.use(RIOT_DATA_PATHS,                 freeRiotLimiter);
 app.use('/api/coach',                    coachLimiter);
 app.use('/api/admin',                    adminLimiter);
 app.use('/admin',                        adminLimiter);
+// THE 8.7.3 LIMITS: every route that costs a lookup, a write, a model, Stripe
+// or HenrikDev, keyed by the verified account where there is one and by the
+// address otherwise, each at least five times what a real client sends.
+// 429 { error: 'rate-limited', retryAfter } and Retry-After. The numbers and
+// why: services/rate-limits.js routeLimits, docs/claude/accounts.md.
+for (const { paths, mw } of rateLimits.routeLimits({ isAdmin, hasCredentials: callers.hasCredentials })) app.use(paths, mw);
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use('/api/payments', paymentRoutes);

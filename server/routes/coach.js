@@ -3557,7 +3557,7 @@ router.post('/death-forensics', async (req, res) => {
   // THE REVIEW GATE (8.7): with caps enforced, the look needs its live game,
   // open or counted, before any model is asked (usage.js reviewGate).
   if (!(costScope.getStore() || {}).bench) {
-    const gate = await usageMeter().reviewGate(caller);
+    const gate = await usageMeter().reviewGate(caller, { what: 'look' });
     if (!gate.ok) return res.status(gate.status).json(gate.body);
   }
   const model = benchModel(req) || AI.forensicsModel;
