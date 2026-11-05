@@ -52,6 +52,13 @@ const PORT = process.env.PORT || 3000;
 // Trust Railway's proxy so rate-limiter can read real client IPs
 app.set('trust proxy', 1);
 
+// THE PLAYER'S OWN ADDRESS ON RAILWAY (5 Nov 2026): measured with /api/admin/whoami,
+// Railway's edge adds a second hop, so req.ip under trust proxy 1 is the edge node's
+// address, shared by every player behind it. Railway sets X-Real-IP to the real client
+// and overwrites one a client sends (sent 1.2.3.4, the server saw the real one), so on
+// Railway req.ip is that. Off Railway (tests, a local run) nothing changes.
+app.use(rateLimits.realIpMiddleware(process.env));
+
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet());
 

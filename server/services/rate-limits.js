@@ -225,4 +225,21 @@ function routeLimits(deps = {}) {
   ];
 }
 
-module.exports = { createLimiter, createGuessGuard, routeLimits, byCaller, byIp, bodyKey, LICENCE_BODY };
+/*
+ * On Railway, req.ip becomes X-Real-IP: Railway's edge sets it to the real client and
+ * overwrites one a client sends, while trust proxy 1 lands on the edge node's own
+ * address (two hops). Only when Railway's own variables are present, so a local run
+ * or a test never trusts a header a client could write.
+ */
+function realIpMiddleware(env = process.env) {
+  const onRailway = !!(env && (env.RAILWAY_ENVIRONMENT || env.RAILWAY_ENVIRONMENT_NAME || env.RAILWAY_PROJECT_ID));
+  return (req, _res, next) => {
+    if (onRailway) {
+      const real = String((req.headers && req.headers['x-real-ip']) || '').trim();
+      if (require('net').isIP(real)) Object.defineProperty(req, 'ip', { value: real, configurable: true });
+    }
+    next();
+  };
+}
+
+module.exports = { createLimiter, createGuessGuard, routeLimits, byCaller, byIp, bodyKey, LICENCE_BODY, realIpMiddleware };
