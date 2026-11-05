@@ -148,20 +148,20 @@ function send(port, p, method = 'GET', headers = {}) {
     ok(p.embeds.length === 1 && e, 'one embed');
     ok(e.title === 'Occlara 8.7.2', `title is "Occlara <version>" (${e.title})`);
     ok(e.url === 'https://occlara.app/changelog', 'it links to occlara.app/changelog');
-    ok(e.description === entry.summary, 'the summary is the description');
+    ok(e.description === `**${entry.title}**\n${entry.summary}`, 'the title in bold, then the summary, is the description');
     ok(e.color === 0x0A0B0E, 'the colour is the dark ground');
     ok(e.footer && e.footer.text === 'occlara.app', 'the footer is occlara.app');
     ok(e.timestamp === '2026-11-04T12:00:00.000Z', 'the timestamp is the entry\'s date');
     ok(JSON.stringify(p.allowed_mentions) === JSON.stringify({ parse: [] }), 'allowed_mentions parses nothing');
     ok(!('content' in p) || !p.content, 'no message content beside the embed');
     const names = e.fields.map((f) => f.name);
-    ok(names.join(',') === 'New,Improved,Fixed', `the items are grouped New, Improved, Fixed (${names.join(', ')})`);
+    ok(names.map((n) => n.replace(/^\S+\s/, '')).join(',') === 'New,Improved,Fixed', `the items are grouped New, Improved, Fixed (${names.join(', ')})`);
     const newLines = e.fields[0].value.split('\n');
     ok(newLines.length === entry.items.filter((i) => i.kind === 'new').length && newLines.every((l) => l.startsWith(`${BULLET} `)),
       'each item is one bullet line in its group');
     ok(within(p), 'Discord\'s limits are kept');
     const only = poster.buildPayload(DATA.find((x) => x.version === '8.7.1'));
-    ok(only.embeds[0].fields.map((f) => f.name).join(',') === 'Improved', 'an empty group is left out');
+    ok(only.embeds[0].fields.map((f) => f.name.replace(/^\S+\s/, '')).join(',') === 'Improved','an empty group is left out');
     const text = JSON.stringify(DATA.map((x) => poster.buildPayload(x)));
     ok(!/@everyone|@here|<@/.test(text), 'no mention anywhere in any version\'s payload');
     ok(!text.includes(String.fromCharCode(0x2013)) && !text.includes(String.fromCharCode(0x2014)) && !text.includes(';'),

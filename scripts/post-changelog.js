@@ -30,6 +30,17 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+
+// The webhook lives in the gitignored .env at the repo root (DISCORD_WEBHOOK_URL=...), read only when
+// the environment does not already hold it. Never printed.
+try {
+  if (!process.env.DISCORD_WEBHOOK_URL) {
+    for (const line of fs.readFileSync(path.join(ROOT, '.env'), 'utf8').split(/\r?\n/)) {
+      const m = /^\s*DISCORD_WEBHOOK_URL\s*=\s*(.+?)\s*$/.exec(line);
+      if (m) process.env.DISCORD_WEBHOOK_URL = m[1].replace(/^["']|["']$/g, '');
+    }
+  }
+} catch { /* no .env */ }
 const SOURCE = path.join(ROOT, 'changelog', 'changelog.json');
 const CHANGELOG_URL = 'https://occlara.app/changelog';
 const COLOR = 0x0A0B0E;   // the app's dark ground, theme.css --bg
@@ -38,7 +49,8 @@ const TIMEOUT_MS = 10000;
 
 // Discord's embed limits.
 const LIMITS = { title: 256, description: 4096, fieldName: 256, fieldValue: 1024, fields: 25, total: 6000 };
-const GROUPS = [['new', 'New'], ['improved', 'Improved'], ['fixed', 'Fixed']];
+const E = (cp) => String.fromCodePoint(cp);
+const GROUPS = [['new', `${E(0x2728)} New`], ['improved', `${E(0x1F680)} Improved`], ['fixed', `${E(0x1F527)} Fixed`]];
 const WEBHOOK = /^https:\/\/(?:ptb\.|canary\.)?(?:discord|discordapp)\.com\/api\/webhooks\/\d+\/[\w-]+\/?(?:\?[\w=&-]*)?$/;
 
 const clip = (s, n) => (s.length <= n ? s : `${s.slice(0, n - 3).trimEnd()}...`);
@@ -46,7 +58,9 @@ const clip = (s, n) => (s.length <= n ? s : `${s.slice(0, n - 3).trimEnd()}...`)
 /** The Discord payload for one changelog entry, every limit kept. */
 function buildPayload(entry) {
   const title = clip(`Occlara ${entry.version}`, LIMITS.title);
-  const description = clip(String(entry.summary || ''), LIMITS.description);
+  // The release's name in bold, its one sentence under it, then a rule before the groups.
+  const head = entry.title ? `**${String(entry.title).trim()}**\n` : '';
+  const description = clip(`${head}${String(entry.summary || '')}`, LIMITS.description);
   const footer = 'occlara.app';
   let budget = LIMITS.total - title.length - description.length - footer.length;
   const MORE = { name: 'More', value: `Every change is at ${CHANGELOG_URL}` };
