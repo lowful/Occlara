@@ -4546,8 +4546,8 @@ async function openShell(cfg, state, opts) {
       'the dash detector matches both banned dashes and not a hyphen');
     const doc = new Document(fs.readFileSync(path.join(RENDERER, 'activation', 'index.html'), 'utf8'));
     const sub = (doc.querySelector('.logo .sub') || { textContent: '' }).textContent;
-    ok(/post-match/i.test(sub) && ['Valorant', 'League of Legends'].every((g) => sub.includes(g)) && !/Rivals|Marvel/.test(sub),
-      'it sells post-match coaching for both games, Valorant and League of Legends, and no other', `read "${sub}"`);
+    ok(/AI coach/.test(sub) && !/post-match/i.test(sub) && sub.includes('Valorant') && /League of Legends coming soon/.test(sub) && !/Rivals|Marvel/.test(sub),
+      'it sells an AI coach for Valorant, says League of Legends is coming soon, and no other game', `read "${sub}"`);
     ok(!REAL_TIME.test(sub) && !DASHES.test(sub), 'with no real time claim and no dash');
   });
 
@@ -5670,7 +5670,7 @@ async function openShell(cfg, state, opts) {
     ok(shown(q, 'signin') && !shown(q, 'waiting') && !shown(q, 'form') && q.$('signin-browser').textContent.trim() === 'Sign in with your browser'
       && q.$('use-key').textContent === 'Use a licence key' && q.$('purchase').textContent === 'Create a free account',
     'it opens on Sign in with your browser, Use a licence key under it and Create a free account', textOf(q));
-    ok(/post-match/i.test(q.document.querySelector('.logo .sub').textContent), 'the line under the name still sells post-match coaching');
+    ok(/AI coach/.test(q.document.querySelector('.logo .sub').textContent), 'the line under the name still sells an AI coach');
     q.$('purchase').click();
     ok(same(q.bridge.sent.filter(([ch]) => ch === C.OPEN_PURCHASE), [[C.OPEN_PURCHASE, 'signup']]),
       'Create a free account asks main for the sign up page, naming no URL');
