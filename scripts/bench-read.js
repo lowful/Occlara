@@ -63,11 +63,13 @@
  *   npm run verify:ai -- --lag 4 --variant c
  *   npm run verify:ai -- --variant e               c's words, the context line after the image
  *   npm run verify:ai -- --lag 4 --variant e
+ *   npm run verify:ai -- --variant f               c's words, the context line before the image
+ *   npm run verify:ai -- --lag 4 --variant f
  *
  * A run with the admin password (a bench model or a variant) also asks the
  * server what each read's call used (`usage: true`): the trace keeps it per
  * read and per model, and the run prints the share of the prompt that came
- * from the provider's cache, which is what variant e is for.
+ * from the provider's cache, which is what variants e and f are for.
  *
  * --variant NAME READS WITH A VARIANT OF THE READ PROMPT (8.4.1,
  * server/services/read-prompt.js), on the live model or any other, and needs

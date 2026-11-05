@@ -237,7 +237,28 @@ It replaces c only on verify:ai plain and at `--lag 4` and a bench:sessions
 `--engine` run against c with no lost death, no more wrong dead or alive calls
 and the same rounds ledger. `test:serverguards` holds e as c with only the
 order changed, the player's request unchanged and e's request shape;
-`test:aiprivacy` holds e's request to data_collection deny.
+`test:aiprivacy` holds e's request to data_collection deny. Measured the same
+day, e FAILED: about 15% cheaper a read, but with the context line last the
+model copied it (raw false dead up 44%, Abyss buy frames read dead 2.4 times as
+often, a side not switched at halftime, deaths lost, ledgers that did not
+match c's). Do not promote e.
+
+**Variant f is e's prefix with the context line before the image** (5 Nov
+2026, bench only, not yet measured). The same c words and the same static
+prefix as e, byte for byte (5,363 characters, about 1,350 tokens), but `buildReadParts` gives
+`{ prefix, context }` and `chatCall` sends `[prefix, context, image]` in the
+one user message (the context left out when there is none), so the frame is
+the last thing the model sees before it answers. `chatCall` takes a parted
+prompt as `{ prefix, context, tail }` and sends the prefix, the context, the
+images, then the tail, only when the non empty parts joined by a blank line are
+the prompt. Served as e is, an admin bench naming it, `TELL_MAX.f` 120, the
+same usage plumbing, data policy, mapState and guards; a player naming it is
+read with the live prompt byte for byte. Bench it as e was:
+`npm run verify:ai -- --variant f` and `-- --lag 4 --variant f`, then
+`node scripts/bench-read.js live --engine --session <session> --variant f`
+against `--variant c`, plain and `--lag 4`; promote only on the same terms.
+`test:serverguards`, `test:aiprivacy` and `test:benchsession` hold f as they
+hold e.
 
 **The bench that decides it reads as the app reads** (8.4.3,
 `bench-read.js --engine`, `scripts/read-score.js`, `npm run bench:sessions`).

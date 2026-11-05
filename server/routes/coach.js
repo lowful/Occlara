@@ -650,19 +650,24 @@ async function chatCall({ prompt, parts, imageB64, maxTokens, temperature, model
   // prompt's own, joined. Every other call sends its prompt as it always has.
   const cached = !images.length && Array.isArray(parts) && parts.length > 1
     && parts.every((p) => typeof p === 'string' && p) && parts.join('') === prompt ? parts : null;
-  // THE READ PROMPT AROUND ITS IMAGE (read variant e, read-prompt.js
-  // buildReadParts): a vision call handed `parts` as [prefix, tail] sends the
-  // prefix, the images, then the tail when there is one, so the prefix is the
-  // same bytes every read and the provider can cache it. Only when the parts
-  // are the prompt's own text (prefix, a blank line, tail); every other vision
-  // call sends its prompt before its images as it always has.
-  const around = images.length && Array.isArray(parts) && parts.length === 2
-    && typeof parts[0] === 'string' && parts[0] && typeof parts[1] === 'string'
-    && (parts[1] ? `${parts[0]}\n\n${parts[1]}` : parts[0]) === prompt ? parts : null;
+  // THE READ PROMPT AROUND ITS IMAGE (read variants e and f, read-prompt.js
+  // buildReadParts): a vision call handed `parts` as { prefix, context, tail }
+  // sends the prefix, the context when there is one, the images, then the
+  // tail when there is one, all in the one user message, so the prefix is the
+  // same bytes every read and the provider can cache it. e is { prefix, tail }
+  // ([prefix, image, tail]), f is { prefix, context } ([prefix, context,
+  // image], the image last before the answer). Only when the parts are the
+  // prompt's own text (the non empty ones joined by a blank line); every other
+  // vision call sends its prompt before its images as it always has.
+  const around = images.length && parts && !Array.isArray(parts) && typeof parts === 'object'
+    && typeof parts.prefix === 'string' && parts.prefix
+    && ['context', 'tail'].every((k) => parts[k] === undefined || typeof parts[k] === 'string')
+    && [parts.prefix, parts.context, parts.tail].filter(Boolean).join('\n\n') === prompt ? parts : null;
   const imageParts = images.map((img) => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${img}` } }));
+  const textPart = (text) => (text ? [{ type: 'text', text }] : []);
   let content = images.length
     ? (around
-      ? [{ type: 'text', text: around[0] }, ...imageParts, ...(around[1] ? [{ type: 'text', text: around[1] }] : [])]
+      ? [...textPart(around.prefix), ...textPart(around.context), ...imageParts, ...textPart(around.tail)]
       : [{ type: 'text', text: prompt }, ...imageParts])
     : cached
       ? cached.map((text, i) => (i < cached.length - 1 ? { type: 'text', text, cache_control: { type: 'ephemeral' } } : { type: 'text', text }))
@@ -1106,7 +1111,7 @@ function benchModel(req) {
 
 /*
  * A READ PROMPT VARIANT IS AN ADMIN ACT TOO (8.4.1). The live read prompt is
- * what every install reads with; a variant (read-prompt.js VARIANTS, b, c, e)
+ * what every install reads with; a variant (read-prompt.js VARIANTS, b, c, e, f)
  * is served only when the request names it AND carries the admin password, as
  * a bench model is, so no player's read is ever an experiment and no licence
  * can switch its own. Named without the password, or unknown, it is ignored
@@ -1124,8 +1129,8 @@ const READ_VARIANTS = new Set(readPrompt.VARIANTS);
 // has its own, since a missing one would quietly be the live cap. The live cap
 // moves only with the live prompt: c's 120 since c became it (15 Oct 2026),
 // and a, the prompt before it, keeps its 60 for the benches.
-// e is c's words in another order, so it keeps c's 120.
-const TELL_MAX = { live: 120, a: 60, b: 90, c: 120, e: 120 };
+// e and f are c's words in another order, so they keep c's 120.
+const TELL_MAX = { live: 120, a: 60, b: 90, c: 120, e: 120, f: 120 };
 function readVariant(req) {
   const v = String((req.body && req.body.variant) || '').trim().toLowerCase();
   return v && READ_VARIANTS.has(v) && isAdmin(req) ? v : null;
@@ -1282,7 +1287,8 @@ async function visionInfer(imageB64, prompt, maxTokens, jsonMode, model, opts) {
     bookCost(null, Array.isArray(imageB64) ? imageB64.length : 1);
     return out;
   }
-  // opts.parts: the prompt as [prefix, tail] around the image (read variant e).
+  // opts.parts: the prompt in its parts around the image (read variants e and
+  // f, read-prompt.js buildReadParts: { prefix, tail } or { prefix, context }).
   const text = await chatCall({ imageB64, prompt, maxTokens, temperature: 0.7, model,
     abortMs: opts && opts.abortMs, ...(opts && opts.parts ? { parts: opts.parts } : {}) });
   return jsonMode ? text : sanitize(text);
@@ -3514,13 +3520,13 @@ router.post('/read', async (req, res) => {
   const used = () => (usageWanted && scope.usage
     ? { usage: { prompt: scope.usage.prompt, completion: scope.usage.completion, cached: scope.usage.cached, calls: scope.usage.calls } }
     : {});
-  // Variant e is sent as its parts around the image (read-prompt.js
+  // Variants e and f are sent as their parts around the image (read-prompt.js
   // buildReadParts); every other prompt, the live one included, as one text.
   const parts = readPrompt.buildReadParts(context, variant);
   try {
     const raw = await withTimeout(
       visionInfer(image, readPrompt.buildReadPrompt(context, variant), 420, false, model,
-        { abortMs: READ_TIMEOUT_MS + 1000, ...(parts ? { parts: [parts.prefix, parts.tail] } : {}) }),
+        { abortMs: READ_TIMEOUT_MS + 1000, ...(parts ? { parts } : {}) }),
       READ_TIMEOUT_MS, 'read timeout');
     trackCall(licenseKey, 1);
     const text = String(raw || '').replace(/```(?:json)?/gi, '').trim();

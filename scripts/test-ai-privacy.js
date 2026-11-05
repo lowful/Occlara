@@ -142,6 +142,13 @@ const IMG = 'x'.repeat(4000);
   const eShape = sent[0] ? sent[0].body.messages[0].content.map((p) => p.type).join(',') : '';
   ok(e.status === 200 && e.body.variant === 'e' && eShape === 'text,image_url,text' && sent.every(denies),
     `and so does a bench of read variant e, sent as [prefix, image, tail] (${e.status}, ${eShape})`);
+  // And a bench of read variant f, its context line before the frame.
+  sent.length = 0;
+  const f = await call(coach, 'POST', '/read', { headers: { 'X-License-Key': 'GC-AAAA-AAAA-AAAA-AAAA', 'X-Admin-Password': 'stand-in-admin-e' },
+    body: { image: 'aGVsbG8=', context: { map: 'Abyss', playerAlive: false }, variant: 'f', usage: true } });
+  const fShape = sent[0] ? sent[0].body.messages[0].content.map((p) => p.type).join(',') : '';
+  ok(f.status === 200 && f.body.variant === 'f' && fShape === 'text,text,image_url' && sent.length >= 1 && sent.every(denies),
+    `and so does a bench of read variant f, sent as [prefix, context, image] (${f.status}, ${fShape})`);
   delete process.env.ADMIN_PASSWORD;
 
   // A provider that rejects the reasoning switch is asked again without it:
