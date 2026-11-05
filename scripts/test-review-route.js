@@ -137,8 +137,8 @@ const reviewBody = { rounds: ROUNDS, context: { agent: 'Jett', map: 'Abyss' } };
     ai.sent.length = 0;
     ai.next = reply('');
     const r = await call(coach, 'POST', '/match-review', { headers: H, body: reviewBody });
-    ok(r.status === 200 && r.body.review === null && r.body.summary === null && ai.sent.length === 1 && ai.sent[0].model === 'openai/gpt-6-sol',
-      `Sol empty is no narrative, never one from another model (${ai.sent.map((s) => s.model).join(', ')})`);
+    ok(r.status === 200 && r.body.review === null && r.body.summary === null && ai.sent.length === 1 && ai.sent[0].model === 'openai/gpt-6.1-terra',
+      `The review model empty is no narrative, never one from another model (${ai.sent.map((s) => s.model).join(', ')})`);
     ai.sent.length = 0;
     ai.next = () => ({ status: 500, text: 'upstream exploded' });
     const failed = await call(coach, 'POST', '/match-review', { headers: H, body: reviewBody });

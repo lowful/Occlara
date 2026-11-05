@@ -184,7 +184,7 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
     // ── /health names the models, and no count of Ask Coach's ──────────────
     {
       const live = coach.liveModels();
-      ok(live.chatModel === 'openai/gpt-6-sol' && live.textModelNow === live.textModel && !/asked|honest|capped|retried/.test(JSON.stringify(live)),
+      ok(live.chatModel === 'deepseek/deepseek-v4.1-flash-1017' && live.textModelNow === live.textModel && !/asked|honest|capped|retried/.test(JSON.stringify(live)),
         `/health names chatModel (${live.chatModel}) and textModelNow, and carries none of Ask Coach's counts`);
     }
 
@@ -308,7 +308,7 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       prov.next = () => ({ content: GOOD });
       const out = await ask(v2body(), { 'X-Occlara-Version': NEW });
       const s = out.sent[0] || { body: {} };
-      ok(out.r.status === 200 && out.sent.length === 1 && s.body.model === 'openai/gpt-6-sol' && s.body.max_tokens === 900
+      ok(out.r.status === 200 && out.sent.length === 1 && s.body.model === 'deepseek/deepseek-v4.1-flash-1017' && s.body.max_tokens === 900
         && s.body.temperature === 0.4 && promptOf(s).startsWith('V2 PROMPT (v2) on Fracture'),
       `an 8.5.0 client with CHAT_PROMPT=v2 is answered by v2: its prompt, the pinned chat model, 900 tokens at 0.4 (${s.body.model}, ${s.body.max_tokens}, ${s.body.temperature})`);
       ok(out.body.v === 2 && out.body.reply === GOOD && /\n\n/.test(out.body.reply) && out.body.honest === false && out.body.retried === false
@@ -330,7 +330,7 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
         && bench.body.model === 'google/gemini-3-flash-preview' && bench.body.variant === 'v2-noprimer',
       'an admin bench naming v2-noprimer and a bench model gets both, and is told which answered, on no version at all');
       const player = await ask(v2body({ benchModel: 'google/gemini-3-flash-preview' }), { 'X-Occlara-Version': NEW });
-      ok(player.sent[0].body.model === 'openai/gpt-6-sol' && player.body.model === 'openai/gpt-6-sol',
+      ok(player.sent[0].body.model === 'deepseek/deepseek-v4.1-flash-1017' && player.body.model === 'deepseek/deepseek-v4.1-flash-1017',
         'a licence naming a bench model on v2 is answered by the chat model, and told so, as /read tells one');
       process.env.CHAT_PROMPT = 'v1';
       const benchOff = await ask(v2body({ variant: 'v2' }), { 'X-Admin-Password': PW, 'X-Occlara-Version': OLD });
@@ -341,7 +341,7 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       delete process.env.CHAT_PROMPT;
       prov.next = () => ({ content: GOOD });
       const byDefault = await ask(v2body(), { 'X-Occlara-Version': NEW });
-      ok(promptOf(byDefault.sent[0] || { body: {} }).startsWith('V2 PROMPT (v2) on Fracture') && byDefault.body.v === 2 && byDefault.sent[0].body.model === 'openai/gpt-6-sol',
+      ok(promptOf(byDefault.sent[0] || { body: {} }).startsWith('V2 PROMPT (v2) on Fracture') && byDefault.body.v === 2 && byDefault.sent[0].body.model === 'deepseek/deepseek-v4.1-flash-1017',
         'and with CHAT_PROMPT unset an 8.5.0 client is answered by v2, the default since its bench');
       process.env.CHAT_PROMPT = 'v2';
     }
@@ -350,7 +350,7 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       prov.next = () => ({ content: '' });
       const out = await ask(v2body(), { 'X-Occlara-Version': NEW });
       ok(out.r.status === 200 && out.body.reply === T.HONEST_LINE && out.body.honest === true && out.body.retried === true
-        && out.sent.length === 2 && out.sent.every((s) => s.body.model === 'openai/gpt-6-sol') && out.sent[1].body.max_tokens === 500,
+        && out.sent.length === 2 && out.sent.every((s) => s.body.model === 'deepseek/deepseek-v4.1-flash-1017') && out.sent[1].body.max_tokens === 500,
       `an empty answer is asked again once, of the same model at 500 tokens, then the honest line: no other model answers (${out.sent.map((s) => `${s.body.model}/${s.body.max_tokens}`).join(', ')})`);
       ok(T.textModelNow() === T.AI.textModel, "and the chat model's strikes move nothing else");
       // bench:chat benches the text model's own model on v2: empty twice there
@@ -556,7 +556,7 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       process.env.CHAT_PROMPT = 'v2';
       const out = await ask({ messages: [{ role: 'user', content: 'Why did I lose round 5?' }], context }, { 'X-Occlara-Version': NEW });
       const s = out.sent[0] || { body: {} };
-      ok(out.r.status === 200 && out.body.v === 2 && promptOf(s).startsWith("You are Occlara's Valorant coach") && s.body.model === 'openai/gpt-6-sol'
+      ok(out.r.status === 200 && out.body.v === 2 && promptOf(s).startsWith("You are Occlara's Valorant coach") && s.body.model === 'deepseek/deepseek-v4.1-flash-1017'
         && s.body.max_tokens === 900 && typeof out.body.reply === 'string' && out.body.reply.length > 20 && out.body.sentences > 0,
       `and with the real chat-prompt.js the two halves fit: its prompt, the pinned model and its room, a reply and its counts (${out.r.status}, ${promptOf(s).length} characters)`);
       T.services({ chatPrompt: stand });
@@ -777,7 +777,7 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
         try { fs.rmSync(cwd, { recursive: true, force: true }); } catch (e) { /* the folder outlives a slow exit */ }
       }
       const h = got.health && got.health.json;
-      ok(h && h.chatModel === 'openai/gpt-6-sol' && h.textModelNow === h.textModel && h.textModel === 'google/gemini-3-flash-preview'
+      ok(h && h.chatModel === 'deepseek/deepseek-v4.1-flash-1017' && h.textModelNow === h.textModel && h.textModel === 'google/gemini-3-flash-preview'
         && !/asked|honest|capped|retried|licencesAtCap/.test(got.health.text) && !got.health.text.includes('stand-in-core'),
       `GET /health names chatModel and textModelNow, and no count of Ask Coach's and no secret (${got.health ? got.health.status : `no answer: ${output.slice(-200)}`})`);
       const c = got.chat && got.chat.json;
