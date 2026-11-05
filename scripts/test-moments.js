@@ -57,10 +57,10 @@ const url = (id, name) => `occlara-clip://review/${id}/${name}`;
   ok(d.some((x) => / with a /.test(x.title)), 'and the gun where Riot has it');
   ok(d.every((x) => x.time === null || /^\d+ s in$|^\d+:\d\d in$/.test(x.time)), 'its time is seconds into the round', d.map((x) => x.time).join(','));
   ok(d.every((x) => x.clip === null && x.clipGone === null), 'a death the coach never looked at has no clip and says nothing about one');
-  const multi = rounds.filter((r) => typeof r.kills === 'number' && r.kills >= 3).map((r) => r.n);
-  ok(multi.length === 3 && h.filter((x) => x.what === 'multi').map((x) => x.round).join() === multi.join(),
-    'every round of three kills or more is a highlight, and no other', `${multi.join()} vs ${h.map((x) => `${x.what}@${x.round}`).join()}`);
-  ok(h.filter((x) => x.what === 'multi').every((x) => /^\d kills$/.test(x.title) && /kills at \d+ s/.test(x.line)),
+  const multi = rounds.filter((r) => typeof r.kills === 'number' && r.kills >= 2).map((r) => r.n);
+  ok(multi.length >= 2 && h.filter((x) => x.what === 'multi').map((x) => x.round).join() === multi.join(),
+    'every round of two kills or more (2K to 5K) is a highlight, and no other', `${multi.join()} vs ${h.map((x) => `${x.what}@${x.round}`).join()}`);
+  ok(h.filter((x) => x.what === 'multi').every((x) => /^[2-4]K$/.test(x.title) && /kills at \d+ s/.test(x.line)),
     'titled by its kills, timed off Riot\'s kill feed', h.map((x) => `${x.title}: ${x.line}`).join(' | '));
   const streak = h.find((x) => x.what === 'streak');
   ok(streak && /^First kill \d rounds running$/.test(streak.title) && streak.rounds.length >= 2 && streak.round === streak.rounds[0],
@@ -149,10 +149,10 @@ const url = (id, name) => `occlara-clip://review/${id}/${name}`;
   const two = [{ id: `valorant-${T0}-made0`, at: T0, game: 'valorant', review: madeUp }];
   const m = moments.build('valorant', two, { patterns: {}, clips: () => [], url, recordingMode: 'auto' }).matches[0].moments;
   const hl = m.filter((x) => x.kind === 'highlight');
-  ok(hl.find((x) => x.round === 1 && x.what === 'ace' && x.title === 'Ace' && /5 kills, first kill of the round, kills at 10 s, 20 s/.test(x.line)),
+  ok(hl.find((x) => x.round === 1 && x.what === 'ace' && x.title === '5K' && /an ace, all five of them, first kill of the round, kills at 10 s, 20 s/.test(x.line)),
     'five kills is an ace, its line the kills, the first kill and the kill times', JSON.stringify(hl.find((x) => x.round === 1)));
-  ok(hl.find((x) => x.round === 2 && x.what === 'clutch' && x.title === 'Clutch, alone against 2'), 'a clutch Riot records as won is a highlight on its own', JSON.stringify(hl.find((x) => x.round === 2)));
-  ok(hl.find((x) => x.round === 3 && x.what === 'multi' && x.title === '3 kills' && /won it alone against one/.test(x.line)),
+  ok(hl.find((x) => x.round === 2 && x.what === 'multi' && x.title === '2K' && /won it alone against 2/.test(x.line)), 'two kills and a clutch is a 2K highlight', JSON.stringify(hl.find((x) => x.round === 2)));
+  ok(hl.find((x) => x.round === 3 && x.what === 'multi' && x.title === '3K' && /3 kills in the round, won it alone against one/.test(x.line)),
     'three kills and the clutch in one round is one entry', JSON.stringify(hl.find((x) => x.round === 3 && x.what === 'multi')));
   ok(!hl.some((x) => x.round === 4), 'a clutch lost and one kill is no highlight');
   ok(!hl.some((x) => x.what === 'streak'), 'first kills in rounds 1 and 3 are no streak');

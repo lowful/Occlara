@@ -5870,7 +5870,7 @@ async function openShell(cfg, state, opts) {
     ok(old2 && !old2.querySelector('.mo-play') && old2.querySelector('.mo-gone').textContent === 'Clip cleared for space',
       'a clip cleared for space says so in its place', old2 && old2.textContent);
     const hl = q.document.querySelector('#mo-list .mo-row .mo-kind.highlight');
-    ok(hl && /kills$|^Ace$|running$/.test(hl.parentNode.querySelector('.mo-mtitle').textContent), 'a highlight row is marked as one', hl && hl.parentNode.textContent);
+    ok(hl && /^[2-5]K$|^Clutch|running$/.test(hl.parentNode.querySelector('.mo-mtitle').textContent), 'a highlight row is marked as one', hl && hl.parentNode.textContent);
     ok(q.$('mo-note').hidden, 'with clips kept there is no note');
     r2.querySelector('.mo-open').click();
     ok(q.bridge.sent.some(([ch, id, n]) => ch === C.REVIEW_OPEN && id === saved[0].id && n === 2), 'a row opens its review at its round');

@@ -731,7 +731,7 @@ mainWindow.onCloseAsk(() => { quitFromClose(); });
 function present(review) {
   if (!review || typeof review !== 'object') return review;
   const { served } = require('../shared/valorant-review');
-  const out = { ...served(review) };
+  const out = require('../shared/plain-text').scrubText({ ...served(review) });   // no semicolons, even in a review saved before the rule
   // Opened at one of its rounds (8.7, Moments): the page jumps there once an
   // open, `jumpAt` telling one open from the next at the same round.
   if (reviewJump && review.id && reviewJump.id === review.id) { out.jumpTo = reviewJump.round; out.jumpAt = reviewJump.at; }
