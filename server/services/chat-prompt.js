@@ -1098,7 +1098,7 @@ function renderPlayer(input, trim) {
   // Only when the client sent a band (8.8): none leaves this block as it was.
   const band = input.game === 'lol' ? null : BAND_WORDS[input.rankBand];
   if (band) {
-    lines.push(`- Their rank band: ${band[0]}. Fit the advice to that level and name the one ${band[1]} that matters most there, and never prescribe a high rank micro decision to a lower band.`);
+    lines.push(`- Their rank band: ${band[0]}. Fit the advice to that level and name the one ${band[1]} that matters most there, and never prescribe a high rank micro decision to a lower band. Never say their rank or band back to them, just give advice that fits it.`);
   }
   const recent = (p.recent || []).slice(0, trim ? 3 : 8).map((r) => [dayLabel(r.at, r.day), r.map, r.agent, r.result && r.score ? `${resultWord(r.result)} ${scoreWords(r.score)}` : resultWord(r.result),
     r.mode, fin(r.grade) ? `grade ${r.grade}` : null].filter(Boolean).join(', '));
