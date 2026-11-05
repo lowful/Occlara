@@ -392,6 +392,9 @@ let accountPushWaiting = false;
 // The server stopped taking the sign in while a match was recorded or held
 // sealed (onRefused, below): the session ends once neither is true.
 let sessionEndedWhileRecording = false;
+// What's new after an update (changelogIpc, below): the line Home shows once.
+let changelogWaiting = null;
+let changelogPushed = false;
 function windowSealed() {
   try { return !!mainWindow.current().sealed || sealHeld; } catch { return sealHeld; }
 }
@@ -409,6 +412,13 @@ function flushAccountWaits() {
     const text = usage.capNotice(account.cached())
       || 'You have no games left. Upgrade at occlara.app/pricing or invite friends for more.';
     pushNotice(text, 'cap');
+  }
+  // THE UPDATE LINE (Home's "Occlara updated to ..."), held like the cap's
+  // notice: pushed once nothing is recorded and no seal holds. Home also asks
+  // for it as it paints (CHANGELOG_NOTICE), which answers null until then.
+  if (changelogWaiting && !changelogPushed && !state.isCoaching && !matchInProgress() && !windowSealed()) {
+    changelogPushed = true;
+    registry.broadcast(C.PUSH_CHANGELOG, changelogWaiting);
   }
   // A SIGN IN THAT ENDED MID MATCH ends here, never over the match: the Sign
   // in window waits until nothing is recorded AND no seal holds, a stop in the
@@ -617,7 +627,7 @@ function syncSeal() {
   mainWindow.setSealed(live || sealHeld, { held: !live && sealHeld });
   placeMark(live || sealHeld);
   // The account's notice and view, held while sealed, go once it lifts.
-  if (capNoticeWaiting || accountPushWaiting || sessionEndedWhileRecording) flushAccountWaits();
+  if (capNoticeWaiting || accountPushWaiting || sessionEndedWhileRecording || (changelogWaiting && !changelogPushed)) flushAccountWaits();
 }
 
 /**
@@ -2339,7 +2349,11 @@ const controller = {
     else if (action === 'close') mainWindow.close();
   },
   /** A page of the main window, by its id in src/shared/shell-nav.js. */
-  showPage(id) { openPage(id); },
+  showPage(id) {
+    // What's new opened: the update line on Home has done its job.
+    if (id === 'whatsnew') changelogIpc.opened();
+    openPage(id);
+  },
   /** A page painted itself armed, and may be let in (main-window.js). */
   pageReady(id, sender) { mainWindow.pageReady(id, sender); },
   getShell() { syncSeal(); return mainWindow.shellState(); },
@@ -4128,6 +4142,64 @@ const profileIpc = {
   },
 };
 
+/*
+ * WHAT'S NEW (the changelog, docs/claude/changelog.md). The page reads the
+ * copy bundled in src/shared at once and asks main to refresh it from GET
+ * /api/changelog in the background (community.js refresh, 4 s, silent on any
+ * failure). The Discord invite is main's to open, exactly config.js
+ * DISCORD_URL and never mid match or sealed (community.js openDiscord).
+ *
+ * THE UPDATE LINE: on the first launch after an update to a version the
+ * changelog has an entry for, Home says "Occlara updated to X. See what's
+ * new" once (changelog.js noticeFor). Never a modal, never mid match: it waits
+ * for the seal like the cap's notice (flushAccountWaits). Once it has been on
+ * screen the version is remembered (changelogSeenVersion), so the next launch
+ * says nothing; opening What's new takes the line away at once. The first
+ * launch ever remembers the version installed and says nothing.
+ */
+const changelogModel = require('../shared/changelog');
+const { createCommunity } = require('./ipc/community');
+const BUNDLED_CHANGELOG = (() => { try { return require('../shared/changelog.generated.json'); } catch { return []; } })();
+const APP_VERSION = (() => { try { return require('../../package.json').version; } catch { return app.getVersion(); } })();
+const communityIpc = createCommunity({
+  openExternal: (url) => shell.openExternal(url),
+  busy: () => matchInProgress() || windowSealed(),
+  fetch: typeof fetch === 'function' ? (...a) => fetch(...a) : null,
+  log: (...a) => console.log(...a),
+});
+const changelogIpc = {
+  /** At launch: what this launch says, if anything. */
+  start() {
+    const r = changelogModel.noticeFor({
+      current: APP_VERSION,
+      seen: String(store.get('changelogSeenVersion') || ''),
+      onboarded: !!store.get('onboardingCompleted'),
+      entries: BUNDLED_CHANGELOG,
+    });
+    if (!r) return;
+    if (r.seed) { store.set('changelogSeenVersion', r.seed); return; }
+    changelogWaiting = r;
+    changelogPushed = false;
+    flushAccountWaits();
+  },
+  notice() {
+    if (!changelogWaiting || state.isCoaching || matchInProgress() || windowSealed()) return null;
+    return changelogWaiting;
+  },
+  /** Home had the line on screen: this version has been offered. */
+  seen(version) {
+    if (changelogWaiting && version === changelogWaiting.version) store.set('changelogSeenVersion', changelogWaiting.version);
+  },
+  /** What's new opened: the line goes from Home. */
+  opened() {
+    if (!changelogWaiting) return;
+    store.set('changelogSeenVersion', changelogWaiting.version);
+    changelogWaiting = null;
+    changelogPushed = true;
+    registry.broadcast(C.PUSH_CHANGELOG, null);
+  },
+};
+
 // ── License watchdog ─────────────────────────────────────────────────────────
 // Every minute: an offline-safe expiry check (the cached expiry date passing).
 // Every ~10 minutes: a server re-validation, and a state broadcast so the open
@@ -4590,7 +4662,8 @@ if (!app.requestSingleInstanceLock()) {
     // a clip and applying the cap left the clips past it.
     applyClipCap();
 
-    registerIpc({ controller, license, account: accountIpc, profile: profileIpc });
+    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc });
+    changelogIpc.start();
     // occlara:// for the sign in's fallback link (8.7), on an installed build
     // only: a dev run would point Windows at electron.exe.
     if (app.isPackaged) {

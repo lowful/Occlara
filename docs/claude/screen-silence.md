@@ -86,3 +86,9 @@ What still counts as "reaching the screen", and is sealed mid match:
   window waits until nothing is recorded AND no seal holds, a stop mid match
   included (`sessionEndedWhileRecording`, flushed with the account waits;
   Start ends it at once, as the player's own choice). `check:sessionend`.
+- What's new and the Discord (changelog.md): the What's new page is a page
+  like the others, locked by `syncSeal`; the sidebar's Discord icon is locked
+  with the pages and drawn as the lock, and main refuses the invite mid match
+  or sealed (`community.js`); Home's update line is answered null while
+  recording, mid match or sealed and pushed only once the seal lifts, the
+  cap's notice's wait (`check:seal`).

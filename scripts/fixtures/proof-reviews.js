@@ -156,6 +156,9 @@ function seed(ud, opts) {
   fs.mkdirSync(ud, { recursive: true });
   fs.writeFileSync(path.join(ud, 'occlara-config.json'), JSON.stringify({
     game: 'valorant', onboardingCompleted: true, licenseKey: '', language: 'en', recordingMode: 'off',
+    // The running version's What's new already offered: no update line on
+    // Home in the pictures (check:mainwindow sets an older one to see it).
+    changelogSeenVersion: require(path.join(__dirname, '..', '..', 'package.json')).version,
   }, null, 2));
   const b = build(opts);
   const store = new ReviewStore(path.join(ud, 'reviews'));

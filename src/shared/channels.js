@@ -70,6 +70,12 @@ const CHANNELS = {
   PROFILE_GET:      'profile:get',       // () → { hero, signedIn, buy, play, plans } (profile.js build) | null mid match
   PROFILE_BUY:      'profile:buy',       // (n) → { ok } opens occlara.app/buy?games=n in the browser, n a whole 1 to 500, never mid match
   PROFILE_PLANS:    'profile:plans',     // () → { ok } opens occlara.app/#pricing in the browser, never mid match
+  // The community (src/main/ipc/community.js): the Discord invite, opened by
+  // main only when the URL is exactly config.js DISCORD_URL, never mid match
+  // or sealed, and the What's new page's changelog (src/shared/changelog.js).
+  DISCORD_OPEN:     'community:discord', // (url) → { ok } | { ok: false, error: 'url' | 'match' }
+  CHANGELOG_REFRESH: 'changelog:refresh', // () → [entries] from GET /api/changelog, checked, or null on any failure (4 s at most)
+  CHANGELOG_NOTICE: 'changelog:notice',  // () → { version, text, link } Home's update line, or null (nothing to say, mid match, sealed)
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',
@@ -134,6 +140,8 @@ const CHANNELS = {
   ACCOUNT_SIGNIN_CANCEL: 'account:signInCancel',
   LICENSE_LOGOUT:  'license:logout',      // clear license + return to activation screen
   ONBOARDING_DONE: 'onboarding:done',     // close the welcome card + never show again
+  // Home's update line was on screen: that version's What's new has been offered.
+  CHANGELOG_SEEN:  'changelog:seen',      // (version) remembered as changelogSeenVersion, only the running version
   APP_QUIT:        'app:quit',
 
   // ── main → renderer pushes (webContents.send ⇄ ipcRenderer.on) ────────────
@@ -175,6 +183,9 @@ const CHANNELS = {
   // The account's view changed (signed in or out, games counted). Held while
   // a match is in progress or the window is sealed, sent once it lifts.
   ACCOUNT_CHANGED:   'push:account',
+  // Home's update line (CHANGELOG_NOTICE's shape, or null once What's new
+  // opened). Held like the account's pushes: never mid match or sealed.
+  PUSH_CHANGELOG:    'push:changelog',
 
   // ── the match recorder (8.3, src/main/services/recorder.js) ───────────────
   // Between main and the recorder's hidden page (src/renderer/recorder) and
@@ -218,6 +229,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_SHELL,
   CHANNELS.PUSH_PAGE,
   CHANNELS.ACCOUNT_CHANGED,
+  CHANNELS.PUSH_CHANGELOG,
   CHANNELS.PUSH_RECORDER,
   CHANNELS.PUSH_FRAMES,
 ];

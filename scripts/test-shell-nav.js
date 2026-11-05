@@ -61,6 +61,21 @@ ok(direction('coach', 'invite') === 'forward' && direction('invite', 'settings')
   const s = n.go('invite');
   ok(s.shown === null && s.page === 'invite' && n.seal(false).shown === 'invite', 'sealed, Invite is only remembered, and shows once the seal lifts');
 }
+// WHAT'S NEW (the changelog): its own surface and preload, out of the nav
+// list (reached from Settings and Home's update line), one step deeper than
+// Settings, and sealed like every page.
+ok(pageOf('whatsnew') && pageOf('whatsnew').surface === 'whatsnew' && pageOf('whatsnew').preload === 'whatsnew-preload.js' && pageOf('whatsnew').nav === false,
+  "What's new is a page with its own surface and preload, not in the nav list", JSON.stringify(pageOf('whatsnew')));
+ok(ids.indexOf('whatsnew') === ids.indexOf('settings') + 1 && direction('settings', 'whatsnew') === 'forward' && direction('whatsnew', 'settings') === 'back'
+  && direction('home', 'whatsnew') === 'forward' && direction('whatsnew', 'review') === 'forward' && direction('review', 'whatsnew') === 'back',
+  "and comes right after Settings: forward into it, back out, the review deeper still", ids.join(', '));
+{
+  const n = createNav();
+  n.seal(true);
+  const s = n.go('whatsnew');
+  ok(s.shown === null && s.page === 'whatsnew' && n.seal(false).shown === 'whatsnew', "sealed, What's new is only remembered, and shows once the seal lifts");
+}
+
 // THE PROFILE PAGE (8.8): its own surface and preload, out of the nav list
 // (its button is in the sidebar's foot between Invite and Settings), and
 // between them in the order, so the window moves forward from Invite into it

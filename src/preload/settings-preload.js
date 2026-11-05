@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
 const GAMES = require('../shared/games');
+const { DISCORD_URL } = require('../shared/config');
 const { pageMotion } = require('./page-motion');
 
 /**
@@ -79,4 +80,8 @@ contextBridge.exposeInMainWorld('occlara', {
   openAccount:  () => ipcRenderer.send(C.OPEN_ACCOUNT),
   openUpgrade:  () => ipcRenderer.send(C.OPEN_UPGRADE),
   openInvite:   () => ipcRenderer.send(C.SHELL_NAV, 'invite'),
+  // The Community and What's new rows: the Discord invite by main (exactly
+  // DISCORD_URL, never mid match), and the What's new page.
+  openDiscord:  () => ipcRenderer.invoke(C.DISCORD_OPEN, DISCORD_URL),
+  openWhatsNew: () => ipcRenderer.send(C.SHELL_NAV, 'whatsnew'),
 });

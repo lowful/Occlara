@@ -1,0 +1,75 @@
+[
+  {
+    "version": "8.7.3",
+    "date": "2026-11-04",
+    "title": "Ask Coach and your games",
+    "summary": "Ask Coach now follows your games, with a clear way to get more when you run out.",
+    "items": [
+      { "kind": "improved", "text": "When you have used all your games, Ask Coach says so in one calm line with a button that opens your Profile." },
+      { "kind": "improved", "text": "Games you buy unlock Ask Coach straight away." },
+      { "kind": "improved", "text": "Ask Coach takes one question at a time and slows down questions sent very fast." },
+      { "kind": "improved", "text": "Reviews and Ask Coach answers come from newer AI models that matched the old ones in our tests and cost less to run." },
+      { "kind": "fixed", "text": "Occlara's servers now guard every request against floods, so the coach stays up for everyone." }
+    ]
+  },
+  {
+    "version": "8.7.2",
+    "date": "2026-11-04",
+    "title": "Your Profile, and buying games",
+    "summary": "A new Profile page shows your games left, lets you buy more and sums up how you play.",
+    "items": [
+      { "kind": "new", "text": "A Profile page in the sidebar, between Invite and Settings, with your games left as the first thing you see." },
+      { "kind": "new", "text": "Buy more games from the app at $2 a game, any number from 1 to 500. Games you buy never expire." },
+      { "kind": "new", "text": "Your play in Valorant at a glance: your most used weapon, your most played agent and your peak rank." },
+      { "kind": "new", "text": "The Free, Pro and Max plans side by side, monthly or yearly." },
+      { "kind": "improved", "text": "The coach's notes were checked and corrected, and it reads the latest patch notes again." },
+      { "kind": "fixed", "text": "A chosen option in a switch no longer turns invisible when you hover it." },
+      { "kind": "fixed", "text": "Your match library rebuilds itself if its index is ever damaged, so no review is lost." },
+      { "kind": "fixed", "text": "A revive no longer counts as a clutch." },
+      { "kind": "fixed", "text": "Spike Rush matches are read correctly, halves included." },
+      { "kind": "fixed", "text": "A round end countdown is no longer mistaken for a death." },
+      { "kind": "fixed", "text": "An update never restarts Occlara in the middle of a match." },
+      { "kind": "fixed", "text": "Round pictures in a review show again instead of a broken image." }
+    ]
+  },
+  {
+    "version": "8.7.1",
+    "date": "2026-11-04",
+    "title": "Highlights for every multikill",
+    "summary": "Every round with two or more kills is now a highlight, and reviews read in plainer sentences.",
+    "items": [
+      { "kind": "improved", "text": "Every round where you get two or more kills is saved as a highlight, named 2K, 3K, 4K or 5K, alongside clutches and first kill streaks." },
+      { "kind": "improved", "text": "Reviews are written in short plain sentences, without semicolons." }
+    ]
+  },
+  {
+    "version": "8.7.0",
+    "date": "2026-11-04",
+    "title": "Accounts, a new look and Moments",
+    "summary": "Sign in with your browser, start with 2 free games, and meet a calmer Occlara with the new Moments page.",
+    "items": [
+      { "kind": "new", "text": "Accounts: sign in through your browser. A licence key still works too." },
+      { "kind": "new", "text": "Free, Pro and Max plans. Free gives you 2 games for life, Pro 25 games a month and Max 70 a month." },
+      { "kind": "new", "text": "An Invite page. Each friend who signs up with your link gets 2 extra free games, and you earn 4 games per friend, up to 20." },
+      { "kind": "new", "text": "Moments replaces Breakdown: every death and highlight from your matches in one place, with Play all for each repeated mistake." },
+      { "kind": "new", "text": "A new look across the whole app: one calm column, clean lines instead of boxes, and the fix for your next match as the biggest line." },
+      { "kind": "new", "text": "A lighter 480p recording size for modest PCs, which used about a quarter less CPU than 720p in our tests." },
+      { "kind": "improved", "text": "Reviews open with a Verdict you can share as an image, and show how you did against your last match and your average." },
+      { "kind": "improved", "text": "Milestones on Home and in Matches mark your bests and the habits you have cleared." },
+      { "kind": "improved", "text": "A match played with no games left is still saved in your library with Riot's record of it." },
+      { "kind": "improved", "text": "Invited friends get their extra games even if they confirm their email later." },
+      { "kind": "improved", "text": "League of Legends is marked coming soon while we finish it. Your League reviews are kept." }
+    ]
+  },
+  {
+    "version": "8.6.0",
+    "date": "2026-10-23",
+    "title": "The crescent",
+    "summary": "A new crescent mark and one cleaner look across the app.",
+    "items": [
+      { "kind": "new", "text": "A new crescent logo, with tray icons for light and dark taskbars." },
+      { "kind": "improved", "text": "Matches, Stats, Settings and reviews share one cleaner look." },
+      { "kind": "fixed", "text": "The close button in the first run setup sits inside its card again." }
+    ]
+  }
+]

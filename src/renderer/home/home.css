@@ -20,6 +20,12 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 .h-titles { display: flex; flex-direction: column; gap: var(--space-1); }
 .h-game { font-size: 12px; font-weight: 500; color: var(--text-mute); }
 .h-head h1 { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); line-height: 1.1; }
+/* The update line, at the right of the title: a quiet sentence and its
+   link, no box and no motion of its own. */
+.h-news { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-1); margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.h-news[hidden] { display: none; }
+.h-news .btn-link { height: auto; padding: 0 var(--space-1); font-size: 13px; color: var(--text); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.h-news .btn-link:hover { text-decoration-color: var(--text-dim); }
 .hint { font-size: 14px; line-height: 1.5; color: var(--text-dim); }
 
 /* ── The order of the log ────────────────────────────────────────────────

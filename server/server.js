@@ -41,6 +41,7 @@ const usageRoutes   = require('./routes/usage');
 const callers       = require('./services/caller');
 const retiredRoutes = require('./routes/retired');
 const adminRoutes   = require('./routes/admin');
+const changelogRoutes = require('./routes/changelog');
 const webhookHandler = require('./routes/webhook');
 const { errorHandler, corsRefusal } = require('./services/http-errors');
 const { makeAdminLimiter, isAdmin } = require('./services/admin-auth');
@@ -276,6 +277,7 @@ app.use('/api/coach',    coachRoutes);
 // is answered 410 on every path, and nothing is looked up or called. See
 // routes/retired.js.
 app.use('/api/rivals',   retiredRoutes.rivals);
+app.use('/api/changelog', changelogRoutes);
 // Ask Coach's day (8.5.0): questions asked, drops by gate, retries, honest
 // lines and cap refusals, counts only, behind the admin password and its
 // limiter, never on the public /health (coach.js chatReport).

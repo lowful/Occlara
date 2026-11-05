@@ -1,0 +1,75 @@
+/* palette: tokens only */
+/* What's new: the changelog as entries of the training log. Each version is
+   a ruled section (its version and day, its title, one sentence, then what
+   changed as rows with their kind in a small word); the newest is the page's
+   one hero, with no rule over it. No card, no box, no colour beyond the ink:
+   the kind is a word, never a hue. The page title is the embedded header's
+   (ui.css). */
+
+html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
+
+.sheet { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.sheet > header { display: flex; align-items: center; padding: var(--space-4); }
+.h-brand { display: flex; align-items: center; gap: var(--space-2); }
+.h-brand h2 { font-size: 15.5px; font-weight: 700; }
+
+.body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: var(--space-2) var(--space-4) var(--space-10);
+}
+
+.wn-empty { font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+.wn-list { display: flex; flex-direction: column; gap: var(--space-10); }
+
+/* ── One version ───────────────────────────────────────────────────────── */
+.wn-entry {
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--line);
+}
+.wn-entry.first { padding-top: var(--space-2); border-top: 0; }
+.wn-entry.rise { animation: riseIn var(--t-slow) var(--ease-expo) both; animation-delay: calc(var(--i, 0) * 40ms); }
+
+/* The version in the mono face, its day beside it, the running one marked
+   with the small ringed capsule the Profile page marks a plan with. */
+.wn-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-2);
+}
+.wn-ver { font: 500 13px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.wn-date { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.wn-mine {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 var(--space-2);
+  border: 1px solid var(--line-2); border-radius: var(--r-btn);
+  font-size: 12px; font-weight: 500; color: var(--text);
+}
+
+.wn-title { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; color: var(--text); text-wrap: balance; }
+.wn-entry.first .wn-title { font-size: 32px; line-height: 1.1; letter-spacing: var(--track-display); }
+.wn-summary { margin: var(--space-2) 0 0; font-size: 14px; line-height: 1.5; color: var(--text-dim); max-width: 72ch; text-wrap: pretty; }
+.wn-entry.first .wn-summary { font-size: 15px; }
+
+/* What changed: rows parted by the hairline, the kind a small word in its
+   own column so the sentences line up. */
+.wn-items {
+  list-style: none; margin: var(--space-5) 0 0; padding: 0;
+  width: 100%;
+  border-top: 1px solid var(--line);
+}
+.wn-item {
+  display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: baseline; gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.wn-kind { font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.wn-text { font-size: 14px; line-height: 1.5; color: var(--text); max-width: 72ch; text-wrap: pretty; }
+
+@media (max-width: 600px) {
+  .wn-item { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+  .wn-entry.first .wn-title { font-size: 24px; }
+}
+
+/* Reduced motion: no entrance at all, every entry at once. */
+@media (prefers-reduced-motion: reduce) {
+  .wn-entry.rise { animation: none; }
+}

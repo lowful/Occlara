@@ -356,8 +356,14 @@ function paintVersion(info) {
   sEl.classList.toggle('new', info.state === 'ready' || info.state === 'downloading');
 }
 window.occlara.getVersion().then(paintVersion).catch(() => {});
-// Clicking the line forces a fresh check, so the player can confirm on demand.
-document.getElementById('version').addEventListener('click', () => {
+// The version opens What's new (the changelog page); Check for updates beside
+// it forces a fresh check, so the player can confirm on demand.
+document.getElementById('version').addEventListener('click', () => window.occlara.openWhatsNew());
+document.getElementById('whatsnew-open').addEventListener('click', () => window.occlara.openWhatsNew());
+document.getElementById('discord-open').addEventListener('click', () => {
+  Promise.resolve(window.occlara.openDiscord()).catch(() => {});
+});
+document.getElementById('update-check').addEventListener('click', () => {
   paintVersion({ current: null, state: 'checking' });
   window.occlara.getVersion().then((cur) => {
     paintVersion({ ...cur, state: 'checking' });

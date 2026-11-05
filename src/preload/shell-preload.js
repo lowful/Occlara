@@ -5,6 +5,7 @@ const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
 const GAMES = require('../shared/games');
 const { PAGES } = require('../shared/shell-nav');
+const { DISCORD_URL } = require('../shared/config');
 
 /**
  * Bridge for the shell, the main window's own document (8.1): the sidebar,
@@ -55,6 +56,9 @@ contextBridge.exposeInMainWorld('occlara', {
   // opens the page, locked by the seal like every page. The account's view
   // too, should the foot show the tier.
   openInvite: () => ipcRenderer.send(C.SHELL_NAV, 'invite'),
+  // The Discord icon at the end of Settings' row: main opens the invite, only
+  // as exactly DISCORD_URL and never mid match or sealed (community.js).
+  openDiscord: () => ipcRenderer.invoke(C.DISCORD_OPEN, DISCORD_URL),
   getAccount: () => ipcRenderer.invoke(C.ACCOUNT_GET),
   onAccount:  (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
 });

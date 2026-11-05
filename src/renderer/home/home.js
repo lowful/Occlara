@@ -429,6 +429,31 @@ $('rank-more').addEventListener('click', () => window.occlara.openRankJourney())
  * session. So they are set up as soon as the state says which game Home is
  * for, and a paint overtaken by a newer one paints nothing (paint()).
  */
+/*
+ * THE UPDATE LINE: "Occlara updated to 8.7.3." and See what's new, main's
+ * words, said once after an update (index.js changelogIpc). Main answers null
+ * mid match or while sealed and pushes the line once the seal lifts; the line
+ * counts as seen only once this page is on screen with it.
+ */
+function paintNews(n) {
+  const line = n && typeof n.text === 'string' && n.text ? n : null;
+  const host = document.getElementById('h-news');
+  if (!host) return;
+  host.hidden = !line;
+  if (!line) return;
+  document.getElementById('h-news-text').textContent = line.text;
+  document.getElementById('h-news-open').textContent = line.link || "See what's new";
+  const seen = () => { if (typeof window.occlara.newsSeen === 'function') window.occlara.newsSeen(line.version); };
+  if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(seen); else seen();
+}
+document.getElementById('h-news-open').addEventListener('click', () => {
+  if (typeof window.occlara.openWhatsNew === 'function') window.occlara.openWhatsNew();
+});
+if (typeof window.occlara.onNews === 'function') window.occlara.onNews(paintNews);
+if (typeof window.occlara.getNews === 'function') {
+  Promise.resolve(window.occlara.getNews()).then((n) => { if (n) paintNews(n); }).catch(() => {});
+}
+
 (async () => {
   const state = await window.occlara.getState().catch(() => null);
   game = (state && state.gameId) || 'valorant';

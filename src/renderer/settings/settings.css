@@ -209,11 +209,20 @@ section h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-he
 .wip-mail:hover { color: var(--text); border-bottom-color: var(--text-dim); }
 .wip-mail.copied { color: var(--good); border-bottom-color: var(--good); }
 
-/* Running version + update state. Clickable to force a fresh update check, so
+/* Running version + update state, and Check for updates beside them, so
    after a release you can confirm on the spot rather than guessing. */
 .wip-line.ver { margin-top: var(--space-2); display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-#version { cursor: pointer; font-weight: 500; color: var(--text-dim); transition: color var(--t-fast) var(--ease); }
-#version:hover { color: var(--text); }
+/* The version opens What's new, Check for updates checks: two words that
+   read as text and underline under the pointer, a ring on the keyboard. */
+.ver-link {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font: 500 12px var(--font); line-height: 1.5; color: var(--text-dim);
+  text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px;
+  transition: color var(--t-fast) var(--ease), text-decoration-color var(--t-fast) var(--ease);
+}
+.ver-link.quiet { font-weight: 400; color: var(--text-mute); }
+.ver-link:hover { color: var(--text); text-decoration-color: var(--text-dim); }
+.ver-link:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: var(--r-card); }
 .upd { font-size: 12px; color: var(--text-mute); }
 .upd.ok  { color: var(--good); }
 .upd.new { color: var(--text); }

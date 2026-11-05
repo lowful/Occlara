@@ -252,6 +252,34 @@
         </div>
       </section>
 
+      <!-- WHAT'S NEW AND THE COMMUNITY: two ruled rows, each one line and its
+           capsule. What's new is a page of the window (the changelog), the
+           Discord opens in the browser by main, exactly config.js
+           DISCORD_URL, never mid match. -->
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3>What's new in Occlara</h3>
+            <p class="hint">What changed in each version, newest first.</p>
+          </div>
+          <div class="ctl">
+            <button id="whatsnew-open" class="btn btn-ghost sm" type="button">See what's new</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3>Community</h3>
+            <p class="hint">Talk with other players and tell us what to build next.</p>
+          </div>
+          <div class="ctl">
+            <button id="discord-open" class="btn btn-ghost sm" type="button">Join the Discord</button>
+          </div>
+        </div>
+      </section>
+
       <!-- ADVANCED. The frame log is the raw material of every review, and the
            viewer for it is a debugging tool, so it lives down here rather than
            in the sidebar. -->
@@ -281,8 +309,10 @@
           <span id="support-email" class="wip-mail" title="Click to copy">support@occlara.app</span>
         </p>
         <p class="wip-line ver">
-          <span id="version">Version ...</span>
+          <!-- The version opens What's new; the check for an update is its own word beside it. -->
+          <button id="version" class="ver-link" type="button" title="See what's new in this version">Version ...</button>
           <span id="update-state" class="upd"></span>
+          <button id="update-check" class="ver-link quiet" type="button">Check for updates</button>
         </p>
         <!-- THE NOTICE THE GAMES' OWNER ASKS FOR (8.3.2), under the version.
              Riot's is its own words, exactly as its policy gives them, so it

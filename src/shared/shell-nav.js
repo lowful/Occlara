@@ -36,6 +36,10 @@ const PAGES = [
   // figures and the plans, a button in the foot between Invite and Settings.
   { id: 'profile', label: 'Profile', surface: 'profile', query: {}, preload: 'profile-preload.js', nav: false },
   { id: 'settings', label: 'Settings', surface: 'settings', query: {}, preload: 'settings-preload.js', nav: false },
+  // What's new (the changelog): no sidebar entry, opened from Settings (its
+  // row and the version line) and from Home's update line, one step deeper
+  // than Settings, and locked by the seal like every page.
+  { id: 'whatsnew', label: "What's new", surface: 'whatsnew', query: {}, preload: 'whatsnew-preload.js', nav: false },
   { id: 'review', label: 'Review', surface: 'review', query: {}, preload: 'review-preload.js', nav: false },
 ];
 
