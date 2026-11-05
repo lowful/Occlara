@@ -24,9 +24,14 @@ function noSemicolons(text) {
     .replace(/\.\s*\.+/g, '.');
 }
 
-/** Every string inside a value, deep, with its semicolons gone. Links are left alone. */
+/**
+ * Every string inside a value, deep, with its semicolons gone. Links are left
+ * alone, and so is a data URL: a kept frame is "data:image/jpeg;base64,...",
+ * and scrubbed it became "data:image/jpeg. Base64,...", a broken image in its
+ * round's row and a clip player with no poster.
+ */
 function scrubText(value) {
-  if (typeof value === 'string') return /^(https?|occlara-clip):/i.test(value) ? value : noSemicolons(value);
+  if (typeof value === 'string') return /^(https?|occlara-clip|data):/i.test(value) ? value : noSemicolons(value);
   if (Array.isArray(value)) return value.map(scrubText);
   if (value && typeof value === 'object') {
     const out = {};

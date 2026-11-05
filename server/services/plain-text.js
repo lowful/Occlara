@@ -24,9 +24,9 @@ function noSemicolons(text) {
     .replace(/\.\s*\.+/g, '.');
 }
 
-/** Every string inside a value, deep, with its semicolons gone. Links are left alone. */
+/** Every string inside a value, deep, with its semicolons gone. Links and data URLs are left alone. */
 function scrubText(value) {
-  if (typeof value === 'string') return /^(https?|occlara-clip):/i.test(value) ? value : noSemicolons(value);
+  if (typeof value === 'string') return /^(https?|occlara-clip|data):/i.test(value) ? value : noSemicolons(value);
   if (Array.isArray(value)) return value.map(scrubText);
   if (value && typeof value === 'object') {
     const out = {};

@@ -153,6 +153,16 @@ async function until(fn, ms) {
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(REPO, 'scripts/fixtures', name), 'utf8'));
 const SAVED = fixture('valorant-review-split-801.json');
 const SPLIT = fixture('riot-split-13-7.json');
+// PLAYED TWO DAYS AGO, whenever the check runs. The fixtures keep the real
+// match's times (October 2026), and the late link looks only at recordings
+// from the last thirty days (backfill.js LATE_RECENT_MS), so from 3 November
+// 2026 the review was too old to be asked about and the first step failed.
+// The review and Riot's record move together, the gap between them kept to
+// the millisecond, so what links them is what linked the real match.
+const SHIFT = Math.floor((Date.now() - 2 * 24 * 3600000 - SAVED.at) / 3600000) * 3600000;
+SAVED.at += SHIFT;
+if (SAVED.review && typeof SAVED.review.at === 'number') SAVED.review.at += SHIFT;
+SPLIT.startedAt += SHIFT;
 const CONFIG = path.join(ud, 'occlara-config.json');
 const reviews = new ReviewStore(path.join(ud, 'reviews'));
 const readConfig = () => JSON.parse(fs.readFileSync(CONFIG, 'utf8'));
