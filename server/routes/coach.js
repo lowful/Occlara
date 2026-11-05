@@ -247,7 +247,10 @@ function sanitize(t) {
   return t
     .replace(RIOT_ID, 'a player')
     .replace(/\u2014/g, ', ').replace(/\u2013/g, ', ').replace(/ - /g, ', ')
-    .replace(/\s+/g, ' ').trim();
+    .replace(/\s+/g, ' ').trim()
+    .replace(/\s*;\s*$/, '')
+    .replace(/\s*;\s*([a-z])/g, (m, c) => `. ${c.toUpperCase()}`)
+    .replace(/\s*;\s*/g, '. ');   // never a semicolon in what a player reads (services/plain-text.js)
 }
 
 // ─── Direct Gemini REST call, tries primary model, falls back if 404 ─────────

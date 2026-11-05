@@ -12,7 +12,7 @@
  * NOTHING HERE IS WRITTEN BY A MODEL. A death's title is the look's cause from
  * its closed list (death-causes.js), or Riot's own facts (the killer's agent
  * and the gun), and a highlight is counted off Riot's verified round record:
- * three or more kills in a round (five is an ace), a clutch Riot says was won,
+ * two or more kills in a round (2K to 5K, five is an ace), a clutch Riot says was won,
  * and the first kill of the round in two or more rounds running. Nothing is
  * claimed from the screen alone: a round Riot never verified has no highlight.
  *
@@ -40,8 +40,8 @@ const { deathClip, CLIP_RE } = require('./clips');
 // and its `across` marks count over exactly the matches the Patterns page does.
 const { LOOK_BACK } = require('./patterns');
 
-// A highlight needs this many kills in one round; five is an ace.
-const MULTI_KILLS = 3;
+// A highlight needs this many kills in one round (2K, 3K, 4K or 5K); five is an ace.
+const MULTI_KILLS = 2;
 const ACE_KILLS = 5;
 // The first kill of the round in this many rounds running is a streak.
 const STREAK = 2;
@@ -155,10 +155,10 @@ function valorantHighlights(saved) {
     if (kills < MULTI_KILLS && !clutch) continue;
     const parts = [];
     let title;
-    if (kills >= ACE_KILLS) title = 'Ace';
-    else if (kills >= MULTI_KILLS) title = `${kills} kills`;
+    if (kills >= MULTI_KILLS) title = `${kills}K`;
     else title = `Clutch, alone against ${clutch.vs === 1 ? 'one' : clutch.vs}`;
-    if (kills >= ACE_KILLS) parts.push(`${kills} kills`);
+    if (kills >= ACE_KILLS) parts.push('an ace, all five of them');
+    else if (kills >= MULTI_KILLS) parts.push(`${kills} kills in the round`);
     if (clutch && kills >= MULTI_KILLS) parts.push(`won it alone against ${clutch.vs === 1 ? 'one' : clutch.vs}`);
     if (r.firstKill) parts.push('first kill of the round');
     const secs = killSecs(r);

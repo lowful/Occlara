@@ -7,8 +7,8 @@
  * Under each match's ruled line its moments: a death with what the coach saw
  * there (its cause from the closed list, or Riot's facts), when in the round
  * it came, the mark of each repeated mistake it belongs to, and the clip of it
- * where one was kept; a highlight Riot's record proves (three or more kills,
- * an ace, a clutch won, the first kill rounds running). A row opens its
+ * where one was kept; a highlight Riot's record proves (a 2K, 3K, 4K or 5K round,
+ * a clutch won, the first kill rounds running). A row opens its
  * review at that round. Over the list the compilation by repeated mistake,
  * with Play all, which plays the kept clips of those deaths back to back in a
  * player over the page: Esc closes it, the arrows move, Space plays and
@@ -180,7 +180,7 @@ function paintList(rise) {
   if (!rows.length) {
     none.textContent = state.pattern ? 'No deaths of this pattern under the filter.'
       : state.kind === 'death' ? 'No deaths on record in these matches.'
-        : state.kind === 'highlight' ? 'No highlights on record yet: three or more kills in a round, an ace, a clutch won or the first kill rounds running.'
+        : state.kind === 'highlight' ? 'No highlights on record yet: a 2K, 3K, 4K or 5K round, a clutch won or the first kill rounds running.'
           : 'Nothing to show.';
   }
   if (rise && rows.length && risen !== game) {

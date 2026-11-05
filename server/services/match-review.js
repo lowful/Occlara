@@ -31,6 +31,7 @@
 const knowledge = require('./knowledge');
 const forensics = require('./death-forensics');
 const { promptName } = require('./languages');
+const { noSemicolons } = require('./plain-text');
 
 // "a Vandal", "an Outlaw". The prompt's own grammar is what the model copies,
 // and "with a Outlaw" came back in its sentences. So is "1 assist", which the
@@ -362,7 +363,7 @@ const GROUNDING = 'GROUNDING RULES. The ledger was built by reading the screen a
   + 'Start from the player\'s own choice: never blame teammates, luck, the enemy\'s aim, the lobby or the map, and never '
   + 'tell the player they were unlucky. When a death was a traded entry, a fair fight or a sound take, say so plainly '
   + 'instead of inventing a mistake. '
-  + 'Only name places that appear in the ledger. Do not use dashes. No markdown, no lists, no bold.';
+  + 'Only name places that appear in the ledger. Do not use dashes and never use semicolons. No markdown, no lists, no bold.';
 
 /** The old review, kept as variant A so the bench has a baseline. */
 function promptA(input) {
@@ -697,6 +698,11 @@ function parse(text, input) {
     if (out.focus) out.focus = roundLabels(out.focus);
     for (const n of Object.keys(out.rounds)) out.rounds[n] = roundLabels(out.rounds[n]);
   }
+  // NEVER A SEMICOLON in what the player reads (owner rule, 8.7): the prompt says so,
+  // and the model is not trusted to obey it.
+  if (out.summary) out.summary = noSemicolons(out.summary);
+  if (out.focus) out.focus = noSemicolons(out.focus);
+  for (const n of Object.keys(out.rounds)) out.rounds[n] = noSemicolons(out.rounds[n]);
 
   // NO COUNTS IN THE SUMMARY. The prompt said to quote a pattern's numbers
   // exactly or not at all, and the model still wrote "six of twelve attack

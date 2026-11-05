@@ -23,6 +23,8 @@
  * again for a newest rated match Riot had not put in it yet (rrWaiting).
  */
 
+const { noSemicolons } = require('./plain-text');
+
 const TREND = 5;
 const RECENT = 5;
 
@@ -135,7 +137,7 @@ function homeModel({ rows, patterns, review, previous }) {
 
   return {
     last,
-    focus: ownFocus || prevFocus,
+    focus: noSemicolons(ownFocus || prevFocus),
     focusPrevious: !!prevFocus,
     top,
     trend,
