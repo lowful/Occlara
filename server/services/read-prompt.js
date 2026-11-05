@@ -120,7 +120,23 @@ const FIELDS = `STATE: {"side":null,"phase":null,"round":null,"clock":null,"team
  * serves what VARIANTS lists, each with its own TELL_MAX, so d joins VARIANTS
  * together with TELL_MAX.d (120, c's) in routes/coach.js.
  */
-const VARIANTS = ['a', 'b', 'c'];
+/*
+ * VARIANT E, FOR THE BENCH ONLY, served as b and c are (an admin bench naming
+ * it). c's words exactly, in another order: the per frame context line
+ * (contextLine, "WHAT THE LAST FRAMES SHOWED ...") leaves the middle of the
+ * prompt and goes last, after the image, so the roughly 1,350 tokens of
+ * instructions are the same bytes on every read and one prefix the provider
+ * can cache (cost lever 1, measured 5 Nov 2026 at about 16 to 18% of a read).
+ * buildReadParts gives it as { prefix, tail }, and routes/coach.js sends
+ * [prefix, image, tail]. The risk is the carry over b showed: the context
+ * line, "the player was DEAD on the last frame" with it, now sits right
+ * before the answer. It replaces the live prompt only once npm run
+ * verify:ai (plain and at --lag 4) and npm run bench:sessions with --engine
+ * have passed it against c, which spends money and is the owner's call.
+ */
+const VARIANTS = ['a', 'b', 'c', 'e'];
+// The variants sent as parts around the image (buildReadParts), not one text.
+const PARTED = new Set(['e']);
 // Every variant this file can build, d before routes/coach.js serves it.
 const BUILT = [...VARIANTS, 'd'];
 const SIDE_BEFORE = `- side: in the buy phase read the ATTACKING or DEFENDING banner at the top, it is authoritative. Otherwise "attack" if your team has the spike, "defense" if you see a defuser, else null.`;
@@ -151,6 +167,11 @@ const LINES = {
 // d is c with its side and mode lines alone changed.
 LINES.alive.d = LINES.alive.c;
 LINES.clock.d = LINES.clock.c;
+// e is c word for word; only where the context line goes differs.
+LINES.alive.e = LINES.alive.c;
+LINES.clock.e = LINES.clock.c;
+LINES.side.e = LINES.side.c;
+LINES.mode.e = LINES.mode.c;
 // The live prompt is c's, word for word; a bench naming c is read with it.
 LINES.alive.live = LINES.alive.c;
 LINES.clock.live = LINES.clock.c;
@@ -175,11 +196,36 @@ function contextLine(ctx) {
 
 /**
  * @param ctx      what the last applied read showed (contextLine)
- * @param variant  'a', 'b', 'c' or 'd' for a bench's variant ('c' is the live
- *                 prompt's own text), anything else the live prompt
+ * @param variant  'a', 'b', 'c', 'd' or 'e' for a bench's variant ('c' is the
+ *                 live prompt's own text), anything else the live prompt.
+ *                 e is sent in parts (buildReadParts); here it is those parts
+ *                 joined, its prefix then its tail, for a caller that sends
+ *                 one text (the Gemini path).
  */
 function buildReadPrompt(ctx, variant) {
+  if (PARTED.has(variant)) {
+    const { prefix, tail } = buildReadParts(ctx, variant);
+    return tail ? `${prefix}\n\n${tail}` : prefix;
+  }
   const v = BUILT.includes(variant) ? variant : 'live';
+  return promptText(v, `${contextLine(ctx)}\n\n`);
+}
+
+/**
+ * A parted variant (e) as { prefix, tail }: prefix is the instructions with
+ * no context line, the same bytes every read, and tail the context line alone
+ * ('' when there is none). Null for every other variant and the live prompt,
+ * which are sent as one text exactly as before.
+ */
+function buildReadParts(ctx, variant) {
+  if (!PARTED.has(variant)) return null;
+  return { prefix: promptText(variant, ''), tail: contextLine(ctx) };
+}
+
+// The prompt's text, `ctxBlock` where the context line stands in it: the
+// line and its blank line after for a, b, c, d and the live prompt, nothing
+// for e, whose context line goes after the image.
+function promptText(v, ctxBlock) {
   return `You are reading one Valorant screenshot for a match recorder. You do not coach and you do not advise. You report what the screen shows.
 
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match, end of match screen), reply with exactly LOBBY and nothing else.
@@ -189,9 +235,7 @@ ${FIELDS}
 
 Every field is null unless you can READ it on screen. A guess is worse than a null, because every later reading and the post match review are built on these values.
 
-${contextLine(ctx)}
-
-${LINES.alive[v]}
+${ctxBlock}${LINES.alive[v]}
 - hp: the player's OWN health number at the bottom-center, else null. Never estimate, never carry over.
 - team, enemy, round: read the TWO SCORE DIGITS at the top-center, team is your side's score. round = team + enemy + 1. NEVER infer the round from a banner like "LAST ROUND BEFORE SWAP" or "MATCH POINT"; if the digits are unreadable all three are null.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating).
@@ -216,4 +260,4 @@ ${LINES.mode[v]}
 Use commas, never dashes. No markdown, no preamble, no second line.`;
 }
 
-module.exports = { buildReadPrompt, FIELDS, VARIANTS };
+module.exports = { buildReadPrompt, buildReadParts, contextLine, FIELDS, VARIANTS };

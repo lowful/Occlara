@@ -134,6 +134,15 @@ const IMG = 'x'.repeat(4000);
   const r = await call(coach, 'POST', '/read', { headers: { 'X-License-Key': 'GC-AAAA-AAAA-AAAA-AAAA' },
     body: { image: 'aGVsbG8=', context: {} } });
   ok(r.status === 200 && sent.length >= 1 && sent.every(denies), `the live read's own request does (${r.status})`);
+  // And a bench of read variant e, its prompt in parts around the frame.
+  process.env.ADMIN_PASSWORD = 'stand-in-admin-e';
+  sent.length = 0;
+  const e = await call(coach, 'POST', '/read', { headers: { 'X-License-Key': 'GC-AAAA-AAAA-AAAA-AAAA', 'X-Admin-Password': 'stand-in-admin-e' },
+    body: { image: 'aGVsbG8=', context: { map: 'Abyss', playerAlive: false }, variant: 'e', usage: true } });
+  const eShape = sent[0] ? sent[0].body.messages[0].content.map((p) => p.type).join(',') : '';
+  ok(e.status === 200 && e.body.variant === 'e' && eShape === 'text,image_url,text' && sent.every(denies),
+    `and so does a bench of read variant e, sent as [prefix, image, tail] (${e.status}, ${eShape})`);
+  delete process.env.ADMIN_PASSWORD;
 
   // A provider that rejects the reasoning switch is asked again without it:
   // the second request still denies collection.
