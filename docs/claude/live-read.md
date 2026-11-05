@@ -217,6 +217,28 @@ a tenth, and the player chose c for the rest. `test:serverguards` holds the
 live prompt byte for byte as c's, c's bench read with that very prompt, and a
 byte for byte as the prompt before.
 
+**Variant e is c's words with the context line last** (5 Nov 2026, cost lever
+1, bench only). In c the per frame line "WHAT THE LAST FRAMES SHOWED ..." sits
+at character 939, so only about 230 tokens are the same bytes from read to
+read. e takes it out of the middle and sends it as a last text part after the
+image: `read-prompt.js buildReadParts` gives `{ prefix, tail }`, and
+`chatCall` sends `[prefix, image, tail]` (the tail left out when there is no
+context), so about 1,350 tokens are one prefix the provider can cache
+implicitly, no `cache_control`. Measured with an empty context on c, a read
+whose text is all prefix cost about 20% less (16 to 18% expected for e). The
+risk is b's carry over: "the player was DEAD on the last frame" now sits right
+before the answer. Served as b and c are, an admin bench naming it, with
+`TELL_MAX.e` 120, the data policy, mapState and every guard as for c; a player
+naming it is read with the live prompt, one text before the image, byte for
+byte. An admin bench asking `usage: true` (bench-read.js sends it whenever it
+has the admin password) is told `usage: { prompt, completion, cached, calls }`,
+counts only, and bench-read traces it per read and prints the cached share.
+It replaces c only on verify:ai plain and at `--lag 4` and a bench:sessions
+`--engine` run against c with no lost death, no more wrong dead or alive calls
+and the same rounds ledger. `test:serverguards` holds e as c with only the
+order changed, the player's request unchanged and e's request shape;
+`test:aiprivacy` holds e's request to data_collection deny.
+
 **The bench that decides it reads as the app reads** (8.4.3,
 `bench-read.js --engine`, `scripts/read-score.js`, `npm run bench:sessions`).
 verify:ai sends each frame the server's own replies merged raw, so a misread

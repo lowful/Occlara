@@ -106,11 +106,12 @@ Module._load = function patched(request, parent, isMain) {
 
 // ── A fake model: every request it is sent is kept ──────────────────────────
 // `reply` scripts its answer (a read's STATE line); null is the coach's sentence.
-const model = { sent: [], reply: null };
+// `usage`, when set, is the provider's token counts the reply carries.
+const model = { sent: [], reply: null, usage: null };
 global.fetch = async (url, init = {}) => {
   model.sent.push({ url: String(url), body: JSON.parse(init.body || '{}') });
   const content = model.reply != null ? model.reply : 'Hold your angle with a teammate close enough to trade you, then swing together.';
-  const json = { choices: [{ message: { content }, finish_reason: 'stop' }] };
+  const json = { choices: [{ message: { content }, finish_reason: 'stop' }], ...(model.usage ? { usage: model.usage } : {}) };
   return { status: 200, ok: true, text: async () => JSON.stringify(json), json: async () => json };
 };
 /** The prompt a request to the fake model carried, a vision call's or a text call's. */
@@ -362,6 +363,91 @@ const PW = 'correct horse battery staple';
       && benchB.body.context.playerAlive === false && benchB.body.context.playerHp === undefined,
     'and the living player\'s 99 stands on c, where the tell cut to "SPECTATOR" read them dead on b');
     model.reply = null;
+
+    // ── Variant e (cost lever 1): c's words, the context line last ─────────
+    // The prompt: c's own text up to the context line, then c's text after
+    // it, the same bytes whatever the context, and the context line alone as
+    // the tail; nothing else of c moves.
+    {
+      const lineOf = readPrompt.contextLine;
+      const prefixes = CTXS.map((ctx) => readPrompt.buildReadParts(ctx, 'e').prefix);
+      const fits = CTXS.map((ctx) => {
+        const c = readPrompt.buildReadPrompt(ctx, 'c');
+        const line = lineOf(ctx);
+        const { prefix, tail } = readPrompt.buildReadParts(ctx, 'e');
+        const at = line ? c.indexOf(`\n\n${line}\n\n`) + 2 : c.indexOf('\n\n\n\n') + 2;
+        const cut = c.slice(0, at) + c.slice(at + line.length + 2);
+        return at > 2 && tail === line && prefix === cut && prefix.startsWith(c.slice(0, at)) && c.slice(at, at + line.length) === line;
+      });
+      ok(fits.every(Boolean) && lineOf(CTXS[1]).length > 40 && lineOf(CTXS[0]) === '',
+        `e is c's text with the context line taken out of the middle and given as the tail, for each of the three contexts (${fits.join(', ')})`);
+      ok(prefixes.every((p) => p === prefixes[0]) && !prefixes[0].includes('WHAT THE LAST FRAMES SHOWED')
+        && prefixes[0].includes(readPrompt.FIELDS) && !/\n\n\n/.test(prefixes[0]),
+      'and its prefix is the same bytes whatever the context, the STATE line in it and the context line nowhere in it');
+      const linesOf = (p) => p.split('\n').filter(Boolean).sort().join('\n');
+      ok(CTXS.every((ctx) => linesOf(readPrompt.buildReadPrompt(ctx, 'c')) === linesOf(readPrompt.buildReadPrompt(ctx, 'e'))),
+        'e says every line c says, and nothing more, only in another order');
+      ok(readPrompt.buildReadParts(CTX, 'c') === null && readPrompt.buildReadParts(CTX) === null && readPrompt.buildReadParts(CTX, 'b') === null,
+        'and no other prompt, the live one included, is given in parts');
+    }
+    ok(readVariant({ body: { variant: 'e' }, headers: {} }) === null
+      && readVariant({ body: { variant: 'e' }, headers: { 'x-admin-password': 'guess' } }) === null
+      && readVariant({ body: { variant: 'e' }, headers: {}, query: { password: PW } }) === null
+      && readVariant({ body: { variant: 'e' }, headers: { 'x-admin-password': PW } }) === 'e',
+    'variant e is an admin bench\'s alone, as b and c are');
+    ok(TELL_MAX.e === 120, `e keeps c's 120 characters of the tell (${TELL_MAX.e})`);
+    {
+      const contentOf = (sent) => ((sent && sent.body && sent.body.messages) || [])[0].content;
+      // A player's read: one text, then the image, exactly as before, whatever it names.
+      const shape = (c) => (Array.isArray(c) ? c.map((p) => p.type).join(',') : typeof c);
+      model.reply = `STATE: ${JSON.stringify({ phase: 'active', alive: true, hp: 70, aliveTell: 'own HP 70 and Vandal bottom left' })}`;
+      const plainE = await read({});
+      const plainSent = model.sent[0];
+      const playerE = await read({ variant: 'e', usage: true });
+      const playerSent = model.sent[0];
+      const pc = contentOf(plainSent);
+      ok(plainE.r.status === 200 && shape(pc) === 'text,image_url' && pc[0].text === live
+        && pc[1].image_url.url === 'data:image/jpeg;base64,aGVsbG8=' && !('variant' in plainE.body) && !('usage' in plainE.body),
+      'a player\'s read is still [the live prompt, the image], its reply with no usage');
+      ok(playerE.r.status === 200 && JSON.stringify(playerSent.body) === JSON.stringify(plainSent.body)
+        && playerE.body.variant === null && !('usage' in playerE.body),
+      'a player naming e, and asking for usage, sends byte for byte the request a plain read sends, told variant null and no usage');
+      // (Here the provider is no OpenRouter, so no data policy is sent at all;
+      // test:aiprivacy holds e's read to data_collection deny against OpenRouter.)
+      const pol = JSON.stringify(plainSent.body.provider);
+      // An admin bench naming e: [prefix, image, tail], the provider's usage told back.
+      model.usage = { prompt_tokens: 1480, completion_tokens: 150, prompt_tokens_details: { cached_tokens: 1344 } };
+      const benchE = await read({ variant: 'e', usage: true }, { 'X-Admin-Password': PW });
+      const ec = contentOf(model.sent[0]);
+      const parts = readPrompt.buildReadParts(CTX, 'e');
+      ok(benchE.r.status === 200 && benchE.body.variant === 'e' && shape(ec) === 'text,image_url,text'
+        && ec[0].text === parts.prefix && ec[2].text === parts.tail && ec[2].text === readPrompt.contextLine(CTX)
+        && ec[1].image_url.url === 'data:image/jpeg;base64,aGVsbG8=' && !ec.some((p) => p.cache_control),
+      `an admin bench naming e is sent [prefix, image, tail], c's words with the context line after the image (${shape(ec)})`);
+      ok(JSON.stringify(model.sent[0].body.provider) === pol && model.sent[0].body.temperature === plainSent.body.temperature
+        && model.sent[0].body.model === plainSent.body.model && model.sent[0].body.max_tokens === plainSent.body.max_tokens,
+      'with the same data policy, model, temperature and budget as a player\'s read');
+      ok(benchE.body.context.playerAlive === true && benchE.body.context.playerHp === 70,
+        'its reply parsed by the same mapState');
+      const u = benchE.body.usage || {};
+      ok(u.prompt === 1480 && u.completion === 150 && u.cached === 1344 && u.calls === 1,
+        `and the bench is told what the call used, its cached tokens among it (${JSON.stringify(benchE.body.usage)})`);
+      const noAsk = await read({ variant: 'e' }, { 'X-Admin-Password': PW });
+      ok(noAsk.body.variant === 'e' && !('usage' in noAsk.body), 'an admin bench that does not ask for usage is not told it');
+      // With no context line, no tail: [prefix, image].
+      model.sent.length = 0;
+      const bare = await call(coach, 'POST', '/read', { headers: { 'X-License-Key': 'GC-READ-TEST-AAAA-BBBB', 'X-Admin-Password': PW },
+        body: { image: 'aGVsbG8=', context: {}, variant: 'e' } });
+      const bc = contentOf(model.sent[0]);
+      ok(bare.status === 200 && shape(bc) === 'text,image_url' && bc[0].text === parts.prefix,
+        `and with nothing to say of the last frames, e is sent [prefix, image] (${shape(bc)})`);
+      // A bench naming c is still one text before the image.
+      await read({ variant: 'c' }, { 'X-Admin-Password': PW });
+      const cc = contentOf(model.sent[0]);
+      ok(shape(cc) === 'text,image_url' && cc[0].text === live, 'a bench naming c is still sent [c, image]');
+      model.usage = null;
+      model.reply = null;
+    }
 
     // What b says, against what the prompt before c said (a, the live one
     // when b and c were written).

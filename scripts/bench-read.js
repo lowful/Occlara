@@ -61,6 +61,13 @@
  *   npm run verify:ai -- --lag 4 --variant b
  *   npm run verify:ai -- --variant c               and c, written from b's judging
  *   npm run verify:ai -- --lag 4 --variant c
+ *   npm run verify:ai -- --variant e               c's words, the context line after the image
+ *   npm run verify:ai -- --lag 4 --variant e
+ *
+ * A run with the admin password (a bench model or a variant) also asks the
+ * server what each read's call used (`usage: true`): the trace keeps it per
+ * read and per model, and the run prints the share of the prompt that came
+ * from the provider's cache, which is what variant e is for.
  *
  * --variant NAME READS WITH A VARIANT OF THE READ PROMPT (8.4.1,
  * server/services/read-prompt.js), on the live model or any other, and needs
@@ -186,7 +193,10 @@ async function read(model, image, context) {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-license-key': cfg.licenseKey,
       ...(bench || VARIANT ? { 'x-admin-password': ADMIN } : {}) },
-    body: JSON.stringify({ image, context, benchModel: bench ? model : undefined, variant: VARIANT || undefined }),
+    // usage: an admin bench asks what each read's call used (the cached part
+    // of the prompt among it); a run with no admin password sends nothing new.
+    body: JSON.stringify({ image, context, benchModel: bench ? model : undefined, variant: VARIANT || undefined,
+      usage: (bench || VARIANT) && ADMIN ? true : undefined }),
   });
   const ms = Date.now() - t0;
   if (!resp.ok) return { err: `${resp.status} ${(await resp.text()).slice(0, 80)}`, ms };
@@ -225,7 +235,9 @@ async function run(model) {
     let j;
     try { j = await read(model, image, sent); } catch (e) { j = { err: e.message, ms: 0 }; }
     trace({ model, i: r.n, frame: f.frame, at: f.at, ms: j.ms, serverMs: j.serverMs == null ? null : j.serverMs,
-      err: j.err || null, servedBy: j.model || null, lobby: !!j.lobby, parsed: !!j.parsed, context: j.context || null });
+      err: j.err || null, servedBy: j.model || null, lobby: !!j.lobby, parsed: !!j.parsed, context: j.context || null,
+      ...(j.usage ? { usage: j.usage } : {}) });
+    tally(r, j.usage);
     if (j.err) { r.errs++; r.firstErr = r.firstErr || j.err; continue; }
     if (j.ignored) {
       r.errs = frames.length;
@@ -275,7 +287,7 @@ async function run(model) {
   r.deaths = d;
   r.finalRead = finalRead;
   trace({ model, summary: true, lag: LAG, ...(VARIANT ? { variant: VARIANT } : {}), n: r.n, errs: r.errs, firstErr: r.firstErr, lobby: r.lobby, parsed: r.parsed,
-    labels: r.labels, labelsOk: r.labelsOk, hp: r.hp, finalRead, deaths: d,
+    labels: r.labels, labelsOk: r.labelsOk, hp: r.hp, finalRead, deaths: d, ...(r.usage ? { usage: r.usage } : {}),
     rounds: ledger.list(finalRead ? 24 : null).map((x) => ({ n: x.n, died: !!x.died, side: x.side, spot: x.deathSpot || null })) });
   return r;
 }
@@ -309,8 +321,10 @@ async function runEngine(model) {
     let j;
     try { j = await read(model, image, sent); } catch (e) { j = { err: e.message, ms: 0 }; }
     const line = { model, i: r.n, frame: f.frame, at: f.at, ms: j.ms, serverMs: j.serverMs == null ? null : j.serverMs,
-      err: j.err || null, servedBy: j.model || null, lobby: !!j.lobby, parsed: !!j.parsed, context: j.context || null, sent };
+      err: j.err || null, servedBy: j.model || null, lobby: !!j.lobby, parsed: !!j.parsed, context: j.context || null, sent,
+      ...(j.usage ? { usage: j.usage } : {}) };
     trace(line);
+    tally(r, j.usage);
     r.reads.push(line);
     if (j.err) { r.errs++; r.firstErr = r.firstErr || j.err; waiting.push({ k, read: line }); continue; }
     if (j.ignored) {
@@ -337,7 +351,7 @@ async function runEngine(model) {
   r.registered = app.records.filter((x) => x.died).length;
   r.matches = app.ended.map((x) => ({ endedBy: x.snap.endedBy, rounds: x.snap.rounds.length, voided: !!x.snap.voided }));
   trace({ model, summary: true, engine: true, lag: LAG, ...(VARIANT ? { variant: VARIANT } : {}), n: r.n, errs: r.errs, firstErr: r.firstErr,
-    lobby: r.lobby, parsed: r.parsed, matches: r.matches,
+    lobby: r.lobby, parsed: r.parsed, matches: r.matches, ...(r.usage ? { usage: r.usage } : {}),
     rounds: ledger.map((x) => ({ n: x.n, died: !!x.died, side: x.side, spot: x.deathSpot || null })) });
   return r;
 }
@@ -378,6 +392,37 @@ async function engineMain() {
   }
   if (LAG > 1) console.log(`each frame was sent the engine's context of ${LAG} reads earlier (--lag ${LAG}).`);
   if (VARIANT) console.log(`every frame was read with the read prompt's variant ${VARIANT} (--variant ${VARIANT}).`);
+  usageLines(results);
+}
+
+/*
+ * WHAT THE READS' CALLS USED, when the server said (an admin bench sends
+ * `usage: true`): token counts added up per model, and the share of the
+ * prompt served from the provider's cache, so a run of read variant e shows
+ * whether its static prefix is hitting. A run the server told nothing of
+ * prints nothing here, so verify:ai prints what it always has.
+ */
+function tally(r, u) {
+  if (!u || typeof u !== 'object') return;
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
+  r.usage = r.usage || { reads: 0, prompt: 0, completion: 0, cached: 0, calls: 0, hits: 0 };
+  r.usage.reads++;
+  r.usage.prompt += n(u.prompt);
+  r.usage.completion += n(u.completion);
+  r.usage.cached += n(u.cached);
+  r.usage.calls += n(u.calls);
+  if (n(u.cached) > 0) r.usage.hits++;
+}
+function usageLines(results) {
+  const told = results.filter((r) => r.usage && r.usage.reads);
+  if (!told.length) return;
+  console.log('\ntokens per read, as the server reported them (usage):');
+  for (const r of told) {
+    const u = r.usage;
+    const per = (x) => Math.round(x / u.reads);
+    console.log(`  ${r.model.padEnd(34)} prompt ${per(u.prompt)}, cached ${per(u.cached)} (${pct(u.cached, u.prompt)}% of the prompt), `
+      + `completion ${per(u.completion)}; a cache hit on ${u.hits} of ${u.reads} reads (${pct(u.hits, u.reads)}%)`);
+  }
 }
 
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
@@ -416,6 +461,7 @@ const q = (arr, p) => { const s = arr.slice().sort((a, b) => a - b); return s.le
   console.log('gap is the read cadence auto holds at that p90, with up to four requests in flight.');
   if (LAG > 1) console.log(`each frame was sent with the context of ${LAG} reads earlier (--lag ${LAG}).`);
   if (VARIANT) console.log(`every frame was read with the read prompt's variant ${VARIANT} (--variant ${VARIANT}).`);
+  usageLines(results);
 
   // THE GATE, for npm run verify:ai. Every model or prompt change runs this
   // before it ships: the read must parse, must not invent deaths Riot does
