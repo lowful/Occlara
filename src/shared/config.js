@@ -15,6 +15,9 @@ const API = {
   DETECT_AGENT: '/api/coach/detect-agent', // the agent, off a read's own frame of the player's HUD
   MATCH_REVIEW: '/api/coach/match-review',
   DEATH_FORENSICS: '/api/coach/death-forensics',   // the frame before each teachable death
+  // The changelog (server/routes/changelog.js): public, no auth, the What's
+  // new page's background refresh of the copy bundled in src/shared.
+  CHANGELOG:    '/api/changelog',
 };
 
 // THE ACCOUNT PAGE, where a key is shown, renewed and its subscription managed
@@ -25,6 +28,11 @@ const API = {
 // out to its Log in tab, where a new buyer had to find "Create account".
 const PURCHASE_URL = 'https://occlara.app/account';
 const SIGNUP_URL = 'https://occlara.app/signup';
+
+// THE COMMUNITY: the one Discord invite the app opens (the sidebar's Discord
+// button, Settings' Community row). Main opens it only when the URL asked for
+// is exactly this one (src/main/ipc/community.js), never mid match.
+const DISCORD_URL = 'https://discord.gg/JYmXhvDkG9';
 
 // ── Capture ─────────────────────────────────────────────────────────────────
 // Two quality profiles: standard is plenty for HUD reading and uploads fast;
@@ -171,6 +179,10 @@ const STORE_DEFAULTS = {
   // minimize nudge: a shortcut nobody is told about is a shortcut nobody uses,
   // and a hint that never goes away is furniture.
   ailogHintSeen:    0,
+  // The newest version whose What's new the player has been offered
+  // (src/shared/changelog.js noticeFor). Empty on a first launch, which seeds
+  // it with the version installed and says nothing.
+  changelogSeenVersion: '',
 };
 
 module.exports = {
@@ -179,6 +191,7 @@ module.exports = {
   API,
   PURCHASE_URL,
   SIGNUP_URL,
+  DISCORD_URL,
   CAPTURE,
   TIMING,
   STORE_DEFAULTS,

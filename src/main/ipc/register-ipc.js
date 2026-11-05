@@ -21,10 +21,12 @@ const { resOf } = require('../services/recorder');
  *   license:    { activate(key) → result, getCached() → {...} },
  *   account:    { view(), signIn(), cancel(), signOut(), copyKey(), referral(), copyLink() } (8.7, index.js)
  *   profile:    { get(), buy(n), plans() } (8.8, index.js)
+ *   community:  { openDiscord(url), refresh() } (community.js, built in index.js)
+ *   changelog:  { notice(), seen(version) } (Home's update line, index.js)
  * }
  */
 function registerIpc(deps) {
-  const { controller, license, account, profile } = deps;
+  const { controller, license, account, profile, community, changelog } = deps;
 
   // ── the account (8.7) ─────────────────────────────────────────────────────
   if (account) {
@@ -43,6 +45,17 @@ function registerIpc(deps) {
     safeHandle(C.PROFILE_GET, async () => profile.get());
     safeHandle(C.PROFILE_BUY, async (_e, n) => profile.buy(n));
     safeHandle(C.PROFILE_PLANS, async () => profile.plans());
+  }
+  // ── the community and What's new ──────────────────────────────────────────
+  // The Discord invite opens only as exactly config.js DISCORD_URL, never mid
+  // match or sealed (community.js); the changelog's refresh is a checked GET.
+  if (community) {
+    safeHandle(C.DISCORD_OPEN, async (_e, url) => community.openDiscord(url));
+    safeHandle(C.CHANGELOG_REFRESH, async () => community.refresh());
+  }
+  if (changelog) {
+    safeHandle(C.CHANGELOG_NOTICE, async () => changelog.notice());
+    ipcMain.on(C.CHANGELOG_SEEN, (_e, version) => guard('changelogSeen', () => changelog.seen(version)));
   }
   ipcMain.on(C.OPEN_UPGRADE, () => guard('upgrade', () => shell.openExternal(UPGRADE_URL)));
   ipcMain.on(C.OPEN_ACCOUNT, () => guard('account', () => shell.openExternal(ACCOUNT_URL)));

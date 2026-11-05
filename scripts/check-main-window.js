@@ -93,6 +93,16 @@ proof.installStandIns();
 const ud = path.join(os.tmpdir(), 'occlara-check-main-window');
 const seeded = proof.seed(ud);
 const { played, built, store, SEEDED, ids: seededIds } = seeded;
+// WHAT'S NEW (the changelog): this install last offered an older version's
+// notes, so the launch is an update and Home says so once.
+const CHANGELOG = require(path.join(REPO, 'src/shared/changelog.generated.json'));
+const APP_VERSION = require(path.join(REPO, 'package.json')).version;
+{
+  const cfgFile = path.join(ud, 'occlara-config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+  cfg.changelogSeenVersion = CHANGELOG[1].version;
+  fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2));
+}
 process.env.OCCLARA_DEV_USERDATA = ud;
 
 app.disableHardwareAcceleration();
@@ -253,6 +263,15 @@ setTimeout(async () => {
     lines.push(`home came in: placed=${!!homeIn} ${JSON.stringify(homeState)}`);
     if (!homeIn || !homeState || homeState.leaving) return report(false, 'Home, the first page, never came in');
     if (homeState.cards < 3) return report(false, `only ${homeState.cards} of Home's cards arrived one after another`);
+    // WHAT'S NEW: launched as an update, Home says it once, main's words.
+    const homeNews = await until(() => hjs(`(() => {
+      const n = document.getElementById('h-news');
+      return n && !n.hidden ? { text: document.getElementById('h-news-text').textContent, link: document.getElementById('h-news-open').textContent } : null;
+    })()`), 4000);
+    lines.push(`home's update line: ${JSON.stringify(homeNews)}`);
+    if (!homeNews || homeNews.text !== `Occlara updated to ${APP_VERSION}.` || homeNews.link !== "See what's new") {
+      return report(false, `Home does not say the app was updated: ${JSON.stringify(homeNews)}`);
+    }
     await shot('home', mainWindow, win);
 
     // 3. A page from the sidebar shows beside it, at the sidebar's edge.
@@ -719,6 +738,50 @@ setTimeout(async () => {
       await shot('settings-account', mainWindow, win);
       await setjs("document.querySelector('.body').scrollTop = 0; true");
     }
+
+    // WHAT'S NEW AND THE DISCORD (the changelog): Settings' two rows, the
+    // version line opening the What's new page, the bundled changelog painted
+    // there with the running version marked, the sidebar marking Settings,
+    // and Home's update line gone once the page has opened.
+    if (process.env.OCCLARA_SHOTS === '1') {
+      await setjs("document.getElementById('discord-open').scrollIntoView({ block: 'center' }); true");
+      await wait(150);
+      await shot('settings-community', mainWindow, win);
+      await setjs("document.querySelector('.body').scrollTop = 0; true");
+    }
+    const commRows = await setjs(`(() => ({ whatsnew: document.getElementById('whatsnew-open').textContent, discord: document.getElementById('discord-open').textContent,
+      version: document.getElementById('version').textContent }))()`);
+    lines.push(`settings rows: ${JSON.stringify(commRows)}`);
+    if (commRows.whatsnew !== "See what's new" || commRows.discord !== 'Join the Discord' || !/^Version \d+\.\d+\.\d+$/.test(commRows.version)) {
+      return report(false, `Settings' What's new and Community rows are not as built: ${JSON.stringify(commRows)}`);
+    }
+    await setjs("document.getElementById('version').click(); true");
+    if (!await until(settled('whatsnew'), 4000)) return report(false, "the version line did not bring the What's new page in");
+    const wjs = (s) => mainWindow.pageViews().get('whatsnew').webContents.executeJavaScript(s);
+    const newsPage = await until(() => wjs(`(() => {
+      const e = [...document.querySelectorAll('.wn-entry')];
+      if (!e.length || !document.querySelector('.wn-mine')) return null;
+      const page = document.querySelector('.body');
+      return { versions: e.map((x) => x.querySelector('.wn-ver').textContent), mine: document.querySelector('.wn-mine').closest('.wn-entry').dataset.version,
+        heroPx: parseFloat(getComputedStyle(e[0].querySelector('.wn-title')).fontSize), items: document.querySelectorAll('.wn-item').length,
+        overflow: page.scrollWidth > page.clientWidth + 1 };
+    })()`), 5000);
+    const newsMark = await sjs("(() => { const b = document.querySelector('.nav-item[aria-current=page]'); return b ? b.id : null; })()");
+    lines.push(`what's new page: ${JSON.stringify(newsPage)} | marked ${newsMark}`);
+    if (!newsPage || newsPage.versions.join() !== CHANGELOG.map((x) => x.version).join() || newsPage.mine !== APP_VERSION || newsPage.heroPx < 24
+      || newsPage.items !== CHANGELOG.reduce((n, x) => n + x.items.length, 0) || newsPage.overflow || newsMark !== 'nav-settings') {
+      return report(false, `the What's new page does not show the changelog: ${JSON.stringify(newsPage)} marked ${newsMark}`);
+    }
+    await shot('whatsnew', mainWindow, win);
+    if (process.env.OCCLARA_SHOTS === '1') {
+      await wjs("document.querySelectorAll('.wn-entry')[1].scrollIntoView({ block: 'start' }); true");
+      await wait(150);
+      await shot('whatsnew-older', mainWindow, win);
+      await wjs("document.querySelector('.body').scrollTop = 0; true");
+    }
+    const newsGone = await until(() => hjs("document.getElementById('h-news').hidden"), 3000);
+    lines.push(`home's update line once What's new opened: hidden=${!!newsGone}`);
+    if (!newsGone) return report(false, "Home's update line stayed after What's new opened");
 
     // THE MOMENTS PAGE (8.7), in the Breakdown tab's place: every seeded
     // match under its own line, its deaths and highlights, the compilation by

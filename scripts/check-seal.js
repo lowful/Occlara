@@ -313,6 +313,23 @@ setTimeout(async () => {
       if (!buyMid || buyMid.ok !== false || !plansMid || plansMid.ok !== false || pageMid !== null || browserOpened.length) {
         return report(false, `mid ${game} match, the Profile page's channels answered or opened a link: ${JSON.stringify({ buyMid, plansMid, pageMid, opened: browserOpened })}`);
       }
+      // AND WHAT'S NEW AND THE DISCORD (the changelog): asked for mid match,
+      // the page does not show, the Discord icon is locked with the pages,
+      // the invite asked for exactly as the page would opens nothing, and
+      // Home's update line is answered null.
+      send(C.SHELL_NAV, 'whatsnew');
+      await wait(400);
+      const newsMid = await invoke(C.SHELL_GET);
+      const newsShown = shownViews();
+      const discordLocked = await until(() => sjs("document.getElementById('discord').disabled"), 3000);
+      const discordMid = await invoke(C.DISCORD_OPEN, require(path.join(REPO, 'src/shared/config')).DISCORD_URL);
+      const noticeMid = await invoke(C.CHANGELOG_NOTICE);
+      lines.push(`${game} match: What's new asked for mid match: shown=${newsMid.shown} pages shown=${newsShown.join(',') || 'none'} | Discord locked=${!!discordLocked}`
+        + ` open=${JSON.stringify(discordMid)} notice=${JSON.stringify(noticeMid)} opened=${browserOpened.length}`);
+      if (newsMid.shown !== null || newsShown.length || !discordLocked) return report(false, `mid ${game} match, the What's new page or the Discord icon is not sealed`);
+      if (!discordMid || discordMid.ok !== false || discordMid.error !== 'match' || noticeMid !== null || browserOpened.length) {
+        return report(false, `mid ${game} match, the Discord invite or the update line answered: ${JSON.stringify({ discordMid, noticeMid, opened: browserOpened })}`);
+      }
       send(C.SHELL_NAV, 'matches');
       e.live = false;
       const over = await invoke(C.SHELL_GET);
@@ -327,6 +344,14 @@ setTimeout(async () => {
       lines.push(`${game} match over: buy 5=${JSON.stringify(buyAfter)} opened=${JSON.stringify(browserOpened)} | 501, 0, 2.5, "5", null: ${refused.map((r) => r && r.ok).join(',')}`);
       if (!buyAfter || !buyAfter.ok || browserOpened.length !== 1 || browserOpened[0] !== 'https://occlara.app/buy?games=5' || refused.some((r) => !r || r.ok !== false)) {
         return report(false, `after the ${game} match, the checkout did not open as it should: ${JSON.stringify({ buyAfter, opened: browserOpened, refused })}`);
+      }
+      // The match over, the Discord invite opens, exactly it and nothing like it.
+      const DISCORD = require(path.join(REPO, 'src/shared/config')).DISCORD_URL;
+      const discordAfter = await invoke(C.DISCORD_OPEN, DISCORD);
+      const discordRefused = await Promise.all([`${DISCORD}/`, 'https://discord.gg/other', 'https://evil.example', null].map((u) => invoke(C.DISCORD_OPEN, u)));
+      lines.push(`${game} match over: Discord=${JSON.stringify(discordAfter)} opened=${JSON.stringify(browserOpened.slice(1))} | near misses: ${discordRefused.map((r) => r && r.error).join(',')}`);
+      if (!discordAfter || !discordAfter.ok || browserOpened.length !== 2 || browserOpened[1] !== DISCORD || discordRefused.some((r) => !r || r.ok !== false || r.error !== 'url')) {
+        return report(false, `after the ${game} match, the Discord invite did not open as it should: ${JSON.stringify({ discordAfter, opened: browserOpened, discordRefused })}`);
       }
       browserOpened.length = 0;
       send(C.COACH_STOP);

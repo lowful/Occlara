@@ -86,6 +86,13 @@ $('nav-invite').addEventListener('click', () => window.occlara.go('invite'));
 $('nav-profile').addEventListener('click', () => window.occlara.go('profile'));
 $('nav-settings').addEventListener('click', () => window.occlara.go('settings'));
 $('learn').addEventListener('click', () => window.occlara.openLearn());
+// The Discord (the community): main opens the invite in the browser, never
+// mid match, and the seal locks the button like the pages (paintNav).
+// The plain mark, the same path as index.html draws, put back once the lock goes.
+const DISCORD_ICO = '<path d="M19.27 5.33A16.6 16.6 0 0 0 15.1 4l-.2.4a15.4 15.4 0 0 1 3.7 1.86 12.6 12.6 0 0 0-13.2 0A15.4 15.4 0 0 1 9.1 4.4L8.9 4a16.6 16.6 0 0 0-4.17 1.33C2.1 9.2 1.38 12.97 1.74 16.69a16.8 16.8 0 0 0 5.1 2.58l.83-1.37a10.8 10.8 0 0 1-1.76-.85l.43-.33a11.9 11.9 0 0 0 11.32 0l.43.33c-.56.33-1.15.62-1.76.85l.83 1.37a16.8 16.8 0 0 0 5.1-2.58c.43-4.3-.73-8.04-2.99-11.36zM8.68 14.4c-1 0-1.82-.92-1.82-2.05s.8-2.05 1.82-2.05 1.84.93 1.82 2.05c0 1.13-.8 2.05-1.82 2.05zm6.64 0c-1 0-1.82-.92-1.82-2.05s.8-2.05 1.82-2.05 1.84.93 1.82 2.05c0 1.13-.8 2.05-1.82 2.05z"/>';
+$('discord').addEventListener('click', () => {
+  if (!$('discord').disabled) Promise.resolve(window.occlara.openDiscord()).catch(() => {});
+});
 
 // The screen in the page's place: mid match, or held after a stop mid match.
 const SEALED_TEXT = {
@@ -98,8 +105,9 @@ function paintNav() {
   // Mid match the pages are locked. Held, the sidebar stays open: a page is
   // the player's own choice, and opening one lifts the seal.
   const locked = !!shell.sealed && !shell.held;
-  // The review belongs with the library it opens from.
-  const current = shell.page === 'review' ? 'matches' : shell.page;
+  // The review belongs with the library it opens from, What's new with
+  // Settings, where it is reached from.
+  const current = shell.page === 'review' ? 'matches' : shell.page === 'whatsnew' ? 'settings' : shell.page;
   for (const [id, b] of navButtons) {
     if (current === id && !shell.sealed) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
@@ -108,6 +116,16 @@ function paintNav() {
     if (ico) ico.innerHTML = locked ? LOCK : (PAGE_ICO[id] || '');
   }
   $('learn').disabled = locked;
+  const dc = $('discord');
+  dc.disabled = locked;
+  dc.title = locked ? 'Locked until the match ends' : 'Join the Occlara Discord';
+  const dcIco = dc.querySelector('svg');
+  dcIco.setAttribute('fill', locked ? 'none' : 'currentColor');
+  dcIco.setAttribute('stroke', locked ? 'currentColor' : 'none');
+  dcIco.setAttribute('stroke-width', '1.75');
+  dcIco.setAttribute('stroke-linecap', 'round');
+  dcIco.setAttribute('stroke-linejoin', 'round');
+  dcIco.innerHTML = locked ? LOCK : DISCORD_ICO;
   $('sealed-note').hidden = !locked;
   $('sealed').hidden = !shell.sealed;
   const text = shell.held ? SEALED_TEXT.held : SEALED_TEXT.live;

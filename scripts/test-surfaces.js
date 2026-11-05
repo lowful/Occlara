@@ -6372,6 +6372,162 @@ async function openShell(cfg, state, opts) {
     ok(!DASHES.test(lockSrc) && !/https?:\/\//.test(lockSrc), 'and has no dash and names no URL');
   });
 
+  // THE DISCORD AND WHAT'S NEW (the changelog): the Discord icon at the end of
+  // Settings' row in the sidebar, locked by the seal like the pages; Settings'
+  // two rows and its version line; the What's new page painted at once from
+  // the bundled changelog and refreshed silently; Home's update line, main's
+  // words, seen only once on screen.
+  await section('the Discord icon in the sidebar\'s foot, locked by the seal like every page:', async () => {
+    const s = await openShell({ game: 'valorant' });
+    const dc = s.$('discord');
+    const kids = s.document.querySelector('.foot').children.map((c) => c.id);
+    ok(!!dc && kids.indexOf('discord') === kids.indexOf('nav-settings') + 1 && kids[0] === 'nav-invite' && kids[2] === 'nav-settings',
+      'it sits right after Settings, the foot\'s rows in their order', kids.join(', '));
+    ok(dc.getAttribute('title') === 'Join the Occlara Discord' && dc.getAttribute('aria-label') === 'Join the Occlara Discord' && dc.getAttribute('type') === 'button',
+      'a button named and tooltipped Join the Occlara Discord');
+    const mark = dc.querySelector('svg');
+    ok(mark && mark.querySelectorAll('path').length === 1 && mark.getAttribute('fill') === 'currentColor' && mark.getAttribute('aria-hidden') === 'true',
+      'its mark is one path in currentColor, hidden from the screen reader');
+    dc.click();
+    await settle();
+    ok(s.bridge.invoked.some(([ch, url]) => ch === C.DISCORD_OPEN && url === require('../src/shared/config').DISCORD_URL),
+      'a click asks main to open exactly the invite');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: null, sealed: true, held: false });
+    await settle();
+    const before = s.bridge.invoked.filter(([ch]) => ch === C.DISCORD_OPEN).length;
+    ok(dc.disabled && dc.querySelector('svg').innerHTML.includes('rect') && s.$('nav-settings').disabled, 'sealed mid match it is locked with the pages, its mark the lock');
+    dc.click();
+    await settle();
+    ok(s.bridge.invoked.filter(([ch]) => ch === C.DISCORD_OPEN).length === before, 'and a click on it then asks nothing');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: 'home', sealed: false, held: false });
+    await settle();
+    ok(!dc.disabled && dc.querySelector('svg').getAttribute('fill') === 'currentColor' && !dc.querySelector('svg').innerHTML.includes('rect'),
+      'the seal lifted, it is open and its mark is back');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'whatsnew', shown: 'whatsnew', sealed: false, held: false });
+    await settle();
+    ok(s.$('nav-settings').getAttribute('aria-current') === 'page', 'on What\'s new the sidebar marks Settings, where it is reached from');
+    const css = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8');
+    ok(/\.foot-icon:focus-visible\s*\{[^}]*outline:/.test(css), 'it shows a focus ring on the keyboard');
+  });
+
+  await section('Settings: What\'s new and the Community as two ruled rows, and the version line opens What\'s new:', async () => {
+    const se = loadSurface('settings', {
+      handlers: {
+        [C.CONFIG_GET]: () => ({ game: 'valorant', language: 'en', devGames: false }),
+        [C.LICENSE_GET]: () => ({}), [C.STATE_GET]: () => ({}),
+        [C.APP_VERSION]: () => ({ current: '8.7.3', state: 'current' }),
+        [C.APP_UPDATE_CHECK]: () => ({ current: '8.7.3', state: 'current' }),
+        [C.DISCORD_OPEN]: () => ({ ok: true }),
+      },
+    });
+    await settle();
+    const rowOf = (id) => { let n = se.$(id); while (n && !(n.classList && n.classList.contains('group'))) n = n.parentNode; return n; };
+    ok(rowOf('whatsnew-open') && rowOf('whatsnew-open').querySelector('h3').textContent === 'What\'s new in Occlara' && se.$('whatsnew-open').textContent === 'See what\'s new',
+      'a ruled row What\'s new in Occlara with See what\'s new');
+    ok(rowOf('discord-open') && rowOf('discord-open').querySelector('h3').textContent === 'Community' && se.$('discord-open').textContent === 'Join the Discord',
+      'a ruled row Community with Join the Discord');
+    se.$('whatsnew-open').click();
+    se.$('version').click();
+    ok(se.bridge.sent.filter(([ch, p]) => ch === C.SHELL_NAV && p === 'whatsnew').length === 2, 'the row and the version line both open What\'s new');
+    se.$('discord-open').click();
+    await settle();
+    ok(se.bridge.invoked.some(([ch, url]) => ch === C.DISCORD_OPEN && url === require('../src/shared/config').DISCORD_URL), 'Join the Discord asks main for exactly the invite');
+    se.$('update-check').click();
+    await settle();
+    ok(se.bridge.invoked.some(([ch]) => ch === C.APP_UPDATE_CHECK), 'and Check for updates still checks');
+    ok(se.$('version').textContent === 'Version 8.7.3' && se.$('version').tagName.toLowerCase() === 'button', 'the version is a button that reads Version 8.7.3');
+  });
+
+  await section('the What\'s new page: the bundled changelog at once, newest first, refreshed silently:', async () => {
+    const changelog = require('../src/shared/changelog');
+    const BUNDLED = changelog.clean(require('../src/shared/changelog.generated.json'));
+    let refreshed = null;
+    const page = (fresh) => loadSurface('whatsnew', {
+      handlers: {
+        [C.CHANGELOG_REFRESH]: () => { refreshed = true; if (fresh instanceof Error) throw fresh; return fresh; },
+      },
+    });
+    const w = page(null);
+    const entries = () => w.document.querySelectorAll('.wn-entry');
+    ok(entries().length === BUNDLED.length, 'every bundled version is painted at once, before main answers anything', `${entries().length}`);
+    await settle();
+    ok(refreshed === true, 'and main is asked to refresh it');
+    const first = entries()[0];
+    ok(first.classList.contains('first') && first.querySelector('.wn-ver').textContent === BUNDLED[0].version
+      && first.querySelector('.wn-title').textContent === BUNDLED[0].title && first.querySelector('.wn-summary').textContent === BUNDLED[0].summary,
+    'the newest first, as the page\'s hero: its version, title and summary');
+    ok(first.querySelector('.wn-date').textContent === changelog.dayOf(BUNDLED[0].date), 'with its day');
+    const items = first.querySelectorAll('.wn-item');
+    ok(items.length === BUNDLED[0].items.length && items.every((li, i) => li.querySelector('.wn-kind').textContent === changelog.kindWord(BUNDLED[0].items[i].kind)
+      && li.querySelector('.wn-text').textContent === BUNDLED[0].items[i].text), 'each change a row, its kind a word');
+    const mine = w.document.querySelectorAll('.wn-mine');
+    const running = require('../package.json').version;
+    ok(mine.length === 1 && entries().find((e) => e.dataset.version === running).querySelector('.wn-mine') && mine[0].textContent === 'Your version',
+      'the version the player runs (package.json) is marked Your version, only it');
+    ok(entries().every((e) => e.classList.contains('rise')), 'the entries rise in once on the first paint');
+    ok(!w.$('wn-empty') || w.$('wn-empty').hidden, 'and the empty line stays hidden');
+
+    const NEW = [{ version: '9.0.0', date: '2026-12-01', title: 'From the server', summary: 'A newer note.', items: [{ kind: 'new', text: 'A thing.' }] }, ...BUNDLED];
+    const w2 = page(NEW);
+    await settle();
+    const e2 = w2.document.querySelectorAll('.wn-entry');
+    ok(e2.length === NEW.length && e2[0].querySelector('.wn-ver').textContent === '9.0.0', 'a different answer from the server repaints the list');
+    ok(e2.every((e) => !e.classList.contains('rise')), 'without a second entrance');
+    const w3 = page(new Error('offline'));
+    await settle();
+    ok(w3.document.querySelectorAll('.wn-entry').length === BUNDLED.length && !w3.logs.some((l) => /error|offline/i.test(l)), 'a failed refresh leaves the bundled list, silently');
+    const dirty = page([{ version: '9.0.0', date: '2026-12-01', title: '<img src=x>', summary: 'Text.', items: [{ kind: 'new', text: '<b>x</b>' }] }]);
+    await settle();
+    const t = dirty.document.querySelector('.wn-title');
+    ok(t && t.textContent === '<img src=x>' && !dirty.document.querySelector('.wn-entry img'), 'every word is set as text, never as markup');
+
+    const files = ['index.html', 'whatsnew.js', 'whatsnew.css'].map((f) => fs.readFileSync(path.join(RENDERER, 'whatsnew', f), 'utf8'));
+    ok(files.every((src) => !DASHES.test(src)), 'no dash in the page');
+    ok(!/https?:\/\//.test(uncommented(files[0]) + uncommented(files[1])), 'and it names no URL');
+    ok(!/--signal|--red\b|--good|--bad|--warn/.test(files[2]), 'no colour beyond the ink: the signal and the outcome colours are never used');
+    ok(/prefers-reduced-motion/.test(files[2]), 'and a reduced motion path');
+    const nav = require('../src/shared/shell-nav');
+    const wn = nav.pageOf('whatsnew');
+    ok(wn && wn.surface === 'whatsnew' && wn.preload === 'whatsnew-preload.js' && wn.nav === false && nav.direction('settings', 'whatsnew') === 'forward',
+      'a page of its own, out of the nav list, one step deeper than Settings', JSON.stringify(wn));
+  });
+
+  await section('Home\'s update line: main\'s words once after an update, seen only on screen, gone once What\'s new opens:', async () => {
+    const NEWS = { version: '8.7.3', text: 'Occlara updated to 8.7.3.', link: 'See what\'s new' };
+    const homeRows = [{ id: 'n0', at: Date.now(), title: 'Jett', map: 'Abyss', result: 'Victory', score: '13-11', grade: { score: 70, letter: 'B' } }];
+    const handlers = (news) => ({
+      [C.STATE_GET]: () => ({ ...BASE }), [C.CONFIG_GET]: () => ({ language: 'en' }),
+      [C.REVIEWS_LIST]: () => homeRows,
+      [C.PATTERNS_GET]: () => ({ matches: 1, enough: false, mistakes: [], strengths: [], missed: [], grades: [], average: 70, categories: [] }),
+      [C.REVIEW_GET]: (id) => ({ id, kind: 'valorant', grade: { score: 70, letter: 'B', categories: [] } }),
+      [C.CHANGELOG_NOTICE]: () => news,
+    });
+    const quiet = loadSurface('home', { handlers: handlers(null) });
+    await settle();
+    ok(quiet.$('h-news').hidden && !quiet.bridge.sent.some(([ch]) => ch === C.CHANGELOG_SEEN), 'with nothing from main, no line and nothing seen');
+
+    const h = loadSurface('home', { handlers: handlers(NEWS), window: { location: { hash: '', search: '?embed=1&page=home' } } });
+    await settle();
+    ok(!h.$('h-news').hidden && h.$('h-news-text').textContent === NEWS.text && h.$('h-news-open').textContent === NEWS.link, 'main\'s line and its link');
+    ok(!h.bridge.sent.some(([ch]) => ch === C.CHANGELOG_SEEN), 'painted on a page not yet on screen, it is not yet seen');
+    h.clock.flushFrames();
+    h.bridge.emit(C.PUSH_PAGE, { phase: 'enter', dir: 'none' });
+    await settle();
+    ok(h.bridge.sent.some(([ch, v]) => ch === C.CHANGELOG_SEEN && v === '8.7.3'), 'on screen, that version is seen');
+    h.$('h-news-open').click();
+    ok(h.bridge.sent.some(([ch, p]) => ch === C.SHELL_NAV && p === 'whatsnew'), 'its link opens What\'s new');
+    h.bridge.emit(C.PUSH_CHANGELOG, null);
+    await settle();
+    ok(h.$('h-news').hidden, 'and main taking it back hides it');
+    const late = loadSurface('home', { handlers: handlers(null) });
+    await settle();
+    late.bridge.emit(C.PUSH_CHANGELOG, NEWS);
+    await settle();
+    ok(!late.$('h-news').hidden && late.$('h-news-text').textContent === NEWS.text, 'held until the seal lifted, the push paints it then');
+    const src = uncommented(fs.readFileSync(path.join(RENDERER, 'home', 'home.js'), 'utf8'));
+    ok(!/updated to/i.test(src) && !DASHES.test(fs.readFileSync(path.join(RENDERER, 'home', 'index.html'), 'utf8')), 'the words are main\'s alone, and no dash');
+  });
+
   console.log(fails ? `\nFAIL: ${fails} problem(s)` : '\nPASS: every surface does the right thing with what arrives');
   process.exit(fails ? 1 : 0);
 })().catch((e) => {

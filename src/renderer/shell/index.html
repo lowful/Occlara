@@ -78,6 +78,14 @@
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
           <span data-i18n="common.settings">Settings</span>
         </button>
+        <!-- THE DISCORD (the community): a quiet icon at the end of Settings'
+             row, not a page. Main opens the invite in the browser, only as
+             config.js DISCORD_URL and never mid match; the seal locks it like
+             every page (shell.js paintNav). The plain mark, one path, in
+             currentColor. -->
+        <button id="discord" class="foot-icon" type="button" title="Join the Occlara Discord" aria-label="Join the Occlara Discord">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M19.27 5.33A16.6 16.6 0 0 0 15.1 4l-.2.4a15.4 15.4 0 0 1 3.7 1.86 12.6 12.6 0 0 0-13.2 0A15.4 15.4 0 0 1 9.1 4.4L8.9 4a16.6 16.6 0 0 0-4.17 1.33C2.1 9.2 1.38 12.97 1.74 16.69a16.8 16.8 0 0 0 5.1 2.58l.83-1.37a10.8 10.8 0 0 1-1.76-.85l.43-.33a11.9 11.9 0 0 0 11.32 0l.43.33c-.56.33-1.15.62-1.76.85l.83 1.37a16.8 16.8 0 0 0 5.1-2.58c.43-4.3-.73-8.04-2.99-11.36zM8.68 14.4c-1 0-1.82-.92-1.82-2.05s.8-2.05 1.82-2.05 1.84.93 1.82 2.05c0 1.13-.8 2.05-1.82 2.05zm6.64 0c-1 0-1.82-.92-1.82-2.05s.8-2.05 1.82-2.05 1.84.93 1.82 2.05c0 1.13-.8 2.05-1.82 2.05z"/></svg>
+        </button>
         <button id="account" class="account" type="button" hidden></button>
       </div>
     </aside>

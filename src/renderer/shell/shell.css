@@ -154,7 +154,27 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
 }
 .rail-games[hidden] { display: none; }
 
-.foot { display: flex; flex-direction: column; gap: 2px; }
+/* The foot is one column of rows, and Settings' row holds the Discord icon
+   at its end: a grid, so the rows keep their order in the markup. */
+.foot { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px; }
+.foot > * { grid-column: 1 / -1; }
+.foot > #nav-settings { grid-column: 1; }
+.foot > .foot-icon { grid-column: 2; }
+/* THE DISCORD ICON: quiet like the rows beside it, no capsule, its mark in
+   the rows' icon colour, and under the pointer the rows' faint fill. A
+   native tooltip names it. Locked mid match like the pages (paintNav). */
+.foot-icon {
+  display: grid; place-items: center;
+  width: 40px; height: 40px; padding: 0;
+  border: 0; border-radius: var(--r-control);
+  background: transparent; color: var(--text-mute); cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.foot-icon > svg { transition: transform var(--t-press) var(--ease); }
+.foot-icon:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, 0.035); }
+.foot-icon:active:not(:disabled) > svg { transform: scale(0.92); }
+.foot-icon:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: -2px; }
+.foot-icon:disabled { cursor: default; color: var(--text-mute); opacity: 0.6; }
 .account {
   display: flex; align-items: center; gap: var(--space-2);
   min-height: 32px; padding: 0 var(--space-3);

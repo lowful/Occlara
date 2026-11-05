@@ -543,3 +543,19 @@ The page asks again on `ACCOUNT_CHANGED`, `PUSH_REVIEWS` and on coming back to
 the front after 30 s, so games bought in the browser show on return.
 `OCCLARA_SHOTS=1 npm run check:mainwindow` writes `main-profile.png` and
 `main-profile-plans.png` on the sample library.
+
+### What's new and the Discord
+
+`src/renderer/whatsnew/`, shell-nav `whatsnew` (`nav: false`), right after
+Settings in the page order and marked as Settings in the sidebar: the
+changelog, newest version the hero at 32px, each version a ruled section with
+its changes as rows and the kind a small word. Opened from Settings (the row
+"What's new in Occlara" and the version line, whose update check is now
+"Check for updates" beside it) and from Home's update line, "Occlara updated
+to X. See what's new", said once after an update at the right of Home's
+title, never mid match. The Discord is a quiet icon at the end of Settings'
+row in the sidebar's foot (`#discord`, `.foot-icon`; the foot is a two
+column grid so its rows keep their order) and Settings' row "Community".
+Everything about them: changelog.md. `check:mainwindow` writes
+`main-whatsnew.png`, `main-whatsnew-older.png` and
+`main-settings-community.png`, and `main-home.png` with the update line.

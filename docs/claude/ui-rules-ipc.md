@@ -287,3 +287,16 @@ Every webContents is held to our own files (`windows/web-guard.js`, wired by
 redirect anywhere but `src/renderer` is refused, and no page opens a window or a
 webview. A link out of the app goes through main with a URL main holds
 (`shell.openExternal`), never a page's `target=_blank` or `window.open`.
+
+### The community's channels (changelog.md)
+
+- `DISCORD_OPEN` (invoke, the URL): main opens the Discord invite only when
+  it is exactly config.js `DISCORD_URL`, never mid match or sealed
+  (`src/main/ipc/community.js`), `{ ok }` or `{ ok: false, error: 'url' |
+  'match' }`.
+- `CHANGELOG_REFRESH` (invoke): the entries of `GET /api/changelog`, checked
+  by `changelog.js clean`, or null on any failure, 4 s at most.
+- `CHANGELOG_NOTICE` (invoke): Home's update line `{ version, text, link }`
+  or null (nothing to say, recording, mid match, sealed); `PUSH_CHANGELOG`
+  carries it once the seal lifts, and null once What's new opened.
+  `CHANGELOG_SEEN` (send, the version): Home had it on screen.

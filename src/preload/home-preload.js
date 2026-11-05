@@ -77,4 +77,10 @@ contextBridge.exposeInMainWorld('occlara', {
   getAccount: () => ipcRenderer.invoke(C.ACCOUNT_GET),
   onAccount:  (cb) => subscribe(C.ACCOUNT_CHANGED, cb),
   openUpgrade: () => ipcRenderer.send(C.OPEN_UPGRADE),
+  // The update line (the changelog): main's { version, text, link } or null,
+  // never mid match or sealed; seen once it is on screen; What's new opens it.
+  getNews:      () => ipcRenderer.invoke(C.CHANGELOG_NOTICE),
+  onNews:       (cb) => subscribe(C.PUSH_CHANGELOG, cb),
+  newsSeen:     (version) => ipcRenderer.send(C.CHANGELOG_SEEN, String(version || '')),
+  openWhatsNew: () => ipcRenderer.send(C.SHELL_NAV, 'whatsnew'),
 });

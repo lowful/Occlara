@@ -30,6 +30,14 @@
       </div>
       <!-- No aside (8.7): the games left stand in the rail under Start, and
            the Riot ID's bullet at the rail's foot, said once each. -->
+      <!-- THE UPDATE LINE: once, on the first launch after an update, main's
+           words ("Occlara updated to 8.7.3.") and the way to What's new.
+           Never a modal and never mid match: main holds it until the seal
+           lifts (index.js changelogIpc). -->
+      <p id="h-news" class="h-news" aria-live="polite" hidden>
+        <span id="h-news-text"></span>
+        <button id="h-news-open" class="btn btn-link sm" type="button"></button>
+      </p>
     </header>
 
     <section id="empty" class="card empty" hidden>
