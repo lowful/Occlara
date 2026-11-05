@@ -109,6 +109,17 @@ async function usageCounts(now = Date.now()) {
 // a licence key upper cased, as presence keeps them.
 const ledgerId = (key) => (/^u:/i.test(String(key)) ? String(key).trim().toLowerCase() : String(key).trim().toUpperCase());
 
+/*
+ * THE ADDRESS THE LIMITS SEE (admin only): req.ip under trust proxy 1, beside
+ * the hops the edge sent, so the owner can check that Railway's proxy gives
+ * every player their own address (docs/claude/accounts.md, Rate limits).
+ */
+router.get('/whoami', (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  res.json({ ip: req.ip, ips: req.ips, hops: String(req.headers['x-forwarded-for'] || '').split(',').length,
+    realIp: req.headers['x-real-ip'] || null, envoy: req.headers['x-envoy-external-address'] || null });
+});
+
 router.get('/costs', async (req, res) => {
   if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
 
