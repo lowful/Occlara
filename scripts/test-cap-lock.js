@@ -298,15 +298,124 @@ const ACCOUNTS = [
     ok(c.body.granted === true && entOf(id).bonus_pool === 3, `and a Riot record review claims a bought game too (${c.body.granted})`);
   }
 
-  // ── What still spends while capped (reported, not refused) ─────────────
+  // ── Ask Coach is locked too (8.7.3), said the way each client can say it ──
   {
-    const id = uid(++n);
-    const H = await account(id, { used: FREE_GAMES });
-    const calls = ai.calls;
-    ai.reply = 'Hold the angle and trade your duelist.';
-    const q = await call(coach, 'POST', '/chat', { headers: H, body: { messages: [{ role: 'user', content: 'How do I hold B?' }], context: {} } });
-    console.log(`note  Ask Coach for a capped account answers ${q.status} with ${ai.calls - calls} model call(s): bounded by its daily cap `
-      + '(CHAT_DAY_QUESTIONS, CHAT_DAY_USD), not by the game cap, since a 402 there reads as "out of credits" in every shipped client');
+    const { CHAT_LOCK_LINES, chatLedger } = coach.__test;
+    const ANSWER = 'Hold the angle on B and trade your duelist.';
+    const chat = (H, v, ctx = {}) => call(coach, 'POST', '/chat', { headers: { ...H, 'X-Occlara-Version': v },
+      body: { messages: [{ role: 'user', content: `How do I hold B? (${Math.random()})` }], context: ctx } });
+    const frame = (H, v) => call(coach, 'POST', '/frame-chat', { headers: { ...H, 'X-Occlara-Version': v },
+      body: { question: `Why did I die here? (${Math.random()})`, images: [`${'x'.repeat(200)}${Math.random()}`] } });
+    const noVersion = (H) => { const h = { ...H }; delete h['X-Occlara-Version']; return h; };
+    // What each client version is told: [version, what, check(status, body)].
+    const SHAPES = [
+      ['no version', null, (s, b) => s === 200 && b.reply === CHAT_LOCK_LINES.site],
+      ['8.4.4', '8.4.4', (s, b) => s === 200 && b.reply === CHAT_LOCK_LINES.site],
+      ['8.6.0', '8.6.0', (s, b) => s === 200 && b.reply === CHAT_LOCK_LINES.site],
+      ['8.7.0', '8.7.0', (s, b) => s === 200 && b.reply === CHAT_LOCK_LINES.site],
+      ['8.7.1', '8.7.1', (s, b) => s === 200 && b.reply === CHAT_LOCK_LINES.site],
+      ['8.7.2', '8.7.2', (s, b) => s === 200 && b.reply === CHAT_LOCK_LINES.profile],
+      ['8.7.3', '8.7.3', (s, b) => s === 429 && b.error === 'chat-cap' && b.left === 0 && b.reply === undefined],
+      ['8.8.0', '8.8.0', (s, b) => s === 429 && b.error === 'chat-cap'],
+    ];
+    ok(Object.values(CHAT_LOCK_LINES).every((l) => !new RegExp(`[${String.fromCharCode(0x2013, 0x2014)};]`).test(l)) && /Profile/.test(CHAT_LOCK_LINES.profile) && !/Profile/.test(CHAT_LOCK_LINES.site),
+      'the lock\'s two lines carry no dash and no semicolon, and only 8.7.2\'s names the Profile page');
+    enforce(true);
+    for (const [what, make] of ACCOUNTS.slice(0, 2)) {
+      const id = uid(++n);
+      const H = await make(id);
+      const calls = ai.calls;
+      const cost = costs();
+      ai.reply = ANSWER;
+      const seen = [];
+      for (const [label, v, shape] of SHAPES) {
+        const h = v ? H : noVersion(H);
+        const a = await chat(h, v || undefined);
+        const v2 = v && v >= '8.5.0' ? await chat(h, v, { v: 2, language: 'en' }) : a;
+        const f = await frame(h, v || undefined);
+        seen.push(`${label} ${a.status}/${v2.status}/${f.status}`);
+        ok(shape(a.status, a.body) && shape(v2.status, v2.body) && shape(f.status, f.body),
+          `enforced: ${what} asking from ${label} is locked on chat${v && v >= '8.5.0' ? ', v2 chat' : ''} and frame chat (${a.status} ${JSON.stringify(a.body).slice(0, 60)})`);
+      }
+      ok(ai.calls === calls && costs() === cost && !chatLedger.has(`u:${id}`),
+        `enforced: and for ${what} no model is called, no cost is booked and no daily cap line is written (${ai.calls - calls} calls)`);
+    }
+    // Shadow: nothing changes.
+    enforce(false);
+    {
+      const id = uid(++n);
+      const H = await account(id, { used: FREE_GAMES });
+      ai.reply = ANSWER;
+      const calls = ai.calls;
+      const a = await chat(H, '8.7.3');
+      ok(a.status === 200 && a.body.reply === ANSWER && ai.calls === calls + 1,
+        `shadow: a Free account at 2 of 2 is answered by the model as before (${a.status})`);
+    }
+    // An outage: account_state cannot be read, so the question is answered as today.
+    enforce(true);
+    {
+      const id = uid(++n);
+      const H = await account(id, { used: FREE_GAMES });
+      await me(H);                     // the session is known before the database goes
+      meter.allow.clear();
+      db.outage = true;
+      ai.reply = ANSWER;
+      const calls = ai.calls;
+      const a = await chat(H, '8.7.3');
+      db.outage = false;
+      callers.shared.reset && callers.shared.reset();
+      ok(a.status === 200 && a.body.reply === ANSWER && ai.calls === calls + 1,
+        `enforced: when account_state cannot be read the question is answered, never locked on an unknown (${a.status})`);
+    }
+    // An account with games left is answered.
+    {
+      const id = uid(++n);
+      const H = await account(id, { tier: 'pro', used: 3 });
+      ai.reply = ANSWER;
+      const a = await chat(H, '8.7.3');
+      await new Promise((r) => setTimeout(r, 2100));   // the spam guard's 2 s gap (test:chatspam)
+      const f = await frame(H, '8.7.3');
+      ok(a.status === 200 && a.body.reply === ANSWER && f.status === 200 && f.body.reply,
+        `enforced: a Pro account at 3 of 25 is answered on chat and frame chat (${a.status} ${f.status})`);
+    }
+    // Bought games unlock at once: the webhook's grant forgets the meter's memory.
+    {
+      const id = uid(++n);
+      const H = await account(id, { used: FREE_GAMES });
+      ai.reply = IN_MATCH;
+      await read(H);                   // a refused read, remembered by the gate
+      ai.reply = ANSWER;
+      const before = await chat(H, '8.7.3');
+      entOf(id).bonus_pool = 5;        // the webhook's grant_purchased_games
+      let forgot = 'meter.forget';
+      try {
+        const hook = require(path.join(SERVER, 'routes', 'webhook.js')).__test.forgetGamesLeft;
+        // The webhook finds the meter loaded in its process: the one these routes use is this test's.
+        const real = usage.meter;
+        usage.meter = meter;
+        hook(id);
+        usage.meter = real;
+        forgot = 'the webhook\'s forgetGamesLeft';
+      } catch { meter.forget(id); callers.shared.forgetEntitlement(id); }
+      const calls = ai.calls;
+      const after = await chat(H, '8.7.3');
+      ok(before.status === 429 && before.body.error === 'chat-cap' && after.status === 200 && after.body.reply === ANSWER && ai.calls === calls + 1,
+        `a capped Free account that buys games asks again at once, no 30 s wait, through ${forgot} (${before.status} then ${after.status})`);
+    }
+    // A Pro account whose month rolls over asks again.
+    {
+      const id = uid(++n);
+      const H = await account(id, { tier: 'pro', used: 25 });
+      ai.reply = ANSWER;
+      const before = await chat(H, '8.7.2');
+      const was = clock;
+      clock += 32 * 864e5;
+      const calls = ai.calls;
+      const after = await chat(H, '8.7.3');
+      clock = was;
+      ok(before.status === 200 && before.body.reply === CHAT_LOCK_LINES.profile && after.status === 200 && after.body.reply === ANSWER && ai.calls === calls + 1,
+        `a Pro account at 25 of 25 asks again once its month rolls over (${before.status} then ${after.status})`);
+    }
   }
 
   coach.__test.setMeter(null);

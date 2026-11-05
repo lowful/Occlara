@@ -127,6 +127,12 @@ const presenceMod = require(path.join(SERVER, 'services', 'presence.js'));
 const { Presence, presence, hashOf } = presenceMod;
 const adminRouter = require(path.join(SERVER, 'routes', 'admin.js'));
 const coach = require(path.join(SERVER, 'routes', 'coach.js'));
+// These checks ask Ask Coach dozens of times in a row on one licence to hold
+// its prompts byte for byte, which the spam guard (one at a time, a 2 s gap,
+// five a minute, a repeat from memory) would refuse: here it lets every
+// question through, and test:chatspam holds the guard itself.
+coach.__test.setChatGuard(require(path.join(SERVER, 'services', 'chat-guard.js'))
+  .createChatGuard({ limits: { BURST_MAX: 1e9, GAP_MS: 0, REPEAT_MS: 0, IN_FLIGHT_MS: 0 } }));
 const retired = require(path.join(SERVER, 'routes', 'retired.js'));
 
 function call(router, method, url, { headers = {}, body = {} } = {}) {

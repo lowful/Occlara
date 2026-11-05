@@ -73,6 +73,8 @@ header h2 { font-size: 15px; font-weight: 600; }
    used, a match that may still be going on, a match in progress. */
 .chat-line { align-self: center; max-width: 72%; text-align: center; font-size: 13px; line-height: 1.5; color: var(--text-mute); animation: msgIn var(--t-med) var(--ease-expo) both; }
 .chat-line.cap { color: var(--text-dim); }
+/* Every game used (8.7.3): the way to the Profile page, under the line. */
+.chat-line-action { display: flex; margin: var(--space-2) auto 0; }
 
 /* The coach is writing: three dots on the left, no box. */
 .typing { align-self: flex-start; display: flex; gap: 5px; padding: var(--space-2) 0; }

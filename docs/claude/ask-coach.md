@@ -212,6 +212,21 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   40 s across both calls, and $0.15 a licence a rolling day. The page says
   the cap in the player's language with when it lifts ("You've used today's
   questions. Ask Coach is back at 21:14."), and main waits 50 s for a reply.
+- **No games left, no Ask Coach, and no spam (8.7.3).** With `ENFORCE_CAPS=1`
+  an account with every game used gets no model on chat or frame chat
+  (`coach.js chatLocked`, the read gate's rule): a client from 8.7.3 is
+  answered 429 `chat-cap` and the page says `chat.locked` ("You have used all
+  your games. Get more games in your Profile or upgrade your plan to ask me
+  about your matches.") as a line, never a bubble, with an Open Profile
+  button (`go('profile')`, chat-preload); 8.7.2 gets that sentence as its
+  reply, older builds one naming occlara.app. Never mid match: main refuses
+  the question before it is sent. An account with games is held by the spam
+  guard (`server/services/chat-guard.js CHAT_LIMITS`): one question at a time,
+  2 s from the last one's start, 5 a minute, and the same question about the
+  same match or frame within 30 s is the remembered answer with no model
+  call, beside the chat limiter's 25 in 5 minutes and the daily cap. Every
+  version, every number and why: accounts.md, "Ask Coach is locked with the
+  games" and "Rate limits". `test:caplock` and `test:chatspam` hold them.
 - **The one time fill** (`ask-coach.js fill`, `chat-context.js needsFill`,
   `applyRoundRecord`). A review linked before 8.5.0 keeps no kill feed, plant
   time or comps, though Riot's round record has them. Ask Coach opening on it

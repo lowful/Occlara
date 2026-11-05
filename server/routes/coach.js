@@ -20,6 +20,9 @@ const { AsyncLocalStorage } = require('async_hooks');
 // one accountKey for every ledger. The meter counts games (routes/usage.js),
 // asked lazily so a test can hand the router its own.
 const callers   = require('../services/caller');
+// Ask Coach's spam guard (8.7.3) and the per account key every limiter uses.
+const chatGuardMod = require('../services/chat-guard');
+const { byCaller } = require('../services/rate-limits');
 let meterOverride = null;
 const usageMeter = () => meterOverride || require('./usage').meter;
 const router = express.Router();
@@ -4162,6 +4165,90 @@ function chatGate(req, res, licenseKey) {
   return null;
 }
 
+/*
+ * NO GAMES LEFT, NO ASK COACH (8.7.3). With ENFORCE_CAPS=1 an account whose
+ * games are all used (the read gate's own rule, usage.js gate: account_state
+ * says none left and no live game of this device is open) is not answered by
+ * a model on /chat or /frame-chat, and nothing is booked. Shadow (the switch
+ * unset), a legacy key before LEGACY_CAP_FROM, accounts not live and an
+ * account_state that cannot be read are answered as before: never locked on
+ * an unknown. Games bought (the webhook forgets the meter's memory of the
+ * count, usage.js forget) or a new month lift it at once.
+ *
+ * HOW IT IS SAID depends on the client, and never with a 402, which every
+ * shipped client says as "The coach is out of credits":
+ *   8.7.3 and later   429 { error: 'chat-cap', left: 0 }, which its chat page
+ *                     says as a line of its own with a button to the Profile
+ *                     page, and its frame chat in words (index.js).
+ *   8.7.2             200 { reply } with CHAT_LOCK_LINES.profile, said as the
+ *                     coach's answer. Its 429 chat-daily would say "Ask Coach is
+ *                     back at" a time, which is not true of a cap.
+ *   before 8.7.2      200 { reply } with CHAT_LOCK_LINES.site: those builds
+ *                     have no Profile page.
+ */
+const V872 = [8, 7, 2];
+const V873 = [8, 7, 3];
+const CHAT_LOCK_LINES = {
+  profile: 'You have used all your games. Get more games in your Profile or upgrade your plan to ask me about your matches.',
+  site: 'You have used all your games. Get more games or upgrade your plan at occlara.app to ask me about your matches.',
+};
+/** The lock for one question: true once it is answered (locked), false to go on. */
+async function chatLocked(req, res, caller) {
+  if ((costScope.getStore() || {}).bench) return false;
+  let gate = null;
+  try { gate = await usageMeter().gate(caller, { count: false }); } catch { return false; }
+  if (!gate || gate.ok !== false) return false;
+  chatCounts().locked++;
+  if (clientAtLeast(req, V873)) res.status(429).json({ error: 'chat-cap', left: 0 });
+  else res.json({ reply: clientAtLeast(req, V872) ? CHAT_LOCK_LINES.profile : CHAT_LOCK_LINES.site });
+  return true;
+}
+
+/*
+ * THE SPAM GUARD for one question (services/chat-guard.js): one at a time per
+ * account, a 2 s gap, five a minute, and the same question about the same
+ * thing within 30 s answered from memory. Returns the turn to go on with, or
+ * null once the request is answered (refused 429 with Retry-After, or the
+ * remembered answer). The turn ends when the route answers, however it does.
+ * A bench is never guarded.
+ */
+let chatGuard = chatGuardMod.createChatGuard();
+const NO_TURN = { ok: true, end() {}, keep() {} };
+function chatTurn(req, res, route, question, about) {
+  if ((costScope.getStore() || {}).bench) return NO_TURN;
+  const t = chatGuard.begin(byCaller(req), question ? chatGuardMod.questionKey(route, question, about) : null);
+  if (t.repeat) { res.json(t.repeat); return null; }
+  if (!t.ok) {
+    chatCounts().guarded++;
+    if (typeof res.set === 'function') res.set('Retry-After', String(t.retryAfter));
+    else if (typeof res.setHeader === 'function') res.setHeader('Retry-After', String(t.retryAfter));
+    res.status(429).json(t.body);
+    return null;
+  }
+  const json = res.json;
+  res.json = function answered(body) { t.end(); res.json = json; return json.call(this, body); };
+  return t;
+}
+
+/** What a chat question is about, for the repeat's key: the match it names, else its review's text. */
+function chatAbout(body) {
+  const ctx = (body && body.context) || {};
+  const match = ctx.match && typeof ctx.match === 'object' ? ctx.match : {};
+  const id = [match.matchId, match.riotMatchId, match.id, body && body.matchId].find((x) => typeof x === 'string' && x);
+  const review = typeof ctx.matchReview === 'string' ? crypto.createHash('sha256').update(ctx.matchReview).digest('hex') : '';
+  return `${String(ctx.game || '')}|${id || ''}|${review}`;
+}
+
+/** The player's last message in a chat body, as typed. */
+function lastAsked(body) {
+  const list = Array.isArray(body && body.messages) ? body.messages : [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i];
+    if (m && m.role !== 'assistant' && typeof m.content === 'string' && m.content.trim()) return m.content;
+  }
+  return '';
+}
+
 /** A question's line in its licence's list: its cost is what bookCost books for it. */
 function chatEntry(key, now) {
   const entry = { at: now, cost: 0 };
@@ -4173,7 +4260,7 @@ function chatEntry(key, now) {
 }
 
 const chatDay = () => ({ day: new Date().toISOString().slice(0, 10), asked: { v1: 0, v2: 0, frame: 0 },
-  answered: 0, retried: 0, honest: 0, capped: 0, failed: 0, sentences: 0, dropped: {}, logged: {} });
+  answered: 0, retried: 0, honest: 0, capped: 0, locked: 0, guarded: 0, failed: 0, sentences: 0, dropped: {}, logged: {} });
 let chatToday = chatDay();
 function chatCounts() {
   if (chatToday.day !== new Date().toISOString().slice(0, 10)) chatToday = chatDay();
@@ -4186,7 +4273,7 @@ function chatReport() {
   let atCap = 0;
   for (const key of chatLedger.keys()) if (!chatRoom(key, now).ok) atCap++;
   return { day: c.day, asked: { ...c.asked }, answered: c.answered, retried: c.retried, honest: c.honest,
-    capped: c.capped, failed: c.failed, sentences: c.sentences, dropped: { ...c.dropped }, logged: { ...c.logged },
+    capped: c.capped, locked: c.locked, guarded: c.guarded, failed: c.failed, sentences: c.sentences, dropped: { ...c.dropped }, logged: { ...c.logged },
     licencesAtCap: atCap, cap: chatCap(),
     model: AI.chatModel, served: chatPromoted() ? 'v2' : 'v1',
     since: COSTS_SINCE };
@@ -4308,7 +4395,7 @@ function chatNames(body) {
  * be served here (its module not deployed, or a context it could not take),
  * and today's answer goes out instead.
  */
-async function chatV2(req, res, { licenseKey, variant, t0 }) {
+async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
   const chatPrompt = service('chatPrompt');
   if (!chatPrompt || ['normalise', 'buildPrompt', 'parseReply'].some((f) => typeof chatPrompt[f] !== 'function')) return false;
   const body = req.body || {};
@@ -4426,8 +4513,11 @@ async function chatV2(req, res, { licenseKey, variant, t0 }) {
     ...(retried ? { rawRetry: rawForBench(said.retry, names) } : {}),
     ...(scope.usage ? { usage: { prompt: scope.usage.prompt, completion: scope.usage.completion, cached: scope.usage.cached, calls: scope.usage.calls } } : {}),
   } : {};
-  res.json({ reply, v: 2, honest, retried, dropped, logged, sentences,
-    ...(body.benchModel ? { model } : {}), ...(body.variant ? { variant } : {}), ...bench });
+  const answer = { reply, v: 2, honest, retried, dropped, logged, sentences,
+    ...(body.benchModel ? { model } : {}), ...(body.variant ? { variant } : {}), ...bench };
+  // The honest line is never remembered: asked again, the question goes to the model.
+  if (!honest) turn.keep(answer);
+  res.json(answer);
   return true;
 }
 
@@ -4495,7 +4585,13 @@ router.post('/frame-chat', async (req, res) => {
 
     // A FRAME'S QUESTION COUNTS IN ASK COACH'S DAILY CAP (chatRoom), as a v2
     // question does, for every client (S5): one before 8.5.0, or with no
-    // version, is told the cap as its reply (chatGate).
+    // version, is told the cap as its reply (chatGate). Before it, an account
+    // with no games left (chatLocked) and the spam guard (chatTurn), each
+    // before any model is asked.
+    if (await chatLocked(req, res, caller)) return;
+    const turn = chatTurn(req, res, 'frame', question,
+      crypto.createHash('sha256').update(images[images.length - 1]).digest('hex'));
+    if (!turn) return;
     if (chatGate(req, res, licenseKey)) return;
     chatCounts().asked.frame++;
 
@@ -4549,7 +4645,9 @@ Answer as their coach, talking about this exact moment.
       reply = unnamed.text || '';
     }
     if (!reply) return res.json({ error: 'The coach had no answer for that frame. Try asking differently.' });
-    res.json({ reply: reply.slice(0, 1200) });
+    const answer = { reply: reply.slice(0, 1200) };
+    turn.keep(answer);
+    res.json(answer);
   } catch (e) {
     if (e && (e.credits || e.status === 402)) {
       return res.status(402).json({ error: 'ai-credits', message: 'The coach AI is out of credits.' });
@@ -4567,10 +4665,18 @@ router.post('/chat', async (req, res) => {
     if (!caller) return;
     const licenseKey = caller.accountKey;
 
+    // No games left (chatLocked), then the spam guard (chatTurn), for v1 and
+    // v2 alike and before any model. A body with no question is answered 400
+    // below and never guarded.
+    if (await chatLocked(req, res, caller)) return;
+    const asked = lastAsked(req.body);
+    const turn = asked ? chatTurn(req, res, 'chat', asked, chatAbout(req.body)) : NO_TURN;
+    if (!turn) return;
+
     // ASK COACH V2 (8.5.0): served by chatV2 when this request may have it,
     // today's answer otherwise, which is everything below, byte for byte.
     const variant = chatVariant(req);
-    if (variant && await chatV2(req, res, { licenseKey, variant, t0 })) return;
+    if (variant && await chatV2(req, res, { licenseKey, variant, t0, turn })) return;
     chatCounts().asked.v1++;
 
     const body     = req.body || {};
@@ -4709,10 +4815,13 @@ ${valorant ? `- COACH LIKE THE BEST, in the second half of your reply: diagnose 
         '\n\nYour previous reply was unusable. Answer plainly, in a few sentences, strictly about the player\'s Valorant gameplay.'));
       trackCall(licenseKey);
     }
-    if (!chatReplyOk(reply)) {
+    const usable = chatReplyOk(reply);
+    if (!usable) {
       reply = 'Let\'s keep it on your gameplay. Ask me about a specific round, your aim, positioning, or economy and I\'ll break it down.';
     }
-    res.json({ reply: reply.slice(0, 1500) });
+    const answer = { reply: reply.slice(0, 1500) };
+    if (usable) turn.keep(answer);
+    res.json(answer);
   } catch (e) {
     // An empty wallet is its own answer, as it is on every other route: Ask
     // Coach has a line for it ("out of credits on the server"), and a 500 here
@@ -4745,6 +4854,9 @@ module.exports.__test = {
   // 8.7: whose key it is, the caller check, what a read in a match is, and a
   // stand in meter for the read and review gates' tests (null puts the real one back).
   keyOwners, admit, inMatchState, setMeter: (m) => { meterOverride = m || null; },
+  // Ask Coach's lock for an account with no games left, and its spam guard (8.7.3).
+  CHAT_LOCK_LINES, chatLedger, chatGuard: () => chatGuard,
+  setChatGuard: (g) => { chatGuard = g || chatGuardMod.createChatGuard(); },
   // The wrong admin passwords counted per IP on the coach routes (S2).
   adminGuesses, ADMIN_GUESS_MAX,
   checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,

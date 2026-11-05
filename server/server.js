@@ -147,8 +147,12 @@ const readLimiter = rateLimit({
   message: { error: 'Slow down. Too many read requests.' },
   standardHeaders: true, legacyHeaders: false,
 });
+// Ask Coach's numbers live in one place (services/chat-guard.js CHAT_LIMITS):
+// this limiter, and inside the routes one question at a time, a 2 s gap, 5 a
+// minute and a repeat answered from memory.
+const { CHAT_LIMITS } = require('./services/chat-guard');
 const chatLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, max: 25,
+  windowMs: CHAT_LIMITS.LIMITER_WINDOW_MS, max: CHAT_LIMITS.LIMITER_MAX,
   keyGenerator: licenseKeyOrIp,
   message: { error: 'Too many chat messages. Give it a few minutes.' },
   standardHeaders: true, legacyHeaders: false,
