@@ -65,7 +65,7 @@ const FRAMES = [
   { tell: 'own HP 100 and Bandit bottom center',                       weapon: 'Bandit', hp: 100, spectating: false },
   { tell: 'own HP 19 and Sova abilities bottom center',                weapon: 'Sword',  hp: 19,  spectating: true  },
   { tell: 'Spectating playerone, teammate PLAYERNAME69 killed by Sage',    weapon: null,     hp: null, spectating: true },
-  { tell: 'Spectating iggly with Classic and 12 HP bottom center',     weapon: 'Classic', hp: 12, spectating: true },
+  { tell: 'Spectating playerone with Classic and 12 HP bottom center',     weapon: 'Classic', hp: 12, spectating: true },
   { tell: 'LOST TEAM ELIMINATED and KILLED BY SAGE top right',         weapon: null,     hp: null, spectating: true },
   { tell: 'spectating teammate PLAYERNAME69 with combat report on',    weapon: null,     hp: null, spectating: true },
   { tell: 'Spectating tingsoon with SWITCH PLAYER text bottom left',   weapon: null,     hp: null, spectating: true },
