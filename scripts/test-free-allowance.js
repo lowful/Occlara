@@ -1065,7 +1065,8 @@ const linkOf = async (h, puuid) => allowance.noteLinkPuuid(await callerOf(h), pu
       ok(/CREATE TABLE IF NOT EXISTS public\.free_allowance_keys/.test(sql), 'the SQL makes its table only if it is not there');
       const rls = sql.indexOf('ALTER TABLE public.free_allowance_keys ENABLE ROW LEVEL SECURITY');
       const grant = sql.indexOf('GRANT ALL ON public.free_allowance_keys TO service_role');
-      ok(rls > 0 && grant > rls && sql.includes('REVOKE ALL ON public.free_allowance_keys FROM anon, authenticated'), 'RLS on before any grant, the service role only');
+      // Lovable's rule: a table's grants come before its RLS statement.
+      ok(rls > 0 && grant > 0 && grant < rls && sql.includes('REVOKE ALL ON public.free_allowance_keys FROM anon, authenticated'), 'grants before RLS, the service role only');
       ok(!/REFERENCES\s+auth\.users/i.test(sql), 'no foreign key to auth.users');
       for (const fn of ['free_allowance_first_free(uuid)', 'free_allowance_first_puuid(uuid)', 'free_allowance_key_counts(text, text)', 'free_allowance_apart(uuid, uuid)', 'free_allowance_shared(uuid)', 'free_allowance_related(uuid, uuid)',
         'free_allowance_lock(uuid)', 'free_allowance_note(uuid, jsonb)', 'claim_game(uuid, text, text, text, text, boolean)',
