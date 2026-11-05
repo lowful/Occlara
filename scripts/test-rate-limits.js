@@ -223,6 +223,22 @@ const under = (p, url) => url === p || url.startsWith(p.endsWith('/') ? p : `${p
     await new Promise((r) => server.close(r));
   }
 
+  // ── On Railway: the address is X-Real-IP (measured 5 Nov 2026) ────────
+  {
+    const run = (env, headers, ip) => {
+      const req = { headers, ip };
+      Object.defineProperty(req, 'ip', { value: ip, configurable: true, writable: false });
+      limits.realIpMiddleware(env)(req, {}, () => {});
+      return req.ip;
+    };
+    const edge = '84.17.44.227';
+    ok(run({ RAILWAY_ENVIRONMENT: 'production' }, { 'x-real-ip': '72.197.1.2' }, edge) === '72.197.1.2',
+      'on Railway the player\'s own address (X-Real-IP, which Railway overwrites) replaces the edge node\'s');
+    ok(run({}, { 'x-real-ip': '72.197.1.2' }, edge) === edge, 'off Railway a client\'s X-Real-IP is never trusted');
+    ok(run({ RAILWAY_ENVIRONMENT: 'production' }, { 'x-real-ip': 'not an address' }, edge) === edge, 'a header that is not an address changes nothing');
+    ok(/realIpMiddleware\(process\.env\)/.test(fs.readFileSync(path.join(SERVER, 'server.js'), 'utf8')), 'server.js installs it');
+  }
+
   // ── A real player never meets one ──────────────────────────────────────
   {
     const routes = limits.routeLimits({ now });
