@@ -10,7 +10,9 @@ unchanged underneath all of it, and a server without the new tables serves
 A Supabase user with one `entitlements` row: tier `free`, `pro` (25 games a
 month) or `max` (70 a month), `free_total` (2 for life, 4 if invited; 3 and
 5 before 2026-11-04),
-`bonus_pool` and `bonus_earned` (referral games), `source`, the Stripe
+`bonus_pool` (referral games and, from 8.8, games bought at $2 each, which
+never expire: licence-billing.md, "Games bought one by one") and
+`bonus_earned` (referral games only, the cap of 20), `source`, the Stripe
 subscription, `period_anchor`, status `active` or `ended`, `renew_as`, and
 `account_key`, the GC key shown on the account and accepted as the fallback
 sign in. The cap is monthly even on a yearly plan: the period is the anchor
@@ -185,6 +187,31 @@ on a device that is not the inviter's, the inviter gets 4 games, up to 20
 earned. The inviter's devices are their app sessions', the devices their
 games were first claimed on (`devices.first_user_id`, checked by claim_game
 before a free claim takes the device) and their licence's `device_id`.
+
+## Buying games, in the app (8.8)
+
+A game is $2.00 (`profile.js GAME_PRICE_CENTS = 200`), any whole number from
+1 to 500 in one checkout (`MAX_GAMES_PER_PURCHASE`), with quick picks of 1,
+5, 10 and 25. The app takes no payment: the Profile page's Buy asks main
+(`PROFILE_BUY`, the number), which opens `https://occlara.app/buy?games=N` in
+the browser only when `profile.isBuyUrl` passes (that origin, `/buy`, one
+`games` parameter, a whole 1 to 500, nothing else) and never mid match or
+while sealed. The site signs the visitor in with the same Supabase account,
+re-validates N and makes the Stripe checkout (`create-games-checkout`), and
+the server's webhook grants the games once per checkout session into
+`bonus_pool` (not `bonus_earned`), where they never expire and are used after
+the plan's own games. A refund or dispute of a games purchase takes back its
+unused games and never touches the licence, tier or subscription
+(licence-billing.md, "Games bought one by one"). Signed out (a licence key
+alone) the button signs in first (`ACCOUNT_SIGNIN`). The games left the page
+shows come from the account's view (`games`, `profile.gamesState`: tier,
+left, cap_monthly, free_total, bonus_pool, period_end, never the email or
+key), worded by `profile.hero`. `test:profile`, `test:surfaces` and
+`check:seal` hold it.
+
+`usage.js gamesLeft` (the rail's line) still calls everything in
+`bonus_pool` "earned games", which a bought game is not: worth rewording to
+"bonus games" once purchases go live.
 
 ## Switches
 

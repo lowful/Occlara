@@ -51,7 +51,7 @@ ok(PAGES.filter((p) => p.nav).map((p) => p.id).join() === 'home,matches,patterns
 // Settings, so the window moves forward into it from every page above it.
 ok(pageOf('invite') && pageOf('invite').surface === 'invite' && pageOf('invite').preload === 'invite-preload.js' && pageOf('invite').nav === false,
   'Invite is a page with its own surface and preload, not in the nav list');
-ok(ids.indexOf('invite') === ids.indexOf('settings') - 1, 'and sits directly before Settings', ids.join(', '));
+ok(ids.indexOf('invite') === ids.indexOf('settings') - 2, 'and sits two before Settings, Profile between them', ids.join(', '));
 ok(direction('coach', 'invite') === 'forward' && direction('invite', 'settings') === 'forward' && direction('settings', 'invite') === 'back'
   && direction('invite', 'review') === 'forward' && direction('review', 'invite') === 'back',
   'down the sidebar into Invite and on to Settings is forward, back up is back, and the review is deeper still');
@@ -60,6 +60,24 @@ ok(direction('coach', 'invite') === 'forward' && direction('invite', 'settings')
   n.seal(true);
   const s = n.go('invite');
   ok(s.shown === null && s.page === 'invite' && n.seal(false).shown === 'invite', 'sealed, Invite is only remembered, and shows once the seal lifts');
+}
+// THE PROFILE PAGE (8.8): its own surface and preload, out of the nav list
+// (its button is in the sidebar's foot between Invite and Settings), and
+// between them in the order, so the window moves forward from Invite into it
+// and on to Settings.
+ok(pageOf('profile') && pageOf('profile').surface === 'profile' && pageOf('profile').preload === 'profile-preload.js' && pageOf('profile').nav === false,
+  'Profile is a page with its own surface and preload, not in the nav list', JSON.stringify(pageOf('profile')));
+ok(ids.indexOf('profile') === ids.indexOf('invite') + 1 && ids.indexOf('profile') === ids.indexOf('settings') - 1,
+  'and sits between Invite and Settings', ids.join(', '));
+ok(direction('invite', 'profile') === 'forward' && direction('profile', 'settings') === 'forward' && direction('settings', 'profile') === 'back'
+  && direction('profile', 'invite') === 'back' && direction('home', 'profile') === 'forward'
+  && direction('profile', 'review') === 'forward' && direction('review', 'profile') === 'back',
+  'from Invite into Profile and on to Settings is forward, back up is back, and the review is deeper still');
+{
+  const n = createNav();
+  n.seal(true);
+  const s = n.go('profile');
+  ok(s.shown === null && s.page === 'profile' && n.seal(false).shown === 'profile', 'sealed, Profile is only remembered, and shows once the seal lifts');
 }
 
 // ── Navigation, and the seal ──────────────────────────────────────────────

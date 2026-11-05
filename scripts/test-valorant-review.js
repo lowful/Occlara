@@ -396,8 +396,8 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(single.includes('planning the peek'), `one death the coach looked at moves its cause's topics up too (${single.join(', ')})`);
   const carried = new Set(knowledge.all().map((n) => n.source && n.source.topic).filter(Boolean));
   const named = [...Object.values(matchReview.PATTERN_TOPICS), ...Object.values(matchReview.CAUSE_TOPICS)].flat();
-  ok(named.every((t) => carried.has(t)) && Object.keys(matchReview.CAUSE_TOPICS).sort().join() === 'crossfire,dry-peek,exposed,isolated,overextend,repeek,rotating',
-    'every topic a pattern or a cause names is one a note carries, and the seven avoidable causes have topics');
+  ok(named.every((t) => carried.has(t)) && Object.keys(matchReview.CAUSE_TOPICS).sort().join() === 'crossfire,dry-peek,exposed,isolated,lost-duel,overextend,repeek,rotating',
+    'every topic a pattern or a cause names is one a note carries, and the seven avoidable causes and lost-duel have topics');
   const { spawnSync } = require('child_process');
   const playbook = (env) => spawnSync(process.execPath, [require('path').join(__dirname, 'check-playbook.js')],
     { encoding: 'utf8', env: { ...process.env, ...env } });

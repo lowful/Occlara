@@ -3,6 +3,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const usage = require('../../shared/usage');
+const { gamesState } = require('../../shared/profile');
 
 /**
  * THE ACCOUNT (8.7): sign in through the browser, the app session it leaves,
@@ -498,6 +499,9 @@ function createAccountService(deps) {
       capped: !!(st && st.capped),
       accountKey: (st && st.account_key) || (via === 'key' ? licenceKey() : null),
       invites: st ? st.invites : null,
+      // The Profile page's games (8.8, profile.js hero): the fields of the
+      // state its lines are worked from, never the email or the key.
+      games: st ? gamesState(st) : null,
       urls: { upgrade: usage.UPGRADE_URL, account: usage.ACCOUNT_URL, signup: usage.SIGNUP_URL },
     };
   }

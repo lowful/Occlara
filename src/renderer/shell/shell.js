@@ -36,6 +36,8 @@ const PAGE_ICO = {
   // The two in the sidebar's foot, drawn in index.html and put back here
   // once the seal's lock goes.
   invite: '<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/>',
+  // Profile (8.8): a person in a ring.
+  profile: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.8 18.3a6 6 0 0 1 10.4 0"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
 };
 const LOCK = '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>';
@@ -74,11 +76,14 @@ for (const p of pages.filter((x) => x.nav)) {
   $('nav').append(b);
   navButtons.set(p.id, b);
 }
-// The foot's two pages (8.7: Invite directly above Settings). They are in
-// navButtons, so the seal locks them and the marker finds them like the rest.
+// The foot's three pages (8.7: Invite, then 8.8: Profile, above Settings).
+// They are in navButtons, so the seal locks them and the marker finds them
+// like the rest.
 navButtons.set('invite', $('nav-invite'));
+navButtons.set('profile', $('nav-profile'));
 navButtons.set('settings', $('nav-settings'));
 $('nav-invite').addEventListener('click', () => window.occlara.go('invite'));
+$('nav-profile').addEventListener('click', () => window.occlara.go('profile'));
 $('nav-settings').addEventListener('click', () => window.occlara.go('settings'));
 $('learn').addEventListener('click', () => window.occlara.openLearn());
 

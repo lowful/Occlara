@@ -166,6 +166,8 @@ if (!dir) {
   process.exit(1);
 }
 const cfg = JSON.parse(fs.readFileSync(configPath(ROOT), 'utf8'));
+// A key for the bench run alone, from the environment, never written anywhere.
+if (String(process.env.OCCLARA_BENCH_KEY || '').trim()) cfg.licenseKey = String(process.env.OCCLARA_BENCH_KEY).trim();
 const log = JSON.parse(fs.readFileSync(path.join(dir, 'log.json'), 'utf8'));
 const frames = log.records.filter((r) => r.frame && fs.existsSync(path.join(dir, r.frame))).slice(0, LIMIT);
 const riot = require('./fixtures/riot-abyss-13-11.json');

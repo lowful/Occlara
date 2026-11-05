@@ -239,9 +239,27 @@ function priceOfSubscription(sub) {
   return (item && item.price) || null;
 }
 
+/*
+ * GAMES BOUGHT ONE BY ONE (8.8). A game is $2.00, any whole number from 1 to
+ * 500 in one checkout, at the same rate however many: the app's quick picks
+ * (1, 5, 10, 25) are only that rate times the count. The site's
+ * create-games-checkout charges it and this server's webhook credits it
+ * (routes/webhook.js grantGames), both from these two numbers, which the
+ * site and the app each keep in their own constants too.
+ */
+const GAME_PRICE_CENTS = 200;
+const MAX_GAMES_PER_PURCHASE = 500;
+
+/** A count of games one checkout may buy: a whole number 1 to 500 (a digit string too), else null. */
+function wholeGames(v) {
+  const n = typeof v === 'string' && /^[0-9]{1,4}$/.test(v.trim()) ? Number(v.trim()) : v;
+  return Number.isInteger(n) && n >= 1 && n <= MAX_GAMES_PER_PURCHASE ? n : null;
+}
+
 module.exports = {
   DAY_MS, GRACE_MS, LICENCE_ENDED, LICENCE_REVOKED, SUB_BILLING, SUB_ENDED,
   idOf, subscriptionOf, latestLineEnd, periodStartOf, periodEndOf, withGrace, expiryFor, failingExpiryFor,
   licenceStatusOf, dbError,
+  GAME_PRICE_CENTS, MAX_GAMES_PER_PURCHASE, wholeGames,
   TIER_CAP, LOOKUP_KEY, INTERVAL_PLAN, accountsMissing, tierOfPlan, tierOfPrice, priceOfSubscription,
 };

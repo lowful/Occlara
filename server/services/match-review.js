@@ -84,8 +84,9 @@ const PATTERN_TOPICS = {
  * mistake (`cause:repeek`, insights.js), which the summary and the focus
  * already name: the study notes now follow it. Every topic here is one the
  * playbook's notes carry, and check:playbook fails one that none does.
- * lost-duel, a fair fight lost on the shot, has nothing to study but the aim,
- * and unclear nothing at all.
+ * lost-duel, a fair fight lost on the shot, studies the peek and the stop
+ * before the aim (8.7.2, it had no topics and a match of lost duels was sent
+ * nothing), and unclear nothing at all.
  */
 const CAUSE_TOPICS = {
   'dry-peek': ['planning the peek', 'filling utility', 'paint the picture'],
@@ -95,6 +96,9 @@ const CAUSE_TOPICS = {
   rotating: ['rotating into the unknown', 'anchor or rotate', 'rotating with util'],
   overextend: ['checkpoints', 'tempo'],
   exposed: ['post plant', 'retake shape'],
+  // A fair fight lost on the shot has the peek and the stop to study before
+  // the aim (8.7.2): the lost duel checklist, the stop, and the peek method.
+  'lost-duel': ['Lost duel checklist', 'Stop before the first shot', 'peek method before aim'],
 };
 
 const clip = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
@@ -271,9 +275,14 @@ function study(input, limit = 3) {
     const advanced = note.tier === 'advanced';
     if (advanced && !advancedOn) continue;
     let score = note.weight || 1;
-    if (note.agents) score += 4;
+    // A role note carries its role's agent list so retrieve() reaches it
+    // (docs/claude/playbook.md), but to the study list it is still a role
+    // note (8.7.2): counted as both, the two checkpoints notes outscored every
+    // pattern and every cause, and a player read the same homework in 7 of 8
+    // reviews. An agent's own note keeps its +4.
+    if (note.agents && !note.roles) score += 4;
+    else if (note.roles) score += 2;
     if (note.maps) score += 3;
-    if (note.roles) score += 2;
     if (wanted.has(src.topic)) score += 5;
     else if (looked.has(src.topic)) score += 2;
     if (note.side && weak && note.side === weak) score += 2;
@@ -363,6 +372,9 @@ const GROUNDING = 'GROUNDING RULES. The ledger was built by reading the screen a
   + 'Start from the player\'s own choice: never blame teammates, luck, the enemy\'s aim, the lobby or the map, and never '
   + 'tell the player they were unlucky. When a death was a traded entry, a fair fight or a sound take, say so plainly '
   + 'instead of inventing a mistake. '
+  + 'Write for a player who does not know coaching words: say a teammate close enough to kill your killer, not '
+  + 'trading distance, say the smoke, the flash or the drone by name, not utility, say take one piece of space and '
+  + 'stop, not checkpoints, and never write impact, tempo, map control, situational awareness or utility potential. '
   + 'Only name places that appear in the ledger. Do not use dashes and never use semicolons. No markdown, no lists, no bold.';
 
 /** The old review, kept as variant A so the bench has a baseline. */
@@ -459,7 +471,12 @@ function promptRounds(input, withKnowledge) {
         + 'the coach\'s look called the fight fair and lost on the shot. The player '
         + 'sees that round\'s facts right beside your line, so never restate them: no killer, weapon, seconds or place '
         + 'unless the lesson needs that one. What was seen in play is the last the screen showed of the player before the '
-        + 'death; use it only where it agrees with the facts. If the facts give you no lesson, leave that round out.\n'
+        + 'death; use it only where it agrees with the facts. If the facts give you no lesson, leave that round out. '
+        + 'Each line teaches the choice that round\'s facts single out, so no two lines teach the same thing in the '
+        + 'same words: a defence death is about where you held and when to give ground, an attack death about who '
+        + 'followed you in, a death after the plant about holding the spike from cover and the clock, a death with '
+        + 'your team ahead about not needing the fight. Say that nobody traded you in at most one line, the one where '
+        + 'it is the lesson, because the counted mistake already says it for the match.\n'
       : 'Write no round lines: no round was lost to a death.\n')
     + 'FOCUS: one concrete habit for the next match that fixes the first counted mistake, written as the moment to '
     + 'notice and the move to make (when you are about to swing, do this first), something a player can do in a round '

@@ -106,13 +106,53 @@ function dateOf(html) {
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 
+/**
+ * The slug of a patch's notes, with or without the hyphen between major and
+ * minor. Every patch until 13.08 was "valorant-patch-notes-13-08"; 13.09 went
+ * up as "valorant-patch-notes-1309", and a sync that knew only the hyphen
+ * recorded 13.09 as read with no notes, which withheld every stated fact.
+ * The minor is always two digits, so "1309" splits as 13 and 09.
+ */
+const SLUG_RE = /valorant-patch-notes-(\d{1,2})-?(\d{2})(?!\d)/gi;
+
+/**
+ * Patch numbers Riot never released. The primer's gates treat a number missing
+ * from the history as a patch nobody read, so a number Riot skipped must be
+ * recorded as skipped or every match before it loses its stated facts. Only a
+ * number confirmed never released goes here, never one the index merely failed
+ * to link: 13.03 (13.02 on 28 July, 13.04 on 18 August) and 13.07 (13.06 on
+ * 22 September, 13.08 on 13 October, and Riot's 13.05 notes name 13.06 as the
+ * next patch), neither in Riot's game updates index.
+ */
+const RIOT_SKIPPED = ['13.03', '13.07'];
+
 /** Every patch the notes index links, newest first: ['13.08', '13.07', ...]. */
 function slugsFromIndex(html) {
   const seen = new Set();
-  const re = /valorant-patch-notes-(\d+)-(\d+)/gi;
+  const re = new RegExp(SLUG_RE.source, 'gi');
   let m;
-  while ((m = re.exec(String(html || ''))) !== null) seen.add(`${Number(m[1])}.${m[2].padStart(2, '0')}`);
+  while ((m = re.exec(String(html || ''))) !== null) seen.add(`${Number(m[1])}.${m[2]}`);
   return [...seen].sort((a, b) => patchKey(b) - patchKey(a));
+}
+
+/**
+ * Numbers inside a major the index skips between two patches it links, that
+ * RIOT_SKIPPED does not hold yet: printed for a person to check, never
+ * recorded as skipped on the index's word alone.
+ */
+function unexplainedGaps(linked, skipped = RIOT_SKIPPED) {
+  const known = new Set(skipped);
+  const out = [];
+  const sorted = [...new Set(linked)].sort((a, b) => patchKey(b) - patchKey(a));
+  for (let i = 1; i < sorted.length; i++) {
+    const a = patchKey(sorted[i - 1]); const b = patchKey(sorted[i]);
+    if (Math.floor(a / 1000) !== Math.floor(b / 1000)) continue;
+    for (let n = b + 1; n < a; n++) {
+      const p = `${Math.floor(n / 1000)}.${String(n % 1000).padStart(2, '0')}`;
+      if (!known.has(p)) out.push(p);
+    }
+  }
+  return out;
 }
 
 const patchKey = (p) => {
@@ -127,16 +167,19 @@ const patchKey = (p) => {
  * instead of silently shipping the wrong patch's changes.
  */
 async function findNotesUrl(patch, indexHtml) {
-  const slug = patch.replace('.', '-');
-  const guess = `${NOTES_INDEX}valorant-patch-notes-${slug}/`;
-  try {
-    const r = await fetch(guess, { headers: UA });
-    if (r.ok) return guess;
-  } catch {}
+  const [major, minor] = patch.split('.');
+  // Both spellings Riot has used: "13-08", and "1309" since 13.09.
+  for (const slug of [`${major}-${minor}`, `${major}${minor}`]) {
+    const guess = `${NOTES_INDEX}valorant-patch-notes-${slug}/`;
+    try {
+      const r = await fetch(guess, { headers: UA });
+      if (r.ok) return guess;
+    } catch {}
+  }
   // Fall back to whatever the index actually links for this patch.
   try {
     const html = indexHtml || await (await fetch(NOTES_INDEX, { headers: UA })).text();
-    const re = new RegExp(`href="([^"]*valorant-patch-notes-${slug}[^"]*)"`, 'i');
+    const re = new RegExp(`href="([^"]*valorant-patch-notes-${major}-?${minor}(?![0-9])[^"]*)"`, 'i');
     const m = html.match(re);
     if (m) return m[1].startsWith('http') ? m[1] : `https://playvalorant.com${m[1]}`;
   } catch {}
@@ -229,6 +272,12 @@ function historyEntry(patch, notes, source, date, dateFrom) {
     notesFound: !!(notes && notes.substantive > 0), linesKept: 'all', capped: !!(notes && notes.capped), lines: (notes && notes.lines) || [] };
 }
 
+/** The skipped numbers to write: this script's list and any the file already held. */
+function skippedList(prev) {
+  const held = prev && Array.isArray(prev.skipped) ? prev.skipped : [];
+  return [...new Set([...RIOT_SKIPPED, ...held])].sort((a, b) => patchKey(b) - patchKey(a));
+}
+
 /** The newest KEEP_PATCHES, a patch fetched this run replacing its older entry. */
 function mergeHistory(prevHistory, fresh, keep = KEEP_PATCHES) {
   const by = new Map();
@@ -243,7 +292,7 @@ async function main() {
   try { prev = JSON.parse(fs.readFileSync(outPath, 'utf8')); } catch {}
 
   if (process.argv.includes('--upgrade')) {
-    const next = upgrade(prev);
+    const next = { ...upgrade(prev), skipped: skippedList(prev) };
     fs.writeFileSync(outPath, JSON.stringify(next, null, 2) + '\n');
     console.log(`Upgraded ${outPath} offline: history of ${next.history.length} patch(es), `
       + `${next.history.map((e) => `${e.patch} (${e.lines.length} lines, ${e.linesKept})`).join(', ')}.`);
@@ -313,6 +362,13 @@ async function main() {
     }
   }
   data.history = mergeHistory(upgrade(prev).history, fresh);
+  data.skipped = skippedList(prev);
+  // Only inside the window the history keeps: an older gap is never read.
+  const gaps = unexplainedGaps([patch, ...older], data.skipped);
+  if (gaps.length) {
+    console.warn(`\nThe index links no notes for ${gaps.join(', ')}. The primer treats each as a patch nobody read.`);
+    console.warn('If Riot never released it, add it to RIOT_SKIPPED in this script and sync again.');
+  }
 
   fs.writeFileSync(outPath, JSON.stringify(data, null, 2) + '\n');
 
@@ -337,4 +393,4 @@ if (require.main === module) {
 }
 
 module.exports = { htmlToLines, patchFromBranch, dateOf, slugsFromIndex, notesFromHtml, upgrade, mergeHistory, historyEntry, classify,
-  MAX_LINES, MAX_HISTORY_LINES, KEEP_PATCHES };
+  unexplainedGaps, skippedList, SLUG_RE, RIOT_SKIPPED, MAX_LINES, MAX_HISTORY_LINES, KEEP_PATCHES };

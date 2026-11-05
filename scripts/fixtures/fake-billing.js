@@ -107,10 +107,13 @@ function makeSupabase(opts = {}) {
       return row;
     });
     db.accounts = !!next.accounts;
+    // The games migration (game_purchases, grant_purchased_games,
+    // refund_purchased_games) is live with the accounts unless told otherwise.
+    db.games = db.accounts && next.games !== false;
     db.schema = next.schema || (db.accounts ? 'accounts' : 'today');
-    db.tables = Object.fromEntries(Object.keys(ACCOUNT_TABLES).map((t) => [t, []]));
+    db.tables = Object.fromEntries(Object.keys(TABLES).map((t) => [t, []]));
     for (const [t, rows] of Object.entries(next.tables || {})) {
-      if (!ACCOUNT_TABLES[t]) throw new Error(`the fake has no table ${t}`);
+      if (!TABLES[t]) throw new Error(`the fake has no table ${t}`);
       db.tables[t] = rows.map((r) => withDefaults(t, r, db.clock()));
     }
     db.rpcCalls = [];
@@ -298,7 +301,7 @@ function makeSupabase(opts = {}) {
   const accounts = makeAccounts(db, { checkRow, OUTAGE });
 
   function from(table) {
-    if (ACCOUNT_TABLES[table]) return accounts.from(table);
+    if (TABLES[table]) return accounts.from(table);
     if (table !== 'licenses') throw new Error(`the fake knows the licenses and the accounts tables only, not ${table}`);
     const q = { op: 'select', cols: '*', patch: null, rows: null, filters: [], order: null, range: null,
       limit: null, single: false, maybe: false, returning: false };
@@ -418,8 +421,26 @@ const ACCOUNT_TABLES = {
 
 const ACCOUNT_FUNCTIONS = ['ensure_entitlement', 'claim_game', 'settle_game', 'account_state'];
 
+// The games migration of 8.8 (scratchpad games-purchase.sql, given to the site
+// as its own migration): one row per checkout session that bought games, its
+// ref unique, so a redelivered event grants once. Kept apart from
+// ACCOUNT_TABLES, which test:claimgame holds to the 0004 accounts SQL.
+const GAMES_TABLES = {
+  game_purchases: {
+    columns: { id: () => uuid(), ref: null, user_id: null, games: null, amount_cents: null, status: 'granted',
+      granted_games: null, taken_back: null, created_at: (t) => t, refunded_at: null },
+    notNull: ['id', 'ref', 'user_id', 'games', 'amount_cents', 'status'],
+    checks: { status: ['granted', 'refunded'] },
+    ranges: { games: [1, 500] },
+    nonNegative: ['amount_cents', 'granted_games', 'taken_back'],
+    pk: ['id'], unique: [['ref']], users: ['user_id'],
+  },
+};
+const GAMES_FUNCTIONS = ['grant_purchased_games', 'refund_purchased_games'];
+const TABLES = { ...ACCOUNT_TABLES, ...GAMES_TABLES };
+
 function withDefaults(table, input, nowMs) {
-  const spec = ACCOUNT_TABLES[table];
+  const spec = TABLES[table];
   const iso = new Date(nowMs).toISOString();
   const row = {};
   for (const [c, d] of Object.entries(spec.columns)) {
@@ -464,7 +485,7 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
 
   // ── constraints ──
   function violates(table, row, others) {
-    const spec = ACCOUNT_TABLES[table];
+    const spec = TABLES[table];
     for (const c of Object.keys(row)) {
       if (!(c in spec.columns)) return pgError('PGRST204', `Could not find the '${c}' column of '${table}' in the schema cache`);
     }
@@ -473,6 +494,11 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
     }
     for (const [c, allowed] of Object.entries(spec.checks || {})) {
       if (row[c] != null && !allowed.includes(row[c])) {
+        return pgError('23514', `new row for relation "${table}" violates check constraint "${table}_${c}_check"`);
+      }
+    }
+    for (const [c, [lo, hi]] of Object.entries(spec.ranges || {})) {
+      if (row[c] != null && (row[c] < lo || row[c] > hi)) {
         return pgError('23514', `new row for relation "${table}" violates check constraint "${table}_${c}_check"`);
       }
     }
@@ -734,7 +760,57 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
     };
   }
 
+  /*
+   * grant_purchased_games and refund_purchased_games, as the games SQL runs
+   * them: the entitlement row first (ensure_entitlement, then locked), then
+   * the purchase by its unique ref. Neither ever touches a licence, the tier,
+   * free_total or bonus_earned, and an ended account's updated_at is left as
+   * it is (the webhook reads it as when the account was ended).
+   */
+  const wholeGames = (n) => Number.isInteger(n) && n >= 1 && n <= 500;
+  const touched = (e) => (e.status === 'ended' ? {} : { updated_at: iso(now()) });
+
+  function grantPurchasedGames({ p_user, p_games, p_ref, p_amount_cents }) {
+    if (!p_user) raise('grant_purchased_games: no user');
+    if (!p_ref) raise('grant_purchased_games: no ref');
+    if (!wholeGames(p_games)) raise(`grant_purchased_games: games must be 1 to 500, got ${p_games}`);
+    if (!Number.isInteger(p_amount_cents) || p_amount_cents < 0) raise('grant_purchased_games: no amount');
+    const e = ensureEntitlement(p_user);
+    const have = T('game_purchases').find((p) => p.ref === p_ref);
+    if (have) {
+      return { granted: false, reason: have.user_id !== p_user ? 'other-user' : have.status === 'refunded' ? 'refunded' : 'existing',
+        games: have.games, bonus_pool: e.bonus_pool, account_status: e.status };
+    }
+    put('game_purchases', { ref: p_ref, user_id: p_user, games: p_games, amount_cents: p_amount_cents,
+      status: 'granted', granted_games: p_games });
+    patch('entitlements', e, { bonus_pool: e.bonus_pool + p_games, ...touched(e) });
+    return { granted: true, reason: null, games: p_games, bonus_pool: e.bonus_pool, account_status: e.status };
+  }
+
+  function refundPurchasedGames({ p_ref, p_user = null, p_games = null }) {
+    if (!p_ref) raise('refund_purchased_games: no ref');
+    const found = T('game_purchases').find((p) => p.ref === p_ref);
+    if (!found && (!p_user || !wholeGames(p_games))) return { refunded: false, reason: 'none', taken_back: 0, bonus_pool: null };
+    const e = ensureEntitlement(found ? found.user_id : p_user);
+    if (!found) {
+      // A refund before its grant: recorded refunded with nothing granted, so
+      // the grant, when it arrives, finds the ref and adds nothing.
+      put('game_purchases', { ref: p_ref, user_id: p_user, games: p_games, amount_cents: 0, status: 'refunded',
+        granted_games: 0, taken_back: 0, refunded_at: iso(now()) });
+      return { refunded: true, reason: 'recorded', taken_back: 0, bonus_pool: e.bonus_pool };
+    }
+    if (found.status === 'refunded') {
+      return { refunded: false, reason: 'already', taken_back: found.taken_back || 0, bonus_pool: e.bonus_pool };
+    }
+    const take = Math.min(found.granted_games != null ? found.granted_games : found.games, e.bonus_pool);
+    patch('entitlements', e, { bonus_pool: e.bonus_pool - take, ...touched(e) });
+    patch('game_purchases', found, { status: 'refunded', taken_back: take, refunded_at: iso(now()) });
+    return { refunded: true, reason: 'refunded', taken_back: take, bonus_pool: e.bonus_pool };
+  }
+
   const FUNCS = {
+    grant_purchased_games: grantPurchasedGames,
+    refund_purchased_games: refundPurchasedGames,
     ensure_entitlement: (a) => ensureEntitlement(a.p_user),
     claim_game: claimGame,
     settle_game: settleGame,
@@ -760,7 +836,7 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
     const run = () => {
       db.rpcCalls.push({ name, args: clone(args) });
       if (db.outage) return OUTAGE;
-      if (!FUNCS[name] || !db.accounts) {
+      if (!FUNCS[name] || !db.accounts || (GAMES_FUNCTIONS.includes(name) && !db.games)) {
         return { data: null, error: pgError('PGRST202',
           `Could not find the function public.${name} without parameters in the schema cache`) };
       }
@@ -828,8 +904,8 @@ function makeAccounts(db, { checkRow, OUTAGE }) {
 
   function runQuery(q) {
     if (db.outage) return OUTAGE;
-    if (!db.accounts) return missingTable(q.table);
-    const spec = ACCOUNT_TABLES[q.table];
+    if (!db.accounts || (GAMES_TABLES[q.table] && !db.games)) return missingTable(q.table);
+    const spec = TABLES[q.table];
     const rows = T(q.table);
     for (const f of q.filters) {
       if (!(f[1] in spec.columns)) return { data: null, error: pgError('42703', `column ${q.table}.${f[1]} does not exist`) };
@@ -1021,7 +1097,8 @@ function render(kind, o, version) {
   }
   if (kind === 'charge') {
     const out = { id: o.id, object: 'charge', customer: o.customer || null, payment_intent: o.payment_intent || null,
-      amount: o.amount, amount_refunded: o.amount_refunded || 0, refunded: !!o.refunded, disputed: !!o.disputed };
+      amount: o.amount, amount_refunded: o.amount_refunded || 0, refunded: !!o.refunded, disputed: !!o.disputed,
+      metadata: o.metadata || {} };
     if (!basil) out.invoice = o.invoice || null;
     return out;
   }
@@ -1034,16 +1111,23 @@ function render(kind, o, version) {
       subscription: o.subscription || null, payment_intent: o.payment_intent || null, invoice: o.invoice || null,
       metadata: o.metadata || {}, client_reference_id: o.client_reference_id || null,
       customer_details: o.customer_details || null, payment_status: o.payment_status || 'paid',
+      ...(o.amount_total != null ? { amount_total: o.amount_total } : {}),
+      ...(o.currency ? { currency: o.currency } : {}),
+      ...(o.currency_conversion ? { currency_conversion: o.currency_conversion } : {}),
       ...(o.created ? { created: o.created } : {}) };
+  }
+  if (kind === 'payment_intent') {
+    return { id: o.id, object: 'payment_intent', amount: o.amount || 0, currency: o.currency || 'usd',
+      customer: o.customer || null, invoice: o.invoice || null, metadata: o.metadata || {}, status: o.status || 'succeeded' };
   }
   throw new Error(`render: unknown kind ${kind}`);
 }
 
 function makeStripe() {
-  const s = { subs: new Map(), invoices: new Map(), charges: new Map(), sessions: new Map(), calls: [], fail: new Set(), now: () => Math.floor(Date.now() / 1000) };
+  const s = { subs: new Map(), invoices: new Map(), charges: new Map(), sessions: new Map(), intents: new Map(), calls: [], fail: new Set(), now: () => Math.floor(Date.now() / 1000) };
 
   function reset() {
-    for (const m of [s.subs, s.invoices, s.charges, s.sessions]) m.clear();
+    for (const m of [s.subs, s.invoices, s.charges, s.sessions, s.intents]) m.clear();
     s.calls = [];
     s.fail = new Set();
   }
@@ -1098,6 +1182,22 @@ function makeStripe() {
     invoices: {
       retrieve: async (id) => { note('invoices.retrieve', id); return render('invoice', need(s.invoices, id, 'invoice'), SERVER_VERSION); },
     },
+    /*
+     * A payment intent set in s.intents answers as set. One only a charge,
+     * an invoice or a session names exists in Stripe too, with no metadata
+     * (and its invoice, when an invoice names it); any other id is missing.
+     */
+    paymentIntents: {
+      retrieve: async (id) => {
+        note('paymentIntents.retrieve', id);
+        if (s.intents.has(id)) return render('payment_intent', s.intents.get(id), SERVER_VERSION);
+        const inv = [...s.invoices.values()].find((x) => x.payment_intent === id);
+        const named = inv || [...s.charges.values()].some((x) => x.payment_intent === id)
+          || [...s.sessions.values()].some((x) => x.payment_intent === id);
+        if (!named) need(s.intents, id, 'payment_intent');
+        return render('payment_intent', { id, invoice: inv ? inv.id : null }, SERVER_VERSION);
+      },
+    },
     checkout: {
       sessions: {
         list: async (params = {}) => {
@@ -1115,7 +1215,14 @@ function makeStripe() {
         listLineItems: async (id) => {
           note('checkout.sessions.listLineItems', id);
           const x = need(s.sessions, id, 'checkout session');
-          const price = { id: x.priceId || 'price_unknown', object: 'price', ...(x.lookupKey ? { lookup_key: x.lookupKey } : {}) };
+          // A games checkout's lines as set ({ quantity, unit_amount }), drawn as Stripe draws them.
+          if (x.lineItems) {
+            return { object: 'list', has_more: false, data: x.lineItems.map((l, i) => ({
+              id: `li_${i + 1}`, object: 'item', quantity: l.quantity, currency: l.currency || 'usd',
+              amount_total: l.amount_total != null ? l.amount_total : l.quantity * l.unit_amount,
+              price: { id: 'price_inline', object: 'price', unit_amount: l.unit_amount, recurring: null } })) };
+          }
+          const price ={ id: x.priceId || 'price_unknown', object: 'price', ...(x.lookupKey ? { lookup_key: x.lookupKey } : {}) };
           if (x.mode === 'subscription' && x.interval) price.recurring = { interval: x.interval, interval_count: 1 };
           else price.recurring = null;
           return { object: 'list', data: [{ id: 'li_1', object: 'item', price, quantity: 1 }], has_more: false };
@@ -1207,7 +1314,7 @@ const DAY = 24 * 60 * 60;
 module.exports = {
   LIVE_COLUMNS, CHECKS, PROTECTED, SERVER_VERSION, VERSIONS, DAY,
   makeSupabase, makeStripe, render, loadWith, callRouter, deliver, captureLogs,
-  ACCOUNT_TABLES, ACCOUNT_FUNCTIONS, entitlementPeriod, addMonthsUTC,
+  ACCOUNT_TABLES, ACCOUNT_FUNCTIONS, GAMES_TABLES, GAMES_FUNCTIONS, entitlementPeriod, addMonthsUTC,
   STALE_MS, MATCH_READS_COUNTED, REFUND_CAP, REFERRAL_BONUS, REFERRAL_MAX_EARNED,
   SERVER: path.join(__dirname, '..', '..', 'server'),
 };

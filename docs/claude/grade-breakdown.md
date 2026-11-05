@@ -19,6 +19,25 @@ Decisions.
 - **One category is not a grade.** From the screen alone Valorant can count
   deaths and nothing else, and that graded a 13 to 11 win at 45. An overall needs
   two categories carrying half the weight; below that it says what would grade it.
+- **A traded death is never held against the player, and a clutch death is
+  nobody's trade** (8.7.2, from the audit of the grade against the record). A
+  first death a teammate traded leaves the round four against four, so only
+  untraded first deaths come off Survival and count toward "First to die"
+  (whose detail says "nobody traded it" and whose fix, for a Duelist, is how to
+  take first contact, never to take the second fight); a traded death with the
+  team ahead keeps the advantage, so it is not one "given back" in Decisions or
+  the lists, and on attack before the plant that fix says take the site
+  together and plant, since waiting loses to the clock; a death as the last
+  player alive (`aliveAtDeath.mates <= 1`) leaves Teamplay's traded ratio and
+  the untraded count, because nobody was there to trade it; and an ultimate
+  held through a death flags Decisions only for a Duelist or an Initiator (a
+  Sentinel's or a Controller's is a site tool a coach says to hold, and
+  Resurrection cannot save Sage), while the "Died holding your ultimate" miss
+  stays for everyone. `test:grade`'s thrown fixture is untraded on purpose.
+  Not done: the Teamplay curve's middle (about 17% of deaths are traded across
+  real players per the trackers, and the curve reads that as a D) and
+  `riot-rounds.js` writing `traded: null` for a death alone, which the two
+  readers now handle without it.
 - **The Duelist curves are shifted**, because the entry dies more and is traded
   less by design: on the shared curves the real 31 kill Jett read as a player who
   could not stay alive. The lesson from the retired grade-blend.js stands: a real

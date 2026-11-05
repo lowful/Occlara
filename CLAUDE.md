@@ -108,6 +108,7 @@ in `docs/claude/` to find it.
 | Changing Ask Coach: `chat-context`, `ask-coach.js`, `chat-prompt`, the fact gates, `bench:chat` | `docs/claude/ask-coach.md` |
 | Changing licences, the Stripe webhook, refunds, renewals, grace or `sync-expiry` | `docs/claude/licence-billing.md` |
 | Touching accounts, sign in, tiers, game caps, `game_usage`, the read gate, referral or `ENFORCE_CAPS` | `docs/claude/accounts.md` |
+| Changing the Profile page, buying games in the app or `profile.js` | `docs/claude/ui.md`, "The Profile page", and `docs/claude/accounts.md`, "Buying games, in the app" |
 
 ## Conventions
 

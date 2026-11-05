@@ -191,10 +191,12 @@ function valorant(input) {
     let s = curve(dpr, DPR);
     survival.evidence.push(`${plural(deaths, 'death')} in ${plural(total, 'round')}`);
     if (isVerified) {
-      const fd = verified.filter((r) => r.firstDeath).length;
+      // A first death a teammate traded leaves the round even (8.7.2): only
+      // the untraded ones come off Survival.
+      const fd = verified.filter((r) => r.firstDeath && r.traded !== true).length;
       const allowance = role === 'Duelist' ? 0.22 : 0.14;
       const excess = Math.max(0, fd / total - allowance);
-      if (fd) survival.evidence.push(`first to die in ${fd} of ${plural(total, 'round')}`);
+      if (fd) survival.evidence.push(`first to die and not traded in ${fd} of ${plural(total, 'round')}`);
       s -= excess * 100;
       const lived = verified.filter((r) => !r.died).length;
       if (lived) survival.evidence.push(`survived ${plural(lived, 'round')}`);
@@ -249,7 +251,10 @@ function valorant(input) {
 
   // Teamplay: were your deaths answered, did you answer theirs, and assists.
   const teamplay = { key: 'teamplay', label: 'Teamplay', weight: 20, score: null, evidence: [] };
-  const known = verified.filter((r) => r.died && typeof r.traded === 'boolean');
+  // A death as the last player alive is left out (8.7.2): nobody was there to
+  // trade a clutch, so it says nothing about the player's spacing.
+  const alone = (r) => !!(r.aliveAtDeath && typeof r.aliveAtDeath.mates === 'number' && r.aliveAtDeath.mates <= 1);
+  const known = verified.filter((r) => r.died && typeof r.traded === 'boolean' && !alone(r));
   const assists = sl ? num(sl.assists) : null;
   if (known.length >= 3) {
     const traded = known.filter((r) => r.traded).length;
@@ -299,9 +304,17 @@ function valorant(input) {
     && r.forensics.source !== 'screen');
   if (total >= 3 && (hasFeed || looked.length)) {
     const flagged = new Set();
-    const thrown = verified.filter((r) => r.died && r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies && r.result === 'lost');
+    // A traded death keeps the advantage, so it is not one given back (8.7.2).
+    const thrown = verified.filter((r) => r.died && r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies && r.result === 'lost'
+      && r.traded !== true);
     for (const r of thrown) flagged.add(r.n);
-    const ult = rows.filter((r) => r.died && r.ultAtDeath === 'ready');
+    // An ultimate held through a death is a flag only where it could have won
+    // or escaped the fight (8.7.2): a Sentinel's or a Controller's is a site
+    // tool a coach tells the player to hold (Resurrection cannot be cast on
+    // herself, Lockdown and Annihilation wait for the retake), so those roles
+    // keep the miss in the lists and lose nothing here.
+    const ultSaves = role !== 'Sentinel' && role !== 'Controller';
+    const ult = ultSaves ? rows.filter((r) => r.died && r.ultAtDeath === 'ready') : [];
     for (const r of ult) flagged.add(r.n);
     const avoid = looked.filter((r) => isAvoidable(r.forensics.cause));
     for (const r of avoid) flagged.add(r.n);

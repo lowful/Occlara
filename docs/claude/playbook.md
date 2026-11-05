@@ -18,7 +18,10 @@ the coach looked at gives its cause's +2: dry-peek planning the peek, filling
 utility and paint the picture; isolated checkpoints; repeek giving ground,
 planning the peek and movement; crossfire planning the peek and paint the
 picture; rotating its three rotation topics; overextend checkpoints and tempo;
-exposed post plant and retake shape. The summary and the focus already name
+exposed post plant and retake shape; and since 8.7.2 lost-duel the lost duel
+checklist, the stop before the first shot and the peek method before aim
+(it had no topics, so a match whose counted mistake was lost duels, the most
+common one at Gold to Plat, was sent nothing to study). The summary and the focus already name
 the first counted mistake, so the study notes now follow it; against agent
 tagged notes at +4 the shift is small (an Omen's counted dry peeks bring in
 planning the peek). Ask Coach's notes leave out the review's own list as
@@ -30,10 +33,13 @@ gate.
 **New knowledge goes in `server/data/playbook.json`**, the growth hook the
 module has always documented. It merges at startup, `check:playbook` covers it
 automatically through `knowledge.all()`, and extra fields such as `source` pass
-through untouched. Its 69 notes are 42 imported from pro VOD reviews and 27 of
-Occlara's own, computed from the damage table or written from round shapes, and
-**an imported note must carry `source.topic`**, which is what `study()` picks
-by, or the checker fails it.
+through untouched. It began as 69 notes (42 imported from pro VOD reviews and
+27 of Occlara's own, computed from the damage table or written from round
+shapes), grew to 227 with the 2026 imports and to 308 with the 8.7.2 audit
+(below); the live count is `knowledge.all().length` minus the hand written
+set, and the boot line `[knowledge] merged N` says it. **An imported note must
+carry `source.topic`**, which is what `study()` picks by, or the checker fails
+it.
 
 **The app never says where a note came from.** A source holds its kind and its
 topic, never a name: `check:playbook` fails a note with a `coach` key, the
@@ -126,6 +132,25 @@ Notes also keep `when` (the observable situation that should bring the note
 up) and `why`; neither is rendered to a model or a player, they document the
 tagging. exposed, rotating and overextend have the fewest cause notes.
 
+**The 8.7.2 audit (2026-11-04).** 81 notes were added from published coaching
+guides, Riot's 13.00 to 13.09 notes and the damage table (the Warden, Hush's
+kit, Summit's walls, Corrode's water and mid, every pool map, the exposed,
+rotating and overextend causes that had the fewest notes, comms, economy and
+round logic), 15 notes were corrected (the two checkpoints notes are attack
+only and list Hush; the shallow smoke and the thorn are defence only; the
+pattern smoke is Viper's and Astra's; the Sheriff, Classic and Bandit lines
+now say what the table supports, with the Sheriff and Bandit one taps as
+declared claims; the anti eco armour reason; the clutch plant), and in
+`knowledge.js` fourteen weapon notes stopped naming their own gun, the Lotus
+doors, the round clock, the drop rule, the call order and peeker's advantage
+were reworded, `ROLE_OF` gained Hush, Veto and Miks, and `TEAM_PLAY` also
+excludes "a team", "the default" and "group on a site" from a solo clutch.
+The source kinds in use are vod-review, computed, round-shape, guide,
+riot-notes and stats; nothing reads the kind. Every weapon claim in a new
+note is declared in `source.claims` with the armour as `none`, `light` or
+`heavy` (the keys `noteClaims` reads). Summit's B Drop note was kept: the
+map guides describe it as the silent one way drop from B Tower onto the site.
+
 **Where the 2026 imports came from.** 159 notes were added from coach VOD
 transcripts and guides (fundamentals and death causes, roles and every agent's
 kit checked against valorant-api, macro, and how a coach runs a review), and
@@ -148,3 +173,18 @@ of its own, because the number gate would drop the sentence. Not done: a rank
 band line for the review (the route is sent no rank), and the look prompt's
 "better play" wording (needs the forensics bench). Run `bench:review` and
 `bench:chat` before the next release: neither has been run on this wording.
+
+**8.7.2 added to the prompts, each a sentence** (from the audit of what the
+model actually wrote): the review's round lines each teach a different
+lesson and say "nobody traded you" at most once (the counted mistake already
+says it); a plain words rule in `GROUNDING`, `VALORANT_RULES` and the look
+(a teammate close enough to kill your killer, not trading distance; the
+smoke by name, not utility; never impact, tempo, map control, situational
+awareness); Ask Coach answers a game number the facts hold in its first
+sentence and stops, names at most one ability in an answer about a round, and
+teaches the save rule once by side; the look names an ability only for what
+it does (Iso's Undercut "checked" an angle in a shipped look), reads
+"rotating" only for a player who had not started a fight, and judges a lurk
+by the fight and the exit rather than the distance to the team. None of it
+has been benched either: `bench:review`, `bench:chat` and `bench:forensics`
+are the next step.

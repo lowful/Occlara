@@ -134,6 +134,8 @@ if (!dir) {
   process.exit(1);
 }
 const cfg = JSON.parse(fs.readFileSync(configPath(ROOT), 'utf8'));
+// A key for the bench run alone, from the environment, never written anywhere.
+if (String(process.env.OCCLARA_BENCH_KEY || '').trim()) cfg.licenseKey = String(process.env.OCCLARA_BENCH_KEY).trim();
 const log = JSON.parse(fs.readFileSync(path.join(dir, 'log.json'), 'utf8'));
 const fixture = load('valorant-match-abyss-13-11.json');
 const played = replay(fixture.frames, 'standard');
@@ -211,7 +213,8 @@ function benchList() {
   try {
     const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'coach.js'), 'utf8');
     const block = /const BENCH_MODELS = new Set\(\[([\s\S]*?)\]\);/.exec(src);
-    return block ? new Set([...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1])) : null;
+    // Comments first: an apostrophe in one ("Sol's price") pairs with the next id's quote.
+    return block ? new Set([...block[1].replace(/\/\/[^\n]*/g, '').matchAll(/'([^']+)'/g)].map((m) => m[1])) : null;
   } catch {
     return null;
   }
@@ -291,6 +294,7 @@ async function ownBench() {
   const admin = adminPassword();
   if (!admin) { console.log('Bench A needs ADMIN_PASSWORD: the server honours benchModel and a variant only beside it.'); return 1; }
   const cfg = JSON.parse(fs.readFileSync(configPath(ROOT), 'utf8'));
+  if (String(process.env.OCCLARA_BENCH_KEY || '').trim()) cfg.licenseKey = String(process.env.OCCLARA_BENCH_KEY).trim();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   const looks = [];

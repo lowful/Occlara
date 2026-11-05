@@ -4063,6 +4063,55 @@ const accountIpc = {
   },
 };
 
+/**
+ * THE PROFILE PAGE (8.8, register-ipc.js C.PROFILE_*). The page is built here
+ * by profile.js from the account's view (its games), every saved Valorant
+ * review (Riot's kill feed and agent on each), the tracker profile main keeps
+ * for the Riot ID in Settings (Riot's peak rank) and the rank history main
+ * keeps (Stats' and Home's, cached five minutes). Nothing is read or opened
+ * mid match: the seal hides the page then, and these refuse as well.
+ *
+ * Its two links are main's to open, each checked: the checkout only as
+ * profile.isBuyUrl passes it (occlara.app/buy, a whole 1 to 500 and nothing
+ * else), the plans only at occlara.app/#pricing. The site re-validates the
+ * number and signs the player in, so no payment passes through the app.
+ */
+const profileModel = require('../shared/profile');
+const PROFILE_HISTORY_MS = 6000;
+const profileIpc = {
+  async get() {
+    if (matchInProgress() || windowSealed()) return null;
+    const view = await accountIpc.view();
+    const riotId = (store.get('riotId') || '').trim();
+    const linked = riotId.includes('#');
+    // The rank history from its cache, or the server's within a few seconds:
+    // the page does not wait on a slow answer, and then says the rank could
+    // not be fetched rather than guess one.
+    const history = linked
+      ? await Promise.race([
+        controller.getRankHistory(false).catch(() => ({ error: 'unavailable' })),
+        new Promise((r) => setTimeout(() => r({ error: 'unavailable' }), PROFILE_HISTORY_MS)),
+      ])
+      : null;
+    const tracker = linked ? guardedTrackerPair().stats : null;
+    const entries = reviewStore.recent('valorant', MAX_REVIEWS);
+    return profileModel.build(view, entries, { riotId: linked ? riotId : '', peak: tracker ? tracker.peakRank || null : null, history });
+  },
+  async buy(n) {
+    if (matchInProgress() || windowSealed()) return { ok: false, error: 'match' };
+    const url = profileModel.buyUrl(n);
+    if (!url || !profileModel.isBuyUrl(url)) return { ok: false, error: 'number' };
+    await shell.openExternal(url);
+    console.log(`[profile] opened the checkout for ${n} game${n === 1 ? '' : 's'}`);
+    return { ok: true };
+  },
+  async plans() {
+    if (matchInProgress() || windowSealed()) return { ok: false, error: 'match' };
+    await shell.openExternal(profileModel.PRICING_URL);
+    return { ok: true };
+  },
+};
+
 // ── License watchdog ─────────────────────────────────────────────────────────
 // Every minute: an offline-safe expiry check (the cached expiry date passing).
 // Every ~10 minutes: a server re-validation, and a state broadcast so the open
@@ -4525,7 +4574,7 @@ if (!app.requestSingleInstanceLock()) {
     // a clip and applying the cap left the clips past it.
     applyClipCap();
 
-    registerIpc({ controller, license, account: accountIpc });
+    registerIpc({ controller, license, account: accountIpc, profile: profileIpc });
     // occlara:// for the sign in's fallback link (8.7), on an installed build
     // only: a dev run would point Windows at electron.exe.
     if (app.isPackaged) {

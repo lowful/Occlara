@@ -73,6 +73,8 @@ const ADMIN = process.env.ADMIN_PASSWORD || '';
 const SERVER = process.env.OCCLARA_SERVER || 'https://ghostcoach-production.up.railway.app';
 const APPDATA = process.env.APPDATA || '';
 const cfg = JSON.parse(fs.readFileSync(path.join(APPDATA, 'Occlara', 'occlara-config.json'), 'utf8'));
+// A key for the bench run alone, from the environment, never written anywhere.
+if (String(process.env.OCCLARA_BENCH_KEY || '').trim()) cfg.licenseKey = String(process.env.OCCLARA_BENCH_KEY).trim();
 // The 8 character hash /api/admin/costs names a licence by: never the key itself.
 const LICENCE = crypto.createHash('sha256').update(String(cfg.licenseKey || '').trim().toUpperCase()).digest('hex').slice(0, 8);
 
@@ -132,7 +134,8 @@ function benchList() {
   try {
     const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'coach.js'), 'utf8');
     const block = /const BENCH_MODELS = new Set\(\[([\s\S]*?)\]\);/.exec(src);
-    return block ? new Set([...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1])) : null;
+    // Comments first: an apostrophe in one ("Sol's price") pairs with the next id's quote.
+    return block ? new Set([...block[1].replace(/\/\/[^\n]*/g, '').matchAll(/'([^']+)'/g)].map((m) => m[1])) : null;
   } catch {
     return null;
   }

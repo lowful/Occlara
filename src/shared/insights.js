@@ -92,6 +92,11 @@ function aliveAtPlant(r) {
   return !!r.planted && (!r.died || r.afterPlant !== false);
 }
 
+/** A death as the last player alive on the team: nobody was left to trade it. */
+function diedAlone(r) {
+  return !!(r.aliveAtDeath && typeof r.aliveAtDeath.mates === 'number' && r.aliveAtDeath.mates <= 1);
+}
+
 /**
  * The floor of a count that is a strength: a share of the rounds, never
  * under two. Three was the floor for any match, sized for 24 rounds, and a
@@ -126,32 +131,47 @@ function valorant(rounds, opts = {}) {
   // ── Mistakes ──────────────────────────────────────────────────────────────
   // First to die. Every player is first sometimes; a Duelist's job makes it
   // more common, so the floor is higher for one.
-  const firsts = verified.filter((r) => r.firstDeath).map((r) => r.n);
+  // A first death a teammate traded leaves the round four against four, not
+  // four against five (8.7.2): only the untraded ones count, and a Duelist,
+  // whose job is first contact, is told how to take it, never to stop.
+  const firsts = verified.filter((r) => r.firstDeath && r.traded !== true).map((r) => r.n);
   const fdFloor = role === 'Duelist' ? 0.25 : 0.15;
   if (firsts.length >= 3 && firsts.length >= verified.length * fdFloor) {
     push(out.mistakes, {
       key: 'first-death', title: 'First to die',
-      detail: `You were the first player down in ${plural(firsts.length, 'round')}, ${roundList(firsts)}, `
-        + 'so your team played those rounds four against five.',
+      detail: `You were the first player down and nobody traded it in ${plural(firsts.length, 'round')}, ${roundList(firsts)}, `
+        + 'so your team played those rounds a player down.',
       rounds: firsts, weight: WEIGHT['first-death'],
-      fix: 'Let a teammate or your utility make first contact. Take the second fight, the one you can trade.',
+      fix: role === 'Duelist'
+        ? 'Take first contact only when a teammate is close enough to swing the moment you fire, and only after the flash or the smoke has landed.'
+        : 'Let a teammate or your utility make first contact. Take the second fight, the one you can trade.',
     });
   }
 
-  // Died with the team ahead in numbers, and the round was lost.
+  // Died with the team ahead in numbers, and the round was lost. A traded
+  // death keeps the advantage (4 against 3 becomes 3 against 2), so it is not
+  // one given back (8.7.2).
   const thrown = verified.filter((r) => r.died && r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies
-    && r.result === 'lost');
+    && r.result === 'lost' && r.traded !== true);
   if (thrown.length >= 2) {
+    // On attack before the plant, waiting loses the round to the clock: the
+    // fix there is to take the site together and plant, never to hold.
+    const beforePlant = (r) => !(r.planted && r.afterPlant !== false);
+    const attackPre = thrown.every((r) => r.side === 'attacking' && beforePlant(r));
     push(out.mistakes, {
       key: 'lost-advantage', title: 'Gave back the advantage',
       detail: `In ${roundList(thrown.map((r) => r.n))} your team was up in numbers when you died, and the round was lost.`,
       rounds: thrown.map((r) => r.n), weight: WEIGHT['lost-advantage'],
-      fix: 'When your team is up in numbers, stop taking duels. Group, hold the space you have and make them come to you.',
+      fix: attackPre
+        ? 'When your team is up in numbers, take the site together behind one piece of utility and plant, then hold from cover.'
+        : 'When your team is up in numbers, stop taking duels. Group, hold the space you have and make them come to you.',
     });
   }
 
-  // Nobody traded the death. Needs the feed, so only rounds where it spoke.
-  const knownTrade = deaths.filter((r) => typeof r.traded === 'boolean');
+  // Nobody traded the death. Needs the feed, so only rounds where it spoke,
+  // and never a death as the last player alive (8.7.2): nobody could trade a
+  // clutch, so it says nothing about the player's spacing.
+  const knownTrade = deaths.filter((r) => typeof r.traded === 'boolean' && !diedAlone(r));
   const untraded = knownTrade.filter((r) => r.traded === false);
   if (untraded.length >= 3 && untraded.length * 10 >= knownTrade.length * 6) {
     push(out.mistakes, {

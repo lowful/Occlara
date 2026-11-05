@@ -138,7 +138,9 @@ const fed = rounds.map((r) => ({ ...r }));
 const thrownRounds = fed.filter((r) => r.died && r.result === 'lost').slice(0, 2).map((r) => r.n);
 for (const r of fed) {
   if (!r.died) continue;
-  r.traded = r.n % 3 === 0;
+  // A traded death keeps the advantage (8.7.2), so the two thrown rounds are
+  // untraded ones.
+  r.traded = r.n % 3 === 0 && !thrownRounds.includes(r.n);
   r.aliveAtDeath = { mates: 5, enemies: thrownRounds.includes(r.n) ? 3 : 5 };
 }
 fed.find((r) => r.n === 2).forensics = { cause: 'dry-peek', what: 'You swung mid alone.', better: 'Wait for the flash.' };

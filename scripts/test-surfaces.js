@@ -764,6 +764,59 @@ async function openShell(cfg, state, opts) {
     const hoverAt = ui.indexOf('.seg-slide > button:hover:not(:disabled)');
     ok(declared(ruleOf(ui, '.seg-slide > button:hover:not(:disabled)'), 'color') === 'var(--text)' && hoverAt >= 0 && ui.indexOf(`${PICKED}:hover`) > hoverAt,
       'hovering a game not picked lights it, and the picked game hovered keeps its colour on its ground: its rule comes after the hover');
+
+    // THE CHOSEN LABEL STAYS DARK ON HOVER IN EVERY PAGE (8.8). Onboarding,
+    // Settings and Learn each say `.seg > button:hover:not(:disabled) { color:
+    // var(--text) }`, which tied ui.css's picked rule (0,3,1) and, loading
+    // after it, turned the chosen label white on its white thumb. ui.css's
+    // picked hover rule must outweigh every page's hover rule on a capsule
+    // button, since a page's stylesheet always loads after ui.css.
+    const specOf = (sel) => {
+      let a = 0; let b = 0; let c = 0;
+      let s = sel;
+      // :is() and :not() weigh as their heaviest argument.
+      for (;;) {
+        const m = s.match(/:(?:is|not|where)\(([^()]*)\)/);
+        if (!m) break;
+        const inner = m[0].startsWith(':where') ? [0, 0, 0] : m[1].split(',').map((x) => specOf(x.trim())).reduce((x, y) => (x[0] !== y[0] ? (x[0] > y[0] ? x : y) : x[1] !== y[1] ? (x[1] > y[1] ? x : y) : (x[2] >= y[2] ? x : y)));
+        a += inner[0]; b += inner[1]; c += inner[2];
+        s = s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length);
+      }
+      a += (s.match(/#[\w-]+/g) || []).length;
+      b += (s.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) || []).length;
+      c += (s.replace(/\[[^\]]*\]/g, ' ').match(/(?:^|[\s>+~])[a-z][\w-]*/gi) || []).length;
+      return [a, b, c];
+    };
+    const heavier = (x, y) => x[0] !== y[0] ? x[0] > y[0] : x[1] !== y[1] ? x[1] > y[1] : x[2] > y[2];
+    ok(same(specOf('.seg > button:hover:not(:disabled)'), [0, 3, 1]) && same(specOf(`${PICKED}:hover`), [0, 3, 1])
+      && same(specOf(`${PICKED}:hover:not(:disabled)`), [0, 4, 1]) && same(specOf('#a .b > button.c'), [1, 2, 1]),
+    'the specificity counter weighs known selectors right', JSON.stringify(specOf(`${PICKED}:hover:not(:disabled)`)));
+    const pickedHover = declared(ruleOf(ui, `${PICKED}:hover:not(:disabled)`), 'color');
+    ok(pickedHover === 'var(--bg)', 'ui.css keeps a chosen capsule label dark on hover, the ink of its thumb', pickedHover);
+    const UI_W = specOf(`${PICKED}:hover:not(:disabled)`);
+    // The one page rule allowed past it: onboarding's quiet size, whose thumb
+    // is 0.3 strong, keeps the dim label it has when not hovered.
+    const QUIET = '.ob-res.quiet > button.active:hover:not(:disabled)';
+    const hoverRules = [];
+    for (const page of ['onboarding', 'settings', 'learn', 'profile', 'moments', 'shell']) {
+      const text = fs.readFileSync(path.join(RENDERER, page, `${page}.css`), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      for (const m of text.matchAll(/(?:^|\n|\})\s*([^{}@]+)\{([^}]*)\}/g)) {
+        if (!/(?:^|[;\s])color\s*:/.test(m[2])) continue;
+        for (const sel of m[1].split(/,(?![^(]*\))/).map((x) => x.trim())) {
+          if (!/\bbutton\b[^\s>+~]*:hover/.test(sel) || !/\.(?:seg|ob-res|rec-res|rec-cap|ctl)\b/.test(sel)) continue;
+          if (/:not\(\.seg-slide\)|:disabled:hover/.test(sel)) continue;
+          hoverRules.push({ page, sel, color: declared(m[2], 'color') });
+        }
+      }
+    }
+    ok(hoverRules.some((r) => r.sel === '.seg > button:hover:not(:disabled)' && r.page === 'onboarding')
+      && hoverRules.some((r) => r.page === 'settings') && hoverRules.some((r) => r.page === 'learn'),
+    'the pages\' own capsule hover rules are found (onboarding, settings, learn)', hoverRules.map((r) => `${r.page}: ${r.sel}`).join(' | '));
+    const over = hoverRules.filter((r) => r.sel !== QUIET && !heavier(UI_W, specOf(r.sel)));
+    ok(over.length === 0, 'and ui.css\'s chosen hover outweighs every one of them, so no page turns the chosen label white on its thumb',
+      over.map((r) => `${r.page}: ${r.sel} ${JSON.stringify(specOf(r.sel))}`).join(' | '));
+    const quiet = hoverRules.find((r) => r.sel === QUIET);
+    ok(quiet && quiet.color === 'var(--text-dim)', 'onboarding\'s quiet size keeps its chosen label dim on hover, over a thumb at 0.3', quiet ? quiet.color : 'missing');
   });
 
   await section('Home\'s grades:', async () => {
@@ -5787,13 +5840,13 @@ async function openShell(cfg, state, opts) {
     const inv = nav.pageOf('invite');
     ok(inv && inv.surface === 'invite' && inv.preload === 'invite-preload.js' && inv.nav === false,
       'Invite is a page of its own, out of the nav list, with its own preload', JSON.stringify(inv));
-    ok(nav.PAGES.findIndex((p) => p.id === 'invite') === nav.PAGES.findIndex((p) => p.id === 'settings') - 1,
-      'and comes just before Settings, so the window moves forward into it from the pages above and on to Settings');
+    ok(nav.PAGES.findIndex((p) => p.id === 'invite') === nav.PAGES.findIndex((p) => p.id === 'settings') - 2,
+      'and comes two before Settings, Profile between them, so the window moves forward into it from the pages above and on');
     const s = await openShell({ game: 'valorant' });
     const foot = s.document.querySelector('.foot');
     const kids = foot.children.map((c) => c.id);
-    ok(kids[0] === 'nav-invite' && kids[1] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite',
-      'the foot leads with Invite, directly above Settings', kids.join(', '));
+    ok(kids[0] === 'nav-invite' && kids[1] === 'nav-profile' && kids[2] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite',
+      'the foot leads with Invite, then Profile directly above Settings (8.8)', kids.join(', '));
     s.$('nav-invite').click();
     ok(s.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'invite'), 'Invite goes to the Invite page');
     s.bridge.emit(C.PUSH_SHELL, { page: 'invite', shown: 'invite', sealed: false, held: false });
@@ -5810,6 +5863,125 @@ async function openShell(cfg, state, opts) {
     s.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: 'home', sealed: false, held: false });
     await settle();
     ok(!s.$('nav-invite').disabled && s.$('nav-invite').querySelector('svg').innerHTML.includes('circle'), 'and the seal lifted, its own icon is back');
+  });
+
+  // THE PROFILE PAGE (8.8), between Invite and Settings: the games left as
+  // the hero, buying more games, three figures of the player's own Valorant
+  // play and the plans. Built by main (profile.js build, PROFILE_GET), the
+  // price as the number changes is profile.js quote through the preload, and
+  // both links are opened by main: the page counts nothing and names no URL.
+  await section('the Profile page: the games left, buying games, the player\'s figures and the plans, all main\'s:', async () => {
+    const profile = require('../src/shared/profile');
+    const PRO_BONUS = { tier: 'pro', left: 18, cap_monthly: 25, bonus_pool: 3, period_end: '2026-11-30T12:00:00Z', email: 'pro@example.com', account_key: 'GC-PPPP' };
+    const withGames = (st) => viewOf(st, { games: profile.gamesState(st) });
+    const lib = [{ game: 'valorant', review: { kind: 'valorant', verified: true, game: { agent: 'Jett' },
+      rounds: [{ n: 1, riot: { feed: [{ by: 'me', on: 'enemy', w: 'Vandal' }, { by: 'me', on: 'enemy', w: 'Vandal' }, { by: 'me', on: 'enemy', w: 'Sheriff' }] } }] } }];
+    const built = (view, ctx) => profile.build(view, lib, ctx || { riotId: 'Player#EUW', peak: 'Diamond 2', history: null }, { utc: true });
+    const open = async (model, buyAnswer, signIn) => {
+      const q = loadSurface('profile', { handlers: {
+        [C.PROFILE_GET]: () => model,
+        [C.PROFILE_BUY]: (n) => (buyAnswer === false ? { ok: false } : { ok: true, n }),
+        [C.PROFILE_PLANS]: () => ({ ok: true }),
+        [C.ACCOUNT_SIGNIN]: () => signIn || { ok: false, error: 'cancelled' },
+      } });
+      await settle();
+      return q;
+    };
+
+    const q = await open(built(withGames(PRO_BONUS)));
+    ok(shown(q, 'pr-body') && !shown(q, 'pr-wait'), 'signed in, it shows the page');
+    ok(q.$('pr-number').textContent === '18' && q.$('pr-unit').textContent === 'games left' && q.$('pr-plan').textContent === 'Pro plan, 25 games a month'
+      && q.$('pr-split').textContent === '15 of this month\'s 25, plus 3 bonus games' && q.$('pr-renew').textContent === 'Your month\'s games start again Nov 30.',
+      'the hero: the games left, the plan, the split and the day, profile.js\'s lines', `${q.$('pr-number').textContent} | ${q.$('pr-split').textContent}`);
+    ok(same(q.document.querySelectorAll('#pr-picks button').map((b) => b.textContent), ['1 for $2', '5 for $10', '10 for $20', '25 for $50']),
+      'the quick picks as one capsule, with their prices');
+    const chosen = () => { const b = q.document.querySelectorAll('#pr-picks button').find((x) => x.getAttribute('aria-pressed') === 'true'); return b ? b.dataset.games : null; };
+    ok(q.$('pr-games').value === '5' && q.$('pr-buy').textContent === 'Buy 5 games for $10' && !q.$('pr-buy').disabled && chosen() === '5',
+      'it starts at 5 games for $10, the 5 chosen');
+    q.document.querySelectorAll('#pr-picks button')[3].click();
+    ok(q.$('pr-games').value === '25' && q.$('pr-buy').textContent === 'Buy 25 games for $50' && chosen() === '25', 'a quick pick sets the number and the total');
+    q.$('pr-more').click();
+    ok(q.$('pr-games').value === '26' && q.$('pr-buy').textContent === 'Buy 26 games for $52' && chosen() === null,
+      'the stepper moves it by one, and no quick pick is chosen for 26');
+    q.$('pr-games').value = '137';
+    q.fire(q.$('pr-games'), 'input');
+    ok(q.$('pr-buy').textContent === 'Buy 137 games for $274', 'any whole number typed, the total follows');
+    q.$('pr-games').value = '9000';
+    q.fire(q.$('pr-games'), 'input');
+    ok(q.$('pr-buy').textContent === 'Buy 500 games for $1,000' && q.$('pr-note').textContent === '500 games is the most in one checkout.', 'too many: 500, and it says why');
+    q.fire(q.$('pr-games'), 'change');
+    ok(q.$('pr-games').value === '500', 'and the field settles on 500 once left');
+    q.$('pr-games').value = 'abc';
+    q.fire(q.$('pr-games'), 'input');
+    ok(q.$('pr-buy').disabled && q.$('pr-note').textContent === 'Choose from 1 to 500 games.', 'not a number: nothing to buy, and it says what to type');
+    q.$('pr-games').value = '10';
+    q.fire(q.$('pr-games'), 'input');
+    q.$('pr-buy').click();
+    await settle();
+    ok(same(q.bridge.invoked.filter(([ch]) => ch === C.PROFILE_BUY), [[C.PROFILE_BUY, 10]]) && q.$('pr-note').textContent === 'Checkout opened in your browser.',
+      'Buy asks main for the checkout of the number, a number and nothing else, and says it opened');
+    const figs = q.document.querySelectorAll('.pr-fig').map((f) => [f.querySelector('.pr-fig-l').textContent, f.querySelector('.pr-fig-v').textContent, f.querySelector('.pr-fig-s').textContent]);
+    ok(q.$('pr-play-title').textContent === 'Your play in Valorant' && same(figs, [
+      ['Most used weapon', 'Vandal', '2 of your 3 kills, from 1 match'],
+      ['Most played agent', 'Jett', '1 of your 1 match'],
+      ['Peak rank', 'Diamond 2', 'Riot\'s highest rank on your account'],
+    ]), 'the three figures with their samples, Valorant\'s', JSON.stringify(figs));
+    const rows = () => q.document.querySelectorAll('.pr-plan-row').map((r) => [r.querySelector('.pr-plan-name').textContent, r.querySelector('.pr-amount').textContent,
+      r.querySelector('.pr-per').textContent, r.querySelector('.pr-plan-games').textContent, r.querySelector('button') ? r.querySelector('button').textContent : null]);
+    ok(same(rows(), [['Free', '$0', '', '2 games for life', 'See Free'], ['ProYour plan', '$24.99', 'a month', '25 games a month', null], ['Max', '$69.99', 'a month', '70 games a month', 'See Max']]),
+      'the plans, monthly, Pro marked as theirs and no button on it', JSON.stringify(rows()));
+    q.$('pr-yearly').click();
+    ok(q.$('pr-yearly').getAttribute('aria-pressed') === 'true' && same(rows().map((r) => [r[1], r[2]]), [['$0', ''], ['$249.99', 'a year'], ['$699.99', 'a year']]),
+      'Yearly shows the yearly prices');
+    q.document.querySelectorAll('.pr-plan-row button')[1].click();
+    await settle();
+    ok(q.bridge.invoked.some(([ch]) => ch === C.PROFILE_PLANS), 'See Max asks main for the pricing page');
+    const failed = await open(built(withGames(PRO_BONUS)), false);
+    failed.$('pr-buy').click();
+    await settle();
+    ok(failed.$('pr-note').textContent === 'The checkout could not be opened. Try again.', 'a checkout that did not open says so');
+
+    const out = await open(built({ signedIn: false, via: 'key' }, { riotId: '' }));
+    ok(shown(out, 'pr-body') && out.$('pr-count').hidden && out.$('pr-plan').textContent === 'Sign in to see your games'
+      && out.$('pr-buy').textContent === 'Sign in to buy games' && !out.$('pr-buy').disabled
+      && out.$('pr-note').textContent === 'Bought games go to your Occlara account, so sign in first.', 'a licence key alone: the same page, the button signing in first');
+    ok(!out.document.querySelectorAll('.pr-plan-row').some((r) => r.className.includes('mine')) && out.document.querySelectorAll('.pr-fig').filter((f) => f.className.includes('empty')).length === 1
+      && out.document.querySelectorAll('.pr-fig-s')[2].textContent === 'Connect your Riot ID to see this',
+      'no plan marked, the record\'s figures still shown, and the rank, with no Riot ID, says how to get it');
+    out.$('pr-buy').click();
+    await settle();
+    ok(out.bridge.invoked.some(([ch]) => ch === C.ACCOUNT_SIGNIN) && !out.bridge.invoked.some(([ch]) => ch === C.PROFILE_BUY), 'signed out, the button signs in and opens no checkout');
+    const down = await open(built({ signedIn: true, via: 'session', games: null }));
+    ok(down.$('pr-plan').textContent === 'Your games could not be fetched' && shown(down, 'pr-retry'), 'signed in with no state: it says so, with Try again');
+    const mid = await open(null);
+    ok(shown(mid, 'pr-wait') && !shown(mid, 'pr-body') && !mid.bridge.invoked.some(([ch]) => ch === C.PROFILE_BUY), 'main answering null (mid match) paints nothing');
+
+    const files = ['index.html', 'profile.js', 'profile.css'].map((f) => fs.readFileSync(path.join(RENDERER, 'profile', f), 'utf8'));
+    ok(files.every((x) => !DASHES.test(x)), 'no dash in the page');
+    ok(!/https?:\/\/|occlara\.app/.test(uncommented(files[0]) + uncommented(files[1])), 'and it names no URL: main opens both links');
+    ok(!/\$\s*\d|\b\d+\s*(?:games?|matches|kills)\b|GAME_PRICE/i.test(uncommented(files[0]) + uncommented(files[1])), 'and counts nothing of its own: no price, no count');
+    ok(/\$\s*\d|\b\d+\s*(?:games?|matches|kills)\b/i.test('$2 a game, 3 games'), 'the counting detector matches a price and a count');
+    const preload = fs.readFileSync(path.join(ROOT, 'src', 'preload', 'profile-preload.js'), 'utf8');
+    ok(preload.includes("require('../shared/profile')") && !/openExternal|\bshell\b/.test(uncommented(preload)), 'the preload hands profile.js\'s quote through, and opens nothing itself');
+  });
+
+  await section('the sidebar\'s Profile button sits between Invite and Settings, and the seal locks it like every page:', async () => {
+    const nav = require('../src/shared/shell-nav');
+    const pr = nav.pageOf('profile');
+    ok(pr && pr.surface === 'profile' && pr.preload === 'profile-preload.js' && pr.nav === false, 'Profile is a page of its own, out of the nav list', JSON.stringify(pr));
+    const s = await openShell({ game: 'valorant' });
+    s.$('nav-profile').click();
+    ok(s.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'profile'), 'Profile goes to the Profile page');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'profile', shown: 'profile', sealed: false, held: false });
+    await settle();
+    ok(s.$('nav-profile').getAttribute('aria-current') === 'page' && !s.$('nav-invite').getAttribute('aria-current'), 'on the Profile page the sidebar marks Profile');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'profile', shown: null, sealed: true, held: false });
+    await settle();
+    ok(s.$('nav-profile').disabled && !s.$('nav-profile').getAttribute('aria-current') && s.$('nav-profile').querySelector('svg').innerHTML.includes('rect'),
+      'sealed mid match, Profile is locked with the rest, its icon the lock');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: 'home', sealed: false, held: false });
+    await settle();
+    ok(!s.$('nav-profile').disabled && s.$('nav-profile').querySelector('svg').innerHTML.includes('circle'), 'and the seal lifted, its own icon is back');
   });
 
   // THE MOMENTS PAGE (8.7), in the Breakdown tab's place: the deaths and

@@ -778,7 +778,8 @@ function benchList() {
   try {
     const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'coach.js'), 'utf8');
     const block = /const BENCH_MODELS = new Set\(\[([\s\S]*?)\]\);/.exec(src);
-    return block ? new Set([...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1])) : null;
+    // Comments first: an apostrophe in one ("Sol's price") pairs with the next id's quote.
+    return block ? new Set([...block[1].replace(/\/\/[^\n]*/g, '').matchAll(/'([^']+)'/g)].map((m) => m[1])) : null;
   } catch {
     return null;
   }
@@ -1021,7 +1022,9 @@ async function main() {
   const riotId = String(cfg.riotId || '').trim();
   const connected = riotId.includes('#') && String(cfg.riotConnected || '').trim().toLowerCase() === riotId.toLowerCase() ? riotId : null;
   const cur = {};
-  const net = liveNet(cfg.licenseKey, admin, connected, cur);
+  // A key for the bench run alone, from the environment, never written anywhere.
+  const benchKey = String(process.env.OCCLARA_BENCH_KEY || '').trim() || cfg.licenseKey;
+  const net = liveNet(benchKey, admin, connected, cur);
   const { libs, keyOf, problems } = setUp(sheets, cur, net);
   if (problems.length) { for (const p of problems) console.log(p); return 1; }
 

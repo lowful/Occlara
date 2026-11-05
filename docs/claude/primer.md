@@ -130,7 +130,18 @@ plant time is the spike's, Spike Rush is a mode, a buy time is a timer).
 **The stated facts gate**, deploy wide: a fact passes when it was verified on
 the synced patch, or when every patch since had its notes found whole and none
 of their lines carries one of its topics; re-stamping is one edit of
-`verifiedPatch`, made after reading the lines. **A past match** is on the
+`verifiedPatch`, made after reading the lines (every fact was re-stamped to
+13.09 on 2026-11-04 after Riot's 13.09 page was read: Hush, the Clove and
+Warden numbers, buff names, no economy, armour, spike, timer, format or
+ultimate point change; the sync had missed the page, whose slug has no hyphen,
+`valorant-patch-notes-1309`, and since 2026-11-04 `SLUG_RE` and `findNotesUrl`
+take both spellings, so the history holds 13.09 with its 112 lines, dated
+2026-10-27). **Numbers Riot skipped are no hole**: 13.03 and 13.07 were never
+released, the sync writes them from `RIOT_SKIPPED` into the file's `skipped`
+list, and `contiguous()` lets only a listed number sit between two patches. The
+sync prints, never records, a gap inside its window that the list does not
+hold; add a number to `RIOT_SKIPPED` only once Riot's own pages show it was
+never a patch. **A past match** is on the
 patch live on its date (`matchAt`), and within 48 hours after a release on
 both, or on Riot's own patch for it once the record gives one (`matchPatch`,
 Phase D's `game_version`); it loses what the patches since tagged (a stated

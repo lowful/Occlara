@@ -58,7 +58,7 @@ const SIZES = {
   activation: [424, 524], dock: [84, 84], splash: [360, 340],
   learn: [560, 720],
   // A page of the main window, beside the sidebar, as home is (8.7).
-  invite: [968, 740], moments: [968, 740],
+  invite: [968, 740], moments: [968, 740], profile: [968, 740],
 };
 
 // name@state shoots a surface in one of its named states, through the

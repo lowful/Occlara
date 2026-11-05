@@ -1032,6 +1032,20 @@ const BENCH_MODELS = new Set([
   'xiaomi/mimo-v2.6-pro',
   'qwen/qwen3.8-omni-flash',
   'perceptron/perceptron-mk1.5',
+  // Candidates of 4 Nov 2026, every id confirmed on OpenRouter's /models that
+  // day, each cheaper than the route's model and able to switch reasoning off
+  // (reasoning.mandatory false, or none at all). Nothing here is a default.
+  // For the text routes (review, death look, Ask Coach), against gpt-6-sol:
+  'openai/gpt-6.1-terra',                 // 4 Nov 2026: half Sol's price, same family, effort none, AA index above Sol
+  'tencent/hy4',                          // 4 Nov 2026: a fifth of Sol, vision, none switch, a day old, no independent score yet
+  'deepseek/deepseek-v4.1-flash-1017',    // 4 Nov 2026: the live reader's newer snapshot, never tried as a writer
+  'mistralai/mistral-large-4-0',          // 4 Nov 2026: clean none switch, 1M context, the long shot on hallucination
+  // For the live read, against deepseek-v4.1-flash, scored by bench-read.js:
+  'nex-agi/nex-n2.5-mini',                // 4 Nov 2026: cheapest image model with a none switch, tuned for screens
+  'google/gemma-4-26b-a4b-it',            // 4 Nov 2026: reasoning off by default, strong document parsing numbers
+  'qwen/qwen3.5-flash-02-23',             // 4 Nov 2026: the highest published OCRBench at its price, per read about equal
+  'mistralai/mistral-small-3.2-24b-instruct', // 4 Nov 2026: plain instruct, nothing to switch off, highest DocVQA here
+  'google/gemma-3-12b-it',                // 4 Nov 2026: the weakest, a non reasoning control for the harness
 ]);
 function benchModel(req) {
   const m = String((req.body && req.body.benchModel) || '').trim();
