@@ -338,7 +338,10 @@ const AI = {
   // wrong facts fixed in the gates and replayed away. v2 is the default for
   // 8.5.0 and later since then (chatPromoted). Clients before 8.5.0 stay on
   // textModel.
-  chatModel:   process.env.AI_CHAT_MODEL || 'openai/gpt-6-sol',
+  // 5 Nov 2026 (bench:chat, 62 answers a model): deepseek v4.1 flash 1017 answered as steadily as
+  // gpt-6-sol (3 honest lines in 62 against 3) at $0.0011 a question against $0.0089, so Ask Coach
+  // moved to it. gpt-6.1-terra gave up on 13 of 62 (the fact gates refused its sentences).
+  chatModel:   process.env.AI_CHAT_MODEL || 'deepseek/deepseek-v4.1-flash-1017',
   // The live READ (facts only, every one to five seconds) and the post match
   // REVIEW are different jobs with different budgets, so each has its own
   // switch.
@@ -385,7 +388,11 @@ const AI = {
   //                                   the budget or empty, so not judged
   //
   // Sol is about $0.022 a linked match, 6 to 8% of the match's read.
-  reviewModel: process.env.AI_REVIEW_MODEL || 'openai/gpt-6-sol',
+  // 5 Nov 2026 (bench:review, 6 reviews a model): gpt-6.1-terra matched gpt-6-sol on every gate
+  // (parsed 6/6, no foreign places, no names, no dashes, every fact checked against Riot) at
+  // $0.0047 a review against $0.0097, always opening with the result and never breaking a
+  // sentence. It is about 2 s slower, which the review (written once, after the match) absorbs.
+  reviewModel: process.env.AI_REVIEW_MODEL || 'openai/gpt-6.1-terra',
   // The post match look at a handful of deaths, a few frames each. A vision
   // job like the read, but once a match rather than every second, so it can
   // afford a stronger model than the read can. A confident wrong cause is the

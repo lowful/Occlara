@@ -12,7 +12,7 @@ keep arriving, they just stop being informed by the previous one.
 The models are whatever Railway says where an env var is set, and the code
 default where it is not: `AI_READ_MODEL` (default deepseek/deepseek-v4.1-flash),
 `AI_FORENSICS_MODEL` (default openai/gpt-6-sol since 8.4.0), `AI_REVIEW_MODEL`
-(default openai/gpt-6-sol since 8.4.0, no longer falling back to
+(default openai/gpt-6.1-terra since 5 Nov 2026 (gpt-6-sol before), no longer falling back to
 `AI_TEXT_MODEL`, which Ask Coach keeps for every client before 8.5.0; the
 bench tables are beside each in coach.js), and `AI_CHAT_MODEL` (8.5.0, Ask
 Coach v2's, below, default openai/gpt-6-sol until bench:chat names a winner).
