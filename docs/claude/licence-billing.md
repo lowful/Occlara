@@ -194,8 +194,9 @@ provider, so it is `fellBack`.
   Stripe retries an event for three days and disables an endpoint that keeps
   failing.
 - The Stripe endpoint subscribed to `invoice.paid`, `invoice.payment_failed`,
-  `customer.subscription.deleted`, `charge.refunded`, `charge.dispute.created`
-  and `checkout.session.completed`. It was created listing four. Its API
+  `customer.subscription.deleted`, `customer.subscription.updated`,
+  `charge.refunded`, `charge.dispute.created` and
+  `checkout.session.completed`. It was created listing four. Its API
   version can be either shape; the code reads both.
 - The repair run once, dry first, then `?apply=1`.
 - STRIPE_PRICE_WEEKLY, MONTHLY and LIFETIME removed from Railway: nothing reads them.
@@ -218,6 +219,37 @@ partial refund still writes nothing. Every entitlement write checks its error
 and throws, and with the tables missing the licence path runs unchanged. The
 detail, the payer rules and the switches are in accounts.md;
 `test:entitlementwebhook` holds it.
+
+**Stripe can stop a subscription without ending it, so the plan ends on
+`customer.subscription.updated` too.** With its retries done Stripe leaves a
+subscription `unpaid` (or cancels it, by the account's setting), and a trial
+that ends with no payment method leaves it `paused`; neither sends
+`customer.subscription.deleted`. Only deleted took the tier away, so the
+licence ran out at its expiry while a signed in app kept Pro or Max and its
+monthly games renewed. The update handler asks Stripe how the subscription
+stands NOW (order is not promised, so an unpaid delivered after the payment
+that brought it back ends nothing):
+
+- `canceled`, `incomplete_expired`: ended exactly as deleted (`endSubscription`):
+  licence cancelled, account free, cap 0, free games kept.
+- `unpaid`, `paused` (`SUB_LAPSED` in `billing.js`): the account goes free, cap
+  0, free games and bonus kept, its subscription id kept (`endSubscriptionAccounts`).
+  The licence is not touched: it runs to its expiry as it always did, a legacy
+  key included, `invoice.payment_failed` having marked it.
+- `past_due`: nothing. Stripe is still trying the card; that is the grace.
+- `active`, `trialing`: nothing. The plan comes back with the payment that
+  brought it back, `invoice.paid`, which holds the tier, the anchor, the
+  legacy yearly's Max to Pro rule and the licence's expiry. An OLDER invoice
+  paid while the subscription stays lapsed (not its `latest_invoice`) brings
+  nothing back, and a late `checkout.session.completed` of a lapsed one leaves
+  the account as it is.
+
+Only rows naming that subscription are written, so another purchase of the
+same Stripe customer is never touched, a comp or lifetime account is never
+moved, a repeat changes nothing, and every write throws on error.
+`test:entitlementwebhook` and `test:renewals` hold it. A resume that bills no
+invoice at all (a paused one resumed with `billing_cycle_anchor: unchanged`
+and no proration) stays free until its next `invoice.paid`.
 
 ### Games bought one by one (8.8), and their refund never reaches the licence
 

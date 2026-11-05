@@ -238,6 +238,144 @@ const refundOf = (n, over = {}) => {
     ok(ent(U1).tier === 'max', 'and an account given by hand (comp) is not moved by it');
   }
 
+  // ── Stripe stopping the subscription without ending it (updated) ──────────
+  // No customer.subscription.deleted comes for unpaid or paused, so the plan
+  // ends on customer.subscription.updated. past_due is the grace and keeps it.
+  const lapsedSetup = ({ status, lookupKey = 'occlara_pro_monthly', interval = 'month', source = 'stripe', tier = 'pro', cap = 25, renewAs = null }) => {
+    reset({ accounts: [
+      { user_id: U1, tier, cap_monthly: cap, source, renew_as: renewAs, stripe_subscription_id: 'sub_U', free_total: 4, bonus_pool: 3 },
+      // Another purchase of the same Stripe customer: its own subscription and account.
+      { user_id: U2, tier: 'max', cap_monthly: 70, source: 'stripe', stripe_subscription_id: 'sub_U2', free_total: 2, bonus_pool: 1 },
+    ] });
+    const { end } = subscription({ n: 'U', lookupKey, interval, plan: interval === 'year' ? 'yearly' : 'monthly' });
+    subscription({ n: 'U2', user: U2, lookupKey: 'occlara_max_monthly' });
+    st.s.subs.get('sub_U2').customer = 'cus_U';
+    const mine = licenceOf({ n: 'U', key: 'GC-UUUU-UUUU-UUUU-UUUU', end, plan: interval === 'year' ? 'yearly' : 'monthly' });
+    const theirs = { ...licenceOf({ n: 'U2', user: U2, key: 'GC-UUU2-UUUU-UUUU-UUUU', end }), stripe_customer_id: 'cus_U' };
+    base.reset({ rows: [mine, theirs], schema: 'migrated' });
+    st.s.subs.get('sub_U').status = status;
+    return { mine, theirs };
+  };
+  const updated = () => fire(st.event('customer.subscription.updated', 'subscription', st.s.subs.get('sub_U')));
+  for (const status of ['unpaid', 'paused']) {
+    const { mine, theirs } = lapsedSetup({ status });
+    const { res } = await updated();
+    const e = ent(U1);
+    ok(res.code === 200 && e.tier === 'free' && e.cap_monthly === 0 && e.status === 'active' && e.free_total === 4 && e.bonus_pool === 3,
+      `an update to ${status} sets the account free, cap 0, its free games and bonus kept (${e.tier} ${e.cap_monthly} ${e.free_total} ${e.bonus_pool})`);
+    ok(e.stripe_subscription_id === 'sub_U', 'and keeps its subscription, so the payment that brings it back finds it');
+    ok(lic('lic_U').status === mine.status && lic('lic_U').expires_at === mine.expires_at,
+      'and the licence is left to run to its expiry, as before');
+    ok(ent(U2).tier === 'max' && ent(U2).cap_monthly === 70 && ent(U2).bonus_pool === 1 && lic('lic_U2').status === theirs.status
+      && lic('lic_U2').expires_at === theirs.expires_at,
+    'and another subscription of the same Stripe customer, its licence and its account, are untouched');
+    const writes = sb.accounts.writes.length;
+    const again = await updated();
+    const e2 = ent(U1);
+    ok(again.res.code === 200 && e2.tier === 'free' && e2.free_total === 4 && e2.bonus_pool === 3 && e2.status === 'active'
+      && ent(U2).tier === 'max', `a repeated ${status} delivery answers 200 and changes nothing (${sb.accounts.writes.length - writes} write(s) matched nothing new)`);
+  }
+  {
+    lapsedSetup({ status: 'past_due' });
+    const { res } = await updated();
+    ok(res.code === 200 && ent(U1).tier === 'pro' && ent(U1).cap_monthly === 25 && sb.accounts.writes.length === 0,
+      'an update to past_due keeps the plan, not one write: that is the grace');
+  }
+  for (const status of ['canceled', 'incomplete_expired']) {
+    lapsedSetup({ status });
+    const { res } = await updated();
+    ok(res.code === 200 && ent(U1).tier === 'free' && ent(U1).free_total === 4 && lic('lic_U').status === 'cancelled'
+      && ent(U2).tier === 'max' && lic('lic_U2').status === 'active',
+    `an update to ${status} ends it as deleted does: account free, free games kept, licence cancelled, the other purchase untouched`);
+  }
+  {
+    // Stripe does not promise order: an unpaid delivered after the payment that brought it back ends nothing.
+    lapsedSetup({ status: 'active' });
+    const { res } = await fire(st.event('customer.subscription.updated', 'subscription', { ...st.s.subs.get('sub_U'), status: 'unpaid' }));
+    ok(res.code === 200 && ent(U1).tier === 'pro', 'a late unpaid update of a subscription Stripe bills again leaves the plan');
+  }
+  {
+    lapsedSetup({ status: 'unpaid', source: 'comp', tier: 'max', cap: 70 });
+    await updated();
+    ok(ent(U1).tier === 'max' && ent(U1).source === 'comp', 'an account given by hand (comp) is not moved by an unpaid update');
+  }
+  {
+    // Resumed: the paying invoice brings the plan back, invoice.paid as for any renewal.
+    lapsedSetup({ status: 'unpaid' });
+    await updated();
+    st.s.subs.get('sub_U').status = 'active';
+    const back = await updated();
+    ok(back.res.code === 200 && ent(U1).tier === 'free', 'the update back to active alone changes nothing on the account');
+    st.s.invoices.get('in_U').billing_reason = 'subscription_cycle';
+    st.s.subs.get('sub_U').latest_invoice = 'in_U';
+    const paid = await fire(st.event('invoice.paid', 'invoice', st.s.invoices.get('in_U')));
+    const e = ent(U1);
+    ok(paid.res.code === 200 && e.tier === 'pro' && e.cap_monthly === 25 && e.status === 'active' && e.free_total === 4,
+      `and the invoice.paid that resumed it restores the plan (${e.tier} ${e.cap_monthly})`);
+  }
+  {
+    // Paused (a trial that ended with no card), then resumed by paying.
+    lapsedSetup({ status: 'paused', lookupKey: 'occlara_max_monthly', tier: 'max', cap: 70 });
+    await updated();
+    ok(ent(U1).tier === 'free', 'a paused subscription has ended its plan');
+    st.s.subs.get('sub_U').status = 'active';
+    await fire(st.event('invoice.paid', 'invoice', st.s.invoices.get('in_U')));
+    ok(ent(U1).tier === 'max' && ent(U1).cap_monthly === 70, 'and paying to resume it brings Max back');
+  }
+  {
+    // An old invoice paid while the subscription stays unpaid does not bring the plan back.
+    lapsedSetup({ status: 'unpaid' });
+    await updated();
+    st.s.subs.get('sub_U').latest_invoice = 'in_U_later';
+    await fire(st.event('invoice.paid', 'invoice', st.s.invoices.get('in_U')));
+    ok(ent(U1).tier === 'free', 'an older invoice paid while the subscription is still unpaid leaves the plan ended');
+    st.s.subs.get('sub_U').latest_invoice = 'in_U';
+    await fire(st.event('invoice.paid', 'invoice', st.s.invoices.get('in_U')));
+    ok(ent(U1).tier === 'pro', 'while the latest invoice paid brings it back, even read in the moment before Stripe says active');
+  }
+  {
+    // A legacy yearly that lapsed and is paid again comes back on its renewal rule: Pro.
+    lapsedSetup({ status: 'unpaid', lookupKey: null, interval: 'year', source: 'legacy_yearly', tier: 'max', cap: 70, renewAs: 'pro_yearly' });
+    await updated();
+    ok(ent(U1).tier === 'free' && ent(U1).source === 'legacy_yearly', 'a legacy yearly that went unpaid is free, its source kept');
+    st.s.subs.get('sub_U').status = 'active';
+    st.s.invoices.get('in_U').billing_reason = 'subscription_cycle';
+    await fire(st.event('invoice.paid', 'invoice', st.s.invoices.get('in_U')));
+    ok(ent(U1).tier === 'pro' && ent(U1).cap_monthly === 25, `and paying its renewal brings it back as Pro yearly (${ent(U1).tier})`);
+  }
+  {
+    // A late checkout completion never gives the plan back to a lapsed subscription.
+    lapsedSetup({ status: 'unpaid' });
+    await updated();
+    await fire(st.event('checkout.session.completed', 'session', st.s.sessions.get('cs_U')));
+    ok(ent(U1).tier === 'free', 'a redelivered checkout of a subscription now unpaid leaves the plan ended');
+  }
+  {
+    // Every write checks its error and throws.
+    lapsedSetup({ status: 'unpaid' });
+    sb.accounts.failWrites = '08006';
+    const { res, lines } = await updated();
+    ok(res.code === 500 && ent(U1).tier === 'pro', `an account write the database refuses answers 500, so Stripe retries (${res.code})`);
+    ok(lines.some((l) => /could not .*set its accounts free/.test(l)), 'and the failure is logged');
+    sb.accounts.failWrites = null;
+    const retry = await updated();
+    ok(retry.res.code === 200 && ent(U1).tier === 'free', 'and Stripe\'s retry lands it');
+    st.s.fail.add('subscriptions.retrieve');
+    st.s.subs.get('sub_U').status = 'paused';
+    const down = await updated();
+    ok(down.res.code === 500, 'and Stripe that cannot be asked how the subscription stands answers 500 too');
+    st.s.fail.delete('subscriptions.retrieve');
+  }
+  {
+    // Without the accounts tables an unpaid update answers 200 and touches no licence.
+    const bare = notLive(base);
+    const plain = loadWith(path.join(SERVER, 'routes', 'webhook.js'), { supabase: bare, stripe: st.api });
+    const { mine } = lapsedSetup({ status: 'unpaid' });
+    let res;
+    await captureLogs(async () => { res = await deliver(plain, st.event('customer.subscription.updated', 'subscription', st.s.subs.get('sub_U'))); });
+    ok(res.code === 200 && lic('lic_U').status === mine.status, 'without the entitlements table an unpaid update answers 200, licence as it was');
+  }
+
   // ── A full refund or a dispute: the licence first, then the account ───────
   for (const kind of ['refund', 'dispute']) {
     reset({ accounts: [{ user_id: U1, tier: 'pro', cap_monthly: 25, source: 'stripe', stripe_subscription_id: 'sub_J', free_total: 4, bonus_pool: 8, bonus_earned: 8 }] });

@@ -498,7 +498,7 @@ const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
  *
  * The raw capture greedily swallowed whatever followed "killed by", which on a
  * real kill feed is a name and then more feed. One real session produced
- * "Sage MILFSLAYER69 killed", which is ugly, leaks another player's handle, and
+ * "Sage PLAYERNAME69 killed", which is ugly, leaks another player's handle, and
  * is not what a review should say. A player is an agent here, the same way the
  * coach names them in a tip.
  */

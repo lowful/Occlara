@@ -50,7 +50,9 @@ The refund rule of licence-billing.md holds and goes further: a full
 sets every account of those licences to free, cap 0, `free_total` 0,
 `bonus_pool` 0, status ended. A partial refund writes nothing. A late
 `invoice.paid` never brings back an account its own refund ended.
-Subscription deleted sets free, cap 0 and keeps the free games.
+Subscription deleted sets free, cap 0 and keeps the free games, and so does
+an update to unpaid or paused (no deleted event comes for either; past_due
+keeps the plan, licence-billing.md).
 
 An ended account never gets a game back, by any path: `claim_game` never
 plays it on its bonus pool, a bonus game refunded after the refund (settle,

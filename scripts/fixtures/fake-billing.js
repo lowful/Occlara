@@ -1048,7 +1048,7 @@ function stripeError(type, code, statusCode, message) {
  * The canonical objects live in maps; render() draws one in an API version.
  *
  * sub:     { id, customer, status, cancel_at_period_end, current_period_start, current_period_end,
- *            canceled_at, ended_at, interval }
+ *            canceled_at, ended_at, interval, latest_invoice }
  * invoice: { id, customer, subscription, status, billing_reason, charge, payment_intent,
  *            lines: [{ id, subscription, start, end, proration }] }
  * charge:  { id, customer, invoice, payment_intent, amount, amount_refunded, refunded, disputed }
@@ -1069,6 +1069,7 @@ function render(kind, o, version) {
       cancel_at_period_end: !!o.cancel_at_period_end, canceled_at: o.canceled_at || null, ended_at: o.ended_at || null,
       items: { object: 'list', data: [item], has_more: false },
     };
+    if (o.latest_invoice) out.latest_invoice = o.latest_invoice;
     if (!basil) Object.assign(out, { current_period_start: o.current_period_start, current_period_end: o.current_period_end });
     return out;
   }
