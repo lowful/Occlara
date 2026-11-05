@@ -120,6 +120,24 @@ the seal to lift (screen-silence.md).
 
 `402 {error:'cap'}` is not the old `402 {error:'ai-credits'}`; both stay.
 
+**A capped account's last game is not a six hour pass (8.7.3).** The review
+gate's window (a live game open or counted in the last 6 h) exists for the
+late review, but it let a capped account have the model review and look at
+every refused match after its last counted one, for six hours. Now, while
+`account_state` says 0 left, each live game in the window gets
+`REVIEWS_PER_GAME` (4) reviews and 4 looks (the engine's, the late one, two
+spare), then 402 cap before the model (`usage.js reviewGate`, `withinBudget`,
+the `spent` map, bounded like the others). An account with games left, or one
+whose count cannot be had, is as before. `test:caplock` drives every model
+route for Free 2 of 2, Pro 25 of 25, bonus games used and a legacy key, in
+shadow and enforced, plus refunds and bought games.
+
+**Ask Coach is not under the game cap.** `/chat` and `/frame-chat` answer a
+capped account (its own daily cap, `CHAT_DAY_QUESTIONS` and `CHAT_DAY_USD`,
+bounds it), because a 402 there reads as "out of credits" in every shipped
+client. Locking it needs the reply shaped cap line (`chatGate`'s), an owner
+decision.
+
 ## Signing the app in
 
 `account-service.js signIn()` opens a one-shot loopback server on 127.0.0.1,
@@ -213,6 +231,62 @@ key), worded by `profile.hero`. `test:profile`, `test:surfaces` and
 `bonus_pool` "earned games", which a bought game is not: worth rewording to
 "bonus games" once purchases go live.
 
+## Rate limits
+
+Every limit answers 429 `{ error: 'rate-limited', what, retryAfter }` with a
+`Retry-After` header, except the licence routes, whose `error` stays a sentence
+(the activation window prints it) with `code: 'rate-limited'` and `retry:
+true`. Every shipped client (8.6 to 8.7.2) reads a 429 on a background call as
+"try later" and says nothing: me() returns null, a claim is granted unknown
+(no server cost, the client grades from Riot's record), a review or look has
+no narrative, the licence keeps its cache. Nothing about a limit is shown mid
+match. New limits are `server/services/rate-limits.js` (`routeLimits`, a fixed
+window per key, swept each window and capped at 20000 keys), mounted in
+`server.js` after `identifyFirst` and the body parsers; the Stripe webhook is
+mounted before every limiter and is never limited (Stripe retries, the
+signature verifies it).
+
+Keys: "account" is the verified caller's `accountKey` (`u:<userId>` or the
+licence key), so two players on one router never share a bucket; a caller not
+verified falls back to its address. "Address" is `req.ip` with `trust proxy
+1`: the entry Railway's edge appends, so a client's own X-Forwarded-For or
+X-Real-IP never moves it to a fresh bucket (`test:ratelimits` proves it over
+HTTP). If Railway ever adds a second hop, every caller would share one
+address and the address keyed limits would trip for everyone together.
+Nothing logs `req.ip`, so after any change in front of the server check by
+hand: a burst of 121 `/health` calls from one network is refused, and another
+network is not.
+
+| Route | Key | Limit | Why |
+| --- | --- | --- | --- |
+| `/api/coach/read` | account | 150 a min (unchanged) | the read gate is the real limit; the busiest recorded minute read 57 |
+| `/api/coach/*` (all) | account | 90 a min (unchanged, read skipped) | model calls, agent look |
+| `/api/coach/chat`, `/frame-chat` | account | 25 in 5 min, one bucket (frame chat joined 8.7.3) | model calls, plus the daily cap |
+| `/api/coach/match-review` | account | 60 an hour, bench skipped | the costliest call: two a match |
+| `/api/coach/death-forensics` | account | 60 an hour, bench skipped | up to twenty stills a call: two a match |
+| Riot data (`player-stats`, `rank-history`, `match-deaths`, `match-rounds`, `matches`, `last-match`, `recent-matches`) | account | 120 in 10 min, and free 40 in 10 min (unchanged) | HenrikDev's shared quota |
+| `/api/coach/session-report` | account | 30 an hour | telemetry, one a session |
+| `/api/account/me` | account | 120 in 10 min | account_state per call; the app asks about once a minute |
+| `/api/usage/claim`, `/release` | account | 60 in 10 min, one bucket | claim_game and settle; a Riot record run claims 10 |
+| `/api/referral`, `/redeem` | account | 30 in 10 min; redeem also 10 a min per address | code inserts and lookups |
+| `/api/account/handoff`, `/signout` | account | 30 in 10 min; handoff also 20 a min per address | a code insert each |
+| `/api/account/exchange` | address | 10 a min (unchanged) | no auth, a session insert |
+| `/api/license/activate`, `/validate` | address and key | 30 in 10 min, and 300 in 10 min per address | a licence lookup each; the app re-checks every 3 min |
+| same | address | 10 FAILED an hour (unchanged, now on `/validate` too) | key guessing |
+| `/api/account/dashboard` | address | 60 in 10 min | a Supabase Auth call before the route |
+| `/api/account/portal`, `/api/payments/cancel`, `/api/license/deactivate` | address | 20 in 10 min, one bucket | Stripe calls or licence writes |
+| `/api/payments/create-checkout` | address | 20 an hour (unchanged, answers 410) | retired |
+| `/health`, `/api/health`, `/admin` | address | 120 a min | public |
+| any `/api` with no credentials | address | 300 a min | the floor for everything unauthenticated |
+| `/api/admin/*`, `/admin` | address | 10 FAILED passwords an hour (unchanged) | password guessing |
+| credentials refused (`identifyFirst`) | address | 60 in 10 min, then 429 before the lookup | made up keys and tokens each cost a lookup |
+| `/api/payments/webhook` | none | never | Stripe |
+
+`test:ratelimits` trips each at its number, resets it, keeps two accounts
+apart, sweeps old keys, and replays the five recorded sessions back to back
+twice with every call the app makes around them, and a cafe of twenty players
+on one address: no 429.
+
 ## Switches
 
 All default off, read from env on Railway:
@@ -240,7 +314,8 @@ All default off, read from env on Railway:
 - Google enabled in Supabase Auth, and `https://occlara.app/app/signin`
   allow-listed as a redirect URL.
 
-Tests: `test:claimgame` (the fake's model of the SQL, plus a text check of the
+Tests: `test:caplock` (the lock on every model route), `test:ratelimits`,
+`test:claimgame` (the fake's model of the SQL, plus a text check of the
 SQL file with `OCCLARA_SITE_DIR` set), `test:entitlementwebhook`,
 `test:caller`, `test:usageroutes`, `test:readgate`, `test:referral`,
 `test:accountservice`, `test:usage`, `test:readcap`, `test:backfill` (the
