@@ -50,7 +50,6 @@ const LATE_REVIEW_GAP_MS = 60 * 1000; // a late review never counts a row read i
 const REFUNDS_PER_DAY = 3;
 const CLAIM_RETRY_MS = 30 * 1000;
 const HANDOFF_MS = 120 * 1000;
-const NEW_INVITEE_MS = 30 * 60 * 1000;
 const MAX_FRIENDS = 5;
 const MAX_EARNED = 20;
 const INVITE_BASE = 'https://occlara.app/invite/';
@@ -680,10 +679,8 @@ function createRouter(deps = {}) {
     const inviter = owner.user_id;
     const invitee = caller.userId;
     if (inviter === invitee) return refuse('self');
-    let user;
-    try { user = await resolver.userOf(invitee); } catch { return res.status(503).json(UNAVAILABLE); }
-    const created = Date.parse((user && user.created_at) || '');
-    if (!Number.isFinite(created) || now() - created > NEW_INVITEE_MS) return refuse('account-old');
+    // No limit on the account's age: an invitee only has to have played nothing yet
+    // (below), so a friend who confirms their email days later still gets the games.
     const played = must(await db().from('game_usage').select('id').eq('user_id', invitee).limit(1), 'invitee usage') || [];
     if (played.length) return refuse('already-played');
     const mine = must(await db().from('referral_redemptions').select('inviter_id').eq('invitee_id', invitee).limit(1), 'invitee redemption') || [];
@@ -727,7 +724,7 @@ module.exports.meter = meter;
 module.exports.ipLimiter = ipLimiter;
 module.exports.LIMITS = { MATCH_READS_COUNTED, FLUSH_MS, ALLOW_MS, MATCH_GAP_MS, SHORT_END_MS, REVIEW_WINDOW_MS,
   OPEN_MS, LATE_REVIEW_GAP_MS,
-  REFUNDS_PER_DAY, HANDOFF_MS, NEW_INVITEE_MS, MAX_FRIENDS, MAX_EARNED, FREE_GAMES, INVITE_EXTRA_GAMES, INVITED_FREE_TOTAL };
+  REFUNDS_PER_DAY, HANDOFF_MS, MAX_FRIENDS, MAX_EARNED, FREE_GAMES, INVITE_EXTRA_GAMES, INVITED_FREE_TOTAL };
 module.exports.PATTERNS = { B64URL, VERIFIER, REF_CODE };
 module.exports.CODE_ALPHABET = CODE_ALPHABET;
 module.exports.INVITE_BASE = INVITE_BASE;

@@ -9,7 +9,7 @@
  *   the limits: 5 friends, 20 games.
  *   REDEEM. Only the invitee's Supabase token, only with REFERRALS_ON=1, ten a
  *   minute per IP. Refused: an unknown code, the inviter's own code, an
- *   account older than 30 minutes, an invitee with any game counted, a second
+ *   an invitee with any game counted (an account's age is no limit), a second
  *   redemption, an inviter with 5 friends already, and an invitee on the same
  *   /24 as one of the inviter's app sessions, and an invitee whose email is
  *   not confirmed. Otherwise the invitee has 4 free games (Free's 2 and the
@@ -89,8 +89,6 @@ function account(id, ageMin = 5) {
   ok(unknown.status === 404 && unknown.body.reason === 'code-unknown', 'an unknown code is refused');
   const self = await redeem(USER_A);
   ok(self.status === 409 && self.body.reason === 'self', 'the inviter cannot redeem their own code');
-  const old = await redeem(account(uid(3), 31));
-  ok(old.status === 409 && old.body.reason === 'account-old', 'an account older than 30 minutes is refused');
   const played = account(uid(4));
   db.tables.game_usage.push({ id: 'g-4', user_id: played, kind: 'riot', status: 'counted', created_at: iso(clock) });
   const pl = await redeem(played);
@@ -120,7 +118,8 @@ function account(id, ageMin = 5) {
 
   // ── Five friends at most ───────────────────────────────────────────────
   for (let i = 0; i < 4; i++) {
-    const r = await redeem(account(uid(6 + i)), code, `192.0.2.${10 + i}`);
+    // The last of the four has an account 40 days old: its age is no limit.
+    const r = await redeem(account(uid(6 + i), i === 3 ? 60 * 24 * 40 : undefined), code, `192.0.2.${10 + i}`);
     if (r.status !== 200) console.log('unexpected', r.status, r.body);
   }
   const sixth = await redeem(account('aaaaaaaa-0000-4000-8000-aaaaaaaaaaaa'), code, '192.0.2.99');
