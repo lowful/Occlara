@@ -367,6 +367,41 @@ async function main() {
     offline.api.post = async () => { throw new Error('offline'); };
     await offline.svc.signOut();
     ok(!offline.svc.signedIn(), 'and goes when the server cannot be told too');
+
+    // C3 (2026-11-04): a me() in flight at sign out wrote the old account
+    // back over the signed out view, fresh for 60 s.
+    let answerMe = null;
+    const race = harness({ store: memStore({ [TOKEN_KEY]: stubSafe(true).encryptString(tok).toString('base64') }), routes: {
+      'GET /api/account/me': () => new Promise((resolve) => { answerMe = resolve; }),
+    } });
+    const pending = race.svc.me();
+    await wait(5);
+    await race.svc.signOut();
+    answerMe({ ok: true, status: 200, data: { tier: 'pro', used: 20, left: 5, free_total: 25, email: 'old@x.com' } });
+    await pending;
+    const v = race.svc.view();
+    ok(!race.svc.signedIn() && race.svc.cached() === null && !v.email && !v.tier,
+      'a me() in flight at sign out never writes the old account back', JSON.stringify({ cached: race.svc.cached(), v }));
+
+    // And a forced me() after a claim never hands back the count asked before it.
+    let n = 0;
+    const answers = [];
+    const fc = harness({ store: memStore({ [TOKEN_KEY]: stubSafe(true).encryptString(tok).toString('base64') }), routes: {
+      'GET /api/account/me': () => new Promise((resolve) => { n += 1; answers.push(resolve); }),
+      'POST /api/usage/claim': { ok: true, status: 200, data: { granted: true, left: 4 } },
+    } });
+    const old = fc.svc.me();
+    await wait(5);
+    await fc.svc.claim({ game: 'lol', kind: 'league', clientMatchId: 'lol:race' });
+    await wait(5);
+    answers[0]({ ok: true, status: 200, data: { tier: 'free', used: 1, left: 5, free_total: 6 } });
+    await old;
+    await wait(5);
+    ok(n === 2 && (fc.svc.cached() === null || fc.svc.cached().left !== 5),
+      'a claim asks the account again, and the answer from before it is never kept', JSON.stringify({ n, cached: fc.svc.cached() }));
+    if (answers[1]) answers[1]({ ok: true, status: 200, data: { tier: 'free', used: 2, left: 4, free_total: 6 } });
+    await wait(5);
+    ok(fc.svc.cached() && fc.svc.cached().left === 4, 'and the answer after it is', JSON.stringify(fc.svc.cached()));
   }
 
   console.log('\n[accountservice] the referral');

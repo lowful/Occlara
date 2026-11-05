@@ -141,6 +141,38 @@ function benchCall(req) {
   return !!(b.benchModel || b.variant) && isAdmin(req);
 }
 
+/*
+ * A WRONG ADMIN PASSWORD ON A COACH ROUTE IS A GUESS (S2). The bench switches
+ * (benchModel, a read, look or agent variant, raw) are honoured only beside
+ * the admin password, and the reply says whether one was (`variant`, `model`),
+ * which a bench needs. That made every coach route an oracle for the password
+ * outside adminLimiter, which sits on /api/admin and /admin only: one wrong
+ * guess answered variant null, the right one variant 'b', ninety a minute per
+ * account. Now a request carrying X-Admin-Password that is wrong is counted
+ * per IP, ten an hour as adminLimiter's, and past that the header is dropped
+ * before any route reads it, so for that hour even the right password is not
+ * honoured from that address and a guess learns nothing. The right password
+ * is never counted, so a bench run is never locked out by its own calls.
+ */
+const ADMIN_GUESS_MAX = 10;
+const ADMIN_GUESS_MS = 60 * 60 * 1000;
+const adminGuesses = new Map();   // ip bucket -> times of wrong admin passwords
+router.use((req, res, next) => {
+  if (!req.headers || req.headers['x-admin-password'] === undefined) return next();
+  const at = Date.now();
+  const k = callers.ipBucket(req.ip || (req.socket && req.socket.remoteAddress));
+  const list = (adminGuesses.get(k) || []).filter((t) => at - t < ADMIN_GUESS_MS);
+  adminGuesses.delete(k);
+  if (list.length >= ADMIN_GUESS_MAX) {
+    delete req.headers['x-admin-password'];
+  } else if (!isAdmin(req)) {
+    list.push(at);
+  }
+  if (list.length) adminGuesses.set(k, list);
+  while (adminGuesses.size > 10000) adminGuesses.delete(adminGuesses.keys().next().value);
+  next();
+});
+
 router.use((req, res, next) => {
   const pathName = req.path || String(req.url || '').split('?')[0];
   const key = String((req.headers && req.headers['x-license-key']) || '').trim().toUpperCase() || null;
@@ -2594,6 +2626,9 @@ async function trackerStats(name, tag) {
   }
 }
 
+/** A Riot ID as Railway's logs may carry it: its first 8 hex of sha256, case folded (S10). */
+const idHash = (riotId) => crypto.createHash('sha256').update(String(riotId || '').trim().toLowerCase()).digest('hex').slice(0, 8);
+
 // GET /api/coach/player-stats?username=Name%23TAG
 router.get('/player-stats', async (req, res) => {
   const caller = await admit(req, res);
@@ -2624,7 +2659,8 @@ router.get('/player-stats', async (req, res) => {
   if (!process.env.HENRIKDEV_API_KEY && !process.env.TRACKER_API_KEY) {
     return res.json({ error: 'No stats provider is configured on the server. Add HENRIKDEV_API_KEY in Railway.' });
   }
-  console.warn('[stats] all providers failed for', username, '::', reasons.join(' | '));
+  // A Riot ID is a player's name: the log carries its short hash, never the ID (S10).
+  console.warn('[stats] all providers failed for', idHash(username), '::', reasons.join(' | '));
   res.json({ error: reasons[0] || 'Could not load that profile. Check the Riot ID is exact.' });
 });
 
@@ -3057,7 +3093,7 @@ router.get('/matches', async (req, res) => {
       }
 
       failedQueues.push(q);
-      console.warn(`[matches] ${q} lookup failed for ${username} (status ${sm.status}), falling back to cache`);
+      console.warn(`[matches] ${q} lookup failed for ${idHash(username)} (status ${sm.status}), falling back to cache`);
       const cached = queueCache.get(qKey);
       if (cached && now - cached.at < QUEUE_FALLBACK_MS) {
         for (const m of cached.rows) { m._queue = q; rows.push(m); }
@@ -3152,10 +3188,6 @@ router.get('/matches', async (req, res) => {
   }
 });
 
-// POST /api/coach/score-session, JSON body: { tips: string[], context: { map, agent } }
-// Grades a finished coached session across four categories (0-100) and writes
-// short strengths/weaknesses text, all grounded ONLY in that session's tips.
-// The app stores the result locally; nothing is kept server-side.
 // POST /api/coach/session-report
 // COUNTS ONLY, NEVER CONTENT. How many tips a session produced, how many
 // survived the gates, and which KIND of gate stopped the rest. That histogram is
@@ -3180,123 +3212,14 @@ router.post('/session-report', async (req, res) => {
   }
 });
 
-router.post('/score-session', async (req, res) => {
-  try {
-    const caller = await admit(req, res);
-    if (!caller) return;
-    const licenseKey = caller.accountKey;
-
-    const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30).map((t) => String(t).slice(0, 160)) : [];
-    if (tips.length < 1) return res.json({ error: 'Not enough tips to score.' });
-    const ctx = (req.body && req.body.context) || {};
-    const notes = Array.isArray(req.body && req.body.notes)
-      ? req.body.notes.slice(0, 20).map((n) => String(n).slice(0, 90)) : [];
-    const notesBlock = notes.length
-      ? '\nOBSERVED FACTS (what the player was actually SEEN doing on screen, weigh these ABOVE the tips):\n' + notes.map((n) => '- ' + n).join('\n') + '\n'
-      : '';
-
-    // THE SCOREBOARD, when the client could confirm the match was this session.
-    // Tips only record what the coach chose to talk about, so grading on them
-    // alone measures the coaching rather than the player: someone told to fix
-    // their aim who then went 30/5 scored the same as someone told the same
-    // thing who went 5/20. The client will not send this unless the map, the
-    // agent and the timing all agreed, so it can be trusted as this match.
-    const m = (req.body && req.body.match) || null;
-    const matchBlock = m ? `
-FINAL SCOREBOARD for this exact match (verified as the coached game, this is hard evidence and outranks the coaching tips for EVERY category):
-- Result: ${String(m.result || '?').slice(0, 12)} ${String(m.score || '').slice(0, 10)}
-- K/D/A: ${m.kills | 0}/${m.deaths | 0}/${m.assists | 0} (K/D ${Number(m.kd) || 0})
-- ACS ${m.acs | 0}, ADR ${m.adr | 0}, headshot ${m.headshotPct | 0}%${m.grade ? `\n- Tracker grade for this match: ${String(m.grade).slice(0, 3)}` : ''}
-CALIBRATE AGAINST REAL VALORANT NUMBERS, because "strong" means nothing without a scale and these were being read as ordinary. ACS: under 150 is poor, 200 is average, 250 is good, 300 is excellent, 350 and above is exceptional and belongs in the 90s. K/D: 0.8 is losing the duels, 1.0 is even, 1.3 is good, 1.8 and above is dominant. ADR: 120 is low, 160 is solid, 200 and above is carrying. Headshot: 15% is low, 25% is average, 30% and above is strong aim. A tracker grade of S or A is a standout performance.
-Use these numbers. A strong scoreboard means the aim and impact scores should be high even if the coaching corrected a lot, and a weak one means they should be low even if the session was quiet. A player who topped the scoreboard does not get a mediocre aim or impact score because the coach found positioning habits to fix: score the CATEGORY, not the amount of advice given. THE SCOREBOARD CONSTRAINS POSITIONING AND UTILITY TOO. Positioning is where corrections usually land, but a player cannot post an exceptional ACS with a low death count while positioning badly all game, so a standout scoreboard puts a floor under every category: with a tracker grade of S or A, do not score any category below 55 unless an OBSERVED FACT shows a specific failure. Corrections are evidence of what to work on next, not evidence that the game went badly. Never restate the raw numbers back to the player in summary, strengths, weaknesses, or practice; they can already see their own scoreboard. Let the numbers set the SCORES and describe the habit behind them in words.
-` : '';
-
-    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n${notesBlock}${matchBlock}\nReturn ONLY valid JSON, no markdown:\n{"impact":82,"positioning":54,"utility":61,"aim":77,"summary":"...","strengths":"...","weaknesses":"...","practice":"..."}\nThe four numbers above are FORMATTING ONLY, they are not this player's scores and copying them is a failure. Score each category independently, 0-100, and expect them to differ from each other: a session where every category lands on the same number almost never happens, so if you are about to return four identical scores, look again at which category the evidence actually separates. Use the range: 30s and 40s for a category that clearly cost them the game, 50s and 60s for below par, 70s for solid, 80s and 90s for genuinely strong. impact means round influence: opening picks, entries that created space, clutch attempts, multikills, and being part of the plays that decided rounds; a quiet passenger scores low even with a clean K/D. When OBSERVED FACTS are provided they are the primary evidence, they describe what the player actually did; the tips only show what the coaching focused on and do NOT prove the player did or failed anything. Many corrections in a category still suggests a lower score there, but never state the player did something unless an observed fact shows it. No signal for a category means a neutral 70-75, but a category with real evidence must move away from neutral in whichever direction the evidence points.
-UNUSED UTILITY IS A FAULT, NOT THRIFT. Ending rounds with a full ability bar means value was thrown away, so it lowers the utility score. Never praise it as good resource management.
-THIS IS THE POST GAME TALK. The player is reading it after the match is over, away from the game. They cannot picture a specific round or a specific spot on the map anymore, so replaying moments back at them is useless. NAME THE HABIT INSTEAD.
-- WRONG (never write anything like this): "You repeatedly dry peeked Mid Top, B Site, and B Main without a trade partner." "You died at A Main three times." "You repeeked Hookah after your kill."
-- RIGHT: "You're dry peeking a lot, taking duels without a flash or a teammate ready to trade." "Over-peeking is your biggest leak, you keep re-challenging the same angle after you win a fight." "You're over-extending on defense and dying before your team can help."
-NEVER name a map location, a callout, a site, a round number, or a specific moment ANYWHERE in summary, strengths, weaknesses, or practice. Describe the PATTERN, using the words a real coach uses: dry peeking, over-peeking, re-peeking the same angle, no trade partner, over-extending, over-rotating, wide swinging, tunnel vision, crosshair placement, counter-strafing, spray control, util dumping, saving util too long, passive play, over-aggression, poor spacing, playing too far forward, not clearing angles, forcing on a bad economy.
-summary: 3-4 sentences spoken straight TO the player like a coach right after the game, honest and encouraging. How the session went, the clearest strength, the single biggest leak in plain habit terms, and what changes next game.
-strengths: 1-2 sentences naming what they genuinely did well, as a habit worth keeping.
-weaknesses: 1-2 sentences naming the ONE or TWO habits costing them the most. Be direct and specific about the habit, never about the location.
-practice: 2-3 sentences of concrete homework for getting better at that habit: what to actually DO before or during the next games. Give a real routine, for example a range or deathmatch warmup with a specific focus, a rule to hold themselves to for a whole game ("never take a duel unless a teammate can trade you"), or a habit to consciously repeat. Make it something they can start today, not vague advice like "practice more".
-Ground everything strictly in the tips and observed facts, invent nothing. Use commas and periods, never dashes.`;
-
-    let out = null;
-    try {
-      // json mode: the tip sanitiser is for prose and has no business touching
-      // a JSON payload. The timeout lives inside textInfer so a slow reasoning
-      // model counts as a strike and falls back instead of failing the grade.
-      const raw = await textInfer(prompt, 420, { json: true, timeoutMs: 24000 });
-      trackCall(licenseKey);
-      const parsed = JSON.parse(String(raw).replace(/```json|```/g, '').replace(/^[^{]*/, '').replace(/[^}]*$/, '').trim());
-      const n = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
-      out = {
-        impact: n(parsed.impact != null ? parsed.impact : parsed.economy), positioning: n(parsed.positioning),
-        utility: n(parsed.utility), aim: n(parsed.aim),
-        summary:    sanitize(String(parsed.summary    || '')).slice(0, 700),
-        strengths:  sanitize(String(parsed.strengths  || '')).slice(0, 400),
-        weaknesses: sanitize(String(parsed.weaknesses || '')).slice(0, 400),
-        practice:   sanitize(String(parsed.practice   || '')).slice(0, 500),
-      };
-    } catch (e) {
-      console.warn('[coach] score-session AI failed, using heuristic:', e.message);
-    }
-
-    // Heuristic fallback when the AI grade is unavailable. It still has to be
-    // real coaching: the old version told the player to go read their own tips,
-    // which is not advice. Work out which area drew the most corrections and
-    // speak to that habit, with homework attached.
-    if (!out || !out.strengths) {
-      const count = (re) => tips.filter((t) => re.test(t)).length;
-      const score = (c) => Math.max(45, 80 - c * 6);
-      const counts = {
-        impact:      count(/entry|trade|clutch|first blood|opening|multi|alone with no/i),
-        positioning: count(/position|angle|peek|reposition|spot|corner|off angle/i),
-        utility:     count(/util|smoke|flash|molly|recon|wall|drone|ability/i),
-        aim:         count(/aim|crosshair|spray|headshot|strafe|whiff/i),
-      };
-      const COACHING = {
-        positioning: {
-          weak: 'Positioning is costing you the most. You are taking duels from spots where nobody can trade you, and re-challenging angles you already won.',
-          fix:  'Give yourself one rule for a whole game: never take a duel unless a teammate can trade you. After every kill, move somewhere new before you peek again.',
-        },
-        aim: {
-          weak: 'Your aim is the leak here, mostly crosshair placement and spraying when you should be tapping.',
-          fix:  'Ten minutes of deathmatch before you queue, head level only, focusing on holding your crosshair at head height as you move rather than on kills.',
-        },
-        utility: {
-          weak: 'Utility is the gap. You are either holding abilities until they expire or dumping them with no plan behind them.',
-          fix:  'Pick one ability each round and decide out loud what it is for before you use it. Aim to finish every round with nothing left unused.',
-        },
-        impact: {
-          weak: 'You are playing too passively to affect rounds, ending games as a passenger rather than someone who made things happen.',
-          fix:  'Commit to being the one who makes first contact twice a game, with a flash or a teammate behind you. Taking space with support beats waiting for a fight to come to you.',
-        },
-      };
-      const weakest = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
-      const strongest = Object.keys(counts).sort((a, b) => counts[a] - counts[b])[0];
-      const LABEL = { impact: 'round impact', positioning: 'positioning', utility: 'utility use', aim: 'aim' };
-      const c = COACHING[weakest];
-      out = out || {
-        impact:      score(counts.impact),
-        positioning: score(counts.positioning),
-        utility:     score(counts.utility),
-        aim:         score(counts.aim),
-        summary:    `${c.weak} Your ${LABEL[strongest]} held up well by comparison, so that is the part to keep. Fix the one habit above and the rest of your game follows it up.`,
-        strengths:  `Your ${LABEL[strongest]} needed the least correcting this session, keep playing that part of your game the way you are.`,
-        weaknesses: c.weak,
-        practice:   c.fix,
-      };
-    }
-    out.economy = out.impact;   // alias: clients not yet on the Impact update still parse this
-    res.json(out);
-  } catch (e) {
-    console.error('[coach] score-session error:', e.message);
-    res.json({ error: 'Scoring failed.' });
-  }
-});
+/*
+ * THE TIP ERA'S SESSION GRADE IS RETIRED (S9). /score-session graded a
+ * session from the tips shown during it, and no client since 7.0.3 calls it
+ * (8.x grades on the client, src/shared/grade.js). It still ran a model for any
+ * licence with no usage gate, ninety a minute, so it answers 410 with the
+ * retired routes' sentence (retired, below) and does nothing else.
+ */
+router.post('/score-session', (req, res) => retired(req, res));
 
 /*
  * ONLY A ROUND BASED MATCH CAN BE THE COACHED ONE.
@@ -3563,7 +3486,12 @@ router.post('/read', async (req, res) => {
     delete outCtx.mmPos;
     // In a match is the model's STATE of a live round, not LOBBY and not a
     // menu: the first such reply claims the game, each one bumps match_reads.
-    if (metered) usageMeter().noteRead(caller, { inMatch: inMatchState(outCtx, !!m) });
+    // The score goes with it: a counted game whose score went back to 0-0 is
+    // over, so the next match claims its own (usage.js noteScore).
+    if (metered) {
+      usageMeter().noteRead(caller, { inMatch: inMatchState(outCtx, !!m),
+        score: { team: outCtx.teamScore, enemy: outCtx.enemyScore } });
+    }
     res.json({ lobby: false, context: outCtx, parsed: !!m, ms: Date.now() - t0, ...told });
   } catch (e) {
     // Out of credits is reported honestly, exactly as /analyze does, so the
@@ -3614,7 +3542,17 @@ router.post('/death-forensics', async (req, res) => {
   const licenseKey = caller.accountKey;
   const rawWanted = !!(req.body && req.body.raw === true) && isAdmin(req) && typeof deathForensics.rawLabels === 'function';
   const variant = forensicsVariant(req);
-  const input = deathForensics.normalise(req.body, { variant: variant || 'a' });
+  // A BODY normalise CANNOT READ IS A 400 (S6). A death whose killer was
+  // {"toString": null} threw here, outside any try: Express 4 leaves an async
+  // handler's rejection alone, so the request hung until the socket timed out
+  // and the process logged an unhandled rejection.
+  let input;
+  try {
+    input = deathForensics.normalise(req.body, { variant: variant || 'a' });
+  } catch (e) {
+    console.warn('[forensics] a body it could not read:', e.message);
+    return res.status(400).json({ error: 'bad-request' });
+  }
   if (!input.deaths.length) return res.json({ deaths: [] });
   // THE REVIEW GATE (8.7): with caps enforced, the look needs its live game,
   // open or counted, before any model is asked (usage.js reviewGate).
@@ -3630,7 +3568,7 @@ router.post('/death-forensics', async (req, res) => {
     input.matchId = typeof (req.body && req.body.matchId) === 'string' ? req.body.matchId.trim().slice(0, 80) || null : null;
   }
   // The match's own names, for the look's name gate alone (5.6): never in a prompt.
-  input.names = riotRounds.nameSetOf(input.matchId);
+  try { input.names = riotRounds.nameSetOf(input.matchId); } catch { return res.status(400).json({ error: 'bad-request' }); }
   // The longer reply variant b asks for (what, fight, better, change, cause, alt).
   const tokens = typeof deathForensics.tokensFor === 'function' ? deathForensics.tokensFor(input) : (variant === 'b' ? 400 : 320);
   const one = async (death) => {
@@ -3791,7 +3729,10 @@ router.post('/match-review', async (req, res) => {
       });
     }
 
-    const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
+    // Each tip clipped as /summary's are (S3): unclipped, thirty 60,000
+    // character tips sent 1.8M characters to the model in one call.
+    const tips = Array.isArray(req.body && req.body.tips)
+      ? req.body.tips.slice(0, 30).map((t) => (typeof t === 'string' ? t : String(t == null ? '' : JSON.stringify(t))).slice(0, 160)) : [];
     if (tips.length < 3) return res.json({ review: null, thin: true });
     const notes = Array.isArray(req.body && req.body.notes)
       ? req.body.notes.slice(0, 20).map((n) => String(n).slice(0, 90)) : [];
@@ -4059,6 +4000,14 @@ router.post('/detect-agent', async (req, res) => {
     const image = req.body && req.body.image;
     if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image' });
 
+    // THE READ GATE (S9): a vision call like a read, so a caller the read gate
+    // refuses (caps enforced, no live game open, no game left) is refused
+    // here too, before the model, as the client already reads any 402 cap.
+    if (!(costScope.getStore() || {}).bench) {
+      const gate = await usageMeter().gate(caller);
+      if (!gate.ok) return res.status(gate.status).json(gate.body);
+    }
+
     const prompt = detectPrompt(variant);
 
     const text = await withTimeout(visionInfer(image, prompt, 20, false, model, { abortMs: 23000 }),
@@ -4182,6 +4131,35 @@ function chatRoom(key, now) {
     if (under(spent, asked)) break;
   }
   return { ok: false, resetsAt };
+}
+
+/*
+ * EVERY QUESTION IS INSIDE THE CAP (S4, S5). The version a request carries is
+ * the client's own word, so "a client before 8.5.0 is never capped" let any
+ * licence leave the cap by sending an old version, none, or a context without
+ * v: 2, about 7,200 questions a day under the chat limiter. Now the version
+ * decides only how the cap is said: 429 chat-daily to a client of 8.5.0 or
+ * later, which has words for it, and to one before it this line as the reply
+ * it always gets ({ reply }), so its shape is unchanged. Below the cap an old
+ * client's answer is byte for byte what it was.
+ */
+function chatCapLine(resetsAt, now) {
+  const hours = Math.max(1, Math.ceil((resetsAt - now) / 3600000));
+  return `You've used today's Ask Coach questions. Ask again in about ${hours} hour${hours === 1 ? '' : 's'}.`;
+}
+/** The cap for one question: null to go on (its line booked), or the reply already sent. */
+function chatGate(req, res, licenseKey) {
+  const scope = costScope.getStore() || {};
+  if (scope.bench) return null;
+  const now = Date.now();
+  const room = chatRoom(licenseKey, now);
+  if (!room.ok) {
+    chatCounts().capped++;
+    if (clientAtLeast(req, V85)) return res.status(429).json({ error: 'chat-daily', resetsAt: new Date(room.resetsAt).toISOString() });
+    return res.json({ reply: chatCapLine(room.resetsAt, now) });
+  }
+  scope.entry = chatEntry(licenseKey, now);
+  return null;
 }
 
 /** A question's line in its licence's list: its cost is what bookCost books for it. */
@@ -4515,17 +4493,10 @@ router.post('/frame-chat', async (req, res) => {
       .slice(-3);
     if (!images.length) return res.status(400).json({ error: 'No frame' });
 
-    // FROM 8.5.0 A FRAME'S QUESTION COUNTS IN ASK COACH'S DAILY CAP (chatRoom),
-    // as a v2 question does; a client before 8.5.0 is never capped.
-    const scope = costScope.getStore() || {};
-    if (clientAtLeast(req, V85) && !scope.bench) {
-      const room = chatRoom(licenseKey, Date.now());
-      if (!room.ok) {
-        chatCounts().capped++;
-        return res.status(429).json({ error: 'chat-daily', resetsAt: new Date(room.resetsAt).toISOString() });
-      }
-      scope.entry = chatEntry(licenseKey, Date.now());
-    }
+    // A FRAME'S QUESTION COUNTS IN ASK COACH'S DAILY CAP (chatRoom), as a v2
+    // question does, for every client (S5): one before 8.5.0, or with no
+    // version, is told the cap as its reply (chatGate).
+    if (chatGate(req, res, licenseKey)) return;
     chatCounts().asked.frame++;
 
     // THE TIP IT GAVE THEN went (8.5.0): no tip has been shown since 8.0, and
@@ -4611,12 +4582,20 @@ router.post('/chat', async (req, res) => {
       }))
       .filter((m) => m.content);
     if (!messages.length) return res.status(400).json({ error: 'No messages' });
+    // Inside the daily cap like every Ask Coach question (S4, chatGate).
+    if (chatGate(req, res, licenseKey)) return;
 
     const ctx = body.context || {};
 
+    // EVERY FIELD IS CLIPPED (S4): this shape put its matches, graded matches
+    // and tracker numbers in whole, so one question could carry 1.5M
+    // characters to the model. A real client's fields are a word or a number
+    // and pass whole, so its prompt is the same byte for byte.
+    const fit = (x, n = 40) => String(x).slice(0, n);
+    const num = (x) => fit(x, 16);
     const st = ctx.stats;
     const statsLine = st && !st.error
-      ? `Their tracker profile (last ${st.matches || 'few'} competitive matches): rank ${st.rank || 'unknown'}${st.peakRank ? ', peak ' + st.peakRank : ''}, K/D ${st.kd || '?'}, win rate ${st.winRate || '?'}%, headshot ${st.headshotPct || '?'}%${st.bodyshotPct ? ', bodyshot ' + st.bodyshotPct + '%' : ''}, top agent ${st.topAgent || 'unknown'}.${st.kpr != null ? ` Per round: ${st.kpr} kills, ${st.dpr} deaths, ${st.apr} assists, ${st.adr} ADR, ${st.acs} ACS.` : ''}
+      ? `Their tracker profile (last ${num(st.matches || 'few')} competitive matches): rank ${fit(st.rank || 'unknown')}${st.peakRank ? ', peak ' + fit(st.peakRank) : ''}, K/D ${num(st.kd || '?')}, win rate ${num(st.winRate || '?')}%, headshot ${num(st.headshotPct || '?')}%${st.bodyshotPct ? ', bodyshot ' + num(st.bodyshotPct) + '%' : ''}, top agent ${fit(st.topAgent || 'unknown')}.${st.kpr != null ? ` Per round: ${num(st.kpr)} kills, ${num(st.dpr)} deaths, ${num(st.apr)} assists, ${num(st.adr)} ADR, ${num(st.acs)} ACS.` : ''}
 Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, under 0.6 is low round impact. DPR 0.85+ means they die too much, that is positioning. ADR 150+ is high damage output, under 120 is low. ACS 220+ means they are carrying. A peak rank above current means proven skill, coach consistency. Use the WEAKEST number to find the real problem, and weigh aim against game sense, positioning, and decisions, never aim alone.`
       : 'No tracker stats available.';
     const tipsBlock = Array.isArray(ctx.sessionTips) && ctx.sessionTips.length
@@ -4637,15 +4616,15 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
     const matchesBlock = Array.isArray(ctx.recentMatches) && ctx.recentMatches.length
       ? `Their recent matches (newest first${rated ? ', rating is 0-100' : ''}):\n`
         + ctx.recentMatches.slice(0, 5).map((m) =>
-            `- ${m.when ? m.when + ', ' : ''}${m.map || '?'} (${m.agent || '?'}${m.queue ? ', ' + m.queue : ''}): ${m.result || '?'} ${m.score || ''}, ${m.kills}/${m.deaths}/${m.assists}, ACS ${m.acs}, ADR ${m.adr}, HS ${m.headshotPct}%${m && m.rating !== undefined ? `, rating ${m.rating}` : ''}`).join('\n')
+            `- ${m.when ? fit(m.when) + ', ' : ''}${fit(m.map || '?')} (${fit(m.agent || '?')}${m.queue ? ', ' + fit(m.queue) : ''}): ${fit(m.result || '?')} ${fit(m.score || '')}, ${num(m.kills)}/${num(m.deaths)}/${num(m.assists)}, ACS ${num(m.acs)}, ADR ${num(m.adr)}, HS ${num(m.headshotPct)}%${m && m.rating !== undefined ? `, rating ${num(m.rating)}` : ''}`).join('\n')
         + '\nALWAYS SAY WHICH MATCH YOU MEAN. When you refer to one of these games, name it: the map, the agent, and the result, for example "your Sunset loss on Jett" or "the 13-9 win on Bind this afternoon". "Your last game" and "that match" are useless to someone who has played five, and if two share a map the agent or the time tells them apart. If you are talking about a pattern ACROSS matches, say that explicitly instead ("across your last five, on defence you...").\n'
       : '';
     const sessionsBlock = Array.isArray(ctx.recentSessions) && ctx.recentSessions.length
       ? 'Their recent graded matches (0-100 per category):\n'
         + ctx.recentSessions.slice(0, 3).map((s) => {
             const sc = s.scores || {};
-            const cats = Object.entries(sc).filter(([, v]) => v != null).map(([k, v]) => `${k} ${v}`).join(', ');
-            return `- ${s.date || '?'}${s.map ? ' on ' + s.map : ''}: overall ${s.overall}${cats ? ', ' + cats : ''}. Went well: ${s.strengths || 'n/a'}. Repeated mistakes: ${s.weaknesses || 'n/a'}`;
+            const cats = Object.entries(sc).filter(([, v]) => v != null).slice(0, 12).map(([k, v]) => `${fit(k, 24)} ${num(v)}`).join(', ');
+            return `- ${fit(s.date || '?')}${s.map ? ' on ' + fit(s.map) : ''}: overall ${num(s.overall)}${cats ? ', ' + cats : ''}. Went well: ${fit(s.strengths || 'n/a', 300)}. Repeated mistakes: ${fit(s.weaknesses || 'n/a', 300)}`;
           }).join('\n')
       : '';
     // The one match the player opened the chat from, as its review computed it.
@@ -4692,7 +4671,7 @@ ${statsLine}
 ${reviewBlock}
 ${matchesBlock}
 ${sessionsBlock}
-${valorant ? `Player's agent this session: ${ctx.agent || 'unknown'}.` : ''}
+${valorant ? `Player's agent this session: ${fit(ctx.agent || 'unknown')}.` : ''}
 ${memLine}
 ${playbookLine}
 ${tipsBlock}
@@ -4761,11 +4740,13 @@ module.exports.buildContextPrompt = buildContextPrompt;
 module.exports.checkKey = checkKey;
 // The retired tip paths, which server.js never identifies a caller for: they
 // answer 410 and look nothing up.
-module.exports.RETIRED_PATHS = new Set(['/analyze', '/summary/round', '/summary/match', '/recap', '/suggest-library-tip']);
+module.exports.RETIRED_PATHS = new Set(['/analyze', '/summary/round', '/summary/match', '/recap', '/suggest-library-tip', '/score-session']);
 module.exports.__test = {
   // 8.7: whose key it is, the caller check, what a read in a match is, and a
   // stand in meter for the read and review gates' tests (null puts the real one back).
   keyOwners, admit, inMatchState, setMeter: (m) => { meterOverride = m || null; },
+  // The wrong admin passwords counted per IP on the coach routes (S2).
+  adminGuesses, ADMIN_GUESS_MAX,
   checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,
   benchModel, readVariant, TELL_MAX, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,
   // The agent look's prompt and who may ask for its variant (8.4.4).

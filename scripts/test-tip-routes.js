@@ -87,6 +87,9 @@ const ROUTES = [
   // It asked the model to "pick the BEST tip from this list to show the player
   // right now": the old library tips, chosen mid match.
   ['/suggest-library-tip', { context: { phase: 'active', roundNumber: 4 }, availableTips: ['Hold the angle.', 'Trade your duelist.'] }],
+  // S9: the tip era's session grade, which no client since 7.0.3 calls, ran a
+  // model with no usage gate for any licence, ninety a minute.
+  ['/score-session', { tips: ['Hold the angle.', 'Trade your duelist.'], context: { map: 'Bind' } }],
 ];
 
 (async () => {
@@ -127,7 +130,7 @@ const ROUTES = [
       // config.js declares API.ANALYZE as an unused constant; any use of it, or
       // of a retired path, is a call.
       if (/API\.ANALYZE\b/.test(text)) hits.push(`${path.relative(SRC, f)} uses API.ANALYZE`);
-      for (const p of ['/api/coach/recap', '/api/coach/summary/', 'suggest-library-tip']) if (text.includes(p)) hits.push(`${path.relative(SRC, f)} names ${p}`);
+      for (const p of ['/api/coach/recap', '/api/coach/summary/', 'suggest-library-tip', 'score-session']) if (text.includes(p)) hits.push(`${path.relative(SRC, f)} names ${p}`);
       const analyze = text.split('\n').filter((l) => l.includes('/api/coach/analyze') && !/ANALYZE:\s*'\/api\/coach\/analyze'/.test(l));
       if (analyze.length) hits.push(`${path.relative(SRC, f)} names /api/coach/analyze`);
     }

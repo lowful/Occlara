@@ -83,11 +83,12 @@ const strip = (rv) => {
 {
   // The titles a fact may carry, from the spec, never from the module, and
   // the ones 8.0.3 gave the same counts, each a verdict Riot never recorded.
+  // Since 8.7.2 the three that leave a traded death out say so.
   const NEUTRAL = {
-    'first-kill': 'Kills in the first fight', 'first-death': 'First to die in the round',
+    'first-kill': 'Kills in the first fight', 'first-death': 'First to die and not traded',
     'multi-kill': 'Rounds with three or more kills', 'trades': 'Kills that traded a teammate',
-    'untraded': 'Deaths not traded within five seconds', 'early': 'Deaths in the first 30 seconds',
-    'lost-advantage': 'Died with your team ahead, round lost', 'same-killer': 'Deaths to Skye',
+    'untraded': 'Deaths not traded, a teammate alive to trade', 'early': 'Deaths in the first 30 seconds',
+    'lost-advantage': 'Died with your team ahead, untraded, round lost', 'same-killer': 'Deaths to Skye',
     'clutch': 'Rounds won as the last one standing', 'one-v-one': 'Rounds lost one against one',
     'postplant': 'Attack rounds after the plant', 'postplant-lost': 'Attack rounds after the plant',
     'retake': 'Defence rounds after their plant', 'survived': 'Rounds survived',

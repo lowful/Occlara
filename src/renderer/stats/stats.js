@@ -13,9 +13,13 @@ let lastFetchedAt = 0;
 let refreshBlockedUntil = 0;
 let matchMode = 'competitive';   // always opens on Competitive; Unrated = unrated + swiftplay
 
-// ── Match MVP badges ─────────────────────────────────────────────────────────
+// ── Top score badges ─────────────────────────────────────────────────────────
 // A graded match is linked to the tracker row by time and map: a tracker match
 // that started in the hour before the review was written is that match. Matches from every loaded mode bucket accumulate in knownMatches.
+// THE BADGE NAMES WHAT IT COUNTS: the top combat score. Since 13.06 the
+// game names its MVP by Performance Score, so a badge reading MVP named a
+// player the game did not.
+const mvpText = (kind) => (kind === 'match' ? 'Top score' : 'Team top score');
 const knownMatches = new Map();   // match id -> { startedAt, map, mvp }
 const sessionMvpSlots = [];       // { s, slot } placeholders on rendered session rows
 
@@ -31,7 +35,7 @@ function annotateSessionMvps() {
       if (s.map && m.map && s.map !== m.map) continue;
       slot.dataset.done = '1';
       slot.className = `mvp ${m.mvp}`;
-      slot.textContent = m.mvp === 'match' ? 'MVP' : 'Team MVP';
+      slot.textContent = mvpText(m.mvp);
       slot.hidden = false;
       break;
     }
@@ -502,10 +506,10 @@ function matchRow(m) {
   if (m.mvp) {
     const mvp = document.createElement('span');
     mvp.className = `mvp ${m.mvp}`;
-    mvp.textContent = m.mvp === 'match' ? 'MVP' : 'Team MVP';
+    mvp.textContent = mvpText(m.mvp);
     mvp.title = m.mvp === 'match'
-      ? 'Match MVP, top combat score on the winning team'
-      : 'Team MVP, top combat score on your team';
+      ? 'Top combat score on the winning team'
+      : 'Top combat score on your team';
     top.append(mvp);
   }
   top.append(rating);

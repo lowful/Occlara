@@ -129,7 +129,8 @@ function createAccountService(deps) {
   let tokenRead = false;
   let flow = null;          // the sign in in progress
   let me = null;            // { at, state } the last account_state
-  let meAsk = null;         // the me() call in flight
+  let meAsk = null;         // { gen, promise } the me() call in flight
+  let gen = 0;              // bumped whenever the account moves (stale())
   const listeners = new Set();
   const refusedListeners = new Set();
 
@@ -235,6 +236,7 @@ function createAccountService(deps) {
       return;
     }
     keepToken(t);
+    stale();
     const st = normalizeState(res.data.account);
     me = st ? { at: d.now(), state: st } : null;
     d.log('[account] signed in through the browser');
@@ -348,7 +350,7 @@ function createAccountService(deps) {
     if (!token()) return;
     d.log('[account] the server no longer accepts this sign in');
     dropToken();
-    me = null;
+    stale();
     emit();
     for (const cb of refusedListeners) { try { cb(); } catch {} }
   }
@@ -362,11 +364,18 @@ function createAccountService(deps) {
     const o = opts || {};
     if (!hasAuth()) return null;
     if (!o.force && me && d.now() - me.at < ME_TTL_MS) return me.state;
-    if (meAsk) return meAsk;
+    // AN ANSWER ASKED BEFORE THE ACCOUNT MOVED IS NEVER KEPT (stale()). A
+    // me() in flight at sign out wrote the old account back over the signed
+    // out view, fresh for 60 s, and a forced me() after a claim was handed the
+    // one in flight from before it, with the count before the claim.
+    if (meAsk && meAsk.gen === gen) return meAsk.promise;
+    const mine = gen;
     const viaSession = signedIn();
-    meAsk = (async () => {
+    const ask = { gen: mine, promise: null };
+    ask.promise = (async () => {
       try {
         const res = await d.api.get(ROUTES.ME, auth, o.timeoutMs || 8000);
+        if (mine !== gen) return null;
         if (res && res.ok) {
           const st = normalizeState(res.data);
           const before = me && JSON.stringify(me.state);
@@ -379,11 +388,15 @@ function createAccountService(deps) {
       } catch (e) {
         return null;
       } finally {
-        meAsk = null;
+        if (meAsk === ask) meAsk = null;
       }
     })();
-    return meAsk;
+    meAsk = ask;
+    return ask.promise;
   }
+
+  /** The account moved (signed in or out, a game claimed or given back): every answer asked before it is stale. */
+  function stale() { gen += 1; me = null; }
 
   /** The last account_state, however old, or null. */
   function cached() { return me ? me.state : null; }
@@ -410,7 +423,7 @@ function createAccountService(deps) {
     } catch (e) {
       return { granted: true, unknown: true };
     }
-    me = null;   // the count moved, whatever the answer
+    stale();   // the count moved, whatever the answer
     if (res && res.ok && res.data && typeof res.data === 'object') {
       const granted = res.data.granted !== false;
       meNow({ force: true }).catch(() => {});
@@ -437,7 +450,7 @@ function createAccountService(deps) {
       return { released: false };
     }
     const released = !!(res && res.ok && res.data && res.data.released === true);
-    if (released) { me = null; meNow({ force: true }).catch(() => {}); }
+    if (released) { stale(); meNow({ force: true }).catch(() => {}); }
     return { released };
   }
 
@@ -472,7 +485,7 @@ function createAccountService(deps) {
     if (flow) cancel();
     // Signed out here first, so nothing waits on the server to stop using it.
     dropToken();
-    me = null;
+    stale();
     emit();
     if (t) {
       try { await d.api.post(ROUTES.SIGNOUT, {}, { Authorization: `Bearer ${t}` }, 5000); }

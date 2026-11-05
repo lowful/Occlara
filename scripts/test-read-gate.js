@@ -141,6 +141,10 @@ const uid = (n) => `${String(n).repeat(8)}-0000-4000-8000-${String(n).repeat(12)
   const rev = await call(coach, 'POST', '/match-review', { headers: B, body: { tips: ['a', 'b', 'c'] } });
   ok(look.status === 402 && look.body.error === 'cap' && rev.status === 402 && rev.body.review === null && ai.calls === before,
     'and the look at a death and the review are 402 without a live game, the model never asked');
+  // S9: the agent look called a vision model with no gate at all.
+  const agentLook = await call(coach, 'POST', '/detect-agent', { headers: B, body: { image: IMG } });
+  ok(agentLook.status === 402 && agentLook.body.error === 'cap' && ai.calls === before,
+    `and so is the agent look, the model never asked (${agentLook.status})`);
   // A database that cannot answer lets the read through.
   meter.allow.clear();
   db.outage = true;
@@ -272,6 +276,21 @@ const uid = (n) => `${String(n).repeat(8)}-0000-4000-8000-${String(n).repeat(12)
     await call(coach, 'POST', '/match-review', { headers: J, body: { tips: ['a', 'b', 'c'], matchId: 'riot-match-2' } });
     await wait();
     ok(m2.status === 'counted' && m2.reason === 'review', 'and a late review of a match that is over counts its row');
+  }
+
+  // ── A counted game is over when the read sees 0-0 again (S1) ───────────
+  {
+    const L_ID = uid(3).replace(/^3/, 'c');
+    const L = await player(L_ID, { tier: 'pro' });
+    ai.reply = 'STATE: {"side":"attack","phase":"active","round":9,"team":5,"enemy":3,"hp":100,"alive":true}';
+    for (let i = 0; i < 125; i++) await read(L);
+    await wait();
+    ok(usageOf(L_ID).length === 1 && usageOf(L_ID)[0].status === 'counted', 'a match read 125 times at 5-3 is one counted game');
+    clock += 3 * 60 * 1000;
+    ai.reply = 'STATE: {"side":"defense","phase":"buy","round":1,"team":0,"enemy":0,"hp":100,"alive":true}';
+    for (let i = 0; i < 3; i++) { await read(L); await wait(); }
+    ok(usageOf(L_ID).length === 2 && usageOf(L_ID)[1].status === 'reserved',
+      `the next match, read at 0-0 three minutes later with no review between, claims its own game through /read (${usageOf(L_ID).length} rows)`);
   }
 
   // ── No client match id is taken on /read ───────────────────────────────

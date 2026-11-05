@@ -5,7 +5,7 @@ const C = require('../../shared/channels');
 const { PURCHASE_URL, SIGNUP_URL } = require('../../shared/config');
 const { capGB } = require('../../shared/clips');
 const { UPGRADE_URL, ACCOUNT_URL } = require('../../shared/usage');
-const gamesRegistry = require('../../shared/games');
+const { pageWritable } = require('./config-keys');
 const store = require('../services/store');
 const updater = require('../updater');
 const pcCheck = require('../services/pc-check');
@@ -55,15 +55,10 @@ function registerIpc(deps) {
   safeHandle(C.CONFIG_GET, async () => snapshotConfig());
 
   safeHandle(C.CONFIG_SET, async (_e, partial) => {
-    if (partial && typeof partial === 'object') {
-      // The sign in is main's alone (account-service.js): a page never writes it.
-      for (const [k, v] of Object.entries(partial)) {
-        if (/^account/i.test(k)) continue;
-        // A game that is coming soon cannot be chosen (games.js comingSoon).
-        if (k === 'game' && gamesRegistry.isComingSoon(v)) continue;
-        store.set(k, v);
-      }
-    }
+    // Only the settings a page owns, each with a value it can hold
+    // (config-keys.js): the sign in, the licence fields, the key and every
+    // other key main alone writes are never a page's to set.
+    for (const [k, v] of Object.entries(pageWritable(partial))) store.set(k, v);
     controller.onConfigChanged?.();
     return { ok: true, config: snapshotConfig() };
   });

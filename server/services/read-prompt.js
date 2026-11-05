@@ -101,7 +101,30 @@ const FIELDS = `STATE: {"side":null,"phase":null,"round":null,"clock":null,"team
  *     player chose c for the rest
  * The live tell keeps 120 characters (TELL_MAX in routes/coach.js), a's 60.
  */
+/*
+ * VARIANT D, FOR THE BENCH ONLY AS B WAS, and served the same way. c's text
+ * with two lines changed, and nothing else of the prompt or the STATE line:
+ *   - side: c offers "defense" for "a defuser", and Valorant has no defuser
+ *     item, every defender defuses without one, so the line invites a guess
+ *     from nothing on screen (raw side reads in play are wrong 13 to 31% of
+ *     the time on the four sessions, and the context line sends the side
+ *     back). d says attack only when the spike is in the player's own
+ *     inventory, else null outside the buy phase banner.
+ *   - mode: d names SPIKE RUSH beside SWIFTPLAY, COMPETITIVE and UNRATED, so
+ *     a Spike Rush match can lock its own halves of three (coaching-engine.js
+ *     halfOfRound). mapState in routes/coach.js must parse it to 'spikerush'
+ *     for the engine to see it.
+ * It replaces the live prompt only once npm run bench:sessions and
+ * npm run verify:ai (plain and at --lag 4) have passed it, which spends money
+ * and is the owner's call. It is built here and not yet served: routes/coach.js
+ * serves what VARIANTS lists, each with its own TELL_MAX, so d joins VARIANTS
+ * together with TELL_MAX.d (120, c's) in routes/coach.js.
+ */
 const VARIANTS = ['a', 'b', 'c'];
+// Every variant this file can build, d before routes/coach.js serves it.
+const BUILT = [...VARIANTS, 'd'];
+const SIDE_BEFORE = `- side: in the buy phase read the ATTACKING or DEFENDING banner at the top, it is authoritative. Otherwise "attack" if your team has the spike, "defense" if you see a defuser, else null.`;
+const MODE_BEFORE = `- mode: only when printed on screen (SWIFTPLAY, COMPETITIVE, UNRATED), else null.`;
 const LINES = {
   alive: {
     a: `- alive and aliveTell: CHECK THIS FIRST. Is the player's OWN health number visible at the bottom-center with their OWN weapon and abilities at the bottom-left? Yes: alive true, aliveTell names what you saw ("own HP 87 and Vandal bottom left"). No: alive false, and aliveTell names the dead tell: the word "Spectating", a teammate's portrait and name above "SWITCH PLAYER" bottom-left, "KILLED BY" upper right, a "COMBAT REPORT", a killcam, or no own health number at all. WHILE SPECTATING THE HEALTH NUMBER BELONGS TO THE TEAMMATE BEING WATCHED: report hp null and alive false. A flash, a smoke or a scope is not death.`,
@@ -116,10 +139,23 @@ const LINES = {
     b: `- clock: the round timer at the top-center exactly as shown ("1:12"). Once the spike is planted the game shows the spike icon there and no timer at all: clock null.`,
     c: `- clock: the timer at the top-center exactly as shown ("1:12"). When the spike icon stands in its place there is no timer: clock null. A timer still counting there means the spike is not down: then phase is not "postplant" and spike is not "planted".`,
   },
+  side: {
+    a: SIDE_BEFORE, b: SIDE_BEFORE, c: SIDE_BEFORE,
+    d: `- side: in the buy phase read the ATTACKING or DEFENDING banner at the top, it is authoritative. Otherwise "attack" only when the spike is shown in the player's own inventory, else null.`,
+  },
+  mode: {
+    a: MODE_BEFORE, b: MODE_BEFORE, c: MODE_BEFORE,
+    d: `- mode: only when printed on screen (SWIFTPLAY, SPIKE RUSH, COMPETITIVE, UNRATED), else null.`,
+  },
 };
+// d is c with its side and mode lines alone changed.
+LINES.alive.d = LINES.alive.c;
+LINES.clock.d = LINES.clock.c;
 // The live prompt is c's, word for word; a bench naming c is read with it.
 LINES.alive.live = LINES.alive.c;
 LINES.clock.live = LINES.clock.c;
+LINES.side.live = LINES.side.c;
+LINES.mode.live = LINES.mode.c;
 
 function contextLine(ctx) {
   const c = ctx || {};
@@ -139,11 +175,11 @@ function contextLine(ctx) {
 
 /**
  * @param ctx      what the last applied read showed (contextLine)
- * @param variant  'a', 'b' or 'c' for a bench's variant ('c' is the live
+ * @param variant  'a', 'b', 'c' or 'd' for a bench's variant ('c' is the live
  *                 prompt's own text), anything else the live prompt
  */
 function buildReadPrompt(ctx, variant) {
-  const v = VARIANTS.includes(variant) ? variant : 'live';
+  const v = BUILT.includes(variant) ? variant : 'live';
   return `You are reading one Valorant screenshot for a match recorder. You do not coach and you do not advise. You report what the screen shows.
 
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match, end of match screen), reply with exactly LOBBY and nothing else.
@@ -160,8 +196,8 @@ ${LINES.alive[v]}
 - team, enemy, round: read the TWO SCORE DIGITS at the top-center, team is your side's score. round = team + enemy + 1. NEVER infer the round from a banner like "LAST ROUND BEFORE SWAP" or "MATCH POINT"; if the digits are unreadable all three are null.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating).
 ${LINES.clock[v]}
-- side: in the buy phase read the ATTACKING or DEFENDING banner at the top, it is authoritative. Otherwise "attack" if your team has the spike, "defense" if you see a defuser, else null.
-- mode: only when printed on screen (SWIFTPLAY, COMPETITIVE, UNRATED), else null.
+${LINES.side[v]}
+${LINES.mode[v]}
 - locLabel: the location text the game prints beside the top-left of the minimap ("Mid Top", "A Lobby"). Copy it EXACTLY, never substitute a callout you think fits better.
 - mmPos: where the player's own YELLOW arrow sits on the minimap as [across, down], with the minimap's top-left [0,0] and bottom-right [1,1]. Null if the minimap rotates or the arrow is not visible.
 - playerSpot: a plain words location only when locLabel is not printed, using callouts that exist on this map, else null.

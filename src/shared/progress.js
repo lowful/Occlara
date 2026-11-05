@@ -13,7 +13,7 @@
  *   matchProgress(saved, id)
  *     { id, score, letter, provisional,
  *       vsLast:    { delta, score, letter, at, provisional } | null,
- *       vsAverage: { delta, average, matches, provisional } | null,
+ *       vsAverage: { delta, average, matches, of, left, provisional } | null,
  *       best: { grade: { over, matches } | null,
  *               firstLetter: { letter, over, matches } | null,
  *               categories: [{ key, label, score, previous, over, matches }] },
@@ -92,6 +92,20 @@ function gradeOf(s) {
 }
 
 const isRecorded = (s) => !!(s && s.review && s.review.source !== 'riot');
+
+/*
+ * THE KEYS ONLY RIOT'S RECORD CAN COUNT. insights.js counts a first death and
+ * an advantage given back on verified rounds only, and a trade is Riot's
+ * (valorant-verify), so a recorded match the Riot link never reached holds
+ * none of them whatever happened. Counted as a match "without" one, two such
+ * matches said "2 recorded matches in a row without First to die". A cleared
+ * streak stops at a match that could not count its key, as the focus needs
+ * both reviews verified.
+ */
+const RIOT_KEYS = new Set(['first-death', 'lost-advantage', 'untraded']);
+const riotReached = (review) => !!(review && (review.verified === true
+  || (Array.isArray(review.rounds) && review.rounds.some((r) => r && r.verified === true))));
+const couldCount = (review, key) => !RIOT_KEYS.has(key) || riotReached(review);
 const isValorant = (s) => !!(s && s.review && (s.review.kind === 'valorant' || s.game === 'valorant'));
 
 /** The counted, unjudged mistakes of one review, by key: { key: { title, count } }. */
@@ -154,13 +168,15 @@ function runOf(graded, at) {
  * one of the streak, which ends at this match. Over WINDOW recorded matches.
  */
 function clearedOf(recorded, at) {
-  const span = recorded.slice(at, at + WINDOW).map((s) => counted(s.review));
+  const reviews = recorded.slice(at, at + WINDOW).map((s) => s.review);
+  const span = reviews.map(counted);
   const keys = new Map();
   for (const m of span.slice(1)) for (const e of m.values()) if (!keys.has(e.key)) keys.set(e.key, e.title);
   const out = [];
   for (const [key, title] of keys) {
+    // A match that could not have counted the key ends the streak (RIOT_KEYS).
     let streak = 0;
-    while (streak < span.length && !span[streak].has(key)) streak++;
+    while (streak < span.length && !span[streak].has(key) && couldCount(reviews[streak], key)) streak++;
     if (streak < STREAK_MIN) continue;
     const before = span.slice(streak).filter((m) => m.has(key)).length;
     if (before < MIN_MATCHES) continue;
@@ -195,7 +211,11 @@ function linesOf(p) {
   if (p.run) lines.push({ kind: 'run', tone: 'good', text: `${p.run.count} matches in a row at ${p.run.floor} or better.` });
   if (p.vsLast) lines.push(deltaLine('last', p.vsLast.delta, 'your last match', p.vsLast.provisional));
   if (p.vsAverage) {
-    lines.push(deltaLine('average', p.vsAverage.delta, `your average of ${p.vsAverage.average} over your last ${p.vsAverage.matches} graded matches`, p.vsAverage.provisional));
+    const a = p.vsAverage;
+    const over = a.left
+      ? `${a.matches} of your last ${a.of} graded matches, provisional grades left out`
+      : `your last ${a.matches} graded matches`;
+    lines.push(deltaLine('average', a.delta, `your average of ${a.average} over ${over}`, a.provisional));
   }
   for (const c of b.categories) {
     lines.push({ kind: 'category', tone: 'good', text: `Best ${c.label} in your last ${c.matches} matches: ${c.score}.` });
@@ -246,8 +266,16 @@ function matchProgress(saved, id) {
   }
   const window = before.slice(0, WINDOW);
   if (me && window.length >= MIN_MATCHES) {
-    const average = Math.round(window.reduce((a, g) => a + g.score, 0) / window.length);
-    out.vsAverage = { delta: me.score - average, average, matches: window.length, provisional: me.provisional };
+    // A provisional grade is left out of the average once MIN_MATCHES final
+    // ones are in the window (breakdown.js gradeOf leaves it out too); below
+    // that the average is of them all, and says it is provisional. A verified
+    // 80 against two provisional 40s said "Up 40 on your average of 40" with
+    // no mark.
+    const finals = window.filter((g) => !g.provisional);
+    const over = finals.length >= MIN_MATCHES ? finals : window;
+    const average = Math.round(over.reduce((a, g) => a + g.score, 0) / over.length);
+    out.vsAverage = { delta: me.score - average, average, matches: over.length, of: window.length,
+      left: window.length - over.length, provisional: me.provisional || over.some((g) => g.provisional) };
   }
   out.best = bestOf(me, before);
   if (me && gAt !== -1) out.run = runOf(graded, gAt);

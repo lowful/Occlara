@@ -48,11 +48,28 @@ function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
 }
 
-/** Write through a temp file, so a crash mid write never leaves half a JSON. */
+/**
+ * Write through a temp file, so a crash mid write never leaves half a JSON,
+ * flushed to the disk before the rename: renamed unflushed, a power cut can
+ * leave the new name on a file of no bytes.
+ */
 function writeJson(file, data) {
   const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data));
+  const fd = fs.openSync(tmp, 'w');
+  try {
+    fs.writeSync(fd, JSON.stringify(data));
+    try { fs.fsyncSync(fd); } catch {}
+  } finally {
+    fs.closeSync(fd);
+  }
   fs.renameSync(tmp, file);
+}
+
+/** When an id says it was made (newId), or null. */
+function atOfId(id) {
+  const m = /^[a-z]+-(\d{10,})-/.exec(String(id || ''));
+  const at = m ? Number(m[1]) : NaN;
+  return Number.isFinite(at) ? at : null;
 }
 
 /** A new id: the game, the time, and a few random characters. */
@@ -122,9 +139,55 @@ class ReviewStore {
     if (!fs.existsSync(this.root)) fs.mkdirSync(this.root, { recursive: true });
   }
 
+  /**
+   * The library's rows, newest first.
+   *
+   * AN INDEX THAT CANNOT BE READ IS NEVER AN EMPTY LIBRARY. index.json cut
+   * short by a power cut, or held by a scanner the moment it was read, used to
+   * come back as no rows: the next save wrote an index of one review over
+   * every other row, a remove wrote none, and the clip cap and Clear clips
+   * then took every old review's folder for one no review owns and deleted it
+   * whole, frames and all. So an index that is missing or unreadable is
+   * rebuilt from the reviews on disk (rebuild()), and every write after it
+   * writes the whole library back. A whole index is the list as it is.
+   */
   index() {
-    const rows = readJson(path.join(this.root, 'index.json'), []);
-    return Array.isArray(rows) ? rows : [];
+    const rows = readJson(path.join(this.root, 'index.json'), null);
+    if (!Array.isArray(rows)) return this.rebuild();
+    if (!rows.some((r) => r && r.fromId)) return rows;
+    // A row a rebuild could only make from its id: its review read again.
+    return rows.map((r) => (r && r.fromId ? this.rowOf(r.id) || r : r));
+  }
+
+  /** One review's row from its own file, or null when it cannot be read. */
+  rowOf(id) {
+    const e = readJson(path.join(this.root, `${id}.json`), null);
+    if (!e || !e.review) return null;
+    const at = Number.isFinite(e.at) ? e.at : atOfId(id);
+    return metaOf(id, e.game || String(id).split('-')[0], e.review, at);
+  }
+
+  /**
+   * Every review on disk as the list's rows, newest first: what the index
+   * says when it says nothing. A review whose own file cannot be read either
+   * is still listed, its game and time from its id, and read again at the
+   * next index() (fromId), so a moment's lock never unlists it for good.
+   */
+  rebuild() {
+    let names = [];
+    try { names = fs.readdirSync(this.root); } catch { return []; }
+    const rows = [];
+    for (const name of names) {
+      if (!name.endsWith('.json')) continue;
+      const id = name.slice(0, -'.json'.length);
+      if (!ID_RE.test(id)) continue;
+      const row = this.rowOf(id);
+      if (row) { rows.push(row); continue; }
+      const at = atOfId(id);
+      if (at !== null) rows.push({ ...metaOf(id, id.split('-')[0], null, at), fromId: true });
+    }
+    rows.sort((a, b) => b.at - a.at);
+    return rows;
   }
 
   /**
@@ -338,8 +401,12 @@ class ReviewStore {
       if (!d.isDirectory() || !ID_RE.test(d.name)) continue;
       const list = this.clipsOf(d.name);
       if (!list.length) continue;
+      // Owned when its review is on disk, listed or not: a folder is only
+      // deleted whole when no review is left to lose its frames.
+      const listed = at.has(d.name);
+      const owned = listed || fs.existsSync(path.join(this.root, `${d.name}.json`));
       byReview.push({
-        id: d.name, at: at.has(d.name) ? at.get(d.name) : -Infinity, owned: at.has(d.name),
+        id: d.name, at: listed ? at.get(d.name) : owned ? (atOfId(d.name) ?? -Infinity) : -Infinity, owned,
         bytes: list.reduce((n, c) => n + c.bytes, 0), clips: list.length,
       });
     }

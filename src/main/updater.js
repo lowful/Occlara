@@ -25,6 +25,8 @@ const { autoUpdater } = require('electron-updater');
  * (`retryMs`). Quitting meanwhile installs it as "Later" does.
  */
 const ASK_AGAIN_MS = 30 * 1000;
+// How often an open question checks whether a match has begun (it closes then).
+const WATCH_MS = 1000;
 let prompted = false;
 // The newest version downloaded: a session can outlast a six hour check, so
 // the question, asked once the player stops, names what a restart installs.
@@ -49,6 +51,20 @@ async function ask(opts) {
     return;
   }
   const info = latest || {};
+  // A QUESTION LEFT OPEN AS A MATCH STARTS. Asked while the player was idle,
+  // the box stayed up as the match began, on screen for all of it, and a
+  // "Restart now" pressed mid match quit the recording at once. So it closes
+  // itself the moment playing starts (its signal), and an answer is checked
+  // against playing again: either way it is asked again once the match is over.
+  const closer = typeof AbortController === 'function' ? new AbortController() : null;
+  let closedForMatch = false;
+  const watch = setInterval(() => {
+    if (!playing(opts)) return;
+    closedForMatch = true;
+    if (closer) closer.abort();
+    // Watched every second at most: at ASK_AGAIN_MS the box stayed on screen
+    // up to thirty seconds into the match.
+  }, Math.min(opts.retryMs || ASK_AGAIN_MS, WATCH_MS));
   try {
     const { response } = await dialog.showMessageBox({
       type: 'info',
@@ -59,11 +75,18 @@ async function ask(opts) {
       defaultId: 0,
       cancelId: 1,
       noLink: true,
+      ...(closer ? { signal: closer.signal } : {}),
     });
+    clearInterval(watch);
+    if (closedForMatch || (response === 0 && playing(opts))) {
+      setTimeout(() => ask(opts), opts.retryMs || ASK_AGAIN_MS);
+      return;
+    }
     if (response === 0) {
       setImmediate(() => autoUpdater.quitAndInstall());
     }
   } catch (e) {
+    clearInterval(watch);
     console.error('[updater] prompt failed:', e.message);
   }
 }

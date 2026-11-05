@@ -100,10 +100,15 @@ const perRound = (n, rounds) => (rounds ? n / rounds : null);
 
 // ── Valorant ────────────────────────────────────────────────────────────────
 
-/** ACS against the player's own recent matches in the same role, when there are three. */
+/**
+ * ACS against the player's own recent matches in the same role, when there are
+ * three. A row at 0 or below (an AFK or a remake) is no match to compare with:
+ * three of them made the mean 0, acs / 0 was NaN, curve() gave its top value
+ * and a 0 ACS match scored Impact 97.
+ */
 function roleBaseline(history, role, key) {
   const pool = (history || []).filter((h) => h && (!role || h.role === role)).slice(-10)
-    .map((h) => num(h[key])).filter((v) => v !== null);
+    .map((h) => num(h[key])).filter((v) => v !== null && v > 0);
   if (pool.length < 3) return null;
   return { mean: pool.reduce((a, b) => a + b, 0) / pool.length, games: pool.length };
 }

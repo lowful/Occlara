@@ -1549,6 +1549,87 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const clutch = full([K(5000, 'r1', 'b2'), K(6000, 'r1', 'b3'), K(7000, 'r2', 'b4'), K(8000, 'r2', 'b5'),
     K(20000, 'me', 'r1'), K(25000, 'me', 'r2')], 'Blue');
   ok(clutch.clutch && clutch.clutch.vs === 5 && clutch.clutch.won === true, 'last one standing against five, and won it');
+  // A REVIVE PUTS A PLAYER BACK (read-1). Sage's resurrection and Clove's
+  // ultimate bring a player back, and the feed then shows them killing or
+  // dying again. Counting every kill on a mate as one fewer standing made a
+  // clutch the player never had (and 4 Decisions points on the grade).
+  const revived = full([K(10000, 'r1', 'b2'), K(20000, 'r1', 'b3'), K(25000, 'r2', 'b4'),
+    K(30000, 'b2', 'r3'), K(32000, 'r1', 'b5'), K(45000, 'b2', 'r1')], 'Blue');
+  ok(revived.clutch === null, 'a teammate revived and killing is standing, so the player was never last one up',
+    JSON.stringify(revived.clutch));
+  const twice = full([K(10000, 'r1', 'b2'), K(20000, 'r1', 'b3'), K(25000, 'r2', 'b4'),
+    K(40000, 'r2', 'b2'), K(45000, 'me', 'r1')], 'Blue');
+  ok(twice.clutch === null, 'a teammate killed twice was revived in between, and the fifth still stands: no clutch',
+    JSON.stringify(twice.clutch));
+  const twiceThenMe = full([K(10000, 'r1', 'b2'), K(20000, 'r1', 'b3'), K(25000, 'r2', 'b4'),
+    K(40000, 'r2', 'b2'), K(50000, 'r3', 'me')], 'Red');
+  ok(twiceThenMe.aliveAtDeath && twiceThenMe.aliveAtDeath.mates === 2 && twiceThenMe.aliveAtDeath.enemies === 5,
+    'the player died with the fifth teammate still up: two standing, the player included', JSON.stringify(twiceThenMe.aliveAtDeath));
+  const enemyRevive = full([K(5000, 'b2', 'r1'), K(6000, 'b3', 'r2'), K(7000, 'r1', 'b3'), K(20000, 'r3', 'me')], 'Red');
+  ok(enemyRevive.aliveAtDeath && enemyRevive.aliveAtDeath.enemies === 4 && enemyRevive.aliveAtDeath.mates === 4,
+    'an enemy revived and killing stands again: four against four at the death', JSON.stringify(enemyRevive.aliveAtDeath));
+  const lateMate = full([K(5000, 'r1', 'b2'), K(6000, 'r1', 'b3'), K(7000, 'r2', 'b4'), K(8000, 'r2', 'b5'),
+    K(20000, 'me', 'r1'), K(30000, 'b2', 'r2'), K(35000, 'me', 'r3')], 'Blue');
+  ok(lateMate.clutch === null, 'a clutch is withdrawn once a revived teammate shows in the feed after it', JSON.stringify(lateMate.clutch));
+  ok(clutch.clutch && clutch.clutch.vs === 5, 'and a real clutch with no revive still counts');
+  // A kill by a player who is down is not always a revive: a mutual kill lands
+  // a few ms after the shooter's own death, and a molly thrown before dying
+  // kills after it. Neither may withdraw a real clutch.
+  const mutual = full([K(5000, 'r1', 'b2'), K(6000, 'r1', 'b3'), K(7000, 'r2', 'b4'), K(8000, 'r3', 'b5'),
+    K(8010, 'b5', 'r3'), K(20000, 'me', 'r1'), K(25000, 'me', 'r2')], 'Blue');
+  ok(mutual.clutch && mutual.clutch.won === true, 'a mutual kill logged after the shooter died is no revive: the clutch stands',
+    JSON.stringify(mutual.clutch));
+  const molly = full([K(5000, 'r1', 'b2'), K(6000, 'r1', 'b3'), K(7000, 'r2', 'b4'), K(8000, 'r2', 'b5'),
+    { ...K(12000, 'b5', 'r3'), weapon: { name: 'Ability' } }, K(20000, 'me', 'r1'), K(25000, 'me', 'r2')], 'Blue');
+  ok(molly.clutch && molly.clutch.won === true, 'a dead teammate\'s utility kill is no revive: the clutch stands',
+    JSON.stringify(molly.clutch));
+  const mutualDeath = full([K(5000, 'r1', 'b2'), K(5005, 'b2', 'r1'), K(20000, 'r3', 'me')], 'Red');
+  ok(mutualDeath.aliveAtDeath && mutualDeath.aliveAtDeath.mates === 4 && mutualDeath.aliveAtDeath.enemies === 4,
+    'a mutual kill leaves four against four', JSON.stringify(mutualDeath.aliveAtDeath));
+
+  // RIOT'S SIDES ONLY WHERE THE QUEUE'S HALVES ARE KNOWN (stale F2). Riot's
+  // side beats the screen's, and every queue that was not swiftplay or Spike
+  // Rush was given 12 round halves: Replication (first to 5), a Summit Only
+  // New Map queue ("will use the Swiftplay mode format", 13.00) and Retake
+  // (sides swap every round) labelled rounds 5 to 9 attacking.
+  const sidesOf = (queue, n, won) => riotRounds.parse({
+    metadata: { map: { name: 'Summit' }, queue: { id: queue } },
+    players: [...blue, ...red],
+    teams: [{ team_id: 'Blue', rounds: { won: won[0] } }, { team_id: 'Red', rounds: { won: won[1] } }],
+    rounds: Array.from({ length: n }, () => ({ winning_team: 'Blue' })),
+    kills: [],
+  }, 'me', 'T').perRound.map((r) => (r.side ? r.side[0] : '-')).join('');
+  ok(sidesOf('swiftplay', 9, [5, 4]) === 'ddddaaaad', `swiftplay halves of four (${sidesOf('swiftplay', 9, [5, 4])})`);
+  ok(sidesOf('onefa', 9, [5, 4]) === 'ddddaaaad', `Replication plays halves of four too (${sidesOf('onefa', 9, [5, 4])})`);
+  ok(sidesOf('newmap', 8, [5, 3]) === 'ddddaaaa', `a first to five New Map queue plays halves of four (${sidesOf('newmap', 8, [5, 3])})`);
+  ok(sidesOf('newmap', 20, [13, 7]) === 'dddddddddddd' + 'aaaaaaaa', 'and one that reached 13 plays halves of twelve');
+  ok(sidesOf('retake', 9, [5, 4]) === '---------', `Retake swaps every round, so Riot gives no side and the screen's stands (${sidesOf('retake', 9, [5, 4])})`);
+  ok(sidesOf('skirmish2v2', 7, [4, 3]) === '-------', 'nor for a queue it does not know');
+  ok(sidesOf('competitive', 3, [3, 0]) === 'ddd' && sidesOf('unrated', 13, [13, 0]).endsWith('a'), 'Competitive and Unrated keep their twelve');
+}
+
+// ── A queue Riot names is the review's mode, never "Standard" (stale F1) ────
+{
+  const known = review.queueLabel;
+  ok(known('Skirmish 2v2') === 'Skirmish 2v2' && known('retake') === 'Retake' && known('Knockout') === 'Knockout'
+    && known('Gauntlet: Glitched') === 'Gauntlet: Glitched' && known('ar1s') === 'AR1S' && known('allrandom') === 'All Random',
+  `2026 queues are named for what they are (${['Skirmish 2v2', 'retake', 'Knockout', 'Gauntlet: Glitched', 'ar1s', 'allrandom'].map(known).join(', ')})`);
+  ok(known('competitive') === 'Competitive' && known('New Map') === 'New Map' && known('') === null && known(null) === null,
+    'the known ones are unchanged, and no queue is no label');
+  ok(review.queueHalves('newmap') === null && review.queueHalves('onefa') === 'swiftplay' && review.queueHalves('retake') === null
+    && review.queueHalves('Skirmish 2v2') === null && review.queueHalves('competitive') === 'standard',
+  'halftime from the queue only where its halves are known: a New Map queue leaves it to the screen');
+  const rounds = Array.from({ length: 7 }, (_, i) => ({ n: i + 1, side: 'attacking', won: i % 2 === 0, died: false, kills: 0 }));
+  const skirmish = review.build({ rounds, context: { agent: 'Jett', map: 'Bind', gameMode: 'standard', teamScore: 4, enemyScore: 3 },
+    endedBy: 'score', ai: {}, role: 'Duelist', history: [], queue: 'Skirmish 2v2' });
+  ok(skirmish.game.mode === 'Skirmish 2v2' && skirmish.halftimeAfter === null,
+    `a linked Skirmish match is not reviewed as Standard with halftime at 12 (${skirmish.game.mode}, ${skirmish.halftimeAfter})`);
+  // read-3: Spike Rush read off the screen alone is named for what it is,
+  // with its halftime after round 3, never "Swiftplay" with halftime after 4.
+  const spikeRush = review.build({ rounds, context: { agent: 'Jett', map: 'Bind', gameMode: 'spikerush', teamScore: 4, enemyScore: 3 },
+    endedBy: 'score', ai: {}, role: 'Duelist', history: [] });
+  ok(spikeRush.game.mode === 'Spike Rush' && spikeRush.halftimeAfter === 3,
+    `a screen only Spike Rush review says Spike Rush, halftime after 3 (${spikeRush.game.mode}, ${spikeRush.halftimeAfter})`);
 }
 
 // ── Riot's record by agent and gun, and the name set kept on the server (8.5.0) ─

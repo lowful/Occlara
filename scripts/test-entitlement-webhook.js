@@ -466,7 +466,10 @@ const refundOf = (n, over = {}) => {
   // ── A free key is usable (routes/license.js) ──────────────────────────────
   {
     const license = loadWith(path.join(SERVER, 'routes', 'license.js'), { supabase: base, stripe: st.api });
-    base.reset({ rows: [{ id: 'lic_W', user_id: U1, license_key: 'GC-WWWW-WWWW-WWWW-WWWW', plan: 'free', status: 'active', expires_at: null }], schema: 'migrated' });
+    // The schema with 'free' in licenses_plan_check (accounts, 20261104000000):
+    // a free key exists only there, and /activate now reads its lock write's
+    // error (S8), which the 'migrated' check refused for plan free.
+    base.reset({ rows: [{ id: 'lic_W', user_id: U1, license_key: 'GC-WWWW-WWWW-WWWW-WWWW', plan: 'free', status: 'active', expires_at: null }], schema: 'accounts' });
     const a = await callRouter(license, 'POST', '/activate', { body: { key: 'GC-WWWW-WWWW-WWWW-WWWW', device_id: 'dev1' }, headers: { 'X-Occlara-Version': '8.7.0' } });
     ok(a.status === 200 && a.body.valid === true && a.body.plan === 'free', `a free key activates, valid, plan free (${JSON.stringify(a.body)})`);
     const v = await callRouter(license, 'POST', '/validate', { body: { key: 'GC-WWWW-WWWW-WWWW-WWWW', device_id: 'dev1' }, headers: { 'X-Occlara-Version': '8.7.0' } });

@@ -47,6 +47,11 @@ const SHORT_END_MS = 45 * 60 * 1000;  // a match over this long with no review i
 const REVIEW_WINDOW_MS = 6 * 60 * 60 * 1000; // a review may follow its live game this long
 const OPEN_MS = 3 * 60 * 60 * 1000;   // a reserved live row this young is still open (claim_game's 3 h)
 const LATE_REVIEW_GAP_MS = 60 * 1000; // a late review never counts a row read in a match this recently
+const COUNTED_ROW_MS = 2 * 60 * 60 * 1000; // a counted live game is over this long after its claim
+const NEW_MATCH_FROM = 4;             // a counted game whose steady score reached this...
+const NEW_MATCH_AT = 1;               // ...and then reads this or less...
+const NEW_MATCH_READS = 3;            // ...this many in-match reads in a row is the next match
+const MAP_MAX = 10000;                // every per account map here is trimmed to this
 const REFUNDS_PER_DAY = 3;
 const CLAIM_RETRY_MS = 30 * 1000;
 const HANDOFF_MS = 120 * 1000;
@@ -79,6 +84,10 @@ function createMeter(deps = {}) {
   const allow = new Map();    // accountKey -> { at, left }
   const ensured = new Map();  // user id -> when ensure_entitlement last succeeded
   const refunds = new Map();  // accountKey -> { day, n } (when the database cannot be counted)
+  /** Every per account map is bounded: past MAP_MAX the oldest entries go (S12). */
+  const trimMap = (map) => { while (map.size > MAP_MAX) map.delete(map.keys().next().value); };
+  const put = (map, k, v) => { map.delete(k); map.set(k, v); trimMap(map); };
+  const trim = () => { for (const map of [opens, allow, ensured, refunds]) trimMap(map); };
   const counts = { claims: 0, refused: 0, gated: 0, counted: 0, refunded: 0, flushes: 0 };
 
   const live = () => resolver.accountsLive();
@@ -108,7 +117,7 @@ function createMeter(deps = {}) {
     if (at && now() - at < 10 * 60 * 1000) return true;
     const { error } = await rpc('ensure_entitlement', { p_user: userId });
     if (error) return false;
-    ensured.set(userId, now());
+    put(ensured, userId, now());
     return true;
   }
 
@@ -124,7 +133,38 @@ function createMeter(deps = {}) {
   const rowOf = (caller) => rows.get(rowKey(caller)) || null;
   /** A game_usage query narrowed to the caller's device, as claim_game's open row is. */
   const onDevice = (q, caller) => (caller.deviceHash ? q.eq('device_hash', caller.deviceHash) : q.is('device_hash', null));
-  const ended = (row, at) => row.reviewed || (row.lastInMatch && at - row.lastInMatch > MATCH_GAP_MS);
+  /*
+   * A COUNTED GAME IS FINISHED. A row settled at 120 reads stayed "open" for
+   * as long as in-match reads kept coming under MATCH_GAP_MS, so a match whose
+   * review was never written (a 503, a thin match, a client that skips it)
+   * followed by a quick requeue rode on the last game: six matches were
+   * measured as one, and with caps enforced gate() let every read through.
+   * A settled row now also ends on a new match (row.newMatch, noteRead's
+   * score reset) or once COUNTED_ROW_MS has passed since it was claimed.
+   * A reserved row is untouched: it is still the game being played.
+   */
+  const ended = (row, at) => row.reviewed || (row.lastInMatch && at - row.lastInMatch > MATCH_GAP_MS)
+    || (row.status !== 'reserved' && (row.newMatch || at - row.claimedAt > COUNTED_ROW_MS));
+
+  /*
+   * THE SCORE GOING BACK TO THE START is the next match. Team plus enemy only
+   * climbs inside one match, so a counted row whose steady score (seen on two
+   * reads in a row, so one misread never sets it) reached NEW_MATCH_FROM and
+   * then reads NEW_MATCH_AT or less NEW_MATCH_READS times in a row is over.
+   */
+  function noteScore(row, score) {
+    // A score the reply did not read (null, missing) says nothing: never a 0.
+    const team = score && typeof score.team === 'number' ? score.team : NaN;
+    const enemy = score && typeof score.enemy === 'number' ? score.enemy : NaN;
+    if (!score || !Number.isFinite(team) || !Number.isFinite(enemy) || team < 0 || enemy < 0 || team + enemy > 60) return;
+    const sum = team + enemy;
+    if (row.status !== 'reserved' && row.topScore >= NEW_MATCH_FROM && sum <= NEW_MATCH_AT) {
+      row.resetReads = (row.resetReads || 0) + 1;
+      if (row.resetReads >= NEW_MATCH_READS) row.newMatch = true;
+    } else row.resetReads = 0;
+    if (typeof row.lastSum === 'number') row.topScore = Math.max(row.topScore || 0, Math.min(row.lastSum, sum));
+    row.lastSum = sum;
+  }
 
   /** account_state's games left, remembered ALLOW_MS, or null when it cannot be said. */
   async function leftOf(caller) {
@@ -134,7 +174,7 @@ function createMeter(deps = {}) {
     if (error) return null;
     const st = one(data);
     const left = st && typeof st.left === 'number' ? st.left : null;
-    allow.set(caller.accountKey, { at: now(), left });
+    put(allow, caller.accountKey, { at: now(), left });
     return left;
   }
 
@@ -175,7 +215,7 @@ function createMeter(deps = {}) {
       if (r && r.error) { quiet('open game')(r); open = true; } else open = !!(r && Array.isArray(r.data) && r.data.length);
     } catch { open = true; }   // any doubt lets the read through
     opens.set(k, { at: now(), open });
-    while (opens.size > 10000) opens.delete(opens.keys().next().value);
+    trimMap(opens);
     return open;
   }
   const capped = () => ({ ok: false, status: 402, body: { error: 'cap', left: 0 } });
@@ -212,7 +252,7 @@ function createMeter(deps = {}) {
     if (row.status === 'refunded') {
       const day = iso(now()).slice(0, 10);
       const m = refunds.get(row.accountKey);
-      refunds.set(row.accountKey, { day, n: m && m.day === day ? m.n + 1 : 1 });
+      put(refunds, row.accountKey, { day, n: m && m.day === day ? m.n + 1 : 1 });
     }
   }
 
@@ -253,11 +293,11 @@ function createMeter(deps = {}) {
       row.refused = true;
       row.refusedAt = now();
       counts.refused++;
-      allow.set(caller.accountKey, { at: now(), left: 0 });
+      put(allow, caller.accountKey, { at: now(), left: 0 });
       return;
     }
     row.usageId = g.usage_id;
-    allow.set(caller.accountKey, { at: now(), left: typeof g.left === 'number' ? g.left : null });
+    put(allow, caller.accountKey, { at: now(), left: typeof g.left === 'number' ? g.left : null });
     // A reused row (the same match after a restart) keeps what it already had.
     try {
       const r = await db().from('game_usage').select('match_reads,reads,status').eq('id', g.usage_id).maybeSingle();
@@ -281,7 +321,7 @@ function createMeter(deps = {}) {
    * match_reads, written in batches; 120 counts it. Never throws, and the
    * read's answer never waits for it.
    */
-  function noteRead(caller, { inMatch } = {}) {
+  function noteRead(caller, { inMatch, score } = {}) {
     if (!caller || !caller.userId || !live()) return Promise.resolve();
     return (async () => {
       const at = now();
@@ -289,6 +329,8 @@ function createMeter(deps = {}) {
       let row = rowOf(caller);
       // A refusal is asked again once the allowance would be (a purchase, a new month).
       if (row && row.refused && at - row.refusedAt >= ALLOW_MS) { rows.delete(key); row = null; }
+      // The score this reply read: a counted game whose score went back to the start is over.
+      if (inMatch && row && !row.refused) noteScore(row, score);
       if (inMatch && row && ended(row, at)) {
         // A new match: the last one is settled first, so claim_game never
         // hands the new match the last one's open row.
@@ -300,9 +342,11 @@ function createMeter(deps = {}) {
         if (!inMatch) return;
         row = { accountKey: caller.accountKey, userId: caller.userId, usageId: null, status: 'reserved',
           claimedAt: at, lastInMatch: 0, matchReads: 0, reads: 0, flushed: { matchReads: 0, reads: 0 },
-          lastFlush: 0, reviewed: false, refused: false, refusedAt: 0, claiming: null, claimFailedAt: 0 };
+          lastFlush: 0, reviewed: false, refused: false, refusedAt: 0, claiming: null, claimFailedAt: 0,
+          topScore: 0, lastSum: null, resetReads: 0, newMatch: false };
         rows.set(key, row);
         opens.delete(key);
+        noteScore(row, score);
       }
       if (row.refused) return;
       row.reads++;
@@ -404,7 +448,7 @@ function createMeter(deps = {}) {
   }
 
   return { gate, noteRead, reviewGate, reviewDone, sweep, start, ensure, rpc, leftOf, rowKey,
-    rows, allow, opens, counts, _endShort: endShort, _flush: flush };
+    rows, allow, opens, ensured, refunds, trim, counts, _endShort: endShort, _flush: flush };
 }
 
 const meter = createMeter();

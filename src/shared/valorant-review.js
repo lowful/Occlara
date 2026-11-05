@@ -269,16 +269,34 @@ const QUEUE_LABELS = {
   spikerush: 'Spike Rush', deathmatch: 'Deathmatch', hurm: 'Team Deathmatch', teamdeathmatch: 'Team Deathmatch',
   ggteam: 'Escalation', escalation: 'Escalation', onefa: 'Replication', replication: 'Replication',
   newmap: 'New Map', snowball: 'Snowball Fight', snowballfight: 'Snowball Fight', custom: 'Custom', customgame: 'Custom',
+  skirmish: 'Skirmish', retake: 'Retake', knockout: 'Knockout', gauntlet: 'Gauntlet', allrandom: 'All Random', ar1s: 'AR1S',
 };
+/*
+ * A QUEUE RIOT NAMES IS NEVER "STANDARD" (stale F1). A linked Skirmish 2v2,
+ * Retake or Knockout match fell back to the screen's 'standard' and was
+ * reviewed as "Standard" with halftime at 12, and counted in the breakdown
+ * with real matches. A queue this table does not know is named in its own
+ * words, which the breakdown's list of graded queues leaves out.
+ */
 function queueLabel(queue) {
-  return QUEUE_LABELS[String(queue || '').toLowerCase().replace(/[^a-z]/g, '')] || null;
+  const raw = String(queue || '').trim();
+  if (!raw) return null;
+  const letters = raw.toLowerCase().replace(/[^a-z]/g, '');
+  const known = QUEUE_LABELS[letters] || QUEUE_LABELS[raw.toLowerCase().replace(/[^a-z0-9]/g, '')];
+  if (known) return known;
+  const words = raw.replace(/[_-]+/g, ' ').replace(/[^A-Za-z0-9: ]/g, '').replace(/\s+/g, ' ').trim().slice(0, 32);
+  return words ? words.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : null;
 }
 /** The halftime rule a queue plays by: 'swiftplay', 'standard', 'spikerush' or null. */
 function queueHalves(queue) {
   const q = String(queue || '').toLowerCase().replace(/[^a-z]/g, '');
   if (/swift/.test(q)) return 'swiftplay';
   if (/spikerush/.test(q)) return 'spikerush';
-  if (/competitive|unrated|premier|custom|newmap/.test(q)) return 'standard';
+  // Replication is first to five, halves of four.
+  if (/^(onefa|replication)$/.test(q)) return 'swiftplay';
+  // A New Map queue plays whichever format its patch says (Summit Only is
+  // Swiftplay's), so its halftime is left to the screen and the round count.
+  if (/competitive|unrated|premier|custom/.test(q)) return 'standard';
   return null;
 }
 
@@ -727,7 +745,8 @@ function build(input) {
     agent: (tracker && tracker.agent) || ctx.agent || null,
     map: mapName,
     mode: queueLabel(input.queue)
-      || (ctx.gameMode === 'swiftplay' ? 'Swiftplay' : ctx.gameMode === 'standard' ? 'Standard' : null),
+      || (ctx.gameMode === 'swiftplay' ? 'Swiftplay' : ctx.gameMode === 'spikerush' ? 'Spike Rush'
+        : ctx.gameMode === 'standard' ? 'Standard' : null),
     result,
     score,
   };
@@ -752,7 +771,11 @@ function build(input) {
       decided: decided.length,
       survival: seen.length ? pct(seen.length - deaths, seen.length) : null,
     },
-    halftimeAfter: halftimeAfter(queueHalves(input.queue) || ctx.gameMode, rounds),
+    // A queue Riot named whose halves are not known (Skirmish, Retake) never
+    // takes the screen's 'standard' 12: only a New Map queue, whose format
+    // varies by patch, leaves it to the screen.
+    halftimeAfter: halftimeAfter(queueHalves(input.queue)
+      || (!queueLabel(input.queue) || queueLabel(input.queue) === 'New Map' ? ctx.gameMode : null), rounds),
     // Whether Riot's record has been applied, and what it changed. The window
     // says so, because a review that quietly changed its numbers reads as one
     // that cannot make up its mind.

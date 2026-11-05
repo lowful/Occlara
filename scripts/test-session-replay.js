@@ -409,19 +409,23 @@ function againstRiot(rounds, truth) {
     // THE DEATHS. Rounds 2, 5 and 6 register on the first frame of their death
     // screens, "KILLED BY <agent> and COMBAT REPORT", and round 3's weak tell
     // at 264.3 s is withdrawn by the read after it, the player's own 89 health
-    // and knife. Round 1's at 74.8 s is the model's: the WON banner forming at
+    // and knife. Round 1's at 74.8 s was the model's: the WON banner forming at
     // 0:06 over a living player, read as the read prompt's own example
     // sentence ("Spectating, teammate's portrait and name above SWITCH
-    // PLAYER"). The replies are fixed, so it stays here; the read prompt's fix
-    // is what takes it away, and Riot's record takes it off the review.
+    // PLAYER"). Since read-6 the engine refuses it on its clock: "active 1:06"
+    // one second before, so a clock that fell sixty seconds in one is the
+    // round end countdown, and the dead reads after it, up to the buy phase,
+    // are the round that ended (coaching-engine.js, THE ROUND END COUNTDOWN).
     const at = (t) => run.logged.find((x) => x.t === t);
-    ok(run.deaths.join() === '74.8,143.1,264.3,415.2,475.4' && at(264.3) && at(264.3).died === false,
-      `deaths register at 74.8, 143.1, 415.2 and 475.4 s, and at 264.3 s on a weak tell the next read withdraws (${run.deaths.join(', ')} s)`);
+    ok(run.deaths.join() === '143.1,264.3,415.2,475.4' && at(264.3) && at(264.3).died === false,
+      `deaths register at 143.1, 415.2 and 475.4 s, and at 264.3 s on a weak tell the next read withdraws (${run.deaths.join(', ')} s)`);
+    ok(lines.some((l) => /dead read on the round end countdown: the clock fell from 66 s to 6 s/.test(l)),
+      'and round 1\'s "dead 0:06" a second after "active 1:06" is no death, and the log says why');
     const truth = {};
     for (const [n, r] of Object.entries(RIOT)) if (r.died !== undefined) truth[n] = r.died;
     const vs = againstRiot(rounds, truth);
-    ok(vs.agree === 3 && vs.missed === 0 && vs.invented === 1 && rounds[0].died,
-      `against Riot: rounds 2, 5 and 6 agree, and round 1's is the prompt's invention (${JSON.stringify(vs)})`);
+    ok(vs.agree === 3 && vs.missed === 0 && vs.invented === 0 && !rounds[0].died,
+      `against Riot: rounds 2, 5 and 6 agree, and round 1 has no death, as Riot has it (${JSON.stringify(vs)})`);
     // A RETURN FROM THE DEAD, ONE READ LONG. 34 s after round 6's death, at
     // 509.9 s, a frame showing SWITCH PLAYER and the COMBAT REPORT read "own HP
     // 50 and Sheriff", and the next, at 511.7 s, SWITCH PLAYER again: believed,
@@ -533,7 +537,8 @@ function againstRiot(rounds, truth) {
     const run = replay('valorant-session-abyss-unrated.json');
     const vs = againstRiot(run.e.ledger.list(), truth);
     // At a read every ten seconds the screen has round 17 from a spectator
-    // frame and loses round 8 to a misread score; everything else agrees.
+    // frame and loses round 9 to a misread score (4-5 read twice in its buy
+    // phase, where the score was 4-4); everything else agrees.
     ok(vs.agree >= 20 && vs.invented <= 1 && vs.missed <= 1, `deaths round by round against Riot (${JSON.stringify(vs)})`);
     ok(vs.timed >= 12 && vs.close >= 7, `with the death second for more of them (${vs.timed} timed, ${vs.close} within ten seconds)`);
     // The round 10 buy phase's last frame read its kill feed as "killed by
@@ -543,6 +548,15 @@ function againstRiot(rounds, truth) {
     // seconds later. Riot has the death fifteen seconds in, the screen's next.
     ok(!run.deaths.includes(939.1) && run.deaths.includes(957.1),
       `a dead read in the buy phase is no first read of two (deaths at ${run.deaths.filter((t) => t > 900 && t < 1000).join(', ')} s)`);
+    // A SCORE NEVER CHANGES IN THE MIDDLE OF A ROUND (read-2). At 689 s "buy
+    // 0:08" at 3-4, then "active 1:39" and "active 1:30" both read 3-5: the
+    // step was taken in the first seconds of round 8, which lost its death
+    // (Riot: 17 s in) and was filed lost (Riot: won). Held until the round
+    // could be over, round 8 keeps its death and claims no result it was not shown.
+    const r8 = run.e.ledger.list().find((r) => r.n === 8);
+    ok(r8 && r8.died && r8.result !== 'lost',
+      `round 8 keeps the death Riot has in it and is not filed lost (${r8 && `${r8.died ? 'died' : 'no death'}, ${r8.result}`})`);
+    ok(run.lines.some((l) => /score step to 3-5 held/.test(l)), 'and the log says the step read mid round was held');
     run.restore();
   }
 

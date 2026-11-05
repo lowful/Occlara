@@ -198,6 +198,15 @@ const reviewBody = { rounds: ROUNDS, context: { agent: 'Jett', map: 'Abyss' } };
     const r = await call(coach, 'POST', '/match-review', { headers: H, body: { tips: ['one', 'two'] } });
     ok(r.status === 200 && r.body.review === null, 'too few tips is review null, not "Not enough data for a review."');
   }
+  {
+    // S3: thirty tips of 60,000 characters each went to the model whole,
+    // 1.8M characters a call. Each tip is now clipped as /summary's are (160).
+    let sent = 0;
+    ai.next = (body) => { sent = JSON.stringify(body.messages).length; return { status: 200, content: 'Keep trading. You peeked alone. Next match, trade.' }; };
+    const big = Array.from({ length: 30 }, (_, i) => `${i} ${'x'.repeat(60000)}`);
+    const r = await call(coach, 'POST', '/match-review', { headers: H, body: { tips: big, notes: big } });
+    ok(r.status === 200 && sent > 0 && sent < 20000, `a tips review sends each tip clipped, never 1.8M characters (${sent} sent)`);
+  }
   ai.next = () => ({ status: 500, text: 'upstream exploded' });
   {
     const r = await call(coach, 'POST', '/match-review', { headers: H, body: { tips: ['a tip', 'b tip', 'c tip'] } });

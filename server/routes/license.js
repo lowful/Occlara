@@ -149,21 +149,41 @@ router.post('/activate', async (req, res) => {
     return res.json({ valid: false, status: license.status, error: `License status: ${license.status}` });
 
   // Device lock check
-  if (license.device_id && license.device_id !== device_id) {
-    return res.json({
-      valid: false, status: 'device_mismatch', reason: 'device_mismatch',
-      error: 'This key is already activated on another device. Deactivate it first from your account dashboard.',
-    });
-  }
+  const mismatch = () => res.json({
+    valid: false, status: 'device_mismatch', reason: 'device_mismatch',
+    error: 'This key is already activated on another device. Deactivate it first from your account dashboard.',
+  });
+  if (license.device_id && license.device_id !== device_id) return mismatch();
 
-  // First activation, lock to this device
+  /*
+   * FIRST ACTIVATION, LOCK TO THIS DEVICE (S8). The write's error was never
+   * read, so a refused write answered valid: true with nothing locked, and
+   * two PCs activating one unbound key at once both read device_id null and
+   * were both told valid. Now the write binds only a key still unbound
+   * (.is('device_id', null)), a refused write is 503 to retry, and a write
+   * that changed nothing means another activation bound it first: valid only
+   * if that was this same PC.
+   */
   if (!license.device_id) {
-    await supabase
+    const { data: bound, error: writeErr } = await supabase
       .from('licenses')
       .update({ device_id, device_name: device_name || 'Unknown Device' })
-      .eq('license_key', cleanKey);
-    // The licence by its id, never its key: Railway's logs are not where keys belong.
-    console.log(`[license] Activated licence ${license.id} on "${device_name}"`);
+      .eq('license_key', cleanKey)
+      .is('device_id', null)
+      .select('id');
+    if (writeErr) {
+      console.error('[license] activate lock write failed:', writeErr.code || writeErr.message);
+      return res.status(503).json(UNAVAILABLE);
+    }
+    if (!Array.isArray(bound) || !bound.length) {
+      const { data: now, error: againErr } = await licenceByKey(cleanKey);
+      if (againErr && !notFound(againErr)) return res.status(503).json(UNAVAILABLE);
+      if (!now || now.device_id !== device_id) return mismatch();
+    } else {
+      // The licence by its id, never its key, and never the PC's name, which is
+      // often its owner's own (S10): Railway's logs are not where either belongs.
+      console.log(`[license] Activated licence ${license.id}`);
+    }
   }
 
   res.json({

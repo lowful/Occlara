@@ -1091,7 +1091,7 @@ async function openShell(cfg, state, opts) {
     const a = await paintOf(valorantReview.served(fresh));
     ok(same(a.heads, ["What Riot's record shows"]) && a.facts === fresh.insights.facts.length && a.facts >= 6,
       'one list headed "What Riot\'s record shows", an item for every fact', JSON.stringify(a.heads));
-    ok(!a.fixes && !a.verdicts && a.titles.includes('Deaths not traded within five seconds')
+    ok(!a.fixes && !a.verdicts && a.titles.includes('Deaths not traded, a teammate alive to trade')
       && !a.titles.includes('Died where nobody could trade'), 'with no fix line, no verdict colour and no verdict for a title',
     a.titles.join(' | '));
     ok(!a.patterns.some((t) => /killed you/.test(t)) && a.titles.includes('Deaths to Skye'),

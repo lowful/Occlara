@@ -121,7 +121,7 @@ section h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-botto
 .res.win  { color: var(--good); }
 .res.loss { color: var(--bad); }
 
-/* Match MVP in the ink, Team MVP dim: the word says which. */
+/* Top score (the winning team's) in the ink, Team top score dim: the word says which. */
 .mvp { font-size: 12px; font-weight: 500; white-space: nowrap; }
 .mvp.match { color: var(--text); }
 .mvp.team  { color: var(--text-dim); }

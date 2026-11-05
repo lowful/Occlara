@@ -275,5 +275,15 @@ onAccount, openUpgrade), `shell-preload.js` (openInvite, getAccount,
 onAccount) and `invite-preload.js` for the Invite page (getReferral,
 copyLink, getAccount, onAccount, openUpgrade, go, and the page motion). The
 Invite page is the page id `invite`, opened with `SHELL_NAV`; its entry in
-`src/shared/shell-nav.js` PAGES names `invite-preload.js`. `CONFIG_SET` never
-writes a key that begins with `account`: the sign in is main's alone.
+`src/shared/shell-nav.js` PAGES names `invite-preload.js`. `CONFIG_SET` writes
+only the keys on `src/main/ipc/config-keys.js` RULES, each with a value it can
+hold (since 8.7.2; it used to refuse only keys beginning with `account`, so a
+page could set the licence fields `isLocallyValid` reads). A setting a page
+newly writes goes on that list, or it is silently dropped (`test:configset`
+holds every key a renderer writes to it). The sign in is main's alone.
+
+Every webContents is held to our own files (`windows/web-guard.js`, wired by
+`app.on('web-contents-created')` in index.js, `test:webguard`): a navigation or
+redirect anywhere but `src/renderer` is refused, and no page opens a window or a
+webview. A link out of the app goes through main with a URL main holds
+(`shell.openExternal`), never a page's `target=_blank` or `window.open`.

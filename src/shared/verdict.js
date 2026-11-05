@@ -45,10 +45,25 @@ const RESULT = new Map([['Victory', 'Win'], ['Defeat', 'Loss'], ['Draw', 'Draw']
 const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
 
 /** Short lines for the Valorant entries insights.js makes, by key; any other falls to its title. */
+/*
+ * SINCE 8.7.2 a traded death leaves the first death and the advantage counts,
+ * and a death as the last one alive leaves the untraded one (insights.js,
+ * untradedOnly). Their lines say so, and the untraded line's denominator is
+ * the entry's own (of): read off the cards it was every death Riot knows the
+ * trade of, and a 13 of 16 untraded match said "8 of your 16 deaths". A count
+ * saved before keeps the line it was made for.
+ */
+const newCount = (e) => e.untradedOnly === true || /\bnobody traded it\b/.test(String(e.detail || ''));
 const LINES = {
-  'first-death': (e, t) => (t.verifiedRounds ? `First to die in ${e.count} of ${t.verifiedRounds} rounds.` : `First to die in ${plural(e.count, 'round')}.`),
-  'lost-advantage': (e) => `Died with the team up in numbers in ${plural(e.count, 'lost round')}.`,
-  untraded: (e, t) => (t.tradeKnown ? `${e.count} of your ${plural(t.tradeKnown, 'death')} went untraded.` : `${e.count} of your deaths went untraded.`),
+  'first-death': (e, t) => {
+    const what = newCount(e) ? 'First to die and not traded' : 'First to die';
+    return t.verifiedRounds ? `${what} in ${e.count} of ${t.verifiedRounds} rounds.` : `${what} in ${plural(e.count, 'round')}.`;
+  },
+  'lost-advantage': (e) => `Died${newCount(e) ? ' untraded' : ''} with the team up in numbers in ${plural(e.count, 'lost round')}.`,
+  untraded: (e, t) => {
+    const of = num(e.of) !== null && e.of >= e.count ? e.of : t.tradeKnown;
+    return of ? `${e.count} of your ${plural(of, 'death')} went untraded.` : `${e.count} of your deaths went untraded.`;
+  },
   early: (e, t) => (t.deaths ? `${e.count} of ${plural(t.deaths, 'death')} in the first 30 seconds.` : `${plural(e.count, 'death')} in the first 30 seconds.`),
   'ult-held': (e) => `Died holding the ultimate in ${plural(e.count, 'round')}.`,
   'first-kill': (e) => `First kill of the round ${times(e.count)}.`,

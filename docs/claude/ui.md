@@ -60,7 +60,7 @@ requires from `patterns.js` and re-exports, and index.js reads as
 (result, score, date, agent, map, mode, grade) with its moments in round
 order. A DEATH is every round card with `died`: its title the look's cause
 from the closed list in the singular (`death-causes.js causeTitle`), else
-"Killed by <agent> with a <gun>" from Riot's record, else "Died"; its line what
+"Killed by <agent> with a <gun>" from Riot's record ("an" before a vowel, "with an Operator", since 8.7.2), else "Died"; its line what
 the look saw, else where and what Riot says (first to die, nobody traded it,
 after the plant); its time Riot's `sec` into the round; its marks every
 counted mistake of its review whose rounds hold it (`insights.mistakes`),
@@ -73,6 +73,9 @@ alone: three or more kills (five an ace), a clutch Riot records as won, and
 the first kill in two or more rounds running (one entry on the streak's first
 round); its times are the player's kills off Riot's kill feed. The
 COMPILATION groups every death in a round a pattern counts by the pattern,
+over the pattern's own window only (8.7.2: the last `WINDOW` recorded
+matches, where 14 saved said "280 deaths over 14 matches" beside a pattern
+of 10 of 10),
 most deaths first: title, fix, deaths, matches, clips, the line "20 deaths
 over 4 matches, 3 clips kept", and its items by key. `clipsNote` is the one
 reason no clip at all was kept ('off', 'space', 'cleared', 'nolook'), its

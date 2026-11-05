@@ -146,6 +146,21 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   answers, goes with it (`leansOn`, gate `leans`), never retried. On the
   replay: the four wrong facts gone, drops 59 to 63, no answer's retry or
   honest line changed.
+- **Whose a first death, a first kill, a trade and a plant is (8.7.2, the
+  review audit)**. Riot's firstDeath and firstKill are the player's, so the
+  standing gate holds one to them only when the sentence says it is the
+  player's (`firstOwner`, read as `clutchOwner` reads a clutch): "your Sova
+  died first", "their Jett got the first kill on your Sova" and "the enemy
+  Jett opened the round by killing your Sova", true of a round where the
+  player had neither, were dropped; an enemy's first kill on the player ("on
+  you", "by killing you") is held to the player's first death. And a
+  teammate trading or avenging the player ("your Sova traded your death", "a
+  teammate avenged you", `MATE_TRADED_YOU`) and the player planting ("you
+  planted the spike", `YOU_PLANTED`) were kept on a round Riot has untraded
+  and with no plant: both drop now, never under a negation. And the 2026
+  modes and headline stats (Skirmish, Retake, Knockout, Gauntlet, Performance
+  Score, Map Rating, Accolades, Mastery) are game words to `name-gate.js`,
+  never a name (each pinned in test:chatgates).
 - **What an independent probe of the gates found, 15 Oct** (each pinned in
   test:chatgates, each pin failing with its rule reverted). Passed: "Neon is
   better than Jett right now", "Jett is S tier", "the highest win rate on

@@ -38,7 +38,7 @@ const { deathClip, CLIP_RE } = require('./clips');
 // How many matches the page reads: THE PATTERNS' OWN WINDOW, one and the same
 // (re-exported below, and main reads it through here), so the compilation
 // and its `across` marks count over exactly the matches the Patterns page does.
-const { LOOK_BACK } = require('./patterns');
+const { LOOK_BACK, WINDOW } = require('./patterns');
 
 // A highlight needs this many kills in one round (2K, 3K, 4K or 5K); five is an ace.
 const MULTI_KILLS = 2;
@@ -106,6 +106,13 @@ function mistakesAt(review, n) {
     .map((e) => ({ key: e.key, title: e.title }));
 }
 
+/**
+ * "an Operator", "a Vandal": a gun that starts with a vowel takes "an", the
+ * rule valorant-review.js withArticle keeps for the round card (moments.js
+ * does not require it). The title said "with a Operator" before.
+ */
+const withArticle = (w) => `${/^[aeiou]/i.test(String(w)) ? 'an' : 'a'} ${w}`;
+
 /** A Valorant review's deaths, one entry per round the player died in. */
 function valorantDeaths(saved, have, io, patternKeys) {
   const { id, review } = saved;
@@ -119,7 +126,7 @@ function valorantDeaths(saved, have, io, patternKeys) {
     // The title: the look's cause, else Riot's facts, else the screen's.
     let title;
     if (spoke) title = causeTitle(cause, 1);
-    else if (riot && riot.killer) title = `Killed by ${riot.killer}${riot.weapon ? ` with a ${riot.weapon}` : ''}`;
+    else if (riot && riot.killer) title = `Killed by ${riot.killer}${riot.weapon ? ` with ${withArticle(riot.weapon)}` : ''}`;
     else title = 'Died';
     // One plain line: what the look saw, else where and when.
     const where = [];
@@ -269,12 +276,16 @@ function build(game, saved, opts) {
   }
 
   // THE COMPILATION: every death in a round a pattern across matches counts,
-  // grouped by the pattern, most deaths first.
+  // grouped by the pattern, most deaths first, over THE PATTERN'S OWN WINDOW,
+  // the last WINDOW recorded matches (patterns.js summarise): with 14 saved it
+  // said "280 deaths over 14 matches" beside a pattern of 10 of 10.
+  const windowIds = new Set(all.filter((s) => s.review.source !== 'riot').slice(0, WINDOW).map((s) => s.id));
   const compilation = [];
   for (const p of patternList) {
     const items = [];
     const seen = new Set();
     for (const m of matches) {
+      if (!windowIds.has(m.id)) continue;
       for (const x of m.moments) {
         if (x.kind !== 'death' || !x.repeats.some((r) => r.key === p.key)) continue;
         items.push(x);

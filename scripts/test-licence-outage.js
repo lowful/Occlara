@@ -44,7 +44,9 @@ const ok = (cond, what) => {
 
 // ── A fake Supabase whose outage can be switched on ─────────────────────────
 const OUTAGE = { data: null, error: { code: '', message: 'TypeError: fetch failed', details: '', hint: '' } };
-const db = { rows: [], outage: false, queries: 0 };
+// failWrites: an update answers an error. beforeWrite: runs just before an
+// update is matched, as another request writing between a read and a write.
+const db = { rows: [], outage: false, queries: 0, failWrites: false, beforeWrite: null };
 function query() {
   const q = { filters: [], patch: null };
   const match = () => db.rows.filter((r) => q.filters.every(([c, v]) => r[c] === v));
@@ -52,6 +54,7 @@ function query() {
     select: () => api,
     update: (p) => { q.patch = p; return api; },
     eq: (c, v) => { q.filters.push([c, v]); return api; },
+    is: (c, v) => { q.filters.push([c, v]); return api; },
     order: () => api,
     limit: () => api,
     abortSignal: () => api,
@@ -65,6 +68,8 @@ function query() {
     then: (res, rej) => {
       db.queries++;
       if (db.outage) return Promise.resolve(OUTAGE).then(res, rej);
+      if (q.patch && db.failWrites) return Promise.resolve({ data: null, error: { code: '57014', message: 'canceling statement' } }).then(res, rej);
+      if (q.patch && db.beforeWrite) { const f = db.beforeWrite; db.beforeWrite = null; f(); }
       const hit = match();
       if (q.patch) for (const r of hit) Object.assign(r, q.patch);
       return Promise.resolve({ data: hit, error: null }).then(res, rej);
@@ -143,6 +148,37 @@ const ACTIVE = { id: 'lic_1', license_key: KEY, plan: 'monthly', status: 'active
     db.rows = [{ ...ACTIVE, status: 'cancelled' }];
     const r = await call(licenseRouter, 'POST', '/activate', { body: { key: KEY, device_id: 'dev-1' } });
     ok(r.body.valid === false && r.body.status === 'cancelled', 'a cancelled licence is still refused, explicitly');
+    db.rows = [{ ...ACTIVE }];
+  }
+  // ── S8: the device lock write is checked, and binds only an unbound key ──
+  {
+    const logs = [];
+    const realLog = console.log;
+    console.log = (...a) => { logs.push(a.join(' ')); };
+    let r;
+    try {
+      db.rows = [{ ...ACTIVE, device_id: null, device_name: null }];
+      r = await call(licenseRouter, 'POST', '/activate', { body: { key: KEY, device_id: 'dev-9', device_name: 'Alice Smith Desktop' } });
+    } finally { console.log = realLog; }
+    ok(r.status === 200 && r.body.valid === true && db.rows[0].device_id === 'dev-9',
+      'a first activation binds its PC');
+    ok(!logs.some((l) => l.includes('Alice Smith')), `and the PC's name, often its owner's, never reaches the log (S10: ${JSON.stringify(logs)})`);
+    db.rows = [{ ...ACTIVE, device_id: null, device_name: null }];
+    db.failWrites = true;
+    const failed = await call(licenseRouter, 'POST', '/activate', { body: { key: KEY, device_id: 'dev-9', device_name: 'PC' } });
+    db.failWrites = false;
+    ok(failed.status === 503 && !('valid' in failed.body) && db.rows[0].device_id === null,
+      `a lock write the database refused is 503 to retry, never valid with nothing locked (${failed.status} ${JSON.stringify(failed.body)})`);
+    // Two PCs activating one unbound key at once: the other wrote first.
+    db.rows = [{ ...ACTIVE, device_id: null, device_name: null }];
+    db.beforeWrite = () => { db.rows[0].device_id = 'dev-other'; };
+    const raced = await call(licenseRouter, 'POST', '/activate', { body: { key: KEY, device_id: 'dev-9', device_name: 'PC' } });
+    ok(raced.body.valid === false && raced.body.status === 'device_mismatch' && db.rows[0].device_id === 'dev-other',
+      `two PCs activating an unbound key at once: the second is told device_mismatch, never valid (${JSON.stringify(raced.body)})`);
+    db.rows = [{ ...ACTIVE, device_id: null, device_name: null }];
+    db.beforeWrite = () => { db.rows[0].device_id = 'dev-9'; };
+    const same = await call(licenseRouter, 'POST', '/activate', { body: { key: KEY, device_id: 'dev-9', device_name: 'PC' } });
+    ok(same.body.valid === true, 'and the same PC activating twice at once is valid both times');
     db.rows = [{ ...ACTIVE }];
   }
 
