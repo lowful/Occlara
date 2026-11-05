@@ -589,7 +589,9 @@ async function bought(n, over = {}) {
         && new RegExp(`REVOKE ALL ON FUNCTION public\\.${f}\\([^)]*\\) FROM PUBLIC, anon, authenticated;`).test(sql)),
       'each is the service role\'s only');
       const rls = sql.indexOf('ALTER TABLE public.gifts ENABLE ROW LEVEL SECURITY');
-      ok(rls > 0 && rls < sql.indexOf('GRANT ALL ON public.gifts TO service_role'), 'RLS is on before any grant');
+      // Lovable's rule: a table's grants come before its RLS statement.
+      const grantAt = sql.indexOf('GRANT ALL ON public.gifts TO service_role');
+      ok(rls > 0 && grantAt > 0 && grantAt < rls, 'grants come before RLS');
       ok(!/REFERENCES\s+auth\.users/i.test(sql), 'no foreign key to auth.users');
       ok(/CREATE TABLE IF NOT EXISTS public\.gifts/.test(sql) && /CREATE TABLE IF NOT EXISTS public\.gift_accounts/.test(sql)
         && /DROP CONSTRAINT IF EXISTS entitlements_source_check/.test(sql), 'safe to run twice');
