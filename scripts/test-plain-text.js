@@ -40,6 +40,9 @@ ok(a.noSemicolons(null) === null && a.noSemicolons(7) === 7, 'a value that is no
 const deep = a.scrubText({ focus: 'a; b', rounds: [{ text: 'c; d' }], url: 'https://occlara.app/x;y', clip: 'occlara-clip://r/a;b', n: 3 });
 ok(deep.focus === 'a. B' && deep.rounds[0].text === 'c. D' && deep.n === 3, 'scrubText cleans every string, deep, and keeps numbers');
 ok(deep.url.includes(SEMI) && deep.clip.includes(SEMI), 'a link is left as it is');
+// A kept frame reaches the review page as a data URL; scrubbed, it was a broken image.
+const frameUrl = 'data:image/jpeg;base64,ZnJhbWU=';
+ok(a.scrubText({ frame: frameUrl }).frame === frameUrl && b.scrubText({ frame: frameUrl }).frame === frameUrl, 'a data URL is left as it is');
 ok(JSON.stringify(b.scrubText({ x: ['p; q'] })) === JSON.stringify(a.scrubText({ x: ['p; q'] })), 'the two copies scrub alike');
 
 // The two files are one rule: the code, apart from its comments, is the same.
