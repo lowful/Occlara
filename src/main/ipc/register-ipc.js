@@ -7,6 +7,7 @@ const { capGB } = require('../../shared/clips');
 const { UPGRADE_URL, ACCOUNT_URL } = require('../../shared/usage');
 const { pageWritable } = require('./config-keys');
 const store = require('../services/store');
+const advancedCoaching = require('../services/advanced-coaching');
 const updater = require('../updater');
 const pcCheck = require('../services/pc-check');
 const { resOf } = require('../services/recorder');
@@ -23,10 +24,11 @@ const { resOf } = require('../services/recorder');
  *   profile:    { get(), buy(n), plans() } (8.8, index.js)
  *   community:  { openDiscord(url), refresh() } (community.js, built in index.js)
  *   changelog:  { notice(), seen(version) } (Home's update line, index.js)
+ *   feedback:   { info(), prepare(file), drop(token), send(report) } (services/feedback-service.js, built in index.js)
  * }
  */
 function registerIpc(deps) {
-  const { controller, license, account, profile, community, changelog } = deps;
+  const { controller, license, account, profile, community, changelog, feedback } = deps;
 
   // ── the account (8.7) ─────────────────────────────────────────────────────
   if (account) {
@@ -57,6 +59,14 @@ function registerIpc(deps) {
   if (community) {
     safeHandle(C.DISCORD_OPEN, async (_e, url) => community.openDiscord(url));
     safeHandle(C.CHANGELOG_REFRESH, async () => community.refresh());
+  }
+  // ── Report a problem (docs/claude/feedback.md) ────────────────────────────
+  // Every one refused mid match or sealed (feedback-service.js busy()).
+  if (feedback) {
+    safeHandle(C.FEEDBACK_INFO, async () => feedback.info());
+    safeHandle(C.FEEDBACK_PREPARE, async (_e, file) => feedback.prepare(file));
+    safeHandle(C.FEEDBACK_DROP, async (_e, token) => feedback.drop(token));
+    safeHandle(C.FEEDBACK_SEND, async (_e, report) => feedback.send(report));
   }
   if (changelog) {
     safeHandle(C.CHANGELOG_NOTICE, async () => changelog.notice());
@@ -161,7 +171,7 @@ function snapshotConfig() {
   const stats = store.get('playerStats');
   return {
     captureSpeed:    store.get('captureSpeed') || 'auto',
-    advancedTips:    store.get('advancedTips') === true,
+    advancedTips:    advancedCoaching.on(store),   // on when unset (8.8)
     riotId:          store.get('riotId'),
     playerStats:     stats && stats._riotId === (store.get('riotId') || '').trim() ? stats : null,
     // The last Riot ID shown to exist: by a profile, by Riot saying it has no

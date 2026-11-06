@@ -209,11 +209,18 @@ setTimeout(async () => {
       const inv = document.getElementById('nav-invite').getBoundingClientRect();
       const pro = document.getElementById('nav-profile').getBoundingClientRect();
       const set = document.getElementById('nav-settings').getBoundingClientRect();
+      // Report a problem (docs/claude/feedback.md): at the end of Profile's
+      // row, in the Discord's column, directly above it.
+      const rep = document.getElementById('nav-feedback').getBoundingClientRect();
+      const dc = document.getElementById('discord').getBoundingClientRect();
       return { kids: kids.join(), text: document.getElementById('nav-invite').textContent.trim(), profile: document.getElementById('nav-profile').textContent.trim(),
-        gap: Math.round(pro.top - inv.bottom), gap2: Math.round(set.top - pro.bottom), sameX: inv.left === set.left && pro.left === set.left };
+        gap: Math.round(pro.top - inv.bottom), gap2: Math.round(set.top - pro.bottom), sameX: inv.left === set.left && pro.left === set.left,
+        report: { row: Math.round(rep.top) === Math.round(pro.top), right: rep.left >= pro.right, aboveDiscord: Math.round(rep.left) === Math.round(dc.left)
+          && Math.round(rep.width) === Math.round(dc.width) && dc.top >= rep.bottom && dc.top - rep.bottom <= 4 } };
     })()`);
     lines.push(`sidebar foot: ${JSON.stringify(footer)}`);
-    if (!footer.kids.startsWith('invite,profile,settings') || footer.text !== 'Invite' || footer.profile !== 'Profile'
+    if (!footer.kids.startsWith('invite,profile,feedback,settings') || footer.text !== 'Invite' || footer.profile !== 'Profile'
+      || !footer.report.row || !footer.report.right || !footer.report.aboveDiscord
       || footer.gap < 0 || footer.gap > 4 || footer.gap2 < 0 || footer.gap2 > 4 || !footer.sameX) {
       return report(false, `the Invite and Profile buttons are not directly above Settings in the sidebar's foot: ${JSON.stringify(footer)}`);
     }    // THE RECORD CARD IS ITS TWO BUTTONS (8.3), measured on the real layout:
@@ -681,6 +688,43 @@ setTimeout(async () => {
       return report(false, `the Invite page does not show main's link, line and how: ${JSON.stringify(invitePage)} marked ${inviteMark}`);
     }
     await shot('invite', mainWindow, win);
+
+    // REPORT A PROBLEM (docs/claude/feedback.md), from its icon at the end of
+    // Profile's row above the Discord: main's note of what is sent, the last
+    // review offered by its line, and a picture taken the page's own way
+    // (main downscales and recompresses it). Nothing is sent.
+    await sjs("document.getElementById('nav-feedback').click(); true");
+    if (!await until(settled('feedback'), 4000)) return report(false, 'the Report a problem icon did not bring its page in');
+    const fjs = (s) => mainWindow.pageViews().get('feedback').webContents.executeJavaScript(s);
+    const feedbackPage = await until(() => fjs(`(() => {
+      const what = document.getElementById('fb-what').textContent;
+      if (!what) return null;
+      return { what, review: document.getElementById('fb-review-sec').hidden ? null : document.getElementById('fb-review-line').textContent,
+        facts: document.getElementById('fb-facts').textContent, send: document.getElementById('fb-send').disabled };
+    })()`), 4000);
+    const feedbackMark = await sjs("(() => { const b = document.querySelector('.foot [aria-current=page]'); return b ? b.id : null; })()");
+    lines.push(`report a problem page: ${JSON.stringify(feedbackPage)} | marked ${feedbackMark}`);
+    if (!feedbackPage || !feedbackPage.review || !feedbackPage.facts.startsWith('Occlara ') || !feedbackPage.send || feedbackMark !== 'nav-feedback') {
+      return report(false, `the Report a problem page did not paint main's note and last review: ${JSON.stringify(feedbackPage)} marked ${feedbackMark}`);
+    }
+    await shot('feedback', mainWindow, win);
+    const withPicture = await fjs(`(async () => {
+      document.getElementById('fb-text').value = 'After my match on Abyss the review stayed on Building for ten minutes and never opened. The Matches page showed it greyed out.';
+      document.getElementById('fb-text').dispatchEvent(new Event('input'));
+      const c = document.createElement('canvas'); c.width = 2400; c.height = 1350;
+      const g = c.getContext('2d'); g.fillStyle = '#16181d'; g.fillRect(0, 0, 2400, 1350); g.fillStyle = '#2a2d35'; g.fillRect(160, 160, 1400, 120); g.fillRect(160, 360, 900, 80);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      await addFiles([new File([blob], 'review.png', { type: 'image/png' })]);
+      return { pictures: document.querySelectorAll('#fb-pics img').length, send: !document.getElementById('fb-send').disabled, said: document.getElementById('fb-pic-said').textContent,
+        signedOut: !document.getElementById('fb-out').hidden };
+    })()`);
+    lines.push(`report a problem with a picture: ${JSON.stringify(withPicture)}`);
+    // Send opens with the words, unless this profile has no account and no key, when the page says to sign in.
+    if (!withPicture || withPicture.pictures !== 1 || withPicture.send === withPicture.signedOut) return report(false, `a picture taken by the Report a problem page did not show: ${JSON.stringify(withPicture)}`);
+    await shot('feedback-filled', mainWindow, win);
+    await fjs("document.querySelector('.body').scrollTop = 1e6; document.querySelector('.fb-more').open = true; true");
+    await shot('feedback-foot', mainWindow, win);
+    await fjs("document.querySelector('.body').scrollTop = 0; document.querySelector('.fb-more').open = false; true");
 
     // THE PROFILE PAGE (8.8), from its button between Invite and Settings: the
     // games left as profile.js wrote them from main's account view, the buy

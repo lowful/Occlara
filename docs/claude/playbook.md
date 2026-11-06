@@ -86,8 +86,31 @@ than aggression. What would actually work is recorded in the file.
 
 ### Advanced coaching is a BIAS, never a replacement
 
-`advancedTips` in config, off by default, surfaced in Settings as Advanced
-coaching. It now shapes the notes the REVIEW draws on (`match-review.js` passes
+`advancedTips` in config, surfaced in Settings and onboarding as Advanced
+coaching, and **ON for everyone since 8.8**: the notes are sized to the
+player's rank (`knowledge.js rankAdjust`), so a Gold player is never handed a
+Radiant only note, and the deeper coaching is the best coaching at every rank.
+A player can still turn it off, and that choice sticks.
+
+- **Every reader treats unset as on.** Main reads it through
+  `src/main/services/advanced-coaching.js` `on(store)` (`!== false`), the
+  engine's snapshot and both pages likewise. Only an explicit `false` is off.
+- **The one time switch, and why a default alone was not enough.**
+  electron-store (conf) writes its defaults into the file on first run, so
+  every install from before 8.8 holds `advancedTips: false` on disk, a value
+  its player never chose, and the file beats the new default.
+  `turnOnOnce(store)` runs as `store.js` opens: when `advancedTipsOnAt` is 0 it
+  sets `advancedTips: true` and stamps the flag in one write, and never runs
+  again, so a player who turns it off after the update keeps it off.
+  `test:advancedtips` proves the trap on the real conf in a temp folder, then
+  the four cases: fresh install on, an existing false turned on once, off after
+  the switch sticks, never twice.
+- **The server is unchanged and reads only an explicit true**
+  (`match-review.js clean()`, `chat-prompt.js`). Every client since the toggle
+  sends a boolean, so an old client sending false stays false, and a client so
+  old it sends nothing reads as it always did.
+
+It now shapes the notes the REVIEW draws on (`match-review.js` passes
 `context.advancedTips` to `retrieve()`), and the study list keeps the same
 reserve at its scale: off, `study()` lists core notes only; on, two of three are
 advanced with a core note always among them, and a match lost in a run of

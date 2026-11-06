@@ -248,4 +248,22 @@ function realIpMiddleware(env = process.env) {
   };
 }
 
-module.exports = { createLimiter, createGuessGuard, routeLimits, byCaller, byIp, bodyKey, LICENCE_BODY, realIpMiddleware };
+/*
+ * REPORT A PROBLEM (docs/claude/feedback.md): 5 reports an hour and 20 a day
+ * per account, a person writing them by hand never meets either. Keyed by
+ * the verified caller (routes/feedback.js runs them after it has one), so
+ * two players behind one router never share a bucket. A report refused by
+ * them is answered 429 and says "try again later" in the app.
+ */
+// ALL is a ceiling across every account, so many accounts together cannot fill the picture bucket.
+const FEEDBACK_LIMITS = Object.freeze({ HOUR: 5, DAY: 20, ALL: 300 });
+function feedbackLimits(deps = {}) {
+  const now = deps.now;
+  return [
+    createLimiter({ name: 'feedback-hour', windowMs: 60 * MIN, max: FEEDBACK_LIMITS.HOUR, now }),
+    createLimiter({ name: 'feedback-day', windowMs: 24 * 60 * MIN, max: FEEDBACK_LIMITS.DAY, now }),
+    createLimiter({ name: 'feedback-all', windowMs: 24 * 60 * MIN, max: FEEDBACK_LIMITS.ALL, now, key: () => 'all' }),
+  ];
+}
+
+module.exports = { createLimiter, createGuessGuard, routeLimits, feedbackLimits, FEEDBACK_LIMITS, byCaller, byIp, bodyKey, LICENCE_BODY, realIpMiddleware };

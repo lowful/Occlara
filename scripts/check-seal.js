@@ -339,6 +339,24 @@ setTimeout(async () => {
       if (!discordMid || discordMid.ok !== false || discordMid.error !== 'match' || noticeMid !== null || browserOpened.length) {
         return report(false, `mid ${game} match, the Discord invite or the update line answered: ${JSON.stringify({ discordMid, noticeMid, opened: browserOpened })}`);
       }
+      // AND REPORT A PROBLEM (docs/claude/feedback.md): asked for mid match
+      // the page does not show and its icon above the Discord is locked, and
+      // its four channels, called as the page would, answer nothing, take no
+      // picture and send nothing.
+      send(C.SHELL_NAV, 'feedback');
+      await wait(400);
+      const reportMid = await invoke(C.SHELL_GET);
+      const reportShown = shownViews();
+      const reportLocked = await until(() => sjs("document.getElementById('nav-feedback').disabled && document.getElementById('nav-feedback').title === 'Locked until the match ends'"), 3000);
+      const reportInfo = await invoke(C.FEEDBACK_INFO);
+      const reportPrep = await invoke(C.FEEDBACK_PREPARE, { type: 'image/png', size: 100, bytes: Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0]) });
+      const reportSend = await invoke(C.FEEDBACK_SEND, { kind: 'broke', text: 'the review never opened after my match', tokens: [] });
+      lines.push(`${game} match: Report a problem asked for mid match: shown=${reportMid.shown} pages shown=${reportShown.join(',') || 'none'} button locked=${!!reportLocked}`
+        + ` | info=${JSON.stringify(reportInfo)} prepare=${reportPrep && reportPrep.error} send=${reportSend && reportSend.error}`);
+      if (reportMid.shown !== null || reportShown.length || !reportLocked) return report(false, `mid ${game} match, the Report a problem page or its icon is not sealed`);
+      if (reportInfo !== null || !reportPrep || reportPrep.error !== 'match' || !reportSend || reportSend.ok !== false || reportSend.error !== 'match') {
+        return report(false, `mid ${game} match, a Report a problem channel answered: ${JSON.stringify({ reportInfo, reportPrep, reportSend })}`);
+      }
       send(C.SHELL_NAV, 'matches');
       e.live = false;
       const over = await invoke(C.SHELL_GET);
@@ -361,6 +379,24 @@ setTimeout(async () => {
       lines.push(`${game} match over: Discord=${JSON.stringify(discordAfter)} opened=${JSON.stringify(browserOpened.slice(1))} | near misses: ${discordRefused.map((r) => r && r.error).join(',')}`);
       if (!discordAfter || !discordAfter.ok || browserOpened.length !== 2 || browserOpened[1] !== DISCORD || discordRefused.some((r) => !r || r.ok !== false || r.error !== 'url')) {
         return report(false, `after the ${game} match, the Discord invite did not open as it should: ${JSON.stringify({ discordAfter, opened: browserOpened, discordRefused })}`);
+      }
+      // The match over, a real picture is taken: Electron's own nativeImage
+      // downscales a 3200 by 1800 PNG to 1600 by 900 and recompresses it to
+      // JPEG in main (feedback-service.js prepare), and info answers again.
+      {
+        const { nativeImage } = require('electron');
+        const W = 3200, H = 1800;
+        const bitmap = Buffer.alloc(W * H * 4);
+        for (let i = 0; i < bitmap.length; i += 4) { bitmap[i] = (i / 4) % 251; bitmap[i + 1] = 90; bitmap[i + 2] = 160; bitmap[i + 3] = 255; }
+        const png = nativeImage.createFromBitmap(bitmap, { width: W, height: H }).toPNG();
+        const prep = await invoke(C.FEEDBACK_PREPARE, { type: 'image/png', size: Math.min(png.length, 5 * 1024 * 1024 - 1), bytes: png });
+        const infoAfter = await invoke(C.FEEDBACK_INFO);
+        lines.push(`${game} match over: a ${W} by ${H} PNG prepared as ${prep && prep.width} by ${prep && prep.height}, ${prep && prep.bytes} bytes of JPEG | info version=${infoAfter && infoAfter.version}`);
+        if (!prep || !prep.ok || prep.width !== 1600 || prep.height !== 900 || !(prep.bytes > 0) || !String(prep.preview || '').startsWith('data:image/jpeg;base64,')
+          || !infoAfter || !infoAfter.version) {
+          return report(false, `after the ${game} match, a picture was not prepared as it should be: ${JSON.stringify({ ...prep, preview: undefined, infoAfter: !!infoAfter })}`);
+        }
+        await invoke(C.FEEDBACK_DROP, prep.token);
       }
       browserOpened.length = 0;
       send(C.COACH_STOP);

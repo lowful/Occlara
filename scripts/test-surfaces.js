@@ -5900,8 +5900,10 @@ async function openShell(cfg, state, opts) {
     const s = await openShell({ game: 'valorant' });
     const foot = s.document.querySelector('.foot');
     const kids = foot.children.map((c) => c.id);
-    ok(kids[0] === 'nav-invite' && kids[1] === 'nav-profile' && kids[2] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite',
-      'the foot leads with Invite, then Profile directly above Settings (8.8)', kids.join(', '));
+    // Report a problem sits at the end of Profile's row (docs/claude/feedback.md),
+    // between them in the markup, beside Profile on the grid.
+    ok(kids[0] === 'nav-invite' && kids[1] === 'nav-profile' && kids[2] === 'nav-feedback' && kids[3] === 'nav-settings' && s.$('nav-invite').textContent.trim() === 'Invite',
+      'the foot leads with Invite, then Profile (with Report a problem at its end) directly above Settings (8.8)', kids.join(', '));
     s.$('nav-invite').click();
     ok(s.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'invite'), 'Invite goes to the Invite page');
     s.bridge.emit(C.PUSH_SHELL, { page: 'invite', shown: 'invite', sealed: false, held: false });
@@ -6425,7 +6427,7 @@ async function openShell(cfg, state, opts) {
     const s = await openShell({ game: 'valorant' });
     const dc = s.$('discord');
     const kids = s.document.querySelector('.foot').children.map((c) => c.id);
-    ok(!!dc && kids.indexOf('discord') === kids.indexOf('nav-settings') + 1 && kids[0] === 'nav-invite' && kids[2] === 'nav-settings',
+    ok(!!dc && kids.indexOf('discord') === kids.indexOf('nav-settings') + 1 && kids[0] === 'nav-invite' && kids[3] === 'nav-settings',
       'it sits right after Settings, the foot\'s rows in their order', kids.join(', '));
     ok(dc.getAttribute('title') === 'Join the Occlara Discord' && dc.getAttribute('aria-label') === 'Join the Occlara Discord' && dc.getAttribute('type') === 'button',
       'a button named and tooltipped Join the Occlara Discord');
@@ -6452,6 +6454,34 @@ async function openShell(cfg, state, opts) {
     ok(s.$('nav-settings').getAttribute('aria-current') === 'page', 'on What\'s new the sidebar marks Settings, where it is reached from');
     const css = fs.readFileSync(path.join(RENDERER, 'shell', 'shell.css'), 'utf8');
     ok(/\.foot-icon:focus-visible\s*\{[^}]*outline:/.test(css), 'it shows a focus ring on the keyboard');
+  });
+
+  // REPORT A PROBLEM (docs/claude/feedback.md): the quiet icon at the end of
+  // Profile's row, directly above the Discord, a page like the others and
+  // locked by the seal. The page itself is test:feedback's.
+  await section('the sidebar\'s Report a problem icon sits directly above the Discord, and the seal locks it like every page:', async () => {
+    const s = await openShell({ game: 'valorant' });
+    const b = s.$('nav-feedback');
+    const kids = s.document.querySelector('.foot').children.map((c) => c.id);
+    ok(!!b && kids.indexOf('nav-feedback') === kids.indexOf('nav-profile') + 1 && kids.indexOf('discord') === kids.indexOf('nav-feedback') + 2
+      && b.classList.contains('foot-icon'), 'a foot icon after Profile, the Discord one row below it', kids.join(', '));
+    ok(b.getAttribute('title') === 'Report a problem' && b.getAttribute('aria-label') === 'Report a problem', 'named and tooltipped Report a problem');
+    b.click();
+    ok(s.bridge.sent.some(([ch, page]) => ch === C.SHELL_NAV && page === 'feedback'), 'a click goes to the Report a problem page');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'feedback', shown: 'feedback', sealed: false, held: false });
+    await settle();
+    ok(b.getAttribute('aria-current') === 'page' && !s.$('nav-profile').getAttribute('aria-current'), 'on its page the sidebar marks it');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'feedback', shown: null, sealed: true, held: false });
+    await settle();
+    ok(b.disabled && !b.getAttribute('aria-current') && b.querySelector('svg').innerHTML.includes('rect') && b.getAttribute('title') === 'Locked until the match ends',
+      'sealed mid match it is locked with the pages, its mark the lock');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'feedback', shown: null, sealed: true, held: true });
+    await settle();
+    ok(!b.disabled, 'held after a stop, it is open like the rest');
+    s.bridge.emit(C.PUSH_SHELL, { page: 'home', shown: 'home', sealed: false, held: false });
+    await settle();
+    ok(!b.disabled && !b.querySelector('svg').innerHTML.includes('rect') && b.getAttribute('title') === 'Report a problem',
+      'the seal lifted, it is open and its flag is back');
   });
 
   await section('Settings: What\'s new and the Community as two ruled rows, and the version line opens What\'s new:', async () => {

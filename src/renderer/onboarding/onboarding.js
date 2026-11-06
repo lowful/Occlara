@@ -531,7 +531,7 @@ window.occlara.getConfig().then((cfg) => {
   if (!cfg) return;
   if (typeof cfg.riotId === 'string') riotEl.value = cfg.riotId;
   for (const b of document.getElementById('advanced').querySelectorAll('button')) {
-    b.classList.toggle('active', (b.dataset.val === 'on') === (cfg.advancedTips === true));
+    b.classList.toggle('active', (b.dataset.val === 'on') === (cfg.advancedTips !== false));
   }
   // SHOWN AGAIN TO A CONNECTED PLAYER (a logout runs the tour again), the
   // Riot ID page is connected from the start, exactly as after a Connect: the

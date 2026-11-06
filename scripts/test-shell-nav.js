@@ -94,6 +94,23 @@ ok(direction('invite', 'profile') === 'forward' && direction('profile', 'setting
   const s = n.go('profile');
   ok(s.shown === null && s.page === 'profile' && n.seal(false).shown === 'profile', 'sealed, Profile is only remembered, and shows once the seal lifts');
 }
+// Report a problem (docs/claude/feedback.md): a page of its own, out of the
+// nav list (its icon is at the end of Profile's row, above the Discord),
+// deeper than Settings and What's new, so the window moves forward into it,
+// and the review deeper still.
+ok(pageOf('feedback') && pageOf('feedback').surface === 'feedback' && pageOf('feedback').preload === 'feedback-preload.js' && pageOf('feedback').nav === false,
+  'Report a problem is a page with its own surface and preload, not in the nav list', JSON.stringify(pageOf('feedback')));
+ok(ids.indexOf('feedback') === ids.indexOf('whatsnew') + 1 && ids.indexOf('feedback') === ids.indexOf('review') - 1,
+  'and sits after What\'s new, before the review', ids.join(', '));
+ok(direction('settings', 'feedback') === 'forward' && direction('profile', 'feedback') === 'forward' && direction('feedback', 'home') === 'back'
+  && direction('feedback', 'review') === 'forward' && direction('review', 'feedback') === 'back',
+  'into it from any page is forward, out of it back, and the review deeper still');
+{
+  const n = createNav();
+  n.seal(true);
+  const s = n.go('feedback');
+  ok(s.shown === null && s.page === 'feedback' && n.seal(false).shown === 'feedback', 'sealed, Report a problem is only remembered, and shows once the seal lifts');
+}
 
 // ── Navigation, and the seal ──────────────────────────────────────────────
 {

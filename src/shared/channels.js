@@ -80,6 +80,12 @@ const CHANNELS = {
   DISCORD_OPEN:     'community:discord', // (url) → { ok } | { ok: false, error: 'url' | 'match' }
   CHANGELOG_REFRESH: 'changelog:refresh', // () → [entries] from GET /api/changelog, checked, or null on any failure (4 s at most)
   CHANGELOG_NOTICE: 'changelog:notice',  // () → { version, text, link } Home's update line, or null (nothing to say, mid match, sealed)
+  // Report a problem (docs/claude/feedback.md, services/feedback-service.js):
+  // every one refused mid match or sealed.
+  FEEDBACK_INFO:    'feedback:info',     // () → { version, os, game, review: { id, line } | null, signedIn, limits, kinds, whatIsSent, neverSent } | null mid match
+  FEEDBACK_PREPARE: 'feedback:prepare',  // ({ type, size, bytes }) → { ok, token, width, height, bytes, preview } | { ok: false, error } downscaled and recompressed in main
+  FEEDBACK_DROP:    'feedback:drop',     // (token) → { ok } a held picture let go
+  FEEDBACK_SEND:    'feedback:send',     // ({ kind, text, tokens, withReview }) → { ok, id, said } | { ok: false, error, said }
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',

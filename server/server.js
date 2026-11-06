@@ -43,6 +43,9 @@ const callers       = require('./services/caller');
 const retiredRoutes = require('./routes/retired');
 const adminRoutes   = require('./routes/admin');
 const changelogRoutes = require('./routes/changelog');
+// Report a problem (docs/claude/feedback.md): the player's report, and the owner's inbox.
+const feedbackRoutes = require('./routes/feedback');
+const feedbackModel = require('./services/feedback');
 const webhookHandler = require('./routes/webhook');
 const { errorHandler, corsRefusal } = require('./services/http-errors');
 const { makeAdminLimiter, isAdmin } = require('./services/admin-auth');
@@ -190,6 +193,9 @@ app.post('/api/coach/summary/round', express.raw({ type: 'image/jpeg', limit: '5
 // from the recording sends five stills, twenty a match: the real Sunset
 // match's came to 1.6 MB, 2.1 MB of base64.
 app.use('/api/coach/death-forensics', express.json({ limit: '8mb' }));
+// A report carries up to three pictures the app already downscaled to 1600 px
+// and recompressed, 2 MB each at most (services/feedback.js), in base64.
+app.use('/api/feedback', express.json({ limit: feedbackModel.BODY_LIMIT }));
 // Global (2mb so /api/coach/analyze and /read can carry a base64 JPEG).
 app.use(express.json({ limit: '2mb' }));
 
@@ -206,7 +212,7 @@ app.use(express.json({ limit: '2mb' }));
 // without a lookup. A valid caller and an outage are never counted.
 // The sign in handoff is named here too (8.7.3), so its limit is per account.
 // Gifts (8.8) too: their redeem is limited per account, and the peek says "yours".
-const IDENTIFIED = ['/api/coach', '/api/usage', '/api/referral', '/api/account/me', '/api/account/signout', '/api/account/handoff', '/api/gifts'];
+const IDENTIFIED = ['/api/coach', '/api/usage', '/api/referral', '/api/account/me', '/api/account/signout', '/api/account/handoff', '/api/gifts', '/api/feedback'];
 const guessGuard = rateLimits.createGuessGuard();
 async function identifyFirst(req, res, next) {
   try {
@@ -282,6 +288,11 @@ app.use('/api/coach',    coachRoutes);
 // routes/retired.js.
 app.use('/api/rivals',   retiredRoutes.rivals);
 app.use('/api/changelog', changelogRoutes);
+// Report a problem: a signed in account or a licence key, 5 an hour and 20 a
+// day per account (rate-limits.js feedbackLimits), and the owner's inbox
+// behind the admin password and its limiter (routes/feedback.js).
+app.use('/api/feedback', feedbackRoutes.createRouter());
+app.use('/api/admin/feedback', feedbackRoutes.createAdminRouter());
 // Ask Coach's day (8.5.0): questions asked, drops by gate, retries, honest
 // lines and cap refusals, counts only, behind the admin password and its
 // limiter, never on the public /health (coach.js chatReport).

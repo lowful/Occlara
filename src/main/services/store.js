@@ -72,4 +72,8 @@ function build() {
   }
 }
 
-module.exports = build();
+const store = build();
+// Advanced coaching on for everyone, once per install (advanced-coaching.js).
+require('./advanced-coaching').turnOnOnce(store);
+
+module.exports = store;
