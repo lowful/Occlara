@@ -110,6 +110,7 @@ in `docs/claude/` to find it.
 | Touching accounts, sign in, tiers, game caps, `game_usage`, the read gate, referral, `ENFORCE_CAPS` or a rate limit | `docs/claude/accounts.md` |
 | The changelog, What's new, Home's update line, `/api/changelog`, the Discord button or post | `docs/claude/changelog.md` |
 | Changing the Profile page, buying games in the app or `profile.js` | `docs/claude/ui.md`, "The Profile page", and `docs/claude/accounts.md`, "Buying games, in the app" |
+| Report a problem: its button, page, `/api/feedback`, the inbox (`npm run feedback`) or triaging a player's report | `docs/claude/feedback.md` |
 
 ## Conventions
 

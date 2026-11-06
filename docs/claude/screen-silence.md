@@ -92,3 +92,7 @@ What still counts as "reaching the screen", and is sealed mid match:
   or sealed (`community.js`); Home's update line is answered null while
   recording, mid match or sealed and pushed only once the seal lifts, the
   cap's notice's wait (`check:seal`).
+- Report a problem (feedback.md): the page is a page like the others,
+  locked by `syncSeal`, its flag above the Discord drawn as the lock, and
+  main answers its four channels with nothing mid match or sealed: no info,
+  no picture taken, no report sent (`feedback-service.js`, `check:seal`).

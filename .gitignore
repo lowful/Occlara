@@ -20,6 +20,10 @@ desktop.ini
 dist-surface-shots/
 dist-site-proof/
 
+# The report inbox (npm run feedback, docs/claude/feedback.md): players' own
+# words and pictures, never committed to a public repo.
+feedback-inbox/
+
 # Logo renders for the website. Generated from assets/logo-mark.svg on demand.
 dist-logo/
 

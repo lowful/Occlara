@@ -331,6 +331,14 @@ recorder/    the match recorder's page, in a window that is never shown (8.3)
 frames/      a look's stills decoded from its clip, in a window that is never shown (8.3.1)
 ```
 
+**Advanced coaching is shown ON (8.8).** Onboarding's After every match page
+has On, advanced marked from the first paint, and Settings' switch reads on
+unless the config holds an explicit false (`cfg.advancedTips !== false`). Both
+say what it does now, deeper coaching that fits your rank, with no dash and no
+semicolon. The toggle stays so a player can turn it off. Why it is on and the
+one time switch for existing installs: `docs/claude/playbook.md`, "Advanced
+coaching is a BIAS, never a replacement".
+
 The panel and the review, matches, settings, stats and chat windows were
 retired in 8.1. `npm run check:mainwindow` boots the app with saved reviews and
 asserts the sidebar, Home, the page bounds, the order of a switch between
@@ -573,3 +581,13 @@ column grid so its rows keep their order) and Settings' row "Community".
 Everything about them: changelog.md. `check:mainwindow` writes
 `main-whatsnew.png`, `main-whatsnew-older.png` and
 `main-settings-community.png`, and `main-home.png` with the update line.
+
+### Report a problem
+
+`src/renderer/feedback/`, shell-nav `feedback` (`nav: false`), opened from
+the flag icon at the end of Profile's row in the sidebar's foot
+(`#nav-feedback`, `.foot-icon`), directly above the Discord, and locked by
+the seal like every page. The player's words, a kind, up to three pictures
+and Send; main checks and downscales the pictures and sends the report.
+Everything about it: feedback.md. `check:mainwindow` writes
+`main-feedback.png`, `main-feedback-filled.png` and `main-feedback-foot.png`.

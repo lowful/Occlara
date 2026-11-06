@@ -40,6 +40,10 @@ const PAGES = [
   // row and the version line) and from Home's update line, one step deeper
   // than Settings, and locked by the seal like every page.
   { id: 'whatsnew', label: "What's new", surface: 'whatsnew', query: {}, preload: 'whatsnew-preload.js', nav: false },
+  // Report a problem (docs/claude/feedback.md): no nav entry, the quiet icon
+  // at the end of Profile's row in the foot, directly above the Discord,
+  // and locked by the seal like every page.
+  { id: 'feedback', label: 'Report a problem', surface: 'feedback', query: {}, preload: 'feedback-preload.js', nav: false },
   { id: 'review', label: 'Review', surface: 'review', query: {}, preload: 'review-preload.js', nav: false },
 ];
 

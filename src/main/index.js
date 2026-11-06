@@ -41,6 +41,7 @@ app.on('web-contents-created', (_e, contents) => webGuard.guard(contents, { log:
 
 const logger   = require('./logger');
 const store    = require('./services/store');
+const advancedCoaching = require('./services/advanced-coaching');
 const capture  = require('./services/capture');
 const { Recorder, valorantInMatch, valorantKeepSince } = require('./services/recorder');
 const recorderWindow = require('./windows/recorder-window');
@@ -1970,7 +1971,7 @@ function askCoach() {
     busy: () => !!backfill.running || [...reviewJobs.values()].some((j) => j && !j.cancelled && !j.finished),
     lastHenrikAt: () => backfill.lastCall || 0,
     language: () => normalizeLang(store.get('language')),
-    advanced: () => store.get('advancedTips') === true,
+    advanced: () => advancedCoaching.on(store),
     rankBand: rankBandNow,
     failureText: chatFailureText,
     lastShownKind: () => (lastReviewShown ? lastReviewShown.kind : null),
@@ -2124,7 +2125,7 @@ const controller = {
         language:     normalizeLang(store.get('language')),
         // Read when the match ends, so the review uses the setting as it is
         // then, not as it was when recording started.
-        advancedTips: store.get('advancedTips') === true,
+        advancedTips: advancedCoaching.on(store),
         // The rank band the review is sized to (rankBandNow), read as it ends.
         rankBand: rankBandNow(),
       }),
@@ -4262,6 +4263,36 @@ const communityIpc = createCommunity({
   fetch: typeof fetch === 'function' ? (...a) => fetch(...a) : null,
   log: (...a) => console.log(...a),
 });
+
+/*
+ * REPORT A PROBLEM (docs/claude/feedback.md, services/feedback-service.js):
+ * the page's words and pictures, each picture checked, downscaled to 1600 px
+ * and recompressed to JPEG here, sent with the account's own auth to POST
+ * /api/feedback. Everything refused mid match or sealed. The Riot ID and the
+ * email are handed over only so they can be taken out of the words.
+ */
+const { createFeedback } = require('./services/feedback-service');
+const feedbackIpc = createFeedback({
+  api,
+  auth: authed,
+  nativeImage: require('electron').nativeImage,
+  busy: () => matchInProgress() || windowSealed(),
+  version: APP_VERSION,
+  osLine: () => {
+    const os = require('os');
+    let name = '';
+    try { name = typeof os.version === 'function' ? os.version() : ''; } catch { name = ''; }
+    return `${name || 'Windows'} ${os.release()}`.trim().slice(0, 80);
+  },
+  game: () => store.get('game') || 'valorant',
+  gameLabel: () => { const g = gameRegistry.get(store.get('game') || 'valorant'); return g ? g.label : null; },
+  lastReview: () => reviewStore.list(store.get('game') || 'valorant')[0] || null,
+  riotId: () => store.get('riotId') || '',
+  email: () => { const st = account.cached(); return (st && st.email) || ''; },
+  // The account's own view, as the Invite page reads it: a session or a key.
+  signedIn: async () => { const v = await accountIpc.view(); return !!(v && v.via); },
+  log: (...a) => console.log(...a),
+});
 const changelogIpc = {
   /** At launch: what this launch says, if anything. */
   start() {
@@ -4757,7 +4788,7 @@ if (!app.requestSingleInstanceLock()) {
     // a clip and applying the cap left the clips past it.
     applyClipCap();
 
-    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc });
+    registerIpc({ controller, license, account: accountIpc, profile: profileIpc, community: communityIpc, changelog: changelogIpc, feedback: feedbackIpc });
     changelogIpc.start();
     // occlara:// for the sign in's fallback link (8.7), on an installed build
     // only: a dev run would point Windows at electron.exe.

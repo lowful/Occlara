@@ -308,5 +308,82 @@ ok(onPct >= 50, `and shifts it decisively, not marginally (${onPct}%)`);
   ok(gs.filter((t) => tierOfText(t) === 'core').length >= knowledge.STREAK_CORE_SLOTS, 'and a death streak still gives core the majority');
 }
 
+// ── ON FOR EVERYONE (8.8): the default, the readers and the one time switch ──
+// On the REAL conf, the library under electron-store, in a temporary folder,
+// because the whole reason for the migration is how it persists defaults: it
+// writes them into the file on first run, so an install from before 8.8 holds
+// advancedTips false on disk, a value its player never chose, and the file
+// beats the new default. Measured here before it is relied on.
+{
+  const os = require('os');
+  const adv = require(path.join(__dirname, '..', 'src', 'main', 'services', 'advanced-coaching.js'));
+  const { STORE_DEFAULTS } = require(path.join(__dirname, '..', 'src', 'shared', 'config.js'));
+  const ConfMod = require('conf');
+  const Conf = ConfMod.default || ConfMod;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-advanced-'));
+  const open = (name, defaults) => new Conf({ cwd: dir, configName: name, defaults });
+  const onDisk = (name) => JSON.parse(fs.readFileSync(path.join(dir, name + '.json'), 'utf8'));
+
+  ok(STORE_DEFAULTS.advancedTips === true && STORE_DEFAULTS[adv.FLAG] === 0,
+    'the default is on, and the one time flag starts unset');
+  ok(adv.isOn(undefined) && adv.isOn(null) && adv.isOn(true) && !adv.isOn(false),
+    'a missing value reads as on, only an explicit false is off');
+
+  // The trap, shown: an old install's defaults were written, and the file wins.
+  open('old', { advancedTips: false });
+  ok(onDisk('old').advancedTips === false, 'conf wrote the old default false into the file on first run');
+  const old = open('old', STORE_DEFAULTS);
+  ok(old.get('advancedTips') === false, 'and with the new default the file still says false, so a default alone would never reach it');
+
+  // Existing install: turned on once.
+  ok(adv.turnOnOnce(old, 1234) === true && old.get('advancedTips') === true && old.get(adv.FLAG) === 1234
+    && onDisk('old').advancedTips === true, 'an existing install holding false is turned on once, and the file says so');
+  // A player who turns it off after the update keeps it off, launch after launch.
+  old.set('advancedTips', false);
+  const again = open('old', STORE_DEFAULTS);
+  ok(adv.turnOnOnce(again, 9999) === false && again.get('advancedTips') === false && again.get(adv.FLAG) === 1234
+    && adv.on(again) === false, 'turned off after the update, it stays off at the next launch, and the switch never runs twice');
+  ok(adv.turnOnOnce(again, 10000) === false && again.get(adv.FLAG) === 1234, 'nor a third time');
+
+  // Fresh install: on from the first launch, and the flag stamped.
+  const fresh = open('fresh', STORE_DEFAULTS);
+  ok(adv.on(fresh) === true, 'a fresh install reads on before anything runs');
+  ok(adv.turnOnOnce(fresh, 55) === true && fresh.get('advancedTips') === true && fresh.get(adv.FLAG) === 55,
+    'and its first launch stamps the flag, so the player\'s own choice sticks from then on');
+  fresh.set('advancedTips', false);
+  ok(adv.turnOnOnce(open('fresh', STORE_DEFAULTS), 66) === false && adv.on(open('fresh', STORE_DEFAULTS)) === false,
+    'a fresh install turned off stays off');
+
+  // An existing install that already had it on stays on, and is stamped.
+  open('wason', { advancedTips: false }).set('advancedTips', true);
+  const wasOn = open('wason', STORE_DEFAULTS);
+  ok(adv.turnOnOnce(wasOn, 7) === true && wasOn.get('advancedTips') === true, 'an install that already had it on stays on');
+
+  // A missing key, a store that throws: on, and nothing thrown.
+  const bare = { data: {}, get(k) { return this.data[k]; }, set(k, v) { if (typeof k === 'object') Object.assign(this.data, k); else this.data[k] = v; } };
+  ok(adv.on(bare) === true, 'a store without the key at all reads on');
+  const broken = { get() { throw new Error('locked'); }, set() { throw new Error('locked'); } };
+  const quiet = console.error; console.error = () => {};
+  let threw = false, ran;
+  try { ran = adv.turnOnOnce(broken); } catch { threw = true; }
+  console.error = quiet;
+  ok(!threw && ran === false && adv.on(broken) === true, 'a store that throws throws nothing out, reads on, and is tried again next launch');
+
+  try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+
+  // Every reader treats unset as on: no main process reader is left on an
+  // explicit true, which would read a missing key as off.
+  const SRC = path.join(__dirname, '..', 'src');
+  const readers = ['main/index.js', 'main/ipc/register-ipc.js', 'main/services/coaching-engine.js',
+    'renderer/settings/settings.js', 'renderer/onboarding/onboarding.js'];
+  const strict = readers.filter((f) => {
+    const s = fs.readFileSync(path.join(SRC, f), 'utf8');
+    return s.includes("get('advancedTips') === true") || s.includes('advancedTips === true');
+  });
+  ok(strict.length === 0, `no reader reads Advanced coaching as an explicit true (${strict.join(', ') || 'none'})`);
+  const storeSrc = fs.readFileSync(path.join(SRC, 'main', 'services', 'store.js'), 'utf8');
+  ok(storeSrc.includes("require('./advanced-coaching').turnOnOnce(store)"), 'the store runs the one time switch as it opens');
+}
+
 console.log(`\n${fails ? fails + ' failure(s)' : 'all advanced tip checks passed'}`);
 process.exit(fails ? 1 : 0);

@@ -38,6 +38,9 @@ const PAGE_ICO = {
   invite: '<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/>',
   // Profile (8.8): a person in a ring.
   profile: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.8 18.3a6 6 0 0 1 10.4 0"/>',
+  // Report a problem (docs/claude/feedback.md): a flag, the icon at the end
+  // of Profile's row above the Discord.
+  feedback: '<path d="M5.5 21V4.5"/><path d="M5.5 4.5h11.2a.6.6 0 0 1 .5.92L15.2 8.5l2 3.08a.6.6 0 0 1-.5.92H5.5"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
 };
 const LOCK = '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>';
@@ -82,6 +85,10 @@ for (const p of pages.filter((x) => x.nav)) {
 navButtons.set('invite', $('nav-invite'));
 navButtons.set('profile', $('nav-profile'));
 navButtons.set('settings', $('nav-settings'));
+// Report a problem: a page like the rest, so the seal locks it and the
+// marker finds it, drawn as the quiet icon at the end of Profile's row.
+navButtons.set('feedback', $('nav-feedback'));
+$('nav-feedback').addEventListener('click', () => window.occlara.go('feedback'));
 $('nav-invite').addEventListener('click', () => window.occlara.go('invite'));
 $('nav-profile').addEventListener('click', () => window.occlara.go('profile'));
 $('nav-settings').addEventListener('click', () => window.occlara.go('settings'));
@@ -126,6 +133,7 @@ function paintNav() {
   dcIco.setAttribute('stroke-linecap', 'round');
   dcIco.setAttribute('stroke-linejoin', 'round');
   dcIco.innerHTML = locked ? LOCK : DISCORD_ICO;
+  $('nav-feedback').title = locked ? 'Locked until the match ends' : 'Report a problem';
   $('sealed-note').hidden = !locked;
   $('sealed').hidden = !shell.sealed;
   const text = shell.held ? SEALED_TEXT.held : SEALED_TEXT.live;

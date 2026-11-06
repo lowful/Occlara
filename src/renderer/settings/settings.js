@@ -666,8 +666,8 @@ async function load() {
       }
       markSeg(clipCapSeg, String(cfg.clipCapGB || 10));
       buildGamePicker(cfg.game || 'valorant', cfg.devGames === true);
-      // OFF is the default here, so the test is for an explicit true.
-      markSeg(advancedSeg, cfg.advancedTips === true ? 'on' : 'off');
+      // ON is the default since 8.8, so the test is for an explicit false.
+      markSeg(advancedSeg, cfg.advancedTips !== false ? 'on' : 'off');
       markSeg(aiLogSeg, cfg.aiLog === false ? 'off' : 'on');
       // Default on, so an older config with no key set reads as on rather than
       // as off, which is what `=== true` would do here.

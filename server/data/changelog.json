@@ -1,5 +1,25 @@
 [
   {
+    "version": "8.7.5",
+    "date": "2026-11-06",
+    "title": "Report a problem, and advanced coaching for everyone",
+    "summary": "Tell us when something goes wrong with a picture and a few words, and get the deepest coaching that fits your rank by default.",
+    "items": [
+      {
+        "kind": "new",
+        "text": "A Report a problem button above the Discord icon. Describe what went wrong, add up to 3 pictures and send it straight to us."
+      },
+      {
+        "kind": "improved",
+        "text": "Advanced coaching is now on for everyone. It goes deeper while fitting your rank, so you never get advice meant for a rank above yours. You can still turn it off in Settings."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach no longer tells you your rank back, it just fits its advice to it."
+      }
+    ]
+  },
+  {
     "version": "8.7.4",
     "date": "2026-11-05",
     "title": "Gifts, clips in Ask Coach and a smarter coach",

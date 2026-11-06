@@ -134,14 +134,21 @@ const STORE_DEFAULTS = {
   // have a catalogue in src/shared/i18n.js and stays English otherwise.
   language:        'en',         // see LANGUAGES in src/shared/i18n.js
   // Bias the review's playbook toward advanced notes: damage breakpoints,
-  // utility timings, reads across rounds. OFF by default, because advanced
-  // advice assumes the fundamentals are already in place.
+  // utility timings, reads across rounds. ON by default since 8.8, because the
+  // notes are sized to the player's rank (knowledge.js rankAdjust), so a Gold
+  // player is never handed Radiant only advice. Every reader treats a missing
+  // key as on (src/main/services/advanced-coaching.js), and existing installs,
+  // which hold the old default false on disk, are turned on once at the
+  // update, keyed by advancedTipsOnAt, after which the player's toggle sticks.
   //
   // It is a BIAS, never a replacement. A floor of core notes always survives,
   // and on a deathstreak core takes the majority back, because a player dying
   // on repeat needs fundamentals rather than theory. See retrieve() in
   // server/services/knowledge.js.
-  advancedTips:    false,
+  advancedTips:    true,
+  // When Advanced coaching was turned on for this install, once (ms). 0 means
+  // not yet: the next launch turns it on and stamps this (turnOnOnce).
+  advancedTipsOnAt: 0,
   sounds:          true,         // the two interface sounds: recording armed, recording stood down
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,
