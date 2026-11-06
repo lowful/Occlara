@@ -165,6 +165,54 @@ ok(!DASH.test(added) && !/;/.test(added), 'the band lines carry no dash and no s
   }
   const good = run([{ text: 'Planted control note five for the rank check.', ranks: ['iron_bronze', 'silver_gold'] }]);
   ok(good.status === 0, 'and passes one whose ranks are real bands');
+  // enemyHint (8.8): the soft enemy tag is held to the game's agents, and
+  // never sits beside a strict one.
+  const hintBad = run([{ text: 'Planted control note six for the hint check.', enemyHint: ['Hushh'] }]);
+  const hintBoth = run([{ text: 'Planted control note seven for the hint check.', enemyHint: ['Hush'], enemyAgents: ['Hush'] }]);
+  const hintGood = run([{ text: 'Planted control note eight for the hint check.', enemyHint: ['Hush'] }]);
+  ok(hintBad.status === 1 && hintBad.stdout.includes('enemyHint names unknown agent "Hushh"')
+    && hintBoth.status === 1 && hintBoth.stdout.includes('carries enemyHint beside enemyAgents') && hintGood.status === 0,
+  'check:playbook fails an enemyHint with an unknown agent or beside enemyAgents, and passes a real one');
+}
+
+// THE WORKED CASES (8.8) carry the same four bands, and are served by them
+// exactly as notes: at every band no case above it, whatever the situation.
+{
+  const cases = require(path.join(__dirname, '..', 'server', 'services', 'cases.js'));
+  ok(cases.size() > 100 && cases.all().every((c) => c.ranks.length && c.ranks.every((r) => rb.BANDS.includes(r))),
+    'every worked case lists real bands, the client\'s four');
+  const everything = { agent: 'Sova', map: 'Haven', sides: ['attack', 'defense'], advanced: true,
+    phases: ['early', 'mid', 'execute', 'postplant', 'retake', 'clutch', 'late'], economies: ['pistol', 'antieco', 'lostpistol'],
+    causes: ['dry-peek', 'isolated', 'repeek', 'crossfire', 'rotating', 'overextend', 'exposed', 'lost-duel'],
+    patterns: ['early', 'spot', 'ult', 'streak', 'postplant', 'retake'], enemies: ['Chamber', 'Killjoy', 'Omen', 'Jett', 'Cypher'] };
+  let above = 0;
+  for (const band of rb.BANDS) {
+    for (const { c } of cases.scored({ ...everything, rankBand: band })) if (rb.BANDS.indexOf(c.minBand) > rb.BANDS.indexOf(band)) above++;
+  }
+  ok(above === 0, `at every band no case above it is served (${above})`);
+  ok(cases.scored({ ...everything, rankBand: 'Gold 2' }).length === cases.scored(everything).length,
+    'and a band no key matches is no band');
+}
+
+// THE ADVANCED RESERVE FOLLOWS THE BAND (8.8, knowledge.ADVANCED_SLOTS_BY_BAND):
+// one of eight at Iron and Bronze, two at Silver and Gold, today's six from
+// Platinum, keyed by the client's own four bands, and a band no key matches
+// is today's reserve with the same notes and draws.
+{
+  const S = knowledge.ADVANCED_SLOTS_BY_BAND;
+  ok(JSON.stringify(Object.keys(S)) === JSON.stringify(rb.BANDS), 'the reserve has a share for each of the client\'s four bands, in order');
+  ok(rb.BANDS.every((b, i) => i === 0 || S[b] >= S[rb.BANDS[i - 1]]) && S.iron_bronze < S.plat_diamond,
+    `the share grows with the band (${rb.BANDS.map((b) => S[b]).join(', ')})`);
+  const adv = new Set(knowledge.all().filter((n) => n.tier === 'advanced').map((n) => n.text));
+  const seeded = (fn) => { const random = Math.random; let x = 3, d = 0; Math.random = () => { d++; x = (x * 16807) % 2147483647; return x / 2147483647; }; try { return { out: fn(), d }; } finally { Math.random = random; } };
+  const ctx = { agent: 'Reyna', map: 'Sunset', side: 'attacking', phase: 'buy', playerCredits: 1500, roundNumber: 4 };
+  for (const band of rb.BANDS) {
+    const got = knowledge.retrieve({ ...ctx, rankBand: band }, 8, { advanced: true }).filter((t) => adv.has(t)).length;
+    ok(got <= S[band], `an eco at ${band} with Advanced coaching on is served ${got} advanced notes of at most ${S[band]}`);
+  }
+  const none = seeded(() => knowledge.retrieve(ctx, 8, { advanced: true }));
+  ok(['Gold 2', 'immortal', '', null].every((b) => JSON.stringify(seeded(() => knowledge.retrieve({ ...ctx, rankBand: b }, 8, { advanced: true }))) === JSON.stringify(none)),
+    'a band no key matches gets today\'s reserve, the same notes and draws');
 }
 
 function finish() {

@@ -1096,6 +1096,12 @@ function timingOf(r) {
   return into <= 30 ? 'early' : into <= 70 ? 'mid' : 'late';
 }
 
+/** The enemy team's agents from Riot's comp, as compsOf keeps them, or null. */
+function enemyAgentsOf(riot) {
+  const c = compsOf(riot && riot.comps);
+  return c && c.them.length ? c.them.map((x) => x.agent) : null;
+}
+
 /**
  * What the server's review route is sent. The engine and the review bench both
  * build it here, so the bench measures exactly what a player's match sends.
@@ -1153,6 +1159,10 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
       // The review is written in the player's language; the gates below it
       // still read the labels, which stay English.
       language: typeof ctx.language === 'string' ? ctx.language : 'en',
+      // The enemy team's agents from Riot's comp (8.8, compsOf), agents only,
+      // for the notes and cases that answer them (server knowledge.js
+      // enemyFit). Left out when the link brought no comp.
+      ...(enemyAgentsOf(riot) ? { enemyAgents: enemyAgentsOf(riot) } : {}),
     },
     // Riot's final score and result outrank the last score the screen read.
     final: riot && riot.score ? {
@@ -1262,6 +1272,6 @@ function against(tracker, role, history) {
 }
 
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
-  queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, lookJudgement,
+  queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, lookJudgement,
   factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS,
   BASELINE_GAMES, BASELINE_MIN };

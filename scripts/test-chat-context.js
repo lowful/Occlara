@@ -468,6 +468,25 @@ function harness(opts) {
     const told = hl.calls.find((c) => c.kind === 'post');
     ok(asked.ok && !hl.calls.some((c) => c.kind === 'get') && told.body.context.match.cards.find((c) => c.n === 3).riot.feed.length === 10
       && told.body.context.match.comps.them[0].agent === 'Skye', 'and Ask Coach is told its round in order and the comps with no call to the tracker');
+    // THE ENEMY TEAM (8.8): what the server reads of that context for the
+    // notes and cases is the comp's agents and Riot's killers, agents only,
+    // and nothing for a client before this release (the route's byEnemy).
+    const cp = require('../server/services/chat-prompt');
+    const input = cp.normalise(told.body.context);
+    const enemies = cp.enemiesOf({ ...input, byEnemy: true });
+    const agents = Object.keys(require('../server/valorant-data.generated.json').agents);
+    ok(cp.enemiesOf(input).length === 0 && enemies.includes('Skye') && enemies.every((a) => agents.includes(a)) && enemies.length <= 5,
+      `and the server reads its enemy team as agents only, for a client of this release (${enemies.join(', ')})`);
+    // A comp of fewer than five is no known comp, so a note hinted at an
+    // enemy agent (enemyHint) is served as before (8.8).
+    const k = require('../server/services/knowledge');
+    ok(enemies.length < 5 && k.enemyFit({ text: 'x', enemyHint: ['Hush'] }, enemies) === 0,
+      'a partial comp leaves an enemyHint note served as before, never out');
+    // The match on the chip goes with its id, which seeds the worked cases
+    // (cases.js VARIETY): every question about it draws the same ones.
+    const casesNow = (q) => cp.casesFor({ ...input, byEnemy: true }, [{ role: 'user', content: q }]).map((c) => c.id).join('+');
+    ok(input.match && input.match.id === live.id && casesNow('Walk me through round 3') === casesNow('Walk me through round 3 again'),
+      'the match goes with its review id, and two questions about one round draw the same cases');
   }
 
   // ── The question, and what comes back ────────────────────────────────────

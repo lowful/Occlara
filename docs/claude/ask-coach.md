@@ -88,6 +88,21 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   fits its own 19,000 characters with its round in full (`DYNAMIC_MAX_CHARS`,
   trimmed in four steps). League gets its computed review and no primer;
   `v2-noprimer` is the bench's control.
+- **The enemy team and the worked cases** (8.8, `docs/claude/playbook.md`,
+  "The enemy team, and the worked cases"). For a client of 8.7.6 or later
+  (`coach.js chatV2` sets `input.byEnemy` by `clientAtLeast(req, V876)`) the
+  notes see the enemy's agents, the match's `comps.them` and each card's
+  Riot killer, agents only (`chat-prompt.js enemiesOf`): a note for an enemy
+  agent is served only against it, never blind, and a client before it gets
+  no enemy note at all. After the notes come at most two worked cases
+  (`casesFor`, `cases.js`), only where the question's situation matches one:
+  the asked round's side, plant, clutch, second, pistol and look, else every
+  round of the match, the counted causes and the patterns, the question's
+  own words in English, the enemy, the band and Advanced coaching. A case
+  takes the place of the lowest notes so the prompt grows by `CASE_GROWTH`
+  (10%) at most and stays inside the dynamic budget; a question no case
+  matches is today's prompt. `test:chatgates` holds all of it, and
+  `test:chatcontext` what the server reads of the context the client sends.
 - **The gates, a sentence at a time** (`fact-gates.js check`, through
   `parseReply`). A sentence that fails one is dropped, never repaired: a
   player's name or handle, or a capitalised word the player typed (never in

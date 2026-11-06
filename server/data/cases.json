@@ -1,0 +1,5221 @@
+[
+  {
+    "id": "k001",
+    "title": "Defence is winning rounds with one fixed setup",
+    "situation": {
+      "phase": "between",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You are winning, but the attackers keep showing the same opener on the same site with small changes each time.",
+    "decision": "Change one element of your setup, such as the first smoke, the mid position or the rotation trigger, before they convert the read.",
+    "why": "A repeated opener with tweaks is a probe. The losing defence in this match kept its winning setup and was broken in overtime.",
+    "mistakeToAvoid": "Assuming a setup that is winning cannot be read.",
+    "patterns": [
+      "spot"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defence is winning rounds with one fixed setup"
+    }
+  },
+  {
+    "id": "k002",
+    "title": "Pressure smoke on one side right before a called execute on the other",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your team is setting up a hit, you have one or two smokes left, a teammate asks for a smoke to pressure the far side, and the caller has said or is about to say a hit on the other site.",
+    "decision": "Keep the smoke for the execute: give the pressure without a smoke (a drone, a flash, a jiggle) or, if you are the caller, make the call first and spend smokes only where the hit goes. If the smoke is already gone, do not call a hit that needs it. Play for picks or a slower default until it is back.",
+    "why": "Smokes carry the most macro weight of any utility and an execute almost never works without one, while recon, drone, knife and flashes are optional for it. A caller on smokes avoids the waste because there is no delay between knowing the plan and spending the smoke.",
+    "mistakeToAvoid": "Spending smokes for small pressure on the side you are not hitting, then running the called execute into open sightlines with no smoke left.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 3,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "pressure smoke on one side right before a called execute on the other"
+    }
+  },
+  {
+    "id": "k003",
+    "title": "Who enters second on an execute",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Smokes have landed, initiators are throwing flashes and recon, the duelist is entering first, and the Sentinel is away watching the flank.",
+    "decision": "As controller, with your smokes already down, enter second right behind the duelist with your gun up to trade. If you play Viper or Astra and still hold post plant lineups or a wall to keep up, stay back and let the initiator who has finished throwing go second.",
+    "why": "The controller has nothing to throw during the entry, unlike initiators mid utility and the Sentinel who would lose flank and post plant value, so the controller costs the team least as the second body in.",
+    "mistakeToAvoid": "The controller hanging back after smoking while an initiator still holding utility, or the Sentinel, ends up second in and the entry goes untraded.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "who enters second on an execute"
+    }
+  },
+  {
+    "id": "k004",
+    "title": "Last alive retake, enemy holding far from the spike, two smokes left",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You are the last defender, the spike is planted, the last attacker is far enough away that they cannot reach a sight line on the spike before a full defuse ends, and you still have a smoke.",
+    "decision": "Smoke the spike and stick the full defuse without tapping, staying still inside the smoke.",
+    "why": "The attacker has to come in and check the smoke, or spray into it blind, and a full defuse is 7 seconds. A tap gives them back the time.",
+    "mistakeToAvoid": "Tapping and peeking out to look for them, or defusing in the open where the far attacker has a line.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "last alive retake, enemy holding far from the spike, two smokes left",
+      "claims": [
+        {
+          "rule": "spike.defuse",
+          "value": 7
+        }
+      ]
+    }
+  },
+  {
+    "id": "k005",
+    "title": "Round two on attack after a lost pistol, no plant",
+    "situation": {
+      "phase": "buy",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "lostpistol"
+    },
+    "signal": "The score reads 0 to 1 after round one, you are on attack, the spike was not planted in round one, and your credits are well short of a rifle plus heavy armour.",
+    "decision": "Save together in round two, keeping enough to buy a rifle and heavy armour for all five in round three, and play round two for information or a cheap pick without dying for nothing.",
+    "why": "A team save lets all five buy a rifle and heavy armour together in round three, while a force made on the loss bonus usually loses to full armour and leaves round three broken as well.",
+    "mistakeToAvoid": "One or two players force alone while the rest save, so round three is a broken buy for everyone and the save buys nothing.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 3,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "round two on attack after a lost pistol, no plant"
+    }
+  },
+  {
+    "id": "k006",
+    "title": "Down 0 to 2 after a lost pistol and a lost round two",
+    "situation": {
+      "phase": null,
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "lostpistol"
+    },
+    "signal": "The score reads 0 to 2 after round two, and your team lost the pistol.",
+    "decision": "Play round three as a normal round with the agreed buy. Do not call the half lost or make a solo hero play to catch up.",
+    "why": "A lost pistol and a lost second round rarely decide a half, and teams that start that way come back often, so the half is still open and the next full buy is the round that matters.",
+    "mistakeToAvoid": "Tilting after the pistol: typing that the half is over, solo half buying, or peeking alone to make something happen.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 3,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "down 0 to 2 after a lost pistol and a lost round two"
+    }
+  },
+  {
+    "id": "k007",
+    "title": "Last alive clearing a few angles in a clutch",
+    "situation": {
+      "phase": "clutch",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You are the last player alive against several enemies and must move through an area with about three angles.",
+    "decision": "Slice the angles one at a time with quick jiggles, isolating each so no second enemy can see your back, and only stop fully on the angle you choose to fight.",
+    "why": "Alone you have no teammate or utility to clear for you, so taking one isolated angle at a time is the way to win separate duels.",
+    "mistakeToAvoid": "Swinging into a spot where two angles see you at once, or standing still in the open while checking a corner.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "last alive clearing a few angles in a clutch"
+    }
+  },
+  {
+    "id": "k008",
+    "title": "Iron lineup controller with a good KDA on a long losing streak",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You rush in with the team, then watch the flank once the site is taken and throw molly lineups from far away. Your kills and deaths look good but the team keeps losing the site fights.",
+    "decision": "Take more gunfights on the site with the team. In the post plant throw the molly to block a choke point and fight next to your teammates so you can trade them. Check the flank with a glance or a trap, not with a whole player.",
+    "why": "Lineups from afar leave teammates to take and hold the site alone, and a player who only watches the flank removes himself from the fights that decide the round.",
+    "mistakeToAvoid": "Judging your game by personal KDA while sitting out the trades the team needs.",
+    "ranks": [
+      "iron_bronze"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "iron lineup controller with a good kda on a long losing streak"
+    }
+  },
+  {
+    "id": "k009",
+    "title": "Team on autopilot in a game going badly",
+    "situation": {
+      "phase": "buy",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Several rounds lost in a row, teammates not playing off each other's utility and little or no communication.",
+    "decision": "Give one simple plan everyone can do together, such as fight mid or rush A, before the round starts.",
+    "why": "A simple shared plan gets five players doing the same thing at the same time, which an unresponsive team will actually follow.",
+    "mistakeToAvoid": "Explaining a detailed strategy nobody follows, or giving up on calls entirely.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "team on autopilot in a game going badly"
+    }
+  },
+  {
+    "id": "k010",
+    "title": "Strong with the Guardian in deathmatch, weak with rifles in ranked",
+    "situation": {
+      "phase": null,
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You hit one shot headshots with the Guardian in deathmatch but lose rifle duels in ranked, often spraying past the first few bullets at medium range.",
+    "decision": "With a rifle, shoot short bursts and strafe between them instead of holding the spray past the first few bullets at medium range, and drill two bullet bursts on bots to build speed and precision. In rounds, play to trade a teammate or fight behind your utility rather than taking dry duels.",
+    "why": "Deathmatch gives you time and single targets, ranked adds utility and double swings. Better results with a semi automatic rifle than with a full auto one point at spraying when you should burst, which throws away the reset a strafe gives you.",
+    "mistakeToAvoid": "Switching to the Guardian or to duelists instead of fixing the rifle shooting rhythm.",
+    "cause": [
+      "lost-duel"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "strong with the guardian in deathmatch, weak with rifles in ranked"
+    }
+  },
+  {
+    "id": "k011",
+    "title": "Full team post plant collapses in seconds",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Spike down with four or five attackers alive, all hiding in passive corners, and nobody has sight of one entrance into site.",
+    "decision": "Spread so each entrance is watched by someone, pair up so every peek can be traded, and anyone who chooses to hide calls it so the others cover the gap.",
+    "why": "If everyone hides, retakers clear the common spots in order, one or two utility pieces flush the team, and the attackers die almost together without trades. Letting an enemy walk on site unseen is worse than holding a more aggressive angle.",
+    "mistakeToAvoid": "All attackers playing passive at once, or one player hiding in a corner while teammates assume they hold an entrance.",
+    "cause": [
+      "isolated",
+      "exposed"
+    ],
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "full team post plant collapses in seconds"
+    }
+  },
+  {
+    "id": "k012",
+    "title": "Utility spent on one site but the defense is stacked there",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your team spent smokes or other utility on one site and you now see three or four defenders holding it, with plenty of round time left.",
+    "decision": "Call the rotate at once and move together to the other site, treating the utility as spent.",
+    "why": "The stacked defenders have to notice you left before they move, so the other site is light for a short window. Defenders usually have the shorter rotate, so the window only exists if you go immediately and arrive together.",
+    "mistakeToAvoid": "Pushing into the stack because the utility feels wasted, or rotating late and slowly into a site that has already been refilled.",
+    "cause": [
+      "rotating"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "utility spent on one site but the defense is stacked there"
+    }
+  },
+  {
+    "id": "k014",
+    "title": "Down two players late in the round",
+    "situation": {
+      "phase": "late",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The alive count reads 2 for your team against 4 for theirs, and the round still has time for them to execute or retake together.",
+    "decision": "If the round is still winnable and a save would not change next round's buy, take one deliberate fight on an isolated enemy from an angle they would not expect, to even the numbers, rather than both survivors waiting to be found. If a save keeps rifles for next round, saving is fine.",
+    "why": "Four coordinated players beat two passive players almost every time. A single pick changes the odds more than any safe hold.",
+    "mistakeToAvoid": "Hiding and waiting to be found, or the two survivors both peeking the same group of four at once.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "down two players late in the round"
+    }
+  },
+  {
+    "id": "k015",
+    "title": "Up two players late in the round",
+    "situation": {
+      "phase": "late",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The alive count reads 4 for your team against 2 for theirs.",
+    "decision": "Hold your positions, play together and let the two enemies come to you, and nobody goes alone to hunt a kill. If you are attacking with no plant and the clock is short, go plant together instead, as a group, not one by one.",
+    "why": "The losing side needs isolated duels to come back. Chasing hands them exactly that, while holding forces them to fight several of you at once.",
+    "mistakeToAvoid": "Chasing a kill for the scoreboard and dying alone, turning a 4v2 into a 3v2 or worse.",
+    "cause": [
+      "overextend"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "up two players late in the round"
+    }
+  },
+  {
+    "id": "k016",
+    "title": "Post plant with one enemy unaccounted for",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The spike is down, the enemy alive count is 4, and only 3 of them have been seen on the minimap or called.",
+    "decision": "Assume the fourth is flanking, ask the team by agent name whether anyone has seen them, and get someone or some utility on the flank route before settling into post plant angles.",
+    "why": "With the spike down the unseen player has no site to hold and every reason to come from behind. One question and one watcher removes that threat.",
+    "mistakeToAvoid": "All survivors facing the site from the front while the missing player walks up behind them.",
+    "cause": [
+      "exposed"
+    ],
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "post plant with one enemy unaccounted for"
+    }
+  },
+  {
+    "id": "k017",
+    "title": "Defensive first pick from a spot with an escape",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You hold an aggressive angle with your escape ability ready and placed, and the attackers' entry is heading your way.",
+    "decision": "Take one shot or one duel, then leave with the escape before the trade arrives and rejoin the site or the retake, so your kill stands untraded.",
+    "why": "An untraded opening kill leaves the attack a player down whatever happens next. Staying for a second kill gives them the trade.",
+    "mistakeToAvoid": "Staying on the aggressive angle after the kill to hunt more and being traded, giving the man advantage straight back.",
+    "cause": [
+      "overextend"
+    ],
+    "patterns": [
+      "early"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defensive first pick from a spot with an escape"
+    }
+  },
+  {
+    "id": "k018",
+    "title": "Attack, your entry duelist is going in",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your Jett or other entry is committing onto site and taking first fights while you are behind them with utility up.",
+    "decision": "Play second: use your utility for their entry, trade their fight if they fall, and keep yourself alive into the post plant so you can play the 1v1 or 2v2 after the plant.",
+    "why": "The close games are decided by the small number rounds after the plant. The support who survived the hit is the one who plays them.",
+    "mistakeToAvoid": "Racing the entry for the first fight so both die in the opening seconds and nobody is left for the post plant.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "attack, your entry duelist is going in"
+    }
+  },
+  {
+    "id": "k019",
+    "title": "Defense, the attack is executing onto your site",
+    "situation": {
+      "phase": "execute",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Several attackers and their utility are coming onto the site you hold, and your teammates are on the other site or mid.",
+    "decision": "Use your utility to slow the hit, take a pick only from a spot you can fall back from, then get off the site alive and join the retake rather than dying alone to the full hit.",
+    "why": "Every second you delay and every attacker you remove makes the retake winnable, and alive you are a retaker, while a death with no kill hands over the site and a player.",
+    "mistakeToAvoid": "Holding the site to the death alone, dying in first contact with no damage, or backing off without having slowed anything.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defense, the attack is executing onto your site"
+    }
+  },
+  {
+    "id": "k020",
+    "title": "Defense, they keep hitting the other site",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The attack has hit the other site in recent rounds and you feel the urge to start the round already rotating, with no contact or utility seen yet this round.",
+    "decision": "Hold your post until real information shows up, and if they hit the other site again, play the retake with your teammates rather than pre stacking.",
+    "why": "Rotating on a hunch lets the attack slow down and hit the site you left. A retake with equal numbers is the better trade.",
+    "mistakeToAvoid": "Over rotating from round start to avoid playing a retake, leaving your site open.",
+    "cause": [
+      "rotating"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defense, they keep hitting the other site"
+    }
+  },
+  {
+    "id": "k021",
+    "title": "Late round 2v2 or 2v1 with a teammate alive",
+    "situation": {
+      "phase": "late",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The kill feed shows two of your team alive against one or two enemies.",
+    "decision": "Find your teammate and play together: one takes the fight, the other is positioned to trade within a couple of seconds, or both hold a crossfire.",
+    "why": "Playing apart turns a 2v1 into two 1v1s and a 2v2 into a coin flip you can lose twice. A trade keeps the numbers.",
+    "mistakeToAvoid": "Taking a solo 1v2 peek as if you were far above the lobby.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "late round 2v2 or 2v1 with a teammate alive"
+    }
+  },
+  {
+    "id": "k023",
+    "title": "Anchoring a quiet site early in a defense round, low Immortal lobby",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": "A",
+      "economy": null
+    },
+    "signal": "You are alone on Haven A, have heard no footsteps or utility at A Long, and it is the opening of the round.",
+    "decision": "Move up A Long only as far as you still have a safe way back, hold just off the attackers' approach, and call that you hear nothing yet, so the team can shade toward the other sites while you keep watching.",
+    "why": "If they come your way you can take one and give an early warning, and if not your team is stronger where the attack goes.",
+    "mistakeToAvoid": "Sitting silently on site, or calling the site empty so the team leaves it fully open to a quiet walk in.",
+    "patterns": [
+      "early"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "anchoring a quiet site early in a defense round, low immortal lobby"
+    }
+  },
+  {
+    "id": "k024",
+    "title": "Last on the scoreboard partway through a game",
+    "situation": {
+      "phase": "between",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your kills are the lowest on your team and you have lost several duels in a row.",
+    "decision": "Treat the next round as a new one, play it with full effort, and keep calling every piece of vital information, alive or dead.",
+    "why": "Earlier rounds do not carry over, and your calls help the team win even when your aim is off, so each round starts fresh like a new hole after a bad one.",
+    "mistakeToAvoid": "Going silent or giving up on comms once you are behind or being flamed.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "last on the scoreboard partway through a game"
+    }
+  },
+  {
+    "id": "k025",
+    "title": "Attack half losing every site hit, team asks for a default",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Three or more lost attack rounds in a row, each a direct hit on one site, and nobody is calling. You are on smokes.",
+    "decision": "Run a default that spreads across the map to take control only where nobody is isolated (no early untraded death), look for one pick, and the moment it lands use the space to hit where defenders are thin. As the controller, take the call yourself, because you choose where the smokes go.",
+    "why": "A pick on a default can force defenders to stack three on one site and leave one alone on the other. A default without a pick still costs them utility and time. The controller decides which areas can be taken, so calling from smokes removes the lag between plan and smoke.",
+    "mistakeToAvoid": "Treating the default as spreading out and waiting: players drift alone, one dies untraded and the round becomes a 4v5 with nothing gained. Or repeating the same direct hit a fourth time.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "attack half losing every site hit, team asks for a default"
+    }
+  },
+  {
+    "id": "k026",
+    "title": "Bind attack default, Sage walls Showers",
+    "situation": {
+      "phase": "early",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Sage"
+      ],
+      "map": "Bind",
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "You are attacking on Bind, you took Showers in the default, and a Sage wall now blocks it.",
+    "decision": "Stay at Showers: either hold an angle on the wall to kill whoever comes to break it, or just keep their attention there and burn their time while the rest of the team works elsewhere.",
+    "why": "The wall means the defenders expect pressure there. A player who holds it keeps defenders busy and can trade the wall break, so the default still pays off even though Showers did not open.",
+    "mistakeToAvoid": "Leaving Showers the moment the wall goes up, which tells defenders they can rotate off A for free, or breaking the wall alone and walking into a crossfire.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "bind attack default, sage walls showers"
+    }
+  },
+  {
+    "id": "k028",
+    "title": "High fragging controller stuck at high Immortal",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "controller",
+      "agent": "Clove",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your kills and combat score are high, yet your rank has not moved for several acts, and in your rounds you often start alone on the side of the map away from your duelists and initiators.",
+    "decision": "Start with the pack, go in second or third behind the initiator's utility next to the duelists, read where teammates are pathing and pick up the angle left open, and trade out with the entry players.",
+    "why": "Clove is a pack agent. The isolated kills inflate the stats without opening sites, while trades next to the team are the impact kills that win rounds and stop the enemy from multi killing the entry.",
+    "mistakeToAvoid": "Playing a controller the way a teleporting duelist one trick would, starting on the opposite site and fighting alone, then reading good stats as proof of good play.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "minBand": "asc_plus",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "high fragging controller stuck at high immortal"
+    }
+  },
+  {
+    "id": "k029",
+    "title": "Buy phase read before a possible rush",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The scoreboard in the buy phase shows which enemy ultimates are ready and how much money the enemy has.",
+    "decision": "Use the enemy ultimates and money to predict where they will start or whether they will rush, then confirm or change it with the first enemy utility seen and the rotation footsteps heard.",
+    "why": "The game hands out this information for free. At high Immortal the pace is fast enough that a player who reads it first reacts in time and one who does not is on autopilot.",
+    "mistakeToAvoid": "Setting up the same way every round from habit without looking at the scoreboard, then being caught by a rush or an ultimate round.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "buy phase read before a possible rush"
+    }
+  },
+  {
+    "id": "k030",
+    "title": "Attacking into a team on an eco",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "antieco"
+    },
+    "signal": "The enemy team's loadout value is low (pistols, shotguns or nothing) while your team has rifles.",
+    "decision": "Change your clear order: check every close corner and off angle on your entry path before the usual long range positions, and avoid wide open swings into close spots.",
+    "why": "Eco players cannot win long rifle duels, so they hide close where a pistol or shotgun can win. The long angles are rarely the threat that round.",
+    "mistakeToAvoid": "Running the normal full buy clear and getting picked from a close corner by a Shorty or Judge.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "attacking into a team on an eco"
+    }
+  },
+  {
+    "id": "k031",
+    "title": "Entry dies first on attack",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The first death of the round is your team's entry player on attack.",
+    "decision": "Judge the round by what happened next: if a teammate killed the killer right away, the trade is a good result on attack. If not, the error was the spacing of the second player as much as the entry.",
+    "why": "A retake is much harder than the initial take, so even trades favour the attackers. The entry is sent first for information and is expected to die.",
+    "mistakeToAvoid": "Blaming the entry for dying, or the entry refusing to go first, while the real fault is the second player being too far behind to trade.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "entry dies first on attack"
+    }
+  },
+  {
+    "id": "k033",
+    "title": "Stuck in Iron and blaming teammates",
+    "situation": {
+      "phase": "between",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You are in Iron or Bronze and your explanation for losses is your teammates.",
+    "decision": "Treat your own mechanics as the problem: spend most practice in deathmatch on base aim and movement until you climb out of Bronze.",
+    "why": "Iron and Bronze have almost no coordination, so a player with sound basic mechanics wins fights and climbs regardless of teammates.",
+    "mistakeToAvoid": "Studying strategy or blaming the team when the fights are being lost on mechanics.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "iron_bronze"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "stuck in iron and blaming teammates"
+    }
+  },
+  {
+    "id": "k034",
+    "title": "Losing long range rifle duels while holding the trigger",
+    "situation": {
+      "phase": null,
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "In your replay you die in a long range rifle duel after firing more than 3 bullets in one continuous spray.",
+    "decision": "Release after 2 or 3 bullets at long range, let accuracy reset, and burst again. Keep full sprays for mid to close range fights.",
+    "why": "At range only the first bullets of a burst are accurate, so a continuous spray mostly misses while an opponent who bursts lands their shots.",
+    "mistakeToAvoid": "Spraying at every range and then trying to fix it by chasing a higher headshot percentage in deathmatch.",
+    "cause": [
+      "lost-duel"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "losing long range rifle duels while holding the trigger"
+    }
+  },
+  {
+    "id": "k036",
+    "title": "Reviewing a lost duel: aim or movement",
+    "situation": {
+      "phase": "between",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You lost a duel you felt you should have won, and you have the Shooting Error graph on (Settings, Video, Stats) while recording.",
+    "decision": "Pause at the duel and read the graph. If the missed shots show movement error, the fix is stopping before you shoot. If the bars are clean and the shots still missed, the fix is crosshair placement or the flick. Note the range of the duel and whether your burst length fit that range.",
+    "why": "Separating movement error from aim error tells you what to practise, and most lost duels at this level turn out to be technique, not aim.",
+    "mistakeToAvoid": "Conclude it was bad aim and spend the next session in an aim trainer while the real cause, shooting on the move or spraying at long range, stays untouched.",
+    "cause": [
+      "lost-duel"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "reviewing a lost duel: aim or movement"
+    }
+  },
+  {
+    "id": "k037",
+    "title": "Controller late to a C site execute on Haven",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "controller",
+      "agent": "Omen",
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": "C",
+      "economy": "full"
+    },
+    "signal": "Your duelist is stepping onto C while you are still far back in the formation, you have smoked garage and then CT from a distance, and your Paranoia has not been thrown.",
+    "decision": "Throw the garage smoke while walking with the team, get into the cubby, send Paranoia through the close right lane as the duelist enters, then smoke CT and walk onto site with the team.",
+    "why": "The close right angle is what kills the entry. Paranoia there in the same second as the entry clears it, and the CT smoke only matters once the site is being taken. Being in the cubby also gives the team a second gun.",
+    "mistakeToAvoid": "Throw both far smokes first from behind, arrive after the fight, and leave the team to take the space without your utility or your gun.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "controller late to a c site execute on haven"
+    }
+  },
+  {
+    "id": "k038",
+    "title": "Omen after the plant on a corner plant",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": "controller",
+      "agent": "Omen",
+      "enemyAgents": [],
+      "map": null,
+      "site": "C",
+      "economy": null
+    },
+    "signal": "The spike is planted in a corner of the site, you still hold a smoke, and the retake can come from more than one lane (for example CT or garage).",
+    "decision": "Use the smoke as a one way: either on top of the spike area so a defuser's legs show under it, or on the lane you expect the retake to use, so pushers show their legs before they can see you. If you stay on site, play off a box from which you can hold one lane and swing the other.",
+    "why": "After the plant the attacker's job is to stall. A one way means the defender cannot defuse or walk through without being seen first, which eats the defuse window.",
+    "mistakeToAvoid": "Holding the smoke unused, or throwing a plain smoke that blocks your own view, then checking every retake lane at once with no stall.",
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "omen after the plant on a corner plant"
+    }
+  },
+  {
+    "id": "k039",
+    "title": "Support agent beside an untraded teammate death",
+    "situation": {
+      "phase": "mid",
+      "side": null,
+      "role": "sentinel",
+      "agent": "Sage",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "A teammate close to you dies to a known enemy position, and you are alive, healthy and holding back with heal or ult in mind.",
+    "decision": "Put the Slow Orb on the space the killer would use to reposition or refrag, then peek them at once to trade instead of waiting to heal or res, and swing from outside the slow so you are not slowed yourself.",
+    "why": "An untraded death leaves the fight a player down for no return. A slowed enemy is an easier duel. Never fighting makes you predictable.",
+    "mistakeToAvoid": "Hiding to keep the healer role or to save the ultimate while the killer walks away free.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "support agent beside an untraded teammate death"
+    }
+  },
+  {
+    "id": "k040",
+    "title": "Defence, execute heard on your choke with rotators far away",
+    "situation": {
+      "phase": "execute",
+      "side": "defense",
+      "role": "sentinel",
+      "agent": "Sage",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Several footsteps or enemy utility at your site entrance while your teammates are on the other site or mid.",
+    "decision": "Throw the Slow Orb on the choke as they enter, fall back to a spot off the slow, and play for time and trades until rotators arrive.",
+    "why": "Slowing the entry buys seconds for the stack or retake. Peeking alone into the full execute only gives a free kill.",
+    "mistakeToAvoid": "Saving the slow and dry peeking the execute, or throwing it after the site has already fallen.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defence, execute heard on your choke with rotators far away"
+    }
+  },
+  {
+    "id": "k041",
+    "title": "Controller lurker waiting for a teammate's display before moving",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You are alone on a lurk lane with no information on your lane, and a teammate on the far side has utility (a flash, a drone) not yet used.",
+    "decision": "Ask the teammate to throw that utility toward their side first, hold your lane quietly until it lands, then check whether a defender has rotated off your lane before you take a fight there. If one has, move into the gap, if none has, keep waiting or fall back rather than dry peek.",
+    "why": "Ranked defenders rotate to visible utility. The display costs your team little, and it turns your lurk duel from a coin flip into an uneven fight or a free walk.",
+    "mistakeToAvoid": "Dry peeking the lurk angle early with no information, taking a 50/50 duel that, if lost, leaves the team a man down with no trade.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "controller lurker waiting for a teammate's display before moving"
+    }
+  },
+  {
+    "id": "k042",
+    "title": "Deciding whether to queue the next ranked game",
+    "situation": {
+      "phase": "between",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "A ranked game just ended. You feel irritated, distracted or burnt out, or you have lost two in a row.",
+    "decision": "Do not queue ranked again. Go to deathmatch or the range for the rest of the session or log off. Queue again only when the last game felt fine and you are not tired or distracted.",
+    "why": "The climb comes from a win rate above 50 percent sustained over many games. Tilted games drag that rate down, so stopping protects the edge.",
+    "mistakeToAvoid": "Queuing straight back to win the rating back, chaining tilted losses.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "deciding whether to queue the next ranked game"
+    }
+  },
+  {
+    "id": "k043",
+    "title": "Spike at about 10 seconds, no half defuse yet",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The spike is on its fast beeps, the defuse started from zero and you have not heard the half.",
+    "decision": "Stop the defuse before it reaches the half, as late before the half as you safely can, with a peek, damage or utility. You do not need the kill.",
+    "why": "Stopped before the half the defuse resets and needs the full 7 seconds again, and once fewer than 7 seconds remain no fresh defuse can finish, so the interruption alone wins the round.",
+    "mistakeToAvoid": "Peeking for the kill as soon as the stick starts, so they can restart in time, or waiting until the half is saved.",
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "spike at about 10 seconds, no half defuse yet",
+      "claims": [
+        {
+          "rule": "spike.defuse",
+          "value": 7
+        }
+      ]
+    }
+  },
+  {
+    "id": "k045",
+    "title": "You get a kill from a forward position",
+    "situation": {
+      "phase": "mid",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You just got a kill or made noise from a spot close to the enemy, and the enemy now knows where you are.",
+    "decision": "Within a few seconds choose: fall back to cover, move to cut off their likely rotation, or stay and hold on purpose. Tell your team where the enemies will come from.",
+    "why": "Players hunt a revealed player, and they come faster the closer you are, so staying put by default walks you into the next fight on their terms.",
+    "mistakeToAvoid": "Standing where you got the kill and dying to the second enemy a few seconds later.",
+    "cause": [
+      "overextend"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "you get a kill from a forward position"
+    }
+  },
+  {
+    "id": "k046",
+    "title": "Attack default with the team stacked on one side",
+    "situation": {
+      "phase": "early",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Early in the round three or more teammates are on the same half of the minimap and one lane is empty.",
+    "decision": "Wait a few seconds, then take the empty lane for information or a safe pick, not a solo duel you cannot be traded in, so the team is spread across lanes.",
+    "why": "A spread default makes the defenders guess and opens picks on every lane. A stack hands the empty lane to defender aggression and announces the hit.",
+    "mistakeToAvoid": "Following the first teammate out of spawn, so all five walk one lane and the default becomes a slow execute.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "attack default with the team stacked on one side"
+    }
+  },
+  {
+    "id": "k047",
+    "title": "Won the opening pick, team has no plan",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "The team is 5v4 after the first kill and teammates are scattered across lanes with nobody calling.",
+    "decision": "Read teammate positions on the minimap and call the option they fit: group into trade range and hit the site most of them are near, or hold your lanes together if the defenders are likely to push to trade back, and play the extra player out slowly.",
+    "why": "An unused advantage drifts until a defender trades it back. A suggestion built from where teammates already stand is one they can follow without moving far.",
+    "mistakeToAvoid": "Waiting for someone else to call, chasing a second opening pick alone, or calling a hit on the site nobody is near.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 3,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "won the opening pick, team has no plan"
+    }
+  },
+  {
+    "id": "k048",
+    "title": "Initiator on attack holding recon for the execute instead of round start",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "initiator",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your team has called a site and is grouped at the entry. Your recon has not been used this round.",
+    "decision": "Fire the recon so it lands as teammates step through the entry, not in the first seconds of the round, and call what it reveals at once.",
+    "why": "A defender feels the most pressure when the scan lands while bodies are arriving, because he cannot both dodge the scan and hold the angle. An early scan only tells him to move before anyone is close.",
+    "mistakeToAvoid": "Throwing the recon at round start out of habit, gaining info the defenders then cancel by repositioning, and having nothing left for the real entry.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "initiator on attack holding recon for the execute instead of round start"
+    }
+  },
+  {
+    "id": "k049",
+    "title": "Matched everywhere on Haven attack",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "On 3 or more hits in a row the defenders arrived with as many players as you on the site you chose, and their comp has little stall util so they rely on fast rotations.",
+    "decision": "Stop trying to brute force the site with util. Open one side with noise or util, wait for them to commit their rotation, then hit the opposite site immediately.",
+    "why": "The failure is macro, not aim: they are matching your bodies. Only a switch faster than their rotate leaves a site short.",
+    "mistakeToAvoid": "Blaming the duels or the util and running the same hit harder into the same matched numbers.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "minBand": "asc_plus",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "matched everywhere on haven attack"
+    }
+  },
+  {
+    "id": "k050",
+    "title": "Up 5v3 with the enemy controller dead",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "A",
+      "economy": null
+    },
+    "signal": "Kill feed shows the enemy controller is among the dead and you have a two player or more advantage.",
+    "decision": "Set up a counted double peek on the position from two angles at once, keep an exit off site, and swing on the count.",
+    "why": "With no smokes left to stall, a simultaneous swing removes their trade and ends the round.",
+    "mistakeToAvoid": "Waiting around without a plan or peeking one at a time, which lets three players trade you down.",
+    "cause": [
+      "crossfire"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "up 5v3 with the enemy controller dead"
+    }
+  },
+  {
+    "id": "k051",
+    "title": "Same site hit three rounds in a row, enemy ults ready",
+    "situation": {
+      "phase": "buy",
+      "side": "attack",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [
+        "Raze"
+      ],
+      "map": null,
+      "site": null,
+      "economy": "antieco"
+    },
+    "signal": "Your team has gone A several rounds running, the enemy has a fast rotator like Raze with an ult, and their money is low so the round may get chaotic.",
+    "decision": "Show A as a fake and commit to C, and keep your own site ult unless tab shows the enemy has guns.",
+    "why": "The enemy is set up to react to your habit and pop ults on the rotate. A fake rotate catches them leaning the wrong way.",
+    "mistakeToAvoid": "Hitting A again because it worked, or spending your ult on a round where the enemy has no rifles.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "same site hit three rounds in a row, enemy ults ready"
+    }
+  },
+  {
+    "id": "k052",
+    "title": "Sova confirming an A open on Ascent defense",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "initiator",
+      "agent": "Sova",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Attackers open A loudly while you are set up on B.",
+    "decision": "When attackers open the other site loudly, dart or drone your own site's approach at once. Clear means call the loud site real and rotate, and a broken dart means call it a fake and tell the team to keep utility.",
+    "why": "Confirming instantly is the info initiator's job and stops the team from over rotating and having to regain the side later.",
+    "mistakeToAvoid": "Rotating on the noise alone and then having to fall back and retake B.",
+    "cause": [
+      "rotating"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "sova confirming an a open on ascent defense"
+    }
+  },
+  {
+    "id": "k053",
+    "title": "Bonus round with an ultimate one orb away",
+    "situation": {
+      "phase": "buy",
+      "side": "attack",
+      "role": "duelist",
+      "agent": "Waylay",
+      "enemyAgents": [],
+      "map": "Sunset",
+      "site": null,
+      "economy": "bonus"
+    },
+    "signal": "Your team has a scuffed buy and you are one orb short of your ultimate.",
+    "decision": "Call the plan around the ultimate: collect an orb on the way (on Sunset the B Main orb), then take A in parts using teammates' recon, and use Convergent Paths for the site take, not on first contact.",
+    "why": "A planned ult rescues a weak buy. Contacting alone with it creates single points of failure.",
+    "mistakeToAvoid": "Using the ult to open the first fight alone, losing it, and leaving the team with no plan.",
+    "patterns": [
+      "ult"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "bonus round with an ultimate one orb away"
+    }
+  },
+  {
+    "id": "k054",
+    "title": "Behind on money, enemy stacked with ults",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Tab shows your team value is lower than theirs and they have several ultimates ready with more coming.",
+    "decision": "Take an early high risk fight to steal an advantage, even as the controller.",
+    "why": "On worse equipment against a team with ultimates ready, a slow even round is likely lost, so a deliberate risky pick is the best way to change the odds.",
+    "mistakeToAvoid": "Thinking the controller should never take risks and waiting for a fight you will lose on equipment.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "behind on money, enemy stacked with ults"
+    }
+  },
+  {
+    "id": "k055",
+    "title": "Controller calling a retake",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The spike is down and your teammates are gathering to retake without anyone calling.",
+    "decision": "Take the call: hold everyone first, say exactly what util you will use and where (a wall on one entry, a stun on the default plant spot), then count down or call go as it lands, with energy that matches the urgency.",
+    "why": "Controller and info util decide retakes. Without a tempo call teammates peek alone and the retake falls apart.",
+    "mistakeToAvoid": "Saying your util in a flat voice that no one registers, or saying nothing and letting people trickle in.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "controller calling a retake"
+    }
+  },
+  {
+    "id": "k056",
+    "title": "Planting with a fight still going behind you",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "pistol"
+    },
+    "signal": "You have the spike and are on site, but a corner is uncleared or teammates are mid fight nearby, or someone has called a flank.",
+    "decision": "Do not plant yet. Fight with your team or clear the corner. If unsure, tap the spike to bait a peek and plant only once nobody swings.",
+    "why": "While planting you cannot shoot. A lost 2v2 around you becomes a 1v2 with you stuck on the spike.",
+    "mistakeToAvoid": "Prioritising the plant over a clear site, an unnecessary death that can lose a pistol round.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "planting with a fight still going behind you"
+    }
+  },
+  {
+    "id": "k057",
+    "title": "Jett on Lotus defense, attackers never cancel",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "duelist",
+      "agent": "Jett",
+      "enemyAgents": [],
+      "map": "Lotus",
+      "site": "mid",
+      "economy": "full"
+    },
+    "signal": "The attackers have not cancelled or faked once so far, and you have been starting on site like a sentinel.",
+    "decision": "Start forward or mid map, call that you are fast rotating, listen for footsteps, and when they commit, dash in to fight them while they make contact with your site players.",
+    "why": "Your escape lets you take risky fights other agents cannot, and a team that never fakes is best punished by a fast rotator.",
+    "mistakeToAvoid": "Playing Jett on site like Killjoy or Cypher, which wastes the dash and gives the enemy free map control.",
+    "patterns": [
+      "early"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "jett on lotus defense, attackers never cancel"
+    }
+  },
+  {
+    "id": "k058",
+    "title": "Ultimate ready, enemy has none",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "initiator",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Tab shows the enemy has no ultimates ready and you have yours.",
+    "decision": "Use your ult to get the team onto site now.",
+    "why": "Getting on site raises your post plant odds sharply. Saving it to counter an enemy ult only makes sense when they have one.",
+    "mistakeToAvoid": "Holding the ult for a later counter that cannot come, while the take fails without it.",
+    "patterns": [
+      "ult"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "ultimate ready, enemy has none"
+    }
+  },
+  {
+    "id": "k059",
+    "title": "Teammate flames you after a lost clutch",
+    "situation": {
+      "phase": "between",
+      "side": "defense",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "C",
+      "economy": null
+    },
+    "signal": "A teammate who just lost a clutch blames you for not killing two on your solo site.",
+    "decision": "Do not argue. Your job alone was to stall and give info, not to win a 1v2. Keep your voice and calls up and move to the next round's plan.",
+    "why": "The complaint is their frustration moved onto you. Arguing costs the next rounds.",
+    "mistakeToAvoid": "Taking it personally, going quiet, or arguing back over voice.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "teammate flames you after a lost clutch"
+    }
+  },
+  {
+    "id": "k060",
+    "title": "Attackers took A space and went quiet",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "The attackers took elbow or A main and stopped making noise. Your team has mid information.",
+    "decision": "After the time they would need to shift walk back and run to B, have your initiator recheck A. If they are still there, keep the stack. If A is empty, you now own two lanes, so move the A stack toward mid and prepare fast rotates to B.",
+    "why": "Taking space then slowing creates a window where you know they are still there. Once it passes, confirming tells you which lanes are left.",
+    "mistakeToAvoid": "Rotating early on a guess, or never rechecking and getting dragged around the map through CT.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "attackers took a space and went quiet"
+    }
+  },
+  {
+    "id": "k061",
+    "title": "Haven anti eco fought in close corners",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": null,
+      "economy": "antieco"
+    },
+    "signal": "The eco team shows early A pressure. Your defense gives up garage and leans three onto A, leaving one mid player to watch B and garage window alone.",
+    "decision": "Keep a body or trip in garage, and meet the eco on long lines. Do not leave the larger map space so the eco can force fights into tight corners.",
+    "why": "On long lines the eco has many angles to clear and the wrong guns. In close corners they need only one angle and their shotguns and pistols are best.",
+    "mistakeToAvoid": "Overleaning with no forward info and losing close fights to short range guns.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "haven anti eco fought in close corners"
+    }
+  },
+  {
+    "id": "k063",
+    "title": "Attacking mid after the enemy Operator just got a pick",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": "initiator",
+      "agent": "Sova",
+      "enemyAgents": [
+        "Chamber"
+      ],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "The previous round the enemy Chamber killed one of you with an Operator on a forward or mid angle, and he can afford it again this round.",
+    "decision": "Slow down as a team and do not dry walk mid. The Sova fires a recon into mid first, and only once the call confirms the Chamber is not holding mid does the team take it together with enough players to trade.",
+    "why": "The Operator threat is one shot from a forward angle and Chamber can teleport away after it, so information first costs a recon instead of a body.",
+    "mistakeToAvoid": "Walking mid on the same timing as the round before and losing a second player to the same Operator.",
+    "cause": [
+      "dry-peek"
+    ],
+    "patterns": [
+      "early"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "attacking mid after the enemy operator just got a pick"
+    }
+  },
+  {
+    "id": "k067",
+    "title": "Yoru on Abyss defense taking an aggressive mid line",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "duelist",
+      "agent": "Yoru",
+      "enemyAgents": [],
+      "map": "Abyss",
+      "site": "mid",
+      "economy": "full"
+    },
+    "signal": "You want an opening pick from a deep mid or main angle on Yoru.",
+    "decision": "Place a Gatecrash behind you first, take one shot, then teleport out and reset onto whichever site needs you.",
+    "why": "On an aggressive deep line, a failed shot without an exit is a death, while a Gatecrash placed behind you gives a way out and lets you reset onto whichever site needs you.",
+    "mistakeToAvoid": "Taking the aggressive line with no exit prepared, then dying with the teleport unused.",
+    "cause": [
+      "overextend"
+    ],
+    "patterns": [
+      "early"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "yoru on abyss defense taking an aggressive mid line"
+    }
+  },
+  {
+    "id": "k068",
+    "title": "A fast retake with space, played along the longest route",
+    "situation": {
+      "phase": "postplant",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Spike is down, your team has two or three players alive against three attackers, the rest of the map is quiet, and you are choosing between the direct route and a longer one that avoids a possible mid player.",
+    "decision": "Take the direct route to the spike and start contact early. Only take the long route if you have info that the direct one is held.",
+    "why": "The retake was very winnable with space. The long route gave the attackers time to set up and left the defenders knowing only that the enemy was not in mid.",
+    "mistakeToAvoid": "Taking the longest path because of a threat you only imagined, then arriving with too little time and facing set crossfires.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a fast retake with space, played along the longest route"
+    }
+  },
+  {
+    "id": "k069",
+    "title": "A deep off angle that can be pinched from two sides",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "B",
+      "economy": "full"
+    },
+    "signal": "You are on a raised off angle (a rafter) that can be seen from both main and the upper link, and the attackers are coming from both.",
+    "decision": "Do not play the spot unless you have lots of practice on it and an exit. Hold an angle that only one entry can see, or leave after one shot.",
+    "why": "An off angle seen from two entries gets pinched, and a defender there is killed from both sides.",
+    "mistakeToAvoid": "Copying a flashy off angle without the practice, then dying when attackers come from both sides.",
+    "cause": [
+      "crossfire"
+    ],
+    "patterns": [
+      "spot"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a deep off angle that can be pinched from two sides"
+    }
+  },
+  {
+    "id": "k070",
+    "title": "An enemy one point from ult and the orb on the attacker side",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The scoreboard shows a key enemy one point from their ultimate and an ultimate orb sits on a side the attackers usually take.",
+    "decision": "Contest the orb side early to deny it, but only if your team can win the fight there. Otherwise accept the ult and plan for it.",
+    "why": "One orb can decide whether a round winning ultimate comes this round or later, but a lost fight for it costs a player, so contest it only where your team can win.",
+    "mistakeToAvoid": "Ignoring the enemy's ult points, or forcing a losing fight for the orb with no utility.",
+    "patterns": [
+      "ult"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "an enemy one point from ult and the orb on the attacker side"
+    }
+  },
+  {
+    "id": "k071",
+    "title": "The Cypher camera gives away the setup",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Cypher"
+      ],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You see the enemy Cypher's camera on one site, and other info tells you their controller is there too.",
+    "decision": "Treat the camera as a hint of where the Cypher plays, confirm the rest of the setup with one more piece of information (their controller's smokes, a quick jiggle or utility on the other site), then hit the weak site in full or split around it.",
+    "why": "A camera on the site Cypher plays tells you where at least one or two defenders are. From that you can find the weak site.",
+    "mistakeToAvoid": "On defense, placing the camera where it reveals your own site. On attack, seeing it and not changing the call.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "the cypher camera gives away the setup"
+    }
+  },
+  {
+    "id": "k072",
+    "title": "Using a wall and flank in a retake with no utility",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "The site has fallen, your controller has already used his wall during the hold, and a teammate is going for a solo flank retake with no utility against a player holding an angle.",
+    "decision": "Save the wall for the retake, and retake together from one side with the utility you have left, instead of sending one player alone on the flank.",
+    "why": "Without the wall and with a lone flanker who has no utility, the retake turns into separate one on one duels into held angles.",
+    "mistakeToAvoid": "Using the main retake utility early in the hold, then sending a solo flank with no tools.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "using a wall and flank in a retake with no utility"
+    }
+  },
+  {
+    "id": "k073",
+    "title": "Defender initiator who already sees the hit on his site",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": "initiator",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "In the opening seconds an enemy knife, an enemy recon dart and an enemy smoke all land on or at your site.",
+    "decision": "Throw nothing to confirm, hold back from contact and listen for bodies. Once footsteps or numbers confirm the hit, fall back with your sentinel partner, keep dart and drone, and play the retake, droning first to tag someone and timing the dart for the duelist's swing.",
+    "why": "The enemy's utility already told you it is a hit, so recon now buys nothing. In the retake the same recon removes a defender from the fight and pulls crosshairs off your entry.",
+    "mistakeToAvoid": "Dumping dart and drone at round start to 'get info', then retaking blind with no utility.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defender initiator who already sees the hit on his site"
+    }
+  },
+  {
+    "id": "k074",
+    "title": "Silent walk up and contact pop on Haven C",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "initiator",
+      "agent": null,
+      "enemyAgents": [
+        "Cypher"
+      ],
+      "map": "Haven",
+      "site": "C",
+      "economy": "full"
+    },
+    "signal": "Earlier rounds showed the Cypher's camera on C sits passive on the left wall, so C long can be walked without being spotted.",
+    "decision": "Make noise elsewhere, walk C Long quietly, and use utility only at contact: the duelist breaks the near trapwire, you shock dart the likely second one, then you hold the one gap nobody is clearing with the Odin while the team clears and plants.",
+    "why": "Utility on contact hits a setup that is already committed. Holding the one open gap protects the plant.",
+    "mistakeToAvoid": "Rushing in and dumping the whole kit at the start, or everyone running into site leaving logs open.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "minBand": "asc_plus",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "silent walk up and contact pop on haven c"
+    }
+  },
+  {
+    "id": "k075",
+    "title": "Two alive retaking Haven B against four with an Odin and an Operator",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": "B",
+      "economy": "full"
+    },
+    "signal": "After a fast B rush you are 2v4, the attackers hold an Odin and an Operator and two of them are still on site.",
+    "decision": "Save.",
+    "why": "Attackers can play outside the site and from head glitch spots, with a second layer on site, so two retakers cannot clear in time.",
+    "mistakeToAvoid": "Throwing two rifles into a hopeless retake and losing the next buy.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "two alive retaking haven b against four with an odin and an operator"
+    }
+  },
+  {
+    "id": "k077",
+    "title": "1v1 with the spike down and the attacker jiggling from heaven",
+    "situation": {
+      "phase": "postplant",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "B",
+      "economy": "full"
+    },
+    "signal": "The spike is planted for a heaven post plant and the last attacker is wasting time with jiggles and a smoke that could float down.",
+    "decision": "If you can reach the spike from a side his current angle does not see, get half on the defuse first, then turn on him, because the banked half forces him to peek you instead of using his smoke and the clock to pick his angle. If he can see the spike, fake a tap to draw the peek instead.",
+    "why": "With half banked he has no time left for tricks. He must fight you where you are ready.",
+    "mistakeToAvoid": "Hunting the attacker through his smoke while the timer runs.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "1v1 with the spike down and the attacker jiggling from heaven"
+    }
+  },
+  {
+    "id": "k078",
+    "title": "Fracture defense: kill the lone A main player, then the controller",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Brimstone"
+      ],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "A flash showed most attackers on one approach and the other entrance has no info, so you read four on that approach and one alone on the other entrance, and your setup has two players near spawn.",
+    "decision": "Kill the lone player first to own that entrance and the routes behind the site, then kill the Brimstone, their only smoke and molly. With no smoke and no molly left they cannot stall the post plant, and the retake from the open side becomes a numbers fight.",
+    "why": "The isolated player is the cheapest kill and opens retake routes, and without a controller the post plant has nothing to delay a defuse.",
+    "mistakeToAvoid": "Retaking straight into the stack while the lone player still holds A main behind you.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "fracture defense: kill the lone a main player, then the controller"
+    }
+  },
+  {
+    "id": "k079",
+    "title": "Weak side Vyse on attack waits for radar",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": "sentinel",
+      "agent": "Vyse",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You are the lone attacker on the weak side while your team hits the other site, and the minimap shows no enemies near you.",
+    "decision": "Clear with safe utility only, stay alive and watch the minimap. Take the fight that comes to you, and push only once your team's contact shows where the defenders are.",
+    "why": "Alone and without information you die cheaply, and with positions known you push players looking the other way.",
+    "mistakeToAvoid": "Pushing the weak side blind to make something happen.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "weak side vyse on attack waits for radar"
+    }
+  },
+  {
+    "id": "k080",
+    "title": "1v3 at 33 health with Viper's ultimate",
+    "situation": {
+      "phase": "clutch",
+      "side": "attack",
+      "role": "controller",
+      "agent": "Viper",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your last teammate dies, you are 1v3 with Viper's ultimate ready and an enemy behind you.",
+    "decision": "Use Viper's Pit to take space and fight only one enemy at a time, slicing angles so you never face two. At low health stay inside the ultimate, plant, use the Poison Cloud for information and decay, and make the defenders come into the cloud to find you.",
+    "why": "At low health one or two body shots kill you, so you must fight only where you choose, and inside the ultimate the defenders are nearsighted and have to hunt you instead of checking the spike.",
+    "mistakeToAvoid": "Leaving the ult at low health to peek open angles.",
+    "patterns": [
+      "ult"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "1v3 at 33 health with viper's ultimate"
+    }
+  },
+  {
+    "id": "k081",
+    "title": "Split B retake 3v3 with a molly and flash pair",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": "initiator",
+      "agent": "KAY/O",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "A 3v3 retake, the enemy wall is about to drop, your controller is placing smokes, and you hold FRAG/ment and FLASH/drive.",
+    "decision": "Throw the FRAG/ment and the flash together on the back site player, clear the site as a group, call the flash, and only pull out your last flash from a safe spot.",
+    "why": "The pair stops the back site player from peeking while you clear. Clearing the whole site as a group is what makes it stick.",
+    "mistakeToAvoid": "Throwing utility one piece at a time, or pulling out utility in the open.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "split b retake 3v3 with a molly and flash pair"
+    }
+  },
+  {
+    "id": "k082",
+    "title": "1v1 after planting, low HP, enemy location unknown",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "You are the last attacker, the spike is planted, your HP is in single digits, and you have not seen the last defender since the plant.",
+    "decision": "Check one angle fast for information, then pick a single hidden spot that covers the spike and stay still. Do not swing again or move between spots once you have hidden, so you give no sound or sight.",
+    "why": "A 1v1 is decided by who has more information. The defender who waits about 10 seconds holding the likely cross learns whether you retreated or stayed. Any move you make after hiding tells them where you are.",
+    "mistakeToAvoid": "Taking a peek, then shifting to an aggressive hide spot and moving again, which shows the defender your position and lets them line up the shot.",
+    "cause": [
+      "exposed"
+    ],
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "1v1 after planting, low hp, enemy location unknown"
+    }
+  },
+  {
+    "id": "k083",
+    "title": "Lone defender on a site being executed",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "Attackers' utility lands on your site, you hear several players, and you are the only defender there.",
+    "decision": "Take a shot if one is free, then fall off the site toward your team and play the retake together.",
+    "why": "One player cannot hold an execute alone on that site, while a 4v5 retake is quite winnable if you stay alive.",
+    "mistakeToAvoid": "Holding on site to the death, which hands the attackers a free kill and a 5v4 post plant.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "lone defender on a site being executed"
+    }
+  },
+  {
+    "id": "k085",
+    "title": "Sova on defense at round start on a map nobody pushes",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "initiator",
+      "agent": "Sova",
+      "enemyAgents": [],
+      "map": null,
+      "site": "B",
+      "economy": "full"
+    },
+    "signal": "The round has just started, there is no contact yet, and the map's chokes are hard to push through.",
+    "decision": "Spend at most one piece of info early, and only for something a jiggle peek cannot show you. Keep the rest of your recon and drone for when you hear or see the attackers commit, and peek with a teammate off that information.",
+    "why": "A start of round recon on this map almost always scans empty space. Reactive info turns into kills.",
+    "mistakeToAvoid": "Firing the recon mid map at the buzzer and having nothing when the execute arrives.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "sova on defense at round start on a map nobody pushes"
+    }
+  },
+  {
+    "id": "k086",
+    "title": "Operator after an early kill, enemies close",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": "duelist",
+      "agent": "Yoru",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You have just got a kill with the Operator, the remaining attackers are close, and peeking further would put you into an angle they hold.",
+    "decision": "Keep holding the angle you have, or, if your Gatecrash is already placed behind you, step back ready to teleport out. Let them walk into the Operator.",
+    "why": "Holding with an Operator is easy online, while peeking into close enemies favours them. Staying posted would likely have given one more kill for free.",
+    "mistakeToAvoid": "Peeking forward right after the first kill and dying to the angle the enemies were already holding.",
+    "cause": [
+      "overextend"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "operator after an early kill, enemies close"
+    }
+  },
+  {
+    "id": "k088",
+    "title": "Sentinel on a Split A execute",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Split",
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "Your team is taking A and three teammates are already heading onto the site.",
+    "decision": "Join the entry for the first kill but stay in main afterward, play off your utility and swing on teammates' timings to build crossfires.",
+    "why": "Too many players on site is a crowd. One in main gives a second angle on the retake and kills the retakers who focus the site.",
+    "mistakeToAvoid": "Running onto the site with everyone so the whole team can be cleared from one direction.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "sentinel on a split a execute"
+    }
+  },
+  {
+    "id": "k089",
+    "title": "Defender on a site that was rushed last round",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "sentinel",
+      "agent": "Cypher",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "The previous round the attackers rushed your site, and this round your camera only shows their Cypher.",
+    "decision": "Leave your setup with one cage held and rotate toward middle, where the attackers are more likely to be.",
+    "why": "Your camera shows a single attacker in the main, so the site is not being hit right now and the rest of their team is elsewhere, and a team that was fully shut down on a site usually tries somewhere else next.",
+    "mistakeToAvoid": "Sitting on a quiet site for the whole round out of habit, with no cage or trip left to warn you if they come back.",
+    "cause": [
+      "rotating"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defender on a site that was rushed last round"
+    }
+  },
+  {
+    "id": "k090",
+    "title": "Surprise Operator revealed by recon",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Sova",
+        "Fade",
+        "Tejo"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You hold an unusual spot or weapon and an enemy reveal, a Sova Recon Bolt, a Fade Haunt or a Tejo Stealth Drone, lands with a line to you.",
+    "decision": "Shoot the recon at once or step out of its sight, then come back to a different angle.",
+    "why": "The value of a surprise weapon is the surprise. Once revealed, the attackers simply utility you out and kill you for free.",
+    "mistakeToAvoid": "Staying on the same angle after being revealed, trusting the gun.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "surprise operator revealed by recon"
+    }
+  },
+  {
+    "id": "k091",
+    "title": "Defense goes passive after the opening kill",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "The defense took the first kill and since then no one has contested any space. A defender who was seen on one side has gone quiet.",
+    "decision": "Put a smoke and a recon on one area (push and pull) to make the defense lean toward it, then hit the other area aggressively inside the next 10 to 15 seconds.",
+    "why": "A defense that is ahead plays safe and rotates toward any threat. The pressure buys a short window where the other side is thin.",
+    "mistakeToAvoid": "Waiting out the clock a player down and letting the defense settle into a calm, rotated hold.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "minBand": "asc_plus",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defense goes passive after the opening kill"
+    }
+  },
+  {
+    "id": "k092",
+    "title": "Phoenix ultimate against a defense with no ultimates",
+    "situation": {
+      "phase": null,
+      "side": "attack",
+      "role": "duelist",
+      "agent": "Phoenix",
+      "enemyAgents": [],
+      "map": null,
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "Your Phoenix has ultimate ready and the scoreboard shows no defender ultimate.",
+    "decision": "Hit fast with it: the Phoenix starts the ult from the bottom of long while the rest rush short, the initiator throws recon short and pops her own ult when three are at the site, so two ultimates land together.",
+    "why": "An entry ultimate is worth most when the defense has nothing to answer it with and when the team is there to follow it up.",
+    "mistakeToAvoid": "Starting Run it Back so early that most of its time is gone before the team reaches the site, while the other duelist goes in alone.",
+    "patterns": [
+      "ult"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "phoenix ultimate against a defense with no ultimates"
+    }
+  },
+  {
+    "id": "k093",
+    "title": "Ult orb that would have won the retake",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": "initiator",
+      "agent": "Fade",
+      "enemyAgents": [],
+      "map": null,
+      "site": "C",
+      "economy": "full"
+    },
+    "signal": "Your Fade is one ultimate point from Nightfall, an orb sits near A on a safe path, and the attack looks set on C.",
+    "decision": "Before the attack commits, send the Fade with one partner to take the orb, keep the Chamber anchoring C with his trap, then use Nightfall for the C retake.",
+    "why": "One orb turns a blind retake into one where the enemies on site are marked and deafened.",
+    "mistakeToAvoid": "Ignoring the orb and retaking without the ultimate, or chasing the orb after the plant while the retake waits.",
+    "patterns": [
+      "ult"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "ult orb that would have won the retake"
+    }
+  },
+  {
+    "id": "k094",
+    "title": "Three on one, but each defender peeks alone",
+    "situation": {
+      "phase": "late",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your team outnumbers one opponent who is known to look for isolated duels, and your teammates are spread out.",
+    "decision": "The two players closest to each other link up and clear together, and the third holds a stall position (a smoke, a utility line) and plays last, ready to trade or delay.",
+    "why": "A lone player only wins by isolating one on one duels. When two are linked and the third waits, he can never get a fair one on one.",
+    "mistakeToAvoid": "Peeking first and alone because you think the enemy has his back to you.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "three on one, but each defender peeks alone"
+    }
+  },
+  {
+    "id": "k095",
+    "title": "First anti-eco after a won pistol on defence",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "antieco"
+    },
+    "signal": "You won the pistol round, the enemy is saving or on a light buy, and you can afford a Guardian (2250).",
+    "decision": "Buy a Guardian and take a long range spot you would not normally start on.",
+    "why": "Two Guardian body shots kill through Light Armor, eco weapons are weakest at range, and Heavy Armor takes three body shots, so aim for the head against a full eco buy.",
+    "mistakeToAvoid": "Playing close range spots or pushing forward on an anti-eco, which is where shotguns and pistols win and where a death hands the enemy a rifle.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "first anti-eco after a won pistol on defence",
+      "claims": [
+        {
+          "weapon": "guardian",
+          "part": "body",
+          "armor": "light",
+          "hits": 2
+        },
+        {
+          "weapon": "guardian",
+          "part": "body",
+          "armor": "heavy",
+          "hits": 3
+        },
+        {
+          "weapon": "guardian",
+          "field": "cost",
+          "value": 2250
+        }
+      ]
+    }
+  },
+  {
+    "id": "k096",
+    "title": "Solo anchor facing a full hit with no teammates near",
+    "situation": {
+      "phase": "execute",
+      "side": "defense",
+      "role": "sentinel",
+      "agent": "Killjoy",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You are the only defender on the hit site, several attackers are entering, and teammates are rotating from far away.",
+    "decision": "Use your stall utility (Nanoswarms, Alarmbot, Turret) and survive from a back position instead of taking a hopeless early fight. Stay alive until teammates arrive and initiators can throw utility, then fight together.",
+    "why": "A delay of even five seconds lets the rotation arrive. The anchor alive and distracting the attackers makes the retake much easier even with zero kills.",
+    "mistakeToAvoid": "Swinging the first attacker for one kill and dying, giving the site away with no retake help.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "solo anchor facing a full hit with no teammates near"
+    }
+  },
+  {
+    "id": "k097",
+    "title": "Spotting an opponent's site tell from their utility",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": "C",
+      "economy": "full"
+    },
+    "signal": "In earlier rounds the same piece of attacker utility (for example a recon landing at C CT on Haven) came right before every C execute.",
+    "decision": "When that utility lands, call the site early and start rotating or stacking before the execute arrives, but leave a player on the other site, because a team that knows its tell can use it as a fake.",
+    "why": "Teams repeat the same supporting utility for each prepared hit, so it predicts the site with a high chance and turns your rotation into a head start.",
+    "mistakeToAvoid": "Treating each piece of utility as noise and waiting for the full execute before rotating.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "minBand": "asc_plus",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "spotting an opponent's site tell from their utility"
+    }
+  },
+  {
+    "id": "k098",
+    "title": "Defence crammed onto site by its own wall",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your sentinel walls the site entrance early, the defenders have no map control outside it, and the attackers are free to take every lane.",
+    "decision": "Wall the attacker lane further out to slow it and wrap from the side, or play in front of or on top of the wall, so the wall buys space rather than hiding the defence on site.",
+    "why": "A wall at the last line gives up all the map and leaves the defence fighting from cramped spots when it breaks.",
+    "mistakeToAvoid": "Using the wall as a door to close and then waiting on site with no information.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defence crammed onto site by its own wall"
+    }
+  },
+  {
+    "id": "k099",
+    "title": "Haven defence, recon on A shows nobody, mid is held",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "initiator",
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "Your recon on A revealed no attacker, your teammates mid report contact or hold mid, and B already has 2 defenders.",
+    "decision": "Leave the A sentinel and her setup on A, and send the A flex player to C, so B holds 2 and C holds 3.",
+    "why": "An empty A with two defenders wastes one. The setup still gives information on A, and the extra body makes a split C or a B hit run into a full site.",
+    "mistakeToAvoid": "Both A players stay on an empty site, or both leave and A falls to a late lurk.",
+    "cause": [
+      "rotating"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "haven defence, recon on a shows nobody, mid is held"
+    }
+  },
+  {
+    "id": "k100",
+    "title": "Haven attack, A long taken by the default, then a split to C",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": "C",
+      "economy": "full"
+    },
+    "signal": "Your default holds A long with smokes and a recon. The defender who watches B has leaned toward A. You have no information on A site or C yet.",
+    "decision": "Bring everyone back from A and split C while the leaning defender still fears A.",
+    "why": "The defender who shifted toward A will not rotate to C quickly because he believes players are still at A. The default bought both space and doubt.",
+    "mistakeToAvoid": "Pushing A long into defenders who are already aiming at it after the default, which loses the fight.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "haven attack, a long taken by the default, then a split to c"
+    }
+  },
+  {
+    "id": "k101",
+    "title": "Default skips the stun on a lane an Operator holds",
+    "situation": {
+      "phase": "early",
+      "side": "attack",
+      "role": "initiator",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "The enemy has an Operator that has been on A long. Your default calls for a stun there and your initiator wants to save it for the hit.",
+    "decision": "Use the stun as part of the default so the Operator cannot take a free peek, or do not walk the lane at all.",
+    "why": "Without the stun the Operator got a free kill and kept his escape ability, so the attack lost a player and the defender lost nothing.",
+    "mistakeToAvoid": "Saving cheap opening utility for the execute and walking into a held Operator line.",
+    "cause": [
+      "dry-peek"
+    ],
+    "patterns": [
+      "early"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "default skips the stun on a lane an operator holds"
+    }
+  },
+  {
+    "id": "k102",
+    "title": "Heavy call on one site, a lurker waits at the other",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "B",
+      "economy": "full"
+    },
+    "signal": "Teammates call 3 attackers on A. You anchor B or C and have not seen anyone, and your setup has not triggered.",
+    "decision": "Stay on your site as anchor, let one rotator move through the link toward A, and only move more after the attack commits to A.",
+    "why": "If you leave, a single lurker or a turn back takes the empty site for free. Your presence makes the fake fail.",
+    "mistakeToAvoid": "Everyone rotating on the first call, which low ranks do all the time and lose to a lurk or a fake.",
+    "cause": [
+      "rotating"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "heavy call on one site, a lurker waits at the other"
+    }
+  },
+  {
+    "id": "k103",
+    "title": "Pistol round on Bind, lone defender cut off from the hit site",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "initiator",
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Bind",
+      "site": "B",
+      "economy": "pistol"
+    },
+    "signal": "Attackers have entered B, a wall blocks the CT rotation, and you are alone on the far side getting information.",
+    "decision": "Run back toward your teammates and fight with them so you can be traded, not alone into the site.",
+    "why": "Alone you lose the 1v1 and the attack keeps its advantage. With a teammate the trade at least evens the retake.",
+    "mistakeToAvoid": "Taking the solo fight on the side you already scouted and dying untraded.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "pistol round on bind, lone defender cut off from the hit site"
+    }
+  },
+  {
+    "id": "k104",
+    "title": "4v4 late in a defence round with defenders split 2 and 2",
+    "situation": {
+      "phase": "late",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Man count is even and your four are spread 2 on each site while four attackers are still alive together.",
+    "decision": "Collapse toward the side the attack is likely to hit or toward the middle of the two sites, while one player keeps information on the far site, so the hit meets more than two defenders.",
+    "why": "Even numbers still favour the attack, because four can hit two while the other two walk over.",
+    "mistakeToAvoid": "Treating an even count as a safe hold and staying split.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "4v4 late in a defence round with defenders split 2 and 2"
+    }
+  },
+  {
+    "id": "k105",
+    "title": "First full buy with ultimate advantage, a player takes an early mid fight",
+    "situation": {
+      "phase": "early",
+      "side": "attack",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your team has 3 strong ultimates, the enemy has none ready, and it is the first full buy after they used ultimates on a broken round.",
+    "decision": "Play the round around the ultimates and the plan. Ask for a smoke instead of looking for an isolated pick mid.",
+    "why": "Losing this round throws away the ultimate advantage and hands the enemy a streak and a stacked economy.",
+    "mistakeToAvoid": "Taking a lone early fight for a pick, a risk that makes sense only when you are down players, not up on ultimates.",
+    "patterns": [
+      "ult",
+      "early"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "first full buy with ultimate advantage, a player takes an early mid fight"
+    }
+  },
+  {
+    "id": "k106",
+    "title": "Two ultimates used in an eco round",
+    "situation": {
+      "phase": null,
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "eco"
+    },
+    "signal": "Your team is on pistols and two players have strong ultimates ready.",
+    "decision": "Keep the ultimates for the next buy round unless a single ultimate clearly wins the eco.",
+    "why": "Ultimates spent with pistols rarely win and the next full buy then lacks them.",
+    "mistakeToAvoid": "Throwing two ultimates into an eco and losing both the round and the next buy's edge.",
+    "patterns": [
+      "ult"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "two ultimates used in an eco round"
+    }
+  },
+  {
+    "id": "k107",
+    "title": "Anti eco on attack, which smokes to throw",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Bind",
+      "site": null,
+      "economy": "antieco"
+    },
+    "signal": "The defence is on pistols, with one or two rifles at most.",
+    "decision": "Smoke only the deep angles at the back of the site and on the defender side, such as A Tower or B Elbow on Bind, and fight the rest at range with your rifles.",
+    "why": "Pistols and shotguns win close fights, and smokes close to the defenders force you into those close fights.",
+    "mistakeToAvoid": "Throwing the full buy execute smokes that walk you into close range.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "anti eco on attack, which smokes to throw"
+    }
+  },
+  {
+    "id": "k108",
+    "title": "Must win round, a player grabs a contested orb and sends a useless bot",
+    "situation": {
+      "phase": "early",
+      "side": "attack",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "B",
+      "economy": "full"
+    },
+    "signal": "An ultimate orb sits in a spot a sentinel may watch, and your bot would roll down a lane where it reveals nothing.",
+    "decision": "Leave the orb and keep the bot for a lane where it can find someone. Keep the player for the site fight.",
+    "why": "The orb and the bot give nothing that wins this round, and the death or wasted tool can lose it.",
+    "mistakeToAvoid": "Taking a risk with no information gain in a round the team cannot afford to lose.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "must win round, a player grabs a contested orb and sends a useless bot"
+    }
+  },
+  {
+    "id": "k109",
+    "title": "Defense down one player early on Split, which zones to keep",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "A defender died in the first mid fight, it is 4v5 and the attackers hold mid.",
+    "decision": "Concede the site the team agreed is retakeable, play the four as two pairs on the remaining areas, and retake with numbers if they hit the conceded site.",
+    "why": "Four players each covering one area (B, mid, A ramp, A site) achieve nothing and die one by one. Pairs can trade and the conceded site can be retaken.",
+    "mistakeToAvoid": "Spreading the four survivors one per zone to keep covering the whole map.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defense down one player early on split, which zones to keep"
+    }
+  },
+  {
+    "id": "k110",
+    "title": "4v3 with the teleported Chamber's spot known",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [
+        "Chamber"
+      ],
+      "map": null,
+      "site": "A",
+      "economy": "pistol"
+    },
+    "signal": "Your team is up 4v3 and you know the Chamber just teleported.",
+    "decision": "Hold together and take him with a trade or utility. Do not rush him alone.",
+    "why": "The known enemy expects the rush. One solo death resets the round to 3v3.",
+    "mistakeToAvoid": "Rushing the isolated Chamber alone because the numbers feel safe.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "4v3 with the teleported chamber's spot known"
+    }
+  },
+  {
+    "id": "k111",
+    "title": "Three utilities from one Lotus lobby",
+    "situation": {
+      "phase": "early",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Lotus",
+      "site": "C",
+      "economy": "full"
+    },
+    "signal": "Defenders threw a molly, a prowler and a paranoia into A lobby in the first seconds.",
+    "decision": "Read about three defenders near A and hit another site fast, before they can rotate.",
+    "why": "Three different agents' utility in one lobby means about three players near it, so the other sites are light for a few seconds.",
+    "mistakeToAvoid": "Keeping on with the planned A fight after they showed their stack.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "three utilities from one lotus lobby"
+    }
+  },
+  {
+    "id": "k112",
+    "title": "Defending against an eco on Lotus B",
+    "situation": {
+      "phase": null,
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Lotus",
+      "site": "B",
+      "economy": "antieco"
+    },
+    "signal": "The enemy is on a low buy and your players are taking fights far up the map.",
+    "decision": "Hold normal or deep positions, stay alive, and play for the plant or retake with your better weapons.",
+    "why": "Dying far forward hands the eco team a free gun and kill.",
+    "mistakeToAvoid": "Pushing a far forward line because the enemy is poor.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defending against an eco on lotus b"
+    }
+  },
+  {
+    "id": "k113",
+    "title": "Phoenix one orb from ultimate on attack",
+    "situation": {
+      "phase": null,
+      "side": "attack",
+      "role": "duelist",
+      "agent": "Phoenix",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your Phoenix is one orb from his ultimate.",
+    "decision": "Route the round through the orb so he collects it, then decide where the ultimate wins most: on the entry if the site is held tight, or saved for the post plant so he has a free peek on the retake if the hit can go in without it.",
+    "why": "Holding the ultimate after the plant gives Phoenix a second life in the post plant, which makes the retake very hard.",
+    "mistakeToAvoid": "Not farming the orb at all, or using the ultimate with no plan for the round.",
+    "patterns": [
+      "ult"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "phoenix one orb from ultimate on attack"
+    }
+  },
+  {
+    "id": "k114",
+    "title": "Haven pistol retake called before the flash",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": null,
+      "economy": "pistol"
+    },
+    "signal": "The spike is planted, your team still has its flash or blind for the retake unused, and teammates feel the attackers are settling.",
+    "decision": "Clear your back, then commit on the blind, not before it.",
+    "why": "Going early fights rested defenders with no edge. With the blind, two attackers would have had to be killed blind.",
+    "mistakeToAvoid": "Speeding up the retake ahead of the flash.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "haven pistol retake called before the flash"
+    }
+  },
+  {
+    "id": "k115",
+    "title": "Anchor overwhelmed by a fast hit on Sunset",
+    "situation": {
+      "phase": "execute",
+      "side": "defense",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Sunset",
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Attackers hit your site fast and your nearest teammate is far away.",
+    "decision": "Back off and save yourself for the retake.",
+    "why": "Falling back keeps five defenders for a retake against five attackers, while dying alone without a kill turns it into four against five before the fight starts.",
+    "mistakeToAvoid": "Holding your ground to try to win an impossible solo trade.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "anchor overwhelmed by a fast hit on sunset"
+    }
+  },
+  {
+    "id": "k116",
+    "title": "Sunset hit stalled in market",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Sunset",
+      "site": "B",
+      "economy": "full"
+    },
+    "signal": "Your hit through one choke is delayed and you have counted two or three defensive utilities there.",
+    "decision": "Swing back through mid and split the other site.",
+    "why": "A stack of utility at B means fewer defenders at A, often one anchor and one watching mid, so the players you bring there outnumber them.",
+    "mistakeToAvoid": "Forcing the same choke into the stacked defense.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "sunset hit stalled in market"
+    }
+  },
+  {
+    "id": "k117",
+    "title": "Bonus round lost in a 3v1",
+    "situation": {
+      "phase": "late",
+      "side": "attack",
+      "role": "initiator",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "bonus"
+    },
+    "signal": "It is 3v1 and the last enemy has just killed your teammate next to you.",
+    "decision": "Swing immediately while the enemy is still aiming at your dead teammate and kill him.",
+    "why": "The kill is easiest right after his shot. A moment of hesitation loses the timing and leaves you trapped.",
+    "mistakeToAvoid": "Hesitating, then trying to play out of a bad angle.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "bonus round lost in a 3v1"
+    }
+  },
+  {
+    "id": "k118",
+    "title": "Overreaching after a round streak",
+    "situation": {
+      "phase": "mid",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "antieco"
+    },
+    "signal": "The round history shows 3 or more straight wins for you and the enemy's loadout value is low (light buys, pistols, a cheap shotgun), while your call this round is a new or riskier play than the streak rounds.",
+    "decision": "Run the plays that won the streak again, keep trades tight and take no fights you would not take at an even score. Treat the enemy's low buy as a round to win safely, not a round to experiment.",
+    "why": "Teams lose thrifty rounds right after a streak because they feel on top of the world and stop asking what happens if the play fails. One lost round resets the enemy economy and the momentum.",
+    "mistakeToAvoid": "Getting disrespectful and loose because you are winning: dry peeks, solo pushes, trying a cute strat, which hands the enemy a thrifty and a full buy next round.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "overreaching after a round streak"
+    }
+  },
+  {
+    "id": "k119",
+    "title": "Lurker left alone after the pack loses its fight",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": "sentinel",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "The kill feed shows two or three of your pack dead in the opening fight while the lurker, alone on the other half of the map, has not yet made contact.",
+    "decision": "Do not take a hopeless 1v4 or 2v5 swing as the lurker. Fall back to save or play for time and info, and in the next rounds time the lurk to the moment the pack makes contact so the fights happen together.",
+    "why": "When the pack fights and the lurk times are out of sync, the lurker keeps ending up alone in rounds that cannot be played. The cause is the timing, not the lurker, so the fix is to time the next lurk with the pack.",
+    "mistakeToAvoid": "Blaming the lurker for not winning a 2v5, or the lurker forcing a fight after the pack is gone instead of saving or fixing the timing.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "lurker left alone after the pack loses its fight"
+    }
+  },
+  {
+    "id": "k120",
+    "title": "Attack rounds that keep changing speed",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "In one attack round your team goes slow default, then calls a fast hit, then a fake or a swap, and the round ends with one defender taking two or more kills on a late or early entry.",
+    "decision": "Choose the round's tempo by the first info and change it at most once, with one clear call. If comms are getting long and stressed, simplify the plan instead of adding another switch.",
+    "why": "A team stretched between slow, fast and explosive makes every decision too early or too late, and the defence catches all the timings. Tight communication and information fix it.",
+    "mistakeToAvoid": "Stacking mid round switches because the first plan met resistance, which leaves players entering one by one.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "attack rounds that keep changing speed"
+    }
+  },
+  {
+    "id": "k122",
+    "title": "One Operator freezing your attack",
+    "situation": {
+      "phase": "early",
+      "side": "attack",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The enemy Operator has taken a kill or a peek early in several rounds, and since then you have stopped taking your usual space or peeking on your side.",
+    "decision": "Find where the Operator was last seen, keep taking space and peeks on the lanes it is not on, and when you must cross its lane use utility or a teammate's peek instead of not playing at all. Accept that some of those peeks will lose.",
+    "why": "A player who plays afraid of one Operator for a whole map loses his normal impact, and one Operator cannot hold everything. Being afraid to make the wrong play lets the enemy set the pace.",
+    "mistakeToAvoid": "Letting a single Operator decide the pace of every round, so your side gives up map control without a fight.",
+    "cause": [
+      "dry-peek"
+    ],
+    "patterns": [
+      "early"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "one operator freezing your attack"
+    }
+  },
+  {
+    "id": "k123",
+    "title": "The only entry duelist: when to dive and when to set up",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You are the team's only duelist, there is no second duelist behind you to finish a slowed or blinded defender, and your dives keep dying without a trade.",
+    "decision": "Split the job: on some rounds use your utility to set up a teammate's peek, and when you do dive, go together with a teammate's flash or stun so the dive is followed up. Do not count on catching a defender alone.",
+    "why": "As the only duelist you must both entry and set up teammates with less firepower behind you, and dives that work against weaker opponents fail more often against good ones because the defender is rarely alone.",
+    "mistakeToAvoid": "Diving alone every round because it worked against weaker opponents, giving away an untraded first death.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "the only entry duelist: when to dive and when to set up"
+    }
+  },
+  {
+    "id": "k124",
+    "title": "Holding a man advantage after the plant",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The spike is planted, the kill feed shows you with more players alive, and at least one enemy has not appeared since the plant.",
+    "decision": "Everyone holds an angle instead of hunting, players split sides out loud (I have left, you have right), one player watches the flank for the unseen enemy, and any fight is taken together on a count.",
+    "why": "With the spike down and more players alive, time is on your side, so the defenders must come to you. Holding split angles with one player on the flank makes every defender peek into a crossfire, while hunting one at a time gives them the duels they need.",
+    "mistakeToAvoid": "Peeking out one by one to find the last players, which turns a won round into a series of 1v1s.",
+    "cause": [
+      "exposed"
+    ],
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "holding a man advantage after the plant"
+    }
+  },
+  {
+    "id": "k125",
+    "title": "Lurker away from the site the team commits to",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": "C",
+      "economy": "full"
+    },
+    "signal": "Your team gets an early kill near one site and starts committing there, while you are lurking on the far site holding your ultimate.",
+    "decision": "Leave the lurk and run back with the team so your post plant ultimate goes down on the site they take. If you stay, hold the lurk only with a clear call that you are there for the flank.",
+    "why": "The ultimate is worth more as a post plant on the site the team holds than as a solo lurk. Arriving late or not at all means the team plays the post plant 4v5 without the tool it was saving.",
+    "mistakeToAvoid": "Pushing on with the lurk because it was the plan before the round, without listening for the commit.",
+    "patterns": [
+      "ult"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "lurker away from the site the team commits to"
+    }
+  },
+  {
+    "id": "k126",
+    "title": "Round after a lost 4v1",
+    "situation": {
+      "phase": "buy",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The last round was lost from a big numbers lead (for example 4v1) to a single enemy clutch.",
+    "decision": "Call a reset in the buy phase and run the plan you came in with, a default or a practiced execute, with simple individual roles.",
+    "why": "A lost clutch pulls a team away from its plan into poor individual decisions, and the map snowballs from there. The clutch is one round, changing style because of it costs several.",
+    "mistakeToAvoid": "Forcing hero plays or new ideas to win the round back, which is how one lost round becomes a run of lost rounds.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "round after a lost 4v1"
+    }
+  },
+  {
+    "id": "k127",
+    "title": "Lost post plant with a rifle",
+    "situation": {
+      "phase": "postplant",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "The spike is down, you are alone or outnumbered, and there is not enough time to reach and defuse it safely.",
+    "decision": "Do not go for the spike. Take a kill only if one comes free, otherwise hide and keep your gun for next round.",
+    "why": "A rifle and shields saved now is most of a full buy next round. Dying on a lost defuse gives the enemy the round and your economy.",
+    "mistakeToAvoid": "Running onto a lost spike, or a last second peek that gives the enemy a kill and your weapon.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "lost post plant with a rifle"
+    }
+  },
+  {
+    "id": "k128",
+    "title": "Satchel push that leaves you open to a side angle",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You satcheled in aggressively, won the first fight and stopped to wait for the team, with an open angle beside you you never checked.",
+    "decision": "After a satchel entry, move straight to a spot covered from the side angles, or keep clearing, before you stop. Do not stand still where you landed.",
+    "why": "Sitting and waiting after a satchel push is a habit that works until a side angle you never checked is open, then an enemy walks out, kills you and the round falls apart.",
+    "mistakeToAvoid": "Treating the spot where the satchel drops you as safe because the first fight was won.",
+    "cause": [
+      "crossfire",
+      "overextend"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "satchel push that leaves you open to a side angle"
+    }
+  },
+  {
+    "id": "k129",
+    "title": "Early man down on defense",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "A defender dies in the opening fights, so you are 4v5 with most of the round left.",
+    "decision": "Call to stabilize: no new solo duels, fall back to retake or crossfire spots, and play late so the attackers must use time and utility to find you.",
+    "why": "Short handed, every extra duel you take is uneven. Playing late makes the attackers spend time and utility and gives the retake a group fight.",
+    "mistakeToAvoid": "Taking the same early duel again to win the space back, giving away a second player.",
+    "cause": [
+      "isolated"
+    ],
+    "patterns": [
+      "early"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "early man down on defense"
+    }
+  },
+  {
+    "id": "k130",
+    "title": "Post plant 1v2 when the retakers have a controller",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Spike planted, you are alone against two, and one of the two alive is a controller who can smoke the spike. The other gives away their position with a movement ability.",
+    "decision": "Take a fight on the first enemy before they both reach the spike, using the position their movement gave away. Once it is 1v1, stop looking for fights: use a blind to make space, play time, and track how long the controller's smoke has left so you can catch them when they commit to the half defuse.",
+    "why": "Two retakers who reach the spike with a smoke on it can tap behind cover while the other delays you. You cannot win that, so the first pick must come early. In the 1v1 the clock works for you.",
+    "mistakeToAvoid": "Waiting for both to get to the spike against a team that can smoke it, or after getting to 1v1, peeking for the kill instead of using the time.",
+    "cause": [
+      "exposed"
+    ],
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "post plant 1v2 when the retakers have a controller"
+    }
+  },
+  {
+    "id": "k131",
+    "title": "Peeking the defuser when the spike is about to go off",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The spike is close to exploding and the defender can only win by staying on the spike long enough to finish (7 seconds without half, 3.5 seconds with half).",
+    "decision": "Stay hidden and count. When the spike time left is about equal to the defuse they still need, swing: if they got off, the spike explodes. If they stayed on, they cannot shoot back and you take the kill.",
+    "why": "At that moment the defender is locked into the defuse, so your peek has no risk of a fake.",
+    "mistakeToAvoid": "Peeking the moment you hear the first tap, which lets them release and kill you, then defuse with time to spare.",
+    "cause": [
+      "exposed"
+    ],
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "peeking the defuser when the spike is about to go off",
+      "claims": [
+        {
+          "rule": "spike.defuse",
+          "value": 7
+        },
+        {
+          "rule": "spike.checkpoint",
+          "value": 3.5
+        }
+      ]
+    }
+  },
+  {
+    "id": "k132",
+    "title": "Late round push when a smoke is seconds away",
+    "situation": {
+      "phase": "late",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your team must cross an open area held by enemies, a teammate says their smoke is back in about 5 to 10 seconds, and there is still enough time on the clock.",
+    "decision": "Freeze and hold your angles until the smoke is up, then walk out together behind it.",
+    "why": "A few seconds of waiting costs nothing when the clock allows it, and crossing without cover hands the holders free kills.",
+    "mistakeToAvoid": "Walking out one by one without utility because the round feels urgent when it is not yet.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "late round push when a smoke is seconds away"
+    }
+  },
+  {
+    "id": "k134",
+    "title": "Attacking eco against rifles",
+    "situation": {
+      "phase": "buy",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "eco"
+    },
+    "signal": "Your team has pistols or light buys and the defenders have rifles.",
+    "decision": "Group four or five together, move quietly as you get close so they do not hear the stack, and swing at the same time or right behind one teammate so the first contact is traded and a rifle is picked up.",
+    "why": "Pistols lose single duels against rifles. Only simultaneous close swings win them.",
+    "mistakeToAvoid": "Each player takes their own angle and dies alone to a rifle, giving the defenders free kills and ult points.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "attacking eco against rifles"
+    }
+  },
+  {
+    "id": "k136",
+    "title": "A favourite old execute meets a Vyse",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Vyse"
+      ],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your team is about to run a fast run out strat that you made before the enemy had Vyse, and Vyse is on the defending side.",
+    "decision": "Find or bait the Vyse setups that cover the run out first, or pick a hit that avoids them. Do not count on the old timing.",
+    "why": "Her setups stop players running out of the site entrance, which the old strat never had to handle.",
+    "mistakeToAvoid": "Running the same execute and getting stuck at the run out with the site still unplanted.",
+    "patterns": [
+      "ult"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a favourite old execute meets a vyse"
+    }
+  },
+  {
+    "id": "k137",
+    "title": "Diamond aim, Diamond rank",
+    "situation": {
+      "phase": null,
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your aim in an aim test looks Ascendant or better but your rank is Platinum or Diamond, and your deaths often come from peeking an angle again or taking a duel no teammate can trade.",
+    "decision": "Stop adding aim work. Review your deaths for the fight you chose, and cut repeat peeks and untradeable duels first.",
+    "why": "Players whose aim already looks Ascendant but who sit at Platinum or Diamond lose rounds on over peeking and bad fights, so decisions, not aim, separate the ranks.",
+    "mistakeToAvoid": "Grinding more aim training to fix what is a fight selection problem.",
+    "cause": [
+      "repeek"
+    ],
+    "ranks": [
+      "plat_diamond"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "diamond aim, diamond rank"
+    }
+  },
+  {
+    "id": "k138",
+    "title": "Attack, a known Odin hold on the planned site, switch early",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Before the hit, your team has information that an enemy Odin is set up in a known strong position on the site you planned to take (here A tree), and nobody has died yet.",
+    "decision": "As the caller, say the planned site will be hard and switch all five to the other site at once. Run it together and keep the ultimate in reserve unless it is needed.",
+    "why": "A heavy machine gun in a set position wins the first contacts cheaply. Changing the target costs only a few seconds while all five are alive and on the same page.",
+    "mistakeToAvoid": "Sticking with the planned site because it was the plan, and feeding the first two players into the known hold.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "attack, a known odin hold on the planned site, switch early"
+    }
+  },
+  {
+    "id": "k139",
+    "title": "Anti eco lost to one lone walk into a site, then the reset round",
+    "situation": {
+      "phase": null,
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "antieco"
+    },
+    "signal": "You won pistol, the enemy is saving with pistols and SMGs, and one teammate walks alone onto a site with nobody within trade distance.",
+    "decision": "Stay together on the anti eco so the saving team never gets an isolated kill. Once the round is lost anyway, do not blame: the next round run a simple committed plan together with confidence (here a five player A rush), which won.",
+    "why": "The lone death gave the enemy a free rifle and the information to fight together, which is exactly how an eco wins. The next round only needs the team back on the same page.",
+    "mistakeToAvoid": "Spreading out on an anti eco because the round feels free, then tilting at the teammate and splitting up again the next round.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "anti eco lost to one lone walk into a site, then the reset round"
+    }
+  },
+  {
+    "id": "k140",
+    "title": "Haven attack, a C rush stopped at the choke, fall back to the lurker",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your rush meets a blind, a molotov and a recon dart at the choke and you cannot get through, while your lurker is alive on the other side of the map.",
+    "decision": "Back off rather than forcing the choke. Reason that the defenders who just used that utility are probably three at that site, run to your lurker and hit the far site together.",
+    "why": "The defense just spent its utility and in ranked will often over rotate toward the fight it just had, which leaves the other site light.",
+    "mistakeToAvoid": "Forcing through the choke into active utility one player at a time.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "haven attack, a c rush stopped at the choke, fall back to the lurker"
+    }
+  },
+  {
+    "id": "k141",
+    "title": "Haven defense, site lost to a rush, coordinate a four player retake",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Haven",
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "One defender died on the site, the anchor fell back, the attackers own the site and four of you are alive.",
+    "decision": "Each survivor says in one line what they will use (the controller a smoke and a blind, the initiator a dart, the duelist an entry) and you go in together on one call.",
+    "why": "Ranked attackers on a site are often uncoordinated too, so a retake where four abilities are stated and timed together usually wins.",
+    "mistakeToAvoid": "Four survivors peeking the site one by one from different places with no shared plan.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "haven defense, site lost to a rush, coordinate a four player retake"
+    }
+  },
+  {
+    "id": "k142",
+    "title": "Ascent defense, an unholdable five player A execute, retake from three lanes",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": "Ascent",
+      "site": "A",
+      "economy": "full"
+    },
+    "signal": "Your A players say the site cannot be held against the execute coming in, and the attackers are using a lot of utility to take it.",
+    "decision": "The A controller gives up the site and plays for the retake, two players come through mid and the link toward the side of A, and the rest come from the usual back site entrance, so the retake arrives from three directions instead of two.",
+    "why": "The attackers spent most of their utility on the execute and now must watch three lanes, so you hold both a utility advantage and a lane advantage.",
+    "mistakeToAvoid": "Dying on the site trying to hold an execute that cannot be held, or retaking from the two usual entrances only.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "ascent defense, an unholdable five player a execute, retake from three lanes"
+    }
+  },
+  {
+    "id": "k143",
+    "title": "Retake with a numbers lead, group on spawn and go together",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You are up in numbers, the attackers are on the site and some may be trying to leave or save an Operator.",
+    "decision": "Group the survivors at one spot, wait for the last teammate only while the spike timer still leaves time to reach the spike and finish the 7 second defuse, break the enemy wall together and retake as one. If the enemy holding the Operator tries to save it, hunt him.",
+    "why": "A numbers lead is only an advantage if the bodies arrive together. A saved Operator is damage to your next round.",
+    "mistakeToAvoid": "Trickling into the site one at a time because you are ahead, and letting the Operator walk away.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "retake with a numbers lead, group on spawn and go together",
+      "claims": [
+        {
+          "rule": "spike.defuse",
+          "value": 7
+        }
+      ]
+    }
+  },
+  {
+    "id": "k144",
+    "title": "Last attacker against a defender chasing an ace",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You are the last attacker alive, the spike is planted, and the last defender has just made three or more kills in the round.",
+    "decision": "Do not rush the spike or peek a known angle. Stay hidden near the spike, expect the defender to come looking for you before tapping, listen for a reload, then jiggle out and swing on the reload.",
+    "why": "A defender on a multi kill run often hunts for the last kill before tapping, so time is on your side, and the reload is the moment their gun cannot answer.",
+    "mistakeToAvoid": "Lower ranked players peek the defender straight away into a full magazine, or leave the spike area so the defender can tap freely.",
+    "cause": [
+      "exposed"
+    ],
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "last attacker against a defender chasing an ace"
+    }
+  },
+  {
+    "id": "k145",
+    "title": "Swung while planting with little time left",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You have started the plant, an enemy appears and shoots, and the round timer shows only a few seconds more than a plant needs.",
+    "decision": "Count first: if your time to kill plus the 4 second plant fits in the timer, cancel, win the duel, and press plant the instant the enemy dies. If it does not fit, the round is lost either way, so take whichever line gives a chance.",
+    "why": "Holding the plant while being shot loses the duel. Cancelling without time to replant loses the round. The clock decides.",
+    "mistakeToAvoid": "Keeping the plant held while getting shot, or cancelling and then hesitating before replanting.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "swung while planting with little time left",
+      "claims": [
+        {
+          "rule": "spike.plant",
+          "value": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "k146",
+    "title": "Last defender hiding until the plant sound",
+    "situation": {
+      "phase": "late",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "One attacker is left, holding the spike, and you have not seen them. The round timer is under about 25 seconds.",
+    "decision": "Stay hidden on site and do not go looking. Wait for the plant sound to give you the location and the timing, then play the defuse or the fight from the angle you pick.",
+    "why": "The attacker must make noise to plant before time runs out, so you get the information without taking a risk. Going to find them lets them choose the duel.",
+    "mistakeToAvoid": "Pushing out to find the attacker and giving them a free first shot, or making noise that tells them which plant spot is safe.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "last defender hiding until the plant sound"
+    }
+  },
+  {
+    "id": "k147",
+    "title": "Retake with a smoke coming and time on the spike",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "The spike is down, your team has the numbers, and your controller says a smoke is ready in about 2 seconds.",
+    "decision": "Call slow down, wait for the smoke, then go in together with each player calling the angle they take. Nobody needs a hero play.",
+    "why": "With time and numbers, grouping and using the smoke turns the retake into trades. Trickling in lets the post-plant win one duel at a time.",
+    "mistakeToAvoid": "The first player to arrive peeks alone before the smoke, dies, and turns a numbers advantage into an even fight.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "retake with a smoke coming and time on the spike"
+    }
+  },
+  {
+    "id": "k148",
+    "title": "Enemy controller out of smokes",
+    "situation": {
+      "phase": "mid",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Viper",
+        "Omen",
+        "Brimstone",
+        "Astra",
+        "Harbor",
+        "Clove",
+        "Miks"
+      ],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You have counted the enemy controller use every smoke charge, or their wall is down, and a teammate calls they have no smokes.",
+    "decision": "Commit now: swing the angle the smoke would have blocked, or push the site, before abilities come back or another player arrives.",
+    "why": "Without smokes the enemy cannot cut your line of sight or slow the push, so this is the cheapest moment to win the space.",
+    "mistakeToAvoid": "Waiting anyway, which gives the enemy time to rotate players in, or never tracking the smoke count at all.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy controller out of smokes"
+    }
+  },
+  {
+    "id": "k149",
+    "title": "Team gone quiet after losing several rounds",
+    "situation": {
+      "phase": "between",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your team has lost three or more rounds in a row, comms have gone quiet, and players are dying alone without a trade.",
+    "decision": "Reset with one simple plan: fight in pairs, double swing every contact, say what you see and what you throw. Do not add a new complicated strat.",
+    "why": "Quiet, scared play produces lone deaths. Pairs and talking are the quickest way back to trades and even fights.",
+    "mistakeToAvoid": "Blaming, going silent, or calling a fancy new plan the team has never run.",
+    "cause": [
+      "isolated"
+    ],
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "team gone quiet after losing several rounds"
+    }
+  },
+  {
+    "id": "k150",
+    "title": "Outnumbered with no info in a round you want",
+    "situation": {
+      "phase": "late",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You are alone against three or more, or two against four, with no call or utility showing any enemy in the last few seconds, and the spike state gives you no realistic win (on attack not planted with little time left, on defence planted with too little time to defuse).",
+    "decision": "Save the rifle, break line of sight, hide off the likely paths and survive the round.",
+    "why": "Without information the clutch is close to hopeless, and dying also loses the gun for the next round, so the loss compounds.",
+    "mistakeToAvoid": "Hunting blind for a hero clutch because the round feels important, losing both round and rifle.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "outnumbered with no info in a round you want"
+    }
+  },
+  {
+    "id": "k151",
+    "title": "Spike down with a two player lead",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The spike is planted and the kill feed shows you up 5v3 or 4v2.",
+    "decision": "Hold the smokes and the angles onto the spike. Do not chase kills away from site. Wait for the defenders to walk into you or tap the spike.",
+    "why": "The timer is on your side. Every chase gives a defender a fair duel and a way to even the numbers.",
+    "mistakeToAvoid": "Pushing out to hunt the remaining defenders, dying one at a time, and turning a won round into a retake.",
+    "cause": [
+      "overextend",
+      "exposed"
+    ],
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "spike down with a two player lead"
+    }
+  },
+  {
+    "id": "k152",
+    "title": "Enemy initiator has no flashes left",
+    "situation": {
+      "phase": "late",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You saw or heard the enemy flasher spend every flash this round and a teammate calls it.",
+    "decision": "Hold and peek that side more aggressively, but only for flashes that cannot come back this round, since some agents' flashes recharge or can be picked back up, and still respect smokes and other unspent utility.",
+    "why": "Most of the risk of holding an angle close or swinging wide comes from a flash. Once it is gone the duel is a pure aim and position duel.",
+    "mistakeToAvoid": "Playing every angle as if the enemy still has full utility, giving up space for free.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy initiator has no flashes left"
+    }
+  },
+  {
+    "id": "k153",
+    "title": "Retake swing timed to a teammate's reveal",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your initiator says they will reveal or recon the site.",
+    "decision": "Hold just off the angle, say you are waiting for it, and swing the moment the reveal lands, together with the next player on a countdown.",
+    "why": "The reveal tells you who is where for a short window. Swinging into it with a partner turns the info into kills and trades.",
+    "mistakeToAvoid": "Swinging before the reveal because you are impatient, or after it has faded, so the util is wasted.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "retake swing timed to a teammate's reveal"
+    }
+  },
+  {
+    "id": "k154",
+    "title": "Lost attack half, what to fix",
+    "situation": {
+      "phase": "between",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Several rounds were lost to first deaths no teammate traded.",
+    "decision": "Keep the strategy and fix one thing: play close enough to each other that every death is traded.",
+    "why": "Untraded deaths are a spacing error, not a strategy error. Rewriting the plan adds confusion.",
+    "mistakeToAvoid": "Throwing out every default and trying new strats after one bad half.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "lost attack half, what to fix"
+    }
+  },
+  {
+    "id": "k155",
+    "title": "Spike time shorter than a defuse",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The spike is past its fast beeps by a few seconds, so fewer than 7 seconds are left, and the defenders have not reached the half.",
+    "decision": "Stop peeking and stay alive. The round is already won.",
+    "why": "No defuse can finish, so a duel only risks your life and your gun for nothing.",
+    "mistakeToAvoid": "Swinging for an extra kill and dying, losing the gun for the save.",
+    "cause": [
+      "exposed"
+    ],
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "spike time shorter than a defuse",
+      "claims": [
+        {
+          "rule": "spike.defuse",
+          "value": 7
+        }
+      ]
+    }
+  },
+  {
+    "id": "k156",
+    "title": "Operator Chamber holding a main",
+    "situation": {
+      "phase": "early",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Chamber"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "A teammate calls the enemy Chamber with an Operator playing off a main entrance.",
+    "decision": "Get back from the lane, then either take the site with utility that blocks his line or go elsewhere.",
+    "why": "He can take the first shot and teleport out, so any dry peek is a free kill for him.",
+    "mistakeToAvoid": "Peeking the Operator wide on your own, losing a player for nothing.",
+    "cause": [
+      "dry-peek"
+    ],
+    "patterns": [
+      "early"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "operator chamber holding a main"
+    }
+  },
+  {
+    "id": "k157",
+    "title": "Overtime after a thrown lead",
+    "situation": {
+      "phase": "between",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The map has gone to overtime, often after rounds your team feels it should have closed.",
+    "decision": "Reset fully, talk only about the next round's plan and buy, and play it at normal pace.",
+    "why": "Overtime rounds come in pairs and each one can end the map, and everyone gets the same overtime credits, so carrying regret into them only leads to forced plays.",
+    "mistakeToAvoid": "Arguing about earlier rounds or forcing hero plays to make up for them.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "overtime after a thrown lead"
+    }
+  },
+  {
+    "id": "k158",
+    "title": "Man advantage late in the round",
+    "situation": {
+      "phase": "late",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The kill feed shows your team up by at least one player, and the round timer (or spike timer) still has time the enemy has to spend to win.",
+    "decision": "Call the count, tell the team to wait, and hold the angles the enemy must cross. Take a fight only when they show.",
+    "why": "The side up in numbers with time to spare loses only by giving away duels. Waiting makes the outnumbered side walk into crossfires.",
+    "mistakeToAvoid": "The first player to feel confident swings for another kill alone, dies untraded and turns 4v3 into an even fight.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "man advantage late in the round"
+    }
+  },
+  {
+    "id": "k159",
+    "title": "Flash and paired swing on an entry",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "A teammate with a flash says they are flashing your angle, and a second teammate is next to you.",
+    "decision": "Count the swing (three, two, one), peek as the flash pops, and have the second player swing straight after so any death is traded.",
+    "why": "The flash only wins the duel during its short window, and a second swinger turns the first contact into a two on one.",
+    "mistakeToAvoid": "Peeking before the flash pops or a beat after it fades, or swinging alone while the partner waits around the corner.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "flash and paired swing on an entry"
+    }
+  },
+  {
+    "id": "k160",
+    "title": "Between rounds after a teammate's mistake",
+    "situation": {
+      "phase": "buy",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The last round was lost on a visible individual mistake and the team is in the buy phase.",
+    "decision": "Say something supportive to the player who made it, then state the plan for the next round. The review of the mistake waits until after the match.",
+    "why": "A team that stays focused on each other and on what it controls plays the next round better than one that replays the mistake, and blame in the buy phase costs the next round's focus.",
+    "mistakeToAvoid": "Replaying the mistake in comms, or going silent and playing the next round alone.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "between rounds after a teammate's mistake"
+    }
+  },
+  {
+    "id": "k161",
+    "title": "Gekko about to plant the spike",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "initiator",
+      "agent": "Gekko",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your team has the site, you hold the spike as Gekko, and Wingman is available.",
+    "decision": "Send Wingman to plant and use the time to move to a strong post-plant angle yourself, then pick up the globule later.",
+    "why": "The plant no longer needs a body, so one more player is in position for the retake fight.",
+    "mistakeToAvoid": "Sending Wingman to plant and then standing still next to it, a habit even Immortal players have.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "gekko about to plant the spike"
+    }
+  },
+  {
+    "id": "k165",
+    "title": "You were spotted first and your teammate is next to you",
+    "situation": {
+      "phase": "mid",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You just got scanned, missed your first jiggle, or an enemy clearly turned to your angle, and a teammate is close by on another angle onto the same enemy.",
+    "decision": "Do not re peek. Keep jiggling and making yourself a threat so the enemy stays aimed at you, while your teammate swings the enemy who is not ready for him. The moment he fires, re swing for the trade without waiting to see the enemy turn.",
+    "why": "The player holding attention faces a ready crosshair. The other player gets the free duel, and the turn to face him gives you your own window.",
+    "mistakeToAvoid": "Wide swinging again because you know where the enemy is, or fully hiding so the enemy turns onto your teammate's lane.",
+    "cause": [
+      "repeek"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "you were spotted first and your teammate is next to you"
+    }
+  },
+  {
+    "id": "k166",
+    "title": "Lurking while your team fakes loudly on the other site",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your team is making loud pressure on one site, you sit silently in a spot close to the defenders' rotate path, and you hear running or a teleport heading toward your team's noise.",
+    "decision": "Call the rotate at once so the team turns back to the weakened site, and stay silent yourself. Then take the fastest timing on the players left behind, who now have to respect every option.",
+    "why": "Many defenders rotate at full run on a fake. Once the team freezes and goes quiet, the remaining defenders must cover everything and the lurker gets the punish.",
+    "mistakeToAvoid": "The lurker making his own noise, or the team continuing the fake after the rotate is heard.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "lurking while your team fakes loudly on the other site"
+    }
+  },
+  {
+    "id": "k167",
+    "title": "Choosing the plant spot when your post plant player is in a lane",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You are planting, and a teammate holds a lane outside site (a link or main) that will be your main threat on the defuse.",
+    "decision": "Plant in a spot that is visible from that lane, even if it is not the most tucked default, so your teammate can deny the defuse without moving.",
+    "why": "A plant hidden in the corner forces your team to walk straight across the site or wide swing onto an angle disadvantage to stop the defuse.",
+    "mistakeToAvoid": "Planting in the safest looking corner by habit and then having nobody who can see the spike.",
+    "cause": [
+      "exposed"
+    ],
+    "patterns": [
+      "postplant"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "choosing the plant spot when your post plant player is in a lane"
+    }
+  },
+  {
+    "id": "k168",
+    "title": "Your defence is stacked where the attackers are pushing",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Three or four defenders are in the area the attackers are hitting, and the attackers are walking toward the entrance.",
+    "decision": "Hide and hold the utility. Let them walk in as if the area is free, then fight them inside your setup with your utility and crossfires.",
+    "why": "Stalling utility at the entrance only delays a team you outnumber. Letting them in gives you the numbers fight you want.",
+    "mistakeToAvoid": "Throwing every stun, blind and recon at the choke, which uses everything and lets them retreat and come back later.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "your defence is stacked where the attackers are pushing"
+    }
+  },
+  {
+    "id": "k169",
+    "title": "Placing the execute smokes as a Platinum controller",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "controller",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "You are throwing your default execute smokes, the team will plant and play post plant, and you cannot say why one of the smokes is where it is.",
+    "decision": "Place each smoke so a defender coming out has one predictable edge, leave the link defenders rotate through unsmoked so your post plant can kill them, and keep at least one teammate on the other lane if the team goes through mid.",
+    "why": "A smoke with a straight exit line makes crosshair placement easy, and an open rotate lane gives your post plant kills.",
+    "mistakeToAvoid": "Throwing a smoke because someone once suggested it, which can block your own post plant or let a defender come out either side.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "placing the execute smokes as a platinum controller"
+    }
+  },
+  {
+    "id": "k170",
+    "title": "Holding a molly while the attackers stop their push",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The attackers used a camera and a molly to clear a corner, then there was no flash, no recon and no further steps.",
+    "decision": "Keep your molly ready in case they take the timing, and do not throw it once the push dries up. Save it for the real hit.",
+    "why": "No follow up utility after a clear means they are not committing. A molly thrown now is gone for when they are.",
+    "mistakeToAvoid": "Throwing the molly into the choke on the first sound, as lower ranked defenders do.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "holding a molly while the attackers stop their push"
+    }
+  },
+  {
+    "id": "k171",
+    "title": "A solo timing through a lane with no pressure elsewhere",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You want to take a first timing alone through a side lane, and nobody on your team has shown, made noise or used utility anywhere else yet.",
+    "decision": "Wait until a teammate pulls attention to another site or lane, then take the timing. If nobody does, do not take it alone.",
+    "why": "With no attention pulled, the defender on that lane is aimed at it and holding you. The timing only works when he is looking elsewhere.",
+    "mistakeToAvoid": "Taking the first timing alone and dying to a hold, giving the defence a free man advantage.",
+    "cause": [
+      "overextend"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a solo timing through a lane with no pressure elsewhere"
+    }
+  },
+  {
+    "id": "k172",
+    "title": "Defending against a composition without flashes",
+    "situation": {
+      "phase": "buy",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null,
+      "enemyWithout": [
+        "Breach",
+        "Fade",
+        "Gekko",
+        "Harbor",
+        "Hush",
+        "KAY/O",
+        "Omen",
+        "Phoenix",
+        "Reyna",
+        "Skye",
+        "Vyse",
+        "Yoru"
+      ]
+    },
+    "signal": "The enemy has no flash, for example a Raze, Neon and Cypher comp.",
+    "decision": "Plan setups on open long range high low angles and hold the edges of smokes. They have no way to blind you off the angle, so they have to walk through.",
+    "why": "Without flashes they cannot blind you off a long angle, so long open duels and smoke edge holds favour you, but Neon's Relay Bolt and other concusses still punish close corners, and Raze utility clears them.",
+    "mistakeToAvoid": "Playing the same close corner setups you would use against a flash heavy comp.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defending against a composition without flashes"
+    }
+  },
+  {
+    "id": "k173",
+    "title": "Defusing or holding a corner against a Hush with Displacement",
+    "situation": {
+      "phase": "postplant",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Hush"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "An enemy Hush is alive with Displacement available (it resets every two kills), and you are about to defuse or are holding a corner she can throw at.",
+    "decision": "Hold from a spot away from walls, boxes and teammates, and before a full defuse, tap or fake to draw the pull out first, so a pull drags you through open air instead of slamming you into something.",
+    "why": "Displacement pulls every player near its center toward it and concusses anyone pulled into a surface or another player, and dragging defusers off the spike is one of its main uses.",
+    "mistakeToAvoid": "Committing to a full defuse beside a wall or box, or stacking next to a teammate, while her Displacement is up.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "defusing or holding a corner against a hush with displacement"
+    }
+  },
+  {
+    "id": "k174",
+    "title": "Solo Jett entry into a site with no team utility",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "duelist",
+      "agent": "Jett",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You cleared the outer approach and saw nobody, and no teammate has used a flash, smoke or recon for your entry.",
+    "decision": "Smoke the angle you cannot clear at the site edge, dash in while turning to clear one side, take cover behind your smoke rather than in the open middle of site, and wait for the teammate behind you to draw the first fight, then swing on the defender who turned toward him.",
+    "why": "An empty approach means the defenders are on site. Dashing and turning clears one angle for free, and waiting in smoke lets the second player's fight pull the defenders' attention away from you.",
+    "mistakeToAvoid": "Dashing blind into the middle of site and shooting immediately, alone, so the defense trades nothing and kills you first.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "solo jett entry into a site with no team utility"
+    }
+  },
+  {
+    "id": "k175",
+    "title": "Stopping a Jett or Neon execute with a KAY/O knife",
+    "situation": {
+      "phase": "execute",
+      "side": "defense",
+      "role": "initiator",
+      "agent": "KAY/O",
+      "enemyAgents": [
+        "Jett",
+        "Neon"
+      ],
+      "map": null,
+      "site": "A",
+      "economy": null
+    },
+    "signal": "You hear the attackers stack and make noise just outside the site, about to commit.",
+    "decision": "Throw the knife onto them before they come out, so they cannot use utility to support the entry, then molly or swing the lone duelist who comes in while your controller's smoke or a teammate holds the other side.",
+    "why": "Suppression takes away every attacker's support utility at once, so the duelist enters with nothing behind him.",
+    "mistakeToAvoid": "Saving the knife until they are already on site, when the support utility has already gone out.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "stopping a jett or neon execute with a kay/o knife"
+    }
+  },
+  {
+    "id": "k176",
+    "title": "Executing a site with smoke, two mollies, a dash and a flash",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "initiator",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "full"
+    },
+    "signal": "Your team has a controller, an entry and two molly sources ready for the same site.",
+    "decision": "Smoke first, then the entry dashes into the smoke and checks both sides, mollies deny the angle that peeks the entry and the defenders' rotate path, then the flash pops beyond the smoke and the entry swings the nearest defender. With flashes left, flash again and fight together, and without them, trade together out of the smoke.",
+    "why": "Each step protects the next. The entry waiting in smoke for the flash avoids a blind fight, and moving out together guarantees trades.",
+    "mistakeToAvoid": "Flashing before the entry is in place, or the entry swinging before the flash, so utility and fight never line up.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "executing a site with smoke, two mollies, a dash and a flash"
+    }
+  }
+]

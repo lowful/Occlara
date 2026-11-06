@@ -1144,6 +1144,9 @@ function readVariant(req) {
  * A client before it gets today's request and reply, byte for byte.
  */
 const V85 = [8, 5, 0];
+// The enemy team's agents in the notes and cases (8.8): the review's killers
+// and Ask Coach's comp count for a client from this release on.
+const V876 = [8, 7, 6];
 function clientAtLeast(req, from) {
   const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String((req && req.headers && req.headers['x-occlara-version']) || ''));
   if (!m) return false;
@@ -3729,6 +3732,9 @@ router.post('/match-review', async (req, res) => {
       // Study by cause (8.5.0, match-review.js CAUSE_TOPICS) for a client built
       // for it; one before it is listed its study notes as today.
       if (clientAtLeast(req, V85)) input.byCause = true;
+      // The enemy team's agents from Riot's killers too (8.8, match-review.js
+      // enemiesOf) for a client of this release; one before it is told as today.
+      if (clientAtLeast(req, V876)) input.byEnemy = true;
       // UNDER THREE ROUNDS THERE IS NOTHING TO SAY, and the model says it
       // anyway: probed with a one round ledger it wrote "this match was decided
       // by a failure to establish consistent tactical control". The computed
@@ -4468,6 +4474,9 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
   let parts = null;
   try {
     input = chatPrompt.normalise(body.context);
+    // The match's enemy agents for the notes and cases (8.8, chat-prompt.js
+    // enemiesOf), from a client of this release on; one before it as today.
+    if (input && clientAtLeast(req, V876)) input.byEnemy = true;
     const built = typeof chatPrompt.buildParts === 'function' ? chatPrompt.buildParts(input, messages, { variant }) : null;
     if (built && Array.isArray(built.parts) && built.parts.length > 1 && built.parts.every((p) => typeof p === 'string')) parts = built.parts;
     prompt = parts ? parts.join('') : chatPrompt.buildPrompt(input, messages, { variant });

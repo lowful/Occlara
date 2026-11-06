@@ -402,7 +402,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const notesIn = (prompt) => {
     const i = prompt.indexOf('COACHING KNOWLEDGE');
     if (i < 0) return [];
-    return prompt.slice(i).split('\n').slice(1).filter((l) => l.startsWith('- ')).map((l) => l.slice(2));
+    // The notes' own lines, up to the blank line before a worked cases block (8.8).
+    const lines = prompt.slice(i).split('\n').slice(1);
+    const end = lines.findIndex((l) => !l.startsWith('- '));
+    return (end < 0 ? lines : lines.slice(0, end)).map((l) => l.slice(2));
   };
   const plainPrompt = seeded(() => matchReview.buildPrompt({ ...inputOf(undefined), variant: 'C' }));
   let same = true;
@@ -415,16 +418,22 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     const gold = seeded(() => matchReview.buildPrompt({ ...inputOf('silver_gold', { advancedTips: adv }), variant: 'C' }));
     const goldStudy = matchReview.study(inputOf('silver_gold', { advancedTips: adv }), 3);
     const notes = notesIn(gold).concat(goldStudy.map((n) => n.text));
-    const plainNotes = notesIn(seeded(() => matchReview.buildPrompt({ ...inputOf(undefined, { advancedTips: adv }), variant: 'C' })))
+    // The full eight, the prompt as it is without worked cases (8.8), which take the lowest notes' place.
+    const plainNotes = notesIn(seeded(() => matchReview.buildPrompt({ ...inputOf(undefined, { advancedTips: adv }), variant: 'C' }, { cases: false })))
       .concat(matchReview.study(inputOf(undefined, { advancedTips: adv }), 3).map((n) => n.text));
     ok(plainNotes.some((t) => lowestOf(t) > 1), `the same review with no band does carry a note above Gold, so the next check means something (advanced ${adv ? 'on' : 'off'})`);
     ok(notes.length >= 6 && notes.every((t) => lowestOf(t) <= 1),
       `a Gold player's review notes and study list never reach above Gold, advanced ${adv ? 'on' : 'off'} (${notes.length} notes)`);
     ok(goldStudy.length === 3 && notesIn(gold).length <= 8, 'and the study list keeps three, the knowledge block at most eight');
   }
-  const ascOnly = knowledge.all().filter((n) => Array.isArray(n.ranks) && n.ranks.length === 1 && n.ranks[0] === 'asc_plus' && Array.isArray(n.cause));
-  const immNotes = new Set(knowledge.retrieve({ agent: 'Sova', map: 'Ascent', causes: ['lost-duel'], rankBand: 'asc_plus' }, 2000));
-  const goldNotes = new Set(knowledge.retrieve({ agent: 'Sova', map: 'Ascent', causes: ['lost-duel'], rankBand: 'silver_gold' }, 2000));
+  // The asc_plus only cause notes a Sova review on Ascent can be served, by
+  // the causes they answer (8.8 brought them for more than lost duels).
+  const fitsReview = (n) => (!n.agents || n.agents.includes('Sova')) && (!n.roles || n.roles.includes('initiator'))
+    && (!n.maps || n.maps.includes('Ascent')) && !n.side && !n.phase && !n.situations && !n.weapons && !n.enemyAgents && !n.enemyWithout;
+  const ascOnly = knowledge.all().filter((n) => Array.isArray(n.ranks) && n.ranks.length === 1 && n.ranks[0] === 'asc_plus' && Array.isArray(n.cause) && fitsReview(n));
+  const ascCauses = [...new Set(ascOnly.flatMap((n) => n.cause))];
+  const immNotes = new Set(knowledge.retrieve({ agent: 'Sova', map: 'Ascent', causes: ascCauses, rankBand: 'asc_plus' }, 2000));
+  const goldNotes = new Set(knowledge.retrieve({ agent: 'Sova', map: 'Ascent', causes: ascCauses, rankBand: 'silver_gold' }, 2000));
   ok(ascOnly.length >= 1 && ascOnly.every((n) => immNotes.has(n.text) && !goldNotes.has(n.text)),
     "an Immortal player's review context reaches the asc_plus only notes, the same context at Gold never does");
   const imm = seeded(() => matchReview.buildPrompt({ ...inputOf('asc_plus'), variant: 'C' }));
@@ -435,6 +444,160 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const lowNote = knowledge.all().find((n) => n.source && Array.isArray(n.ranks) && n.ranks.join() === 'iron_bronze,silver_gold' && !n.weapons);
   ok(lowNote && knowledge.rankAdjust(lowNote, 'asc_plus', false) === null && knowledge.rankAdjust(lowNote, 'asc_plus', true) === 0,
     'a low band note is left out for an Immortal, and kept when the match shows it missing');
+}
+
+// ── The enemy team and the worked cases in the review (8.8) ────────────────
+// The enemy agents come from the comp a client of this release sends and,
+// for one the route marks (byEnemy), Riot's killers. A worked case is in the
+// prompt only where this match's situation matches one, two at most, in the
+// place of the lowest notes so the prompt grows by CASE_GROWTH at most; with
+// no match, no band and no enemy the prompt is today's, byte for byte.
+{
+  const knowledge = require('../server/services/knowledge');
+  const cases = require('../server/services/cases');
+  const seeded = (fn) => {
+    const random = Math.random;
+    let x = 5;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const died = (n, side, extra) => ({ n, side, result: 'lost', died: true, timing: 'mid', ...(extra || {}) });
+  const bodyOf = (ctx, rounds, extra) => ({ rounds, patterns: [], mistakes: [], strengths: [], context: ctx, final: { team: 9, enemy: 13 }, ...(extra || {}) });
+  const C = (input, opts) => seeded(() => matchReview.buildPrompt({ ...input, variant: 'C' }, opts));
+
+  // The field: agents only, checked, and none read as before.
+  const plainBody = bodyOf({ agent: 'Sova', map: 'Haven' }, [died(4, 'attacking'), died(5, 'attacking'), died(6, 'attacking')]);
+  const plain = matchReview.normalise(plainBody);
+  ok(!('enemyAgents' in plain.context), 'the review reads no enemy agents from a client that sends none');
+  ok(JSON.stringify(matchReview.normalise(bodyOf({ ...plainBody.context, enemyAgents: ['Player#TAG', 7, 'nobody'] }, plainBody.rounds))) === JSON.stringify(plain),
+    'and a list with no agent the game data knows as none, byte for byte');
+  ok(JSON.stringify(matchReview.normalise(bodyOf({ ...plainBody.context, enemyAgents: ['cypher', 'Player#TAG', 'Jett'] }, plainBody.rounds)).context.enemyAgents) === '["Cypher","Jett"]',
+    'a real comp is kept, agents only, as the game data spells them');
+  // The client's half: Riot's comp goes as context.enemyAgents, agents only,
+  // and no comp sends no field, so a review without the link is unchanged.
+  const comps = { us: [{ agent: 'Sova' }], them: [{ agent: 'killjoy' }, { agent: 'Player#TAG' }, { agent: 'Cypher' }] };
+  const sentWith = review.requestBody({ rounds: plainBody.rounds.map((r) => ({ ...r })), context: { map: 'Haven' }, endedBy: 'score', riot: { agent: 'Sova', comps } });
+  const sentWithout = review.requestBody({ rounds: plainBody.rounds.map((r) => ({ ...r })), context: { map: 'Haven' }, endedBy: 'score', riot: { agent: 'Sova' } });
+  ok(JSON.stringify(sentWith.context.enemyAgents) === '["Cypher","Killjoy"]' && !('enemyAgents' in sentWithout.context)
+    && JSON.stringify({ ...sentWith.context, enemyAgents: undefined }) === JSON.stringify({ ...sentWithout.context, enemyAgents: undefined }),
+  'the client sends the enemy comp from Riot\'s record, agents the game data knows, sorted, and nothing else changes; no comp, no field');
+  ok(JSON.stringify(matchReview.normalise(sentWith).context.enemyAgents) === '["Cypher","Killjoy"]', 'and the server reads it as sent');
+  const killed = matchReview.normalise(bodyOf(plainBody.context, [died(4, 'attacking', { verified: true, killer: 'Killjoy' }), died(5, 'attacking'), died(6, 'attacking')]));
+  ok(matchReview.enemiesOf(killed).length === 0 && JSON.stringify(matchReview.enemiesOf({ ...killed, byEnemy: true })) === '["Killjoy"]',
+    "Riot's killers are the enemy agents only for a client the route marks, and an older one's are never read");
+
+  // No match, no band, no enemy: today's prompt, byte for byte.
+  const quiet = matchReview.normalise(bodyOf({ agent: 'Harbor', map: 'Lotus', advancedTips: true },
+    [{ n: 1, side: 'defending', result: 'won', died: false }, { n: 2, side: 'defending', result: 'won', died: false }, { n: 3, side: 'defending', result: 'lost', died: false }]));
+  ok(cases.pick(cases.fromReview(quiet, [])).length === 0 && C(quiet) === C(quiet, { cases: false }),
+    'a review whose situation no case matches is today\'s prompt byte for byte');
+  ok(!C(quiet).includes('WORKED CASES'), 'and carries no cases block');
+
+  // A match: the cases block, two at most, in the place of the lowest notes.
+  const clove = matchReview.normalise(bodyOf({ agent: 'Clove', map: 'Haven', advancedTips: true, rankBand: 'asc_plus' },
+    [died(4, 'attacking'), died(5, 'attacking'), died(6, 'attacking', { cause: 'isolated' })],
+    { mistakes: [{ key: 'cause:isolated', title: 'Died alone', detail: 'x', rounds: [6], count: 1 }] }));
+  const withCases = C(clove);
+  const today = C(clove, { cases: false });
+  const blockAt = withCases.indexOf('\n\n' + cases.HEAD);
+  ok(blockAt > 0, 'a review whose situation matches gets the worked cases block');
+  const blockEnd = withCases.indexOf('\n\n', blockAt + 2);
+  const caseLines = withCases.slice(blockAt + 2, blockEnd).split('\n').slice(1);
+  ok(caseLines.length >= 1 && caseLines.length <= cases.MAX_CASES && caseLines.every((l) => l.startsWith('- ')),
+    `with ${caseLines.length} case lines, never more than ${cases.MAX_CASES}`);
+  const notesOf = (p) => { const i = p.indexOf('COACHING KNOWLEDGE'); const ls = p.slice(i).split('\n').slice(1); const e = ls.findIndex((l) => !l.startsWith('- ')); return ls.slice(0, e < 0 ? ls.length : e); };
+  const kept = notesOf(withCases);
+  const all8 = notesOf(today);
+  ok(kept.length >= matchReview.NOTES_FLOOR && JSON.stringify(all8.slice(0, kept.length)) === JSON.stringify(kept),
+    `the notes kept are today's first ${kept.length} of ${all8.length}, the lowest gone`);
+  const rebuilt = withCases.slice(0, blockAt) + withCases.slice(blockEnd);
+  const todayCut = today.replace(all8.join('\n'), kept.join('\n'));
+  ok(rebuilt === todayCut, 'and taking the cases block out leaves today\'s prompt with those notes, byte for byte');
+  ok(withCases.length <= Math.floor(today.length * (1 + matchReview.CASE_GROWTH)),
+    `the prompt grows by ${Math.round((withCases.length / today.length - 1) * 100)}%, within ${matchReview.CASE_GROWTH * 100}%`);
+  ok(withCases.includes(cases.line(cases.all().find((c) => c.id === 'k028'))), "an Immortal Clove dying on attack mid round is given the high Immortal controller's case");
+
+  // The band: a Gold player never gets an asc_plus only case, an Immortal does.
+  const asc = new Set(cases.all().filter((c) => c.ranks.length === 1 && c.ranks[0] === 'asc_plus').map(cases.line));
+  const gold = C({ ...clove, context: { ...clove.context, rankBand: 'silver_gold' } });
+  ok(![...asc].some((l) => gold.includes(l)) && [...asc].some((l) => withCases.includes(l)),
+    'the same review at Gold carries no asc_plus only case, at Immortal it does');
+  ok(!C({ ...clove, context: { ...clove.context, advancedTips: false } }).includes(cases.line(cases.all().find((c) => c.id === 'k028'))),
+    'and with Advanced coaching off an advanced case is left out');
+
+  // The enemy: a case for an enemy agent never blind, served against it.
+  const sova = (enemy) => matchReview.normalise(bodyOf({ agent: 'Sova', map: 'Haven', advancedTips: true, rankBand: 'asc_plus', ...(enemy ? { enemyAgents: enemy } : {}) },
+    [died(4, 'attacking'), died(5, 'attacking'), died(6, 'attacking')]));
+  const cypherCase = cases.all().find((c) => c.id === 'k074');
+  const inScored = (input) => cases.scored(cases.fromReview(input, matchReview.enemiesOf(input))).some((n) => n.c.id === 'k074');
+  ok(cypherCase && !inScored(sova()) && !inScored(sova(['Jett', 'Omen'])) && inScored(sova(['Cypher', 'Jett'])),
+    'the silent C walk past a Cypher camera is served against a Cypher, never against another comp or blind');
+  const kjNote = knowledge.all().find((n) => n.enemyAgents && n.enemyAgents.includes('Killjoy') && !n.agents && !n.side && !n.phase && !n.roles);
+  const studyHas = (input) => [...matchReview.study(input, 40)].some((n) => n.text === kjNote.text);
+  ok(kjNote && !studyHas(sova()) && !studyHas(sova(['Jett'])), 'the study list never lists an enemy note blind or against another comp');
+
+  // A real situational match only (cases.js situational, concentrated): a
+  // Jett whose deaths are spread over the round is given no case on the clock.
+  const spreadTimes = ['early', 'mid', 'late', 'mid', null, null, 'late'];
+  const spread = matchReview.normalise(bodyOf({ agent: 'Jett', map: 'Ascent', advancedTips: true },
+    spreadTimes.map((t, i) => ({ ...died(i + 3, 'attacking'), timing: t }))));
+  ok(cases.pick(cases.fromReview(spread, [])).length === 0 && C(spread) === C(spread, { cases: false }),
+    'a Jett whose seven deaths are spread over the round gets no case, today\'s prompt byte for byte');
+  ok(C(clove) === C(clove), 'the same match reviewed twice is given the same cases, the seed is the match');
+  // Variety across matches: the same shape of match, different rounds.
+  const sets = new Set();
+  for (let i = 0; i < 30; i++) {
+    const r = [died(1, 'defending', { timing: 'early', verified: true, sec: 20 + i }), died(4, 'defending', { verified: true, sec: 50 }),
+      died(5, 'attacking', { verified: true, sec: 45 }), died(6, 'attacking', { timing: 'early', verified: true, sec: 25 })];
+    const input = matchReview.normalise(bodyOf({ agent: 'Killjoy', advancedTips: true, rankBand: 'plat_diamond' }, r));
+    sets.add(cases.pick(cases.fromReview(input, [])).map((c) => c.id).join('+'));
+  }
+  ok(sets.size >= 3 && ![...sets].includes(''), `thirty Killjoy matches of the same shape (a pistol death, early and mid deaths) are given ${sets.size} different case sets, not the same pair in all`);
+  // Never one lesson twice in the prompt.
+  const twoIds = cases.pick(cases.fromReview(clove, matchReview.enemiesOf(clove)));
+  ok(twoIds.length < 2 || !cases.lessonsOf(twoIds[1]).some((l) => cases.lessonsOf(twoIds[0]).includes(l)),
+    'the two cases of a review teach two different things');
+
+  // enemyHint (8.8): the Hush anchor note, served blind before, is never in a
+  // review against a known comp with no Hush.
+  const anchorNote = knowledge.all().find((n) => Array.isArray(n.enemyHint) && n.text.startsWith('When a Hush anchor appears,'));
+  const noHush = ['Jett', 'Sova', 'Omen', 'Killjoy', 'Reyna'];
+  let blindHas = 0, compHas = 0;
+  for (const agent of ['Sova', 'Fade', 'Breach', 'Omen', 'Viper', 'Sage', 'Cypher', 'Neon']) {
+    const body = (enemy) => matchReview.normalise(bodyOf({ agent, map: 'Haven', advancedTips: true, ...(enemy ? { enemyAgents: enemy } : {}) },
+      [died(4, 'attacking'), died(5, 'attacking'), died(6, 'defending')]));
+    // The review's own retrieve() call, at the whole pool, and its prompt.
+    const pool = (input) => knowledge.retrieve({ agent, map: 'Haven', causes: [], ...(input.context.enemyAgents ? { enemyAgents: input.context.enemyAgents } : {}) }, 2000, { advanced: true });
+    if (pool(body()).includes(anchorNote.text)) blindHas++;
+    if (pool(body(noHush)).includes(anchorNote.text) || C(body(noHush)).includes(anchorNote.text)) compHas++;
+  }
+  ok(anchorNote && blindHas === 8 && compHas === 0, `the Hush anchor note is in the review's pool blind for ${blindHas} of 8 agents, as before, and never against a comp with no Hush`);
+
+  // The band's reserve (knowledge.ADVANCED_SLOTS_BY_BAND) in the review: an
+  // Iron review's notes are the band's fundamentals, a Platinum one keeps its depth.
+  const advSet = new Set(knowledge.all().filter((n) => n.tier === 'advanced').map((n) => n.text));
+  const notesAt = (band) => {
+    const p = C(matchReview.normalise(bodyOf({ agent: 'Raze', map: 'Bind', advancedTips: true, ...(band ? { rankBand: band } : {}) },
+      [died(4, 'attacking'), died(5, 'attacking'), died(6, 'attacking')])), { cases: false });
+    const i = p.indexOf('COACHING KNOWLEDGE');
+    const ls = p.slice(i).split('\n').slice(1);
+    const e = ls.findIndex((l) => !l.startsWith('- '));
+    return ls.slice(0, e < 0 ? ls.length : e).map((l) => l.slice(2));
+  };
+  const advCount = (band) => notesAt(band).filter((t) => advSet.has(t)).length;
+  ok(advCount('iron_bronze') <= 1 && advCount('silver_gold') <= 3 && advCount('plat_diamond') >= 5 && advCount(null) >= 5,
+    `advanced notes in the review: ${advCount('iron_bronze')} at Iron, ${advCount('silver_gold')} at Gold, ${advCount('plat_diamond')} at Platinum, ${advCount(null)} with no band`);
+
+  // The budget, alone: notes go from the end down to the floor, then a case, else today's.
+  const base = 'x'.repeat(1000);
+  const build = (ns, cs) => base + ns.join('') + cs.join('');
+  const notes = ['a'.repeat(30), 'b'.repeat(30), 'c'.repeat(30), 'd'.repeat(30), 'e'.repeat(30)];
+  const todayB = build(notes, []);
+  const fits = matchReview.withinBudget(todayB, notes, ['C'.repeat(130)], build);
+  ok(fits === build(notes.slice(0, 4), ['C'.repeat(130)]) && fits.length <= Math.floor(todayB.length * 1.1), 'the budget drops the last note first, as few as it needs');
+  ok(matchReview.withinBudget(todayB, notes, ['C'.repeat(100), 'D'.repeat(100)], build) === build(notes, ['C'.repeat(100)]),
+    'and when two cases do not fit even with three notes it keeps one, with every note that fits beside it');
+  ok(matchReview.withinBudget(todayB, notes, ['C'.repeat(500)], build) === todayB, 'and a case that cannot fit at all leaves today\'s prompt');
 }
 
 // ── Study by cause (8.5.0, match-review.js CAUSE_TOPICS) ────────────────────

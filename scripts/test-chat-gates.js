@@ -685,6 +685,124 @@ HOW TO ANSWER
     'the question\'s situation for an Immortal reaches the asc_plus only defence note, at Gold it never does');
   ok(/Their rank band: Silver or Gold\. Fit the advice to that level and name the one basic habit that matters most there/.test(cp.renderPlayer(cp.normalise(ctxOf('silver_gold')))),
     'with a band, the player facts size the advice to it');
+
+  // THE ENEMY TEAM (8.8): the match's comp and Riot's killers, agents only,
+  // for a client the route marks (byEnemy). One before it sends the same comp
+  // and gets today's notes; an enemy note is never served blind.
+  const comps = { us: [{ agent: 'Omen' }], them: [{ agent: 'Killjoy' }, { agent: 'Cypher' }, { agent: 'Player#TAG' }] };
+  const withComp = (band, extra) => {
+    const c = ctxOf(band);
+    return { ...c, match: { ...c.match, comps, cards: [{ ...dry, riot: { killer: 'Jett', sec: 40 } }, { ...dry, n: 5 }] }, ...(extra || {}) };
+  };
+  const oldClient = cp.normalise(withComp(undefined));
+  const noComp = cp.normalise(ctxOf(undefined));
+  ok(cp.enemiesOf(oldClient).length === 0 && JSON.stringify(cp.enemiesOf({ ...oldClient, byEnemy: true })) === '["Killjoy","Cypher","Jett"]',
+    "the enemy agents are the comp and Riot's killer, agents only, and none for a client before this release");
+  const enemyText = new Set(knowledge.all().filter((n) => n.enemyAgents || n.enemyWithout).map((n) => n.text));
+  let blindNotes = 0;
+  for (const q of ['How do I hold a site on defence?', 'What should I work on?', 'How do I win a retake?']) {
+    const m = [{ role: 'user', content: q }];
+    blindNotes += cp.pickNotes(oldClient, m).filter((t) => enemyText.has(t)).length;
+    blindNotes += cp.pickNotes(noComp, m).filter((t) => enemyText.has(t)).length;
+  }
+  ok(blindNotes === 0, 'with no enemy list Ask Coach is given no enemy note');
+  const newClient = { ...cp.normalise(withComp('plat_diamond')), byEnemy: true };
+  let wrongEnemy = 0;
+  let served = 0;
+  for (const q of ['How do I hold a site on defence?', 'What should I work on?', 'How do I attack a site?', 'How do I win a retake?']) {
+    for (const t of cp.pickNotes(newClient, [{ role: 'user', content: q }])) {
+      const n = knowledge.all().find((x) => x.text === t);
+      if (!n.enemyAgents && !n.enemyWithout) continue;
+      served++;
+      if (knowledge.enemyFit(n, cp.enemiesOf(newClient)) === null) wrongEnemy++;
+    }
+  }
+  ok(wrongEnemy === 0, `against a Killjoy, Cypher and Jett every enemy note served answers one of them (${served} served)`);
+  const pool = knowledge.retrieve({ agent: 'Omen', map: 'Pearl', enemyAgents: cp.enemiesOf(newClient), rankBand: 'plat_diamond' }, 2000);
+  const kjNote = knowledge.all().find((n) => n.enemyAgents && n.enemyAgents.join() === 'Killjoy' && !n.side && !n.phase);
+  ok(kjNote && pool.includes(kjNote.text) && !knowledge.retrieve({ agent: 'Omen', map: 'Pearl', rankBand: 'plat_diamond' }, 2000).includes(kjNote.text),
+    'and the situation Ask Coach retrieves with reaches the Killjoy note against that comp, never without it');
+
+  // WORKED CASES (8.8, cases.js): only where the question's situation matches,
+  // two at most, the band as the notes, and the prompt grows 10% at most.
+  const cases = require('../server/services/cases');
+  const general = cp.normalise({ v: 2, game: 'valorant', language: 'en', advanced: true, match: null, player: {}, ask: {} });
+  const hi = [{ role: 'user', content: 'Hi coach, how are you?' }];
+  ok(cp.casesFor(general, hi).length === 0 && !cp.buildPrompt(general, hi).includes(cases.HEAD),
+    'a question with no situation a case matches gets no cases block');
+  const retakeCtx = (band) => ({ v: 2, game: 'valorant', language: 'en', advanced: true, ...(band ? { rankBand: band } : {}),
+    match: { id: 'valorant-1790000000000-omen02', map: 'Haven', agent: 'Omen', mode: 'Competitive', result: 'Defeat', score: '9-13', rounds: 22, verified: true,
+      lists: { mistakes: [{ key: 'cause:exposed', title: 'Exposed', detail: 'x', rounds: [7], count: 1 }] },
+      cards: [{ n: 7, side: 'defending', result: 'lost', died: true, verified: true, riot: { sec: 80, plantSec: 60, killer: 'Jett' }, look: { cause: 'exposed', what: 'x', better: 'y', source: 'riot' } }] },
+    player: {}, ask: { round: 7 } });
+  const retakeAsk = [{ role: 'user', content: 'How should I have played the retake in round 7?' }];
+  const rIn = cp.normalise(retakeCtx('plat_diamond'));
+  const got = cp.casesFor(rIn, retakeAsk);
+  ok(got.length >= 1 && got.length <= cases.MAX_CASES, `a retake question on a retake death is given ${got.length} case(s), two at most`);
+  const withC = seeded(() => cp.buildPrompt(rIn, retakeAsk));
+  const realPick = cases.pick;
+  let todayP;
+  cases.pick = () => [];
+  try { todayP = seeded(() => cp.buildPrompt(rIn, retakeAsk)); } finally { cases.pick = realPick; }
+  ok(withC.includes(cases.HEAD) && !todayP.includes(cases.HEAD) && got.every((c) => withC.includes(cases.line(c))),
+    'the prompt carries the cases block, and without a case it is the prompt as it was');
+  ok(withC.length <= Math.floor(todayP.length * (1 + cp.CASE_GROWTH)) && withC.length - todayP.length < 0.1 * todayP.length + 1,
+    `growing ${Math.round((withC.length / todayP.length - 1) * 1000) / 10}%, within ${cp.CASE_GROWTH * 100}%`);
+  const blockAt = withC.indexOf(cases.HEAD);
+  const blockEnd = withC.indexOf('\n\n', blockAt);
+  const notesBefore = (p) => { const i = p.indexOf('COACHING NOTES\n'); return i < 0 ? [] : p.slice(i).split('\n').slice(1).filter((l, j, a) => a.slice(0, j + 1).every((x) => x.startsWith('- '))); };
+  const kept = notesBefore(withC);
+  const was = notesBefore(todayP);
+  ok(JSON.stringify(was.slice(0, kept.length)) === JSON.stringify(kept)
+    && withC.slice(0, blockAt - 2) + withC.slice(blockEnd) === todayP.replace(was.join('\n'), kept.join('\n')),
+  `the cases take the lowest notes' place (${kept.length} of ${was.length} kept), and taking them out leaves the prompt as it was`);
+  let goldCases = 0;
+  for (const q of ['How should I have played the retake in round 7?', 'What should I work on?', 'How do I win a clutch?']) {
+    goldCases += cp.casesFor(cp.normalise(retakeCtx('silver_gold')), [{ role: 'user', content: q }]).filter((c) => knowledge.RANK_BANDS.indexOf(c.minBand) > 1).length;
+  }
+  ok(goldCases === 0, 'a Gold player\'s questions are never given a case above Gold');
+  ok(cp.casesFor(cp.normalise({ ...retakeCtx('plat_diamond'), advanced: false }), retakeAsk).every((c) => c.tier !== 'advanced'),
+    'and with Advanced coaching off no advanced case');
+  ok(cp.casesFor({ ...cp.normalise(retakeCtx('plat_diamond')), game: 'lol' }, retakeAsk).length === 0, 'League is given none');
+
+  // A real situational match (cases.js situational): over a whole match a
+  // phase counts only where the deaths gather, the asked round keeps its own.
+  const kjCtx = (id, cards, ask) => ({ v: 2, game: 'valorant', language: 'en', advanced: true, rankBand: 'plat_diamond',
+    match: { id, map: null, agent: 'Killjoy', mode: 'Competitive', result: 'Defeat', score: '9-13', rounds: 22, verified: true, cards }, player: {}, ask: ask || {} });
+  const card = (n, side, sec) => ({ n, side, result: 'lost', died: true, verified: true, riot: { sec, killer: 'Jett' } });
+  const spreadCards = [card(3, 'defending', 20), card(6, 'defending', 50), card(9, 'attacking', 90),
+    { ...card(15, 'attacking', 80), riot: { sec: 80, plantSec: 60, killer: 'Jett' } }];
+  const whole = [{ role: 'user', content: 'What should I work on?' }];
+  ok(cp.casesFor(cp.normalise(kjCtx('valorant-1790000000000-kj001', spreadCards)), whole).length === 0,
+    'a question about a whole match whose deaths are spread over the round is given no case on the clock alone');
+  const r6 = [{ role: 'user', content: 'Why did I die in round 6?' }];
+  const asked6 = cp.casesFor(cp.normalise(kjCtx('valorant-1790000000000-kj001', spreadCards, { round: 6 })), r6);
+  ok(asked6.length >= 1 && asked6.length <= cases.MAX_CASES && asked6.every((c) => !c.situation.phase || c.situation.phase === 'mid'),
+    `the asked round keeps its own phase: round 6, a mid round death, is given ${asked6.length} mid round case(s)`);
+  ok(asked6.length < 2 || !cases.lessonsOf(asked6[1]).some((l) => cases.lessonsOf(asked6[0]).includes(l)), 'and never two cases teaching one thing');
+  // The seed: one match, the same cases for every question about it; another match may get others.
+  const again = cp.casesFor(cp.normalise(kjCtx('valorant-1790000000000-kj001', spreadCards, { round: 6 })), [{ role: 'user', content: 'What went wrong in round 6?' }]);
+  ok(JSON.stringify(again.map((c) => c.id)) === JSON.stringify(asked6.map((c) => c.id)), 'the same match asked again gets the same cases');
+  const seen = new Set();
+  for (let i = 0; i < 30; i++) {
+    seen.add(cp.casesFor(cp.normalise(kjCtx(`valorant-17900000000${String(i).padStart(2, '0')}-kj`, spreadCards, { round: 6 })), r6).map((c) => c.id).join('+'));
+  }
+  ok(seen.size >= 2, `thirty matches with the same round 6 are given ${seen.size} different case sets, not one pair every time`);
+
+  // enemyHint (8.8): an enemy note served blind is never served against a
+  // known comp without its agent, for a client the route marks.
+  const fullComp = { us: [{ agent: 'Omen' }], them: ['Jett', 'Sova', 'Omen', 'Killjoy', 'Reyna'].map((agent) => ({ agent })) };
+  const hintNotes = knowledge.all().filter((n) => Array.isArray(n.enemyHint));
+  const known = { ...cp.normalise({ ...ctxOf('plat_diamond'), match: { ...ctxOf('plat_diamond').match, comps: fullComp } }), byEnemy: true };
+  let wrongHint = 0;
+  for (const q of ['How do I hold a site on defence?', 'What should I work on?', 'How do I attack a site?', 'How do I win a retake?', 'How do I stop losing duels?']) {
+    for (const t of cp.pickNotes(known, [{ role: 'user', content: q }])) {
+      const n = hintNotes.find((x) => x.text === t);
+      if (n && !n.enemyHint.some((a) => cp.enemiesOf(known).includes(a))) wrongHint++;
+    }
+  }
+  ok(hintNotes.length >= 6 && cp.enemiesOf(known).length === 5 && wrongHint === 0,
+    `against a known comp Ask Coach is given no enemyHint note for an agent not in it (${wrongHint})`);
 }
 
 // ── bench:chat counts a sentence the server withheld from a raw reply ───────

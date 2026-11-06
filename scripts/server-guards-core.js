@@ -150,6 +150,19 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       ok(JSON.stringify(oldStudy.body.study) === JSON.stringify(todayStudy) && JSON.stringify(newStudy.body.study) === JSON.stringify(causeStudy)
         && JSON.stringify(todayStudy) !== JSON.stringify(causeStudy),
       'study by cause goes to a client of 8.5.0 or later, and an 8.4.4 install is listed today\'s study notes');
+      // THE ENEMY TEAM (8.8): Riot's killers in the review and the comp in Ask
+      // Coach count only for a client of this release, by the same version gate.
+      {
+        const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'server', 'routes', 'coach.js'), 'utf8');
+        const gates = src.split('clientAtLeast(req, V876)').length - 1;
+        ok(/const V876 = \[8, 7, 6\];/.test(src) && gates === 2 && src.includes('if (clientAtLeast(req, V876)) input.byEnemy = true;')
+          && src.includes('if (input && clientAtLeast(req, V876)) input.byEnemy = true;'),
+        `the enemy agents are gated by version in the review route and in Ask Coach, and nowhere else (${gates} gates)`);
+        const killerBody = { ...causeBody, rounds: causeBody.rounds.map((r) => (r.died ? { ...r, killer: 'Killjoy' } : r)) };
+        const asOld = matchReview.normalise(killerBody);
+        ok(matchReview.enemiesOf({ ...asOld, byCause: true }).length === 0 && matchReview.enemiesOf({ ...asOld, byEnemy: true }).join() === 'Killjoy',
+          'and the review reads the killers as the enemy only when the route marked the client');
+      }
       // An unpinned call keeps its fallback, and its strike moves the text model.
       prov.sent.length = 0;
       prov.next = (body) => ({ content: body.model === textModel ? '' : 'Trade your teammate first, then take the angle with them.' });
