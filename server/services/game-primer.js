@@ -1596,6 +1596,16 @@ function noteClaims(note, data) {
   const claims = note && note.source && Array.isArray(note.source.claims) ? note.source.claims : [];
   const ARMOR = { none: null, light: 'Light Armor', heavy: 'Heavy Armor' };
   for (const c of claims) {
+    // A game rule the note states (8.8, `{ rule, value }`, a stated fact of
+    // game-rules.json such as spike.defuse): legal only while the primer
+    // states that fact with that value, so a rule change fails the build.
+    if (c && typeof c.rule === 'string') {
+      const v = p.stated(c.rule);
+      if (v === null || v === undefined) problems.push(`declares the rule "${c.rule}", which the primer does not state`);
+      else if (v !== c.value) problems.push(`claims ${c.rule} is ${c.value}; the primer states ${v}`);
+      else values.push(c.value);
+      continue;
+    }
     const w = (d.weapons || {})[String((c && c.weapon) || '').toLowerCase()];
     if (!w) { problems.push(`declares a claim about "${c && c.weapon}", which is no gun in the generated table`); continue; }
     if (c.field) {

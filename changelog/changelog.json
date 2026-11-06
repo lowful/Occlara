@@ -1,5 +1,17 @@
 [
   {
+    "version": "8.7.6",
+    "date": "2026-11-07",
+    "title": "A coach that knows the matchup",
+    "summary": "More coaching from top players, advice that knows who you played against, and worked examples for the moments that decided your match.",
+    "items": [
+      { "kind": "improved", "text": "The coach learned 133 more habits from top coaches and Radiant players, with much more for Ascendant and above." },
+      { "kind": "new", "text": "Matchup advice: when the enemy had a Killjoy, a Viper or another agent that changes how you play, the coach tells you how to play into them." },
+      { "kind": "new", "text": "When a moment in your match looks like one top players handle well, the coach walks you through what to notice and what to do." },
+      { "kind": "improved", "text": "Lower ranks now get the fundamentals that matter most at their level first, while higher ranks keep the deeper advice." }
+    ]
+  },
+  {
     "version": "8.7.5",
     "date": "2026-11-06",
     "title": "Report a problem, and advanced coaching for everyone",

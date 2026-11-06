@@ -1785,6 +1785,8 @@ function linkRiotRecord(job) {
           agent: riot.me && riot.me.agent, map: riot.map, score: riot.score, result: riot.result,
           scoreline: { kills: riot.me && riot.me.kills, deaths: riot.me && riot.me.deaths,
             assists: riot.me && riot.me.assists, acs: lm.acs, mvp: lm.mvp || null },
+          // Both comps (8.8): the enemy's agents go to the notes and cases.
+          comps: riot.comps || null,
         },
       });
       body.context = { ...body.context, proPlaybook: snap.context.proPlaybook };

@@ -103,7 +103,7 @@ in `docs/claude/` to find it.
 | Changing how the agent is read off the HUD (`lookForAgent`, detect-agent, `agent-crop`) | `docs/claude/agent-hud.md` |
 | Working on League: its recorder, `lol-review`, why there is no live coach | `docs/claude/league.md` |
 | Switching game, the Stats dashboard, the retired Marvel Rivals routes, or showing any other player's name | `docs/claude/games.md` |
-| Adding or tagging playbook notes (`knowledge.js`, `playbook.json`), `study()`, Advanced coaching | `docs/claude/playbook.md` |
+| Adding or tagging playbook notes (`knowledge.js`, `playbook.json`), worked cases (`cases.json`, `cases.js`), enemy agent tags, `study()`, Advanced coaching | `docs/claude/playbook.md` |
 | Changing game numbers: the primer, `sync:valorant`, `game-rules.json`, patch notes, the stated facts gate | `docs/claude/primer.md` |
 | Changing Ask Coach: `chat-context`, `ask-coach.js`, `chat-prompt`, the fact gates, `bench:chat` | `docs/claude/ask-coach.md` |
 | Changing licences, the Stripe webhook, refunds, renewals, grace or `sync-expiry` | `docs/claude/licence-billing.md` |

@@ -129,7 +129,11 @@
       "Yoru"
     ],
     "tier": "advanced",
-    "side": "attack"
+    "side": "attack",
+    "cause": [
+      "isolated",
+      "overextend"
+    ]
   },
   {
     "text": "Sitting far up forces them to respect you, watch the minimap and punish the moment they overstep toward the rest of your team, but only while a teammate can trade your fall back.",
@@ -410,6 +414,7 @@
   },
   {
     "text": "Which side the enemy wall goes up on is the clearest read available, call it every round and watch whether they ever break the pattern.",
+    "side": "attack",
     "weight": 2,
     "source": {
       "kind": "vod-review",
@@ -428,7 +433,7 @@
     "tier": "advanced"
   },
   {
-    "text": "You do not have to lurk just because you picked a sentinel, second entry with your utility already on the site is a real way to play the role.",
+    "text": "You do not have to lurk just because you picked a sentinel: once a trap of yours already watches the flank, going in second with your utility already on the site is a real way to play the role.",
     "roles": [
       "sentinel"
     ],
@@ -3393,6 +3398,9 @@
   },
   {
     "text": "When a Hush anchor appears, aim at where the dash will land and not at where she stands, because Flow fires after a delay she cannot shorten and she is not protected while it winds up.",
+    "enemyHint": [
+      "Hush"
+    ],
     "weight": 2,
     "tier": "advanced",
     "source": {
@@ -3400,7 +3408,7 @@
       "topic": "playing against Hush"
     },
     "when": "the player died to a Hush dash",
-    "why": "untagged on purpose so it can reach any agent, it competes on weight alone"
+    "why": "untagged by agent so it can reach any agent, it competes on weight alone, and enemyHint keeps it from a known comp with no Hush"
   },
   {
     "text": "On Summit a dropped wall stays down for the whole round, so on defense wait for the hit to commit before you shoot the switch, because a wall dropped on a fake closes your own rotation and tells them which site is thin.",
@@ -5034,6 +5042,9 @@
   },
   {
     "text": "When Cypher's ultimate snapshots you, expect a second snapshot shortly after and be behind different cover by the time it lands, and when his camera dart hits you, get behind cover first and then pull it out, because each snapshot is a still picture of where you stood but the dart keeps taking new ones until you remove it.",
+    "enemyHint": [
+      "Cypher"
+    ],
     "phase": "active",
     "ranks": [
       "silver_gold",
@@ -7519,6 +7530,10 @@
   },
   {
     "text": "Against a Killjoy, name early who breaks the Lockdown, shooting the device during its windup, a Brimstone ultimate or Tejo missiles onto it, and when nobody can reach it, call the team off the site and play the retake, because conceding a site to a Lockdown you could have broken is a round given away and stacking a site under one is a round lost twice.",
+    "enemyHint": [
+      "Killjoy"
+    ],
+    "side": "defense",
     "phase": "active",
     "ranks": [
       "plat_diamond",
@@ -8044,6 +8059,9 @@
   },
   {
     "text": "When Hush throws her flash or her pull, do not peek or turn towards it because the first arc looked like it was going past, she can redirect either one towards her crosshair while it flies, so turn away from the flash, stay behind cover, and take your peek after it has popped.",
+    "enemyHint": [
+      "Hush"
+    ],
     "phase": "active",
     "cause": [
       "lost-duel",
@@ -8065,6 +8083,9 @@
   },
   {
     "text": "When a Clove comes back with Not Dead Yet, stay on the angle you were holding and make them come to you, because the returned Clove must get a kill or a damaging assist or die, and the kill now pays you an ultimate point and a signature refresh while a swing out to chase them gives them the damage they need.",
+    "enemyHint": [
+      "Clove"
+    ],
     "phase": "active",
     "cause": [
       "overextend"
@@ -8135,6 +8156,9 @@
   },
   {
     "text": "Against a Neon take first contact from a distance her slide does not reach, and pre aim her entry as soon as you hear her sprint rather than after she appears, because her speed wins the position and loses to a crosshair already waiting at range.",
+    "enemyHint": [
+      "Neon"
+    ],
     "side": "defense",
     "phase": "active",
     "cause": [
@@ -8181,5 +8205,2485 @@
     },
     "when": "In the first three defensive rounds you held inside or at the edge of one of your own smokes at least once, and later you note whether an unmanned smoke slowed them.",
     "why": "A smoke only stalls a team that respects it, and respect is taught in the first rounds."
+  },
+  {
+    "text": "Against a Killjoy, when you are close to her setup, listen for the distinct sound her turret and alarmbot make when they switch off because she walked out of range, because that cue tells you she has left the site and what remains there is utility with nobody behind it.",
+    "enemyAgents": [
+      "Killjoy"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy Killjoy setup range"
+    },
+    "when": "When you hear the cue, the next call names the site she left within two seconds.",
+    "why": "Killjoy utility only works while she stays near it, so its audio tells you where she is not."
+  },
+  {
+    "text": "When an enemy Operator is holding a lane, do not dry peek it to find out where he is: block his line with a smoke, flash or stun, or locate him with recon first, and if your team has none of that left, take your space on another lane.",
+    "enemyAgents": [
+      "Chamber",
+      "Jett"
+    ],
+    "phase": "active",
+    "cause": [
+      "dry-peek"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "planning the peek"
+    },
+    "when": "Deaths to an Operator on a lane where your team still had a smoke, flash or recon unused should be zero.",
+    "why": "One body or head shot from an Operator kills through heavy armour, so a dry peek hands the holder a free first shot."
+  },
+  {
+    "text": "When you hold an Operator angle and an enemy reveal is coming at you, a recon bolt, an owl drone dart, a Haunt or a stealth drone, shoot it, step out of its sight or let a teammate break it, then come back on a timing or to a different angle, because a revealed Operator is a free kill for the attackers.",
+    "enemyAgents": [
+      "Sova",
+      "Fade",
+      "Tejo"
+    ],
+    "side": "defense",
+    "weapons": [
+      "operator"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Operator holder against recon"
+    },
+    "when": "Rounds where enemy recon tagged you on your Operator angle and you were still on that pixel when they swung.",
+    "why": "The Operator only wins while the attackers do not know where it is."
+  },
+  {
+    "text": "On a retake, make the attackers' controller an early target when you can reach them, because much of their post plant stall, the smokes and often the mollies, sits in that one kit, and once it is gone the spike is held with guns alone.",
+    "enemyAgents": [
+      "Omen",
+      "Brimstone",
+      "Astra",
+      "Viper",
+      "Harbor",
+      "Clove",
+      "Miks"
+    ],
+    "side": "defense",
+    "phase": "postplant",
+    "situations": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "retake shape"
+    },
+    "when": "In retakes you win, count how often the controller died first, and in retakes you lose, how often he was still alive at the defuse.",
+    "why": "The post plant stall usually comes from one player, so removing him is worth more than any other single kill."
+  },
+  {
+    "text": "When the last defenders still have a controller with a smoke, hold your post plant close to the spike rather than far off site, because a smoke dropped on the spike leaves a far player needing seconds to walk back while they tap.",
+    "enemyAgents": [
+      "Omen",
+      "Brimstone",
+      "Astra",
+      "Viper",
+      "Harbor",
+      "Clove",
+      "Miks"
+    ],
+    "side": "attack",
+    "phase": "postplant",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "post plant"
+    },
+    "when": "With an enemy smoke still up, your post plant spot is close enough to reach the spike in about two seconds.",
+    "why": "Distance only works as long as you can see the spike, and a smoke takes that away."
+  },
+  {
+    "text": "As KAY/O on defence, throw the knife onto the choke just as the attackers are about to execute, so they cannot use their utility to support the entry, then fight the lone player who comes in without it.",
+    "agents": [
+      "KAY/O"
+    ],
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "KAY/O knife on defence"
+    },
+    "when": "Your knife lands within the last few seconds before the hit, not in the first twenty seconds of the round.",
+    "why": "A suppressed attack loses its flashes, smokes and recon at the exact moment it needs them."
+  },
+  {
+    "text": "Against players who dive with shotguns, do not stand at the edge of a smoke or walk into the close range they want, hold the smoke from a distance and make them come out to you.",
+    "enemyAgents": [
+      "Neon",
+      "Raze",
+      "Yoru",
+      "Jett",
+      "Waylay"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "shotgun divers"
+    },
+    "when": "Deaths to a shotgun within a few metres of a smoke edge.",
+    "why": "A shotgun only wins inside its range, so distance turns their dive into a rifle duel they lose."
+  },
+  {
+    "text": "If the enemy keeps holding a site behind traps and cameras, consider Raze: Paint Shells and an armed Blast Pack can destroy destructible sentinel utility such as Cypher trapwires, Killjoy alarmbots and turrets, Deadlock sensors or Vyse razorvine, and the Boom Bot checks a close corner before a body has to walk into it.",
+    "agents": [
+      "Raze"
+    ],
+    "enemyAgents": [
+      "Cypher",
+      "Killjoy",
+      "Deadlock",
+      "Vyse"
+    ],
+    "phase": "buy",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Raze into trap setups"
+    },
+    "when": "Rounds where your entry walked into an intact trap that an explosive could have cleared.",
+    "why": "Explosives destroy or trigger the setup before a body has to walk into it."
+  },
+  {
+    "text": "Against a Cypher, locate his setup before you play fast through a smoke: a recon or reveal, a shock or damage ability on the usual wire spots, or a quick jiggle to spot the camera and wires. An entry who runs blind into a set sentinel site gets tethered and revealed and dies for free.",
+    "enemyAgents": [
+      "Cypher"
+    ],
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "find the Cypher setup first"
+    },
+    "when": "Entries that tripped a Cypher trap you had not located.",
+    "why": "His traps and camera turn speed into a free kill unless they are located first."
+  },
+  {
+    "text": "When the enemy has a site ultimate ready that is strongest on one site, such as a Lockdown or a Viper's Pit, lean toward that site being their goal and treat the open question as when, not where, then plan around it: on defence give that site more weight, on attack against a defending ultimate prefer the other site. It is a lean, not a hard read, because teams fake toward the expected site.",
+    "enemyAgents": [
+      "Killjoy",
+      "Viper"
+    ],
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy site ultimate predicts the site"
+    },
+    "when": "Rounds the enemy used a site ultimate where your team had called that site beforehand.",
+    "why": "A site ultimate tells you where the enemy wants the fight before the round starts."
+  },
+  {
+    "text": "Against an Iso whose shield is up, remember the shield only eats the first hit, so land one shot to pop it and then change position or re-peek from a new spot, rather than standing still in a long crouched spray whose first and most accurate bullet the shield wasted.",
+    "enemyAgents": [
+      "Iso"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "shielded Iso"
+    },
+    "when": "Duels against a shielded Iso where you stayed still after the first bullet.",
+    "why": "His shield blocks one instance of damage, so a burst that assumes it is gone gives him the duel."
+  },
+  {
+    "text": "Against a Hush with Displacement up, do not hold with a wall, a box or a teammate right beside you, because she can burst it on that surface and pull you into it, and only the collision concusses. Give yourself open space or break sight of where it will land.",
+    "enemyAgents": [
+      "Hush"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy Hush pull"
+    },
+    "when": "When a Hush pull lands near you, were you within a body of a wall or a teammate.",
+    "why": "Space around you turns her pull into a move instead of a stun."
+  },
+  {
+    "text": "Against a Chamber who takes a shot and teleports, remember he can only go to his one Rendezvous anchor, so learn where it sits, have a teammate pre aim or pressure that spot right after his shot, and shoot the anchor when you see it, because it is destructible. Since 13.09 the minimap no longer flashes his position after a teleport, so do not wait for it to tell you where he went.",
+    "enemyAgents": [
+      "Chamber"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy Chamber teleport"
+    },
+    "when": "After a Chamber teleport, your team checked his anchor spot within a few seconds.",
+    "why": "His teleport only works inside its range, so the spots he can reach are few and known."
+  },
+  {
+    "text": "When a Chamber holds far forward, especially with an Operator or Headhunter, do not peek him one at a time: swing with two players or behind a flash or stun so his first shot cannot win a free duel, and remember he is far from his teammates, so a kill or a forced teleport there is not traded.",
+    "enemyAgents": [
+      "Chamber"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "trade into a forward Chamber"
+    },
+    "when": "Fights against a known forward Chamber where two of you were within trade range.",
+    "why": "A forward sentinel is strong alone and weak once the fight is traded."
+  },
+  {
+    "text": "When the enemy has a KAY/O, stop running your usual early contest of a main the same way every round, expect the knife there and change the timing or the route, and check his ultimate before you commit utility.",
+    "enemyAgents": [
+      "KAY/O"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy KAY/O knife on your contests"
+    },
+    "when": "Rounds where you were suppressed in the same contest twice in a half.",
+    "why": "A suppression knife on a known contest takes your utility away exactly when you planned to use it."
+  },
+  {
+    "text": "Before you reuse a fast execute against a Vyse, locate or bait her wall and vines first, or hit the other site, because denying a rush through a choke is exactly what her kit does best.",
+    "enemyAgents": [
+      "Vyse"
+    ],
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Vyse against old fast hits"
+    },
+    "when": "Fast hits through a choke into a Vyse site where her wall had not been located.",
+    "why": "Her setup triggers on the bodies that run through it, so speed alone walks into it."
+  },
+  {
+    "text": "When the enemy comp has no hard flash at all, no Breach, Skye, KAY/O, Phoenix, Yoru, Gekko, Vyse, Hush or Reyna, defend from open long range and high low angles and hold tight to the edge of your smoke, because they cannot blind you off the angle and must walk or dash through to reach you.",
+    "enemyAgents": [
+      "Jett",
+      "Neon",
+      "Waylay",
+      "Raze"
+    ],
+    "enemyWithout": [
+      "Breach",
+      "Fade",
+      "Gekko",
+      "Harbor",
+      "Hush",
+      "KAY/O",
+      "Omen",
+      "Phoenix",
+      "Reyna",
+      "Skye",
+      "Vyse",
+      "Yoru"
+    ],
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "comp with no hard flashes"
+    },
+    "when": "Against a no flash comp, count rounds you gave up a strong smoke edge before they had shown anything.",
+    "why": "Without flashes their only way through your hold is movement, which a ready crosshair beats."
+  },
+  {
+    "text": "Against a Yoru, have the player already holding the main his teleport travels through stay quiet and listen for it, because the teleport sound tells your team which side he just left or reached, but he can fake the teleport, so call it as a sound, not a confirmed rotation.",
+    "enemyAgents": [
+      "Yoru"
+    ],
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Yoru teleport sound"
+    },
+    "when": "Rounds against a Yoru where a teleport sound was called within a second.",
+    "why": "One listener turns his best rotation tool into information for you."
+  },
+  {
+    "text": "When the attack comes with a Phoenix ultimate, do not take the first duel with him alone: Run it Back returns him to his marker at full health when he takes lethal damage, so your kill only resets him. Back off the angle, play for the second fight when he reappears at the marker, and if his team commits with more utility than you can match, give the space and retake together with your utility and ultimates.",
+    "enemyAgents": [
+      "Phoenix"
+    ],
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy Phoenix ultimate on your site"
+    },
+    "when": "Deaths to an ulting Phoenix where you fought him alone.",
+    "why": "The ultimate makes his first duel free, so the trade comes after it, not during it."
+  },
+  {
+    "text": "Once the spike has less time left than a defuse still needs, seven seconds from the start or three and a half once the half is banked, stop peeking and stay alive, because the defenders can no longer win the round and every fight you take only hands them your gun and an ultimate point.",
+    "side": "attack",
+    "phase": "postplant",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "stop peeking when the clock wins",
+      "claims": [
+        {
+          "rule": "spike.defuse",
+          "value": 7
+        },
+        {
+          "rule": "spike.checkpoint",
+          "value": 3.5
+        }
+      ]
+    },
+    "when": "Deaths after the spike passed the point where a defuse could still finish.",
+    "why": "The defuse cannot finish, so any fight you take can only lose the round."
+  },
+  {
+    "text": "When the spike has about ten seconds or less left and the defuser has not reached the half, you do not need to win the duel, you need him off the spike before the half: a kill, or a peek or ability that makes him let go, usually ends the round because a restart needs the full seven seconds again.",
+    "side": "attack",
+    "phase": "postplant",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "interrupt a late defuse",
+      "claims": [
+        {
+          "rule": "spike.defuse",
+          "value": 7
+        }
+      ]
+    },
+    "when": "Late defuses you lost while holding utility that could have stopped them.",
+    "why": "Interrupting before the half means the defuser needs more time than the spike has."
+  },
+  {
+    "text": "Do not plant while a corner of the site is still uncleared or a fight is still going on behind you, tap the spike to bait a peek and plant only once nobody swings.",
+    "side": "attack",
+    "phase": "active",
+    "cause": [
+      "exposed"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "post plant"
+    },
+    "when": "Deaths while planting with an angle on site still unchecked.",
+    "why": "The planter has no gun out for four seconds, so an uncleared angle gets a free kill."
+  },
+  {
+    "text": "If you are swung while planting, let go of the plant and take the duel, because a cancelled plant keeps no progress. After the fight, replant only if a full plant still fits in the round time left, otherwise use that time on the next decision.",
+    "side": "attack",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "post plant"
+    },
+    "when": "Rounds lost with a cancelled plant and less than four seconds left.",
+    "why": "A cancelled plant with no time to finish wastes the round."
+  },
+  {
+    "text": "On a retake, group up on the way to the site rather than after the timer has run down, and take the shortest route to the spike when you have the numbers, because a slow regroup forces you to run in late and loud.",
+    "side": "defense",
+    "phase": "postplant",
+    "situations": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "group on the way, not after"
+    },
+    "when": "Retakes where your team started moving with less than about fifteen seconds of spike left.",
+    "why": "Time spent regrouping is time the defuse no longer has."
+  },
+  {
+    "text": "As an information initiator, spread your recon across the round, one piece for early control, one for the middle and one kept for the hit or the retake, because spent recon comes back slowly or not at all in the round, and a kit dumped early leaves the commit blind.",
+    "agents": [
+      "Sova",
+      "Fade",
+      "Skye",
+      "Tejo"
+    ],
+    "roles": [
+      "initiator"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "paint the picture"
+    },
+    "when": "You still hold one information ability when your team commits to a site or a retake.",
+    "why": "Information that arrives at the moment of the fight wins it, early information only starts it."
+  },
+  {
+    "text": "A timing peek is a short or crouch peek, show, take the kill and get back so you cannot be traded, and swing wide only on an agent with an escape or in a one versus one.",
+    "cause": [
+      "overextend"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a timing peek is short"
+    },
+    "when": "After a timing kill you are back behind cover within about a second.",
+    "why": "The value of a timing is the surprise, which is gone the moment you stay out."
+  },
+  {
+    "text": "Let the alive count set your risk. When your side is down, look for the isolated fight that can even it. When your side is up, play together, take fights only where a teammate can trade, and do not go hunting a kill alone, though on attack the spike still has to go down.",
+    "cause": [
+      "overextend"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "alive count sets risk"
+    },
+    "when": "Up in numbers, count deaths to a fight you went looking for.",
+    "why": "Down numbers you need fights, up numbers the fights are the only way to lose."
+  },
+  {
+    "text": "When a late round becomes two versus one or two versus two with a teammate alive, play off each other, one takes the fight and the other is set to trade within a couple of seconds, instead of taking a solo peek.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "two versus one as a pair"
+    },
+    "when": "In two player late rounds, deaths where your teammate could not see your killer.",
+    "why": "A pair that trades turns a coin flip into a won round."
+  },
+  {
+    "text": "As the last defender coming from the far side, get close enough to hear where the spike goes down and where the planter moves, then play the retake off that sound, rather than taking an early fight on the way to find them.",
+    "side": "defense",
+    "phase": "postplant",
+    "situations": [
+      "clutch"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "last defender stays close enough to hear"
+    },
+    "when": "Rounds you were the last defender and arrived after the plant without knowing where the planter was.",
+    "why": "Arriving late forces you to clear every corner, while the plant sound tells you where to look."
+  },
+  {
+    "text": "After you win the pistol round, treat the next round as one you must convert, expect the losing side to force and possibly rush, and play it tight and together from range instead of as a free anti eco.",
+    "situations": [
+      "antieco"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "the round after a pistol win"
+    },
+    "when": "Bonus rounds lost after a pistol win, and how many of those deaths came alone or inside close range.",
+    "why": "A lost bonus round hands back the economy and the momentum the pistol earned."
+  },
+  {
+    "text": "If your buys in a half swing between an SMG, a Bulldog and a Sheriff and you rarely hold a rifle with full armour, you are in a force loop, so stop and save with the team so all five buy together next round.",
+    "phase": "buy",
+    "situations": [
+      "forcebuy"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "the force loop"
+    },
+    "when": "Rounds this half you held a rifle with heavy armour, against rounds on a weaker buy.",
+    "why": "Lone half buys keep the whole team poor without ever winning the round they were bought for."
+  },
+  {
+    "text": "A lost pistol round is not a lost half, so play rounds two and three with the buy the team agrees on, usually a save then a full buy, or a force made together, instead of tilting into a lone force or a hero play.",
+    "situations": [
+      "lostpistol"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a lost pistol is not a lost half"
+    },
+    "when": "After a lost pistol, rounds two and three are bought as a team.",
+    "why": "Even at the top level only a small share of halves that start with a lost pistol turn into a stomp."
+  },
+  {
+    "text": "When you are outnumbered with no information, or the spike is down and the retake is lost, save the gun and get out of sight, because the rifle you keep is worth more than a hopeless fight in a round you wanted.",
+    "situations": [
+      "clutch"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "save when the round is gone"
+    },
+    "when": "Rifles lost in rounds you were down two or more with no information.",
+    "why": "The next round needs your gun more than this one needs your death."
+  },
+  {
+    "text": "Every buy phase, read the enemy in the same order, first what they can afford from the last rounds' results and the guns they kept, then the ultimates they have ready, then what they have kept doing this half, and make the plan from that.",
+    "phase": "buy",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "read the buy phase in a fixed order"
+    },
+    "when": "Before the barrier drops you can say the enemy's likely buy and their ready ultimates.",
+    "why": "Money decides what they can do, ultimates decide what they will try, habits decide where."
+  },
+  {
+    "text": "Do not spend a round winning ultimate on an enemy eco, keep it for a buy round where it decides a full fight, unless that one ultimate clearly wins the eco on its own.",
+    "situations": [
+      "antieco"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "ult economy"
+    },
+    "when": "Ultimates used in rounds where the enemy had no rifles.",
+    "why": "An ultimate thrown at pistols wins a round you were already favoured in."
+  },
+  {
+    "text": "When a dangerous enemy is alive and low on money, play to deny their pickup: name the player who must not get a gun, stand on or hold the dropped rifle or Operator, and make the enemy who goes to pick it up the first target.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "deny the dropped gun"
+    },
+    "when": "Rounds the enemy picked up a dropped rifle or Operator and survived with it.",
+    "why": "A gun that walks away hands their next round a free rifle."
+  },
+  {
+    "text": "When your team holds more ultimates or the better buy, do not take a lone early fight for a pick, use your advantage to win the safe way, and when you are the one behind on money and ultimates, someone, even the controller, has to take the risk.",
+    "phase": "active",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "take the risk when you are behind"
+    },
+    "when": "With the better buy, count lone early deaths, with the weaker buy, count rounds nobody took a deliberate risk.",
+    "why": "The stronger side wins by not giving the round a coin flip, the weaker side wins only by finding one."
+  },
+  {
+    "text": "On the first anti eco after a pistol win, a Guardian held from a long range spot is a strong buy if you can tap accurately, because two body hits kill anyone with light shields or none, so you can fight from where their pistols cannot answer. Against heavy shields it takes three body hits.",
+    "situations": [
+      "antieco"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Guardian on the first anti eco",
+      "claims": [
+        {
+          "weapon": "guardian",
+          "part": "body",
+          "armor": "light",
+          "hits": 2
+        },
+        {
+          "weapon": "guardian",
+          "part": "body",
+          "armor": "none",
+          "hits": 2
+        },
+        {
+          "weapon": "guardian",
+          "part": "body",
+          "armor": "heavy",
+          "hits": 3
+        }
+      ]
+    },
+    "when": "Anti eco deaths inside fifteen metres while you held a long range gun.",
+    "why": "The anti eco is won at range, and the Guardian kills fastest there against light armour."
+  },
+  {
+    "text": "On defence, keep using the standard one way smokes in ranked, because they make the attackers spend flashes and utility early and give your team an early read on where the hit is going, and wait for the smoke to fully form before you hold through it.",
+    "agents": [
+      "Omen",
+      "Astra",
+      "Brimstone"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "standard one ways on defence"
+    },
+    "when": "Rounds the attackers had to clear your one way with utility before entering.",
+    "why": "A one way that forces utility buys the rotation time your team needs."
+  },
+  {
+    "text": "When you do not understand why you died or lost a round, save a clip of it straight away and watch it after the match to judge whether the mistake was yours or your team's.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "clip what you cannot explain"
+    },
+    "when": "One clip saved per match for a moment you could not explain.",
+    "why": "A short clip of the moment beats a full VOD you never watch."
+  },
+  {
+    "text": "When two of you take the same fight, count it down, three, two, one, and swing in the same moment, with each of you checking a different side, so a single defender cannot take you one at a time.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "swing together on a count"
+    },
+    "when": "Paired peeks where the second player arrived more than a second after the first.",
+    "why": "Two players arriving together split the defender's aim, two arriving apart give him two easy duels."
+  },
+  {
+    "text": "When you are the player the enemy is watching, because he just saw you, scanned you or you missed, do not re peek him, keep jiggling to hold his attention while a teammate takes the fight he is not ready for.",
+    "cause": [
+      "repeek"
+    ],
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "keep the threat when you are watched"
+    },
+    "when": "After being revealed, count re peeks of the same enemy that died.",
+    "why": "A defender aimed at you is not aimed at your teammate, and that is the free fight."
+  },
+  {
+    "text": "As the controller on an execute, have your smokes down before the first player enters, then go in right behind the duelist with your gun up to trade, instead of staying at the back placing smokes.",
+    "agents": [
+      "Omen",
+      "Brimstone",
+      "Astra",
+      "Viper",
+      "Harbor",
+      "Clove",
+      "Miks"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "controller trades the entry"
+    },
+    "when": "On executes, you were within trade range of the entry when the first fight happened.",
+    "why": "A controller with nothing left to throw is the closest second gun the entry has."
+  },
+  {
+    "text": "As an aggressive player, after a fight or two forward, reset to cover instead of chaining another peek, and with an escape take only one more shot after your opening kill.",
+    "roles": [
+      "duelist"
+    ],
+    "cause": [
+      "overextend"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "early aggression"
+    },
+    "when": "Deaths on a third consecutive forward peek in the same round.",
+    "why": "The third forward peek is the one the enemy has had time to prepare for."
+  },
+  {
+    "text": "Expect solo dives onto isolated players to work less the better the lobby gets, because good players are rarely alone, so pair your dive with a teammate who can follow at the same speed.",
+    "agents": [
+      "Neon",
+      "Raze",
+      "Jett",
+      "Waylay"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "solo dives fail higher up"
+    },
+    "when": "Untraded deaths on a dive with no teammate within a second behind you.",
+    "why": "A dive needs a lone target, and high level teams do not leave one."
+  },
+  {
+    "text": "After the same execute or setup has run twice against the same team, change one element before the third time, the site, the timing or the utility order, but keep what the enemy recognises so their answer keeps answering the old threat.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "change one element of a repeated play"
+    },
+    "when": "No set play is run a third time unchanged against the same opponents.",
+    "why": "A third identical run is read, a small change on a familiar opener is not."
+  },
+  {
+    "text": "Every time the player count changes, say the new numbers first, three versus two, then name it as an advantage or a disadvantage and agree what that means before anyone takes the next fight.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "paint the picture"
+    },
+    "when": "After each kill or death, the count is spoken within two seconds.",
+    "why": "The whole team has to be playing the same situation, and the numbers define it."
+  },
+  {
+    "text": "When you swing or hold with a teammate, say which side you take, I have left, so the other player takes the other side and you never both watch one angle.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "say which side you take"
+    },
+    "when": "Paired holds where both of you died to the same side.",
+    "why": "Two crosshairs on one angle leave the other one free."
+  },
+  {
+    "text": "On defence, beyond the setup you place in the buy phase, spend at most one piece of utility early to spot or slow the likeliest hit and keep the rest for the moment the attackers actually commit, because a recon or molly thrown into a fake or an empty lane is gone when the real push comes.",
+    "roles": [
+      "initiator",
+      "controller",
+      "sentinel"
+    ],
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "the defender holds utility for the commit"
+    },
+    "when": "Rounds where your stall or recon was spent before the attack showed a commitment.",
+    "why": "Defensive utility kills when it lands on bodies that have committed."
+  },
+  {
+    "text": "At Ascendant and above, if you play controller and nobody is calling, call some rounds yourself, and if someone else calls, get the plan before the barrier drops, because you decide where the smokes go and a called plan with smokes spent early or late is how calls fail.",
+    "agents": [
+      "Omen",
+      "Brimstone",
+      "Astra",
+      "Viper",
+      "Harbor",
+      "Clove",
+      "Miks"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "controllers who call"
+    },
+    "when": "Rounds a call failed because the smokes were spent or late.",
+    "why": "The controller already holds the plan in his hands."
+  },
+  {
+    "text": "As the caller, give one plan and keep the team together on it, then let each player decide their own fights inside that plan, and spend your own attention on reading the enemy rather than chasing kills.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "have a plan"
+    },
+    "when": "Calls per round, aim for the plan and the read, not instructions for each duel.",
+    "why": "A caller who micromanages every move cannot read the next round."
+  },
+  {
+    "text": "Do not make a call, read the minimap and peek at the same moment: make the call from a safe spot first, then give the peek your full attention, and in a pair let the back player read the map while the front player works the crosshair.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "do not talk and peek"
+    },
+    "when": "Deaths while you were mid sentence.",
+    "why": "Divided attention loses the duel and the call."
+  },
+  {
+    "text": "Choose how wide to swing from who you are swinging on, lower ranked defenders often hold too tight so a wide swing beats them, while higher up you should first recall how that enemy held the angle earlier.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "peek method before aim"
+    },
+    "when": "Before a committed peek, you can name how that enemy held the angle last time.",
+    "why": "A swing only works against the hold it was chosen for."
+  },
+  {
+    "text": "Call an empty site as soon as your recon or your watch shows nothing, and as an information initiator send utility to the other site the moment one opens, because the earlier the call, the earlier the rotation lands.",
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "empty site call"
+    },
+    "when": "Rounds your site was empty and nobody said so before the hit landed elsewhere.",
+    "why": "Silence on one site is information about the other two."
+  },
+  {
+    "text": "If your mechanics are already good enough for Diamond or Ascendant, stop looking for more aim, review the fights you chose, the re peeks, the untradeable duels and the late utility, because those are what hold you back.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "decisions at Diamond and Ascendant"
+    },
+    "when": "In a review, decision deaths outnumber aim deaths, then decisions are the work.",
+    "why": "Past a point, the duel you should not have taken costs more than the duel you lost."
+  },
+  {
+    "text": "Once you reach Ascendant, plan aim work alongside game sense, because around Immortal most players decide well and mechanics become a bottleneck again: the first accurate shot decides a large share of duels.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "mechanics again at Immortal"
+    },
+    "when": "First bullet hit rate over ten reviewed duels.",
+    "why": "Everyone at the top decides well, so the first shot separates them."
+  },
+  {
+    "text": "When you hear an enemy run a path, stop and pre aim the next corner he must clear on it, because footsteps tell you both where he is and where he is about to look.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "pre aim the corner he must clear"
+    },
+    "when": "After hearing steps, your crosshair was already on the corner he came out of.",
+    "why": "You get to be ready on the spot he has to check first."
+  },
+  {
+    "text": "When an enemy you spotted can come back from the same spot or from a second exit, keep your crosshair where you saw him until he could have walked to the other exit, and only then treat it as a guess.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "hold until he could have moved"
+    },
+    "when": "Deaths to an enemy re peeking the spot you had just looked away from.",
+    "why": "For the first seconds the same edge is not a guess, it is the likeliest spot."
+  },
+  {
+    "text": "Inside the agents you already play well, pick the role for the session by how your aim feels in the warm up, an entry duelist on a day you are hitting shots, a sentinel or initiator on a day you are not, so you still help through utility when the duels are not landing.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "role by how your aim feels"
+    },
+    "when": "On an off day, at least one utility role pick.",
+    "why": "Utility works on bad aim days, entry duels do not."
+  },
+  {
+    "text": "In Iron and Bronze, put most of your practice into aim, crosshair placement, movement and deathmatch rather than strategy, because there is little coordination at that rank and your own duels carry you out.",
+    "ranks": [
+      "iron_bronze"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "mechanics first at the bottom"
+    },
+    "when": "Most of your practice time in deathmatch until you leave Bronze.",
+    "why": "Team plans need teammates who follow them, mechanics only need you."
+  },
+  {
+    "text": "If you spray first and correct after, practise with the Sheriff or the Guardian for a while, because those guns punish anything but a stopped, aimed first shot.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Sheriff and Guardian practice"
+    },
+    "when": "One deathmatch per session with a one tap gun.",
+    "why": "A gun that cannot spray teaches the first shot."
+  },
+  {
+    "text": "When you change a mechanic, use it in every ranked fight even when the old habit would win that one fight, and expect to play worse for a stretch before it pays.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "new habits cost games first"
+    },
+    "when": "The new mechanic is used in every duel for a full week of games.",
+    "why": "A habit only forms if it is used under pressure."
+  },
+  {
+    "text": "If you cannot spot your own mistakes yet, watch one replay with someone at least a few ranks above you and copy what they pick on.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "review with someone above you"
+    },
+    "when": "One replay a week reviewed with a stronger player.",
+    "why": "A player above you sees the decisions you do not know are decisions."
+  },
+  {
+    "text": "When you lead near the end of a map, or in overtime, play the simple, practised rounds that built the lead, and expect the trailing team to rush and force, so slow down, keep your structure and treat every round, anti ecos included, at full attention instead of gambling to finish.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "close out with what works"
+    },
+    "when": "At match point, rounds run with an untested plan.",
+    "why": "Leads are thrown by new ideas and early solo aggression."
+  },
+  {
+    "text": "Place an execute smoke so that a defender leaving it has one predictable edge to come out of, because a smoke he can leave from either side breaks your crosshair placement on every exit.",
+    "agents": [
+      "Omen",
+      "Brimstone",
+      "Astra",
+      "Viper",
+      "Harbor",
+      "Clove",
+      "Miks"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "side": "attack",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "place smokes for a predictable exit"
+    },
+    "when": "Your smokes on an execute leave at most one exit toward your team.",
+    "why": "You decide where his face appears."
+  },
+  {
+    "text": "When you lurk, do not take even fifty fifty duels, spend utility or wait for information so the fight you take is already tilted your way, because a lost lurk fight leaves your team a player down for nothing.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a lurker never takes even duels"
+    },
+    "when": "Lurk deaths in a duel you started without any edge.",
+    "why": "A lurker's whole value is the surprise, which an even duel throws away."
+  },
+  {
+    "text": "As the Operator player, staying alive is itself map pressure, so after an early kill keep holding or reposition with your escape ready instead of trading your gun for a forward peek.",
+    "cause": [
+      "repeek"
+    ],
+    "weapons": [
+      "operator"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "an alive Operator is pressure"
+    },
+    "when": "Operators lost on a second peek after an opening kill.",
+    "why": "Holding still already freezes the enemy, peeking forward only risks the gun."
+  },
+  {
+    "text": "In agent select, name what the enemy comp lacks, hard flashes, a dive or crossing tool, a site stalling sentinel, an Operator player, and say it aloud, because each missing tool is a play that will keep working against them.",
+    "phase": "buy",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "read what the enemy comp lacks"
+    },
+    "when": "Before round one, one sentence on what the enemy comp cannot do.",
+    "why": "The comp tells you which plans they cannot answer before round one."
+  },
+  {
+    "text": "Shape your Viper wall so it keeps value through the round, a first line, a half site hold, then the retake, instead of a wall that only blocks the first choke and is then ignored.",
+    "agents": [
+      "Viper"
+    ],
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a Viper wall with several phases"
+    },
+    "when": "In a round, how many separate parts of your wall your team used.",
+    "why": "Most of a wall that covers only the first choke is wasted length."
+  },
+  {
+    "text": "As a duelist with your ultimate up, do not spend it on an early isolated duel away from the plan: take the area in steps with a teammate's dart, drone or flash for the next corner, and use the ultimate as part of the site take or the fight that decides the round.",
+    "agents": [
+      "Waylay",
+      "Jett",
+      "Raze",
+      "Neon"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "take space in steps before the ultimate"
+    },
+    "when": "Ultimate rounds where you used it before reaching the site.",
+    "why": "An ultimate spent on the first corner is gone for the fight that matters."
+  },
+  {
+    "text": "As Astra, keep one star unplaced or ready to move for a fast request or for wherever the hit goes, instead of committing all of them at round start.",
+    "agents": [
+      "Astra"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Astra keeps a flex star"
+    },
+    "when": "At the start of each round one star is still flexible.",
+    "why": "A star already placed on the wrong site is a smoke you do not have."
+  },
+  {
+    "text": "As a defending Yoru, play an aggressive line only with a Gatecrash already placed behind you, take one shot, then teleport out to reset or rotate, and if you still hold a charge, set it toward the other site again.",
+    "agents": [
+      "Yoru"
+    ],
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Yoru defence with a Gatecrash behind you"
+    },
+    "when": "Aggressive Yoru deaths with no Gatecrash placed.",
+    "why": "The teleport turns a one and done aggression into a safe one, but it only resets every two kills."
+  },
+  {
+    "text": "As a sentinel on attack, stay off entry duty, hold the gap your teammates are not looking at and turn to the flank once the last one passes you, unless a trap already watches the flank, because if you enter and die the flank watch and the post plant die with you.",
+    "agents": [
+      "Killjoy",
+      "Cypher",
+      "Vyse",
+      "Deadlock",
+      "Veto"
+    ],
+    "roles": [
+      "sentinel"
+    ],
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "the sentinel on attack watches the back"
+    },
+    "when": "Attack rounds you died first or second as the sentinel.",
+    "why": "The sentinel's kit is built for the half of the round after the entry."
+  },
+  {
+    "text": "If you get many kills and still lose, sort them by timing: opening kills and kills on site during a hit, retake or post plant decide rounds, while lurk kills on a lost round, kills on rotating players and exit kills after the round is decided rarely change the result. Exit kills still cost the enemy a saved gun, so they help the economy, not the round.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "judge kills by when they happened"
+    },
+    "when": "In a review, opening and site kills against kills after the round was decided.",
+    "why": "Kill count hides whether the kills won anything."
+  },
+  {
+    "text": "After a rush wins against you, expect the same rush again and prepare your damage utility for it, and after you shut a hit down completely, expect the next round to go elsewhere and lean your setup that way.",
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "what follows a rush"
+    },
+    "when": "The round after a lost rush, your utility was ready on that entrance.",
+    "why": "Teams repeat what worked and abandon what failed."
+  },
+  {
+    "text": "Take a solo push or lane timing only while your team has pulled the enemy's attention somewhere else, because alone with no pressure anywhere you are simply being held.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a solo push only under pressure"
+    },
+    "when": "Solo timing deaths while no teammate was in contact.",
+    "why": "A timing works when the defender is looking away."
+  },
+  {
+    "text": "In an even fight late in the round with the spike not yet planted, four versus four or three versus three, a defence split two and two across sites meets the hit with half its players, so regroup toward one side or the middle, leave utility or one watcher for information on the other site, and be ready to retake it together.",
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "even numbers late, defenders regroup"
+    },
+    "when": "Late even rounds where the hit met two or fewer defenders.",
+    "why": "The attack chooses one site, a split defence meets it with half."
+  },
+  {
+    "text": "Make noise on purpose and only on purpose, when a teammate is lined up on a defender make a sound from a different angle so he turns, and when you are the quiet one, walk silently looking for the punish.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "noise for a teammate"
+    },
+    "when": "Every loud action in a round is one the team chose.",
+    "why": "A defender can only face one sound at a time."
+  },
+  {
+    "text": "On a hit that depends on surprise, walk and do not reload, switch weapons or jump until the hit goes, because one noise hands the defenders the timing. Walking costs time, so do it when the round clock allows.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a silent approach stays silent"
+    },
+    "when": "Rounds a surprise route was heard before contact.",
+    "why": "The player who hears you is always more ready than you are."
+  },
+  {
+    "text": "When you hug cover, stand slightly back from the edge rather than pressed against it, because an arm or a foot can stick out to an enemy angling you while you cannot see him.",
+    "cause": [
+      "exposed"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "stand back from cover"
+    },
+    "when": "Deaths to a shot from an angle you thought you were hidden from.",
+    "why": "Being seen first by a sliver is still being seen first."
+  },
+  {
+    "text": "Set each session's goal as one skill to improve, not a rank to reach, because a player chasing rank keeps playing the way that put them there.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a goal of one skill"
+    },
+    "when": "One named skill written before each session.",
+    "why": "A process goal changes how you play, a rank goal only changes how you feel."
+  },
+  {
+    "text": "When the defence matches you everywhere or goes quiet after an early kill, create a visible threat on one area with a little utility, let them lean toward it, then hit the other area hard while they are still leaning.",
+    "side": "attack",
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "show a threat then hit the other area"
+    },
+    "when": "After a show of pressure, the hit lands within about fifteen seconds.",
+    "why": "A defence that reacts to every threat can be moved by one."
+  },
+  {
+    "text": "Track the enemy team's repeated rules, where and when their first smoke goes, how they answer a default, what makes their rotator move, because a team that answers the same way every round can be planned against.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "read the defence protocol"
+    },
+    "when": "By the middle of a half you can state one if then rule the enemy has shown twice.",
+    "why": "Most teams change positions more than they change their rules."
+  },
+  {
+    "text": "Track one enemy player's habit across rounds, the same off angle, the same early push, the gun he always buys, because most ranked players do not change how they play during a game.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "one enemy habit per game"
+    },
+    "when": "One enemy habit named by the middle of the first half.",
+    "why": "A habit seen twice is a position you can pre aim the third time."
+  },
+  {
+    "text": "When defence goes a player down early, call to stabilise, stop taking new duels, concede the site your plan says is easiest to retake and keep two together in each remaining zone.",
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "stabilise a man down on defence"
+    },
+    "when": "Early man down rounds where a new duel was taken alone in the next ten seconds.",
+    "why": "Four spread players cover the map, four paired players win fights."
+  },
+  {
+    "text": "To climb from Ascendant into Immortal, cut the deaths where you are picked alone in the opening and the mid round, because at that level an untraded death decides more rounds than any duel you win.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "stop getting picked to climb"
+    },
+    "when": "Untraded deaths before the first teammate death or before the plant, brought down match over match.",
+    "why": "The team that loses fewer free players wins the even rounds."
+  },
+  {
+    "text": "If you are stuck in Silver or Gold, look first for ego fights, overaggression, playing apart from the team and wasted utility, before you blame your aim.",
+    "ranks": [
+      "silver_gold"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Silver and Gold, before aim"
+    },
+    "when": "In one match, tag each death as ego peek, overextension, isolated or utility misuse.",
+    "why": "Those habits cost more rounds at that rank than missed shots."
+  },
+  {
+    "text": "Call every enemy you see with the place and the count, and anything you spot of their utility, so whatever plan your team runs is working from the real picture.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "comm every enemy from Diamond"
+    },
+    "when": "Every contact called with location and count.",
+    "why": "A plan only works on the information it is fed."
+  },
+  {
+    "text": "By Gold, narrow to one or two agents and learn them deeply, their lineups and their setups on each map, while staying able to fill one agent in each other role.",
+    "phase": "buy",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Gold, narrow the pool"
+    },
+    "when": "Distinct agents in your last twenty matches, more than three is too wide.",
+    "why": "Depth on one agent wins more than five agents played at half value."
+  },
+  {
+    "text": "Run executes with the abilities in order, smokes down, then the flash or reveal, then the entry crossing within about a second of the pop, rather than each player using abilities on their own time.",
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "executes land together"
+    },
+    "when": "The entry crosses the site line within about a second of the flash or reveal popping.",
+    "why": "Utility that lands together wins the site, utility that lands apart is cleared piece by piece."
+  },
+  {
+    "text": "From Diamond up, check in agent select that the team has a controller with smokes, and if nobody else will play one, fill it yourself rather than adding another duelist.",
+    "phase": "buy",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "fill the controller at Diamond"
+    },
+    "when": "Rounds played with zero controllers on your team.",
+    "why": "A team with no smokes cannot take or hold a site against coordinated players."
+  },
+  {
+    "text": "Once your sentinel setup or defensive start has been seen, vary it, move the trap, the cage or the corner you hold, and keep two or three setups per site, because conditioning the enemy is a large part of defence at high rank.",
+    "roles": [
+      "sentinel"
+    ],
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "vary your setup once it is seen"
+    },
+    "when": "Across a half, your setup on a site changes at least once after it has been seen.",
+    "why": "A setup the attackers have already solved is a setup they will pre clear."
+  },
+  {
+    "text": "Outfragging a low rank lobby is not proof you are underranked, rank follows wins far more than kills, so review your deaths for crosshair placement and positioning rather than waiting for the rank to catch up.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "outfragging is not proof"
+    },
+    "when": "Win rate over the last twenty games and one reviewed game per session.",
+    "why": "Kills in a lost game do not move the rank the way wins do."
+  },
+  {
+    "text": "At low rank, do not build your game around long range damage lineups. Take more fights on the site with your team, and in the post plant play close enough to be traded, using your molly or shock dart to stop the defuse or block one choke while you fight beside them.",
+    "agents": [
+      "Brimstone",
+      "Viper",
+      "KAY/O",
+      "Sova"
+    ],
+    "roles": [
+      "controller",
+      "initiator"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "low rank lineups"
+    },
+    "when": "Rounds you threw a lineup from a spot no teammate could trade you from.",
+    "why": "Your team needs your gun on the site more than a lineup from far away."
+  },
+  {
+    "text": "Keep your movement ability for the entry itself: a duelist who spends the dash, slide or satchel early has nothing to enter with and nothing to survive on site with.",
+    "agents": [
+      "Jett",
+      "Neon",
+      "Raze",
+      "Waylay"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "keep your dash for the entry"
+    },
+    "when": "Your movement ability is still available at the moment of the execute.",
+    "why": "The dash is the entry, using it to look around wastes it."
+  },
+  {
+    "text": "Up to Gold, move with a teammate and stay close enough that if the player ahead of you dies you can shoot the killer within a second or two.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Silver trade distance"
+    },
+    "when": "For each teammate death near you, did the killer die within about three seconds.",
+    "why": "Distance is what turns a death into a trade."
+  },
+  {
+    "text": "When you are down numbers on attack, make no sound until you fight, while the timer allows it, because silence forces the defenders to cover every gap you could come through and sooner or later one of them moves into your timing. Watch the clock, the spike still has to be planted.",
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "down numbers on attack, silence"
+    },
+    "when": "Outnumbered rounds where you were heard before your first shot.",
+    "why": "A quiet player is a threat in every lane at once."
+  },
+  {
+    "text": "When the full hit lands on you alone, take a pick only if it is cheap, then fall back toward your team and live for the retake, because your second job is to draw utility and crosshairs while the others flood.",
+    "roles": [
+      "sentinel",
+      "controller"
+    ],
+    "side": "defense",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "fall back from the lone hit, cheaply"
+    },
+    "when": "Rounds you died alone on a hit site with no kill and no utility thrown.",
+    "why": "One live defender on the retake is worth more than one kill and a death."
+  },
+  {
+    "text": "When your entry dies early on attack and you are four against five, do not give up the round, group up, agree one plan and either trade the count back with picks or hit one site together.",
+    "side": "attack",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "have a plan"
+    },
+    "when": "Four versus five rounds where the remaining players split across the map.",
+    "why": "Four players on one site still outnumber the defenders there."
+  },
+  {
+    "text": "Pair an ability that holds an enemy in place with damage on the same spot, a slow, a tether or a net followed by a molly or a grenade, and if you queue as a duo, plan that combo so the initiator sets up the duelist every round.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "duo utility combos"
+    },
+    "when": "Rounds your damage utility landed on an enemy your teammate had just held in place.",
+    "why": "A player who cannot walk out of the damage takes all of it."
+  },
+  {
+    "text": "On a retake, wait for your teammate's flash or reveal to land and swing on it with the next player on a count, never before it, unless the spike timer no longer leaves time for the utility and the defuse.",
+    "side": "defense",
+    "phase": "postplant",
+    "situations": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "contest or retake"
+    },
+    "when": "Retake deaths that came before your team's reveal or flash popped.",
+    "why": "A retake that swings early fights a planted team with full information."
+  },
+  {
+    "text": "On an anti eco, clear the close corners first from range and fight down long lines, walk together, keep reloaded and never wander alone into a site, because a lone death hands the saving team a rifle.",
+    "situations": [
+      "antieco"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "the anti eco at range"
+    },
+    "when": "Anti eco deaths inside about ten metres or with no teammate in trade range.",
+    "why": "The eco only wins in the close fights and with the gun you give them."
+  },
+  {
+    "text": "Take ultimate orbs that sit on your safe path at round start, but never walk into a contested spot for an orb in a round you cannot afford to lose, and never while your teammates are fighting on site.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "ult economy"
+    },
+    "when": "Deaths within a few seconds of picking up or heading to an orb.",
+    "why": "An orb is worth a round only if it does not cost a player."
+  },
+  {
+    "text": "Keep a smoke you do not need yet instead of throwing it onto an area nobody is contesting, say that you are holding it, and on a site that is falling keep one for after the plant.",
+    "agents": [
+      "Omen",
+      "Brimstone",
+      "Astra",
+      "Viper",
+      "Harbor",
+      "Clove",
+      "Miks"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "keep a smoke you do not need yet"
+    },
+    "when": "Rounds you ended with no smoke while a smoke went on an uncontested area earlier.",
+    "why": "An unused smoke is a retake or a stuck teammate saved."
+  },
+  {
+    "text": "In agent select, if a teammate only plays one agent, give them that agent and fill the missing role from your pool, and ask who is comfortable on what rather than forcing anyone onto an agent.",
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "fill without a fight in agent select"
+    },
+    "when": "Matches with an argument in agent select.",
+    "why": "A team where each player is on a comfortable agent plays better than a perfect comp on paper."
+  },
+  {
+    "text": "After a round you should have won is lost to a clutch or a teammate's mistake, say something supportive, call a reset in the buy phase and run the plan you came in with, instead of blaming or changing style.",
+    "phase": "buy",
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "tilt"
+    },
+    "when": "Next rounds after a thrown round where the team stayed on the plan.",
+    "why": "The next round is lost when the team carries the last one into it."
+  },
+  {
+    "text": "When a solo queue team ignores every plan, find the one teammate who is clearly trying, agree a plan with them, then ask one named player to join the two of you, because people follow a plan that already has two players.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "when your team will not follow"
+    },
+    "when": "Rounds you called with a partner who agreed first.",
+    "why": "Two committed players make a plan visible to the rest."
+  },
+  {
+    "text": "On a site hit, do not send all five onto the site: one player, often the sentinel or the controller, stays in main or a flank lane to watch the retake path and build a crossfire for the post plant.",
+    "roles": [
+      "sentinel",
+      "controller"
+    ],
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "sentinel stays in main on the hit"
+    },
+    "when": "Executes where all five ended up on site.",
+    "why": "A planted site with one player behind the retake path is far harder to take back."
+  },
+  {
+    "text": "On a retake or an entry, cross as your initiator's flash or blind pops, never before it and not long after it has worn off.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "commit on the flash, not before"
+    },
+    "when": "Entries and retakes where you crossed before the flash popped.",
+    "why": "A swing before the flash fights a defender who can see."
+  },
+  {
+    "text": "When your recon on a site shows nothing and teammates hold mid, leave that site to its sentinel setup and rotate the flexible player to the site with the fewest defenders, so no site is left on one body when a split or a hit lands.",
+    "side": "defense",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "anchor or rotate"
+    },
+    "when": "After an empty site scan, the flex player moved within ten seconds.",
+    "why": "The setup can hold an empty site, a body cannot hold two."
+  },
+  {
+    "text": "When you clear an area and leave it to hit the other site, put one more smoke there, keep a player or leave a trap, so the defenders cannot confirm it is empty and rotate for free.",
+    "side": "attack",
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "leave a sign on the area you leave"
+    },
+    "when": "Hits where the defence rotated after checking the area you had left.",
+    "why": "An area they can check freely tells them where you went."
+  },
+  {
+    "text": "Do not let one enemy Operator stop your whole attack, it can hold only one lane at a time, so locate it with information and keep taking your space and peeks on the lanes it is not on.",
+    "enemyAgents": [
+      "Chamber",
+      "Jett"
+    ],
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "an Operator lane is one lane"
+    },
+    "when": "Rounds your team took no space anywhere after one Operator kill.",
+    "why": "A frozen team gives the Operator the round without a shot."
+  },
+  {
+    "text": "Count the enemy's spent smokes, flashes and recon out loud as the round goes, and once a type is gone, take the fight it would have stopped before it can come back.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 3,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "paint the picture"
+    },
+    "when": "Fights taken within a few seconds of an enemy smoke or flash being called spent.",
+    "why": "Most spent utility is gone for the round, and a signature ability only comes back after its cooldown, so the window is now."
+  },
+  {
+    "text": "As a lurker, know the moment your team commits to a site and either arrive with them or hold your post plant utility for that site, because a lurk still on the far side when the team hits is wasted.",
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a lurker rejoins the hit"
+    },
+    "when": "Hits where the lurker arrived after the plant or not at all.",
+    "why": "The lurk exists to help the hit, not to run beside it."
+  },
+  {
+    "text": "If you take two areas at once and nobody contests either, read the defenders as stacked in the remaining areas, and if utility from three different agents comes from one place, count three players there and hit elsewhere.",
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "two areas uncontested"
+    },
+    "when": "After two uncontested areas, the hit avoided the remaining one.",
+    "why": "What the defence does not contest tells you where it is."
+  },
+  {
+    "text": "Before you hold a deep early position on defence, ask whether a teammate can trade you if the attackers come with two players or utility, and if nobody can, play it only on an agent that can escape or leave after one shot.",
+    "side": "defense",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "hold the deep line only with an exit"
+    },
+    "when": "Deaths on a deep spot with no escape used and no trade.",
+    "why": "A deep spot that can be pinched from two sides is one kill at best."
+  },
+  {
+    "text": "Against a defending Chamber who wants the first duel, send utility down his lane before you walk it, a drone, a Prowler or a Haunt, so he has to spend time and shots breaking it or gets revealed before he can take his shot.",
+    "enemyAgents": [
+      "Chamber"
+    ],
+    "roles": [
+      "initiator"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Fade sees the Chamber first"
+    },
+    "when": "Opening deaths to a Chamber on a lane you sent no utility into.",
+    "why": "Utility makes his first shot cost a teammate."
+  },
+  {
+    "text": "When you find the enemy sentinel's setup, a Cypher camera, a Killjoy turret or a Vyse Razorvine, work out the rest of the defence from it: if the sentinel and the controller are both on one site, the other site has fewer players, so hit the weak site or split around it.",
+    "enemyAgents": [
+      "Cypher",
+      "Killjoy",
+      "Vyse"
+    ],
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Cypher camera gives the setup"
+    },
+    "when": "After locating a sentinel setup, the next hit went to the other site.",
+    "why": "A sentinel's setup shows where the rest of the team is not."
+  },
+  {
+    "text": "If the defence's opening utility tells you their mid player sits passive, take mid with numbers and force the fight on the lone mid player before committing to a site.",
+    "side": "attack",
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a defender who matches with numbers"
+    },
+    "when": "Rounds you took mid with two or more when it showed one passive defender.",
+    "why": "A passive lone mid player is the cheapest kill on the map."
+  },
+  {
+    "text": "As Gekko, send your creatures early for information and pick the globules back up, and throw Dizzy high when you expect it to be shot so the globule falls near you. Only reclaim from a spot no enemy can see, because the reclaim takes time and a globule left too long expires.",
+    "agents": [
+      "Gekko"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "Gekko creatures come back"
+    },
+    "when": "Rounds you reclaimed at least one creature.",
+    "why": "A reclaimed creature is the same ability twice in one round."
+  },
+  {
+    "text": "On attack against an eco, smoke the deep angles such as heaven and the defenders' rotation spots rather than smoking right on top of them, and fight the rest at range, because a close smoke forces the close fight their pistols win.",
+    "agents": [
+      "Omen",
+      "Brimstone",
+      "Astra",
+      "Viper",
+      "Harbor",
+      "Clove",
+      "Miks"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "side": "attack",
+    "situations": [
+      "antieco"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "anti eco smokes go deep"
+    },
+    "when": "Anti eco smokes placed on top of close defender spots.",
+    "why": "Your rifles want distance, so your smokes should remove only the angles that deny it."
+  },
+  {
+    "text": "On an attacking eco, move as a group of four or five and swing together, so the first kill can be traded and a rifle picked up, with the weaker pistols going in first for the Sheriffs behind them.",
+    "side": "attack",
+    "situations": [
+      "eco"
+    ],
+    "weight": 3,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "attacking eco as a pack"
+    },
+    "when": "Eco rounds where your team took its first fight with nobody close enough to trade.",
+    "why": "Five pistols together trade, five pistols apart are five free rifle kills."
+  },
+  {
+    "text": "When an execute is too heavy to hold, let the site go and retake from at least three directions, the players from other areas coming through the middle or the far side, timed to arrive together, rather than only from spawn and one entrance.",
+    "side": "defense",
+    "phase": "postplant",
+    "situations": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "retake shape"
+    },
+    "when": "Retakes where all your players came through the same one or two entrances.",
+    "why": "A post plant can watch two entrances, not three."
+  },
+  {
+    "text": "Before you swing onto a site, throw a molly into the tight spot a defender tucks into and onto any likely trap spot, then follow with a flash, because the molly forces him to stand wider where the flash and your swing catch him.",
+    "agents": [
+      "Killjoy",
+      "Brimstone",
+      "Viper",
+      "KAY/O",
+      "Gekko",
+      "Phoenix"
+    ],
+    "side": "attack",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "molly the tuck spot, then flash"
+    },
+    "when": "Site entries where your molly and flash landed on the same defender spot.",
+    "why": "A tucked defender beats a flash by turning away, a burning one has to move first."
+  },
+  {
+    "text": "In solo queue and in rank up games, play an agent you have many recent games on, and do not instalock a specialist such as Astra, Harbor, Viper or Yoru unless you have practised it, because their value comes from practised setups and timings.",
+    "phase": "buy",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "specialist agents need practice"
+    },
+    "when": "Ranked games on an agent you played fewer than about ten times before.",
+    "why": "A comfortable agent keeps your fundamentals, a new one takes your attention away from them."
+  },
+  {
+    "text": "As a lurker, sit at an insert spot near the enemy rotation path and listen, and when you hear them run or teleport away to answer your team, either call the swap or take a fast wide timing peek on the rotators as they pass.",
+    "side": "attack",
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "the lurker listens for the rotate"
+    },
+    "when": "Lurk rounds where you heard a rotation and acted on it within a few seconds.",
+    "why": "A rotation is the moment the defence turns its back on you."
+  },
+  {
+    "text": "On a retake as the controller, direct the traffic, first hold everyone, then say what utility you will use and where, then count down and call go as it lands.",
+    "agents": [
+      "Omen",
+      "Brimstone",
+      "Astra",
+      "Viper",
+      "Harbor",
+      "Clove",
+      "Miks"
+    ],
+    "roles": [
+      "controller"
+    ],
+    "side": "defense",
+    "phase": "postplant",
+    "situations": [
+      "retake"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "retake shape"
+    },
+    "when": "Retakes where the team entered on your count.",
+    "why": "The smokes decide when the retake can start, so the player throwing them should time it."
+  },
+  {
+    "text": "Against a Fade, shoot her Prowler or put a pillar, a pole or a corner between you and it before it locks on, because it chases the first enemy it sees, and once it is biting it keeps tracking you.",
+    "enemyAgents": [
+      "Fade"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "advanced",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy Fade prowler"
+    },
+    "when": "Prowler hits taken while cover was a step away.",
+    "why": "A prowler that cannot see you cannot nearsight you."
+  },
+  {
+    "text": "As a site anchor, your first job is to stay alive and delay, so judge the hold by the seconds you bought, because even five more seconds lets rotators arrive with utility and a round with no kills but a long delay is a successful hold.",
+    "agents": [
+      "Cypher",
+      "Killjoy",
+      "Vyse",
+      "Sage",
+      "Deadlock",
+      "Veto"
+    ],
+    "roles": [
+      "sentinel"
+    ],
+    "side": "defense",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "anchor or rotate"
+    },
+    "when": "Seconds from first contact on your site to the plant, longer is the goal.",
+    "why": "Nobody wins one versus two consistently, the anchor wins rounds by making the retake possible."
+  },
+  {
+    "text": "Before you blame your aim for lost duels, check your setup: a high refresh monitor, around 144 Hz, with a frame rate that stays high in fights, makes moving targets easier to track and is common among players above Platinum.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a display that keeps up"
+    },
+    "when": "Monitor refresh rate and in game frame rate during fights.",
+    "why": "Every frame you do not see is a frame the enemy already moved in."
+  },
+  {
+    "text": "Pick one moderate sensitivity that suits your own setup and keep it for weeks, instead of changing it often or copying another player, because flick distance only becomes muscle memory while it stays the same.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "one sensitivity of your own"
+    },
+    "when": "Days since your last sensitivity change, aim for weeks.",
+    "why": "A setting changed every week resets the habit every week."
+  },
+  {
+    "text": "When an early recon dart is going to be broken anyway, throw it where your duelists can see the shot or where only the deeper, safer defender can reach it, so the tracer of whoever breaks it tells your team where one enemy is.",
+    "agents": [
+      "Sova"
+    ],
+    "roles": [
+      "initiator"
+    ],
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "a dart that will be broken"
+    },
+    "when": "Early darts broken with nobody on your team watching the break.",
+    "why": "A broken dart still gives information if someone is watching who breaks it."
+  },
+  {
+    "text": "Use an aim trainer for raw crosshair control, where you fire thousands of shots in a short time, and use deathmatch and real angles for crosshair placement, angle switching and movement, which a trainer cannot teach.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "what each practice tool trains"
+    },
+    "when": "Each practice block names whether it trains control or placement.",
+    "why": "Placement is learned on the maps you play, control is learned by repetition."
   }
 ]

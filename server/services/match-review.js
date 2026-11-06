@@ -29,6 +29,7 @@
  */
 
 const knowledge = require('./knowledge');
+const cases = require('./cases');
 const forensics = require('./death-forensics');
 const { promptName } = require('./languages');
 const { noSemicolons } = require('./plain-text');
@@ -184,6 +185,10 @@ function normalise(body) {
       // of the four keys or left out, so a client that sends none is read as
       // before, byte for byte.
       ...(knowledge.validBand(ctx.rankBand) ? { rankBand: ctx.rankBand } : {}),
+      // The enemy team's agents (8.8, Riot's comp on the client), agents
+      // only and each one the game data knows, or left out, so a client that
+      // sends none is read as before, byte for byte.
+      ...(knowledge.enemiesOf(ctx.enemyAgents).length ? { enemyAgents: knowledge.enemiesOf(ctx.enemyAgents) } : {}),
     },
     final: {
       team: Number.isInteger(final.team) ? final.team : null,
@@ -221,6 +226,23 @@ function weakSide(rounds) {
   // The rates' gap over a side of average length, in rounds.
   if ((Math.abs(a - d) * (atk.length + def.length)) / 2 < 2) return null;
   return a < d ? 'attack' : 'defense';
+}
+
+/*
+ * THE ENEMY TEAM'S AGENTS (8.8, knowledge.js enemyFit): the comp a client of
+ * this release sends (context.enemyAgents), and, for a client the route marks
+ * (`input.byEnemy`, the version gate), the agents Riot's record says killed
+ * the player, which are on the enemy team by definition and which every
+ * linked review already sends. Agents only, never a name. A client before it
+ * sends neither, and its notes and cases are chosen as before.
+ */
+function enemiesOf(input) {
+  const ctx = (input && input.context) || {};
+  const list = [...(ctx.enemyAgents || [])];
+  if (input && input.byEnemy === true) {
+    for (const r of input.rounds || []) if (r && r.verified && r.killer) list.push(r.killer);
+  }
+  return knowledge.enemiesOf(list);
 }
 
 // retrieve() counts its reserve out of the eight notes it serves
@@ -281,11 +303,16 @@ function study(input, limit = 3) {
     for (const r of rounds || []) if (r && r.cause) causesHere.add(r.cause);
   }
 
+  // A note for the enemy's agents (8.8) only against them, never blind.
+  const enemies = enemiesOf(input);
+
   const scored = [];
   for (const note of knowledge.all()) {
     const src = note.source;
     if (!src || typeof src.topic !== 'string' || !src.topic) continue;
     if (note.weapons) continue;
+    const versus = knowledge.enemyFit(note, enemies);
+    if (versus === null) continue;
     if (note.agents && (!s.agent || !note.agents.some((a) => a.toLowerCase() === s.agent.toLowerCase()))) continue;
     if (note.roles && (!s.role || !note.roles.includes(s.role))) continue;
     if (note.maps && (!s.map || !note.maps.some((m) => m.toLowerCase() === s.map))) continue;
@@ -296,6 +323,7 @@ function study(input, limit = 3) {
     if (ranked === null) continue;
     let score = note.weight || 1;
     score += ranked;
+    score += versus;
     // A role note carries its role's agent list so retrieve() reaches it
     // (docs/claude/playbook.md), but to the study list it is still a role
     // note (8.7.2): counted as both, the two checkpoints notes outscored every
@@ -308,7 +336,7 @@ function study(input, limit = 3) {
     else if (looked.has(src.topic)) score += 2;
     if (note.side && weak && note.side === weak) score += 2;
     if (note.side && weak && note.side !== weak) score -= 2;
-    scored.push({ text: note.text, topic: src.topic, advanced, score });
+    scored.push({ text: note.text, topic: src.topic, advanced, score, fit: ranked === knowledge.RANK_FIT });
   }
   scored.sort((a, b) => b.score - a.score);
 
@@ -327,9 +355,14 @@ function study(input, limit = 3) {
     take(scored, limit);
   } else {
     const streak = patterns.some((p) => p.key === 'streak');
-    const share = streak ? RESERVE_OF - knowledge.STREAK_CORE_SLOTS : knowledge.ADVANCED_SLOTS;
+    // With a band, the band's share (knowledge.advancedSlots), the streak
+    // taking the smaller, and the band's own advanced notes first. No band is
+    // today's list byte for byte.
+    const streakShare = RESERVE_OF - knowledge.STREAK_CORE_SLOTS;
+    const share = band ? Math.min(knowledge.advancedSlots(band), streak ? streakShare : RESERVE_OF)
+      : streak ? streakShare : knowledge.ADVANCED_SLOTS;
     const advWant = Math.max(0, Math.min(limit - 1, Math.floor((limit * share) / RESERVE_OF)));
-    const adv = scored.filter((n) => n.advanced);
+    const adv = band ? knowledge.bandFirst(scored.filter((n) => n.advanced)) : scored.filter((n) => n.advanced);
     take(adv, advWant);
     take(scored.filter((n) => !n.advanced), limit);
     // Short on core notes for this player: topped back up from advanced
@@ -413,7 +446,7 @@ function promptA(input) {
     + 'failed to do anything. Never fabricate plays, kills, or moments. Do not use dashes. End each sentence with a period.';
 }
 
-function promptRounds(input, withKnowledge) {
+function promptRounds(input, withKnowledge, opts) {
   const { context, final, rounds, patterns } = input;
   const who = [context.agent ? `playing ${context.agent}` : 'agent unread', context.map ? `on ${context.map}` : 'map unread'].join(' ');
   const score = final.team !== null && final.enemy !== null
@@ -427,9 +460,10 @@ function promptRounds(input, withKnowledge) {
         + 'their impact, not failing.' : '')
     : 'The final score was not read.';
 
-  let knowledgeBlock = '';
+  let notes = [];
+  let worked = [];
   if (withKnowledge) {
-    const notes = [];
+    const enemies = enemiesOf(input);
     const seen = new Set();
     const add = (t) => { if (t && !seen.has(t)) { seen.add(t); notes.push(t); } };
     for (const n of study(input, 4)) add(n.text);
@@ -444,18 +478,23 @@ function promptRounds(input, withKnowledge) {
       for (const r of rounds || []) if (r && r.cause) causes.push(r.cause);
     }
     for (const t of knowledge.retrieve({ agent: context.agent, map: context.map, causes,
-      ...(context.rankBand ? { rankBand: context.rankBand } : {}) }, 6,
+      ...(context.rankBand ? { rankBand: context.rankBand } : {}),
+      ...(enemies.length ? { enemyAgents: enemies } : {}) }, 6,
       { advanced: context.advancedTips })) add(t);
-    if (notes.length) {
-      // Never where it comes from: the review speaks these notes in its own
-      // voice and names no coach, player, team or video behind them.
-      knowledgeBlock = '\n\nCOACHING KNOWLEDGE (verified habits). Use one to explain WHY a round went wrong '
-        + 'only when that round\'s facts actually match it, and prefer the one that answers the first counted mistake. '
-        + 'Put it in the player\'s own situation and give its reason in your own words. Never quote it word for word, and never say where '
-        + 'it comes from: no coach, player, team or video is ever named as its source:\n'
-        + notes.slice(0, 8).map((t) => '- ' + t).join('\n');
-    }
+    notes = notes.slice(0, 8);
+    // Worked cases (8.8, cases.js), only where this match's situation matches one.
+    // opts.cases false is the prompt without them, today's, for the tests and the benches.
+    worked = opts && opts.cases === false ? [] : cases.pick(cases.fromReview(input, enemies), cases.MAX_CASES);
   }
+  // Never where it comes from: the review speaks these notes in its own
+  // voice and names no coach, player, team or video behind them.
+  const knowledgeOf = (ns, cs) => (ns.length
+    ? '\n\nCOACHING KNOWLEDGE (verified habits). Use one to explain WHY a round went wrong '
+      + 'only when that round\'s facts actually match it, and prefer the one that answers the first counted mistake. '
+      + 'Put it in the player\'s own situation and give its reason in your own words. Never quote it word for word, and never say where '
+      + 'it comes from: no coach, player, team or video is ever named as its source:\n'
+      + ns.map((t) => '- ' + t).join('\n') : '')
+    + (cs.length ? '\n\n' + cases.block(cs) : '');
 
   const verified = rounds.some((r) => r.verified);
   const ledgerNote = verified
@@ -469,7 +508,7 @@ function promptRounds(input, withKnowledge) {
   const block = (head, list) => (list
     ? `\n\n${head}\n${list.length ? counted(list) : '- none cleared the bar in this match'}` : '');
   const picks = teachable(rounds);
-  return `You are reviewing one finished Valorant match for the player, ${who}. ${score}\n\n`
+  const assemble = (knowledgeBlock) => `You are reviewing one finished Valorant match for the player, ${who}. ${score}\n\n`
     + `${ledgerNote}\n${rounds.map(roundLine).join('\n')}\n\n`
     + `COMPUTED PATTERNS (arithmetic over the ledger, these are true):\n`
     + (patterns.length ? patterns.map((p) => '- ' + p.text).join('\n') : '- none cleared the bar in this match')
@@ -508,6 +547,32 @@ function promptRounds(input, withKnowledge) {
     + rankRule(context.rankBand)
     + GROUNDING
     + languageRule(context.language);
+  const today = assemble(knowledgeOf(notes, []));
+  if (!worked.length) return today;
+  return withinBudget(today, notes, worked, (ns, cs) => assemble(knowledgeOf(ns, cs)));
+}
+
+/*
+ * THE CASES TAKE THE PLACE OF THE LOWEST NOTES (8.8). A review with worked
+ * cases may grow by CASE_GROWTH of today's prompt at most: past it the lowest
+ * scoring notes (the last of the list, retrieve()'s order) go one at a time,
+ * down to NOTES_FLOOR, then the second case, and a prompt that still does not
+ * fit is today's, with no cases. Without a case it is today's byte for byte.
+ */
+const CASE_GROWTH = 0.10;
+const NOTES_FLOOR = 3;
+function withinBudget(today, notes, worked, build) {
+  const cap = Math.floor(today.length * (1 + CASE_GROWTH));
+  for (const cs of [worked, worked.slice(0, 1)]) {
+    const ns = notes.slice();
+    for (;;) {
+      const p = build(ns, cs);
+      if (p.length <= cap) return p;
+      if (ns.length <= NOTES_FLOOR) break;
+      ns.pop();
+    }
+  }
+  return today;
 }
 
 /*
@@ -551,9 +616,9 @@ function languageRule(code) {
     + 'as digits, and keep map callouts and agent names exactly as the game prints them.';
 }
 
-function buildPrompt(input) {
+function buildPrompt(input, opts) {
   if (input.variant === 'A') return promptA(input);
-  return promptRounds(input, input.variant === 'C');
+  return promptRounds(input, input.variant === 'C', opts);
 }
 
 /**
@@ -986,4 +1051,4 @@ function roundLabels(text) {
 
 module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, roundLabels, teachable, lineWorthy,
   namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, REPEAT_WORDS, ROUND_LABELS, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS,
-  CAUSE_TOPICS, rankRule };
+  CAUSE_TOPICS, rankRule, enemiesOf, withinBudget, CASE_GROWTH, NOTES_FLOOR };

@@ -641,6 +641,61 @@ function rankAdjust(note, band, shown) {
   return 0;
 }
 
+/*
+ * ── THE ENEMY TEAM'S AGENTS (8.8) ───────────────────────────────────────────
+ *
+ * A note or a worked case may carry `enemyAgents`, the enemy agents it answers
+ * (an Operator holder, a Killjoy setup, a Hush pull). It is eligible ONLY when
+ * at least one of them was on the enemy team, and it scores ENEMY_FIT higher
+ * then, so a matchup read is never served blind. `enemyWithout` is the other
+ * shape, a read that holds only while the enemy has none of those agents (a
+ * comp with no flash): it needs the whole comp, five agents, because the
+ * killers of a few rounds say nothing about who was not there.
+ *
+ * The list is agents only, never a player's name or Riot ID, each checked
+ * against the game data's agents (enemiesOf), so a client sending junk gets
+ * an empty list. NO LIST IS TODAY'S RETRIEVAL: every enemy note is excluded
+ * before the jitter is drawn and every other note scores exactly as before.
+ */
+const ENEMY_FIT = 2;
+const AGENT_NAMES = (() => {
+  try { return Object.keys(require('../valorant-data.generated.json').agents || {}); } catch { return []; }
+})();
+
+/** The enemy agents as the game data spells them, deduplicated, at most 5 known. */
+function enemiesOf(list) {
+  const out = [];
+  for (const x of Array.isArray(list) ? list.slice(0, 10) : []) {
+    const name = AGENT_NAMES.find((a) => a.toLowerCase() === String(x || '').trim().toLowerCase());
+    if (name && !out.includes(name)) out.push(name);
+  }
+  return out.slice(0, 5);
+}
+
+/**
+ * The score change the enemy team makes, or null when the note is excluded.
+ * `enemies` is enemiesOf's list (empty when unknown).
+ */
+function enemyFit(note, enemies) {
+  const want = note && Array.isArray(note.enemyAgents) && note.enemyAgents.length ? note.enemyAgents : null;
+  const without = note && Array.isArray(note.enemyWithout) && note.enemyWithout.length ? note.enemyWithout : null;
+  const hint = note && Array.isArray(note.enemyHint) && note.enemyHint.length ? note.enemyHint : null;
+  if (!want && !without && !hint) return 0;
+  const have = new Set((enemies || []).map((a) => String(a).toLowerCase()));
+  // enemyHint: a note about an enemy agent that was served blind before the
+  // enemy team was known, and still is. Only a KNOWN comp (five agents) with
+  // none of them in it excludes it; one of them present scores ENEMY_FIT; a
+  // comp unknown or partial (a few rounds' killers) is today's, 0.
+  if (hint && !want && !without) {
+    if (hint.some((a) => have.has(String(a).toLowerCase()))) return ENEMY_FIT;
+    return have.size >= 5 ? null : 0;
+  }
+  if (!have.size) return null;
+  if (without && (have.size < 5 || without.some((a) => have.has(String(a).toLowerCase())))) return null;
+  if (want && !want.some((a) => have.has(String(a).toLowerCase()))) return null;
+  return ENEMY_FIT;
+}
+
 /**
  * Retrieve the most relevant playbook notes for this exact situation.
  * Contradicting notes (wrong side, wrong phase, another agent's note, a gun
@@ -672,6 +727,30 @@ function rankAdjust(note, band, shown) {
 const ADVANCED_SLOTS = 6;      // of 8, leaving 2 for fundamentals
 const STREAK_CORE_SLOTS = 5;   // on a deathstreak core takes the majority back
 
+/*
+ * THE RESERVE FOLLOWS THE BAND (8.8). Advanced coaching is on for everyone,
+ * and six of eight advanced slots at Iron and Gold went to unbanded advanced
+ * notes, about forty of them, which crowded out the band's own fundamentals:
+ * measured, Iron's eco got no economy note and Iron's clutch no clutch note.
+ * With a band the reserve is that band's share of the eight (ADVANCED_SLOTS_BY_BAND,
+ * the streak override still takes the smaller), and inside each queue a note
+ * narrowed to the player's band (rankAdjust's RANK_FIT) goes before one that is
+ * not, so a band note that fits the situation outranks an unbanded advanced one.
+ * NO BAND IS TODAY'S RESERVE BYTE FOR BYTE: six of eight, score order.
+ */
+const ADVANCED_SLOTS_BY_BAND = { iron_bronze: 1, silver_gold: 2, plat_diamond: ADVANCED_SLOTS, asc_plus: ADVANCED_SLOTS };
+
+/** The advanced share of eight for a band, or ADVANCED_SLOTS with none. */
+function advancedSlots(band) {
+  const b = validBand(band);
+  return b ? ADVANCED_SLOTS_BY_BAND[b] : ADVANCED_SLOTS;
+}
+
+/** Band notes first, then score: the order a queue is taken in with a band. */
+function bandFirst(list) {
+  return list.slice().sort((a, b) => (b.fit ? 1 : 0) - (a.fit ? 1 : 0) || b.score - a.score);
+}
+
 /**
  * @param ctx               live match context
  * @param limit             how many notes to return (8 in the prompt)
@@ -685,6 +764,8 @@ function retrieve(ctx, limit = 8, opts = {}) {
   const solo = s.flags.has('clutch');
   // The player's rank band, untrusted (validBand): none changes nothing.
   const band = validBand(ctx && ctx.rankBand);
+  // The enemy team's agents (8.8), untrusted: none excludes every enemy note.
+  const enemies = enemiesOf(ctx && ctx.enemyAgents);
 
   for (const note of ALL) {
     // Exclusions: a tagged note never fires outside its tags.
@@ -702,6 +783,8 @@ function retrieve(ctx, limit = 8, opts = {}) {
     // answers one of the player's own deaths, which is the data showing it.
     const ranked = band ? rankAdjust(note, band, !!note.cause || s.flags.has('deathstreak')) : 0;
     if (ranked === null) continue;
+    const versus = enemyFit(note, enemies);
+    if (versus === null) continue;
 
     // Score: specificity of the match, plus base weight, plus a tiny jitter so
     // near ties rotate between requests instead of always serving one order.
@@ -716,9 +799,10 @@ function retrieve(ctx, limit = 8, opts = {}) {
     // A note that answers the death being discussed outranks general advice.
     if (note.cause)   score += 5;
     score += ranked;
+    score += versus;
     score += Math.random() * 0.8;
 
-    scored.push({ text: note.text, score, advanced: note.tier === 'advanced' });
+    scored.push({ text: note.text, score, advanced: note.tier === 'advanced', fit: ranked === RANK_FIT });
   }
 
   scored.sort((a, b) => b.score - a.score);
@@ -733,9 +817,14 @@ function retrieve(ctx, limit = 8, opts = {}) {
    * reserve says what it means, and the floor cannot be eroded by scoring.
    */
   const streak = s.flags.has('deathstreak');
-  const advWant = streak ? Math.max(0, limit - STREAK_CORE_SLOTS) : Math.min(ADVANCED_SLOTS, limit);
+  const streakWant = Math.max(0, limit - STREAK_CORE_SLOTS);
+  // With a band, its share (ADVANCED_SLOTS_BY_BAND), the streak taking the
+  // smaller, and the band's own advanced notes before unbanded ones.
+  const bandWant = band ? Math.min(advancedSlots(band), limit) : null;
+  const advWant = band ? (streak ? Math.min(streakWant, bandWant) : bandWant)
+    : streak ? streakWant : Math.min(ADVANCED_SLOTS, limit);
 
-  const adv = scored.filter((n) => n.advanced);
+  const adv = band ? bandFirst(scored.filter((n) => n.advanced)) : scored.filter((n) => n.advanced);
   const core = scored.filter((n) => !n.advanced);
   const out = adv.slice(0, advWant);
   for (const n of core) {
@@ -762,4 +851,5 @@ function block(ctx, limit) {
 
 module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: () => ALL,
   roleOf: (agent) => ROLE_OF[String(agent || '').toLowerCase()] || null,
-  ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust };
+  ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust,
+  ENEMY_FIT, enemiesOf, enemyFit, ADVANCED_SLOTS_BY_BAND, advancedSlots, bandFirst };

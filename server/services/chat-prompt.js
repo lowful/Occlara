@@ -59,6 +59,7 @@ const primerMod = () => optional('./game-primer');
 const knowledgeMod = () => optional('./knowledge');
 const reviewMod = () => optional('./match-review');
 const forensicsMod = () => optional('./death-forensics');
+const casesMod = () => optional('./cases');
 
 const lower = (s) => String(s == null ? '' : s).toLowerCase();
 const fin = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -1340,6 +1341,90 @@ function renderSlices(input, facts, messages) {
 }
 
 /*
+ * THE ENEMY TEAM'S AGENTS (8.8): the match's comp from Riot's record
+ * (`comps.them`) and the agents Riot says killed the player, agents only,
+ * each one the game data knows, for a client the route marks (`byEnemy`, the
+ * version gate). None for a client before it, so its notes are as today.
+ */
+function enemiesOf(input) {
+  if (!input || input.byEnemy !== true || !input.match || input.match.kind !== 'valorant') return [];
+  const k = knowledgeMod();
+  if (!k || typeof k.enemiesOf !== 'function') return [];
+  const m = input.match;
+  const list = ((m.comps && m.comps.them) || []).map((x) => x && x.agent);
+  for (const c of m.cards || []) if (c && c.riot && c.riot.killer) list.push(c.riot.killer);
+  return k.enemiesOf(list);
+}
+
+/*
+ * WORKED CASES (8.8, cases.js): at most two, only where the question's
+ * situation matches one. The asked round when there is one (its side, the
+ * plant, the clutch, its second, the pistol, the look's cause), else every
+ * round of the match, the counted causes and the patterns of the match and
+ * across matches, the question's own words in English, the enemy agents,
+ * the band and Advanced coaching. None, and the prompt is today's.
+ */
+function casesFor(input, messages) {
+  if (!input || input.game === 'lol') return [];
+  const cm = casesMod();
+  if (!cm || typeof cm.pick !== 'function') return [];
+  const m = input.match && input.match.kind === 'valorant' ? input.match : null;
+  const sides = new Set();
+  const phases = new Set();
+  const economies = new Set();
+  const causes = new Set();
+  const patterns = new Set();
+  const causeOf = (key) => { const c = /^cause:(.+)$/.exec(key || ''); if (c) causes.add(c[1]); };
+  for (const p of (m && m.patterns) || []) if (p && p.key) patterns.add(p.key);
+  for (const e of (m && m.lists && m.lists.mistakes) || []) causeOf(e && e.key);
+  for (const p of (input.player && input.player.patterns) || []) { if (p && p.key) patterns.add(p.key); causeOf(p && p.key); }
+  const first = askedRounds(input, messages)[0];
+  const asked = m && first ? m.cards.find((c) => c.n === first) : null;
+  // The asked round's phases are exact; over the whole match a phase counts
+  // only where the deaths gather (cases.js concentrated).
+  const perPhase = new Map();
+  const phase = (p) => perPhase.set(p, (perPhase.get(p) || 0) + 1);
+  let deaths = 0;
+  for (const c of asked ? [asked] : (m ? m.cards : [])) {
+    const side = c.side === 'attacking' ? 'attack' : c.side === 'defending' ? 'defense' : null;
+    if (side) sides.add(side);
+    if (!c.died) continue;
+    deaths++;
+    if (c.look && c.look.cause) causes.add(c.look.cause);
+    const r = c.riot || {};
+    if (r.afterPlant || (fin(r.plantSec) && fin(r.sec) && r.sec > r.plantSec)) phase(side === 'defense' ? 'retake' : 'postplant');
+    if (r.clutch) phase('clutch');
+    if (fin(r.sec) && !(fin(r.plantSec) && r.sec > r.plantSec)) {
+      if (r.sec <= 30) phase('early');
+      else if (r.sec <= 70) { phase('mid'); if (side === 'attack') phase('execute'); } else phase('late');
+    }
+    if (c.pistol) economies.add('pistol');
+    const prev = m.cards.find((x) => x.n === c.n - 1);
+    if (prev && prev.pistol && prev.result === 'won') economies.add('antieco');
+    if (prev && prev.pistol && prev.result === 'lost') economies.add('lostpistol');
+  }
+  if (asked) for (const p of perPhase.keys()) phases.add(p);
+  else for (const p of (typeof cm.concentrated === 'function' ? cm.concentrated(perPhase, deaths) : [...perPhase.keys()])) phases.add(p);
+  if (input.language === 'en') {
+    const lastAsk = [...(messages || [])].reverse().find((x) => x && x.role !== 'assistant');
+    const q = lower(lastAsk && lastAsk.content);
+    if (/\bretake/.test(q)) { phases.add('retake'); sides.add('defense'); }
+    if (/\bpost ?plant|after the plant\b/.test(q)) phases.add('postplant');
+    if (/\bclutch\b/.test(q)) phases.add('clutch');
+    if (/\bpistol\b/.test(q)) economies.add('pistol');
+  }
+  try {
+    // The seed (cases.js VARIETY): Riot's match id, else the review's own id,
+    // else the match's facts, so every question about one match draws the
+    // same cases.
+    const seed = m ? String(m.matchId || m.id || [m.map, m.agent, m.score, m.at,
+      ...(m.cards || []).map((c) => [c.n, c.side, c.result, c.died ? 1 : 0].join(':'))].join('|')) : null;
+    return cm.pick({ agent: m && m.agent, map: m && m.map, sides, phases, economies, causes, patterns,
+      enemies: enemiesOf(input), rankBand: input.rankBand, advanced: input.advanced === true, seed }, cm.MAX_CASES) || [];
+  } catch { return []; }
+}
+
+/*
  * EIGHT NOTES AT MOST: three by the topics the counted mistakes and the
  * patterns point to (match-review.js PATTERN_TOPICS, and CAUSE_TOPICS for a
  * cause), and five from retrieve() with the asked round as the situation,
@@ -1362,7 +1447,8 @@ function pickNotes(input, messages) {
       // The review's own list as either kind of client was given it: by cause
       // since 8.5.0 (match-review.js CAUSE_TOPICS), without before it.
       for (const byCause of [false, true]) {
-        for (const n of rev.study({ context: { agent, map, advancedTips: advanced, ...(input.rankBand ? { rankBand: input.rankBand } : {}) }, patterns: m.patterns, rounds,
+        for (const n of rev.study({ context: { agent, map, advancedTips: advanced, ...(input.rankBand ? { rankBand: input.rankBand } : {}),
+          ...(enemiesOf(input).length ? { enemyAgents: enemiesOf(input) } : {}) }, patterns: m.patterns, rounds,
           mistakes: m.lists.mistakes, byCause }, 3)) own.add(n.text);
       }
     } catch { /* no study list to leave out */ }
@@ -1382,12 +1468,19 @@ function pickNotes(input, messages) {
     for (const t of PT[p.key] || []) wanted.add(t);
   }
   const s = typeof k.situationOf === 'function' ? k.situationOf({ agent, map }) : { agent, role: null, map: lower(map) };
+  // The enemy team's agents (8.8, knowledge.js enemyFit): a note for them
+  // only against them, and none at all for a client before it.
+  const enemies = enemiesOf(input);
+  const fitVs = (note) => (typeof k.enemyFit === 'function' ? k.enemyFit(note, enemies)
+    : (note && (note.enemyAgents || note.enemyWithout) ? null : 0));
   const out = [];
   const seen = new Set(own);
   const topical = [];
   for (const note of k.all()) {
     const src = note && note.source;
     if (!src || !src.topic || !wanted.has(src.topic) || seen.has(note.text)) continue;
+    const versus = fitVs(note);
+    if (versus === null) continue;
     if (note.tier === 'advanced' && !advanced) continue;
     if (note.weapons) continue;
     if (note.agents && (!s.agent || !note.agents.some((a) => lower(a) === lower(s.agent)))) continue;
@@ -1398,7 +1491,7 @@ function pickNotes(input, messages) {
     // for lower bands is not demoted, only one above the band is left out.
     const ranked = input.rankBand && typeof k.rankAdjust === 'function' ? k.rankAdjust(note, input.rankBand, true) : 0;
     if (ranked === null) continue;
-    topical.push({ text: note.text, topic: src.topic, score: (note.weight || 1) + (note.agents ? 4 : 0) + (note.maps ? 3 : 0) + (note.roles ? 2 : 0) + ranked });
+    topical.push({ text: note.text, topic: src.topic, score: (note.weight || 1) + (note.agents ? 4 : 0) + (note.maps ? 3 : 0) + (note.roles ? 2 : 0) + ranked + versus });
   }
   topical.sort((a, b) => b.score - a.score);
   const topics = new Set();
@@ -1410,7 +1503,8 @@ function pickNotes(input, messages) {
     seen.add(n.text);
   }
   // The asked round as the situation (the first of them), and the question's own words.
-  const ctx = { agent, map, ...(input.rankBand ? { rankBand: input.rankBand } : {}) };
+  const ctx = { agent, map, ...(input.rankBand ? { rankBand: input.rankBand } : {}),
+    ...(enemies.length ? { enemyAgents: enemies } : {}) };
   const first = askedRounds(input, messages)[0];
   const asked = m && first ? m.cards.find((c) => c.n === first) : null;
   if (asked) {
@@ -1508,22 +1602,48 @@ function buildParts(input, messages, opts) {
   const rounds = facts.askedRounds || [];
   const sw = inp.ask && inp.ask.switchedFrom;
   const reply = ['Reply as the coach to the player\'s last message.', languageLine(inp.language)].filter(Boolean).join(' ');
-  const ofQuestion = (lvl) => {
-    const kept = lvl >= 3 ? notes.slice(0, 3) : lvl >= 2 ? notes.slice(0, 5) : notes;
+  const ofQuestion = (lvl, ns = notes, cs = []) => {
+    const kept = lvl >= 3 ? ns.slice(0, 3) : lvl >= 2 ? ns.slice(0, 5) : ns;
+    const cm = cs.length ? casesMod() : null;
     return [
       sw ? `The player's question named this match, so the conversation moved to it from ${[sw.map, sw.agent].filter(Boolean).join(', ') || 'another match'}: open by naming this one.` : '',
       renderAsked(inp, rounds, matchLvl >= 1),
       renderSlices(inp, facts, msgs),
       kept.length ? `COACHING NOTES\n${kept.map((t) => `- ${t}`).join('\n')}` : '',
+      cm ? cm.block(cs) : '',
       renderConversation(lvl >= 3 ? msgs.slice(-2) : lvl >= 1 ? msgs.slice(-4) : msgs),
       reply,
     ].filter(Boolean).join('\n\n');
   };
   const room = DYNAMIC_MAX_CHARS - match.length - 2;
-  let question = ofQuestion(0);
-  for (let lvl = 1; lvl <= 3 && question.length > room; lvl++) question = ofQuestion(lvl);
-  return { parts: [`${head}\n\n`, `${match}\n\n`, question] };
+  const fitted = (ns, cs) => {
+    let q = ofQuestion(0, ns, cs);
+    for (let lvl = 1; lvl <= 3 && q.length > room; lvl++) q = ofQuestion(lvl, ns, cs);
+    return q;
+  };
+  const question = fitted(notes, []);
+  const today = { parts: [`${head}\n\n`, `${match}\n\n`, question] };
+  /*
+   * WORKED CASES TAKE THE PLACE OF THE LOWEST NOTES (8.8), as in the review
+   * (match-review.js withinBudget): the prompt with them grows by
+   * CASE_GROWTH at most and keeps under the dynamic budget, the last notes
+   * going one at a time down to three, then the second case, else today's.
+   */
+  const worked = casesFor(inp, msgs);
+  if (!worked.length) return today;
+  const cap = Math.floor(today.parts.join('').length * (1 + CASE_GROWTH));
+  for (const cs of [worked, worked.slice(0, 1)]) {
+    const ns = notes.slice();
+    for (;;) {
+      const q = fitted(ns, cs);
+      if (q.length <= room && head.length + match.length + 4 + q.length <= cap) return { parts: [`${head}\n\n`, `${match}\n\n`, q] };
+      if (ns.length <= 3) break;
+      ns.pop();
+    }
+  }
+  return today;
 }
+const CASE_GROWTH = 0.10;
 
 /** The prompt, a string: buildParts' three parts joined. */
 function buildPrompt(input, messages, opts) {
@@ -1713,7 +1833,7 @@ function retryParts(parts, reasons) {
 module.exports = {
   normalise, buildPrompt, buildParts, parseReply, retryPrompt, retryParts, HONEST_LINE,
   // The parts, for the tests and bench:chat.
-  factsOf, cleanReply, gateReply, askedRounds, matchName, pickNotes, primerFacts, normEntry, echoOf, gateText, stated, standingsOf, deathStandingsOf, LEANS_REASON,
+  factsOf, cleanReply, gateReply, askedRounds, matchName, pickNotes, casesFor, enemiesOf, CASE_GROWTH, primerFacts, normEntry, echoOf, gateText, stated, standingsOf, deathStandingsOf, LEANS_REASON,
   renderPlayer, renderMatch, renderAsked, renderEarlier, renderSlices, staticPrefix, languageLine, gunsInCore,
   VALORANT_RULES, LEAGUE_RULES, RIOT_ONLY, NO_MATCH, DYNAMIC_MAX_CHARS, MATCH_MAX_CHARS, MAX_CHARS, MAX_ASKED_ROUNDS, VERDICT, VERDICT_REASON,
   RANK_BANDS,

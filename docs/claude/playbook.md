@@ -35,8 +35,8 @@ module has always documented. It merges at startup, `check:playbook` covers it
 automatically through `knowledge.all()`, and extra fields such as `source` pass
 through untouched. It began as 69 notes (42 imported from pro VOD reviews and
 27 of Occlara's own, computed from the damage table or written from round
-shapes), grew to 227 with the 2026 imports, to 308 with the 8.7.2 audit and to 469
-with the 8.8 coach consensus (below); the live count is `knowledge.all().length` minus the hand written
+shapes), grew to 227 with the 2026 imports, to 308 with the 8.7.2 audit, to 469
+with the 8.8 coach consensus and to 602 with its second round (below); the live count is `knowledge.all().length` minus the hand written
 set, and the boot line `[knowledge] merged N` says it. **An imported note must
 carry `source.topic`**, which is what `study()` picks by, or the checker fails
 it.
@@ -224,7 +224,8 @@ value that is not one of the four, a band listed twice, an empty list, and the
 four lists falling out of step: its own, `knowledge.js RANK_BANDS` and the
 client's `src/shared/rank-band.js BANDS` (neither side may require the other).
 It is a different axis from `tier`: the Advanced coaching toggle stays the
-player's choice, and its reserve is unchanged.
+player's choice. Its reserve follows the band since round two (below, "The
+reserve follows the band").
 
 **How the coach knows the rank.** The client sends a band, never a tier name
 and never a Riot ID, as `rankBand` on the review (`context.rankBand`, from
@@ -260,9 +261,25 @@ byte (held in `test:rank-band`, `test:valorantreview`, `test:advancedtips`,
 - no band changes nothing: `rankAdjust` answers 0 for every note, the loop
   runs the same exclusions and draws the same jitter.
 
-The eight note cap, the reserve, the death streak override and the agent, role,
-map and cause filters are untouched: the band only removes notes and moves
-scores. `test:advancedtips` and `test:agentroster` hold all of it at every band.
+The eight note cap, the death streak override and the agent, role, map and
+cause filters are untouched. `test:advancedtips` and `test:agentroster` hold
+all of it at every band.
+
+**The reserve follows the band** (round two, `knowledge.js
+ADVANCED_SLOTS_BY_BAND`). With Advanced coaching on for everyone, six of eight
+slots went to some forty unbanded advanced notes at Iron and Gold, and the
+band's own fundamentals lost the two left: measured, Iron's eco got no
+economy note and Iron's clutch no clutch note. With a band the advanced share
+is 1 of 8 at `iron_bronze`, 2 at `silver_gold` and today's 6 at `plat_diamond`
+and `asc_plus` (the death streak takes the smaller of its 3 and the band's),
+and inside the advanced queue a note narrowed to the player's band goes
+before an unbanded one (`bandFirst`). `study()` takes the same share at its
+scale (0 of 4 at Iron, 1 at Gold, 3 from Platinum). No band, or one no key
+matches, is today's reserve byte for byte, the same notes and draws.
+Measured with the round two simulation (`sim2.js` in the research folder):
+Iron and Gold now get 2 to 3 eco notes in the eco, 3 clutch notes in the
+clutch, 6 to 8 retake notes in the lost retake and 7 to 8 trade notes in the
+untraded death, Platinum and Ascendant+ keep 6 advanced of 8 in every context.
 
 **The prompts.** With a band, the review gets a `PLAYER LEVEL` paragraph
 before `GROUNDING` (`match-review.js rankRule`: below Platinum the one basic
@@ -298,3 +315,114 @@ session that ran it (sources, claims, candidates, verifier verdicts, the
 conflict list and the change list with every removal's reason): it holds the
 names and links of the sources, which no file in this repo may carry
 (`check:attribution`).
+
+## The enemy team, and the worked cases (8.8, round two, 2026-11-06)
+
+**A note may carry `enemyAgents`**, the enemy agents it answers (an Operator
+held by a Chamber or a Jett, a Killjoy setup, a Hush pull, a Phoenix
+ultimate). `knowledge.js enemyFit` makes it eligible ONLY when at least one
+of them was on the enemy team, and scores it `ENEMY_FIT` (+2) then, so a
+matchup read is never served blind. `enemyWithout` is the other shape, a read
+that holds only while the enemy has none of those agents (the comp with no
+flash): it needs the whole comp, five agents, because a few rounds' killers
+say nothing about who was not there. `retrieve()` reads `ctx.enemyAgents`,
+`study()` and Ask Coach's topical notes the same list; every list goes
+through `knowledge.enemiesOf`, which keeps only the game data's agents, as
+the data spells them, five at most, so a name or a Riot ID can never be one.
+**No list is today's retrieval byte for byte**: every enemy note is excluded
+before its jitter is drawn (`test:advancedtips` holds it against a corpus
+that never had them, the same notes and the same draws).
+
+**`enemyHint`** is the soft shape, for the notes about an enemy agent that
+were served blind before the comp could be known (the Hush anchor, the Cypher
+snapshot, the Lockdown, the Hush redirect, the Clove Not Dead Yet, the Neon
+distance). The comp unknown or partial (fewer than five, a few rounds'
+killers) is today's, served as before; a known comp of five with none of them
+in it leaves the note out; one of them present scores `ENEMY_FIT`.
+`check:playbook` holds it to the game's agents and never beside `enemyAgents`
+or `enemyWithout`. A strict tag would have taken those notes from every client
+that sends no comp.
+
+**Where the list comes from.** The review: the comp the client sends as
+`context.enemyAgents` (`valorant-review.js requestBody`, from Riot's
+`comps.them` through `compsOf`, which `index.js riotLook` now passes), and,
+for a client the route marks (`input.byEnemy`, `clientAtLeast(req, V876)`,
+8.7.6 and up), the agents Riot's record says killed the player
+(`match-review.js enemiesOf`). Ask Coach: the match's `comps.them` and each
+card's Riot killer (`chat-prompt.js enemiesOf`), for a client the route marks
+the same way. A client before it sends no new field and is never marked, so
+its notes and cases are chosen as before (`test:serverguards` holds both
+gates).
+
+**Worked cases** (`server/data/cases.json`, `server/services/cases.js`).
+A case is one decision worked through: `{ id, title, situation { phase,
+side, role, agent, enemyAgents, map, site, economy }, signal, decision, why,
+mistakeToAvoid, cause?, patterns?, ranks, minBand, tier, weight,
+patchSensitive, source { kind, topic, claims? } }`, in the app's coaching
+voice. `cases.pick` serves at most `MAX_CASES` (2), and only on a real
+situational match (`cases.js situational`, round two: the first measure gave
+every one of 20 reviews and 100 questions a block, nearly always the same two,
+because an agent or a phase alone reached `MIN_SCORE`). A case for an agent or
+a role needs one of a phase, a cause, an economy round, an enemy agent or a
+pattern beside it; a case for any agent needs two different kinds of those.
+Over a whole match a phase counts only where the deaths gather, at least two
+and a third of them (`concentrated`); an asked round keeps its own phase. The
+cases for any agent with one kind of anchor are held back by design (42 of
+157, mostly mid or late round reads no review can see), and `check:cases`
+lists them and fails past `HELD_BACK_MAX`. Every case also needs a score of `MIN_SCORE`. The same filters as the notes:
+another agent's, role's or map's case is excluded, a side case for a player
+who never played that side, enemy cases never blind, the rank band through
+`rankAdjust` exactly as notes (above the band out; below it only when a cause
+or a pattern the case answers shows it missing), and Advanced coaching off
+leaves the advanced ones out. A second case is served only when it matched
+something the first did not and teaches none of the first's causes, patterns
+or phase (`lessonsOf`). Near ties turn by the match's seed (`VARIETY`, up to
+2 points from a hash of the seed and the id): Ask Coach's Riot match id or
+review id, the review's own rounds (`reviewSeed`, the body has no match id),
+so one match always gets the same cases and another may get others; no seed
+is ties by id. Measured on the 20 review and 100 chat fixtures: 20 reviews
+with cases (10 with two, before 20), 82 questions (25 with two, before 100
+and 92), growth over HEAD at most 9.1% and 7.0%. `cases.fromReview` builds the review's situation (sides played,
+the phases and pistol rounds of the deaths, causes, patterns), and
+`chat-prompt.js casesFor` the question's (the asked round, else the match,
+and the question's own words in English).
+
+**The prompt.** The block is `WORKED CASES from high level coaching: when
+the player's situation matches, reason from the case, never copy it word for
+word, never name it as a case, and never say where it comes from`, one line a
+case. The review puts it after the coaching knowledge, Ask Coach after its
+notes, and either may grow by `CASE_GROWTH` (10%) at most: past it the lowest
+notes go one at a time down to three, then the second case, else the prompt
+is today's (`match-review.js withinBudget`, the same loop in `buildParts`,
+which also keeps the dynamic budget). A review or a question no case matches
+is today's prompt byte for byte, and `buildPrompt(input, { cases: false })`
+is that prompt for the tests and benches. `test:valorantreview` and
+`test:chatgates` assert it precisely: the notes kept are today's first ones,
+and taking the block out leaves today's prompt with those notes.
+
+**`check:cases`** (`scripts/check-cases.js`) validates the file: the shape,
+every tag value cases.js can match, the four bands with minBand their lowest
+and tier advanced from Platinum up, every case reachable in the situation its
+own tags describe, no dashes, no curly quotes, no semicolons, NO NAMES (a
+capitalised word inside a sentence must be a word of the game, a rank or a
+role), an ability only of an agent the case is about, a callout only of its
+map, a source of kind and topic alone, and every declared claim computed by
+the primer, including the new `{ rule, value }` claim for a stated game rule
+(`game-primer.js noteClaims`, used by `check:playbook` too: the spike's 7 and
+3.5 seconds in two notes and four cases). `test:advancedtips` plants eight
+bad cases it must fail. `check:attribution` scans the file like any other.
+
+**The import.** 133 notes (of 151 candidates, 18 dropped by the verifier,
+edits applied with their bands; 22 carry enemy agents; 20 took the topic a
+pattern or a cause already points to, so `study()` follows them) and 157
+cases (of 176 candidates, 8 dropped by the verifier and 11 left out as unreachable from
+anything a review or a question shows and taught by a note already: agent
+select, the scoreboard, the score late in a map). One existing note
+changed: `playbook.json` #32 (second entry as a sentinel) is scoped to a trap
+already watching the flank, as the new sentinel note says. The flank watcher
+on every hit, the burst length note, the fake defuse tap and the two
+ultimates note were left as they are (not verified wrong, the evidence is in
+the research folder). `test:advancedtips`'s side check reads twelve notes,
+not eight: the new Sova notes held the eight free of side notes on about a
+third of the random draws. Nothing was benched: `bench:review` and
+`bench:chat` before a release that ships the cases.

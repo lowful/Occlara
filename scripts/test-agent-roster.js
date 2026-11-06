@@ -116,6 +116,35 @@ for (const name of Object.keys(ICON_HINTS)) {
   ok(roleless === 0, `and every agent with a role still reaches its role notes at every band (${roleless} missing)`);
 }
 
+// THE ENEMY TEAM (8.8): every agent of the roster reads as an enemy agent, the
+// notes and cases name only agents of it, and with any one agent as the whole
+// enemy list no note or case for another enemy is served.
+{
+  const roster = Object.keys(serverAgents);
+  ok(JSON.stringify(knowledge.enemiesOf(roster.slice(0, 5))) === JSON.stringify(roster.slice(0, 5))
+    && roster.every((a) => knowledge.enemiesOf([a.toUpperCase()])[0] === a),
+  `every agent of the game data reads as an enemy agent, in any case (${roster.length})`);
+  const cases = require(path.join(ROOT, 'server', 'services', 'cases.js'));
+  const tagged = [...knowledge.all().flatMap((n) => [...(n.enemyAgents || []), ...(n.enemyWithout || [])]),
+    ...cases.all().flatMap((c) => [...c.situation.enemyAgents, ...(c.situation.enemyWithout || [])])];
+  ok(tagged.length > 20 && tagged.every((a) => roster.includes(a) && Object.keys(clientAgents).includes(a)),
+    `every enemy agent a note or a case names is one the server and the client roster know (${new Set(tagged).size} agents)`);
+  let wrong = 0;
+  for (const enemy of roster) {
+    for (const t of knowledge.retrieve({ enemyAgents: [enemy], rankBand: 'asc_plus' }, 2000)) {
+      const n = knowledge.all().find((x) => x.text === t);
+      if (n.enemyAgents && !n.enemyAgents.includes(enemy)) wrong++;
+      if (n.enemyWithout) wrong++;
+    }
+    const sit = { enemies: [enemy], sides: ['attack', 'defense'], advanced: true, phases: ['early', 'mid', 'execute', 'postplant', 'retake', 'late'] };
+    for (const { c } of cases.scored(sit)) {
+      if (c.situation.enemyAgents.length && !c.situation.enemyAgents.includes(enemy)) wrong++;
+      if (c.situation.enemyWithout) wrong++;
+    }
+  }
+  ok(wrong === 0, `with one agent as the enemy, no note or case for another enemy, and no comp read that needs five (${wrong})`);
+}
+
 // The refusals still hold with the longer roster.
 ok(detectAgentName('The icons are not visible at this moment') === null, 'prose naming no agent is still refused');
 ok(detectAgentName('Veto or Miks') === null, 'and two agents named is still no answer');

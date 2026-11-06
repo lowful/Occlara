@@ -10,6 +10,8 @@
  * checked mechanically is checked here.
  *
  * Checked:
+ *   - every agent named in an `enemyAgents`, `enemyWithout` or `enemyHint` tag exists (8.8),
+ *     and `enemyHint` never sits beside the two strict tags, which already decide
  *   - every agent named in an `agents` tag exists
  *   - every map named in a `maps` tag exists
  *   - an agent-tagged note may only name abilities its own agents actually have
@@ -262,6 +264,18 @@ for (const note of notes) {
   for (const m of (note.maps || [])) {
     if (!MAPS.includes(String(m).toLowerCase())) fail(note, `unknown map "${m}"`);
   }
+  // The enemy team's agents (8.8, knowledge.js enemyFit): a misspelled one
+  // never matches, so the note is never served.
+  for (const key of ['enemyAgents', 'enemyWithout', 'enemyHint']) {
+    for (const a of (Array.isArray(note[key]) ? note[key] : [])) {
+      if (!Object.keys(AGENTS).some((k) => k.toLowerCase() === String(a).toLowerCase())) fail(note, `${key} names unknown agent "${a}"`);
+    }
+  }
+  // enemyHint is the soft tag (served blind, left out only by a known comp
+  // without its agents): beside a strict tag it would never be read.
+  if (note.enemyHint !== undefined && (note.enemyAgents !== undefined || note.enemyWithout !== undefined)) {
+    fail(note, 'carries enemyHint beside enemyAgents or enemyWithout, which already decide, so the hint is dead');
+  }
 
   // ── Tag values retrieve() can actually match ──────────────────────────────
   if (note.side !== undefined && !VALID.side.has(note.side)) {
@@ -299,7 +313,7 @@ for (const note of notes) {
   if (Array.isArray(note.ranks) && new Set(note.ranks).size !== note.ranks.length) {
     fail(note, 'lists a rank band twice');
   }
-  for (const key of ['agents', 'maps', 'situations', 'roles', 'weapons', 'cause', 'ranks']) {
+  for (const key of ['agents', 'maps', 'situations', 'roles', 'weapons', 'cause', 'ranks', 'enemyAgents', 'enemyWithout', 'enemyHint']) {
     if (note[key] !== undefined && !Array.isArray(note[key])) {
       fail(note, `${key} must be an array, got ${typeof note[key]}`);
     } else if (Array.isArray(note[key]) && !note[key].length) {
@@ -319,7 +333,9 @@ for (const note of notes) {
   // An agent-tagged note must not tell that agent to use somebody else's kit.
   if (note.agents && note.agents.length) {
     const owned = new Set();
-    for (const a of note.agents) {
+    // An enemy agent the note answers may be named by its kit (8.8): a Raze
+    // note on clearing a Vyse's razorvine is about that Vyse.
+    for (const a of [...note.agents, ...(note.enemyAgents || []), ...(note.enemyWithout || []), ...(note.enemyHint || [])]) {
       const info = AGENTS[Object.keys(AGENTS).find((k) => k.toLowerCase() === String(a).toLowerCase())];
       for (const ab of ((info && info.abilities) || [])) owned.add(String(ab).toLowerCase());
     }
