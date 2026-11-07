@@ -2768,5 +2768,93 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(matchReview.parse('SUMMARY: Ganaste 5 a 1, even as You died.', es).summary === 'Ganaste 5 a 1, even as You died.', 'a review outside English is left as written');
 }
 
+// ── RIOT'S ROUND RECORD TEACHES THE REVIEW (8.8) ────────────────────────────
+// The team's buy, the nearest teammate, Riot's callout of the death and the
+// casts choose the study notes, the coaching notes and the cases, tell the
+// prompt how to use them, and gate the sentences they contradict. A client
+// that sends none of them is reviewed as before, byte for byte.
+{
+  const knowledge = require('../server/services/knowledge');
+  const DASHES = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
+  const seededRun = (fn) => {
+    const random = Math.random;
+    let x = 7;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const R = (n, extra) => ({ n, side: 'attacking', result: 'lost', died: true, verified: true, sec: 20, timing: 'early', killer: 'Killjoy', weapon: 'Vandal',
+    kills: 0, traded: false, alive: { mates: 3, enemies: 5 }, deathSpot: 'B Main', ...(extra || {}) });
+  const rounds = [
+    R(1, { result: 'won', died: false, sec: null, timing: null, killer: null, traded: null, alive: null, deathSpot: null, buy: 'pistol' }),
+    R(2, { buy: 'eco', mate: 'far', place: 'B Main' }),
+    R(3, { buy: 'eco', mate: 'far', place: 'B Main' }),
+    R(4, { buy: 'full', mate: 'far', place: 'B Main', timing: 'mid', sec: 50 }),
+    R(5, { buy: 'full', mate: 'close', place: 'A Main', deathSpot: 'A Main', timing: 'mid', sec: 50 }),
+    R(6, { result: 'won', died: false, sec: null, timing: null, killer: null, traded: null, alive: null, deathSpot: null, buy: 'full' }),
+  ];
+  const strip = (r) => { const { buy, mate, place, casts, afk, ...rest } = r; return rest; };
+  const body = (rs, extra) => ({ variant: 'C', context: { agent: 'Jett', map: 'Sunset', language: 'en', advancedTips: true, ...((extra && extra.context) || {}) },
+    final: { team: 2, enemy: 4, result: 'Defeat', verified: true }, rounds: rs, patterns: [], mistakes: [], strengths: [] });
+  const input = matchReview.normalise(body(rounds));
+  const plain = matchReview.normalise(body(rounds.map(strip)));
+  ok(input.rounds.find((r) => r.n === 2).place === 'B Main' && !('place' in matchReview.normalise(body([R(2, { place: 'Hookah', buy: 'eco' })])).rounds[0]),
+    'the server keeps Riot\'s place only as a place of the map');
+  ok(!('place' in matchReview.normalise(body([R(2, { died: false, place: 'B Main' })])).rounds[0]), 'and only for a death');
+  const sig = matchReview.recordSignalsOf(input);
+  ok(sig && sig.economy.includes('eco') && sig.economy.includes('fullbuy') && sig.causes.includes('isolated') && sig.repeatPlace === 'B Main',
+    `the signals: deaths on ecos, full loadouts lost, lone deaths, three deaths at B Main (${JSON.stringify(sig)})`);
+  ok(matchReview.recordSignalsOf(plain) === null, 'a review without the record has no signal');
+
+  // The study list: the spot topics for the repeated callout, the lone deaths' checkpoints.
+  const topicOf = (text) => ((knowledge.all().find((n) => n.text === text) || {}).source || {}).topic;
+  const studied = matchReview.study(input, 4).map((n) => topicOf(n.text));
+  const before = matchReview.study(plain, 4).map((n) => topicOf(n.text));
+  const spotOrIso = [...matchReview.PATTERN_TOPICS.spot, ...matchReview.CAUSE_TOPICS.isolated, ...matchReview.ECONOMY_TOPICS.eco];
+  ok(studied.filter((t) => spotOrIso.includes(t)).length > before.filter((t) => spotOrIso.includes(t)).length,
+    `the study list turns to the repeated callout, the lone deaths and the eco (${studied.join(' | ')})`);
+  ok(JSON.stringify(matchReview.study(plain, 4)) === JSON.stringify(matchReview.study(matchReview.normalise(body(rounds.map(strip))), 4)), 'without the record the list is as before');
+
+  // The coaching notes and the cases.
+  const p = seededRun(() => matchReview.buildPrompt(input));
+  const p0 = seededRun(() => matchReview.buildPrompt(plain));
+  const econNotes = knowledge.all().filter((n) => n.situations && n.situations.some((f) => ['eco', 'fullbuy'].includes(f))).map((n) => n.text);
+  const knowledgeOf = (text) => { const i = text.indexOf('COACHING KNOWLEDGE'); const j = text.indexOf('\n\n', i); return i < 0 ? '' : text.slice(i, j < 0 ? undefined : j); };
+  const fullNotes = knowledge.all().filter((n) => n.situations && n.situations.includes('fullbuy')).map((n) => n.text);
+  const lines = (text) => knowledgeOf(text).split('\n').filter((l) => l.startsWith('- ')).map((l) => l.slice(2));
+  const at = lines(p).findIndex((t) => fullNotes.includes(t));
+  ok(at >= 0 && at < matchReview.NOTES_FLOOR && !lines(p0).some((t) => fullNotes.includes(t)) && econNotes.length > 0,
+    `full loadouts lost bring a full loadout note into the coaching knowledge, inside the floor the cases never cut (at ${at})`);
+  const cs = matchReview.caseSituation(input, []);
+  ok(cs.economies.has('eco') && cs.causes.has('isolated') && !matchReview.caseSituation(plain, []).economies.has('eco'), 'and the eco and the lone deaths into the cases\' situation');
+  const silver = matchReview.normalise(body(rounds, { context: { rankBand: 'silver_gold' } }));
+  const casesMod = require('../server/services/cases');
+  const eligible = (x) => casesMod.scored(matchReview.caseSituation(x, [])).map((n) => n.c.id);
+  const silverPlain = matchReview.normalise(body(rounds.map(strip), { context: { rankBand: 'silver_gold' } }));
+  ok(eligible(silver).includes('k134') && !eligible(silverPlain).includes('k134'),
+    'an attacking eco lost alone makes the attacking eco case eligible, which it is not without the record');
+
+  // The prompt's lines, only for what the rounds carry.
+  ok(p.includes(matchReview.RECORD_USE.mate) && p.includes(matchReview.RECORD_USE.buy) && !p.includes(matchReview.RECORD_USE.casts) && !p.includes(matchReview.RECORD_USE.afk),
+    'the prompt says how to use the distance and the economy, and nothing of casts or AFK it does not have');
+  ok(!/spacing point|economy changes what a death teaches/.test(p0) && p0.includes(matchReview.NO_ECONOMY), 'a match without the record is prompted as before');
+  const casts = matchReview.normalise(body([R(2, { casts: [{ name: 'Tailwind', n: 0 }, { name: 'Updraft', n: 1 }] }), R(3, { afk: true })]));
+  const pc = matchReview.buildPrompt(casts);
+  ok(pc.includes(matchReview.RECORD_USE.casts) && pc.includes(matchReview.RECORD_USE.afk) && !pc.includes(matchReview.RECORD_USE.mate), 'the casts and the AFK round each bring their own line');
+  const mateOnly = matchReview.buildPrompt(matchReview.normalise(body([R(2, { mate: 'far' })])));
+  ok(mateOnly.includes(matchReview.NO_ECONOMY + matchReview.RECORD_USE.mate), 'a distance without a buy keeps the rule that the economy is not known');
+  for (const s of Object.values(matchReview.RECORD_USE)) ok(!s.includes(';') && !DASHES.test(s) && !matchReview.BUY_BLAME.test(s), `no semicolon, dash or "buy" in "${s.slice(0, 50)}"`);
+
+  // The gates: a sentence the round's record contradicts goes, a true one stays.
+  const reply = 'SUMMARY: You lost 2 to 4. In round 2 you died at A Main with nobody around. Round 2 was an eco, so that death cost little.\n'
+    + 'R4: That round was an eco, so the loss was cheap.\nR5: Nobody was close when you died, so the fight could not be traded.\n'
+    + 'R3: Nobody was close when you died, so step back toward your team.\nFOCUS: Take the B Main fight with a teammate.';
+  const out = matchReview.parse(reply, input);
+  ok(out.summary === 'You lost 2 to 4. Round 2 was an eco, so that death cost little.', `the summary loses the death put at A Main and keeps the eco (${out.summary})`);
+  ok(!out.rounds[4] && !out.rounds[5] && !!out.rounds[3], `round 4 called an eco of a full loadout and round 5's nobody close of a teammate close go, round 3 stays (${Object.keys(out.rounds)})`);
+  ok(out.dropped.some((d) => d.n === 4 && d.said === 'record record') && out.dropped.some((d) => d.n === 5 && d.said === 'record record'), 'each dropped as the record\'s');
+  const outPlain = matchReview.parse(reply, plain);
+  ok(!!outPlain.rounds[4] && !!outPlain.rounds[5] && /A Main/.test(outPlain.summary || ''), 'a review without the record judges none of it');
+}
+
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);
 process.exit(fails ? 1 : 0);

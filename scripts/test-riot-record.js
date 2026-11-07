@@ -77,7 +77,11 @@ function statsFor(n) {
     const row = { player: { ...p } };
     if (ours && e === 'two' && i > 1) return row;
     // The enemy always carries 5000: a buy that mixed the teams would read full.
-    row.economy = ours ? { loadout_value: e === 'two' ? 4000 : e[0], remaining: e === 'two' ? 0 : e[1], weapon: { name: 'Vandal' } }
+    // Each teammate's gun goes with the loadout, as in a real record: a rifle
+    // on a full buy, an SMG between, a Classic on an eco or a pistol round.
+    const lv = e === 'two' ? 4000 : e[0];
+    const gun = lv >= 3900 ? 'Vandal' : lv >= 1000 ? 'Spectre' : 'Classic';
+    row.economy = ours ? { loadout_value: lv, remaining: e === 'two' ? 0 : e[1], weapon: { id: 'w', name: gun, type: 'Weapon' } }
       : { loadout_value: 5000, remaining: 0 };
     if (p === ME) {
       row.ability_casts = { grenade: 1, ability_1: 0, ability_2: 2, ultimate: null };
@@ -174,6 +178,43 @@ ok(JSON.stringify(buys) === JSON.stringify(['pistol', 'eco', 'force', 'half', 'f
   ok(rush.every((r) => !('buy' in r)), 'Spike Rush hands out its loadouts, so no round has a buy');
   const dm = riotRounds.parse(payload({ queue: 'deathmatch' }), ME.name, ME.tag).perRound;
   ok(dm.every((r) => !('buy' in r)), 'a queue with no known halves (deathmatch) has no buy');
+}
+// The guns carried (Nov 2026, from the owner's six audit matches on the live
+// server): rifles with light shields, a save round of pistols, the bonus round.
+{
+  const team = (rows) => ({ stats: rows.map(([lv, rem, gun], i) => ({ player: { puuid: `t${i}`, team: 'red' },
+    economy: { loadout_value: lv, remaining: rem, weapon: gun === undefined ? undefined : gun === null ? null : { id: 'w', name: gun, type: 'Weapon' } } })) });
+  const ours = () => true;
+  const rifleLight = team([[3300, 400, 'Vandal'], [3300, 200, 'Phantom'], [3300, 0, 'Vandal'], [3300, 500, 'Phantom'], [3300, 300, 'Vandal']]);
+  ok(riotRounds.buyOf(rifleLight, 5, 12, ours) === 'full', `five rifles with light shields (3300 a player, little left) is a full buy, not a force (${riotRounds.buyOf(rifleLight, 5, 12, ours)})`);
+  const oneSaves = team([[3900, 300, 'Vandal'], [3900, 100, 'Phantom'], [3300, 0, 'Guardian'], [3300, 200, 'Bulldog'], [800, 2400, 'Sheriff']]);
+  ok(riotRounds.buyOf(oneSaves, 8, 12, ours) === 'full', 'four rifles and one teammate saving on a Sheriff is a full buy');
+  const twoSave = team([[3900, 300, 'Vandal'], [3900, 100, 'Phantom'], [3300, 0, 'Vandal'], [800, 2400, 'Sheriff'], [500, 2400, 'Ghost']]);
+  ok(riotRounds.buyOf(twoSave, 8, 12, ours) !== 'full', `three rifles and two saving is no full buy (${riotRounds.buyOf(twoSave, 8, 12, ours)})`);
+  const unknownGuns = team([[3300, 400], [3300, 200], [3300, 0], [3300, 500], [3300, 300]]);
+  ok(riotRounds.buyOf(unknownGuns, 5, 12, ours) === 'force', 'a record that names no gun reads by the averages exactly as before');
+  const notAGun = team([[3300, 400, 'Brindlecap1'], [3300, 200, 'Brindlecap2'], [3300, 0, 'Brindlecap3'], [3300, 500, 'Brindlecap4'], [3300, 300, null]]);
+  ok(riotRounds.buyOf(notAGun, 5, 12, ours) === 'force', 'a gun name the game data does not know counts as no rifle');
+  const pistolsLight = team([[1200, 2200, 'Sheriff'], [1200, 2000, 'Sheriff'], [900, 2400, 'Ghost'], [1200, 1800, 'Sheriff'], [1000, 2100, 'Classic']]);
+  ok(riotRounds.buyOf(pistolsLight, 7, 12, ours) === 'eco', `a save round of pistols with light shields is an eco, not a half buy (${riotRounds.buyOf(pistolsLight, 7, 12, ours)})`);
+  const pistolsAndSmg = team([[1200, 200, 'Sheriff'], [2000, 100, 'Spectre'], [1200, 300, 'Sheriff'], [1200, 0, 'Sheriff'], [1200, 200, 'Sheriff']]);
+  ok(riotRounds.buyOf(pistolsAndSmg, 7, 12, ours) === 'force', 'one SMG among the pistols is no save round');
+  const bonus = team([[2000, 900, 'Spectre'], [2000, 600, 'Spectre'], [2000, 800, 'Spectre'], [1300, 1500, 'Sheriff'], [2000, 700, 'Spectre']]);
+  ok(riotRounds.buyOf(bonus, 2, 12, ours, { afterPistolWin: true }) === 'half' && riotRounds.buyOf(bonus, 2, 12, ours) === 'force',
+    'SMGs right after a won pistol round are the bonus round, a half buy, never a force');
+  ok(riotRounds.buyOf(team([[400, 3000, 'Classic'], [400, 3000, 'Classic'], [400, 3000, 'Classic']]), 2, 12, ours, { afterPistolWin: true }) === 'eco',
+    'a team that saves after a won pistol is still an eco');
+  ok(riotRounds.buyOf(rifleLight, 1, 12, ours) === 'pistol' && riotRounds.buyOf(rifleLight, 13, 12, ours) === 'pistol', 'a pistol round stays a pistol round whatever is carried');
+  // In the parse: the round after each half's pistol round, only when the team won it.
+  const bonusPayload = payload();
+  bonusPayload.rounds[12].winning_team = 'Blue';   // the second half's pistol round lost
+  for (const n of [2, 14]) {
+    for (const s of bonusPayload.rounds[n - 1].stats) {
+      if (s.player.team === 'Red') s.economy = { loadout_value: 2000, remaining: 700, weapon: { id: 'w', name: 'Spectre', type: 'Weapon' } };
+    }
+  }
+  const bp = riotRounds.parse(bonusPayload, ME.name, ME.tag).perRound;
+  ok(bp[1].buy === 'half' && bp[13].buy === 'force', `round 2 after a won pistol is a bonus half buy, round 14 after a lost one a force (${bp[1].buy}, ${bp[13].buy})`);
 }
 
 // (3) The nearest teammate at the death.

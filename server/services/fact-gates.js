@@ -1300,17 +1300,29 @@ function econStem(w) {
 // "I cannot confirm from the record what gun you carried or what you bought"
 // is that answer too, and went as an economy claim (bench:chat, 15 Oct).
 const ECON_REFUSAL = /\b(?:record|facts|data)\b[^.]{0,60}?\b(?:does not|doesn't|do not|don't|did not|didn't|never)\s+(?:hold|show|have|say|record|keep|include|tell)\b|\b(?:can't|cannot|can not|won't|will not|couldn't|could not)\s+(?:tell|say|guess|know|see|confirm|establish)\b|\bi\s+(?:do not|don't)\s+(?:have|know|see)\b/i;
+const RECORD_BUY_KINDS = new Set(['pistol', 'eco', 'force', 'half', 'full']);
+const BUY_KIND_WORD = /^(?:ecos?|force[ -]buy|forced?|full[ -]buy|half[ -]buy|loadout)$/i;
 function gateEconomy(s, facts, rs) {
   const f = facts || {};
   if (!rs || !rs.round || f.language !== 'en' || !(f.rounds instanceof Map)) return null;
   if (ECON_REFUSAL.test(String(s || ''))) return null;
-  const words = [...String(s || '').matchAll(new RegExp(ECONOMY.source, 'gi'))].map((m) => econStem(m[1]));
+  const raw = [...String(s || '').matchAll(new RegExp(ECONOMY.source, 'gi'))].map((m) => m[1]);
+  const words = raw.map(econStem);
   if (!words.length) return null;
   for (const n of rs.rounds) {
     const r = f.rounds.get(n);
     const said = r && r.look ? `${r.look.what || ''} ${r.look.better || ''}` : '';
     const stems = new Set([...said.matchAll(new RegExp(ECONOMY.source, 'gi'))].map((m) => econStem(m[1])));
-    for (const w of words) {
+    // THE TEAM'S BUY FROM RIOT'S RECORD (8.8, chat-prompt.js recordOf): a
+    // round whose line gives it holds what kind of round the team played, so
+    // its kind words are the record's there (an eco, a full buy, a forced
+    // loadout), and a save of an eco round. Which kind is said is
+    // record-claims.js checkRecord's. What anyone bought, the credits, the
+    // armour and the damage are still held by nothing.
+    const kind = !!(r && RECORD_BUY_KINDS.has(r.buy));
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      if (kind && (BUY_KIND_WORD.test(raw[i]) || (w === 'save' && r.buy === 'eco'))) continue;
       if (!stems.has(w)) return drop('economy', `your reply said what was bought or dealt in round ${n}, which this match's record does not hold`);
     }
   }
@@ -2380,7 +2392,7 @@ module.exports = {
   // The verifier's additions of 15 Oct, each asserted in test:chatgates.
   lowerGameWords, GAME_CAPS, REVIEW_CAPS, AGENT_RANKED, TIER, RATE_RANKED, MOST_PICKED, PATCH_NOW, META_REFUSED,
   RESULT_NOUN_LOST, RESULT_NOUN_WON, YOUR_GUN_PAST, THEIRS_FIRST, ABS_TIME, DEATH_CLAIM, OTHER_EVENT, OWN_COUNT_BEFORE,
-  ECON_REFUSAL, ROUND_TIMES, CHAMPION_RANKED, CHAMPION_META, quotesCounted,
+  ECON_REFUSAL, BUY_KIND_WORD, ROUND_TIMES, CHAMPION_RANKED, CHAMPION_META, quotesCounted,
   // The bench:chat run of 15 Oct, each asserted in test:chatgates.
   straighten, CURLY_SINGLE, CURLY_DOUBLE, claimsOf, matchClaims, ofTheMatch, gunOwner, playerUses,
   PISTOL_ROUND, PISTOL_DESCRIBED, PISTOL_SECOND_AFTER, ROUND_SECONDS, OBJECT_IS_ROUND, MATCH_AFTER, SCORE_AFTER, SCORE_BEFORE,

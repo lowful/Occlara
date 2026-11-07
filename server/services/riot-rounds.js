@@ -484,13 +484,45 @@ function spotOf(map, loc) {
  *
  * Only in a queue with a buy economy and known halves (attackersOf's), and
  * only with at least MIN_PLAYERS teammates' numbers; else null.
+ *
+ * THREE RULES BY THE GUNS CARRIED (economy.weapon, Nov 2026), checked on the
+ * owner's six audit matches through the live server. The averages alone read
+ * a team of rifles with light shields (2900 + 400 = 3300 a player) as a force
+ * or a half buy: Split round 18 ("half", four teammates killing with a Vandal
+ * or a Phantom), Corrode round 7 ("half", three Vandals), Sunset round 8
+ * ("half", three rifles), Split round 5 ("force", three rifles of four). And
+ * the round after a won pistol, where the team buys SMGs with money to spare,
+ * read "force" (Split rounds 2 and 14, Fracture round 2, Sunset round 6), so
+ * the review praised "3 of 3 forced rounds won" for three bonus rounds.
+ *
+ *   full     also when all but one of the team's rows (never fewer than
+ *            MIN_PLAYERS) carry a gun of RIFLE_COST or more
+ *            by the game data (Vandal, Phantom, Guardian, Bulldog, Outlaw,
+ *            Operator, Odin), whatever the shields
+ *   eco      also when every row's gun is known and is a sidearm: a save
+ *            round, whatever shields were bought with it
+ *   half     never force right after the team won that half's pistol round:
+ *            a partial buy then is the bonus round, not money the team lacked
+ *
+ * A gun the record does not name, or a name the game data does not know,
+ * counts as no rifle and no sidearm, so a record without economy.weapon reads
+ * exactly as before.
  */
-const BUY = Object.freeze({ ECO_MAX: 1000, FULL_MIN: 3900, FORCE_LEFT_MAX: 1000, MIN_PLAYERS: 3 });
+const BUY = Object.freeze({ ECO_MAX: 1000, FULL_MIN: 3900, FORCE_LEFT_MAX: 1000, MIN_PLAYERS: 3, RIFLE_COST: 2000 });
 const BUY_KINDS = Object.freeze(['pistol', 'eco', 'force', 'half', 'full']);
-function buyOf(round, n, halfLength, isOurs) {
+/** A carried gun by the game data: 'rifle' (RIFLE_COST or more), 'sidearm', 'other', or null when unknown. */
+function gunClass(w) {
+  const name = w && typeof w === 'object' ? w.name : w;
+  const g = typeof name === 'string' && DATA.weapons ? DATA.weapons[lower(name).trim()] : null;
+  if (!g) return null;
+  if (/^sidearm/i.test(String(g.category || ''))) return 'sidearm';
+  return typeof g.cost === 'number' && g.cost >= BUY.RIFLE_COST ? 'rifle' : 'other';
+}
+function buyOf(round, n, halfLength, isOurs, opts) {
   if (!halfLength) return null;
   const loads = [];
   const lefts = [];
+  const guns = [];
   for (const s of statsOfRound(round)) {
     const who = playerOfStat(s);
     if (!who || !isOurs(who)) continue;
@@ -498,6 +530,7 @@ function buyOf(round, n, halfLength, isOurs) {
     const lv = num(e && (e.loadout_value != null ? e.loadout_value : e.loadout));
     if (lv === null || lv < 0) continue;
     loads.push(lv);
+    guns.push(gunClass(e.weapon));
     const rem = num(e.remaining);
     if (rem !== null && rem >= 0) lefts.push(rem);
   }
@@ -505,9 +538,13 @@ function buyOf(round, n, halfLength, isOurs) {
   if (n === 1 || n === halfLength + 1) return 'pistol';
   const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
   const load = avg(loads);
+  const rifles = guns.filter((g) => g === 'rifle').length;
+  if (rifles >= Math.max(BUY.MIN_PLAYERS, loads.length - 1)) return 'full';
+  if (guns.every((g) => g === 'sidearm')) return 'eco';
   if (load < BUY.ECO_MAX) return 'eco';
   if (load >= BUY.FULL_MIN) return 'full';
   if (lefts.length < BUY.MIN_PLAYERS) return null;
+  if (opts && opts.afterPistolWin) return 'half';
   return avg(lefts) < BUY.FORCE_LEFT_MAX ? 'force' : 'half';
 }
 
@@ -655,7 +692,9 @@ function parse(d, name, tag) {
     const deathAt = death ? spotOf(mapName, death.loc) : null;
     // Enemies only: a teammate the player killed by accident is no kill to place.
     const killsAt = inRound.filter((k) => isMe(k.killer) && whoIs(k.victim) === 'enemy').map((k) => spotOf(mapName, k.loc)).filter(Boolean);
-    const buy = econHalf ? buyOf(r, n, econHalf, isOurs) : null;
+    // The round after this half's pistol round, when the team won it: a bonus round.
+    const afterPistolWin = !!econHalf && (n === 2 || n === econHalf + 2) && winnerOf(rounds[i - 1]) === myTeam;
+    const buy = econHalf ? buyOf(r, n, econHalf, isOurs, { afterPistolWin }) : null;
     const mateNear = death ? mateNearOf(death, isMate) : null;
     const casts = castsOf(myStat);
     const winner = winnerOf(r);

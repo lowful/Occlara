@@ -2026,5 +2026,115 @@ const riotOnly = (file, row, edit) => {
   ]) ok(re.test(pos) && !re.test(neg) && !re.source.includes(BS), `${name} matches "${pos}" and not "${neg}"`);
 }
 
+// ── RIOT'S ROUND RECORD TEACHES ASK COACH (8.8) ─────────────────────────────
+// The team's buy, the nearest teammate, Riot's callout of the death and the
+// casts on the cards choose the notes and the cases, tell the match's part how
+// to use them, let the economy gate pass the kind of round the record names,
+// and gate (record-claims.js checkRecord) a sentence they contradict. A match
+// whose cards carry none of them is told and gated as before.
+{
+  console.log('\nthe round record beyond the feed (8.8):');
+  const rc = require('../server/services/record-claims');
+  const knowledge = require('../server/services/knowledge');
+  const seededRun = (fn) => {
+    const random = Math.random;
+    let x = 3;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const card = (n, riot, extra) => ({ n, side: 'attacking', result: 'lost', died: true, verified: true,
+    riot: { sec: 20, killer: 'Killjoy', weapon: 'Vandal', kills: 0, traded: false, alive: { mates: 3, enemies: 5 }, ...riot }, ...(extra || {}) });
+  const cards = [
+    card(2, { place: 'B Main', buy: 'eco', mate: 'far' }),
+    card(3, { place: 'B Main', buy: 'eco', mate: 'far' }),
+    card(4, { place: 'B Main', buy: 'full', mate: 'far', sec: 50, casts: [{ name: 'Updraft', n: 0 }, { name: 'Tailwind', n: 1 }] }),
+    card(5, { place: 'A Main', buy: 'full', mate: 'close', sec: 50 }),
+    card(6, { kills: 1, afk: true }, { died: false, result: 'won' }),
+  ];
+  const stripCard = (c) => { const { place, buy, mate, casts, afk, ...riot } = c.riot; return { ...c, riot }; };
+  const ctxOf = (cs, extra) => ({ v: 2, game: 'valorant', language: 'en', advanced: true, ...(extra || {}),
+    match: { id: 'valorant-1790000000000-sunset1', map: 'Sunset', agent: 'Jett', mode: 'Competitive', result: 'Defeat', score: '2-4', rounds: 6,
+      verified: true, lists: { mistakes: [] }, cards: cs }, player: {}, ask: {} });
+  const input = cp.normalise(ctxOf(cards));
+  const plain = cp.normalise(ctxOf(cards.map(stripCard)));
+  const msgs = [{ role: 'user', content: 'What should I work on?' }];
+
+  // The match's part says how to use them, only for what the cards carry.
+  const part = cp.renderMatch(input, cp.factsOf(input, msgs));
+  const partPlain = cp.renderMatch(plain, cp.factsOf(plain, msgs));
+  ok(/THE ROUND RECORD\n/.test(part) && /evidence for a trade or a spacing point/.test(part) && /economy changes what a death teaches/.test(part)
+    && /needs a round that lists the abilities used/.test(part) && /Never criticise a round Riot marks the player as sitting out/.test(part),
+  'the match\'s part tells how to use the distance, the economy, the casts and the AFK round');
+  ok(!/THE ROUND RECORD/.test(partPlain), 'a match without them has no such line');
+  const mateOnly = cp.renderMatch(cp.normalise(ctxOf([card(2, { mate: 'far' })])), cp.factsOf(cp.normalise(ctxOf([card(2, { mate: 'far' })])), msgs));
+  ok(/evidence for a trade or a spacing point/.test(mateOnly) && !/economy changes|holds them for that round|abilities used/.test(mateOnly), 'a distance alone brings its own sentence and no other');
+  const recordLine = (part.split('\n').find((l, i, a) => a[i - 1] === 'THE ROUND RECORD') || '');
+  ok(recordLine.length > 0 && !recordLine.includes(';') && !DASHES.test(recordLine), 'no semicolon and no dash in it');
+
+  // The notes and the cases.
+  const notes = seededRun(() => cp.pickNotes(input, msgs));
+  const notesPlain = seededRun(() => cp.pickNotes(plain, msgs));
+  const tagged = (t, f) => { const n = knowledge.all().find((x) => x.text === t); return !!(n && f(n)); };
+  ok(notes.some((t) => tagged(t, (n) => n.situations && n.situations.some((f) => ['eco', 'fullbuy'].includes(f))))
+    && !notesPlain.some((t) => tagged(t, (n) => n.situations && n.situations.includes('fullbuy'))),
+  'the match\'s economy brings an economy note');
+  ok(JSON.stringify(seededRun(() => cp.pickNotes(plain, msgs))) === JSON.stringify(seededRun(() => cp.pickNotes(cp.normalise(ctxOf(cards.map(stripCard))), msgs))),
+    'without them the notes are as before');
+  const askedFive = [{ role: 'user', content: 'Why did I die in round 2?' }];
+  const one = seededRun(() => cp.pickNotes(input, askedFive));
+  ok(one.some((t) => tagged(t, (n) => (n.cause && n.cause.includes('isolated')) || (n.situations && n.situations.includes('eco')))),
+    'one asked round, a lone death on an eco, brings its own notes');
+  const silver = cp.normalise(ctxOf(cards, { rankBand: 'silver_gold' }));
+  const silverPlain = cp.normalise(ctxOf(cards.map(stripCard), { rankBand: 'silver_gold' }));
+  const caseIds = (x) => cp.casesFor(x, msgs).map((c) => c.id);
+  ok(JSON.stringify(caseIds(silver)) !== JSON.stringify(caseIds(silverPlain)) || caseIds(silver).length > caseIds(silverPlain).length,
+    `the eco deaths and the lone deaths reach the cases (${caseIds(silverPlain).join(', ') || 'none'} to ${caseIds(silver).join(', ')})`);
+
+  // The economy gate passes the kind of round the record names, nothing more.
+  const f = cp.factsOf(input, msgs);
+  const fPlain = cp.factsOf(plain, msgs);
+  ok(keeps('Round 2 was an eco, so that death cost your team little.', f), 'kept: an eco round the record names as one');
+  ok(drops('Round 2 was an eco, so that death cost your team little.', fPlain, 'economy'), 'dropped as before where the record names none');
+  ok(drops('In round 2 you bought too much and died with it.', f, 'economy'), 'dropped: what the player bought, which the record still does not hold');
+  ok(drops('In round 2 you had full shields and still died.', f, 'economy'), 'dropped: the armour, held by nothing');
+  ok(gates.BUY_KIND_WORD.test('full buy') && gates.BUY_KIND_WORD.test('eco') && !gates.BUY_KIND_WORD.test('bought') && !gates.BUY_KIND_WORD.test('credits'),
+    'BUY_KIND_WORD matches "full buy" and "eco", not "bought" or "credits"');
+
+  // The record gates.
+  const ctx = rc.contextOfChat(f);
+  const ctxPlain = rc.contextOfChat(fPlain);
+  const drop = (s, st, c) => !!rc.checkRecord(s, c || ctx, st || {});
+  ok(ctx.map === 'Sunset' && ctx.rounds.get(4).buy === 'full' && ctx.rounds.get(4).mate === 'far' && ctx.rounds.get(2).place === 'B Main', 'the facts carry the record into the gates');
+  ok(drop('In round 2 you died at A Main, far from everyone.'), 'CAUGHT: a death put on the A side that Riot has at B Main');
+  ok(!drop('In round 2 you died at B Lobby, far from everyone.') && !drop('In round 2 you died at B Main, far from everyone.') && !drop('In round 2 you died at Mid Courtyard.'),
+    'kept: B Lobby, a callout of the same side, B Main itself, and a mid callout, which judge nothing');
+  ok(!drop('In round 2 you died at A Main.', {}, ctxPlain), 'kept: with no place of Riot\'s nothing is judged');
+  ok(drop('Round 4 was an eco, so that loss was cheap.') && drop('In round 2 you were on a full buy and still lost the fight.'), 'CAUGHT: an eco of a full buy, a full buy of an eco');
+  ok(!drop('Round 2 was an eco, so that loss was cheap.') && !drop('They were on an eco in round 4.') && !drop('If round 4 had been an eco, saving was right.'),
+    'kept: the true kind, the enemy\'s buy and a plan');
+  ok(!drop('On a full buy in round 2 your life is the round.'), 'kept: a rule opening on the kind of round');
+  ok(drop('In round 4 a teammate was close when you died.') && drop('In round 5 nobody was close when you died, so nobody could trade.'),
+    'CAUGHT: a teammate close of a death with nobody close, nobody close of one with a teammate close');
+  ok(!drop('In round 4 nobody was close when you died.') && !drop('In round 5 nobody was close enough to trade you.'), 'kept: the true distance, and close enough to trade, which is no distance');
+  {
+    const tradedCtx = { ...ctx, rounds: new Map([...ctx.rounds].map(([n, r]) => [n, n === 4 ? { ...r, traded: true } : r])) };
+    ok(ctx.rounds.get(4).traded === null && !drop('In round 4 you went in with a teammate close behind, and they traded you.', {}, tradedCtx)
+      && drop('In round 4 you went in with a teammate close behind, and they traded you.'),
+    'kept: a teammate close of a traded death Riot has far (the Pearl audit), caught of the same death untraded');
+  }
+  ok(drop('In round 4 you used Updraft to get on top.') && drop('In round 4 you did not use Tailwind.') && drop('You used no abilities in round 4.'),
+    'CAUGHT: Updraft used where Riot has none, Tailwind unused where it was, no ability in a round with one');
+  ok(!drop('In round 4 you used Tailwind to get out.') && !drop('In round 4 you used no utility before the peek.'), 'kept: the cast it has, and no utility before one peek');
+  for (const [name, re, pos, neg] of [
+    ['BUY_CLAIM', rc.BUY_CLAIM, 'round 4 was an eco', 'round 4 was close'],
+    ['MATE_CLOSE_SAID', rc.MATE_CLOSE_SAID, 'a teammate was close when you died', 'a teammate was close enough to trade'],
+    ['MATE_FAR_SAID', rc.MATE_FAR_SAID, 'nobody was close when you died', 'nobody was close enough to trade'],
+    ['NO_ABILITY_ROUND', rc.NO_ABILITY_ROUND, 'you used no abilities in round 4', 'you used no utility before the peek'],
+    ['HYPO', rc.HYPO, 'if you are on an eco', 'you could not trade'],
+    ['ENEMY_SUBJECT', rc.ENEMY_SUBJECT, 'they were on an eco', 'you were on an eco'],
+    ['DEATH_AT_HEAD', new RegExp(`${rc.DEATH_AT_HEAD}(B Main)`, 'i'), 'you died 20 seconds in at B Main', 'you walked through B Main'],
+  ]) ok(re.test(pos) && !re.test(neg), `${name} matches "${pos}" and not "${neg}"`);
+}
+
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');
 process.exit(fails ? 1 : 0);

@@ -64,7 +64,7 @@ const VALID = {
 };
 // The phases and economies a review or a question can show (cases.js fromReview, chat-prompt.js casesFor).
 const SEEN_PHASES = new Set(['early', 'mid', 'execute', 'postplant', 'retake', 'clutch', 'late']);
-const SEEN_ECONOMIES = new Set(['pistol', 'antieco', 'lostpistol']);
+const SEEN_ECONOMIES = new Set(['pistol', 'antieco', 'lostpistol', 'eco']);
 const SITUATION_KEYS = ['phase', 'side', 'role', 'agent', 'enemyAgents', 'map', 'site', 'economy'];
 const TEXT_KEYS = ['title', 'signal', 'decision', 'why', 'mistakeToAvoid'];
 const SOURCE_KEYS = new Set(['kind', 'topic', 'numbers', 'claims']);

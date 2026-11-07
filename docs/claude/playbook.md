@@ -468,3 +468,18 @@ and FOCUS always naming the first counted mistake, the aim rule that needs a
 look, cause gated aim notes, refusal gates, praise of traded deaths in lost
 rounds, no killer weapon tag (the enemy Operator note is served on any dry peek
 against a Jett or a Chamber), and the two death counts. Nothing was benched.
+
+## Riot's round record as retrieval signals (8.8, 2026-11-07)
+
+`retrieve()` takes two optional keys a caller builds from Riot's round record
+(`knowledge.js recordSignals`): `economy`, the flags `eco`, `forcebuy` and
+`fullbuy` as the team's buys showed them, which a note's `situations` match as
+the credits' own flags do, and `places`, the callouts of the player's lone
+deaths, which give a note of that map naming one +3. Where the economy is
+given and nothing picked answers it, `recordSlot` puts the best eligible
+economy note first (the band and every filter hold). No key, no change, draw
+for draw. The study list wants `ECONOMY_TOPICS` for the economy, the spot
+topics for a callout died at three times, and the cause topics of `isolated`
+and `dry-peek` when the record shows them. No note or tag was added: the
+existing `situations`, `cause` and topics covered every signal. Detail:
+`riot-record.md`, "Teaching the coach the round record".
