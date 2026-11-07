@@ -5217,5 +5217,809 @@
       "kind": "coach-consensus",
       "topic": "executing a site with smoke, two mollies, a dash and a flash"
     }
+  },
+  {
+    "id": "k177",
+    "title": "Jett entry while the drone is still flying",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "duelist",
+      "agent": "Jett",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You are at the choke with Tailwind ready and your initiator's drone or dog is still moving onto the site without having tagged or cleared anything.",
+    "decision": "Stay behind cover with the dash ready and watch the minimap. Dash the moment the recon tags a defender or shows the first angle clear, into your own Cloudburst or behind cover, then stop for a beat so the team can follow before your next fight.",
+    "why": "A Jett can be first in without being early. The recon is worth most in the second it lands, and the dash gets you there in time to use it.",
+    "mistakeToAvoid": "Dashing ahead of the drone for the instant kill, or keeping the dash and walking onto the site dry.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "jett entry on recon"
+    }
+  },
+  {
+    "id": "k178",
+    "title": "Defending Jett, the attackers are heard on your lane",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "duelist",
+      "agent": "Jett",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Footsteps or a call tell you the attackers are coming through the lane you hold, and Tailwind is available.",
+    "decision": "Prepare the dash right before your peek, take one fight, and dash back out of sight before the trade comes. If nobody is heard on your side, do not prepare it. Play your angle or rotate.",
+    "why": "On defence the dash pays when it turns one pick into a survival. Prepared at round start with nobody to fight, it does nothing for you.",
+    "mistakeToAvoid": "Preparing the dash at round start and holding a forward angle on the belief that it will save you whenever the fight comes.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "jett dash on defence"
+    }
+  },
+  {
+    "id": "k179",
+    "title": "Jett entry line crossed by a Cypher trip",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "duelist",
+      "agent": "Jett",
+      "enemyAgents": [
+        "Cypher"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The line you want to dash along is the one a Cypher Trapwire covered in earlier rounds.",
+    "decision": "Updraft first and dash over the trip, or ask your initiator to break it before the hit, or enter from another line onto the site.",
+    "why": "A trip holds you in the open with the dash spent, so the fastest entry becomes the slowest and most exposed one.",
+    "mistakeToAvoid": "Dashing straight through the known trip line because it worked before the trip was there.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "jett entry against a trip"
+    }
+  },
+  {
+    "id": "k180",
+    "title": "Raze about to satchel in, the defence dumps everything on the choke",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": "duelist",
+      "agent": "Raze",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "As you line up the satchel entry the defenders throw mollies, stuns or a wall onto the entrance.",
+    "decision": "Do not satchel into it. Call the team back, let the utility run out, and default or take another route. Hit the site when they have spent it.",
+    "why": "Flying into fresh defensive utility throws the round, and the defenders cannot repeat that utility once it is spent.",
+    "mistakeToAvoid": "Committing to the planned satchel only because it was the plan.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "raze satchel into utility"
+    }
+  },
+  {
+    "id": "k181",
+    "title": "Raze on defence, an attacking Jett dashes onto your site",
+    "situation": {
+      "phase": "execute",
+      "side": "defense",
+      "role": "duelist",
+      "agent": "Raze",
+      "enemyAgents": [
+        "Jett"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You hold a raised spot over the entrance and the attacking Jett dashes in ahead of her team.",
+    "decision": "Throw Paint Shells into the entrance behind the Jett so the rest of her team is held back, then fight the Jett with your teammates while your rotators come.",
+    "why": "Cutting the entry off from the players behind turns a full hit into one fight against an isolated player.",
+    "mistakeToAvoid": "Spending the shells before contact, or throwing them on the Jett and leaving the entrance open behind her.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "raze shells against a rush"
+    }
+  },
+  {
+    "id": "k182",
+    "title": "Died early in a defence round on a duelist",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You died in the first seconds of a defence round, before your team knew where the hit was going, and nobody traded you.",
+    "decision": "Check three things in order. Was your exit ready before you peeked, the dash prepared, a satchel in hand, the teleport placed? Did you peek the same lane a second time? Were the attackers coming toward you rather than somewhere else? Whichever answer is wrong is the fix: arm the exit first, take one look and back off, and when they come your way give the space up and fall back to your team.",
+    "why": "Pro duelists do take early defence space, so the fix is not to stop taking it. What they never do is take it without an exit, take it twice, or take it into the hit.",
+    "mistakeToAvoid": "Reading the death as only bad cover, or telling yourself never to take early space again.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "early defence duelist death"
+    }
+  },
+  {
+    "id": "k183",
+    "title": "Reyna taking a deep early peek on defence",
+    "situation": {
+      "phase": "early",
+      "side": "defense",
+      "role": "duelist",
+      "agent": "Reyna",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You want to go forward through a main early on Reyna and nobody on your team has made a kill yet.",
+    "decision": "Go only if you do not know of three attackers there. Peek from a spot one step from cover, since you have no orb until an enemy you hurt is dead, look for one kill, then Dismiss and fall back.",
+    "why": "Reyna's escape is created by the first kill. Low rank Reyna players often peek as if they already had it.",
+    "mistakeToAvoid": "A wide first peek into a lane with several attackers, expecting Dismiss to save you before any orb exists.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "reyna early defence"
+    }
+  },
+  {
+    "id": "k184",
+    "title": "Jett after the plant, team separated, one smoke left",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": "duelist",
+      "agent": "Jett",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You took the site and won fights, the defenders are coming from spawn, your teammates cannot see your angle, and you still hold a Cloudburst.",
+    "decision": "Throw a one way smoke on the spawn line and stall behind cover until a teammate can play the same fight. Let the clock and the spike work for you.",
+    "why": "The defenders must come through you to defuse. A second wide duel alone is the trade they need, while a smoke costs them time they do not have.",
+    "mistakeToAvoid": "Swinging out toward spawn for the extra kill with nobody able to trade you.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "jett post plant stall"
+    }
+  },
+  {
+    "id": "k185",
+    "title": "Iso rotating into a site that is being hit",
+    "situation": {
+      "phase": "execute",
+      "side": "defense",
+      "role": "duelist",
+      "agent": "Iso",
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You arrive at the site with Undercut and Double Tap, and several attackers are already inside.",
+    "decision": "Send Undercut through the group to make as many of them vulnerable as you can, keep it off your own teammates, pop Double Tap as you swing, and fight from the side where only one attacker can see you at a time.",
+    "why": "Undercut hits every player in its path, so you choose which of the weakened attackers to fight, and the shield takes the first shot of the one who can see you.",
+    "mistakeToAvoid": "Throwing Undercut like a flash and swinging into all of the attackers at once.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "iso undercut on a retake rotation"
+    }
+  },
+  {
+    "id": "k186",
+    "title": "Defence, the enemy duelist flies onto your site first",
+    "situation": {
+      "phase": "execute",
+      "side": "defense",
+      "role": "initiator",
+      "agent": null,
+      "enemyAgents": [
+        "Jett",
+        "Raze",
+        "Neon"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The enemy duelist dashes, slides or satchels onto the site ahead of his team.",
+    "decision": "Let the duelist land, then throw your suppress or molly on the rest of the attack at the choke, and fight the lone duelist with your teammate.",
+    "why": "Utility on the main body stops the rest from supporting the duelist, so the entry is alone on site.",
+    "mistakeToAvoid": "Spending the utility on the duelist himself, which lets the rest of the attack walk in behind him.",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "plat_diamond",
+    "tier": "advanced",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "isolating the entry"
+    }
+  },
+  {
+    "id": "k187",
+    "title": "Chasing a Reyna after she used Dismiss",
+    "situation": {
+      "phase": "mid",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Reyna"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The enemy Reyna just killed your teammate and vanished out of sight with Dismiss.",
+    "decision": "Do not run after her. Stay where you are, hold the corner she has to come back through, and wait for her or for a teammate to join you.",
+    "why": "Dismiss makes her impossible to hurt for a moment while she gets back to cover, so the player who chases her walks into her next angle.",
+    "mistakeToAvoid": "Sprinting to where she vanished and dying to her from the cover she chose.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy reyna dismiss"
+    }
+  },
+  {
+    "id": "k188",
+    "title": "Last alive Reyna against two of you",
+    "situation": {
+      "phase": "clutch",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Reyna"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Only the enemy Reyna is left, you and one teammate are alive, and she has been winning duels this round.",
+    "decision": "Set a crossfire: both of you watch the spot she has to come from, from two different angles, and you peek together or not at all. Never go to her one at a time.",
+    "why": "Each kill gives her an orb to heal or escape, so one at a time is two separate duels she can reset between.",
+    "mistakeToAvoid": "The first player swings alone and dies, and the second meets a healed Reyna.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy reyna clutch"
+    }
+  },
+  {
+    "id": "k189",
+    "title": "Alarmbot triggers on your entry",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Killjoy"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You are first through the site entrance and a Killjoy Alarmbot starts chasing you.",
+    "decision": "Shoot the Alarmbot if it is right next to you, otherwise step straight back out of the entrance. Do not push forward while vulnerable. Come back with a teammate once the swarm behind the entry is spent or the bot is broken.",
+    "why": "The Alarmbot makes you take extra damage, and at lower ranks the Nanoswarm usually sits just behind it for the push that follows.",
+    "mistakeToAvoid": "Running deeper onto the site with the Alarmbot on you and dying to the swarm or the turret.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy killjoy entry setup"
+    }
+  },
+  {
+    "id": "k190",
+    "title": "Lockdown goes down on the site you hold after the plant",
+    "situation": {
+      "phase": "postplant",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Killjoy"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The spike is down and a Killjoy Lockdown appears with its circle over you.",
+    "decision": "If you can see the device from cover, shoot it during the windup. If not, walk out of the circle now, away from any lane the enemy is holding, and come back when it ends.",
+    "why": "Lockdown only detains after a delay and can be destroyed, so the windup is the whole answer.",
+    "mistakeToAvoid": "Staying in the circle to keep fighting, or running out of it into an enemy angle.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy killjoy lockdown"
+    }
+  },
+  {
+    "id": "k191",
+    "title": "A teleport whisper close to you against an Omen",
+    "situation": {
+      "phase": "mid",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Omen"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You are holding an angle and hear the short channel of a teleport close by, from a direction that is not the angle you watch.",
+    "decision": "Turn to the sound and aim at the nearest spot he could land on, or step back so you cover both that spot and your angle. Call it.",
+    "why": "Shrouded Step has a channel before the teleport, and its sound is the warning.",
+    "mistakeToAvoid": "Keeping the crosshair on the old angle and dying to an Omen from behind or above.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 1,
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy omen teleport"
+    }
+  },
+  {
+    "id": "k192",
+    "title": "You killed the Phoenix during his ultimate",
+    "situation": {
+      "phase": "mid",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [
+        "Phoenix"
+      ],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You just killed a Phoenix who had used Run it Back this round.",
+    "decision": "Do not push forward or reload in the open. Move to a new spot and expect him from where he started the ultimate, back at full health.",
+    "why": "Run it Back returns him to his marker with full health when he takes lethal damage, so the kill only reset him.",
+    "mistakeToAvoid": "Treating it as a real kill, walking up, and losing the second duel to a fresh Phoenix.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy phoenix ultimate"
+    }
+  },
+  {
+    "id": "k193",
+    "title": "Pistol round duel against a player holding a bought pistol",
+    "situation": {
+      "phase": "early",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "pistol"
+    },
+    "signal": "It is a pistol round and the enemy you are fighting, or the one who just killed a teammate, is holding a Ghost, a Frenzy, a Bandit or a Sheriff.",
+    "decision": "Treat him as unarmoured, since no bought pistol leaves room for a shield on the starting credits. Aim for the head: one head hit from a Bandit or a Sheriff kills him, and so does a Ghost at the usual pistol range. With a Classic it takes a second hit, so keep tapping after the first head hit.",
+    "why": "Knowing he has no shield tells you the exact number of hits he needs, so you neither stop early nor waste shots on the body.",
+    "mistakeToAvoid": "Stopping after one Classic head hit to see if he died, or spraying body shots at a man one head tap would kill.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "computed",
+      "topic": "reading the enemy buy",
+      "claims": [
+        {
+          "weapon": "bandit",
+          "part": "head",
+          "armor": "none",
+          "hits": 1
+        },
+        {
+          "weapon": "sheriff",
+          "part": "head",
+          "armor": "none",
+          "hits": 1
+        },
+        {
+          "weapon": "ghost",
+          "part": "head",
+          "armor": "none",
+          "hits": 1,
+          "band": "near"
+        },
+        {
+          "weapon": "classic",
+          "part": "head",
+          "armor": "none",
+          "hits": 2,
+          "band": "near"
+        }
+      ]
+    }
+  },
+  {
+    "id": "k194",
+    "title": "Save round with a Classic against a rifle",
+    "situation": {
+      "phase": "mid",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "lostpistol"
+    },
+    "signal": "You are saving with a Classic after a lost pistol and you have just fired at, or been seen by, a player with a rifle and Heavy Armor.",
+    "decision": "Your one real chance is the first shot from a close corner he has to walk past: aim for the head and keep tapping, it takes two head hits through Heavy Armor. If that first exchange does not kill him, fall back and do not peek him again. Play for a different player or for damage.",
+    "why": "A Classic loses every second look against a rifle that already knows where you are, and the save round is for damage and your next buy, not a straight duel.",
+    "mistakeToAvoid": "Peeking the same rifle again with a Classic after he has seen you.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "computed",
+      "topic": "save round with a sidearm",
+      "claims": [
+        {
+          "weapon": "classic",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 2,
+          "band": "near"
+        }
+      ]
+    }
+  },
+  {
+    "id": "k195",
+    "title": "Round two anti eco against Bandits",
+    "situation": {
+      "phase": "early",
+      "side": null,
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "antieco"
+    },
+    "signal": "Your team won the pistol and the losing team is saving or forcing with cheap guns.",
+    "decision": "All five buy a gun and Heavy Armor. Fight from further than about ten metres and clear close corners with abilities first, because a Bandit head hit kills through Heavy Armor only up close.",
+    "why": "This is the one round of the half you are sure to be better armed, and a cheap gun in a tight corner is the only way the saving team wins it.",
+    "mistakeToAvoid": "Saving your round two money while teammates buy, buying Light Armor, or walking into a tight corner without checking it.",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "iron_bronze",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": true,
+    "source": {
+      "kind": "computed",
+      "topic": "anti eco",
+      "claims": [
+        {
+          "weapon": "bandit",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 1,
+          "band": "near"
+        },
+        {
+          "weapon": "bandit",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 2,
+          "band": "far"
+        }
+      ]
+    }
+  },
+  {
+    "id": "k196",
+    "title": "Two anti eco deaths to a Sheriff on the same kind of angle",
+    "situation": {
+      "phase": "mid",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": "antieco"
+    },
+    "signal": "Two of your deaths in anti eco rounds were to a Sheriff, both while you swung or held a medium range angle alone.",
+    "decision": "Stop treating distance as safety. Use your flash or recon before the swing, swing with a teammate at the same time, never peek the same angle twice in a round, and after a body hit back off and reset instead of crouch spraying.",
+    "why": "A Sheriff head hit kills through Heavy Armor out to medium range, it wins the first shot and loses the second, so the player who offers a still, predictable head loses.",
+    "mistakeToAvoid": "Believing eco guns lose at range and wide swinging a long angle alone.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "computed",
+      "topic": "anti eco",
+      "claims": [
+        {
+          "weapon": "sheriff",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 1,
+          "band": "near"
+        }
+      ]
+    }
+  },
+  {
+    "id": "k197",
+    "title": "Retake while a teammate is still alive on site",
+    "situation": {
+      "phase": "retake",
+      "side": "defense",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "The spike goes down while one teammate is still alive inside the site, hidden, and two rotators are close.",
+    "decision": "Go to the teammate now and fight beside him while the attackers are still settling, instead of backing off to set up a later retake.",
+    "why": "A teammate already inside is a free extra angle, and backing off leaves him to die alone and turns your retake into one with fewer players.",
+    "mistakeToAvoid": "Switching into retake mode by reflex and leaving the live teammate to die alone on site.",
+    "patterns": [
+      "retake"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 1,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "retake shape"
+    }
+  },
+  {
+    "id": "k198",
+    "title": "Attack half collapsing, the team spreads every round",
+    "situation": {
+      "phase": "execute",
+      "side": "attack",
+      "role": null,
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "Your team has lost most of its attack rounds and the lost rounds look the same: players spread over the map, the far side does nothing, the hit arrives in pieces and the defence retakes.",
+    "decision": "Stop splitting. Commit four or five players to one site together with the utility you have for it, plant with the numbers, and play the post plant as a group. If you are the one on the far side, join the hit instead of lurking quietly.",
+    "why": "The close rounds are the committed hits and the blowouts the scattered ones, and a split nobody commits to lets the defence beat each part on its own.",
+    "mistakeToAvoid": "Running the same spread default harder, or answering the streak with a more complicated split.",
+    "patterns": [
+      "streak"
+    ],
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "simplicity"
+    }
+  },
+  {
+    "id": "k199",
+    "title": "Entry duelist wins the opening fights, the team loses the rounds after",
+    "situation": {
+      "phase": "early",
+      "side": "attack",
+      "role": "duelist",
+      "agent": null,
+      "enemyAgents": [],
+      "map": null,
+      "site": null,
+      "economy": null
+    },
+    "signal": "You get the first kill in most rounds where you take an early fight, but the team then stalls or rushes one main and loses.",
+    "decision": "Keep taking the opening fight with a smoke on the lane and a teammate close enough to trade, then slow down after the pick and let the team choose the site together. The problem is what the team does after the opening, not the opening.",
+    "why": "First kills on attack win rounds, and the round is lost in the minute after them.",
+    "mistakeToAvoid": "Telling the entry to stop entering and wait for the enemy on attack, which throws away the one thing that is winning rounds.",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "minBand": "silver_gold",
+    "tier": "core",
+    "weight": 2,
+    "patchSensitive": false,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "entry duelist with first kills"
+    }
   }
 ]

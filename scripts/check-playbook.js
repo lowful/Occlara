@@ -271,6 +271,11 @@ for (const note of notes) {
       if (!Object.keys(AGENTS).some((k) => k.toLowerCase() === String(a).toLowerCase())) fail(note, `${key} names unknown agent "${a}"`);
     }
   }
+  // The killers' guns (round 3, knowledge.js enemyFit): a weapon the data
+  // does not know never matches Riot's record, so the note is never served.
+  for (const w of (Array.isArray(note.enemyWeapons) ? note.enemyWeapons : [])) {
+    if (!Object.keys(data.weapons || {}).includes(String(w).toLowerCase())) fail(note, `enemyWeapons names unknown weapon "${w}"`);
+  }
   // enemyHint is the soft tag (served blind, left out only by a known comp
   // without its agents): beside a strict tag it would never be read.
   if (note.enemyHint !== undefined && (note.enemyAgents !== undefined || note.enemyWithout !== undefined)) {
@@ -313,7 +318,7 @@ for (const note of notes) {
   if (Array.isArray(note.ranks) && new Set(note.ranks).size !== note.ranks.length) {
     fail(note, 'lists a rank band twice');
   }
-  for (const key of ['agents', 'maps', 'situations', 'roles', 'weapons', 'cause', 'ranks', 'enemyAgents', 'enemyWithout', 'enemyHint']) {
+  for (const key of ['agents', 'maps', 'situations', 'roles', 'weapons', 'cause', 'ranks', 'enemyAgents', 'enemyWithout', 'enemyHint', 'enemyWeapons']) {
     if (note[key] !== undefined && !Array.isArray(note[key])) {
       fail(note, `${key} must be an array, got ${typeof note[key]}`);
     } else if (Array.isArray(note[key]) && !note[key].length) {

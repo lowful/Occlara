@@ -456,6 +456,103 @@ function patterns(rounds) {
   return out;
 }
 
+/*
+ * THE MATCH'S SWING (round 3, Nov 2026): the one or two numbers from Riot's
+ * record that moved the most rounds, as finished lines the review's model is
+ * handed as true and may quote exactly. Six judges read 24 real reviews and
+ * all six found the real story missing: a Sunset match lost on 0 of 9
+ * defence rounds after the plant, a Corrode match on 10 rounds lost in a row,
+ * a Pearl team with no controller, an Omen who killed the player six times.
+ * The summary and the focus had only the counted mistakes to draw on, and
+ * named the deaths nobody traded in 20 of 24 reviews.
+ *
+ * Verified rounds only, every line arithmetic, each with the floor it has to
+ * clear and a weight in rounds (how many rounds it plausibly cost), the
+ * largest first, two at most. Every line is plain words with no dash and no
+ * semicolon, and names agents and guns only, never a player.
+ */
+const SWING_MAX = 2;
+const SWING_FLOOR = 1.5;
+const COMMON_RIFLES = new Set(['vandal', 'phantom']);
+function swingOf(rounds, riot) {
+  const out = [];
+  const v = (rounds || []).filter((r) => r && r.verified && r.side && (r.result === 'won' || r.result === 'lost'));
+  if (v.length < 6) return [];
+  const won = (rs) => rs.filter((r) => r.result === 'won').length;
+
+  // The sides, on a gap of three rounds or more (the sides pattern names a
+  // stronger side at two).
+  const atk = v.filter((r) => r.side === 'attacking');
+  const def = v.filter((r) => r.side === 'defending');
+  if (atk.length >= 4 && def.length >= 4) {
+    const gap = (Math.abs(won(atk) / atk.length - won(def) / def.length) * (atk.length + def.length)) / 2;
+    if (gap >= 3) out.push({ weight: gap, text: `You won ${won(atk)} of ${atk.length} rounds on attack and ${won(def)} of ${def.length} on defence.` });
+  }
+  // After the plant, the TEAM's record, whoever was alive: a post plant the
+  // team keeps losing is a decision about where to play and when to save.
+  const postAtk = atk.filter((r) => r.planted);
+  if (postAtk.length >= 3 && won(postAtk) * 2 <= postAtk.length) {
+    out.push({ weight: postAtk.length * 0.65 - won(postAtk),
+      text: `Once the spike was down on attack, your team won ${won(postAtk)} of ${postAtk.length} rounds.` });
+  }
+  const postDef = def.filter((r) => r.planted);
+  if (postDef.length >= 3 && won(postDef) * 5 <= postDef.length) {
+    out.push({ weight: postDef.length * 0.35 - won(postDef),
+      text: `Once they planted on defence, your team won ${won(postDef)} of ${postDef.length} rounds.` });
+  }
+  // The longest run of lost rounds, five or more.
+  let best = [];
+  let run = [];
+  for (const r of v.slice().sort((a, b) => a.n - b.n)) {
+    if (r.result === 'lost') { run.push(r.n); if (run.length > best.length) best = run.slice(); } else run = [];
+  }
+  if (best.length >= 5) out.push({ weight: best.length - 3, text: `You lost ${best.length} rounds in a row, rounds ${best[0]} to ${best[best.length - 1]}.` });
+  // The player's own team with no controller, from Riot's comp of five.
+  const comp = compsOf(riot && riot.comps);
+  if (comp && comp.us.length === 5 && !comp.us.some((x) => x.role === 'Controller')) {
+    out.push({ weight: 2.5, text: `Your team had no controller: ${comp.us.map((x) => x.agent).join(', ')}.` });
+  }
+  // The one killer, or the one gun that is not a common rifle, behind the deaths.
+  const deaths = v.filter((r) => r.died);
+  const byKiller = new Map();
+  const byGun = new Map();
+  for (const r of deaths) {
+    if (r.killerAgent) byKiller.set(r.killerAgent, (byKiller.get(r.killerAgent) || 0) + 1);
+    const gun = weaponName(r.weapon);
+    if (gun && !COMMON_RIFLES.has(gun.toLowerCase())) byGun.set(gun, (byGun.get(gun) || 0) + 1);
+  }
+  const topKiller = [...byKiller.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  if (topKiller && topKiller[1] >= 4 && topKiller[1] * 10 >= deaths.length * 3) {
+    out.push({ weight: topKiller[1] - 2, text: `${topKiller[0]} killed you ${topKiller[1]} times, more than anyone else.` });
+  }
+  const topGun = [...byGun.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  if (topGun && topGun[1] >= 3 && topGun[1] * 10 >= deaths.length * 3) {
+    out.push({ weight: topGun[1] - 1, text: `${withArticle(topGun[0])[0].toUpperCase()}${withArticle(topGun[0]).slice(1)} killed you ${topGun[1]} times.` });
+  }
+  return out.filter((s) => s.weight >= SWING_FLOOR).sort((a, b) => b.weight - a.weight).slice(0, SWING_MAX).map((s) => s.text);
+}
+
+/*
+ * THE NUMBERS STANDING THROUGH A ROUND (round 3), from Riot's kill feed: 5
+ * against 5, then after each kill, the player's side first. The review's
+ * state gate (server ability-facts.js checkState) holds an "N against M" in a
+ * round line to them: the audit's Pearl round 1 said "4 against 2" of a round
+ * that stood 2 against 2. Null where the record kept no feed.
+ */
+function standingsOf(r) {
+  if (!r || !Array.isArray(r.feed) || !r.feed.length) return null;
+  const out = [[5, 5]];
+  let m = 5;
+  let e = 5;
+  for (const k of r.feed) {
+    if (k && (k.on === 'me' || k.on === 'mate')) m -= 1;
+    else if (k && k.on === 'enemy') e -= 1;
+    else continue;
+    if (m >= 0 && e >= 0) out.push([m, e]);
+  }
+  return out.slice(0, 12);
+}
+
 /**
  * Whether the watch ended the match early: Riot's rounds go on past the score
  * the screen ended on, and stood at exactly that score after that many rounds.
@@ -1146,12 +1243,19 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
         firstDeath: r.firstDeath, firstKill: r.firstKill, kills: r.kills,
         traded: typeof r.traded === 'boolean' ? r.traded : null,
         alive: r.aliveAtDeath || null,
+        // The numbers standing through the round (round 3), for the state gate only.
+        ...(standingsOf(r) ? { standings: standingsOf(r) } : {}),
       } : {}),
       // The coach's look at the death, so the summary and the round lines
       // agree with the cause the review counts.
       ...(r.forensics && r.forensics.cause ? { cause: r.forensics.cause, seen: r.forensics.what || null } : {}),
     })),
     patterns: patterns(rounds),
+    // The match's swing from Riot's record (round 3, swingOf), always an
+    // array: a client that sends it is one built for the review's round 3
+    // rules (server match-review.js normalise), and one that does not is
+    // reviewed as before.
+    swing: swingOf(rounds, riot),
     context: {
       agent: (riot && riot.agent) || ctx.agent || null,
       map: ctx.map || (riot && riot.map) || null,
@@ -1274,4 +1378,4 @@ function against(tracker, role, history) {
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
   queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, lookJudgement,
   factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS,
-  BASELINE_GAMES, BASELINE_MIN };
+  BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX };

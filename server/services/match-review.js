@@ -33,6 +33,7 @@ const cases = require('./cases');
 const forensics = require('./death-forensics');
 const { promptName } = require('./languages');
 const { noSemicolons } = require('./plain-text');
+const abilityFacts = require('./ability-facts');
 
 // "a Vandal", "an Outlaw". The prompt's own grammar is what the model copies,
 // and "with a Outlaw" came back in its sentences. So is "1 assist", which the
@@ -157,6 +158,10 @@ function normalise(body) {
     // The coach's look at the frame before the death (death-forensics.js).
     cause: r && typeof r.cause === 'string' && forensics.CAUSES[r.cause] && r.cause !== 'unclear' ? r.cause : null,
     seen: r && r.seen ? clip(r.seen, 240) : null,
+    // The numbers standing through the round, from Riot's kill feed (round
+    // 3, valorant-review.js standingsOf), read by the state gate in parse()
+    // and never by the prompt. Left out when the client sent none.
+    ...(r && r.verified && standingsList(r.standings) ? { standings: standingsList(r.standings) } : {}),
   })).filter((r) => r.n > 0);
   const patterns = (Array.isArray(b.patterns) ? b.patterns : []).slice(0, 8).map((p) => ({
     key: clip(p && p.key, 20),
@@ -199,13 +204,36 @@ function normalise(body) {
         const s = final.scoreline || {};
         const n = (v, max) => (Number.isFinite(v) && v >= 0 && v <= max ? Math.round(v) : null);
         const out = { kills: n(s.kills, 99), deaths: n(s.deaths, 99), assists: n(s.assists, 99),
-          acs: n(s.acs, 999), mvp: s.mvp === 'match' || s.mvp === 'team' ? s.mvp : null };
+          acs: n(s.acs, 999), mvp: s.mvp === 'match' || s.mvp === 'team' ? s.mvp : null,
+          // The headshot rate (round 3), only where the client sent one: the
+          // aim evidence reads it, and a scoreline without it is as before.
+          ...(n(s.headshotPct, 100) !== null ? { hs: n(s.headshotPct, 100) } : {}) };
         return out.kills !== null && out.deaths !== null ? out : null;
       })(),
     },
     variant: ['A', 'B', 'C'].includes(b.variant) ? b.variant : DEFAULT_VARIANT,
+    // THE ROUND 3 CLIENT (valorant-review.js requestBody sends `swing`, an
+    // array, every time): the match's swing as finished lines, and the mark
+    // that the round 3 prompt rules and study list apply. A client before it
+    // sends no `swing` and is reviewed as before, byte for byte.
+    swing: Array.isArray(b.swing) ? b.swing.filter((t) => typeof t === 'string').slice(0, 3)
+      .map((t) => noSemicolons(clip(t, 200))).filter((t) => t && !DASH.test(t)) : null,
   };
 }
+
+const DASH = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
+
+/** The standings a client sent for a round, [[mates, enemies], ...], or null. */
+function standingsList(v) {
+  if (!Array.isArray(v) || !v.length) return null;
+  const out = v.slice(0, 12).filter((p) => Array.isArray(p) && p.length === 2
+    && Number.isInteger(p[0]) && Number.isInteger(p[1]) && p[0] >= 0 && p[0] <= 5 && p[1] >= 0 && p[1] <= 5)
+    .map((p) => [p[0], p[1]]);
+  return out.length ? out : null;
+}
+
+/** Whether a review is from a client of the round 3 rules (normalise's `swing`). */
+const round3 = (input) => !!(input && Array.isArray(input.swing));
 
 /**
  * The side the player won less on, when both sides have three decided rounds
@@ -245,6 +273,120 @@ function enemiesOf(input) {
   return knowledge.enemiesOf(list);
 }
 
+/*
+ * THE GUNS THAT KILLED THE PLAYER (round 3, knowledge.js enemyWeaponsOf):
+ * Riot's record names the weapon of every verified death, and a note tagged
+ * `enemyWeapons` (the enemy Operator holding a lane) is served only when one
+ * of them is there. For a client the route marks (`byEnemy`), the same gate as
+ * the killers; one before it has none, and no such note.
+ */
+function enemyWeaponsOf(input) {
+  if (!input || input.byEnemy !== true) return [];
+  return knowledge.enemyWeaponsOf((input.rounds || []).filter((r) => r && r.verified && r.died && r.weapon).map((r) => r.weapon));
+}
+
+/*
+ * WHAT IS USUAL AT A LEVEL (round 3): a rough headshot rate for each band,
+ * the line below which a match's rate is aim evidence. The audit's ten aim
+ * questions were all answered "aim is not the problem", because aim could be
+ * named only where a look called a fight fair and lost on the shot, and most
+ * deaths have no look. A rate well below the band's is the player's own
+ * number saying it. No band, the lowest band's line.
+ */
+const HS_USUAL = { iron_bronze: 14, silver_gold: 17, plat_diamond: 20, asc_plus: 23 };
+const HS_BELOW = 5;
+
+/** The aim evidence of a match: { low, hs, lostDuels }, or null where there is none. */
+function aimEvidence(input) {
+  const hs = input && input.final && input.final.scoreline && Number.isFinite(input.final.scoreline.hs) ? input.final.scoreline.hs : null;
+  const band = knowledge.validBand(input && input.context && input.context.rankBand);
+  const usual = HS_USUAL[band || 'iron_bronze'];
+  const low = hs !== null && hs <= usual - HS_BELOW;
+  const lostDuels = (input && input.rounds || []).filter((r) => r && r.cause === 'lost-duel').length;
+  if (!low && !lostDuels) return null;
+  return { low, hs, lostDuels };
+}
+
+/*
+ * THE FOCUS LEVER (round 3), chosen in code. The FOCUS had to fix the first
+ * counted mistake, and deaths nobody traded lead the list by weight in almost
+ * every match: the trade habit was the focus of 20 of 24 reviews, at every
+ * level, for entry duelists whose job is to go first. Now it may be the focus
+ * only where those deaths really dominate (seven in ten, five at least) and
+ * the player is Iron to Gold, or the level is unknown, or they are eight in
+ * ten of the deaths, the player's own record showing it over and over.
+ * Otherwise the prompt is told to choose the next biggest lever.
+ */
+function focusLever(input) {
+  const untraded = (input.mistakes || []).find((m) => m && m.key === 'untraded');
+  const band = knowledge.validBand(input.context && input.context.rankBand);
+  const role = knowledge.roleOf(input.context && input.context.agent);
+  let tradeOk = false;
+  if (untraded) {
+    const pair = countPairs(untraded.detail)[0];
+    const [x, n] = pair ? pair.split('/').map(Number) : [untraded.count || 0, 0];
+    const dominate = x >= 5 && n > 0 && x * 10 >= n * 7;
+    const repeated = x >= 5 && n > 0 && x * 10 >= n * 8;
+    tradeOk = dominate && (!band || band === 'iron_bronze' || band === 'silver_gold' || repeated);
+  }
+  return { untraded: !!untraded, tradeOk, entry: role === 'duelist' };
+}
+
+function leverRule(input) {
+  const lever = focusLever(input);
+  const entry = lever.entry
+    ? ' The player plays a duelist, whose job is to go in first, so where the lesson is about who followed them in, teach their part of '
+      + 'the entry, going in on a teammate\'s flash, drone or smoke or saying which teammate follows, never waiting for the team.'
+    : '';
+  if (lever.tradeOk) {
+    return 'FOCUS LEVER: the deaths nobody traded dominate this match, so the habit of checking a teammate is close enough to kill '
+      + 'your killer may be the focus, unless a swing fact above cost more rounds.' + entry;
+  }
+  return 'FOCUS LEVER: choose the one lever that would win this player the most rounds at their level, from the swing facts and '
+    + 'the counted mistakes, and say why it matters.'
+    + (lever.untraded ? ' Never make checking that a teammate can trade you the focus in this match: it is not what decides rounds '
+      + 'here, so take the next biggest lever instead.' : '')
+    + entry;
+}
+
+/*
+ * THE STUDY LIST TURNS BY THE MATCH (round 3): up to STUDY_VARIETY points
+ * from a hash of the note and the match's seed (cases.reviewSeed, the body
+ * has no match id), so near ties go another way in another match and the
+ * same way every time for one match. The hash is FNV with a final mix:
+ * without it two notes differing in their last words drew nearly the same.
+ */
+const STUDY_VARIETY = 2.5;
+function spread(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b) >>> 0;
+  h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35) >>> 0;
+  h ^= h >>> 16;
+  return (h >>> 0) / 0x100000000;
+}
+
+/*
+ * A STUDY NOTE THE REVIEW'S OWN ADVICE CONTRADICTS IS LEFT OUT (round 3),
+ * only where it is certain: the audit served "As a duelist after the plant,
+ * show presence deep on their side" beside the review's own round line to
+ * hold the spike from cover near a teammate. A pair is a note about the
+ * moment after the plant that sends the player forward, and a round line or
+ * focus about the spike that holds them back. Nothing else is judged.
+ */
+const CONTRADICTS = [
+  {
+    about: /\b(?:after the plant|post plant|once the spike|spike is (?:down|planted))\b/i,
+    note: /\b(?:presence deep|deep on their side|push (?:forward|up)|go forward|play forward|hunt (?:them|for)|chase)\b/i,
+    line: /\b(?:hold (?:the spike |it |the plant )?(?:from|behind) cover|play (?:off|near|around) the spike|(?:stay|stand|hold|play) (?:near|with|beside|close to) (?:a|your) teammate|fall back|let them come|make them come)\b/i,
+    lineAbout: /\b(?:spike|plant|planted)\b/i,
+  },
+];
+function contradicted(note, topic, lines) {
+  return CONTRADICTS.some((c) => (c.about.test(note.text) || c.about.test(topic)) && c.note.test(note.text)
+    && lines.some((l) => c.lineAbout.test(l) && c.line.test(l)));
+}
+
 // retrieve() counts its reserve out of the eight notes it serves
 // (knowledge.ADVANCED_SLOTS, knowledge.STREAK_CORE_SLOTS).
 const RESERVE_OF = 8;
@@ -274,11 +416,20 @@ const RESERVE_OF = 8;
  * gives its cause's topics +2 (CAUSE_TOPICS). A client before 8.5.0 is listed
  * its notes as today, byte for byte.
  */
-function study(input, limit = 3) {
+function study(input, limit = 3, opts = {}) {
   const { context, patterns, rounds } = input;
   const s = knowledge.situationOf({ agent: context.agent, map: context.map });
   const wanted = new Set();
   for (const p of patterns) for (const t of PATTERN_TOPICS[p.key] || []) wanted.add(t);
+  // ROUND 3, for a client of the round 3 rules alone (round3, normalise's
+  // `swing`): aim evidence (a headshot rate well below the level's, or a
+  // look's lost duel) sends the player to the aim notes as a counted lost
+  // duel does, the notes turn by the match's seed, and a note the review's
+  // own round advice contradicts is left out (opts.lines). A client before it
+  // is listed its notes as before, byte for byte.
+  const r3 = round3(input);
+  if (r3 && aimEvidence(input) && aimEvidence(input).low) for (const t of CAUSE_TOPICS['lost-duel']) wanted.add(t);
+  const seed = r3 ? cases.reviewSeed(input) : null;
   const looked = new Set();
   if (input.byCause === true) {
     for (const m of input.mistakes || []) {
@@ -303,16 +454,20 @@ function study(input, limit = 3) {
     for (const r of rounds || []) if (r && r.cause) causesHere.add(r.cause);
   }
 
-  // A note for the enemy's agents (8.8) only against them, never blind.
+  // A note for the enemy's agents (8.8) only against them, never blind, and
+  // one for the enemy's gun (round 3) only where Riot says it killed them.
   const enemies = enemiesOf(input);
+  const guns = enemyWeaponsOf(input);
+  const advice = r3 && Array.isArray(opts.lines) ? opts.lines.filter((t) => typeof t === 'string' && t) : [];
 
   const scored = [];
   for (const note of knowledge.all()) {
     const src = note.source;
     if (!src || typeof src.topic !== 'string' || !src.topic) continue;
     if (note.weapons) continue;
-    const versus = knowledge.enemyFit(note, enemies);
+    const versus = knowledge.enemyFit(note, enemies, guns);
     if (versus === null) continue;
+    if (advice.length && contradicted(note, src.topic, advice)) continue;
     if (note.agents && (!s.agent || !note.agents.some((a) => a.toLowerCase() === s.agent.toLowerCase()))) continue;
     if (note.roles && (!s.role || !note.roles.includes(s.role))) continue;
     if (note.maps && (!s.map || !note.maps.some((m) => m.toLowerCase() === s.map))) continue;
@@ -336,6 +491,10 @@ function study(input, limit = 3) {
     else if (looked.has(src.topic)) score += 2;
     if (note.side && weak && note.side === weak) score += 2;
     if (note.side && weak && note.side !== weak) score -= 2;
+    // The match's own turn of near ties (round 3), as the cases have: 21
+    // notes filled all 72 study slots of the audit's 24 reviews, one of them
+    // in 13 of the 18 above Iron. The same match always gets the same list.
+    if (seed) score += STUDY_VARIETY * spread(`${note.text}|${seed}`);
     scored.push({ text: note.text, topic: src.topic, advanced, score, fit: ranked === knowledge.RANK_FIT });
   }
   scored.sort((a, b) => b.score - a.score);
@@ -460,10 +619,12 @@ function promptRounds(input, withKnowledge, opts) {
         + 'their impact, not failing.' : '')
     : 'The final score was not read.';
 
+  const r3 = round3(input);
   let notes = [];
   let worked = [];
   if (withKnowledge) {
     const enemies = enemiesOf(input);
+    const guns = enemyWeaponsOf(input);
     const seen = new Set();
     const add = (t) => { if (t && !seen.has(t)) { seen.add(t); notes.push(t); } };
     for (const n of study(input, 4)) add(n.text);
@@ -477,9 +638,13 @@ function promptRounds(input, withKnowledge, opts) {
       }
       for (const r of rounds || []) if (r && r.cause) causes.push(r.cause);
     }
+    // Aim evidence brings the lost duel notes as a look's lost duel does
+    // (round 3): with no look, an aim problem had no aim note at all.
+    if (r3 && aimEvidence(input) && aimEvidence(input).low && !causes.includes('lost-duel')) causes.push('lost-duel');
     for (const t of knowledge.retrieve({ agent: context.agent, map: context.map, causes,
       ...(context.rankBand ? { rankBand: context.rankBand } : {}),
-      ...(enemies.length ? { enemyAgents: enemies } : {}) }, 6,
+      ...(enemies.length ? { enemyAgents: enemies } : {}),
+      ...(guns.length ? { enemyWeapons: guns } : {}) }, 6,
       { advanced: context.advancedTips })) add(t);
     notes = notes.slice(0, 8);
     // Worked cases (8.8, cases.js), only where this match's situation matches one.
@@ -490,7 +655,7 @@ function promptRounds(input, withKnowledge, opts) {
   // voice and names no coach, player, team or video behind them.
   const knowledgeOf = (ns, cs) => (ns.length
     ? '\n\nCOACHING KNOWLEDGE (verified habits). Use one to explain WHY a round went wrong '
-      + 'only when that round\'s facts actually match it, and prefer the one that answers the first counted mistake. '
+      + `only when that round's facts actually match it, and prefer the one that answers ${r3 ? 'the FOCUS lever' : 'the first counted mistake'}. `
       + 'Put it in the player\'s own situation and give its reason in your own words. Never quote it word for word, and never say where '
       + 'it comes from: no coach, player, team or video is ever named as its source:\n'
       + ns.map((t) => '- ' + t).join('\n') : '')
@@ -515,7 +680,9 @@ function promptRounds(input, withKnowledge, opts) {
     + block('COUNTED MISTAKES (counted from the rounds above, most serious first, these are true):', input.mistakes)
     + block('COUNTED STRENGTHS (counted the same way, these are true):', input.strengths)
     + knowledgeBlock
-    + '\n\nWrite exactly this, each label at the start of its own line:\n'
+    // A client of the round 3 rules gets them (round3Write); one before it
+    // gets these instructions byte for byte.
+    + (r3 ? round3Write(input, picks) : '\n\nWrite exactly this, each label at the start of its own line:\n'
     + 'SUMMARY: three sentences on one line, under 70 words. First, starting with You won or You lost and the score '
     + 'if the score says so, what decided it for the player, drawn from the counted mistakes, the strengths and the patterns. '
     + 'Second, the first counted mistake in your own words, with its count exactly as given and up to four of its '
@@ -545,7 +712,7 @@ function promptRounds(input, withKnowledge, opts) {
     + 'over peek) and never an attitude (be patient, stay aware, play smarter): say what to do instead. Being traded means a teammate killed your killer within five seconds, which is good: never call it '
     + 'the problem.\n\n'
     + rankRule(context.rankBand)
-    + GROUNDING
+    + GROUNDING)
     + languageRule(context.language);
   const today = assemble(knowledgeOf(notes, []));
   if (!worked.length) return today;
@@ -595,6 +762,100 @@ function rankRule(band) {
   if (!w) return '';
   return `PLAYER LEVEL: the player is ranked ${w[0]}. Fit the round lines and the focus to that level and teach ${w[1]}. `
     + 'Never prescribe a high rank micro decision to a player below it, and never say the rank back to the player.\n\n';
+}
+
+/*
+ * ROUND 3 (Nov 2026): the review's instructions for a client of the round 3
+ * rules (round3, normalise's `swing`), from an audit of 84 real outputs by six
+ * judges at six ranks. One habit taught everywhere (the FOCUS had to fix the
+ * first counted mistake), aim refused without a look, traded deaths praised
+ * in lost rounds, the template's own words reaching players ("as when this
+ * happens, do that"), invented orbs, health and spike carriers, ability keys
+ * swapped, guns blamed on utility, drills nobody could do alone, and Platinum
+ * and Ascendant given the Iron line in longer words. Each is a sentence below,
+ * and each that code can hold is held in parse() as well. No dashes, no
+ * semicolons, no number in a fix.
+ */
+const RANK_WORDS3 = {
+  iron_bronze: ['Iron or Bronze', 'one basic habit and the first thing to check',
+    'Stop moving before you shoot, because a moving shot goes wide.'],
+  silver_gold: ['Silver or Gold', 'the one habit that matters most and where it applies, such as stopping before the shot, crosshair height, information before a peek or one angle at a time',
+    'Clear the close corner before you look at the site, because that is where a defender waits.'],
+  plat_diamond: ['Platinum or Diamond', 'the decision and its timing, with the reason',
+    'With your team ahead after the first kill, hold the cross and let them come to you, because they have to take the space back.'],
+  asc_plus: ['Ascendant or above', 'the read, the tempo and the trade off, what the play gains and what it risks, and no basic they already have unless the rounds show it missing',
+    'They stacked B after two hits there, so a fast A take beats the slow default, at the cost of not knowing where mid is.'],
+};
+
+function rankRule3(band) {
+  const w = RANK_WORDS3[knowledge.validBand(band)];
+  if (!w) return '';
+  return `PLAYER LEVEL: the player is ranked ${w[0]}. Round lines differ in kind by level, and at this level each one names `
+    + `${w[1]}, as in this example, which shows the kind and is never to be copied: ${w[2]} Fit the focus to the level too. `
+    + 'A line for this level must never be the one a lower ranked player would be given for the same round. '
+    + 'Never prescribe a high rank micro decision to a player below it, and never say the rank back to the player.\n\n';
+}
+
+const GROUNDING3_SWAPS = [
+  ['In the SUMMARY write no counts or fractions such as 6 of 12 except the first counted mistake\'s own count, exactly as given;',
+    'In the SUMMARY write no counts or fractions such as 6 of 12 except the counted mistake\'s own count and a swing fact\'s numbers, exactly as given;'],
+  ['When a death was a traded entry, a fair fight or a sound take, say so plainly instead of inventing a mistake. ',
+    'When a death was a fair fight, or a traded entry in a round your team won, say so plainly instead of inventing a mistake. '],
+  ['Only name places that appear in the ledger. ',
+    'Mention an ultimate orb, a health number, who carried the spike or how many players were standing only where the facts '
+      + 'state it, and never invent an object or a state they do not give. Only name places that appear in the ledger. '],
+];
+const GROUNDING3 = GROUNDING3_SWAPS.reduce((g, [from, to]) => g.replace(from, to), GROUNDING);
+
+function round3Write(input, picks) {
+  const swing = input.swing.length
+    ? `\n\nSWING FACTS (computed from Riot's record of this match, the biggest first, these are true):\n${input.swing.map((t) => '- ' + t).join('\n')}`
+    : '';
+  const aim = aimEvidence(input);
+  const aimSaid = [];
+  if (aim && aim.low) aimSaid.push(`the player's headshot rate this match was ${aim.hs} percent, well below what is usual at their level, so a fair fight lost on the shot may be named as aim`);
+  if (aim && aim.lostDuels) aimSaid.push('the coach\'s look called a death a fair fight lost on the shot, so aim may be named in that round');
+  const aimLine = `\n\nAIM EVIDENCE: ${aimSaid.length ? aimSaid.join(', and ') : 'none in this match, so never say whether aim was or was not the problem'}.`;
+  return swing + aimLine + '\n\n' + leverRule(input)
+    + '\n\nWrite exactly this, each label at the start of its own line:\n'
+    + 'SUMMARY: three sentences on one line, under 70 words. First, starting with You won or You lost and the score '
+    + 'if the score says so, what decided it for the player, drawn from the swing facts, the counted mistakes, the strengths and the patterns, '
+    + 'and where a swing fact is listed, the first one with its numbers exactly as given. '
+    + 'Second, the lever the FOCUS fixes, in your own words: a counted mistake with its count exactly as given and up to four of its '
+    + 'rounds, or a swing fact with its numbers exactly as given, and in a few words why it cost them (nobody could trade it, the team '
+    + 'was ahead, the clock, the plant). If nothing was counted and no swing fact is listed, what cost the most rounds by the round '
+    + 'facts, never called a repeated mistake. Call a swing fact what it cost, never a mistake. Name no second mistake. '
+    + 'Third, what went right, from the counted strengths if there are any, otherwise '
+    + 'from the round facts, as a habit worth repeating and why it works, never as a scoreboard number.\n'
+    + (picks.length
+      ? `Then one round line for each of these rounds, in this order: ${picks.map((n) => 'R' + n).join(', ')}.\n`
+        + 'R<number>: one sentence, at most 30 words, in plain words: what to do in that spot next time and the one fact that makes '
+        + 'it the lesson (the numbers standing when you died, that nobody could trade you, the plant, the gun that killed you). Write it as '
+        + 'your own advice, never as a template, and never use the words when this happens or do that. Teach the '
+        + 'choice the player could make with what they could see at that moment, never what only the replay shows. Explain '
+        + 'a death by the situation, the timing, the numbers or the trade first. Name aim, the crosshair or a missed shot only where '
+        + 'the coach\'s look called the fight fair and lost on the shot or the AIM EVIDENCE supports it, and where a death has both a '
+        + 'decision and a mechanic problem, name the decision and then the one mechanic. Where nothing supports aim, never say aim was '
+        + 'or was not the problem. A death a teammate traded within five seconds is not a mistake by itself, so never call the trade the '
+        + 'problem, but judge the round, not the trade: in a round your team won, or where the trade gave your team the numbers, the '
+        + 'traded entry was the right play, and in a round your team lost the fight can still have been the wrong one, so never praise '
+        + 'a death in a lost round as a good or sound choice. Read the killing weapon before you blame anything: a death to a gun is a '
+        + 'gun fight, so never blame an enemy ability for it, and name an ability by its name, never by its key letter. '
+        + 'The player sees that round\'s facts right beside your line, so never restate them: no killer, weapon, seconds or place '
+        + 'unless the lesson needs that one. What was seen in play is the last the screen showed of the player before the '
+        + 'death, and use it only where it agrees with the facts. If the facts give you no lesson, leave that round out. '
+        + 'Each line teaches the choice that round\'s facts single out, so no two lines teach the same thing in the '
+        + 'same words: a defence death is about where you held and when to give ground, an attack death about who '
+        + 'followed you in, a death after the plant about holding the spike from cover and the clock, a death with '
+        + 'your team ahead about not needing the fight. Say that nobody traded you in at most one line, the one where '
+        + 'it is the lesson, because the counted mistake already says it for the match.\n'
+      : 'Write no round lines: no round was lost to a death.\n')
+    + 'FOCUS: one concrete habit for the next match, for the FOCUS LEVER, naming the situation to notice and what to do in it, '
+    + 'in plain words, something a player can do in a round and see in their next review. One habit only, never two joined by and. '
+    + 'Never a prohibition on its own (do not over peek) and never an attitude (be patient, stay aware, play smarter): say what to '
+    + 'do instead. It is done in a real match: Deathmatch and the Range have no teammates, so never set a drill there that needs one.\n\n'
+    + rankRule3(input.context.rankBand)
+    + GROUNDING3;
 }
 
 /** "rounds 2, 3, 6 and 7", "round 4". */
@@ -847,7 +1108,9 @@ function parse(text, input) {
   // and only a claim that one came back goes (REPEAT_WORDS, or two rounds): one
   // mistake in one round is what the prompt asks the second sentence for then.
   if (out.summary) {
-    const allowed = new Set((input.mistakes || []).flatMap((m) => countPairs(m.detail)));
+    // A swing fact's numbers (round 3) are the summary's to quote, as given.
+    const allowed = new Set((input.mistakes || []).flatMap((m) => countPairs(m.detail))
+      .concat((input.swing || []).flatMap((t) => countPairs(t))));
     const counted = (input.mistakes || []).filter((m) => m.rounds.length);
     const kept = splitSentences(out.summary).map((s) => s.trim()).filter((s) => {
       if (!s) return false;
@@ -921,6 +1184,11 @@ function parse(text, input) {
       out.dropped.push({ n: r.n, said: 'the facts again', riot: null });
     }
   }
+  // THE ROUND 3 GATES (claimGates): a line the record or the kit table
+  // contradicts goes whole, a summary or focus sentence goes alone, never the
+  // review. For every client: each drops only what is false or leaked.
+  claimGates(out, input);
+
   // "Riot lost 2 to 5", the record named as the one who played: the summary
   // starts with the player's own result, and a sentence that does not is no
   // sentence of theirs.
@@ -936,6 +1204,120 @@ function parse(text, input) {
 const NOT_TRADED = /\b(?:no one|nobody|no teammate|no ally|not|never)\s+(?:was\s+|were\s+|got\s+|could\s+|did\s+)?(?:able to\s+)?trad(?:e|ed|ing)\b|\buntraded\b|\bunanswered\b|\bwithout (?:a |any )?trade\b/i;
 const WAS_TRADED = /\b(?:you were|you got|was|got|were) traded\b|\btraded by (?:a |your )?teammate\b/i;
 const TRADE_AS_HARM = /\bget(?:s|ting)? you traded\b|\b(?:leads? to|ends? in|means) (?:you )?(?:being|getting) traded\b/i;
+
+/*
+ * ── THE ROUND 3 GATES (Nov 2026) ───────────────────────────────────────────
+ *
+ * From the audit's 24 real reviews, each a thing a player read beside the
+ * fact line that contradicts it, and each certain before it drops anything:
+ *
+ *   template   the prompt's own words, "as when this happens, do that"
+ *   kit        an ability's key, owner, ultimate or effect the game data
+ *              contradicts (ability-facts.js checkText): "Alarmbot (C)",
+ *              "the alarmbot slows"
+ *   state      an "N against M" the round's kill feed never stood at, a
+ *              health number nothing states (ability-facts.js checkState):
+ *              "especially risky at 11 HP", in all four bands of Pearl
+ *   orb        an ultimate orb, which nothing in the ledger ever states:
+ *              "When you go for the orb", Split round 6 in all four bands
+ *   carrier    who held the spike, which nothing states: "you have the spike"
+ *   utility    an enemy ability blamed for a death Riot's record says a gun
+ *              made
+ *   praise     a death in a lost round called a sound or good choice
+ *   aim        "aim is not the problem" where nothing says so
+ *   drill      a Deathmatch or Range drill that needs a teammate
+ *
+ * A round line goes whole, a summary or focus sentence goes alone, and each
+ * is logged in out.dropped by its kind. English words, as the killer gate's.
+ */
+const TEMPLATE_LEAK = /\bwhen this happens\b|\bthen do that\b|(?:^|[,.;:]\s*)do that\b|\bthe move to make\b|\bthe moment to notice\b/i;
+const ORB = /\borbs?\b/gi;
+// The kit's own orbs, and Reyna's soul orbs, are real: "Slow Orb", "Soul Orb".
+const KIT_ORB = /\b(?:soul|slow|healing|barrier|flare)\s+$/i;
+const SPIKE_CARRY = /\byou (?:have|had|have got|were carrying|are carrying|carry|carried|picked up|dropped) the spike\b|\bspike carrier\b|\bcarrying the spike\b|\bthe spike on you\b|\bdropped spike\b/i;
+// The death praised, never the fight described: "a sound fight lost on the
+// shot" is the look's own reading of a lost duel, and stays.
+const PRAISE = /\b(?:was|is|made (?:it|this)|making (?:it|this)) (?:a |an )?(?:sound|good|smart|correct|fine|great|right)(?: \w+)? (?:choice|call|play|entry|take|decision)\b/i;
+const AIM_DENIED = /\baim (?:is not|was not|isn't|wasn't) (?:the |your )?(?:main |real |first |biggest )?(?:problem|issue|thing to fix)\b|\baim (?:is not|was not|isn't|wasn't) what\b|\bnot (?:an |a |your )?aim (?:problem|issue|duel)\b|\bnot a lost aim duel\b|\baim (?:is|was) fine\b|\bnot (?:about|down to) (?:your )?aim\b/i;
+// The Range with its capital, the mode's name: "play in range of your
+// teammates" is a distance, no drill, and Team Deathmatch has a team (the
+// round 3 verification).
+const DRILL_PLACE = /(?<![Tt]eam\s)(?<![A-Za-z])(?:[Dd]eath ?[Mm]atch|DEATHMATCH|the Range|in Range)(?![A-Za-z])/;
+const DRILL_TEAM = /\b(?:teammates?|trade|traded|trading|your team|comms|duo|squad)\b/i;
+const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+
+/** Whether the match says nothing about aim either way, so a denial of it is unsupported. */
+function aimDenialOk(input, r) {
+  if (r) return !!r.cause && r.cause !== 'lost-duel';
+  const aim = aimEvidence(input);
+  if (aim) return false;
+  const deaths = (input.rounds || []).filter((x) => x.died);
+  return deaths.length > 0 && deaths.every((x) => x.cause && x.cause !== 'lost-duel');
+}
+
+/** An orb named in a text that is no kit's orb, or null. */
+function fabricatedOrb(text, input, r) {
+  const reyna = (a) => String(a || '').toLowerCase() === 'reyna';
+  if (reyna(input.context && input.context.agent) || (r && reyna(r.killer))) return null;
+  for (const m of String(text || '').matchAll(ORB)) {
+    if (!KIT_ORB.test(String(text).slice(0, m.index))) return m[0];
+  }
+  return null;
+}
+
+/** Whether a line blames one of the killer's abilities for a death Riot says a gun made. */
+function utilityBlamed(text, r) {
+  if (!r || !r.verified || !r.died || !r.killer || !r.weapon) return false;
+  if (!knowledge.enemyWeaponsOf([r.weapon]).length) return false;
+  const kit = abilityFacts.TABLE.agents[Object.keys(abilityFacts.TABLE.agents).find((a) => a.toLowerCase() === r.killer.toLowerCase())];
+  if (!kit) return false;
+  for (const e of Object.values(kit)) {
+    const name = escRe(e.name);
+    const by = new RegExp(`\\b(?:died to|dying to|death to|killed by|lost to|fell to)\\s+(?:(?:his|her|their|the|an?|that|this|${escRe(r.killer)}'s)\\s+)?${name}\\b`, 'i');
+    const did = new RegExp(`\\b${name}\\s+(?:killed|kills|finished|finishes)\\s+you\\b`, 'i');
+    if (by.test(text) || did.test(text)) return true;
+  }
+  return false;
+}
+
+/** What makes a text false or leaked, by kind, or null. r is its round, where it has one. */
+function claimOf(text, input, r) {
+  const t = String(text || '');
+  if (TEMPLATE_LEAK.test(t)) return 'template';
+  const agents = input.context && input.context.agent ? [input.context.agent] : undefined;
+  if (abilityFacts.checkText(t, { agents }).length) return 'kit';
+  const facts = { rounds: (input.rounds || []).map((x) => ({ n: x.n, ...(x.standings ? { standings: x.standings } : {}), ...(x.alive ? { alive: x.alive } : {}) })),
+    ...(r ? { round: r.n } : {}) };
+  if (abilityFacts.checkState(r ? `ROUND ${r.n}: ${t}` : t, facts).length) return 'state';
+  if (fabricatedOrb(t, input, r)) return 'orb';
+  if (SPIKE_CARRY.test(t)) return 'carrier';
+  if (r && utilityBlamed(t, r)) return 'utility';
+  if (r && r.result === 'lost' && r.died && PRAISE.test(t)) return 'praise';
+  if (AIM_DENIED.test(t) && !aimDenialOk(input, r)) return 'aim';
+  if (DRILL_PLACE.test(t) && DRILL_TEAM.test(t)) return 'drill';
+  return null;
+}
+
+function claimGates(out, input) {
+  const byN = new Map((input.rounds || []).map((r) => [r.n, r]));
+  for (const n of Object.keys(out.rounds)) {
+    const kind = claimOf(out.rounds[n], input, byN.get(Number(n)) || null);
+    if (kind) {
+      delete out.rounds[n];
+      out.dropped.push({ n: Number(n), said: kind, riot: null });
+    }
+  }
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const kept = splitSentences(out[field]).map((s) => s.trim()).filter((s) => {
+      if (!s) return false;
+      const kind = claimOf(s, input, null);
+      if (kind) out.dropped.push({ n: null, said: `${field} ${kind}`, riot: null });
+      return !kind;
+    });
+    out[field] = kept.join(' ').trim() || null;
+  }
+}
 
 /** How many of the round's own facts a line names: the killer, the weapon, the place, the seconds, the numbers. */
 function factsRestated(why, r) {
@@ -1051,4 +1433,6 @@ function roundLabels(text) {
 
 module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, roundDigits, roundLabels, teachable, lineWorthy,
   namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, REPEAT_WORDS, ROUND_LABELS, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS,
-  CAUSE_TOPICS, rankRule, enemiesOf, withinBudget, CASE_GROWTH, NOTES_FLOOR };
+  CAUSE_TOPICS, rankRule, enemiesOf, withinBudget, CASE_GROWTH, NOTES_FLOOR,
+  round3, rankRule3, RANK_WORDS3, GROUNDING, GROUNDING3, GROUNDING3_SWAPS, aimEvidence, HS_USUAL, HS_BELOW, focusLever, leverRule,
+  enemyWeaponsOf, claimOf, TEMPLATE_LEAK, SPIKE_CARRY, PRAISE, AIM_DENIED, STUDY_VARIETY, spread, contradicted, CONTRADICTS };

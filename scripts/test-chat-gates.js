@@ -519,16 +519,21 @@ WHAT YOU MUST NOT SAY
 - Only Valorant and the player's play.
 
 HOW TO ANSWER
-- Answer the question in your first sentence. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
-- About a round, a death or a play: tell it in order from the record (the side and the kind of round, the opening, the plant, the death with the numbers standing, how it ended), then the decision that decided it for the player, judged by what they could see at that moment, then what to do instead as when this happens, do that, concretely enough to do next round, and why it works in game terms: the guns and the range, the numbers standing, the clock and the spike, the kit. Rule out the larger causes before the shot: whether the fight needed taking, whether anyone could trade it, whether the player had information or utility first. Call it aim only where the coach's look called the fight fair and lost on the shot.
+- Answer the question in your first sentence, and answer the question that was asked. A question about aim, practice, an agent, the mental side, comms or the economy is answered about that, and a counted mistake comes in only where it bears on it. Never turn every answer into the same habit. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
+- A general question (the biggest mistake, how to improve or climb, what to practise, how to warm up) needs no single round: answer it from the counted mistakes, the patterns across matches, the player's own numbers and their rank, with the one lever that matters most at that level. Never answer it with only that you cannot tell.
+- About a round, a death or a play: tell it in order from the record (the side and the kind of round, the opening, the plant, the death with the numbers standing, how it ended), then the decision that decided it for the player, judged by what they could see at that moment, then what to do instead, written as the real situation to notice and the real move to make in it, concretely enough to do next round, and why it works in game terms: the guns and the range, the numbers standing, the clock and the spike, the kit. Rule out the larger causes before the shot: whether the fight needed taking, whether anyone could trade it, whether the player had information or utility first. When a death had both a decision and a shot that went wrong, name the decision first, then the one mechanic, in one sentence. Call a death lost on the shot only where the coach's look called the fight fair and lost on the shot.
 - A fair fight is one taken from where it should be taken, at a range the gun can fight. Whether a teammate could trade it is a separate question.
-- About an agent: the player's own numbers on it first, then how its kit answers the problem, each ability by its name and key.
+- A death a teammate traded is not a mistake by itself, so never call the trade the problem. In a round the team lost, still judge whether the fight was needed, and never praise a death as a good or sound choice.
+- About an agent: the player's own numbers on it first, then how its kit answers the problem, each ability by its name as the kit gives it, never by a key letter. Say what an ability does only as the kit says it. Name an enemy ability as what killed the player only where Riot's record gives that ability as the killing weapon.
 - Asked for a game number the VALORANT FACTS hold (hits to kill, damage, a price, a timer), give it in your first sentence in the facts' own words, with the range band and the armour they name, then stop. Add nothing about the match unless asked.
 - Name at most one ability in an answer about a round, and only when it changes the decision in that round. Do not list the kit, and do not offer the same ability in every answer.
+- Never mention an ultimate orb, a health number, who carried the spike or how many players were alive unless the facts of that round state it.
 - About improving: the largest counted mistake or pattern with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts.
+- Quote a counted line's numbers as given, the deaths nobody traded included: that count leaves out a death as the last one alive, which nobody could trade, so never count the rounds yourself into a total of your own.
+- A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practised in a match, with what to do when nobody answers the call.
 - When something went right, say what the player did and why it worked in game terms, from the record: a trade they made, a fight they took beside a teammate, a round they saved or won on the clock. Never praise a scoreboard number, never open with praise as a cushion, and never call the player unlucky or blame a teammate.
-- Asked whether the problem is their aim, answer from the deaths: if most were about the position, the timing, the numbers or nobody able to trade, say so and name that; aim is the answer only where the coach's look called fights fair and lost on the shot.
-- If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (staying where a teammate can trade you, information before a peek, one angle at a time). Platinum to Diamond, one decision (predictability, tempo, playing the team's plan). Ascendant and up, no basics, the specific timing or utility change and what it risks.
+- Asked about their aim, answer from the deaths and the player's headshot rate against their own average. Where the coach's look called fights fair and lost on the shot, say so and give one aim habit. Where the deaths show the position, the timing, the numbers or nobody able to trade, name that first, then still give one aim habit sized to their rank. Where the coach looked at no death, say the look cannot tell whether the fights were lost on the shot. Never say aim is not the problem, or that aim can wait, unless the coach's looks called those deaths something else.
+- If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (stopping before the shot, crosshair height, information before a peek, one angle at a time). Platinum to Diamond, the decision before the fight (predictability, playing the team's plan, when to take space). Ascendant and up, no basics, the specific timing or utility change and what it risks. An answer for a higher rank is never the one a lower rank would get for the same facts in longer words.
 - Name the match the first time you refer to it: the map, the agent and the result.
 - Write times as seconds into the round, "8 s in", never as a clock such as 0:08, which reads as the time left.
 - Speak to the player as you. Short paragraphs of plain text: no lists, no headings, no markdown. About 250 words, up to 400 when you walk through a round. Commas and periods, never dashes.
@@ -1426,6 +1431,240 @@ const riotOnly = (file, row, edit) => {
   ok(gates.MATE_TRADED_YOU.test('your Sova traded your death') && gates.MATE_TRADED_YOU.test('a teammate avenged you')
     && !gates.MATE_TRADED_YOU.test('Skye traded KAY/O') && gates.YOU_PLANTED.test('you planted the spike') && !gates.YOU_PLANTED.test('they planted the spike'),
   'the trade and plant regexes match a known positive and not a known negative');
+}
+
+// ── The round 3 audit (Nov 2026) ───────────────────────────────────────────
+// Eight of sixty Ask Coach answers were the honest line on the plainest
+// questions, the gates dropping true sentences; aim was waved away with no
+// look; a key, an effect, a health number and a drill no mode allows passed.
+// Each fix below is pinned on the sentence the audit's replay dropped (or let
+// through) and on a planted false variant the gate must still drop.
+{
+  console.log('\nthe round 3 audit:');
+  // No regex in either file was written through a shell (CLAUDE.md): no backspace byte.
+  const BS = String.fromCharCode(8);
+  for (const f of ['fact-gates.js', 'chat-prompt.js']) {
+    ok(!fs.readFileSync(path.join(__dirname, '..', 'server', 'services', f), 'utf8').includes(BS), `${f} holds no backspace byte`);
+  }
+  const regexes = [
+    ['PAIR_FILLER', gates.PAIR_FILLER, '5 of your last 6 matches', '5 of 6 matches'],
+    ['KEEPING_WORTH', gates.KEEPING_WORTH, 'is worth keeping', 'you kept peeking'],
+    ['CLUTCH_AGAINST_BEFORE', gates.CLUTCH_AGAINST_BEFORE, 'as the last one standing against ', 'your team standing against '],
+    ['OF_YOUR_NOUN', gates.OF_YOUR_NOUN, ' of your deaths came early', ' of your teammates'],
+    ['SMALL_ADVICE_AFTER', gates.SMALL_ADVICE_AFTER, ' more shot and leave', ' seconds in'],
+    ['LEAD_CONDITION', gates.LEAD_CONDITION, 'If you have an escape, take one more shot', 'If you had stayed in cover'],
+    ['ONE_ROUND', gates.ONE_ROUND, 'in round 2 you died', 'the second round'],
+    ['TEMPLATE_WORDS', gates.TEMPLATE_WORDS, 'When this happens, do that.', 'When their Jett dashes in, fall back.'],
+    ['SOLO_MODE', gates.SOLO_MODE, 'run deathmatch with one rule', 'run team deathmatch with one rule'],
+    ['TEAM_WORDS', gates.TEAM_WORDS, 'if a teammate is within sight', 'stop before every shot'],
+    ['NO_TEAM', gates.NO_TEAM, 'with no teammates there', 'with a teammate there'],
+    ['KILL_AFTER_ABILITY', gates.KILL_AFTER_ABILITY, ' killed you in round 1', ' slowed you in round 1'],
+    ['KILL_BEFORE_ABILITY', gates.KILL_BEFORE_ABILITY, 'you died to her ', 'you threw her '],
+  ];
+  const aimPos = ['Your aim is not the problem here.', 'Your aim work can wait.', 'so this was not about your aim', 'a repeek, not a lost aim duel', 'Your aim looks fine.', 'nothing here saying your aim is the issue'];
+  gates.AIM_DISMISSED.forEach((re, i) => regexes.push([`AIM_DISMISSED[${i}]`, re, aimPos[i], 'Your aim is the first thing to fix.']));
+  cp.QUESTION_TOPICS.forEach((t) => {
+    const ask = { aim: 'How do I get better aim at my rank?', practice: 'What should I practice before my next game?', climb: 'How do I climb out of Silver?',
+      mental: 'How do I stop tilting after a loss?', comms: 'How should I use comms in solo queue?', economy: 'When should I save my credits?', ult: 'When should I use my ultimate?' }[t.key];
+    regexes.push([`QUESTION_TOPICS.${t.key}.ask`, t.ask, ask, 'Why did I die in round 5 on Split?']);
+  });
+  for (const [name, re, pos, neg] of regexes) {
+    const r = new RegExp(re.source, re.flags.replace('g', ''));
+    ok(r.test(pos) && !r.test(neg), `${name} matches "${pos}" and not "${neg}"`);
+  }
+
+  // 1. "5 of your last 6 matches", THE PLAYER's "in 5 of 6 matches" said back.
+  const QI = 'How do I improve at my rank? What is holding me back from climbing?';
+  const MI = [{ role: 'user', content: QI }];
+  const INI = inputFor(ABYSS, QI, { patterns: { recorded: 6, mistakes: [{ key: 'untraded', title: 'Died where nobody could trade', matches: 5, trend: 'falling' }] } });
+  const FI = factsFor(INI, MI, STAND_IN);
+  for (const s of ['The biggest thing holding you back is dying where nobody could trade you, and that showed up in 5 of your last 6 matches.',
+    'The biggest thing to work on is dying where nobody could trade you: that showed up in 5 of your 6 recorded matches.']) {
+    ok(keeps(s, FI), `THE PLAYER'S PAIR SAID BACK STAYS (the audit dropped it): "${s}"`, why(s, FI));
+  }
+  ok(drops('The biggest thing holding you back is dying where nobody could trade you, and that showed up in 4 of your last 6 matches.', FI, 'count')
+    && drops('That showed up in 5 of your last 7 matches.', FI, 'count'),
+  'and a pair the patterns never stated still drops: 4 of your last 6, 5 of your last 7');
+
+  // 2. "All 21 of your deaths": a share of a total, or of a counted pair.
+  ok(keeps('Dying where nobody could trade you cost you the most, and it was 20 of your deaths.', FI) && keeps('Every one of them, all 21 of your deaths, came on defence or attack.', FI),
+    'A SHARE OF A TOTAL STAYS: 20 of your deaths (the counted 20 of 21), all 21 of your deaths (the scoreline)',
+    `${why('Dying where nobody could trade you cost you the most, and it was 20 of your deaths.', FI)} ${why('Every one of them, all 21 of your deaths, came on defence or attack.', FI)}`);
+  ok(drops('Dying where nobody could trade you cost you the most, and it was 19 of your deaths.', FI, 'number')
+    && drops('It happened in all 22 of your deaths.', FI, 'number'),
+  'and a share no total or count states drops: 19 of your deaths, all 22 of your deaths');
+
+  // 3. A single shot in advice, after a condition too.
+  for (const s of ['If you have an escape, take one more shot and leave.', 'Take one more shot only if you have an escape, then move to cover and re clear from a new spot.']) {
+    ok(keeps(s, F3), `ONE MORE SHOT IN ADVICE CLAIMS NO GAME NUMBER (the audit dropped it): "${s}"`, why(s, F3));
+  }
+  ok(drops('If you have an escape, two body shots from the Sheriff kill through Heavy Armor.', F3, 'number')
+    && drops('Take two body shots with the Sheriff, which kills through Heavy Armor.', F3, 'number'),
+  'and a hits to kill claim in advice is still the primer\'s: two Sheriff body shots through Heavy Armor drop');
+
+  // Hand made rounds for the clutch, the weapon, the aim and the ability rules.
+  const round = (n, over) => ({ n, side: 'attacking', result: 'lost', died: true, verified: true, watched: true, pistol: false, matchPoint: false,
+    planted: false, afterPlant: false, firstDeath: false, firstKill: false, kills: 0, traded: false, trades: 0, clutch: null,
+    killer: 'Astra', killerWeapon: 'Vandal', sec: 30, feed: null, times: [30], standings: [[5, 5], [4, 5]],
+    weapons: { mine: new Set(), theirs: new Set(['Vandal']), mates: new Set(), all: new Set(['Vandal']) },
+    atDeath: [4, 5], after: [3, 5], look: null, lookDigits: [], before: null, ...over });
+  const factsOfRounds = (rs, extra) => ({ game: 'valorant', language: 'en', agent: 'Jett', map: null, rounds: new Map(rs.map((r) => [r.n, r])),
+    scores: [], days: [], numbers: [], primer: [], counted: { titles: [], pairs: new Set(), counts: new Set(), roundSets: [], texts: [] },
+    sides: { mates: new Set(), enemies: new Set() }, askedAgents: [], ...(extra || {}) });
+
+  // 4. The last one standing against N is a clutch Riot's record has.
+  const CL = factsOfRounds([round(2, { result: 'won', died: false, kills: 3, firstKill: true, clutch: { vs: 2, won: true }, killer: null, killerWeapon: null,
+    standings: [[5, 5], [1, 2], [1, 0]], atDeath: null, after: null })]);
+  ok(keeps('What went right is worth keeping: in round 2 you were the last one standing against 2 and won it.', CL)
+    && keeps('You won round 2 as the last one standing against 2.', CL),
+  'THE LAST ONE STANDING AGAINST 2 IS ROUND 2\'S CLUTCH, AND WHAT IS WORTH KEEPING IS NO REPEAT (the audit dropped both)',
+  `${why('What went right is worth keeping: in round 2 you were the last one standing against 2 and won it.', CL)} ${why('You won round 2 as the last one standing against 2.', CL)}`);
+  ok(drops('You won round 2 as the last one standing against 3.', CL, 'number') && drops('In round 2 you kept taking the first fight before your team was set.', CL, 'count'),
+    'and a clutch against a count the record never had drops, as does a repeat no count says ("kept")');
+
+  // 5. The gun of the round named alone before it.
+  const WR = factsOfRounds([
+    round(2, { result: 'won', kills: 3, firstKill: true, traded: true, killerWeapon: 'Sheriff', weapons: { mine: new Set(), theirs: new Set(['Sheriff']), mates: new Set(), all: new Set(['Sheriff']) } }),
+    round(4, { kills: 4, firstKill: true }),
+    round(5, { kills: 2, firstKill: true })]);
+  const gunLine = 'You opened rounds well, getting the first kill in rounds 2, 4 and 5, but in round 2 you stayed on the same angle after the exchange and died to a Sheriff.';
+  ok(keeps(gunLine, WR), 'A GUN IS THE ROUND\'S NAMED ALONE BEFORE IT: "in round 2 ... died to a Sheriff" after "rounds 2, 4 and 5" (the audit gave round 4 the Sheriff)', why(gunLine, WR));
+  ok(drops('You opened rounds well, getting the first kill in rounds 2, 4 and 5, but in round 4 you stayed on the same angle and then a Sheriff killed you.', WR, 'weapon')
+    && drops('In rounds 2 and 4 you died to a Sheriff.', WR),
+  'and a gun the named round never had still drops, and a list of rounds still holds it to each of them');
+
+  // 5b. The audit's other true sentences the number and count gates dropped.
+  ok(keeps('A Sheriff kills with one head hit inside 30 m, but needs two body hits against no armour.', F3)
+    && drops('A Sheriff kills with one head hit inside 30 m, but needs three body hits against no armour.', F3, 'number'),
+  'THE PART NAMED RIGHT AFTER THE NUMBER: "one head hit ... but needs two body hits" reads the 2 as body hits (the audit read it as head hits), three still drops',
+  why('A Sheriff kills with one head hit inside 30 m, but needs two body hits against no armour.', F3));
+  ok(keeps('Of your 21 deaths, 20 went unanswered, meaning no teammate killed your killer within five seconds.', FI)
+    && drops('Of your 21 deaths, 19 went unanswered, meaning no teammate killed your killer within five seconds.', FI, 'number'),
+  'THE COUNTED PAIR THE OTHER WAY ROUND: "Of your 21 deaths, 20 went unanswered" stays, 19 drops',
+  why('Of your 21 deaths, 20 went unanswered, meaning no teammate killed your killer within five seconds.', FI));
+  ok(keeps('Your first kills were real, 4 rounds where you opened the round, and that is the part to keep.', FI)
+    && drops('Your first kills were real, and you kept opening rounds that way.', FI, 'count'),
+  'WHAT IS THE PART TO KEEP IS NO REPEAT, while "you kept opening rounds" no count says still drops',
+  why('Your first kills were real, 4 rounds where you opened the round, and that is the part to keep.', FI));
+  const mates = FI.counted.tradedMates;
+  ok(Number.isInteger(mates) && mates > 0 && keeps(`Your own record shows why it matters: you traded a teammate ${mates} times.`, FI)
+    && drops(`Your own record shows why it matters: you traded a teammate ${mates + 3} times.`, FI, 'count'),
+  `THE TEAMMATES TRADED, THE CARDS' OWN SUM: ${mates} times stays, ${Number(mates) + 3} drops`,
+  why(`Your own record shows why it matters: you traded a teammate ${mates} times.`, FI));
+
+  // 6. The template's words.
+  ok(drops('When this happens, do that.', F3, 'template') && drops('When this happens, do that: plant, then take a spot behind cover.', F3, 'template')
+    && keeps('When their Jett dashes onto the site, fall back to your teammate.', F3),
+  'THE RULES\' TEMPLATE NEVER REACHES THE PLAYER: "When this happens, do that." drops, a real moment and move stays');
+
+  // 7. Aim is never waved away without the looks to say so.
+  const QA = 'How do I get better aim at my rank?';
+  const MA = [{ role: 'user', content: QA }];
+  const FA = factsFor(inputFor(ABYSS, QA), MA, STAND_IN);
+  for (const s of ['Your aim is not the problem here.', 'Your aim work can wait.', 'Aim is not what cost you this Abyss match.', 'That is the thing to fix, and the aim question can wait.']) {
+    ok(drops(s, FA, 'aim'), `AIM IS NOT WAVED AWAY WITH TWO OF 21 DEATHS LOOKED AT, ONE A LOST DUEL: "${s}" drops`, why(s, FA));
+  }
+  ok(drops('Your aim is not the problem here.', F3, 'aim'), 'and of round 3, which the coach never looked at, it drops too');
+  const LOOKED = factsOfRounds([round(2, { look: { cause: 'dry-peek', what: 'You swung with no utility.', better: 'Flash first.', fair: false } }),
+    round(4, { look: { cause: 'repeek', what: 'You peeked the same angle twice.', better: 'Change your angle.', fair: false } })]);
+  ok(keeps('Your aim was not the problem in this match, the peeks were.', LOOKED) && keeps('Round 4 was not about your aim: the look saw you peek the same angle again.', LOOKED),
+    'where the coach looked at the deaths and called them something else, saying so stays',
+    `${why('Your aim was not the problem in this match, the peeks were.', LOOKED)} ${why('Round 4 was not about your aim: the look saw you peek the same angle again.', LOOKED)}`);
+  ok(keeps('In round 4 you peeked the same angle twice and died.', LOOKED) && drops('In round 2 you peeked the same angle twice and died.', LOOKED, 'count'),
+    'PEEKED TWICE OF A REPEEK IS THE LABEL IN WORDS (the audit dropped it as 2 times), and of a dry peek it still drops',
+    why('In round 4 you peeked the same angle twice and died.', LOOKED));
+  const DUEL = factsOfRounds([round(2, { look: { cause: 'dry-peek', what: 'x', better: 'y', fair: false } }), round(4, { look: { cause: 'lost-duel', what: 'x', better: 'y', fair: true } })]);
+  ok(drops('Your aim was not the problem in this match.', DUEL, 'aim') && keeps('Your aim is the first thing to fix: round 4 was a fair fight lost on the shot.', DUEL),
+    'and against a lost duel the look called, it drops, while saying aim is the problem stays');
+  // The round asked about is the sentence's round when it names none (the round 3 verification).
+  const ASK4 = { ...DUEL, asked: 2, oneRound: true };
+  const ASK4D = { ...DUEL, asked: 4, oneRound: true };
+  ok(keeps('Aim was not the issue here, the position was.', ASK4) && drops('Aim was not the issue here, the position was.', ASK4D, 'aim'),
+    'IN A ONE ROUND ANSWER, AIM WAVED AWAY IS HELD TO THE ASKED ROUND: of a dry peek it stays, of a lost duel it drops',
+    `${why('Aim was not the issue here, the position was.', ASK4)} ${why('Aim was not the issue here, the position was.', ASK4D)}`);
+
+  // 8. The kit as the game data has it, and a health number nothing states.
+  const QK = 'Their Killjoy killed me the most. How do I play against Killjoy?';
+  const FK = factsFor(inputFor(ABYSS, QK), [{ role: 'user', content: QK }], STAND_IN);
+  const QO = 'Their Omen killed me the most. How do I play against Omen?';
+  const FO = factsFor(inputFor(ABYSS, QO), [{ role: 'user', content: QO }], STAND_IN);
+  ok(drops('Her Turret (E) and Alarmbot (C) are the two things that punish a Jett who moves first.', FK, 'kit')
+    && drops('The turret watches an angle and shoots when you cross it, and the alarmbot reveals and slows anyone who walks into its range.', FK, 'kit')
+    && drops('Paranoia sends a vision-blocking shadow down the lane.', FO, 'kit'),
+  'A KEY, AN EFFECT THE KIT DOES NOT HAVE: Alarmbot (C), the alarmbot slows, Paranoia vision blocking, each the audit\'s, drop');
+  ok(keeps('Her Turret (E) and Alarmbot (Q) are the two things that punish a Jett who moves first.', FK) && keeps('Paranoia sends a shadow that blinds and deafens you.', FO),
+    'and the same kit said as the data has it stays', `${why('Her Turret (E) and Alarmbot (Q) are the two things that punish a Jett who moves first.', FK)} ${why('Paranoia sends a shadow that blinds and deafens you.', FO)}`);
+  // A health number nothing states: the number gate holds it in English first,
+  // ability-facts.js checkState behind it; one the look read off the HUD stays.
+  const HP = factsOfRounds([round(2, { killer: 'Astra', killerWeapon: 'Sheriff', lookDigits: [{ value: 57, unit: 'health' }],
+    weapons: { mine: new Set(), theirs: new Set(['Sheriff']), mates: new Set(), all: new Set(['Sheriff']) } })]);
+  ok(drops('In round 2 you stayed on the angle at 11 health and died to a Sheriff.', HP) && keeps('In round 2 you stayed on the angle at 57 health and died to a Sheriff.', HP)
+    && gates.gateKit('In round 2 you stayed on the angle at 11 health and died to a Sheriff.', HP, { round: true, rounds: [2] }).gate === 'kit'
+    && gates.gateKit('In round 2 you stayed on the angle at 57 health and died to a Sheriff.', HP, { round: true, rounds: [2] }) === null,
+  'a health number nothing in the facts states drops (the audit\'s "11 HP"), the one the look read stays, by both readers',
+  why('In round 2 you stayed on the angle at 57 health and died to a Sheriff.', HP));
+
+  // 9. A drill the mode allows.
+  ok(drops('To build it, run deathmatch with one rule: you are only allowed to peek an angle if a teammate is within sight of it.', F3, 'mode'),
+    'A DEATHMATCH DRILL THAT NEEDS TEAMMATES DROPS (the audit\'s)');
+  ok(keeps('Play one deathmatch where you stop before every shot and put the first bullet at head height.', F3)
+    && keeps('Deathmatch has no teammates, so practise the trade habit in your next unrated match instead.', F3),
+  'and a drill one can do alone stays, as does saying Deathmatch has no teammates');
+  ok(keeps('Stay within the range where a teammate can trade you.', F3) && keeps('Play Team Deathmatch and trade each other with a teammate.', F3)
+    && drops('Go to the Range and practise trading with your duo.', F3, 'mode'),
+  'a range that is a distance is no drill, Team Deathmatch has a team, the Range by its name still drops (the round 3 verification)',
+  why('Stay within the range where a teammate can trade you.', F3));
+
+  // 10. An enemy ability killed the player only where the record says so.
+  const KJ = factsOfRounds([round(1, { killer: 'Killjoy', killerWeapon: 'Bandit' }), round(2, { killer: 'Killjoy', killerWeapon: 'Bandit' }),
+    round(3, { killer: 'Killjoy', killerWeapon: 'Turret' })]);
+  ok(drops("In round 1 Killjoy's Turret killed you as you crossed.", KJ, 'ability-kill') && drops("In round 2 you died to Killjoy's Turret on the way in.", KJ, 'ability-kill'),
+    'AN ABILITY CALLED THE KILLER OF A GUN KILL DROPS: Killjoy\'s Bandit kills of rounds 1 and 2 were no Turret');
+  ok(keeps("In round 3 Killjoy's Turret killed you as you crossed.", KJ), 'and where Riot\'s record gives the ability as the weapon, it stays', why("In round 3 Killjoy's Turret killed you as you crossed.", KJ));
+
+  // 11. The fallback: a reply that keeps enough is shown when its retry fails too.
+  const fb = cp.parseReply('Your aim is not the problem here. Look at round 3: Cypher killed you with a Spectre. Before your next swing, stop before the shot. Put the first bullet at head height.', IN3, { messages: M3 });
+  const thin = cp.parseReply('Your aim is not the problem here. Before your next swing, stop before the shot.', IN3, { messages: M3 });
+  ok(fb.retry && fb.firstDropped && fb.fallback === true && fb.kept >= cp.FALLBACK_KEPT && !/aim is not/.test(fb.reply)
+    && thin.retry && thin.fallback === false,
+  `THE FALLBACK: a reply whose first sentence went but that kept ${cp.FALLBACK_KEPT} or more is still asked again and may be shown, without the dropped sentence, and one that kept fewer is not`,
+  JSON.stringify({ fb: [fb.kept, fb.fallback, fb.dropped], thin: [thin.kept, thin.fallback] }));
+
+  // 12. The question's own notes: aim, practice, an agent asked about, the band's fundamentals.
+  const k = require('../server/services/knowledge');
+  const byText = new Map(k.all().map((n) => [n.text, n]));
+  const aimRe = cp.QUESTION_TOPICS.find((t) => t.key === 'aim').note;
+  const pracRe = cp.QUESTION_TOPICS.find((t) => t.key === 'practice').note;
+  const iron = (q) => ({ ...inputFor(ABYSS, q), rankBand: 'iron_bronze' });
+  const aimNotes = cp.pickNotes(iron(QA), MA);
+  ok(aimNotes.slice(0, 3).filter((t) => aimRe.test(`${t} ${(byText.get(t) && byText.get(t).source && byText.get(t).source.topic) || ''}`)).length >= 2,
+    'AN AIM QUESTION GETS AIM NOTES FIRST, whatever cause they are tagged for', aimNotes.slice(0, 3).join(' | '));
+  const QP = 'What should I practice before my next game?';
+  const pracNotes = cp.pickNotes(iron(QP), [{ role: 'user', content: QP }]);
+  ok(pracNotes.slice(0, 3).some((t) => pracRe.test(t)), 'A PRACTICE QUESTION GETS A DRILL NOTE FIRST', pracNotes.slice(0, 3).join(' | '));
+  ok(pracNotes.some((t) => { const n = byText.get(t); return n && Array.isArray(n.ranks) && n.ranks.includes('iron_bronze') && n.ranks.length <= 2; }),
+    'and a general question takes the band\'s own fundamentals');
+  const QC = 'Their Cypher killed me the most. How do I play against Cypher?';
+  const cyNotes = cp.pickNotes({ ...inputFor(ABYSS, QC), byEnemy: true }, [{ role: 'user', content: QC }]);
+  ok(cyNotes.slice(0, 3).some((t) => /\bCypher\b/.test(t) || ((byText.get(t) || {}).enemyAgents || []).includes('Cypher')),
+    'AN AGENT ASKED ABOUT GETS A NOTE ABOUT THAT AGENT FIRST', cyNotes.slice(0, 3).join(' | '));
+  ok(cp.questionTopics({ language: 'en' }, M3).keys.size === 0 && !cp.questionTopics({ language: 'en' }, M3).general
+    && cp.questionTopics({ language: 'de' }, MA).keys.size === 0,
+  'and a question about a round names no topic, nor does one outside English: its notes are today\'s');
+
+  // 13. The death the counted line leaves out says why.
+  const lastAlive = JSON.parse(JSON.stringify(IN3));
+  const card = lastAlive.match.cards.find((c) => c.died && c.riot && c.riot.traded === false);
+  card.riot.alive = { mates: 1, enemies: 2 };
+  ok(cp.renderMatch(lastAlive, cp.factsOf(lastAlive, M3)).includes(`R${card.n} `) && cp.renderMatch(lastAlive, cp.factsOf(lastAlive, M3)).includes('not traded, as the last one alive with no teammate left to trade it'),
+    'A DEATH AS THE LAST ONE ALIVE IS SAID TO BE ONE, so the cards and the counted line of deaths nobody traded tell one number');
+
+  // 14. The rules.
+  const R = cp.VALORANT_RULES;
+  ok(!/when this happens, do that/i.test(R) && /Never say aim is not the problem/.test(R) && /needs no single round/.test(R)
+    && /Deathmatch and the Range have no teammates/.test(R) && /never by a key letter/.test(R) && /never praise a death as a good or sound choice/.test(R)
+    && /never count the rounds yourself/.test(R) && !DASHES.test(R),
+  'THE RULES: no template words, aim from the deaths and the headshot rate, a general answer with no round needed, drills the mode allows, abilities by name, no praise of a death, the counted line as given, no dashes');
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

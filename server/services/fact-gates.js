@@ -1240,6 +1240,13 @@ function gunOwner(text, g) {
   return null;
 }
 
+/** The round a sentence last named on its own before `at` ("in round 2"), or null after a list ("rounds 2, 4 and 5") or none. */
+const ONE_ROUND = /\b(rounds?)\s+#?(\d{1,2})\b((?:\s*(?:,\s*(?:and\s+|or\s+)?|and\s+|or\s+|to\s+|through\s+|-)\s*\d{1,2}\b)*)/gi;
+function singleRoundBefore(t, at) {
+  let last = null;
+  for (const m of String(t || '').slice(0, at).matchAll(ONE_ROUND)) last = /^round$/i.test(m[1]) && !m[3] ? Number(m[2]) : null;
+  return last;
+}
 function gateWeapon(s, facts, rs) {
   const f = facts || {};
   if (!rs || !rs.round || !(f.rounds instanceof Map)) return null;
@@ -1248,7 +1255,13 @@ function gateWeapon(s, facts, rs) {
     const owner = gunOwner(t, g);
     const mine = owner === 'mine';
     const theirs = owner === 'theirs';
-    for (const n of rs.rounds) {
+    // The gun is the round's the sentence last named alone before it: "the
+    // first kill in rounds 2, 4 and 5, but in round 2 you died to a Sheriff"
+    // gave round 4 the Sheriff (the round 3 audit). A list of rounds before
+    // it, or none, holds the gun to every round named, as before.
+    const own = singleRoundBefore(t, g.at);
+    const held = own !== null && rs.rounds.includes(own) ? [own] : rs.rounds;
+    for (const n of held) {
       const r = f.rounds.get(n);
       if (!r || !r.weapons) continue;
       const w = r.weapons;
@@ -1342,6 +1355,29 @@ function quotesCounted(dt, counted) {
 }
 const IN_ROUNDS = /\bin (\d+) (?:of (?:the |your )?)?rounds\b/gi;
 const PAST_YOU = /\byou(?:'ve)?\s+(?:\w+ly\s+)?(?:\w+ed|were|was|had|did|kept|got|went|took|ran|held|fell|lost|won|died|stood|swung)\b/i;
+/*
+ * "5 OF YOUR LAST 6 MATCHES" IS THE PAIR 5 OF 6 (the round 3 audit, Nov 2026).
+ * THE PLAYER's patterns read "in 5 of 6 matches", and the model says it as "5
+ * of your last 6 matches": the count reader saw no pair in it, the number gate
+ * found the 5 tied to nothing, and the first sentence of four honest lines
+ * went with it. The words between "of" and the second number are dropped
+ * here, so the pair is checked as the pair it is: 4 of your last 6 is still
+ * no count the facts state.
+ */
+const PAIR_FILLER = /\b(\d+)(\s+(?:out\s+)?of\s+)(?:the|your|their|those|these)\s+(?:(?:last|recent|recorded|past|previous|latest|most recent)\s+){1,2}(\d+)\b/gi;
+const pairWords = (t) => String(t || '').replace(PAIR_FILLER, '$1$2$3');
+const PEEK_TWICE = /\b(?:re-?)?peek(?:ed|ing|s)?\b[^.;]{0,48}\btwice\b/i;
+/** Whether "peeked ... twice" is said of rounds whose looks are all repeeks (the named ones, else the one asked). */
+function repeekTwice(t, f) {
+  if (!PEEK_TWICE.test(String(t || '')) || !(f && f.rounds instanceof Map)) return false;
+  const named = roundsNamed(t, f);
+  const rs = named.length ? named : (f.asked && f.oneRound ? [f.asked] : []);
+  return rs.length > 0 && rs.every((n) => { const r = f.rounds.get(n); return !!(r && r.look && r.look.cause === 'repeek'); });
+}
+// "Worth keeping" is no repeat of the player's: what went right, to keep.
+const KEEPING_WORTH = /\b(?:worth|is|are)\s+keeping\b|\b(?:the part|the thing|the habit|what|something)\s+to\s+keep\b/gi;
+// "You traded a teammate 4 times", the cards' own sum (chat-prompt.js factsOf `tradedMates`).
+const TRADED_MATES_TIMES = /\byou\s+(?:also\s+)?traded\s+(?:a\s+)?teammates?\s+(\d+)\s+times\b/i;
 function gateCount(s, facts) {
   const f = facts || {};
   if (f.language !== 'en') return null;
@@ -1350,7 +1386,7 @@ function gateCount(s, facts) {
   const pairsOk = counted.pairs || new Set();
   const countsOk = counted.counts || new Set();
   let pairs = [];
-  try { pairs = review().countPairs(digitsOf(t)); } catch { pairs = []; }
+  try { pairs = review().countPairs(pairWords(digitsOf(t))); } catch { pairs = []; }
   for (const p of pairs) {
     if (!pairsOk.has(p)) return drop('count', `your reply said ${p.replace('/', ' of ')}, which no count in the facts states`);
   }
@@ -1359,7 +1395,11 @@ function gateCount(s, facts) {
   // count or repeat of its own: the plainest true sentence of a match was
   // dropped (the verifier's probe, 15 Oct). chat-prompt.js factsOf gives `died`.
   const scoreDeaths = fin(counted.died) ? new RegExp(`\\byou\\s+(?:only\\s+)?died\\s+${counted.died}\\s+times\\b`, 'gi') : null;
-  const repeatText = scoreDeaths ? dt.replace(scoreDeaths, 'you died') : dt;
+  let repeatText = (scoreDeaths ? dt.replace(scoreDeaths, 'you died') : dt).replace(KEEPING_WORTH, 'worth it');
+  // "You peeked the same angle twice" of a round whose look is a repeek is the
+  // label in words, as "again" is (repeekSaid): it was read as "2 times" no
+  // count states (the round 3 audit).
+  if (repeekTwice(t, f)) repeatText = repeatText.replace(/\b2 times\b/, 'again');
   for (const re of [TIMES, IN_ROUNDS]) {
     for (const m of repeatText.matchAll(new RegExp(re.source, 'gi'))) {
       if (!countsOk.has(Number(m[1]))) return drop('count', `your reply said ${m[0]}, which no count in the facts states`);
@@ -1369,7 +1409,9 @@ function gateCount(s, facts) {
   try { REPEAT = review().REPEAT_WORDS; } catch { REPEAT = /\b(?:repeatedly|again and again|kept|every round|each round|over and over|always|constantly)\b/i; }
   if (!isInstruction(t) && !isHypothetical(t) && REPEAT.test(repeatText) && PAST_YOU.test(t) && !quotesCounted(dt, counted)) {
     const named = roundsNamed(t, f);
+    const traded = TRADED_MATES_TIMES.exec(repeatText);
     const ok = pairs.some((p) => pairsOk.has(p))
+      || (traded && fin(counted.tradedMates) && Number(traded[1]) === counted.tradedMates)
       || (named.length >= 2 && (counted.roundSets || []).some((set) => named.every((n) => set.includes(n))))
       || (counted.titles || []).some((title) => title && lower(t).includes(title))
       || repeekSaid(t, repeatText, REPEAT, named.length ? named : (f.asked && f.oneRound ? [f.asked] : []), f);
@@ -1386,7 +1428,7 @@ function gateCount(s, facts) {
  */
 const PEEK_AGAIN = /\b(?:re-?)?peek(?:ed|ing|s)?\b[^.;]{0,48}\bagain\b/i;
 function repeekSaid(t, repeatText, REPEAT, rounds, f) {
-  if (!PEEK_AGAIN.test(t) || !rounds.length || !(f.rounds instanceof Map)) return false;
+  if (!(PEEK_AGAIN.test(t) || PEEK_TWICE.test(t)) || !rounds.length || !(f.rounds instanceof Map)) return false;
   const words = repeatText.match(new RegExp(REPEAT.source, 'gi')) || [];
   return words.every((w) => /^again$/i.test(w))
     && rounds.every((n) => { const r = f.rounds.get(n); return !!(r && r.look && r.look.cause === 'repeek'); });
@@ -1555,7 +1597,10 @@ function bandNamed(t) {
 function hitsOk(prov, value, subjects, ctx) {
   const guns = subjects.filter((s) => s.kind === 'gun').map((s) => lower(s.name));
   if (!guns.length) return false;
-  const part = partOf(ctx.clause) || partOf(ctx.sentence);
+  // The part named right after the number first: "two head hits but needs
+  // four body hits" read the 4 as head hits (the round 3 audit).
+  const own = /^\s*(?:more\s+|clean\s+)?(head|body|legs?)\b/i.exec(String(ctx.after || ''));
+  const part = (own && partOf(own[1])) || partOf(ctx.clause) || partOf(ctx.sentence);
   let armor = null;
   for (const [re, a] of ARMOR_NAMED) if (re.test(ctx.sentence)) { armor = a; break; }
   if (!armor && ctx.armor) armor = ctx.armor;
@@ -1677,6 +1722,28 @@ const ABS_TIME = /^\s*(?:s|secs?|seconds?)\s+(?:in|into)\b/i;
 const DEATH_CLAIM = /\byou(?:'d)?\s+(?:[a-z']+\s+){0,2}?(?:died|were killed|got killed|went down)\b|\b(?:killed|shot|caught|picked|got|dropped|finished) you\b|\byour death\b/i;
 const OTHER_EVENT = /\b(?:your\s+(?:[a-z]+\s+)?kills?|you\s+(?:killed|got\s+(?:[a-z]+\s+)?kills?|traded|planted|defused)|plant(?:ed|ing)?|spike|defus\w*|trad(?:e|ed|ing)|teammates?)\b/i;
 const OWN_COUNT_BEFORE = /\byou(?:'d)?\s+(?:[\w']+\s+){0,4}$/i;
+// The round 3 audit's number readers (Nov 2026), each asserted in test:chatgates.
+const CLUTCH_AGAINST_BEFORE = /\b(?:last (?:one|player|man|teammate|person) (?:standing|alive|left)|last alive)\s+(?:against|versus|vs\.?)\s*$/i;
+const OF_YOUR_NOUN = /^\s+(?:out\s+)?of\s+(?:the|your|their|those|these)\s+(?:own\s+)?(deaths|kills|assists|rounds|matches|games)\b/i;
+const OF_TOTAL_BEFORE = /\bof\s+(?:the|your|their|those|these)\s+(\d+)\s+(deaths|kills|assists|rounds|matches|games)\s*,\s*$/i;
+const SMALL_ADVICE_AFTER = /^\s*(?:more\s+|extra\s+|quick\s+|short\s+|single\s+)?(?:shots?|bullets?|taps?|bursts?|peeks?|looks?|fights?|duels?|angles?|steps?|corners?|lanes?|spots?|habits?|things?|pieces?)\b/i;
+// "If you have an escape, take one more shot": advice after a condition.
+const LEAD_CONDITION = /^(?:if|when|once|whenever|as soon as|after|before|until)\b[^,]{1,80},\s*(.+)$/i;
+const leadInstruction = (raw) => {
+  const m = LEAD_CONDITION.exec(String(raw || '').trim());
+  return !!(m && IMPERATIVE.test(m[1].trim()));
+};
+/** Whether "N of your <noun>" is a total of the facts, or a counted pair of one. */
+function shareOk(f, attr, value) {
+  const totals = new Set((f.numbers || []).filter((x) => x.attr === attr && x.round == null && fin(x.value)).map((x) => x.value));
+  if (totals.has(value)) return true;
+  const pairs = (f.counted && f.counted.pairs) || new Set();
+  for (const p of pairs) {
+    const [a, b] = String(p).split('/').map(Number);
+    if (a === value && totals.has(b)) return true;
+  }
+  return false;
+}
 
 /**
  * EVERY NUMBER IS TIED TO WHAT IT IS ABOUT AND CHECKED AS THAT. A game number
@@ -1691,10 +1758,14 @@ const OWN_COUNT_BEFORE = /\byou(?:'d)?\s+(?:[\w']+\s+){0,4}$/i;
 function gateNumbers(s, facts, rs) {
   const f = facts || {};
   const raw = String(s || '');
-  const t = digitsOf(raw);
   const english = (f.language || 'en') === 'en';
+  // "5 of your last 6 matches" read as the pair it is (pairWords, the count gate's).
+  let t = english ? pairWords(digitsOf(raw)) : digitsOf(raw);
+  // "Peeked the same angle twice" of a repeek is the label, no count (repeekTwice).
+  if (english && repeekTwice(raw, f)) t = t.replace(/\b2 times\b/, 'again');
   const rounds = rs && rs.rounds ? rs.rounds : (f.asked && f.oneRound ? [f.asked] : []);
   const instruction = isInstruction(raw) || isHypothetical(raw);
+  const instructive = instruction || (english && leadInstruction(raw));
   const fail = (said) => drop('number', `your reply said ${said}, which the facts do not hold`);
   // A standing's numbers are the standing gate's: "leaving Reyna alone against
   // 2" lost its 2 here as a number tied to nothing (standingClaims).
@@ -1718,7 +1789,37 @@ function gateNumbers(s, facts, rs) {
     }
     if (/^\s*(?:against|versus|vs\.?|v|on)\s*[1-5]\b/i.test(after) || /\b[1-5]\s*(?:against|versus|vs\.?|v|on)\s*$/i.test(before)
         || /^v\d/i.test(after) || /\dv$/i.test(before) || standing.some(([from, to]) => at >= from && at < to)) continue;
+    // "The last one standing against 2" is a clutch, held to a round's clutch
+    // in Riot's record (the named rounds' when the sentence names any). It was
+    // a number tied to nothing, and with it went a true "you won round 2 as the
+    // last one standing against 2" (the round 3 audit). A general rule ("when
+    // you are the last one alive against 2, ...") claims no round.
+    if (english && CLUTCH_AGAINST_BEFORE.test(before)) {
+      if (instruction && !(rs && rs.round)) continue;
+      const pool = f.rounds instanceof Map ? (rs && rs.round && rounds.length ? rounds : [...f.rounds.keys()]) : [];
+      if (pool.some((n) => { const r = f.rounds.get(n); return !!(r && r.clutch && r.clutch.vs === value); })) continue;
+      return fail(`the last one standing against ${value}, which no round's clutch in Riot's record has`);
+    }
     if (/^\s*(?:out\s+)?of\s+(?:the\s+|your\s+|their\s+)?\d/i.test(after) || /\b\d+\s+(?:out\s+)?of\s+(?:the\s+|your\s+|their\s+)?$/i.test(before)) continue;
+    // "All 5 of your deaths": a share of a total, held to the total itself or
+    // to a pair the counted lines state ("3 of your 5 deaths" lets "3 of your
+    // deaths" stand). It was a number tied to nothing, and the first sentence
+    // of four honest lines went with it (the round 3 audit). "4 of your
+    // deaths" of a player with 5, of whom no count says 4, still goes.
+    // "Of your 16 deaths, 14 went unanswered": the counted "14 of your 16
+    // deaths" said the other way round, held to the pair (the round 3 audit).
+    const ofTotal = english ? OF_TOTAL_BEFORE.exec(before) : null;
+    if (ofTotal) {
+      if (((f.counted && f.counted.pairs) || new Set()).has(`${value}/${Number(ofTotal[1])}`)) continue;
+      return fail(`${value} of ${ofTotal[1]} ${ofTotal[2]}, which no count in the facts states`);
+    }
+    const share = english ? OF_YOUR_NOUN.exec(after) : null;
+    if (share) {
+      const attr = /^death/i.test(share[1]) ? 'deaths' : /^kill/i.test(share[1]) ? 'kills' : /^assist/i.test(share[1]) ? 'assists'
+        : /^round/i.test(share[1]) ? 'rounds' : 'matches';
+      if (shareOk(f, attr, value)) continue;
+      return fail(`${value} of your ${share[1]}, which is no total or counted share of them in the facts`);
+    }
     // "You went 31 and 21": the scoreline's kills and deaths, as the review
     // writes them, was two numbers tied to nothing (the verifier's probe).
     const went = /\bwent\s+$/i.test(before) ? /^\s+and\s+(\d+)\b/.exec(after) : null;
@@ -1761,6 +1862,13 @@ function gateNumbers(s, facts, rs) {
     // "You died 4 times" is a count of deaths, the scoreline's.
     else if (attr === 'times' && /\b(?:died|were killed|got killed)\s+$/i.test(before)) attr = 'deaths';
     if (attr === 'rounds' && subjects.some((x) => x.kind === 'gun') && /\b(?:magazine|mag|clip)\b/i.test(t)) attr = 'magazine';
+    // "Take one more shot and leave": a single shot, peek or fight in advice,
+    // no gun named and nothing about what kills, claims no game number. It was
+    // dropped as a hit count tied to nothing, inside an "if you have an
+    // escape, take one more shot" too (the round 3 audit). "Two shots kill"
+    // and a gun's own hits are still the primer's to hold.
+    if (instructive && value <= 3 && SMALL_ADVICE_AFTER.test(after) && !subjects.some((x) => x.kind === 'gun')
+        && !/\b(?:kills?|killing|die|dies|damage|armou?r|health|hp)\b/i.test(ctx.clause)) continue;
     if (!attr) {
       if (instruction && value <= 10 && /^\s*(?:more\s+)?(?:\w+\s+)?(?:deathmatch(?:es)?|games?|matches|reps?|rounds?)\b/i.test(after)) continue;
       return fail(`${m[1]} with nothing the facts tie it to`);
@@ -1801,6 +1909,161 @@ function gateNumbers(s, facts, rs) {
       const what = subjects.length ? ` for the ${subjects[0].name}` : '';
       const said = attr === 'damage' ? `${m[1]} ${partOf(ctx.clause) || ''} damage`.replace(/\s+/g, ' ') : `${m[1]} ${attr}`;
       return fail(`${said}${what}`);
+    }
+  }
+  return null;
+}
+
+// ── The round 3 audit's gates (Nov 2026) ───────────────────────────────────
+
+/*
+ * THE RULES' OWN TEMPLATE IS NO ANSWER. The rules once asked for the fix "as
+ * when this happens, do that", and players were shown "When this happens, do
+ * that." word for word. A sentence carrying the template's words is dropped.
+ */
+const TEMPLATE_WORDS = /\bwhen this happens,?\s+(?:you\s+)?do that\b|\bas when this happens\b|\bthe moment to notice and the move to make\b|\bthe situation to notice and the move to make\b/i;
+function gateTemplate(s) {
+  return TEMPLATE_WORDS.test(String(s || ''))
+    ? drop('template', "your reply wrote the instruction's own template words, such as when this happens, do that; say the real moment and the real move instead")
+    : null;
+}
+
+/*
+ * AIM IS NEVER WAVED AWAY WITHOUT THE LOOKS TO SAY SO. Ten of ten aim
+ * questions were answered "your aim is not the problem", three with no look at
+ * any death, one against its own two lost duels. Saying aim is not the
+ * problem, or can wait, stands only where the coach looked: of the rounds the
+ * sentence names, each one looked at and none a lost duel, else of the match,
+ * at least two deaths looked at, half of them or more, and none a lost duel.
+ */
+const AIM_DISMISSED = [
+  /\baim\s+(?:is|was)(?:n't|\s+not)\s+(?:really\s+|actually\s+)?(?:the|your|what|a|an|why)\b[^.;:]{0,40}?\b(?:problem|issue|fix|cost|costing|cause|reason|matters?|thing|holding)\b/i,
+  /\baim\s+(?:(?:work|question|training|practice)\s+)?can\s+wait\b/i,
+  /\bnot\s+(?:about\s+)?(?:your\s+)?aim\b(?!\s+(?:alone|only|first)\b)/i,
+  /\bnot\s+(?:an?\s+)?(?:lost\s+)?aim\s+(?:duel|problem|issue)\b/i,
+  /\baim\s+(?:is|was|looks|looked)\s+fine\b/i,
+  /\bnothing\s+(?:here\s+)?(?:says|saying|shows|showing)\s+(?:that\s+)?your\s+aim\b/i,
+];
+const AIM_REASON = 'your reply said aim is not the problem, which the coach\'s looks do not show; answer from the deaths and the headshot rate against the player\'s own average, and still give one aim habit';
+function gateAim(s, facts, rs) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const t = String(s || '');
+  if (!AIM_DISMISSED.some((re) => re.test(t))) return null;
+  if (!(f.rounds instanceof Map)) return drop('aim', AIM_REASON);
+  const looked = (r) => !!(r && r.died && r.look && r.look.cause);
+  // The rounds the sentence names, else the one round asked about: "Aim was
+  // not the issue here, the position was" in an answer about a repeek round
+  // is said of that round, never of the match (the round 3 verification).
+  const ns = rs && rs.round ? rs.rounds : (f.oneRound && f.asked ? [f.asked] : []);
+  const named = ns.map((n) => f.rounds.get(n)).filter(Boolean);
+  if (named.length) {
+    if (named.every((r) => looked(r) && r.look.cause !== 'lost-duel')) return null;
+    return drop('aim', AIM_REASON);
+  }
+  const deaths = [...f.rounds.values()].filter((r) => r.died);
+  const seen = deaths.filter(looked);
+  if (seen.length >= 2 && seen.length * 2 >= deaths.length && !seen.some((r) => r.look.cause === 'lost-duel')) return null;
+  return drop('aim', AIM_REASON);
+}
+
+/*
+ * THE KIT AS THE GAME DATA HAS IT, AND THE STATE AS RIOT'S RECORD HAS IT
+ * (ability-facts.js, stream D of the round 3 audit). "Her Turret (E) and
+ * Alarmbot (C)" on a Killjoy whose Alarmbot is Q, "the alarmbot reveals and
+ * slows", Paranoia "vision blocking": a key, an ultimate, an effect or an owner
+ * the data contradicts. And a standing "N against M" a round's record never
+ * had, or a health number nothing in the facts states. The sentence goes, the
+ * answer stays. A module that is not deployed checks nothing.
+ */
+let abilityFactsMod;
+function abilityFacts() {
+  if (abilityFactsMod === undefined) {
+    try { abilityFactsMod = require('./ability-facts'); } catch { abilityFactsMod = null; }
+  }
+  return abilityFactsMod;
+}
+function gateKit(s, facts, rs) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const af = abilityFacts();
+  if (!af || typeof af.checkText !== 'function') return null;
+  const t = String(s || '');
+  let claims = [];
+  try { claims = af.checkText(t, { agents: [f.agent, ...(f.askedAgents || [])].filter(Boolean) }) || []; } catch { claims = []; }
+  const c = claims[0];
+  if (c) {
+    const why = c.kind === 'key' ? `${c.ability} is ${c.agent}'s ${c.truth}, never ${c.said}`
+      : c.kind === 'ultimate' ? `${c.ability} is no ultimate, it is ${c.agent}'s ${c.truth}`
+        : c.kind === 'owner' ? `${c.ability} is ${c.agent}'s, never ${c.said}'s`
+          : `the game's own description of ${c.ability} never says it ${c.said}`;
+    return drop('kit', `your reply got an ability wrong: ${why}; name abilities by their name as the kit gives them, never by a key letter, and say only what the kit says they do`);
+  }
+  if (typeof af.checkState !== 'function' || !(f.rounds instanceof Map)) return null;
+  const round = rs && rs.round && rs.rounds.length === 1 ? rs.rounds[0] : (f.oneRound ? f.asked : null);
+  const hp = [];
+  for (const r of f.rounds.values()) for (const d of r.lookDigits || []) if (d && (!d.unit || /^(?:hp|health)$/i.test(d.unit))) hp.push(d.value);
+  let state = [];
+  try {
+    state = af.checkState(t, { rounds: f.rounds, round, mode: f.mode || null,
+      texts: (f.counted && f.counted.texts) || [], hp }) || [];
+  } catch { state = []; }
+  // A standing inside five a side is the timeline gate's, which reads whose it
+  // is, what a death left and what a sentence after a told standing carries on
+  // (gateStanding, gateLeftAcross): "Then it was 2 against 5" after the told
+  // death stays there, where the plainer reader here, which holds the round's
+  // list alone, dropped it. Here: a health number, and a standing past five a side.
+  const x = state.find((c) => c && (c.kind === 'hp' || c.record === 'five a side'));
+  if (!x) return null;
+  return x.kind === 'hp'
+    ? drop('kit', `your reply gave a health number (${x.said}) nothing in the facts states; never say a health number the facts do not hold`)
+    : drop('kit', `your reply said ${x.said}${x.round ? ` in round ${x.round}` : ''}, which Riot's record of the standing does not have`);
+}
+
+/*
+ * A DRILL MUST BE ONE THE MODE ALLOWS. "Run deathmatch with one rule: only peek
+ * where a teammate can see the angle" asks for teammates a Deathmatch and the
+ * Range never have. Team Deathmatch has a team, and a sentence saying there is
+ * nobody there is the rule itself.
+ */
+// The Range with its capital, the mode's name: "stay within the range where a
+// teammate can trade you" is a distance, no drill (the round 3 verification).
+const SOLO_MODE = /(?<![Tt]eam\s)(?<![A-Za-z])(?:[Dd]eath ?[Mm]atch|DEATHMATCH|the Range|in Range|[Rr]ange practice|[Aa]im trainer)(?![A-Za-z])/;
+const TEAM_WORDS = /\b(?:teammates?|team ?mates?|allies|ally|your team|trade(?:s|d)?|trading|comms|call(?:s|ed)? out|duo)\b/i;
+const NO_TEAM = /\b(?:no|without|never|not|nobody|no one)\b[^.;:]{0,30}\b(?:teammates?|team|allies|ally|trade|anyone)\b|\bon your own\b|\balone\b|\bin (?:a |your )?(?:match|matches|unrated|competitive|swiftplay)\b/i;
+function gateMode(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const t = String(s || '');
+  if (!SOLO_MODE.test(t) || !TEAM_WORDS.test(t) || NO_TEAM.test(t)) return null;
+  return drop('mode', 'your reply gave a drill for Deathmatch or the Range that needs teammates, which those modes never have; give a drill the player can do alone, and practise a team habit in a match');
+}
+
+/*
+ * AN ENEMY ABILITY KILLED THE PLAYER ONLY WHERE RIOT'S RECORD SAYS SO. On the
+ * Sunset loss Killjoy's four kills were a Bandit, a Bandit, a Classic and a
+ * Marshal, and the answer blamed her turret and swarms. A sentence saying an
+ * ability killed the player, in a round whose killer was that agent with a gun
+ * (the named round, else every round that agent killed the player in), goes.
+ */
+const KILL_AFTER_ABILITY = /^\s*(?:\(\s*[CQEX]\s*\)\s*)?(?:that\s+)?(?:killed|got|shot|caught|finished|took out|picked off|did the damage that killed)\s+you\b/i;
+const KILL_BEFORE_ABILITY = /\b(?:killed you|got you|you died|you were killed|you got killed|you fell)\s+(?:to|by|with|from|through|in|on|off)\s+(?:(?:her|his|their|the|an?|enemy|that|this)\s+)?(?:[A-Za-z/]+'s\s+)?$/i;
+function gateAbilityKill(s, facts, rs) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol' || !(f.rounds instanceof Map)) return null;
+  const t = String(s || '');
+  if (isHypothetical(t)) return null;
+  const gunSet = new Set(GUNS.map(lower));
+  for (const ab of abilitiesIn(t)) {
+    // As the game prints it, with its capital: "flash" or "trap" is a word too.
+    if (!/^[A-Z]/.test(t.slice(ab.at, ab.end))) continue;
+    if (!KILL_AFTER_ABILITY.test(t.slice(ab.end)) && !KILL_BEFORE_ABILITY.test(t.slice(Math.max(0, ab.at - 60), ab.at))) continue;
+    const own = singleRoundBefore(t, ab.at);
+    const pool = own !== null && f.rounds.has(own) ? [own] : (rs && rs.round && rs.rounds.length ? rs.rounds : [...f.rounds.keys()]);
+    const byAgent = pool.map((n) => f.rounds.get(n)).filter((r) => r && r.died && r.killer === ab.agent && r.killerWeapon);
+    if (!byAgent.length) continue;
+    if (byAgent.every((r) => gunSet.has(lower(r.killerWeapon)))) {
+      return drop('ability-kill', `your reply said ${ab.agent}'s ${t.slice(ab.at, ab.end)} killed the player, where Riot's record has ${ab.agent} killing them with a gun; name an ability as what killed the player only where the record does`);
     }
   }
   return null;
@@ -1878,6 +2141,13 @@ const GATES = [
   ['count', gateCount],
   ['time', gateTimeFormat],
   ['number', gateNumbers],
+  // The round 3 audit's (Nov 2026): after every gate before, so a sentence
+  // those dropped is counted as it always was.
+  ['template', gateTemplate],
+  ['aim', gateAim],
+  ['kit', gateKit],
+  ['mode', gateMode],
+  ['ability-kill', gateAbilityKill],
 ];
 
 /**
@@ -1924,4 +2194,9 @@ module.exports = {
   // The verifier's probe of 23 Oct, each asserted in test:chatgates.
   gateLeftAcross, deathsWord, sinceDeath, CARRIES_ON, LEFT_FINITE, AFTER_DEATH_NEXT, AT_THE_DEATH, DATED_LATER, CLAUSE_MARK,
   DEATH_SUBJECT, OTHER_TIME, LEFT_OPENER, OWNER_CARRIES, NEW_CLAUSE,
+  // The round 3 audit (Nov 2026), each asserted in test:chatgates.
+  gateTemplate, gateAim, gateKit, gateMode, gateAbilityKill, pairWords, shareOk, singleRoundBefore, leadInstruction,
+  OF_TOTAL_BEFORE, PEEK_TWICE, TRADED_MATES_TIMES, repeekTwice,
+  PAIR_FILLER, KEEPING_WORTH, CLUTCH_AGAINST_BEFORE, OF_YOUR_NOUN, SMALL_ADVICE_AFTER, LEAD_CONDITION, ONE_ROUND,
+  TEMPLATE_WORDS, AIM_DISMISSED, SOLO_MODE, TEAM_WORDS, NO_TEAM, KILL_AFTER_ABILITY, KILL_BEFORE_ABILITY,
 };

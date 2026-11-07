@@ -54,6 +54,7 @@ function ctxFor(n) {
   if (n.phase) ctx.phase = { buy: 'buy', postplant: 'post plant', active: 'active', dead: 'dead' }[n.phase];
   if (n.cause) ctx.causes = n.cause;
   if (n.enemyAgents) ctx.enemyAgents = n.enemyAgents.slice(0, 1);
+  if (n.enemyWeapons) ctx.enemyWeapons = n.enemyWeapons.slice(0, 1);
   if (n.enemyWithout) {
     const others = AGENT_LIST.filter((a) => !n.enemyWithout.includes(a) && !(n.enemyAgents || []).includes(a));
     ctx.enemyAgents = (n.enemyAgents ? n.enemyAgents.slice(0, 1) : []).concat(others).slice(0, 5);
@@ -756,6 +757,41 @@ ok(onPct >= 50, `and shifts it decisively, not marginally (${onPct}%)`);
   ok(cases.pick(spread).length === 0, 'and a Jett whose seven deaths are spread over the round is given no case on the clock alone');
   ok(spread.seed && spread.seed === cases.fromReview(review([died(1, 'early'), died(2, 'mid'), died(3, 'late'), died(4, 'mid'), died(5, null), died(6, null), died(7, 'late')]), []).seed
     && spread.seed !== gathered.seed && cases.reviewSeed({ rounds: [] }) === null, 'the review\'s seed is the match\'s own facts, the same match the same seed');
+}
+
+// ── The killer's gun (round 3, knowledge.js enemyWeapons) ──────────────────
+// The enemy Operator note was tagged for an enemy Jett or Chamber and served
+// in 9 of the audit's 24 reviews, none with an Operator kill. A note may now
+// name the guns that must have killed the player, read from Riot's record,
+// and with no such list it is never served: never blind, and Ask Coach, which
+// passes no weapons to enemyFit, leaves it out too. Every other note scores
+// and draws exactly as before.
+{
+  const seededRun = (fn) => {
+    const random = Math.random;
+    let x = 3;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const tagged = knowledge.all().filter((n) => Array.isArray(n.enemyWeapons));
+  const OPS = tagged.filter((n) => n.enemyWeapons.includes('Operator')).map((n) => n.text);
+  ok(OPS.length === 2 && OPS.some((t) => /^When an enemy Operator is holding a lane/.test(t)) && OPS.some((t) => /^Do not let one enemy Operator/.test(t))
+    && tagged.every((n) => !n.enemyAgents),
+  `the two enemy Operator notes carry the gun, not the Jett and the Chamber (${OPS.length})`);
+  const note = tagged[0];
+  ok(knowledge.enemyFit(note, ['Jett', 'Chamber']) === null && knowledge.enemyFit(note, [], ['Vandal']) === null
+    && knowledge.enemyFit(note, [], ['Operator']) === knowledge.ENEMY_FIT && knowledge.enemyFit(note, [], ['operator']) === knowledge.ENEMY_FIT
+    && knowledge.enemyFit({ text: 'x' }, [], ['Operator']) === 0,
+  'enemyFit: no Operator kill is no note, whatever the comp, an Operator kill scores ENEMY_FIT, an untagged note is unmoved');
+  ok(JSON.stringify(knowledge.enemyWeaponsOf(['operator', 'Operator', 'Turret', 'Someone#NA1', 'Vandal', null])) === '["Operator","Vandal"]',
+    'the guns are the game data\'s, deduplicated: an ability, a name or nothing never matches');
+  const ctx = { agent: 'Sova', map: 'Ascent', side: 'attacking', phase: 'active', causes: ['dry-peek'], rankBand: 'plat_diamond', enemyAgents: ['Jett', 'Chamber', 'Omen', 'Sage', 'Fade'] };
+  const without = new Set(knowledge.retrieve(ctx, 2000));
+  const withOp = new Set(knowledge.retrieve({ ...ctx, enemyWeapons: ['Operator'] }, 2000));
+  ok(OPS.every((t) => !without.has(t) && withOp.has(t)), 'retrieve serves them on an Operator kill and never on a Jett and a Chamber alone');
+  const plain = seededRun(() => knowledge.retrieve(ctx, 8, { advanced: true }));
+  const rifles = seededRun(() => knowledge.retrieve({ ...ctx, enemyWeapons: ['Vandal', 'Phantom'] }, 8, { advanced: true }));
+  ok(JSON.stringify(plain) === JSON.stringify(rifles), 'and guns no note names change nothing: the same notes, the same draws');
 }
 
 console.log(`\n${fails ? fails + ' failure(s)' : 'all advanced tip checks passed'}`);
