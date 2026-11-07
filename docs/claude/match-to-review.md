@@ -409,7 +409,21 @@ before this change, gets 8.7.7's prompt and study list byte for byte (`test:valo
   changes): `product` (the review, a next review, the app, Occlara: a clause is cut where the sentence
   stands without it, `productCut`), `library` (another match's number: "5 of your last 6", "your
   average"), `round state` (an attacker in a round with no plant told to let the enemy come or play
-  for time) and `no plant` (advice that needs a planted spike, a defuse or a retake in a round Riot's
+  for time, and since 8.7.10 the clock turned around, `clockWrong`: a sentence set after the plant
+  that puts the attackers on the clock, or one in a round never planted that puts the defenders on
+  it, as Corrode round 1's "so the attackers have to move against the clock") and `no plant` (advice that needs a planted spike, a defuse or a retake in a round Riot's
   record has no plant in), the drill gate also reading "whether anyone could help you" and keeping
   "rather than in Deathmatch", and the coherence pass (`cohere`): after a drop, a sentence opening on
   It, This, They or Her goes, and a she, her, he or him with no agent or enemy named before it goes.
+- **What each death cost, from Platinum** (8.7.10, the blind audit of 8.7.9, stream B; detail in
+  ask-coach.md, "The blind audit of 8.7.9"). A round 4 client at Platinum or above gets THE COSTLIEST
+  DEATHS beside SWING AND COUNTS (`costLineOf`, `record-claims.js costRank`: a lost round above any won
+  one, then the numbers the death left, after the plant, untraded), and its study list follows the two
+  costliest deaths (`costTopics`: after the plant to the post plant or the retake, an advantage given
+  back to playing the numbers, the look's cause to its topics, a first death a player down at a third of
+  the weight so it never fills the list, `costKillers` the notes that answer their killers), and leaves
+  out a note a round line or the focus already says (`repeats`). On the six audit matches at Ascendant
+  the study list opens on 5 different notes. Below Platinum, and for a client before round 4, the
+  prompt and the list are as before. And for every client a round line giving advice for after the
+  plant of a death the record has before it goes (`record-claims.js checkPostPlant`, gate `record
+  postplant`: Pearl round 3's "hold the planted spike" in three reviews, Sunset 2 to 5 round 1).

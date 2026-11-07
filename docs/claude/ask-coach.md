@@ -407,14 +407,87 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
     can wait.", "Your other counted habits can wait.") goes, a clause of it is
     cut ("That is the lever, and the other things can wait." is "That is the
     lever."), "nothing else needs fixing first" too; what names what waits
-    ("Trading is the second point and can wait") stays. The rules say to name
-    what waits and vary the close. `filler` and `seam` are quiet: a first
-    sentence lost that way never asks for the reply again.
+    stays, except the trade check since 8.7.9's audit (below). `filler` and
+    `seam` are quiet: a first sentence lost that way never asks for the reply
+    again.
   - The rules gained a line and the drill line grew (test:chatgates holds them word for word): name
-    what can wait, never blame the team's record after the plant where the
-    player died before it, never a kill the record does not have, and no
-    agent's kit or matchup practised in Deathmatch. Not yet measured on live
-    answers.
+    what can wait (since 8.7.9's audit: never close on what can wait), never
+    blame the team's record after the plant where the player died before it,
+    never a kill the record does not have, and no agent's kit or matchup
+    practised in Deathmatch.
+- **The blind audit of 8.7.9 and what changed (Nov 2026, stream B)**. The 84
+  items of 8.7.9 judged blind against 8.7.7 and 8.7.8: Plat chat recovered,
+  Asc+ chat got worse on real errors, "The trade check can wait" closed 29 of
+  60 answers. Replayed offline over the 60 raw replies and the 24 reviews
+  (each context rebuilt through `ask-coach.js` with the audit's record
+  fields), every new drop a judge's flag, 0 honest lines, and three true
+  sentences the killer gate had dropped now kept. Each pinned in
+  test:chatgates (section "the blind audit of 8.7.9, stream B") and the
+  review's in test:valorantreview, on the live sentence and a true one:
+  - THE COSTLIEST DEATHS (`record-claims.js costRank`, `costLine`), from
+    Platinum only (chat `input.rankBand`, the review a round 4 client's band):
+    the match's deaths ranked in code from Riot's record, a lost round 100
+    above any won one, then the numbers the death left (a player down 3, the
+    advantage given back to even 2), after the plant 2, untraded 3 (never the
+    last one alive), the round's first death 1. The top three go in the
+    COUNTED block (chat) or beside SWING AND COUNTS (review) as a finished
+    line with the rule: name the costliest first, never a won round's death
+    above a lost one's. Gate `priority` (`fact-gates.js gatePriority`): "your
+    biggest mistake was the repeek in round 2" of a won round where a lost
+    round ranks first goes, and the reply is asked for again.
+  - Counts and kit: `gateCounted` ("this match's one counted decision
+    mistake" where code counted none, against the lists' lengths),
+    `gateOwnAgent` ("against Jett" to a Jett whose enemies had none),
+    `gateLethal` (a health number and one hit said to end it, held to the
+    primer's best hit of the gun named: a Sheriff body hit does 55, so "at 57
+    health any clean hit ends you" goes), `gateTeamUtility` (a dart, a drone,
+    a recon or a prowler asked of a team with no agent whose kit has one,
+    `UTILITY_OWNERS` from the game data), `gateAbilityKill` in general words
+    ("the thing that kills you is her star setup" where every death to that
+    agent was a gun), `gateStaleBuy` (the record said not to hold the buy over
+    round lines that give it). The TEAMS line says to ask only for the team's
+    utility and never to name the player's own agent as an enemy.
+  - The record (`record-claims.js`, both surfaces): `checkPostPlant` (advice
+    for after the plant, holding or playing the spike, a defuse, "once the
+    spike is down", of a death the record has before the plant: Pearl round 3
+    in three reviews, Sunset round 1), `checkScore` ("the score was 5 against
+    4" of a round whose score was 2 to 0, "the round ended 3 to 13" of round
+    2: a score said of a round is its score before or after), and in Ask
+    Coach `checkClock` (the attackers put on the clock after their own plant,
+    the review's is `match-review.js clockWrong`, stream A).
+  - THE CLOSER: the rules no longer ask to name what waits ("End on the last
+    real point of the answer. Never close by saying what can wait"), the
+    improving rule and THE LEVER say to leave the others out, and
+    `coherence.js fillerOf` drops any deferral of the trade check
+    (`TRADE_WAIT_WHOLE`, "The trade check can wait here, since your teammate
+    was close", a list holding it, "The larger pattern of unanswered deaths
+    can wait") and cuts it as a clause after a comma (`TRADE_WAIT_CLAUSE`).
+    Another named deferral ("Your Reyna problem can wait") still stays.
+  - CUT SENTENCES (`coherence.js checkOrphans`, each only after a dropped
+    sentence): `all` ("All three need a star"), `same` ("Same story in round
+    7"), `ellipsis` ("The fights you choose are."), `one` ("You will not have
+    one, so ..."), and `those` reading "Those came when you had support". And
+    the cause of two of them: "Round 4, 17 s in" named round 17 and "in round
+    2, 31 s in" round 31 (`match-review.js namedRounds`, `record-claims.js
+    ROUND_RUN`), so true sentences fell to the killer and round gates and
+    what followed dangled.
+  - The verify pass over all 252 audit outputs (8.7.7, 8.7.8, 8.7.9) found
+    true sentences the new gates took, and each is kept now and pinned in
+    test:chatgates ("7b"): a fall back before the plant told by staying alive
+    for it ("staying alive keeps you available for the planted spike", Pearl
+    round 6 in three reviews) and "play for the plant" (`checkPostPlant`); a
+    sentence telling both phases, "the attackers are on the clock until they
+    plant" (`PRE_PLANT`, and `CLOCK_PRE_PLANT` in `clockWrong`); "the final
+    score was 13 to 7" after a round (`checkScore`); the enemy's dart or drone
+    ("after a dart reveals you") where the enemy comp has one and nothing ties
+    it to the player's side (`UTILITY_OURS`); one player's buy said beside the
+    team's (`BUY_HELD_SAID`, the very hedge `BUY_HEDGE_RECORD` asks for); and
+    a short sentence ending on its verb with a wh word ("Here is what you can
+    do.", `ELLIPSIS_WHOLE`). THE COSTLIEST DEATHS line sits on top of the
+    match budget (`buildParts` costRoom): on the Corrode and Split Plat+
+    prompts it had pushed the match part to level 3, taking the coach's looks
+    out of every round line and THE PLAYER's lists to three.
+  - Not yet measured on live answers.
 - **Its model, its time and its cap are the route's** (above, "Ask Coach v2,
   the route's half"): `AI_CHAT_MODEL` pinned with no weaker model behind it,
   40 s across both calls, and $0.15 a licence a rolling day. The page says

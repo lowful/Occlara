@@ -126,6 +126,49 @@ const listOf = (v, n) => (Array.isArray(v) ? v : []).slice(0, n).map((e) => ({
   count: e && Number.isInteger(e.count) && e.count >= 0 && e.count <= 40 ? e.count : null,
 })).filter((e) => e.title);
 
+/*
+ * ONE PLACE FOR A DEATH (8.7.10). Where Riot's record places a death (the
+ * round's `place`, recordSent), that is the only place the model sees for
+ * it: the round line says it, and the screen's spot goes. An 8.7.9 client
+ * already sends Riot's as deathSpot, and a client before 8.7.9 sends no
+ * place, so its rounds are as before, byte for byte. In the round 3 audit 14
+ * of 8.7.9's 87 place mentions still followed the screen's spot, which on the
+ * player's Split was Riot's place of the death before it (an 8.0.1 ledger a
+ * round behind, valorant-verify.js screenLagged).
+ *
+ * A counted line about one place, the spot pattern ("2 of your 16 deaths were
+ * at B Site, in rounds 5, 8.") and the same spot mistake ("Dying at B Site"),
+ * is counted on the client, and a client before 8.7.10 counted it on the
+ * screen's spot. One whose rounds Riot's record places somewhere else is a
+ * count of places the record contradicts, and is left out of the prompt
+ * rather than recounted here: a round the record has no place for agrees.
+ */
+const placeKey = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+function onePlace(r) {
+  return r.died && r.place ? { ...r, deathSpot: clip(r.place, 40) } : r;
+}
+const SPOT_PATTERN = /\bdeaths were at (.+?), in rounds? (\d+(?:(?:, | and )\d+)*)\.?\s*$/i;
+const SAME_SPOT_TITLE = /^Dying at (.+)$/;
+/** The place and rounds of a spot pattern, or null for any other pattern. */
+function spotPatternOf(p) {
+  const m = p && p.key === 'spot' ? SPOT_PATTERN.exec(p.text) : null;
+  return m ? { place: m[1], rounds: m[2].split(/, | and /).map(Number) } : null;
+}
+/** The place and rounds of a counted same spot mistake, or null for any other. */
+function sameSpotOf(e) {
+  const m = e && e.key === 'same-spot' ? SAME_SPOT_TITLE.exec(e.title) : null;
+  return m ? { place: m[1], rounds: e.rounds } : null;
+}
+/** Whether no round of a place line has a place of Riot's other than the line's. */
+function spotAgrees(line, rounds) {
+  if (!line) return true;
+  const byN = new Map((rounds || []).map((r) => [r.n, r]));
+  return line.rounds.every((n) => {
+    const r = byN.get(n);
+    return !r || !r.place || placeKey(r.place) === placeKey(line.place);
+  });
+}
+
 /** The request body, bounded and typed, whatever a client sent. */
 function normalise(body) {
   const b = body || {};
@@ -166,11 +209,11 @@ function normalise(body) {
     // each left out when the client sent none, so a round from a client
     // before it is normalised as before, byte for byte.
     ...(r && r.verified ? recordSent(r, b.context && b.context.map) : {}),
-  })).filter((r) => r.n > 0);
+  })).filter((r) => r.n > 0).map(onePlace);
   const patterns = (Array.isArray(b.patterns) ? b.patterns : []).slice(0, 8).map((p) => ({
     key: clip(p && p.key, 20),
     text: clip(p && p.text, 180),
-  })).filter((p) => p.text);
+  })).filter((p) => p.text && spotAgrees(spotPatternOf(p), rounds));
   const ctx = b.context || {};
   const final = b.final || {};
   return {
@@ -181,7 +224,7 @@ function normalise(body) {
     // finds for itself. Null from a client from before 8.3.1, which counts the
     // same lists on its own page and sends neither: "none cleared the bar"
     // would be a falsehood told to the model as true (promptRounds).
-    mistakes: Array.isArray(b.mistakes) ? listOf(b.mistakes, 4) : null,
+    mistakes: Array.isArray(b.mistakes) ? listOf(b.mistakes, 4).filter((m) => spotAgrees(sameSpotOf(m), rounds)) : null,
     strengths: Array.isArray(b.strengths) ? listOf(b.strengths, 4) : null,
     tips: (Array.isArray(b.tips) ? b.tips : []).slice(0, 30).map((t) => clip(t, 220)),
     notes: (Array.isArray(b.notes) ? b.notes : []).slice(0, 20).map((t) => clip(t, 90)),
@@ -257,7 +300,7 @@ function recordSent(r, map) {
   const out = {};
   // Riot's callout of the death (8.8, valorant-review.js requestBody's
   // `place`), only as a place of this match's map, for the retrieval signals
-  // alone (recordSignals): the round line says deathSpot, as before.
+  // (recordSignals), and the round line's deathSpot since 8.7.10 (onePlace).
   const place = r.died && typeof map === 'string' ? knowledge.placeOf(map, r.place) : null;
   if (place) out.place = place;
   if (BUY_SENT.has(r.buy)) out.buy = r.buy;
@@ -789,6 +832,72 @@ const RESERVE_OF = 8;
  * gives its cause's topics +2 (CAUSE_TOPICS). A client before 8.5.0 is listed
  * its notes as today, byte for byte.
  */
+/*
+ * THE STUDY LIST FROM PLATINUM FOLLOWS WHAT THE DEATHS COST (the blind audit
+ * of 8.7.9): the diamond and immortal judges read the same three or four
+ * notes pasted across different matches. The costliest death sends the player
+ * to its moment, the second to its own at half the weight: after the plant on
+ * attack to the post plant, on defence to the retake, an advantage given back
+ * to playing the numbers, a death that left the team a player down as the
+ * first contact, an untraded one to playing off a teammate, the look's cause
+ * to its topics. Topic -> weight, empty below Platinum or for a client before
+ * round 4.
+ */
+const COST_BONUS = 6;
+const COST_TOPICS = {
+  postplant: ['post plant', 'post plant layers', 'the spike tells you the time'],
+  retake: ['retake shape', 'contest or retake'],
+  even: ['man advantage', 'alive count sets risk', 'keep the won space', 'two versus one as a pair'],
+  // The commonest costly death, the round's first, a player down: its topics
+  // by side and at a third of the weight, so it never fills the list alone
+  // (it sent every duelist to the same entry note).
+  downAttack: ['do not entry into a stack', 'a timing peek is short', 'entry is a four on five'],
+  downDefence: ['early aggression needs a purpose', 'who may push early on defense', 'one information play on defence'],
+  untraded: ['Offset from your teammate', 'Peek off a teammate contact'],
+};
+function costTopics(input) {
+  const out = new Map();
+  const c = costOf(input);
+  if (!c || !c.ranked.length) return out;
+  const byN = new Map((input.rounds || []).map((r) => [r.n, r]));
+  const put = (ts, w) => { for (const t of ts) if (!out.has(t) || out.get(t) < w) out.set(t, w); };
+  c.ranked.slice(0, 2).forEach((x, i) => {
+    const w = i === 0 ? COST_BONUS : COST_BONUS / 2;
+    if (x.plant === 'after') put(x.side === 'defence' ? COST_TOPICS.retake : COST_TOPICS.postplant, w);
+    if (x.even) put(COST_TOPICS.even, w);
+    if (x.down) put(x.side === 'defence' ? COST_TOPICS.downDefence : COST_TOPICS.downAttack, w / 3);
+    if (x.untraded && !x.down) put(COST_TOPICS.untraded, w / 2);
+    const r = byN.get(x.n);
+    if (r && r.cause) put(CAUSE_TOPICS[r.cause] || [], w);
+  });
+  return out;
+}
+/** The costliest deaths' killers, for the notes that answer them (+COST_BONUS / 2 in study). */
+function costKillers(input) {
+  const c = costOf(input);
+  if (!c || !c.ranked.length) return new Set();
+  const byN = new Map((input.rounds || []).map((r) => [r.n, r]));
+  return new Set(c.ranked.slice(0, 2).map((x) => byN.get(x.n)).filter((r) => r && r.killer).map((r) => r.killer));
+}
+/*
+ * A NOTE THE REVIEW ALREADY SAYS: three in five of its content words are one
+ * round line's or the focus's, five at least.
+ */
+const STUDY_STOP = new Set(['that', 'this', 'with', 'your', 'from', 'when', 'then', 'they', 'them', 'their', 'there', 'what', 'have', 'into',
+  'before', 'after', 'because', 'rather', 'than', 'until', 'while', 'where', 'which', 'would', 'could', 'should', 'only', 'just', 'also',
+  'even', 'every', 'each', 'more', 'most', 'some', 'like', 'take', 'make', 'over', 'away', 'back', 'about', 'other', 'once', 'next']);
+const contentWords = (t) => new Set(String(t || '').toLowerCase().replace(/[^a-z' ]/g, ' ').split(/\s+/).filter((w) => w.length >= 4 && !STUDY_STOP.has(w)));
+function repeats(note, lines) {
+  const a = contentWords(note);
+  if (a.size < 5) return false;
+  return lines.some((l) => {
+    const b = contentWords(l);
+    let shared = 0;
+    for (const w of a) if (b.has(w)) shared += 1;
+    return shared >= 5 && shared * 5 >= Math.min(a.size, b.size) * 3;
+  });
+}
+
 function study(input, limit = 3, opts = {}) {
   const { context, patterns, rounds } = input;
   const s = knowledge.situationOf({ agent: context.agent, map: context.map });
@@ -814,6 +923,13 @@ function study(input, limit = 3, opts = {}) {
   const r4facts = r4 ? matchFacts(input) : {};
   const matchup = r4facts.killer ? r4facts.killer.agent : null;
   const lever4 = r4 ? leverOf(input) : null;
+  // FROM PLATINUM, THE COSTLIEST DEATHS CHOOSE TOO (costTopics, the blind
+  // audit of 8.7.9): the topics of the two deaths that cost the most weigh
+  // COST_BONUS and half of it, and a note that says again what a round line or
+  // the focus already says is left out (repeats). Below Platinum, as before.
+  const costWeights = costTopics(input);
+  for (const [t, w] of costWeights) if (w >= COST_BONUS / 2) wanted.add(t);
+  const costBy = costKillers(input);
   // Riot's round record (8.8, signalTopics): a callout died at again and
   // again, lone deaths, deaths with no ability used and the team's economy
   // want their notes as a pattern does. No record, no topic.
@@ -856,6 +972,7 @@ function study(input, limit = 3, opts = {}) {
     const versus = knowledge.enemyFit(note, enemies, guns);
     if (versus === null) continue;
     if (advice.length && contradicted(note, src.topic, advice)) continue;
+    if (costWeights.size && advice.length && repeats(note.text, advice)) continue;
     if (note.agents && (!s.agent || !note.agents.some((a) => a.toLowerCase() === s.agent.toLowerCase()))) continue;
     if (note.roles && (!s.role || !note.roles.includes(s.role))) continue;
     if (note.maps && (!s.map || !note.maps.some((m) => m.toLowerCase() === s.map))) continue;
@@ -888,6 +1005,8 @@ function study(input, limit = 3, opts = {}) {
       const answers = [...(note.enemyAgents || []), ...(note.enemyHint || [])];
       if (matchup && answers.includes(matchup)) score += MATCHUP_BONUS;
       if (lever4 && lever4.kind !== 'trade' && HIGH_BANDS.has(band) && TRADE_NOTE.test(note.text)) score -= 2;
+      if (costWeights.has(src.topic)) score += costWeights.get(src.topic);
+      if (costBy.size && answers.some((a) => costBy.has(a))) score += COST_BONUS / 2;
     }
     scored.push({ text: note.text, topic: src.topic, advanced, score, fit: ranked === knowledge.RANK_FIT });
   }
@@ -1325,7 +1444,9 @@ function round4Write(input, picks) {
   const lever = leverOf(input);
   // No fact for any kind: the round 3 rule, the trade never the focus from Platinum.
   const high = HIGH_BANDS.has(knowledge.validBand(input.context.rankBand));
-  let text = round3Write(input, picks, { swing, kit, lever: lever ? leverRule4(input, lever) : leverRule(input, high) });
+  // From Platinum, the deaths ranked by what each cost (costLineOf, the blind audit of 8.7.9).
+  const cost = high ? costLineOf(input) : '';
+  let text = round3Write(input, picks, { swing: cost ? `${swing}\n\n${cost}` : swing, kit, lever: lever ? leverRule4(input, lever) : leverRule(input, high) });
   for (const [from, to] of ROUND4_SWAPS) {
     text = text.replace(from, to.replace('{KIT}', kit ? ' Say of an ability only what its line under WHAT THE ABILITIES DO says.' : ''));
   }
@@ -1535,10 +1656,17 @@ function namedRounds(text) {
   const out = [];
   let run = false;
   let range = false;
-  for (const w of String(roundDigits(text) || '').split(/\s+/)) {
+  const words = String(roundDigits(text) || '').split(/\s+/);
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
     const bare = w.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (bare === 'round' || bare === 'rounds') { run = true; range = false; continue; }
     if (!run) continue;
+    // A TIME IS NO ROUND (the blind audit of 8.7.9): "Round 4, 17 s in at B
+    // site" named round 17 too, and "in round 2, 31 s in" round 31, so the
+    // killer gate held a true sentence to Sage's round 17 and the round gate
+    // dropped one naming a round the match does not have.
+    if (/^\d+$/.test(bare) && /^(?:s|secs?|seconds?)$/.test(String(words[i + 1] || '').toLowerCase().replace(/[^a-z]/g, ''))) { run = false; continue; }
     if (/^\d+$/.test(bare)) {
       const n = Number(bare);
       const from = range && out.length ? out[out.length - 1] + 1 : n;
@@ -1758,6 +1886,27 @@ let recordClaims;
 let coherenceShared;
 const shared = (name) => { try { return require(name); } catch { return null; } };
 
+/*
+ * WHAT EACH DEATH COST, FROM PLATINUM (record-claims.js costRank, the blind
+ * audit of 8.7.9): the review's prompt gets the finished line, and the study
+ * list the costliest deaths' topics. A round 4 client at Platinum or above
+ * only; '' and [] otherwise, so every other review is as before.
+ */
+function costOf(input) {
+  if (!round4(input) || !HIGH_BANDS.has(knowledge.validBand(input.context && input.context.rankBand))) return null;
+  if (recordClaims === undefined) recordClaims = shared('./record-claims');
+  const rc = recordClaims;
+  if (!rc || typeof rc.costRank !== 'function') return null;
+  try {
+    const ctx = rc.contextOfReview(input);
+    return { ranked: rc.costRank(ctx), line: rc.costLine(ctx) };
+  } catch { return null; }
+}
+function costLineOf(input) {
+  const c = costOf(input);
+  return c && c.line ? c.line : '';
+}
+
 /** The record gates over a parsed review (record-claims.js checkRows): a round line goes whole, a summary or focus sentence alone. English only. */
 function recordGates(out, input) {
   if (promptName(input.context && input.context.language) !== 'English') return;
@@ -1882,8 +2031,35 @@ function productTrim(text, out) {
   return kept.join(' ').trim() || null;
 }
 
+/*
+ * WHO IS ON THE CLOCK (8.7.10). Before a plant the attackers have to take a
+ * site in time, after it the defenders have to reach the spike in time. The
+ * Corrode review's round 1, an attack round lost after the plant, said "After
+ * the plant, hold the spike from cover ..., so the attackers have to move
+ * against the clock": the side was Riot's and right, and the line turned the
+ * clock around. A sentence that sets itself after the plant (SPIKE_NEEDED)
+ * and puts the attackers on the clock, or one in a round Riot's record says
+ * was never planted that puts the defenders on it, is the round state wrong.
+ */
+const CLOCK_ON = /\b(?:(?:make|makes|making|force|forces|forcing|so|leave|leaving|let|letting)\s+the\s+(attackers?|defenders?)\s+(?:have to\s+|must\s+|need to\s+)?(?:spend|burn|use up|waste)\s+(?:time|the clock|seconds)|the\s+(attackers?|defenders?)\s+(?:have|has|had|must|need|needs)\s+to\s+(?:move|play|beat|race|work|rush|hurry|act)\s+against\s+the\s+clock|the\s+(attackers?|defenders?)\s+(?:are|is|were|was)\s+(?:on|against|racing)\s+the\s+clock)\b/i;
+// record-claims.js PRE_PLANT, the same words.
+const CLOCK_PRE_PLANT = /\b(?:until|before)\s+(?:(?:they|the\s+attackers|you|your\s+team|the\s+team)\s+)?(?:plant(?:s|ed)?|get\s+the\s+plant|the\s+plant|a\s+plant|any\s+plant|the\s+spike\s+(?:is|goes)\s+down)\b/i;
+function clockWrong(text, r) {
+  for (const s of splitSentences(String(text || ''))) {
+    const m = CLOCK_ON.exec(s);
+    if (!m) continue;
+    const who = String(m[1] || m[2] || m[3]).toLowerCase().startsWith('attack') ? 'attackers' : 'defenders';
+    // A sentence telling both phases, the attackers on the clock until they
+    // plant and the defenders after, is the rule itself (verify round 6).
+    if (SPIKE_NEEDED.test(s) && who === 'attackers' && !CLOCK_PRE_PLANT.test(s)) return true;
+    if (r && r.verified && !r.planted && !SPIKE_NEEDED.test(s) && who === 'defenders') return true;
+  }
+  return false;
+}
+
 /** The round state a line's advice contradicts, or null: certain only on a round Riot's record holds. */
 function stateWrong(text, r) {
+  if (clockWrong(text, r)) return 'round state';
   if (!r || !r.verified || r.planted) return null;
   if (r.side === 'attacking' && (COME_TO_YOU.test(text) || CLOCK_YOURS.test(text))) return 'round state';
   if (SPIKE_NEEDED.test(text)) return 'no plant';
@@ -2181,4 +2357,7 @@ module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, ro
   round4, matchCounts, matchFacts, countLines, qualifyCount, mistakesShown, allowedPairs, leverOf, leverRule4, LEVER_ORDER, HIGH_BANDS,
   depthRule, kitBlockOf, kitAgents, swingTopics, caseSituation, leverSituation, cohere, productCut, stateWrong, fundamentalsCap,
   ROUND4_SWAPS, GROUNDING4, GROUNDING4_SWAPS, PRODUCT_TALK, CROSS_MATCH, TRADE_HABIT,
-  recordSignalsOf, signalTopics, ECONOMY_TOPICS, recordUse, RECORD_USE, NO_ECONOMY, SOME_ECONOMY };
+  recordSignalsOf, signalTopics, ECONOMY_TOPICS, recordUse, RECORD_USE, NO_ECONOMY, SOME_ECONOMY,
+  onePlace, spotAgrees, spotPatternOf, sameSpotOf, clockWrong, CLOCK_ON,
+  // The blind audit of 8.7.9, stream B: what each death cost, from Platinum.
+  costOf, costLineOf, costTopics, COST_TOPICS, COST_BONUS, repeats };

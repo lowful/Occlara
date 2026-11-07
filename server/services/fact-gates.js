@@ -2142,8 +2142,27 @@ function gateAbilityKill(s, facts, rs) {
       return drop('ability-kill', `your reply said ${ab.agent}'s ${t.slice(ab.at, ab.end)} killed the player, where Riot's record has ${ab.agent} killing them with a gun; name an ability as what killed the player only where the record does`);
     }
   }
+  /*
+   * THE KIT IN GENERAL WORDS (the blind audit of 8.7.9): "Against Astra, the
+   * thing that kills you is her star setup", where Astra's one kill on the
+   * player was a Sheriff repeek. "What kills you is her utility", "her stars
+   * killed you": the agent the sentence names before it, else the one the
+   * question asked about, held to every death Riot gives that agent.
+   */
+  const kit = KIT_KILLS_YOU.exec(t) || KIT_KILLED_YOU.exec(t);
+  if (kit) {
+    const named = agentsIn(t.slice(0, kit.index)).map((a) => a.name);
+    const agent = named.length ? named[named.length - 1] : (f.askedAgents && f.askedAgents.length === 1 ? f.askedAgents[0] : null);
+    const byAgent = agent ? [...f.rounds.values()].filter((r) => r && r.died && r.killer === agent && r.killerWeapon) : [];
+    if (byAgent.length && byAgent.every((r) => gunSet.has(lower(r.killerWeapon)))) {
+      return drop('ability-kill', `your reply put the player's deaths to ${agent} on ${agent}'s abilities, where Riot's record has ${agent} killing them with a gun every time; name an ability as what killed the player only where the record does`);
+    }
+  }
   return null;
 }
+const KIT_NOUNS = '(?:stars?|star\\s+setups?|setups?|utility|util|kit|abilit(?:y|ies)|ultimates?|ult|traps?|turrets?|bots?|walls?|mollies|molly|smokes?|flash(?:es)?|stuns?|drones?|darts?|pulls?)';
+const KIT_KILLS_YOU = new RegExp(`\\b(?:the\\s+thing|what|the\\s+part|the\\s+one\\s+thing)\\s+(?:that\\s+)?(?:kills|killed|kill|is\\s+killing)\\s+you\\s+(?:is|was|are|were)\\s+(?:her|his|their|the\\s+enemy's)\\s+(?:[a-z]+\\s+){0,2}?${KIT_NOUNS}\\b`, 'i');
+const KIT_KILLED_YOU = new RegExp(`\\b(?:her|his|their)\\s+(?:[a-z]+\\s+){0,1}?${KIT_NOUNS}\\s+(?:killed|kills|got|finished|took\\s+out)\\s+you\\b`, 'i');
 
 // ── What a sentence leans on ───────────────────────────────────────────────
 
@@ -2324,6 +2343,167 @@ function gateFirstHabit(s, facts, rs) {
   return drop('habit', `your reply said the player keeps dying first or taking the first fight, where Riot's record has them the first death in ${first} of ${all.length} rounds; say what the record shows`);
 }
 
+// ── The blind audit of 8.7.9 (Nov 2026) ───────────────────────────────────
+
+/*
+ * THE COSTLIEST FIRST (facts.costRank, from Platinum only). At Ascendant the
+ * Fracture answers named the round 2 repeek, a won round, the team 5 against
+ * 1 and the death traded, as "your biggest mistake" over round 5, the only
+ * lost round, untraded after the plant. A sentence calling one round of a
+ * won round the biggest, the main or the costliest mistake, or the one to fix
+ * first, goes where a death in a lost round ranks above it.
+ */
+const BIGGEST_SAID = /\b(?:your|the|this\s+match's)\s+(?:single\s+)?(?:biggest|main|costliest|most\s+costly|worst|largest|real|first)\s+(?:mistake|problem|error|leak|lever|issue)\b|\bthe\s+(?:one|mistake|death|round)\s+to\s+fix\s+first\b|\bthe\s+(?:mistake|death|round)\s+that\s+cost\s+you\s+(?:the\s+)?most\b/i;
+function gatePriority(s, facts, rs) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || !Array.isArray(f.costRank) || !f.costRank.length || !(f.rounds instanceof Map)) return null;
+  const t = String(s || '');
+  if (!BIGGEST_SAID.test(t) || isHypothetical(t) || negatedAt(t, t.search(BIGGEST_SAID))) return null;
+  let named = [];
+  try { named = roundsNamed(t, f); } catch { named = []; }
+  if (named.length !== 1) return null;
+  const top = f.costRank[0];
+  const here = f.costRank.find((x) => x.n === named[0]);
+  if (!here || here.result !== 'won' || top.result !== 'lost' || top.n === here.n) return null;
+  return drop('priority', `your reply made round ${here.n}, a round your team won, the biggest mistake, where round ${top.n} cost more: a death in a lost round. Name the costliest round first, as THE COSTLIEST DEATHS ranks them`);
+}
+
+/*
+ * A COUNT OF THE COUNTED MISTAKES (the blind audit of 8.7.9): "this match's
+ * one counted decision mistake" where code counted none. A number of counted
+ * mistakes (or misses) is the counted list's length, or the sentence goes.
+ */
+const COUNTED_HOW_MANY = /\b(?:(?:this\s+match's|your|the)\s+)?(one|a\s+single|two|three|four|five|only|only\s+one|no)\s+counted\s+(?:decision\s+|repeated\s+|real\s+|big\s+)?(mistakes?|misses?)\b/i;
+const COUNT_WORD = { one: 1, 'a single': 1, two: 2, three: 3, four: 4, five: 5, only: 1, 'only one': 1, no: 0 };
+function gateCounted(s, facts) {
+  const f = facts || {};
+  const c = f.counted || {};
+  if ((f.language || 'en') !== 'en' || !Number.isInteger(c.mistakeCount)) return null;
+  const m = COUNTED_HOW_MANY.exec(String(s || ''));
+  if (!m) return null;
+  const said = COUNT_WORD[lower(m[1]).replace(/\s+/g, ' ')];
+  const miss = /^miss/i.test(m[2]);
+  const has = miss ? c.missedCount : c.mistakeCount;
+  if (!Number.isInteger(has) || said === undefined || said === has) return null;
+  return drop('count', `your reply said the match had ${said} counted ${miss ? 'miss' : 'mistake'}${said === 1 ? '' : 'es'}, where code counted ${has}; quote the counted lines as given`);
+}
+
+/*
+ * THE PLAYER'S OWN AGENT IS NO ENEMY (the blind audit of 8.7.9): "14 of your
+ * 16 deaths on Split against Jett" to the Jett, whose enemies had no Jett.
+ * "Against X", "their X" and "the enemy X" of the player's own agent, where
+ * Riot's comp of the enemy team is known and has none, goes. "As Jett against
+ * Reyna" names the enemy right.
+ */
+function gateOwnAgent(s, facts) {
+  const f = facts || {};
+  const own = f.agent;
+  const enemies = f.sides && f.sides.enemies instanceof Set ? f.sides.enemies : null;
+  if ((f.language || 'en') !== 'en' || !own || !enemies || enemies.size < 5 || enemies.has(own)) return null;
+  const re = new RegExp(`\\b(?:against|versus|vs\\.?|their|the\\s+enemy|an\\s+enemy|enemy)\\s+(?:a\\s+|an\\s+|the\\s+|their\\s+)?(${esc(own)})(?![A-Za-z0-9])`, 'i');
+  const m = re.exec(String(s || ''));
+  if (!m) return null;
+  return drop('own-agent', `your reply named ${own}, the player's own agent, as an enemy, where the enemy team had no ${own}; the player played ${own}`);
+}
+
+/*
+ * A HIT THAT KILLS AT A HEALTH THE GUN CANNOT REACH (the blind audit of
+ * 8.7.9): "at 57 health any clean hit from Astra ends you" of a Sheriff,
+ * whose body hit does 55 at its closest range. A health number with one hit
+ * said to end it, a body hit or any clean hit, of a gun the sentence names,
+ * goes where the primer's most damaging body hit of that gun is below the
+ * health. A head hit is held to the head's number. Legs are never "clean".
+ */
+const HEALTH_AT = /\b(?:at|on|with|had|sitting\s+on|down\s+to)\s+(\d{1,3})\s*(?:health|hp)\b|\b(\d{1,3})\s*(?:health|hp)\s+(?:left|remaining)\b/i;
+const ONE_HIT_KILLS = /\b(?:any|a|one|a\s+single|one\s+clean|any\s+clean|a\s+clean|a\s+single\s+clean)\s+(?:clean\s+)?(?:(body|head|chest|torso)\s+)?(?:hit|shot|bullet|tap)\b[^.;]{0,40}?\b(?:ends?|kills?|finish(?:es)?|drops?|takes?\s+you\s+out)\b|\b(?:one|a\s+single)\s+(?:(body|head)\s+)?(?:hit|shot|bullet|tap)\s+(?:away\s+from\s+death|from\s+dying)\b|\b(?:dies|die|died)\s+to\s+(?:one|a\s+single|any)\s+(?:(body|head)\s+)?(?:hit|shot|bullet|tap)\b/i;
+function gateLethal(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol' || !Array.isArray(f.primer) || !f.primer.length) return null;
+  const t = String(s || '');
+  const h = HEALTH_AT.exec(t);
+  const k = ONE_HIT_KILLS.exec(t);
+  if (!h || !k || isHypothetical(t.slice(0, h.index))) return null;
+  const health = Number(h[1] || h[2]);
+  if (!(health > 0 && health <= 150)) return null;
+  const part = /^head/i.test(k[1] || k[2] || k[3] || '') ? 'head' : 'body';
+  const guns = gunsIn(t).map((g) => g.name);
+  if (guns.length !== 1) return null;
+  const hits = f.primer.filter((e) => e.subjectKind === 'gun' && e.subject === guns[0] && e.attribute === part && fin(e.value));
+  if (!hits.length) return null;
+  const most = Math.max(...hits.map((e) => e.value));
+  if (most >= health) return null;
+  return drop('lethal', `your reply said one ${part} hit of the ${guns[0]} kills at ${health} health, where its ${part} hit does at most ${Math.floor(most)}; say the hits to kill as the facts give them`);
+}
+
+/*
+ * UTILITY THE TEAM DOES NOT HAVE (the blind audit of 8.7.9): "have a
+ * teammate's flash, dart or drone clear the star spots" to a team of Chamber,
+ * Clove, Jett, KAY/O and Reyna, none of whom has a dart or a drone. A dart,
+ * a drone, a recon or a prowler asked of a teammate, or named as the player's
+ * own, goes where Riot's comp of the player's team is known and no agent of
+ * it has one in the game data's kit. A flash, a smoke or a stun is many
+ * agents' and judges nothing.
+ */
+const UTILITY_OWNERS = (() => {
+  const out = {};
+  const words = { drone: /\bdrones?\b/i, dart: /\bdarts?\b/i, recon: /\brecon\b/i, prowler: /\bprowlers?\b/i };
+  for (const [agent, a] of Object.entries(DATA.agents || {})) {
+    for (const k of (a && a.kit) || []) {
+      const text = `${(k && k.name) || ''} ${(k && (k.description || k.desc)) || ''}`;
+      for (const [w, re] of Object.entries(words)) if (re.test(text)) (out[w] = out[w] || new Set()).add(agent);
+    }
+  }
+  // Sova's Recon Bolt is "the dart" in every lobby.
+  if (out.recon) for (const a of out.recon) (out.dart = out.dart || new Set()).add(a);
+  return out;
+})();
+const UTILITY_ASKED = /\b(?:a\s+teammate's|your\s+teammate's|your\s+team's|their\s+own|a\s+team\s?mate's|an?\s+ally's|your|the\s+team's|with\s+a|on\s+a|behind\s+a|after\s+a)\s+(?:[a-z]+,?\s+(?:or\s+|and\s+)?){0,3}?(drones?|darts?|recon(?:\s+bolt)?|prowlers?)\b/gi;
+const UTIL_LIST = /\b(?:flash|smoke|stun|molly|wall|drones?|darts?|recon(?:\s+bolt)?|prowlers?)(?:\s*,\s*|\s+(?:or|and)\s+)(?:(?:flash|smoke|stun|molly|wall|drones?|darts?|recon(?:\s+bolt)?|prowlers?)(?:\s*,\s*|\s+(?:or|and)\s+))*(drones?|darts?|recon(?:\s+bolt)?|prowlers?)\b/gi;
+const UTILITY_OURS = /\b(?:teammates?(?:'s)?|team\s?mates?(?:'s)?|ally(?:'s)?|allies|your\s+team(?:'s)?|your\s+(?:[a-z]+\s+){0,2}?(?:drones?|darts?|recon|prowlers?))\b/i;
+function gateTeamUtility(s, facts) {
+  const f = facts || {};
+  const mates = f.sides && f.sides.mates instanceof Set ? f.sides.mates : null;
+  if ((f.language || 'en') !== 'en' || f.game === 'lol' || !mates || mates.size < 5) return null;
+  const t = String(s || '');
+  const said = new Set();
+  for (const m of t.matchAll(new RegExp(UTILITY_ASKED.source, 'gi'))) said.add(lower(m[1]).replace(/s$/, '').replace(/\s+bolt$/, ''));
+  for (const m of t.matchAll(new RegExp(UTIL_LIST.source, 'gi'))) for (const w of m[0].match(/drones?|darts?|recon|prowlers?/gi) || []) said.add(lower(w).replace(/s$/, ''));
+  // "After a dart reveals you", "they push in on a drone": the enemy's, where
+  // their known comp has one and nothing ties it to the player's side (verify round 6).
+  const enemies = f.sides.enemies instanceof Set && f.sides.enemies.size >= 5 ? f.sides.enemies : null;
+  const ours = UTILITY_OURS.test(t);
+  for (const w of said) {
+    const owners = UTILITY_OWNERS[w];
+    if (!owners || !owners.size) continue;
+    if (!ours && enemies && [...enemies].some((a) => owners.has(a))) continue;
+    if (![...mates].some((a) => owners.has(a))) {
+      return drop('team-utility', `your reply asked for a ${w}, which no agent on the player's team has (${[...mates].join(', ')}); name only utility the player's agent or a teammate in the comp has`);
+    }
+  }
+  return null;
+}
+
+/*
+ * THE STALE BUY HEDGE (the blind audit of 8.7.9): "The record does not hold
+ * what either of you bought" over a match whose round lines give the team's
+ * buy (8.8). A sentence saying the record does not hold the buy goes where
+ * a round of the match has it; one about the enemy's buy alone, the credits
+ * or the damage, which the record still does not hold, stays.
+ */
+const BUY_HEDGE_SAID = /\b(?:record|facts|data)\b[^.]{0,60}?\b(?:does not|doesn't|do not|don't|did not|didn't|never)\s+(?:hold|show|have|say|record|keep|include|tell)\b[^.]{0,40}?\b(?:what\s+(?:you|either\s+of\s+you|anyone|your\s+team|both\s+of\s+you|each\s+of\s+you)\s+(?:bought|had|carried)|the\s+(?:buys?|economy)|your\s+(?:buys?|economy))\b/i;
+const BUY_HELD_SAID = /\b(?:team(?:'s)?\s+(?:buy|economy)|pistol\s+round|eco(?:\s+round)?|force\s+buy|half\s+buy|full\s+buy)\b|\b(?:yourself|personally|on\s+your\s+own|any\s+one\s+player|each\s+player|one\s+player)\b/i;
+function gateStaleBuy(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || !(f.rounds instanceof Map)) return null;
+  if (!BUY_HEDGE_SAID.test(String(s || ''))) return null;
+  if (![...f.rounds.values()].some((r) => r && r.buy)) return null;
+  // "The record does not hold what you bought yourself, only that your team
+  // was on a half buy": the one player's buy beside the team's, as the rules
+  // ask (chat-prompt.js BUY_HEDGE_RECORD, verify round 6).
+  if (BUY_HELD_SAID.test(String(s || ''))) return null;
+  return drop('economy', "your reply said the record does not hold the buy, where the round lines give the team's buy; say the team's buy where its round states it, and that no one player's buy is held");
+}
+
 // ── All of them ────────────────────────────────────────────────────────────
 
 /*
@@ -2358,6 +2538,13 @@ const GATES = [
   ['library', gateLibrary],
   ['state', gateRoundState],
   ['habit', gateFirstHabit],
+  // The blind audit of 8.7.9 (Nov 2026), after every gate before.
+  ['priority', gatePriority],
+  ['counted', gateCounted],
+  ['own-agent', gateOwnAgent],
+  ['lethal', gateLethal],
+  ['team-utility', gateTeamUtility],
+  ['stale-buy', gateStaleBuy],
 ];
 
 /**
@@ -2411,4 +2598,7 @@ module.exports = {
   TEMPLATE_WORDS, AIM_DISMISSED, SOLO_MODE, TEAM_WORDS, NO_TEAM, KILL_AFTER_ABILITY, KILL_BEFORE_ABILITY,
   // The re-audit of 8.7.7 (Nov 2026), each asserted in test:chatgates.
   gateProduct, gateLibrary, gateRoundState, gateFirstHabit, FIRST_HABIT, AIM_PRAISED, AVOIDABLE, CROSS_MATCH, SEASON, LIB_PAIR, AVG_BEFORE, AVG_AFTER, THIS_MATCH, PLANT_SAID,
+  // The blind audit of 8.7.9 (Nov 2026), each asserted in test:chatgates.
+  gatePriority, gateCounted, gateOwnAgent, gateLethal, gateTeamUtility, gateStaleBuy,
+  BIGGEST_SAID, COUNTED_HOW_MANY, HEALTH_AT, ONE_HIT_KILLS, UTILITY_OWNERS, UTILITY_ASKED, UTIL_LIST, BUY_HEDGE_SAID, UTILITY_OURS, BUY_HELD_SAID, KIT_KILLS_YOU, KIT_KILLED_YOU,
 };
