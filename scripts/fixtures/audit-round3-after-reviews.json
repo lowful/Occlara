@@ -1,0 +1,6565 @@
+{
+ "note": "The 24 reviews of the round 3 live re-audit of 8.7.7 (Nov 2026), the same six matches and four bands as audit-round3-reviews.json, as the live model wrote them after the round 3 rules, with the rounds of that file and the counted mistakes the app showed beside each. Agents and guns only, no player is named. The reply is the model's own labels, ROUND n written back as Rn and FOCUS FOR NEXT MATCH as FOCUS, the study list cut off.",
+ "reviews": [
+  {
+   "id": "review-split-13-7-iron_bronze",
+   "band": "iron_bronze",
+   "agent": "Jett",
+   "map": "Split",
+   "score": "13-7",
+   "result": "Victory",
+   "scoreline": {
+    "kills": 17,
+    "deaths": 16,
+    "assists": 8,
+    "headshotPct": 22
+   },
+   "deaths": 16,
+   "untradedRaw": 14,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "13 of your 15 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 13
+    },
+    {
+     "key": "same-killer",
+     "title": "Reyna kept winning",
+     "detail": "Reyna killed you 5 times, rounds 4, 7, 9, 10 and 19.",
+     "rounds": [
+      4,
+      7,
+      9,
+      10,
+      19
+     ],
+     "count": 5
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 33,
+     "killer": "Skye",
+     "weapon": "Ghost",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 19,
+     "killer": "Clove",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Back"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Tower"
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 7,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Main"
+    },
+    {
+     "n": 7,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 35,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 8,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 59,
+     "killer": "Skye",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 9,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 84,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 10,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 34,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": true,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 11,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 35,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 12,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Sage",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 13,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 14,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 15,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 2,
+     "killer": "Sage",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 47,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 17,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 9,
+     "killer": "Sage",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 18,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 19,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 50,
+     "killer": "Reyna",
+     "weapon": "Guardian",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 20,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 16,
+     "killer": "Sage",
+     "weapon": "Bulldog",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You won 13 to 7, with 6 of 12 rounds won on attack and 7 of 8 on defence. 13 of your 15 deaths went unanswered, leaving your team without a quick kill back. Keep taking opening fights, because winning them gives your team an early advantage.\nR3: With your team ahead, check the minimap for a nearby teammate before pushing farther, so you do not give the advantage back alone.\nR4: On an attack with your team down players, move toward a teammate before taking another fight so you can fight together.\nR7: Before taking an early fight, say which teammate should follow you in, since nobody traded your death here.\nR8: After getting the first kill, check the minimap for your nearest teammate before pushing farther.\nR10: After the plant, hold the spike from cover instead of seeking another fight, so the defenders have to come to you.\nR15: Before an early defence peek, check that Tailwind is ready so you can take a look and fall back.\nFOCUS: Before entering a fight, glance at the minimap to check that a teammate is close enough to kill your killer."
+  },
+  {
+   "id": "review-split-13-7-silver_gold",
+   "band": "silver_gold",
+   "agent": "Jett",
+   "map": "Split",
+   "score": "13-7",
+   "result": "Victory",
+   "scoreline": {
+    "kills": 17,
+    "deaths": 16,
+    "assists": 8,
+    "headshotPct": 22
+   },
+   "deaths": 16,
+   "untradedRaw": 14,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "13 of your 15 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 13
+    },
+    {
+     "key": "same-killer",
+     "title": "Reyna kept winning",
+     "detail": "Reyna killed you 5 times, rounds 4, 7, 9, 10 and 19.",
+     "rounds": [
+      4,
+      7,
+      9,
+      10,
+      19
+     ],
+     "count": 5
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 33,
+     "killer": "Skye",
+     "weapon": "Ghost",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 19,
+     "killer": "Clove",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Back"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Tower"
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 7,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Main"
+    },
+    {
+     "n": 7,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 35,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 8,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 59,
+     "killer": "Skye",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 9,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 84,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 10,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 34,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": true,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 11,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 35,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 12,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Sage",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 13,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 14,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 15,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 2,
+     "killer": "Sage",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 47,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 17,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 9,
+     "killer": "Sage",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 18,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 19,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 50,
+     "killer": "Reyna",
+     "weapon": "Guardian",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 20,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 16,
+     "killer": "Sage",
+     "weapon": "Bulldog",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You won 13 to 7, winning 6 of 12 rounds on attack and 7 of 8 on defence. 13 of your 15 deaths went unanswered, including rounds 3, 4, 5 and 6, leaving your killer alive. Keep taking opening fights with support because those first kills give your team room to play.\nR3: With your team ahead, take the next fight with a teammate close enough to follow your shot rather than giving the defender an even duel.\nR4: Before holding the angle alone, call for someone close enough to follow your fight, because nobody traded you.\nR7: Before taking the opening fight, say which teammate will follow you so your team can answer a defender’s shot.\nR8: After your opening kill, reset to cover instead of taking another fight, since the teams were even when you died.\nR10: After the plant, hold an angle onto the spike from cover and make the defenders come to you.\nR15: On defence, hold an angle you can leave after one fight, so you can give ground instead of risking the first death.\nFOCUS: Before entering a site, name the teammate who will follow close enough to kill your killer."
+  },
+  {
+   "id": "review-split-13-7-plat_diamond",
+   "band": "plat_diamond",
+   "agent": "Jett",
+   "map": "Split",
+   "score": "13-7",
+   "result": "Victory",
+   "scoreline": {
+    "kills": 17,
+    "deaths": 16,
+    "assists": 8,
+    "headshotPct": 22
+   },
+   "deaths": 16,
+   "untradedRaw": 14,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "13 of your 15 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 13
+    },
+    {
+     "key": "same-killer",
+     "title": "Reyna kept winning",
+     "detail": "Reyna killed you 5 times, rounds 4, 7, 9, 10 and 19.",
+     "rounds": [
+      4,
+      7,
+      9,
+      10,
+      19
+     ],
+     "count": 5
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 33,
+     "killer": "Skye",
+     "weapon": "Ghost",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 19,
+     "killer": "Clove",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Back"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Tower"
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 7,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Main"
+    },
+    {
+     "n": 7,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 35,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 8,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 59,
+     "killer": "Skye",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 9,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 84,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 10,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 34,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": true,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 11,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 35,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 12,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Sage",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 13,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 14,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 15,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 2,
+     "killer": "Sage",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 47,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 17,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 9,
+     "killer": "Sage",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 18,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 19,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 50,
+     "killer": "Reyna",
+     "weapon": "Guardian",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 20,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 16,
+     "killer": "Sage",
+     "weapon": "Bulldog",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You won 13 to 7, with 6 of 12 rounds on attack and 7 of 8 on defence. 13 of your 15 deaths went unanswered, including rounds 3, 4, 6 and 7, leaving nobody close enough to kill your killer. Keep looking for the opening kill to give your team a numbers advantage.\nR3: With your team ahead, take the next fight with a teammate close enough to kill your killer rather than giving the advantage back alone.\nR4: Before holding alone, call a teammate to follow your next move so you can take space together instead of leaving them outnumbered.\nR7: Before taking an early duel, tell a teammate which way you are swinging so they can follow you into the fight.\nR8: After the opening kill, reset to cover before contesting B Site again so you do not give the advantage back.\nR10: Once the spike is down, hold it from cover and make the defenders spend time reaching it rather than taking another fight.\nR15: At the start of defence, hold where you can give ground after contact so an early fight does not leave your team short.\nFOCUS: Before entering a site, name the teammate following you closely enough to kill your killer."
+  },
+  {
+   "id": "review-split-13-7-asc_plus",
+   "band": "asc_plus",
+   "agent": "Jett",
+   "map": "Split",
+   "score": "13-7",
+   "result": "Victory",
+   "scoreline": {
+    "kills": 17,
+    "deaths": 16,
+    "assists": 8,
+    "headshotPct": 22
+   },
+   "deaths": 16,
+   "untradedRaw": 14,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "13 of your 15 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 13
+    },
+    {
+     "key": "same-killer",
+     "title": "Reyna kept winning",
+     "detail": "Reyna killed you 5 times, rounds 4, 7, 9, 10 and 19.",
+     "rounds": [
+      4,
+      7,
+      9,
+      10,
+      19
+     ],
+     "count": 5
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 33,
+     "killer": "Skye",
+     "weapon": "Ghost",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 19,
+     "killer": "Clove",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Back"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Tower"
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 7,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Main"
+    },
+    {
+     "n": 7,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 35,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 8,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 59,
+     "killer": "Skye",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 9,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 84,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 10,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 34,
+     "killer": "Reyna",
+     "weapon": "Vandal",
+     "traded": true,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 11,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 35,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 12,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Sage",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 13,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 14,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 15,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 2,
+     "killer": "Sage",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 47,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 17,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 9,
+     "killer": "Sage",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 18,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 19,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 50,
+     "killer": "Reyna",
+     "weapon": "Guardian",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 20,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 16,
+     "killer": "Sage",
+     "weapon": "Bulldog",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You won 13 to 7, winning 6 of 12 rounds on attack and 7 of 8 on defence. 13 of your 15 deaths went unanswered, including rounds 3, 4, 5 and 6, leaving nobody close enough to kill your killer. Keep taking the opening fight on your terms, because your first kills gave your team room to work.\nR3: With your team already ahead, enter with a named teammate following close enough to shoot, gaining space without risking the advantage on an isolated fight.\nR7: For an early attack fight, name who follows before you swing, giving up some speed to make the next fight answerable.\nR8: After your opening kill, reset behind cover before the next fight, preserving an even count rather than risking another exposed duel.\nR10: After the plant, hold the spike from cover and make the defenders spend time finding you, rather than rushing another fight while a teammate down.\nR15: On defence, hold an angle with a retreat behind it early, giving up some forward space to stay available for the next fight.\nFOCUS: Before an attack entry, name the teammate following close enough to kill your killer."
+  },
+  {
+   "id": "review-corrode-3-13-iron_bronze",
+   "band": "iron_bronze",
+   "agent": "Iso",
+   "map": "Corrode",
+   "score": "3-13",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 14,
+    "deaths": 13,
+    "assists": 4,
+    "headshotPct": 27
+   },
+   "deaths": 13,
+   "untradedRaw": 11,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "9 of your 11 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 9
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 7, 9 and 14 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      7,
+      9,
+      14
+     ],
+     "count": 3
+    },
+    {
+     "key": "same-killer",
+     "title": "Omen kept winning",
+     "detail": "Omen killed you 6 times, rounds 1, 5, 7, 11, 14 and 16.",
+     "rounds": [
+      1,
+      5,
+      7,
+      11,
+      14,
+      16
+     ],
+     "count": 6
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "Omen",
+     "weapon": "Classic",
+     "traded": true,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Fade",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Link",
+     "cause": "repeek"
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 21,
+     "killer": "Phoenix",
+     "weapon": "Vandal",
+     "traded": true,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 7,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 84,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null,
+     "cause": "repeek"
+    },
+    {
+     "n": 8,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Chamber",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 9,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 38,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Yard"
+    },
+    {
+     "n": 10,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Phoenix",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Stairs",
+     "cause": "dry-peek"
+    },
+    {
+     "n": 11,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Omen",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Stairs"
+    },
+    {
+     "n": 12,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 10,
+     "killer": "Fade",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "B Main",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 13,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 21,
+     "killer": "Reyna",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Link"
+    },
+    {
+     "n": 14,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 31,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": "A Elbow"
+    },
+    {
+     "n": 15,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 53,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You lost 3 to 13, with 10 rounds in a row lost, rounds 5 to 14. 9 of your 11 deaths went unanswered, including rounds 2, 7, 9 and 10, leaving nobody to immediately kill your killer. Keep following up when a teammate falls, as you did in rounds 4, 5 and 16, to keep fights even.\nR1: After the plant, check for cover that lets you watch the spike while the clock runs instead of holding the site alone.\nR2: After firing from cover, check that you can step back and change your angle before looking again.\nR6: Before fighting from the crates with low health, check which teammate can follow you into the fight.\nR7: After your kill, check the planted spike and move back to cover rather than staying in the open for another fight.\nR8: Before entering, check which teammate is following close enough to kill your killer if you fall.\nR9: With your team ahead, check where your teammates are and regroup instead of holding alone.\nR10: Before moving into the open, check whether a teammate can use a flash or drone to help you enter.\nR11: Before going up the stairs, check that a teammate can come with you instead of taking the fight alone.\nR12: That was a fair fight lost on the shot. Check that your crosshair is at head height on the gap before the enemy appears.\nR13: After the plant, check your route back from the smoke and give ground toward a teammate before fighting up close.\nFOCUS: Before you enter a fight next match, say which teammate should follow close enough to kill your killer."
+  },
+  {
+   "id": "review-corrode-3-13-silver_gold",
+   "band": "silver_gold",
+   "agent": "Iso",
+   "map": "Corrode",
+   "score": "3-13",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 14,
+    "deaths": 13,
+    "assists": 4,
+    "headshotPct": 27
+   },
+   "deaths": 13,
+   "untradedRaw": 11,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "9 of your 11 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 9
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 7, 9 and 14 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      7,
+      9,
+      14
+     ],
+     "count": 3
+    },
+    {
+     "key": "same-killer",
+     "title": "Omen kept winning",
+     "detail": "Omen killed you 6 times, rounds 1, 5, 7, 11, 14 and 16.",
+     "rounds": [
+      1,
+      5,
+      7,
+      11,
+      14,
+      16
+     ],
+     "count": 6
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "Omen",
+     "weapon": "Classic",
+     "traded": true,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Fade",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Link",
+     "cause": "repeek"
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 21,
+     "killer": "Phoenix",
+     "weapon": "Vandal",
+     "traded": true,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 7,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 84,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null,
+     "cause": "repeek"
+    },
+    {
+     "n": 8,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Chamber",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 9,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 38,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Yard"
+    },
+    {
+     "n": 10,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Phoenix",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Stairs",
+     "cause": "dry-peek"
+    },
+    {
+     "n": 11,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Omen",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Stairs"
+    },
+    {
+     "n": 12,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 10,
+     "killer": "Fade",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "B Main",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 13,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 21,
+     "killer": "Reyna",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Link"
+    },
+    {
+     "n": 14,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 31,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": "A Elbow"
+    },
+    {
+     "n": 15,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 53,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You lost 3 to 13, with 10 rounds in a row lost from rounds 5 to 14. 9 of your 11 deaths went unanswered, including rounds 2, 7, 9 and 10, leaving nobody to kill your killer within five seconds. Keep taking opening fights like you did in rounds 14 and 15, because an early pick gives your team room to play.\nR1: After the plant, hold the spike from cover instead of staying alone on site, so you can make the attackers spend time finding you.\nR2: After firing from cover, change your position before looking through the arch again, because nobody was close enough to kill your killer.\nR6: When entering B Site, say which teammate will follow you past the crates so you can fight together.\nR7: After your kill, reset to cover instead of holding the same angle, because your team was already ahead.\nR8: On your next entry, go in on a teammate’s flash so the fight is not yours alone.\nR9: With your team ahead, stay near a teammate rather than holding A Yard alone, so the advantage is harder to give away.\nR10: Before stepping into Mid Stairs, ask for a teammate’s drone to check the angle first.\nR11: At Mid Stairs, take one piece of space and stop for a teammate to reach you before clearing farther.\nR12: This was a fair fight lost on the shot, so next time set your crosshair on the gap and be ready to fire as it opens.\nR13: At B Link, hold from a deeper position after the plant so you can give ground and let your team reach you.\nFOCUS: Before entering the next area, name the teammate who will follow close enough to kill your killer."
+  },
+  {
+   "id": "review-corrode-3-13-plat_diamond",
+   "band": "plat_diamond",
+   "agent": "Iso",
+   "map": "Corrode",
+   "score": "3-13",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 14,
+    "deaths": 13,
+    "assists": 4,
+    "headshotPct": 27
+   },
+   "deaths": 13,
+   "untradedRaw": 11,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "9 of your 11 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 9
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 7, 9 and 14 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      7,
+      9,
+      14
+     ],
+     "count": 3
+    },
+    {
+     "key": "same-killer",
+     "title": "Omen kept winning",
+     "detail": "Omen killed you 6 times, rounds 1, 5, 7, 11, 14 and 16.",
+     "rounds": [
+      1,
+      5,
+      7,
+      11,
+      14,
+      16
+     ],
+     "count": 6
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "Omen",
+     "weapon": "Classic",
+     "traded": true,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Fade",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Link",
+     "cause": "repeek"
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 21,
+     "killer": "Phoenix",
+     "weapon": "Vandal",
+     "traded": true,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 7,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 84,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null,
+     "cause": "repeek"
+    },
+    {
+     "n": 8,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Chamber",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 9,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 38,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Yard"
+    },
+    {
+     "n": 10,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Phoenix",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Stairs",
+     "cause": "dry-peek"
+    },
+    {
+     "n": 11,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Omen",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Stairs"
+    },
+    {
+     "n": 12,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 10,
+     "killer": "Fade",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "B Main",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 13,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 21,
+     "killer": "Reyna",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Link"
+    },
+    {
+     "n": 14,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 31,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": "A Elbow"
+    },
+    {
+     "n": 15,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 53,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You lost 3 to 13, with 10 rounds in a row, rounds 5 to 14, going against you. 9 of your 11 deaths went unanswered, leaving nobody to kill your killer in rounds 2, 7, 8 and 9. Keep trading teammates after they fall because those kills can put your team back in the fight.\nR1: After the plant, hold the spike from cover rather than taking the fight alone, giving your team time to help.\nR2: After firing through the arch, leave the angle and reset behind cover rather than staying for another fight.\nR6: After taking the fight behind the crates, use that cover to fall back at low HP instead of holding the site alone.\nR7: After your kill, get back to cover rather than staying on the same angle, since your team has the numbers and does not need another fight.\nR8: Before pushing into the next fight, say which teammate will follow close enough to kill your killer, because nobody traded you here.\nR10: Before moving into the open at Mid Stairs, go in behind a teammate’s flash or drone so you are not taking the first fight without information.\nR11: Before taking Mid Stairs again, call for a teammate to follow your push so an early fight does not leave you isolated.\nR12: This was a fair fight from a sound position, so keep holding the gap and work on getting your shot off sooner.\nR13: From B Link, hold a line for an early call, then give ground toward your team rather than staying close to the smoke.\nFOCUS: Before your next entry, name the teammate who will follow close enough to kill your killer."
+  },
+  {
+   "id": "review-corrode-3-13-asc_plus",
+   "band": "asc_plus",
+   "agent": "Iso",
+   "map": "Corrode",
+   "score": "3-13",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 14,
+    "deaths": 13,
+    "assists": 4,
+    "headshotPct": 27
+   },
+   "deaths": 13,
+   "untradedRaw": 11,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "9 of your 11 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 9
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 7, 9 and 14 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      7,
+      9,
+      14
+     ],
+     "count": 3
+    },
+    {
+     "key": "same-killer",
+     "title": "Omen kept winning",
+     "detail": "Omen killed you 6 times, rounds 1, 5, 7, 11, 14 and 16.",
+     "rounds": [
+      1,
+      5,
+      7,
+      11,
+      14,
+      16
+     ],
+     "count": 6
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "Omen",
+     "weapon": "Classic",
+     "traded": true,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Fade",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Link",
+     "cause": "repeek"
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 32,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 21,
+     "killer": "Phoenix",
+     "weapon": "Vandal",
+     "traded": true,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 7,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 84,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null,
+     "cause": "repeek"
+    },
+    {
+     "n": 8,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Chamber",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 9,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 38,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "A Yard"
+    },
+    {
+     "n": 10,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Phoenix",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Stairs",
+     "cause": "dry-peek"
+    },
+    {
+     "n": 11,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Omen",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Stairs"
+    },
+    {
+     "n": 12,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 10,
+     "killer": "Fade",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "B Main",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 13,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 21,
+     "killer": "Reyna",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Link"
+    },
+    {
+     "n": 14,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 31,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": "A Elbow"
+    },
+    {
+     "n": 15,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 53,
+     "killer": "Omen",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You lost 3 to 13, with 10 rounds in a row, rounds 5 to 14, going against you. 9 of your 11 deaths went unanswered, including rounds 2, 7, 8 and 9, leaving nobody to kill your killer within five seconds. Keep killing enemies immediately after they kill a teammate, because that prevents the other team keeping the numbers advantage.\nR2: After firing from the arch, leave the angle instead of fighting it again, because the enemy has seen you and can be ready for your return.\nR6: On low health, take a deeper position behind the crates before fighting again, giving up forward space to stay alive longer.\nR7: After your kill, reset to cover immediately rather than holding the same open angle, preserving your team's numbers at the cost of a second quick fight.\nR8: Before taking the next fight, call which teammate follows you, so you can take space without another unanswered death.\nR10: With your ultimate ready, call for a teammate's flash before crossing the open stairs, delaying the fight but keeping your first move from being a dry one.\nR11: Slow the next move through Mid Stairs until a teammate can follow, giving up an early fight for a chance to punish the defender who kills you.\nR12: That was a fair fight lost on the shot, so hold the gap again if needed, but be ready to fire as soon as the enemy appears.\nR13: From B Link, take an early line toward the smoke, then give ground for the retake, sacrificing a close fight to stay alive for the spike.\nFOCUS: Before entering a contested lane, name the teammate following close enough to kill your killer, then go in on their flash, drone or smoke."
+  },
+  {
+   "id": "review-pearl-1-5-iron_bronze",
+   "band": "iron_bronze",
+   "agent": "Raze",
+   "map": "Pearl",
+   "score": "1-5",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 4,
+    "deaths": 5,
+    "assists": 2,
+    "headshotPct": 21
+   },
+   "deaths": 5,
+   "untradedRaw": 3,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "3 of your 5 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 3
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "Clove",
+     "weapon": "Classic",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null,
+     "cause": "lost-duel"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 13,
+     "killer": "Cypher",
+     "weapon": "Phantom",
+     "traded": true,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 8,
+     "killer": "Sage",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Plaza",
+     "cause": "unclear"
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 9,
+     "killer": "Cypher",
+     "weapon": "Classic",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Plaza",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Fade",
+     "weapon": "Spectre",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null,
+     "cause": "unclear"
+    }
+   ],
+   "reply": "SUMMARY: You lost 1 to 5 with no controller on your team: Jett, Phoenix, Raze, Reyna, Yoru. 5 of your 5 deaths came in the first 30 seconds, before any plant, leaving you unable to help later. Repeat the calm fighting you showed while winning round 2 alone against 2, because staying alive gives you more chances to win.\nR1: This was a fair fight from cover, so next time settle your shot before firing because you had an even fight with 2 teammates against 2 enemies.\nR3: Before going into B Site, call which teammate follows you so your entry has support if you fall.\nR4: Before entering Mid Plaza, ask a teammate for a flash so you are not taking an early fight alone.\nR5: This was a fair fight, so next time keep firing at the same target after your first hit because it slows them down.\nR6: At low health, fall back toward your team instead of holding Mid alone, because you have little room to survive another fight.\nFOCUS: Before taking an early fight, call for a teammate's flash and enter as it goes off."
+  },
+  {
+   "id": "review-pearl-1-5-silver_gold",
+   "band": "silver_gold",
+   "agent": "Raze",
+   "map": "Pearl",
+   "score": "1-5",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 4,
+    "deaths": 5,
+    "assists": 2,
+    "headshotPct": 21
+   },
+   "deaths": 5,
+   "untradedRaw": 3,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "3 of your 5 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 3
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "Clove",
+     "weapon": "Classic",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null,
+     "cause": "lost-duel"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 13,
+     "killer": "Cypher",
+     "weapon": "Phantom",
+     "traded": true,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 8,
+     "killer": "Sage",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Plaza",
+     "cause": "unclear"
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 9,
+     "killer": "Cypher",
+     "weapon": "Classic",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Plaza",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Fade",
+     "weapon": "Spectre",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null,
+     "cause": "unclear"
+    }
+   ],
+   "reply": "SUMMARY: You lost 1 to 5, with no controller on a team of Jett, Phoenix, Raze, Reyna, Yoru, leaving your entries without controller smokes. That made your approach to early fights more important because 5 of your 5 deaths came in the first 30 seconds, before any plant, leaving less time to affect the round. Repeat your patient last player finish from round 2, using cover to isolate fights rather than facing everyone at once.\nR1: That was a fair fight beside cover, so next time stop before firing to give yourself a steadier shot.\nR3: Call which teammate follows you into B Site so your entry has support before the plant.\nR4: At Mid Shops, call for a teammate to follow your push before you take the next angle, since nobody traded you.\nR5: That was a fair close fight, so hold a position in Mid Plaza where you can step back to cover after one fight.\nR6: At 11 HP, give ground from Mid Top and hold from cover rather than taking another exposed fight.\nFOCUS: On attack, before entering a site without a controller smoke, call which teammate follows you in."
+  },
+  {
+   "id": "review-pearl-1-5-plat_diamond",
+   "band": "plat_diamond",
+   "agent": "Raze",
+   "map": "Pearl",
+   "score": "1-5",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 4,
+    "deaths": 5,
+    "assists": 2,
+    "headshotPct": 21
+   },
+   "deaths": 5,
+   "untradedRaw": 3,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "3 of your 5 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 3
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "Clove",
+     "weapon": "Classic",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null,
+     "cause": "lost-duel"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 13,
+     "killer": "Cypher",
+     "weapon": "Phantom",
+     "traded": true,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 8,
+     "killer": "Sage",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Plaza",
+     "cause": "unclear"
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 9,
+     "killer": "Cypher",
+     "weapon": "Classic",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Plaza",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Fade",
+     "weapon": "Spectre",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null,
+     "cause": "unclear"
+    }
+   ],
+   "reply": "SUMMARY: You lost 1 to 5, with no controller in a team of Jett, Phoenix, Raze, Reyna, Yoru, leaving you without a dedicated smoke player. 5 of your 5 deaths came in the first 30 seconds, before any plant, leaving your team without you for the later fights. Repeat your Round 2 habit of taking fights to finish a last player standing situation, because you can still turn a round around.\nR1: Take the fair fight from cover, but settle your shot before firing, since the round was still even.\nR3: Before entering B Site, call which teammate follows you in, so your entry can help the team establish the site rather than end with a traded death.\nR4: Before taking the early Mid Plaza fight, call a teammate to follow your peek, since nobody was close enough to answer your death.\nR5: Take the fair opening fight, but have a Blast Pack ready to leave after the first exchange, then give ground rather than stay exposed.\nR6: At low health, give ground to cover before challenging again, since your team is already down a player.\nFOCUS: On attack, before entering a contested area early, call which teammate will follow you in so your opening fight helps the push continue."
+  },
+  {
+   "id": "review-pearl-1-5-asc_plus",
+   "band": "asc_plus",
+   "agent": "Raze",
+   "map": "Pearl",
+   "score": "1-5",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 4,
+    "deaths": 5,
+    "assists": 2,
+    "headshotPct": 21
+   },
+   "deaths": 5,
+   "untradedRaw": 3,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "3 of your 5 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 3
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "Clove",
+     "weapon": "Classic",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null,
+     "cause": "lost-duel"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 13,
+     "killer": "Cypher",
+     "weapon": "Phantom",
+     "traded": true,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Site"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 8,
+     "killer": "Sage",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Plaza",
+     "cause": "unclear"
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 9,
+     "killer": "Cypher",
+     "weapon": "Classic",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": "Mid Plaza",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Fade",
+     "weapon": "Spectre",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null,
+     "cause": "unclear"
+    }
+   ],
+   "reply": "SUMMARY: You lost 1 to 5 with no controller: Jett, Phoenix, Raze, Reyna, Yoru, so your entries needed a plan for crossing exposed space. 5 of your 5 deaths came in the first 30 seconds, before any plant, leaving you unable to influence the later fights. Repeat your decisive fighting from round 2, where you won alone against 2, because it can turn a round around.\nR1: The B Site duel was fair, so take that fight from cover again and focus on the shot rather than giving up the angle.\nR3: On the next B entry, call who follows before you go, gaining a chance to push beyond the first fight while accepting the risk of contact.\nR4: With the Bucky in Mid Shops, take a closer fight on your terms before moving into the open, giving up early ground to make your gun more useful.\nR6: At low health, fall back from Mid Plaza after your kill instead of seeking another fight, preserving your presence for later while conceding space.\nFOCUS: On each attack entry without a smoke, call which teammate follows you before you take the first piece of space."
+  },
+  {
+   "id": "review-fracture-5-1-iron_bronze",
+   "band": "iron_bronze",
+   "agent": "Jett",
+   "map": "Fracture",
+   "score": "5-1",
+   "result": "Victory",
+   "scoreline": {
+    "kills": 12,
+    "deaths": 3,
+    "assists": 2,
+    "headshotPct": 24
+   },
+   "deaths": 3,
+   "untradedRaw": 2,
+   "mistakes": [],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 31,
+     "killer": "Astra",
+     "weapon": "Sheriff",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": "A Main",
+     "cause": "repeek"
+    },
+    {
+     "n": 3,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 33,
+     "killer": "Jett",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "A Site",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 3,
+     "killer": "Chamber",
+     "weapon": "Weapon",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Tree",
+     "cause": "lost-duel"
+    }
+   ],
+   "reply": "SUMMARY: You won 5 to 1 by opening fights and turning them into multiple kills. In round 5, the fair fight you lost after the plant left nobody to trade you, so play closer to a teammate after the plant. Keep taking opening fights because an early kill gives your team room to work.\nR5: After the plant, hold from cover near a teammate who can kill your killer, because nobody traded you in this fair fight.\nFOCUS: After the spike is planted, choose cover near a teammate who can kill your killer."
+  },
+  {
+   "id": "review-fracture-5-1-silver_gold",
+   "band": "silver_gold",
+   "agent": "Jett",
+   "map": "Fracture",
+   "score": "5-1",
+   "result": "Victory",
+   "scoreline": {
+    "kills": 12,
+    "deaths": 3,
+    "assists": 2,
+    "headshotPct": 24
+   },
+   "deaths": 3,
+   "untradedRaw": 2,
+   "mistakes": [],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 31,
+     "killer": "Astra",
+     "weapon": "Sheriff",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": "A Main",
+     "cause": "repeek"
+    },
+    {
+     "n": 3,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 33,
+     "killer": "Jett",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "A Site",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 3,
+     "killer": "Chamber",
+     "weapon": "Weapon",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Tree",
+     "cause": "lost-duel"
+    }
+   ],
+   "reply": "SUMMARY: You won 5 to 1 by opening fights and converting them into multi kill rounds. The biggest opportunity was round 5, where you lost a fair fight after the plant and nobody traded you. Keep taking the first fight with purpose, because early picks give your team room to play.\nR5: After the plant, hold the spike from cover and make the enemy come to you, using the clock rather than seeking another fair fight.\nFOCUS: After your team plants, choose cover where you can watch the spike."
+  },
+  {
+   "id": "review-fracture-5-1-plat_diamond",
+   "band": "plat_diamond",
+   "agent": "Jett",
+   "map": "Fracture",
+   "score": "5-1",
+   "result": "Victory",
+   "scoreline": {
+    "kills": 12,
+    "deaths": 3,
+    "assists": 2,
+    "headshotPct": 24
+   },
+   "deaths": 3,
+   "untradedRaw": 2,
+   "mistakes": [],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 31,
+     "killer": "Astra",
+     "weapon": "Sheriff",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": "A Main",
+     "cause": "repeek"
+    },
+    {
+     "n": 3,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 33,
+     "killer": "Jett",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "A Site",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 3,
+     "killer": "Chamber",
+     "weapon": "Weapon",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Tree",
+     "cause": "lost-duel"
+    }
+   ],
+   "reply": "SUMMARY: You won 5 to 1 by opening fights and converting them into multi kill rounds. The biggest opportunity was round 5, where you lost a fair post plant fight with nobody able to trade you. Keep looking for opening kills because they give your team an early advantage.\nR5: Once the spike is planted, hold it from cover and let the clock work for you. Your fight was fair, but losing the shot left nobody able to trade you.\nFOCUS: After the plant, choose cover where you can watch the spike and make defenders come to you."
+  },
+  {
+   "id": "review-fracture-5-1-asc_plus",
+   "band": "asc_plus",
+   "agent": "Jett",
+   "map": "Fracture",
+   "score": "5-1",
+   "result": "Victory",
+   "scoreline": {
+    "kills": 12,
+    "deaths": 3,
+    "assists": 2,
+    "headshotPct": 24
+   },
+   "deaths": 3,
+   "untradedRaw": 2,
+   "mistakes": [],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 31,
+     "killer": "Astra",
+     "weapon": "Sheriff",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": "A Main",
+     "cause": "repeek"
+    },
+    {
+     "n": 3,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 33,
+     "killer": "Jett",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "A Site",
+     "cause": "lost-duel"
+    },
+    {
+     "n": 6,
+     "side": "attacking",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 3,
+     "killer": "Chamber",
+     "weapon": "Weapon",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "B Tree",
+     "cause": "lost-duel"
+    }
+   ],
+   "reply": "SUMMARY: You won 5 to 1 by opening fights and winning multi kill rounds. The costliest loss came in round 5, where you lost a fair post plant duel and could no longer help defend the spike. Keep opening fights as you did in rounds 2, 4 and 5 because early kills give your team room to play.\nR5: Once the spike is planted, hold from cover and let the defender come to you. It was a fair duel, but a slower fight makes the defender spend time.\nFOCUS: After the spike is planted, choose cover where you can watch it and let the defender come to you."
+  },
+  {
+   "id": "review-sunset-2-5-iron_bronze",
+   "band": "iron_bronze",
+   "agent": "Jett",
+   "map": "Sunset",
+   "score": "2-5",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 10,
+    "deaths": 5,
+    "assists": 1,
+    "headshotPct": 25
+   },
+   "deaths": 5,
+   "untradedRaw": 4,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "4 of your 5 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 4
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 2 and 6 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      2,
+      6
+     ],
+     "count": 2
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "KAY/O",
+     "weapon": "Sheriff",
+     "traded": true,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "Mid Bottom"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Jett",
+     "weapon": "Outlaw",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "B Site",
+     "cause": "unclear"
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 20,
+     "killer": "Clove",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "Mid Top",
+     "cause": "unclear"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 20,
+     "killer": "KAY/O",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "A Site",
+     "cause": "unclear"
+    },
+    {
+     "n": 7,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Neon",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "A Lobby",
+     "cause": "unclear"
+    }
+   ],
+   "reply": "SUMMARY: You lost 2 to 5 because your team lost rounds after you gave up fights it was ahead in. In rounds 2 and 6 your team was up in numbers when you died, and the round was lost, so keeping your advantage is the next step. Keep looking for opening kills because they give your team room to take the round.\nR1: Go in on a teammate's flash so the fight is easier to take, especially with your team already down in numbers.\nR2: Once the spike is planted, hold it from cover instead of taking another fight while your team is ahead.\nR3: Say which teammate will follow before you enter so someone can fight alongside you in mid.\nR6: With your team ahead, fall back from A Elbow after your kills instead of holding it alone.\nR7: On defence, give ground from A Lobby and hold closer to site rather than taking an early fight alone.\nFOCUS: When your team is ahead in numbers, take cover after a kill and hold the space you have."
+  },
+  {
+   "id": "review-sunset-2-5-silver_gold",
+   "band": "silver_gold",
+   "agent": "Jett",
+   "map": "Sunset",
+   "score": "2-5",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 10,
+    "deaths": 5,
+    "assists": 1,
+    "headshotPct": 25
+   },
+   "deaths": 5,
+   "untradedRaw": 4,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "4 of your 5 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 4
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 2 and 6 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      2,
+      6
+     ],
+     "count": 2
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "KAY/O",
+     "weapon": "Sheriff",
+     "traded": true,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "Mid Bottom"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Jett",
+     "weapon": "Outlaw",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "B Site",
+     "cause": "unclear"
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 20,
+     "killer": "Clove",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "Mid Top",
+     "cause": "unclear"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 20,
+     "killer": "KAY/O",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "A Site",
+     "cause": "unclear"
+    },
+    {
+     "n": 7,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Neon",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "A Lobby",
+     "cause": "unclear"
+    }
+   ],
+   "reply": "SUMMARY: You lost 2 to 5 despite creating openings and winning fights that helped your team. You gave back the advantage in rounds 2 and 6: your team was up in numbers when you died, and the round was lost. Keep taking the first fight to open a round, then reset so your opening gives the team more to work with.\nR1: Go in on a teammate's flash so the next fight is easier to follow, especially with only two teammates standing against three.\nR2: Once your team is ahead, hold the planted spike from cover instead of seeking another fight.\nR3: Say which teammate will follow your entry before you move forward, because nobody was close enough to kill your killer.\nR6: After your opening fights, fall back from A Elbow to cover because your team is already ahead.\nR7: Hold A Lobby from a spot you can leave, then give ground when attackers approach rather than commit to the early fight.\nFOCUS: After your opening kill puts your team ahead, reset to cover before looking for another fight."
+  },
+  {
+   "id": "review-sunset-2-5-plat_diamond",
+   "band": "plat_diamond",
+   "agent": "Jett",
+   "map": "Sunset",
+   "score": "2-5",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 10,
+    "deaths": 5,
+    "assists": 1,
+    "headshotPct": 25
+   },
+   "deaths": 5,
+   "untradedRaw": 4,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "4 of your 5 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 4
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 2 and 6 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      2,
+      6
+     ],
+     "count": 2
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "KAY/O",
+     "weapon": "Sheriff",
+     "traded": true,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "Mid Bottom"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Jett",
+     "weapon": "Outlaw",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "B Site",
+     "cause": "unclear"
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 20,
+     "killer": "Clove",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "Mid Top",
+     "cause": "unclear"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 20,
+     "killer": "KAY/O",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "A Site",
+     "cause": "unclear"
+    },
+    {
+     "n": 7,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Neon",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "A Lobby",
+     "cause": "unclear"
+    }
+   ],
+   "reply": "SUMMARY: You lost 2 to 5, despite winning opening fights, because advantages slipped away in lost rounds. In rounds 2 and 6 your team was up in numbers when you died, and the round was lost, making another fight unnecessary. Keep looking for opening kills because they give your team room to take control.\nR1: Before entering Mid Bottom, call which teammate will follow you so the next fight is taken together rather than as a separate duel.\nR2: After your two kills, settle into cover and hold an angle rather than seek another fight while your team is ahead.\nR3: On the next attack, go in on a teammate’s flash or drone so you can take Mid Top with help rather than face the next corner alone.\nR6: After your opening fights at A Elbow, fall back to cover while your team is ahead instead of holding alone with your ultimate ready.\nR7: Give ground from A Lobby after the first contact and hold from farther back so an early fight does not leave your team behind.\nFOCUS: After an opening kill puts your team ahead, reset to cover before taking another fight."
+  },
+  {
+   "id": "review-sunset-2-5-asc_plus",
+   "band": "asc_plus",
+   "agent": "Jett",
+   "map": "Sunset",
+   "score": "2-5",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 10,
+    "deaths": 5,
+    "assists": 1,
+    "headshotPct": 25
+   },
+   "deaths": 5,
+   "untradedRaw": 4,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "4 of your 5 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 4
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 2 and 6 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      2,
+      6
+     ],
+     "count": 2
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 26,
+     "killer": "KAY/O",
+     "weapon": "Sheriff",
+     "traded": true,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "Mid Bottom"
+    },
+    {
+     "n": 2,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Jett",
+     "weapon": "Outlaw",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "B Site",
+     "cause": "unclear"
+    },
+    {
+     "n": 3,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 20,
+     "killer": "Clove",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": false,
+     "deathSpot": "Mid Top",
+     "cause": "unclear"
+    },
+    {
+     "n": 4,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 20,
+     "killer": "KAY/O",
+     "weapon": "Sheriff",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": "A Site",
+     "cause": "unclear"
+    },
+    {
+     "n": 7,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 12,
+     "killer": "Neon",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": "A Lobby",
+     "cause": "unclear"
+    }
+   ],
+   "reply": "SUMMARY: You lost 2 to 5 despite creating openings and winning multiple fights. In rounds 2 and 6 your team was up in numbers when you died, and the round was lost: resetting after your kills could have protected that advantage. Keep looking for opening kills because they give your team room to take control of the round.\nR1: On the next Mid Bottom entry, go in on a teammate's flash to gain ground quickly while accepting the risk of fighting before you have the full picture.\nR2: After your two kills, fall back to cover the planted spike rather than seek another fight, preserving the advantage while giving up some forward space.\nR3: Start the Mid Top push on a teammate's drone so you can clear forward quickly, accepting a slower entry in exchange for a safer first fight.\nR6: After your opening fight, leave A Elbow and reset to cover while your team is ahead, trading forward pressure for a better chance to keep the advantage.\nR7: Hold from a position you can leave early rather than commit in A Lobby, giving up immediate pressure to stay available for the defence.\nFOCUS: After your first fight leaves your team ahead, reset to cover before looking for another duel."
+  },
+  {
+   "id": "review-sunset-4-13-iron_bronze",
+   "band": "iron_bronze",
+   "agent": "Jett",
+   "map": "Sunset",
+   "score": "4-13",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 21,
+    "deaths": 14,
+    "assists": 1,
+    "headshotPct": 28
+   },
+   "deaths": 14,
+   "untradedRaw": 13,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "12 of your 13 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 12
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 1, 5, 7, 8 and 12 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      1,
+      5,
+      7,
+      8,
+      12
+     ],
+     "count": 5
+    },
+    {
+     "key": "same-killer",
+     "title": "Killjoy kept winning",
+     "detail": "Killjoy killed you 4 times, rounds 1, 2, 13 and 14.",
+     "rounds": [
+      1,
+      2,
+      13,
+      14
+     ],
+     "count": 4
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Killjoy",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 42,
+     "killer": "Killjoy",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Tejo",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Tejo",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 7,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 8,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 23,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 9,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 44,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 10,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 36,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 11,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 12,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 34,
+     "killer": "Raze",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 13,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Killjoy",
+     "weapon": "Classic",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 14,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 14,
+     "killer": "Killjoy",
+     "weapon": "Marshal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 15,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 4,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 5,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 17,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 56,
+     "killer": "Raze",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You lost 4 to 13, and once they planted on defence, your team won 0 of 9 rounds. In rounds 1, 3, 5 and 6, 12 of your 13 deaths went unanswered, leaving nobody to kill your killer within five seconds. Keep looking for opening kills, because they give your team an early advantage.\nR1: Check your teammates before swinging again, because your team was already ahead and did not need another fight.\nR2: With only you left against five, check for a safe way to fall back before taking another fight.\nR3: Before an early defence peek, check that your dash is ready so you can get back to your team.\nR5: After getting the first kill, check the numbers and hold your ground from cover rather than taking another fight while ahead.\nR6: Take one early look, then fall back toward your team so an opening death does not leave them a player down.\nR7: After the opening kill, check the numbers and keep your position behind cover while your team has the advantage.\nR8: Once you get the first kill, look for cover and let the attackers come to you instead of chasing another duel.\nR13: Before entering, say which teammate will follow you so someone is close enough to kill your killer.\nR14: Check the minimap for your nearest teammate before you go in, then enter with them close enough to follow your fight.\nR16: Before committing to an early fight, call for a teammate to follow your entry and take one piece of space together.\nFOCUS: Before your next swing in a match, glance at the minimap to check that a teammate is close enough to kill your killer."
+  },
+  {
+   "id": "review-sunset-4-13-silver_gold",
+   "band": "silver_gold",
+   "agent": "Jett",
+   "map": "Sunset",
+   "score": "4-13",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 21,
+    "deaths": 14,
+    "assists": 1,
+    "headshotPct": 28
+   },
+   "deaths": 14,
+   "untradedRaw": 13,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "12 of your 13 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 12
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 1, 5, 7, 8 and 12 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      1,
+      5,
+      7,
+      8,
+      12
+     ],
+     "count": 5
+    },
+    {
+     "key": "same-killer",
+     "title": "Killjoy kept winning",
+     "detail": "Killjoy killed you 4 times, rounds 1, 2, 13 and 14.",
+     "rounds": [
+      1,
+      2,
+      13,
+      14
+     ],
+     "count": 4
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Killjoy",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 42,
+     "killer": "Killjoy",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Tejo",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Tejo",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 7,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 8,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 23,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 9,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 44,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 10,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 36,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 11,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 12,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 34,
+     "killer": "Raze",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 13,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Killjoy",
+     "weapon": "Classic",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 14,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 14,
+     "killer": "Killjoy",
+     "weapon": "Marshal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 15,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 4,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 5,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 17,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 56,
+     "killer": "Raze",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You lost 4 to 13, and once they planted on defence, your team won 0 of 9 rounds. Your team could not turn those plants into wins, making survival before the plant especially valuable. Keep looking to open fights, as your first kills gave your team a numbers lead.\nR1: With your team ahead, hold from cover instead of seeking another fight so you stay available to defend the plant.\nR2: As the last teammate standing, use cover to isolate one fight at a time rather than exposing yourself to several attackers.\nR3: Hold an angle with a teammate close enough to kill your killer, since nobody traded you after your opening death.\nR5: After your opening fights, reset behind cover while your team has the numbers instead of taking another peek.\nR6: On defence, choose an angle with a path back to cover so you can give ground if attackers pressure you early.\nR7: After your opening kill, give ground to cover and let your team use its numbers advantage.\nR8: Once you get the first kill, hold from cover rather than offering another fight while your team is ahead.\nR13: On attack, tell a teammate which angle you will clear together so you are not entering the next fight alone.\nR14: Before challenging the long sightline, enter on a teammate's smoke so you can cross with less exposure.\nR16: Call which teammate follows your entry, then take one piece of space and stop behind cover.\nFOCUS: Before taking a forward fight, check that a teammate is close enough to kill your killer."
+  },
+  {
+   "id": "review-sunset-4-13-plat_diamond",
+   "band": "plat_diamond",
+   "agent": "Jett",
+   "map": "Sunset",
+   "score": "4-13",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 21,
+    "deaths": 14,
+    "assists": 1,
+    "headshotPct": 28
+   },
+   "deaths": 14,
+   "untradedRaw": 13,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "12 of your 13 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 12
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 1, 5, 7, 8 and 12 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      1,
+      5,
+      7,
+      8,
+      12
+     ],
+     "count": 5
+    },
+    {
+     "key": "same-killer",
+     "title": "Killjoy kept winning",
+     "detail": "Killjoy killed you 4 times, rounds 1, 2, 13 and 14.",
+     "rounds": [
+      1,
+      2,
+      13,
+      14
+     ],
+     "count": 4
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Killjoy",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 42,
+     "killer": "Killjoy",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Tejo",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Tejo",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 7,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 8,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 23,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 9,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 44,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 10,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 36,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 11,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 12,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 34,
+     "killer": "Raze",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 13,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Killjoy",
+     "weapon": "Classic",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 14,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 14,
+     "killer": "Killjoy",
+     "weapon": "Marshal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 15,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 4,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 5,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 17,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 56,
+     "killer": "Raze",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You lost 4 to 13, and once they planted on defence, your team won 0 of 9 rounds. 12 of your 13 deaths went unanswered, including rounds 1, 3, 5 and 6, leaving nobody to kill your killer in time. Keep looking to kill enemies just after they kill a teammate, because it can restore your team's numbers.\nR1: With your team ahead, give ground to cover before taking another fight, since the attackers still have to come to you.\nR2: As the last one alive, take the next fight from cover so you have a chance to isolate an attacker rather than face several at once.\nR3: On the opening hold, position near a teammate who can kill your killer, because nobody traded you here.\nR5: After your opening kills, reset behind cover instead of seeking another fight, because your team already has the numbers.\nR6: Before taking the first defensive fight, choose cover you can retreat behind so you don't have to stay exposed if attackers push.\nR7: After the first kill, fall back to a position where you can hold the approach, since your team has a numbers advantage.\nR8: Once you get the opening kill, give up the forward angle and make the attackers move into your team's hold.\nR13: As your team loses players, take the next piece of space with a teammate close enough to follow your fight.\nR14: Before entering, call which teammate will follow you so your side has a chance to answer the defender if you fall.\nR16: On the next entry, time your push with a teammate's flash or drone so the defender has less time to stop the attack.\nFOCUS: Before taking an opening fight, call which teammate is close enough to kill your killer."
+  },
+  {
+   "id": "review-sunset-4-13-asc_plus",
+   "band": "asc_plus",
+   "agent": "Jett",
+   "map": "Sunset",
+   "score": "4-13",
+   "result": "Defeat",
+   "scoreline": {
+    "kills": 21,
+    "deaths": 14,
+    "assists": 1,
+    "headshotPct": 28
+   },
+   "deaths": 14,
+   "untradedRaw": 13,
+   "mistakes": [
+    {
+     "key": "untraded",
+     "title": "Died where nobody could trade",
+     "detail": "12 of your 13 deaths went unanswered: no teammate killed your killer within five seconds.",
+     "rounds": [],
+     "count": 12
+    },
+    {
+     "key": "lost-advantage",
+     "title": "Gave back the advantage",
+     "detail": "In rounds 1, 5, 7, 8 and 12 your team was up in numbers when you died, and the round was lost.",
+     "rounds": [
+      1,
+      5,
+      7,
+      8,
+      12
+     ],
+     "count": 5
+    },
+    {
+     "key": "same-killer",
+     "title": "Killjoy kept winning",
+     "detail": "Killjoy killed you 4 times, rounds 1, 2, 13 and 14.",
+     "rounds": [
+      1,
+      2,
+      13,
+      14
+     ],
+     "count": 4
+    }
+   ],
+   "rounds": [
+    {
+     "n": 1,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Killjoy",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 2,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 42,
+     "killer": "Killjoy",
+     "weapon": "Bandit",
+     "traded": false,
+     "alive": {
+      "mates": 1,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 3,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 27,
+     "killer": "Tejo",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 4,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 5,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 2
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 3,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 6,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Tejo",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 5
+     },
+     "firstDeath": true,
+     "firstKill": false,
+     "kills": 0,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 7,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 18,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 8,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 23,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 9,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 44,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 3,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 2,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 10,
+     "side": "defending",
+     "result": "won",
+     "died": true,
+     "verified": true,
+     "sec": 36,
+     "killer": "Brimstone",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 1
+     },
+     "firstDeath": false,
+     "firstKill": true,
+     "kills": 4,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 11,
+     "side": "defending",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 3,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 12,
+     "side": "defending",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 34,
+     "killer": "Raze",
+     "weapon": "Vandal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 1,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 13,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 17,
+     "killer": "Killjoy",
+     "weapon": "Classic",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 14,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 14,
+     "killer": "Killjoy",
+     "weapon": "Marshal",
+     "traded": false,
+     "alive": {
+      "mates": 4,
+      "enemies": 5
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 15,
+     "side": "attacking",
+     "result": "won",
+     "died": false,
+     "verified": true,
+     "sec": null,
+     "killer": null,
+     "weapon": null,
+     "traded": null,
+     "alive": null,
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 4,
+     "planted": true,
+     "deathSpot": null
+    },
+    {
+     "n": 16,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 5,
+     "killer": "Phoenix",
+     "weapon": "Phantom",
+     "traded": true,
+     "alive": {
+      "mates": 5,
+      "enemies": 4
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    },
+    {
+     "n": 17,
+     "side": "attacking",
+     "result": "lost",
+     "died": true,
+     "verified": true,
+     "sec": 56,
+     "killer": "Raze",
+     "weapon": "Phantom",
+     "traded": false,
+     "alive": {
+      "mates": 2,
+      "enemies": 3
+     },
+     "firstDeath": false,
+     "firstKill": false,
+     "kills": 0,
+     "planted": false,
+     "deathSpot": null
+    }
+   ],
+   "reply": "SUMMARY: You lost 4 to 13, and once they planted on defence, your team won 0 of 9 rounds. 12 of your 13 deaths went unanswered, including rounds 1, 3, 5 and 6, leaving nobody to immediately answer those fights. Keep opening rounds for your team because early kills create space to play from.\nR1: With your team ahead, give ground after the first contact instead of extending the hold, preserving the advantage while conceding some space.\nR2: As the last defender, look for an isolated fight from cover rather than committing to a long hold, giving up space for a chance to split the attackers.\nR3: With both teams intact, hold where you can fall back after contact, giving up an early fight to keep a defender available.\nR5: After the opening fights, reset to cover while your team is ahead, sacrificing another immediate peek to protect the advantage you built.\nR6: On an early defence hold, choose a position you can leave after contact, conceding some ground to avoid being removed before your team can respond.\nR7: After your opening kill, slow the next peek and fall back toward your team, giving up pressure to preserve the numbers advantage.\nR8: Once you have the first kill, take one more shot at most before returning to cover, trading a chance at another kill for a safer hold.\nR13: With your team already down in numbers, enter on a teammate's flash or drone, risking a slower take for a better chance of winning the next fight.\nR14: With your team down one, name the teammate following before you lead the next push, gaining a chance to answer your death at the cost of a slower entry.\nR16: Before the next fast entry, call which teammate follows you, keeping the speed of the push while risking less separation from the group.\nFOCUS: Before an aggressive peek or entry, name the teammate close enough to kill your killer so your next review can check whether the fight had an immediate answer."
+  }
+ ]
+}

@@ -60,6 +60,9 @@ const knowledgeMod = () => optional('./knowledge');
 const reviewMod = () => optional('./match-review');
 const forensicsMod = () => optional('./death-forensics');
 const casesMod = () => optional('./cases');
+const abilityFactsMod = () => optional('./ability-facts');
+const coherenceMod = () => optional('./coherence');
+const KIT_HEAD = "THE KITS, what each ability does in the game's own words, the player's agent first. Say nothing of an ability that its line does not say, and name each by its name, never by its key:";
 
 const lower = (s) => String(s == null ? '' : s).toLowerCase();
 const fin = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -941,6 +944,26 @@ function factsOf(input, messages, opts) {
     for (const a of tr.agents) { addNum('matches', a.matches); addNum('percent', a.winRate); addNum('kd', a.kd); addNum('acs', a.acs); }
   }
   for (const r of pl.recent || []) { score(r.score); addNum('grade', r.grade); day(r.at); dayOf(r.day); }
+  /*
+   * WHAT THE LIBRARY HOLDS ACROSS MATCHES (fact-gates.js gateLibrary, the
+   * re-audit of 8.7.7): the patterns' pairs ("5 of 6"), and every average of
+   * the player's own, the against line's baselines, the library's rows, the
+   * tracker's numbers and a counted line that names an average ("your Duelist
+   * average is 397"). A cross match number is one of these or it goes. And
+   * this match's headshot rate against the player's own average, for the aim
+   * gate's praise (gateAim).
+   */
+  const lib = { pairs: new Set(), averages: new Set() };
+  const avg = (v) => { if (fin(v)) { lib.averages.add(v); lib.averages.add(Math.round(v)); } };
+  for (const p of pl.patterns || []) if (fin(p.matches) && fin(p.of)) lib.pairs.add(`${p.matches}/${p.of}`);
+  if (m && m.kind === 'valorant') for (const a of m.against || []) avg(a.baseline);
+  for (const row of [pl.agentRow, pl.mapRow]) if (row) for (const k of ['winRate', 'grade', 'kd', 'acs', 'adr', 'hs']) avg(row[k]);
+  if (tr) for (const k of ['kd', 'winRate', 'hs', 'acs', 'adr', 'kpr', 'dpr', 'apr']) avg(tr[k]);
+  for (const t of f.counted.texts) for (const x of t.matchAll(/\baverage\s+(?:is\s+|of\s+|was\s+)?(\d+(?:\.\d+)?)/g)) avg(Number(x[1]));
+  f.library = lib;
+  const hsLine = m && m.kind === 'valorant' ? (m.against || []).find((a) => a.label === 'Headshot %') : null;
+  f.aim = hsLine ? { hs: hsLine.value, baseline: hsLine.baseline, games: hsLine.games || null }
+    : (m && m.kind === 'valorant' && m.scoreline && fin(m.scoreline.hs) ? { hs: m.scoreline.hs, baseline: null, games: null } : null);
   if (inp.ask && inp.ask.switchedFrom) { score(inp.ask.switchedFrom.score); dayOf(inp.ask.switchedFrom.day); }
   f.days = [...new Set(f.days)];
   if (opts && opts.armor) f.armor = opts.armor;
@@ -994,6 +1017,8 @@ WHAT YOU MUST NOT SAY
 - No ranking of agents, no meta, no pick or win rates for the current patch: you do not have them. Answer from the kit, the player's own numbers and the facts.
 - No player names, ever, even one the player typed: say your teammate, or the agent. No coach, player, team, video or other source for any advice.
 - Only Valorant and the player's play.
+- Nothing about the app, a future review, a page or a feature: never recommend one, and never say a review will check something. Teach the game alone.
+- No number across the player's other matches but as the counted lines across matches and the against line give it, said as they say it ("in 5 of your last 6 matches", "your own average of 38%"), and no season, act or episode. A pattern of this match is this match's, never one across matches.
 
 HOW TO ANSWER
 - Answer the question in your first sentence, and answer the question that was asked. A question about aim, practice, an agent, the mental side, comms or the economy is answered about that, and a counted mistake comes in only where it bears on it. Never turn every answer into the same habit. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
@@ -1005,11 +1030,12 @@ HOW TO ANSWER
 - Asked for a game number the VALORANT FACTS hold (hits to kill, damage, a price, a timer), give it in your first sentence in the facts' own words, with the range band and the armour they name, then stop. Add nothing about the match unless asked.
 - Name at most one ability in an answer about a round, and only when it changes the decision in that round. Do not list the kit, and do not offer the same ability in every answer.
 - Never mention an ultimate orb, a health number, who carried the spike or how many players were alive unless the facts of that round state it.
-- About improving: the largest counted mistake or pattern with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts.
+- About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it, and name trading at most once, as a second point, unless THE LEVER is trading.
 - Quote a counted line's numbers as given, the deaths nobody traded included: that count leaves out a death as the last one alive, which nobody could trade, so never count the rounds yourself into a total of your own.
 - A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practised in a match, with what to do when nobody answers the call.
 - When something went right, say what the player did and why it worked in game terms, from the record: a trade they made, a fight they took beside a teammate, a round they saved or won on the clock. Never praise a scoreboard number, never open with praise as a cushion, and never call the player unlucky or blame a teammate.
-- Asked about their aim, answer from the deaths and the player's headshot rate against their own average. Where the coach's look called fights fair and lost on the shot, say so and give one aim habit. Where the deaths show the position, the timing, the numbers or nobody able to trade, name that first, then still give one aim habit sized to their rank. Where the coach looked at no death, say the look cannot tell whether the fights were lost on the shot. Never say aim is not the problem, or that aim can wait, unless the coach's looks called those deaths something else.
+- Asked about their aim, answer from the deaths and the player's headshot rate against their own average. Where the coach's look called fights fair and lost on the shot, say so and give one aim habit. Where the deaths show the position, the timing, the numbers or nobody able to trade, name that first, then still give one aim habit sized to their rank. Where the coach looked at no death, say the look cannot tell whether the fights were lost on the shot. Never say aim is not the problem, or that aim can wait, unless the coach's looks called those deaths something else. Never praise the aim where the headshot rate is under their own average, and never call a fight the look called fair one that should not have been taken.
+- Before advice about a round, read its side and whether the spike was down when the player died: on attack with no spike down the defenders never have to come to you, so waiting for them is no plan, and on defence with the spike down the defenders must retake.
 - If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (stopping before the shot, crosshair height, information before a peek, one angle at a time). Platinum to Diamond, the decision before the fight (predictability, playing the team's plan, when to take space). Ascendant and up, no basics, the specific timing or utility change and what it risks. An answer for a higher rank is never the one a lower rank would get for the same facts in longer words.
 - Name the match the first time you refer to it: the map, the agent and the result.
 - Write times as seconds into the round, "8 s in", never as a clock such as 0:08, which reads as the time left.
@@ -1082,7 +1108,9 @@ function renderPlayer(input, trim) {
   const lines = [];
   const game = input.game === 'lol' ? 'League' : 'Valorant';
   for (const x of (p.patterns || []).slice(0, trim ? 3 : 6)) {
-    lines.push(`- Across their last recorded ${game} matches (counted): "${x.title}" in ${x.matches} of ${x.of} matches${x.trend ? `, ${x.trend}` : ''}.`);
+    // With the words to say it in, so a true cross match number reaches the
+    // player as the library holds it (fact-gates.js gateLibrary, the re-audit of 8.7.7).
+    lines.push(`- Across their last recorded ${game} matches (counted): "${x.title}" in ${x.matches} of ${x.of} matches${x.trend ? `, ${x.trend}` : ''}. Said to the player: in ${x.matches} of your last ${x.of} matches.`);
   }
   const row = (r, what) => {
     if (!r) return;
@@ -1234,6 +1262,10 @@ function renderMatch(input, facts, trim) {
     counted.push(`- Scoreboard (Riot's): ${sl.kills} kills, ${sl.deaths} deaths, ${sl.assists} assists${fin(sl.acs) ? `, ACS ${sl.acs}` : ''}${fin(sl.adr) ? `, ADR ${sl.adr}` : ''}${fin(sl.hs) ? `, headshot ${sl.hs}%` : ''}${sl.mvp === 'match' ? ', match MVP' : sl.mvp === 'team' ? ', team MVP' : ''}.`);
   }
   if (m.against.length) counted.push(`- Against their own average in the role: ${m.against.map((a) => `${a.label} ${a.value} against ${a.baseline}${a.games ? ` over ${a.games} matches` : ''}`).join('; ')}.`);
+  // The headshot rate as a finished sentence: the aim answers' one cross match
+  // number, said as the library holds it (gateLibrary, gateAim's praise).
+  const hsAgainst = m.against.find((a) => a.label === 'Headshot %');
+  if (hsAgainst) counted.push(`- Said to the player: your headshot rate this match was ${hsAgainst.value}%, against your own average of ${hsAgainst.baseline}%${hsAgainst.games ? ` over your last ${hsAgainst.games} matches` : ''}.`);
   if (m.grade) {
     counted.push(`- Grade: ${m.grade.score}${m.grade.letter ? ` ${m.grade.letter}` : ''}${m.grade.provisional ? ' (provisional)' : ''}. ${m.grade.categories.map((c) => `${c.label} ${fin(c.score) ? c.score : 'not measured'}${c.evidence.length ? ` (${c.evidence.join('; ')})` : ''}`).join('. ')}.`);
   }
@@ -1340,9 +1372,30 @@ function renderSlices(input, facts, messages) {
     if (c.riot.killer) agents.add(c.riot.killer);
     for (const k of c.riot.feed || []) if (k.on === 'me' && k.ka) agents.add(k.ka);
   }
+  // With no round asked, the agents who killed the player most (two at most):
+  // an answer about the match names their kit too (the re-audit of 8.7.7).
+  if (m && !asked.length) {
+    const killers = new Map();
+    for (const c of m.cards || []) if (c.riot && c.riot.killer) killers.set(c.riot.killer, (killers.get(c.riot.killer) || 0) + 1);
+    for (const [a] of [...killers.entries()].sort((x, y) => y[1] - x[1]).slice(0, 2)) agents.add(a);
+  }
   const out = [];
-  for (const a of [...agents].slice(0, 4)) {
-    try { const t = typeof p.kit === 'function' ? String(p.kit(a, o) || '').trim() : ''; if (t) out.push(t); } catch { /* a kit the primer cannot render is left out */ }
+  /*
+   * THE KITS IN ONE SHORT BLOCK (ability-facts.js kitBlock, stream D of the
+   * re-audit): each ability a finished line in the game's own words, the
+   * player's agent first, then the agent asked about and the killers. The
+   * model had ability names with markup and invented what they do: "Undercut
+   * checks the angle", "Neural Theft is a single still". Without the module the
+   * primer's kits, as before.
+   */
+  const af = abilityFactsMod();
+  const block = af && typeof af.kitBlock === 'function'
+    ? (() => { try { return String(af.kitBlock([...agents].slice(0, 4), { head: KIT_HEAD }) || '').trim(); } catch { return ''; } })() : '';
+  if (block) out.push(block);
+  else {
+    for (const a of [...agents].slice(0, 4)) {
+      try { const t = typeof p.kit === 'function' ? String(p.kit(a, o) || '').trim() : ''; if (t) out.push(t); } catch { /* a kit the primer cannot render is left out */ }
+    }
   }
   if (!gunsInCore()) {
     // The guns the question names, every gun of the asked rounds' feeds, and
@@ -1484,6 +1537,117 @@ function questionTopics(input, messages) {
   if (!q.trim()) return none;
   const keys = new Set(QUESTION_TOPICS.filter((t) => t.ask.test(q)).map((t) => t.key));
   return { keys, general: GENERAL_ASK.test(q), agents: [...new Set(gates.agentsIn(q).map((a) => a.name))] };
+}
+
+/*
+ * THE LEVER (the re-audit of 8.7.7, Nov 2026). "How do I improve at my rank"
+ * opened on the trade habit 9 times in 10, Iron and Ascendant alike, and the
+ * biggest mistake and what to practise 8 and 6 times: the untraded line is
+ * counted in almost every match, so it was always the largest count. A general
+ * question now names one lever chosen in code from this match's own counted
+ * facts, weighed by what decides rounds at the player's band, a finished line
+ * in the counted words with its numbers. Above Gold the trade check leads only
+ * when nothing else is counted. Near ties go by a seed of the match and the
+ * question's kind, as the worked cases' variety does (cases.js VARIETY), so
+ * the biggest mistake, the climb and the practice of one match need not all
+ * name the same one.
+ *
+ * Only for a client that sends a band (8.8): with none the prompt is today's.
+ */
+const LEVER_WEIGHTS = {
+  iron_bronze: { early: 1.3, aim: 1.2, trade: 1.1, cause: 1.0, firstDeath: 1.0, lostAdv: 0.9, killer: 0.8, retake: 0.6, postplant: 0.6 },
+  silver_gold: { trade: 1.15, early: 1.15, lostAdv: 1.0, aim: 1.0, cause: 1.0, firstDeath: 1.0, killer: 0.9, retake: 0.7, postplant: 0.7 },
+  plat_diamond: { lostAdv: 1.3, cause: 1.3, retake: 1.2, postplant: 1.2, firstDeath: 1.1, killer: 1.1, early: 0.9, aim: 0.9, trade: 0.6 },
+  asc_plus: { retake: 1.4, postplant: 1.4, lostAdv: 1.3, cause: 1.3, killer: 1.2, firstDeath: 1.1, early: 0.8, aim: 0.8, trade: 0.5 },
+};
+const PRACTICE_WEIGHTS = { aim: 1.25, cause: 1.15, early: 1.1 };
+const LEVER_TIE = 0.85;
+const BIGGEST_ASK = /\bbiggest\b|\bmain (?:mistake|problem|issue|weakness)|\bworst\b/i;
+const seedPick = (seed, n) => {
+  let h = 2166136261;
+  for (const ch of String(seed)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  return n > 0 ? h % n : 0;
+};
+
+/** The counted levers of a match, each { key, kind, strength, line }. */
+function leversOf(m) {
+  if (!m || m.kind !== 'valorant') return [];
+  const deaths = m.cards.filter((c) => c.died).length;
+  const rounds = m.cards.length;
+  if (!deaths || !rounds) return [];
+  const out = [];
+  // The counted detail says it whole ("14 of your 16 deaths went unanswered: ..."), else the title.
+  const line = (e) => String(e.detail || e.title || '').replace(/\s+/g, ' ').trim();
+  for (const e of m.lists.mistakes) {
+    const n = fin(e.count) ? e.count : e.rounds.length;
+    if (!n) continue;
+    const cause = /^cause:(.+)$/.exec(e.key || '');
+    const kind = e.key === 'untraded' ? 'trade' : e.key === 'early' ? 'early' : e.key === 'lost-advantage' ? 'lostAdv'
+      : e.key === 'same-killer' ? 'killer' : cause ? 'cause' : null;
+    if (!kind) continue;
+    // A death the coach looked at weighs more than one counted from the record alone.
+    out.push({ key: e.key, kind, strength: Math.min(1, (n / deaths) * (kind === 'lostAdv' ? 1.6 : kind === 'cause' ? 1.4 : 1)), line: line(e) });
+  }
+  const have = new Set(out.map((x) => x.kind));
+  for (const p of m.patterns) {
+    if (p.key === 'early' && !have.has('early')) {
+      const x = /^(\d+) of your (\d+) deaths/.exec(p.text);
+      if (x && Number(x[1]) >= 2) out.push({ key: 'early', kind: 'early', strength: Number(x[1]) / Math.max(1, Number(x[2])), line: p.text });
+    }
+    if (p.key === 'retake' || p.key === 'postplant') {
+      const x = /won (\d+) of (\d+) rounds/.exec(p.text);
+      if (!x) continue;
+      const won = Number(x[1]);
+      const of = Number(x[2]);
+      if (of >= 3 && won / of < 0.5) out.push({ key: p.key, kind: p.key, strength: (1 - won / of) * Math.min(1, of / 5), line: p.text });
+    }
+  }
+  // The first death of the round, as the grade's own evidence counts it.
+  if (m.grade) {
+    for (const c of m.grade.categories) {
+      for (const ev of c.evidence) {
+        const x = /first to die in (\d+) of (\d+) rounds/.exec(ev);
+        if (x && Number(x[1]) >= 2 && Number(x[1]) / Number(x[2]) >= 0.2) {
+          out.push({ key: 'first-death', kind: 'firstDeath', strength: Math.min(1, (Number(x[1]) / Number(x[2])) * 2), line: `${ev.charAt(0).toUpperCase()}${ev.slice(1)}` });
+        }
+      }
+    }
+  }
+  // The aim, from the headshot rate against the player's own average, a lost duel the coach looked at weighing it.
+  const hs = m.against.find((a) => a.label === 'Headshot %');
+  if (hs && fin(hs.value) && fin(hs.baseline) && hs.baseline - hs.value >= 8) {
+    const duels = m.cards.filter((c) => c.died && c.look && c.look.cause === 'lost-duel').length;
+    out.push({ key: 'aim', kind: 'aim', strength: Math.min(1, (hs.baseline - hs.value) / hs.baseline + duels * 0.15),
+      line: `Your headshot rate this match was ${hs.value}%, against your own average of ${hs.baseline}%${duels ? `, and the coach's look called ${duels === 1 ? 'one death' : `${duels} deaths`} a fair fight lost on the shot` : ''}` });
+  }
+  return out;
+}
+
+/** THE LEVER line for a general question, or '' (no band, no English, no general question, an aim question, nothing counted). */
+function leverLine(input, messages) {
+  if (!input || input.game === 'lol' || !RANK_BANDS.includes(input.rankBand)) return '';
+  const m = input.match;
+  if (!m || m.kind !== 'valorant') return '';
+  const qt = questionTopics(input, messages);
+  if (!qt.general || qt.keys.has('aim') || qt.agents.length) return '';
+  const lastAsk = [...(Array.isArray(messages) ? messages : [])].reverse().find((x) => x && x.role !== 'assistant');
+  const q = String((lastAsk && lastAsk.content) || '');
+  const kind = BIGGEST_ASK.test(q) ? 'biggest' : qt.keys.has('practice') ? 'practice' : 'climb';
+  const levers = leversOf(m);
+  if (!levers.length) return '';
+  const w = LEVER_WEIGHTS[input.rankBand];
+  const scored = levers.map((l) => ({ ...l, score: l.strength * (w[l.kind] || 1) * (kind === 'practice' ? PRACTICE_WEIGHTS[l.kind] || 1 : 1) }))
+    .sort((a, b) => b.score - a.score || (a.key < b.key ? -1 : 1));
+  const high = input.rankBand === 'plat_diamond' || input.rankBand === 'asc_plus';
+  // Above Gold the trade check is the lever only when nothing else is counted.
+  const pool = high && scored.length > 1 ? scored.filter((l) => l.kind !== 'trade') : scored;
+  const top = pool[0];
+  const ties = pool.filter((l) => l.score >= top.score * LEVER_TIE);
+  const seed = `${m.matchId || m.id || [m.map, m.agent, m.score, m.at].join('|')}|${kind}`;
+  const pick = ties[seedPick(seed, ties.length)] || top;
+  const said = pick.line.replace(/[.\s]+$/, '');
+  const trade = pick.kind === 'trade' ? '' : ' Name trading at most once, as a second point, if at all.';
+  return `THE LEVER for this question, chosen in code from this match's counted facts for the player's level: ${said}. Lead with it and its numbers as given, build the one habit and the drill on it, and say the others can wait.${trade}`;
 }
 
 /*
@@ -1735,6 +1899,7 @@ function buildParts(input, messages, opts) {
   let match = ofMatch(0);
   while (matchLvl < 3 && match.length > MATCH_MAX_CHARS) match = ofMatch(++matchLvl);
   const notes = pickNotes(inp, msgs);
+  const lever = leverLine(inp, msgs);
   const rounds = facts.askedRounds || [];
   const sw = inp.ask && inp.ask.switchedFrom;
   const reply = ['Reply as the coach to the player\'s last message.', languageLine(inp.language)].filter(Boolean).join(' ');
@@ -1745,6 +1910,7 @@ function buildParts(input, messages, opts) {
       sw ? `The player's question named this match, so the conversation moved to it from ${[sw.map, sw.agent].filter(Boolean).join(', ') || 'another match'}: open by naming this one.` : '',
       renderAsked(inp, rounds, matchLvl >= 1),
       renderSlices(inp, facts, msgs),
+      lever,
       kept.length ? `COACHING NOTES\n${kept.map((t) => `- ${t}`).join('\n')}` : '',
       cm ? cm.block(cs) : '',
       renderConversation(lvl >= 3 ? msgs.slice(-2) : lvl >= 1 ? msgs.slice(-4) : msgs),
@@ -1846,6 +2012,7 @@ const VERDICT_REASON = 'your reply answered yes or no, and the sentence that sai
  * as any is whose first sentence went or that keeps fewer than two.
  */
 const LEANS_REASON = 'a sentence of your reply leaned on the one before it, which could not be shown; give each event its own time into the round, and name the agent rather than he, she, that or it';
+const ORPHAN_REASON = 'a sentence of your reply pointed at something no sentence shown before it named; name the agent, the ability or the rounds in the sentence itself';
 // The sentences a reply must keep to be shown when its retry fails too (parseReply `fallback`).
 const FALLBACK_KEPT = 3;
 
@@ -1887,6 +2054,24 @@ function gateReply(paras, facts, nameOpts) {
     if (!rows[i].drop && rows[i + 1].drop && VERDICT.test(gates.straighten(rows[i].s).trim())) {
       rows[i].drop = { gate: 'verdict', reason: VERDICT_REASON };
       rows[i].logged = [];
+    }
+  }
+  /*
+   * WHAT LEANS ON NOTHING KEPT (coherence.js checkOrphans, the re-audit of
+   * 8.7.7): "Fight her with a teammate or after a flash" with the Reyna
+   * sentence before it dropped, "You did plenty right." with its list gone,
+   * "with it up" without its Double Tap. Read over the reply as it will be
+   * shown, in English, the agent the question names standing as one a he or a
+   * she may mean. Dropped, never retried, as a sentence that leans is.
+   */
+  const co = english ? coherenceMod() : null;
+  if (co && typeof co.checkOrphans === 'function') {
+    let found = [];
+    try { found = co.checkOrphans(rows.map((r) => ({ s: r.s, dropped: !!r.drop, p: r.p })), { agents: (facts && facts.askedAgents) || [] }); } catch { found = []; }
+    for (const o of found) {
+      if (!rows[o.index] || rows[o.index].drop) continue;
+      rows[o.index].drop = { gate: 'orphan', reason: ORPHAN_REASON };
+      rows[o.index].logged = [];
     }
   }
   return rows;
@@ -1985,5 +2170,7 @@ module.exports = {
   renderPlayer, renderMatch, renderAsked, renderEarlier, renderSlices, staticPrefix, languageLine, gunsInCore,
   VALORANT_RULES, LEAGUE_RULES, RIOT_ONLY, NO_MATCH, DYNAMIC_MAX_CHARS, MATCH_MAX_CHARS, MAX_CHARS, MAX_ASKED_ROUNDS, VERDICT, VERDICT_REASON,
   FALLBACK_KEPT, questionTopics, QUESTION_TOPICS,
+  // The re-audit of 8.7.7 (Nov 2026), each asserted in test:chatgates.
+  leverLine, leversOf, LEVER_WEIGHTS, ORPHAN_REASON, KIT_HEAD,
   RANK_BANDS,
 };

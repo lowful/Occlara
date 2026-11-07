@@ -19,6 +19,12 @@
  *   6. checkState: standings held to a round's record only where the record
  *      has them, HP numbers no fact states, hypotheticals left alone.
  *   7. The source carries no backspace byte (CLAUDE.md, the shell regex hazard).
+ *   8. The 8.7.7 re-audit's kit claims, the death look's own "use undercut to
+ *      check the angle" among them, Neural Theft "a single still", the Boom
+ *      Bot setting off wires, found, its true lines and near misses passed,
+ *      and a use and a reveal count generated for every ability in the data.
+ *   9. kitLine, kitLines and kitBlock: four lines an agent in the data's own
+ *      words, nothing it does lost, no dash, no semicolon, no word a name.
  *
  * Run: npm run test:abilityfacts
  */
@@ -189,6 +195,195 @@ ok(st('If an enemy is at 40 health, swing.').length === 0, 'a hypothetical HP is
 ok(af.checkState('Their Jett was on 30 HP.', null).length === 0, 'no facts, no HP claim');
 ok(af.hpNumbersIn({ rounds: [{ look: { better: 'with 57 health' } }, { hp: 42 }] }).has(57), 'hpNumbersIn reads text');
 ok(af.hpNumbersIn({ rounds: [{ hp: 42 }] }).has(42), 'hpNumbersIn reads an hp field');
+
+// ── 8. The re-audit's kit claims, the death look's own among them ─────────
+// Verbatim from the 8.7.7 re-audit's items (items-after.json, items.json):
+// the look's better play, the chat answers that copied it, the Boom Bot and
+// Neural Theft lines. The Neural Theft line names no ability: "his ultimate"
+// is the asked agent's, given as ultOf.
+const REAUDIT_FALSE = [
+  ['Hold beside cover and use undercut to check the angle before moving into the open.', { agents: ['Iso'] }, 'effect:Undercut:check'],
+  ['To fix this, hold beside cover and use Undercut to check the angle before moving into the open.', { agents: ['Iso'] }, 'effect:Undercut:check'],
+  ["Track where their Omen likes to play each round, then fight him with a teammate who can see the same angle or after you've used Undercut to check it, never alone and never from the same spot twice.", { agents: ['Iso'] }, 'effect:Undercut:check'],
+  ['Send your Boom Bot ahead of you through the entrance: it is free information and it clears the close corner a tripwire sits in, and it can set the wire off for you.', { agents: ['Raze'] }, 'effect:Boom Bot:set the wire off'],
+  ['His ultimate, by contrast, is a single still.', { ultOf: 'Cypher' }, 'count:Neural Theft:a single still'],
+  ['When his camera dart hits you, get behind cover first and pull it out after, because that dart keeps taking new pictures of wherever you stand until you remove it; his ultimate, by contrast, is a single still.', { ultOf: 'Cypher' }, 'count:Neural Theft:a single still'],
+  ['The turret watches an angle and shoots when you cross it, and the alarmbot reveals and slows anyone who walks into its range.', {}, 'effect:ALARMBOT:slows'],
+  ['He is a Controller, and his kit is built to blind and to arrive where you are not looking: Paranoia sends a vision-blocking shadow through walls, Shrouded Step teleports him a short way, Dark Cover drops smokes.', {}, 'effect:Paranoia:vision-blocking'],
+  // The audit's typical phrasings, as the look and the chat write them.
+  ['Undercut checks the angle for you.', {}, 'effect:Undercut:checks'],
+  ['Use Undercut to scout the site before you swing.', {}, 'effect:Undercut:scout'],
+  ['Your Undercut gives you information on who is holding.', {}, 'effect:Undercut:gives you information'],
+  ['Undercut can clear the corner for you.', {}, 'effect:Undercut:clear'],
+  ["Cypher's ultimate is a single still.", {}, 'count:Neural Theft:a single still'],
+  ['Neural Theft reveals you once.', {}, 'count:Neural Theft:reveals you once'],
+  ['Neural Theft is one snapshot, so move after it.', {}, 'count:Neural Theft:one snapshot'],
+  ['The Boom Bot triggers trip wires before you walk in.', {}, 'effect:Boom Bot:triggers trip wires'],
+  ['Send the Boom Bot to trip the wires first.', {}, 'effect:Boom Bot:trip the wires'],
+  ['Use the Boom Bot to find tripwires.', {}, 'effect:Boom Bot:find tripwires'],
+  ['Send your Boom Bot first so it trips the wires before you walk in.', {}, 'effect:Boom Bot:trips the wires'],
+  ['The Alarmbot slows you.', {}, 'effect:ALARMBOT:slows'],
+  ['An Alarmbot can slow you down in the doorway.', {}, 'effect:ALARMBOT:slow'],
+  ['Paranoia blocks your vision for a moment.', {}, 'effect:Paranoia:blocks your vision'],
+  ['Use Paranoia to smoke off the angle.', {}, 'effect:Paranoia:smoke off'],
+  ['The Turret reloads after a burst.', {}, 'effect:TURRET:reloads'],
+  ['Nanoswarm (Q) catches the plant.', {}, 'key:Nanoswarm:Q'],
+  ['Use your Nanoswarm (Q) to deny the plant.', {}, 'key:Nanoswarm:Q'],
+  ['Throw the Alarmbot (C) to check the flank.', {}, 'key:ALARMBOT:C'],
+];
+for (const [t, o, want] of REAUDIT_FALSE) ok(kinds(t, o).includes(want), `re-audit false claim found: ${t.slice(0, 60)} -> ${kinds(t, o).join(', ') || 'nothing'}`);
+ok(kinds('His ultimate, by contrast, is a single still.').length === 0, '"his ultimate" with nobody to tie it to judges nothing');
+
+const REAUDIT_TRUE = [
+  // The re-audit's own lines the judges called right.
+  'His Spycam marks you if it sees you, so before you commit to a lane, look up at the usual camera spots on the wall and shoot it, because a marked player gets pre-aimed.',
+  'If an Alarmbot reaches you it makes you take extra damage and does not slow you, so shoot it if it is right beside you, otherwise step straight back out of the entrance.',
+  'Her turret and Alarmbot watch a lane for her, so on attack do not walk into a site entrance first and alone.',
+  'Send one piece of space at a time: step to the edge of the entrance, let the turret fire or the Alarmbot start moving, then shoot the turret from cover or step back out of the Alarmbot\'s reach and come in again with a teammate beside you.',
+  'Paint Shells and an armed Blast Pack destroy destructible sentinel utility such as Cypher trapwires, Killjoy alarmbots and turrets, Deadlock sensors or Vyse razorvine, and the Boom Bot checks a close corner before a body has to.',
+  'Every enemy she damages or kills leaves a Soul Orb, and Devour turns one into healing with the extra becoming overheal, while Dismiss turns one into a moment where she cannot be hit.',
+  'When you do fight him, use Undercut first so he is suppressed and vulnerable, then take the duel with someone behind you.',
+  'On Iso, Undercut thrown through the wall before you peek makes that first duel easier, but it does not replace having someone behind you.',
+  // Near misses of the new claims.
+  'Use your Recon Bolt to check the angle before you swing.',
+  'Send your Boom Bot to check the close corner.',
+  'Use Undercut to make him vulnerable before you swing.',
+  'Neural Theft snapshots living enemies twice.',
+  'Neural Theft reveals everyone twice, so a single still is not the end of it.',
+  'Once Neural Theft goes off, move.',
+  'Throw Paranoia through the smoke, and it nearsights anyone holding.',
+  'Use Paranoia to blind the angle.',
+  'Use Dark Cover to block their vision.',
+  'Do not use Undercut to check the angle, it gives no information.',
+  'Paint Shells clears the corner.',
+  'Use Paint Shells to clear the corner.',
+  'Use Owl Drone to clear the corner.',
+  'Throw your Nanoswarm on the spike so it deals damage to the defuser.',
+  'Place your Trapwire on the flank, and it reveals anyone who walks in.',
+  'Use Cloudburst to smoke off the angle.',
+  'Use Flashpoint to flash the site.',
+  'Use Sky Smoke to block the line of sight.',
+  'Trip wires you cannot see from open ground, so on attack let the Boom Bot go first into the close corners you would otherwise walk into blind.',
+  'Use the flow of the round to decide, and use the range to warm up.',
+  'Dismiss the idea that you need to check every angle alone.',
+];
+for (const t of REAUDIT_TRUE) ok(kinds(t, { agents: ['Iso'] }).length === 0, `re-audit true line passes: ${t.slice(0, 60)} -> ${kinds(t, { agents: ['Iso'] }).join(', ')}`);
+ok(kinds('His ultimate reveals you twice, so move after the first.', { ultOf: 'Cypher' }).length === 0, 'the true count of "his ultimate" passes');
+ok(kinds('Her ultimate catches everyone inside it.', { ultOf: 'Killjoy' }).length === 0, 'a claim no class reads passes');
+
+// Generated from the data: a use for information, true where the ability shows
+// or sounds where an enemy is, and false where it does not; a reveal count.
+const INFO = (e) => e.classes.includes('info') || e.classes.includes('reveal');
+let useTrue = 0;
+let useFalse = 0;
+let useBad = [];
+for (const kit of Object.values(T.agents)) {
+  for (const e of Object.values(kit)) {
+    const t = `Use the ${e.name} to check the angle before you swing.`;
+    const got = af.checkText(t).filter((c) => c.kind === 'effect');
+    if (INFO(e)) { useTrue++; if (got.length) useBad.push(`true flagged: ${t}`); } else { useFalse++; if (!got.length) useBad.push(`false missed: ${t}`); }
+    for (const c of e.classes) {
+      const base = { slow: 'slow them', blind: 'blind the angle', heal: 'heal', concuss: 'stun them', reveal: 'reveal them' }[c];
+      if (!base) continue;
+      useTrue++;
+      const u = `Use your ${e.name} to ${base} before the push.`;
+      if (af.checkText(u).length) useBad.push(`true flagged: ${u}`);
+    }
+    if (e.revealCount) {
+      const right = { 1: 'once', 2: 'twice', 3: 'three times' }[e.revealCount];
+      if (af.checkText(`${e.name} reveals living enemies ${right}.`).length) useBad.push(`true count flagged: ${e.name}`);
+      const wrong = e.revealCount === 1 ? 'a single snapshot' : 'a single still';
+      if (!af.checkText(`${e.name} is ${wrong}.`).some((c) => c.kind === 'count')) useBad.push(`false count missed: ${e.name}`);
+    }
+  }
+}
+ok(!useBad.length, `generated uses: ${useTrue} true and ${useFalse} false, all as the data has them (${useBad.slice(0, 6).join(' / ')})`);
+ok(useTrue + trues.length >= 300, `with the first set, at least 300 true sentences (${useTrue + trues.length})`);
+ok(T.agents.Cypher['neural theft'].revealCount === 2 && Object.values(T.agents).every((k) => Object.values(k).every((e) => e.revealCount == null || e.name === 'Neural Theft')),
+  'Neural Theft is the one ability the data counts reveals for, twice');
+
+// ── 9. kitLine, kitLines, kitBlock ────────────────────────────────────────
+const nameGate = require('../server/services/name-gate');
+const DASH_OR_SEMI = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)};]`);
+let lineBad = [];
+for (const agent of Object.keys(T.agents)) {
+  const lines = af.kitLine(agent);
+  if (lines.length !== 4) lineBad.push(`${agent} has ${lines.length} lines`);
+  lines.forEach((l, i) => {
+    const e = Object.values(T.agents[agent]).find((x) => x.key === 'CQEX'[i]);
+    if (!new RegExp(`^[^(]+ \\(${agent.replace(/[/]/g, '\\/')}'s ${'CQEX'[i]}${i === 3 ? ', ultimate' : ''}\\): `).test(l)) lineBad.push(`shape: ${l}`);
+    if (DASH_OR_SEMI.test(l) || /\s-\s/.test(l)) lineBad.push(`dash or semicolon: ${l}`);
+    // What it does survives the trimming: every effect class of the description is in the line.
+    const body = l.slice(l.indexOf('): ') + 3);
+    const lost = e.classes.filter((c) => !af.DESC_CLASSES[c].test(body));
+    if (lost.length) lineBad.push(`lost ${lost.join(',')}: ${l}`);
+    // No word of it reads as a player's name (name-gate.js), so a copied word never drops a look.
+    let person = null;
+    try { person = nameGate.namesSomeone(body, { language: 'en' }); } catch (err) { person = String(err); }
+    if (person) lineBad.push(`a name: ${l}`);
+  });
+}
+ok(!lineBad.length, `every agent has four kit lines, C, Q, E, X, in the data's words, nothing lost, no name, no dash (${lineBad.slice(0, 5).join(' / ')})`);
+ok(af.kitLine('Iso')[1] === "Undercut (Iso's Q): Fire to send it forward. Applies suppress and vulnerable to all players.", `Undercut's line (${af.kitLine('Iso')[1]})`);
+ok(af.kitLine('Cypher')[3] === "Neural Theft (Cypher's X, ultimate): Activate on a targeted dead enemy. After a delay, snapshot living enemies twice.", `Neural Theft's line (${af.kitLine('Cypher')[3]})`);
+ok(/^Alarmbot \(Killjoy's Q\): .*applying vulnerable/.test(af.kitLine('killjoy')[1]) && !/slow/i.test(af.kitLine('Killjoy')[1]), 'Alarmbot as the game prints it, vulnerable, no slow, any case of the agent');
+ok(/^Boom Bot \(Raze's C\): .*Chases the first enemy it sees/.test(af.kitLine('Raze')[0]) && !/wire/i.test(af.kitLine('Raze')[0]), 'Boom Bot chases, and sets off no wire');
+ok(/^Paranoia \(Omen's Q\): .*nearsight and deafens/.test(af.kitLine('Omen')[1]) && !/vision-blocking/.test(af.kitLine('Omen')[1]), 'Paranoia nearsights, no wall');
+ok(af.kitLine('Nobody').length === 0 && af.kitLine(null).length === 0 && af.kitLine('KAYO').length === 4, 'an unknown agent has no lines, KAYO is KAY/O');
+ok(af.abilityLine('Iso', 'undercut') === af.kitLine('Iso')[1] && af.abilityLine('Iso', 'Alarmbot') === null, 'abilityLine by name, never another agent\'s');
+ok(af.kitLines(['Iso', 'iso', 'Nobody', 'Raze']).length === 8 && af.kitLines('Omen').length === 4 && af.kitLines([]).length === 0, 'kitLines: each agent once, unknown ones left out');
+ok(af.kitBlock([]) === '' && af.kitBlock(['Iso']).split('\n').length === 5 && /^What each ability does/.test(af.kitBlock(['Iso']))
+  && af.kitBlock(['Iso'], { head: 'Kit:' }).startsWith('Kit:\n'), 'kitBlock: a heading and the lines, or nothing');
+// The lines are true by the gate's own reading: none of them is flagged.
+ok(af.kitLines(Object.keys(T.agents)).every((l) => !af.checkText(l.slice(l.indexOf('): ') + 3)).length), 'no kit line is a false claim to checkText');
+
+// ── 6b. Round 4: a stationary ability does not move, by name or generic noun ──
+{
+  // Every stationary entry is one the data has, placed or set, never sent.
+  for (const k of af.STATIONARY) {
+    const [agent, name] = k.split('/');
+    const e = Object.values(T.agents[agent] || {}).find((x) => x.name.toLowerCase() === name.toLowerCase());
+    ok(e && !/\bchases\b|\bsend(?:s)? (?:it )?forward\b(?! and place)|\bsteer\b/i.test(e.description), `${k} is in the data and nothing in it moves (${e ? e.description.slice(0, 50) : 'missing'})`);
+  }
+  const has = (t, o, said) => kinds(t, o).some((k) => k.startsWith('effect:') && k.endsWith(`:${said}`));
+  const MOVE_FALSE = [
+    ['Hold the flank with your turret, so the turret has to come to you.', { agents: ['Killjoy'] }, 'has to come to'],
+    ['So the turret has to come to you.', {}, 'has to come to'],
+    ['The Turret moves up with you.', {}, 'moves'],
+    ['Her Turret chases the first enemy it sees.', {}, 'chases'],
+    ['The turret can follow them around the corner.', { agents: ['Killjoy'] }, 'follow them'],
+    ['Your camera can follow them.', { agents: ['Cypher'] }, 'follow them'],
+    ['Your trip wire walks to them.', { agents: ['Cypher'] }, 'walks'],
+    ['The wall moves forward with you.', { agents: ['Sage'] }, 'moves'],
+    ['The smoke follows you onto site.', { agents: ['Omen'] }, 'follows you'],
+    ['Cypher puts a camera on B and the camera comes to you.', {}, 'comes to you'],
+  ];
+  for (const [t, o, said] of MOVE_FALSE) ok(has(t, o, said), `a stationary ability that moves is caught: "${t}" (${kinds(t, o).join(', ')})`);
+  const MOVE_TRUE = [
+    ['Place the turret so enemies have to come to you.', { agents: ['Killjoy'] }],
+    ['The Boom Bot chases the first enemy it sees.', {}],
+    ['The alarm bot chases them when they come close.', { agents: ['Killjoy'] }],
+    ['Alarmbot chases the first enemy it sees.', {}],
+    ['The wall moves forward.', { agents: ['Harbor'] }],
+    ['The wall moves forward.', { agents: ['Sage', 'Phoenix'] }],
+    ['Your camera has to move to see them.', { agents: ['Sova'] }],
+    ['Your turret needs to move to B next round.', { agents: ['Killjoy'] }],
+    ['The wall lets you push up.', { agents: ['Sage'] }],
+    ['Use the wall to push up.', { agents: ['Sage'] }],
+    ['Wait until the smoke comes down, then push.', { agents: ['Omen'] }],
+    ['The smoke comes after the flash.', { agents: ['Omen'] }],
+    ['The smoke follows you.', { agents: ['Viper'] }],
+    ['The turret does not move, so make them come to you.', { agents: ['Killjoy'] }],
+    ['Your turret watches the flank while you move up.', { agents: ['Killjoy'] }],
+    ['High Tide moves forward and slows them.', {}],
+  ];
+  for (const [t, o] of MOVE_TRUE) ok(!kinds(t, o).length, `a true or harmless sentence stands: "${t}" (${kinds(t, o).join(', ')})`);
+  // The generic noun is one ability only with exactly one fit.
+  const g = (t, o) => af.genericsIn(t, af.abilitiesIn(t), af.agentsIn(t), o).map((x) => `${x.entry.agent}/${x.entry.name}`);
+  ok(g('the camera', { agents: ['Cypher', 'Killjoy'] }).join() === 'Cypher/Spycam' && !g('the camera', { agents: ['Killjoy'] }).length
+    && !g('the camera', {}).length && !g('the wall', { agents: ['Harbor'] }).length && g('the wall', { agents: ['Sage'] }).join() === 'Sage/Barrier Orb',
+  'a generic noun is read only where exactly one ability of the agents fits it');
+}
 
 // ── 7. No backspace byte in the source ────────────────────────────────────
 for (const f of ['server/services/ability-facts.js', 'scripts/test-ability-facts.js']) {

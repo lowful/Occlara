@@ -517,6 +517,8 @@ WHAT YOU MUST NOT SAY
 - No ranking of agents, no meta, no pick or win rates for the current patch: you do not have them. Answer from the kit, the player's own numbers and the facts.
 - No player names, ever, even one the player typed: say your teammate, or the agent. No coach, player, team, video or other source for any advice.
 - Only Valorant and the player's play.
+- Nothing about the app, a future review, a page or a feature: never recommend one, and never say a review will check something. Teach the game alone.
+- No number across the player's other matches but as the counted lines across matches and the against line give it, said as they say it ("in 5 of your last 6 matches", "your own average of 38%"), and no season, act or episode. A pattern of this match is this match's, never one across matches.
 
 HOW TO ANSWER
 - Answer the question in your first sentence, and answer the question that was asked. A question about aim, practice, an agent, the mental side, comms or the economy is answered about that, and a counted mistake comes in only where it bears on it. Never turn every answer into the same habit. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
@@ -528,11 +530,12 @@ HOW TO ANSWER
 - Asked for a game number the VALORANT FACTS hold (hits to kill, damage, a price, a timer), give it in your first sentence in the facts' own words, with the range band and the armour they name, then stop. Add nothing about the match unless asked.
 - Name at most one ability in an answer about a round, and only when it changes the decision in that round. Do not list the kit, and do not offer the same ability in every answer.
 - Never mention an ultimate orb, a health number, who carried the spike or how many players were alive unless the facts of that round state it.
-- About improving: the largest counted mistake or pattern with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts.
+- About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it, and name trading at most once, as a second point, unless THE LEVER is trading.
 - Quote a counted line's numbers as given, the deaths nobody traded included: that count leaves out a death as the last one alive, which nobody could trade, so never count the rounds yourself into a total of your own.
 - A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practised in a match, with what to do when nobody answers the call.
 - When something went right, say what the player did and why it worked in game terms, from the record: a trade they made, a fight they took beside a teammate, a round they saved or won on the clock. Never praise a scoreboard number, never open with praise as a cushion, and never call the player unlucky or blame a teammate.
-- Asked about their aim, answer from the deaths and the player's headshot rate against their own average. Where the coach's look called fights fair and lost on the shot, say so and give one aim habit. Where the deaths show the position, the timing, the numbers or nobody able to trade, name that first, then still give one aim habit sized to their rank. Where the coach looked at no death, say the look cannot tell whether the fights were lost on the shot. Never say aim is not the problem, or that aim can wait, unless the coach's looks called those deaths something else.
+- Asked about their aim, answer from the deaths and the player's headshot rate against their own average. Where the coach's look called fights fair and lost on the shot, say so and give one aim habit. Where the deaths show the position, the timing, the numbers or nobody able to trade, name that first, then still give one aim habit sized to their rank. Where the coach looked at no death, say the look cannot tell whether the fights were lost on the shot. Never say aim is not the problem, or that aim can wait, unless the coach's looks called those deaths something else. Never praise the aim where the headshot rate is under their own average, and never call a fight the look called fair one that should not have been taken.
+- Before advice about a round, read its side and whether the spike was down when the player died: on attack with no spike down the defenders never have to come to you, so waiting for them is no plan, and on defence with the spike down the defenders must retake.
 - If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (stopping before the shot, crosshair height, information before a peek, one angle at a time). Platinum to Diamond, the decision before the fight (predictability, playing the team's plan, when to take space). Ascendant and up, no basics, the specific timing or utility change and what it risks. An answer for a higher rank is never the one a lower rank would get for the same facts in longer words.
 - Name the match the first time you refer to it: the map, the agent and the result.
 - Write times as seconds into the round, "8 s in", never as a clock such as 0:08, which reads as the time left.
@@ -1461,7 +1464,10 @@ const riotOnly = (file, row, edit) => {
     ['KILL_AFTER_ABILITY', gates.KILL_AFTER_ABILITY, ' killed you in round 1', ' slowed you in round 1'],
     ['KILL_BEFORE_ABILITY', gates.KILL_BEFORE_ABILITY, 'you died to her ', 'you threw her '],
   ];
-  const aimPos = ['Your aim is not the problem here.', 'Your aim work can wait.', 'so this was not about your aim', 'a repeek, not a lost aim duel', 'Your aim looks fine.', 'nothing here saying your aim is the issue'];
+  const aimPos = ['Your aim is not the problem here.', 'Your aim work can wait.', 'so this was not about your aim', 'a repeek, not a lost aim duel', 'Your aim looks fine.', 'nothing here saying your aim is the issue',
+    // The re-audit of 8.7.7.
+    'The deaths in this match mostly were not lost on the shot.', 'Your mechanics are not what is costing you rounds.',
+    'Your headshot rate was 25%, so there is room there, but it is not what cost you the rounds.', 'the problem is not that you are losing duels'];
   gates.AIM_DISMISSED.forEach((re, i) => regexes.push([`AIM_DISMISSED[${i}]`, re, aimPos[i], 'Your aim is the first thing to fix.']));
   cp.QUESTION_TOPICS.forEach((t) => {
     const ask = { aim: 'How do I get better aim at my rank?', practice: 'What should I practice before my next game?', climb: 'How do I climb out of Silver?',
@@ -1665,6 +1671,159 @@ const riotOnly = (file, row, edit) => {
     && /Deathmatch and the Range have no teammates/.test(R) && /never by a key letter/.test(R) && /never praise a death as a good or sound choice/.test(R)
     && /never count the rounds yourself/.test(R) && !DASHES.test(R),
   'THE RULES: no template words, aim from the deaths and the headshot rate, a general answer with no round needed, drills the mode allows, abilities by name, no praise of a death, the counted line as given, no dashes');
+  ok(/Nothing about the app, a future review/.test(R) && /no season, act or episode/.test(R) && /THE LEVER/.test(R)
+    && /on attack with no spike down the defenders never have to come to you/.test(R) && /Never praise the aim where the headshot rate is under/.test(R),
+  'THE RULES OF THE RE-AUDIT: no product talk, cross match numbers as given and no season, the lever first, the side and the spike, no aim praise the numbers deny');
+
+  /*
+   * 15. THE RE-AUDIT OF 8.7.7 (Nov 2026): each sentence below is one of the 84
+   * live outputs' own that a judge found wrong and the gates let through, with
+   * a true variant that must stay.
+   */
+  const co = require('../server/services/coherence');
+  // Orphans: what leans on a dropped sentence, read over the rows as the gates leave them.
+  const orphan = (rows) => co.checkOrphans(rows.map((x) => (typeof x === 'string' ? { s: x } : x))).map((o) => `${o.index}:${o.kind}`).join(',');
+  const REYNA = 'Your Reyna problem is the same thing from the other side: she killed you 5 times because you kept meeting her alone.';
+  const FIGHT_HER = 'Fight her with a teammate or after a flash, never one on one.';
+  ok(orphan(['When you swing an angle, glance at whether a teammate is close enough.', "That's the habit working.", { s: REYNA, dropped: true }, FIGHT_HER]) === '3:pronoun'
+    && orphan(['When you swing an angle, glance at whether a teammate is close enough.', "That's the habit working.", REYNA, FIGHT_HER]) === ''
+    && orphan(['Track where their Reyna plays.', FIGHT_HER]) === '' && orphan(['Your teammate Brimo was ahead of you.', 'Take the next fight with him.']) === '',
+  'ORPHANS: "FIGHT HER" WITH ITS REYNA DROPPED GOES (five judges), and stays with Reyna kept, or a teammate in the sentence before');
+  ok(orphan([{ s: 'You did plenty right.', p: 0 }, { s: 'You got the first kill in 8 rounds and won round 12 alone against 3.', dropped: true, p: 0 }, { s: 'One thing to watch: Reyna killed you 5 times.', p: 1 }]) === '0:lead-in'
+    && orphan([{ s: 'You did plenty right.', p: 0 }, { s: 'You got the first kill in 8 rounds.', p: 0 }]) === ''
+    && orphan([{ s: 'Their Omen killed you six times.' }, { s: 'Because you are Iso, you can make that solo peek less free for him.' }, { s: 'Put Double Tap up so the shield eats one hit.', dropped: true }, { s: 'Get out of his sight after the first exchange.' }]) === '1:lead-in',
+  'a lead in whose promise was dropped goes ("You did plenty right.", "Because you are Iso, you can"), and stays with it kept');
+  ok(orphan([{ s: 'On Iso the shield from Double Tap only buys you one hit.', dropped: true }, 'Take your peeks one step from cover with it up, and after the first exchange fall back on foot.']) === '1:it'
+    && orphan(['On Iso the shield from Double Tap only buys you one hit.', 'Take your peeks one step from cover with it up, and after the first exchange fall back on foot.']) === ''
+    && orphan([{ s: 'Your biggest mistake was dying with your team ahead in numbers, in rounds 1, 5, 7, 8, 12 and 16.', dropped: true }, 'Look at what those rounds have in common.']) === '1:those'
+    && orphan([{ s: 'Your biggest mistake was dying early.', dropped: true }, 'Those rounds, 5, 7 and 8, all opened with your first kill.']) === '',
+  '"with it up" without its Double Tap and "those rounds" without their rounds go, and stay with them kept or the rounds named');
+  const ORPH = cp.parseReply(`Your biggest mistake on Abyss was dying where nobody could trade you. Before you swing, check that a teammate can see the same angle. If nobody can, wait. ${REYNA} ${FIGHT_HER}`, IN3, { messages: M3 });
+  ok(!/Fight her/.test(ORPH.reply) && ORPH.dropped.orphan === 1, 'AND THROUGH parseReply: the reply goes out without the orphan, counted under its gate', JSON.stringify(ORPH.dropped));
+  // The product.
+  const FOCUS = 'Before an aggressive peek, name the teammate close enough to kill your killer so your next review can check whether the fight had an immediate answer.';
+  ok(co.checkProduct(FOCUS).length === 1 && drops(FOCUS, F3, 'product') && drops('Turn on Advanced coaching in Settings for more of this.', F3, 'product')
+    && drops('The app will track whether your deaths get traded.', F3, 'product')
+    && keeps('Record your games and watch your VODs.', F3) && keeps('In your next match, watch whether a teammate is near before you swing.', F3),
+  'PRODUCT TALK DROPS ("so your next review can check", the app, a setting), the next match and your own VODs stay', why(FOCUS, F3));
+  // Round 4: the review cited as a source that sees, gives, says, shows, counts or found.
+  const CITES = ['You died to the repeeks the review saw in rounds 4 and 9.', 'The fix the review gives is to wait for your Sova\'s drone.',
+    'The review says your trades were late.', 'This review shows four deaths alone.', 'The review counts nine untraded deaths.',
+    'What the review found is that you swung first.', 'According to the review, you peeked too early.'];
+  const PLAIN = ['Review your VOD of round 4 and watch where your teammates were.', 'In this review, the biggest leak was the first fight on A.',
+    'Review the round where you died alone.', 'When you review your VODs, pause before each swing.', 'Your VOD review shows you more than a number does.'];
+  // "According to the review" is a named source as well, and the attribution gate reads it first.
+  ok(CITES.every((s) => co.checkProduct([s]).length === 1 && drops(s, F3, s.startsWith('According') ? 'attribution' : 'product'))
+    && PLAIN.every((s) => co.checkProduct([s]).length === 0 && !drops(s, F3, 'product')),
+  'THE REVIEW CITED AS A SOURCE DROPS ("the repeeks the review saw", "The fix the review gives"), and "review your VOD" and "in this review" stay',
+  JSON.stringify({ cites: CITES.filter((s) => co.checkProduct([s]).length !== 1 || !drops(s, F3)).map((s) => [s, why(s, F3)]),
+    plain: PLAIN.filter((s) => co.checkProduct([s]).length || drops(s, F3, 'product')) }));
+  ok(co.PRODUCT.every((re) => !/[\u0008]/.test(re.source)), 'and no product regex carries a backspace byte');
+  // The side and the spike.
+  const LET = 'If you are one of the last two, fall back behind cover, let the enemy come to you, and only fight from an angle where the teammate beside you can see the same enemy.';
+  ok(!!co.checkRoundState(LET, { side: 'attacking', planted: false, died: true, sec: 26 })
+    && co.checkRoundState(LET, { side: 'defending', planted: false, died: true, sec: 26 }) === null
+    && co.checkRoundState(LET, { side: 'attacking', planted: true, plantSec: 20, died: true, sec: 26 }) === null
+    && !!co.checkRoundState('Kill, then move back behind cover and let the attackers come to you again.', { side: 'defending', planted: true, afterPlant: true, died: true, sec: 50 })
+    && co.checkRoundState('Kill, then move back behind cover and let the attackers come to you again.', { side: 'defending', planted: true, died: true, sec: 23 }) === null,
+  'ROUND STATE: "LET THE ENEMY COME TO YOU" ON ATTACK WITH NO SPIKE DOWN IS WRONG (the Pearl round 1), right on defence and after the plant; a plant with no time judges nothing (the Sunset round 8)');
+  const PR1 = factsOfRounds([round(1, { side: 'attacking', sec: 26, planted: false })], { asked: 1, askedRounds: [1], oneRound: true });
+  ok(drops(LET, PR1, 'state') && keeps(LET, factsOfRounds([round(1, { side: 'defending', sec: 26 })], { asked: 1, askedRounds: [1], oneRound: true }))
+    && drops('On attack, hold your angle and let them come to you.', factsOfRounds([]), 'state')
+    && keeps('On attack after the plant, hold your angle and let them come to you.', factsOfRounds([]))
+    && drops('On defence, hold the spike and play your post plant.', factsOfRounds([]), 'state'),
+  'and through the gates, of the round asked, else of the side the sentence names', why(LET, PR1));
+  // Aim against the looks and the numbers.
+  const CARRY = 'Your aim and your opening kills are already carrying you, this is the piece holding the rest back.';
+  ok(drops(CARRY, factsOfRounds([round(1)], { aim: { hs: 22, baseline: 38 } }), 'aim') && drops(CARRY, factsOfRounds([round(1)]), 'aim')
+    && keeps(CARRY, factsOfRounds([round(1)], { aim: { hs: 40, baseline: 38 } })),
+  'AIM PRAISE THE HEADSHOT RATE DENIES DROPS (22% against 38%), and stays above the player\'s own average');
+  const look = (cause) => ({ cause, what: 'x', better: 'y', fair: cause === 'lost-duel' });
+  const UNCLEAR = factsOfRounds([1, 2, 3, 4].map((n) => round(n, { look: look('unclear') })).concat([round(5)]));
+  const DRY = factsOfRounds([1, 2, 3, 4].map((n) => round(n, { look: look('dry-peek') })).concat([round(5)]));
+  const NOT_FIRST = 'Your aim is not the first thing to fix, the deaths point at position and timing before the crosshair.';
+  ok(drops(NOT_FIRST, UNCLEAR, 'aim') && keeps(NOT_FIRST, DRY),
+    'A LOOK THAT COULD NOT TELL CALLS NO DEATH SOMETHING ELSE: "aim is not the first thing to fix" on four unclear looks drops (the Sunset 2 to 5), on four dry peeks stays');
+  const DUELS = factsOfRounds([round(5, { look: look('lost-duel') }), round(6, { look: look('lost-duel') }), round(2, { look: look('repeek') })]);
+  ok(drops('The deaths in this match mostly were not lost on the shot.', DUELS, 'aim') && drops('Your mechanics are not what is costing you rounds.', DUELS, 'aim')
+    && drops('In game terms, the problem is not that you are losing duels, it is that you are taking them where nobody can follow.', DUELS, 'aim'),
+  'and the dismissal in other words drops against two lost duels (the Fracture Plat aim, three judges said misleading)');
+  const PEARL = factsOfRounds([round(1, { look: look('lost-duel') }), round(4, { look: look('unclear') }), round(5, { look: look('lost-duel') }), round(6, { look: look('unclear') })]);
+  const AVOID = 'That means most of your fights started before you had information, and no amount of crosshair work fixes a fight you should not have taken yet.';
+  const R12 = factsOfRounds([round(12, { look: look('lost-duel') }), round(10, { look: look('dry-peek') })]);
+  const RATHER = 'One of those, round 12, I called lost on the shot, so it was a fair fight you lost rather than a fight you shouldn\'t have taken.';
+  ok(drops(AVOID, PEARL, 'aim') && keeps(RATHER, R12) && drops('Round 12 was a fight you should not have taken.', R12, 'aim'),
+    'A FIGHT THE LOOK CALLED FAIR WAS NO FIGHT TO SKIP (the Pearl Iron aim), "rather than a fight you shouldn\'t have taken" says the look\'s own reading', why(RATHER, R12));
+  // The library.
+  const LIB = factsOfRounds([1, 3, 4, 5, 6].map((n) => round(n)), { library: { pairs: new Set(['5/6']), averages: new Set([32, 38]) },
+    counted: { titles: [], pairs: new Set(['5/6']), counts: new Set([5]), roundSets: [], texts: [] }, numbers: [{ attr: 'percent', value: 21, round: null }, { attr: 'percent', value: 32, round: null }] });
+  ok(keeps("The biggest thing holding you back is dying where nobody could trade you, and it's shown up in 5 of your last 6 matches.", LIB)
+    && drops("The biggest thing holding you back is dying where nobody could trade you, and it's shown up in 4 of your last 6 matches.", LIB)
+    && gates.gateLibrary("It's shown up in 4 of your last 6 matches.", LIB).gate === 'library',
+  'A CROSS MATCH PAIR IS A PATTERN\'S: "5 of your last 6" stays, "4 of your last 6" drops');
+  const USUAL = 'Your own numbers here were 21 percent heads against your usual 32, so add to that the one aim habit that fits you: stop before you shoot, first bullet on the head.';
+  ok(keeps(USUAL, LIB) && drops(USUAL.replace('usual 32', 'usual 30'), LIB) && drops('This season your headshot rate has been falling.', LIB, 'library')
+    && keeps("I don't have this season's numbers, only this match and your recorded ones.", LIB),
+  'THE PLAYER\'S OWN AVERAGE AS THE LIBRARY HOLDS IT STAYS (it was dropped as tied to nothing), another number drops, a season drops and saying there is none stays', why(USUAL, LIB));
+  ok(drops('The biggest pattern across your recent matches is dying in the first 30 seconds, before any plant, in rounds 1, 3, 4, 5 and 6.', LIB, 'library')
+    && keeps('In this match you died in the first 30 seconds in rounds 1, 3, 4, 5 and 6.', factsOfRounds([1, 3, 4, 5, 6].map((n) => round(n)))),
+  'this match\'s rounds told as a pattern across matches drop (the Pearl Iron practice, three judges)');
+  // The kit, his ultimate in an answer about the asked enemy.
+  const STILL = 'When his camera dart hits you, get behind cover first, because that dart keeps taking new pictures until you remove it, while his ultimate, by contrast, is a single still.';
+  ok(drops(STILL, factsOfRounds([round(3, { killer: 'Cypher' })], { agent: 'Raze', askedAgents: ['Cypher'] }), 'kit')
+    && keeps('His ultimate snapshots the living enemies after a delay.', factsOfRounds([round(3, { killer: 'Cypher' })], { agent: 'Raze', askedAgents: ['Cypher'] })),
+  'NEURAL THEFT IS NO SINGLE STILL: "his ultimate" in an answer about Cypher is held to his X (five judges)');
+  // The habit of dying first, held to the record.
+  const FIRSTS = (n) => factsOfRounds(Array.from({ length: 17 }, (_v, i) => round(i + 1, { firstDeath: i < n })));
+  const TAKING = 'On defence, you are taking the first fight of the round yourself, early, often before your team is set.';
+  ok(drops(TAKING, FIRSTS(2), 'habit') && keeps(TAKING, FIRSTS(6)) && keeps('Stop taking the first fight alone.', FIRSTS(2)),
+    'A HABIT OF DYING FIRST THE RECORD DOES NOT SHOW DROPS (first death in 2 of 17, the Sunset loss), stays at 6 of 17, and advice stays', why(TAKING, FIRSTS(6)));
+  // The lever.
+  const QLV = 'How do I improve at my rank? What is holding me back from climbing?';
+  const MLV = [{ role: 'user', content: QLV }];
+  const banded = (band) => ({ ...inputFor(ABYSS, QLV), rankBand: band });
+  const levers = cp.leversOf(inputFor(ABYSS, QLV).match);
+  ok(levers.length > 0 && cp.leverLine(inputFor(ABYSS, QLV), MLV) === '' && !cp.buildPrompt(inputFor(ABYSS, QLV), MLV).includes('THE LEVER for this question')
+    && cp.leverLine(banded('iron_bronze'), MLV).startsWith('THE LEVER for this question') && cp.buildPrompt(banded('iron_bronze'), MLV).includes('THE LEVER for this question'),
+  'THE LEVER: a general question with a band names one, a client that sends no band gets today\'s prompt with none', JSON.stringify(levers.map((l) => l.kind)));
+  const trade = levers.find((l) => l.kind === 'trade');
+  const others = levers.filter((l) => l.kind !== 'trade');
+  ok(!trade || !others.length || (!cp.leverLine(banded('plat_diamond'), MLV).includes(trade.line) && !cp.leverLine(banded('asc_plus'), MLV).includes(trade.line)),
+    'above Gold the trade check never leads while anything else is counted');
+  ok(cp.leverLine(banded('silver_gold'), [{ role: 'user', content: QA }]) === '' && cp.leverLine(banded('silver_gold'), M3) === ''
+    && cp.leverLine(banded('silver_gold'), MLV) === cp.leverLine(banded('silver_gold'), MLV),
+  'and an aim question or a question about a round gets none, and the same question the same lever');
+  // The kits in one block.
+  const QO2 = 'Their Omen killed me the most. How do I play against Omen?';
+  const kitPrompt = cp.buildPrompt(inputFor(ABYSS, QO2), [{ role: 'user', content: QO2 }]);
+  ok(kitPrompt.includes(cp.KIT_HEAD) && /Paranoia \(Omen's /.test(kitPrompt) && !/<whitebold>/.test(kitPrompt),
+    'THE KITS ARE ONE BLOCK OF FINISHED LINES, the asked agent\'s among them, no markup');
+  // Every new regex on a known positive and negative.
+  for (const [name, re, pos, neg] of [
+    ['AIM_PRAISED', gates.AIM_PRAISED, 'Your aim is already carrying you.', 'Your aim is the first thing to fix.'],
+    ['AVOIDABLE', gates.AVOIDABLE, 'a fight you should not have taken', 'a fight you should take'],
+    ['CROSS_MATCH', gates.CROSS_MATCH, 'in 5 of your last 6 matches', 'in 5 of your 16 deaths'],
+    ['SEASON', gates.SEASON, 'this season', 'the reason'],
+    ['LIB_PAIR', new RegExp(gates.LIB_PAIR.source, 'i'), '5 of your last 6 matches', '5 of your 6 deaths'],
+    ['AVG_BEFORE', gates.AVG_BEFORE, 'against your usual ', 'against your killer '],
+    ['PLANT_SAID', gates.PLANT_SAID, 'after the plant', 'before the push'],
+    ['FIRST_HABIT', gates.FIRST_HABIT, 'you are taking the first fight', 'you took the first kill'],
+    ['LEAD_IN', co.LEAD_IN, 'You did plenty right.', 'You died 5 times.'],
+    ['IT_OBJECT', co.IT_OBJECT, 'with it up', 'with your team'],
+    ['THOSE', co.THOSE, 'Look at what those rounds have in common.', 'Look at round 5.'],
+    ['WAIT_FOR_THEM', co.WAIT_FOR_THEM, 'let the enemy come to you', 'let your team come with you'],
+    ['YOU_RETAKE', co.YOU_RETAKE, 'you should retake B', 'their retake failed'],
+    // The verifier's pass over the 84 live items: the attackers' side of a retake is no retake of their own.
+    ['YOU_RETAKE (go for it)', co.YOU_RETAKE, 'Next time, go for the retake with your team.', 'It also keeps you alive for the retake fight, where the spike timer does the work for you.'],
+    ['YOU_RETAKE (saved for it)', co.YOU_RETAKE, 'Group up for the retake instead.', 'Save your utility for the retake.'],
+    ['YOU_HOLD_SPIKE', co.YOU_HOLD_SPIKE, 'hold the spike', 'hold the angle'],
+  ]) ok(re.test(pos) && !re.test(neg) && !/[\u0008]/.test(re.source), `${name} matches "${pos}" and not "${neg}"`);
+  // The live Fracture round 5 answer (an attack, the spike down): its true line stays.
+  ok(co.checkRoundState('It also keeps you alive for the retake fight, where the spike timer does the work for you.', { side: 'attacking', planted: true, afterPlant: true, died: true }) === null,
+    'an attacker kept alive for the defenders\' retake is no retake of their own');
+  // The live Sunset 2 to 5 aim answer, four unclear looks: 87 characters between the rate and the dismissal.
+  const longAim = 'Your headshot rate in that match was 25%, against 36% across your recent matches, so there is room there, but it is not what cost you the rounds.';
+  ok(gates.AIM_DISMISSED.some((re) => re.test(longAim)), `the long aim dismissal is read as one: "${longAim.slice(0, 60)}"`);
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

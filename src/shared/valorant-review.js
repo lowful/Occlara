@@ -1203,7 +1203,30 @@ function enemyAgentsOf(riot) {
  * What the server's review route is sent. The engine and the review bench both
  * build it here, so the bench measures exactly what a player's match sends.
  */
-function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
+/*
+ * WHAT THE CARD COUNTED, as numbers (round 4): the deaths Riot's record
+ * has, those nobody traded, those as the last one alive, and so those a
+ * teammate alive could have traded (insights.js valorant's own rule). Sent
+ * as `counts`, every time, the mark of a client built for the review's
+ * round 4 rules (server match-review.js normalise), which counts the same
+ * from the same rounds for its SWING AND COUNTS block.
+ */
+function countsOf(rounds) {
+  const deaths = (rounds || []).filter((r) => r && r.verified && r.died);
+  const known = deaths.filter((r) => typeof r.traded === 'boolean');
+  const alone = (r) => !!(r.aliveAtDeath && typeof r.aliveAtDeath.mates === 'number' && r.aliveAtDeath.mates <= 1);
+  const tradeable = known.filter((r) => !alone(r));
+  return {
+    deaths: deaths.length,
+    known: known.length,
+    untraded: known.filter((r) => r.traded === false).length,
+    alone: known.filter(alone).length,
+    tradeable: tradeable.length,
+    untradedMate: tradeable.filter((r) => r.traded === false).length,
+  };
+}
+
+function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring }) {
   const ctx = context || {};
   const team = typeof ctx.teamScore === 'number' ? ctx.teamScore : null;
   const enemy = typeof ctx.enemyScore === 'number' ? ctx.enemyScore : null;
@@ -1256,6 +1279,13 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot }) {
     // rules (server match-review.js normalise), and one that does not is
     // reviewed as before.
     swing: swingOf(rounds, riot),
+    // What the card counted (round 4, countsOf), always an object: the mark
+    // of the round 4 rules, as `swing` is of round 3's.
+    counts: countsOf(rounds),
+    // The counted mistakes the library finds again across recent matches,
+    // keys only, where the caller knows them. From Platinum the trade habit
+    // is the focus only when it is one of these (server leverOf).
+    ...(Array.isArray(recurring) && recurring.length ? { recurring: recurring.filter((k) => typeof k === 'string').slice(0, 8) } : {}),
     context: {
       agent: (riot && riot.agent) || ctx.agent || null,
       map: ctx.map || (riot && riot.map) || null,
@@ -1378,4 +1408,4 @@ function against(tracker, role, history) {
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
   queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, lookJudgement,
   factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS,
-  BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX };
+  BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX, countsOf };

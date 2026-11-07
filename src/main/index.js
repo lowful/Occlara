@@ -1781,6 +1781,8 @@ function linkRiotRecord(job) {
     if (!job.locked) try {
       const body = valorantReview.requestBody({
         rounds, context, endedBy: snap.endedBy, tips: [], notes: snap.notes,
+        // What the library finds again across the matches before this one.
+        recurring: recurringNow(job.id),
         riot: {
           agent: riot.me && riot.me.agent, map: riot.map, score: riot.score, result: riot.result,
           scoreline: { kills: riot.me && riot.me.kills, deaths: riot.me && riot.me.deaths,
@@ -2138,6 +2140,9 @@ const controller = {
       // nothing when it cannot be cut (agent-crop.js): never the whole frame.
       cropAgent: (shot) => cropAgentBar(shot,
         CAPTURE.profiles[store.get('captureQuality') === 'performance' ? 'performance' : 'standard'].jpegQuality),
+      // The library's repeating mistakes (recurringNow), read once as a match
+      // ends and before its review is saved, never per frame.
+      recurring: () => recurringNow(null),
     });
     // A notice with no text is the engine saying the problem it reported is
     // over (reads or capture work again); it clears only that kind of notice.
@@ -3462,6 +3467,22 @@ function rankBandNow() {
     });
   } catch {
     return null;
+  }
+}
+
+/**
+ * THE MISTAKES THAT KEEP REPEATING (round 4, patterns.js recurringKeys),
+ * sent with a Valorant review so the server's lever (match-review.js leverOf)
+ * may lead with the trade habit from Platinum only when the library truly
+ * finds it again. The Patterns page's own read and count (getPatterns), the
+ * match under review left out by its id. Keys only, never a title or a name.
+ * An empty list on any failure: the request is then today's, byte for byte.
+ */
+function recurringNow(exclude) {
+  try {
+    return patternsOf.recurringKeys(reviewStore.recent('valorant', patternsOf.LOOK_BACK), exclude || null);
+  } catch {
+    return [];
   }
 }
 

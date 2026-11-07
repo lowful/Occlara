@@ -10,7 +10,12 @@
  * vision-blocking shadow" of a cast that nearsights. This module is pure: it
  * reads server/valorant-data.generated.json once, builds agent -> ability ->
  * key and effect classes from the data's own descriptions, and answers what a
- * text says that the table contradicts. It is wired into no route here.
+ * text says that the table contradicts. The review and Ask Coach gates read
+ * it (match-review.js, fact-gates.js gateKit), and so does the death look
+ * (death-forensics.js kitWrong and kitBlockFor), since the 8.7.7 re-audit
+ * found the look the source of the kit errors the others repeated: "use
+ * undercut to check the angle", "the Boom Bot can set the wire off", Neural
+ * Theft "a single still".
  *
  * CONSERVATIVE BY DESIGN. A claim is returned only where it is certain:
  *   - key: an ability name with a key tied to it, "Alarmbot (C)", "Alarmbot C",
@@ -22,7 +27,17 @@
  *     ("Alarmbot slows", "Paranoia sends a vision-blocking shadow"), that the
  *     data's description does not support. The clause ends at a comma, a
  *     sentence end, a joining word or another agent or ability name, and a
- *     negation in it ("does not slow") silences it.
+ *     negation in it ("does not slow") silences it. Since the re-audit the
+ *     claims include giving information ("checks the angle", "gives you
+ *     info"), clearing an angle (an ability has to show or hurt for it),
+ *     setting off or finding a trap (none does), and a reload; read too in
+ *     the base form after "can" or "to", after "use the <ability> to", and
+ *     on an "it" opening a clause of its own in a sentence about that one
+ *     ability ("Send your Boom Bot ahead: it can set the wire off").
+ *   - count: a reveal count the data has otherwise, "Neural Theft is a
+ *     single still" of a cast that snapshots twice.
+ *   - an ultimate by its place: "Cypher's ultimate", or "his ultimate" when
+ *     opts.ultOf names whose (the killer of a death), is held to that X.
  *   - owner: an agent credited with another agent's ability, "Omen's Alarmbot",
  *     "Omen Alarmbot", "As Raze, your Trapwire".
  * Ability names that are English words as well ("Flow", "Dismiss", "Run it
@@ -69,7 +84,28 @@ const DESC_CLASSES = {
   pull: /\bpull(?:s|ing)?\b/i,
   intangible: /\bintangible\b/i,
   vulnerable: /\bvulnerable\b/i,
+  // Gives information: it shows, marks, chases or sounds where an enemy is.
+  // Undercut, which only suppresses and makes vulnerable, never "checks the angle".
+  info: /\b(?:reveal(?:s|ing|ed)?|mark(?:s|ing)?|snapshots?|chases|sees|detected|audio cue|tracked)\b|\btriggers (?:on|when)\b|\bshoots at enemies\b/i,
+  // Nothing in the data sets off or finds another agent's trap: "the Boom Bot trips the
+  // wires" and "use the Boom Bot to find tripwires" are no kit.
+  trigger: /\btriggers? (?:enemy )?(?:traps|trapwires|wires)\b/i,
+  // A reload of its own, read with its case: "RELOAD to toggle view" is a key the player presses.
+  reload: /\b[Rr]eload(?:s|ing)?\b/,
 };
+
+/*
+ * WHAT A CLAIM NEEDS OF THE DESCRIPTION: any one of these classes. A claim not
+ * named here needs its own class. To clear an angle an ability has to show or
+ * hurt whoever holds it.
+ */
+const SATISFIED_BY = {
+  info: ['info', 'reveal'],
+  clear: ['info', 'reveal', 'damage', 'blind', 'concuss', 'decay', 'pull', 'detain'],
+};
+const satisfies = (cls, classes) => (SATISFIED_BY[cls] || [cls]).some((c) => classes.includes(c));
+
+const WIRES = '(?:the |their |his |her |a |any |enemy |enemies\' |cypher\'s |every )?(?:trip ?wires?|tripwires?|trapwires?|wires?|traps?)';
 
 /*
  * WHAT A SENTENCE CLAIMS AN ABILITY DOES, as a verb whose subject is the
@@ -92,7 +128,90 @@ const CLAIM_VERBS = {
   pull: /\bpulls (?:you|them|him|her|enemies|anyone|everyone|players|in|the)\b/i,
   intangible: /\b(?:makes (?:her|him|them) intangible|becomes? intangible)\b/i,
   vulnerable: /\b(?:makes (?:you|them|him|her|enemies|anyone|everyone|players) vulnerable|applies vulnerable)\b/i,
+  info: /\b(?:checks|scouts|spots|detects|finds (?:you|them|him|her|enemies|the enemy|anyone|someone|players|who)|tells you (?:where|who|if|whether)|shows you (?:where|who|if|whether|them|enemies|the enemy)|gives (?:you )?(?:info|information|intel))\b/i,
+  clear: /\bclears\b/i,
+  trigger: new RegExp(`\\b(?:triggers|trips|sets off|pops|finds|spots|detects|reveals) ${WIRES}(?![A-Za-z])|\\bsets (?:the |a )?(?:trip ?)?wires? off\\b`, 'i'),
+  reload: /\b(?:reloads|has to reload|needs to reload|must reload)\b/i,
+  // Moving of its own, judged only of an ability that stays where it is put
+  // (STATIONARY): "so the turret has to come to you" of a Killjoy Turret.
+  // Not "has to move" or "relocates": a Killjoy is told to move her Turret, and
+  // not "comes down": a smoke fades. "Has to come to you" is the claim.
+  move: /\b(?:moves|walks|rolls|travels|roams|patrols|advances|wanders|chases|hunts|follows (?:you|them|him|her|enemies|the enemy|anyone|players)|comes (?:to (?:you|them|him|her|the enemy|enemies)|toward|towards)|goes (?:to|toward|towards|after) (?:you|them|him|her|enemies|the enemy)|(?:has|needs) to (?:come|walk|travel|roll) (?:to|toward|towards|after|at)|pushes (?:up|forward|in|onto))\b/i,
 };
+
+/*
+ * THE SAME CLAIMS IN THE BASE FORM, read only after "can", "will" or "to" on
+ * the ability's own clause ("Boom Bot can trip the wires") or after "use the
+ * <ability> to" ("use undercut to check the angle", the look's own line).
+ */
+const BASE_VERBS = {
+  info: /^(?:check|scout|spot|detect|find (?:you|them|him|her|enemies|the enemy|anyone|someone|players|who)|see (?:who|where|if|whether|enemies|them|anyone)|get (?:info|information|intel)|gather (?:info|information|intel)|tell you (?:where|who|if|whether)|show you (?:where|who|if|whether|them|enemies|the enemy)|give (?:you )?(?:info|information|intel))\b/i,
+  clear: /^clear\b/i,
+  trigger: new RegExp(`^(?:trip|trigger|set off|pop|find|spot|detect|reveal) ${WIRES}(?![A-Za-z])|^set (?:the |a )?(?:trip ?)?wires? off\\b`, 'i'),
+  slow: /^slow\b/i,
+  blind: /^(?:blind|nearsight|flash (?:you|them|him|her|enemies|anyone|everyone|players|the))\b/i,
+  vision: /^(?:smoke (?:off|the|an?)|block (?:the |their |his |her |enemy |your )?(?:vision|view|sight|line of sight))\b/i,
+  heal: /^heal\b/i,
+  reveal: /^(?:reveal|mark (?:you|them|him|her|enemies|anyone|everyone|players))\b/i,
+  concuss: /^(?:concuss|stun|daze)\b/i,
+  reload: /^reload\b/i,
+  move: /^(?:move (?:up|forward|with|toward|towards|to (?:you|them|him|her|the enemy|enemies))|walk|roll|travel|roam|patrol|advance|wander|chase|hunt|follow (?:you|them|him|her|enemies|the enemy|anyone|players)|come (?:to (?:you|them|him|her|the enemy|enemies)|toward|towards)|push (?:up|forward|in|onto))\b/i,
+};
+
+/*
+ * WHAT STAYS WHERE IT IS PUT (round 4). The data's "FIRE to place" and its
+ * smokes set on a map: nothing in them walks, rolls or comes to anyone. Only
+ * these are held to a movement claim, so "the Boom Bot chases" and "High Tide
+ * moves" stand. By agent and name, each one checked against the data by
+ * scripts/test-ability-facts.js.
+ */
+const STATIONARY = new Set([
+  'Killjoy/Turret', 'Killjoy/Nanoswarm', 'Killjoy/Lockdown',
+  'Cypher/Trapwire', 'Cypher/Spycam', 'Cypher/Cyber Cage',
+  'Deadlock/Sonic Sensor', 'Deadlock/Barrier Mesh', 'Chamber/Trademark', 'Chamber/Rendezvous',
+  'Sage/Barrier Orb', 'Viper/Toxic Screen', 'Brimstone/Sky Smoke', 'Omen/Dark Cover',
+  'Clove/Ruse', 'Astra/Nebula', 'Vyse/Shear', 'Vyse/Arc Rose', 'Veto/Interceptor', 'Veto/Crosscut',
+]);
+// Read in lower case: the data prints some names in capitals ("TURRET").
+const STATIONARY_LOWER = new Set([...STATIONARY].map(lower));
+const isStationary = (e) => !!e && STATIONARY_LOWER.has(lower(`${e.agent}/${e.name}`));
+/** Whether the data supports a claim of this class of the entry: a movement claim only fails a stationary ability. */
+const supported = (cls, e) => (cls === 'move' ? !isStationary(e) : satisfies(cls, e.classes));
+
+/*
+ * THE GENERIC NOUN (round 4): "the camera", "the wall", "the smoke", "the
+ * trip wire", "the alarm bot", read as an ability only where exactly one
+ * ability of exactly one agent fits it, among the agents the text is about
+ * (opts.agents) and the agents the sentence names. Two fits, or none, and the
+ * noun is nobody's. Held only to the movement claim: a generic noun is read
+ * for "the turret has to come to you", never for every verb a name is.
+ */
+const GENERIC = [
+  { re: /(?<![A-Za-z0-9'-])(?:spy ?cams?|cameras?|cams?)(?![A-Za-z0-9-])/gi, fits: (e) => e.name === 'Spycam' },
+  { re: /(?<![A-Za-z0-9'-])(?:trip ?wires?|wires?)(?![A-Za-z0-9-])/gi, fits: (e) => e.name === 'Trapwire' },
+  { re: /(?<![A-Za-z0-9'-])(?:alarm ?bots?)(?![A-Za-z0-9-])/gi, fits: (e) => lower(e.name) === 'alarmbot' },
+  { re: /(?<![A-Za-z0-9'-])(?:turrets?)(?![A-Za-z0-9-])/gi, fits: (e) => lower(e.name) === 'turret' },
+  { re: /(?<![A-Za-z0-9'-])(?:boom ?bots?)(?![A-Za-z0-9-])/gi, fits: (e) => e.name === 'Boom Bot' },
+  { re: /(?<![A-Za-z0-9'-])(?:walls?)(?![A-Za-z0-9-])/gi, fits: (e) => /\bwalls?\b/i.test(e.description.replace(/\bthrough a wall\b/gi, '')) },
+  { re: /(?<![A-Za-z0-9'-])(?:smokes?)(?![A-Za-z0-9-])/gi, fits: (e) => /\bsmokes?\b/i.test(e.description) },
+];
+// The words that open a use: "use", "throw your", "send the", "after you've used".
+const USE_BEFORE = /(?<![A-Za-z])(?:use|uses|used|using|throw|throws|throwing|send|sends|sending|fire|cast|pop|popping|drop|let)\s+(?:your|the|an?|her|his|their|my)?\s*$/i;
+// After the name, to the verb: an optional key, a few words of where, then "to".
+const USE_AFTER = /^\s*(?:\(\s*[CQEX]\s*\)|[CQEX](?![A-Za-z]))?\s*(?:(?:first|ahead|forward|in|out|through the wall|through a wall|in front|ahead of you)\s+)?(?:(?:into|through|at|onto|around|over|past) (?:[a-z']+\s+){1,4})?to\s+/i;
+
+/*
+ * HOW MANY TIMES AN ABILITY REVEALS, where the data counts it: Neural Theft
+ * "snapshot living enemies twice", so "his ultimate is a single still" is wrong.
+ */
+const REVEAL_COUNT = /\b(?:snapshot|reveal)\w*\b[^.]*?\b(once|twice|three times)\b/i;
+const COUNT_WORDS = { once: 1, twice: 2, 'three times': 3 };
+const COUNT_CLAIMS = [
+  // A bare "once" is a conjunction as often ("once Neural Theft goes off"): only a reveal's own once.
+  [1, /\b(?:only once|just once|(?:reveals|snapshots|pings|scans|marks|shows)(?: [a-z]+){0,3} once|a single (?:still|snapshot|reveal|ping|scan|picture|photo)|one (?:still|snapshot|reveal|ping|scan|picture|photo))\b/i],
+  [2, /\b(?:twice|two (?:stills|snapshots|reveals|pings|scans|pictures|photos))\b/i],
+  [3, /\b(?:three times|three (?:stills|snapshots|reveals|pings|scans|pictures|photos))\b/i],
+];
 
 // ── The table ─────────────────────────────────────────────────────────────
 
@@ -111,6 +230,8 @@ const LOWER_OK = new Set([
   'nova pulse', 'mosh pit', 'stealth drone', 'trailblazer', 'cloudburst', 'updraft',
   'tailwind', 'blade storm', 'nanoswarm', 'neural theft', 'orbital strike', "viper's pit",
   "hunter's fury", 'relay bolt', 'curveball', 'flashpoint', 'aftershock', 'showstopper',
+  // The death look writes these in lower case ("use undercut to check the angle").
+  'undercut', 'neural theft', 'shrouded step', 'dark cover', 'fault line', 'guiding light',
 ]);
 
 function aliasesOf(name) {
@@ -133,7 +254,11 @@ function buildTable(data) {
       if (!k || !KEYS.has(k.key) || !k.name) continue;
       const desc = strip(k.description);
       const classes = Object.keys(DESC_CLASSES).filter((c) => DESC_CLASSES[c].test(desc));
-      const entry = { agent, name: norm(k.name), key: k.key, ultimate: k.key === 'X', classes, description: desc };
+      const counted = REVEAL_COUNT.exec(desc);
+      const entry = { agent, name: norm(k.name), key: k.key, ultimate: k.key === 'X', classes, description: desc,
+        revealCount: counted ? COUNT_WORDS[lower(counted[1])] : null,
+        // Credits and charges where the data carries them (it does not today): never invented.
+        cost: Number.isFinite(k.cost) ? k.cost : null, charges: Number.isFinite(k.charges) ? k.charges : null };
       kit[lower(norm(k.name))] = entry;
       for (const al of aliasesOf(k.name)) {
         const l = lower(al);
@@ -169,7 +294,9 @@ function abilitiesIn(text) {
     const entries = TABLE.byName.get(l);
     if (!entries) continue;
     const allLower = said === l;
-    if (allLower && !LOWER_OK.has(l) && !LOWER_OK.has(lower(entries[0].name))) continue;
+    // Any name in lower case right after a use ("use undercut to"): a word of English is never used so.
+    const used = USE_BEFORE.test(t.slice(0, m.index)) && USE_AFTER.test(t.slice(m.index + said.length));
+    if (allLower && !LOWER_OK.has(l) && !LOWER_OK.has(lower(entries[0].name)) && !used) continue;
     if (!allLower && !/^[A-Z]/.test(said)) continue;
     out.push({ said, at: m.index, end: m.index + said.length, entries });
   }
@@ -279,7 +406,123 @@ function effectClaims(t, ab, nextAt) {
     if (words.length && !/^[a-z]+s$/i.test(words[0])) continue;
     out.push({ cls, verb: m[0] });
   }
+  // The base form after a modal on the ability's own clause: "Boom Bot can trip the wires".
+  const modal = /^(?:\s*(?:\(\s*[CQEX]\s*\)|[CQEX](?![A-Za-z])|also|just|only|then|still|really|actually))*\s*(?:can|will|could|would|should|might|is there to|is used to|lets you)\s+(?:also\s+|then\s+|still\s+)?/i.exec(clause);
+  // "The wall lets you push up": a move after "lets you" or "is used to" is the player's.
+  const players = modal && /lets you|is used to|is there to/i.test(modal[0]);
+  if (modal) out.push(...baseClaims(clause.slice(modal[0].length)).filter((c) => !(players && c.cls === 'move')));
   return out;
+}
+
+/** The claims of a base form verb phrase, "check the angle", "trip the wires". */
+function baseClaims(rest) {
+  const out = [];
+  for (const [cls, re] of Object.entries(BASE_VERBS)) {
+    const m = re.exec(rest);
+    if (m) out.push({ cls, verb: m[0] });
+  }
+  return out;
+}
+
+/** What "use the <ability> to ..." claims it does, or [] (the look's "use undercut to check the angle"). */
+function useClaims(t, ab) {
+  const before = t.slice(0, ab.at);
+  if (!USE_BEFORE.test(before)) return [];
+  // "Do not use it to", "never use": a negation just before the use silences it.
+  if (NEGATION.test(before.slice(-30))) return [];
+  const after = t.slice(ab.end);
+  const m = USE_AFTER.exec(after);
+  if (!m) return [];
+  let rest = after.slice(m[0].length);
+  const stop = CLAUSE_STOP.exec(rest);
+  if (stop) rest = rest.slice(0, stop.index);
+  // "Use the wall to push up": whoever moves after a use is the player, never the ability.
+  return baseClaims(rest).filter((c) => c.cls !== 'move');
+}
+
+/** The reveal count a sentence gives an ability that the data counts otherwise, or null. */
+function countClaim(t, e) {
+  if (!e || !e.revealCount) return null;
+  let said = null;
+  for (const [n, re] of COUNT_CLAIMS) {
+    const m = re.exec(t);
+    if (!m) continue;
+    // The true count said anywhere in the sentence: it is being set right, never wrong.
+    if (n === e.revealCount) return null;
+    if (NEGATION.test(t.slice(Math.max(0, m.index - 25), m.index))) continue;
+    if (!said) said = m[0];
+  }
+  return said;
+}
+
+// "His ultimate", "her ult", "the enemy's ultimate": an agent's X without its name.
+const ULT_REF = /\b(?:his|her|their|its|the enemy's|the enemy)\s+(?:ult|ultimate)\b/gi;
+
+/** The agent's ultimate entry, or null. */
+function ultimateOf(agent) {
+  const kit = TABLE.agents[canonAgent(agent) || ''];
+  return kit ? Object.values(kit).find((x) => x.ultimate) || null : null;
+}
+
+/*
+ * AN ULTIMATE BY ITS PLACE, NOT ITS NAME: "Cypher's ultimate is a single
+ * still", or "his ultimate" in a text about one enemy (opts.ultOf, the killer
+ * of a death, the agent asked about). Its count and what its own clause says
+ * it does are held to that agent's X. Never when the sentence names the
+ * ultimate too (the name is read above), nor with no agent to tie it to.
+ */
+function ultimateClaims(t, abs, ags, opts, claims) {
+  const refs = [];
+  for (const m of t.matchAll(ULT_REF)) refs.push({ at: m.index, end: m.index + m[0].length, agent: opts && opts.ultOf ? canonAgent(opts.ultOf) : null });
+  for (const a of ags) {
+    const m = /^(?:'s)?\s+(?:ult|ultimate)\b/i.exec(t.slice(a.end));
+    if (m) refs.push({ at: a.at, end: a.end + m[0].length, agent: a.name });
+  }
+  if (refs.length !== 1) return;
+  const ref = refs[0];
+  const e = ultimateOf(ref.agent);
+  if (!e || abs.some((x) => x.entries.some((y) => y.agent === e.agent && y.ultimate))) return;
+  const push = (kind, said, truth) => claims.push({ kind, ability: e.name, agent: e.agent, said, truth, sentence: t.trim() });
+  const nextName = Math.min(...abs.filter((x) => x.at > ref.end).map((x) => x.at), ...ags.filter((x) => x.at > ref.end).map((x) => x.at), t.length);
+  for (const c of effectClaims(t, ref, nextName)) {
+    if (!supported(c.cls, e)) push('effect', c.verb, c.cls === 'move' ? 'stays where it is placed' : e.classes.join(', ') || 'none named');
+  }
+  if (!abs.length) {
+    const c = countClaim(t, e);
+    if (c) push('count', c, e.revealCount === 2 ? 'twice' : e.revealCount === 3 ? 'three times' : 'once');
+  }
+}
+
+/** The generic nouns of a sentence read as one ability each (GENERIC), never inside a name already read. */
+function genericsIn(t, abs, ags, opts) {
+  const about = new Set([...(Array.isArray(opts && opts.agents) ? opts.agents : []).map(canonAgent), ...ags.map((a) => a.name)].filter(Boolean));
+  if (!about.size) return [];
+  const out = [];
+  for (const g of GENERIC) {
+    const fits = [];
+    for (const a of about) for (const e of Object.values(TABLE.agents[a] || {})) if (g.fits(e)) fits.push(e);
+    if (fits.length !== 1) continue;
+    for (const m of t.matchAll(new RegExp(g.re.source, 'gi'))) {
+      const at = m.index;
+      const end = at + m[0].length;
+      if (abs.some((x) => at < x.end && end > x.at) || out.some((x) => at < x.end && end > x.at)) continue;
+      out.push({ said: m[0], at, end, entry: fits[0] });
+    }
+  }
+  return out.sort((x, y) => x.at - y.at);
+}
+
+/** A generic noun's movement claim against a stationary ability: "so the turret has to come to you". */
+function genericClaims(t, abs, ags, opts, claims) {
+  const gens = genericsIn(t, abs, ags, opts);
+  for (const g of gens) {
+    const e = g.entry;
+    if (!isStationary(e)) continue;
+    const nextName = Math.min(...abs.filter((x) => x.at > g.at).map((x) => x.at), ...gens.filter((x) => x.at > g.at).map((x) => x.at),
+      ...ags.filter((x) => x.at > g.end).map((x) => x.at), t.length);
+    const c = effectClaims(t, g, nextName).find((x) => x.cls === 'move');
+    if (c) claims.push({ kind: 'effect', ability: e.name, agent: e.agent, said: c.verb, truth: 'stays where it is placed', sentence: t.trim() });
+  }
 }
 
 // ── checkText ─────────────────────────────────────────────────────────────
@@ -289,15 +532,20 @@ function effectClaims(t, ab, nextAt) {
  *   opts.agents: optional, the agents the text is about (the player's, the
  *   asked one). Only "As <agent>, your <ability>" reads it, as the agent the
  *   ability is credited to.
- * Returns [{ kind: 'key'|'ultimate'|'effect'|'owner', ability, agent, said, truth, sentence }].
+ *   opts.ultOf: optional, the agent "his ultimate" and "her ult" mean (the
+ *   killer of a look's death, the enemy an answer is about). Without it such
+ *   a sentence is judged only when it names the agent.
+ * Returns [{ kind: 'key'|'ultimate'|'effect'|'count'|'owner', ability, agent, said, truth, sentence }].
  */
 function checkText(text, opts = {}) {
   const claims = [];
   for (const s of sentencesOf(text)) {
     const t = s.text;
     const abs = abilitiesIn(t);
-    if (!abs.length) continue;
     const ags = agentsIn(t);
+    ultimateClaims(t, abs, ags, opts, claims);
+    genericClaims(t, abs, ags, opts, claims);
+    if (!abs.length) continue;
     for (let i = 0; i < abs.length; i++) {
       const ab = abs[i];
       // A name two agents share is nobody's in particular: no claim on it.
@@ -320,8 +568,24 @@ function checkText(text, opts = {}) {
         ...ags.filter((x) => x.at > ab.end).map((x) => x.at),
         t.length,
       );
-      for (const c of effectClaims(t, ab, nextName)) {
-        if (!e.classes.includes(c.cls)) push('effect', c.verb, e.classes.join(', ') || 'none named');
+      const seenVerb = new Set();
+      // "it" opening a clause of its own after the name, in a sentence that names this
+      // ability alone and no agent after it: "Send your Boom Bot ahead: it can set the wire off".
+      const its = [];
+      if (abs.length === 1 && !ags.some((x) => x.at > ab.end)) {
+        for (const m of t.slice(ab.end).matchAll(/(?:[,:]\s+|\band\s+|\bso (?:that )?)(?:then\s+)?it\s+(?=[a-z])/g)) {
+          its.push(...effectClaims(t, { end: ab.end + m.index + m[0].length }, t.length));
+        }
+      }
+      for (const c of [...effectClaims(t, ab, nextName), ...useClaims(t, ab), ...its]) {
+        if (supported(c.cls, e) || seenVerb.has(c.verb)) continue;
+        seenVerb.add(c.verb);
+        push('effect', c.verb, c.cls === 'move' ? 'stays where it is placed' : e.classes.join(', ') || 'none named');
+      }
+      // A count of reveals the data has otherwise, in a sentence about this ability alone.
+      if (abs.length === 1) {
+        const c = countClaim(t, e);
+        if (c) push('count', c, `${e.revealCount === 2 ? 'twice' : e.revealCount === 3 ? 'three times' : 'once'}`);
       }
 
       // An agent credited with it: "Omen's Alarmbot", "Omen Alarmbot".
@@ -339,6 +603,104 @@ function checkText(text, opts = {}) {
     }
   }
   return claims;
+}
+
+// ── kitLine ───────────────────────────────────────────────────────────────
+
+/*
+ * THE KIT AS ONE FINISHED LINE PER ABILITY, for a prompt: its name, whose key
+ * it is, and what it does in the data's own words, with the credits and
+ * charges where the data carries them (it does not today, so none is
+ * written, never one made up). The round 3 re-audit found the model handed
+ * ability names with no function, and inventing one: "Undercut checks the
+ * angle", "Neural Theft is a single still", "the Boom Bot trips the wires".
+ *
+ * The data's words, trimmed of what only says which button to press: the
+ * opening "EQUIP an Undercut.", a "HOLD FIRE to steer", "RELOAD to toggle
+ * view". A sentence that says what the ability does stays whole. Every word
+ * but an agent's or an ability's name is in lower case, so a word the model
+ * copies from it is never read as a player's name (name-gate.js), and the
+ * line carries no dash and no semicolon.
+ */
+const INPUT_ONLY = /^(?:(?:equip|enter) (?:an? |the )?[a-z'/ -]+|(?:hold |alt )?(?:fire|alt fire|reactivate|reload|release|interact|hold activate|hold fire\/alt fire|hold alt fire)(?: or press fire again)? to (?:throw|lob|place|launch|shoot|steer towards your crosshair|increase (?:distance|the bolt's velocity)|adjust distance|toggle view|drop early|stop early|cancel(?: targeting| the cloud| early)?|aim down sights|curve (?:left|right)|control it|exit early|detonate|add up to two bounces|stop the wall early|set(?: smoke)? locations|prepare it instead|direct it towards your crosshair|end the channel early|activate)|while equipped, reactivate to (?:flip the direction|pivot the wall) or hold alt fire to rotate|fire to set, pivot and fire again to [a-z ]+|fire to curve left, alt fire to curve right|alt fire to lob|alt fire to self-cast(?: with no refresh)?|alt fire to equip [a-z ]+)$/;
+
+// The two dashes and a semicolon, built from their codes (CLAUDE.md: never the character itself).
+const DASHES = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)};]`, 'g');
+const titleCase = (s) => (s === s.toUpperCase() && !/\//.test(s) ? s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase()) : s);
+
+// Every agent's name, longest first, to give it back its case inside a line.
+const AGENT_NAMES_RE = new RegExp(`(?<![A-Za-z0-9])(${AGENTS.map(esc).sort((x, y) => y.length - x.length).join('|')})(?![A-Za-z0-9])`, 'gi');
+
+/**
+ * One ability's description as prose: the input only sentences out, every
+ * word lower case but the agents' names and the names of this agent's own
+ * abilities, each sentence opening with its capital.
+ */
+function prose(e) {
+  const sentences = String(e.description || '').replace(/\s+/g, ' ').replace(APOS, "'").split(/(?<=\.)\s+/).filter((x) => x.trim());
+  const kept = sentences.filter((x) => !INPUT_ONLY.test(lower(x.trim()).replace(/\.$/, '')));
+  let text = lower((kept.length ? kept : sentences).join(' '));
+  const own = Object.values(TABLE.agents[e.agent] || {}).map((x) => x.name).sort((x, y) => y.length - x.length);
+  if (own.length) {
+    text = text.replace(new RegExp(`(?<![A-Za-z0-9])(${own.map((x) => esc(lower(x))).join('|')})(?![A-Za-z0-9])`, 'g'),
+      (m) => titleCase(own.find((x) => lower(x) === m)));
+  }
+  text = text.replace(AGENT_NAMES_RE, (m) => canonAgent(m) || m);
+  return text.replace(/(^|[.!?]\s+)([a-z])/g, (m, a, c) => a + c.toUpperCase())
+    .replace(DASHES, ',').replace(/\s+-\s+/g, ', ');
+}
+
+/** The agent's entry of an ability by name (any case), or null. */
+function entryOf(agent, ability) {
+  const kit = TABLE.agents[canonAgent(agent) || ''];
+  if (!kit) return null;
+  return kit[lower(norm(ability))] || Object.values(kit).find((e) => aliasesOf(e.name).some((a) => lower(a) === lower(norm(ability)))) || null;
+}
+
+/** One finished line for one ability, or null. "Undercut (Iso's Q): Fire to send it forward. Applies suppress and vulnerable to all players." */
+function abilityLine(agent, ability) {
+  const e = typeof ability === 'object' && ability ? ability : entryOf(agent, ability);
+  if (!e) return null;
+  // The name as the line prints it, "ALARMBOT" as Alarmbot, "FRAG/ment" as the game prints it.
+  const name = titleCase(e.name);
+  const body = prose(e);
+  const extra = [
+    e.cost != null ? `${e.cost} credits` : null,
+    e.charges != null ? `${e.charges} ${e.charges === 1 ? 'charge' : 'charges'}` : null,
+  ].filter(Boolean);
+  return `${name} (${e.agent}'s ${e.key}${e.ultimate ? ', ultimate' : ''}): ${body}${extra.length ? ` ${extra.join(', ')}.` : ''}`;
+}
+
+/** The agent's four lines, C, Q, E and X, or [] for an agent the data does not know. */
+function kitLine(agent) {
+  const kit = TABLE.agents[canonAgent(agent) || ''];
+  if (!kit) return [];
+  return ['C', 'Q', 'E', 'X'].map((k) => Object.values(kit).find((e) => e.key === k)).filter(Boolean).map((e) => abilityLine(e.agent, e));
+}
+
+/** The lines of every agent named, each agent once, in the order given. */
+function kitLines(agents) {
+  const seen = new Set();
+  const out = [];
+  for (const a of Array.isArray(agents) ? agents : [agents]) {
+    const c = canonAgent(a);
+    if (!c || seen.has(c)) continue;
+    seen.add(c);
+    out.push(...kitLine(c));
+  }
+  return out;
+}
+
+/**
+ * The lines under one heading, for a prompt, or '' when no agent is known.
+ * opts.head: the heading, default "What each ability does, in the game's own
+ * words. Say nothing of an ability that its line does not say:".
+ */
+function kitBlock(agents, opts = {}) {
+  const lines = kitLines(agents);
+  if (!lines.length) return '';
+  const head = opts.head || "What each ability does, in the game's own words. Say nothing of an ability that its line does not say:";
+  return `${head}\n${lines.join('\n')}`;
 }
 
 // ── checkState ────────────────────────────────────────────────────────────
@@ -470,4 +832,5 @@ function checkState(text, facts) {
   return out;
 }
 
-module.exports = { checkText, checkState, abilitiesIn, agentsIn, buildTable, TABLE, DESC_CLASSES, CLAIM_VERBS, keyTied, sentencesOf, hpNumbersIn };
+module.exports = { checkText, checkState, abilitiesIn, agentsIn, buildTable, TABLE, DESC_CLASSES, CLAIM_VERBS, BASE_VERBS, keyTied, sentencesOf, hpNumbersIn,
+  kitLine, kitLines, kitBlock, abilityLine, STATIONARY, isStationary, genericsIn };

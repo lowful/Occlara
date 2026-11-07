@@ -90,6 +90,42 @@ ok(df.parse('{"cause": "isolated", "what": "", "better": "Stay near your team."}
 ok(!/\u2014/.test(df.parse('{"cause": "isolated", "what": "You held alone \u2014 too far out.", "better": "x."}', input, d2).what || ''),
   'dashes are turned into commas');
 
+// ── The kit gate and the kit lines (round 3 re-audit, stream D) ─────────────
+{
+  const isoBody = (extra) => ({ agent: 'Iso', map: 'Corrode', deaths: [{ n: 10, side: 'attacking', sec: 20, killer: 'Phoenix', weapon: 'Vandal',
+    traded: false, frames: [frame], ...(extra || {}) }] });
+  const iso = df.normalise(isoBody());
+  const look = df.parse('{"cause": "dry-peek", "what": "You moved into the open at Mid Stairs without firing.", "better": "Hold beside cover and use undercut to check the angle before moving into the open."}', iso, iso.deaths[0]);
+  ok(look.cause === 'dry-peek' && look.what && look.better === null && look.dropped.some((d) => d.gate === 'kit' && d.field === 'better' && d.why === 'kit: Undercut effect'),
+    `the look's own "use undercut to check the angle" is dropped as kit, and the look carries on (${JSON.stringify(look.dropped)})`);
+  const fine = df.parse('{"cause": "dry-peek", "what": "You swung Mid Stairs with nothing thrown.", "better": "Throw Undercut through the wall first so he is vulnerable when you swing."}', iso, iso.deaths[0]);
+  ok(fine.better && !fine.dropped.length, 'a true line about Undercut stands');
+  const cy = df.normalise(isoBody({ killer: 'Cypher' }));
+  const still = df.parse('{"cause": "exposed", "what": "His ultimate showed you as a single still while you planted.", "better": "Plant behind cover."}', cy, cy.deaths[0]);
+  ok(still.what === null && still.dropped.some((d) => d.gate === 'kit' && /Neural Theft count/.test(d.why)), '"his ultimate" is the killer\'s, and Neural Theft reveals twice');
+  const boom = df.normalise({ ...isoBody(), agent: 'Raze' });
+  const wires = df.parse('{"cause": "dry-peek", "what": "You walked into the wire first.", "better": "Send your Boom Bot first so it trips the wires before you walk in."}', boom, boom.deaths[0]);
+  ok(wires.better === null && wires.dropped.some((d) => d.gate === 'kit'), 'the Boom Bot sets off no wire');
+  const de = df.normalise({ ...isoBody(), language: 'de' });
+  ok(!df.parse('{"cause": "dry-peek", "what": "Du bist ohne Deckung gelaufen.", "better": "Nutze Undercut, bevor du swingst."}', de, de.deaths[0]).dropped.some((d) => d.gate === 'kit'),
+    'outside English the kit gate reads nothing');
+  ok(df.kitWrong('Use your Undercut to make him vulnerable.', iso, iso.deaths[0]) === null && df.kitWrong('Undercut checks the angle.', iso, iso.deaths[0]) === 'kit: Undercut effect',
+    'kitWrong names the ability and the kind, never the sentence');
+
+  // The prompt: b and b2 carry the player's and Riot's killer's lines, a none.
+  const ask = (b, variant) => { const x = df.normalise(b, { variant }); return df.buildPrompt(x, x.deaths[0]); };
+  const pa = ask(isoBody(), 'a');
+  const pb2 = ask(isoBody(), 'b2');
+  ok(!/in the game's own words/.test(pa) && !/Iso's Q/.test(pa), 'variant a gets no kit lines (8.4.4 byte for byte)');
+  ok(/What these abilities do, in the game's own words/.test(pb2) && /Undercut \(Iso's Q\): Fire to send it forward\. Applies suppress and vulnerable to all players\./.test(pb2)
+    && /Hot Hands \(Phoenix's Q\)/.test(pb2) && (pb2.match(/^[A-Z][^\n]*\((?:Iso|Phoenix)'s [CQEX]/gm) || []).length === 8,
+  "b2 carries the player's and the killer's four lines each, in the data's own words");
+  const scr = ask({ ...isoBody(), source: 'screen' }, 'b2');
+  ok(/Iso's Q/.test(scr) && !/Phoenix's/.test(scr), 'from the screen alone, no killer, so only the player\'s lines');
+  ok(!/in the game's own words/.test(ask({ ...isoBody(), agent: null, deaths: [{ n: 10, frames: [frame] }], source: 'screen' }, 'b2')), 'no agent known, no block');
+  ok(!new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)};]`).test(df.kitBlockFor(iso, iso.deaths[0])), 'the block carries no dash and no semicolon');
+}
+
 // ── The map gate ────────────────────────────────────────────────────────────
 ok(df.wrongMap('You died holding Hookah alone.', 'Abyss') === 'hookah', 'Hookah on Abyss is caught');
 ok(df.wrongMap('You died holding Hookah alone.', 'Bind') === null, 'Hookah on Bind is allowed');

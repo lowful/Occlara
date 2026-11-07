@@ -77,6 +77,9 @@ class CoachingEngine extends EventEmitter {
     // Experimental settings, read live from the store so a settings flip
     // applies to the very next capture: { proPlaybook: 'off'|'on'|'hybrid' }.
     this.experiments = typeof opts.experiments === 'function' ? opts.experiments : () => ({});
+    // The library's repeating mistake keys (index.js recurringNow), asked once
+    // as a match ends for its review request, never per frame. None given, none sent.
+    this.recurring = typeof opts.recurring === 'function' ? opts.recurring : () => [];
     // AI decision log: gets { at, image, state, tip, shown } per analyzed frame,
     // for the "what did the coach see and say" viewer. No-op when not provided.
     this.diagnostics = typeof opts.diagnostics === 'function' ? opts.diagnostics : null;
@@ -2707,6 +2710,10 @@ class CoachingEngine extends EventEmitter {
    */
   async requestMatchReview(snap) {
     if (!snap) return;
+    // The library's repeating mistakes, read BEFORE match-ended saves this
+    // match, so they are the earlier matches' habits alone (patterns.js recurringKeys).
+    let recurring = [];
+    try { recurring = this.recurring() || []; } catch { recurring = []; }
     // AT ONCE, before the narrative call: the app saves the computed review and
     // holds this match's AI log frames now. Waiting for the model meant a quit,
     // an update or a quick Stop and Start in the next minute lost the review,
@@ -2719,7 +2726,7 @@ class CoachingEngine extends EventEmitter {
       return;
     }
     try {
-      const body = valorantReview.requestBody(snap);
+      const body = valorantReview.requestBody({ ...snap, recurring });
       body.context = { ...body.context, proPlaybook: snap.context.proPlaybook };
       // The player's rank band (8.8, index.js rankBandNow), only when known.
       const band = validBand(this.experiments().rankBand);

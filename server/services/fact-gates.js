@@ -1800,6 +1800,11 @@ function gateNumbers(s, facts, rs) {
       if (pool.some((n) => { const r = f.rounds.get(n); return !!(r && r.clutch && r.clutch.vs === value); })) continue;
       return fail(`the last one standing against ${value}, which no round's clutch in Riot's record has`);
     }
+    // "Against your usual 32": the player's own average as the against line
+    // and the library hold it (facts.library.averages, the re-audit of 8.7.7),
+    // a true number dropped as tied to nothing. One the library lacks goes on
+    // to every check below.
+    if (english && f.library && f.library.averages && AVG_BEFORE.test(before) && f.library.averages.has(value)) continue;
     if (/^\s*(?:out\s+)?of\s+(?:the\s+|your\s+|their\s+)?\d/i.test(after) || /\b\d+\s+(?:out\s+)?of\s+(?:the\s+|your\s+|their\s+)?$/i.test(before)) continue;
     // "All 5 of your deaths": a share of a total, held to the total itself or
     // to a pair the counted lines state ("3 of your 5 deaths" lets "3 of your
@@ -1943,20 +1948,68 @@ const AIM_DISMISSED = [
   /\bnot\s+(?:an?\s+)?(?:lost\s+)?aim\s+(?:duel|problem|issue)\b/i,
   /\baim\s+(?:is|was|looks|looked)\s+fine\b/i,
   /\bnothing\s+(?:here\s+)?(?:says|saying|shows|showing)\s+(?:that\s+)?your\s+aim\b/i,
+  // The re-audit of 8.7.7: the same dismissal in other words, each said
+  // against a look that had called the deaths lost duels.
+  /\bnot\s+(?:really\s+|mostly\s+|actually\s+)?lost\s+on\s+the\s+(?:shot|aim)\b/i,
+  /\b(?:mechanics|the\s+shot|your\s+shot|shooting|gunplay|the\s+shooting)\s+(?:is|are|was|were)(?:n't|\s+not)\s+(?:really\s+|actually\s+)?(?:the|your|what|why)\b[^.;:]{0,40}?\b(?:problem|issue|cost|costing|cause|reason|holding|matters?)\b/i,
+  // A window of 140: the live Sunset answer put 87 characters ("25%, against
+  // 36% across your recent matches, so there is room there, ") between the two.
+  /\b(?:aim|headshots?|head ?shot rate|the shot|mechanics)\b[^.;]{0,140}\bbut\s+(?:it|that|this)(?:'s|\s+is|\s+was)(?:n't|\s+not)\s+what\s+(?:cost|lost|is\s+costing|was\s+costing|decided)\b/i,
+  /\bnot\s+that\s+you(?:'re|\s+are|\s+were)\s+losing\s+(?:the\s+|your\s+)?(?:duels|fights|gunfights)\b/i,
 ];
+// "Your aim is already carrying you": praise the headshot rate has to bear out.
+const AIM_PRAISED = /\b(?:your\s+)?aim\b(?:\s+and\s+your\s+[a-z ]{1,30}?)?\s+(?:is|are|was|were|has\s+been)\s+(?:already\s+|clearly\s+|really\s+)?(?:carrying|good|great|strong|solid|fine|working|winning|on point)\b|\byour\s+(?:shooting|gunplay|mechanics)\s+(?:is|are|was|were)\s+(?:already\s+)?(?:carrying|good|great|strong|solid)\b/i;
+// "A fight you should not have taken": said of fights the look called fair.
+const AVOIDABLE = /\b(?:should(?:n't|\s+not)\s+have\s+(?:taken|fought|been\s+taken)|did(?:n't|\s+not)\s+need\s+(?:to\s+take|taking|to\s+be\s+taken)|was(?:n't|\s+not)\s+(?:a\s+fight\s+)?worth\s+taking|not\s+worth\s+taking)\b/i;
 const AIM_REASON = 'your reply said aim is not the problem, which the coach\'s looks do not show; answer from the deaths and the headshot rate against the player\'s own average, and still give one aim habit';
 function gateAim(s, facts, rs) {
   const f = facts || {};
   if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
   const t = String(s || '');
+  // A look that could not tell ('unclear') called the death nothing: it is no
+  // look that says aim was not the problem (the Sunset 2 to 5, four unclear
+  // looks, "it is not what cost you the rounds", the re-audit of 8.7.7).
+  const looked = (r) => !!(r && r.died && r.look && r.look.cause && r.look.cause !== 'unclear');
+  const ns = rs && rs.round ? rs.rounds : (f.oneRound && f.asked ? [f.asked] : []);
+  const named = f.rounds instanceof Map ? ns.map((n) => f.rounds.get(n)).filter(Boolean) : [];
+  /*
+   * PRAISE THE NUMBERS DO NOT BEAR OUT. "Your aim and your opening kills are
+   * already carrying you" at 22% headshots against the player's own 38%:
+   * praise of the aim stands only where this match's headshot rate is at or
+   * above their own average (facts.aim, the against line), never with no
+   * average to hold it to.
+   */
+  if (AIM_PRAISED.test(t) && !negatedAt(t, t.search(AIM_PRAISED))) {
+    const a = f.aim || null;
+    if (!a || !fin(a.hs) || !fin(a.baseline) || a.hs < a.baseline) {
+      return drop('aim', 'your reply praised the aim, which the headshot rate against the player\'s own average does not bear out; give the two numbers as they are');
+    }
+  }
+  /*
+   * A FIGHT THE LOOK CALLED FAIR WAS NO FIGHT TO SKIP. "No amount of crosshair
+   * work fixes a fight you should not have taken" on the Pearl, whose two
+   * looked deaths were fair fights lost on the shot: of the rounds named, or
+   * of the match when none is, every death the coach could tell about a lost
+   * duel, two at least, and the sentence says the fight was not to be taken.
+   */
+  // "A fair fight you lost rather than a fight you shouldn't have taken" says the look's own reading.
+  const avoid = AVOIDABLE.exec(t);
+  const ratherThan = avoid && /\b(?:rather than|instead of|not|never|no)\s+(?:(?:a|an|the|one)\s+)?(?:[a-z]+\s+){0,3}$/i.test(t.slice(Math.max(0, avoid.index - 40), avoid.index));
+  if (avoid && !ratherThan && f.rounds instanceof Map) {
+    // The rounds it names even where it reads as no claim about the round itself ("round 12 was a fight you should not have taken").
+    let own = named;
+    if (!own.length) { try { own = roundsNamed(t, f).map((n) => f.rounds.get(n)).filter(Boolean); } catch { own = []; } }
+    const pool = own.length ? own : [...f.rounds.values()].filter(looked);
+    const fair = pool.filter((r) => looked(r) && r.look.cause === 'lost-duel');
+    if (fair.length && fair.length === pool.length && (own.length || fair.length >= 2)) {
+      return drop('aim', 'your reply said a fight should not have been taken where the coach\'s look called it a fair fight lost on the shot; say what the look said, and give one aim habit');
+    }
+  }
   if (!AIM_DISMISSED.some((re) => re.test(t))) return null;
   if (!(f.rounds instanceof Map)) return drop('aim', AIM_REASON);
-  const looked = (r) => !!(r && r.died && r.look && r.look.cause);
   // The rounds the sentence names, else the one round asked about: "Aim was
   // not the issue here, the position was" in an answer about a repeek round
   // is said of that round, never of the match (the round 3 verification).
-  const ns = rs && rs.round ? rs.rounds : (f.oneRound && f.asked ? [f.asked] : []);
-  const named = ns.map((n) => f.rounds.get(n)).filter(Boolean);
   if (named.length) {
     if (named.every((r) => looked(r) && r.look.cause !== 'lost-duel')) return null;
     return drop('aim', AIM_REASON);
@@ -1990,7 +2043,12 @@ function gateKit(s, facts, rs) {
   if (!af || typeof af.checkText !== 'function') return null;
   const t = String(s || '');
   let claims = [];
-  try { claims = af.checkText(t, { agents: [f.agent, ...(f.askedAgents || [])].filter(Boolean) }) || []; } catch { claims = []; }
+  // "His ultimate is a single still" in an answer about Cypher: the agent a his
+  // or her ultimate stands for, the enemy asked about, else the asked round's
+  // killer (ability-facts.js ultimateClaims, the re-audit of 8.7.7).
+  const ultOf = (f.askedAgents || []).find((a) => a && a !== f.agent)
+    || (() => { const r = f.rounds instanceof Map && f.oneRound && f.asked ? f.rounds.get(f.asked) : null; return r && r.killer ? r.killer : null; })();
+  try { claims = af.checkText(t, { agents: [f.agent, ...(f.askedAgents || [])].filter(Boolean), ...(ultOf ? { ultOf } : {}) }) || []; } catch { claims = []; }
   const c = claims[0];
   if (c) {
     const why = c.kind === 'key' ? `${c.ability} is ${c.agent}'s ${c.truth}, never ${c.said}`
@@ -2119,6 +2177,135 @@ function leansOn(sentence) {
   return null;
 }
 
+// ── The re-audit of 8.7.7 (Nov 2026) ───────────────────────────────────────
+
+let coherenceMod;
+function coherence() {
+  if (coherenceMod === undefined) {
+    try { coherenceMod = require('./coherence'); } catch { coherenceMod = null; }
+  }
+  return coherenceMod;
+}
+
+/*
+ * NO TALK OF THE PRODUCT (coherence.js checkProduct). "So your next review can
+ * check whether the fight had an answer": the coach teaches the game and never
+ * recommends a feature, a page or a future review.
+ */
+function gateProduct(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en') return null;
+  const c = coherence();
+  if (!c || typeof c.checkProduct !== 'function') return null;
+  return c.checkProduct([String(s || '')]).length
+    ? drop('product', 'your reply talked about the app, a future review or a feature of it; teach the game alone, and never recommend a feature')
+    : null;
+}
+
+/*
+ * A NUMBER ACROSS MATCHES IS THE LIBRARY'S OR NONE. Eleven answers of the
+ * re-audit quoted "5 of your last 6", "your average of 32 percent", the same
+ * player given 32% in one answer and another number in the next. A sentence
+ * about the player's other matches (the last N, recent, across, their own
+ * average, on average) holds each "N of M matches" to a pattern's pair, and
+ * each average to the against line, the library's rows and the tracker
+ * (facts.library); a season, an act or an episode is no fact the coach is
+ * given; and this match's rounds said to be across matches ("the biggest
+ * pattern across your recent matches is dying in the first 30 seconds, in
+ * rounds 1, 3, 4, 5 and 6", a pattern of this match alone) go.
+ */
+const CROSS_MATCH = /\b(?:of|in)\s+(?:your|the|their)\s+(?:(?:last|recent|past|previous|latest|recorded|other)\s+){1,2}(?:\d+\s+|few\s+|several\s+)?(?:(?:recent|recorded)\s+)?(?:matches|games)\b|\bacross\s+(?:(?:your|their|the|all|my)\s+)?(?:(?:last|recent|past|previous|other|recorded)\s+){0,2}(?:\d+\s+)?(?:(?:recent|recorded)\s+)?(?:matches|games)\b|\b(?:your|their)\s+(?:own\s+)?(?:usual|normal|typical|overall|average|regular)\b|\b(?:your|their)\s+own\s+\d|\bon average\b|\b(?:recent|last|past)\s+(?:\d+\s+)?(?:matches|games)\b/i;
+const SEASON = /\b(?:this|last|the|your|their)\s+(?:season|act|episode)\b|\bseason(?:'s)?\s+(?:average|stats?|numbers?|rank)\b/i;
+const LIB_PAIR = /\b(\d+)\s+(?:out\s+)?of\s+(?:(?:your|the|their|those|these)\s+)?(?:(?:last|recent|past|previous|recorded|latest)\s+){0,2}(\d+)\s+(?:(?:recent|recorded|other)\s+)?(?:matches|games)\b/gi;
+const AVG_BEFORE = /\b(?:(?:your|their)\s+(?:own\s+)?(?:usual|normal|typical|overall|average|regular)(?:\s+headshot\s+rate)?\s+(?:of\s+|is\s+|was\s+|at\s+|around\s+)?|(?:your|their)\s+own\s+)$/i;
+const AVG_AFTER = /^\s*(?:%|percent)?\s+(?:average|on average)\b/i;
+const THIS_MATCH = /\b(?:this|that|the)\s+(?:match|game)\b|\bhere\b|\bin it\b/i;
+const ROUND_LIST = /\brounds?\s+\d/i;
+function gateLibrary(s, facts) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const raw = String(s || '');
+  const t = digitsOf(raw);
+  const season = SEASON.exec(t);
+  if (season && !negatedAt(t, season.index) && !ECON_REFUSAL.test(t)) {
+    return drop('library', 'your reply named a season, an act or an episode, which the facts hold nothing of; say the numbers of this match and of the matches the facts count');
+  }
+  if (!CROSS_MATCH.test(t)) return null;
+  const lib = f.library || { pairs: new Set(), averages: new Set() };
+  for (const m of t.matchAll(LIB_PAIR)) {
+    if (!lib.pairs.has(`${m[1]}/${m[2]}`)) {
+      return drop('library', `your reply said ${m[1]} of ${m[2]} matches, which no pattern across the player's matches counts; quote the patterns' own numbers or say none`);
+    }
+  }
+  for (const m of t.matchAll(NUMBER)) {
+    const value = Number(m[1]);
+    const before = t.slice(Math.max(0, m.index - 40), m.index);
+    const after = t.slice(m.index + m[1].length, m.index + m[1].length + 20);
+    if (!AVG_BEFORE.test(before) && !AVG_AFTER.test(after)) continue;
+    if (!lib.averages.has(value)) {
+      return drop('library', `your reply gave ${value} as the player's own average, which the facts across their matches do not hold`);
+    }
+  }
+  // This match's rounds told as a pattern across matches.
+  const mapNamed = f.map && new RegExp(`(?<![A-Za-z])${esc(f.map)}(?![A-Za-z])`, 'i').test(t);
+  if (ROUND_LIST.test(t) && !THIS_MATCH.test(t) && !mapNamed && !new RegExp(LIB_PAIR.source, 'i').test(t)
+      && /\bacross\b|\b(?:recent|last|past)\s+(?:\d+\s+)?(?:matches|games)\b/i.test(t)) {
+    return drop('library', 'your reply told this match\'s rounds as a pattern across the player\'s matches; say which match they are from');
+  }
+  return null;
+}
+
+/*
+ * THE SIDE AND THE SPIKE (coherence.js checkRoundState). "Let the enemy come to
+ * you" to an attacker with no spike down, in a round Riot has as an attack the
+ * player died in before any plant: the defenders never have to come. Of the
+ * round the sentence names, else of the one round asked about; a sentence of
+ * no round is held only to the side it names itself ("on attack, let them come
+ * to you" with no plant in it).
+ */
+const PLANT_SAID = /\b(?:after\s+the\s+plant|post[ -]?plant|(?:the\s+)?spike\s+(?:is\s+|was\s+)?(?:down|planted)|once\s+(?:the\s+spike|it)\s+(?:is|was|goes|went)\s+down|planted)\b/i;
+function gateRoundState(s, facts, rs) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;
+  const c = coherence();
+  if (!c || typeof c.checkRoundState !== 'function') return null;
+  const t = String(s || '');
+  const n = rs && rs.round ? (rs.rounds.length === 1 ? rs.rounds[0] : null) : (f.oneRound && f.asked ? f.asked : null);
+  const r = n != null && f.rounds instanceof Map ? f.rounds.get(n) : null;
+  if (r) {
+    const why = c.checkRoundState(t, { side: r.side, planted: r.planted, plantSec: r.plantSec, sec: r.sec, died: r.died, afterPlant: r.afterPlant });
+    return why ? drop('state', `your reply got round ${n}'s situation wrong: ${why}`) : null;
+  }
+  if (rs && rs.round) return null;
+  const said = ATTACK_SIDE.test(t) && !DEFENCE_SIDE.test(t) ? 'attacking' : DEFENCE_SIDE.test(t) && !ATTACK_SIDE.test(t) ? 'defending' : null;
+  if (!said) return null;
+  const planted = PLANT_SAID.test(t);
+  // The sentence's own words are the round: the spike down where it says so.
+  const why = c.checkRoundState(t, { side: said, planted, afterPlant: planted, died: true });
+  return why ? drop('state', `your reply got the situation wrong: ${why}`) : null;
+}
+
+/*
+ * A HABIT OF DYING FIRST THE RECORD DOES NOT SHOW. "On defence, you are taking
+ * the first fight of the round yourself" on the Sunset loss, where the player
+ * was the first death in 2 of 17 rounds (two judges). Said of the match, with
+ * no round named, the habit of dying first or taking the first fight stands
+ * only where Riot's record has the player the first death in a quarter of the
+ * rounds or more. A round named is the timeline gate's.
+ */
+const FIRST_HABIT = /\byou(?:'re|\s+are|\s+were|\s+keep|\s+kept|\s+tend\s+to\s+be|\s+often|\s+usually)\s+(?:(?:often|usually|always|constantly|repeatedly|still)\s+)?(?:taking\s+the\s+first\s+(?:fight|duel|contact|gunfight)|(?:the\s+)?first\s+(?:to\s+die|death|one\s+down|player\s+down)|dying\s+first|die\s+first)\b/i;
+function gateFirstHabit(s, facts, rs) {
+  const f = facts || {};
+  if ((f.language || 'en') !== 'en' || f.game === 'lol' || !(f.rounds instanceof Map) || !f.rounds.size) return null;
+  const t = String(s || '');
+  if ((rs && rs.round) || !FIRST_HABIT.test(t) || negatedAt(t, t.search(FIRST_HABIT))) return null;
+  try { if (roundsNamed(t, f).length) return null; } catch { /* none named */ }
+  const all = [...f.rounds.values()];
+  const first = all.filter((r) => r.firstDeath).length;
+  if (first * 4 >= all.length) return null;
+  return drop('habit', `your reply said the player keeps dying first or taking the first fight, where Riot's record has them the first death in ${first} of ${all.length} rounds; say what the record shows`);
+}
+
 // ── All of them ────────────────────────────────────────────────────────────
 
 /*
@@ -2148,6 +2335,11 @@ const GATES = [
   ['kit', gateKit],
   ['mode', gateMode],
   ['ability-kill', gateAbilityKill],
+  // The re-audit of 8.7.7 (Nov 2026), after every gate before.
+  ['product', gateProduct],
+  ['library', gateLibrary],
+  ['state', gateRoundState],
+  ['habit', gateFirstHabit],
 ];
 
 /**
@@ -2199,4 +2391,6 @@ module.exports = {
   OF_TOTAL_BEFORE, PEEK_TWICE, TRADED_MATES_TIMES, repeekTwice,
   PAIR_FILLER, KEEPING_WORTH, CLUTCH_AGAINST_BEFORE, OF_YOUR_NOUN, SMALL_ADVICE_AFTER, LEAD_CONDITION, ONE_ROUND,
   TEMPLATE_WORDS, AIM_DISMISSED, SOLO_MODE, TEAM_WORDS, NO_TEAM, KILL_AFTER_ABILITY, KILL_BEFORE_ABILITY,
+  // The re-audit of 8.7.7 (Nov 2026), each asserted in test:chatgates.
+  gateProduct, gateLibrary, gateRoundState, gateFirstHabit, FIRST_HABIT, AIM_PRAISED, AVOIDABLE, CROSS_MATCH, SEASON, LIB_PAIR, AVG_BEFORE, AVG_AFTER, THIS_MATCH, PLANT_SAID,
 };
