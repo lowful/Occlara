@@ -259,6 +259,41 @@ function recordExtras(rr, map) {
   return out;
 }
 
+/*
+ * A SCREEN LEDGER ONE DEATH BEHIND RIOT'S (8.7.10). The player's competitive
+ * Split was reviewed by 8.0.1, whose ledger filed every death a round late
+ * (the match locked as swiftplay at round 5 and was ended mid round 9), and
+ * the late link laid Riot's record over those rounds by number. Both sources
+ * then had a death in the same rounds, and the screen's spot of each was
+ * Riot's place of the player's death before it, every time: round 3 at B Back
+ * (Riot's round 1), 4 at A Tower (Riot's 3), then 5, 6 and 8 the same way,
+ * with none at Riot's own place. Today's reader files that session's deaths
+ * where Riot does (test:sessionreplay), so this is an old ledger's fault, and
+ * it is read off the places alone, which a saved review still has when its
+ * frames and its clock are long gone: at least three screen spots equal to
+ * Riot's place of the death before and more than twice as many as equal
+ * Riot's own. A player dying at one spot round after round matches both and
+ * counts as agreeing, so a ledger in step never reads as behind.
+ */
+const placeKey = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+function screenLagged(ledger, per, map) {
+  const dead = per.filter((rr) => rr && rr.died && Number.isInteger(rr.n)).sort((a, b) => a.n - b.n);
+  const place = new Map(dead.map((rr) => [rr.n, placeName(map, rr.deathAt)]));
+  const order = dead.map((rr) => rr.n);
+  let same = 0;
+  let behind = 0;
+  for (const r of ledger || []) {
+    if (!r || !r.died || !r.deathSpot || !place.has(r.n)) continue;
+    const s = placeKey(r.deathSpot);
+    const here = place.get(r.n);
+    const i = order.indexOf(r.n);
+    const before = i > 0 ? place.get(order[i - 1]) : null;
+    if (here && placeKey(here) === s) same++;
+    else if (before && placeKey(before) === s) behind++;
+  }
+  return behind >= 3 && behind > same * 2;
+}
+
 /**
  * @param rounds  ledger.list() rows
  * @param riot    the /api/coach/match-rounds reply: { perRound: [...] }
@@ -319,20 +354,33 @@ function reconcile(rounds, riot, opts) {
   const feedSeen = per.some((rr) => Array.isArray(rr.feed) && rr.feed.length > 0);
   const feedOf = (rr) => (feedSeen && Array.isArray(rr.feed)
     ? rr.feed.every((k) => !!(k && k.by && k.on)) : null);
+  // A ledger a death behind Riot's (screenLagged): its rounds are Riot's
+  // numbers with another round's screen in them, so nothing the screen read
+  // in a round (its spot, its ultimate at the death, its reads, its trail,
+  // the frames that filed the death) is laid over Riot's round. The rounds
+  // and their deaths are Riot's, and the counts stay as the screen read them.
+  const lagged = screenLagged(ledger, per, riot && riot.map);
+  if (lagged) checks.lagged = true;
 
   const merged = per.map((rr) => {
-    const r = byN.get(rr.n);
+    const r0 = byN.get(rr.n);
+    const r = r0 && lagged ? { ...r0, deathSpot: null, ultAtDeath: null, locs: [], reads: [] } : r0;
+    if (r0 && lagged) checks.readsDropped += (r0.reads || []).length;
     // The screen's death of the round, when it came well before Riot's: a
     // death invented as surely as one in a round Riot has none in, and
     // nothing of it (its spot, its ultimate, its reads) is laid over Riot's.
     const early = r && r.died && rr.died ? earlyBy(records, rr, window) : null;
-    const screenDeath = !!(r && r.died) && early === null;
+    const filed = !!(r && r.died) && early === null;
+    // A lagged ledger's death is counted where the screen filed it, and none
+    // of what it read there is this death's.
+    const screenDeath = filed && !lagged;
+    const extras = recordExtras(rr, riot && riot.map);
     if (r) {
       checks.watched++;
       if (r.died) checks.screenDeaths++;
       if (rr.died) checks.riotDeaths++;
-      if (screenDeath && rr.died) checks.agreed++;
-      if (r.died && !(screenDeath && rr.died)) checks.invented.push(rr.n);
+      if (filed && rr.died) checks.agreed++;
+      if (r.died && !(filed && rr.died)) checks.invented.push(rr.n);
       if (early !== null) checks.early.push({ n: rr.n, s: early });
       if (rr.died && !r.died) checks.missed.push(rr.n);
     } else {
@@ -359,7 +407,13 @@ function reconcile(rounds, riot, opts) {
       // it: only a death the screen registered has a frame that registered it
       // (death-frames.js). One registered well before Riot's is not this one.
       screenDied: screenDeath,
-      deathSpot: rr.died && r && screenDeath ? r.deathSpot : null,
+      // ONE PLACE FOR A DEATH (8.7.10): Riot's, where its record places it
+      // (recordExtras' riotSpot), and the screen's only in a round Riot's
+      // record has no place for. Two places in front of the model, the
+      // screen's often a round off, put the old spot in 14 of 87 of 8.7.9's
+      // place mentions (round 3 audit), and the spot pattern, the counted
+      // same spot mistake and the card's spot all read this one field.
+      deathSpot: rr.died ? (extras.riotSpot || (r && screenDeath ? r.deathSpot : null)) : null,
       deathSec: sec,
       // Kept in the ledger's own unit so every existing reader of deathClock
       // still works: seconds LEFT on a 100 second round.
@@ -405,7 +459,7 @@ function reconcile(rounds, riot, opts) {
       plantSite: /^[ABC]$/.test(String(rr.plantSite || '')) ? rr.plantSite : null,
       // The round record beyond the feed (8.8, recordExtras), only the keys
       // the record had.
-      ...recordExtras(rr, riot && riot.map),
+      ...extras,
     };
   });
 
@@ -477,8 +531,11 @@ function describe(checks) {
     }
     deaths = `the screen read ${deathsText(S)} and Riot has ${R}, with ${listText(where)}`;
   }
-  return `Checked against Riot's record of ${scope}: ${deaths}.`;
+  // A ledger a death behind Riot's (screenLagged) kept none of what it read
+  // in a round, and the line says why the cards hold Riot's places alone.
+  const behind = checks.lagged ? " The screen filed its deaths a round late, so each round's place and notes are Riot's alone." : '';
+  return `Checked against Riot's record of ${scope}: ${deaths}.${behind}`;
 }
 
 module.exports = { reconcile, describe, namedKiller, weaponName, agentName, killFeedOf, feedGun, NOT_A_WEAPON,
-  recordExtras, placeName, BUY_KINDS };
+  recordExtras, placeName, BUY_KINDS, screenLagged };

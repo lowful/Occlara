@@ -130,7 +130,9 @@ function valorantDeaths(saved, have, io, patternKeys) {
     else title = 'Died';
     // One plain line: what the look saw, else where and when.
     const where = [];
-    if (c.spot) where.push(`at ${c.spot}`);
+    // Riot's place where the card holds it (8.7.10, one place for a death).
+    const at = (riot && typeof riot.place === 'string' && riot.place) || c.spot;
+    if (at) where.push(`at ${at}`);
     if (riot && riot.firstDeath) where.push('first to die');
     if (riot && riot.traded === false) where.push('nobody traded it');
     if (riot && riot.afterPlant) where.push('after the plant');

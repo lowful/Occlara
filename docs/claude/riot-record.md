@@ -257,10 +257,27 @@ before reads none of them.
   (`valorant-verify.js placeName`), and Ask Coach's server again
   (`chat-prompt.js placeOn`). On the card the death chip says Riot's place
   ("Died at B Main, 20s in, to Reyna with a Vandal"), and the review model is
-  sent it as `deathSpot`; the screen's spot is kept underneath (`card.spot`),
-  and the mistake and pattern counts of places still count the screen's. No
-  real v4 record with locations is in the repo yet, so moving the counts to
-  Riot's place waits for one.
+  sent it as `deathSpot`.
+- **One place for a death (8.7.10).** Where Riot's record places a death,
+  that is the only place anything sees: `reconcile` writes Riot's place as
+  `deathSpot` (the screen's only for a round Riot has no place for), so the
+  card's `spot`, the spot pattern and the counted same spot mistake follow it,
+  and `valorant-review.js deathPlace` is the same rule for a row carrying both
+  (a saved card laid back over the record; `insights.js`, `breakdown.js` and
+  `moments.js` read it the same way). The server enforces it for clients
+  before: `match-review.js onePlace` sets the round line's place to `place`,
+  `spotAgrees` leaves out a spot pattern or same spot mistake whose rounds
+  Riot places elsewhere (the review and Ask Coach both), and Ask Coach's
+  `cardOf` drops the screen's spot from a card that has Riot's place.
+- **A ledger a death behind (`valorant-verify.js screenLagged`).** The
+  player's Split was reviewed by 8.0.1, whose ledger filed every death a round
+  late, and its screen spot of each death was Riot's place of the death before
+  (5 of 5). At least three such and more than twice the spots that equal
+  Riot's own marks the ledger as behind (`checks.lagged`): nothing the screen
+  read in a round (spot, ultimate, reads, trail, `screenDied`) is laid over
+  Riot's, the counts stay as read, and the verification line says the screen
+  filed its deaths a round late. Today's reader is in step on that session
+  (`test:riotrecord` replays it), so this only fires on old saved ledgers.
 - **The team's buy** (`buy`, `riot-rounds.js buyOf`, thresholds in `BUY`):
   per player averages over the player's team, at least three teammates' rows.
   `pistol` the first round of each half, `eco` under 1000 a player, `full`
@@ -299,7 +316,12 @@ before reads none of them.
 
 The review prompt's grounding rule says economy and abilities are known only
 where a round states them, in place of "never state them", only for a match
-whose rounds carry a buy or casts (`match-review.js buildPrompt`). Nothing
+whose rounds carry a buy or casts (`match-review.js buildPrompt`). Ask Coach's
+static rules are swapped the same way (8.7.10, `chat-prompt.js rulesFor`,
+`matchHasBuy`): a match with a buy on any card is told the record holds the
+team's buy where a round states it, never what one player or the enemy
+bought, so the stale "the record does not hold what either of you bought"
+goes. A match without one keeps the rules word for word. Nothing
 here reaches the screen during a match: it is all read after the link.
 Privacy: every value is a word of the game data or a number; the positions
 and `player_locations` (which name players) are read on the server and never

@@ -2386,7 +2386,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   const whole = matchReview.parse('SUMMARY: You won 13 to 7. Your aim is not the problem here. Your openings won rounds.\n'
     // R3, not R4 (round 4): Riot's record has the spike down in round 3 and
     // never in round 4, and holding a spike that was never planted now goes.
-    + 'R6: When you go for the orb, ask a teammate to watch the angle first.\nR3: Hold the spike from cover.\nFOCUS: Enter on a flash.', input);
+    // And since the blind audit of 8.7.9 the player died in round 3 before
+    // the plant (the early pattern's rounds), so the line kept is about the
+    // fight, not the spike (record-claims.js checkPostPlant).
+    + 'R6: When you go for the orb, ask a teammate to watch the angle first.\nR3: Swing from cover with a teammate set to follow.\nFOCUS: Enter on a flash.', input);
   ok(whole.summary === 'You won 13 to 7. Your openings won rounds.' && !(6 in whole.rounds) && whole.rounds[3] && whole.focus === 'Enter on a flash.'
     && whole.dropped.some((d) => d.n === 6 && d.said === 'orb') && whole.dropped.some((d) => d.n === null && d.said === 'summary aim'),
   `a false line goes whole, a false summary sentence alone, never the review (${JSON.stringify(whole.dropped)})`);
@@ -2508,8 +2511,11 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
       const t = before.parse(x.reply, before.normalise(b));
       if (JSON.stringify([a.summary, a.rounds, a.focus]) !== JSON.stringify([t.summary, t.rounds, t.focus])) moved.push(x.id);
     }
-    sameParse = moved.length === 1 && moved[0] === 'review-sunset-4-13-asc_plus';
-    ok(sameParse, `and its 48 real replies parse as at 4a5aa0e but the one "so your next review can check" (${moved.join(', ')})`);
+    // And since 8.7.10 the clock turned around (match-review.js clockWrong),
+    // for every client: Corrode round 1, an attack round after the plant,
+    // "so you can make the attackers spend time finding you".
+    sameParse = moved.length === 2 && moved.includes('review-sunset-4-13-asc_plus') && moved.includes('review-corrode-3-13-silver_gold');
+    ok(sameParse, `and its 48 real replies parse as at 4a5aa0e but the one "so your next review can check" and the one clock turned around (${moved.join(', ')})`);
   } else console.log('skip  4a5aa0e is not readable here, the byte for byte check against it did not run');
 
   // 2. The counts: the client's (countsOf) and the server's (matchCounts) agree.
@@ -2661,6 +2667,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     ['Occlara can show you this fight again on the Moments page.', pearl, null, 'product'],
     ['To build it, play Deathmatch and make yourself say out loud before every fight whether anyone could help you.', pearl, null, 'drill'],
     ['Use Undercut to check the angle before you swing.', iso, null, 'kit'],
+    // 8.7.10, the clock turned around (clockWrong): Corrode round 1, on attack, lost after the plant.
+    ['After the plant, hold the spike from cover instead of exposing yourself to the Classic, so the attackers have to move against the clock.', iso, iso.rounds.find((r) => r.n === 1), 'round state'],
+    ['After the plant, hold the spike from cover instead of staying alone on site, so you can make the attackers spend time finding you.', iso, iso.rounds.find((r) => r.n === 1), 'round state'],
+    ['Before the plant, hold the angle and make the defenders spend time.', pearl, pr(4), 'round state'],
   ];
   for (const [s, inp, r, kind] of BAD) ok(matchReview.claimOf(s, inp, r) === kind, `the re-audit's "${s.slice(0, 50)}" goes as ${kind} (${matchReview.claimOf(s, inp, r)})`);
   const GOOD = [
@@ -2670,6 +2680,9 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     ['Practise stopping before each shot in Deathmatch, one angle at a time.', pearl, null],
     ['Take the site together and plant before the clock runs low.', pearl, pr(4)],
     ['Review the round in your head before the next buy.', pearl, null],
+    // The clock the right way round (8.7.10, clockWrong) stays.
+    ['With the spike planted, check for cover before holding the site so you can stay alive and make the defenders spend time.', iso, iso.rounds.find((r) => r.n === 1)],
+    ['Once the spike is down, hold it from cover and make the defenders spend time reaching it rather than taking another fight.', iso, iso.rounds.find((r) => r.n === 1)],
   ];
   ok(GOOD.every(([s, inp, r]) => matchReview.claimOf(s, inp, r) === null), `and the true lines beside them stay (${GOOD.map(([s, inp, r]) => matchReview.claimOf(s, inp, r)).join(',')})`);
   ok(matchReview.productCut('Before an aggressive peek or entry, name the teammate close enough to kill your killer so your next review can check whether the fight had an immediate answer.')
@@ -2726,9 +2739,12 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     if (STALE.test(x.reply.split('\n')[0])) quoted += 1;
     if (STALE.test(got.summary || '') && /deaths with a teammate alive to trade went unanswered/.test(got.summary)) named += 1;
   }
-  const kinds = Object.keys(gone).map((k) => k.split(' ').slice(2).join(' '));
-  ok(quoted >= 10 && named === quoted && kinds.every((k) => k === 'fundamentals' || k === 'product clause') && kinds.filter((k) => k === 'product clause').length === 1,
-    `the 24 re-audit reviews: the card's count named for its deaths in all ${quoted} summaries that quote it (${named}), one product clause, and only fundamentals lines besides (${Object.keys(gone).join(', ')})`);
+  // The one round state line is the clock turned around (8.7.10, clockWrong):
+  // Corrode round 1 after the plant on attack, "make the attackers spend time".
+  const clockLine = 'review-corrode-3-13-silver_gold R1 round state';
+  const kinds = Object.keys(gone).filter((k) => k !== clockLine).map((k) => k.split(' ').slice(2).join(' '));
+  ok(quoted >= 10 && named === quoted && gone[clockLine] && kinds.every((k) => k === 'fundamentals' || k === 'product clause') && kinds.filter((k) => k === 'product clause').length === 1,
+    `the 24 re-audit reviews: the card's count named for its deaths in all ${quoted} summaries that quote it (${named}), one product clause, the clock turned around in Corrode round 1, and only fundamentals lines besides (${Object.keys(gone).join(', ')})`);
   const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'match-review.js'), 'utf8')
     + fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', 'valorant-review.js'), 'utf8');
   ok(!src.includes(String.fromCharCode(8)), 'no backspace byte in either file, the shell regex hazard');
@@ -2854,6 +2870,51 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(out.dropped.some((d) => d.n === 4 && d.said === 'record record') && out.dropped.some((d) => d.n === 5 && d.said === 'record record'), 'each dropped as the record\'s');
   const outPlain = matchReview.parse(reply, plain);
   ok(!!outPlain.rounds[4] && !!outPlain.rounds[5] && /A Main/.test(outPlain.summary || ''), 'a review without the record judges none of it');
+}
+
+// ── The blind audit of 8.7.9 (Nov 2026), stream B: the review ─────────────
+// From Platinum the deaths are ranked by what each cost and the prompt and
+// the study list follow them; a round line giving advice for after the plant
+// of a death before it goes (record-claims.js checkPostPlant). On the audit's
+// own 24 review bodies (scripts/fixtures/audit-round3-after-reviews.json).
+{
+  console.log('\nthe blind audit of 8.7.9, stream B (review):');
+  const DASHES = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']');
+  const after = require('./fixtures/audit-round3-after-reviews.json').reviews;
+  const bodyOf = (x, o) => ({ rounds: x.rounds, swing: [], counts: {}, mistakes: x.mistakes || [], strengths: [], patterns: [],
+    context: { agent: x.agent, map: x.map, rankBand: x.band, advancedTips: true },
+    final: { team: Number(x.score.split('-')[0]), enemy: Number(x.score.split('-')[1]), result: x.result, verified: true, scoreline: x.scoreline }, ...(o || {}) });
+  const inputOf = (x, o) => ({ ...matchReview.normalise(bodyOf(x, o)), byCause: true, byEnemy: true });
+  const get = (id) => after.find((x) => x.id === id);
+  const fracAsc = inputOf(get('review-fracture-5-1-asc_plus'));
+  const line = matchReview.costLineOf(fracAsc);
+  ok(/^THE COSTLIEST DEATHS/.test(line) && /First, round 5, an attack round your team lost/.test(line) && line.indexOf('round 5') < line.indexOf('round 2')
+    && !line.includes(';') && !DASHES.test(line), `Fracture at Ascendant: round 5, the only lost round, ranked first (${line.slice(0, 140)})`);
+  ok(matchReview.costLineOf(inputOf(get('review-fracture-5-1-silver_gold'))) === '' && matchReview.costLineOf(matchReview.normalise({ ...bodyOf(get('review-fracture-5-1-asc_plus')), counts: undefined })) === '',
+    'no line below Platinum, and none for a client before round 4');
+  ok(matchReview.buildPrompt(fracAsc).includes(line) && !matchReview.buildPrompt(inputOf(get('review-fracture-5-1-silver_gold'))).includes('THE COSTLIEST DEATHS'),
+    'the Ascendant prompt carries the line beside the counts, the Silver prompt does not');
+  // Advice for after the plant, of a death before it: Pearl round 3 (three
+  // reviews) and Sunset 2 to 5 round 1, the player dead in the early pattern.
+  const early = (rounds) => [{ key: 'early', text: `5 of your 5 deaths came in the first 30 seconds of the round, before any plant, in rounds ${rounds}.` }];
+  const pearl = inputOf(get('review-pearl-1-5-silver_gold'), { patterns: early('1, 3, 4, 5 and 6') });
+  const out = matchReview.parse('SUMMARY: You lost 1 to 5.\nR3: Enter B with a teammate following, then hold the planted spike from cover rather than exposing yourself again.\n'
+    + 'R4: Call which teammate follows before pushing so your early entry has support.\nFOCUS: Before an early push, call which teammate will follow you.', pearl);
+  ok(!out.rounds[3] && !!out.rounds[4] && out.dropped.some((d) => d.n === 3 && d.said === 'record postplant'),
+    `Pearl round 3's "hold the planted spike" of a death before the plant goes, round 4 stays (${JSON.stringify(out.dropped)})`);
+  const pearlNoEarly = inputOf(get('review-pearl-1-5-silver_gold'));
+  ok(!!matchReview.parse('SUMMARY: You lost 1 to 5.\nR3: Enter B with a teammate following, then hold the planted spike from cover.', pearlNoEarly).rounds[3],
+    'kept where the record cannot say the death came before the plant');
+  // The study list follows the costliest deaths from Platinum, never what a line already says.
+  const topics = matchReview.costTopics(fracAsc);
+  ok(topics.get('man advantage') === matchReview.COST_BONUS && topics.has('Lost duel checklist') && matchReview.costTopics(inputOf(get('review-fracture-5-1-silver_gold'))).size === 0,
+    'Fracture round 5, the advantage given back on a lost duel, sends the study list to playing the numbers and the duel, from Platinum only');
+  const firsts = new Set(after.filter((x) => x.band === 'asc_plus').map((x) => (matchReview.study(inputOf(x))[0] || {}).text));
+  ok(firsts.size >= 4, `the six Ascendant matches open their study lists on ${firsts.size} different notes`);
+  const st = matchReview.study(fracAsc);
+  ok(st.length && matchReview.study(fracAsc, 3, { lines: [st[0].text] }).every((n) => n.text !== st[0].text) && matchReview.repeats(st[0].text, [st[0].text]),
+    'a note the focus or a round line already says is left out of the study list');
+  ok(!matchReview.repeats(st[0].text, ['Hold the spike from cover.']), 'and a note no line says stays');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);

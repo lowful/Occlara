@@ -204,16 +204,21 @@ function valorant(rounds, opts = {}) {
     });
   }
 
-  // The same place.
+  // The same place: Riot's where its record places the death, the screen's
+  // only in a round it has none for (8.7.10, valorant-review.js deathPlace,
+  // the same rule, written here because that file requires this one).
+  const placeOf = (r) => (r.verified && typeof r.riotSpot === 'string' && r.riotSpot ? r.riotSpot
+    : typeof r.deathSpot === 'string' && r.deathSpot ? r.deathSpot : null);
   const spots = new Map();
   for (const r of mDeaths) {
-    if (!r.deathSpot) continue;
-    const k = r.deathSpot.toLowerCase();
-    const e = spots.get(k) || { name: r.deathSpot, rounds: [] };
+    const place = placeOf(r);
+    if (!place) continue;
+    const k = place.toLowerCase();
+    const e = spots.get(k) || { name: place, rounds: [] };
     e.rounds.push(r.n);
     spots.set(k, e);
   }
-  const placed = mDeaths.filter((r) => r.deathSpot).length;
+  const placed = mDeaths.filter((r) => placeOf(r)).length;
   const top = [...spots.values()].sort((a, b) => b.rounds.length - a.rounds.length)[0];
   if (top && top.rounds.length >= 3 && top.rounds.length * 10 >= placed * 3) {
     push(out.mistakes, {

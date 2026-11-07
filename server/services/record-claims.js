@@ -34,6 +34,11 @@
  *   checkDrill       a Deathmatch or Range drill about an enemy agent, or an
  *                    agent taken into Deathmatch, where abilities are off and
  *                    no enemy agent can be learnt.
+ *   checkPostPlant, checkScore, checkClock (the blind audit of 8.7.9) advice
+ *                    for after the plant of a death before it, a round's score
+ *                    said wrong, and in Ask Coach the clock turned around.
+ *   costRank, costLine  what each death cost, the line the prompts carry
+ *                    from Platinum, and what the priority gate reads.
  *   checkRows        all of them over a reply's sentences in reading order,
  *                    a he or a she read as the agent the sentences before
  *                    named, a sentence of no round as the round its
@@ -114,7 +119,21 @@ function row(x) {
     // True only where the record says the death was traded (checkRecord's mate rule).
     traded: x.traded === true ? true : null,
     casts: Array.isArray(x.casts) ? x.casts.filter((c) => c && typeof c.name === 'string' && Number.isInteger(c.n)) : null,
+    // For the cost of a death (costRank, the blind audit of 8.7.9): the
+    // numbers standing at it, the player among the mates, untraded only where
+    // the record says so, the first death of the round, and the score before.
+    alive: aliveOf(x),
+    untraded: x.traded === false,
+    firstDeath: x.firstDeath === true,
+    before: Array.isArray(x.before) && x.before.length === 2 && x.before.every(fin) ? [x.before[0], x.before[1]] : null,
   };
+}
+function aliveOf(x) {
+  const a = x && x.alive;
+  if (a && fin(a.mates) && fin(a.enemies)) return [a.mates, a.enemies];
+  const at = x && x.atDeath;
+  if (Array.isArray(at) && at.length === 2 && at.every(fin)) return [at[0], at[1]];
+  return null;
 }
 
 /** The context of Ask Coach's facts (chat-prompt.js factsOf). */
@@ -148,9 +167,24 @@ function contextOfChat(facts) {
 function contextOfReview(input) {
   const inp = input || {};
   const rounds = new Map();
+  // The score before each round, while every round before it has a result.
+  const before = new Map();
+  let team = 0;
+  let enemy = 0;
+  let known = true;
+  let next = 1;
+  for (const r of [...(inp.rounds || [])].filter(Boolean).sort((a, b) => a.n - b.n)) {
+    // A round missing from the ledger leaves every score after it unknown.
+    if (r.n !== next) known = false;
+    next = r.n + 1;
+    if (known) before.set(r.n, [team, enemy]);
+    if (r.result === 'won') team += 1;
+    else if (r.result === 'lost') enemy += 1;
+    else known = false;
+  }
   for (const r of inp.rounds || []) {
     if (!r || !r.verified) continue;
-    rounds.set(r.n, row({ ...r, spot: r.deathSpot || null }));
+    rounds.set(r.n, row({ ...r, spot: r.deathSpot || null, before: before.get(r.n) || null }));
   }
   const ctx = inp.context || {};
   const enemies = new Set((ctx.enemyAgents || []).map(canon).filter(Boolean));
@@ -214,10 +248,74 @@ function plantLines(ctx) {
   return out;
 }
 
+/*
+ * WHAT EACH DEATH COST (the blind audit of 8.7.9). At Ascendant the coach
+ * ranked the traded repeek of a won round, the team 5 against 1, above the
+ * only lost round, an untraded death after the plant at 4 against 3, and the
+ * judges called it the wrong priority. The cost is code's, from Riot's
+ * record: a lost round above any won one, then the numbers the death left
+ * (down beats even, an advantage given back to even beats staying ahead),
+ * after the plant above before, not traded above traded (never the last one
+ * alive, whom nobody could trade), the round's first death a little more.
+ * Only rounds with a death and a result. [{ n, score, side, result, words }],
+ * costliest first, ties by the earlier round.
+ */
+const COST = { lost: 100, down: 3, even: 2, afterPlant: 2, untraded: 3, first: 1 };
+function plantAt(r, ctx) {
+  if (r.afterPlant || (fin(r.sec) && fin(r.plantSec) && r.sec >= r.plantSec)) return 'after';
+  if (deadBeforePlant(r, ctx)) return 'before';
+  return r.planted ? null : 'none';
+}
+function costRank(ctx) {
+  const out = [];
+  for (const r of ((ctx && ctx.rounds) || new Map()).values()) {
+    if (!r || !r.died || !r.result) continue;
+    const at = r.alive;
+    const last = !!(at && at[0] <= 1);
+    const after = at ? [at[0] - 1, at[1]] : null;
+    const down = !!(after && !last && after[0] < after[1]);
+    const even = !!(after && !last && after[0] === after[1] && at[0] > at[1]);
+    const plant = plantAt(r, ctx);
+    const untraded = r.untraded && !last;
+    let score = r.result === 'lost' ? COST.lost : 0;
+    if (down) score += COST.down;
+    else if (even) score += COST.even;
+    if (plant === 'after') score += COST.afterPlant;
+    if (untraded) score += COST.untraded;
+    if (r.firstDeath) score += COST.first;
+    const words = [];
+    words.push(`${r.side === 'attack' ? 'an attack' : r.side === 'defence' ? 'a defence' : 'a'} round your team ${r.result}`);
+    if (plant === 'after') words.push('you died after the plant');
+    else if (plant === 'before') words.push('you died before the plant');
+    if (at) {
+      words.push(last ? 'as the last one alive' : `${at[0]} against ${at[1]} when you died, leaving ${after[0]} against ${after[1]}${down ? ', a player down' : even ? ', the advantage given back' : ''}`);
+    }
+    if (r.traded === true) words.push('a teammate traded it');
+    else if (untraded) words.push('nobody traded it');
+    if (r.firstDeath) words.push('the first death of the round');
+    out.push({ n: r.n, score, side: r.side, result: r.result, plant, down, even, untraded, first: r.firstDeath, words });
+  }
+  return out.sort((a, b) => b.score - a.score || a.n - b.n);
+}
+const COST_TOP = 3;
+/** The finished line the high band prompts carry, or '' (fewer than two deaths, or no round to rank). */
+function costLine(ctx, limit = COST_TOP) {
+  const ranked = costRank(ctx);
+  if (ranked.length < 2) return '';
+  const top = ranked.slice(0, limit);
+  const lostAny = ranked.some((x) => x.result === 'lost');
+  return `THE COSTLIEST DEATHS, ranked in code from Riot's record by what each cost (a lost round above a won one, then the numbers the death left, after the plant above before, not traded above traded): `
+    + top.map((x, i) => `${['First', 'Second', 'Third'][i] || 'Then'}, round ${x.n}, ${x.words.join(', ')}`).join('. ')
+    + '. When you name a death or a round as the mistake, the lever or what to fix first, name the costliest first'
+    + (lostAny ? ', and never rank a death in a round your team won above one in a round it lost' : '')
+    + '.';
+}
+
 // ── The readers ────────────────────────────────────────────────────────────
 
 /** The round numbers a sentence names after "round" or "rounds", a run of them. */
-const ROUND_RUN = /\brounds?\s+([0-9]{1,2}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s+or\s+)[0-9]{1,2})*)/gi;
+// A number of the run that is a time ("Round 4, 17 s in") is no round (the blind audit of 8.7.9).
+const ROUND_RUN = /\brounds?\s+([0-9]{1,2}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s+or\s+)[0-9]{1,2}(?![0-9]|\s*(?:s|secs?|seconds?)\b))*)/gi;
 function roundsIn(text) {
   const out = [];
   for (const m of String(text || '').matchAll(ROUND_RUN)) for (const d of m[1].matchAll(/[0-9]+/g)) out.push(Number(d[0]));
@@ -560,6 +658,91 @@ function clauseStart(text, at) {
   return from;
 }
 
+/*
+ * ADVICE FOR AFTER THE PLANT, OF A DEATH BEFORE IT (the blind audit of 8.7.9).
+ * "Enter B with a teammate following, then hold the planted spike from cover"
+ * of Pearl round 3, where the player died 13 s in before any plant, three
+ * reviews over; the Sunset round 1 the same. Round 5 gated the team's record
+ * (checkTeamBlame); this is the round line and the sentence about one round:
+ * holding, watching or playing the spike, the planted spike, a defuse, or
+ * what to do once the spike is down, for a death the record has certainly
+ * before the plant. A sentence that says the death came first ("you died
+ * before the plant", "without you") or a plan for surviving to it ("if you
+ * live to the plant") is the point itself, and stays. So does staying alive
+ * for it ("staying alive keeps you available for the planted spike",
+ * "preserves you for the planted spike", Pearl round 6 at Plat and Asc+, a
+ * fall back before the plant told by what it is for), and playing for the
+ * plant, which is the attack's plan before it (verify round 6).
+ */
+const AFTER_PLANT_ADVICE = /\b(?:hold(?:ing)?|guard(?:ing)?|watch(?:ing)?|protect(?:ing)?|sit(?:ting)?\s+on|play(?:ing)?\s+(?:off|around|near|over))\s+(?:the\s+|your\s+|their\s+)?(?:planted\s+)?(?:spike|plant)\b|\bthe\s+planted\s+spike\b|\bdefus(?:e|ing|al)\b|\b(?:after|once|when)\s+(?:the\s+plant|(?:you|your\s+team|they|the\s+team)\s+plant(?:ed|s)?|the\s+spike\s+(?:is|was|goes|went|gets|got)\s+(?:down|planted))\b|\bpost[ -]?plant\b|\bwith\s+the\s+spike\s+(?:down|planted)\b/i;
+const BEFORE_PLANT_SAID = /\bbefore\s+(?:the|any|their|a)\s+(?:plant|spike)\b|\bwithout\s+you\b|\b(?:if|when|once)\s+you\s+(?:live|survive|make\s+it|are\s+(?:still\s+)?alive)\b|\b(?:your|the)\s+team(?:'s)?\s+(?:post[ -]?plant|retake|record)\b|\bnever\s+(?:got|reached|saw)\s+the\s+plant\b|\bstay(?:s|ing)?\s+alive\b|\bkeep(?:s|ing)?\s+you\s+(?:alive|available)\b|\bpreserv(?:e|es|ing)\s+(?:you|yourself|your\s+(?:life|chance))\b|\b(?:alive|available)\s+for\s+the\s+(?:retake|defuse|planted\s+spike|post[ -]?plant|plant)\b/i;
+function checkPostPlant(sentence, ctx, st) {
+  const t = straight(sentence);
+  if (!ctx || !ctx.rounds.size || !AFTER_PLANT_ADVICE.test(t) || BEFORE_PLANT_SAID.test(t)) return null;
+  const n = roundOfSentence(t, ctx, st);
+  const r = n != null ? ctx.rounds.get(n) : null;
+  if (!r || !deadBeforePlant(r, ctx)) return null;
+  return `your reply gave advice for after the plant about round ${n}, where the player died before the plant; teach what they could change before it`;
+}
+
+/*
+ * WHO IS ON THE CLOCK (the blind audit of 8.7.9). "After the plant, hold the
+ * spike from cover, so the attackers have to move against the clock", to an
+ * attacker on Corrode round 1, six judges: with the spike down the clock is
+ * the defenders', with none it is the attackers'. A side named on the clock,
+ * by the sentence's own phase (it says after the plant) else the round's (no
+ * plant at all), the other way, goes. "The enemy" is the player's other side.
+ * A sentence that tells both phases ("the attackers are on the clock until
+ * they plant, and once the spike is down you are") is the rule itself, and
+ * stays (PRE_PLANT, verify round 6).
+ */
+const PRE_PLANT = /\b(?:until|before)\s+(?:(?:they|the\s+attackers|you|your\s+team|the\s+team)\s+)?(?:plant(?:s|ed)?|get\s+the\s+plant|the\s+plant|a\s+plant|any\s+plant|the\s+spike\s+(?:is|goes)\s+down)\b/i;
+const ON_CLOCK = /\b(?:the\s+)?(attackers|defenders|enemy|enemies|other\s+team)\s+(?:(?:have|has|had|must|need|needs|needed)\s+to\s+)?(?:[a-z]+\s+){0,3}?(?:against|on|beat|race|racing|fight(?:ing)?)\s+the\s+(?:clock|timer)\b/i;
+const PHASE_DOWN = /\b(?:after|once|when)\s+(?:the\s+plant|(?:you|your\s+team|they|the\s+team)\s+plant(?:ed|s)?|the\s+spike\s+(?:is|was|goes|went|gets|got)\s+(?:down|planted))\b|\bpost[ -]?plant\b|\b(?:hold|guard|play\s+off|protect)\s+(?:the\s+)?(?:planted\s+)?spike\b|\bthe\s+planted\s+spike\b|\bwith\s+the\s+spike\s+(?:down|planted)\b/i;
+function checkClock(sentence, ctx, st) {
+  const t = straight(sentence);
+  const m = ON_CLOCK.exec(t);
+  // Ask Coach's: the review's round lines have their own (match-review.js clockWrong).
+  if (!m || !ctx || ctx.kind !== 'chat' || !ctx.rounds.size) return null;
+  const n = roundOfSentence(t, ctx, st);
+  const r = n != null ? ctx.rounds.get(n) : null;
+  if (!r || !r.side) return null;
+  const phase = PHASE_DOWN.test(t) ? 'down' : !r.planted ? 'up' : null;
+  if (!phase) return null;
+  const onClock = phase === 'down' ? 'defence' : 'attack';
+  const w = m[1].toLowerCase();
+  const said = /^att/.test(w) ? 'attack' : /^def/.test(w) ? 'defence' : (r.side === 'attack' ? 'defence' : 'attack');
+  if (said === onClock) return null;
+  if (said === 'attack' && phase === 'down' && PRE_PLANT.test(t)) return null;
+  return `your reply put the ${said === 'attack' ? 'attackers' : 'defenders'} on the clock in round ${n}, where ${phase === 'down' ? 'with the spike down the defenders' : 'with no spike down the attackers'} are the ones racing it`;
+}
+
+/*
+ * THE SCORE OF A ROUND (the blind audit of 8.7.9): "the score was 5 against 4
+ * in your favour" of Split round 3, which was the numbers alive at the death
+ * with the score 2 to 0, and "the round ended 3 to 13" of a round mid match,
+ * the match's final score. A score said of one round is the score before it
+ * or after it, either order, or the sentence goes. A round of no known score
+ * judges nothing.
+ */
+const SCORE_SAID = /\b(?:the\s+)?score\s+(?:was|stood\s+at|is|read|of|at)\s+(\d{1,2})\s*(?:against|to|-|versus|vs\.?)\s*(\d{1,2})\b|\bthe\s+round\s+(?:ended|finished|closed)\s+(\d{1,2})\s*(?:to|-)\s*(\d{1,2})\b/i;
+function checkScore(sentence, ctx, st) {
+  const t = straight(sentence);
+  const m = SCORE_SAID.exec(t);
+  if (!m || !ctx || !ctx.rounds.size || OPENS_IF.test(t)) return null;
+  const n = roundOfSentence(t, ctx, st);
+  const r = n != null ? ctx.rounds.get(n) : null;
+  if (!r || !r.before || !r.result) return null;
+  // "The final score was 13 to 7" after a round's sentence is the match's, said as the match's (verify round 6).
+  if (!m[3] && /\bfinal\s+score\b/i.test(t)) return null;
+  const a = Number(m[1] || m[3]);
+  const b = Number(m[2] || m[4]);
+  const after = r.result === 'won' ? [r.before[0] + 1, r.before[1]] : [r.before[0], r.before[1] + 1];
+  const fits = (p) => (p[0] === a && p[1] === b) || (p[0] === b && p[1] === a);
+  if (fits(after) || (!m[3] && fits(r.before))) return null;
+  return `your reply said the score was ${a} to ${b} in round ${n}, where it was ${r.before[0]} to ${r.before[1]} before it and ${after[0]} to ${after[1]} after; a score is the rounds won so far, never the players alive or the match's final score`;
+}
+
 const READERS = [
   ['kills', checkKills],
   ['share', checkKillerShare],
@@ -567,6 +750,10 @@ const READERS = [
   ['blame', checkTeamBlame],
   ['drill', checkDrill],
   ['record', checkRecord],
+  // The blind audit of 8.7.9, after every reader before.
+  ['postplant', checkPostPlant],
+  ['clock', checkClock],
+  ['score', checkScore],
 ];
 const REVIEW_READERS = [...READERS, ['side', checkSide], ['result', checkResult]];
 
@@ -613,4 +800,6 @@ module.exports = {
   PLANT_TALK, DEF_TALK, ATK_TALK, BLAME, ALIVE_SAID, ADVICE_OPEN, DEATHMATCH, RANGE, MODE_AVOIDED, TAKE_AGENT, BEFORE_ANY_PLANT, ROUND_RUN, OPENS_IF,
   RANGE_AGAINST, PLANT_MIN, CLAUSE_BREAK, clauseAt,
   checkRecord, placesOf, DEATH_AT_HEAD, HYPO, ENEMY_SUBJECT, BUY_CLAIM, BUY_ALLOWED, MATE_CLOSE_SAID, MATE_FAR_SAID, NO_ABILITY_ROUND,
+  // The blind audit of 8.7.9.
+  costRank, costLine, COST, COST_TOP, checkPostPlant, checkClock, checkScore, AFTER_PLANT_ADVICE, BEFORE_PLANT_SAID, ON_CLOCK, PHASE_DOWN, SCORE_SAID, PRE_PLANT,
 };

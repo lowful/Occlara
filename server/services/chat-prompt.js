@@ -99,6 +99,8 @@ const MODES = ['Competitive', 'Unrated', 'Swiftplay', 'Premier', 'Standard', 'Sp
 // The four rank bands (knowledge.js RANK_BANDS, which test:chatgates holds
 // this copy to), and how the player's facts say each one.
 const RANK_BANDS = ['iron_bronze', 'silver_gold', 'plat_diamond', 'asc_plus'];
+// The bands the cost of a death is weighed for (record-claims.js costLine, the blind audit of 8.7.9).
+const HIGH_BANDS = ['plat_diamond', 'asc_plus'];
 const BAND_WORDS = {
   iron_bronze: ['Iron or Bronze', 'basic habit'],
   silver_gold: ['Silver or Gold', 'basic habit'],
@@ -255,8 +257,12 @@ function cardOf(c, m) {
   const sc = c.screen && typeof c.screen === 'object' ? c.screen : null;
   const callouts = gates.CALLOUTS(m.map);
   const screen = sc ? {
-    // A spot that is not a callout of this map is no place to tell.
-    spot: sc.spot && (!m.map || callouts.some((x) => lower(x) === lower(sc.spot))) ? clip(sc.spot, 40) : null,
+    // A spot that is not a callout of this map is no place to tell. ONE
+    // PLACE FOR A DEATH (8.7.10): where Riot's record places it (recordOf's
+    // place), the screen's spot goes, so the model is never handed two. A
+    // card linked before 8.7.10 keeps the screen's spot beside Riot's, and on
+    // the player's Split it was Riot's place of the death before.
+    spot: sc.spot && !(riot && riot.place) && (!m.map || callouts.some((x) => lower(x) === lower(sc.spot))) ? clip(sc.spot, 40) : null,
     ult: sc.ult === 'ready' ? 'ready' : null,
     lookDigits: list(sc.lookDigits, 8).map((x) => (x && num(x.value, 0, 10000) !== null
       ? { value: x.value, unit: /^[a-z %]{1,12}$/i.test(String(x.unit || '')) ? lower(x.unit) : null } : null)).filter(Boolean),
@@ -351,6 +357,15 @@ function valorantMatchOf(raw, language) {
   m.patterns = list(raw.patterns, 10).map((p) => (p && gateText(p.text, { language }, 220) ? { key: clip(p.key, 20), text: gateText(p.text, { language }, 220) } : null)).filter(Boolean);
   m.cards = list(raw.cards, 40).map((c) => cardOf(c, m)).filter(Boolean).sort((a, b) => a.n - b.n);
   if (!m.rounds) m.rounds = m.cards.length || null;
+  // ONE PLACE FOR A DEATH (8.7.10, match-review.js spotAgrees): a counted
+  // same spot mistake or spot pattern a client counted on the screen's spot,
+  // in rounds Riot's record places somewhere else, is left out.
+  const rev = reviewMod();
+  if (rev && typeof rev.spotAgrees === 'function') {
+    const placed = m.cards.map((c) => ({ n: c.n, place: c.died && c.riot && c.riot.place ? c.riot.place : null }));
+    m.lists.mistakes = m.lists.mistakes.filter((e) => rev.spotAgrees(rev.sameSpotOf(e), placed));
+    m.patterns = m.patterns.filter((p) => rev.spotAgrees(rev.spotPatternOf(p), placed));
+  }
   // THE SPIKE'S TIME LEFT AT A DEATH AFTER THE PLANT is the primer's timer,
   // stated and confirmed (game-rules.json spike.timer), less the seconds since
   // the plant: computed here, never sent, and none while the timer is withheld.
@@ -939,8 +954,10 @@ function factsOf(input, messages, opts) {
         killer: r ? r.killer : null, killerWeapon: r ? r.weapon : null, sec: r ? r.sec : null,
         plantSec: r ? r.plantSec : null, plantSite: r ? r.plantSite : null,
         feed, times, standings: standingsOf(c), weapons, atDeath: death.at, after: death.after,
-        // The screen's spot of the death, for the order of events (record-claims.js checkOrder).
-        spot: (c.screen && c.screen.spot) || null,
+        // The place of the death, for the order of events (record-claims.js
+        // checkOrder): Riot's where the card has it (8.7.10, a site written
+        // as the screen writes one), else the screen's spot.
+        spot: (r && r.place ? r.place.replace(/^([abc]) site$/i, (_s, l) => `${l.toUpperCase()} Site`) : null) || (c.screen && c.screen.spot) || null,
         look: c.look ? { cause: c.look.cause, what: c.look.what, better: c.look.better, fair: c.look.cause === 'lost-duel' } : null,
         lookDigits: (c.screen && c.screen.lookDigits) || [],
         before,
@@ -968,6 +985,24 @@ function factsOf(input, messages, opts) {
     // counted, so a reply may say them back.
     f.plantLines = plantLinesOf(f);
     for (const line of f.plantLines) harvest(line);
+    // THE COSTLIEST DEATHS (record-claims.js costLine, the blind audit of
+    // 8.7.9), from Platinum only: the match's deaths ranked in code by what
+    // each cost, the prompt's finished line, its numbers harvested, and the
+    // ranking the priority gate reads (fact-gates.js gatePriority).
+    if (HIGH_BANDS.includes(inp.rankBand)) {
+      const rc = recordMod();
+      if (rc && typeof rc.costRank === 'function') {
+        try {
+          const ctx = rc.contextOfChat(f);
+          f.costRank = rc.costRank(ctx);
+          f.costLine = rc.costLine(ctx);
+          if (f.costLine) harvest(f.costLine);
+        } catch { f.costRank = null; f.costLine = ''; }
+      }
+    }
+    // How many mistakes code counted, for a reply that says how many (fact-gates.js gateCounted).
+    f.counted.mistakeCount = m.lists.mistakes.length;
+    f.counted.missedCount = m.lists.missed.length;
   }
   if (m && m.kind === 'lol') {
     day(m.at); dayOf(m.day);
@@ -1100,9 +1135,9 @@ HOW TO ANSWER
 - Asked for a game number the VALORANT FACTS hold (hits to kill, damage, a price, a timer), give it in your first sentence in the facts' own words, with the range band and the armour they name, then stop. Add nothing about the match unless asked.
 - Name at most one ability in an answer about a round, and only when it changes the decision in that round. Do not list the kit, and do not offer the same ability in every answer.
 - Never mention an ultimate orb, a health number, who carried the spike or how many players were alive unless the facts of that round state it.
-- About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it, and name trading at most once, as a second point, unless THE LEVER is trading.
+- About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, teach that one and leave the others out. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it, and name trading at most once, as a second point, unless THE LEVER is trading.
 - Quote a counted line's numbers as given, the deaths nobody traded included: that count leaves out a death as the last one alive, which nobody could trade, so never count the rounds yourself into a total of your own.
-- When you say what can wait, name it ("the trade check can wait"), never a stock closer such as "the other things can wait", "the rest can wait", "everything else can wait" or "nothing else needs fixing first", and vary how you close. Never make the team's record after the plant the player's own mistake in rounds the facts say they died before the plant, and never say the player beat or killed an agent in a round Riot's record does not have them killing.
+- End on the last real point of the answer. Never close by saying what can wait or what comes later, and never on a stock closer such as "the other things can wait", "the rest can wait", "everything else can wait" or "nothing else needs fixing first". Never make the team's record after the plant the player's own mistake in rounds the facts say they died before the plant, and never say the player beat or killed an agent in a round Riot's record does not have them killing.
 - A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practised in a match, with what to do when nobody answers the call, and Deathmatch has no abilities and neither mode has this match's enemy agents, so an agent's kit or a matchup is never practised in Deathmatch.
 - When something went right, say what the player did and why it worked in game terms, from the record: a trade they made, a fight they took beside a teammate, a round they saved or won on the clock. Never praise a scoreboard number, never open with praise as a cushion, and never call the player unlucky or blame a teammate.
 - Asked about their aim, answer from the deaths and the player's headshot rate against their own average. Where the coach's look called fights fair and lost on the shot, say so and give one aim habit. Where the deaths show the position, the timing, the numbers or nobody able to trade, name that first, then still give one aim habit sized to their rank. Where the coach looked at no death, say the look cannot tell whether the fights were lost on the shot. Never say aim is not the problem, or that aim can wait, unless the coach's looks called those deaths something else. Never praise the aim where the headshot rate is under their own average, and never call a fight the look called fair one that should not have been taken.
@@ -1178,13 +1213,33 @@ function primerCore(input, variant) {
  * client that sends no band keep 8.7.8's prompt.
  */
 const LEVER_BANDS = ['iron_bronze', 'silver_gold'];
-const IMPROVING_RULE = "- About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it, and name trading at most once, as a second point, unless THE LEVER is trading.";
-const IMPROVING_RULE_877 = '- About improving: the largest counted mistake or pattern with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts.';
-/** The Valorant rules for a band: 8.7.7's improving rule above Gold, else VALORANT_RULES. */
+const IMPROVING_RULE = "- About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, teach that one and leave the others out. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it, and name trading at most once, as a second point, unless THE LEVER is trading.";
+const IMPROVING_RULE_877 = '- About improving: the largest counted mistake or pattern with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, teach that one and leave the others out. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts.';
+/*
+ * THE BUY HEDGE ONLY WHERE IT IS TRUE (8.7.10). The rules said the record
+ * does not hold what anyone bought, and since 8.8 a linked match's cards
+ * carry each round's team buy (recordOf): 8.7.9 answered "The record does
+ * not hold what either of you bought" over a match whose round lines gave
+ * the buy. A match with a buy on any card is told what the record holds, and
+ * that it still holds no one player's buy, the enemy's, the credits or the
+ * damage. A match without one keeps the rules word for word.
+ */
+const BUY_HEDGE = "This match's record does not hold what anyone bought, the credits, the damage dealt and taken, or the utility used: if asked, say so and teach the rule instead.";
+const BUY_HEDGE_RECORD = "This match's record holds the team's buy of a round (a pistol round, an eco, a force buy, a half buy or a full buy) only where that round's line states it, and never what any one player bought, what the enemy team bought, the credits, the damage dealt and taken, or the utility used: give the team's buy as its round states it, and for the rest say the record does not hold it and teach the rule instead.";
+const SAVE_HEDGE = 'A save question: say first that the record does not hold what anyone bought, then';
+const SAVE_HEDGE_RECORD = "A save question: say first the team's buy where the round's line states it, else that the record does not hold what anyone bought, then";
+/** Whether a Valorant match's cards carry the team's buy in any round. */
+function matchHasBuy(input) {
+  const m = input && input.match;
+  return !!(m && m.kind === 'valorant' && Array.isArray(m.cards) && m.cards.some((c) => c && c.riot && RECORD_BUYS.has(c.riot.buy)));
+}
+/** The Valorant rules for a band: 8.7.7's improving rule above Gold, else VALORANT_RULES, with the buy hedge as the match's record has it. */
 function rulesFor(input) {
   const band = input && input.rankBand;
-  if (!RANK_BANDS.includes(band) || LEVER_BANDS.includes(band)) return VALORANT_RULES;
-  return VALORANT_RULES.replace(IMPROVING_RULE, IMPROVING_RULE_877);
+  let rules = !RANK_BANDS.includes(band) || LEVER_BANDS.includes(band) ? VALORANT_RULES
+    : VALORANT_RULES.replace(IMPROVING_RULE, IMPROVING_RULE_877);
+  if (matchHasBuy(input)) rules = rules.replace(BUY_HEDGE, BUY_HEDGE_RECORD).replace(SAVE_HEDGE, SAVE_HEDGE_RECORD);
+  return rules;
 }
 
 function staticPrefix(input, variant) {
@@ -1404,7 +1459,8 @@ function renderMatch(input, facts, trim) {
   else if (!m.verified) lines.push("Not checked against Riot's record: the rounds are what the screen read, and a round can be a round off.");
   if (m.comps) {
     const team = (xs) => xs.map((x) => `${x.agent}${x.role ? ` (${x.role})` : ''}`).join(', ');
-    lines.push(`TEAMS, from Riot's record: yours ${team(m.comps.us) || 'unknown'}; theirs ${team(m.comps.them) || 'unknown'}.`);
+    // Utility asked of a teammate is one of these agents' (fact-gates.js gateTeamUtility, the blind audit of 8.7.9).
+    lines.push(`TEAMS, from Riot's record: yours ${team(m.comps.us) || 'unknown'}; theirs ${team(m.comps.them) || 'unknown'}. Ask a teammate only for utility an agent of the player's team has, and name the player's own agent only as theirs, never as an enemy.`);
   }
   const counted = [];
   const sl = m.scoreline;
@@ -1426,6 +1482,7 @@ function renderMatch(input, facts, trim) {
   for (const e of m.lists.facts) counted.push(entry("What Riot's record shows", e));
   for (const p of m.patterns) counted.push(`- Pattern: ${p.text}`);
   for (const line of (facts && facts.plantLines) || []) counted.push(`- Alive at the plant: ${line}`);
+  if (facts && facts.costLine) counted.push(`- ${facts.costLine}`);
   if (counted.length) lines.push(`COUNTED (code counted these from the record, so they are true; quote their numbers exactly)\n${counted.join('\n')}`);
 
   // EVERY ROUND A LINE, the asked ones too, so the match's part of the prompt
@@ -1808,7 +1865,7 @@ function leverLine(input, messages) {
   const pick = ties[seedPick(seed, ties.length)] || top;
   const said = pick.line.replace(/[.\s]+$/, '');
   const trade = pick.kind === 'trade' ? '' : ' Name trading at most once, as a second point, if at all.';
-  return `THE LEVER for this question, chosen in code from this match's counted facts for the player's level: ${said}. Lead with it and its numbers as given, build the one habit and the drill on it, and say the others can wait.${trade}`;
+  return `THE LEVER for this question, chosen in code from this match's counted facts for the player's level: ${said}. Lead with it and its numbers as given, build the one habit and the drill on it, and leave the others out.${trade}`;
 }
 
 /*
@@ -2070,9 +2127,13 @@ function buildParts(input, messages, opts) {
   const head = staticPrefix(inp, variant);
   const ofMatch = (lvl) => [renderPlayer(inp, lvl >= 3), renderMatch(inp, facts, lvl >= 2), renderEarlier(inp, lvl >= 1)]
     .filter(Boolean).join('\n\n');
+  // THE COSTLIEST DEATHS line (Plat and above) comes on top of the budget, so
+  // it never trims the coach's looks out of the round lines or THE PLAYER's
+  // lists to three: on the Corrode and Split Plat+ prompts it did (verify round 6).
+  const costRoom = facts.costLine ? facts.costLine.length + 3 : 0;
   let matchLvl = 0;
   let match = ofMatch(0);
-  while (matchLvl < 3 && match.length > MATCH_MAX_CHARS) match = ofMatch(++matchLvl);
+  while (matchLvl < 3 && match.length > MATCH_MAX_CHARS + costRoom) match = ofMatch(++matchLvl);
   const notes = pickNotes(inp, msgs);
   const lever = leverLine(inp, msgs);
   const rounds = facts.askedRounds || [];
@@ -2092,7 +2153,7 @@ function buildParts(input, messages, opts) {
       reply,
     ].filter(Boolean).join('\n\n');
   };
-  const room = DYNAMIC_MAX_CHARS - match.length - 2;
+  const room = DYNAMIC_MAX_CHARS + costRoom - match.length - 2;
   const fitted = (ns, cs) => {
     let q = ofQuestion(0, ns, cs);
     for (let lvl = 1; lvl <= 3 && q.length > room; lvl++) q = ofQuestion(lvl, ns, cs);
@@ -2305,7 +2366,7 @@ function leanPass(rows, english) {
     }
   }
 }
-const FILLER_REASON = 'your reply closed on a stock line that the other things can wait; name what waits, or leave it out';
+const FILLER_REASON = 'your reply closed on a line that something can wait; end on the last real point of the answer instead';
 
 /**
  * The reply, every sentence through the gates (gateReply, over fact-gates.js
@@ -2403,6 +2464,6 @@ module.exports = {
   // The re-audit of 8.7.7 (Nov 2026), each asserted in test:chatgates.
   leverLine, leversOf, LEVER_WEIGHTS, ORPHAN_REASON, KIT_HEAD,
   // The blind audit of 8.7.8 (Nov 2026): the lever below Platinum only.
-  LEVER_BANDS, IMPROVING_RULE, IMPROVING_RULE_877, rulesFor,
+  LEVER_BANDS, IMPROVING_RULE, IMPROVING_RULE_877, rulesFor, matchHasBuy, BUY_HEDGE, BUY_HEDGE_RECORD, SAVE_HEDGE, SAVE_HEDGE_RECORD,
   RANK_BANDS,
 };

@@ -91,7 +91,8 @@ const ENDS_COLON = /:\s*$/;
 // "with it up", "pop it", "use it": an it bound to a thing named before.
 const IT_OBJECT = /\b(?:with|use|using|pop|popping|keep|keeping|save|saving|throw|throwing|place|placing|activate|activating|put|putting|hold|holding)\s+it\s+(?:up|down|out|ready|first|early|back|before|when|until|for|on|so|and|,|\.)/i;
 // "those rounds", "these deaths": the rounds of a sentence that went.
-const THOSE = /^(?:(?:and|but|so|look at what|in)\s+)?(?:[a-z]+\s+){0,3}?(?:those|these)\s+(?:rounds|deaths|fights|kills|duels|ones|are|were|two|three|four|five|six)\b/i;
+// "Those came when you had support" with the kills it meant dropped (the blind audit of 8.7.9).
+const THOSE = /^(?:(?:and|but|so|look at what|in)\s+)?(?:[a-z]+\s+){0,3}?(?:those|these)\s+(?:rounds|deaths|fights|kills|duels|ones|are|were|two|three|four|five|six|came|come|happened|cost|costs|showed|show|worked|work|went|won|lost)\b/i;
 const OWN_LIST = /\b(?:rounds?,?\s+\d|\d+\s+(?:of|deaths|kills|rounds))\b/i;
 // "Then", "after that": the next step of an order whose step before went.
 // Its own round or second in its first clause anchors it.
@@ -107,6 +108,21 @@ const THAT_THING = /^(?:(?:if|when|once|and|but|so|then|because)\s+)?(?:[a-z']+\
 // A bare item of a list: "Round 14, 14 s in, to a Marshal."
 const ITEM = /^Rounds?\s+\d{1,2},\s/;
 const ITEM_VERB = /\b(?:you|your|he|she|they|it|was|were|is|are|had|has|killed|died|lost|won|got|came|went|took|traded|planted)\b/i;
+/*
+ * WHAT A CUT LEFT LEANING (the blind audit of 8.7.9), each only right after a
+ * dropped sentence: "All three need a star already placed" with the sentence
+ * naming the three abilities gone; "Same story in round 7 at B site with
+ * Reyna." with the rounds it compared to gone; "The fights you choose are."
+ * with "Your mechanics are not the problem" gone, a short sentence ending on
+ * its verb; "You will not have one, so practise ..." with the teammate it
+ * meant gone, a bare "one" standing for a noun. "All three of your deaths",
+ * "the same angle" and "one more shot" carry their own nouns.
+ */
+const ALL_OF_THEM = /^(?:(?:and|but|so)\s*,?\s+)?(?:all|both|each|either|neither)(?:\s+(?:two|three|four|five|six))?(?:\s+of\s+(?:them|these|those))?\s+(?:need|needs|are|were|is|was|sit|sits|have|has|had|do|does|did|come|comes|came|work|works|worked|cost|costs|share|shared|depend|depends|rely|relies|go|goes|went|will|can|could|should|must|point|points|show|showed|happen|happened|end|ended|start|started|leave|left|punish|punishes|give|gives)\b/i;
+const SAME_AGAIN = /^(?:(?:and|but|so)\s*,?\s+)?(?:the\s+)?same\s+(?:story|thing|again|here|pattern|problem|deal|mistake|situation|idea|picture|again)\b/i;
+const ELLIPSIS_END = /\b(?:are|is|was|were|do|does|did|can|will|has|have|had|could|would|should)\s*[.!]$/i;
+const ELLIPSIS_WHOLE = /\b(?:what|how|where|when|why|who|which|whatever|wherever|if)\b/i;
+const BARE_ONE = /^(?:(?:and|but|so)\s*,?\s+)?(?:you|they|we|he|she)\s+(?:will|would|won't|do|did|don't|didn't|can|can't|could|may|might)?\s*(?:not\s+)?(?:have|get|find|need|see|use|take|keep)\s+one\b(?=\s*[,.;!?]|\s+(?:so|and|but|because|there|either|yet|then|anyway)\b)/i;
 
 /**
  * The sentences that lean on nothing kept. Input: a text, sentences (all
@@ -167,6 +183,11 @@ function checkOrphans(input, opts = {}) {
         if (!(pk >= 0 && samePara(pk) && new RegExp(`\\b${noun}`, 'i').test(straight(rows[pk].s)))) { add('that'); continue; }
       }
       if (prevDropped && ITEM.test(s) && !ITEM_VERB.test(s)) { add('item'); continue; }
+      if (prevDropped && ALL_OF_THEM.test(s)) { add('all'); continue; }
+      if (prevDropped && SAME_AGAIN.test(s)) { add('same'); continue; }
+      // "Here is what you can do." and "hold where you are" end on their verb with nothing left out (verify round 6).
+      if (prevDropped && ELLIPSIS_END.test(s) && s.split(/\s+/).length <= 8 && !ELLIPSIS_WHOLE.test(s)) { add('ellipsis'); continue; }
+      if (prevDropped && BARE_ONE.test(s)) { add('one'); continue; }
 
       for (const a of here) seenAgents.add(a);
       // The person this one names, or the one its own kept pronoun still means, carries to the next.
@@ -312,9 +333,33 @@ const FILLER_SUBJECT = '(?:(?:the|your)\\s+)?(?:others|rest|other\\s+(?:counted\
 const FILLER_TAIL = '(?:\\s+(?:too|for\\s+now|until\\s+later|for\\s+later|for\\s+another\\s+day))?';
 const FILLER_WHOLE = new RegExp(`^(?:(?:and|so|but)\\s+)?${FILLER_SUBJECT}\\s+can\\s+(?:all\\s+)?wait${FILLER_TAIL}\\s*[.!]?$|^nothing\\s+else\\s+(?:needs|has)\\s+(?:fixing|to\\s+be\\s+fixed)(?:\\s+first)?\\s*[.!]?$`, 'i');
 const FILLER_CLAUSE = new RegExp(`,?\\s+(?:and|so)\\s+(?:${FILLER_SUBJECT}\\s+can\\s+(?:all\\s+)?wait${FILLER_TAIL}|nothing\\s+else\\s+(?:needs|has)\\s+(?:fixing|to\\s+be\\s+fixed)(?:\\s+first)?)(?=\\s*[.!]?\\s*$)`, 'i');
+/*
+ * THE TRADE CHECK CAN WAIT (the blind audit of 8.7.9): the rule that asked the
+ * model to name what waits gave "The trade check can wait." in 29 of 60
+ * answers, read by every judge as the answer contradicting itself where the
+ * trade check was its only habit, and "The trade check can wait here, since
+ * your teammate was close" of a death nobody traded. A sentence whose
+ * deferral is about trading goes whole ("The trade check on your own peeks
+ * can wait, and so can the Reyna fights", "Trading is the second point and
+ * can wait"); a trailing clause of it is cut ("Fix the stopping first, and the
+ * trade check can wait." is "Fix the stopping first."). "The trade check
+ * cannot wait" and "do not let the trade check wait" defer nothing.
+ */
+const TRADE_WAITS = '(?:(?:the|your|that|this)\\s+)?(?:trade\\s+checks?|trading|trade\\s+habit|trades?|untraded\\s+(?:deaths|fights)|unanswered\\s+deaths|deaths\\s+nobody\\s+(?:traded|answered)|spacing\\s+check)\\b';
+// A subject list holding the trade ("The early deaths and the untraded fights can wait") goes whole too.
+const TRADE_WAIT_WHOLE = new RegExp(`^(?:(?:and|so|but|then)\\s*,?\\s+)?(?:[^,.;!?]{0,60}?\\b(?:and|or|of)\\s+)?${TRADE_WAITS}[^,.;!?]{0,60}?\\bcan\\s+(?:all\\s+|also\\s+|still\\s+)?wait\\b`, 'i');
+// A clause of its own, after a comma: "Fix the stopping first, and the trade check can wait."
+const TRADE_WAIT_CLAUSE = new RegExp(`,\\s+(?:and|so|but|while)\\s+${TRADE_WAITS}[^,.;!?]{0,60}?\\bcan\\s+(?:all\\s+|also\\s+|still\\s+)?wait\\b[^.!?]*[.!?]?\\s*$`, 'i');
 function fillerOf(sentence) {
   const s = straight(sentence).trim();
   if (FILLER_WHOLE.test(s)) return '';
+  if (TRADE_WAIT_WHOLE.test(s)) return '';
+  const tw = TRADE_WAIT_CLAUSE.exec(s);
+  if (tw) {
+    const head = String(sentence).trim().slice(0, tw.index).replace(/[,\s]+$/, '');
+    if (head.split(/\s+/).length < 3) return '';
+    return `${head}${/[.!?]$/.test(head) ? '' : '.'}`;
+  }
   const m = FILLER_CLAUSE.exec(s);
   if (!m) return null;
   // Straightening keeps every index, so the cut is the sentence as written.
@@ -324,7 +369,8 @@ function fillerOf(sentence) {
 }
 
 module.exports = {
-  repairSeams, fillerOf, MID_YOU, DANGLING_WORD, DANGLING_MARK, FILLER_WHOLE, FILLER_CLAUSE, THEN_OPENER, THEN_STEP, OWN_ANCHOR, THAT_THING, ITEM, ITEM_VERB,
+  repairSeams, fillerOf, MID_YOU, DANGLING_WORD, DANGLING_MARK, FILLER_WHOLE, FILLER_CLAUSE, TRADE_WAIT_WHOLE, TRADE_WAIT_CLAUSE,
+  ALL_OF_THEM, SAME_AGAIN, ELLIPSIS_END, ELLIPSIS_WHOLE, BARE_ONE, THEN_OPENER, THEN_STEP, OWN_ANCHOR, THAT_THING, ITEM, ITEM_VERB,
   checkOrphans, checkProduct, checkRoundState, sentencesOf, agentsNamed,
   FEMALE, MALE, PERSON_NOUN, LEAD_IN, ENDS_COLON, IT_OBJECT, THOSE, PRODUCT, WAIT_FOR_THEM, YOU_RETAKE, YOU_HOLD_SPIKE, THEIR,
 };

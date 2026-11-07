@@ -383,5 +383,114 @@ ok(JSON.stringify(card(1).riot.casts) === '[{"key":"C","name":"Cloudburst","n":1
   ok(fr && !['place', 'killPlaces', 'buy', 'mate', 'casts'].some((k) => k in fr), 'a place of another map, a name, a word not theirs or another agent\'s kit is dropped');
 }
 
+// ── One place for a death (8.7.10) ──────────────────────────────────────────
+// The round 3 audit: 14 of 8.7.9's 87 place mentions followed the screen's
+// spot, not Riot's place. On the player's competitive Split, reviewed by
+// 8.0.1 and linked late, the screen's spot of every death was Riot's place of
+// the death before it. Riot's places below are the record's own for that
+// match (the audit's records-parsed.json, callouts only), laid on the Riot
+// fixture of the same match, which was fetched before the server sent them.
+{
+  const SPLIT_PLACES = { 1: 'B Back', 3: 'A Tower', 4: 'B site', 5: 'A Main', 6: 'A Rafters', 7: 'B site', 8: 'B Stairs', 9: 'A site',
+    10: 'B site', 11: 'B Stairs', 12: 'A site', 15: 'A Main', 16: 'Mid Mail', 17: 'A Ramps', 19: 'A Rafters', 20: 'A Main' };
+  const splitRiot = JSON.parse(JSON.stringify(require('./fixtures/riot-split-13-7.json')));
+  for (const rr of splitRiot.perRound) if (SPLIT_PLACES[rr.n]) rr.deathAt = SPLIT_PLACES[rr.n];
+  const saved = require('./fixtures/valorant-review-split-801.json');
+  const { rows, legacy } = riotReview.ledgerRows(saved.review);
+  const spotOf = (n) => (rows.find((r) => r.n === n) || {}).deathSpot;
+  ok(legacy && spotOf(3) === 'B Back' && spotOf(4) === 'A Tower' && spotOf(6) === 'A Main',
+    `the saved 8.0.1 Split's screen spots are Riot's of the death before (round 3 ${spotOf(3)}, 4 ${spotOf(4)}, 6 ${spotOf(6)})`);
+  ok(verify.screenLagged(rows, splitRiot.perRound, 'Split'), 'a ledger a death behind Riot\'s is read as behind, off the places alone');
+  const { rounds: lr, checks: lc } = verify.reconcile(rows, splitRiot);
+  const at = (n) => lr.find((r) => r.n === n);
+  ok(at(3).deathSpot === 'A Tower' && at(4).deathSpot === 'B site' && at(6).deathSpot === 'A Rafters' && at(8).deathSpot === 'B Stairs',
+    `each death is at Riot's place of its own round (3 ${at(3).deathSpot}, 4 ${at(4).deathSpot}, 6 ${at(6).deathSpot}, 8 ${at(8).deathSpot})`);
+  ok(lr.filter((r) => r.watched).every((r) => !r.screenDied && !r.reads.length && !r.locs.length && r.ultAtDeath === null),
+    'and nothing the screen read in a round, another round\'s, is laid over Riot\'s');
+  ok(lc.lagged === true && lc.agreed === 6 && JSON.stringify(lc.invented) === '[2]' && JSON.stringify(lc.missed) === '[1]',
+    `the counts stay as the screen read them (${JSON.stringify({ agreed: lc.agreed, invented: lc.invented, missed: lc.missed })})`);
+  const line = verify.describe(lc);
+  ok(line.endsWith("The screen filed its deaths a round late, so each round's place and notes are Riot's alone.") && !DASHES.test(line) && !line.includes(';'),
+    `and the verification line says so (${line})`);
+  const up = riotReview.upgradeWatched({ saved, riot: splitRiot, history: [],
+    row: { matchId: 'split-1', map: 'Split', agent: 'Jett', mode: 'Competitive', result: 'Victory', score: '13-7', kills: 17, deaths: 16, assists: 8, startedAt: Date.parse(splitRiot.startedAt) || 0 } });
+  const card = (n) => up.review.rounds.find((c) => c.n === n);
+  ok(card(3).spot === 'A Tower' && card(5).spot === 'A Main' && !up.review.rounds.some((c) => c.died && c.spot && c.spot !== SPLIT_PLACES[c.n]),
+    'the late link\'s cards say Riot\'s place of each death and no other');
+  const spotLine = (up.review.patterns || []).find((p) => p.key === 'spot');
+  ok(!spotLine || !/B Site, in rounds 5, 8/.test(spotLine.text), `and no spot pattern counted on the screen's spots (${spotLine && spotLine.text})`);
+
+  // The live reader on the same match is in step: not behind, and its
+  // death spots give way to Riot's places.
+  const { replaySession } = require('./fixtures/replay-session');
+  const live = replaySession('valorant-session-split-competitive.json', splitRiot);
+  const lv = (n) => live.rounds.find((r) => r.n === n);
+  ok(lv(1).screenDied && lv(3).screenDied && lv(6).deathSpot === 'A Rafters' && lv(8).deathSpot === 'B Stairs',
+    `today's reader files the Split's deaths where Riot does, never read as behind (round 6 ${lv(6).deathSpot}, round 8 ${lv(8).deathSpot})`);
+
+  // A row carrying both, as a saved card laid back over the record: Riot's
+  // place counts, the screen's only where Riot has none.
+  const both = [3, 4, 5, 6, 8].map((n) => ({ n, died: true, verified: true, deathSpot: { 3: 'B Back', 4: 'A Tower', 5: 'B Site', 6: 'A Main', 8: 'B Site' }[n], riotSpot: SPLIT_PLACES[n] }));
+  const pats = review.patterns([...both, { n: 9, died: true, verified: true, deathSpot: 'B Site' }, { n: 10, died: false, verified: true }]);
+  ok(!pats.some((p) => p.key === 'spot' && /B Site/i.test(p.text) && /\b5\b/.test(p.text)), `the spot pattern counts Riot's places (${pats.map((p) => p.text).join(' | ')})`);
+  ok(review.deathPlace(both[0]) === 'A Tower' && review.deathPlace({ died: true, verified: true, deathSpot: 'B Site' }) === 'B Site'
+    && review.deathPlace({ died: true, verified: false, deathSpot: 'B Site', riotSpot: 'A Main' }) === 'B Site' && review.deathPlace({ died: false, deathSpot: 'B Site' }) === null,
+  'deathPlace is Riot\'s where it has one, the screen\'s where it has none');
+  const thrice = [1, 2, 3, 4].map((n) => ({ n, died: true, verified: true, deathSpot: 'B Site', riotSpot: n === 4 ? 'B site' : 'A Main', killerAgent: null }));
+  const counted = insights.valorant(thrice, { role: 'Duelist' });
+  const same = counted.mistakes.find((m) => m.key === 'same-spot');
+  ok(same && same.place === 'A Main' && JSON.stringify(same.rounds) === '[1,2,3]', `the counted same spot mistake is Riot's place (${same && same.title})`);
+
+  // The server: Riot's place is the round's only place, and a counted place
+  // line Riot's record contradicts is left out, for a client before 8.7.10.
+  const body = {
+    variant: 'C', context: { map: 'Split', agent: 'Jett' },
+    rounds: [
+      { n: 5, died: true, verified: true, deathSpot: 'B Site', place: 'A Main' },
+      { n: 8, died: true, verified: true, deathSpot: 'B Site', place: 'B Stairs' },
+      { n: 9, died: true, verified: true, deathSpot: 'A Site' },
+    ],
+    patterns: [{ key: 'spot', text: '2 of your 16 deaths were at B Site, in rounds 5, 8.' }, { key: 'early', text: '7 of your 16 deaths came in the first 30 seconds.' }],
+    mistakes: [{ key: 'same-spot', title: 'Dying at B Site', detail: '3 of the deaths the coach could place were at B Site.', rounds: [5, 8, 9] },
+      { key: 'untraded', title: 'Died where nobody could trade', detail: '13 of your 15 deaths went unanswered.', rounds: [5, 8] }],
+  };
+  const inp = matchReview.normalise(body);
+  const nr = (n) => inp.rounds.find((r) => r.n === n);
+  ok(nr(5).deathSpot === 'A Main' && nr(8).deathSpot === 'B Stairs' && nr(9).deathSpot === 'A Site',
+    `the round line's place is Riot's where the record has one, the screen's where it has none (${[5, 8, 9].map((n) => nr(n).deathSpot).join(', ')})`);
+  ok(!inp.patterns.some((p) => p.key === 'spot') && inp.patterns.some((p) => p.key === 'early'), 'the screen counted spot pattern Riot contradicts is left out, the rest stay');
+  ok(!inp.mistakes.some((m) => m.key === 'same-spot') && inp.mistakes.some((m) => m.key === 'untraded'), 'and so is the same spot mistake');
+  const prompt = matchReview.buildPrompt(inp);
+  ok(!/B Site/.test(prompt.split('\n').filter((l) => /^R[58]\b/.test(l)).join('\n')), 'the prompt\'s round 5 and 8 lines never name the screen\'s B Site');
+  const agrees = matchReview.normalise({ ...body, rounds: body.rounds.map((r) => ({ ...r, place: r.place ? 'B Site' : undefined })) });
+  ok(agrees.patterns.some((p) => p.key === 'spot') && agrees.mistakes.some((m) => m.key === 'same-spot'), 'a place line Riot agrees with stays');
+  const old = matchReview.normalise({ ...body, rounds: body.rounds.map(({ place, ...r }) => r) });
+  ok(old.rounds.every((r) => r.deathSpot === body.rounds.find((x) => x.n === r.n).deathSpot) && old.patterns.length === 2 && old.mistakes.length === 2,
+    'a client before 8.8 sends no place and is read as before');
+
+  // Ask Coach: the screen's spot goes where Riot's place is on the card.
+  const ctx = chatContext.build(served, {}, null, 'where did I die', {});
+  const cards = ctx.match.cards.map((c) => (c.n === 2 ? { ...c, screen: { ...(c.screen || {}), spot: 'A Main' } } : c.n === 3 ? { ...c, died: true, screen: { spot: 'A Main' } } : c));
+  const norm = chatPrompt.normalise({ ...ctx, match: { ...ctx.match, cards,
+    lists: { ...(ctx.match.lists || {}), mistakes: [{ key: 'same-spot', title: 'Dying at A Main', detail: 'x', rounds: [2, 3] }] } } });
+  const c2 = norm.match.cards.find((c) => c.n === 2);
+  ok(c2.riot.place === 'B Main' && !(c2.screen && c2.screen.spot), `a card with Riot's place sends no screen spot (${c2.screen && c2.screen.spot})`);
+  ok(!norm.match.lists.mistakes.some((m) => m.key === 'same-spot'), 'and the same spot mistake Riot\'s place contradicts is left out');
+}
+
+// ── The buy hedge only where it is true (8.7.10) ────────────────────────────
+{
+  const withBuy = chatPrompt.normalise(chatContext.build(served, {}, null, 'what did I buy in round 2', {}));
+  const rules = chatPrompt.rulesFor(withBuy);
+  ok(chatPrompt.matchHasBuy(withBuy) && rules.includes(chatPrompt.BUY_HEDGE_RECORD) && !rules.includes(chatPrompt.BUY_HEDGE)
+    && rules.includes(chatPrompt.SAVE_HEDGE_RECORD), 'a match whose record holds the team buy is never told the record holds no buy');
+  ok(!DASHES.test(chatPrompt.BUY_HEDGE_RECORD + chatPrompt.SAVE_HEDGE_RECORD) && !(chatPrompt.BUY_HEDGE_RECORD + chatPrompt.SAVE_HEDGE_RECORD).includes(';'),
+    'the new rule has no dash and no semicolon');
+  const noBuy = { ...withBuy, match: { ...withBuy.match, cards: withBuy.match.cards.map((c) => ({ ...c, riot: c.riot ? { ...c.riot, buy: undefined } : c.riot })) } };
+  ok(!chatPrompt.matchHasBuy(noBuy) && chatPrompt.rulesFor(noBuy) === chatPrompt.VALORANT_RULES, 'a match without one keeps the rules word for word');
+  ok(chatPrompt.rulesFor({ ...noBuy, rankBand: 'asc_plus' }) === chatPrompt.VALORANT_RULES.replace(chatPrompt.IMPROVING_RULE, chatPrompt.IMPROVING_RULE_877),
+    'and above Gold the improving rule is 8.7.7\'s as before');
+}
+
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' riot record checks passed'}`);
 process.exit(fails ? 1 : 0);

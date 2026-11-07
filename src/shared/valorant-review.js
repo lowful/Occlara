@@ -310,6 +310,19 @@ function halftimeAfter(mode, rounds) {
   return rounds.some((r) => r.n >= 10) ? 12 : null;
 }
 
+/*
+ * ONE PLACE FOR A DEATH (8.7.10): Riot's callout where its record places the
+ * death (riotSpot), the screen's spot only for a round it has none for. A
+ * link of 8.7.10 already writes deathSpot so (valorant-verify.js reconcile),
+ * and this is the same rule for a row that carries both, as a saved card laid
+ * back over Riot's record does.
+ */
+function deathPlace(r) {
+  if (!r || !r.died) return null;
+  if (r.verified && typeof r.riotSpot === 'string' && r.riotSpot) return r.riotSpot;
+  return typeof r.deathSpot === 'string' && r.deathSpot ? r.deathSpot : null;
+}
+
 /**
  * The patterns worth a line, each with the floor it has to clear.
  * Returns [{ key, text }] in order of how much they are worth reading.
@@ -328,14 +341,15 @@ function patterns(rounds) {
   // where 2 of 7 would be noise with a number on it.
   const spots = new Map();
   for (const r of deaths) {
-    if (!r.deathSpot) continue;
-    const k = r.deathSpot.toLowerCase();
-    const e = spots.get(k) || { name: r.deathSpot, rounds: [] };
+    const place = deathPlace(r);
+    if (!place) continue;
+    const k = place.toLowerCase();
+    const e = spots.get(k) || { name: place, rounds: [] };
     e.rounds.push(r.n);
     spots.set(k, e);
   }
   const top = [...spots.values()].sort((a, b) => b.rounds.length - a.rounds.length)[0];
-  const placed = deaths.filter((r) => r.deathSpot).length;
+  const placed = deaths.filter((r) => deathPlace(r)).length;
   if (top && top.rounds.length >= 2 && top.rounds.length * 10 >= placed * 3) {
     out.push({
       key: 'spot',
@@ -775,8 +789,9 @@ function build(input) {
     planted: r.planted,
     verified: !!r.verified,
     watched: !riotOnly && r.watched !== false,
-    // Where the screen placed the death. Riot records no locations.
-    spot: r.died && r.deathSpot ? r.deathSpot : null,
+    // Where the death was: Riot's place where its record has one (8.7.10,
+    // deathPlace), else where the screen placed it.
+    spot: deathPlace(r),
     ultReady: !!(r.died && r.ultAtDeath === 'ready'),
     riot: r.verified ? {
       sec: typeof r.deathSec === 'number' ? r.deathSec : null,
@@ -1524,4 +1539,4 @@ module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, 
   queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, lookJudgement,
   factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS,
   BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX, countsOf,
-  buyDiscipline, castsNamed, recordOnCard, BUY_WORDS, BUYS_MIN };
+  buyDiscipline, castsNamed, recordOnCard, BUY_WORDS, BUYS_MIN, deathPlace };

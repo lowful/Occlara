@@ -321,7 +321,12 @@ function roundOf(card, review) {
     : review.source !== 'riot' && !facts.includes('Not watched by the coach');
   let spot = null;
   if (card.died && watched) {
-    if (card.spot !== undefined) spot = card.spot || null;
+    // Riot's place of the death where the card holds it (8.7.10, one place
+    // for a death), which a card linked before then keeps beside the
+    // screen's spot, often a round off.
+    const place = verified && card.riot && typeof card.riot.place === 'string' && card.riot.place ? card.riot.place : null;
+    if (place) spot = place;
+    else if (card.spot !== undefined) spot = card.spot || null;
     else {
       for (const f of facts) {
         const m = SPOT_RE.exec(String(f));
