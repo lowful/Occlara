@@ -1097,10 +1097,30 @@ function primerCore(input, variant) {
   } catch { return ''; }
 }
 
+/*
+ * THE LEVER ONLY BELOW PLATINUM (the blind audit of 8.7.8 against 8.7.7, Nov
+ * 2026). At Platinum to Diamond and Ascendant and up the lever by band picked
+ * a lever the record did not support and the model invented evidence for it,
+ * so Ask Coach there asked about improving is 8.7.7's: no LEVER line
+ * (leverLine), and the improving rule as 8.7.7 wrote it. Every gate of 8.7.8
+ * stays for every band, since a gate only drops false text. Iron to Gold and a
+ * client that sends no band keep 8.7.8's prompt.
+ */
+const LEVER_BANDS = ['iron_bronze', 'silver_gold'];
+const IMPROVING_RULE = "- About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it, and name trading at most once, as a second point, unless THE LEVER is trading.";
+const IMPROVING_RULE_877 = '- About improving: the largest counted mistake or pattern with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts.';
+/** The Valorant rules for a band: 8.7.7's improving rule above Gold, else VALORANT_RULES. */
+function rulesFor(input) {
+  const band = input && input.rankBand;
+  if (!RANK_BANDS.includes(band) || LEVER_BANDS.includes(band)) return VALORANT_RULES;
+  return VALORANT_RULES.replace(IMPROVING_RULE, IMPROVING_RULE_877);
+}
+
 function staticPrefix(input, variant) {
   if (input.game === 'lol') return LEAGUE_RULES;
   const core = primerCore(input, variant);
-  return core ? `${VALORANT_RULES}\n\n${core}` : `${VALORANT_RULES}\n\nVALORANT FACTS: none are available for this question, so state no game number at all.`;
+  const rules = rulesFor(input);
+  return core ? `${rules}\n\n${core}` : `${rules}\n\nVALORANT FACTS: none are available for this question, so state no game number at all.`;
 }
 
 function renderPlayer(input, trim) {
@@ -1625,7 +1645,8 @@ function leversOf(m) {
 
 /** THE LEVER line for a general question, or '' (no band, no English, no general question, an aim question, nothing counted). */
 function leverLine(input, messages) {
-  if (!input || input.game === 'lol' || !RANK_BANDS.includes(input.rankBand)) return '';
+  // Iron to Gold only: above Gold, 8.7.7's prompt (LEVER_BANDS, the blind audit of 8.7.8).
+  if (!input || input.game === 'lol' || !LEVER_BANDS.includes(input.rankBand)) return '';
   const m = input.match;
   if (!m || m.kind !== 'valorant') return '';
   const qt = questionTopics(input, messages);
@@ -2172,5 +2193,7 @@ module.exports = {
   FALLBACK_KEPT, questionTopics, QUESTION_TOPICS,
   // The re-audit of 8.7.7 (Nov 2026), each asserted in test:chatgates.
   leverLine, leversOf, LEVER_WEIGHTS, ORPHAN_REASON, KIT_HEAD,
+  // The blind audit of 8.7.8 (Nov 2026): the lever below Platinum only.
+  LEVER_BANDS, IMPROVING_RULE, IMPROVING_RULE_877, rulesFor,
   RANK_BANDS,
 };
