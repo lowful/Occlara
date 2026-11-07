@@ -775,9 +775,21 @@ ok(onPct >= 50, `and shifts it decisively, not marginally (${onPct}%)`);
   };
   const tagged = knowledge.all().filter((n) => Array.isArray(n.enemyWeapons));
   const OPS = tagged.filter((n) => n.enemyWeapons.includes('Operator')).map((n) => n.text);
-  ok(OPS.length === 2 && OPS.some((t) => /^When an enemy Operator is holding a lane/.test(t)) && OPS.some((t) => /^Do not let one enemy Operator/.test(t))
+  // After2: the two held sniper notes (bait the shot, never one at a time)
+  // were served with no sniper in the record, and carry the three guns too.
+  ok(OPS.length === 4 && OPS.some((t) => /^When an enemy Operator is holding a lane/.test(t)) && OPS.some((t) => /^Do not let one enemy Operator/.test(t))
+    && OPS.filter((t) => /^Against a held sniper/.test(t)).length === 2
     && tagged.every((n) => !n.enemyAgents),
-  `the two enemy Operator notes carry the gun, not the Jett and the Chamber (${OPS.length})`);
+  `the enemy Operator notes carry the gun, not the Jett and the Chamber, the held sniper notes too (${OPS.length})`);
+  const SNIPER = tagged.filter((n) => /^Against a held sniper/.test(n.text));
+  ok(SNIPER.length === 2 && SNIPER.every((n) => ['Operator', 'Outlaw', 'Marshal'].every((w) => n.enemyWeapons.includes(w))
+    && knowledge.enemyFit(n, ['Jett', 'Chamber'], ['Vandal', 'Phantom']) === null
+    && knowledge.enemyFit(n, [], ['Marshal']) === knowledge.ENEMY_FIT && knowledge.enemyFit(n, []) === null),
+  'a held sniper note needs an Operator, Outlaw or Marshal kill: a rifle kill or none is no note');
+  const OUTLAW = tagged.filter((n) => /^When the kill feed has shown an Outlaw/.test(n.text));
+  ok(OUTLAW.length === 1 && JSON.stringify(OUTLAW[0].enemyWeapons) === '["Outlaw"]'
+    && knowledge.enemyFit(OUTLAW[0], [], ['Operator']) === null && knowledge.enemyFit(OUTLAW[0], [], ['Outlaw']) === knowledge.ENEMY_FIT,
+  'the heavy armour against the Outlaw note needs an Outlaw kill');
   const note = tagged[0];
   ok(knowledge.enemyFit(note, ['Jett', 'Chamber']) === null && knowledge.enemyFit(note, [], ['Vandal']) === null
     && knowledge.enemyFit(note, [], ['Operator']) === knowledge.ENEMY_FIT && knowledge.enemyFit(note, [], ['operator']) === knowledge.ENEMY_FIT
@@ -792,6 +804,88 @@ ok(onPct >= 50, `and shifts it decisively, not marginally (${onPct}%)`);
   const plain = seededRun(() => knowledge.retrieve(ctx, 8, { advanced: true }));
   const rifles = seededRun(() => knowledge.retrieve({ ...ctx, enemyWeapons: ['Vandal', 'Phantom'] }, 8, { advanced: true }));
   ok(JSON.stringify(plain) === JSON.stringify(rifles), 'and guns no note names change nothing: the same notes, the same draws');
+}
+
+// ── The player's own team (round 3, after2, knowledge.js teamFit) ───────────
+// The blind audit found "When you are the only duelist" in three Fracture
+// reviews of a Jett whose team had a Reyna. A note may now say which comp it
+// holds in: soleRole (the player is the team's one agent of the role, which
+// needs all five) or sharedRole (a teammate plays it too). No team is no
+// note, as enemyAgents: the review's study list passes none, so neither is
+// homework until it can be checked, and every other note is unmoved.
+{
+  const seededRun = (fn) => {
+    const random = Math.random;
+    let x = 5;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const ROLES = new Set(['duelist', 'controller', 'initiator', 'sentinel']);
+  const comp = knowledge.all().filter((n) => n.soleRole !== undefined || n.sharedRole !== undefined);
+  ok(comp.length === 2 && comp.every((n) => [n.soleRole, n.sharedRole].filter((r) => r !== undefined).every((r) => ROLES.has(r))
+    && !(n.soleRole && n.sharedRole) && Array.isArray(n.roles) && n.roles.includes(n.soleRole || n.sharedRole)),
+  `the comp notes name a real role, one kind each, and are tagged for that role (${comp.length})`);
+  const SOLE = comp.find((n) => /^When you are the only duelist/.test(n.text));
+  const SHARED = comp.find((n) => /^With two duelists on the team/.test(n.text));
+  ok(SOLE && SOLE.soleRole === 'duelist' && SHARED && SHARED.sharedRole === 'duelist', 'the only duelist note is soleRole, the two duelists note sharedRole');
+  const fracture = ['Chamber', 'Clove', 'Jett', 'KAY/O', 'Reyna'];
+  const solo = ['Jett', 'Omen', 'Sova', 'Killjoy', 'Skye'];
+  const tf = knowledge.teamFit;
+  ok(tf(SOLE, { agent: 'Jett', agents: fracture }) === null && tf(SOLE, { agent: 'Jett', agents: solo }) === 0
+    && tf(SOLE, { agent: 'Jett', agents: ['Jett', 'Omen', 'Sova', 'Killjoy'] }) === null
+    && tf(SOLE, { agent: 'Jett' }) === null && tf(SOLE, undefined) === null
+    && tf(SOLE, { agent: 'Jett', agents: ['Omen', 'Sova', 'Killjoy', 'Skye', 'Sage'] }) === null,
+  'soleRole: a Jett with a Reyna is no note, a Jett alone of five is, four agents, no team or a team without the player is none');
+  ok(tf(SHARED, { agent: 'Jett', agents: fracture }) === 0 && tf(SHARED, { agent: 'Jett', agents: ['Jett', 'Reyna'] }) === 0
+    && tf(SHARED, { agent: 'Jett', agents: solo }) === null && tf(SHARED, undefined) === null
+    && tf(SHARED, { agent: 'Reyna', agents: ['Reyna', 'Sova', 'Omen', 'Killjoy', 'Skye'] }) === null,
+  'sharedRole: one other duelist is enough, none or no team is no note');
+  ok(tf({ text: 'x' }, undefined) === 0 && knowledge.enemyFit(SOLE, [], []) === null
+    && knowledge.enemyFit(SOLE, [], [], { agent: 'Jett', agents: solo }) === 0
+    && knowledge.enemyFit({ text: 'x' }, []) === 0,
+  'enemyFit carries it: a caller with no team (the study list) leaves the comp notes out, an untagged note is unmoved');
+  ok(JSON.stringify(knowledge.teamOf(['jett', 'JETT', 'Someone#NA1', 'Omen', null])) === '["Jett","Omen"]',
+    'the team is agents the game data knows, deduplicated: a name never reads as one');
+  const ctx = { agent: 'Jett', map: 'Fracture', side: 'attacking', phase: 'active', causes: ['isolated'], rankBand: 'silver_gold' };
+  const blind = new Set(knowledge.retrieve(ctx, 2000));
+  const withReyna = new Set(knowledge.retrieve({ ...ctx, teamAgents: fracture }, 2000));
+  const alone = new Set(knowledge.retrieve({ ...ctx, teamAgents: solo }, 2000));
+  ok(!blind.has(SOLE.text) && !withReyna.has(SOLE.text) && alone.has(SOLE.text),
+    'retrieve serves the only duelist note to a Jett alone of five, never with a Reyna beside him or with no comp');
+  const plain = seededRun(() => knowledge.retrieve(ctx, 8, { advanced: true }));
+  const junk = seededRun(() => knowledge.retrieve({ ...ctx, teamAgents: ['Someone#NA1'] }, 8, { advanced: true }));
+  ok(JSON.stringify(plain) === JSON.stringify(junk), 'and a team that names no agent changes nothing: the same notes, the same draws');
+}
+
+// ── The exit before an early defence peek (round 3, after2) ────────────────
+// One card for Jett, Neon, Yoru and Raze named all four exits to each and
+// said every one comes back on two kills, a Blast Pack included. The 13.09
+// kit resets Tailwind, the High Gear slide and Gatecrash every two kills and
+// Blast Pack never. Now one card each, naming only that agent's kit, and none
+// of them a kit claim the data contradicts.
+{
+  const abilityFacts = require('../server/services/ability-facts');
+  const exits = knowledge.all().filter((n) => n.source && n.source.topic === 'giving ground' && /early aggressive peek/.test(n.text));
+  const by = Object.fromEntries(exits.map((n) => [(n.agents || []).join(','), n]));
+  ok(exits.length === 4 && ['Jett', 'Neon', 'Yoru', 'Raze'].every((a) => by[a] && by[a].text.startsWith(`As a defending ${a},`)),
+    `one exit card for each of Jett, Neon, Yoru and Raze, each tagged for its agent alone (${exits.length})`);
+  ok(!knowledge.all().some((n) => /the dash, the slide and the teleport/.test(n.text)), 'the shared card is gone');
+  const own = { Jett: /Tailwind/, Neon: /High Gear slide/, Yoru: /Gatecrash/, Raze: /Blast Pack/ };
+  const foreign = /Tailwind|slide|Gatecrash|teleport|satchel|Blast Pack|Paint Shells/g;
+  const kitOf = { Jett: ['Tailwind'], Neon: ['slide'], Yoru: ['Gatecrash', 'teleport'], Raze: ['satchel', 'Blast Pack', 'Paint Shells'] };
+  ok(Object.entries(own).every(([a, re]) => by[a] && re.test(by[a].text)
+    && (by[a].text.match(foreign) || []).every((w) => kitOf[a].includes(w))),
+  'each names its own exit and no other agent\'s');
+  ok(exits.every((n) => abilityFacts.checkText(n.text, { agents: n.agents }).length === 0),
+    'no kit claim in them that the game data contradicts');
+  ok(/Blast Pack does not reset on kills/.test(by.Raze.text) && !/Blast Pack resets/.test(by.Raze.text),
+    'the Raze card says Blast Pack does not come back on kills, as the 13.09 kit has it');
+  const DATA = require('../server/valorant-data.generated.json');
+  const desc = (agent, name) => ((DATA.agents[agent].kit || []).find((k) => k.name.toLowerCase() === name.toLowerCase()) || {}).description || '';
+  ok(/Resets every two kills/.test(desc('Jett', 'Tailwind')) && /Slide resets every two kills/.test(desc('Neon', 'High Gear'))
+    && /Resets every two kills/.test(desc('Yoru', 'Gatecrash')) && !/Resets every two kills/i.test(desc('Raze', 'Blast Pack'))
+    && /Resets every two kills/.test(desc('Raze', 'Paint Shells')),
+  'and the game data still says so: if a patch moves a reset, this fails before the cards go stale');
 }
 
 console.log(`\n${fails ? fails + ' failure(s)' : 'all advanced tip checks passed'}`);

@@ -2734,5 +2734,39 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(!src.includes(String.fromCharCode(8)), 'no backspace byte in either file, the shell regex hazard');
 }
 
+// ── The blind audit of 8.7.8 (Nov 2026), stream A: the record and the seams ─
+// The review's parse gates read the same record-claims.js and coherence.js as
+// Ask Coach: a round line a certain fact contradicts goes whole, a summary or
+// focus sentence alone, and a swing fact glued on with its capital is mended.
+{
+  const rounds = [
+    { n: 14, side: 'defending', result: 'lost', died: true, verified: true, sec: 31, killer: 'Omen', kills: 0, deathSpot: 'A Elbow' },
+    { n: 5, side: 'attacking', result: 'lost', died: true, verified: true, sec: 12, killer: 'Phoenix', kills: 0, deathSpot: 'B Site', planted: true },
+    { n: 6, side: 'attacking', result: 'lost', died: true, verified: true, sec: 8, killer: 'Phoenix', kills: 0, deathSpot: 'A Main' },
+  ];
+  const input = matchReview.normalise({ rounds, variant: 'C', context: { agent: 'Iso', language: 'en', enemyAgents: ['Chamber', 'Fade', 'Omen', 'Phoenix', 'Reyna'] } });
+  const p = matchReview.parse([
+    'SUMMARY: You won 5 to 1 by opening fights, even as You died 3 times in 6 rounds. You beat Omen in round 14 before he could swing.',
+    'R14: Omen caught you at A Elbow, so hold the angle from further back.',
+    'R5: You beat Phoenix in round 5, but you died before your team had touched B.',
+    'R6: That was a defence round, and you peeked A Main alone.',
+    'FOCUS: Hold your angle from cover, and fall back after the first shot.',
+  ].join('\n'), input);
+  ok(p.summary === 'You won 5 to 1 by opening fights, even as you died 3 times in 6 rounds.', `the seam mended and the kill Riot does not have dropped from the summary (${p.summary})`);
+  ok(p.rounds[14] === 'Omen caught you at A Elbow, so hold the angle from further back.', 'a true round line stays as written');
+  ok(!(5 in p.rounds) && !(6 in p.rounds), 'round 5 (a kill of nobody, a death at B Site told before the team touched B) and round 6 (a defence for an attack) go whole');
+  ok(p.dropped.some((d) => d.n === 5 && /^record /.test(d.said)) && p.dropped.some((d) => d.n === 6 && d.said === 'record side'), `each logged by its kind (${JSON.stringify(p.dropped)})`);
+  ok(p.focus === 'Hold your angle from cover, and fall back after the first shot.', 'the focus stays as written');
+  // The team's record after the plant, said as the team's, stays in the summary.
+  const sunset = matchReview.normalise({ variant: 'C', context: { agent: 'Jett', language: 'en' }, swing: ['Once they planted on defence, your team won 0 of 9 rounds.'],
+    patterns: [{ key: 'early', text: '5 of your 9 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 2, 3, 4 and 5.' }],
+    rounds: [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ n, side: 'defending', result: 'lost', died: true, verified: true, sec: n <= 5 ? 18 : 40, killer: 'Killjoy', kills: 0, planted: true })) });
+  const s = matchReview.parse('SUMMARY: You lost 4 to 13, and once they planted on defence, your team won 0 of 9 rounds. Your biggest mistake was the retake: you won 0 of 9 defence rounds once they planted.', sunset);
+  ok(s.summary === 'You lost 4 to 13, and once they planted on defence, your team won 0 of 9 rounds.', `the team's record kept, the player blamed for it dropped (${s.summary})`);
+  // Outside English, nothing of it reads.
+  const es = matchReview.normalise({ rounds, variant: 'C', context: { agent: 'Iso', language: 'es' } });
+  ok(matchReview.parse('SUMMARY: Ganaste 5 a 1, even as You died.', es).summary === 'Ganaste 5 a 1, even as You died.', 'a review outside English is left as written');
+}
+
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);
 process.exit(fails ? 1 : 0);

@@ -86,13 +86,27 @@ function agentsNamed(text) {
  * promised dropped, or with nothing after it in its paragraph, it says
  * nothing: "You did plenty right." with the list of what went right gone.
  */
-const LEAD_IN = /^(?:(?:but|and|so|still)\s*,?\s+)?(?:you did (?:plenty|a lot|some things|several things|a few things|things|well|good things)(?: right| well)?|here(?:'s| is) (?:how|why|what|the (?:fix|habit|drill|plan|good news|part|thing|round|problem|pattern))|(?:there (?:are|were|is|was) )?(?:two|three|a few|several|one) (?:things?|habits?|parts?|points?|reasons?)(?: (?:to|you|that|worth)[a-z ]*)?|the (?:fix|habit|drill|plan|lesson|answer|good news|positive) is (?:simple|this|clear|one thing)|(?:that|this) is (?:how|why|what)|(?:the )?(?:good|positive) (?:news|side)(?: first)?|what went (?:right|well)|on the (?:plus|bright) side|because you(?:'re| are) (?:on |playing )?[A-Z][A-Za-z/]+, you can [^.]{0,80})[.!:]?$/i;
+const LEAD_IN = /^(?:(?:but|and|so|still)\s*,?\s+)?(?:you did (?:plenty|a lot|some things|several things|a few things|things|well|good things)(?: right| well)?|here(?:'s| is) (?:how|why|what|the (?:fix|habit|drill|plan|good news|part|thing|round|problem|pattern))(?: in order| step by step| as it went)?|look at (?:when|where|how) (?:those|these|the|your) (?:deaths|kills|rounds|fights) (?:came|happened|went|started)|(?:there (?:are|were|is|was) )?(?:two|three|a few|several|one) (?:things?|habits?|parts?|points?|reasons?)(?: (?:to|you|that|worth)[a-z ]*)?|the (?:fix|habit|drill|plan|lesson|answer|good news|positive) is (?:simple|this|clear|one thing)|(?:that|this) is (?:how|why|what)|(?:the )?(?:good|positive) (?:news|side)(?: first)?|what went (?:right|well)|on the (?:plus|bright) side|because you(?:'re| are) (?:on |playing )?[A-Z][A-Za-z/]+, you can [^.]{0,80})[.!:]?$/i;
 const ENDS_COLON = /:\s*$/;
 // "with it up", "pop it", "use it": an it bound to a thing named before.
 const IT_OBJECT = /\b(?:with|use|using|pop|popping|keep|keeping|save|saving|throw|throwing|place|placing|activate|activating|put|putting|hold|holding)\s+it\s+(?:up|down|out|ready|first|early|back|before|when|until|for|on|so|and|,|\.)/i;
 // "those rounds", "these deaths": the rounds of a sentence that went.
 const THOSE = /^(?:(?:and|but|so|look at what|in)\s+)?(?:[a-z]+\s+){0,3}?(?:those|these)\s+(?:rounds|deaths|fights|kills|duels|ones|are|were|two|three|four|five|six)\b/i;
 const OWN_LIST = /\b(?:rounds?,?\s+\d|\d+\s+(?:of|deaths|kills|rounds))\b/i;
+// "Then", "after that": the next step of an order whose step before went.
+// Its own round or second in its first clause anchors it.
+const THEN_OPENER = /^(?:(?:and|but|so)\s+)?(?:then|after\s+that|from\s+there|by\s+then|after\s+this)\b/i;
+const OWN_ANCHOR = /\bround\s+\d|\b\d+(?:\.\d+)?\s*s\s+in\b|\b\d+\s+seconds?\b/i;
+// A step of advice, "Then take one piece of space, get behind cover", leans
+// on no event told before it, and stays (the verification of stream A: an
+// 8.7.6 answer lost it after a kit line was cut). Its verb comes straight
+// after the opener, lower case, no subject and no past tense before it.
+const THEN_STEP = /^(?:(?:[Aa]nd|[Bb]ut|[Ss]o)\s+)?(?:[Tt]hen|[Aa]fter\s+that|[Ff]rom\s+there|[Aa]fter\s+this),?\s+(?!(?:it|its|they|he|she|their|the|his|her|your|you|we|a|an|that|this|there|these|those|everything|nobody|no|none|both|all|one|two|three|four|five|came|went|got|was|were|had|did)\b)[a-z]+\b/;
+// "that angle", "that fight": a thing the sentence before named.
+const THAT_THING = /^(?:(?:if|when|once|and|but|so|then|because)\s+)?(?:[a-z']+\s+){0,5}?that\s+(?:same\s+)?(angle|angles|fight|duel|spot|position|corner|lane|peek|moment|habit|mistake|play|death|space|site|exchange|swing|push|setup)\b/i;
+// A bare item of a list: "Round 14, 14 s in, to a Marshal."
+const ITEM = /^Rounds?\s+\d{1,2},\s/;
+const ITEM_VERB = /\b(?:you|your|he|she|they|it|was|were|is|are|had|has|killed|died|lost|won|got|came|went|took|traded|planted)\b/i;
 
 /**
  * The sentences that lean on nothing kept. Input: a text, sentences (all
@@ -139,6 +153,20 @@ function checkOrphans(input, opts = {}) {
       if ((lead || ENDS_COLON.test(s)) && (nextDropped || lastOfPara)) { add('lead-in'); continue; }
       if (prevDropped && IT_OBJECT.test(s) && !here.size) { add('it'); continue; }
       if (prevDropped && THOSE.test(s) && !OWN_LIST.test(s)) { add('those'); continue; }
+      // The blind audit of 8.7.8: "Then it flipped fast:" with the round's
+      // opening gone, "If nobody can see that angle" with the angle's sentence
+      // gone, and "Round 14, 14 s in, to a Marshal." with its list and its
+      // lead in gone.
+      if (prevDropped && THEN_OPENER.test(s) && !THEN_STEP.test(s) && !OWN_ANCHOR.test(s.split(/[,:]/)[0])) { add('then'); continue; }
+      // "That angle" stands on a kept sentence before that named an angle.
+      const that = prevDropped ? THAT_THING.exec(s) : null;
+      if (that) {
+        let pk = -1;
+        for (let j = i - 1; j >= 0; j--) if (!isDropped(j)) { pk = j; break; }
+        const noun = that[1].replace(/s$/, '');
+        if (!(pk >= 0 && samePara(pk) && new RegExp(`\\b${noun}`, 'i').test(straight(rows[pk].s)))) { add('that'); continue; }
+      }
+      if (prevDropped && ITEM.test(s) && !ITEM_VERB.test(s)) { add('item'); continue; }
 
       for (const a of here) seenAgents.add(a);
       // The person this one names, or the one its own kept pronoun still means, carries to the next.
@@ -240,7 +268,63 @@ function checkRoundState(sentence, round) {
   return null;
 }
 
+/*
+ * THE SEAMS (the blind audit of 8.7.8). A review's summary glued a swing fact
+ * on whole, its capital with it: "You won 5 to 1 by opening fights and getting
+ * multiple kills, even as You died 3 times in 6 rounds", "the decisive stretch
+ * coming on both sides: You lost 10 rounds in a row", "and You died 5 times in
+ * 7 rounds". A You inside a sentence, after a lower case word, a comma or a
+ * colon, is written you. And a sentence a cut left ending on a conjunction, an
+ * article or a comma ("Hold the angle and.") goes whole, never shown cut.
+ *
+ * repairSeams(sentence) is the sentence repaired, or null where it must go.
+ */
+const MID_YOU = /([a-z0-9,:;)]\s+)(You(?:'re|'ve|'d|'ll|r|rs)?)(?![A-Za-z])/g;
+// Lower case only, so a site ("then A.") is never read as an article.
+const DANGLING_WORD = /\b(?:and|but|or|because|while|although|the|a|an|your|their)\s*[.!?]["')]?$/;
+const DANGLING_MARK = /[,:;]\s*[.!?]["')]?$/;
+function repairSeams(sentence) {
+  const s = straight(sentence).trim();
+  if (!s) return null;
+  if (DANGLING_WORD.test(s) || DANGLING_MARK.test(s)) return null;
+  const fixed = String(sentence).replace(MID_YOU, (m, pre, w) => pre + w.toLowerCase())
+    .replace(/\s+([,.;:!?])/g, '$1').replace(/,\s*\./g, '.');
+  return fixed;
+}
+
+/*
+ * THE STOCK CLOSER (the blind audit of 8.7.8): "the other things can wait"
+ * ended 28 of 60 answers, in the same words, after a lever the answer had
+ * already made the one point. Filler where what waits is named by nothing:
+ * "the other things", "the others", "the rest", "everything else", "the other
+ * counted habits", and "nothing else needs fixing first". A sentence that is
+ * only that goes; a clause of it ("That is the lever, and the other things can
+ * wait.") is cut, the sentence ending where it stood alone. "Trading is the
+ * second point and can wait" and "The early deaths and the untraded fights can
+ * wait for now" name what waits, and stay.
+ *
+ * fillerOf(sentence) is null where there is none, '' where the sentence goes,
+ * else the sentence without it.
+ */
+// "Your other counted habits" and "the other patterns" too (the verification
+// of stream A: 6 of the 8.7.6 and 8.7.7 closers said them).
+const FILLER_SUBJECT = '(?:(?:the|your)\\s+)?(?:others|rest|other\\s+(?:counted\\s+)?(?:things?|habits?|points?|mistakes?|patterns?|stuff|deaths?|issues?|problems?)(?:\\s+counted)?|everything\\s+else|anything\\s+else|all\\s+(?:the\\s+)?rest)';
+const FILLER_TAIL = '(?:\\s+(?:too|for\\s+now|until\\s+later|for\\s+later|for\\s+another\\s+day))?';
+const FILLER_WHOLE = new RegExp(`^(?:(?:and|so|but)\\s+)?${FILLER_SUBJECT}\\s+can\\s+(?:all\\s+)?wait${FILLER_TAIL}\\s*[.!]?$|^nothing\\s+else\\s+(?:needs|has)\\s+(?:fixing|to\\s+be\\s+fixed)(?:\\s+first)?\\s*[.!]?$`, 'i');
+const FILLER_CLAUSE = new RegExp(`,?\\s+(?:and|so)\\s+(?:${FILLER_SUBJECT}\\s+can\\s+(?:all\\s+)?wait${FILLER_TAIL}|nothing\\s+else\\s+(?:needs|has)\\s+(?:fixing|to\\s+be\\s+fixed)(?:\\s+first)?)(?=\\s*[.!]?\\s*$)`, 'i');
+function fillerOf(sentence) {
+  const s = straight(sentence).trim();
+  if (FILLER_WHOLE.test(s)) return '';
+  const m = FILLER_CLAUSE.exec(s);
+  if (!m) return null;
+  // Straightening keeps every index, so the cut is the sentence as written.
+  const head = String(sentence).trim().slice(0, m.index).replace(/[,\s]+$/, '');
+  if (head.split(/\s+/).length < 3) return '';
+  return `${head}${/[.!?]$/.test(head) ? '' : '.'}`;
+}
+
 module.exports = {
+  repairSeams, fillerOf, MID_YOU, DANGLING_WORD, DANGLING_MARK, FILLER_WHOLE, FILLER_CLAUSE, THEN_OPENER, THEN_STEP, OWN_ANCHOR, THAT_THING, ITEM, ITEM_VERB,
   checkOrphans, checkProduct, checkRoundState, sentencesOf, agentsNamed,
   FEMALE, MALE, PERSON_NOUN, LEAD_IN, ENDS_COLON, IT_OBJECT, THOSE, PRODUCT, WAIT_FOR_THEM, YOU_RETAKE, YOU_HOLD_SPIKE, THEIR,
 };

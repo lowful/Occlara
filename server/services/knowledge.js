@@ -692,11 +692,54 @@ function enemyWeaponsOf(list) {
   return out.slice(0, 8);
 }
 
+/*
+ * ── THE PLAYER'S OWN TEAM (round 3, after2) ─────────────────────────────────
+ *
+ * A note may carry `soleRole`, a role it holds only while the player is the
+ * team's one agent of it ("When you are the only duelist"), or `sharedRole`,
+ * a role it holds only while a teammate plays it too ("With two duelists on
+ * the team"). Both are reads of the comp, so both need the comp: the blind
+ * audit found the only duelist card in three Fracture reviews of a Jett whose
+ * team had a Reyna. `team` is { agent, agents }: the player's agent and the
+ * player's team as Riot's comp gives it, the player included, agents only and
+ * each one the game data knows (teamOf, enemiesOf's own check). soleRole
+ * needs the whole comp, five agents, because four say nothing of the fifth,
+ * and sharedRole needs one other agent of the role. The comp must hold the
+ * player's own agent, or it is not the player's team.
+ *
+ * NO COMP IS NO NOTE, the rule enemyAgents keeps: a caller that passes no
+ * team (the review's study list, Ask Coach, every caller before this) leaves
+ * both kinds out, and every other note scores and draws exactly as before.
+ */
+/** The player's team as the game data spells its agents, deduplicated, at most 5. */
+function teamOf(list) {
+  return enemiesOf(list);
+}
+
+/** 0 when the team allows the note, null when it does not or is not known. */
+function teamFit(note, team) {
+  const sole = note && typeof note.soleRole === 'string' && note.soleRole ? note.soleRole : null;
+  const shared = note && typeof note.sharedRole === 'string' && note.sharedRole ? note.sharedRole : null;
+  if (!sole && !shared) return 0;
+  const agents = teamOf(team && team.agents);
+  const self = team && typeof team.agent === 'string' ? team.agent.toLowerCase() : null;
+  const at = self ? agents.findIndex((a) => a.toLowerCase() === self) : -1;
+  if (at < 0) return null;
+  const others = agents.filter((_, i) => i !== at);
+  const role = (a) => ROLE_OF[a.toLowerCase()] || null;
+  if (sole && (agents.length < 5 || others.some((a) => role(a) === sole))) return null;
+  if (shared && !others.some((a) => role(a) === shared)) return null;
+  return 0;
+}
+
 /**
  * The score change the enemy team makes, or null when the note is excluded.
- * `enemies` is enemiesOf's list (empty when unknown).
+ * `enemies` is enemiesOf's list (empty when unknown). `team` (optional) is
+ * the player's own side for a soleRole or sharedRole note (teamFit), and a
+ * caller that passes none leaves those notes out.
  */
-function enemyFit(note, enemies, weapons) {
+function enemyFit(note, enemies, weapons, team) {
+  if (teamFit(note, team) === null) return null;
   // enemyWeapons (round 3): a note about what the enemy shot the player with,
   // the Operator holding a lane, eligible ONLY when Riot's record says a
   // killer used one of them, and never blind: a caller that passes no weapon
@@ -706,7 +749,7 @@ function enemyFit(note, enemies, weapons) {
     const shot = new Set((Array.isArray(weapons) ? weapons : []).map((w) => String(w).toLowerCase()));
     if (!guns.some((w) => shot.has(String(w).toLowerCase()))) return null;
     const rest = { ...note, enemyWeapons: undefined };
-    const versus = enemyFit(rest, enemies);
+    const versus = enemyFit(rest, enemies, undefined, team);
     return versus === null ? null : versus + ENEMY_FIT;
   }
   const want = note && Array.isArray(note.enemyAgents) && note.enemyAgents.length ? note.enemyAgents : null;
@@ -801,6 +844,9 @@ function retrieve(ctx, limit = 8, opts = {}) {
   // The guns that killed the player (round 3), untrusted: none excludes every
   // note tagged enemyWeapons, and changes no other note's score or draw.
   const guns = enemyWeaponsOf(ctx && ctx.enemyWeapons);
+  // The player's own team (round 3, after2), untrusted: none excludes every
+  // soleRole and sharedRole note, and changes no other note's score or draw.
+  const team = { agent: s.agent, agents: teamOf(ctx && ctx.teamAgents) };
 
   for (const note of ALL) {
     // Exclusions: a tagged note never fires outside its tags.
@@ -818,7 +864,7 @@ function retrieve(ctx, limit = 8, opts = {}) {
     // answers one of the player's own deaths, which is the data showing it.
     const ranked = band ? rankAdjust(note, band, !!note.cause || s.flags.has('deathstreak')) : 0;
     if (ranked === null) continue;
-    const versus = enemyFit(note, enemies, guns);
+    const versus = enemyFit(note, enemies, guns, team);
     if (versus === null) continue;
 
     // Score: specificity of the match, plus base weight, plus a tiny jitter so
@@ -887,4 +933,5 @@ function block(ctx, limit) {
 module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: () => ALL,
   roleOf: (agent) => ROLE_OF[String(agent || '').toLowerCase()] || null,
   ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust,
-  ENEMY_FIT, enemiesOf, enemyFit, enemyWeaponsOf, WEAPON_NAMES, ADVANCED_SLOTS_BY_BAND, advancedSlots, bandFirst };
+  ENEMY_FIT, enemiesOf, enemyFit, enemyWeaponsOf, WEAPON_NAMES, ADVANCED_SLOTS_BY_BAND, advancedSlots, bandFirst,
+  teamOf, teamFit };

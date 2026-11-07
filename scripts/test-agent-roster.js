@@ -145,6 +145,40 @@ for (const name of Object.keys(ICON_HINTS)) {
   ok(wrong === 0, `with one agent as the enemy, no note or case for another enemy, and no comp read that needs five (${wrong})`);
 }
 
+// A NOTE FOR SEVERAL AGENTS NAMES ONLY KIT THEY ALL HAVE (round 3, after2).
+// The blind audit read "Tailwind prepared, the slide ready, Gatecrash already
+// placed behind you or a satchel in hand" on a Raze's review: one card tagged
+// for four duelists named every one's exit to each. Every agent a note is
+// served to must own an ability the note names by name, whenever it names one
+// of a tagged agent's, and a "your <ability>" is the player's own, so its
+// owner must be tagged. A name two agents share is nobody's in particular.
+{
+  const abilityFacts = require(path.join(ROOT, 'server', 'services', 'ability-facts.js'));
+  const bad = [];
+  for (const n of knowledge.all()) {
+    if (!Array.isArray(n.agents) || !n.agents.length) continue;
+    const named = abilityFacts.abilitiesIn(n.text).filter((a) => a.entries.length === 1);
+    const owners = new Set(named.map((a) => a.entries[0].agent));
+    if ([...owners].some((o) => n.agents.includes(o))) {
+      const without = n.agents.filter((a) => !owners.has(a));
+      if (without.length) bad.push(`${without.join(', ')} served "${n.text.slice(0, 60)}"`);
+    }
+    for (const a of named) {
+      if (!n.agents.includes(a.entries[0].agent) && /\byour\s+$/i.test(n.text.slice(Math.max(0, a.at - 12), a.at))) {
+        bad.push(`"your ${a.entries[0].name}" in a note for ${n.agents.join(', ')}`);
+      }
+    }
+  }
+  ok(bad.length === 0, `no agent is served a note naming another agent's ability as its own (${bad.length}${bad.length ? ': ' + bad.slice(0, 3).join(' | ') : ''})`);
+  const shared = knowledge.all().find((n) => /Tailwind prepared, the slide ready/.test(n.text));
+  ok(!shared, 'the four duelist exit card is split, one card for each agent');
+  // The check catches the card it was written for, planted.
+  const planted = { agents: ['Jett', 'Neon', 'Yoru', 'Raze'], text: 'On defence peek only with Tailwind prepared or Gatecrash placed behind you.' };
+  const plantedOwners = new Set(abilityFacts.abilitiesIn(planted.text).filter((a) => a.entries.length === 1).map((a) => a.entries[0].agent));
+  ok(plantedOwners.has('Jett') && plantedOwners.has('Yoru') && planted.agents.some((a) => !plantedOwners.has(a)),
+    'and it flags the old card planted: Neon and Raze own neither Tailwind nor Gatecrash');
+}
+
 // The refusals still hold with the longer roster.
 ok(detectAgentName('The icons are not visible at this moment') === null, 'prose naming no agent is still refused');
 ok(detectAgentName('Veto or Miks') === null, 'and two agents named is still no answer');
