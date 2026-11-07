@@ -371,3 +371,45 @@ not say which language it is in. The review is written in the player's
 language (`languageRule`); the labels stay English because `parse()` reads them.
 
 `npm run test:valorantreview` replays both real fixtures through all of it.
+
+### The review's round 4 rules (Nov 2026)
+
+From the live re-audit of 8.7.7 (the same 84 items, `scripts/fixtures/audit-round3-after-reviews.json`
+holds its 24 reviews). A client sends `counts` (`valorant-review.js countsOf`, what the card counted)
+every time, and that field is the mark: `match-review.js round4`. A body without it, every client
+before this change, gets 8.7.7's prompt and study list byte for byte (`test:valorantreview` holds
+48 bodies against commit 4a5aa0e).
+
+- **One block of numbers.** `SWING AND COUNTS` replaces the swing facts: the swing, then the
+  server's own count of the deaths (`matchCounts`, verified rounds, the card's rule), the raw untraded
+  count and the card's ("13 of your 15 deaths with a teammate alive to trade", because the card leaves
+  out a death as the last one alive and a player who died 16 times read 13 of 15 as wrong), then the
+  side split, the post plant and retake record, the repeat killer and the early deaths
+  (`matchFacts`). The counted mistake is shown with the same words (`mistakesShown`), the reply's
+  unqualified card count is named the same way (`qualifyCount`), and a summary sentence or a round
+  line quoting any other "N of M" goes (`allowedPairs`).
+- **The lever by level** (`leverOf`, `LEVER_ORDER`). From Platinum the trade habit is the focus only
+  when the library finds it again (`recurring`: `patterns.js recurringKeys`, the Patterns page's
+  mistake keys counted over the saved reviews BEFORE this match, which is left out by its id, sent by
+  both callers of `requestBody`: index.js `recurringNow(job.id)` for Riot's look and the engine's
+  `opts.recurring`, read once in `requestMatchReview` before `match-ended` saves the match, never per
+  frame) and this match's untraded deaths decided rounds (four, and
+  half the lost rounds with a death). Otherwise Iron gets the basic habit, Silver the matchup first,
+  Platinum a decision (post plant, retake, advantage), Ascendant the side gap, the first fight's timing
+  or a repeated decision. The six audit matches at four bands are printed by the test. From Platinum a
+  `DEPTH` rule asks for the match's numbers and a trade off, and `fundamentalsCap` keeps one line
+  teaching the trade habit at most.
+- **The notes and cases follow the swing** (`swingTopics`, `MATCHUP_BONUS`, `leverSituation`,
+  `caseSituation`): a weak post plant brings post plant notes, a collapsed retake the retake notes,
+  the repeat killer the notes that answer that agent.
+- **The kit** (`kitBlockOf`): the player's agent and the two agents who killed them most, each
+  ability's line from `ability-facts.js kitLines`. The kit gate reads "his ultimate" in a round line as
+  that round's killer's.
+- **Gates for every client** (they drop only what is false or leaked; of the 48 real replies one
+  changes): `product` (the review, a next review, the app, Occlara: a clause is cut where the sentence
+  stands without it, `productCut`), `library` (another match's number: "5 of your last 6", "your
+  average"), `round state` (an attacker in a round with no plant told to let the enemy come or play
+  for time) and `no plant` (advice that needs a planted spike, a defuse or a retake in a round Riot's
+  record has no plant in), the drill gate also reading "whether anyone could help you" and keeping
+  "rather than in Deathmatch", and the coherence pass (`cohere`): after a drop, a sentence opening on
+  It, This, They or Her goes, and a she, her, he or him with no agent or enemy named before it goes.

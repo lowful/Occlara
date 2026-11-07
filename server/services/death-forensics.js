@@ -123,6 +123,10 @@
 
 const { promptName } = require('./languages');
 const nameGate = require('./name-gate');
+// The kit as the game data has it (round 3 re-audit, stream D): a module that
+// is not deployed checks nothing and adds no line, and the look is as before.
+let abilityFacts = null;
+try { abilityFacts = require('./ability-facts'); } catch { abilityFacts = null; }
 
 // "a Vandal", "an Outlaw". The prompt's own grammar is what the model copies,
 // and "with a Outlaw" came back in its sentences.
@@ -363,6 +367,42 @@ function framesLines(death, screen) {
   return `${head}\n${lines.join('\n')}\n${timing}`;
 }
 
+/*
+ * WHAT THE ABILITIES DO, IN THE GAME'S OWN WORDS (variants b and b2 only,
+ * round 3 re-audit): the player's agent's four lines and, with Riot's killer
+ * on record, the killer's. The look had only the names, and wrote "use
+ * undercut to check the angle" of an ability that suppresses and makes
+ * vulnerable, which the review and Ask Coach then repeated. Variant a is
+ * 8.4.4's prompt byte for byte and gets none. '' when no agent is known or
+ * the kit module is not deployed, so the prompt is b's as it was.
+ */
+function kitBlockFor(input, death) {
+  if (!abilityFacts || typeof abilityFacts.kitLines !== 'function') return '';
+  const agents = [input && input.agent, input && input.source !== 'screen' && death ? death.killer : null].filter(Boolean);
+  let lines = [];
+  try { lines = abilityFacts.kitLines(agents) || []; } catch { lines = []; }
+  if (!lines.length) return '';
+  return `What these abilities do, in the game's own words. Say of an ability only what its line says:\n${lines.join('\n')}\n`;
+}
+
+/**
+ * A look sentence the kit table contradicts (ability-facts.js checkText): a
+ * key, an ultimate, an owner, an effect ("use undercut to check the angle",
+ * "the Boom Bot trips the wires", "Alarmbot slows"), or a reveal count
+ * ("Neural Theft is a single still"). "His ultimate" is the killer's. English
+ * only, as the checker reads English. Returns the reason the route logs, the
+ * ability and the kind, never a word of the sentence, or null.
+ */
+function kitWrong(text, input, death) {
+  if (!abilityFacts || typeof abilityFacts.checkText !== 'function' || gateLanguage(input) !== 'en') return null;
+  let claims = [];
+  try {
+    claims = abilityFacts.checkText(text, { agents: [input.agent].filter(Boolean), ultOf: (death && death.killer) || null }) || [];
+  } catch { claims = []; }
+  const c = claims[0];
+  return c ? `kit: ${c.ability} ${c.kind}` : null;
+}
+
 /** One death in, the prompt out. */
 function buildPrompt(input, death) {
   const callouts = calloutsOf(input.map);
@@ -451,7 +491,7 @@ ${header}
 ${facts.join('\n')}
 
 Player's agent: ${input.agent || 'unknown'}. Their abilities: ${kit.length ? kit.join(', ') : 'unknown, so name no abilities'}.
-Map: ${input.map || 'unknown'}. Callouts that exist on it: ${callouts.length ? callouts.join(', ') : 'unknown, so name no callouts'}.
+${b ? kitBlockFor(input, death) : ''}Map: ${input.map || 'unknown'}. Callouts that exist on it: ${callouts.length ? callouts.join(', ') : 'unknown, so name no callouts'}.
 
 ${pick}
 ${Object.entries(b ? CAUSES_B : CAUSES).map(([k, v]) => `${k}: ${v}`).join('\n')}${judge}
@@ -650,6 +690,11 @@ function parse(text, input, death) {
     if (!/[.!?]$/.test(s)) s += '.';
     const bad = wrongMap(s, input.map) || foreignAbility(s, input.agent) || wrongKiller(s, death.killer, input.source, input);
     if (bad) { out.dropped.push({ field, why: bad }); continue; }
+    // THE KIT AS THE DATA HAS IT (every client and variant): a look sentence
+    // that says an ability does what the game's description does not is
+    // dropped as one naming another map is, and the look carries on without it.
+    const kitBad = kitWrong(s, input, death);
+    if (kitBad) { out.dropped.push({ field, why: kitBad, gate: 'kit' }); continue; }
     // NO PLAYER NAMED (8.5.0, every client): the look sees KILLED BY and the
     // kill feed, and a name it copies is saved, shown and handed on. The
     // match's own names come with the input (the route's `names`, from the
@@ -820,5 +865,5 @@ module.exports = {
   CAUSES, CAUSES_B, AVOIDABLE, FIGHTS, CHANGES, PHRASES, PHRASE_ORDER, VARIANTS, TOKENS, LABELS, MAX_FRAMES, MAX_TIMED_FRAMES, MAX_FRAME_AT,
   buildPrompt, parse, normalise, wrongMap, foreignAbility, wrongKiller, calloutsOf,
   phraseHits, movesPlayer, replyJson, rawLabels, logLines, replyOf, tokensFor, judgement, judgementB2, judgesFight,
-  rankRule, BAND_WORDS,
+  rankRule, BAND_WORDS, kitBlockFor, kitWrong,
 };

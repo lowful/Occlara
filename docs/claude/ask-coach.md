@@ -281,6 +281,64 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
     The card now says such a death was the last one alive, and the rules say
     to quote the counted line, which is the one the review page shows (both
     read the review's saved insights).
+- **The re-audit of 8.7.7 and what changed (Nov 2026, stream B)**. The same
+  84 items asked live after 8.7.7: useful up, refusals 8 to 0, but wrong
+  claims up, the trade habit opening 9 of 10 "how do I improve" answers, aim
+  answers against the looks, library numbers nobody could check, orphan
+  text and product talk. Replayed offline over the 60 raw replies (each
+  context rebuilt through `ask-coach.js`): 0 honest lines, the drops below
+  each one a judge's wrong claim, and six true "your own average" sentences
+  the number gate had dropped now kept. Each pinned in test:chatgates,
+  section 15, on the live sentence and a true variant:
+  - THE LEVER (`chat-prompt.js leverLine`, `leversOf`, `LEVER_WEIGHTS`): a
+    general question (biggest mistake, improve, climb, practise, not aim, no
+    agent) from a client that sends a band gets one lever chosen in code from
+    this match's counted facts (the mistakes, the early and retake or post
+    plant patterns, the grade's "first to die in N of M", the headshot rate
+    against the player's own average), weighed by band and, for practice, by
+    what can be drilled. Above Gold the trade check leads only when nothing
+    else is counted. Near ties (within `LEVER_TIE`, 85%) go by a seed of the
+    match and the question's kind. No band, no lever: the prompt is today's.
+    On the audit's ten climb questions the lever names trading for 2 (the
+    answers had opened on it 9 times), both Silver or below where it is the
+    largest count. Not yet measured on live answers.
+  - `server/services/coherence.js`, shared with the review side:
+    `checkOrphans` (a he or she with no agent who could be meant, a person
+    noun counting only in the sentence before, a lead in whose promise was
+    dropped, "with it up", "those rounds"), run by `gateReply` after the
+    gates as gate `orphan`, dropped and never retried; `checkProduct` (the
+    next review, the app, Occlara, a page, a setting, Advanced coaching) as
+    gate `product`; `checkRoundState` (on attack with no spike down nobody has
+    to come to you, on defence with it down the defenders retake, an attacker
+    never retakes, a defender never holds the spike; a plant with no time and
+    no afterPlant judges nothing) as gate `state`, of the round named, else
+    the one asked, else the side the sentence names itself.
+  - Aim against the looks (`gateAim`): an `unclear` look is no look that
+    calls a death something else (four unclear looks had let "aim is not the
+    first thing to fix" stand); the dismissal in other words ("not lost on
+    the shot", "mechanics are not what is costing you", "not that you are
+    losing duels", "but it is not what cost you"); praise of the aim only at
+    or above the player's own headshot average (`AIM_PRAISED`, `facts.aim`);
+    and "a fight you should not have taken" where every death the coach could
+    tell about was a lost duel (`AVOIDABLE`, "rather than" excepted).
+  - The library (`gateLibrary`, `facts.library`): a sentence about other
+    matches holds "N of your last M matches" to a pattern's pair and an
+    average to the against line's baselines, the rows, the tracker or a
+    counted "average is N"; a season, act or episode drops; this match's
+    rounds told as a pattern across matches drop. The number gate keeps an
+    average the library holds ("against your usual 32"), and THE PLAYER's
+    pattern lines and the against line carry the words to say them in.
+  - `habit`: "you are taking the first fight" said of the match where the
+    player was the first death in under a quarter of the rounds.
+  - The kits (`renderSlices`): one block of `ability-facts.js kitBlock`
+    lines (`KIT_HEAD`), the player's agent, the agent asked, the asked
+    rounds' killers or else the two who killed the player most, four at most,
+    the primer's kits only without the module. `gateKit` passes `ultOf`, the
+    agent asked about else the asked round's killer, so "his ultimate is a
+    single still" in a Cypher answer drops.
+  - The rules: no product talk, cross match numbers only as given and no
+    season, THE LEVER first with trading at most once, no aim praise the
+    numbers deny, the side and the spike before advice about a round.
 - **Its model, its time and its cap are the route's** (above, "Ask Coach v2,
   the route's half"): `AI_CHAT_MODEL` pinned with no weaker model behind it,
   40 s across both calls, and $0.15 a licence a rolling day. The page says

@@ -129,6 +129,19 @@ before the death and lost the fight and the death screen.
 - **Isolated is refused on a death Riot records as traded**: the look is
   unclear, with no sentences, logged by round. "Too far from teammates to be
   traded" beside Riot's own trade is the screen's word over Riot's.
+- **The kit as the game data has it** (after 8.7.7, the round 3 re-audit,
+  `death-forensics.js kitWrong`, every client and variant, English only): a
+  look sentence `ability-facts.js checkText` finds against the kit table is
+  dropped, logged as `kit: <ability> <kind>`, and the look carries on as for
+  any dropped line. The look was the source of kit errors the review and Ask
+  Coach repeated: "use undercut to check the angle" (Undercut suppresses and
+  makes vulnerable, it shows nobody), "it can set the wire off for you" of a
+  Boom Bot, Neural Theft "a single still" (it snapshots twice; "his
+  ultimate" is the killer's). Variants b and b2 also carry a small block
+  (`kitBlockFor`), the player's agent's four `kitLine`s and, with Riot's
+  killer on record, the killer's, in the data's own words; variant a gets
+  none and stays 8.4.4's prompt byte for byte. Run `npm run bench:forensics`
+  after deploying it, since the b2 prompt grew by that block.
 
 **Variant b: the fight judged first, the label last** (8.5.0, an admin bench's
 alone until bench A passes, then 8.5.0 and later by `FORENSICS_PROMPT=b`). On

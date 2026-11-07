@@ -218,7 +218,25 @@ function normalise(body) {
     // sends no `swing` and is reviewed as before, byte for byte.
     swing: Array.isArray(b.swing) ? b.swing.filter((t) => typeof t === 'string').slice(0, 3)
       .map((t) => noSemicolons(clip(t, 200))).filter((t) => t && !DASH.test(t)) : null,
+    // THE ROUND 4 CLIENT (valorant-review.js requestBody sends `counts`, an
+    // object, every time): what its card counted, and the mark that the round
+    // 4 prompt rules apply. A client before it sends none and is reviewed as
+    // before, byte for byte. The numbers the prompt quotes are this server's
+    // own, from the rounds (matchCounts), never these.
+    counts: b.counts && typeof b.counts === 'object' && !Array.isArray(b.counts) ? countsSent(b.counts) : null,
+    // The counted mistakes the player's library finds again across their
+    // recent matches (round 4), keys only. Missing is none repeated.
+    recurring: Array.isArray(b.recurring) ? [...new Set(b.recurring.filter((k) => typeof k === 'string' && /^[a-z][a-z:-]{0,29}$/.test(k)))].slice(0, 8) : null,
   };
+}
+
+/** The counts a round 4 client sent, small integers only. */
+function countsSent(c) {
+  const out = {};
+  for (const k of ['deaths', 'known', 'untraded', 'alone', 'tradeable', 'untradedMate']) {
+    if (Number.isInteger(c[k]) && c[k] >= 0 && c[k] <= 60) out[k] = c[k];
+  }
+  return out;
 }
 
 const DASH = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
@@ -234,6 +252,8 @@ function standingsList(v) {
 
 /** Whether a review is from a client of the round 3 rules (normalise's `swing`). */
 const round3 = (input) => !!(input && Array.isArray(input.swing));
+/** Whether a review is from a client of the round 4 rules (normalise's `counts`), always one of round 3 too. */
+const round4 = (input) => !!(input && round3(input) && input.counts);
 
 /**
  * The side the player won less on, when both sides have three decided rounds
@@ -332,8 +352,8 @@ function focusLever(input) {
   return { untraded: !!untraded, tradeOk, entry: role === 'duelist' };
 }
 
-function leverRule(input) {
-  const lever = focusLever(input);
+function leverRule(input, noTrade) {
+  const lever = noTrade ? { ...focusLever(input), tradeOk: false } : focusLever(input);
   const entry = lever.entry
     ? ' The player plays a duelist, whose job is to go in first, so where the lesson is about who followed them in, teach their part of '
       + 'the entry, going in on a teammate\'s flash, drone or smoke or saying which teammate follows, never waiting for the team.'
@@ -347,6 +367,275 @@ function leverRule(input) {
     + (lever.untraded ? ' Never make checking that a teammate can trade you the focus in this match: it is not what decides rounds '
       + 'here, so take the next biggest lever instead.' : '')
     + entry;
+}
+
+/*
+ * ── ROUND 4 (Nov 2026): one block of numbers, a lever by level ─────────────
+ *
+ * From the live re-audit of 8.7.7 (the same 84 items): the trade habit opened
+ * 9 of 10 "how do I improve" answers at every rank, Ascendant reviews got
+ * worse (useful 2.25 to 2.17, 20 of 24 weak), four reviews said "13 of your
+ * 15 deaths went unanswered" beside facts saying 16 deaths and 14 untraded,
+ * a gate's drop left "Fight her with a teammate" with no her, a focus said
+ * "so your next review can check", and an attacker with no plant was told to
+ * let the enemy come to them. A client of the round 4 rules (round4,
+ * normalise's `counts`) gets every rule below; one before it is reviewed
+ * exactly as before.
+ *
+ * THE COUNTS, from this match's verified rounds by the card's own rule
+ * (insights.js valorant: a death as the last one alive is no death a
+ * teammate could trade). The card's 13 of 15 and the record's 14 of 16 are
+ * both true, of different deaths, so the block says both and what separates
+ * them, and the summary and the round lines may quote no other number.
+ */
+function matchCounts(input) {
+  const v = ((input && input.rounds) || []).filter((r) => r && r.verified);
+  const deaths = v.filter((r) => r.died);
+  const known = deaths.filter((r) => typeof r.traded === 'boolean');
+  const alone = (r) => !!(r.alive && r.alive.mates <= 1);
+  const tradeable = known.filter((r) => !alone(r));
+  return {
+    rounds: v.length,
+    deaths: deaths.length,
+    known: known.length,
+    untraded: known.filter((r) => r.traded === false).length,
+    alone: known.filter(alone).length,
+    tradeable: tradeable.length,
+    untradedMate: tradeable.filter((r) => r.traded === false).length,
+  };
+}
+
+/** The side and site records and the repeat killer of a match, from its verified rounds, as finished lines with their kinds. */
+function matchFacts(input) {
+  const v = ((input && input.rounds) || []).filter((r) => r && r.verified && r.side && r.result);
+  const out = {};
+  const won = (rs) => rs.filter((r) => r.result === 'won').length;
+  const atk = v.filter((r) => r.side === 'attacking');
+  const def = v.filter((r) => r.side === 'defending');
+  const weak = weakSide(v);
+  if (weak) {
+    out.side = { weak, text: `You won ${won(atk)} of ${atk.length} rounds on attack and ${won(def)} of ${def.length} on defence.` };
+  }
+  const postAtk = atk.filter((r) => r.planted);
+  if (postAtk.length >= 3 && won(postAtk) * 2 <= postAtk.length) {
+    out.postplant = { text: `Once the spike was down on attack, your team won ${won(postAtk)} of ${postAtk.length} rounds.` };
+  }
+  const postDef = def.filter((r) => r.planted);
+  if (postDef.length >= 3 && won(postDef) * 3 <= postDef.length) {
+    out.retake = { text: `Once they planted on defence, your team won ${won(postDef)} of ${postDef.length} rounds.` };
+  }
+  const deaths = v.filter((r) => r.died);
+  const by = new Map();
+  for (const r of deaths) if (r.killer) by.set(r.killer, (by.get(r.killer) || 0) + 1);
+  const top = [...by.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  if (top && top[1] >= 4 && top[1] * 10 >= deaths.length * 3 && knowledge.enemiesOf([top[0]]).length) {
+    out.killer = { agent: knowledge.enemiesOf([top[0]])[0], text: `${knowledge.enemiesOf([top[0]])[0]} killed you ${top[1]} times, more than anyone else.` };
+  }
+  const early = deaths.filter((r) => r.sec !== null && r.sec <= 30 && !r.planted);
+  if (early.length >= 4 && early.length * 10 >= deaths.length * 4) {
+    out.tempo = { text: `${early.length} of your ${deaths.length} deaths came in the first 30 seconds of the round, before any plant.` };
+  }
+  return out;
+}
+
+/** The SWING AND COUNTS block's lines: the swing, the counts, the records, each once, in that order. */
+function countLines(input) {
+  const c = matchCounts(input);
+  const lines = [...(input.swing || [])];
+  const add = (t) => { if (t && !lines.includes(t)) lines.push(t); };
+  if (c.deaths) add(`You died ${c.deaths} ${c.deaths === 1 ? 'time' : 'times'} in ${c.rounds} rounds.`);
+  if (c.known) add(`${c.untraded} of your ${c.known} deaths were not traded by a teammate within five seconds.`);
+  if (c.alone && c.tradeable && c.tradeable < c.known) {
+    add(`${c.alone} of those deaths came as the last player alive, when nobody was left to trade, so ${c.untradedMate} of your `
+      + `${c.tradeable} deaths with a teammate alive to trade went unanswered.`);
+  }
+  const f = matchFacts(input);
+  for (const k of ['side', 'postplant', 'retake', 'killer', 'tempo']) if (f[k]) add(f[k].text);
+  return lines.slice(0, 9);
+}
+
+/*
+ * THE CARD'S UNTRADED COUNT IN THE RECORD'S WORDS: "13 of your 15 deaths went
+ * unanswered" leaves out the death as the last one alive, and a player who
+ * died 16 times reads it as a wrong count. Where the two differ, the count
+ * names the deaths it is of. Only that exact shape, only with these numbers.
+ */
+const QUALIFIED = 'with a teammate alive to trade';
+const HAS_QUALIFIER = /\b(?:teammates? alive|last (?:player|one) (?:alive|standing)|could have been traded|a teammate could trade)\b/i;
+function qualifyCount(text, input) {
+  if (!text || !round4(input)) return text;
+  const c = matchCounts(input);
+  if (!(c.alone && c.tradeable && c.tradeable < c.known)) return text;
+  const pair = new RegExp(`(?<![0-9])${c.untradedMate}\\s+(?:out\\s+)?of\\s+(?:your\\s+|the\\s+)?${c.tradeable}(?:\\s+deaths)?(?![0-9])`, 'g');
+  return splitSentences(text).map((s) => (HAS_QUALIFIER.test(s) ? s
+    : s.replace(pair, `${c.untradedMate} of your ${c.tradeable} deaths ${QUALIFIED}`))).join('').replace(/\s+/g, ' ').trim();
+}
+
+/** The counted mistakes as the round 4 prompt lists them: the untraded count named for the deaths it is of. */
+function mistakesShown(input) {
+  if (!input.mistakes || !round4(input)) return input.mistakes;
+  return input.mistakes.map((m) => (m.key === 'untraded' ? { ...m, detail: qualifyCount(m.detail, input) } : m));
+}
+
+/** Every "N of M" the round 4 summary and round lines may quote: the block's and the counted mistakes'. */
+function allowedPairs(input) {
+  return new Set(countLines(input).flatMap((t) => countPairs(t))
+    .concat((mistakesShown(input) || []).flatMap((m) => countPairs(m.detail))));
+}
+
+/*
+ * THE LEVER BY LEVEL (round 4). Round 3 let the trade habit be the focus
+ * only where those deaths dominate, and it still opened 13 of 24 reviews and
+ * 9 of 10 answers at every rank. From Platinum it is the focus now only where
+ * the player's library finds it again across recent matches (`recurring`,
+ * sent by the client) AND this match's untraded deaths decided rounds (four
+ * at least, and half the rounds lost with a death in them). Otherwise each
+ * level is given its own kind of lever, from this match's numbers:
+ *
+ *   Iron, Bronze   the basic habit: the trade, the first fight's timing
+ *   Silver, Gold   the matchup, then the trade, the first death
+ *   Plat, Diamond  a decision: the post plant, the retake, the advantage
+ *   Ascendant up   the side or site gap, the tempo, a repeated decision
+ *
+ * The first kind this match has a fact for is the lever; none, and the round
+ * 3 rule stands. No band is the round 3 rule, as before.
+ */
+const LEVER_ORDER = {
+  iron_bronze: ['trade', 'tempo', 'first-death', 'killer'],
+  silver_gold: ['killer', 'trade', 'first-death', 'tempo', 'postplant', 'retake'],
+  plat_diamond: ['postplant', 'retake', 'advantage', 'killer', 'decision', 'side', 'first-death', 'tempo', 'trade'],
+  asc_plus: ['side', 'tempo', 'decision', 'advantage', 'postplant', 'retake', 'killer', 'first-death', 'trade'],
+};
+const HIGH_BANDS = new Set(['plat_diamond', 'asc_plus']);
+
+function leverOf(input) {
+  if (!round4(input)) return null;
+  const band = knowledge.validBand(input.context && input.context.rankBand);
+  if (!band) return null;
+  const mistakes = input.mistakes || [];
+  const has = (key) => mistakes.find((m) => m && m.key === key) || null;
+  const facts = matchFacts(input);
+  const untraded = has('untraded');
+  let tradeOk = false;
+  if (untraded) {
+    if (HIGH_BANDS.has(band)) {
+      const lost = (input.rounds || []).filter((r) => r.verified && r.result === 'lost' && r.died);
+      const decided = lost.filter((r) => r.traded === false && !(r.alive && r.alive.mates <= 1)).length;
+      tradeOk = (input.recurring || []).includes('untraded') && decided >= 4 && decided * 2 >= lost.length;
+    } else tradeOk = focusLever(input).tradeOk;
+  }
+  const decision = mistakes.find((m) => m && /^cause:/.test(m.key || '') && m.key !== 'cause:unclear' && forensics.CAUSES[m.key.slice(6)]) || null;
+  const found = {
+    trade: tradeOk ? { text: qualifyCount(untraded.detail, input) } : null,
+    'first-death': has('first-death') ? { text: has('first-death').detail } : null,
+    advantage: has('lost-advantage') ? { text: has('lost-advantage').detail } : null,
+    decision: decision ? { text: decision.detail, cause: decision.key.slice(6) } : null,
+    ...facts,
+  };
+  // From Platinum, a trade habit the library finds again and this match
+  // decided on leads: it is the player's own record over and over.
+  const order = HIGH_BANDS.has(band) && tradeOk ? ['trade', ...LEVER_ORDER[band]] : LEVER_ORDER[band];
+  for (const kind of order) if (found[kind]) return { kind, band, ...found[kind] };
+  return null;
+}
+
+const LEVER_TEACH = {
+  trade: 'the habit of checking a teammate is close enough to kill your killer before the fight',
+  'first-death': 'taking first contact only on a teammate\'s flash, drone or smoke, or with one following close',
+  advantage: 'playing a numbers advantage: the fight the round did not need, and holding what the team has',
+  decision: 'the decision the coach\'s look saw more than once, and what to do instead',
+  postplant: 'where the team plays after the plant and who watches the spike, with the clock',
+  retake: 'the retake: when to save, when to group, and the way back onto the site',
+  side: 'what to change on the weaker side, with its numbers',
+  killer: 'that agent: where they play, what their abilities do as their lines under WHAT THE ABILITIES DO say, and the fight to take against them',
+  tempo: 'the timing of the first fight: when to take it and when to let the team\'s first contact or utility go first',
+};
+
+function leverRule4(input, lever) {
+  const untraded = (input.mistakes || []).some((m) => m && m.key === 'untraded');
+  const entry = focusLever(input).entry && (lever.kind === 'trade' || lever.kind === 'first-death')
+    ? ' The player plays a duelist, whose job is to go in first, so teach their part of the entry, going in on a teammate\'s flash, '
+      + 'drone or smoke or saying which teammate follows, never waiting for the team.' : '';
+  return `FOCUS LEVER: ${lever.text} Make the FOCUS about ${LEVER_TEACH[lever.kind]}, and say why it wins rounds here.`
+    + (lever.kind !== 'trade' && untraded ? ' Never make checking that a teammate can trade you the focus in this match: it is not '
+      + 'what decides rounds at this level here.' : '')
+    + entry;
+}
+
+/*
+ * THE DEPTH OF A HIGH LEVEL REVIEW (round 4): the judges at Platinum and up
+ * asked for the match's own numbers and a trade off, and got "check a
+ * teammate is close" in four lines. One fundamentals habit at most, and
+ * parse() holds it (fundamentalsCap).
+ */
+function depthRule(band) {
+  if (!HIGH_BANDS.has(knowledge.validBand(band))) return '';
+  return 'DEPTH: at this level reason from this match\'s own numbers in the SWING AND COUNTS block, the side split, the post plant '
+    + 'and retake record, the repeat killer or gun, and in the focus and at least one round line say the trade off, what the play '
+    + 'gains and what it costs. Name at most one fundamentals habit in the whole review, such as a teammate close enough to kill '
+    + 'your killer, stopping before the shot or one angle at a time, and only where the rounds show it missing.\n\n';
+}
+
+/*
+ * WHAT THE ABILITIES DO (round 4, ability-facts.js kitLines, the look's
+ * block): the player's agent and the two agents who killed them most, in the
+ * game's own words. The review had only the names and wrote "Undercut checks
+ * the angle" after the look did. '' when no agent is known.
+ */
+function kitAgents(input) {
+  const by = new Map();
+  for (const r of input.rounds || []) if (r && r.verified && r.died && r.killer) by.set(r.killer, (by.get(r.killer) || 0) + 1);
+  const killers = [...by.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 2).map((e) => e[0]);
+  return [input.context && input.context.agent, ...knowledge.enemiesOf(killers)].filter(Boolean);
+}
+function kitBlockOf(input) {
+  if (typeof abilityFacts.kitLines !== 'function') return '';
+  let lines = [];
+  try { lines = abilityFacts.kitLines(kitAgents(input)) || []; } catch { lines = []; }
+  lines = lines.map((t) => noSemicolons(t)).filter((t) => t && !DASH.test(t));
+  if (!lines.length) return '';
+  return `\n\nWHAT THE ABILITIES DO, in the game's own words. Say of an ability only what its line says:\n${lines.map((t) => '- ' + t).join('\n')}`;
+}
+
+/*
+ * THE STUDY LIST AND THE CASES FOLLOW THE SWING (round 4): a post plant the
+ * team kept losing sends the player to the post plant notes, a retake that
+ * collapsed to the retake notes, a run of early deaths to the first fight's
+ * notes, and the agent who killed them most to the notes that answer that
+ * agent. The match's own facts, so another match is sent elsewhere.
+ */
+const SWING_TOPIC_KINDS = { postplant: 'postplant', retake: 'retake', tempo: 'early' };
+const SWING_BONUS = 3;
+// A swing topic's weight: wanted (+5) and the swing's own (SWING_BONUS).
+const MATCHUP_BONUS = 8;
+function swingTopics(input) {
+  const out = new Set();
+  if (!round4(input)) return out;
+  const f = matchFacts(input);
+  for (const [kind, pattern] of Object.entries(SWING_TOPIC_KINDS)) if (f[kind]) for (const t of PATTERN_TOPICS[pattern]) out.add(t);
+  if ((input.swing || []).some((t) => /\brounds in a row\b/.test(t))) for (const t of PATTERN_TOPICS.streak) out.add(t);
+  return out;
+}
+
+/** What retrieve() is told of the lever's moment (round 4): the post plant, the retake, the weaker side. {} otherwise. */
+function leverSituation(input) {
+  const lever = leverOf(input);
+  if (!lever) return {};
+  if (lever.kind === 'postplant') return { phase: 'postplant', side: 'attack' };
+  if (lever.kind === 'retake') return { phase: 'postplant', side: 'defense' };
+  if (lever.kind === 'side') return { side: lever.weak };
+  return {};
+}
+
+/** The review's case situation (cases.fromReview), with the swing's phases and the repeat killer first for a round 4 client. */
+function caseSituation(input, enemies) {
+  const x = cases.fromReview(input, enemies);
+  if (!round4(input)) return x;
+  const f = matchFacts(input);
+  if (f.postplant) { x.phases.add('postplant'); if (!x.patterns.includes('postplant')) x.patterns.push('postplant'); }
+  if (f.retake) { x.phases.add('retake'); if (!x.patterns.includes('retake')) x.patterns.push('retake'); }
+  if (f.killer && x.enemies.includes(f.killer.agent)) x.enemies = [f.killer.agent, ...x.enemies.filter((a) => a !== f.killer.agent)];
+  return x;
 }
 
 /*
@@ -430,6 +719,17 @@ function study(input, limit = 3, opts = {}) {
   const r3 = round3(input);
   if (r3 && aimEvidence(input) && aimEvidence(input).low) for (const t of CAUSE_TOPICS['lost-duel']) wanted.add(t);
   const seed = r3 ? cases.reviewSeed(input) : null;
+  // ROUND 4, for a client of its rules alone (round4): the swing's topics
+  // are wanted and weigh SWING_BONUS more, the agent who killed the player
+  // most brings the notes that answer that agent, and from Platinum, with a
+  // lever that is not the trade, a trade note weighs less. A client before
+  // it is listed its notes as before, byte for byte.
+  const r4 = round4(input);
+  const swingWanted = swingTopics(input);
+  for (const t of swingWanted) wanted.add(t);
+  const r4facts = r4 ? matchFacts(input) : {};
+  const matchup = r4facts.killer ? r4facts.killer.agent : null;
+  const lever4 = r4 ? leverOf(input) : null;
   const looked = new Set();
   if (input.byCause === true) {
     for (const m of input.mistakes || []) {
@@ -495,6 +795,12 @@ function study(input, limit = 3, opts = {}) {
     // notes filled all 72 study slots of the audit's 24 reviews, one of them
     // in 13 of the 18 above Iron. The same match always gets the same list.
     if (seed) score += STUDY_VARIETY * spread(`${note.text}|${seed}`);
+    if (r4) {
+      if (swingWanted.has(src.topic)) score += SWING_BONUS;
+      const answers = [...(note.enemyAgents || []), ...(note.enemyHint || [])];
+      if (matchup && answers.includes(matchup)) score += MATCHUP_BONUS;
+      if (lever4 && lever4.kind !== 'trade' && HIGH_BANDS.has(band) && TRADE_NOTE.test(note.text)) score -= 2;
+    }
     scored.push({ text: note.text, topic: src.topic, advanced, score, fit: ranked === knowledge.RANK_FIT });
   }
   scored.sort((a, b) => b.score - a.score);
@@ -532,7 +838,7 @@ function study(input, limit = 3, opts = {}) {
   return out.map((n) => ({ text: n.text }));
 }
 
-function roundLine(r) {
+function roundLine(r, opts) {
   const bits = [`R${r.n}`];
   bits.push([r.side === 'attacking' ? 'attack' : r.side === 'defending' ? 'defence' : 'side unread',
     r.result || 'result unread'].join(', '));
@@ -560,7 +866,10 @@ function roundLine(r) {
     if (r.ultReady) facts.push('ultimate was ready when they died');
   }
   if (r.planted) facts.push(`spike planted${r.plantSpot ? ' at ' + r.plantSpot : ''}`);
-  let line = `${bits.join(' ')}${facts.length ? '. ' + facts.join('; ') : ''}.`;
+  // Round 4: Riot's record says whether the spike went down, so a round with
+  // none says so, and advice that needs a plant is never given for it.
+  else if (opts && opts.plant && r.verified) facts.push('spike not planted');
+  let line =`${bits.join(' ')}${facts.length ? '. ' + facts.join('; ') : ''}.`;
   // The last of what the screen showed the player doing in play, before the
   // death where there was one. Only play reaches here (normalise).
   if (r.reads.length) line += ` Seen in play: ${r.reads.map((t) => `"${t}"`).join(' ')}`;
@@ -644,12 +953,13 @@ function promptRounds(input, withKnowledge, opts) {
     for (const t of knowledge.retrieve({ agent: context.agent, map: context.map, causes,
       ...(context.rankBand ? { rankBand: context.rankBand } : {}),
       ...(enemies.length ? { enemyAgents: enemies } : {}),
-      ...(guns.length ? { enemyWeapons: guns } : {}) }, 6,
+      ...(guns.length ? { enemyWeapons: guns } : {}),
+      ...leverSituation(input) }, 6,
       { advanced: context.advancedTips })) add(t);
     notes = notes.slice(0, 8);
     // Worked cases (8.8, cases.js), only where this match's situation matches one.
     // opts.cases false is the prompt without them, today's, for the tests and the benches.
-    worked = opts && opts.cases === false ? [] : cases.pick(cases.fromReview(input, enemies), cases.MAX_CASES);
+    worked = opts && opts.cases === false ? [] : cases.pick(caseSituation(input, enemies), cases.MAX_CASES);
   }
   // Never where it comes from: the review speaks these notes in its own
   // voice and names no coach, player, team or video behind them.
@@ -673,11 +983,12 @@ function promptRounds(input, withKnowledge, opts) {
   const block = (head, list) => (list
     ? `\n\n${head}\n${list.length ? counted(list) : '- none cleared the bar in this match'}` : '');
   const picks = teachable(rounds);
+  const r4 = round4(input);
   const assemble = (knowledgeBlock) => `You are reviewing one finished Valorant match for the player, ${who}. ${score}\n\n`
-    + `${ledgerNote}\n${rounds.map(roundLine).join('\n')}\n\n`
+    + `${ledgerNote}\n${(r4 ? rounds.map((r) => roundLine(r, { plant: true })) : rounds.map((r) => roundLine(r))).join('\n')}\n\n`
     + `COMPUTED PATTERNS (arithmetic over the ledger, these are true):\n`
     + (patterns.length ? patterns.map((p) => '- ' + p.text).join('\n') : '- none cleared the bar in this match')
-    + block('COUNTED MISTAKES (counted from the rounds above, most serious first, these are true):', input.mistakes)
+    + block('COUNTED MISTAKES (counted from the rounds above, most serious first, these are true):', mistakesShown(input))
     + block('COUNTED STRENGTHS (counted the same way, these are true):', input.strengths)
     + knowledgeBlock
     // A client of the round 3 rules gets them (round3Write); one before it
@@ -807,8 +1118,9 @@ const GROUNDING3_SWAPS = [
 ];
 const GROUNDING3 = GROUNDING3_SWAPS.reduce((g, [from, to]) => g.replace(from, to), GROUNDING);
 
-function round3Write(input, picks) {
-  const swing = input.swing.length
+function round3Write(input, picks, parts) {
+  if (!parts && round4(input)) return round4Write(input, picks);
+  const swing = parts ? parts.swing : input.swing.length
     ? `\n\nSWING FACTS (computed from Riot's record of this match, the biggest first, these are true):\n${input.swing.map((t) => '- ' + t).join('\n')}`
     : '';
   const aim = aimEvidence(input);
@@ -816,7 +1128,7 @@ function round3Write(input, picks) {
   if (aim && aim.low) aimSaid.push(`the player's headshot rate this match was ${aim.hs} percent, well below what is usual at their level, so a fair fight lost on the shot may be named as aim`);
   if (aim && aim.lostDuels) aimSaid.push('the coach\'s look called a death a fair fight lost on the shot, so aim may be named in that round');
   const aimLine = `\n\nAIM EVIDENCE: ${aimSaid.length ? aimSaid.join(', and ') : 'none in this match, so never say whether aim was or was not the problem'}.`;
-  return swing + aimLine + '\n\n' + leverRule(input)
+  return swing + aimLine + (parts ? parts.kit : '') + '\n\n' + (parts ? parts.lever : leverRule(input))
     + '\n\nWrite exactly this, each label at the start of its own line:\n'
     + 'SUMMARY: three sentences on one line, under 70 words. First, starting with You won or You lost and the score '
     + 'if the score says so, what decided it for the player, drawn from the swing facts, the counted mistakes, the strengths and the patterns, '
@@ -856,6 +1168,56 @@ function round3Write(input, picks) {
     + 'do instead. It is done in a real match: Deathmatch and the Range have no teammates, so never set a drill there that needs one.\n\n'
     + rankRule3(input.context.rankBand)
     + GROUNDING3;
+}
+
+/*
+ * THE ROUND 4 INSTRUCTIONS are the round 3 ones with these sentences
+ * changed (round4Write, each swap must apply: test:valorantreview holds it,
+ * since a swap that silently misses is a rule that is not there), the one
+ * SWING AND COUNTS block in place of the swing facts, the kit, the lever by
+ * level, and the depth rule from Platinum.
+ */
+const ROUND4_SWAPS = [
+  ['and where a swing fact is listed, the first one with its numbers exactly as given. ',
+    'and the first line of the SWING AND COUNTS block with its numbers exactly as written there. '],
+  ['or a swing fact with its numbers exactly as given, ',
+    'or a line of the SWING AND COUNTS block with its numbers exactly as written, '],
+  ['name an ability by its name, never by its key letter. ',
+    'name an ability by its name, never by its key letter.{KIT} Each round\'s facts say the side and whether the spike was planted: '
+      + 'on attack before a plant the clock is the defenders\' and the site has to be taken, so in a round with no plant never tell an '
+      + 'attacker to let the enemy come to them or to play for time, and never give advice that needs a planted spike, a defuse or a '
+      + 'retake in a round where the spike was not planted. Quote a number of rounds or deaths only from the SWING AND COUNTS block. '],
+  ['in plain words, something a player can do in a round and see in their next review. ',
+    'in plain words, something a player can do in a round. '],
+  ['so never set a drill there that needs one.\n\n',
+    'so never set a drill there that needs one. Never mention this review, a next review, the app or what it can check, and never '
+      + 'suggest anything but playing, in a match, in Deathmatch or in the Range.\n\n'],
+];
+const GROUNDING4_SWAPS = [
+  ['In the SUMMARY write no counts or fractions such as 6 of 12 except the counted mistake\'s own count and a swing fact\'s numbers, exactly as given;',
+    'In the SUMMARY and the round lines write no counts or fractions such as 6 of 12 except the numbers of the SWING AND COUNTS block and the counted mistake\'s own count, exactly as written there;'],
+  ['Speak to the player as you, never as the player. ',
+    'Only this match is in front of you, so never quote a number from other matches, an average or what is usual for the player. '
+      + 'Speak to the player as you, never as the player. '],
+];
+const GROUNDING4 = GROUNDING4_SWAPS.reduce((g, [from, to]) => g.replace(from, to), GROUNDING3);
+
+function round4Write(input, picks) {
+  const lines = countLines(input);
+  const swing = lines.length
+    ? '\n\nSWING AND COUNTS (computed from Riot\'s record of this match, the biggest swing first, these are true, and the only '
+      + `numbers of rounds or deaths the summary and the round lines may quote, exactly as written here):\n${lines.map((t) => '- ' + t).join('\n')}`
+    : '';
+  const kit = kitBlockOf(input);
+  const lever = leverOf(input);
+  // No fact for any kind: the round 3 rule, the trade never the focus from Platinum.
+  const high = HIGH_BANDS.has(knowledge.validBand(input.context.rankBand));
+  let text = round3Write(input, picks, { swing, kit, lever: lever ? leverRule4(input, lever) : leverRule(input, high) });
+  for (const [from, to] of ROUND4_SWAPS) {
+    text = text.replace(from, to.replace('{KIT}', kit ? ' Say of an ability only what its line under WHAT THE ABILITIES DO says.' : ''));
+  }
+  if (text.endsWith(GROUNDING3)) text = text.slice(0, -GROUNDING3.length) + depthRule(input.context.rankBand) + GROUNDING4;
+  return text;
 }
 
 /** "rounds 2, 3, 6 and 7", "round 4". */
@@ -1092,6 +1454,16 @@ function parse(text, input) {
   if (out.focus) out.focus = noSemicolons(out.focus);
   for (const n of Object.keys(out.rounds)) out.rounds[n] = noSemicolons(out.rounds[n]);
 
+  // ROUND 4: the untraded count named for the deaths it is of (qualifyCount,
+  // a round 4 client only), and for every client a clause about the review
+  // or the app cut off a sentence that stands without it ("so your next
+  // review can check whether..."), the sentence going whole where it cannot.
+  if (out.summary) out.summary = productTrim(qualifyCount(out.summary, input), out);
+  if (out.focus) out.focus = productTrim(qualifyCount(out.focus, input), out);
+  for (const n of Object.keys(out.rounds)) out.rounds[n] = qualifyCount(out.rounds[n], input);
+  // What each field said before any gate, for the coherence pass (cohere).
+  const said = { summary: out.summary, focus: out.focus };
+
   // NO COUNTS IN THE SUMMARY. The prompt said to quote a pattern's numbers
   // exactly or not at all, and the model still wrote "six of twelve attack
   // rounds after spike plant" on the real Abyss match, merging 6 of 12 on
@@ -1109,7 +1481,9 @@ function parse(text, input) {
   // mistake in one round is what the prompt asks the second sentence for then.
   if (out.summary) {
     // A swing fact's numbers (round 3) are the summary's to quote, as given.
-    const allowed = new Set((input.mistakes || []).flatMap((m) => countPairs(m.detail))
+    // A round 4 client's: only the SWING AND COUNTS block's and the counted
+    // mistakes' (allowedPairs), the same numbers the prompt gave.
+    const allowed = round4(input) ? allowedPairs(input) : new Set((input.mistakes || []).flatMap((m) => countPairs(m.detail))
       .concat((input.swing || []).flatMap((t) => countPairs(t))));
     const counted = (input.mistakes || []).filter((m) => m.rounds.length);
     const kept = splitSentences(out.summary).map((s) => s.trim()).filter((s) => {
@@ -1189,6 +1563,20 @@ function parse(text, input) {
   // review. For every client: each drops only what is false or leaked.
   claimGates(out, input);
 
+  // ROUND 4: a round line quoting a count the SWING AND COUNTS block does
+  // not hold goes whole, as a summary sentence does, and from Platinum one
+  // fundamentals habit at most (fundamentalsCap). A round 4 client only.
+  if (round4(input)) {
+    const allowed = allowedPairs(input);
+    for (const n of Object.keys(out.rounds)) {
+      if (countPairs(out.rounds[n]).some((p) => !allowed.has(p))) {
+        delete out.rounds[n];
+        out.dropped.push({ n: Number(n), said: 'count', riot: null });
+      }
+    }
+    fundamentalsCap(out, input);
+  }
+
   // "Riot lost 2 to 5", the record named as the one who played: the summary
   // starts with the player's own result, and a sentence that does not is no
   // sentence of theirs.
@@ -1196,7 +1584,130 @@ function parse(text, input) {
     const kept = splitSentences(out.summary).map((s) => s.trim()).filter((s) => s && !/^Riot\s+(?:won|lost)\b/i.test(s));
     out.summary = kept.join(' ').trim() || null;
   }
+  // THE COHERENCE PASS (round 4, every client): what stays after a drop must
+  // still read. A sentence that leans on a dropped one goes with it.
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const c = cohere(said[field], out[field]);
+    if (c.gone) out.dropped.push({ n: null, said: `${field} orphan`, riot: null });
+    out[field] = c.text;
+  }
   return out;
+}
+
+/*
+ * ── THE ROUND 4 GATES (Nov 2026) ───────────────────────────────────────────
+ *
+ * From the live re-audit of 8.7.7, each certain before it drops anything:
+ *
+ *   product   the review talking about itself or the app: "so your next
+ *             review can check whether the fight had an answer"
+ *   library   a number from other matches nothing in a review states: "5 of
+ *             your last 6 matches", "your average of 32%"
+ *   state     advice the round's own record contradicts: an attacker with no
+ *             plant told to let the enemy come, advice that needs a planted
+ *             spike in a round with none
+ *   orphan    a sentence leaning on one a gate dropped: "Fight her with a
+ *             teammate" after the sentence naming her went
+ *   count     a round line's count the SWING AND COUNTS block does not hold
+ *   fundamentals  from Platinum, a second line teaching the trade habit
+ *
+ * English words, as the killer gate's.
+ */
+const PRODUCT_TALK = /\b(?:(?:your|the|this|next|a|each|every|future|later)\s+(?:next\s+|later\s+|future\s+)?reviews?|Occlara|the app|this app|the coach (?:can|will|could|would)|(?:I|we)(?:'ll| will) (?:check|track|watch|remind|look)|(?:the|your) AI log|(?:the|your) match library)\b/i;
+// The clause openers a product clause can be cut at, the sentence before it standing alone.
+const CLAUSE_CUT = /(?:,\s*(?:so|and|which|then|to)\s|\s(?:so that|so|and then|to see|and see)\s)/gi;
+// "your usual spot" is this match's place, never a number from others.
+const CROSS_MATCH = /\bof your last (?:\d+|two|three|four|five|six|seven|eight|nine|ten) (?:matches|games)\b|\byour average\b|\byour (?:usual|normal) (?:rate|number|score|headshot|percentage)\b|\b(?:above|below|under|over) your (?:usual|normal)\b|\b(?:in|across|over|from) (?:your|the) (?:last|recent|previous|past) (?:\d+ |few |several )?(?:matches|games)\b|\b(?:most|many|all) of your (?:recent |last |past )?(?:matches|games)\b|\bin (?:every|each) (?:of your )?match(?:es)?\b/i;
+const COME_TO_YOU = /\b(?:let|make|letting|making|have|force|forcing)\s+(?:the\s+)?(?:enemy|enemies|defenders?|attackers?|them|him|her|the other team|opponents?)\s+(?:\w+\s+)?(?:come|walk|push|swing)\s+(?:to|into|onto|at)\s+you\b|\bwait(?:ing)? for (?:them|the enemy|the enemies|the defenders?|him|her) to (?:come|push|swing)\b/i;
+const CLOCK_YOURS = /\b(?:the clock|time) (?:is|was) (?:on )?(?:your|our) side\b|\bplay(?:ing)? (?:for|out) the (?:clock|time)\b|\b(?:use|using) the clock\b|\brun(?:ning)? (?:down )?the clock\b|\blet(?:ting)? (?:the clock|time) (?:work|run) for you\b|\bthe clock (?:works|is working) for you\b/i;
+const SPIKE_NEEDED = /\b(?:after (?:the|your|their|a) plant|after (?:you|they|your team) plant(?:ed)?|once (?:the spike|it) (?:is|was|goes) (?:down|planted)|post plant|(?:hold|holding|guard|guarding|watch|watching|play|playing) (?:the|their|your) (?:spike|plant)|(?:off|near|around|over|onto) the spike|defus(?:e|ed|es|ing|al)|the planted spike|spike (?:is|was) (?:down|planted))\b/i;
+// A drill avoided is no drill: "practise it in your next match rather than in Deathmatch".
+const DRILL_AVOIDED = /\b(?:rather than|instead of|not|never|outside(?: of)?)\s+(?:in\s+|at\s+|on\s+|from\s+)?(?:a\s+|the\s+)?(?:[Dd]eath ?[Mm]atch|Range)\b/;
+// "whether anyone could help you": a teammate in other words.
+const DRILL_HELP = /\b(?:anyone|someone|somebody|nobody|no one) (?:could|can|is able to|would|will) (?:help|follow|see|trade|swing|answer)\b|\ba second player\b|\bfollows? you in\b|\bclose enough to (?:kill|trade|shoot|follow)\b/i;
+// A study note about the trade habit (study, round 4).
+const TRADE_NOTE = /\b(?:trade|traded|trading|tradeable|close enough to (?:kill|shoot|swing|follow))\b/i;
+// A line teaching the trade habit (fundamentalsCap).
+// The habit taught, never the fact said: "nobody could trade you" is the
+// round's fact, and "the same angle" alone is a repeek.
+const TRADE_HABIT = /\bclose enough to (?:kill|trade|shoot|follow|swing)\b|\b(?:a|your|the nearest) teammate (?:is |was )?(?:close|nearby|near)\b|\bnear a teammate\b|\bteammate who (?:can|could|will) (?:kill|trade|answer|swing)\b|\bsomeone can (?:see|trade)\b|\b(?:name|call|say|tell)\s+(?:the\s+|a\s+|which\s+|who\s+|your\s+)?(?:teammate|player)?\s*(?:will\s+|who will\s+|is\s+)?follow|\bwho (?:will )?follows?\b|\bfollow(?:s|ing)? you (?:in|into|closely|close)\b|\b(?:see|watch|swing) the same angle\b/i;
+
+/** A text with a clause about the review or the app cut off where the rest stands alone, or null where it cannot. */
+function productCut(s) {
+  const m = PRODUCT_TALK.exec(s);
+  if (!m) return s;
+  let cut = -1;
+  for (const c of s.slice(0, m.index).matchAll(CLAUSE_CUT)) cut = c.index;
+  if (cut < 0) return null;
+  const head = s.slice(0, cut).trim().replace(/[,\s]+$/, '');
+  if (head.split(/\s+/).length < 5 || PRODUCT_TALK.test(head)) return null;
+  return `${head}.`;
+}
+
+function productTrim(text, out) {
+  if (!text) return text;
+  const kept = [];
+  for (const raw of splitSentences(text)) {
+    const s = raw.trim();
+    if (!s) continue;
+    const c = productCut(s);
+    if (c !== s) out.dropped.push({ n: null, said: c ? 'product clause' : 'product', riot: null });
+    if (c) kept.push(c);
+  }
+  return kept.join(' ').trim() || null;
+}
+
+/** The round state a line's advice contradicts, or null: certain only on a round Riot's record holds. */
+function stateWrong(text, r) {
+  if (!r || !r.verified || r.planted) return null;
+  if (r.side === 'attacking' && (COME_TO_YOU.test(text) || CLOCK_YOURS.test(text))) return 'round state';
+  if (SPIKE_NEEDED.test(text)) return 'no plant';
+  return null;
+}
+
+/** From Platinum, the trade habit in one place at most: the focus first, else the first round line. */
+function fundamentalsCap(out, input) {
+  if (!HIGH_BANDS.has(knowledge.validBand(input.context && input.context.rankBand))) return;
+  let used = !!(out.focus && TRADE_HABIT.test(out.focus));
+  for (const n of Object.keys(out.rounds).map(Number).sort((a, b) => a - b)) {
+    if (!TRADE_HABIT.test(out.rounds[n])) continue;
+    if (!used) { used = true; continue; }
+    delete out.rounds[n];
+    out.dropped.push({ n, said: 'fundamentals', riot: null });
+  }
+}
+
+/*
+ * A SENTENCE THAT LEANS ON A DROPPED ONE. After a gate dropped a sentence,
+ * the next one going on from it ("It", "This", "They", "Her" opening it)
+ * goes too, and anywhere in the field a "she", "her", "he", "him" or "his"
+ * with no agent, enemy or teammate named before it or in it has nothing to
+ * point to. A field nothing was dropped from keeps its openers.
+ */
+const LEANS = /^(?:It|Its|This|That|These|Those|They|Them|Their|He|She|His|Her|Him|Hers|Which|So|Then|Also)\b/;
+const THIRD = /\b(?:she|her|hers|he|him|his)\b/i;
+// Who a "her" can point to: an agent (abilityFacts.agentsIn) or one of these.
+// Not "a teammate", which the advice itself names: "Fight her with a teammate".
+const NAMES_SOMEONE = /\b(?:enemy|enemies|opponents?|defenders?|attackers?|killers?|duelists?|sentinels?|controllers?|initiators?|lurkers?|anchors?|snipers?|Operators?)\b/i;
+function cohere(before, now) {
+  if (!now) return { text: now, gone: false };
+  const orig = splitSentences(before).map((s) => s.trim()).filter(Boolean);
+  const kept = splitSentences(now).map((s) => s.trim()).filter(Boolean);
+  const key = (s) => s.slice(0, 24);
+  const keptKeys = new Set(kept.map(key));
+  const someone = (s) => NAMES_SOMEONE.test(s) || abilityFacts.agentsIn(s).length > 0;
+  const out = [];
+  let gone = false;
+  for (const s of kept) {
+    const at = orig.findIndex((o) => key(o) === key(s));
+    const afterDrop = at > 0 && !keptKeys.has(key(orig[at - 1]));
+    const leans = afterDrop && LEANS.test(s);
+    const dangling = THIRD.test(s) && !someone(s) && !out.some(someone) && orig.length > kept.length;
+    if (leans || dangling) { gone = true; keptKeys.delete(key(s)); continue; }
+    out.push(s);
+  }
+  return { text: out.join(' ').trim() || null, gone };
 }
 
 // What a line says of a round's trade (TRADE GATE in parse). English, as the
@@ -1285,7 +1796,14 @@ function claimOf(text, input, r) {
   const t = String(text || '');
   if (TEMPLATE_LEAK.test(t)) return 'template';
   const agents = input.context && input.context.agent ? [input.context.agent] : undefined;
-  if (abilityFacts.checkText(t, { agents }).length) return 'kit';
+  // "His ultimate" in a round line is the round's killer's (round 4).
+  if (abilityFacts.checkText(t, { agents, ...(r && r.verified && r.killer ? { ultOf: r.killer } : {}) }).length) return 'kit';
+  // Round 4, every client: the review or the app, another match's number,
+  // and advice the round's own record contradicts.
+  if (PRODUCT_TALK.test(t)) return 'product';
+  if (CROSS_MATCH.test(t)) return 'library';
+  const wrong = stateWrong(t, r);
+  if (wrong) return wrong;
   const facts = { rounds: (input.rounds || []).map((x) => ({ n: x.n, ...(x.standings ? { standings: x.standings } : {}), ...(x.alive ? { alive: x.alive } : {}) })),
     ...(r ? { round: r.n } : {}) };
   if (abilityFacts.checkState(r ? `ROUND ${r.n}: ${t}` : t, facts).length) return 'state';
@@ -1294,7 +1812,7 @@ function claimOf(text, input, r) {
   if (r && utilityBlamed(t, r)) return 'utility';
   if (r && r.result === 'lost' && r.died && PRAISE.test(t)) return 'praise';
   if (AIM_DENIED.test(t) && !aimDenialOk(input, r)) return 'aim';
-  if (DRILL_PLACE.test(t) && DRILL_TEAM.test(t)) return 'drill';
+  if (DRILL_PLACE.test(t) && (DRILL_TEAM.test(t) || DRILL_HELP.test(t)) && !DRILL_AVOIDED.test(t)) return 'drill';
   return null;
 }
 
@@ -1435,4 +1953,7 @@ module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, ro
   namesKiller, namedRounds, countPairs, NOT_PLAY, BUY_BLAME, REPEAT_WORDS, ROUND_LABELS, DEFAULT_VARIANT, MAX_ROUND_LINES, PATTERN_TOPICS,
   CAUSE_TOPICS, rankRule, enemiesOf, withinBudget, CASE_GROWTH, NOTES_FLOOR,
   round3, rankRule3, RANK_WORDS3, GROUNDING, GROUNDING3, GROUNDING3_SWAPS, aimEvidence, HS_USUAL, HS_BELOW, focusLever, leverRule,
-  enemyWeaponsOf, claimOf, TEMPLATE_LEAK, SPIKE_CARRY, PRAISE, AIM_DENIED, STUDY_VARIETY, spread, contradicted, CONTRADICTS };
+  enemyWeaponsOf, claimOf, TEMPLATE_LEAK, SPIKE_CARRY, PRAISE, AIM_DENIED, STUDY_VARIETY, spread, contradicted, CONTRADICTS,
+  round4, matchCounts, matchFacts, countLines, qualifyCount, mistakesShown, allowedPairs, leverOf, leverRule4, LEVER_ORDER, HIGH_BANDS,
+  depthRule, kitBlockOf, kitAgents, swingTopics, caseSituation, leverSituation, cohere, productCut, stateWrong, fundamentalsCap,
+  ROUND4_SWAPS, GROUNDING4, GROUNDING4_SWAPS, PRODUCT_TALK, CROSS_MATCH, TRADE_HABIT };

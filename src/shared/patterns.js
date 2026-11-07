@@ -182,4 +182,24 @@ function summarise(saved) {
   return out;
 }
 
-module.exports = { summarise, lookVariant, MIN_MATCHES, WINDOW, LOOK_BACK, TREND_MATCHES };
+/**
+ * THE RECURRING KEYS a review request carries (round 4, valorant-review.js
+ * requestBody `recurring`): the keys of the mistakes the Patterns page lists,
+ * counted exactly as it counts them (summarise), over the saved reviews
+ * BEFORE the match being reviewed. The match itself is left out by its id, so
+ * "it repeats" means the earlier matches already show it as a habit, never
+ * that this match counted once and one older match did too. Empty while the
+ * library is still learning the player (fewer than MIN_MATCHES recorded).
+ *
+ * @param saved   whole saved reviews, newest first, as summarise takes them
+ * @param exclude the id of the match being reviewed, if it is already saved
+ * @returns up to eight keys, most serious first
+ */
+function recurringKeys(saved, exclude) {
+  const before = (saved || []).filter((s) => s && (!exclude || s.id !== exclude));
+  const sum = summarise(before);
+  if (!sum.enough) return [];
+  return sum.mistakes.map((m) => m.key).filter((k) => typeof k === 'string').slice(0, 8);
+}
+
+module.exports = { summarise, recurringKeys, lookVariant, MIN_MATCHES, WINDOW, LOOK_BACK, TREND_MATCHES };

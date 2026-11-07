@@ -155,7 +155,9 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       // rules (a body with `swing`) is filtered by. One before it is listed
       // its notes as before, whatever the reply said.
       {
-        const r3Body = { ...causeBody, swing: [] };
+        // Round 2 with the spike down: since round 4 a line holding a spike
+        // Riot's record never saw planted goes (match-review.js stateWrong).
+        const r3Body = { ...causeBody, rounds: causeBody.rounds.map((r) => (r.n === 2 ? { ...r, planted: true } : r)), swing: [] };
         prov.next = () => ({ content: 'SUMMARY: You swung without utility.\nR2: After the plant, hold the spike from cover near a teammate.\nFOCUS: Use your smoke first.' });
         const r3 = await call(coach, 'POST', '/match-review', { headers: { 'X-License-Key': licence(1), 'X-Occlara-Version': NEW }, body: r3Body });
         const r3Input = { ...matchReview.normalise(r3Body), byCause: true };

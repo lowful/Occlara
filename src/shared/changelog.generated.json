@@ -1,5 +1,29 @@
 [
   {
+    "version": "8.7.8",
+    "date": "2026-11-08",
+    "title": "A coach that reads your match, not a checklist",
+    "summary": "Reviews and answers now lean on what your match and your own history show, with sharper advice at every rank.",
+    "items": [
+      {
+        "kind": "improved",
+        "text": "Reviews pick the lesson that fits your rank and your match, and only lead with trading when it keeps costing you across your matches."
+      },
+      {
+        "kind": "improved",
+        "text": "Higher ranks get advice built on their match's real numbers, like a side that kept losing or a post plant that kept failing."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach answers practice, aim and improvement questions with your own biggest lever instead of the same habit every time."
+      },
+      {
+        "kind": "fixed",
+        "text": "The coach no longer gets agent abilities wrong, quotes stats it cannot check, or leaves half sentences behind."
+      }
+    ]
+  },
+  {
     "version": "8.7.7",
     "date": "2026-11-07",
     "title": "Sharper, more honest coaching",

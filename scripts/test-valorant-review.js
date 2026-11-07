@@ -1314,13 +1314,19 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     + 'R1: You died at Mid Bottom after twenty six seconds from KAY/O\'s Sheriff while two teammates stood against three '
     + 'enemies. No one traded the death.\n'
     + 'R2: You died after twenty seven seconds from KAY/O\'s Sheriff while four teammates stood against three enemies.\n'
-    + 'R3: Up four against three, hold the space you have and let them come to you instead of taking the next duel.\n'
+    // Round 4: R3 is an attack round with no plant, where "hold the space you
+    // have and let them come to you" loses to the clock (insights.js says so
+    // of the same advantage), so the lesson with one fact is one for attack.
+    + 'R3: Up four against three, take the site together and plant instead of taking the next duel.\n'
     + 'R6: You were traded by a teammate, so keep swinging.', input);
   ok(!(1 in live.rounds) && live.dropped.some((d) => d.n === 1 && d.said === 'not traded'),
     'a line saying round 1 was not traded, where Riot traded it, goes');
   ok(!(2 in live.rounds) && live.dropped.some((d) => d.n === 2 && d.said === 'the facts again'),
     'a line that only says the round\'s facts again (killer, weapon, seconds, numbers) goes');
-  ok(live.rounds[3] && /hold the space you have/.test(live.rounds[3]), 'a lesson with one fact in it stays');
+  ok(live.rounds[3] && /take the site together/.test(live.rounds[3]), 'a lesson with one fact in it stays');
+  const waited = matchReview.parse('SUMMARY: You lost 2 to 5.\nR3: Up four against three, hold the space you have and let them come to you instead of taking the next duel.', input);
+  ok(!(3 in waited.rounds) && waited.dropped.some((d) => d.n === 3 && d.said === 'round state'),
+    'and the old line, waiting for the enemy on attack before any plant, goes as the round state (round 4)');
   ok(!(6 in live.rounds) && live.dropped.some((d) => d.n === 6 && d.said === 'traded'),
     'and one saying a death nobody traded was traded goes too');
   ok(live.summary === 'You opened rounds with first kills twice.',
@@ -2273,7 +2279,8 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(JSON.stringify(input.rounds.find((r) => r.n === 6).standings) === '[[5,5],[4,5],[3,5],[2,5],[2,4],[2,3],[1,3],[1,2],[1,1],[0,1]]'
     && input.final.scoreline.hs === 22,
   'and each verified round\'s standings from the kill feed, and the headshot rate');
-  const prompt = seeded(() => matchReview.buildPrompt(input));
+  // A round 3 client's (no `counts`, round 4 below): the swing facts block.
+  const prompt = seeded(() => matchReview.buildPrompt(matchReview.normalise({ ...body, counts: undefined })));
   ok(prompt.includes('SWING FACTS (computed from Riot\'s record of this match, the biggest first, these are true):\n- You won 6 of 12 rounds on attack and 7 of 8 on defence.\n- Reyna killed you 5 times, more than anyone else.')
     && !/\[\[5,5\]/.test(prompt) && !/\b22 percent\b/.test(prompt),
   'the prompt carries the swing as finished lines, never the standings, and a headshot rate usual for the level is no aim evidence');
@@ -2377,8 +2384,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   'a Reyna\'s soul orb is hers, an ultimate orb nothing states is not');
   // A whole reply: a round line goes whole, a summary sentence alone.
   const whole = matchReview.parse('SUMMARY: You won 13 to 7. Your aim is not the problem here. Your openings won rounds.\n'
-    + 'R6: When you go for the orb, ask a teammate to watch the angle first.\nR4: Hold the spike from cover.\nFOCUS: Enter on a flash.', input);
-  ok(whole.summary === 'You won 13 to 7. Your openings won rounds.' && !(6 in whole.rounds) && whole.rounds[4] && whole.focus === 'Enter on a flash.'
+    // R3, not R4 (round 4): Riot's record has the spike down in round 3 and
+    // never in round 4, and holding a spike that was never planted now goes.
+    + 'R6: When you go for the orb, ask a teammate to watch the angle first.\nR3: Hold the spike from cover.\nFOCUS: Enter on a flash.', input);
+  ok(whole.summary === 'You won 13 to 7. Your openings won rounds.' && !(6 in whole.rounds) && whole.rounds[3] && whole.focus === 'Enter on a flash.'
     && whole.dropped.some((d) => d.n === 6 && d.said === 'orb') && whole.dropped.some((d) => d.n === null && d.said === 'summary aim'),
   `a false line goes whole, a false summary sentence alone, never the review (${JSON.stringify(whole.dropped)})`);
   const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'match-review.js'), 'utf8')
@@ -2432,6 +2441,297 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   'the forward post plant note goes beside a round line holding the spike from cover, and stays beside one about something else');
   ok(matchReview.spread('a|b') !== matchReview.spread('a|c') && Math.abs(matchReview.spread('a|b') - matchReview.spread('a|c')) > 0.01,
     'the turn\'s hash spreads two seeds that differ in one letter');
+}
+
+// ── Round 4 (Nov 2026): one block of numbers, a lever by level, the gates ──
+// From the live re-audit of 8.7.7 (the same 84 items): the trade habit at
+// every level, Ascendant reviews worse, "13 of your 15" beside 16 deaths and
+// 14 untraded, "Fight her" with no her, "so your next review can check", and
+// an attacker with no plant told to let the enemy come. A client of the round
+// 4 rules sends `counts` (requestBody, always); one before it is reviewed as
+// at 4a5aa0e (8.7.7), prompt and study list, byte for byte.
+{
+  const path = require('path');
+  const fs = require('fs');
+  const Module = require('module');
+  const { execFileSync } = require('child_process');
+  const knowledge = require('../server/services/knowledge');
+  const abilityFacts = require('../server/services/ability-facts');
+  const DASHES = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
+  const seeded = (fn) => {
+    const random = Math.random;
+    let x = 7;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const audit = require('./fixtures/audit-round3-reviews.json').reviews;
+  const after = require('./fixtures/audit-round3-after-reviews.json').reviews;
+  const bodyOf = (x, o) => ({ rounds: x.rounds, swing: [], counts: {}, mistakes: x.mistakes || [], strengths: [], patterns: [],
+    context: { agent: x.agent, map: x.map, rankBand: x.band, advancedTips: true },
+    final: { team: Number(x.score.split('-')[0]), enemy: Number(x.score.split('-')[1]), result: x.result, verified: true, scoreline: x.scoreline }, ...(o || {}) });
+  const inputOf = (x, o) => ({ ...matchReview.normalise(bodyOf(x, o)), byCause: true, byEnemy: true });
+  const without = (b, k) => { const c = { ...b }; delete c[k]; return c; };
+
+  // 1. A client before round 4 is 8.7.7's prompt and study list, byte for
+  //    byte (skipped where git cannot say), round 3 clients and older alike.
+  let before = null;
+  try {
+    const src = execFileSync('git', ['show', '4a5aa0e:server/services/match-review.js'], { cwd: path.join(__dirname, '..'), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const file = path.join(__dirname, '..', 'server', 'services', 'match-review.js');
+    const m = new Module(file, module);
+    m.filename = file;
+    m.paths = Module._nodeModulePaths(path.dirname(file));
+    m._compile(src, file);
+    before = m.exports;
+  } catch { before = null; }
+  if (before) {
+    let same = true;
+    let sameParse = true;
+    for (const x of after) {
+      for (const b of [without(bodyOf(x), 'counts'), without(without(bodyOf(x), 'counts'), 'swing')]) {
+        for (const marks of [{}, { byCause: true, byEnemy: true }]) {
+          const now = { ...matchReview.normalise(b), ...marks };
+          const then = { ...before.normalise(b), ...marks };
+          if (seeded(() => matchReview.buildPrompt(now)) !== seeded(() => before.buildPrompt(then))) same = false;
+          if (JSON.stringify(matchReview.study(now, 3, { lines: ['Hold the spike from cover.'] }))
+            !== JSON.stringify(before.study(then, 3, { lines: ['Hold the spike from cover.'] }))) same = false;
+        }
+      }
+    }
+    ok(same, 'a client before round 4 (no counts) is reviewed as at 4a5aa0e: the same prompt and the same study list, byte for byte, 48 bodies');
+    // Its parse too, but where a round 4 gate for every client finds a leak:
+    // of the 48 real replies, the after set's product clause alone.
+    const moved = [];
+    for (const x of [...audit, ...after]) {
+      const b = without(bodyOf(x), 'counts');
+      const a = matchReview.parse(x.reply, matchReview.normalise(b));
+      const t = before.parse(x.reply, before.normalise(b));
+      if (JSON.stringify([a.summary, a.rounds, a.focus]) !== JSON.stringify([t.summary, t.rounds, t.focus])) moved.push(x.id);
+    }
+    sameParse = moved.length === 1 && moved[0] === 'review-sunset-4-13-asc_plus';
+    ok(sameParse, `and its 48 real replies parse as at 4a5aa0e but the one "so your next review can check" (${moved.join(', ')})`);
+  } else console.log('skip  4a5aa0e is not readable here, the byte for byte check against it did not run');
+
+  // 2. The counts: the client's (countsOf) and the server's (matchCounts) agree.
+  const split = verify.reconcile([], load('riot-split-13-7.json')).rounds;
+  const body = review.requestBody({ rounds: split, context: { agent: 'Jett', map: 'Split' }, endedBy: 'score',
+    riot: { agent: 'Jett', map: 'Split', score: '13-7', result: 'Victory', scoreline: { kills: 17, deaths: 16, assists: 8, acs: 279, headshotPct: 22 } } });
+  const input = { ...matchReview.normalise({ ...body, context: { ...body.context, rankBand: 'asc_plus' } }), byCause: true, byEnemy: true };
+  const server = matchReview.matchCounts(input);
+  ok(matchReview.round4(input) && JSON.stringify(body.counts) === JSON.stringify(without(server, 'rounds'))
+    && server.deaths === 16 && server.untraded === 14 && server.untradedMate === 13 && server.tradeable === 15 && server.alone === 1,
+  `the body carries what the card counted, and the server counts the same from the rounds (${JSON.stringify(server)})`);
+  const untraded = (body.mistakes || []).find((m) => m.key === 'untraded');
+  ok(untraded && /^13 of your 15 deaths went unanswered/.test(untraded.detail), 'the card\'s own count is 13 of 15, the deaths a teammate alive could trade');
+  ok(!matchReview.round4(matchReview.normalise(without(body, 'counts'))) && !matchReview.round4(matchReview.normalise({ ...body, swing: undefined })),
+    'no counts, or no swing, is no round 4 client');
+
+  // 3. The one SWING AND COUNTS block, and the card's count in the record's words.
+  const prompt = seeded(() => matchReview.buildPrompt(input));
+  ok(prompt.includes('SWING AND COUNTS (computed from Riot\'s record of this match, the biggest swing first, these are true, and the only numbers of rounds or deaths the summary and the round lines may quote, exactly as written here):\n'
+    + '- You won 6 of 12 rounds on attack and 7 of 8 on defence.\n- Reyna killed you 5 times, more than anyone else.\n- You died 16 times in 20 rounds.\n'
+    + '- 14 of your 16 deaths were not traded by a teammate within five seconds.\n'
+    + '- 1 of those deaths came as the last player alive, when nobody was left to trade, so 13 of your 15 deaths with a teammate alive to trade went unanswered.')
+    && !prompt.includes('SWING FACTS'),
+  'the prompt has one block of numbers: the swing, the deaths, the raw untraded count and the card\'s, and what separates them');
+  ok(prompt.includes('13 of your 15 deaths with a teammate alive to trade went unanswered: no teammate killed your killer within five seconds.')
+    && !prompt.includes('13 of your 15 deaths went unanswered'),
+  'and the counted mistake says which deaths its count is of');
+  ok(!DASHES.test(prompt) && !/;/.test(matchReview.countLines(input).join(' ')), 'no dash in the prompt, no semicolon in the block');
+  for (const [from, to] of matchReview.ROUND4_SWAPS) {
+    const want = to.replace('{KIT}', ' Say of an ability only what its line under WHAT THE ABILITIES DO says.');
+    ok(prompt.includes(want) && prompt.split(from).length === want.split(from).length, `the round 4 swap applies: "${want.slice(0, 60)}"`);
+  }
+  for (const [, to] of matchReview.GROUNDING4_SWAPS) ok(prompt.includes(to), `and the grounding swap: "${to.slice(0, 60)}"`);
+  ok(prompt.includes('R4 attack, lost.') && /R4 attack, lost\.[^\n]*spike not planted/.test(prompt) && /R3 attack, lost\.[^\n]*spike planted/.test(prompt),
+    'each verified round says whether the spike went down, a round without a plant included');
+  ok(prompt.includes('WHAT THE ABILITIES DO, in the game\'s own words. Say of an ability only what its line says:')
+    && prompt.includes(abilityFacts.abilityLine('Jett', 'Tailwind')) && prompt.includes(abilityFacts.abilityLine('Reyna', 'Leer'))
+    && JSON.stringify(matchReview.kitAgents(input)) === '["Jett","Reyna","Phoenix"]',
+  `the player's kit and the two agents who killed them most, in the game's words (${matchReview.kitAgents(input).join(', ')})`);
+  ok(/DEPTH: at this level reason from this match's own numbers/.test(prompt) && /at most one fundamentals habit/.test(prompt)
+    && !/DEPTH:/.test(seeded(() => matchReview.buildPrompt({ ...input, context: { ...input.context, rankBand: 'silver_gold' } }))),
+  'from Platinum the review reasons from the match\'s numbers with a trade off and one fundamentals habit at most, below it no depth rule');
+  ok(!/see in their next review/.test(prompt) && /Never mention this review, a next review, the app/.test(prompt),
+    'the focus is no longer told to be seen in the next review, and the review never talks about itself');
+
+  // 4. The lever by level: the six audit matches at four bands.
+  const table = [];
+  const byMatch = new Map();
+  for (const x of after) {
+    const lever = matchReview.leverOf(inputOf(x));
+    const kind = lever ? lever.kind : 'round 3 rule';
+    table.push(`${x.id.slice(7).padEnd(28)} ${kind}`);
+    const m = x.id.replace(/^review-/, '').replace(/-(?:iron_bronze|silver_gold|plat_diamond|asc_plus)$/, '');
+    if (!byMatch.has(m)) byMatch.set(m, {});
+    byMatch.get(m)[x.band] = { kind, rule: seeded(() => matchReview.buildPrompt(inputOf(x))).split('FOCUS LEVER: ')[1].split('\n')[0] };
+  }
+  console.log(`      the focus lever, six matches at four bands:\n      ${table.join('\n      ')}`);
+  const high = after.filter((x) => matchReview.HIGH_BANDS.has(x.band)).map((x) => matchReview.leverOf(inputOf(x)));
+  ok(high.every((l) => !l || l.kind !== 'trade'), 'from Platinum the trade habit is never the lever when the library does not find it again');
+  const varied = [...byMatch.values()].filter((b) => new Set(Object.values(b).map((v) => v.kind)).size >= 2);
+  ok(varied.length >= 4 && [...byMatch.values()].every((b) => b.plat_diamond.rule !== b.iron_bronze.rule || b.iron_bronze.kind === 'round 3 rule'),
+    `the lever differs by level in ${varied.length} of the six matches, and Platinum is never told Iron's lever`);
+  const ascKinds = new Set([...byMatch.values()].map((b) => b.asc_plus.kind).filter((k) => k !== 'round 3 rule'));
+  ok(ascKinds.size >= 2 && !ascKinds.has('trade'), `and Ascendant gets the side, the tempo or a repeated decision, never the trade (${[...ascKinds].join(', ')})`);
+  const splitPlat = after.find((x) => x.id === 'review-split-13-7-plat_diamond');
+  const corrodePlat = after.find((x) => x.id === 'review-corrode-3-13-plat_diamond');
+  const fewLost = { ...inputOf(corrodePlat, { recurring: ['untraded'] }) };
+  fewLost.rounds = fewLost.rounds.map((r) => (r.n > 4 && r.result === 'lost' ? { ...r, traded: true } : r));
+  ok(matchReview.leverOf(inputOf(corrodePlat, { recurring: ['untraded'] })).kind === 'trade'
+    && matchReview.leverOf(inputOf(corrodePlat)).kind !== 'trade'
+    && matchReview.leverOf(inputOf(corrodePlat, { recurring: ['first-death'] })).kind !== 'trade'
+    && matchReview.leverOf(fewLost).kind !== 'trade',
+  'from Platinum the trade leads only when the library finds it again AND this match lost rounds to it');
+
+  // The client's half (round 4): the keys come from the library, counted as
+  // the Patterns page counts them, the match under review left out.
+  {
+    const patternsOf = require('../src/shared/patterns');
+    const lib = (id, keys) => ({ id, game: 'valorant', at: 0, review: { insights: {
+      mistakes: keys.map((k) => ({ key: k, title: k, detail: 'x', rounds: [1, 2], count: 2, weight: 1 })), strengths: [], missed: [] } } });
+    const current = lib('now', ['untraded']);
+    const library = [current, lib('a', ['untraded', 'first-death']), lib('b', ['untraded']), lib('c', ['first-death'])];
+    const keys = patternsOf.recurringKeys(library, 'now');
+    const page = patternsOf.summarise(library.slice(1)).mistakes.map((m) => m.key);
+    ok(keys.includes('untraded') && keys.includes('first-death') && JSON.stringify(keys) === JSON.stringify(page.slice(0, 8)),
+      `the recurring keys are the Patterns page's mistakes over the earlier matches (${keys.join(', ')})`);
+    ok(!patternsOf.recurringKeys([current, lib('a', ['untraded'])], 'now').length
+      && !patternsOf.recurringKeys([current, lib('a', ['untraded']), lib('b', ['first-death'])], 'now').includes('untraded'),
+      'one earlier match, or this match and one more, is no habit: the match under review never counts toward its own');
+    ok(!patternsOf.recurringKeys([lib('a', ['untraded']), { id: 'riot', review: { source: 'riot', insights: { mistakes: [{ key: 'untraded' }] } } }], null).length,
+      'a match graded from Riot\'s record alone counts nothing, as on the Patterns page');
+    const sent = review.requestBody({ rounds: [], context: { map: 'Corrode' }, endedBy: 'score', recurring: keys });
+    const unsent = review.requestBody({ rounds: [], context: { map: 'Corrode' }, endedBy: 'score' });
+    ok(JSON.stringify(sent.recurring) === JSON.stringify(keys) && !('recurring' in unsent)
+      && !('recurring' in review.requestBody({ rounds: [], context: {}, endedBy: 'score', recurring: [] })),
+      'requestBody sends the keys, and no field at all when there are none');
+    ok(matchReview.leverOf(inputOf(corrodePlat, { recurring: sent.recurring })).kind === 'trade'
+      && matchReview.leverOf(inputOf(corrodePlat, { recurring: patternsOf.recurringKeys(library.slice(0, 2), 'now') })).kind !== 'trade',
+      'so from Platinum the trade leads with a library that repeats it, and not with one that does not');
+    const root = path.join(__dirname, '..');
+    const main = fs.readFileSync(path.join(root, 'src', 'main', 'index.js'), 'utf8');
+    const eng = fs.readFileSync(path.join(root, 'src', 'main', 'services', 'coaching-engine.js'), 'utf8');
+    const endAt = eng.indexOf('async requestMatchReview(snap)');
+    const askAt = eng.indexOf('this.recurring()', endAt);
+    ok(/recurring: recurringNow\(job\.id\)/.test(main) && /recurring: \(\) => recurringNow\(null\)/.test(main)
+      && /patternsOf\.recurringKeys\(reviewStore\.recent\('valorant', patternsOf\.LOOK_BACK\)/.test(main)
+      && askAt > endAt && askAt < eng.indexOf("this.emit('match-ended', snap)", endAt)
+      && /valorantReview\.requestBody\(\{ \.\.\.snap, recurring \}\)/.test(eng),
+      'both review requests send the library\'s keys, the engine reading them before match-ended saves this match');
+  }
+  ok(matchReview.leverOf(matchReview.normalise({ ...bodyOf(splitPlat), context: { agent: 'Jett' } })) === null
+    && matchReview.leverOf(matchReview.normalise(without(bodyOf(splitPlat), 'counts'))) === null,
+  'no band, or a client before round 4, is the round 3 rule');
+  const noFact = { ...inputOf(after.find((x) => x.id === 'review-fracture-5-1-asc_plus')) };
+  ok(/Never make checking that a teammate can trade you the focus/.test(seeded(() => matchReview.buildPrompt({ ...noFact,
+    mistakes: [{ key: 'untraded', title: 'x', detail: '9 of your 10 deaths went unanswered: x.', rounds: [1, 2, 3, 4, 5], count: 9 }] }))),
+  'and from Platinum with no fact for any kind, the round 3 rule never lets the trade be the focus, even at nine in ten');
+
+  // 5. The study list and the cases follow the swing.
+  const topicOf = (text) => { const n = knowledge.all().find((x) => x.text === text); return n && n.source ? n.source.topic : null; };
+  const sunsetPlat = after.find((x) => x.id === 'review-sunset-4-13-plat_diamond');
+  const retakeTopics = new Set(matchReview.PATTERN_TOPICS.retake);
+  ok(matchReview.study(inputOf(sunsetPlat), 3).some((n) => retakeTopics.has(topicOf(n.text)))
+    && matchReview.swingTopics(inputOf(sunsetPlat)).has('retake shape') && matchReview.swingTopics(matchReview.normalise(without(bodyOf(sunsetPlat), 'counts'))).size === 0,
+  'a retake that collapsed (0 of 9) sends the player to a retake note')
+  const splitSilver = after.find((x) => x.id === 'review-split-13-7-silver_gold');
+  const answersReyna = (t) => { const n = knowledge.all().find((x) => x.text === t); return !!n && [...(n.enemyAgents || []), ...(n.enemyHint || [])].includes('Reyna'); };
+  ok(matchReview.study(inputOf(splitSilver), 3).some((n) => answersReyna(n.text)),
+    `the Reyna who killed the player five times brings a note that answers Reyna (${matchReview.study(inputOf(splitSilver), 3).map((n) => n.text.slice(0, 40)).join(' | ')})`);
+  const situ = matchReview.caseSituation(inputOf(sunsetPlat), matchReview.enemiesOf(inputOf(sunsetPlat)));
+  ok(situ.phases.has('retake') && situ.patterns.includes('retake')
+    && !require('../server/services/cases').fromReview(matchReview.normalise(without(bodyOf(sunsetPlat), 'counts')), []).patterns.includes('retake'),
+  'and the cases are chosen for the retake too, a client before round 4 as before');
+  ok(JSON.stringify(matchReview.leverSituation(inputOf(sunsetPlat))) === '{"phase":"postplant","side":"defense"}',
+    'the notes the prompt retrieves are the retake\'s');
+
+  // 6. The gates, on the re-audit's own text, from the reviews and from Ask Coach.
+  const pearl = inputOf(after.find((x) => x.id === 'review-pearl-1-5-silver_gold'));
+  const pr = (n) => pearl.rounds.find((r) => r.n === n);
+  const iso = inputOf(after.find((x) => x.id === 'review-corrode-3-13-iron_bronze'));
+  const BAD = [
+    ['If you are one of the last two, fall back behind cover, let the enemy come to you, and only fight from an angle where the teammate beside you can see the same enemy.', pearl, pr(1), 'round state'],
+    ['Hold the angle and let the clock work for you instead of swinging.', pearl, pr(4), 'round state'],
+    ['After the plant, hold the spike from cover instead of seeking another fight.', pearl, pr(4), 'no plant'],
+    ['Wait for the defuse sound, then swing together.', pearl, pr(5), 'no plant'],
+    ['The biggest thing holding you back is dying where nobody could trade you, and it has shown up in 5 of your last 6 matches.', pearl, null, 'library'],
+    ['You had 27% headshot accuracy against your average of 32%, so slow down before the shot.', iso, null, 'library'],
+    ['Before an aggressive peek, name the teammate close enough to kill your killer so your next review can check it.', pearl, pr(1), 'product'],
+    ['Occlara can show you this fight again on the Moments page.', pearl, null, 'product'],
+    ['To build it, play Deathmatch and make yourself say out loud before every fight whether anyone could help you.', pearl, null, 'drill'],
+    ['Use Undercut to check the angle before you swing.', iso, null, 'kit'],
+  ];
+  for (const [s, inp, r, kind] of BAD) ok(matchReview.claimOf(s, inp, r) === kind, `the re-audit's "${s.slice(0, 50)}" goes as ${kind} (${matchReview.claimOf(s, inp, r)})`);
+  const GOOD = [
+    ['After the plant, hold the spike from cover and make the defenders come to you.', pearl, pr(3)],
+    ['On defence, hold your angle from farther back and let the attackers come to you.', pearl, pr(5)],
+    ['Practise it in your next match rather than in Deathmatch, because the Range and Deathmatch have no teammates to check for.', pearl, null],
+    ['Practise stopping before each shot in Deathmatch, one angle at a time.', pearl, null],
+    ['Take the site together and plant before the clock runs low.', pearl, pr(4)],
+    ['Review the round in your head before the next buy.', pearl, null],
+  ];
+  ok(GOOD.every(([s, inp, r]) => matchReview.claimOf(s, inp, r) === null), `and the true lines beside them stay (${GOOD.map(([s, inp, r]) => matchReview.claimOf(s, inp, r)).join(',')})`);
+  ok(matchReview.productCut('Before an aggressive peek or entry, name the teammate close enough to kill your killer so your next review can check whether the fight had an immediate answer.')
+    === 'Before an aggressive peek or entry, name the teammate close enough to kill your killer.'
+    && matchReview.productCut('Your next review will show it.') === null,
+  'a product clause is cut where the sentence stands without it, and a sentence that is only product talk goes');
+
+  // The coherence pass: what stays after a drop still reads.
+  const splitIn = inputOf(splitSilver);
+  const orphan = matchReview.parse('SUMMARY: You won 13 to 7. Reyna won 5 of your 6 duels on A. Fight her with a teammate or after a flash, never one on one. '
+    + 'Your opening kills gave your team room.\nFOCUS: Enter on a teammate\'s flash.', splitIn);
+  ok(orphan.summary === 'You won 13 to 7. Your opening kills gave your team room.' && orphan.dropped.some((d) => d.said === 'summary orphan'),
+    `a sentence about "her" goes with the dropped one that named her (${orphan.summary})`);
+  const kept = matchReview.parse('SUMMARY: You won 13 to 7. Reyna killed you 5 times, more than anyone else. Fight her with a teammate or after a flash. '
+    + 'Your opening kills gave your team room.\nFOCUS: Enter on a teammate\'s flash.', splitIn);
+  ok(kept.summary === 'You won 13 to 7. Reyna killed you 5 times, more than anyone else. Fight her with a teammate or after a flash. Your opening kills gave your team room.',
+    `and stays where the sentence naming her stays (${kept.summary})`);
+  const leans = matchReview.parse('SUMMARY: You won 13 to 7. Your aim is not the problem here. It cost you rounds 3 and 4. Your opening kills gave your team room.', splitIn);
+  ok(leans.summary === 'You won 13 to 7. Your opening kills gave your team room.', `a sentence opening on "It" after a drop goes too (${leans.summary})`);
+  const opener = matchReview.parse('SUMMARY: You won 13 to 7. This came from your opening kills, which gave your team room.', splitIn);
+  ok(opener.summary === 'You won 13 to 7. This came from your opening kills, which gave your team room.', 'with nothing dropped, an opener stays');
+
+  // The count, in the summary and the round lines.
+  const counted = matchReview.parse('SUMMARY: You won 13 to 7. 13 of your 15 deaths went unanswered, including rounds 3, 4, 6 and 7. '
+    + 'You won 6 of 12 rounds on attack and 7 of 8 on defence. 12 of your 16 deaths came alone.\n'
+    + 'R4: With 3 of your 5 teammates alive, take the next fight together.\nR7: Go in on a teammate\'s flash, because the first fight decides the round.\nFOCUS: Enter on a flash.', splitIn);
+  ok(counted.summary === 'You won 13 to 7. 13 of your 15 deaths with a teammate alive to trade went unanswered, including rounds 3, 4, 6 and 7. You won 6 of 12 rounds on attack and 7 of 8 on defence.',
+    `the card's count is named for its deaths, the block's stays, and a count the block does not hold goes (${counted.summary})`);
+  ok(!(4 in counted.rounds) && counted.rounds[7] && counted.dropped.some((d) => d.n === 4 && d.said === 'count'),
+    'a round line quoting a count the block does not hold goes whole');
+  const oldCounted = matchReview.parse('SUMMARY: You won 13 to 7. 13 of your 15 deaths went unanswered.', matchReview.normalise({ ...without(body, 'counts'), mistakes: body.mistakes }));
+  ok(oldCounted.summary === 'You won 13 to 7. 13 of your 15 deaths went unanswered.', 'a client before round 4 keeps its words');
+
+  // From Platinum, one fundamentals habit at most.
+  const capped = matchReview.parse('SUMMARY: You won 13 to 7.\nR3: Take the fight with a teammate close enough to kill your killer.\n'
+    + 'R7: Name who follows you before the swing.\nR8: Reset to cover after the opening kill, giving up the second fight to keep the numbers.\n'
+    + 'FOCUS: Go in on a teammate\'s flash on attack.', inputOf(splitPlat));
+  ok(capped.rounds[3] && !(7 in capped.rounds) && capped.rounds[8] && capped.dropped.some((d) => d.n === 7 && d.said === 'fundamentals'),
+    'from Platinum a second line teaching the trade habit goes, the first and the others stay');
+  const lowCap = matchReview.parse('SUMMARY: You won 13 to 7.\nR3: Take the fight with a teammate close enough to kill your killer.\nR7: Name who follows you before the swing.',
+    inputOf(splitSilver));
+  ok(lowCap.rounds[3] && lowCap.rounds[7], 'below Platinum the trade habit is the lesson it is, in as many lines as teach it');
+
+  // The re-audit's 24 reviews as a round 4 client reads them: the stale
+  // count named, the product clause cut, a second fundamentals line from
+  // Platinum, and nothing else.
+  const gone = {};
+  let quoted = 0;
+  let named = 0;
+  const STALE = /\b(?:13 of your 15|12 of your 13|9 of your 11) deaths\b/;
+  for (const x of after) {
+    const got = matchReview.parse(x.reply, inputOf(x));
+    for (const d of got.dropped) gone[`${x.id} ${d.n === null ? 'S' : 'R' + d.n} ${d.said}`] = true;
+    if (STALE.test(x.reply.split('\n')[0])) quoted += 1;
+    if (STALE.test(got.summary || '') && /deaths with a teammate alive to trade went unanswered/.test(got.summary)) named += 1;
+  }
+  const kinds = Object.keys(gone).map((k) => k.split(' ').slice(2).join(' '));
+  ok(quoted >= 10 && named === quoted && kinds.every((k) => k === 'fundamentals' || k === 'product clause') && kinds.filter((k) => k === 'product clause').length === 1,
+    `the 24 re-audit reviews: the card's count named for its deaths in all ${quoted} summaries that quote it (${named}), one product clause, and only fundamentals lines besides (${Object.keys(gone).join(', ')})`);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'match-review.js'), 'utf8')
+    + fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', 'valorant-review.js'), 'utf8');
+  ok(!src.includes(String.fromCharCode(8)), 'no backspace byte in either file, the shell regex hazard');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);
