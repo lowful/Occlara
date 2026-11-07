@@ -302,6 +302,17 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
     On the audit's ten climb questions the lever names trading for 2 (the
     answers had opened on it 9 times), both Silver or below where it is the
     largest count. Not yet measured on live answers.
+    **Iron to Gold only since the blind audit of 8.7.8 against 8.7.7**
+    (`LEVER_BANDS`, `rulesFor`): at Plat to Diamond and Ascendant and up the
+    lever picked one the record did not support and the model invented
+    evidence for it, scored worse than 8.7.7 there. Those two bands get no
+    LEVER line and 8.7.7's improving rule (`IMPROVING_RULE_877` swapped for
+    `IMPROVING_RULE` in the static prefix, so the prefix has two variants),
+    every gate and gate rule of 8.7.8 kept. On the 60 audit chat contexts the
+    Plat and Asc+ prompts differ from 8.7.7's only in gate lines (the product
+    and cross match rules, the aim praise and side and spike sentences, the
+    "Said to the player" library lines, the kit block), and Iron, Silver and
+    no band equal 8.7.8's byte for byte. The review side's lever is unchanged.
   - `server/services/coherence.js`, shared with the review side:
     `checkOrphans` (a he or she with no agent who could be meant, a person
     noun counting only in the sentence before, a lead in whose promise was

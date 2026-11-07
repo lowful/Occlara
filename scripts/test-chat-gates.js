@@ -1790,6 +1790,36 @@ const riotOnly = (file, row, edit) => {
   const others = levers.filter((l) => l.kind !== 'trade');
   ok(!trade || !others.length || (!cp.leverLine(banded('plat_diamond'), MLV).includes(trade.line) && !cp.leverLine(banded('asc_plus'), MLV).includes(trade.line)),
     'above Gold the trade check never leads while anything else is counted');
+  /*
+   * THE LEVER BELOW PLATINUM ONLY (the blind audit of 8.7.8 against 8.7.7):
+   * at Plat to Diamond and Ascendant and up the lever picked one the record
+   * did not support, so there Ask Coach is 8.7.7's (no LEVER line, 8.7.7's
+   * improving rule), every gate rule of 8.7.8 kept. Iron to Gold and no band
+   * keep 8.7.8's prompt.
+   */
+  const RL = cp.VALORANT_RULES.split('\n');
+  ok(RL.filter((l) => l === cp.IMPROVING_RULE).length === 1 && !cp.VALORANT_RULES.includes(cp.IMPROVING_RULE_877)
+    && cp.IMPROVING_RULE_877.startsWith('- About improving: the largest counted mistake or pattern with its count exactly as given')
+    && !/LEVER/.test(cp.IMPROVING_RULE_877) && !DASHES.test(cp.IMPROVING_RULE_877),
+  'THE TWO IMPROVING RULES: 8.7.8\'s is one whole line of the rules, 8.7.7\'s names no lever');
+  for (const band of ['plat_diamond', 'asc_plus']) {
+    const r = cp.rulesFor(banded(band)).split('\n');
+    const changed = r.map((l, i) => (l === RL[i] ? -1 : i)).filter((i) => i >= 0);
+    const p = cp.buildPrompt(banded(band), MLV);
+    ok(cp.leverLine(banded(band), MLV) === '' && !p.includes('THE LEVER for this question') && !p.includes(cp.IMPROVING_RULE) && p.includes(cp.IMPROVING_RULE_877)
+      && r.length === RL.length && changed.length === 1 && r[changed[0]] === cp.IMPROVING_RULE_877
+      && /Nothing about the app, a future review/.test(p) && /no season, act or episode/.test(p) && /Never praise the aim where the headshot rate is under/.test(p)
+      && /on attack with no spike down the defenders never have to come to you/.test(p),
+    `AT ${band} ASK COACH IS 8.7.7's ON THE LEVER: no LEVER line, 8.7.7's improving rule as the one changed line, every gate rule of 8.7.8 kept`);
+  }
+  for (const band of ['iron_bronze', 'silver_gold', undefined]) {
+    const inp = band ? banded(band) : inputFor(ABYSS, QLV);
+    ok(cp.rulesFor(inp) === cp.VALORANT_RULES && cp.buildPrompt(inp, MLV).includes(cp.IMPROVING_RULE)
+      && (band ? cp.leverLine(inp, MLV).startsWith('THE LEVER for this question') : cp.leverLine(inp, MLV) === ''),
+    `${band || 'no band'} keeps 8.7.8's prompt: its improving rule${band ? ' and THE LEVER' : ', no lever'}`);
+  }
+  ok(cp.LEVER_BANDS.join() === 'iron_bronze,silver_gold' && cp.rulesFor({ ...banded('asc_plus'), rankBand: 'radiant' }) === cp.VALORANT_RULES,
+    'the lever bands are Iron to Gold, and a band no client sends keeps 8.7.8\'s rules');
   ok(cp.leverLine(banded('silver_gold'), [{ role: 'user', content: QA }]) === '' && cp.leverLine(banded('silver_gold'), M3) === ''
     && cp.leverLine(banded('silver_gold'), MLV) === cp.leverLine(banded('silver_gold'), MLV),
   'and an aim question or a question about a round gets none, and the same question the same lever');
