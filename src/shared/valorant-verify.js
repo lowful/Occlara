@@ -196,6 +196,69 @@ function killFeedOf(feed) {
   });
 }
 
+/*
+ * THE ROUND RECORD BEYOND THE FEED (8.8, server/services/riot-rounds.js):
+ * where the player died and where the enemies they killed fell, as the
+ * callout the game's data names there; the team's buy; whether the nearest
+ * teammate was close at the death; the player's ability casts by key; and
+ * Riot's AFK flags. Each is kept only as a value this file knows: a place
+ * only as a callout, an area or a site of the match's own map in the game
+ * data (an unknown map keeps none), the buy and the distance only as their
+ * words, the casts only as whole counts by key. A record without them, and
+ * a server from before, add no key at all, so the round is as it always was.
+ */
+let GEOMETRY = {};
+try { GEOMETRY = require('./valorant-data.generated.json').mapGeometry || {}; } catch { GEOMETRY = {}; }
+const BUY_KINDS = ['pistol', 'eco', 'force', 'half', 'full'];
+const NEAR_WORDS = ['close', 'far'];
+const CAST_SLOTS = ['C', 'Q', 'E', 'X'];
+const placesCache = new Map();
+function placesOf(map) {
+  const key = String(map || '').toLowerCase().trim();
+  if (!key) return null;
+  if (placesCache.has(key)) return placesCache.get(key);
+  const geo = GEOMETRY[key];
+  let out = null;
+  if (geo && Array.isArray(geo.callouts)) {
+    out = new Map();
+    const add = (s) => { if (typeof s === 'string' && s) out.set(s.toLowerCase(), s); };
+    for (const c of geo.callouts) {
+      add(c && c.n);
+      add(c && c.a);
+      // An area by its name ("Mid"), a site as "A site", never a bare letter.
+      if (c && /^[abc]$/i.test(String(c.s || ''))) add(`${String(c.s).toUpperCase()} site`);
+      else add(c && c.s);
+    }
+  }
+  placesCache.set(key, out);
+  return out;
+}
+function placeName(map, s) {
+  const places = placesOf(map);
+  const t = typeof s === 'string' ? s.trim().toLowerCase() : '';
+  return (places && t && places.get(t)) || null;
+}
+function castsKept(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+  const out = {};
+  for (const k of CAST_SLOTS) if (Number.isInteger(c[k]) && c[k] >= 0 && c[k] <= 20) out[k] = c[k];
+  return Object.keys(out).length ? out : null;
+}
+function recordExtras(rr, map) {
+  const out = {};
+  const spot = rr.died ? placeName(map, rr.deathAt) : null;
+  if (spot) out.riotSpot = spot;
+  const kills = (Array.isArray(rr.killsAt) ? rr.killsAt : []).slice(0, 5).map((s) => placeName(map, s)).filter(Boolean);
+  if (kills.length) out.killSpots = kills;
+  if (BUY_KINDS.includes(rr.buy)) out.buy = rr.buy;
+  if (rr.died && NEAR_WORDS.includes(rr.mateNear)) out.mateNear = rr.mateNear;
+  const casts = castsKept(rr.casts);
+  if (casts) out.casts = casts;
+  if (rr.afk === true) out.afk = true;
+  if (rr.inSpawn === true) out.inSpawn = true;
+  return out;
+}
+
 /**
  * @param rounds  ledger.list() rows
  * @param riot    the /api/coach/match-rounds reply: { perRound: [...] }
@@ -340,6 +403,9 @@ function reconcile(rounds, riot, opts) {
       feed: killFeedOf(rr.feed),
       riotPlantMs: typeof rr.plantMs === 'number' && Number.isFinite(rr.plantMs) ? rr.plantMs : null,
       plantSite: /^[ABC]$/.test(String(rr.plantSite || '')) ? rr.plantSite : null,
+      // The round record beyond the feed (8.8, recordExtras), only the keys
+      // the record had.
+      ...recordExtras(rr, riot && riot.map),
     };
   });
 
@@ -414,4 +480,5 @@ function describe(checks) {
   return `Checked against Riot's record of ${scope}: ${deaths}.`;
 }
 
-module.exports = { reconcile, describe, namedKiller, weaponName, agentName, killFeedOf, feedGun, NOT_A_WEAPON };
+module.exports = { reconcile, describe, namedKiller, weaponName, agentName, killFeedOf, feedGun, NOT_A_WEAPON,
+  recordExtras, placeName, BUY_KINDS };

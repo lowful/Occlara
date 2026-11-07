@@ -128,15 +128,23 @@ function valorant(rounds, opts = {}) {
   const verified = rows.filter((r) => r.verified);
   const push = (list, e) => list.push({ ...e, rounds: e.rounds || [], count: e.count != null ? e.count : (e.rounds || []).length });
 
+  // A ROUND RIOT SAYS THE PLAYER SAT OUT IS NO MISTAKE (8.8): its was_afk or
+  // its stayed_in_spawn (riot-rounds.js), carried by reconcile as afk and
+  // inSpawn. Every mistake below counts the rounds the player played; the
+  // strengths, the misses and the facts are counted as before.
+  const played = rows.filter((r) => !(r && (r.afk === true || r.inSpawn === true)));
+  const mDeaths = played.filter((r) => r.died);
+  const mVerified = played.filter((r) => r.verified);
+
   // ── Mistakes ──────────────────────────────────────────────────────────────
   // First to die. Every player is first sometimes; a Duelist's job makes it
   // more common, so the floor is higher for one.
   // A first death a teammate traded leaves the round four against four, not
   // four against five (8.7.2): only the untraded ones count, and a Duelist,
   // whose job is first contact, is told how to take it, never to stop.
-  const firsts = verified.filter((r) => r.firstDeath && r.traded !== true).map((r) => r.n);
+  const firsts = mVerified.filter((r) => r.firstDeath && r.traded !== true).map((r) => r.n);
   const fdFloor = role === 'Duelist' ? 0.25 : 0.15;
-  if (firsts.length >= 3 && firsts.length >= verified.length * fdFloor) {
+  if (firsts.length >= 3 && firsts.length >= mVerified.length * fdFloor) {
     push(out.mistakes, {
       key: 'first-death', title: 'First to die',
       detail: `You were the first player down and nobody traded it in ${plural(firsts.length, 'round')}, ${roundList(firsts)}, `
@@ -151,7 +159,7 @@ function valorant(rounds, opts = {}) {
   // Died with the team ahead in numbers, and the round was lost. A traded
   // death keeps the advantage (4 against 3 becomes 3 against 2), so it is not
   // one given back (8.7.2).
-  const thrown = verified.filter((r) => r.died && r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies
+  const thrown = mVerified.filter((r) => r.died && r.aliveAtDeath && r.aliveAtDeath.mates > r.aliveAtDeath.enemies
     && r.result === 'lost' && r.traded !== true);
   if (thrown.length >= 2) {
     // On attack before the plant, waiting loses the round to the clock: the
@@ -171,7 +179,7 @@ function valorant(rounds, opts = {}) {
   // Nobody traded the death. Needs the feed, so only rounds where it spoke,
   // and never a death as the last player alive (8.7.2): nobody could trade a
   // clutch, so it says nothing about the player's spacing.
-  const knownTrade = deaths.filter((r) => typeof r.traded === 'boolean' && !diedAlone(r));
+  const knownTrade = mDeaths.filter((r) => typeof r.traded === 'boolean' && !diedAlone(r));
   const untraded = knownTrade.filter((r) => r.traded === false);
   if (untraded.length >= 3 && untraded.length * 10 >= knownTrade.length * 6) {
     push(out.mistakes, {
@@ -185,12 +193,12 @@ function valorant(rounds, opts = {}) {
 
   // Early deaths. A Duelist entering dies early by design, so for one this
   // needs to be most of their deaths before it reads as a habit.
-  const early = deaths.filter((r) => r.early);
+  const early = mDeaths.filter((r) => r.early);
   const earlyShare = role === 'Duelist' ? 0.7 : 0.4;
-  if (early.length >= 3 && early.length >= deaths.length * earlyShare) {
+  if (early.length >= 3 && early.length >= mDeaths.length * earlyShare) {
     push(out.mistakes, {
       key: 'early', title: 'Dying in the first 30 seconds',
-      detail: `${early.length} of your ${plural(deaths.length, 'death')} came in the first 30 seconds, before any plant.`,
+      detail: `${early.length} of your ${plural(mDeaths.length, 'death')} came in the first 30 seconds, before any plant.`,
       rounds: early.map((r) => r.n), weight: WEIGHT.early,
       fix: 'Slow the first 30 seconds down: clear one angle at a time and let information come to you.',
     });
@@ -198,14 +206,14 @@ function valorant(rounds, opts = {}) {
 
   // The same place.
   const spots = new Map();
-  for (const r of deaths) {
+  for (const r of mDeaths) {
     if (!r.deathSpot) continue;
     const k = r.deathSpot.toLowerCase();
     const e = spots.get(k) || { name: r.deathSpot, rounds: [] };
     e.rounds.push(r.n);
     spots.set(k, e);
   }
-  const placed = deaths.filter((r) => r.deathSpot).length;
+  const placed = mDeaths.filter((r) => r.deathSpot).length;
   const top = [...spots.values()].sort((a, b) => b.rounds.length - a.rounds.length)[0];
   if (top && top.rounds.length >= 3 && top.rounds.length * 10 >= placed * 3) {
     push(out.mistakes, {
@@ -219,9 +227,9 @@ function valorant(rounds, opts = {}) {
 
   // The same killer, three times and a quarter of the deaths.
   const byKiller = new Map();
-  for (const r of deaths) if (r.killerAgent) byKiller.set(r.killerAgent, [...(byKiller.get(r.killerAgent) || []), r.n]);
+  for (const r of mDeaths) if (r.killerAgent) byKiller.set(r.killerAgent, [...(byKiller.get(r.killerAgent) || []), r.n]);
   const topKiller = [...byKiller.entries()].sort((a, b) => b[1].length - a[1].length)[0];
-  if (topKiller && topKiller[1].length >= 3 && topKiller[1].length * 4 >= deaths.length) {
+  if (topKiller && topKiller[1].length >= 3 && topKiller[1].length * 4 >= mDeaths.length) {
     push(out.mistakes, {
       key: 'same-killer', title: `${topKiller[0]} kept winning`,
       detail: `${topKiller[0]} killed you ${times(topKiller[1].length)}, ${roundList(topKiller[1])}.`,
@@ -232,7 +240,7 @@ function valorant(rounds, opts = {}) {
 
   // The coach's look at the deaths: a cause from the closed list, twice or more.
   const byCause = new Map();
-  for (const r of deaths) {
+  for (const r of mDeaths) {
     const c = r.forensics && r.forensics.cause;
     if (!c || !isAvoidable(c)) continue;
     byCause.set(c, [...(byCause.get(c) || []), r.n]);

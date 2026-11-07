@@ -338,6 +338,74 @@ let progressFor = null;
 // The answer asked for last, kept for the reveal's sound to wait on (a best
 // plays 'best'), so the page asks main once.
 let progressAsked = null;
+/*
+ * RIOT'S RANK RECORD OF THIS MATCH (8.8.x, REVIEW_RIOT through the preload's
+ * riotOf): the RR it moved as a chip beside the result, "RR +18", and Riot's
+ * own accolades (top frag, an ace, an act record) as lines of "What went
+ * well", each marked as Riot's record. Main matches both by the match's Riot
+ * id and sends finished words; the page counts nothing. Only RR as the game
+ * shows it, never a rating. Asked once per paint, and an answer for a review
+ * no longer on the page, or one being built or locked, paints nothing.
+ */
+let riotFor = null;
+function clearRR() {
+  const chip = $('v-rr');
+  chip.hidden = true;
+  chip.textContent = '';
+  chip.className = 'v-rr';
+  chip.title = '';
+}
+function paintRiot(r) {
+  clearRR();
+  const id = r && r.id;
+  riotFor = id || null;
+  if (!id || r.kind !== 'valorant' || typeof window.occlara.riotOf !== 'function') return;
+  Promise.resolve(window.occlara.riotOf(id)).then((x) => {
+    if (riotFor !== id || !current || current.id !== id || current.work || current.locked === true || !x) return;
+    if (x.rr && typeof x.rr.text === 'string' && x.rr.text) {
+      const chip = $('v-rr');
+      chip.textContent = x.rr.text;
+      chip.className = 'v-rr' + (x.rr.tone ? ' ' + x.rr.tone : '');
+      chip.title = x.rr.title || '';
+      chip.hidden = false;
+    }
+    if (Array.isArray(x.accolades) && x.accolades.length) paintAccolades(x.accolades);
+  }).catch(() => {});
+}
+
+/** Riot's accolades as "What went well" lines, into that list or a new one after the first. */
+function paintAccolades(list) {
+  const host = $('insights-host');
+  if (!host || host.hidden) return;
+  const wrap = host.querySelector('.gv-insights');
+  if (!wrap) return;
+  for (const old of wrap.querySelectorAll('.v-accolade, .v-accolade-block')) old.remove();
+  let ul = null;
+  for (const block of wrap.querySelectorAll('.gv-block')) {
+    const h = block.querySelector('h3');
+    if (h && h.textContent === 'What went well') { ul = block.querySelector('.gv-list'); break; }
+  }
+  if (!ul) {
+    const block = el('section', 'gv-block v-accolade-block');
+    block.append(el('h3', null, 'What went well'));
+    ul = el('ul', 'gv-list');
+    block.append(ul);
+    const first = wrap.querySelector('.gv-block');
+    if (first) first.after(block); else wrap.prepend(block);
+    const empty = wrap.querySelector('.gv-empty');
+    if (empty) empty.remove();
+  }
+  for (const a of list) {
+    if (!a || typeof a.title !== 'string' || !a.title) continue;
+    const li = el('li', 'gv-item good v-accolade');
+    const head = el('div', 'gv-item-head');
+    head.append(el('span', 'gv-dot'), el('b', 'gv-item-title', a.title), el('span', 'gv-badge', "Riot's record"));
+    li.append(head);
+    if (typeof a.detail === 'string' && a.detail) li.append(el('p', 'gv-item-detail', a.detail));
+    ul.append(li);
+  }
+}
+
 function paintProgress(r) {
   const valorant = r.kind === 'valorant';
   const host = $(valorant ? 'v-prog' : 'r-prog');
@@ -687,6 +755,9 @@ const TAG_ICON = {
   plant: 'M12 4v16M7 9l5-5 5 5',
   survived: 'M5 12.5l4.5 4.5L19 7.5',
   unwatched: 'M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6zM4 4l16 16',
+  // 8.8: the team's buy (a wallet), and a round Riot says was sat out (a clock).
+  buy: 'M4 7h16v11H4zM4 7l3-3h10l3 3M15 12.5h2',
+  afk: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
 };
 const TAG_TONES = new Set(['good', 'bad', 'warn', 'even']);
 
@@ -1463,6 +1534,7 @@ function paint(r) {
     // The Verdict, the strip against the matches before it, then the grade.
     paintCommon(r, { grade: $('v-prog'), lists: $('v-summary-wrap') }, verdict);
     paintProgress(r);
+    paintRiot(r);
     // Whole at last, it rises in where the loading screen was.
     if (wasBuilding) {
       $('vreview').classList.remove('v-arrive');
@@ -1594,6 +1666,8 @@ function paintLocked(r) {
 /** The result, where it came from, and Riot's scoreboard: what a locked review keeps. */
 function paintLockedValorant(r) {
   const g = r.game || {};
+  riotFor = null;
+  clearRR();
   paintVerdictIcon($('v-icon'), null);
   $('v-grade').replaceChildren(notGraded('Not graded'));
   $('v-grade').hidden = false;

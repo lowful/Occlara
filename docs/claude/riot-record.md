@@ -193,3 +193,107 @@ over a match lost on untraded deaths. So:
 **Riot counts rounds from 0**, and `time_in_round_in_ms` runs from the barriers
 dropping. The Riot ID in config is the one looked up, so a match played on
 another account never links, which is correct.
+
+## The rank endpoints by puuid (8.8.x)
+
+The account lookup (`/valorant/v2/account`) gives the puuid with the region,
+and `regionOf` keeps both a day. With a puuid the server reads HenrikDev's
+richer rank endpoints first (`server/services/henrik-rank.js`), each with the
+old name based endpoint as its fallback whenever it fails, times out, has no
+`data` or holds nothing, and no puuid means the old endpoints alone:
+
+- **MMR v3** (`/valorant/v3/by-puuid/mmr/{region}/pc/{puuid}`) in front of
+  v2 mmr: `/player-stats` adds `rankDetail` (RR in the tier, last change,
+  games to a rank, rank protection shields, leaderboard place, the peak's
+  act, each act's wins and games) and takes `peakRank` from v3's `peak`.
+- **Stored MMR history v2** (`/valorant/v2/by-puuid/stored-mmr-history/...?size=20`)
+  in front of v1 mmr-history: each `/rank-history` point carries `matchId`,
+  `refunded` and `derankProtected`. `home-model.js rrForRows` matches a
+  library row to its point BY MATCH ID first, by time only for what is left,
+  and a row with an id never takes a point naming another match. The RR chip
+  ("RR +18") in Matches (`REVIEWS_RR`) and on the review's header
+  (`REVIEW_RIOT`) is that rule, its title saying a shield or a refund.
+- **Accolades v1** (`/valorant/v1/by-puuid/accolades/...`): the player's own
+  row of each match only, other puuids dropped on the server, kept 15 minutes
+  per puuid and skipped while the key is within two minutes of a 429
+  (`henrikThrottled`). An answer holding none (a 404, a shape that does not
+  parse) is held as none for the same 15 minutes, a 429 or 5xx is not. The
+  review's "What went well" gains Riot's own lines
+  for that match id (`riot-rank.js accoladeLines`: top frag, aces, clutches,
+  act records), each badged "Riot's record". Stats' rank tile gets one dim
+  line (`rankLine`, `accoladeTotals`).
+- **Within two minutes of a 429** MMR v3 and the stored history are skipped
+  too, straight to v2 and v1 by name, so a throttled key spends exactly the
+  calls it did before 8.8.x (`test:trackerroutes`).
+
+Only RR is ever shown: the history's `elo` is the journey's plotting height
+and never printed, and no name or puuid leaves `henrik-rank.js`. Riot bans
+MMR and ELO calculators. The rank band reads the peak and the trend
+(`rank-band.js rankContext`, `riot-rank.js rankTrend`), and the trend never
+moves the band. Fixtures: `scripts/fixtures/henrik-rank-shapes.js`, from the
+documented schemas with their nulls (`test:trackerroutes`, `test:rank-band`,
+`test:homemodel`, `test:profile`).
+
+### The round record beyond the feed (8.8)
+
+HenrikDev's `/valorant/v4/match` reply already carried what the 8.5.0 shape
+log only named, and `riot-rounds.js parse` now reads five things from it,
+each by a rule written in the code, each a key of `perRound` ONLY where the
+record had it. A record without the data, and nulls where it is read, add no
+key at all: the parse is byte for byte the one before (held against HEAD's
+parse when it was written, and by `test:riotrecord`), and a client from
+before reads none of them.
+
+- **Where the death happened** (`deathAt`, and `killsAt` for the enemies the
+  player killed, where they fell): the kill's `location` through
+  `valorant-extract.js worldToMinimap` and the map's transform, then
+  `callout-locator.js resolveSpot`, so a place is a callout of that map, an
+  area or "A site" where two callouts sit too close, or nothing for an
+  unknown map or a point far from every callout. Every callout of every map
+  read back through the inverse transform lands on itself or an area of that
+  map, with one trap: valorant-api puts Pearl's B Club and Mid Shops on the
+  same point, so a death at either reads "B site" (the ambiguous fallback
+  takes the first one's region). The client keeps a place only as one of the map's own
+  (`valorant-verify.js placeName`), and Ask Coach's server again
+  (`chat-prompt.js placeOn`). On the card the death chip says Riot's place
+  ("Died at B Main, 20s in, to Reyna with a Vandal"), and the review model is
+  sent it as `deathSpot`; the screen's spot is kept underneath (`card.spot`),
+  and the mistake and pattern counts of places still count the screen's. No
+  real v4 record with locations is in the repo yet, so moving the counts to
+  Riot's place waits for one.
+- **The team's buy** (`buy`, `riot-rounds.js buyOf`, thresholds in `BUY`):
+  per player averages over the player's team, at least three teammates' rows.
+  `pistol` the first round of each half, `eco` under 1000 a player, `full`
+  from 3900 (a Vandal and heavy shields), between them `force` with under
+  1000 a player left and `half` with more. Only in a queue with an economy
+  and known halves (not Spike Rush, Replication or a queue with none). The
+  card chip says Pistol round, Eco round, Force buy, Half buy or Full buy, and
+  the `buys` pattern (`valorant-review.js buyDiscipline`, six decided buy
+  rounds at least) says the full buy rounds lost, the eco rounds won and the
+  forced rounds won, worded "full loadout" because the review's `BUY_BLAME`
+  and Ask Coach's review sentence gate drop any sentence with "buy".
+- **The nearest teammate at the death** (`mateNear`, `mateNearOf`): the
+  kill's `player_locations`, teammates only, flat distance in the map's own
+  units, within `MATE_CLOSE_UNITS` (1500) `close` else `far`. No source states
+  the unit, so no metres are ever said. Never for the last one alive. On the
+  card it is the trade chip's own words ("Not traded, nobody close").
+- **Ability casts** (`casts`, `castsOf`): the player's round by kit key, C the
+  grenade slot, Q ability 1, E ability 2, X the ultimate (v4 `ability_1`...,
+  v2 `c_cast`...), named by the player's kit on the card
+  (`valorant-review.js castsNamed`). A fact for the review and Ask Coach, no
+  chip. Which v4 key is which slot is valorant-api's naming and was not yet
+  checked on a real match.
+- **AFK** (`afk` from `was_afk`, `inSpawn` from `stayed_in_spawn`): such a
+  round is left out of every counted mistake (`insights.js valorant`,
+  `played`), its card says "Riot marked you AFK, not counted", and both prompts
+  are told it is no mistake of the player's.
+
+The review prompt's grounding rule says economy and abilities are known only
+where a round states them, in place of "never state them", only for a match
+whose rounds carry a buy or casts (`match-review.js buildPrompt`). Nothing
+here reaches the screen during a match: it is all read after the link.
+Privacy: every value is a word of the game data or a number; the positions
+and `player_locations` (which name players) are read on the server and never
+sent. The shape logs: no real one is kept in the repo or on the owner's
+profile, so whether each queue fills these fields is still unverified; the
+code treats every one as optional.

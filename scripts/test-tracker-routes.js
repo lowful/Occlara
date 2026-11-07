@@ -71,7 +71,11 @@ global.fetch = async (url, init = {}) => {
   signals.push(init.signal);
   deadlines.push({ url: u, ms: lastDeadline });
   const route = u.includes('/v2/account/') ? 'account' : u.includes('/stored-matches/') ? 'stored'
-    : u.includes('/v4/match/') ? 'match' : 'other';
+    : u.includes('/v4/match/') ? 'match'
+    // The rank endpoints (8.8.x): MMR v3 and v2, the stored history v2 and v1, accolades.
+    : u.includes('/v3/by-puuid/mmr/') ? 'mmr3' : u.includes('/v2/mmr/') ? 'mmr2'
+    : u.includes('/by-puuid/stored-mmr-history/') ? 'history2' : u.includes('/v1/mmr-history/') ? 'history1'
+    : u.includes('/by-puuid/accolades/') ? 'accolades' : 'other';
   const handler = henrik[route];
   if (!handler) throw new Error(`no scripted answer for ${route}`);
   const out = await handler(u);
@@ -583,6 +587,138 @@ const V4 = {
     } finally { Date.now = realNow; }
     henrikKey.fills.length = 0;
     henrikKey.throttledAt = 0;
+  }
+
+  // ── the richer rank endpoints (8.8.x): MMR v3, stored history v2, accolades ──
+  {
+    const F = require(path.join(__dirname, 'fixtures', 'henrik-rank-shapes.js'));
+    const hr = require(path.join(__dirname, '..', 'server', 'services', 'henrik-rank.js'));
+    const { accoladesCache, rankHistoryCache } = coach.__test;
+
+    // The parsers alone, on the documented shapes, nulls included.
+    const v3 = hr.mmrV3(F.MMR_V3);
+    ok(v3 && v3.rank === 'Platinum 3' && v3.rr === 54 && v3.lastChange === 18 && v3.shields === 2 && v3.leaderboard === null
+      && v3.peakRank === 'Diamond 2' && v3.peakSeason === 'e9a2' && v3.acts.length === 2 && v3.acts[1].wins === 24 && v3.acts[1].games === 41,
+      'MMR v3 parses the tier, RR, shields, the peak with its act and each act\'s wins');
+    ok(!('elo' in v3) && !JSON.stringify(v3).includes('1454') && !JSON.stringify(v3).includes('"Me"'),
+      'and keeps neither the elo nor the account\'s name');
+    const sparse = hr.mmrV3(F.MMR_V3_SPARSE);
+    ok(sparse && sparse.rank === null && sparse.rr === null && sparse.peakRank === null && sparse.leaderboard === null && sparse.gamesNeeded === 5 && sparse.acts.length === 0,
+      'an unrated account with a null peak parses to nothing to show, not a throw');
+    ok(hr.mmrV3(null) === null && hr.mmrV3({}) === null && hr.mmrV3({ data: [] }) === null && hr.mmrV3('x') === null,
+      'an answer with no data object is null, so the route falls back to v2');
+    const st = hr.storedHistoryV2(F.STORED_V2, 20);
+    ok(st.length === 4 && st[0].matchId === 'match-a' && st[3].matchId === 'match-d' && st[3].change === 18
+      && st[1].refunded === 7 && st[2].derankProtected === true && st.every((p) => typeof p.date === 'number' && p.tier === 'Platinum 3'),
+      'the stored history v2 is oldest first, each game with its match id, the refund and the shield');
+    ok(hr.storedHistoryV2({ data: [{ match_id: 'x', elo: null }, null, 'junk', { elo: 900, last_change: null, tier: null, date: 'never' }] }).length === 1
+      && hr.storedHistoryV2({}) === null, 'a row with no elo is dropped, nulls are read as nothing, and no data array is null');
+    const v1 = hr.historyV1(F.HISTORY_V1, 20);
+    ok(v1.length === 2 && v1[0].matchId === 'old-a' && v1[1].change === 20 && v1[1].tier === 'Platinum 2' && v1[1].date === F.T0 + F.DAY,
+      'the v1 history still parses as it always did, now with its match id');
+    const ac = hr.accoladesV1(F.ACCOLADES_V1, F.ME_PUUID);
+    ok(ac && ac.matches.length === 1 && ac.matches[0].matchId === 'match-d'
+      && ac.matches[0].items.map((a) => a.type).join(',') === 'top_frag,damage_per_round,aces,kills'
+      && ac.matches[0].items[1].value === 182.4 && ac.matches[0].items[1].actRecord === true,
+      'accolades keep the player\'s own row only, known kinds only');
+    ok(!JSON.stringify(ac).includes(F.OTHER_PUUID) && !JSON.stringify(ac).includes(F.ME_PUUID) && !JSON.stringify(ac).includes('"Me"'),
+      'and no puuid and no name of anyone, the player included');
+    ok(ac.allTime.length === 2 && ac.allTime[1].count === 31, 'the all time summary keeps the kinds the app has words for');
+    const acs = hr.accoladesV1(F.ACCOLADES_SPARSE, F.ME_PUUID);
+    ok(acs && acs.matches.length === 0 && acs.allTime.length === 0 && hr.accoladesV1({}, F.ME_PUUID) === null,
+      'a null summary and an empty list parse, no data is null');
+    ok(hr.accoladesV1(F.ACCOLADES_V1, '').matches.length === 0, 'without the player\'s puuid no match is anybody\'s');
+
+    // The routes, with a puuid from the account lookup.
+    const PU = F.ME_PUUID;
+    const setRank = (o) => {
+      henrik.account = async () => ({ status: 200, json: { data: { region: 'eu', puuid: PU, name: 'Me', tag: 'EUW' } } });
+      henrik.stored = async () => ({ status: 200, json: { data: [] } });
+      henrik.mmr3 = o.mmr3 || (async () => ({ status: 200, json: F.MMR_V3 }));
+      henrik.mmr2 = o.mmr2 || (async () => ({ status: 200, json: F.MMR_V2 }));
+      henrik.history2 = o.history2 || (async () => ({ status: 200, json: F.STORED_V2 }));
+      henrik.history1 = o.history1 || (async () => ({ status: 200, json: F.HISTORY_V1 }));
+      henrik.accolades = o.accolades || (async () => ({ status: 200, json: F.ACCOLADES_V1 }));
+    };
+    const fresh = () => { regionCache.clear(); accoladesCache.clear(); rankHistoryCache.clear(); calls.length = 0; henrikKey.throttledAt = 0; };
+    const stats = () => call(coach, 'GET', `/player-stats?username=${ME}`, { headers: H });
+    const hist = (q) => call(coach, 'GET', `/rank-history?username=${ME}${q || ''}`, { headers: H });
+    const n = (frag) => calls.filter((u) => u.includes(frag)).length;
+
+    fresh(); setRank({});
+    let r = await stats();
+    ok(r.body.rank === 'Platinum 3' && r.body.peakRank === 'Diamond 2' && r.body.rankDetail && r.body.rankDetail.rr === 54
+      && r.body.rankDetail.shields === 2 && r.body.rankDetail.peakSeason === 'e9a2' && r.body.rankDetail.acts.length === 2,
+      `/player-stats reads MMR v3 by puuid: rank, peak and its act, RR, shields (${r.body.rank}, ${r.body.peakRank})`);
+    ok(n('/v3/by-puuid/mmr/eu/pc/' + PU) === 1 && n('/v2/mmr/') === 0, 'and does not also ask v2');
+    ok(r.body.accolades && r.body.accolades.matches.length === 1 && !JSON.stringify(r.body).includes(F.OTHER_PUUID),
+      'and carries the player\'s own accolades, no other player\'s');
+    ok(!('elo' in r.body) && !JSON.stringify(r.body.rankDetail).includes('1454'), 'no elo reaches the client');
+    calls.length = 0;
+    await stats();
+    ok(n('/accolades/') === 0, 'the accolades are held 15 minutes, never asked twice in a row');
+
+    fresh(); setRank({ mmr3: async () => ({ status: 500, json: { errors: [{ code: 0, message: 'boom', status: 500 }] } }) });
+    r = await stats();
+    ok(r.body.rank === 'Platinum 2' && r.body.peakRank === 'Diamond 1' && !('rankDetail' in r.body) && n('/v2/mmr/') === 1,
+      'MMR v3 failing falls back to v2 by name, the old shape, no rankDetail');
+    fresh(); setRank({ mmr3: async () => { throw new Error('The operation was aborted due to timeout'); } });
+    r = await stats();
+    ok(r.body.rank === 'Platinum 2', 'and so does v3 timing out');
+    fresh(); setRank({ mmr3: async () => ({ status: 200, json: F.MMR_V3_SPARSE }) });
+    r = await stats();
+    ok(r.body.error && n('/v2/mmr/') === 0, 'an unrated account v3 answered for is not asked of v2 again (no rank, no matches: the error it always was)');
+
+    fresh(); setRank({});
+    henrik.account = async () => ({ status: 200, json: { data: { region: 'eu' } } });
+    r = await stats();
+    ok(r.body.rank === 'Platinum 2' && n('/v3/') === 0 && n('/accolades/') === 0 && n('/v2/mmr/') === 1,
+      'an account lookup with no puuid keeps every name based endpoint, as before');
+
+    fresh(); setRank({});
+    henrikKey.throttledAt = Date.now();
+    r = await stats();
+    ok(r.body.rank === 'Platinum 2' && n('/accolades/') === 0 && !('accolades' in r.body)
+      && n('/v3/') === 0 && n('/v2/mmr/') === 1,
+      'a key turned away within two minutes skips the accolades and MMR v3: v2 by name alone, the calls it always spent');
+    henrikKey.throttledAt = 0;
+
+    fresh(); setRank({});
+    let h = await hist();
+    ok(h.body.points.length === 4 && h.body.points[3].matchId === 'match-d' && h.body.current.change === 18 && n('/v1/mmr-history/') === 0
+      && n('/by-puuid/stored-mmr-history/eu/pc/' + PU + '?size=20') === 1,
+      '/rank-history reads the stored history v2 by puuid, each point with its match id');
+    fresh(); setRank({ history2: async () => ({ status: 404, json: { errors: [] } }) });
+    h = await hist();
+    ok(h.body.points.length === 2 && h.body.points[1].matchId === 'old-b' && n('/v1/mmr-history/') === 1,
+      'the stored history failing falls back to v1 by name');
+    fresh(); setRank({ history2: async () => ({ status: 200, json: { status: 200, results: {}, data: [] } }) });
+    h = await hist();
+    ok(h.body.points.length === 2 && n('/v1/mmr-history/') === 1, 'and so does an empty stored history');
+    fresh(); setRank({});
+    henrik.account = async () => ({ status: 200, json: { data: { region: 'eu' } } });
+    h = await hist();
+    ok(h.body.points.length === 2 && n('/by-puuid/') === 0, 'no puuid: v1 by name alone, as before');
+    fresh(); setRank({});
+    henrikKey.throttledAt = Date.now();
+    h = await hist();
+    ok(h.body.points.length === 2 && n('/by-puuid/') === 0 && n('/v1/mmr-history/') === 1,
+      'a key turned away within two minutes skips the stored history: v1 by name alone, the call it always spent');
+    henrikKey.throttledAt = 0;
+    fresh(); setRank({ accolades: async () => ({ status: 404, json: { errors: [] } }) });
+    await stats();
+    calls.length = 0;
+    r = await stats();
+    ok(n('/accolades/') === 0 && !('accolades' in r.body) && r.body.rank === 'Platinum 3',
+      'an accolades answer that holds none (a 404) is held as none, not asked again on the next load');
+    fresh(); setRank({ accolades: async () => ({ status: 503, json: null }) });
+    await stats();
+    calls.length = 0;
+    await stats();
+    ok(n('/accolades/') === 1, 'a 5xx is not held: asked again on the next load');
+    fresh();
+    for (const k of ['mmr3', 'mmr2', 'history2', 'history1', 'accolades']) henrik[k] = null;
+    henrik.account = async () => ({ status: 200, json: { data: { region: 'eu' } } });
   }
 
   // ── every tracker call can time out ──────────────────────────────────────

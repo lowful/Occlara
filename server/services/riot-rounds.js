@@ -425,6 +425,143 @@ function killerDamageOf(round, killer, isMe) {
   return hit && damage > 0 ? { damage: Math.round(damage), head, body, legs } : null;
 }
 
+/*
+ * WHAT ELSE RIOT'S ROUND RECORDS (8.8): where a death happened, the team's
+ * buy, how near the closest teammate stood, the player's ability casts and
+ * the AFK flags. HenrikDev's v4 record sent all of it on every link and the
+ * shape log was the only reader (deeperShape). Each is computed here by a
+ * written rule, numbers and the game's own words only, never a name, and each
+ * is left out of the round when the record lacks it, so a record without the
+ * data, and a client from before, get exactly the rounds they always did.
+ */
+let locator = null;
+try { locator = require('./callout-locator'); } catch { locator = null; }
+let toMinimap = null;
+try { toMinimap = require('./valorant-extract').worldToMinimap; } catch { toMinimap = null; }
+
+/** A round's per player stats, whichever shape the record has. */
+const statsOfRound = (round) => (round && Array.isArray(round.stats) ? round.stats
+  : round && Array.isArray(round.player_stats) ? round.player_stats : []);
+/** The player a stats row is of, as an id the roster can place: v4's player, or v2's puuid and team. */
+const playerOfStat = (s) => (s && s.player && typeof s.player === 'object' ? s.player
+  : s && s.player_puuid ? { puuid: s.player_puuid, team: s.player_team } : null);
+
+/**
+ * WHERE ON THE MAP a world position is, as the callout the game's own data
+ * names there (callout-locator.js resolveSpot, through valorant-extract.js
+ * worldToMinimap and the map's transform, the conversion the sync keeps for
+ * exactly this). Null for a map with no geometry, a position missing or not
+ * a number, or a point too far from every callout: a guess is never a place.
+ */
+function spotOf(map, loc) {
+  if (!locator || !toMinimap || typeof map !== 'string' || !loc || typeof loc !== 'object') return null;
+  const geo = DATA.mapGeometry ? DATA.mapGeometry[lower(map).trim()] : null;
+  const t = geo && geo.transform;
+  const x = num(loc.x);
+  const y = num(loc.y);
+  if (!t || x === null || y === null) return null;
+  const p = toMinimap({ x, y }, t);
+  if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+  const hit = locator.resolveSpot(map, p.x, p.y);
+  return hit && typeof hit.spot === 'string' && hit.spot ? hit.spot : null;
+}
+
+/*
+ * THE TEAM'S BUY, from each teammate's economy at the round's start
+ * (rounds[].stats[].economy: loadout_value, the worth of what they carried
+ * into the round, and remaining, the credits left after buying). Per player
+ * averages over the team, so a row the record lacks does not read as a
+ * cheaper buy:
+ *
+ *   pistol   the first round of each half, whatever was carried
+ *   eco      a loadout under ECO_MAX a player (under 5000 for the team)
+ *   full     a loadout of FULL_MIN a player or more: a Vandal or Phantom
+ *            (2900) and heavy shields (1000) each
+ *   force    between the two, with under FORCE_LEFT_MAX a player left: the
+ *            team spent what it had on a partial buy
+ *   half     between the two with more left: a partial buy that kept money
+ *            for the next round
+ *
+ * Only in a queue with a buy economy and known halves (attackersOf's), and
+ * only with at least MIN_PLAYERS teammates' numbers; else null.
+ */
+const BUY = Object.freeze({ ECO_MAX: 1000, FULL_MIN: 3900, FORCE_LEFT_MAX: 1000, MIN_PLAYERS: 3 });
+const BUY_KINDS = Object.freeze(['pistol', 'eco', 'force', 'half', 'full']);
+function buyOf(round, n, halfLength, isOurs) {
+  if (!halfLength) return null;
+  const loads = [];
+  const lefts = [];
+  for (const s of statsOfRound(round)) {
+    const who = playerOfStat(s);
+    if (!who || !isOurs(who)) continue;
+    const e = s && s.economy && typeof s.economy === 'object' ? s.economy : null;
+    const lv = num(e && (e.loadout_value != null ? e.loadout_value : e.loadout));
+    if (lv === null || lv < 0) continue;
+    loads.push(lv);
+    const rem = num(e.remaining);
+    if (rem !== null && rem >= 0) lefts.push(rem);
+  }
+  if (loads.length < BUY.MIN_PLAYERS) return null;
+  if (n === 1 || n === halfLength + 1) return 'pistol';
+  const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const load = avg(loads);
+  if (load < BUY.ECO_MAX) return 'eco';
+  if (load >= BUY.FULL_MIN) return 'full';
+  if (lefts.length < BUY.MIN_PLAYERS) return null;
+  return avg(lefts) < BUY.FORCE_LEFT_MAX ? 'force' : 'half';
+}
+
+/*
+ * HOW NEAR THE CLOSEST TEAMMATE WAS AT THE DEATH, from the kill's
+ * player_locations (every player alive at that moment, v4; v2's
+ * player_locations_on_kill) against where the player fell (the kill's
+ * location): the nearest teammate alive, flat distance in the map's own
+ * units, within MATE_CLOSE_UNITS 'close', else 'far'. Null where the record
+ * places no teammate or not the player, so nobody alive to trade is no
+ * distance. The unit is the engine's and no source states it, so no metres
+ * are ever said: if it is Unreal's centimetre, the line is 15 m, two seconds
+ * of running, inside the five second trade window (TRADE_MS).
+ */
+const MATE_CLOSE_UNITS = 1500;
+function mateNearOf(death, isMate) {
+  if (!death || !death.loc || !Array.isArray(death.around)) return null;
+  const ax = num(death.loc.x);
+  const ay = num(death.loc.y);
+  if (ax === null || ay === null) return null;
+  let best = null;
+  for (const p of death.around) {
+    const who = p && (p.player && typeof p.player === 'object' ? p.player
+      : p && p.player_puuid ? { puuid: p.player_puuid, team: p.player_team } : null);
+    if (!who || !isMate(who)) continue;
+    const x = num(p.location && p.location.x);
+    const y = num(p.location && p.location.y);
+    if (x === null || y === null) continue;
+    const d = Math.hypot(x - ax, y - ay);
+    if (best === null || d < best) best = d;
+  }
+  return best === null ? null : best <= MATE_CLOSE_UNITS ? 'close' : 'far';
+}
+
+/*
+ * THE PLAYER'S ABILITY CASTS IN THE ROUND, by the kit's key: C the grenade
+ * slot, Q ability 1, E ability 2, X the ultimate (valorant-api's slots, the
+ * kit's `key` in the game data). v4 names them ability_1, ability_2, grenade
+ * and ultimate, v2 c_cast, q_cast, e_cast and x_cast. Whole counts up to 20
+ * only; null when the record holds none.
+ */
+const CAST_KEYS = [['C', ['grenade', 'c_cast', 'c_casts']], ['Q', ['ability_1', 'ability1', 'q_cast', 'q_casts']],
+  ['E', ['ability_2', 'ability2', 'e_cast', 'e_casts']], ['X', ['ultimate', 'x_cast', 'x_casts']]];
+function castsOf(stat) {
+  const a = stat && stat.ability_casts && typeof stat.ability_casts === 'object' ? stat.ability_casts : null;
+  if (!a) return null;
+  const out = {};
+  for (const [slot, keys] of CAST_KEYS) {
+    const k = keys.find((x) => Number.isInteger(a[x]) && a[x] >= 0 && a[x] <= 20);
+    if (k !== undefined) out[slot] = a[k];
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /**
  * @param d     the v4 `data` object
  * @param name  Riot name
@@ -482,6 +619,12 @@ function parse(d, name, tag) {
     killer: k.killer || (k.killer_puuid ? { puuid: k.killer_puuid } : null),
     victim: k.victim || (k.victim_puuid ? { puuid: k.victim_puuid } : null),
     weapon: weaponOf(k),
+    // Where the victim fell and everyone alive then (8.8), for the place and
+    // the teammate's distance only: read here, never sent as they are.
+    loc: (k.location && typeof k.location === 'object' ? k.location : null)
+      || (k.victim_death_location && typeof k.victim_death_location === 'object' ? k.victim_death_location : null),
+    around: Array.isArray(k.player_locations) ? k.player_locations
+      : Array.isArray(k.player_locations_on_kill) ? k.player_locations_on_kill : null,
   })).filter((k) => k.n);
 
   // Which side a player in the kill feed is on, relative to the player. Kill
@@ -496,10 +639,25 @@ function parse(d, name, tag) {
     return t === myTeam ? 'mate' : 'enemy';
   };
 
+  // The round record beyond the feed (8.8): the map the places are on, and
+  // whether the queue has a buy economy (Spike Rush and Replication hand out
+  // their loadouts, and a queue with no known halves has no pistol rounds).
+  const mapName = (d.metadata && d.metadata.map && (typeof d.metadata.map === 'string' ? d.metadata.map : d.metadata.map.name)) || null;
+  const econHalf = halfLength && !/spike ?rush|replication|onefa/.test(queue) ? halfLength : null;
+  const isOurs = (x) => { const w = whoIs(x); return w === 'me' || w === 'mate'; };
+  const isMate = (x) => whoIs(x) === 'mate';
+
   const perRound = rounds.map((r, i) => {
     const n = i + 1;
     const inRound = kills.filter((k) => k.n === n).sort((a, b) => (a.ms || 0) - (b.ms || 0));
     const death = inRound.find((k) => isMe(k.victim)) || null;
+    const myStat = statsOfRound(r).find((s) => isMe(playerOfStat(s))) || null;
+    const deathAt = death ? spotOf(mapName, death.loc) : null;
+    // Enemies only: a teammate the player killed by accident is no kill to place.
+    const killsAt = inRound.filter((k) => isMe(k.killer) && whoIs(k.victim) === 'enemy').map((k) => spotOf(mapName, k.loc)).filter(Boolean);
+    const buy = econHalf ? buyOf(r, n, econHalf, isOurs) : null;
+    const mateNear = death ? mateNearOf(death, isMate) : null;
+    const casts = castsOf(myStat);
     const winner = winnerOf(r);
     const attackers = attackersOf(n, halfLength);
     const plant = r.plant || r.plant_events || null;
@@ -536,6 +694,17 @@ function parse(d, name, tag) {
       // both ends by agent and its gun by name (ka, va, w: weaponOf, never its
       // type), so Ask Coach can tell a round in order; still no name, tag or id.
       feed: feed.map((k) => ({ ms: k.ms, by: k.by, on: k.on, ka: k.ka, va: k.va, w: k.w })),
+      // The round record beyond the feed (8.8), each only where the record
+      // had it: the callout the player died at and those of the enemies they
+      // killed, the team's buy, the nearest teammate's distance at the death
+      // in a word, the player's casts by key, and Riot's AFK flags.
+      ...(deathAt ? { deathAt } : {}),
+      ...(killsAt.length ? { killsAt } : {}),
+      ...(buy ? { buy } : {}),
+      ...(mateNear ? { mateNear } : {}),
+      ...(casts ? { casts } : {}),
+      ...(myStat && myStat.was_afk === true ? { afk: true } : {}),
+      ...(myStat && myStat.stayed_in_spawn === true ? { inSpawn: true } : {}),
     };
   });
 
@@ -581,4 +750,5 @@ function parse(d, name, tag) {
 }
 
 module.exports = { parse, attackersOf, killsOf, playersOf, teamworkOf, plantSiteOf, weaponOf, killerDamageOf, NOT_A_WEAPON, TRADE_MS,
-  compsOf, roleOf, noteNames, nameSetOf, NAME_SET_MS, NAME_SETS_MAX };
+  compsOf, roleOf, noteNames, nameSetOf, NAME_SET_MS, NAME_SETS_MAX,
+  spotOf, buyOf, mateNearOf, castsOf, BUY, BUY_KINDS, MATE_CLOSE_UNITS };

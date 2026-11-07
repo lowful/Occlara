@@ -5,6 +5,7 @@ const knowledge = require('../services/knowledge');
 const matchReview = require('../services/match-review');
 const readPrompt = require('../services/read-prompt');
 const riotRounds = require('../services/riot-rounds');
+const henrikRank = require('../services/henrik-rank');
 const deathForensics = require('../services/death-forensics');
 // The language list is shared with the client so both agree on what is
 // supported, and so the prompt always names the language in English (a model
@@ -2514,15 +2515,18 @@ function fillRefused(now) {
  * good. A region does not change from one match to the next, so it is kept a
  * day per Riot ID, and an older answer is still used when a fresh lookup fails.
  *
- * Returns { region, status }: region null when it could not be resolved, with
- * the status of the lookup that failed (0 when it never answered).
+ * Returns { region, puuid, status }: region null when it could not be
+ * resolved, with the status of the lookup that failed (0 when it never
+ * answered). The puuid comes from the same lookup (8.8.x) and opens the
+ * by-puuid endpoints (henrik-rank.js); null when the answer had none, and
+ * every caller then keeps to the name based endpoints it always used.
  */
 const REGION_MS = 24 * 60 * 60 * 1000;
-const regionCache = new Map();   // riotId (lower) -> { region, at }
+const regionCache = new Map();   // riotId (lower) -> { region, puuid, at }
 async function regionOf(name, tag) {
   const id = `${name}#${tag}`.toLowerCase();
   const hit = regionCache.get(id);
-  if (hit && Date.now() - hit.at < REGION_MS) return { region: hit.region, status: 200 };
+  if (hit && Date.now() - hit.at < REGION_MS) return { region: hit.region, puuid: hit.puuid || null, status: 200 };
   let acct = { status: 0, json: null };
   try {
     acct = await henrikGet(`/valorant/v2/account/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`);
@@ -2530,12 +2534,45 @@ async function regionOf(name, tag) {
     console.warn('[stats] account lookup failed:', e.message);
   }
   const region = acct.json && acct.json.data && acct.json.data.region;
+  const rawPuuid = acct.json && acct.json.data && acct.json.data.puuid;
+  const puuid = typeof rawPuuid === 'string' && /^[A-Za-z0-9_-]{20,90}$/.test(rawPuuid) ? rawPuuid : null;
   if (region) {
-    cacheSet(regionCache, id, { region, at: Date.now() }, 5000);
-    return { region, status: acct.status };
+    cacheSet(regionCache, id, { region, puuid: puuid || (hit && hit.puuid) || null, at: Date.now() }, 5000);
+    return { region, puuid: puuid || (hit && hit.puuid) || null, status: acct.status };
   }
-  if (hit) return { region: hit.region, status: 200 };
-  return { region: null, status: acct.status };
+  if (hit) return { region: hit.region, puuid: hit.puuid || null, status: 200 };
+  return { region: null, puuid: null, status: acct.status };
+}
+
+/** Whether the shared key was turned away with a 429 within the fill hold: optional extras wait. */
+const henrikThrottled = (now) => !!(henrikKey.throttledAt && now - henrikKey.throttledAt < FILL_HOLD_MS);
+
+// Riot's accolades per puuid, 15 minutes (they move once a match): an extra
+// on the profile, never worth a second call on the shared key.
+const ACCOLADES_MS = 15 * 60 * 1000;
+const accoladesCache = new Map();   // puuid (lower) -> { at, data }
+async function accoladesOf(region, puuid) {
+  if (!puuid) return null;
+  const key = puuid.toLowerCase();
+  const hit = accoladesCache.get(key);
+  if (hit && Date.now() - hit.at < ACCOLADES_MS) return hit.data;
+  // Rate limit first: a key turned away keeps the reads it is for, and the
+  // accolades are the one thing on the profile that can wait.
+  if (henrikThrottled(Date.now())) return hit ? hit.data : null;
+  try {
+    const r = await henrikGet(`/valorant/v1/by-puuid/accolades/${region}/pc/${encodeURIComponent(puuid)}`);
+    const data = r.ok ? henrikRank.accoladesV1(r.json, puuid) : null;
+    if (data) { cacheSet(accoladesCache, key, { at: Date.now(), data }, 2000); return data; }
+    // An answer that holds none (a 404, a shape that does not parse) is held
+    // as none for the same 15 minutes, so a missing endpoint is not asked
+    // again on every Stats load. A 429 or a 5xx is not held: worth asking again.
+    if (r.status !== 429 && r.status < 500) {
+      cacheSet(accoladesCache, key, { at: Date.now(), data: hit ? hit.data : null }, 2000);
+    }
+  } catch (e) {
+    console.warn('[stats] accolades failed:', e.message);
+  }
+  return hit ? hit.data : null;
 }
 
 /** An upstream answer worth asking again shortly: throttled, failing or silent. */
@@ -2556,9 +2593,27 @@ async function henrikStats(name, tag, modeKey) {
   if (!region && acct.status === 429) return { fail: 'HenrikDev rate limit hit. Wait a minute and try again.' };
   if (!region) return { fail: 'HenrikDev returned no region for that account (status ' + acct.status + ').' };
 
-  const mmr  = await henrikGet(`/valorant/v2/mmr/${region}/${enc(name)}/${enc(tag)}`);
-  const rank = mmr.json?.data?.current_data?.currenttierpatched || null;
-  const peakRank = mmr.json?.data?.highest_rank?.patched_tier || null;
+  // MMR v3 by puuid first (8.8.x, henrik-rank.js mmrV3): the peak with its
+  // act, the RR, rank protection shields, leaderboard placement and each
+  // act's wins. v2 by name stays the fallback whenever v3 is unreachable,
+  // refused or without a `data` object, or the account lookup gave no puuid.
+  // A key within the fill hold of a 429 goes straight to v2, so a throttled
+  // key spends exactly the calls it did before.
+  let detail = null;
+  if (acct.puuid && !henrikThrottled(Date.now())) {
+    const v3 = await henrikGet(`/valorant/v3/by-puuid/mmr/${region}/pc/${enc(acct.puuid)}`).catch(() => null);
+    detail = v3 && v3.ok ? henrikRank.mmrV3(v3.json) : null;
+  }
+  let rank = detail ? detail.rank : null;
+  let peakRank = detail ? detail.peakRank : null;
+  if (!detail) {
+    const mmr  = await henrikGet(`/valorant/v2/mmr/${region}/${enc(name)}/${enc(tag)}`);
+    rank = mmr.json?.data?.current_data?.currenttierpatched || null;
+    peakRank = mmr.json?.data?.highest_rank?.patched_tier || null;
+  }
+  // Riot's accolades (henrik-rank.js accoladesV1), the player's own only,
+  // and only while the key is not being turned away.
+  const accolades = acct.puuid ? await accoladesOf(region, acct.puuid) : null;
 
   let agg = null;
   try {
@@ -2622,8 +2677,16 @@ async function henrikStats(name, tag, modeKey) {
   } catch { /* rank-only is still useful */ }
 
   if (!rank && !agg) return { fail: 'HenrikDev found the account but no rank or match data yet.' };
+  // The fields from v3 and the accolades are new and optional: a client from
+  // before reads the same rank, peakRank and numbers it always did.
+  const rankDetail = detail ? {
+    rr: detail.rr, lastChange: detail.lastChange, gamesNeeded: detail.gamesNeeded, shields: detail.shields,
+    leaderboard: detail.leaderboard, peakSeason: detail.peakSeason, acts: detail.acts,
+  } : null;
   return { stats: { source: 'henrikdev', rank: rank || 'Unranked', peakRank, mode: modeKey === 'unrated' ? 'unrated' : 'competitive',
-    ...(agg || { kd: 0, winRate: 0, headshotPct: 0, topAgent: 'Unknown', topAgents: [] }) } };
+    ...(agg || { kd: 0, winRate: 0, headshotPct: 0, topAgent: 'Unknown', topAgents: [] }),
+    ...(rankDetail ? { rankDetail } : {}),
+    ...(accolades ? { accolades } : {}) } };
 }
 
 /** A Riot ID as Railway's logs may carry it: its first 8 hex of sha256, case folded (S10). */
@@ -2703,16 +2766,22 @@ router.get('/rank-history', async (req, res) => {
   const [name, tag] = username.split('#').map((s) => s.trim());
   const enc = encodeURIComponent;
   try {
-    const { region } = await regionOf(name, tag);
+    const { region, puuid } = await regionOf(name, tag);
     if (!region) return res.json({ error: 'Account not found.' });
-    const mh = await henrikGet(`/valorant/v1/mmr-history/${region}/${enc(name)}/${enc(tag)}`);
-    const arr = (mh.json && Array.isArray(mh.json.data)) ? mh.json.data : [];
-    const points = arr.slice(0, 20).map((e) => ({
-      date:   e.date_raw ? e.date_raw * 1000 : (Date.parse(e.date) || null),
-      elo:    e.elo != null ? e.elo : null,
-      change: e.mmr_change_to_last_game != null ? e.mmr_change_to_last_game : null,
-      tier:   e.currenttierpatched || null,
-    })).filter((p) => p.elo != null).reverse();
+    // The stored history v2 by puuid first (8.8.x, henrik-rank.js
+    // storedHistoryV2): each game carries its match id, so a saved review is
+    // given its own RR by id, and whether a shield kept the rank or RR was
+    // refunded. v1 by name stays the fallback when v2 fails or holds nothing.
+    // A key within the fill hold of a 429 goes straight to v1, as it did before.
+    let points = null;
+    if (puuid && !henrikThrottled(Date.now())) {
+      const st = await henrikGet(`/valorant/v2/by-puuid/stored-mmr-history/${region}/pc/${enc(puuid)}?size=20`).catch(() => null);
+      points = st && st.ok ? henrikRank.storedHistoryV2(st.json, 20) : null;
+    }
+    if (!points || !points.length) {
+      const mh = await henrikGet(`/valorant/v1/mmr-history/${region}/${enc(name)}/${enc(tag)}`);
+      points = henrikRank.historyV1(mh.json, 20);
+    }
     const data = { points, current: points.length ? points[points.length - 1] : null };
     cacheSet(rankHistoryCache, key, { at: Date.now(), data,
       lastManualRefresh: wantsRefresh ? now : (hit && hit.lastManualRefresh) || 0 }, 500);
@@ -4908,6 +4977,8 @@ module.exports.__test = {
   // The wrong admin passwords counted per IP on the coach routes (S2).
   adminGuesses, ADMIN_GUESS_MAX,
   checkKey, validKeys, licenceDb, roundBased, lastMatchRow, regionOf, regionCache,
+  // 8.8.x: Riot's accolades by puuid, held 15 minutes, and the rank history's.
+  accoladesCache, rankHistoryCache,
   benchModel, readVariant, TELL_MAX, DETECTABLE_AGENTS, AGENT_KIT_LINES, ICON_HINTS, hintFits, STALE_KEY_MS, VALID_KEY_MS,
   // The agent look's prompt and who may ask for its variant (8.4.4).
   detectPrompt, detectVariant, DETECT_VARIANTS,

@@ -282,6 +282,42 @@ const summary = patterns.summarise(saved);
     'a placement\'s jump or an unrated point shows no RR, the rank tile\'s rule');
   ok(same(rrForRows([a], { error: 'no-riot-id' }), {}) && same(rrForRows(null, null), {}) && same(rrForRows([a], { points: [{ elo: 1500, change: 5 }] }), {}),
     'no history, no rows or an undated point: nothing');
+
+  // BY MATCH ID FIRST (8.8.x): the stored history v2 names each game's match,
+  // and a linked row keeps the same id, so the pair is matched with no clock.
+  const ia = { ...a, matchId: 'MATCH-A' };
+  const ib = { ...b, matchId: 'match-b' };
+  const swapped = rrForRows([ib, ia], { points: [point(START_B + MIN, 18, { matchId: 'match-a' }), point(START_A + 2 * MIN, -14, { matchId: 'match-b' })] });
+  ok(same(swapped, { b: -14, a: 18 }), `a point names its match, whatever its date says, case aside (${JSON.stringify(swapped)})`);
+  const undated = rrForRows([ia], { points: [{ elo: 1500, change: 9, tier: 'Platinum 1', matchId: 'match-a' }] });
+  ok(same(undated, { a: 9 }), 'a point with an id and no date is still its match\'s');
+  const notYet = rrForRows([ib, ia], { points: [point(START_A + 2 * MIN, 18, { matchId: 'match-a' }), point(START_B + MIN, 21, { matchId: 'match-z' })] });
+  ok(same(notYet, { a: 18 }), `a row whose game the history does not name takes no point that names another match (${JSON.stringify(notYet)})`);
+  const mixed = rrForRows([ib, a], { points: [point(START_A + 2 * MIN, 12), point(START_B + MIN, -7, { matchId: 'match-b' })] });
+  ok(same(mixed, { b: -7, a: 12 }), 'a row without an id is still placed by time beside one placed by id');
+  const claimed = rrForRows([ia, { ...b }], { points: [point(START_B + MIN, 18, { matchId: 'match-a' })] });
+  ok(same(claimed, { a: 18 }), 'a point that names a library row\'s match is never given to a neighbour by time');
+  ok(same(rrForRows([{ ...ia, mode: 'Unrated' }], { points: [point(START_A, 18, { matchId: 'match-a' })] }), {}),
+    'an unrated row still shows no RR, even matched by id');
+  ok(same(rrForRows([ia], { points: [point(START_A, 297, { matchId: 'match-a' })] }), {}), 'nor does a placement\'s jump');
+  const { pointForMatch } = require('../src/shared/home-model');
+  const H2 = { points: [point(START_A, -3, { matchId: 'match-a', derankProtected: true, refunded: 0 })] };
+  ok(pointForMatch(H2, 'MATCH-A') && pointForMatch(H2, 'MATCH-A').derankProtected === true && pointForMatch(H2, 'x') === null
+    && pointForMatch(null, 'match-a') === null && pointForMatch(H2, null) === null, 'pointForMatch finds a game by its match id alone');
+
+  // The chip's words (src/shared/riot-rank.js): RR as the game shows it.
+  const rk = require('../src/shared/riot-rank');
+  // An en or em dash, or a semicolon, built from char codes so no dash sits in this file.
+  const DASH_OR_SEMI = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ';]');
+  ok(DASH_OR_SEMI.test('a; b') && DASH_OR_SEMI.test('a' + String.fromCharCode(0x2014) + 'b') && !DASH_OR_SEMI.test('a, b'),
+    'the dash check finds a dash and a semicolon and passes a comma');
+  ok(rk.rrText(18) === 'RR +18' && rk.rrText(-15) === 'RR -15' && rk.rrText(0) === 'RR 0' && rk.rrText(297) === '' && rk.rrText(null) === '',
+    'the chip says "RR +18", "RR -15", "RR 0", and nothing for a jump or no number');
+  const chip = rk.rrChip(-3, H2.points[0]);
+  ok(chip && chip.tone === 'loss' && /Rank protection kept your rank\./.test(chip.title) && rk.rrChip(null, null) === null
+    && /7 RR refunded\./.test(rk.rrChip(-14, { refunded: 7 }).title),
+    'the chip\'s title says when a shield kept the rank or RR was refunded');
+  ok([chip.text, chip.title, rk.rrChip(-14, { refunded: 7 }).title].every((s) => !DASH_OR_SEMI.test(s)), 'with no dash and no semicolon');
 }
 
 // ── Placed by Riot's own start (8.2.1) ─────────────────────────────────────

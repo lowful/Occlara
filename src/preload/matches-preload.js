@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('occlara', {
   /** { wins, losses, draws, unknown } in the rows listReviews returned. */
   winLoss:      (rows) => winLoss(rows),
   getPatterns:  (game) => ipcRenderer.invoke(C.PATTERNS_GET, game || null),
+  // Each rated row's RR chip, by row id (8.8.x, REVIEWS_RR): {} for League.
+  getRR:        (game) => ipcRenderer.invoke(C.REVIEWS_RR, game || null),
   getBreakdown: (game, opts) => ipcRenderer.invoke(C.BREAKDOWN_GET, game || null, opts || {}),
   startBackfill: () => ipcRenderer.invoke(C.BACKFILL_START),
   getBackfill:  () => ipcRenderer.invoke(C.BACKFILL_STATUS),

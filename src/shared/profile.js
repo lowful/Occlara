@@ -288,7 +288,7 @@ function rankIndex(tier) {
   return i * 3 + (Number.isFinite(div) ? Math.min(3, Math.max(1, div)) : 2);
 }
 
-function rankFigure(riotId, trackerPeak, history, opts) {
+function rankFigure(riotId, trackerPeak, history, opts, peakSeason) {
   const label = 'Peak rank';
   if (!riotId) return { label, value: '', sample: 'Connect your Riot ID to see this', empty: true };
   const points = history && !history.error && Array.isArray(history.points) ? history.points.filter((p) => p && rankIndex(p.tier) !== null) : [];
@@ -296,7 +296,9 @@ function rankFigure(riotId, trackerPeak, history, opts) {
   for (const p of points) if (!best || rankIndex(p.tier) >= rankIndex(best.tier)) best = p;
   const peak = typeof trackerPeak === 'string' && rankIndex(trackerPeak) !== null ? trackerPeak.trim() : null;
   if (peak && (!best || rankIndex(peak) >= rankIndex(best.tier))) {
-    return { label, value: peak, sample: 'Riot\'s highest rank on your account', empty: false };
+    // The act it was reached in, when MMR v3 named it (8.8.x, rankDetail.peakSeason).
+    const act = typeof peakSeason === 'string' && /^[A-Za-z0-9 ]{1,12}$/.test(peakSeason.trim()) ? `, in ${peakSeason.trim().toUpperCase()}` : '';
+    return { label, value: peak, sample: `Riot's highest rank on your account${act}`, empty: false };
   }
   if (best) {
     const day = usage.dayOf(best.date, opts);
@@ -315,6 +317,8 @@ function rankFigure(riotId, trackerPeak, history, opts) {
  * @param entries      saved reviews ({ game, review } as review-store.js gives them, or reviews)
  * @param ctx.riotId   the Riot ID in Settings, '' for none
  * @param ctx.peak     the tracker profile's peakRank for that Riot ID, or null
+ *                     (MMR v3's peak since 8.8.x, v2's highest_rank before)
+ * @param ctx.peakSeason  the act of that peak (rankDetail.peakSeason), or null
  * @param ctx.history  what STATS_RANK_HISTORY answered, or null
  */
 function play(entries, ctx, opts) {
@@ -326,7 +330,7 @@ function play(entries, ctx, opts) {
     .map(([, r]) => r);
   return {
     title: 'Your play in Valorant',
-    figures: [weaponFigure(reviews, riotId), agentFigure(reviews), rankFigure(riotId, c.peak, c.history, opts)],
+    figures: [weaponFigure(reviews, riotId), agentFigure(reviews), rankFigure(riotId, c.peak, c.history, opts, c.peakSeason)],
   };
 }
 

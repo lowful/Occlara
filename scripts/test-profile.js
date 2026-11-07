@@ -118,6 +118,14 @@ eq(p.figures[2], { label: 'Peak rank', value: 'Platinum 1', sample: 'Your best o
 eq(profile.play(lib, { riotId: 'Player#EUW', peak: 'Diamond 2', history: hist }, U).figures[2],
   { label: 'Peak rank', value: 'Diamond 2', sample: 'Riot\'s highest rank on your account', empty: false }, 'Riot\'s own peak wins where it is higher');
 eq(profile.play(lib, { riotId: 'Player#EUW', peak: 'Silver 1', history: hist }, U).figures[2].value, 'Platinum 1', 'and the history where it is higher');
+// MMR v3's peak names its act (8.8.x, rankDetail.peakSeason), and a word that
+// is no act code is left out rather than painted.
+eq(profile.play(lib, { riotId: 'Player#EUW', peak: 'Diamond 2', peakSeason: 'e9a2', history: hist }, U).figures[2].sample,
+  'Riot\'s highest rank on your account, in E9A2', 'the peak says the act MMR v3 reached it in');
+eq(profile.play(lib, { riotId: 'Player#EUW', peak: 'Diamond 2', peakSeason: '<b>x</b>', history: hist }, U).figures[2].sample,
+  'Riot\'s highest rank on your account', 'and no act for a word that is no act code');
+eq(profile.play(lib, { riotId: 'Player#EUW', peak: 'Silver 1', peakSeason: 'e9a2', history: hist }, U).figures[2].value, 'Platinum 1',
+  'a lower v3 peak still gives way to the history');
 eq(profile.play(lib, { riotId: 'Player#EUW', peak: 'Unranked', history: { error: 'unavailable' } }, U).figures[2],
   { label: 'Peak rank', value: '', sample: 'Your rank could not be fetched', empty: true }, 'no rank and no history: says it could not be fetched');
 eq(profile.play(lib, { riotId: 'Player#EUW', peak: null, history: { points: [] } }, U).figures[2].sample, 'No rated game on your Riot ID yet', 'no rated game: says so');

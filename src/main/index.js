@@ -86,6 +86,8 @@ const momentsOf   = require('../shared/moments');
 const { Backfill } = require('./services/backfill');
 const { RankHistory } = require('./services/rank-history');
 const rankBandOf = require('../shared/rank-band');
+const riotRank = require('../shared/riot-rank');
+const { rrForRows, pointForMatch } = require('../shared/home-model');
 const deathFrames = require('../shared/death-frames');
 const clips = require('../shared/clips');
 const clipScheme = require('./services/clip-scheme');
@@ -2299,6 +2301,45 @@ const controller = {
     return progressOf.matchProgress(reviewStore.recent(e.game, patternsOf.LOOK_BACK), id);
   },
   /**
+   * WHAT RIOT'S RANK RECORD SAYS OF ONE REVIEW (8.8.x, REVIEW_RIOT): the RR
+   * chip on its header and Riot's accolades for its "What went well", both
+   * by its Riot match id (riot-rank.js). The RR is Home's own rule, the
+   * library's rows through rrForRows, so the review and its row never
+   * disagree. Read from what main holds or its five minute rank history, never
+   * a read of its own mid match: null then, sealed, for League, or without a
+   * Riot ID. Only RR as the game shows it, never the history's elo.
+   */
+  async getReviewRiot(id) {
+    if (matchInProgress() || windowSealed()) return null;
+    const e = typeof id === 'string' && id ? reviewStore.get(id) : null;
+    if (!e || (e.game || String(id).split('-')[0]) !== 'valorant' || !e.review || e.review.kind !== 'valorant') return null;
+    const riotId = (store.get('riotId') || '').trim();
+    if (!riotId.includes('#')) return null;
+    const history = await this.getRankHistory(false).catch(() => null);
+    if (matchInProgress() || windowSealed()) return null;
+    const rr = rrForRows(reviewStore.list('valorant'), history)[id];
+    const matchId = e.review.matchId || null;
+    const chip = riotRank.rrChip(rr, pointForMatch(history, matchId));
+    const st = guardedTrackerPair().stats;
+    const accolades = matchId && st ? riotRank.accoladeLines(st.accolades, matchId) : [];
+    return chip || accolades.length ? { rr: chip, accolades } : null;
+  },
+  /** Each rated Valorant row's RR chip in Matches (8.8.x, REVIEWS_RR), by row id; {} otherwise. */
+  async getReviewsRR(game) {
+    if (game !== 'valorant' || matchInProgress() || windowSealed()) return {};
+    if (!(store.get('riotId') || '').trim().includes('#')) return {};
+    const history = await this.getRankHistory(false).catch(() => null);
+    if (matchInProgress() || windowSealed()) return {};
+    const rows = reviewStore.list('valorant');
+    const rr = rrForRows(rows, history);
+    const out = {};
+    for (const r of rows) {
+      const chip = riotRank.rrChip(rr[r.id], pointForMatch(history, r.matchId));
+      if (chip) out[r.id] = chip;
+    }
+    return out;
+  },
+  /**
    * The Moments page (8.7, src/shared/moments.js): every death and highlight
    * of one game's saved reviews, newest first, the clips kept beside them by
    * their URLs, and the compilation by the patterns across matches. The same
@@ -2791,6 +2832,12 @@ const controller = {
       // rather than painted.
       game: g.id, gameLabel: g.label, statsSupported: true,
       categories, rank, winRate, mode: m,
+      // The rank tile's quiet line (8.8.x, riot-rank.js rankLine): the RR in
+      // the tier, the peak and its act, shields, the leaderboard place, this
+      // act's wins, and Riot's all time aces and clutches. Finished words, [] and
+      // '' from an older server's profile, which has neither.
+      rankLine: riotRank.rankLine(stats),
+      accolades: riotRank.accoladeTotals(stats && stats.accolades),
       topAgents: (stats && stats.topAgents) || [],
       // Graded matches from the library, newest first, with what the grade
       // was built on. Opening one opens its review.
@@ -3460,11 +3507,15 @@ function rankBandNow() {
     if (!riotId.includes('#')) return null;
     const st = guardedTrackerPair().stats;
     const hist = rankHistory.held(riotId);
-    return rankBandOf.rankBand({
+    // The peak (MMR v3's, else the history's best rated game) and the trend
+    // ride along (8.8.x, rank-band.js rankContext); the trend never moves the band.
+    return rankBandOf.rankContext({
       current: hist && hist.current ? hist.current.tier : null,
       rank: st ? st.rank : null,
       peak: st ? st.peakRank : null,
-    });
+      history: hist,
+      trend: riotRank.rankTrend(hist),
+    }).band;
   } catch {
     return null;
   }
@@ -4217,7 +4268,8 @@ const profileIpc = {
     profileGiftLinks = new Map(((giftList && giftList.bought) || [])
       .filter((g) => g && g.id && giftsModel.isGiftLink(g.link) && g.state !== 'void').map((g) => [String(g.id), g.link]));
     if (matchInProgress() || windowSealed()) return null;
-    return profileModel.build(view, entries, { riotId: linked ? riotId : '', peak: tracker ? tracker.peakRank || null : null, history },
+    return profileModel.build(view, entries, { riotId: linked ? riotId : '', peak: tracker ? tracker.peakRank || null : null,
+      peakSeason: tracker && tracker.rankDetail ? tracker.rankDetail.peakSeason || null : null, history },
       undefined, giftList);
   },
   /** The site's gift checkout for an offer (pro_monthly and so on), only as gifts.isGiftBuyUrl passes it. */

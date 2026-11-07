@@ -1,5 +1,8 @@
 'use strict';
 
+// An en or em dash, or a semicolon, built from char codes so no dash sits in this file.
+const DASH_OR_SEMI = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ';]');
+
 /**
  * The player's rank band (8.8): src/shared/rank-band.js, which main sends with
  * the review, the look and Ask Coach, and the server halves that read it.
@@ -213,6 +216,64 @@ ok(!DASH.test(added) && !/;/.test(added), 'the band lines carry no dash and no s
   const none = seeded(() => knowledge.retrieve(ctx, 8, { advanced: true }));
   ok(['Gold 2', 'immortal', '', null].every((b) => JSON.stringify(seeded(() => knowledge.retrieve({ ...ctx, rankBand: b }, 8, { advanced: true }))) === JSON.stringify(none)),
     'a band no key matches gets today\'s reserve, the same notes and draws');
+}
+
+// THE PEAK AND THE TREND (8.8.x, rank-band.js rankContext, riot-rank.js
+// rankTrend): carried with the band, the peak from the profile (MMR v3's) or
+// the history's best rated game, and the trend never moving the band.
+{
+  const rk = require(path.join(__dirname, '..', 'src', 'shared', 'riot-rank.js'));
+  const F = require(path.join(__dirname, 'fixtures', 'henrik-rank-shapes.js'));
+  const hr = require(path.join(__dirname, '..', 'server', 'services', 'henrik-rank.js'));
+  const pts = (changes, tier) => ({ points: changes.map((c, i) => ({ date: i, elo: 1400 + i, change: c, tier: tier || 'Gold 2' })) });
+  ok(rk.rankTrend(pts([18, 21, -12, 19])) === 'up' && rk.rankTrend(pts([-18, -21, 12, -19])) === 'down'
+    && rk.rankTrend(pts([18, -17, 5])) === 'flat', 'the trend is the net RR of the newest games, 30 either way a direction');
+  ok(rk.rankTrend(pts([18, 21])) === null && rk.rankTrend(null) === null && rk.rankTrend({ error: 'x' }) === null
+    && rk.rankTrend(pts([18, 21, 300, 22])) === 'up' && rk.rankTrend(pts([18, 21, 19], 'Unrated')) === null,
+    'below three games, no history, a placement jump or unrated points: no trend from them');
+  const stored = { points: hr.storedHistoryV2(F.STORED_V2, 20) };
+  ok(rk.rankTrend(stored) === 'flat', `the stored history v2 fixture gives a trend (${rk.rankTrend(stored)})`);
+  for (const trend of ['up', 'down', 'flat', null, 'sideways']) {
+    for (const src of [{ current: 'Gold 2', rank: 'Gold 1', peak: 'Platinum 1' }, { current: null, rank: 'Unranked', peak: 'Immortal 1' }, {}]) {
+      ok(rb.rankContext({ ...src, trend }).band === rb.rankBand(src), `the trend ${trend} never moves the band of ${JSON.stringify(src)}`);
+    }
+  }
+  ok(rb.rankContext({ trend: 'up' }).trend === 'up' && rb.rankContext({ trend: 'sideways' }).trend === null, 'the trend is carried only as one of its three words');
+  const hist = { points: [{ tier: 'Gold 3', elo: 1, change: 1 }, { tier: 'Platinum 1', elo: 1, change: 1 }, { tier: 'Gold 1', elo: 1, change: 1 }, { tier: 'Unrated', elo: 0 }] };
+  ok(rb.historyPeak(hist) === 'Platinum 1' && rb.historyPeak(null) === null && rb.historyPeak({ points: [{ tier: 'Goldfish' }] }) === null,
+    'the history\'s peak is its best rated tier, as the Profile page reads it');
+  const c = rb.rankContext({ current: 'Unrated', rank: 'Unranked', peak: null, history: hist });
+  ok(c.peak === 'Platinum 1' && c.band === 'plat_diamond', 'with no profile peak the history\'s best game stands in for it');
+  ok(rb.rankContext({ current: null, rank: null, peak: 'Diamond 2', history: hist }).peak === 'Diamond 2', 'the profile\'s peak, MMR v3\'s, leads');
+  const v3 = hr.mmrV3(F.MMR_V3);
+  ok(rb.bandOfTier(v3.peakRank) === 'plat_diamond' && rb.bandOfTier(v3.rank) === 'plat_diamond', 'MMR v3\'s tier names are tiers the band reads');
+  const sparse = hr.mmrV3(F.MMR_V3_SPARSE);
+  ok(rb.rankContext({ rank: sparse.rank, peak: sparse.peakRank }).band === null, 'an unrated v3 account with no peak is no band');
+  // Riot's accolades as "What went well" lines, and Stats' rank line (riot-rank.js).
+  const ac = hr.accoladesV1(F.ACCOLADES_V1, F.ME_PUUID);
+  const lines = rk.accoladeLines(ac, 'MATCH-D');
+  ok(lines.map((l) => l.title).join('|') === 'Top frag of the match|182 damage a round|An ace',
+    `the match's accolades, found by its Riot id: top frag, the act record, the ace, not plain kills (${lines.map((l) => l.title).join('|')})`);
+  ok(rk.accoladeLines(ac, 'match-x').length === 0 && rk.accoladeLines(ac, null).length === 0 && rk.accoladeLines(null, 'match-d').length === 0,
+    'another player\'s match, no id or no accolades: no line');
+  ok(rk.accoladeLine({ type: 'headshot_percentage', value: 0.41, actRecord: true }).title === '41% headshots'
+    && rk.accoladeLine({ type: 'headshot_percentage', value: 41, actRecord: true }).title === '41% headshots'
+    && rk.accoladeLine({ type: 'kills', value: 19, actRecord: false }) === null && rk.accoladeLine({ type: 'mvp', value: 1 }) === null,
+    'a headshot record reads as a percentage either way, plain counts and unknown kinds say nothing');
+  ok(rk.accoladeTotals(ac) === "4 aces and 31 clutches in Riot's record" && rk.accoladeTotals(null) === '', 'Stats\' all time aces and clutches');
+  const said = rk.rankLine({ rank: 'Platinum 3', peakRank: 'Diamond 2', rankDetail: { ...hr.mmrV3(F.MMR_V3) } });
+  ok(said.join(' | ') === '54 RR | Peak Diamond 2 in E9A2 | 2 rank protection shields | 24 wins in 41 games this act',
+    `the rank line says only what the game shows (${said.join(' | ')})`);
+  ok(rk.rankLine({ rank: 'Gold 2', peakRank: 'Gold 3' }).join() === 'Peak Gold 3' && rk.rankLine(null).length === 0,
+    'an older server\'s profile, with no rankDetail, says the peak alone');
+  const every = [...lines.flatMap((l) => [l.title, l.detail]), ...said, rk.accoladeTotals(ac)];
+  ok(every.every((s) => !DASH_OR_SEMI.test(s)) && every.every((s) => !/\belo\b|\bmmr\b/i.test(s)),
+    'no dash, no semicolon, and never the words elo or MMR');
+  ok(/\belo\b/i.test('the Elo') && DASH_OR_SEMI.test('a; b'), 'and that check finds both on known strings');
+  // The unrated words the parser drops, asserted on known strings.
+  ok(hr.mmrV3({ data: { current: { tier: { id: 20, name: 'Unranked' } } } }).rank === null
+    && hr.mmrV3({ data: { current: { tier: { id: 20, name: 'Ascendant 1' } } } }).rank === 'Ascendant 1',
+    'a tier named Unranked is no rank, a real one is');
 }
 
 function finish() {

@@ -269,27 +269,64 @@ function startOf(row) {
  * @param history  what STATS_RANK_HISTORY answered
  * @returns {Object<string, number>}  the RR of each rated row it could place, by row id
  */
+/*
+ * BY MATCH ID FIRST (8.8.x). The stored history HenrikDev serves now
+ * (server henrik-rank.js storedHistoryV2) names each game's Riot match id,
+ * and a review linked to Riot's record keeps the same id (`matchId` on its
+ * row), so that pair is matched exactly, with no clock at all. Only what is
+ * left is placed by time, as before: a point that names a match some row of
+ * the library holds is that row's or nobody's, and a row whose match id the
+ * history does not name is given no point that names another match, since
+ * that point is by its own id some other game. A history from an older
+ * server, with no ids, is placed by time exactly as it always was.
+ */
+const idOf = (x) => (typeof x === 'string' && x.trim() ? x.trim().toLowerCase() : null);
+
 function rrForRows(rows, history) {
-  const dated = pointsOf(history).filter((p) => typeof p.date === 'number' && Number.isFinite(p.date));
-  const rated = (Array.isArray(rows) ? rows : [])
-    .filter((r) => r && r.id && RATED_MODE.test(String(r.mode || '')))
-    .map((r) => ({ id: r.id, start: startOf(r), exact: typeof r.matchStartedAt === 'number' && r.matchStartedAt > 0 }))
+  const all = pointsOf(history);
+  const list = (Array.isArray(rows) ? rows : []).filter((r) => r && r.id);
+  const held = new Set(list.map((r) => idOf(r.matchId)).filter(Boolean));
+  const byId = new Map();
+  for (const p of all) { const k = idOf(p.matchId); if (k && !byId.has(k)) byId.set(k, p); }
+  const out = {};
+  const placed = new Set();
+  for (const r of list) {
+    if (!RATED_MODE.test(String(r.mode || ''))) continue;
+    const p = byId.get(idOf(r.matchId));
+    if (!p) continue;
+    placed.add(r.id);
+    if (gameRR(p)) out[r.id] = p.change;
+  }
+  const dated = all.filter((p) => typeof p.date === 'number' && Number.isFinite(p.date) && !(idOf(p.matchId) && held.has(idOf(p.matchId))));
+  const rated = list
+    .filter((r) => RATED_MODE.test(String(r.mode || '')) && !placed.has(r.id))
+    .map((r) => ({ id: r.id, start: startOf(r), exact: typeof r.matchStartedAt === 'number' && r.matchStartedAt > 0, matchId: idOf(r.matchId) }))
     .filter((r) => r.start !== null);
-  const nearest = (list, at, when, within) => {
+  const nearest = (xs, at, when, within) => {
     let best = null;
-    for (const x of list) {
+    for (const x of xs) {
       const d = Math.abs(when(x) - at);
       if (d <= within && (!best || d < best.d)) best = { x, d };
     }
     return best ? best.x : null;
   };
-  const out = {};
   for (const r of rated) {
-    const p = nearest(dated, r.start, (q) => q.date, r.exact ? RR_EXACT_MS : RR_WINDOW_MS);
+    // A row with its own match id never takes a point that names another match.
+    const pool = r.matchId ? dated.filter((p) => !idOf(p.matchId)) : dated;
+    const p = nearest(pool, r.start, (q) => q.date, r.exact ? RR_EXACT_MS : RR_WINDOW_MS);
     if (!p || nearest(rated, p.date, (o) => o.start, RR_WINDOW_MS) !== r || !gameRR(p)) continue;
     out[r.id] = p.change;
   }
   return out;
+}
+
+/**
+ * The rank history's point for one Riot match id, or null: the RR chip on
+ * the review page reads its shield and refund beside the RR (riot-rank.js).
+ */
+function pointForMatch(history, matchId) {
+  const k = idOf(matchId);
+  return k ? pointsOf(history).find((p) => idOf(p.matchId) === k) || null : null;
 }
 
 /*
@@ -318,4 +355,4 @@ function rrWaiting(rows, rr, now) {
   return typeof end === 'number' && Number.isFinite(end) && now - end <= RR_WAIT_MS ? newest.id : null;
 }
 
-module.exports = { homeModel, winLoss, rankModel, rrForRows, rrWaiting, TREND, RECENT, RR_WINDOW_MS, RR_EXACT_MS, RR_WAIT_MS };
+module.exports = { homeModel, winLoss, rankModel, rrForRows, pointForMatch, rrWaiting, TREND, RECENT, RR_WINDOW_MS, RR_EXACT_MS, RR_WAIT_MS };

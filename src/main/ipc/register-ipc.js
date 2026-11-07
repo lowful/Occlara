@@ -105,6 +105,10 @@ function registerIpc(deps) {
   safeHandle(C.REVIEW_GET, async (_e, id) => controller.getReview(id));
   safeHandle(C.PATTERNS_GET, async (_e, game) => controller.getPatterns(game));
   safeHandle(C.PROGRESS_GET, async (_e, id) => controller.getProgress(typeof id === 'string' ? id : null));
+  // Riot's rank record of one review, and the RR chips of Matches (8.8.x),
+  // each null or {} mid match and sealed (index.js getReviewRiot, getReviewsRR).
+  safeHandle(C.REVIEW_RIOT, async (_e, id) => (controller.getReviewRiot ? controller.getReviewRiot(typeof id === 'string' ? id : null) : null));
+  safeHandle(C.REVIEWS_RR, async (_e, game) => (controller.getReviewsRR ? controller.getReviewsRR(typeof game === 'string' ? game : null) : {}));
   safeHandle(C.BREAKDOWN_GET, async (_e, game, opts) => controller.getBreakdown(game, opts));
   safeHandle(C.MOMENTS_GET, async (_e, game) => controller.getMoments(game));
   safeHandle(C.BACKFILL_START, async () => controller.startBackfill());

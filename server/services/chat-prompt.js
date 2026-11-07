@@ -190,6 +190,39 @@ function feedOf(feed) {
   }).filter((k) => k && k.on);
 }
 
+const RECORD_BUYS = new Set(['pistol', 'eco', 'force', 'half', 'full']);
+const CHAT_BUY = { pistol: 'pistol round', eco: 'eco', force: 'force buy', half: 'half buy', full: 'full buy' };
+/** A place of the map as the game data names it (a callout, its common name, an area, "A site"), or null. */
+function placeOn(map, s) {
+  const g = map ? (DATA.mapGeometry || {})[lower(map)] : null;
+  const t = typeof s === 'string' ? lower(s.trim()) : '';
+  if (!g || !Array.isArray(g.callouts) || !t) return null;
+  for (const c of g.callouts) {
+    const names = [c && c.n, c && c.a, c && /^[abc]$/i.test(String(c.s || '')) ? `${String(c.s).toUpperCase()} site` : c && c.s];
+    const hit = names.find((x) => typeof x === 'string' && x && lower(x) === t);
+    if (hit) return hit;
+  }
+  return null;
+}
+function recordOf(rr, m) {
+  const out = {};
+  const place = (s) => placeOn(m.map, s);
+  if (place(rr.place)) out.place = place(rr.place);
+  const kills = list(rr.killPlaces, 5).map(place).filter(Boolean);
+  if (kills.length) out.killPlaces = kills;
+  if (RECORD_BUYS.has(rr.buy)) out.buy = rr.buy;
+  if (rr.mate === 'close' || rr.mate === 'far') out.mate = rr.mate;
+  const ag = (DATA.agents || {})[agentOf(m.agent) || ''];
+  const kit = ag && Array.isArray(ag.kit) ? ag.kit.map((k) => k && k.name).filter((k) => typeof k === 'string' && k) : [];
+  const casts = list(rr.casts, 4).map((x) => {
+    const name = x && typeof x.name === 'string' ? kit.find((k) => lower(k) === lower(x.name.trim())) : null;
+    return name && int(x.n, 0, 20) !== null ? { name, n: x.n } : null;
+  }).filter(Boolean);
+  if (casts.length) out.casts = casts;
+  if (rr.afk === true) out.afk = true;
+  return out;
+}
+
 function cardOf(c, m) {
   if (!c || typeof c !== 'object') return null;
   const n = int(c.n, 1, 40);
@@ -211,6 +244,11 @@ function cardOf(c, m) {
     plantSite: /^[ABC]$/.test(String(rr.plantSite || '')) ? rr.plantSite : null,
     plantSec: num(rr.plantSec, 0, 300),
     feed: feedOf(rr.feed),
+    // The round record beyond the feed (8.8, chat-context.js cardOf), each
+    // left out when the client sent none: a place only as a callout of this
+    // match's map, the buy and the distance only as their words, the casts
+    // only as this agent's kit names with whole counts.
+    ...recordOf(rr, m),
   } : null;
   const d = c.derived && typeof c.derived === 'object' ? c.derived : {};
   const derived = { sinceOwnKill: num(d.sinceOwnKill, 0, 300), afterPlantSec: num(d.afterPlantSec, 0, 300), spikeLeft: num(d.spikeLeft, 0, 60) };
@@ -909,6 +947,8 @@ function factsOf(input, messages, opts) {
       });
       if (r && fin(r.kills)) addNum('kills', r.kills, c.n);
       if (r && fin(r.trades)) addNum('times', r.trades, c.n);
+      // The casts of the round (8.8, recordOf), so a reply may say them back.
+      for (const x of (r && r.casts) || []) addNum('times', x.n, c.n);
       if (r && r.clutch) addNum('players', r.clutch.vs, c.n);
       if (c.result === 'won') team += 1;
       else if (c.result === 'lost') enemy += 1;
@@ -1209,11 +1249,21 @@ function cardLine(c, m) {
     // deaths nobody traded leaves such a death out (insights.js diedAlone):
     // said so here, so the cards and the count tell the same number.
     if (r && r.traded === false) d += r.alive && r.alive.mates <= 1 ? ', not traded, as the last one alive with no teammate left to trade it' : ', not traded';
+    // Riot's place of the death and the nearest teammate then (8.8, recordOf).
+    if (r && r.place) d += `, at ${r.place}`;
+    if (r && r.mate) d += r.mate === 'close' ? ', with a teammate close by' : ', with no teammate close by';
     if (r && r.afterPlant) d += ', after the plant';
     bits.push(`${d}.`);
   } else if (c.verified) {
     bits.push('Survived.');
   }
+  if (r && r.killPlaces) bits.push(`Kills where the enemy fell: ${r.killPlaces.join(', ')}.`);
+  if (r && r.buy) bits.push(`Team economy: ${CHAT_BUY[r.buy]}.`);
+  if (r && r.casts) {
+    const used = r.casts.filter((x) => x.n > 0);
+    bits.push(used.length ? `Abilities used: ${used.map((x) => `${x.name} ${x.n === 1 ? 'once' : x.n === 2 ? 'twice' : `${x.n} times`}`).join(', ')}.` : 'No ability used.');
+  }
+  if (r && r.afk) bits.push('Riot marks the player as sitting this round out, so nothing in it is their mistake.');
   if (r && fin(r.kills) && r.kills > 0) bits.push(`${r.kills} kill${r.kills === 1 ? '' : 's'}${r.firstKill ? ', the first kill of the round' : ''}.`);
   if (r && fin(r.trades) && r.trades > 0) bits.push(`Traded a teammate ${r.trades === 1 ? 'once' : `${r.trades} times`}.`);
   if (r && r.clutch) bits.push(`Last one standing against ${r.clutch.vs}${r.clutch.won === true ? ', and won it' : r.clutch.won === false ? ', lost it' : ''}.`);
