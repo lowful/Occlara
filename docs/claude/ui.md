@@ -551,9 +551,10 @@ answers null mid match or sealed; the page counts nothing and names no URL
    knows or Melee, never an ability). Most played agent: by matches, Riot's
    agent or one the engine confirmed off the HUD (`ledger.context
    .agentConfirmed`), never a detection alone. Peak rank: Riot's highest rank
-   on the account (the tracker profile's `peakRank`, HenrikDev's
-   `highest_rank`) or, higher or without it, the best rated game in the rank
-   history main keeps, with its day. Each says its sample or an honest empty
+   on the account (the tracker profile's `peakRank`: HenrikDev MMR v3's
+   `peak` since 8.8.x, with its act, "in E9A2", from `rankDetail.peakSeason`,
+   and v2's `highest_rank` when v3 fails) or, higher or without it, the best
+   rated game in the rank history main keeps, with its day. Each says its sample or an honest empty
    state (Play a match, Connect your Riot ID, no gun named yet, could not be
    fetched). League is never counted.
 4. **Plans**: Free, Pro and Max as ruled rows (prices in `profile.js PLANS`,

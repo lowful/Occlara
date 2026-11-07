@@ -162,6 +162,10 @@ function normalise(body) {
     // 3, valorant-review.js standingsOf), read by the state gate in parse()
     // and never by the prompt. Left out when the client sent none.
     ...(r && r.verified && standingsList(r.standings) ? { standings: standingsList(r.standings) } : {}),
+    // The round record beyond the feed (8.8, valorant-review.js requestBody),
+    // each left out when the client sent none, so a round from a client
+    // before it is normalised as before, byte for byte.
+    ...(r && r.verified ? recordSent(r) : {}),
   })).filter((r) => r.n > 0);
   const patterns = (Array.isArray(b.patterns) ? b.patterns : []).slice(0, 8).map((p) => ({
     key: clip(p && p.key, 20),
@@ -228,6 +232,37 @@ function normalise(body) {
     // recent matches (round 4), keys only. Missing is none repeated.
     recurring: Array.isArray(b.recurring) ? [...new Set(b.recurring.filter((k) => typeof k === 'string' && /^[a-z][a-z:-]{0,29}$/.test(k)))].slice(0, 8) : null,
   };
+}
+
+/*
+ * THE ROUND RECORD A CLIENT OF 8.8 SENDS (valorant-review.js requestBody):
+ * the team's buy by its word, the nearest teammate at the death as close or
+ * far, the player's casts as kit names (an ability of the game data's, a
+ * kit name and nothing else) with whole counts, and a round Riot says the
+ * player sat out. Anything else is left out.
+ */
+const BUY_SENT = new Set(['pistol', 'eco', 'force', 'half', 'full']);
+const KIT_NAMES = (() => {
+  const out = new Map();
+  let agents = {};
+  try { agents = require('../valorant-data.generated.json').agents || {}; } catch { agents = {}; }
+  for (const a of Object.values(agents)) {
+    for (const k of (a && Array.isArray(a.kit) ? a.kit : [])) if (k && typeof k.name === 'string' && k.name) out.set(k.name.toLowerCase(), k.name);
+  }
+  return out;
+})();
+// The team's buy in a round line, in words the review's gate passes (BUY_BLAME drops any "buy").
+const RECORD_BUY = { pistol: 'a pistol round', eco: 'an eco', force: 'a forced loadout', half: 'a half loadout', full: 'a full loadout' };
+function recordSent(r) {
+  const out = {};
+  if (BUY_SENT.has(r.buy)) out.buy = r.buy;
+  if (r.died && (r.mate === 'close' || r.mate === 'far')) out.mate = r.mate;
+  const casts = (Array.isArray(r.casts) ? r.casts : []).slice(0, 4)
+    .map((c) => (c && Number.isInteger(c.n) && c.n >= 0 && c.n <= 20 && typeof c.name === 'string' && KIT_NAMES.get(c.name.trim().toLowerCase())
+      ? { name: KIT_NAMES.get(c.name.trim().toLowerCase()), n: c.n } : null)).filter(Boolean);
+  if (casts.length) out.casts = casts;
+  if (r.afk === true) out.afk = true;
+  return out;
 }
 
 /** The counts a round 4 client sent, small integers only. */
@@ -861,6 +896,15 @@ function roundLine(r, opts) {
     }
     if (r.kills !== null) facts.push(`${r.kills} kill${r.kills === 1 ? '' : 's'}`);
     if (r.firstKill) facts.push('got the first kill of the round');
+    // The round record beyond the feed (8.8, recordSent), only where sent.
+    if (r.mate) facts.push(r.mate === 'close' ? 'a teammate stood close when they died' : 'no teammate stood close when they died');
+    if (r.buy) facts.push(`the team played it on ${RECORD_BUY[r.buy]}`);
+    if (r.casts) {
+      const used = r.casts.filter((c) => c.n > 0);
+      facts.push(used.length ? `abilities used: ${used.map((c) => `${c.name} ${c.n === 1 ? 'once' : c.n === 2 ? 'twice' : `${c.n} times`}`).join(', ')}`
+        : 'no ability used');
+    }
+    if (r.afk) facts.push('Riot marks the player as sitting this round out, so nothing in it is their mistake');
   } else if (r.died) {
     facts.push(`died${r.deathSpot ? ' at ' + r.deathSpot : ''}${r.timing ? ', ' + r.timing + ' in the round' : ''}`);
     if (r.ultReady) facts.push('ultimate was ready when they died');
@@ -1239,9 +1283,20 @@ function languageRule(code) {
     + 'as digits, and keep map callouts and agent names exactly as the game prints them.';
 }
 
+/*
+ * A MATCH WHOSE ROUNDS CARRY RIOT'S BUY OR CASTS (8.8, recordSent) is told
+ * the economy and the utility where a round states them, in place of the
+ * rule that they are never known. Any other match's prompt is as before,
+ * byte for byte.
+ */
+const NO_ECONOMY = 'Damage, utility usage and economy are not in the ledger, so never state them. ';
+const SOME_ECONOMY = 'Damage is not in the ledger, so never state it. The team\'s economy and the player\'s abilities used '
+  + 'are known only where a round states them, so state them only there, exactly as given. ';
 function buildPrompt(input, opts) {
   if (input.variant === 'A') return promptA(input);
-  return promptRounds(input, input.variant === 'C', opts);
+  const text = promptRounds(input, input.variant === 'C', opts);
+  const record = (input.rounds || []).some((r) => r && (r.buy || r.casts));
+  return record && typeof text === 'string' ? text.replace(NO_ECONOMY, SOME_ECONOMY) : text;
 }
 
 /**

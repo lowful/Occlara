@@ -357,6 +357,19 @@ function renderCards(d) {
   // can come while the notes stay open under it, so the chevron is read off
   // rankOpen here too, not only as the notes open and close (markRankCard).
   rankCard.classList.toggle('notes-open', rankOpen);
+  // THE RANK'S QUIET LINE (8.8.x): main's finished words from Riot's MMR
+  // (riot-rank.js rankLine), the RR in the tier, the peak and its act,
+  // shields, the leaderboard place and this act's wins, and the account's
+  // aces and clutches as Riot counts them. Only what the game itself shows,
+  // never a rating, and nothing at all from a server before it.
+  const said = (Array.isArray(d.rankLine) ? d.rankLine : []).filter((s) => typeof s === 'string' && s)
+    .concat(typeof d.accolades === 'string' && d.accolades ? [d.accolades] : []);
+  if (said.length && d.rank && d.rank.value) {
+    const sub = document.createElement('span');
+    sub.className = 'rank-sub';
+    sub.textContent = said.join('  ·  ');
+    rankCard.append(sub);
+  }
   // NO RIOT ID, NO EMPTY COLUMNS (8.7): six quiet marks under their labels
   // read as a broken page. The rank row alone stays, its value one line
   // saying what is missing and one ghost button to Settings; its notes still

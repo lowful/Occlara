@@ -749,6 +749,14 @@ function row(m, gutter, marks) {
     top.append(el('span', 'm-res ' + (/vict|win/i.test(m.result) ? 'win' : /defeat|loss/i.test(m.result) ? 'loss' : ''),
       [m.result, m.score].filter(Boolean).join(' ')));
   }
+  // The RR the match moved, "RR +18" (8.8.x), filled in once main answers
+  // (paintRR); empty and hidden until then, and for any row without one.
+  if (!checking) {
+    const rrChip = el('span', 'm-rr');
+    rrChip.hidden = true;
+    top.append(rrChip);
+  }
+  item.dataset.id = m.id;
   if (!checking && Array.isArray(marks)) {
     for (const k of marks) {
       if (!k || typeof k.text !== 'string' || !k.text) continue;
@@ -811,6 +819,30 @@ function paintWinLoss(rows) {
     + (wl.unknown ? ` ${say(wl.unknown, 'match', 'matches')} with no result ${wl.unknown === 1 ? 'is' : 'are'} not counted.` : '');
 }
 
+/*
+ * THE RR EACH RATED MATCH MOVED (8.8.x), as the game shows it: "RR +18" on
+ * its row, from main's rank history by the match's Riot id (REVIEWS_RR,
+ * home-model.js rrForRows, the rule Home's Recent matches keeps). Asked once
+ * the rows are painted, so a slow history never holds the list back, and an
+ * answer overtaken by a newer paint or a change of game paints nothing.
+ */
+let rrAsk = 0;
+async function paintRR(forGame) {
+  const mine = ++rrAsk;
+  const chips = typeof window.occlara.getRR === 'function'
+    ? await window.occlara.getRR(forGame).catch(() => ({})) : {};
+  if (mine !== rrAsk || forGame !== game) return;
+  for (const item of $('list').querySelectorAll('.m-item')) {
+    const span = item.querySelector('.m-rr');
+    if (!span) continue;
+    const c = chips && chips[item.dataset.id];
+    span.hidden = !c;
+    span.textContent = c ? c.text : '';
+    span.className = 'm-rr' + (c && c.tone ? ' ' + c.tone : '');
+    span.title = c ? c.title : '';
+  }
+}
+
 async function load() {
   const [list, patterns, cfg] = await Promise.all([
     window.occlara.listReviews(game), window.occlara.getPatterns(game),
@@ -839,6 +871,7 @@ async function load() {
   }
   $('empty').hidden = rows.length > 0;
   paintWinLoss(rows);
+  paintRR(game);
   paintPatterns(patterns || { matches: 0, enough: false, grades: [], categories: [], average: null });
   paintBf();
   await loadBreakdown();

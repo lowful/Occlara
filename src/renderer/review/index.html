@@ -138,7 +138,13 @@
               <span id="v-icon" class="vd-icon" hidden></span>
               <div id="v-meta" class="v-meta"></div>
             </div>
-            <div id="v-result" class="v-result"></div>
+            <!-- The RR the match moved, "RR +18", beside the result (8.8.x,
+                 review.js paintRiot): only RR as the game shows it, by the
+                 match's Riot id, hidden until main answers and without one. -->
+            <div class="vd-end">
+              <span id="v-rr" class="v-rr" hidden></span>
+              <div id="v-result" class="v-result"></div>
+            </div>
           </div>
           <div class="vd-main">
             <div id="v-grade" class="vd-grade-host" hidden></div>

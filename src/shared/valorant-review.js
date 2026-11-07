@@ -453,7 +453,49 @@ function patterns(rounds) {
     out.push({ key: 'firstkill', text: `You got the first kill of the round ${openers.length} times, ${listRounds(openers)}.` });
   }
 
+  // RIOT ONLY (8.8): the team's buy discipline, buyDiscipline's line.
+  const buys = buyDiscipline(rounds);
+  if (buys) out.push({ key: 'buys', text: buys.text });
+
   return out;
+}
+
+/*
+ * THE TEAM'S BUY DISCIPLINE (8.8), from the buy Riot's record gives each
+ * round (riot-rounds.js buyOf): the full buy rounds lost, the eco rounds won
+ * and the forced rounds won, of the decided rounds that had a buy, pistol
+ * rounds left out. Only with BUYS_MIN such rounds, and each part only where
+ * it has rounds (full buys two). One finished line, its numbers counted here
+ * and nowhere else, and worded without "buy" itself: the review's gate drops
+ * any summary sentence with the word (match-review.js BUY_BLAME), and Ask
+ * Coach's every review sentence that has it, so the line says "full loadout"
+ * where the card's chip says "Full buy".
+ */
+const BUYS_MIN = 6;
+function buyDiscipline(rounds) {
+  const v = (rounds || []).filter((r) => r && r.verified && (r.result === 'won' || r.result === 'lost')
+    && ['eco', 'force', 'half', 'full'].includes(r.buy));
+  if (v.length < BUYS_MIN) return null;
+  const of = (kind) => v.filter((r) => r.buy === kind);
+  const won = (rs) => rs.filter((r) => r.result === 'won').length;
+  const full = of('full');
+  const eco = of('eco');
+  const force = of('force');
+  const half = of('half');
+  const parts = [];
+  if (full.length >= 2) parts.push(`lost ${full.length - won(full)} of ${full.length} rounds on a full loadout`);
+  if (eco.length) parts.push(`won ${won(eco)} of ${eco.length} eco ${eco.length === 1 ? 'round' : 'rounds'}`);
+  if (force.length) parts.push(`won ${won(force)} of ${force.length} forced ${force.length === 1 ? 'round' : 'rounds'}`);
+  if (!parts.length) return null;
+  const said = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return {
+    rounds: v.length,
+    full: full.length, fullLost: full.length - won(full),
+    eco: eco.length, ecoWon: won(eco),
+    force: force.length, forceWon: won(force),
+    half: half.length, halfWon: won(half),
+    text: `Your team ${said}.`,
+  };
 }
 
 /*
@@ -580,21 +622,60 @@ function listRounds(rows) {
   return `rounds ${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
 }
 
+/*
+ * THE ROUND RECORD BEYOND THE FEED ON A CARD (8.8). The team's buy as the
+ * card's words (BUY_WORDS), the casts by the player's kit (the game data's
+ * kit name for each key, the key alone for an agent it does not know), and
+ * the rest as reconcile kept them. Nothing here is a count of anything.
+ */
+const BUY_WORDS = { pistol: 'Pistol round', eco: 'Eco round', force: 'Force buy', half: 'Half buy', full: 'Full buy' };
+const CAST_ORDER = ['C', 'Q', 'E', 'X'];
+function castsNamed(casts, agent) {
+  if (!casts || typeof casts !== 'object') return null;
+  const a = typeof agent === 'string' && DATA.agents ? Object.entries(DATA.agents).find(([k]) => k.toLowerCase() === agent.toLowerCase()) : null;
+  const kit = a && Array.isArray(a[1].kit) ? a[1].kit : [];
+  const out = CAST_ORDER.filter((k) => Number.isInteger(casts[k])).map((key) => {
+    const slot = kit.find((x) => x && x.key === key);
+    return { key, name: slot && typeof slot.name === 'string' ? slot.name : null, n: casts[key] };
+  });
+  return out.length ? out : null;
+}
+function recordOnCard(r, agent) {
+  const out = {};
+  if (typeof r.riotSpot === 'string' && r.riotSpot) out.place = r.riotSpot;
+  if (Array.isArray(r.killSpots) && r.killSpots.length) out.killPlaces = r.killSpots.slice(0, 5);
+  if (BUY_WORDS[r.buy]) out.buy = r.buy;
+  if (r.mateNear === 'close' || r.mateNear === 'far') out.mate = r.mateNear;
+  const casts = castsNamed(r.casts, agent);
+  if (casts) out.casts = casts;
+  if (r.afk === true) out.afk = true;
+  if (r.inSpawn === true) out.inSpawn = true;
+  return out;
+}
+
 /** The facts line under a round, computed, never written by the model. */
 function roundFacts(r, opts) {
   const facts = [];
   // RIOT VERIFIED: exact, so exact numbers. The seconds, the killer and the
-  // weapon are Riot's; only the place is the screen's.
+  // weapon are Riot's, and since 8.8 the place where its record has one
+  // (riotSpot), else the screen's.
   if (r.verified) {
     if (r.died) {
-      let line = r.deathSpot ? `Died at ${r.deathSpot}` : 'Died';
-      if (r.deathSec !== null && r.deathSec !== undefined) line += `${r.deathSpot ? ',' : ''} ${r.deathSec}s in`;
+      const place = r.riotSpot || r.deathSpot;
+      let line = place ? `Died at ${place}` : 'Died';
+      if (r.deathSec !== null && r.deathSec !== undefined) line += `${place ? ',' : ''} ${r.deathSec}s in`;
       if (r.killerAgent) line += `, to ${r.killerAgent}${r.weapon ? ` with ${withArticle(r.weapon)}` : ''}`;
       facts.push(line);
       if (r.firstDeath) facts.push('First death of the round');
       if (r.aliveAtDeath) facts.push(`${r.aliveAtDeath.mates} against ${r.aliveAtDeath.enemies} when you died`);
       if (r.traded === true) facts.push('Traded by a teammate');
-      if (r.traded === false) facts.push('Not traded');
+      // How near the closest teammate stood, said with the trade it decides,
+      // one chip (8.8): never for the last one alive, who had nobody near.
+      if (r.traded === false) {
+        const alone = !!(r.aliveAtDeath && r.aliveAtDeath.mates <= 1);
+        facts.push(alone || !r.mateNear ? 'Not traded'
+          : r.mateNear === 'close' ? 'Not traded, a teammate was close' : 'Not traded, nobody close');
+      }
       if (r.ultAtDeath === 'ready') facts.push('Ultimate was ready');
     } else {
       // Riot knows who survived, so the line the screen could not honestly
@@ -608,6 +689,10 @@ function roundFacts(r, opts) {
       facts.push(`Last one standing against ${r.clutch.vs}${r.clutch.won === true ? ', and won it' : r.clutch.won === false ? ', lost' : ''}`);
     }
     if (r.planted) facts.push(r.plantSpot ? `Spike planted at ${r.plantSpot}` : 'Spike planted');
+    // The team's buy (8.8), and a round Riot says the player sat out.
+    if (BUY_WORDS[r.buy]) facts.push(BUY_WORDS[r.buy]);
+    if (r.afk === true) facts.push('Riot marked you AFK, not counted');
+    else if (r.inSpawn === true) facts.push('Stayed in spawn all round, not counted');
     // A review built from Riot's record alone was watched in no round, and
     // saying so on every card says nothing the header has not.
     if (r.watched === false && !(opts && opts.riotOnly)) facts.push('Not watched by the coach');
@@ -717,6 +802,12 @@ function build(input) {
       ...(Array.isArray(r.feed) ? { feed: r.feed } : {}),
       ...(typeof r.riotPlantMs === 'number' ? { plantSec: Math.round(r.riotPlantMs / 100) / 10 } : {}),
       ...(r.plantSite ? { plantSite: r.plantSite } : {}),
+      // The round record beyond the feed (8.8, valorant-verify.js
+      // recordExtras), each only where the record had it, so a card built
+      // before keeps its keys: where the player died and where their kills
+      // fell, the team's buy, the nearest teammate at the death in a word,
+      // the casts by key and kit name, and Riot's AFK flags.
+      ...recordOnCard(r, kitAgent),
     } : null,
     facts: roundFacts(r, { riotOnly }),
     reads: readsOf(r, mapName, kitAgent),
@@ -1063,6 +1154,17 @@ const FACT_EXACT = new Map([
   ['First death of the round', { kind: 'firstdeath', tone: 'bad' }],
   ['Traded by a teammate', { kind: 'traded', tone: 'even' }],
   ['Not traded', { kind: 'untraded', tone: 'warn' }],
+  // 8.8: the trade with the nearest teammate's distance, one chip.
+  ['Not traded, a teammate was close', { kind: 'untraded', tone: 'warn' }],
+  ['Not traded, nobody close', { kind: 'untraded', tone: 'warn' }],
+  // 8.8: the team's buy, and a round Riot says the player sat out.
+  ['Pistol round', { kind: 'buy', tone: 'even' }],
+  ['Eco round', { kind: 'buy', tone: 'even' }],
+  ['Force buy', { kind: 'buy', tone: 'even' }],
+  ['Half buy', { kind: 'buy', tone: 'even' }],
+  ['Full buy', { kind: 'buy', tone: 'even' }],
+  ['Riot marked you AFK, not counted', { kind: 'afk', tone: 'even' }],
+  ['Stayed in spawn all round, not counted', { kind: 'afk', tone: 'even' }],
   ['Ultimate was ready', { kind: 'ult', tone: 'warn' }],
   ['Survived', { kind: 'survived', tone: 'good' }],
   ['First kill of the round', { kind: 'firstkill', tone: 'good' }],
@@ -1256,7 +1358,8 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring })
     mistakes: listed(counted.mistakes),
     strengths: listed(counted.strengths),
     rounds: rounds.map((r) => ({
-      n: r.n, side: r.side, result: r.result, died: r.died, deathSpot: r.deathSpot,
+      // Riot's place of the death where its record has one (8.8), else the screen's.
+      n: r.n, side: r.side, result: r.result, died: r.died, deathSpot: (r.verified && r.died && r.riotSpot) || r.deathSpot,
       timing: timingOf(r), planted: r.planted, plantSpot: r.plantSpot,
       ultReady: r.died && r.ultAtDeath === 'ready',
       reads: readsOf(r, map, kitAgent),
@@ -1268,6 +1371,14 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring })
         alive: r.aliveAtDeath || null,
         // The numbers standing through the round (round 3), for the state gate only.
         ...(standingsOf(r) ? { standings: standingsOf(r) } : {}),
+        // The round record beyond the feed (8.8), only where it had them: the
+        // team's buy, the nearest teammate at the death, the player's casts
+        // by kit name, and a round Riot says the player sat out. A record
+        // without them sends the round as before, byte for byte.
+        ...(BUY_WORDS[r.buy] ? { buy: r.buy } : {}),
+        ...(r.died && (r.mateNear === 'close' || r.mateNear === 'far') ? { mate: r.mateNear } : {}),
+        ...(castsNamed(r.casts, kitAgent) ? { casts: castsNamed(r.casts, kitAgent).map((c) => ({ name: c.name, n: c.n })) } : {}),
+        ...(r.afk === true || r.inSpawn === true ? { afk: true } : {}),
       } : {}),
       // The coach's look at the death, so the summary and the round lines
       // agree with the cause the review counts.
@@ -1408,4 +1519,5 @@ function against(tracker, role, history) {
 module.exports = { build, served, patterns, roundFacts, historyEntry, ledgerOf, against, halftimeAfter, requestBody, timingOf,
   queueLabel, queueHalves, withArticle, spans, endedTooSoon, foreignPlace, foreignKit, readsOf, compsOf, compsLine, enemyAgentsOf, lookJudgement,
   factTags, summaryLines, withoutView, VIEW_FIELDS, VIEW_CARD_FIELDS,
-  BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX, countsOf };
+  BASELINE_GAMES, BASELINE_MIN, swingOf, standingsOf, SWING_MAX, countsOf,
+  buyDiscipline, castsNamed, recordOnCard, BUY_WORDS, BUYS_MIN };

@@ -428,6 +428,16 @@ function cardOf(c, review, pistols) {
       plantSite: plantSiteOf(c),
       plantSec: fin(r.plantSec) ? r.plantSec : null,
       feed: feedOf(r.feed),
+      // The round record beyond the feed (8.8, valorant-review.js
+      // recordOnCard), only where the card has it: where the player died and
+      // where their kills fell, the team's buy, the nearest teammate at the
+      // death, the casts by kit name, and a round Riot says they sat out.
+      ...(typeof r.place === 'string' && r.place ? { place: r.place } : {}),
+      ...(Array.isArray(r.killPlaces) && r.killPlaces.length ? { killPlaces: r.killPlaces.filter((s) => typeof s === 'string').slice(0, 5) } : {}),
+      ...(typeof r.buy === 'string' && r.buy ? { buy: r.buy } : {}),
+      ...(r.mate === 'close' || r.mate === 'far' ? { mate: r.mate } : {}),
+      ...(Array.isArray(r.casts) && r.casts.length ? { casts: r.casts.filter((x) => x && fin(x.n)).map((x) => ({ name: x.name || null, key: x.key || null, n: x.n })) } : {}),
+      ...(r.afk === true || r.inSpawn === true ? { afk: true } : {}),
     } : null,
     derived: derivedOf(c),
     screen: spot || ult || digits.length ? { spot, ult: ult ? 'ready' : null, lookDigits: digits } : null,

@@ -103,6 +103,7 @@
     "test:reviewreplay": "node scripts/test-review-replay.js",
     "test:recorder": "node scripts/test-recorder.js",
     "test:riotreview": "node scripts/test-riot-review.js",
+    "test:riotrecord": "node scripts/test-riot-record.js",
     "test:profile": "node scripts/test-profile.js",
     "test:shellnav": "node scripts/test-shell-nav.js",
     "test:siteproof": "node scripts/test-site-proof.js",

@@ -214,6 +214,11 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--te
 .m-res { font-size: 13px; font-weight: 500; color: var(--text-mute); flex: none; font-variant-numeric: tabular-nums; }
 .m-res.win { color: var(--good); }
 .m-res.loss { color: var(--bad); }
+/* The RR the match moved (8.8.x, matches.js paintRR): "RR +18", mono and
+   quiet, as Home's rows draw it (home.css .r-rr), the tone on the number. */
+.m-rr { flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.m-rr.gain { color: var(--good); }
+.m-rr.loss { color: var(--bad); }
 /* A milestone beside the result (8.7, matches.js row(), progress.js marks):
    "Best in 23", "First A", "3 in a row", "3 without ...", the one mark Home's
    rows draw (home.css .r-mark): a filled dot, then its words, in --good, so

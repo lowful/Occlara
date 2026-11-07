@@ -57,9 +57,56 @@ function rankBand(src) {
   return bandOfTier(s.current) || bandOfTier(s.rank) || bandOfTier(s.peak) || null;
 }
 
+/*
+ * THE PEAK AND THE TREND (8.8.x). The peak is the profile's (MMR v3's peak
+ * since 8.8.x, v2's highest_rank before) and, without one, the best rated
+ * tier in the rank history, the Profile page's own rule, so a player whose
+ * profile could not be read is still banded by the games main holds. The
+ * trend (riot-rank.js rankTrend: 'up', 'down', 'flat' or null) is carried
+ * beside the band for the pages and the tests, and DOES NOT MOVE IT: a band
+ * is the level the advice is sized to, and a few games of RR either way are
+ * no reason to send a Gold player an Immortal's read. So rankBand's answer
+ * for the same current, rank and peak is today's, byte for byte.
+ */
+const LADDER = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'ascendant', 'immortal', 'radiant'];
+function tierIndex(name) {
+  if (!bandOfTier(name)) return null;
+  const t = name.trim().toLowerCase();
+  const i = LADDER.findIndex((n) => t.startsWith(n === 'platinum' ? 'plat' : n));
+  const div = parseInt(t.replace(/[^\d]/g, ''), 10);
+  return i * 3 + (Number.isFinite(div) ? div : 2);
+}
+
+/** The best rated tier among the rank history's points, or null. */
+function historyPeak(history) {
+  const points = history && !history.error && Array.isArray(history.points) ? history.points : [];
+  let best = null;
+  for (const p of points) {
+    const i = p ? tierIndex(p.tier) : null;
+    if (i !== null && (best === null || i >= best.i)) best = { i, tier: p.tier.trim() };
+  }
+  return best ? best.tier : null;
+}
+
+/**
+ * What the rank band reads, all of it: { band, peak, trend }.
+ *
+ * @param src.current  the rank history's newest rated tier
+ * @param src.rank     the tracker profile's current rank
+ * @param src.peak     the tracker profile's peak rank
+ * @param src.history  the rank history itself, for the peak without a profile
+ * @param src.trend    riot-rank.js rankTrend of that history
+ */
+function rankContext(src) {
+  const s = src && typeof src === 'object' ? src : {};
+  const peak = bandOfTier(s.peak) ? s.peak.trim() : historyPeak(s.history);
+  const trend = s.trend === 'up' || s.trend === 'down' || s.trend === 'flat' ? s.trend : null;
+  return { band: rankBand({ current: s.current, rank: s.rank, peak }), peak: peak || null, trend };
+}
+
 /** A band only when it is one of the four keys, else null. */
 function validBand(x) {
   return typeof x === 'string' && BANDS.includes(x) ? x : null;
 }
 
-module.exports = { BANDS, bandOfTier, rankBand, validBand };
+module.exports = { BANDS, bandOfTier, rankBand, rankContext, historyPeak, validBand };
