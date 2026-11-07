@@ -1562,6 +1562,11 @@ function parse(text, input) {
   // contradicts goes whole, a summary or focus sentence goes alone, never the
   // review. For every client: each drops only what is false or leaked.
   claimGates(out, input);
+  // WHAT RIOT'S RECORD MAKES CERTAIN (record-claims.js, the blind audit of
+  // 8.7.8): a kill, a killer's share, the order of events, the side, the
+  // result, the team's record after the plant blamed on a player who died
+  // before it, and a Deathmatch drill about an enemy agent. Every client.
+  recordGates(out, input);
 
   // ROUND 4: a round line quoting a count the SWING AND COUNTS block does
   // not hold goes whole, as a summary sentence does, and from Platinum one
@@ -1592,7 +1597,73 @@ function parse(text, input) {
     if (c.gone) out.dropped.push({ n: null, said: `${field} orphan`, riot: null });
     out[field] = c.text;
   }
+  seamGates(out, input);
   return out;
+}
+
+let recordClaims;
+let coherenceShared;
+const shared = (name) => { try { return require(name); } catch { return null; } };
+
+/** The record gates over a parsed review (record-claims.js checkRows): a round line goes whole, a summary or focus sentence alone. English only. */
+function recordGates(out, input) {
+  if (promptName(input.context && input.context.language) !== 'English') return;
+  if (recordClaims === undefined) recordClaims = shared('./record-claims');
+  const rc = recordClaims;
+  if (!rc || typeof rc.checkRows !== 'function') return;
+  const ctx = rc.contextOfReview(input);
+  if (!ctx.rounds.size) return;
+  for (const n of Object.keys(out.rounds)) {
+    const ss = splitSentences(out.rounds[n]).map((s) => s.trim()).filter(Boolean);
+    const found = rc.checkRows(ss.map((s) => ({ s, p: 0 })), ctx, { round: Number(n) });
+    if (found.length) {
+      delete out.rounds[n];
+      out.dropped.push({ n: Number(n), said: `record ${found[0].kind}`, riot: null });
+    }
+  }
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const ss = splitSentences(out[field]).map((s) => s.trim()).filter(Boolean);
+    const found = rc.checkRows(ss.map((s) => ({ s, p: 0 })), ctx);
+    if (!found.length) continue;
+    const gone = new Set(found.map((f) => f.index));
+    for (const f of found) out.dropped.push({ n: null, said: `${field} record ${f.kind}`, riot: null });
+    out[field] = ss.filter((_, i) => !gone.has(i)).join(' ').trim() || null;
+  }
+}
+
+/*
+ * THE SEAMS (coherence.js repairSeams, the blind audit of 8.7.8): a swing fact
+ * glued on with its capital, "even as You died 3 times in 6 rounds", "both
+ * sides: You lost 10 rounds in a row", "and You died 5 times", written you; a
+ * sentence a cut left ending on a conjunction goes, a round line whole. Last,
+ * after every gate, so what is shown reads. English only, every client.
+ */
+function seamGates(out, input) {
+  if (promptName(input.context && input.context.language) !== 'English') return;
+  if (coherenceShared === undefined) coherenceShared = shared('./coherence');
+  const co = coherenceShared;
+  if (!co || typeof co.repairSeams !== 'function') return;
+  const mend = (text) => {
+    const ss = splitSentences(text).map((s) => s.trim()).filter(Boolean);
+    const kept = ss.map((s) => co.repairSeams(s));
+    // A text nothing was repaired in is kept as it was, its spacing too.
+    if (kept.every((s, i) => s === ss[i])) return { text, cut: false };
+    return { text: kept.filter(Boolean).join(' ').trim() || null, cut: kept.some((s) => s === null) };
+  };
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const m = mend(out[field]);
+    if (m.cut) out.dropped.push({ n: null, said: `${field} seam`, riot: null });
+    out[field] = m.text;
+  }
+  for (const n of Object.keys(out.rounds)) {
+    const m = mend(out.rounds[n]);
+    if (m.cut || !m.text) {
+      delete out.rounds[n];
+      out.dropped.push({ n: Number(n), said: 'seam', riot: null });
+    } else out.rounds[n] = m.text;
+  }
 }
 
 /*
@@ -1625,7 +1696,7 @@ const SPIKE_NEEDED = /\b(?:after (?:the|your|their|a) plant|after (?:you|they|yo
 // A drill avoided is no drill: "practise it in your next match rather than in Deathmatch".
 const DRILL_AVOIDED = /\b(?:rather than|instead of|not|never|outside(?: of)?)\s+(?:in\s+|at\s+|on\s+|from\s+)?(?:a\s+|the\s+)?(?:[Dd]eath ?[Mm]atch|Range)\b/;
 // "whether anyone could help you": a teammate in other words.
-const DRILL_HELP = /\b(?:anyone|someone|somebody|nobody|no one) (?:could|can|is able to|would|will) (?:help|follow|see|trade|swing|answer)\b|\ba second player\b|\bfollows? you in\b|\bclose enough to (?:kill|trade|shoot|follow)\b/i;
+const DRILL_HELP = /\b(?:anyone|someone|somebody|nobody|no one) (?:could|can|is able to|would|will) (?:help|follow|see|trade|swing|answer)\b|\ba second (?:player|person)\b|\bfollows? you in\b|\bclose enough to (?:kill|trade|shoot|follow)\b/i;
 // A study note about the trade habit (study, round 4).
 const TRADE_NOTE = /\b(?:trade|traded|trading|tradeable|close enough to (?:kill|shoot|swing|follow))\b/i;
 // A line teaching the trade habit (fundamentalsCap).

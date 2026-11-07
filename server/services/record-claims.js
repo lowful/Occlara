@@ -1,0 +1,492 @@
+'use strict';
+
+/*
+ * WHAT RIOT'S RECORD MAKES CERTAIN, SHARED BY ASK COACH AND THE REVIEW (the
+ * blind audit of 8.7.8 against 8.7.7, Nov 2026). Four judges of five rated one
+ * answer misleading for "You beat him twice, in rounds 14 and 16", where Omen
+ * killed the player in both and the player killed Phoenix, Chamber, Reyna and
+ * Fade there; "Omen was the one who got you in most of them" of five early
+ * deaths Omen made one of; "before your team had even touched B" of a death AT
+ * B Site; and two Sunset answers made "won 0 of 9 after the plant" the
+ * player's failure where he had died before the plant in 5 of those 9.
+ *
+ * Each reader takes one sentence and a context built from the facts the
+ * prompt was built from, and answers null or a reason. A sentence is judged
+ * only where the record makes the claim certainly false: an unknown (no kill
+ * feed, no plant time, an enemy Sage who could have revived the agent, Clove,
+ * who revives herself) judges nothing.
+ *
+ *   checkKills       "you beat / killed / took out X in round N" where X is
+ *                    no victim of the player's there, or X killed the player
+ *                    there, or the player killed nobody.
+ *   checkKillerShare "X got you in most of them": most, all or nearly all of
+ *                    the deaths it names (the early ones where the sentence
+ *                    says so) where X made half or fewer.
+ *   checkOrder       "before your team touched B" of a round the player died
+ *                    at B Site in (or after their own plant there); "you died
+ *                    before the plant" of a death after it, and the other way.
+ *   checkSide, checkResult  a round line's side or result the record gives
+ *                    the other way (the review's; Ask Coach has its own).
+ *   checkTeamBlame   the team's record after the plant (post plant on attack,
+ *                    retake on defence) told as the player's own failing,
+ *                    where the player died before the plant in half or more
+ *                    of those rounds. plantLines says it to the prompt.
+ *   checkDrill       a Deathmatch or Range drill about an enemy agent, or an
+ *                    agent taken into Deathmatch, where abilities are off and
+ *                    no enemy agent can be learnt.
+ *   checkRows        all of them over a reply's sentences in reading order,
+ *                    a he or a she read as the agent the sentences before
+ *                    named, a sentence of no round as the round its
+ *                    paragraph is about.
+ *
+ * English words: the callers pass English text only. Every regex here was
+ * written with a file editing tool and is asserted in test:chatgates on a
+ * sentence of the audit (caught) and a true variant (kept). No require from
+ * src/ (check:server), and nothing but the game data and coherence.js.
+ */
+
+let DATA = {};
+try { DATA = require('../valorant-data.generated.json'); } catch { DATA = {}; }
+let CO = null;
+try { CO = require('./coherence'); } catch { CO = null; }
+
+const fin = (v) => typeof v === 'number' && Number.isFinite(v);
+const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+const SINGLE_CURLY = new RegExp('[' + String.fromCharCode(0x2018, 0x2019, 0x02BC) + ']', 'g');
+const DOUBLE_CURLY = new RegExp('[' + String.fromCharCode(0x201C, 0x201D) + ']', 'g');
+const straight = (s) => String(s == null ? '' : s).replace(SINGLE_CURLY, "'").replace(DOUBLE_CURLY, '"');
+
+const AGENTS = Object.keys(DATA.agents || {});
+const AGENT_ALT = AGENTS.map(esc).sort((a, b) => b.length - a.length).join('|') || 'NO_AGENT';
+const AGENT_RE = new RegExp(`(?<![A-Za-z0-9])(${AGENT_ALT})(?![A-Za-z0-9])`, 'g');
+const canon = (name) => AGENTS.find((a) => a.toLowerCase() === String(name || '').toLowerCase()) || null;
+const FEMALE = (CO && CO.FEMALE) || new Set();
+const MALE = (CO && CO.MALE) || new Set();
+// Who can come back in a round: Clove revives herself, and a Sage revives a teammate.
+const SELF_REVIVE = new Set(['Clove']);
+const REVIVER = 'Sage';
+
+const sideOf = (s) => (/^att/i.test(String(s || '')) ? 'attack' : /^def/i.test(String(s || '')) ? 'defence' : null);
+
+// ── The context ────────────────────────────────────────────────────────────
+
+/*
+ * THE DEATHS A PATTERN COUNTED BEFORE ANY PLANT. "8 of your 14 deaths came in
+ * the first 30 seconds of the round, before any plant, in rounds 1, 5, 6, 7,
+ * 8, 13, 14 and 16": code counted each by the round's phase at the death
+ * (valorant-review.js patterns), the one source of a death before the plant
+ * on a review saved before Riot's plant time was kept. "And 2 more" leaves
+ * those two unknown.
+ */
+const BEFORE_ANY_PLANT = /before any plant,?\s+in\s+rounds?\s+([0-9][0-9,\s]*(?:and\s+[0-9]+)?)/gi;
+function beforePlantRounds(texts) {
+  const out = new Set();
+  for (const t of Array.isArray(texts) ? texts : []) {
+    for (const m of String(t || '').matchAll(BEFORE_ANY_PLANT)) {
+      for (const d of m[1].matchAll(/[0-9]+/g)) out.add(Number(d[0]));
+    }
+  }
+  return out;
+}
+
+function row(x) {
+  return {
+    n: x.n,
+    side: sideOf(x.side),
+    result: x.result === 'won' || x.result === 'lost' ? x.result : null,
+    died: !!x.died,
+    sec: fin(x.sec) ? x.sec : null,
+    killer: canon(x.killer),
+    kills: Number.isInteger(x.kills) ? x.kills : null,
+    victims: Array.isArray(x.victims) ? x.victims : null,
+    spot: typeof x.spot === 'string' && x.spot ? x.spot : null,
+    planted: !!x.planted,
+    plantSite: /^[ABC]$/.test(String(x.plantSite || '')) ? x.plantSite : null,
+    plantSec: fin(x.plantSec) ? x.plantSec : null,
+    // True only where the record says so: a client sends false for unknown too.
+    afterPlant: x.afterPlant === true ? true : null,
+  };
+}
+
+/** The context of Ask Coach's facts (chat-prompt.js factsOf). */
+function contextOfChat(facts) {
+  const f = facts || {};
+  const rounds = new Map();
+  if (f.rounds instanceof Map) {
+    for (const r of f.rounds.values()) {
+      const feed = Array.isArray(r.feed) ? r.feed : null;
+      const mine = feed ? feed.filter((k) => k && k.by === 'me' && k.on === 'enemy' && k.va).map((k) => canon(k.va)).filter(Boolean) : null;
+      // The feed is the player's kills only where it holds as many as Riot's count.
+      const victims = mine && mine.length && Number.isInteger(r.kills) && mine.length === r.kills ? mine : null;
+      rounds.set(r.n, row({ ...r, victims, spot: r.spot || null }));
+    }
+  }
+  const enemies = f.sides && f.sides.enemies instanceof Set ? new Set([...f.sides.enemies].map(canon).filter(Boolean)) : new Set();
+  return {
+    rounds,
+    agent: canon(f.agent),
+    enemies,
+    // Both teams' five known: Riot's comps, else nothing about a revive is certain.
+    enemiesKnown: enemies.size >= 5,
+    early: beforePlantRounds(f.counted && f.counted.texts),
+    asked: f.oneRound && f.asked ? f.asked : null,
+    kind: 'chat',
+  };
+}
+
+/** The context of a review's input (match-review.js normalise). */
+function contextOfReview(input) {
+  const inp = input || {};
+  const rounds = new Map();
+  for (const r of inp.rounds || []) {
+    if (!r || !r.verified) continue;
+    rounds.set(r.n, row({ ...r, spot: r.deathSpot || null }));
+  }
+  const ctx = inp.context || {};
+  const enemies = new Set((ctx.enemyAgents || []).map(canon).filter(Boolean));
+  return {
+    rounds,
+    agent: canon(ctx.agent),
+    enemies,
+    enemiesKnown: enemies.size >= 5,
+    early: beforePlantRounds((inp.patterns || []).map((p) => p && p.text).concat(inp.swing || [])),
+    asked: null,
+    kind: 'review',
+  };
+}
+
+/** Whether the player was certainly dead before the spike went down, in a round with a plant. */
+function deadBeforePlant(r, ctx) {
+  if (!r || !r.planted || !r.died || r.afterPlant) return false;
+  if (fin(r.sec) && fin(r.plantSec)) return r.sec < r.plantSec;
+  return !!(ctx && ctx.early && ctx.early.has(r.n));
+}
+/** Whether the player was certainly alive when the spike went down. */
+function aliveAtPlant(r) {
+  if (!r || !r.planted) return false;
+  if (!r.died || r.afterPlant) return true;
+  return fin(r.sec) && fin(r.plantSec) && r.sec >= r.plantSec;
+}
+
+/** The team's record after the plant on one side, and the rounds the player was dead before it. */
+function plantRecord(ctx, side) {
+  const rows = [...((ctx && ctx.rounds) || new Map()).values()].filter((r) => r.side === side && r.planted && r.result);
+  const dead = rows.filter((r) => deadBeforePlant(r, ctx)).map((r) => r.n).sort((a, b) => a - b);
+  return {
+    total: rows.length,
+    won: rows.filter((r) => r.result === 'won').length,
+    alive: rows.filter((r) => aliveAtPlant(r)).length,
+    deadBefore: dead,
+  };
+}
+const PLANT_MIN = 3;
+const blamedUnfairly = (rec) => rec.total >= PLANT_MIN && rec.deadBefore.length * 2 >= rec.total;
+
+const listText = (ns) => (ns.length === 1 ? `round ${ns[0]}` : `rounds ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`);
+
+/*
+ * THE FACT THE PROMPT CARRIES. Where the player died before the plant in half
+ * or more of a side's planted rounds (three at least), one line saying so, its
+ * numbers a pair the count gate knows ("5 of those 9"). No line otherwise, so
+ * a match without one is told as before, byte for byte.
+ */
+function plantLines(ctx) {
+  const out = [];
+  const def = plantRecord(ctx, 'defence');
+  if (blamedUnfairly(def)) {
+    out.push(`Of the ${def.total} defence rounds they planted in, you died before the plant in ${def.deadBefore.length} of those ${def.total}, ${listText(def.deadBefore)}, so your team played those retakes without you: the team's record after their plant is not the player's own retake.`);
+  }
+  const atk = plantRecord(ctx, 'attack');
+  if (blamedUnfairly(atk)) {
+    out.push(`Of the ${atk.total} attack rounds with the spike down, you died before the plant in ${atk.deadBefore.length} of those ${atk.total}, ${listText(atk.deadBefore)}, so your team played those post plants without you: the team's record after the plant is not the player's own post plant.`);
+  }
+  return out;
+}
+
+// ── The readers ────────────────────────────────────────────────────────────
+
+/** The round numbers a sentence names after "round" or "rounds", a run of them. */
+const ROUND_RUN = /\brounds?\s+([0-9]{1,2}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s+or\s+)[0-9]{1,2})*)/gi;
+function roundsIn(text) {
+  const out = [];
+  for (const m of String(text || '').matchAll(ROUND_RUN)) for (const d of m[1].matchAll(/[0-9]+/g)) out.push(Number(d[0]));
+  return [...new Set(out)];
+}
+
+const OPENS_IF = /^\s*(?:if|when|whenever|once|had|should|unless|next time)\b/i;
+
+/*
+ * THE PLAYER'S OWN KILLS. "You beat him twice, in rounds 14 and 16": a kill
+ * of an agent in a named round, a he or a she read as the agent named before
+ * it (st.agents). "You beat him to the angle" is no kill.
+ */
+const BEAT = new RegExp(`\\byou\\s+(?:also\\s+|only\\s+|then\\s+|finally\\s+|still\\s+)?(?:beat|killed|outgunned|outdueled|out-dueled|took\\s+out|picked\\s+off|won\\s+(?:the\\s+|your\\s+|both\\s+)?(?:duels?|fights?|gunfights?)\\s+(?:against|with|over))\\s+(?:(?:their|the\\s+enemy|the|an\\s+enemy|enemy)\\s+)?(${AGENT_ALT}|him|her)(?![A-Za-z0-9])(?!\\s+to\\b)`, 'gi');
+function checkKills(sentence, ctx, st) {
+  const t = straight(sentence);
+  if (!ctx || !ctx.rounds.size || OPENS_IF.test(t)) return null;
+  for (const m of t.matchAll(BEAT)) {
+    let target = canon(m[1]);
+    if (!target) target = pronounAgent(m[1], t.slice(0, m.index), ctx, st);
+    if (!target || target === ctx.agent) continue;
+    // The rounds of the kill's own clause: "You killed their Chamber in round
+    // 5, and in round 6 Phoenix killed you" says nothing of a kill in round 6
+    // (the verification of stream A). A sentence that names rounds in another
+    // clause only is uncertain, and judges nothing.
+    const clause = clauseAt(t, m.index);
+    const named = roundsIn(clause);
+    if (!named.length && roundsIn(t).length) continue;
+    const rounds = named.length ? named : (st && st.round ? [st.round] : ctx.asked ? [ctx.asked] : []);
+    for (const n of rounds) {
+      const r = ctx.rounds.get(n);
+      if (!r) continue;
+      const revivable = SELF_REVIVE.has(target) || !ctx.enemiesKnown || ctx.enemies.has(REVIVER);
+      const none = r.kills === 0;
+      const notVictim = !!(r.victims && !r.victims.includes(target));
+      const killedYou = r.died && r.killer === target && !revivable;
+      if (none || notVictim || killedYou) {
+        return `your reply said the player beat ${target} in round ${n}, where Riot's record has ${killedYou ? `${target} killing the player` : none ? 'the player with no kill' : `the player's kills there on ${r.victims.join(', ')}`}; say what the record shows`;
+      }
+    }
+  }
+  return null;
+}
+
+/*
+ * THE CLAUSE A CLAIM STANDS IN: the sentence cut where a new clause starts,
+ * ", and" / ", then" / ", but" and their kin, a semicolon, or an "and" or a
+ * "but" before a new subject ("and Phoenix killed you", "and in round 6").
+ * "You beat Reyna in round 5 and again in round 6" is one clause.
+ */
+const CLAUSE_BREAK = new RegExp(`[,;]\\s+(?:and|but|then|while|so|before|after|yet|though|although|until|when|where|which)\\b|;|\\s+(?:and|but)\\s+(?=(?:(?:their|the|an?|enemy)\\s+)?(?:${AGENT_ALT})\\s+(?!in\\b|on\\b|at\\b|and\\b|or\\b|twice\\b|both\\b|again\\b)[a-z]|(?:he|she|they|it|nobody|no\\s+one|your\\s+team|you\\s+(?:died|were|got|fell|lost))\\b|in\\s+rounds?\\s+[0-9])`, 'gi');
+function clauseAt(text, at) {
+  const t = String(text || '');
+  let from = 0;
+  let to = t.length;
+  for (const b of t.matchAll(CLAUSE_BREAK)) {
+    if (b.index + b[0].length <= at) from = b.index + b[0].length;
+    else if (b.index > at) { to = b.index; break; }
+  }
+  return t.slice(from, to);
+}
+
+/** The agent a he or a she stands for: the sentence's own before it, else the last one before, of that gender or either, never the player's own. */
+function pronounAgent(word, head, ctx, st) {
+  const fits = (a) => a && a !== ctx.agent && ((/^her$/i.test(word) ? FEMALE.has(a) : MALE.has(a)) || (!FEMALE.has(a) && !MALE.has(a)));
+  const own = [...String(head || '').matchAll(AGENT_RE)].map((x) => canon(x[1])).filter(fits);
+  if (own.length) return own[own.length - 1];
+  const before = (st && st.agents) || [];
+  for (let i = before.length - 1; i >= 0; i--) if (fits(before[i])) return before[i];
+  return null;
+}
+
+/*
+ * WHO KILLED THE PLAYER MOST OF A SET OF DEATHS. "Five of your thirteen deaths
+ * came in the first 30 seconds, and Omen was the one who got you in most of
+ * them": Phoenix, Chamber, Phoenix, Omen and Fade. Of the early deaths where
+ * the sentence says early, else of every death; certain only with two or more
+ * deaths and every killer known.
+ */
+const MOST_OF = new RegExp(`(?<![A-Za-z0-9])(${AGENT_ALT}|he|she)(?![A-Za-z0-9])[^.;:]{0,40}?\\b(?:killed|got|caught|picked\\s+off|took\\s+out)\\s+you\\s+in\\s+(most|the\\s+majority|nearly\\s+all|almost\\s+all|all)\\s+(?:of\\s+)?(them|those|these|(?:your\\s+|the\\s+)?(?:early\\s+|first\\s+)?deaths)\\b`, 'i');
+const EARLY_SAID = /\b(?:first\s+(?:30|thirty)\s+seconds|early|first\s+half\s+minute|opening\s+seconds)\b/i;
+function checkKillerShare(sentence, ctx, st) {
+  const t = straight(sentence);
+  const m = MOST_OF.exec(t);
+  if (!m || !ctx || !ctx.rounds.size || OPENS_IF.test(t)) return null;
+  const target = canon(m[1]) || pronounAgent(/^she$/i.test(m[1]) ? 'her' : 'him', t.slice(0, m.index), ctx, st);
+  if (!target) return null;
+  const early = EARLY_SAID.test(t) || EARLY_SAID.test(m[3]);
+  const deaths = [...ctx.rounds.values()].filter((r) => r.died && (!early
+    || (fin(r.sec) && r.sec <= 30 && !r.afterPlant && !(fin(r.plantSec) && r.plantSec <= r.sec))));
+  if (deaths.length < 2 || deaths.some((r) => !r.killer)) return null;
+  const by = deaths.filter((r) => r.killer === target).length;
+  const all = /all/i.test(m[2]) && !/nearly|almost/i.test(m[2]);
+  const ok = all ? by === deaths.length : by * 2 > deaths.length;
+  return ok ? null : `your reply said ${target} killed the player in ${m[2].replace(/\s+/g, ' ')} of ${early ? 'the early deaths' : 'their deaths'}, where Riot's record has ${target} in ${by} of ${deaths.length}; quote the counted line`;
+}
+
+/*
+ * THE ORDER OF EVENTS. "Taking that fight alone at 12 s gave them a free
+ * player up before your team had even touched B", of a death at B Site: the
+ * player was the team on B. And a death told before the plant that came
+ * after it, or after the plant that came before it.
+ */
+const BEFORE_SITE = /\bbefore\s+(?:your|the)\s+team\s+(?:had\s+)?(?:even\s+)?(?:touched|reached|got\s+(?:to|onto|on)|hit|entered|took|was\s+on|were\s+on|made\s+it\s+(?:to|onto)|set\s+foot\s+(?:on|in))\s+([ABC])(?:\s+[Ss]ite)?(?![A-Za-z])/;
+const DEATH_VERB = '(?:you\\s+died|your\\s+death(?:\\s+came)?|killed\\s+you|you\\s+were\\s+killed|you\\s+got\\s+killed|you\\s+fell|you\\s+went\\s+down)';
+const DIED_BEFORE_PLANT = new RegExp(`\\b${DEATH_VERB}\\b[^.;]{0,40}?\\bbefore\\s+(?:the|any|their|a)\\s+(?:plant|spike\\s+(?:went\\s+down|was\\s+(?:down|planted)))\\b`, 'i');
+const DIED_AFTER_PLANT = new RegExp(`\\b${DEATH_VERB}\\b[^.;]{0,40}?\\b(?:after|once)\\s+(?:the\\s+plant|their\\s+plant|they\\s+planted|the\\s+spike\\s+(?:went|was)\\s+down)\\b`, 'i');
+function roundOfSentence(t, ctx, st) {
+  const named = roundsIn(t);
+  if (named.length === 1) return named[0];
+  if (named.length > 1) return null;
+  return (st && st.round) || (ctx && ctx.asked) || null;
+}
+function checkOrder(sentence, ctx, st) {
+  const t = straight(sentence);
+  if (!ctx || !ctx.rounds.size || OPENS_IF.test(t)) return null;
+  const n = roundOfSentence(t, ctx, st);
+  const r = n != null ? ctx.rounds.get(n) : null;
+  if (!r || !r.died) return null;
+  const site = BEFORE_SITE.exec(t);
+  if (site && /^[ABC]$/.test(site[1])) {
+    const L = site[1];
+    const atSite = r.spot === `${L} Site`;
+    const theirPlant = r.side === 'attack' && r.plantSite === L && fin(r.plantSec) && fin(r.sec) && r.plantSec <= r.sec;
+    if (atSite || theirPlant) {
+      return `your reply said something came before your team reached ${L} in round ${n}, where the player ${atSite ? `died at ${L} Site` : `was alive on ${L} with the spike down`}; tell the round in the order the record has`;
+    }
+  }
+  if (DIED_BEFORE_PLANT.test(t) && aliveAtPlant(r)) {
+    return `your reply said the player died before the plant in round ${n}, where Riot's record has the death after it`;
+  }
+  if (DIED_AFTER_PLANT.test(t) && deadBeforePlant(r, ctx)) {
+    return `your reply said the player died after the plant in round ${n}, where the record has the death before it`;
+  }
+  return null;
+}
+
+/*
+ * A ROUND LINE'S SIDE AND RESULT (the review's: Ask Coach's timeline and
+ * round gates read its own). "That was a defence round" of an attack, "you
+ * won the round" of a loss.
+ */
+const SAYS_ATTACK = /\b(?:on\s+attack|an?\s+attack(?:ing)?\s+round|as\s+an\s+attacker|you\s+were\s+attacking|on\s+the\s+attacking\s+side)\b/i;
+const SAYS_DEFENCE = /\b(?:on\s+defen[cs]e|an?\s+defen[cs]e\s+round|an?\s+defending\s+round|as\s+a\s+defender|you\s+were\s+defending|on\s+the\s+defending\s+side)\b/i;
+function checkSide(sentence, ctx, st) {
+  const t = straight(sentence);
+  const n = roundOfSentence(t, ctx, st);
+  const r = n != null && ctx ? ctx.rounds.get(n) : null;
+  if (!r || !r.side) return null;
+  const atk = SAYS_ATTACK.test(t);
+  const def = SAYS_DEFENCE.test(t);
+  if (atk === def) return null;
+  if (atk && r.side === 'defence') return `your reply put round ${n} on attack, where Riot's record has it on defence`;
+  if (def && r.side === 'attack') return `your reply put round ${n} on defence, where Riot's record has it on attack`;
+  return null;
+}
+const SAYS_RESULT = /\b(?:you|your\s+team)\s+(won|lost)\s+(?:this|that|the)\s+round\b/i;
+function checkResult(sentence, ctx, st) {
+  const t = straight(sentence);
+  const m = SAYS_RESULT.exec(t);
+  if (!m || OPENS_IF.test(t)) return null;
+  const n = roundOfSentence(t, ctx, st);
+  const r = n != null && ctx ? ctx.rounds.get(n) : null;
+  if (!r || !r.result) return null;
+  const said = m[1].toLowerCase();
+  return said !== r.result ? `your reply said the round was ${said} where Riot's record has round ${n} ${r.result}` : null;
+}
+
+/*
+ * THE TEAM'S RECORD AFTER THE PLANT IS NOT THE PLAYER'S OWN. "Your biggest
+ * mistake was how you played defence after the spike went down: you won 0 of
+ * 9 defence rounds once they planted", where the player died before the plant
+ * in 5 of those 9 (rounds 1, 5, 6, 7 and 8). A sentence that talks about the
+ * retake or the post plant AND blames the player for it (the mistake, the
+ * lever, what held them back, "you won 0 of") goes where the player died
+ * before the plant in half or more of that side's planted rounds. The team's
+ * record said as the team's ("your team won 0 of 9"), advice for the next
+ * retake, and a sentence that says when the player was alive stay.
+ */
+const PLANT_TALK = /\b(?:retakes?|retaking|retook|after\s+(?:the|their|a)\s+plant|once\s+(?:they|the\s+spike|it)\s+(?:had\s+)?(?:planted|was\s+down|went\s+down|is\s+down|goes\s+down|got\s+planted)|(?:after|once|when)\s+the\s+spike\s+(?:went|was|is|goes|got)\s+(?:down|planted)|post[ -]?plants?|with\s+the\s+spike\s+down)\b/i;
+const DEF_TALK = /\b(?:retak\w*|retook|they\s+planted|on\s+defen[cs]e|defending|defen[cs]e\s+rounds?|defen[cs]e\s+(?:after|once|when)|played\s+defen[cs]e)\b/i;
+const ATK_TALK = /\b(?:post[ -]?plants?|on\s+attack|attacking|attack\s+rounds?|you\s+planted|your\s+team\s+planted|once\s+the\s+spike\s+was\s+down\s+on\s+attack)\b/i;
+const BLAME = /\b(?:your|the)\s+(?:biggest\s+|main\s+|real\s+|costliest\s+|first\s+)?(?:mistake|problem|weakness|issue|lever|leak)\b|\b(?:held|holding|holds)\s+you\s+back\b|\b(?:cost|costing)\s+you\b|\bwhere\s+(?:the|your)\s+rounds?\s+(?:slipped|went|were\s+lost|got\s+away)\b|\byour\s+retakes?\b(?!\s+habit)|\bhow\s+you\s+(?:played|handled)\b|\b(?:the|your)\s+retakes?\s+(?:was|were|is|are)\s+(?:where|what|why|the)\b|\byou\s+(?:won|lost)\s+(?:[0-9]+|none|zero|no|every|all)\s+(?:of|out\s+of)\b/i;
+const ALIVE_SAID = /\b(?:when|while|if|the\s+rounds?)\s+you\s+(?:were|are)\s+(?:still\s+)?alive\b|\bwithout\s+you\b|\byou\s+(?:were|had)\s+(?:already\s+)?(?:dead|died)\b|\byour\s+team(?:'s)?\s+(?:record|retakes?|post[ -]?plants?)\b|\bnot\s+(?:yours|your\s+own)\b/i;
+const ADVICE_OPEN = /^\s*(?:when|if|once|before|next\s+time|in\s+your\s+next|to\s+practi[cs]e|practi[cs]e|for\s+practi[cs]e|group|wait|hold|play|go|take|use|say|call|stay|don't|do\s+not|never|always|try|fix|work\s+on)\b/i;
+function checkTeamBlame(sentence, ctx) {
+  const t = straight(sentence);
+  if (!ctx || !ctx.rounds.size || !PLANT_TALK.test(t) || !BLAME.test(t) || ALIVE_SAID.test(t) || ADVICE_OPEN.test(t)) return null;
+  const def = DEF_TALK.test(t);
+  const atk = ATK_TALK.test(t);
+  const side = def && !atk ? 'defence' : atk && !def ? 'attack' : null;
+  if (!side) return null;
+  const rec = plantRecord(ctx, side);
+  if (!blamedUnfairly(rec)) return null;
+  return `your reply made the team's record after the plant on ${side} the player's own failing, where the player died before the plant in ${rec.deadBefore.length} of those ${rec.total} rounds; say it is the team's record, and teach what the player can change`;
+}
+
+/*
+ * A DRILL ABOUT AN AGENT IN A MODE WHERE IT CANNOT BE LEARNT. "Take Iso into
+ * Deathmatch" to practise against their Omen: Deathmatch turns every ability
+ * off, so the agent taken there changes nothing, and neither Deathmatch nor
+ * the Range has an enemy Omen to learn. A sentence that says not to, or that
+ * the mode has none, is the rule itself.
+ */
+const DEATHMATCH = /(?<![Tt]eam\s)(?<![A-Za-z])(?:[Dd]eath ?[Mm]atch|DEATHMATCH)(?![A-Za-z])/;
+const RANGE = /(?<![A-Za-z])(?:the Range|in Range|[Rr]ange practice)(?![A-Za-z])/;
+const MODE_AVOIDED = /\b(?:not|never|rather\s+than|instead\s+of|outside(?:\s+of)?|no\s+(?:place|way))\b[^.;]{0,24}(?:[Dd]eath ?[Mm]atch|Range)\b|\b(?:[Dd]eath ?[Mm]atch|Range)\s+(?:has|have|gives|offers)\s+no\b|\bno\s+(?:abilities|utility|teammates|enemy\s+agents?)\b/i;
+const TAKE_AGENT = new RegExp(`\\b(?:take|bring|play|pick|lock\\s+in|queue)\\s+(?:your\\s+|as\\s+)?(${AGENT_ALT})\\s+(?:into|in|on|for)\\s+(?:a\\s+|some\\s+)?(?:[Dd]eath ?[Mm]atch)`, 'i');
+function checkDrill(sentence, ctx) {
+  const t = straight(sentence);
+  const dm = DEATHMATCH.test(t);
+  if ((!dm && !RANGE.test(t)) || MODE_AVOIDED.test(t)) return null;
+  const take = TAKE_AGENT.exec(t);
+  if (take) return `your reply had the player take ${canon(take[1]) || take[1]} into Deathmatch, where abilities are off; give a drill the mode allows`;
+  // An enemy of the match's comp: in Deathmatch named at all, in the Range
+  // only fought ("learn her Alarmbot by playing Killjoy in the Range" is a drill).
+  const own = ctx && ctx.agent;
+  const enemy = (a) => !!(a && a !== own && ctx && ctx.enemies.has(a));
+  if (dm) {
+    for (const m of t.matchAll(AGENT_RE)) {
+      const a = canon(m[1]);
+      if (enemy(a)) return `your reply gave a Deathmatch drill about ${a}, an agent with no abilities there and no enemy of the player's to learn; practise a matchup in a match`;
+    }
+    return null;
+  }
+  const fought = RANGE_AGAINST.exec(t);
+  if (fought && enemy(canon(fought[1]))) return `your reply gave a Range drill against ${canon(fought[1])}, where the Range has bots and no enemy agent; practise a matchup in a match`;
+  return null;
+}
+const RANGE_AGAINST = new RegExp(`\\b(?:against|fight(?:ing)?|beat(?:ing)?|track(?:ing)?|duel(?:ling)?)\\s+(?:their\\s+|the\\s+|an?\\s+|enemy\\s+)?(${AGENT_ALT})(?![A-Za-z0-9])`, 'i');
+
+const READERS = [
+  ['kills', checkKills],
+  ['share', checkKillerShare],
+  ['order', checkOrder],
+  ['blame', checkTeamBlame],
+  ['drill', checkDrill],
+];
+const REVIEW_READERS = [...READERS, ['side', checkSide], ['result', checkResult]];
+
+/** One sentence through every reader: { kind, reason } or null. st: { agents, round } from the sentences before. */
+function checkSentence(sentence, ctx, st) {
+  const readers = ctx && ctx.kind === 'review' ? REVIEW_READERS : READERS;
+  for (const [kind, read] of readers) {
+    let why = null;
+    try { why = read(sentence, ctx, st || {}); } catch { why = null; }
+    if (why) return { kind, reason: why };
+  }
+  return null;
+}
+
+/**
+ * Rows { s, dropped, p } in reading order through every reader, the agents
+ * and the round the kept sentences before named carried along (a paragraph's
+ * round, where its kept sentences so far named exactly one; opts.round fixes
+ * it, a review's round line). Returns [{ index, kind, reason }].
+ */
+function checkRows(rows, ctx, opts = {}) {
+  const out = [];
+  const agents = [];
+  let para = null;
+  let paraRounds = new Set();
+  (Array.isArray(rows) ? rows : []).forEach((x, index) => {
+    const s = String(x && typeof x === 'object' ? x.s : x || '');
+    const p = x && typeof x === 'object' ? x.p : null;
+    if (p !== para) { para = p; paraRounds = new Set(); }
+    if (x && x.dropped) return;
+    const st = { agents, round: opts.round || (paraRounds.size === 1 ? [...paraRounds][0] : null) };
+    const hit = checkSentence(s, ctx, st);
+    if (hit) { out.push({ index, ...hit }); return; }
+    for (const m of straight(s).matchAll(AGENT_RE)) { const a = canon(m[1]); if (a) agents.push(a); }
+    for (const n of roundsIn(straight(s))) paraRounds.add(n);
+  });
+  return out;
+}
+
+module.exports = {
+  contextOfChat, contextOfReview, beforePlantRounds, deadBeforePlant, aliveAtPlant, plantRecord, plantLines, roundsIn,
+  checkKills, checkKillerShare, checkOrder, checkSide, checkResult, checkTeamBlame, checkDrill, checkSentence, checkRows,
+  BEAT, MOST_OF, EARLY_SAID, BEFORE_SITE, DIED_BEFORE_PLANT, DIED_AFTER_PLANT, SAYS_ATTACK, SAYS_DEFENCE, SAYS_RESULT,
+  PLANT_TALK, DEF_TALK, ATK_TALK, BLAME, ALIVE_SAID, ADVICE_OPEN, DEATHMATCH, RANGE, MODE_AVOIDED, TAKE_AGENT, BEFORE_ANY_PLANT, ROUND_RUN, OPENS_IF,
+  RANGE_AGAINST, PLANT_MIN, CLAUSE_BREAK, clauseAt,
+};

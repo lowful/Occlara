@@ -350,6 +350,71 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   - The rules: no product talk, cross match numbers only as given and no
     season, THE LEVER first with trading at most once, no aim praise the
     numbers deny, the side and the spike before advice about a round.
+- **The blind audit of 8.7.8 and what changed (Nov 2026, stream A)**. Shared
+  by Ask Coach (`chat-prompt.js gateReply`) and the review (`match-review.js
+  parse`, `recordGates` and `seamGates`, every client, English only). Replayed
+  offline over the audit's 60 raw replies and its 24 reviews: every sentence
+  removed is one a judge flagged or a stock closer, none of the 8.7.7 or 8.7.6
+  replies lost a sentence to the new record gate, and five true "practise it
+  in your next match rather than in Deathmatch" sentences the mode gate had
+  dropped now stay. Each pinned in test:chatgates (the audit's sentence caught,
+  a true one kept) and the review's in test:valorantreview.
+  - `server/services/record-claims.js`, gate `record`, judging only what the
+    record makes certain: a kill of an agent in a named round ("You beat him
+    twice, in rounds 14 and 16", a he or a she read as the agent named before
+    it) where Riot's feed has the player's kills on others, the player killed
+    nobody, or that agent killed the player (never with an enemy Sage or for
+    Clove, who can come back, and never without both comps); "X got you in most
+    of them" where X made half or fewer of the deaths named, the early ones
+    where the sentence says early; "before your team had touched B" of a death
+    at B Site, and a death told before or after the plant the other way; in the
+    review a round line's side and result too. A sentence of no round is read
+    as the round its paragraph named, else the one asked. A kill is read in
+    its own clause (`clauseAt`): "You killed their Chamber in round 4, and in
+    round 8 Chamber killed you" judges round 4 only, and a kill whose clause
+    names no round where another clause does judges nothing.
+  - TEAM STAT BLAME: where the player died before the plant in half or more of
+    a side's planted rounds (three at least; dead before it by Riot's plant
+    time, else by the early pattern's "before any plant" rounds, code counted),
+    the match's COUNTED block carries "Alive at the plant: of the 9 defence
+    rounds they planted in, you died before the plant in 5 of those 9, rounds
+    1, 5, 6, 7 and 8, ..." (`plantLines`, its numbers harvested so the count
+    gate knows them), and a sentence blaming the player for that record (the
+    mistake, the lever, what held them back, "you won 0 of 9", "your
+    retakes") goes. "Your team won 0 of 9", advice for a retake, and a sentence
+    saying when the player was alive stay. The review gets the gate, not the
+    line: its rounds hold no plant time, so only the early pattern decides.
+  - SEAMS (`coherence.js repairSeams`): a swing fact glued on with its capital
+    ("even as You died", "both sides: You lost", "and You died") is written
+    you, and a sentence a cut left ending on a conjunction, an article or a
+    comma goes (gate `seam`). The orphan pass also drops "Then it flipped
+    fast:" with the opening cut (`then`, never a step of advice such as
+    "Then take one piece of space", `THEN_STEP`), "If nobody can see that angle" with
+    the angle's sentence cut and no kept sentence before naming one (`that`),
+    a bare list item ("Round 14, 14 s in, to a Marshal.", `item`), and the lead
+    ins "Here's the round in order." and "Look at when those deaths came."; and
+    what leaned on a sentence the record or orphan pass dropped goes with it
+    (`leanPass`, run again).
+  - DEATHMATCH DRILLS: the mode gate reads "a second person" and "anyone could
+    follow / help / trade" as teammates, and the record gate drops an agent
+    taken into Deathmatch (abilities are off there) and an enemy of the
+    match's comp in a Deathmatch drill, or fought in the Range ("learn her
+    Alarmbot by playing Killjoy in the Range" stays). A drill sent away from
+    the mode ("in your next match rather than in Deathmatch") stays.
+  - SAMENESS (`coherence.js fillerOf`, gate `filler`): "the other things can
+    wait" ended 28 of 60 answers. A sentence that is only the stock closer
+    ("The rest can wait.", "Everything else can wait.", "The other patterns
+    can wait.", "Your other counted habits can wait.") goes, a clause of it is
+    cut ("That is the lever, and the other things can wait." is "That is the
+    lever."), "nothing else needs fixing first" too; what names what waits
+    ("Trading is the second point and can wait") stays. The rules say to name
+    what waits and vary the close. `filler` and `seam` are quiet: a first
+    sentence lost that way never asks for the reply again.
+  - The rules gained a line and the drill line grew (test:chatgates holds them word for word): name
+    what can wait, never blame the team's record after the plant where the
+    player died before it, never a kill the record does not have, and no
+    agent's kit or matchup practised in Deathmatch. Not yet measured on live
+    answers.
 - **Its model, its time and its cap are the route's** (above, "Ask Coach v2,
   the route's half"): `AI_CHAT_MODEL` pinned with no weaker model behind it,
   40 s across both calls, and $0.15 a licence a rolling day. The page says

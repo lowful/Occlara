@@ -340,7 +340,7 @@ app.listen(PORT, () => {
   console.log(`[server] AI provider: ${process.env.AI_API_KEY
     ? `OpenAI-compatible (${process.env.AI_VISION_MODEL || 'default model'})`
     : process.env.GEMINI_API_KEY ? 'Gemini' : '(none configured)'}`);
-  console.log(`[server] Stats: ${process.env.HENRIKDEV_API_KEY ? 'HenrikDev' : ''}${process.env.TRACKER_API_KEY ? ' tracker.gg' : ''}` || '(none)');
+  console.log(`[server] Stats: ${process.env.HENRIKDEV_API_KEY ? 'HenrikDev' : '(none)'}`);
   // THE PRIMER'S LIVE VERSION CHECK (8.5.0, game-primer.js): at boot and
   // every six hours on Railway, never in a check, a test or CI
   // (liveCheckWanted). /api/admin/primer says what it found.

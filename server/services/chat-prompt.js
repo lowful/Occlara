@@ -62,6 +62,7 @@ const forensicsMod = () => optional('./death-forensics');
 const casesMod = () => optional('./cases');
 const abilityFactsMod = () => optional('./ability-facts');
 const coherenceMod = () => optional('./coherence');
+const recordMod = () => optional('./record-claims');
 const KIT_HEAD = "THE KITS, what each ability does in the game's own words, the player's agent first. Say nothing of an ability that its line does not say, and name each by its name, never by its key:";
 
 const lower = (s) => String(s == null ? '' : s).toLowerCase();
@@ -716,6 +717,20 @@ const factsCache = new WeakMap();
  * the conversation. The same input gives the same facts, so the prompt and
  * the gates read one account of the match.
  */
+/*
+ * ALIVE AT THE PLANT (the blind audit of 8.7.8). Two Sunset answers made "won
+ * 0 of 9 after they planted" the player's own retake failure, where he died
+ * before the plant in 5 of those 9. Where the player died before the plant in
+ * half or more of a side's planted rounds, the prompt says so in a counted
+ * line (record-claims.js plantLines), and the record gate drops a sentence
+ * that still blames the player for it (checkTeamBlame). None for League.
+ */
+function plantLinesOf(f) {
+  const rc = recordMod();
+  if (!rc || typeof rc.plantLines !== 'function' || !f || f.game === 'lol') return [];
+  try { return rc.plantLines(rc.contextOfChat(f)); } catch { return []; }
+}
+
 function factsOf(input, messages, opts) {
   const memo = input && typeof input === 'object' ? factsCache.get(input) : null;
   if (memo && memo.messages === messages) return memo.facts;
@@ -886,6 +901,8 @@ function factsOf(input, messages, opts) {
         killer: r ? r.killer : null, killerWeapon: r ? r.weapon : null, sec: r ? r.sec : null,
         plantSec: r ? r.plantSec : null, plantSite: r ? r.plantSite : null,
         feed, times, standings: standingsOf(c), weapons, atDeath: death.at, after: death.after,
+        // The screen's spot of the death, for the order of events (record-claims.js checkOrder).
+        spot: (c.screen && c.screen.spot) || null,
         look: c.look ? { cause: c.look.cause, what: c.look.what, better: c.look.better, fair: c.look.cause === 'lost-duel' } : null,
         lookDigits: (c.screen && c.screen.lookDigits) || [],
         before,
@@ -898,6 +915,11 @@ function factsOf(input, messages, opts) {
       else known = false;
       if (known) f.scores.push([team, enemy]);
     }
+    // Whether the player was alive at the plant (record-claims.js plantLines,
+    // the blind audit of 8.7.8): the line the prompt carries, its numbers
+    // counted, so a reply may say them back.
+    f.plantLines = plantLinesOf(f);
+    for (const line of f.plantLines) harvest(line);
   }
   if (m && m.kind === 'lol') {
     day(m.at); dayOf(m.day);
@@ -1032,7 +1054,8 @@ HOW TO ANSWER
 - Never mention an ultimate orb, a health number, who carried the spike or how many players were alive unless the facts of that round state it.
 - About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it, and name trading at most once, as a second point, unless THE LEVER is trading.
 - Quote a counted line's numbers as given, the deaths nobody traded included: that count leaves out a death as the last one alive, which nobody could trade, so never count the rounds yourself into a total of your own.
-- A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practised in a match, with what to do when nobody answers the call.
+- When you say what can wait, name it ("the trade check can wait"), never a stock closer such as "the other things can wait", "the rest can wait", "everything else can wait" or "nothing else needs fixing first", and vary how you close. Never make the team's record after the plant the player's own mistake in rounds the facts say they died before the plant, and never say the player beat or killed an agent in a round Riot's record does not have them killing.
+- A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practised in a match, with what to do when nobody answers the call, and Deathmatch has no abilities and neither mode has this match's enemy agents, so an agent's kit or a matchup is never practised in Deathmatch.
 - When something went right, say what the player did and why it worked in game terms, from the record: a trade they made, a fight they took beside a teammate, a round they saved or won on the clock. Never praise a scoreboard number, never open with praise as a cushion, and never call the player unlucky or blame a teammate.
 - Asked about their aim, answer from the deaths and the player's headshot rate against their own average. Where the coach's look called fights fair and lost on the shot, say so and give one aim habit. Where the deaths show the position, the timing, the numbers or nobody able to trade, name that first, then still give one aim habit sized to their rank. Where the coach looked at no death, say the look cannot tell whether the fights were lost on the shot. Never say aim is not the problem, or that aim can wait, unless the coach's looks called those deaths something else. Never praise the aim where the headshot rate is under their own average, and never call a fight the look called fair one that should not have been taken.
 - Before advice about a round, read its side and whether the spike was down when the player died: on attack with no spike down the defenders never have to come to you, so waiting for them is no plan, and on defence with the spike down the defenders must retake.
@@ -1295,6 +1318,7 @@ function renderMatch(input, facts, trim) {
   for (const e of m.lists.missed) counted.push(entry('Missed', e));
   for (const e of m.lists.facts) counted.push(entry("What Riot's record shows", e));
   for (const p of m.patterns) counted.push(`- Pattern: ${p.text}`);
+  for (const line of (facts && facts.plantLines) || []) counted.push(`- Alive at the plant: ${line}`);
   if (counted.length) lines.push(`COUNTED (code counted these from the record, so they are true; quote their numbers exactly)\n${counted.join('\n')}`);
 
   // EVERY ROUND A LINE, the asked ones too, so the match's part of the prompt
@@ -2085,6 +2109,27 @@ function gateReply(paras, facts, nameOpts) {
    * shown, in English, the agent the question names standing as one a he or a
    * she may mean. Dropped, never retried, as a sentence that leans is.
    */
+  /*
+   * WHAT RIOT'S RECORD MAKES CERTAIN (record-claims.js checkRows, the blind
+   * audit of 8.7.8): "You beat him twice, in rounds 14 and 16" where Omen
+   * killed the player in both, "Omen got you in most of them" of one early
+   * death in five, "before your team had even touched B" of a death at B
+   * Site, the team's retake record made the player's own where he died before
+   * the plant, and a Deathmatch drill about an enemy agent (gate `mode`).
+   * Read in reading order, a he or a she as the agent before it, after every
+   * gate before and before the orphan pass, so what leaned on it goes too.
+   */
+  const rc = english && (!facts || facts.game !== 'lol') ? recordMod() : null;
+  if (rc && typeof rc.checkRows === 'function') {
+    let found = [];
+    try { found = rc.checkRows(rows.map((r) => ({ s: gates.straighten(r.s), dropped: !!r.drop, p: r.p })), rc.contextOfChat(facts)); } catch { found = []; }
+    for (const o of found) {
+      if (!rows[o.index] || rows[o.index].drop) continue;
+      rows[o.index].drop = { gate: o.kind === 'drill' ? 'mode' : 'record', reason: o.reason };
+      rows[o.index].logged = [];
+    }
+    leanPass(rows, english);
+  }
   const co = english ? coherenceMod() : null;
   if (co && typeof co.checkOrphans === 'function') {
     let found = [];
@@ -2094,9 +2139,43 @@ function gateReply(paras, facts, nameOpts) {
       rows[o.index].drop = { gate: 'orphan', reason: ORPHAN_REASON };
       rows[o.index].logged = [];
     }
+    // What leaned on a sentence the orphan pass dropped ("That is the moment
+    // to notice" after "If nobody can see that angle") goes with it.
+    if (found.length) leanPass(rows, english);
+  }
+  /*
+   * THE STOCK CLOSER AND THE SEAMS (coherence.js fillerOf, repairSeams, the
+   * blind audit of 8.7.8): "and the other things can wait" cut off the
+   * sentence it ends, a sentence that is only that dropped (gate `filler`), a
+   * You glued inside a sentence written you, and a sentence ending on a
+   * conjunction dropped (gate `seam`). Quiet drops: a reply's first
+   * sentence going this way never asks for the reply again.
+   */
+  if (co && typeof co.fillerOf === 'function' && typeof co.repairSeams === 'function') {
+    for (const r of rows) {
+      if (r.drop) continue;
+      let s = r.s;
+      const filler = co.fillerOf(s);
+      if (filler === '') { r.drop = { gate: 'filler', reason: FILLER_REASON, quiet: true }; r.logged = []; continue; }
+      if (filler) s = filler;
+      const seamed = co.repairSeams(s);
+      if (seamed === null) { r.drop = { gate: 'seam', reason: ORPHAN_REASON, quiet: true }; r.logged = []; continue; }
+      r.s = seamed;
+    }
   }
   return rows;
 }
+
+/** A kept sentence that leans on a dropped one goes with it (leansOn), in English, run again after a later pass dropped more. */
+function leanPass(rows, english) {
+  for (let i = 1; english && i < rows.length; i++) {
+    if (rows[i - 1].drop && !rows[i].drop && gates.leansOn(rows[i].s)) {
+      rows[i].drop = { gate: 'leans', reason: LEANS_REASON };
+      rows[i].logged = [];
+    }
+  }
+}
+const FILLER_REASON = 'your reply closed on a stock line that the other things can wait; name what waits, or leave it out';
 
 /**
  * The reply, every sentence through the gates (gateReply, over fact-gates.js
@@ -2136,7 +2215,7 @@ function parseReply(raw, input, opts) {
     if (row.drop) {
       out.dropped[row.drop.gate] = (out.dropped[row.drop.gate] || 0) + 1;
       if (!out.reasons.includes(row.drop.reason)) out.reasons.push(row.drop.reason);
-      if (i === 0) out.firstDropped = true;
+      if (i === 0 && !row.drop.quiet) out.firstDropped = true;
     } else {
       (kept[row.p] = kept[row.p] || []).push(row.s);
       out.kept += 1;

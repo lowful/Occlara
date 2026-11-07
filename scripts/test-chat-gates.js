@@ -532,7 +532,8 @@ HOW TO ANSWER
 - Never mention an ultimate orb, a health number, who carried the spike or how many players were alive unless the facts of that round state it.
 - About improving: THE LEVER when it is given, else the largest counted mistake or pattern, with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts. When THE LEVER is given, lead with it, and name trading at most once, as a second point, unless THE LEVER is trading.
 - Quote a counted line's numbers as given, the deaths nobody traded included: that count leaves out a death as the last one alive, which nobody could trade, so never count the rounds yourself into a total of your own.
-- A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practised in a match, with what to do when nobody answers the call.
+- When you say what can wait, name it ("the trade check can wait"), never a stock closer such as "the other things can wait", "the rest can wait", "everything else can wait" or "nothing else needs fixing first", and vary how you close. Never make the team's record after the plant the player's own mistake in rounds the facts say they died before the plant, and never say the player beat or killed an agent in a round Riot's record does not have them killing.
+- A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practised in a match, with what to do when nobody answers the call, and Deathmatch has no abilities and neither mode has this match's enemy agents, so an agent's kit or a matchup is never practised in Deathmatch.
 - When something went right, say what the player did and why it worked in game terms, from the record: a trade they made, a fight they took beside a teammate, a round they saved or won on the clock. Never praise a scoreboard number, never open with praise as a cushion, and never call the player unlucky or blame a teammate.
 - Asked about their aim, answer from the deaths and the player's headshot rate against their own average. Where the coach's look called fights fair and lost on the shot, say so and give one aim habit. Where the deaths show the position, the timing, the numbers or nobody able to trade, name that first, then still give one aim habit sized to their rank. Where the coach looked at no death, say the look cannot tell whether the fights were lost on the shot. Never say aim is not the problem, or that aim can wait, unless the coach's looks called those deaths something else. Never praise the aim where the headshot rate is under their own average, and never call a fight the look called fair one that should not have been taken.
 - Before advice about a round, read its side and whether the spike was down when the player died: on attack with no spike down the defenders never have to come to you, so waiting for them is no plan, and on defence with the spike down the defenders must retake.
@@ -1854,6 +1855,175 @@ const riotOnly = (file, row, edit) => {
   // The live Sunset 2 to 5 aim answer, four unclear looks: 87 characters between the rate and the dismissal.
   const longAim = 'Your headshot rate in that match was 25%, against 36% across your recent matches, so there is room there, but it is not what cost you the rounds.';
   ok(gates.AIM_DISMISSED.some((re) => re.test(longAim)), `the long aim dismissal is read as one: "${longAim.slice(0, 60)}"`);
+}
+
+// ── The blind audit of 8.7.8 (Nov 2026), stream A ──────────────────────────
+// The record's certain facts (record-claims.js), the seams and the stock
+// closer (coherence.js), and the Deathmatch drills, each pinned on the live
+// sentence the audit's judges flagged (caught) and a true one (kept). The
+// matches are the audit's own facts: Corrode 3 to 13 (Iso), Split 13 to 7
+// (Jett), Sunset 4 to 13 (Jett).
+{
+  console.log('\nthe blind audit of 8.7.8, stream A:');
+  const rc = require('../server/services/record-claims');
+  const co = require('../server/services/coherence');
+  const BS = String.fromCharCode(8);
+  for (const f of ['record-claims.js', 'coherence.js', 'fact-gates.js', 'chat-prompt.js', 'match-review.js']) {
+    ok(!fs.readFileSync(path.join(__dirname, '..', 'server', 'services', f), 'utf8').includes(BS), `${f} holds no backspace byte`);
+  }
+  const feed = (...va) => va.map((v, i) => ({ s: 10 + i, by: 'me', on: 'enemy', ka: 'Iso', va: v }));
+  const factsOfRounds = (agent, enemies, rounds, texts, extra) => ({
+    game: 'valorant', language: 'en', agent, sides: { mates: new Set(), enemies: new Set(enemies) },
+    counted: { texts: texts || [] }, rounds: new Map(rounds.map((r) => [r.n, r])), ...(extra || {}),
+  });
+  const R = (n, side, result, died, sec, killer, kills, extra) => ({ n, side, result, died, sec, killer, kills, planted: false, afterPlant: false, plantSec: null, plantSite: null, feed: [], spot: null, ...(extra || {}) });
+  // Corrode 3 to 13 as Riot has it (comps: Chamber, Fade, Omen, Phoenix, Reyna; no Sage).
+  const corrode = rc.contextOfChat(factsOfRounds('Iso', ['Chamber', 'Fade', 'Omen', 'Phoenix', 'Reyna'], [
+    R(4, 'attacking', 'won', false, null, null, 2, { feed: feed('Omen', 'Chamber') }),
+    R(6, 'attacking', 'lost', true, 21, 'Phoenix', 1, { feed: feed('Reyna') }),
+    R(8, 'attacking', 'lost', true, 27, 'Chamber', 0),
+    R(10, 'attacking', 'lost', true, 27, 'Phoenix', 0),
+    R(11, 'attacking', 'lost', true, 12, 'Omen', 0),
+    R(12, 'attacking', 'lost', true, 10, 'Fade', 0),
+    R(14, 'defending', 'lost', true, 31, 'Omen', 3, { feed: feed('Phoenix', 'Chamber', 'Reyna') }),
+    R(16, 'defending', 'lost', true, 53, 'Omen', 3, { feed: feed('Fade', 'Phoenix', 'Chamber') }),
+  ]));
+  const omenBefore = { agents: ['Iso', 'Omen'] };
+  ok(!!rc.checkKills('You beat him twice, in rounds 14 and 16, and in both you were the player making the first move, not the one reacting to him.', corrode, omenBefore),
+    'CAUGHT: "You beat him twice, in rounds 14 and 16" where Omen killed the player in both (4 of 5 judges: misleading)');
+  ok(!rc.checkKills('You beat him in round 4, the first of your two kills.', corrode, omenBefore), 'kept: "You beat him in round 4", Omen among the player\'s kills there');
+  ok(!rc.checkKills('You beat Phoenix in rounds 14 and 16.', corrode, {}), 'kept: Phoenix, a victim in both');
+  ok(!rc.checkKills('You beat him to the angle in round 14.', corrode, omenBefore), 'kept: beating him to an angle is no kill');
+  ok(!!rc.checkKills('You killed their Omen in round 12.', corrode, {}), 'CAUGHT: a kill in a round the player killed nobody');
+  ok(!!rc.checkKillerShare('Five of your thirteen deaths came in the first 30 seconds, and Omen was the one who got you in most of them, so he was reading your early position.', corrode, {}),
+    'CAUGHT: "Omen was the one who got you in most of them" of the early deaths, Omen 1 of 5');
+  ok(!rc.checkKillerShare('Omen got you in most of your deaths on defence and in round 11.', { ...corrode, rounds: new Map([...corrode.rounds].filter(([n]) => n >= 11)) }, {}),
+    'kept: Omen in most of the deaths the sentence counts (3 of 4)');
+  // A Sage on their team could have revived him: nothing is certain without the feed.
+  const sageSide = { ...corrode, enemies: new Set(['Sage', 'Fade', 'Omen', 'Phoenix', 'Reyna']), rounds: new Map([[14, { ...corrode.rounds.get(14), victims: null, kills: 2 }]]) };
+  ok(!rc.checkKills('You beat Omen in round 14.', sageSide, {}), 'kept: Omen the killer, with an enemy Sage and no feed, judges nothing');
+
+  // Split 13 to 7, round 5: the player died at B Site 12 s in, the plant at B at 98 s.
+  const split = rc.contextOfChat(factsOfRounds('Jett', ['Clove', 'Phoenix', 'Reyna', 'Sage', 'Skye'], [
+    R(5, 'attacking', 'won', true, 12, 'Phoenix', 0, { planted: true, plantSite: 'B', plantSec: 98.3, spot: 'B Site' }),
+    R(6, 'attacking', 'lost', true, 7, 'Phoenix', 0, { spot: 'A Main' }),
+  ]));
+  ok(!!rc.checkOrder('Waiting on them was never a plan, and taking that fight alone at 12 s gave them a free player up before your team had even touched B.', split, { round: 5 }),
+    'CAUGHT: "before your team had even touched B" of a death at B Site (4 of 5 judges)');
+  ok(!rc.checkOrder('Taking that fight alone gave them a free player up before your team had touched A.', split, { round: 5 }), 'kept: before the team touched A, a site the death was not at');
+  ok(!rc.checkOrder('You died 7 s in, before your team had touched B.', split, { round: 6 }), 'kept: round 6, a death at A Main');
+  ok(!!rc.checkOrder('In round 5 you died after the plant.', split, {}), 'CAUGHT: a death 12 s in called after a plant at 98 s');
+  ok(!rc.checkOrder('In round 5 you died before the plant.', split, {}), 'kept: the same death before the plant');
+
+  // Sunset 4 to 13: 9 defence rounds with a plant, all lost; the early pattern
+  // has the player dead before the plant in rounds 1, 5, 6, 7 and 8.
+  const sunsetRounds = [1, 2, 3, 5, 6, 7, 8, 9, 12].map((n) => R(n, 'defending', 'lost', true, [1, 5, 6, 7, 8].includes(n) ? 18 : 40, 'Killjoy', 0, { planted: true }));
+  const early = ['8 of your 14 deaths came in the first 30 seconds of the round, before any plant, in rounds 1, 5, 6, 7, 8, 13, 14 and 16.'];
+  const sunset = rc.contextOfChat(factsOfRounds('Jett', ['Killjoy', 'Tejo', 'Brimstone', 'Phoenix', 'Raze'], sunsetRounds, early));
+  ok(JSON.stringify(rc.plantRecord(sunset, 'defence')) === JSON.stringify({ total: 9, won: 0, alive: 0, deadBefore: [1, 5, 6, 7, 8] }), 'the plant record: 9 planted, dead before the plant in 5 of them');
+  const line = rc.plantLines(sunset)[0] || '';
+  ok(/you died before the plant in 5 of those 9, rounds 1, 5, 6, 7 and 8/.test(line) && !DASHES.test(line) && !line.includes(';'), `the prompt carries it, no dash, no semicolon: "${line.slice(0, 90)}"`);
+  ok(!!rc.checkTeamBlame('Your biggest mistake was how you played defence after the spike went down: you won 0 of 9 defence rounds once they planted, and that is the lever for this match.', sunset),
+    'CAUGHT: the team\'s retake record made "your biggest mistake" (analyst, gold: misleading)');
+  ok(!!rc.checkTeamBlame('The thing holding you back on Sunset was defence after the spike went down: you won 0 of 9 rounds on defence once they planted.', sunset),
+    'CAUGHT: "the thing holding you back" was the retake');
+  ok(!rc.checkTeamBlame('You lost 4 to 13 despite creating openings, and once they planted on defence, your team won 0 of 9 rounds.', sunset), 'kept: the team\'s record said as the team\'s, beside the final score');
+  ok(!rc.checkTeamBlame('When the spike goes down on your site and you are still alive, do not go back in alone.', sunset), 'kept: advice for a retake the player is alive for');
+  const fair = rc.contextOfChat(factsOfRounds('Jett', [], sunsetRounds.map((r) => ({ ...r, died: false, sec: null }))));
+  ok(!rc.checkTeamBlame('Your biggest mistake was the retake: you won 0 of 9 defence rounds once they planted.', fair) && !rc.plantLines(fair).length,
+    'kept, and no line: alive at every plant, the retake is the player\'s to own');
+
+  // The Deathmatch drills: the three the gate let through, and true ones.
+  const dmF = { language: 'en', game: 'valorant' };
+  ok(gates.check('To build it, play Deathmatch and treat every fight as one you must have a second person for.', dmF).drop?.gate === 'mode', 'CAUGHT: a Deathmatch drill needing "a second person"');
+  ok(gates.check('To build it, play Deathmatch and give yourself one rule: before every peek, stop and ask whether anyone could follow that fight.', dmF).drop?.gate === 'mode', 'CAUGHT: "whether anyone could follow that fight" in Deathmatch');
+  ok(!!rc.checkDrill('To build it, take Iso into Deathmatch and play every life with one rule: before you move into an open angle, look at where you last saw or heard an enemy and decide if that is the angle they would hold.', corrode),
+    'CAUGHT: "take Iso into Deathmatch" to learn their Omen');
+  ok(!!rc.checkDrill('In Deathmatch, track where their Omen likes to hold.', corrode), 'CAUGHT: an enemy Omen in a Deathmatch drill');
+  ok(!rc.checkDrill('Learn what her Alarmbot does by playing Killjoy in the Range.', sunset), 'kept: an enemy\'s kit learnt by playing it in the Range');
+  ok(!rc.checkDrill('Learn their Omen in a match, not in Deathmatch.', corrode), 'kept: the drill sent away from Deathmatch');
+  for (const s of ['Practise it in your next match rather than in Deathmatch, because it needs teammates.', 'The way to build this is in your next matches, not in Deathmatch, because it needs teammates.',
+    'Deathmatch is good for this because there are no teammates to worry about, just the stop and the shot over and over.', 'In Deathmatch, take only stopped first shots and note how many you land clean.']) {
+    ok(!gates.check(s, dmF).drop, `kept (dropped before for the first two): "${s.slice(0, 70)}"`);
+  }
+
+  // The seams and the stock closer.
+  for (const [s, want] of [
+    ['You won 5 to 1 by opening fights and getting multiple kills, even as You died 3 times in 6 rounds.', 'You won 5 to 1 by opening fights and getting multiple kills, even as you died 3 times in 6 rounds.'],
+    ['You lost 3 to 13, with the decisive stretch coming on both sides: You lost 10 rounds in a row, rounds 5 to 14.', 'You lost 3 to 13, with the decisive stretch coming on both sides: you lost 10 rounds in a row, rounds 5 to 14.'],
+    ['You lost 2 to 5, and You died 5 times in 7 rounds despite strong opening fights.', 'You lost 2 to 5, and you died 5 times in 7 rounds despite strong opening fights.'],
+    ['You won 13 to 7. Your opening kills gave your team an early advantage.', 'You won 13 to 7. Your opening kills gave your team an early advantage.'],
+    ['Plant for A.', 'Plant for A.'],
+    ['Hold the angle and.', null],
+  ]) ok(co.repairSeams(s) === want, `repairSeams: "${s.slice(0, 60)}" is ${JSON.stringify(want && want.slice(0, 40))}`);
+  for (const [s, want] of [
+    ['That is the lever for this match, and the other things can wait.', 'That is the lever for this match.'],
+    ['That is not bad luck, it is a pattern you can break, and the other things counted can wait.', 'That is not bad luck, it is a pattern you can break.'],
+    ['The rest can wait too.', ''], ['Everything else can wait.', ''], ['The other counted habits can wait.', ''],
+    ['On Fracture with Jett you still won 5 to 1 and put up 12 kills against 3 deaths, so nothing else needs fixing first.', 'On Fracture with Jett you still won 5 to 1 and put up 12 kills against 3 deaths.'],
+    ['Trading is the second point and can wait.', null], ['The early deaths and the untraded fights can wait for now.', null], ['That can wait behind the retake habit.', null],
+    // The verification of stream A, over the 8.7.6 and 8.7.7 replies.
+    ['The other patterns can wait.', ''], ['Your other counted habits can wait.', ''],
+    ['That is what is holding you back more than anything else, and the other counted patterns can wait.', 'That is what is holding you back more than anything else.'],
+    ['The Reyna deaths can wait for another day.', null], ['Your other counted misses, the repeek in round 2 and the early death in round 6, can wait.', null],
+  ]) ok(co.fillerOf(s) === want, `fillerOf: "${s.slice(0, 60)}" is ${JSON.stringify(want)}`);
+
+  // The verification of stream A: a kill read in its own clause only, so a
+  // true kill beside another round's death stays; the audit's line still goes.
+  for (const s of ['You killed their Chamber in round 4, and in round 8 Chamber killed you.', 'In round 14 you killed Reyna, and in round 11 Omen killed you 12 s in.',
+    'You beat Phoenix in round 14, then Omen killed you, and in round 12 you had no kill.', 'You beat Phoenix in round 16 and Fade killed you in round 12.']) {
+    ok(!rc.checkKills(s, corrode, {}), `kept: a true kill, another clause's round not read as its own: "${s.slice(0, 60)}"`);
+  }
+  ok(!!rc.checkKills('You beat Omen in round 16 and again in round 14.', corrode, {}), 'CAUGHT: one clause naming two rounds, Omen the killer in both');
+  ok(rc.clauseAt('You beat him twice, in rounds 14 and 16, and in both you were first.', 0) === 'You beat him twice, in rounds 14 and 16', 'clauseAt: the audit\'s kill keeps both its rounds');
+  ok(rc.CLAUSE_BREAK.test(', and in round 6') && !new RegExp(rc.CLAUSE_BREAK.source, 'i').test('in rounds 14 and 16') && !rc.CLAUSE_BREAK.source.includes(BS), 'CLAUSE_BREAK matches ", and in round 6" and not "in rounds 14 and 16"');
+  rc.CLAUSE_BREAK.lastIndex = 0;
+
+  // The cut text, through the orphan pass.
+  const rows = (xs) => xs.map(([s, dropped, p]) => ({ s, dropped: !!dropped, p: p || 0 }));
+  const kinds = (xs) => co.checkOrphans(rows(xs)).map((o) => `${o.index}:${o.kind}`).join(',');
+  ok(kinds([['You died in round 2 because you stayed on the same angle.'], ['Here\'s the round in order.'], ['It was an attack round, and your team got the opening kill 12 s in.', true],
+    ['Then it flipped fast: their Reyna killed Clove at 22 s, so you were 2 against 4.']]) === '1:lead-in,3:then', 'CAUGHT: "Here\'s the round in order." and "Then it flipped fast:" with the opening cut');
+  ok(kinds([['Here\'s the round in order.'], ['It was an attack round.'], ['Then it flipped fast: their Reyna killed Clove at 22 s.']]) === '', 'kept: the same with nothing cut');
+  ok(kinds([['So when you push, do not walk into a choke blind.'], ['Send your Boom Bot ahead of you through the entrance.', true],
+    ['Then take one piece of space, get behind cover, and check that a teammate has reached you before you push the next angle.']]) === '',
+  'kept: "Then take one piece of space", a step of advice, with the step before it cut (8.7.6, the verification of stream A)');
+  ok(co.THEN_STEP.test('Then take one piece of space') && !co.THEN_STEP.test('Then it flipped fast') && !co.THEN_STEP.test('Then their Jett killed you') && !co.THEN_STEP.test('Then came the retake'),
+    'THEN_STEP matches an imperative step and not an event told');
+  ok(kinds([['So fix the fights you choose.', false, 0], ['The habit that answers both: stop and check.', true, 1], ['If nobody can see that angle, hold cover and wait rather than taking the fight alone.', false, 1]]) === '2:that',
+    'CAUGHT: "If nobody can see that angle" with the angle\'s sentence cut');
+  ok(kinds([['The look saw you holding an angle from cover on A Site.'], ['It did not call the fight fair.', true], ['The decision was staying on that angle after your first shots.']]) === '',
+    'kept: "that angle" with the angle named in the kept sentence before');
+  ok(kinds([['Look at when those deaths came.'], ['Round 13, 17 s in, to a Classic.', true], ['Round 14, 14 s in, to a Marshal.']]) === '0:lead-in,2:item',
+    'CAUGHT: the promised timeline that gives one death, and the bare item');
+
+  // Wired: gateReply on the repo's Abyss, a true killer kept and the player's
+  // planted kill of their own killer dropped, the closer cut, the seam mended.
+  const died = [...F3.rounds.values()].find((r) => r.died && r.killer && Number.isInteger(r.kills) && r.kills === 0);
+  if (died) {
+    const got = cp.gateReply([`Their ${died.killer} killed you in round ${died.n}. You beat ${died.killer} in round ${died.n}, and you were the one making the first move.`,
+      'Stop before you shoot. That is the lever for this match, and the other things can wait.'], F3, {});
+    ok(!got[0].drop && got[1].drop && got[1].drop.gate === 'record' && !got[3].drop && got[3].s === 'That is the lever for this match.',
+      `gateReply: the true killer kept, "You beat ${died.killer} in round ${died.n}" dropped as record, the closer cut (${JSON.stringify(got.map((r) => r.drop && r.drop.gate))})`);
+  } else ok(false, 'the Abyss has a death in a round the player killed nobody');
+  const quiet = cp.parseReply('Everything else can wait.\n\nYou lost round 3 to their Sova, and nobody traded you.\n\nCheck your angle first.', IN3, { messages: M3 });
+  ok(quiet.dropped.filler === 1 && !quiet.firstDropped, `a stock closer dropped first is quiet, never a retry (${JSON.stringify(quiet.dropped)})`);
+
+  for (const [name, re, pos, neg] of [
+    ['BEAT', new RegExp(rc.BEAT.source, 'i'), 'You beat him twice, in rounds 14 and 16', 'You beat him to the angle'],
+    ['MOST_OF', rc.MOST_OF, 'Omen was the one who got you in most of them', 'Omen got you in round 11'],
+    ['BEFORE_SITE', rc.BEFORE_SITE, 'before your team had even touched B.', 'before your team had a smoke'],
+    ['DIED_AFTER_PLANT', rc.DIED_AFTER_PLANT, 'you died after the plant', 'you died before the plant'],
+    ['BLAME', rc.BLAME, 'Your biggest mistake was the retake', 'Your team won 0 of 9'],
+    ['ALIVE_SAID', rc.ALIVE_SAID, 'when you were still alive', 'when you died'],
+    ['TAKE_AGENT', rc.TAKE_AGENT, 'take Iso into Deathmatch', 'take one angle in Deathmatch'],
+    ['BEFORE_ANY_PLANT', new RegExp(rc.BEFORE_ANY_PLANT.source, 'i'), 'before any plant, in rounds 1, 5 and 6.', 'before the plant, you died'],
+    ['THEN_OPENER', co.THEN_OPENER, 'Then it flipped fast', 'The round flipped'],
+    ['THAT_THING', co.THAT_THING, 'If nobody can see that angle, hold', 'Check that a teammate can see'],
+    ['FILLER_WHOLE', co.FILLER_WHOLE, 'The other things can wait.', 'Trading can wait.'],
+    ['MID_YOU', new RegExp(co.MID_YOU.source), 'even as You died', 'rounds. You died'],
+    ['TEAM_WORDS (second person)', gates.TEAM_WORDS, 'one you must have a second person for', 'one you must take alone'],
+  ]) ok(re.test(pos) && !re.test(neg) && !re.source.includes(BS), `${name} matches "${pos}" and not "${neg}"`);
 }
 
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');

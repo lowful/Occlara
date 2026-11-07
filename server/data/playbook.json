@@ -1325,6 +1325,11 @@
   },
   {
     "text": "Against a held sniper, draw the shot with a jump or a sliver of shoulder and swing right after it fires, because the shot is spent and they need time to be ready again.",
+    "enemyWeapons": [
+      "Operator",
+      "Outlaw",
+      "Marshal"
+    ],
     "weight": 2,
     "source": {
       "kind": "vod-review",
@@ -1980,7 +1985,7 @@
     "why": "M Pulse applies its effect to all players in range, so the mode decides who it helps."
   },
   {
-    "text": "Set your Waveform spots early and cast them as your team swings, because the smokes come down instantly and an early cast only tells them where you are going.",
+    "text": "Set your Waveform smoke locations early and cast them as your team swings, because the smokes come down instantly and an early cast only tells them where you are going.",
     "side": "attack",
     "roles": [
       "controller"
@@ -4215,7 +4220,7 @@
     "why": "delay is bought in stages, and every stage is another call to the rotators"
   },
   {
-    "text": "Leave your site only once your team has seen three or more attackers at the other one, and leave a trap or turret behind that still watches your entrance, because a single footstep is the cheapest fake there is and a site with nothing on it is taken in silence.",
+    "text": "Leave your site only once your team has seen three or more attackers at the other one, and leave a piece of your setup behind that still watches your entrance, because a single footstep is the cheapest fake there is and a site with nothing on it is taken in silence.",
     "agents": [
       "Chamber",
       "Cypher",
@@ -4278,7 +4283,6 @@
       "Cypher",
       "Deadlock",
       "Killjoy",
-      "Sage",
       "Veto",
       "Vyse"
     ],
@@ -4500,6 +4504,7 @@
   },
   {
     "text": "With two duelists on the team, settle in the buy phase who enters first and who trades, because two players who both think they are the entry swing into the same angle together and two who both think they are the trade leave nobody in front.",
+    "sharedRole": "duelist",
     "roles": [
       "duelist"
     ],
@@ -5619,6 +5624,9 @@
   },
   {
     "text": "When the kill feed has shown an Outlaw on their side buy heavy armour with your rifle, because one body shot from it kills through a light shield and not through a heavy one, and only consider light armour to bank credits when no sniper has appeared.",
+    "enemyWeapons": [
+      "Outlaw"
+    ],
     "situations": [
       "fullbuy"
     ],
@@ -6850,6 +6858,11 @@
   },
   {
     "text": "Against a held sniper swing together with a teammate in the same moment or behind a flash, or fill every lane it could watch with smokes at once, and if one player draws the shot the next swings at once while the bolt cycles, never seconds later, because a sniper holding one line beats a slow sequence of single targets and loses to two at once.",
+    "enemyWeapons": [
+      "Operator",
+      "Outlaw",
+      "Marshal"
+    ],
     "side": "attack",
     "phase": "active",
     "cause": [
@@ -7009,6 +7022,7 @@
   },
   {
     "text": "When you are the only duelist, your job on most rounds is to open the site with the team, so do not lurk on the far side while the team walks into the choke without you, and when the team wants a lurker let it be an agent whose kit still helps from across the map, a global smoker or a sentinel.",
+    "soleRole": "duelist",
     "agents": [
       "Jett",
       "Raze",
@@ -7754,13 +7768,7 @@
     "text": "Bounce your flash off the ground or a low wall so it pops above or behind the enemy instead of throwing it flat across the opening, and throw it high over the roof line so they must lift their crosshair off your head to shoot it, because a flash they can watch for its whole flight is a flash they turn away from.",
     "agents": [
       "Yoru",
-      "Phoenix",
-      "Skye",
-      "KAY/O",
-      "Breach",
-      "Reyna",
-      "Gekko",
-      "Hush"
+      "KAY/O"
     ],
     "side": "attack",
     "phase": "active",
@@ -7936,7 +7944,7 @@
     "why": "Her wall and orb are a site, not a map."
   },
   {
-    "text": "Play Yoru simply while you learn him, the teleport to reposition or to leave a lost angle and then fight within a few seconds, and the one Blindside popped for your own peek or for a teammate you called, because the kit is playable long before it is mastered and perfect lineups come later.",
+    "text": "Play Yoru simply while you learn him, the teleport to reposition or to leave a lost angle and then fight within a few seconds, and each Blindside popped for your own peek or for a teammate you called, because the kit is playable long before it is mastered and perfect lineups come later.",
     "agents": [
       "Yoru"
     ],
@@ -8105,7 +8113,7 @@
     "why": "Riot's 13.09 notes reward the kill on a returned Clove, and the return has a short timer."
   },
   {
-    "text": "When an enemy ultimate or the first piece of a set trap lands on you use your dash, slide or teleport at once to break the line or reach cover instead of trying to win the fight inside it, because a mobility duelist who dies with the escape unused gave the enemy the fight they built.",
+    "text": "When an enemy ultimate or the first piece of a set trap lands on you use your movement ability at once to break the line or reach cover instead of trying to win the fight inside it, because a mobility duelist who dies with the escape unused gave the enemy the fight they built.",
     "agents": [
       "Jett",
       "Raze",
@@ -10499,7 +10507,7 @@
     "why": "A post plant can watch two entrances, not three."
   },
   {
-    "text": "Before you swing onto a site, throw a molly into the tight spot a defender tucks into and onto any likely trap spot, then follow with a flash, because the molly forces him to stand wider where the flash and your swing catch him.",
+    "text": "Before you swing onto a site, throw a molly into the tight spot a defender tucks into and onto any likely trap spot, then follow with your own flash or a teammate's, because the molly forces him to stand wider where the flash and your swing catch him.",
     "agents": [
       "Killjoy",
       "Brimstone",
@@ -10798,11 +10806,83 @@
     "why": "The grenade in the doorway splits the rush, which is the whole point of holding it."
   },
   {
-    "text": "On defence take an early aggressive peek only when your way out is ready before you show yourself, Tailwind prepared, the slide ready, Gatecrash already placed behind you or a satchel in hand, then take one fight and leave, because the dash, the slide and the teleport come back only every two kills, so an exit spent on the first peek leaves you none for the rest of the round.",
+    "text": "As a defending Jett, take an early aggressive peek only with Tailwind prepared before you show yourself, then take one fight and dash out, because Tailwind resets only every two kills, so a dash spent getting to the peek leaves you no way out of it.",
     "agents": [
-      "Jett",
-      "Neon",
-      "Yoru",
+      "Jett"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "giving ground"
+    },
+    "when": "Early defence deaths on a forward peek with Tailwind unavailable or unprepared.",
+    "why": "Pros do take early defence space, never without the exit. Split from one card for four duelists (round 3 audit, after2): it named every duelist's exit to each of them and said all of them come back on two kills, which the 13.09 kit says of Tailwind, the slide and Gatecrash but not of Blast Pack."
+  },
+  {
+    "text": "As a defending Neon, take an early aggressive peek only with the slide ready before you show yourself, then take one fight and slide out, because the High Gear slide resets only every two kills, so a slide spent getting to the peek leaves you no way out of it.",
+    "agents": [
+      "Neon"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "giving ground"
+    },
+    "when": "Early defence deaths on a forward peek with the slide already spent.",
+    "why": "Pros do take early defence space, never without the exit, and the 13.09 kit resets the High Gear slide every two kills."
+  },
+  {
+    "text": "As a defending Yoru, take an early aggressive peek only with Gatecrash placed behind you just before you show yourself, then take one fight and teleport out, because Gatecrash resets only every two kills, so a teleport spent getting to the peek is not there to leave it.",
+    "agents": [
+      "Yoru"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "giving ground"
+    },
+    "when": "Early defence deaths on a forward peek with no Gatecrash placed behind.",
+    "why": "Pros do take early defence space, never without the exit, and the 13.09 kit resets Gatecrash every two kills. The card says nothing of charges, which the game data does not carry."
+  },
+  {
+    "text": "As a defending Raze, take an early aggressive peek only with a Blast Pack in hand to jump out before you show yourself, then take one fight and leave, because Blast Pack does not reset on kills the way Paint Shells does, so a satchel spent getting to the peek is one fewer way out for the rest of the round.",
+    "agents": [
       "Raze"
     ],
     "roles": [
@@ -10822,8 +10902,8 @@
       "kind": "coach-consensus",
       "topic": "giving ground"
     },
-    "when": "Early defence deaths on a forward peek with the movement ability unavailable or unprepared.",
-    "why": "Pros do take early defence space, never without the exit, and the kit gives most duelists one free exit a round."
+    "when": "Early defence deaths on a forward peek with the satchels already spent.",
+    "why": "Pros do take early defence space, never without the exit. In the 13.09 kit Paint Shells resets every two kills and Blast Pack does not, so the old shared card's two kill line was false for a Raze."
   },
   {
     "text": "You have no dash or slide on Iso, so advice to peek and dash away does not fit you: take early peeks one step from cover with Double Tap up, since its shield blocks one hit, and fall back on foot right after the first fight instead of staying for a second.",

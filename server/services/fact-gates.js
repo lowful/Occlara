@@ -2087,8 +2087,14 @@ function gateKit(s, facts, rs) {
 // The Range with its capital, the mode's name: "stay within the range where a
 // teammate can trade you" is a distance, no drill (the round 3 verification).
 const SOLO_MODE = /(?<![Tt]eam\s)(?<![A-Za-z])(?:[Dd]eath ?[Mm]atch|DEATHMATCH|the Range|in Range|[Rr]ange practice|[Aa]im trainer)(?![A-Za-z])/;
-const TEAM_WORDS = /\b(?:teammates?|team ?mates?|allies|ally|your team|trade(?:s|d)?|trading|comms|call(?:s|ed)? out|duo)\b/i;
-const NO_TEAM = /\b(?:no|without|never|not|nobody|no one)\b[^.;:]{0,30}\b(?:teammates?|team|allies|ally|trade|anyone)\b|\bon your own\b|\balone\b|\bin (?:a |your )?(?:match|matches|unrated|competitive|swiftplay)\b/i;
+// And a teammate in other words (the blind audit of 8.7.8): "treat every fight
+// as one you must have a second person for", "ask whether anyone could follow
+// that fight", both told for Deathmatch.
+const TEAM_WORDS = /\b(?:teammates?|team ?mates?|allies|ally|your team|trade(?:s|d)?|trading|comms|call(?:s|ed)? out|duo|second (?:person|player)|(?:anyone|someone|somebody) (?:else )?(?:could|can|would|will|is able to) (?:help|follow|trade|answer|back|cover|swing))\b/i;
+// And the drill sent away from the mode (the blind audit of 8.7.8): "Practise
+// it in your next match rather than in Deathmatch, because it needs teammates"
+// is the rule itself, and was dropped five times over the 8.7.7 replies.
+const NO_TEAM = /\b(?:no|without|never|not|nobody|no one)\b[^.;:]{0,30}\b(?:teammates?|team|allies|ally|trade|anyone)\b|\bon your own\b|\balone\b|\bin (?:a |your )?(?:match|matches|unrated|competitive|swiftplay)\b|\bin (?:a |your )?(?:next |own )?(?:ranked |unrated |competitive |swiftplay )?(?:match|matches|game|games)\b|\b(?:rather than|instead of|not|never)\s+(?:in\s+)?(?:a\s+|the\s+|your\s+)?(?:[Dd]eath ?[Mm]atch|Range)\b/i;
 function gateMode(s, facts) {
   const f = facts || {};
   if ((f.language || 'en') !== 'en' || f.game === 'lol') return null;

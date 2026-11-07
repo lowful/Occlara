@@ -2626,38 +2626,6 @@ async function henrikStats(name, tag, modeKey) {
     ...(agg || { kd: 0, winRate: 0, headshotPct: 0, topAgent: 'Unknown', topAgents: [] }) } };
 }
 
-async function trackerStats(name, tag) {
-  try {
-    const url = `https://api.tracker.gg/api/v2/valorant/standard/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}`;
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'Occlara/4.0', 'TRN-Api-Key': process.env.TRACKER_API_KEY },
-      signal: AbortSignal.timeout(TRACKER_TIMEOUT_MS),
-    });
-    const text = await response.text();
-    let data = null; try { data = JSON.parse(text); } catch {}
-    if (response.ok && data) {
-      const stats = data?.data?.segments?.[0]?.stats;
-      if (stats) {
-        return { stats: {
-          source:      'tracker.gg',
-          rank:        stats?.rank?.metadata?.tierName || 'Unknown',
-          kd:          stats?.kDRatio?.value             || 0,
-          winRate:     stats?.matchesWinPct?.value       || 0,
-          headshotPct: stats?.headshotsPercentage?.value || 0,
-          topAgent:    data?.data?.segments?.[1]?.metadata?.name || 'Unknown',
-        } };
-      }
-    }
-    // 403 with an HTML body is the tell-tale Cloudflare datacenter block.
-    const blocked = response.status === 403 || response.status === 429 || !data;
-    return { fail: blocked
-      ? 'tracker.gg blocked the server (status ' + response.status + '). This is expected on cloud hosts, use a HenrikDev key instead.'
-      : 'tracker.gg returned no stats (status ' + response.status + ').' };
-  } catch (e) {
-    return { fail: 'tracker.gg was unreachable: ' + e.message };
-  }
-}
-
 /** A Riot ID as Railway's logs may carry it: its first 8 hex of sha256, case folded (S10). */
 const idHash = (riotId) => crypto.createHash('sha256').update(String(riotId || '').trim().toLowerCase()).digest('hex').slice(0, 8);
 
@@ -2681,14 +2649,9 @@ router.get('/player-stats', async (req, res) => {
     if (r.fail) reasons.push(r.fail);
   }
 
-  // 2) tracker.gg fallback (usually Cloudflare-blocked on cloud hosts).
-  if (process.env.TRACKER_API_KEY) {
-    const r = await trackerStats(name, tag).catch((e) => ({ fail: 'tracker.gg error: ' + e.message }));
-    if (r.stats) { console.log('[stats] tracker.gg ok:', r.stats.rank); return res.json(r.stats); }
-    if (r.fail) reasons.push(r.fail);
-  }
-
-  if (!process.env.HENRIKDEV_API_KEY && !process.env.TRACKER_API_KEY) {
+  // There is no second provider: tracker.gg's internal API was removed in 8.7.9 because its staff
+  // state that nobody may use it, and its public API does not cover VALORANT.
+  if (!process.env.HENRIKDEV_API_KEY) {
     return res.json({ error: 'No stats provider is configured on the server. Add HENRIKDEV_API_KEY in Railway.' });
   }
   // A Riot ID is a player's name: the log carries its short hash, never the ID (S10).
