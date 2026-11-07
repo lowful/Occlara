@@ -455,3 +455,15 @@ own seconds; `test:clips` the drop, the moments and the stills' plan,
 the one list, a recording look of four frames, the read frames, a screen look
 and the eye at a moment, and `check:matches` paints a kept frame in its round
 (`#round-2 .v-moment img`) and opens the AI log at it.
+
+### The round record in the look (8.8)
+
+Variants b and b2 of Riot's look are told, where the death has them, Riot's
+callout ("near A site" or "near Mid" for a site word or an area the parse may
+have widened), whether a
+teammate stood close and the team's buy (`death-forensics.js recordOf`,
+`recordLines`, sent by `src/main/index.js` from `riotSpot`, `buy` and
+`mateNear`). Variant a, the screen's look and a death without them are
+prompted as before. `wrongSide` drops a look sentence that puts the death on
+another lettered side than Riot's callout; the distance is never judged,
+since `MATE_CLOSE_UNITS` has no stated unit (`test:forensics`).

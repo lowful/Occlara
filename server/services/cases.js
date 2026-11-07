@@ -41,8 +41,11 @@ const knowledge = require('./knowledge');
 
 const MAX_CASES = 2;
 const MIN_SCORE = 6;
-// Economy words a review or a question can actually show, from the round number.
-const ECONOMIES_SEEN = new Set(['pistol', 'antieco', 'lostpistol']);
+// Economy words a review or a question can actually show: from the round
+// number, and since 8.8 'eco' from Riot's record of the team's buy, which
+// only a death on one adds (match-review.js caseSituation, chat-prompt.js
+// casesFor). Not 'full', the background of most cases, nor 'bonus'.
+const ECONOMIES_SEEN = new Set(['pistol', 'antieco', 'lostpistol', 'eco']);
 
 let CASES = [];
 try {

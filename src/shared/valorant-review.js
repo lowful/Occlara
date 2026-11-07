@@ -1379,6 +1379,10 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring })
         ...(r.died && (r.mateNear === 'close' || r.mateNear === 'far') ? { mate: r.mateNear } : {}),
         ...(castsNamed(r.casts, kitAgent) ? { casts: castsNamed(r.casts, kitAgent).map((c) => ({ name: c.name, n: c.n })) } : {}),
         ...(r.afk === true || r.inSpawn === true ? { afk: true } : {}),
+        // Riot's callout of the death apart from deathSpot (which is it, or
+        // the screen's where Riot had none), for the server's retrieval
+        // signals and record gates alone (match-review.js recordSent).
+        ...(r.died && r.riotSpot ? { place: r.riotSpot } : {}),
       } : {}),
       // The coach's look at the death, so the summary and the round lines
       // agree with the cause the review counts.

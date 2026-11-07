@@ -573,8 +573,131 @@ function situationOf(ctx) {
   const causes = new Set();
   for (const c of [].concat(ctx.cause || [], ctx.causes || [])) if (typeof c === 'string' && c) causes.add(c);
 
-  return { phase, side: sideKey, flags, agent, role, map, weapon, causes };
+  // THE TEAM'S BUY FROM RIOT'S RECORD (8.8, recordSignals): the economy flags
+  // the match's own rounds show, beside the ones the credits and the round
+  // number give. Only these three words, and none from a caller that sends
+  // none, so every other context reads as before.
+  const record = new Set();
+  for (const f of [].concat(ctx.economy || [])) if (RECORD_ECONOMY.has(f)) { flags.add(f); record.add(f); }
+
+  return { phase, side: sideKey, flags, agent, role, map, weapon, causes, record };
 }
+
+/*
+ * ── RIOT'S ROUND RECORD AS RETRIEVAL SIGNALS (8.8) ──────────────────────────
+ *
+ * The round record beyond the feed (riot-rounds.js parse: the team's buy, the
+ * nearest teammate at the death, the death's callout, the player's casts and
+ * Riot's AFK flags) tells which notes this match is about. recordSignals
+ * reads rows a caller builds from it ({ n, died, result, buy, mate, traded,
+ * lastAlive, place, early, casts, afk }) and answers what retrieve(), the
+ * review's study list and the worked cases are told:
+ *
+ *   economy       'fullbuy' where the team lost two or more full loadout
+ *                 rounds and half of them at least, 'forcebuy' for two or
+ *                 more forced rounds, 'eco' for two or more of the player's
+ *                 deaths on an eco (the flags situationOf takes as `economy`)
+ *   caseEconomies 'eco' as the worked cases name it, for the same deaths
+ *   causes        'isolated' for two or more deaths with no teammate close
+ *                 and nobody trading (never the last one alive, who had
+ *                 nobody to be close), 'dry-peek' for two or more deaths in
+ *                 the first 30 seconds with every ability but the ultimate
+ *                 at zero casts
+ *   places        the callouts of those lone deaths, for the map's notes
+ *                 that name them (retrieve's `places`)
+ *   repeatPlace   a callout the player died at REPEAT_MIN times or more
+ *
+ * A round Riot marks AFK counts for nothing. "A site" and its kin are never
+ * a place here: the parse widens a death between two callouts to the site
+ * (callout-locator.js), so the word may stand for its Main or its Lobby, and
+ * the same for the other areas it widens to, "Mid", "Attacker Side" and
+ * "Defender Side" (WIDE_AREAS), which as a place lifted every map note
+ * saying "mid" (the Pearl audit match, a lone death at Mid). No
+ * row with these keys is no signal at all, and every caller is as before.
+ * `opts.min` lowers RECORD_MIN for one asked round (Ask Coach).
+ */
+const RECORD_ECONOMY = new Set(['eco', 'forcebuy', 'fullbuy']);
+const RECORD_MIN = 2;
+const REPEAT_MIN = 3;
+const SITE_WORD = /^[abc] site$/i;
+// The areas the parse widens to besides a site (callout-locator.js: "Mid",
+// "Attacker Side", "Defender Side"), each a super region of the map data and
+// never a callout's own name, so as wide as "A site" and no place either.
+const WIDE_AREAS = (() => {
+  const out = new Set();
+  try {
+    for (const g of Object.values(require('../valorant-data.generated.json').mapGeometry || {})) {
+      for (const c of (g && Array.isArray(g.callouts) ? g.callouts : [])) {
+        if (c && typeof c.s === 'string' && c.s && !/^[abc]$/i.test(c.s)) out.add(c.s.toLowerCase());
+      }
+    }
+  } catch { /* no data, no area known */ }
+  return out;
+})();
+const isWide = (p) => SITE_WORD.test(p) || WIDE_AREAS.has(p.toLowerCase());
+const ULTIMATES = (() => {
+  const out = new Set();
+  try {
+    for (const a of Object.values(require('../valorant-data.generated.json').agents || {})) {
+      for (const k of (a && Array.isArray(a.kit) ? a.kit : [])) if (k && k.key === 'X' && typeof k.name === 'string') out.add(k.name.toLowerCase());
+    }
+  } catch { /* no data, no ultimate known */ }
+  return out;
+})();
+function recordSignals(rows, opts = {}) {
+  const min = Number.isInteger(opts.min) && opts.min >= 1 ? opts.min : RECORD_MIN;
+  const rs = (Array.isArray(rows) ? rows : []).filter((r) => r && r.afk !== true);
+  const deaths = rs.filter((r) => r.died);
+  const out = { economy: [], caseEconomies: [], causes: [], places: [], repeatPlace: null };
+  const full = rs.filter((r) => r.buy === 'full' && (r.result === 'won' || r.result === 'lost'));
+  const fullLost = full.filter((r) => r.result === 'lost').length;
+  if (fullLost >= min && fullLost * 2 >= full.length) out.economy.push('fullbuy');
+  if (rs.filter((r) => r.buy === 'force').length >= min) out.economy.push('forcebuy');
+  if (deaths.filter((r) => r.buy === 'eco').length >= min) { out.economy.push('eco'); out.caseEconomies.push('eco'); }
+  const place = (r) => (typeof r.place === 'string' && r.place.trim() && !isWide(r.place.trim()) ? r.place.trim() : null);
+  const alone = deaths.filter((r) => r.mate === 'far' && r.traded === false && r.lastAlive !== true);
+  if (alone.length >= min) {
+    out.causes.push('isolated');
+    for (const p of alone.map(place)) if (p && !out.places.some((x) => x.toLowerCase() === p.toLowerCase())) out.places.push(p);
+    out.places = out.places.slice(0, 4);
+  }
+  const at = new Map();
+  for (const r of deaths) { const p = place(r); if (p) at.set(p.toLowerCase(), { p, n: ((at.get(p.toLowerCase()) || {}).n || 0) + 1 }); }
+  const top = [...at.values()].sort((a, b) => b.n - a.n)[0];
+  if (top && top.n >= REPEAT_MIN) out.repeatPlace = top.p;
+  const quiet = (r) => Array.isArray(r.casts) && r.casts.some((c) => c && !ULTIMATES.has(String(c.name || '').toLowerCase()))
+    && r.casts.every((c) => !c || ULTIMATES.has(String(c.name || '').toLowerCase()) || c.n === 0);
+  if (deaths.filter((r) => r.early === true && quiet(r)).length >= min) out.causes.push('dry-peek');
+  return out;
+}
+
+/** Whether a signal set from recordSignals says anything. */
+function anySignal(x) {
+  return !!(x && (x.economy.length || x.caseEconomies.length || x.causes.length || x.places.length || x.repeatPlace));
+}
+
+/*
+ * A PLACE OF THE MAP AS THE GAME DATA NAMES IT (8.8): a callout, its common
+ * name, or a site ("A site"), spelled as the data spells it, else null. The
+ * same rule as chat-prompt.js placeOn, here for the review's rounds.
+ */
+function placeOf(map, s) {
+  let geometry = {};
+  try { geometry = require('../valorant-data.generated.json').mapGeometry || {}; } catch { geometry = {}; }
+  const g = typeof map === 'string' && map ? geometry[map.toLowerCase()] : null;
+  const t = typeof s === 'string' ? s.trim().toLowerCase() : '';
+  if (!g || !Array.isArray(g.callouts) || !t) return null;
+  for (const c of g.callouts) {
+    const names = [c && c.n, c && c.a, c && /^[abc]$/i.test(String(c.s || '')) ? `${String(c.s).toUpperCase()} site` : c && c.s];
+    const hit = names.find((x) => typeof x === 'string' && x && x.toLowerCase() === t);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+// A map's note that names a callout the player died at alone (retrieve's `places`).
+const PLACE_FIT = 3;
+const placeRe = (p) => new RegExp(`(?<![A-Za-z0-9])${String(p).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}(?![A-Za-z0-9])`, 'i');
 
 /*
  * ── THE RANK BAND (8.8) ─────────────────────────────────────────────────────
@@ -847,6 +970,10 @@ function retrieve(ctx, limit = 8, opts = {}) {
   // The player's own team (round 3, after2), untrusted: none excludes every
   // soleRole and sharedRole note, and changes no other note's score or draw.
   const team = { agent: s.agent, agents: teamOf(ctx && ctx.teamAgents) };
+  // The callouts the player died at with nobody close (8.8, recordSignals),
+  // untrusted: only with a map, five at most. None changes no score.
+  const places = s.map ? (Array.isArray(ctx && ctx.places) ? ctx.places : [])
+    .filter((p) => typeof p === 'string' && p.trim() && p.length <= 40).slice(0, 5).map((p) => placeRe(p.trim())) : [];
 
   for (const note of ALL) {
     // Exclusions: a tagged note never fires outside its tags.
@@ -879,15 +1006,18 @@ function retrieve(ctx, limit = 8, opts = {}) {
     if (note.roles)   score += 2;
     // A note that answers the death being discussed outranks general advice.
     if (note.cause)   score += 5;
+    // A note of this map naming the callout where the player died alone.
+    if (places.length && note.maps && places.some((re) => re.test(note.text))) score += PLACE_FIT;
     score += ranked;
     score += versus;
     score += Math.random() * 0.8;
 
-    scored.push({ text: note.text, score, advanced: note.tier === 'advanced', fit: ranked === RANK_FIT });
+    scored.push({ text: note.text, score, advanced: note.tier === 'advanced', fit: ranked === RANK_FIT,
+      record: !!(s.record.size && note.situations && note.situations.some((f) => s.record.has(f))) });
   }
 
   scored.sort((a, b) => b.score - a.score);
-  if (!opts.advanced) return scored.slice(0, limit).map((n) => n.text);
+  if (!opts.advanced) return recordSlot(scored.slice(0, limit), scored, limit).map((n) => n.text);
 
   /*
    * TWO QUEUES, MERGED WITH A RESERVE, rather than a score bonus for advanced
@@ -919,7 +1049,26 @@ function retrieve(ctx, limit = 8, opts = {}) {
     out.push(n);
   }
   out.sort((a, b) => b.score - a.score);
-  return out.slice(0, limit).map((n) => n.text);
+  return recordSlot(out.slice(0, limit), scored, limit).map((n) => n.text);
+}
+
+/*
+ * ONE SLOT FOR THE TEAM'S ECONOMY (8.8): where Riot's record says the match
+ * was lost on full loadouts, forced rounds or deaths on ecos (ctx.economy),
+ * and nothing picked answers it, the best eligible note that does takes the
+ * last note's slot, first in the list. Measured: from Platinum the advanced
+ * reserve filled all six of the review's slots and no economy note was ever
+ * served, and without a band neither a full loadout nor a forced round note.
+ * The band and every filter
+ * still hold, since only an eligible note is scored. No economy, no change.
+ */
+function recordSlot(picked, scored, limit) {
+  if (!picked.length || picked.some((n) => n.record)) return picked;
+  const best = scored.find((n) => n.record && !picked.includes(n));
+  if (!best) return picked;
+  // First, so a caller that cuts the list (the review keeps eight of its
+  // study and retrieved notes) keeps it.
+  return picked.length < limit ? [best, ...picked] : [best, ...picked.slice(0, limit - 1)];
 }
 
 /** The prompt block /analyze injects in place of (or alongside) the static habits list. */
@@ -934,4 +1083,4 @@ module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: ()
   roleOf: (agent) => ROLE_OF[String(agent || '').toLowerCase()] || null,
   ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust,
   ENEMY_FIT, enemiesOf, enemyFit, enemyWeaponsOf, WEAPON_NAMES, ADVANCED_SLOTS_BY_BAND, advancedSlots, bandFirst,
-  teamOf, teamFit };
+  teamOf, teamFit, recordSignals, anySignal, placeOf, RECORD_ECONOMY, RECORD_MIN, REPEAT_MIN, PLACE_FIT };

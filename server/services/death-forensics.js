@@ -403,6 +403,54 @@ function kitWrong(text, input, death) {
   return c ? `kit: ${c.ability} ${c.kind}` : null;
 }
 
+/*
+ * THE ROUND RECORD AT THE DEATH (8.8, riot-rounds.js parse): Riot's callout
+ * of the death, the team's buy and the nearest teammate then, for variants b
+ * and b2 only, as three facts at most and none where the death has none, so
+ * a look without them, and every variant a look, is today's prompt. The
+ * place is checked in parse() (wrongSide), the distance is a fact alone:
+ * MATE_CLOSE_UNITS has no stated unit, so a look calling a teammate close is
+ * never judged by it.
+ */
+const BUY_KINDS = new Set(['pistol', 'eco', 'force', 'half', 'full']);
+const BUY_SAID = { pistol: 'a pistol round', eco: 'an eco, the team saving', force: 'a forced buy, the team spending what it had', half: 'a half buy', full: 'a full buy' };
+function recordOf(d, map) {
+  const out = {};
+  const place = d && d.place && map ? placeOn(map, d.place) : null;
+  if (place) out.place = place;
+  if (d && BUY_KINDS.has(d.buy)) out.buy = d.buy;
+  if (d && (d.mate === 'close' || d.mate === 'far')) out.mate = d.mate;
+  return out;
+}
+/**
+ * A place of the map as the game data names it (a callout, its common name,
+ * an area such as "Mid", "A site"), else null: the same rule as
+ * chat-prompt.js placeOn and valorant-verify.js placeName, so an area Riot's
+ * callout reaches the client as ("Mid") reaches the look too.
+ */
+function placeOn(map, s) {
+  const g = (DATA.mapGeometry || {})[lower(map)];
+  const t = lower(s).trim();
+  if (!g || !Array.isArray(g.callouts) || !t) return null;
+  for (const c of g.callouts) {
+    const names = [c && c.n, c && c.a, c && /^[abc]$/i.test(String(c.s || '')) ? `${String(c.s).toUpperCase()} site` : c && c.s];
+    const hit = names.find((x) => typeof x === 'string' && x && lower(x) === t);
+    if (hit) return hit;
+  }
+  return null;
+}
+// The areas the parse widens to (callout-locator.js), told "near" as a site word is.
+const WIDE_AREAS = new Set(Object.values(DATA.mapGeometry || {}).flatMap((g) => (g && Array.isArray(g.callouts) ? g.callouts : []))
+  .map((c) => (c && typeof c.s === 'string' && !/^[abc]$/i.test(c.s) ? lower(c.s) : null)).filter(Boolean));
+function recordLines(death) {
+  const out = [];
+  const wide = death.place && (/^[abc] site$/i.test(death.place) || WIDE_AREAS.has(lower(death.place)));
+  if (death.place) out.push(wide ? `Riot's record places the death near ${death.place}.` : `Riot's record places the death at ${death.place}.`);
+  if (death.mate) out.push(death.mate === 'close' ? 'When the player died, a teammate stood close by.' : 'When the player died, no teammate stood close by.');
+  if (death.buy) out.push(`The team played this round on ${BUY_SAID[death.buy]}.`);
+  return out;
+}
+
 /** One death in, the prompt out. */
 function buildPrompt(input, death) {
   const callouts = calloutsOf(input.map);
@@ -436,6 +484,8 @@ function buildPrompt(input, death) {
     facts.push(death.gap <= 1 ? 'The first frame was taken in the second the player died.'
       : `The first frame was taken about ${death.gap} seconds before the player died.`);
   }
+  // The round record at the death (8.8, recordLines), b and b2 alone.
+  if (judgesFight(input.variant) && !screen) facts.push(...recordLines(death));
 
   const frames = timed ? framesLines(death, screen) : screen
     ? (death.frames.length > 1
@@ -596,6 +646,27 @@ A player on the far side of the map from the whole team while the team fights on
 Name an ability only for what it does: a smoke blocks a sightline, a flash blinds, a recon reveals, a debuff weakens. Never say an ability checks or clears an angle unless it reveals. Plain words: cover, corner, smoke, flash, teammate, no coaching terms.`;
 }
 
+/*
+ * A LOOK THAT PUTS THE DEATH ON ANOTHER SITE'S SIDE THAN RIOT'S CALLOUT
+ * (8.8, record-claims.js checkRecord's place rule): "you died at B Main" of
+ * a death Riot places at A Main. Only for a place Riot sent, never a site
+ * word Riot may have widened, and only a callout of another lettered side,
+ * so a neighbouring callout of the same side is never judged.
+ */
+let recordClaims;
+function wrongSide(text, death, input) {
+  if (!death || !death.place || !input || !input.map || input.source === 'screen' || gateLanguage(input) !== 'en') return null;
+  if (recordClaims === undefined) { try { recordClaims = require('./record-claims'); } catch { recordClaims = null; } }
+  const rc = recordClaims;
+  if (!rc || typeof rc.placesOf !== 'function' || /^[abc] site$/i.test(death.place)) return null;
+  const pl = rc.placesOf(input.map);
+  const fact = pl.sideOf.get(lower(death.place));
+  if (!pl.alt || !fact) return null;
+  const m = new RegExp(`${rc.DEATH_AT_HEAD}(${pl.alt})(?![A-Za-z0-9])`, 'i').exec(String(text || ''));
+  const said = m ? pl.sideOf.get(lower(m[1])) : null;
+  return said && said !== fact ? `the death at ${m[1]}, where Riot's record has ${death.place}` : null;
+}
+
 /** A word of the model's reply as a key: "Dry Peek" is dry-peek, "wrong spot" wrong-spot. */
 const asKey = (v) => lower(v).trim().replace(/\s+/g, '-');
 const isCause = (k) => Object.prototype.hasOwnProperty.call(CAUSES, k);
@@ -688,7 +759,8 @@ function parse(text, input, death) {
     let s = clip(j[field], 240).replace(/[\u2013\u2014]/g, ',').replace(/\s+-\s+/g, ', ');
     if (!s) continue;
     if (!/[.!?]$/.test(s)) s += '.';
-    const bad = wrongMap(s, input.map) || foreignAbility(s, input.agent) || wrongKiller(s, death.killer, input.source, input);
+    const bad = wrongMap(s, input.map) || foreignAbility(s, input.agent) || wrongKiller(s, death.killer, input.source, input)
+      || wrongSide(s, death, input);
     if (bad) { out.dropped.push({ field, why: bad }); continue; }
     // THE KIT AS THE DATA HAS IT (every client and variant): a look sentence
     // that says an ability does what the game's description does not is
@@ -826,6 +898,11 @@ function normalise(body, opts) {
     afterPlant: !screen && !!(d && d.afterPlant),
     spot: clip(d && d.spot, 32) || null,
     gap: riot(d && typeof d.gap === 'number' && d.gap >= 0 && d.gap <= 15 ? Math.round(d.gap) : null),
+    // The round record beyond the feed (8.8, Riot's look only): the callout
+    // of the death as a place of this map, the team's buy by its word, and
+    // the nearest teammate as close or far, each left out when not sent, so a
+    // death without them is read as before, byte for byte.
+    ...(!screen ? recordOf(d, b.map) : {}),
     ...framesOf(d),
   })).filter((d) => d.n > 0 && d.frames.length).slice(0, 4);
   return { agent: clip(b.agent, 24) || null, map: clip(b.map, 24) || null,
@@ -865,5 +942,5 @@ module.exports = {
   CAUSES, CAUSES_B, AVOIDABLE, FIGHTS, CHANGES, PHRASES, PHRASE_ORDER, VARIANTS, TOKENS, LABELS, MAX_FRAMES, MAX_TIMED_FRAMES, MAX_FRAME_AT,
   buildPrompt, parse, normalise, wrongMap, foreignAbility, wrongKiller, calloutsOf,
   phraseHits, movesPlayer, replyJson, rawLabels, logLines, replyOf, tokensFor, judgement, judgementB2, judgesFight,
-  rankRule, BAND_WORDS, kitBlockFor, kitWrong,
+  rankRule, BAND_WORDS, kitBlockFor, kitWrong, recordOf, recordLines, wrongSide, BUY_SAID,
 };

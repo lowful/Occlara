@@ -534,3 +534,16 @@ the two gate fixes it found, with the player's yes (`coach.js chatPromoted`:
 `CHAT_PROMPT` unset is v2, `CHAT_PROMPT=v1` turns it off; `AI_CHAT_MODEL`
 unset is Sol). test:serverguards holds the default, the switch off, and an
 8.4.4 install's Ask Coach byte for byte as today.
+
+### The round record in Ask Coach (8.8)
+
+A match whose cards carry Riot's buy, the nearest teammate, the death's
+callout, the casts or an AFK round gets a `THE ROUND RECORD` line in the
+match's part (`chat-prompt.js recordUseLine`), one sentence per kind present,
+and none otherwise, so the static rules stay the cache's prefix. The cards
+choose notes and cases through `recordSignalsFor` (the asked round alone, or
+the whole match), the facts carry `place`, `buy`, `mate`, `casts` and `afk`
+into the gates, `gateEconomy` passes the kind of round a card names (an eco,
+a full buy) and nothing else about money, and `record-claims.js checkRecord`
+drops a sentence the round contradicts. Detail: `riot-record.md`, "Teaching
+the coach the round record".

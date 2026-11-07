@@ -944,6 +944,14 @@ function factsOf(input, messages, opts) {
         look: c.look ? { cause: c.look.cause, what: c.look.what, better: c.look.better, fair: c.look.cause === 'lost-duel' } : null,
         lookDigits: (c.screen && c.screen.lookDigits) || [],
         before,
+        // The round record beyond the feed (8.8, recordOf), for the record
+        // gates (record-claims.js checkRecord) and the economy gate, each
+        // only where the card has it.
+        ...(r && r.place ? { place: r.place } : {}),
+        ...(r && r.buy ? { buy: r.buy } : {}),
+        ...(r && r.mate ? { mate: r.mate } : {}),
+        ...(r && r.casts ? { casts: r.casts } : {}),
+        ...(r && r.afk ? { afk: true } : {}),
       });
       if (r && fin(r.kills)) addNum('kills', r.kills, c.n);
       if (r && fin(r.trades)) addNum('times', r.trades, c.n);
@@ -1322,6 +1330,55 @@ function lookLines(c) {
   return `The coach's look at this death, ${saw || 'with no sentences kept'}. Its label: ${title}${def ? `, which means ${def}` : ''}.${timing}`;
 }
 
+/*
+ * HOW TO USE THE ROUND RECORD (8.8, recordOf), in the match's own part, one
+ * sentence for each kind of fact its round lines carry: the record holds the
+ * economy and the abilities only where a line gives them (the rules' "does
+ * not hold" is about every other round), the place and the teammate's
+ * distance are the evidence for a trade or a spacing point, the economy
+ * changes the lesson, and a round Riot says the player sat out is never
+ * criticised. A match whose cards carry none of them has no line, and its
+ * part is as before, byte for byte.
+ */
+const RECORD_USE = {
+  held: "Where a round line gives the team economy or the abilities used, Riot's record holds them for that round and no other, so say them only there and as the line gives them.",
+  mate: 'Where a line says where the player died and whether a teammate was close, that is the evidence for a trade or a spacing point: with no teammate close the lesson is where they stood, and with one close and nobody trading it is when they took the fight.',
+  buy: 'The team economy changes what a death teaches: a death on an eco or a pistol round costs little and is no mistake the way one on a full buy is.',
+  casts: "A point about the player's abilities needs a round that lists the abilities used, and a round saying no ability used is the evidence for one.",
+  afk: 'Never criticise a round Riot marks the player as sitting out.',
+};
+function recordUseLine(m) {
+  const rs = ((m && m.cards) || []).map((c) => c && c.riot).filter(Boolean);
+  const has = (k) => rs.some((r) => r[k]);
+  const parts = [
+    has('buy') || has('casts') ? RECORD_USE.held : null,
+    has('mate') ? RECORD_USE.mate : null,
+    has('buy') ? RECORD_USE.buy : null,
+    has('casts') ? RECORD_USE.casts : null,
+    has('afk') ? RECORD_USE.afk : null,
+  ].filter(Boolean);
+  return parts.length ? `THE ROUND RECORD\n${parts.join(' ')}` : '';
+}
+
+/*
+ * RIOT'S ROUND RECORD AS RETRIEVAL SIGNALS (8.8, knowledge.js recordSignals):
+ * the cards' buy, teammate distance, place, casts and AFK as the rows the
+ * signals are read from, the asked round alone (its one death enough) or the
+ * whole match. Null where no card carries any, and the notes and the cases
+ * are chosen as before.
+ */
+function recordSignalsFor(k, cards, one) {
+  if (!k || typeof k.recordSignals !== 'function') return null;
+  const rows = (cards || []).filter((c) => c && c.riot && (c.riot.buy || c.riot.mate || c.riot.place || c.riot.casts || c.riot.afk)).map((c) => {
+    const r = c.riot;
+    const after = !!(r.afterPlant || (fin(r.plantSec) && fin(r.sec) && r.sec > r.plantSec));
+    return { n: c.n, died: !!c.died, result: c.result, buy: r.buy || null, mate: r.mate || null, traded: r.traded,
+      lastAlive: !!(r.alive && r.alive.mates <= 1), place: r.place || null, early: !!(c.died && fin(r.sec) && r.sec <= 30 && !after),
+      casts: r.casts || null, afk: r.afk === true };
+  });
+  return rows.length ? k.recordSignals(rows, one ? { min: 1 } : {}) : null;
+}
+
 function renderMatch(input, facts, trim) {
   const m = input.match;
   if (!m) return `THE MATCH\n${NO_MATCH}`;
@@ -1376,6 +1433,8 @@ function renderMatch(input, facts, trim) {
   // is about are told in full after it (renderAsked).
   const ledger = m.cards.map((c) => (trim ? cardLine(c, m).replace(/ Coach's look: [^.]*\./, '') : cardLine(c, m)));
   if (ledger.length) lines.push(`ROUNDS (Riot's record unless marked; times are seconds into the round)\n${ledger.join('\n')}`);
+  const use = recordUseLine(m);
+  if (use) lines.push(use);
   const clips = renderClips(m);
   if (clips) lines.push(clips);
   return lines.join('\n');
@@ -1572,6 +1631,13 @@ function casesFor(input, messages) {
   }
   if (asked) for (const p of perPhase.keys()) phases.add(p);
   else for (const p of (typeof cm.concentrated === 'function' ? cm.concentrated(perPhase, deaths) : [...perPhase.keys()])) phases.add(p);
+  // Riot's round record (8.8, recordSignalsFor): deaths on an eco and lone
+  // deaths, the asked round's own or the match's. None, nothing added.
+  const sig = m ? recordSignalsFor(knowledgeMod(), asked ? [asked] : m.cards, !!asked) : null;
+  if (sig) {
+    for (const e of sig.caseEconomies) economies.add(e);
+    for (const c of sig.causes) causes.add(c);
+  }
   if (input.language === 'en') {
     const lastAsk = [...(messages || [])].reverse().find((x) => x && x.role !== 'assistant');
     const q = lower(lastAsk && lastAsk.content);
@@ -1788,6 +1854,11 @@ function pickNotes(input, messages) {
     if (cause) for (const t of CT[cause[1]] || []) wanted.add(t);
     for (const t of PT[p.key] || []) wanted.add(t);
   }
+  // Riot's round record (8.8, match-review.js signalTopics): the match's
+  // repeated callout, lone deaths, deaths with no ability used and the
+  // team's economy want their notes as a pattern does. None, nothing added.
+  const matchSig = m ? recordSignalsFor(k, m.cards, false) : null;
+  if (matchSig && typeof rev.signalTopics === 'function') for (const t of rev.signalTopics(matchSig)) wanted.add(t);
   const s = typeof k.situationOf === 'function' ? k.situationOf({ agent, map }) : { agent, role: null, map: lower(map) };
   // The enemy team's agents (8.8, knowledge.js enemyFit): a note for them
   // only against them, and none at all for a client before it.
@@ -1924,6 +1995,15 @@ function pickNotes(input, messages) {
     // An aim question is the situation of a duel lost on the shot, so the aim
     // notes tagged for one are retrieved with no look at all (the round 3 audit).
     if (qt.keys.has('aim') && !ctx.cause) ctx.cause = 'lost-duel';
+  }
+  // Riot's round record (8.8): the asked round's own signals (one death is
+  // enough there), else the match's, as the economy flags, the causes and
+  // the callouts of the lone deaths retrieve() reads. None, the context as before.
+  const sig = asked ? recordSignalsFor(k, [asked], true) : matchSig;
+  if (sig) {
+    if (sig.economy.length) ctx.economy = sig.economy;
+    if (sig.causes.length) ctx.causes = sig.causes;
+    if (sig.places.length) ctx.places = sig.places;
   }
   let got = [];
   try { got = k.retrieve(ctx, 12, { advanced }) || []; } catch { got = []; }

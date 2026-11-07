@@ -888,5 +888,86 @@ ok(onPct >= 50, `and shifts it decisively, not marginally (${onPct}%)`);
   'and the game data still says so: if a patch moves a reset, this fails before the cards go stale');
 }
 
+// ── RIOT'S ROUND RECORD AS RETRIEVAL SIGNALS (8.8, knowledge.js recordSignals) ──
+// The team's buy, the nearest teammate, the death's callout and the casts
+// choose notes: two deaths on an eco, two forced rounds or two full loadouts
+// lost bring the economy notes for the band, lone deaths the isolated notes
+// and the map's notes naming the callout, three deaths at one callout the
+// spot topics, early deaths with no ability used the dry peek notes. No
+// signal is today's retrieval, draw for draw.
+{
+  const seededRun = (fn) => {
+    const random = Math.random;
+    let x = 11;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+  const row = (n, extra) => ({ n, died: true, result: 'lost', buy: null, mate: null, traded: null, lastAlive: false, place: null, early: false, casts: null, afk: false, ...(extra || {}) });
+  const sig = knowledge.recordSignals([
+    row(2, { buy: 'eco' }), row(3, { buy: 'eco' }),
+    row(4, { buy: 'full', mate: 'far', traded: false, place: 'B Main' }), row(5, { buy: 'full', mate: 'far', traded: false, place: 'B Main' }),
+    row(6, { buy: 'full', result: 'won', died: false }), row(7, { place: 'B Main', mate: 'close', traded: false }),
+    row(8, { buy: 'force', result: 'won', died: false }), row(9, { buy: 'force', died: false }),
+  ]);
+  ok(JSON.stringify(sig.economy) === '["fullbuy","forcebuy","eco"]' && JSON.stringify(sig.caseEconomies) === '["eco"]',
+    `two full loadouts lost of three, two forced rounds and two deaths on an eco are the economy signals (${JSON.stringify(sig.economy)})`);
+  ok(JSON.stringify(sig.causes) === '["isolated"]' && JSON.stringify(sig.places) === '["B Main"]' && sig.repeatPlace === 'B Main',
+    `two lone deaths at B Main are the isolated cause and its place, three deaths there the repeated callout (${JSON.stringify(sig)})`);
+  const quiet = [{ name: 'Cloudburst', n: 0 }, { name: 'Updraft', n: 0 }, { name: 'Tailwind', n: 0 }, { name: 'Blade Storm', n: 1 }];
+  ok(knowledge.recordSignals([row(1, { early: true, casts: quiet }), row(2, { early: true, casts: quiet })]).causes.includes('dry-peek'),
+    'two early deaths with every ability but the ultimate unused are the dry peek cause');
+  ok(!knowledge.recordSignals([row(1, { early: true, casts: quiet }), row(2, { early: false, casts: quiet })]).causes.length
+    && !knowledge.recordSignals([row(1, { early: true, casts: [{ name: 'Tailwind', n: 1 }] }), row(2, { early: true, casts: quiet })]).causes.length,
+  'one of them alone, or one with an ability used, is not');
+  const none = knowledge.recordSignals([
+    row(1, { mate: 'far', traded: false, lastAlive: true, place: 'B Main' }), row(2, { mate: 'far', traded: true, place: 'B Main' }),
+    row(3, { mate: 'far', traded: false, afk: true, place: 'B Main', buy: 'eco' }), row(4, { buy: 'eco' }),
+    row(5, { place: 'A site' }), row(6, { place: 'A site' }), row(7, { place: 'A site' }),
+  ]);
+  ok(!knowledge.anySignal(none), `the last one alive, a traded death, an AFK round, one eco death and a widened site word are no signal (${JSON.stringify(none)})`);
+  {
+    const wide = knowledge.recordSignals([1, 2, 3].map((n) => row(n, { mate: 'far', traded: false, place: n === 3 ? 'defender side' : 'Mid' })));
+    ok(wide.causes.includes('isolated') && !wide.places.length && !wide.repeatPlace,
+      `"Mid" and "Defender Side", areas the parse widens to as it does to a site, are no place, the lone deaths still the isolated cause (${JSON.stringify(wide)})`);
+  }
+  ok(knowledge.recordSignals([row(2, { buy: 'eco' })], { min: 1 }).economy.includes('eco'), 'one asked round is enough for its own signals');
+  ok(!knowledge.anySignal(knowledge.recordSignals([])) && !knowledge.anySignal(knowledge.recordSignals(null)), 'no rows, no signal');
+
+  // The economy notes, for every band, in the review's six slots.
+  const econOf = (flag) => knowledge.all().filter((n) => n.situations && n.situations.includes(flag)).map((n) => n.text);
+  for (const band of [undefined, ...knowledge.RANK_BANDS]) {
+    for (const flag of ['eco', 'forcebuy', 'fullbuy']) {
+      const got = seededRun(() => knowledge.retrieve({ agent: 'Jett', map: 'Sunset', economy: [flag], ...(band ? { rankBand: band } : {}) }, 6, { advanced: true }));
+      const before = seededRun(() => knowledge.retrieve({ agent: 'Jett', map: 'Sunset', ...(band ? { rankBand: band } : {}) }, 6, { advanced: true }));
+      const fit = got.filter((t) => econOf(flag).includes(t));
+      const note = fit.length ? knowledge.all().find((n) => n.text === fit[0]) : null;
+      ok(fit.length >= 1 && !before.some((t) => econOf(flag).includes(t)) && (!band || knowledge.rankAdjust(note, band, false) !== null || knowledge.rankAdjust(note, band, true) !== null),
+        `${band || 'no band'}: the ${flag} signal brings an economy note the band allows (${fit.length})`);
+    }
+  }
+  ok(seededRun(() => knowledge.retrieve({ agent: 'Jett', map: 'Sunset', economy: ['fullbuy'], rankBand: 'asc_plus' }, 6, { advanced: false }))
+    .some((t) => econOf('fullbuy').includes(t)), 'the slot holds with Advanced coaching off too');
+
+  // The map's notes naming the callout of a lone death.
+  const sunsetNote = knowledge.all().find((n) => n.maps && n.maps.length === 1 && n.maps[0] === 'Sunset' && /Mid Courtyard/.test(n.text) && !n.situations && !n.side && !n.phase);
+  const rankIn = (list) => list.indexOf(sunsetNote.text);
+  const plain = seededRun(() => knowledge.retrieve({ agent: 'Jett', map: 'Sunset' }, 40));
+  const placed = seededRun(() => knowledge.retrieve({ agent: 'Jett', map: 'Sunset', places: ['Mid Courtyard'] }, 40));
+  ok(!!sunsetNote && rankIn(placed) >= 0 && (rankIn(plain) < 0 || rankIn(placed) < rankIn(plain)), `a Sunset note naming Mid Courtyard rises for a lone death there (${rankIn(plain)} to ${rankIn(placed)})`);
+  ok(JSON.stringify(seededRun(() => knowledge.retrieve({ agent: 'Jett', places: ['Mid Courtyard'] }, 40))) === JSON.stringify(seededRun(() => knowledge.retrieve({ agent: 'Jett' }, 40))),
+    'with no map, a place changes nothing');
+
+  // No signal is today's retrieval, draw for draw.
+  for (const ctx of [{ agent: 'Jett', map: 'Sunset' }, { agent: 'Omen', map: 'Pearl', rankBand: 'asc_plus', causes: ['isolated'] }, { agent: 'Sova', phase: 'buy', playerCredits: 900, roundNumber: 5 }]) {
+    for (const advanced of [false, true]) {
+      const base = JSON.stringify(seededRun(() => knowledge.retrieve(ctx, 8, { advanced })));
+      ok([{ economy: [] }, { economy: ['big', 'pistol'] }, { places: [] }, { places: [42, ''] }].every((x) => JSON.stringify(seededRun(() => knowledge.retrieve({ ...ctx, ...x }, 8, { advanced }))) === base),
+        `${ctx.agent} (advanced ${advanced}): an empty or a junk signal is today's retrieval byte for byte`);
+    }
+  }
+  ok(knowledge.placeOf('Sunset', 'b main') === 'B Main' && knowledge.placeOf('Sunset', 'a site') === 'A site' && knowledge.placeOf('Sunset', 'Hookah') === null
+    && knowledge.placeOf(null, 'B Main') === null, 'a place is a place of the map as the data spells it, else none');
+}
+
 console.log(`\n${fails ? fails + ' failure(s)' : 'all advanced tip checks passed'}`);
 process.exit(fails ? 1 : 0);

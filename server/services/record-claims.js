@@ -105,6 +105,15 @@ function row(x) {
     plantSec: fin(x.plantSec) ? x.plantSec : null,
     // True only where the record says so: a client sends false for unknown too.
     afterPlant: x.afterPlant === true ? true : null,
+    // The round record beyond the feed (8.8), each only where it was sent:
+    // Riot's callout of the death, the team's buy, the nearest teammate then
+    // and the player's casts by kit name (checkRecord).
+    place: typeof x.place === 'string' && x.place ? x.place : null,
+    buy: ['pistol', 'eco', 'force', 'half', 'full'].includes(x.buy) ? x.buy : null,
+    mate: x.mate === 'close' || x.mate === 'far' ? x.mate : null,
+    // True only where the record says the death was traded (checkRecord's mate rule).
+    traded: x.traded === true ? true : null,
+    casts: Array.isArray(x.casts) ? x.casts.filter((c) => c && typeof c.name === 'string' && Number.isInteger(c.n)) : null,
   };
 }
 
@@ -130,6 +139,7 @@ function contextOfChat(facts) {
     enemiesKnown: enemies.size >= 5,
     early: beforePlantRounds(f.counted && f.counted.texts),
     asked: f.oneRound && f.asked ? f.asked : null,
+    map: typeof f.map === 'string' && f.map ? f.map : null,
     kind: 'chat',
   };
 }
@@ -151,6 +161,7 @@ function contextOfReview(input) {
     enemiesKnown: enemies.size >= 5,
     early: beforePlantRounds((inp.patterns || []).map((p) => p && p.text).concat(inp.swing || [])),
     asked: null,
+    map: typeof ctx.map === 'string' && ctx.map ? ctx.map : null,
     kind: 'review',
   };
 }
@@ -438,12 +449,124 @@ function checkDrill(sentence, ctx) {
 }
 const RANGE_AGAINST = new RegExp(`\\b(?:against|fight(?:ing)?|beat(?:ing)?|track(?:ing)?|duel(?:ling)?)\\s+(?:their\\s+|the\\s+|an?\\s+|enemy\\s+)?(${AGENT_ALT})(?![A-Za-z0-9])`, 'i');
 
+/*
+ * THE ROUND RECORD BEYOND THE FEED (8.8): Riot's callout of the death, the
+ * team's buy, the nearest teammate at the death and the player's casts, each
+ * judged only where the round has it and only where the sentence says the
+ * other thing certainly:
+ *   place  "you died at B Main" of a death Riot places on another site's
+ *          side (A, B or C each side): a callout of the same side, a mid
+ *          callout or a spawn is near enough to be the parse's own fuzz, and
+ *          a death Riot widened to "A site" (callout-locator.js) is never
+ *          judged, since the word may stand for its Main or its Lobby;
+ *   buy    "round 5 was an eco" of a full loadout, "on a full buy" of an
+ *          eco, a pistol round of a round that was none: a force and a half
+ *          are one kind here, the line between them being the money left;
+ *   mate   "a teammate was close" of an untraded death with nobody close, "nobody
+ *          was close" of one with a teammate close, never "close enough to
+ *          trade", which is not a distance;
+ *   casts  "you used Updraft" of a round with none of it, "you did not use
+ *          Updraft" or "you used no abilities in that round" of one with
+ *          some, never "no utility before the peek", which the round's count
+ *          cannot tell.
+ * The enemy's buy ("they were on an eco") and a plan ("if you are on an eco")
+ * judge nothing.
+ */
+const SITE_SIDES = new Set(['a', 'b', 'c']);
+const PLACES_OF = new Map();
+/** The map's places, longest first: { re, side } with side the callout's site letter or null. */
+function placesOf(map) {
+  const key = String(map || '').toLowerCase();
+  if (PLACES_OF.has(key)) return PLACES_OF.get(key);
+  const g = (DATA.mapGeometry || {})[key];
+  const names = new Map();
+  for (const c of (g && Array.isArray(g.callouts) ? g.callouts : [])) {
+    const side = SITE_SIDES.has(String((c && c.s) || '').toLowerCase()) ? String(c.s).toLowerCase() : null;
+    for (const n of [c && c.n, c && c.a]) if (typeof n === 'string' && n) names.set(n.toLowerCase(), side);
+    if (side) names.set(`${side} site`, side);
+  }
+  const list = [...names.keys()].sort((a, b) => b.length - a.length);
+  const out = { sideOf: names, alt: list.length ? list.map(esc).join('|') : null };
+  PLACES_OF.set(key, out);
+  return out;
+}
+const DEATH_AT_HEAD = '\\b(?:you\\s+died|your\\s+death(?:\\s+came)?|(?:killed|caught|picked\\s+off|took)\\s+you(?:\\s+out)?|you\\s+(?:were|got)\\s+(?:killed|caught|picked\\s+off|taken\\s+out)|you\\s+fell|you\\s+went\\s+down)\\b(?:\\s+[^\\s.;,]+){0,4}?\\s+(?:at|in|on|near|inside|from|holding|on\\s+the\\s+way\\s+to)\\s+(?:the\\s+)?';
+const HYPO = /\b(?:if|next\s+time|should|would|could\s+have|make\s+sure|instead|always|every\s+time|whenever)\b/i;
+const ENEMY_SUBJECT = /\b(?:they|them|their|enemy|enemies|opponents?|the\s+other\s+team)\b/i;
+const BUY_CLAIM = /\b(?:on|in|with|during|was|were)\s+(?:an?\s+|the\s+|your\s+(?:team's\s+)?|a\s+team\s+)?(ecos?(?:\s+round)?|save\s+round|full(?:[ -]buy|\s+loadout)|force(?:[ -]buy|d\s+(?:loadout|round|buy))|half(?:[ -]buy|\s+loadout)|pistol\s+round)\b/i;
+const BUY_ALLOWED = { eco: ['eco'], save: ['eco'], full: ['full'], force: ['force', 'half'], half: ['force', 'half'], pistol: ['pistol'] };
+const MATE_CLOSE_SAID = /\b(?:(?:a|your|one)\s+teammates?\s+(?:was|were|stood|had\s+been)\s+(?:right\s+)?(?:close(?:\s+by)?|near(?:by)?|next\s+to\s+you|beside\s+you)|with\s+a\s+teammate\s+(?:right\s+)?(?:close(?:\s+by)?|near(?:by)?|next\s+to\s+you|beside\s+you))\b(?!\s+enough)/i;
+const MATE_FAR_SAID = /\b(?:(?:no\s+teammate|nobody|no\s+one|none\s+of\s+your\s+teammates)\s+(?:(?:was|were|stood)\s+)?(?:close(?:\s+by)?|near(?:by)?|anywhere\s+near(?:\s+you)?|next\s+to\s+you)|with\s+(?:no\s+teammate|nobody|no\s+one)\s+(?:close(?:\s+by)?|near(?:by)?)|your\s+teammates?\s+(?:was|were)\s+(?:all\s+)?(?:too\s+)?far(?:\s+away)?)\b(?!\s+enough)/i;
+const NO_ABILITY_ROUND = /\byou\s+(?:used\s+no\s+(?:abilities|ability|utility)|(?:did\s+not|didn't|never)\s+use\s+(?:a\s+single\s+|any\s+)?(?:abilities|ability|utility))(?=\s*(?:[.,;]|$)|\s+(?:in|all|that|this)\b(?!\s+(?:the\s+)?(?:fight|peek|duel|angle|swing|exchange)))/i;
+const USED_VERB = '(?:used|threw|cast|placed|popped|put\\s+down|sent|fired)';
+const UNUSED_VERB = '(?:did\\s+not|didn\'t|never)\\s+(?:use|throw|cast|place|pop|send|fire)';
+function checkRecord(sentence, ctx, st) {
+  const t = straight(sentence);
+  if (!ctx || !ctx.rounds.size || OPENS_IF.test(t) || HYPO.test(t)) return null;
+  const n = roundOfSentence(t, ctx, st);
+  const r = n != null ? ctx.rounds.get(n) : null;
+  if (!r) return null;
+  // Where the player died: another site's side than Riot's callout.
+  if (r.died && r.place && ctx.map) {
+    const pl = placesOf(ctx.map);
+    const fact = pl.sideOf.get(r.place.toLowerCase());
+    // The client folds an exact site hit and a widened guess into one word
+    // (valorant-verify.js placeName), so no site word is ever judged.
+    const widened = /^[abc] site$/i.test(r.place);
+    if (pl.alt && fact && !widened) {
+      const m = new RegExp(`${DEATH_AT_HEAD}(${pl.alt})(?![A-Za-z0-9])`, 'i').exec(t);
+      const said = m ? pl.sideOf.get(m[1].toLowerCase()) : null;
+      if (said && said !== fact) return `your reply put the player's death in round ${n} at ${m[1]}, where Riot's record has it at ${r.place}; say the place the record has`;
+    }
+  }
+  // The team's buy: another kind than the record's.
+  if (r.buy) {
+    const m = BUY_CLAIM.exec(t);
+    // "On a full loadout your life is the round" opens on the rule, of any round.
+    const rule = !!(m && /^\s*(?:on|in|with|during)\b/i.test(t.slice(0, m.index + 7)) && !t.slice(0, m.index).trim());
+    if (m && !rule && !ENEMY_SUBJECT.test(clauseAt(t, m.index).slice(0, Math.max(0, m.index - clauseStart(t, m.index))))) {
+      const w = m[1].toLowerCase();
+      const kind = /^eco/.test(w) ? 'eco' : /^save/.test(w) ? 'save' : /^full/.test(w) ? 'full' : /^force/.test(w) ? 'force' : /^half/.test(w) ? 'half' : 'pistol';
+      if (!BUY_ALLOWED[kind].includes(r.buy)) return `your reply called round ${n} ${m[1]}, where Riot's record has the team on ${r.buy === 'eco' ? 'an eco' : r.buy === 'pistol' ? 'a pistol round' : `a ${r.buy} loadout`}; say the economy the record has`;
+    }
+  }
+  // The nearest teammate at the death. A traded death had a teammate near
+  // enough to answer it, whatever the distance word, so "a teammate close
+  // behind" of one is never judged by `far` (the Pearl audit, round 3:
+  // traded, far, and "with a teammate close behind ... as happened here").
+  if (r.died && r.mate) {
+    if (r.mate === 'far' && r.traded !== true && MATE_CLOSE_SAID.test(t)) return `your reply had a teammate close when the player died in round ${n}, where Riot's record has nobody close`;
+    if (r.mate === 'close' && MATE_FAR_SAID.test(t)) return `your reply had nobody close when the player died in round ${n}, where Riot's record has a teammate close`;
+  }
+  // The player's casts in the round.
+  if (r.casts && r.casts.length) {
+    if (NO_ABILITY_ROUND.test(t) && r.casts.some((c) => c.n > 0)) return `your reply said the player used no ability in round ${n}, where Riot's record has some used`;
+    for (const c of r.casts) {
+      const name = esc(c.name);
+      if (c.n === 0 && new RegExp(`\\byou\\s+(?:also\\s+|then\\s+)?${USED_VERB}\\s+(?:your\\s+|a\\s+|an\\s+|the\\s+)?${name}(?![A-Za-z0-9])`, 'i').test(t)) {
+        return `your reply said the player used ${c.name} in round ${n}, where Riot's record has it unused`;
+      }
+      if (c.n > 0 && new RegExp(`\\byou\\s+${UNUSED_VERB}\\s+(?:your\\s+|a\\s+|an\\s+|the\\s+|any\\s+)?${name}(?![A-Za-z0-9])`, 'i').test(t)) {
+        return `your reply said the player did not use ${c.name} in round ${n}, where Riot's record has it used`;
+      }
+    }
+  }
+  return null;
+}
+/** Where the clause holding a point starts (clauseAt's cut). */
+function clauseStart(text, at) {
+  let from = 0;
+  for (const b of String(text || '').matchAll(CLAUSE_BREAK)) if (b.index + b[0].length <= at) from = b.index + b[0].length;
+  return from;
+}
+
 const READERS = [
   ['kills', checkKills],
   ['share', checkKillerShare],
   ['order', checkOrder],
   ['blame', checkTeamBlame],
   ['drill', checkDrill],
+  ['record', checkRecord],
 ];
 const REVIEW_READERS = [...READERS, ['side', checkSide], ['result', checkResult]];
 
@@ -489,4 +612,5 @@ module.exports = {
   BEAT, MOST_OF, EARLY_SAID, BEFORE_SITE, DIED_BEFORE_PLANT, DIED_AFTER_PLANT, SAYS_ATTACK, SAYS_DEFENCE, SAYS_RESULT,
   PLANT_TALK, DEF_TALK, ATK_TALK, BLAME, ALIVE_SAID, ADVICE_OPEN, DEATHMATCH, RANGE, MODE_AVOIDED, TAKE_AGENT, BEFORE_ANY_PLANT, ROUND_RUN, OPENS_IF,
   RANGE_AGAINST, PLANT_MIN, CLAUSE_BREAK, clauseAt,
+  checkRecord, placesOf, DEATH_AT_HEAD, HYPO, ENEMY_SUBJECT, BUY_CLAIM, BUY_ALLOWED, MATE_CLOSE_SAID, MATE_FAR_SAID, NO_ABILITY_ROUND,
 };

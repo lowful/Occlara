@@ -165,7 +165,7 @@ function normalise(body) {
     // The round record beyond the feed (8.8, valorant-review.js requestBody),
     // each left out when the client sent none, so a round from a client
     // before it is normalised as before, byte for byte.
-    ...(r && r.verified ? recordSent(r) : {}),
+    ...(r && r.verified ? recordSent(r, b.context && b.context.map) : {}),
   })).filter((r) => r.n > 0);
   const patterns = (Array.isArray(b.patterns) ? b.patterns : []).slice(0, 8).map((p) => ({
     key: clip(p && p.key, 20),
@@ -253,8 +253,13 @@ const KIT_NAMES = (() => {
 })();
 // The team's buy in a round line, in words the review's gate passes (BUY_BLAME drops any "buy").
 const RECORD_BUY = { pistol: 'a pistol round', eco: 'an eco', force: 'a forced loadout', half: 'a half loadout', full: 'a full loadout' };
-function recordSent(r) {
+function recordSent(r, map) {
   const out = {};
+  // Riot's callout of the death (8.8, valorant-review.js requestBody's
+  // `place`), only as a place of this match's map, for the retrieval signals
+  // alone (recordSignals): the round line says deathSpot, as before.
+  const place = r.died && typeof map === 'string' ? knowledge.placeOf(map, r.place) : null;
+  if (place) out.place = place;
   if (BUY_SENT.has(r.buy)) out.buy = r.buy;
   if (r.died && (r.mate === 'close' || r.mate === 'far')) out.mate = r.mate;
   const casts = (Array.isArray(r.casts) ? r.casts : []).slice(0, 4)
@@ -338,6 +343,43 @@ function enemiesOf(input) {
 function enemyWeaponsOf(input) {
   if (!input || input.byEnemy !== true) return [];
   return knowledge.enemyWeaponsOf((input.rounds || []).filter((r) => r && r.verified && r.died && r.weapon).map((r) => r.weapon));
+}
+
+/*
+ * RIOT'S ROUND RECORD AS SIGNALS (8.8, knowledge.js recordSignals): the
+ * team's buy, the nearest teammate at the death, Riot's callout of it and the
+ * casts of each verified round a client of 8.8 sends (recordSent), as the
+ * rows the signals are read from. A review whose rounds carry none of them
+ * has no signal, and its notes, study list and cases are chosen as before.
+ */
+function recordSignalsOf(input) {
+  const rows = (input && input.rounds || []).filter((r) => r && r.verified
+    && (r.buy || r.mate || r.place || r.casts || r.afk)).map((r) => ({
+    n: r.n, died: r.died, result: r.result, buy: r.buy || null, mate: r.mate || null, traded: r.traded,
+    lastAlive: !!(r.alive && r.alive.mates <= 1), place: r.place || null, early: r.timing === 'early',
+    casts: r.casts || null, afk: r.afk === true,
+  }));
+  return rows.length ? knowledge.recordSignals(rows) : null;
+}
+
+/*
+ * WHAT THE RECORD'S SIGNALS SEND THE PLAYER TO STUDY (8.8), as the patterns'
+ * and the causes' topics do: a callout died at again and again, the starting
+ * spot notes (the spot pattern's own topics, PATTERN_TOPICS.spot, which the
+ * client counts on the screen's places only); lone deaths, the isolated
+ * cause's; deaths with no ability used, the dry peek's; and the team's
+ * economy, the playbook's own notes for playing a save round and the force
+ * loop. A full loadout lost has no imported note to study, and is served by
+ * retrieve() through its `fullbuy` flag.
+ */
+const ECONOMY_TOPICS = { eco: ['save round plan', 'pickup and live'], forcebuy: ['the force loop'] };
+function signalTopics(sig) {
+  const out = new Set();
+  if (!sig) return out;
+  if (sig.repeatPlace) for (const t of PATTERN_TOPICS.spot) out.add(t);
+  for (const c of sig.causes) for (const t of CAUSE_TOPICS[c] || []) out.add(t);
+  for (const e of sig.economy) for (const t of ECONOMY_TOPICS[e] || []) out.add(t);
+  return out;
 }
 
 /*
@@ -665,6 +707,13 @@ function leverSituation(input) {
 /** The review's case situation (cases.fromReview), with the swing's phases and the repeat killer first for a round 4 client. */
 function caseSituation(input, enemies) {
   const x = cases.fromReview(input, enemies);
+  // Riot's round record (8.8): deaths on an eco and lone deaths are the
+  // match's, as a look's cause is. No record, the situation as before.
+  const sig = recordSignalsOf(input);
+  if (sig) {
+    for (const e of sig.caseEconomies) x.economies.add(e);
+    for (const c of sig.causes) x.causes.add(c);
+  }
   if (!round4(input)) return x;
   const f = matchFacts(input);
   if (f.postplant) { x.phases.add('postplant'); if (!x.patterns.includes('postplant')) x.patterns.push('postplant'); }
@@ -765,6 +814,10 @@ function study(input, limit = 3, opts = {}) {
   const r4facts = r4 ? matchFacts(input) : {};
   const matchup = r4facts.killer ? r4facts.killer.agent : null;
   const lever4 = r4 ? leverOf(input) : null;
+  // Riot's round record (8.8, signalTopics): a callout died at again and
+  // again, lone deaths, deaths with no ability used and the team's economy
+  // want their notes as a pattern does. No record, no topic.
+  for (const t of signalTopics(recordSignalsOf(input))) wanted.add(t);
   const looked = new Set();
   if (input.byCause === true) {
     for (const m of input.mistakes || []) {
@@ -994,13 +1047,29 @@ function promptRounds(input, withKnowledge, opts) {
     // Aim evidence brings the lost duel notes as a look's lost duel does
     // (round 3): with no look, an aim problem had no aim note at all.
     if (r3 && aimEvidence(input) && aimEvidence(input).low && !causes.includes('lost-duel')) causes.push('lost-duel');
+    // Riot's round record (8.8, recordSignalsOf): the economy flags the
+    // team's buys show, a lone death's or a quiet death's cause, and the
+    // callouts of the lone deaths for the map's notes naming them. None, and
+    // the context is as before.
+    const sig = recordSignalsOf(input);
+    if (sig) for (const c of sig.causes) if (!causes.includes(c)) causes.push(c);
     for (const t of knowledge.retrieve({ agent: context.agent, map: context.map, causes,
+      ...(sig && sig.economy.length ? { economy: sig.economy } : {}),
+      ...(sig && sig.places.length ? { places: sig.places } : {}),
       ...(context.rankBand ? { rankBand: context.rankBand } : {}),
       ...(enemies.length ? { enemyAgents: enemies } : {}),
       ...(guns.length ? { enemyWeapons: guns } : {}),
       ...leverSituation(input) }, 6,
       { advanced: context.advancedTips })) add(t);
     notes = notes.slice(0, 8);
+    // The note answering the team's economy (8.8, knowledge.js recordSlot)
+    // moves inside the floor the cases' budget never cuts (withinBudget,
+    // NOTES_FLOOR): last of the list, it was the first note to go.
+    if (sig && sig.economy.length) {
+      const econ = new Set(sig.economy);
+      const at = notes.findIndex((t) => { const n = knowledge.all().find((x) => x.text === t); return !!(n && n.situations && n.situations.some((f) => econ.has(f))); });
+      if (at >= NOTES_FLOOR) notes.splice(NOTES_FLOOR - 1, 0, notes.splice(at, 1)[0]);
+    }
     // Worked cases (8.8, cases.js), only where this match's situation matches one.
     // opts.cases false is the prompt without them, today's, for the tests and the benches.
     worked = opts && opts.cases === false ? [] : cases.pick(caseSituation(input, enemies), cases.MAX_CASES);
@@ -1295,8 +1364,37 @@ const SOME_ECONOMY = 'Damage is not in the ledger, so never state it. The team\'
 function buildPrompt(input, opts) {
   if (input.variant === 'A') return promptA(input);
   const text = promptRounds(input, input.variant === 'C', opts);
-  const record = (input.rounds || []).some((r) => r && (r.buy || r.casts));
-  return record && typeof text === 'string' ? text.replace(NO_ECONOMY, SOME_ECONOMY) : text;
+  const rs = input.rounds || [];
+  const record = rs.some((r) => r && (r.buy || r.casts));
+  const use = recordUse(rs);
+  if (typeof text !== 'string' || (!record && !use)) return text;
+  return text.replace(NO_ECONOMY, (record ? SOME_ECONOMY : NO_ECONOMY) + use);
+}
+
+/*
+ * HOW TO USE THE ROUND RECORD (8.8), one sentence for each kind of fact the
+ * rounds carry and none for a kind they do not, beside the grounding rule on
+ * the economy: the teammate's distance is the evidence for a trade or a
+ * spacing point, the team's economy changes what a death teaches, the
+ * abilities used back a point about utility, and a round Riot says the
+ * player sat out is never criticised. Worded without "buy", which the
+ * review's gate drops (BUY_BLAME). No such fact, no sentence: the prompt is
+ * as before, byte for byte.
+ */
+const RECORD_USE = {
+  mate: 'Where a round says whether a teammate stood close when the player died, that is the evidence for a trade or a spacing point: with no teammate close the lesson is where the player stood, and with one close and nobody trading it is when they took the fight. ',
+  buy: 'The team\'s economy changes what a death teaches: a death on an eco or a pistol round costs little and is no mistake the way one on a full loadout is, so never count a death on an eco against the player as one on a full loadout. ',
+  casts: 'Make a point about the player\'s abilities only for a round that lists the abilities used, and a round saying no ability used is the evidence for one. ',
+  afk: 'Never criticise a round Riot marks the player as sitting out. ',
+};
+function recordUse(rounds) {
+  const rs = (rounds || []).filter((r) => r && r.verified);
+  return [
+    rs.some((r) => r.mate) ? RECORD_USE.mate : '',
+    rs.some((r) => r.buy) ? RECORD_USE.buy : '',
+    rs.some((r) => r.casts) ? RECORD_USE.casts : '',
+    rs.some((r) => r.afk) ? RECORD_USE.afk : '',
+  ].join('');
 }
 
 /**
@@ -2082,4 +2180,5 @@ module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, ro
   enemyWeaponsOf, claimOf, TEMPLATE_LEAK, SPIKE_CARRY, PRAISE, AIM_DENIED, STUDY_VARIETY, spread, contradicted, CONTRADICTS,
   round4, matchCounts, matchFacts, countLines, qualifyCount, mistakesShown, allowedPairs, leverOf, leverRule4, LEVER_ORDER, HIGH_BANDS,
   depthRule, kitBlockOf, kitAgents, swingTopics, caseSituation, leverSituation, cohere, productCut, stateWrong, fundamentalsCap,
-  ROUND4_SWAPS, GROUNDING4, GROUNDING4_SWAPS, PRODUCT_TALK, CROSS_MATCH, TRADE_HABIT };
+  ROUND4_SWAPS, GROUNDING4, GROUNDING4_SWAPS, PRODUCT_TALK, CROSS_MATCH, TRADE_HABIT,
+  recordSignalsOf, signalTopics, ECONOMY_TOPICS, recordUse, RECORD_USE, NO_ECONOMY, SOME_ECONOMY };

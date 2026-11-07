@@ -1014,6 +1014,12 @@ async function askForensics(looks, stills, snap, source, log, matchId) {
       planted: r.planted, afterPlant: r.afterPlant, spot: r.deathSpot, frames: imgs, names,
       gap: framesFrom === 'recording' ? null : look.gap,
       frameAt, framesFrom,
+      // The round record at the death (8.8, valorant-verify.js recordExtras),
+      // Riot's look only and only where the record had it: Riot's callout,
+      // the team's buy and the nearest teammate (death-forensics.js recordOf).
+      ...(source === 'riot' && r.riotSpot ? { place: r.riotSpot } : {}),
+      ...(source === 'riot' && r.buy ? { buy: r.buy } : {}),
+      ...(source === 'riot' && (r.mateNear === 'close' || r.mateNear === 'far') ? { mate: r.mateNear } : {}),
       // When the first frame was taken, for the eye at that moment, and when
       // the death itself was: kept here, never sent.
       at: framesFrom === 'recording' && Number.isFinite(moment) ? Math.round(moment + frameAt[0] * 1000) : look.at,

@@ -1022,6 +1022,59 @@ const ANSWERS = require('./fixtures/lost-duel-answers.json').answers;
 // server failed is asked once more; the run sends the admin password, the
 // variant, 8.5.0 and raw: true; and what it writes holds no licence and no
 // sentence of the model's but the gated ones.
+
+// ── THE ROUND RECORD AT THE DEATH (8.8, recordOf, recordLines, wrongSide) ──
+// Riot's callout, the team's buy and the nearest teammate reach variants b and
+// b2 as three facts at most, only where the death has them; variant a and a
+// death without them are prompted as before; the screen's look takes none; a
+// look putting the death on another site's side than Riot's callout loses
+// that sentence, and a neighbouring callout of the same side is kept.
+{
+  const deathOf = (extra) => ({ n: 7, side: 'attacking', sec: 21, killer: 'Killjoy', weapon: 'Vandal', traded: false,
+    alive: { mates: 4, enemies: 5 }, frames: [frame, frame], ...(extra || {}) });
+  const bodyOf = (extra, more) => ({ agent: 'Jett', map: 'Sunset', deaths: [deathOf(extra)], ...(more || {}) });
+  const record = { place: 'A Main', buy: 'full', mate: 'far' };
+  const withIt = df.normalise(bodyOf(record), { variant: 'b2' });
+  const d0 = withIt.deaths[0];
+  ok(d0.place === 'A Main' && d0.buy === 'full' && d0.mate === 'far', `Riot's look keeps the place, the buy and the distance (${JSON.stringify({ place: d0.place, buy: d0.buy, mate: d0.mate })})`);
+  const forged = df.normalise(bodyOf({ place: 'Hookah', buy: 'loads', mate: 'Brindlecap1' }), { variant: 'b2' }).deaths[0];
+  ok(!['place', 'buy', 'mate'].some((k) => k in forged), 'a place of another map, a word not theirs or a name is dropped');
+  const area = df.normalise({ agent: 'Raze', map: 'Pearl', deaths: [deathOf({ place: 'mid' })] }, { variant: 'b2' }).deaths[0];
+  ok(area.place === 'Mid', `an area Riot's callout reaches the client as ("Mid") is a place, as chat-prompt.js placeOn has it (${area.place})`);
+  ok(df.recordLines(area).includes("Riot's record places the death near Mid.") && df.recordLines(d0).includes("Riot's record places the death at A Main."),
+    'an area the parse widens to is told "near", as a site word is, and a callout "at"');
+  const screen = df.normalise(bodyOf(record, { source: 'screen' }), { variant: 'b2' }).deaths[0];
+  ok(!['place', 'buy', 'mate'].some((k) => k in screen), 'the screen\'s look takes none of them');
+  const ask = (extra, variant) => { const x = df.normalise(bodyOf(extra), { variant }); return df.buildPrompt(x, x.deaths[0]); };
+  for (const v of ['b', 'b2']) {
+    const p = ask(record, v);
+    ok(p.includes("Riot's record places the death at A Main.") && p.includes('When the player died, no teammate stood close by.')
+      && p.includes('The team played this round on a full buy.'), `variant ${v} is told the three facts`);
+    ok(ask({}, v) === ask({ place: undefined }, v) && !/places the death|stood close by|played this round on/.test(ask({}, v)),
+      `and variant ${v} of a death without them is prompted as before`);
+    const one = ask({ mate: 'close' }, v);
+    ok(one.includes('When the player died, a teammate stood close by.') && !/places the death|played this round on/.test(one), `variant ${v} gets only the facts the death has`);
+    const facts = ask(record, v).split('\n').filter((l) => /places the death|stood close by|played this round on/.test(l));
+    ok(facts.length === 3 && facts.every((l) => !l.includes(';') && !DASH.test(l)), 'each a sentence of its own, no semicolon, no dash');
+  }
+  ok(ask(record, 'a') === ask({}, 'a'), 'variant a is today\'s prompt with or without them');
+  ok(ask({ place: 'A site' }, 'b2').includes("Riot's record places the death near A site."), 'a site word, which the parse may have widened, is said as near it');
+  ok(df.buildPrompt(df.normalise(bodyOf(record, { source: 'screen' }), { variant: 'b2' }), screen) === df.buildPrompt(df.normalise(bodyOf({}, { source: 'screen' }), { variant: 'b2' }), screen),
+    'the screen\'s b2 prompt is as before');
+  const lookAt = (what, extra) => { const x = df.normalise(bodyOf(extra || record), { variant: 'b2' }); return df.parse(JSON.stringify({ what, fight: 'wrong-spot', better: 'Stay within reach of a teammate.', change: 'position', cause: 'isolated', alt: 'none' }), x, x.deaths[0]); };
+  const wrong = lookAt('You died at B Main pushing alone into their crossfire.');
+  ok(wrong.what === null && wrong.dropped.some((d) => d.field === 'what' && /B Main/.test(d.why)), `CAUGHT: "You died at B Main" of a death Riot places at A Main (${JSON.stringify(wrong.dropped)})`);
+  ok(lookAt('You died at A Lobby pushing alone into their crossfire.').what === 'You died at A Lobby pushing alone into their crossfire.', 'kept: A Lobby, a callout of the same side');
+  ok(lookAt('You died at A Main pushing alone into their crossfire.').what === 'You died at A Main pushing alone into their crossfire.', 'kept: the place Riot has');
+  ok(lookAt('You died at B Main pushing alone into their crossfire.', { place: 'A site' }).what === 'You died at B Main pushing alone into their crossfire.', 'kept: against a site word nothing is judged');
+  ok(lookAt('You died at B Main pushing alone into their crossfire.', {}).what === 'You died at B Main pushing alone into their crossfire.', 'kept: a death with no place of Riot\'s is judged by nothing new');
+  ok(df.wrongSide('You walked through B Main earlier and died later.', d0, withIt) === null, 'a place that is not where the death was is no claim about it');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8');
+  ok(/source === 'riot' && r\.riotSpot \? \{ place: r\.riotSpot \}/.test(src) && /source === 'riot' && r\.buy \? \{ buy: r\.buy \}/.test(src)
+    && /source === 'riot' && \(r\.mateNear === 'close' \|\| r\.mateNear === 'far'\) \? \{ mate: r\.mateNear \}/.test(src),
+  "main's look sends the place, the buy and the distance, Riot's look only");
+}
+
 (async () => {
   // MAIN'S LOOK SENDS RIOT'S MATCH ID AND KEEPS WHAT VARIANT B SAYS (8.5.0,
   // index.js askForensics, run in a sandbox): the match id is the key to the

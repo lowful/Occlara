@@ -1,5 +1,18 @@
 [
   {
+    "version": "8.7.9",
+    "date": "2026-11-09",
+    "title": "Where you died, and what you bought",
+    "summary": "Round cards now show where each death happened, what your team bought and how close a teammate was, and the coach uses it.",
+    "items": [
+      { "kind": "new", "text": "Each round you died in shows the spot, like B Main, and whether a teammate was close enough to trade you." },
+      { "kind": "new", "text": "Each round shows your team's buy, from pistol to full buy, and your review notes when full buys keep losing or ecos keep working." },
+      { "kind": "new", "text": "Every saved review shows your RR change for that match, and Stats shows your peak rank and Riot's own record highlights." },
+      { "kind": "improved", "text": "The coach picks advice from where you died and how you bought, and a round where Riot marked you AFK is never counted against you." },
+      { "kind": "fixed", "text": "Games in your library keep your rank trend and peak in one place, and older reviews look exactly as before." }
+    ]
+  },
+  {
     "version": "8.7.8",
     "date": "2026-11-08",
     "title": "A coach that reads your match, not a checklist",

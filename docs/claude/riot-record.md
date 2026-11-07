@@ -265,7 +265,16 @@ before reads none of them.
   per player averages over the player's team, at least three teammates' rows.
   `pistol` the first round of each half, `eco` under 1000 a player, `full`
   from 3900 (a Vandal and heavy shields), between them `force` with under
-  1000 a player left and `half` with more. Only in a queue with an economy
+  1000 a player left and `half` with more. Three rules by the guns carried
+  (`economy.weapon`, `gunClass`, the game data's cost and category), from
+  the owner's six audit matches on the live server: `full` also when all but
+  one teammate (three at least) carry a gun of 2000 or more (`RIFLE_COST`),
+  so rifles with light shields are no force; `eco` when every gun is known
+  and a sidearm, so a save round of pistols with shields is no half buy; and
+  never `force` the round after the team won that half's pistol (the bonus
+  round reads `half`), which had the review praising "3 of 3 forced rounds
+  won" for three bonus rounds on Split. A gun the record or the data does
+  not name counts as neither. Only in a queue with an economy
   and known halves (not Spike Rush, Replication or a queue with none). The
   card chip says Pistol round, Eco round, Force buy, Half buy or Full buy, and
   the `buys` pattern (`valorant-review.js buyDiscipline`, six decided buy
@@ -297,3 +306,69 @@ and `player_locations` (which name players) are read on the server and never
 sent. The shape logs: no real one is kept in the repo or on the owner's
 profile, so whether each queue fills these fields is still unverified; the
 code treats every one as optional.
+
+### Teaching the coach the round record (8.8)
+
+The same five facts choose notes and cases, tell both prompts how to use
+them, and gate what they contradict. Each step runs only where a round
+carries the data, so an old client or a record without it is reviewed,
+answered and looked at byte for byte as before (held against HEAD's modules
+when written, 60 outputs: retrieve, study, both prompts, the cases, the gates
+and the look).
+
+- **Signals** (`knowledge.js recordSignals`, rows from `match-review.js
+  recordSignalsOf` and `chat-prompt.js recordSignalsFor`): two deaths on an
+  eco (`eco`), two forced rounds (`forcebuy`), two full loadouts lost and half
+  of them (`fullbuy`); two deaths with nobody close and nobody trading, never
+  the last one alive (`isolated`, and their callouts as `places`); two early
+  deaths with every ability but the ultimate at zero casts (`dry-peek`); a
+  callout died at three times (`repeatPlace`). AFK rounds count for nothing
+  and neither "A site" nor an area the parse also widens to ("Mid",
+  "Attacker Side", "Defender Side", `WIDE_AREAS`) is ever a place. One asked round in
+  Ask Coach is enough for its own signals.
+- **Retrieval**: `retrieve()` takes `economy` (flags beside the credits' own)
+  and `places` (+3 for a map note naming the callout), and `recordSlot` gives
+  the best eligible economy note the first slot when nothing picked answers
+  the economy (from Platinum the advanced reserve had filled all six review
+  slots). The review moves that note inside `NOTES_FLOOR`, which the cases'
+  budget never cuts. `study()` and Ask Coach's topical notes want the spot
+  topics for a repeated callout, the cause topics for the two causes, and
+  `ECONOMY_TOPICS` (eco: save round plan, pickup and live; force: the force
+  loop). Cases: `eco` is a seen economy now (`cases.js ECONOMIES_SEEN`,
+  `check-cases.js SEEN_ECONOMIES`), added only by a death on one, and the
+  causes join the case situation.
+- **Prompts**: the review's `recordUse` and Ask Coach's `THE ROUND RECORD`
+  line (the match's part, never the static rules), one sentence per kind of
+  fact present: the distance is the evidence for a trade or spacing point,
+  the economy changes the lesson (an eco death is no mistake the way a full
+  loadout one is), casts back an ability point, an AFK round is never
+  criticised. The review's wording avoids "buy" (`BUY_BLAME`).
+- **Gates** (`record-claims.js checkRecord`, both surfaces): a death put on
+  another lettered side than Riot's callout (a same side callout, mid, a
+  spawn or a site word judges nothing); a kind of round the record does not
+  have (force and half are one kind; the enemy's buy, a plan and a sentence
+  opening on the rule are kept); a teammate close against far (never of a
+  traded death, whose trader was near enough whatever the word) and the
+  other way, never "close enough to trade"; an ability used against zero casts, or
+  unused or "no abilities in that round" against some. Ask Coach's economy
+  gate (`fact-gates.js gateEconomy`) now passes the kind words (`BUY_KIND_WORD`)
+  in a round whose card gives the buy, and still drops what was bought, the
+  credits, the armour and the damage.
+- **The look** (variants b and b2, Riot's look only): `death-forensics.js
+  recordLines` adds the callout ("near A site" or "near Mid" for a site
+  word or an area, which `placeOn` keeps as the chat's does), the
+  teammate's distance and the team's buy as facts, sent by `src/main/index.js`
+  from `riotSpot`, `buy` and `mateNear`; `wrongSide` drops a look sentence
+  putting the death on another lettered side. The distance is a fact only:
+  `MATE_CLOSE_UNITS` has no stated unit, so a look's "close" is never judged.
+- The review request carries Riot's callout apart from `deathSpot` as `place`
+  (`valorant-review.js requestBody`), so the signals never read the screen's
+  places, which the Split audit found shifted a round.
+
+Tests: `test:advancedtips` (signals, every band's economy note, places, no
+signal draw for draw), `test:valorantreview` (study, notes, cases, prompt
+lines, the review's gates), `test:chatgates` (the match's line, notes, cases,
+the economy gate, every `checkRecord` rule and its regexes on known strings),
+`test:forensics` (the look's facts, `wrongSide`, main's body). Per round casts
+reached no review on the six audit matches (0 of 72), so every cast rule is
+written and tested but has not yet fired on a real match.
