@@ -1240,10 +1240,20 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     && !('fix' in untraded) && (body.strengths || []).some((s) => s.key === 'multi-kill'),
   'the model is sent the counted mistakes and strengths the review shows, with no fix line');
   const input = matchReview.normalise(body);
-  const prompt = matchReview.buildPrompt(input);
+  // A client before round 3 sends no `swing` and is asked as before; this
+  // body, built as today's client builds it, carries one (round 3, below).
+  const { swing: _swing, ...bodyBefore3 } = body;
+  ok(Array.isArray(body.swing) && matchReview.round3(input) && !matchReview.round3(matchReview.normalise(bodyBefore3)),
+    'a body built today carries the swing, the mark of the round 3 rules, and one without it is a client before them');
+  const prompt = matchReview.buildPrompt(matchReview.normalise(bodyBefore3));
+  const prompt3 = matchReview.buildPrompt(input);
   ok(/COUNTED MISTAKES[^\n]*\n- Died where nobody could trade \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt)
     && /Second, the first counted mistake in your own words, with its count exactly as given/.test(prompt),
   'the summary is asked for the first counted mistake, with its count');
+  ok(/COUNTED MISTAKES[^\n]*\n- Died where nobody could trade \(rounds 2, 3, 6 and 7\): 4 of your 5 deaths/.test(prompt3)
+    && /Second, the lever the FOCUS fixes, in your own words: a counted mistake with its count exactly as given/.test(prompt3)
+    && !/the first counted mistake/.test(prompt3) && /\nFOCUS LEVER: /.test(prompt3) && /\nAIM EVIDENCE: /.test(prompt3),
+  'a round 3 client\'s summary is asked for the lever the focus fixes, never the first counted mistake by rule');
   ok(/Seen in play: "holding B Main with Ghost"/.test(prompt) && !/every ten seconds/.test(prompt)
     && /Nothing done in the buy phase is a mistake/.test(prompt) && /9 kills, 5 deaths, 1 assist,/.test(prompt),
   'what was seen in play is sent as that, read a second, and the buy phase is never a mistake');
@@ -1325,6 +1335,10 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     && /never restate them/.test(prompt) && /starting with You won or You lost/.test(prompt)
     && /Being traded means a teammate killed your killer within five seconds, which is good/.test(prompt),
   'the model is asked for one lesson a round, never the facts again, the summary from the player\'s own result');
+  ok(!/when this happens, do that/.test(prompt3) && !/the move to make/.test(prompt3) && /never restate them/.test(prompt3)
+    && /starting with You won or You lost/.test(prompt3) && !/which is good: never call it/.test(prompt3)
+    && /judge the round, not the trade/.test(prompt3) && /never praise a death in a lost round/.test(prompt3),
+  'and a round 3 client\'s prompt carries no template words and judges the round, not the trade');
   // The ledger's own labels, R2 and R7, are rounds to the gates (8.4.1): the
   // counted mistake named by them stays, written out, and one the review never
   // counted named by them still goes.
@@ -2162,6 +2176,262 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
     && odd.weaponIcon === null && odd.damage === null,
   `an ability Riot names keeps its name with no gun icon, and no damage is no number (${JSON.stringify(odd)})`);
   ok(card({ killer: 'Fade', weapon: 'Phantom' }, { died: false }) === null, 'a round survived has no card');
+}
+
+// ── Round 3 (Nov 2026): the swing, the lever, aim, the round, the gates ─────
+// From the audit of 84 real outputs by six judges: the focus was the trade
+// habit in 20 of 24 reviews, aim was refused without a look, traded deaths in
+// lost rounds were praised, the template's words reached players, and orbs,
+// health, spike carriers, standings and ability keys were invented. A client
+// of the round 3 rules sends `swing` (requestBody, always); one before it is
+// reviewed exactly as at e77ca68, prompt and study list, byte for byte.
+{
+  const fs = require('fs');
+  const path = require('path');
+  const Module = require('module');
+  const { execFileSync } = require('child_process');
+  const knowledge = require('../server/services/knowledge');
+  // The two dashes, built from their codes (CLAUDE.md: never the character).
+  const DASHES = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
+  const seeded = (fn) => {
+    const random = Math.random;
+    let x = 7;
+    Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+    try { return fn(); } finally { Math.random = random; }
+  };
+
+  // 1. A client before round 3 is today's prompt and study list, byte for byte,
+  //    against the module as it was at e77ca68 (skipped where git cannot say).
+  let before = null;
+  try {
+    const src = execFileSync('git', ['show', 'e77ca68:server/services/match-review.js'], { cwd: path.join(__dirname, '..'), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const file = path.join(__dirname, '..', 'server', 'services', 'match-review.js');
+    const m = new Module(file, module);
+    m.filename = file;
+    m.paths = Module._nodeModulePaths(path.dirname(file));
+    m._compile(src, file);
+    before = m.exports;
+  } catch { before = null; }
+  const mk = (n, o) => ({ n, side: n <= 6 ? 'attacking' : 'defending', result: n % 3 ? 'lost' : 'won', died: n % 3 !== 0, verified: true,
+    sec: 15 + n, killer: n % 2 ? 'Omen' : 'Reyna', weapon: n % 4 ? 'Vandal' : 'Sheriff', traded: n % 5 === 0, kills: 0,
+    alive: { mates: 4, enemies: 5 }, reads: [], ...(o || {}) });
+  const oldBodies = [
+    { rounds: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => mk(n)), patterns: [{ key: 'early', text: 'x' }], mistakes: [], strengths: [],
+      context: { agent: 'Jett', map: 'Split' }, final: { team: 5, enemy: 13 } },
+    { rounds: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => mk(n, n === 2 ? { cause: 'lost-duel' } : {})), patterns: [{ key: 'streak', text: 'y' }],
+      mistakes: [{ key: 'untraded', title: 'Died where nobody could trade', detail: '5 of your 6 deaths went unanswered: x.', rounds: [1, 2, 4, 5, 7], count: 5 }],
+      strengths: [], context: { agent: 'Raze', map: 'Pearl', rankBand: 'plat_diamond', advancedTips: true, enemyAgents: ['Omen', 'Reyna', 'Jett', 'Sage', 'Killjoy'] },
+      final: { team: 7, enemy: 13, verified: true, scoreline: { kills: 10, deaths: 16, assists: 2, acs: 180, headshotPct: 9 } } },
+  ];
+  if (before) {
+    let same = true;
+    for (const b of oldBodies) {
+      for (const marks of [{}, { byCause: true }, { byCause: true, byEnemy: true }]) {
+        const now = { ...matchReview.normalise(b), ...marks };
+        const then = { ...before.normalise(b), ...marks };
+        if (seeded(() => matchReview.buildPrompt(now)) !== seeded(() => before.buildPrompt(then))) same = false;
+        if (JSON.stringify(matchReview.study(now, 3, { lines: ['Hold the spike from cover near a teammate after the plant.'] }))
+          !== JSON.stringify(before.study(then, 3))) same = false;
+      }
+    }
+    ok(same, 'a client before round 3 (no swing) is reviewed as at e77ca68: the same prompt and the same study list, byte for byte');
+  } else console.log('skip  e77ca68 is not readable here, the byte for byte check against it did not run');
+
+  // 2. The swing, from Riot's record of the audit's own Split match.
+  const split = verify.reconcile([], load('riot-split-13-7.json')).rounds;
+  ok(JSON.stringify(review.swingOf(split, null)) === JSON.stringify(['You won 6 of 12 rounds on attack and 7 of 8 on defence.',
+    'Reyna killed you 5 times, more than anyone else.']),
+  `the Split match's swing is its attack half and the Reyna who killed the player five times (${review.swingOf(split, null).join(' | ')})`);
+  const abyssRiot = verify.reconcile([], load('riot-abyss-13-11.json')).rounds;
+  ok(JSON.stringify(review.swingOf(abyssRiot, null)) === '["Skye killed you 7 times, more than anyone else."]',
+    `the Abyss overtime, level by side, is the Skye who killed the player seven times (${review.swingOf(abyssRiot, null).join(' | ')})`);
+  ok(review.swingOf(abyss.rounds, null).length === 0, 'a match Riot never checked has no swing: the screen alone is never the record');
+  // The audit's three missed stories, each shaped as its match was.
+  const rr = (n, side, result, o) => ({ n, side, result, verified: true, died: false, planted: false, ...(o || {}) });
+  // Sunset 4 to 13 in shape: attack even, every defence round they planted lost, a won hold between.
+  const sunset = [...Array.from({ length: 8 }, (_, i) => rr(i + 1, 'attacking', i % 2 ? 'lost' : 'won')),
+    ...Array.from({ length: 12 }, (_, i) => (i % 4 === 3 ? rr(9 + i, 'defending', 'won') : rr(9 + i, 'defending', 'lost', { planted: true })))];
+  ok(review.swingOf(sunset, null).includes('Once they planted on defence, your team won 0 of 9 rounds.'),
+    `0 of 9 retakes is a swing (${review.swingOf(sunset, null).join(' | ')})`);
+  const corrode = Array.from({ length: 16 }, (_, i) => rr(i + 1, i < 12 ? 'attacking' : 'defending', i >= 2 && i < 12 ? 'lost' : 'won'));
+  ok(review.swingOf(corrode, null)[0] === 'You lost 10 rounds in a row, rounds 3 to 12.', `and 10 rounds lost in a row (${review.swingOf(corrode, null).join(' | ')})`);
+  const pearl = Array.from({ length: 6 }, (_, i) => rr(i + 1, 'attacking', i ? 'lost' : 'won'));
+  const fiveDuelists = { us: ['Jett', 'Raze', 'Reyna', 'Phoenix', 'Neon'].map((agent) => ({ agent })), them: [{ agent: 'Omen' }] };
+  ok(review.swingOf(pearl, { comps: fiveDuelists }).includes('Your team had no controller: Jett, Neon, Phoenix, Raze, Reyna.'),
+    'and a team of five duelists with no controller');
+  const op = Array.from({ length: 8 }, (_, i) => rr(i + 1, 'attacking', 'lost', { died: true, killerAgent: i % 2 ? 'Jett' : 'Chamber', weapon: i < 4 ? 'Operator' : 'Vandal' }));
+  ok(review.swingOf(op, null).includes('An Operator killed you 4 times.'), `a gun that is no common rifle killing the player four times (${review.swingOf(op, null).join(' | ')})`);
+  ok([split, abyssRiot, sunset, corrode, op].every((rs) => review.swingOf(rs, null).every((t) => !/;/.test(t) && !DASHES.test(t) && t.length < 200)),
+    'every swing line is plain, with no dash and no semicolon');
+
+  // 3. What the server is sent and keeps.
+  const body = review.requestBody({ rounds: split, context: { agent: 'Jett', map: 'Split' }, endedBy: 'score',
+    riot: { agent: 'Jett', map: 'Split', score: '13-7', result: 'Victory', scoreline: { kills: 17, deaths: 16, assists: 8, acs: 279, headshotPct: 22 } } });
+  const input = matchReview.normalise(body);
+  ok(Array.isArray(body.swing) && body.swing.length === 2 && matchReview.round3(input) && input.swing.join() === body.swing.join(),
+    'the body carries the swing and the server keeps it');
+  ok(JSON.stringify(input.rounds.find((r) => r.n === 6).standings) === '[[5,5],[4,5],[3,5],[2,5],[2,4],[2,3],[1,3],[1,2],[1,1],[0,1]]'
+    && input.final.scoreline.hs === 22,
+  'and each verified round\'s standings from the kill feed, and the headshot rate');
+  const prompt = seeded(() => matchReview.buildPrompt(input));
+  ok(prompt.includes('SWING FACTS (computed from Riot\'s record of this match, the biggest first, these are true):\n- You won 6 of 12 rounds on attack and 7 of 8 on defence.\n- Reyna killed you 5 times, more than anyone else.')
+    && !/\[\[5,5\]/.test(prompt) && !/\b22 percent\b/.test(prompt),
+  'the prompt carries the swing as finished lines, never the standings, and a headshot rate usual for the level is no aim evidence');
+  ok(!DASHES.test(prompt) && !/when this happens, do that/.test(prompt), 'and no dash and no template for the model to copy');
+  const p = matchReview.parse('SUMMARY: You won 13 to 7. You won 6 of 12 rounds on attack and 7 of 8 on defence, so the attack half is where '
+    + 'rounds went. Your opening kills gave the team room.\nFOCUS: Enter on a teammate\'s flash.', input);
+  ok(p.summary === 'You won 13 to 7. You won 6 of 12 rounds on attack and 7 of 8 on defence, so the attack half is where rounds went. Your opening kills gave the team room.',
+    `the summary may quote a swing fact's numbers, as given (${p.summary})`);
+  const pOld = matchReview.parse('SUMMARY: You won 13 to 7. You won 6 of 12 rounds on attack and 7 of 8 on defence, so the attack half is where rounds went.',
+    matchReview.normalise({ ...body, swing: undefined }));
+  ok(pOld.summary === 'You won 13 to 7.', 'and a client before it keeps the old rule: no count the review did not send');
+
+  // 4. The lever, the aim evidence and the level, in code.
+  const untraded = (x, n) => ({ key: 'untraded', title: 'Died where nobody could trade', detail: `${x} of your ${n} deaths went unanswered: x.`, rounds: [1, 2, 3, 4, 5], count: x });
+  const lever = (band, x, n, agent) => matchReview.focusLever(matchReview.normalise({ rounds: [mk(1)], swing: [], mistakes: [untraded(x, n)],
+    context: { agent: agent || 'Sova', ...(band ? { rankBand: band } : {}) } }));
+  ok(lever('iron_bronze', 13, 15).tradeOk && lever('silver_gold', 7, 10).tradeOk && lever(null, 7, 10).tradeOk,
+    'deaths nobody traded that dominate may be the focus at Iron to Gold, or with the level unknown');
+  ok(!lever('plat_diamond', 7, 10).tradeOk && !lever('asc_plus', 7, 10).tradeOk && lever('asc_plus', 13, 15).tradeOk && !lever('silver_gold', 6, 10).tradeOk,
+    'from Platinum only when they are eight in ten, and never when they do not dominate');
+  ok(lever('plat_diamond', 7, 10, 'Jett').entry && !lever('plat_diamond', 7, 10).entry, 'and a duelist is taught their part of the entry');
+  const plat = matchReview.normalise({ rounds: [mk(1)], swing: [], mistakes: [untraded(7, 10)], context: { agent: 'Jett', rankBand: 'plat_diamond' } });
+  ok(/Never make checking that a teammate can trade you the focus in this match/.test(matchReview.leverRule(plat))
+    && /their part of the entry/.test(matchReview.leverRule(plat)),
+  'a Platinum duelist is told never to make the trade check the focus, and to teach the entry instead');
+  const aimOf = (band, hs, cause) => matchReview.aimEvidence(matchReview.normalise({ rounds: [mk(1, cause ? { cause } : {})], swing: [],
+    context: { ...(band ? { rankBand: band } : {}) }, final: { team: 1, enemy: 2, scoreline: { kills: 1, deaths: 1, assists: 0, acs: 1, headshotPct: hs } } }));
+  ok(aimOf('silver_gold', 10).low && !aimOf('silver_gold', 22) && aimOf('asc_plus', 17).low && !aimOf('asc_plus', 19)
+    && aimOf(null, 9).low && !aimOf(null, 10) && aimOf('plat_diamond', 30, 'lost-duel').lostDuels === 1,
+  'aim evidence: a headshot rate well below the level\'s usual, or a look\'s lost duel, and nothing else');
+  const aimPrompt = (hs) => seeded(() => matchReview.buildPrompt(matchReview.normalise({ ...body, final: { ...body.final, scoreline: { ...body.final.scoreline, headshotPct: hs } },
+    context: { ...body.context, rankBand: 'silver_gold' } })));
+  ok(/AIM EVIDENCE: the player's headshot rate this match was 9 percent, well below what is usual at their level/.test(aimPrompt(9))
+    && /AIM EVIDENCE: none in this match, so never say whether aim was or was not the problem\./.test(aimPrompt(22)),
+  'and the prompt says which, so a low rate is aim and no evidence is neither');
+  const levels = knowledge.RANK_BANDS.map((b) => matchReview.rankRule3(b));
+  ok(new Set(levels).size === 4 && levels.every((l) => /Round lines differ in kind by level/.test(l) && /never to be copied/.test(l)
+    && /must never be the one a lower ranked player would be given/.test(l) && !/;/.test(l) && !DASHES.test(l))
+    && !/staying where a teammate can trade you/.test(levels[1]) && matchReview.rankRule3(undefined) === '',
+  'each level has its own kind of round line with an example, no semicolon, Silver no longer the trade habit, and no band no line');
+
+  // 5. THE AUDIT'S OWN REVIEWS (scripts/fixtures/audit-round3-reviews.json):
+  //    the gates drop the fabrications the six judges found, and only those.
+  const audit = require('./fixtures/audit-round3-reviews.json').reviews;
+  const dropped = {};
+  const lost = [];
+  for (const x of audit) {
+    const ab = { rounds: x.rounds, swing: [], mistakes: [], strengths: [], context: { agent: x.agent, map: x.map, rankBand: x.band },
+      final: { team: Number(x.score.split('-')[0]), enemy: Number(x.score.split('-')[1]), result: x.result, verified: true, scoreline: x.scoreline } };
+    const got = matchReview.parse(x.reply, matchReview.normalise(ab));
+    for (const d of got.dropped) {
+      dropped[`${x.id} ${d.n === null ? 'S' : 'R' + d.n} ${d.said}`] = true;
+      lost.push(d.said);
+    }
+  }
+  const want = ['review-split-13-7-iron_bronze R6 orb', 'review-split-13-7-silver_gold R6 orb', 'review-split-13-7-plat_diamond R6 orb',
+    'review-split-13-7-asc_plus R6 orb', 'review-corrode-3-13-iron_bronze R9 carrier', 'review-corrode-3-13-silver_gold R9 carrier',
+    'review-corrode-3-13-plat_diamond R9 carrier', 'review-corrode-3-13-asc_plus R9 carrier', 'review-pearl-1-5-silver_gold R6 state',
+    'review-sunset-4-13-iron_bronze R16 praise', 'review-sunset-4-13-plat_diamond R16 praise'];
+  ok(JSON.stringify(Object.keys(dropped).sort()) === JSON.stringify(want.sort()),
+    `the audit's 24 reviews lose exactly the invented orb (4), the spike carrier (4), the 11 HP (1) and the praised deaths in lost rounds (2), nothing else (${Object.keys(dropped).join(', ')})`);
+  // The audit's other bad sentences, from Ask Coach, through the same gates.
+  const jett = matchReview.normalise({ rounds: [mk(1)], swing: [], context: { agent: 'Jett' } });
+  const BAD = [
+    ['When this happens, do that: plant, then take a spot behind cover where a teammate is close enough to kill whoever kills you.', 'template'],
+    ['Her Turret (E) and Alarmbot (C) are the two things that punish a Jett who moves first.', 'kit'],
+    ['The turret watches an angle and shoots when you cross it, and the alarmbot reveals and slows anyone who walks into its range.', 'kit'],
+    ['Paranoia sends a vision-blocking shadow through walls, Shrouded Step teleports him a short way.', 'kit'],
+    ['Your aim is not the problem here.', 'aim'], ['Aim is not what cost you this Split match.', 'aim'],
+    ['Your aim is not the first thing to fix.', 'aim'], ['Your aim is not the main problem here.', 'aim'],
+    ['To build it, run deathmatch or a few unrated rounds with one rule: you are only allowed to peek an angle if a teammate is within sight of it.', 'drill'],
+  ];
+  for (const [s, kind] of BAD) ok(matchReview.claimOf(s, jett, null) === kind, `the audit's "${s.slice(0, 50)}" goes as ${kind} (${matchReview.claimOf(s, jett, null)})`);
+  const GOOD = [
+    'For a drill, play deathmatch and practice stopping before each shot and putting the first bullet at head height.',
+    'After the plant, hold the spike from cover with a teammate nearby because your death was traded even though the round was lost.',
+    'When you hold a gap like this, keep your crosshair ready to fire because this was a sound fight lost on the shot.',
+    'Leer on C blinds anyone looking at it, which punishes a player holding an angle alone.',
+    'Clear the Slow Orb before you cross, because it holds you in the open.',
+    'The right play here is to fall back to a teammate.',
+    'You were 4 against 5 when you swung, so the next fight needed a teammate.',
+    // A distance is no Range, and Team Deathmatch has a team (the round 3 verification).
+    'Play in range of your teammates so they can trade your death.',
+    'Play Team Deathmatch and trade each other with a teammate.',
+  ];
+  ok(GOOD.every((s) => matchReview.claimOf(s, jett, null) === null), `and the true lines beside them stay (${GOOD.map((s) => matchReview.claimOf(s, jett, null)).join(',')})`);
+  // The standings and the gun, on the Split record.
+  const r6 = input.rounds.find((r) => r.n === 6);
+  ok(matchReview.claimOf('You were 4 against 4 there, so wait for the team.', input, r6) === 'state'
+    && matchReview.claimOf('You were 3 against 5 there, so wait for the team.', input, r6) === null,
+  'a standing the round\'s kill feed never stood at goes, one it stood at stays');
+  const gun = { n: 3, verified: true, died: true, result: 'lost', killer: 'Killjoy', weapon: 'Bandit' };
+  const turret = { ...gun, weapon: null };
+  ok(matchReview.claimOf('You died to her Turret because you walked in alone.', jett, gun) === 'utility'
+    && matchReview.claimOf('You died to her Turret because you walked in alone.', jett, turret) === null
+    && matchReview.claimOf('Her Turret spotted you, then her Bandit finished it.', jett, gun) === null,
+  'a gun kill blamed on the killer\'s ability goes, and the same line with no gun on record stays');
+  const reyna = matchReview.normalise({ rounds: [mk(1)], swing: [], context: { agent: 'Reyna' } });
+  ok(matchReview.claimOf('Devour off the orb after the kill, then reset.', reyna, null) === null
+    && matchReview.claimOf('When you go for the orb, ask a teammate to watch.', jett, null) === 'orb',
+  'a Reyna\'s soul orb is hers, an ultimate orb nothing states is not');
+  // A whole reply: a round line goes whole, a summary sentence alone.
+  const whole = matchReview.parse('SUMMARY: You won 13 to 7. Your aim is not the problem here. Your openings won rounds.\n'
+    + 'R6: When you go for the orb, ask a teammate to watch the angle first.\nR4: Hold the spike from cover.\nFOCUS: Enter on a flash.', input);
+  ok(whole.summary === 'You won 13 to 7. Your openings won rounds.' && !(6 in whole.rounds) && whole.rounds[4] && whole.focus === 'Enter on a flash.'
+    && whole.dropped.some((d) => d.n === 6 && d.said === 'orb') && whole.dropped.some((d) => d.n === null && d.said === 'summary aim'),
+  `a false line goes whole, a false summary sentence alone, never the review (${JSON.stringify(whole.dropped)})`);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'match-review.js'), 'utf8')
+    + fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', 'valorant-review.js'), 'utf8');
+  ok(!src.includes(String.fromCharCode(8)), 'no backspace byte in either file, the shell regex hazard');
+
+  // 6. The study list: it turns by the match, follows aim evidence, leaves
+  //    out what the round advice contradicts, and the Operator needs one.
+  const studyOf = (b, o) => matchReview.study({ ...matchReview.normalise(b), byCause: true, byEnemy: true }, 3, o).map((n) => n.text);
+  const variety = new Set();
+  const plainSets = new Set();
+  for (let k = 0; k < 12; k++) {
+    const b = { rounds: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => mk(n, { sec: 10 + n + k })), swing: [], patterns: [{ key: 'early', text: 'x' }],
+      context: { agent: 'Jett', map: 'Split', rankBand: 'silver_gold', advancedTips: true }, final: { team: 5 + k, enemy: 13 } };
+    for (const t of studyOf(b)) variety.add(t);
+    plainSets.add(JSON.stringify(studyOf({ ...b, swing: undefined })));
+    ok(JSON.stringify(studyOf(b)) === JSON.stringify(studyOf(b)), k === 0 ? 'one match always gets the same study list' : 'and again');
+  }
+  ok(plainSets.size === 1 && variety.size >= 6, `twelve matches alike but for their rounds: a client before round 3 gets one list for all, a round 3 client ${variety.size} notes`);
+  const opBody = (weapon) => ({ rounds: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => mk(n, { weapon, cause: n < 3 ? 'dry-peek' : null })), swing: [], patterns: [],
+    mistakes: [{ key: 'cause:dry-peek', title: 'Dry peeks', detail: 'x', rounds: [1, 2], count: 2 }],
+    context: { agent: 'Sova', map: 'Ascent', rankBand: 'plat_diamond', advancedTips: true, enemyAgents: ['Jett', 'Chamber', 'Omen', 'Sage', 'Fade'] } });
+  const OP = 'When an enemy Operator is holding a lane, do not dry peek it to find out where he is';
+  const served = (b) => {
+    const i = { ...matchReview.normalise(b), byCause: true, byEnemy: true };
+    return seeded(() => matchReview.buildPrompt(i, { cases: false })).includes(OP);
+  };
+  // For every client, the one change to an old client's notes: the note was
+  // served blind on a Jett or a Chamber in the comp, 9 of the audit's 24
+  // reviews with no Operator kill in any match (knowledge.js enemyFit).
+  ok(!served(opBody('Vandal')) && served(opBody('Operator')) && !served({ ...opBody('Vandal'), swing: undefined })
+    && served({ ...opBody('Operator'), swing: undefined }),
+  'the enemy Operator note needs an Operator kill on Riot\'s record, not a Jett or a Chamber on their team, for every client');
+  const lowAim = { rounds: [1, 2, 3, 4, 5, 6].map((n) => mk(n)), swing: [], patterns: [], mistakes: [],
+    context: { agent: 'Jett', map: 'Split', rankBand: 'silver_gold' }, final: { team: 3, enemy: 13, scoreline: { kills: 4, deaths: 12, assists: 1, acs: 120, headshotPct: 8 } } };
+  const topicOf = (text) => { const n = knowledge.all().find((x) => x.text === text); return n && n.source ? n.source.topic : null; };
+  const aimTopics = new Set(matchReview.CAUSE_TOPICS['lost-duel']);
+  ok(studyOf(lowAim).some((t) => aimTopics.has(topicOf(t))) && !studyOf({ ...lowAim, final: { ...lowAim.final, scoreline: { ...lowAim.final.scoreline, headshotPct: 20 } } })
+    .some((t) => aimTopics.has(topicOf(t))) && !studyOf({ ...lowAim, swing: undefined }).some((t) => aimTopics.has(topicOf(t))),
+  'a low headshot rate with no look sends a round 3 client to the aim notes, a usual one does not, and a client before it as before');
+  const PRESENCE = 'As a duelist after the plant, show presence deep on their side';
+  const ppBody = { rounds: [1, 2, 3, 4, 5, 6].map((n) => mk(n, { side: 'attacking', planted: true, result: 'lost' })), swing: [],
+    patterns: [{ key: 'postplant', text: 'x' }], context: { agent: 'Jett', map: 'Split', rankBand: 'plat_diamond', advancedTips: true } };
+  // Every note the match can be listed, one a topic, so the filter is seen whatever the turn.
+  const wide = (o) => matchReview.study({ ...matchReview.normalise(ppBody), byCause: true, byEnemy: true }, 400, o).map((n) => n.text);
+  ok(wide().some((t) => t.startsWith(PRESENCE))
+    && !wide({ lines: ['After the plant, hold the spike from cover near a teammate and let them come.'] }).some((t) => t.startsWith(PRESENCE))
+    && wide({ lines: ['Take one piece of space and stop before you swing.'] }).some((t) => t.startsWith(PRESENCE))
+    && matchReview.study({ ...matchReview.normalise({ ...ppBody, swing: undefined }), byCause: true }, 400,
+      { lines: ['After the plant, hold the spike from cover near a teammate.'] }).some((n) => n.text.startsWith(PRESENCE)),
+  'the forward post plant note goes beside a round line holding the spike from cover, and stays beside one about something else');
+  ok(matchReview.spread('a|b') !== matchReview.spread('a|c') && Math.abs(matchReview.spread('a|b') - matchReview.spread('a|c')) > 0.01,
+    'the turn\'s hash spreads two seeds that differ in one letter');
 }
 
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);

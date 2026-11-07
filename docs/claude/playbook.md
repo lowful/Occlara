@@ -36,7 +36,7 @@ automatically through `knowledge.all()`, and extra fields such as `source` pass
 through untouched. It began as 69 notes (42 imported from pro VOD reviews and
 27 of Occlara's own, computed from the damage table or written from round
 shapes), grew to 227 with the 2026 imports, to 308 with the 8.7.2 audit, to 469
-with the 8.8 coach consensus and to 602 with its second round (below); the live count is `knowledge.all().length` minus the hand written
+with the 8.8 coach consensus, to 602 with its second round and to 642 with its third (below); the live count is `knowledge.all().length` minus the hand written
 set, and the boot line `[knowledge] merged N` says it. **An imported note must
 carry `source.topic`**, which is what `study()` picks by, or the checker fails
 it.
@@ -368,7 +368,7 @@ pattern beside it; a case for any agent needs two different kinds of those.
 Over a whole match a phase counts only where the deaths gather, at least two
 and a third of them (`concentrated`); an asked round keeps its own phase. The
 cases for any agent with one kind of anchor are held back by design (42 of
-157, mostly mid or late round reads no review can see), and `check:cases`
+180 since round three, mostly mid or late round reads no review can see), and `check:cases`
 lists them and fails past `HELD_BACK_MAX`. Every case also needs a score of `MIN_SCORE`. The same filters as the notes:
 another agent's, role's or map's case is excluded, a side case for a player
 who never played that side, enemy cases never blind, the rank band through
@@ -426,3 +426,45 @@ the research folder). `test:advancedtips`'s side check reads twelve notes,
 not eight: the new Sova notes held the eight free of side notes on about a
 third of the random draws. Nothing was benched: `bench:review` and
 `bench:chat` before a release that ships the cases.
+
+## Round three: entry craft, matchups, and what was wrong (2026-11-07)
+
+An audit of 84 real outputs (24 reviews, 60 Ask Coach answers, six matches, all
+on duelists) by six judges at different ranks came first, then research aimed
+at its weakest areas. 40 notes and 23 cases (k177 to k199) were added, all
+`coach-consensus` except the computed pistol and anti eco hit counts (declared
+claims), one stats note and one riot-notes Corrode note. 16 notes carry
+`enemyAgents` (Omen, Reyna, Killjoy below Platinum, Sage, Phoenix, Clove,
+Chamber, which had little or nothing), so with a full comp of those agents
+known, `retrieve()` at Iron now gives about one of its eight slots to a
+matchup read (0 before; measured over 3 comps, 6 agents and both sides).
+
+What changed in existing notes, each for a reason the evidence supports:
+
+- The hand written Jett "dash is your exit ticket" is defence only
+  (`side: 'defense'`), and the playbook's "keep your movement ability for the
+  entry itself" is attack only: unscoped, the first told an attacking Jett to
+  keep the dash for leaving and the second told a defending one to keep it for
+  entering.
+- "consider Raze" was a pick suggestion tagged `agents: ['Raze']`, which
+  `retrieve()` reads as the player is Raze, so a Raze was told to consider
+  Raze. It is rewritten in the Raze player's voice (clear the trap setup with
+  shells, satchel and Boom Bot) with phase active.
+- "When your entry dies early on attack and you are four against five" carries
+  the non duelist roles, so it no longer reaches the entry who died.
+- "Retake from two lanes with the widest angle" is Silver to Diamond: Iron got
+  two lane geometry it cannot coordinate, and a simpler retake note (say your
+  utility, go with the nearest teammate) now covers Iron and Silver.
+- Mechanics first now covers Silver and Gold too; the Clove return and the
+  forward Chamber notes are open to Iron and Bronze.
+- Three eco notes said what the table refutes (a Sheriff or Marshal head hit
+  kills at range) or could not be followed on attack (never go into close
+  quarters); three duplicated Fracture and Pearl notes in `knowledge.js` were
+  removed (344 hand written notes now).
+
+Not fixed, because they need code or a prompt change (the list with proposed
+wording is in the round three research folder, outside the repo): the summary
+and FOCUS always naming the first counted mistake, the aim rule that needs a
+look, cause gated aim notes, refusal gates, praise of traded deaths in lost
+rounds, no killer weapon tag (the enemy Operator note is served on any dry peek
+against a Jett or a Chamber), and the two death counts. Nothing was benched.

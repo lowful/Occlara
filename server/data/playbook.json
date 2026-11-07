@@ -7274,7 +7274,6 @@
       "crossfire"
     ],
     "ranks": [
-      "iron_bronze",
       "silver_gold",
       "plat_diamond"
     ],
@@ -8091,6 +8090,7 @@
       "overextend"
     ],
     "ranks": [
+      "iron_bronze",
       "silver_gold",
       "plat_diamond",
       "asc_plus"
@@ -8227,9 +8227,8 @@
   },
   {
     "text": "When an enemy Operator is holding a lane, do not dry peek it to find out where he is: block his line with a smoke, flash or stun, or locate him with recon first, and if your team has none of that left, take your space on another lane.",
-    "enemyAgents": [
-      "Chamber",
-      "Jett"
+    "enemyWeapons": [
+      "Operator"
     ],
     "phase": "active",
     "cause": [
@@ -8374,7 +8373,7 @@
     "why": "A shotgun only wins inside its range, so distance turns their dive into a rifle duel they lose."
   },
   {
-    "text": "If the enemy keeps holding a site behind traps and cameras, consider Raze: Paint Shells and an armed Blast Pack can destroy destructible sentinel utility such as Cypher trapwires, Killjoy alarmbots and turrets, Deadlock sensors or Vyse razorvine, and the Boom Bot checks a close corner before a body has to walk into it.",
+    "text": "On Raze against a site held behind traps and cameras, clear the setup before anyone walks into it: Paint Shells and an armed Blast Pack destroy destructible sentinel utility such as Cypher trapwires, Killjoy alarmbots and turrets, Deadlock sensors or Vyse razorvine, and the Boom Bot checks a close corner before a body has to.",
     "agents": [
       "Raze"
     ],
@@ -8384,7 +8383,7 @@
       "Deadlock",
       "Vyse"
     ],
-    "phase": "buy",
+    "phase": "active",
     "ranks": [
       "plat_diamond",
       "asc_plus"
@@ -8396,7 +8395,7 @@
       "kind": "coach-consensus",
       "topic": "Raze into trap setups"
     },
-    "when": "Rounds where your entry walked into an intact trap that an explosive could have cleared.",
+    "when": "Rounds where the Raze or a teammate walked into an intact trap that an explosive could have cleared.",
     "why": "Explosives destroy or trigger the setup before a body has to walk into it."
   },
   {
@@ -8501,6 +8500,7 @@
       "Chamber"
     ],
     "ranks": [
+      "iron_bronze",
       "silver_gold",
       "plat_diamond",
       "asc_plus"
@@ -9367,9 +9367,10 @@
     "why": "Utility works on bad aim days, entry duels do not."
   },
   {
-    "text": "In Iron and Bronze, put most of your practice into aim, crosshair placement, movement and deathmatch rather than strategy, because there is little coordination at that rank and your own duels carry you out.",
+    "text": "From Iron to Gold, put most of your practice into aim, crosshair placement, movement and deathmatch rather than strategy, because there is little coordination at those ranks and your own duels carry you out.",
     "ranks": [
-      "iron_bronze"
+      "iron_bronze",
+      "silver_gold"
     ],
     "weight": 3,
     "tier": "core",
@@ -9377,7 +9378,7 @@
       "kind": "coach-consensus",
       "topic": "mechanics first at the bottom"
     },
-    "when": "Most of your practice time in deathmatch until you leave Bronze.",
+    "when": "Most of your practice time in deathmatch until you leave Gold.",
     "why": "Team plans need teammates who follow them, mechanics only need you."
   },
   {
@@ -9974,6 +9975,7 @@
     "roles": [
       "duelist"
     ],
+    "side": "attack",
     "ranks": [
       "iron_bronze",
       "silver_gold"
@@ -10057,7 +10059,12 @@
       "topic": "have a plan"
     },
     "when": "Four versus five rounds where the remaining players split across the map.",
-    "why": "Four players on one site still outnumber the defenders there."
+    "why": "Four players on one site still outnumber the defenders there.",
+    "roles": [
+      "controller",
+      "initiator",
+      "sentinel"
+    ]
   },
   {
     "text": "Pair an ability that holds an enemy in place with damage on the same spot, a slow, a tether or a net followed by a molly or a grenade, and if you queue as a duo, plan that combo so the initiator sets up the duelist every round.",
@@ -10263,9 +10270,8 @@
   },
   {
     "text": "Do not let one enemy Operator stop your whole attack, it can hold only one lane at a time, so locate it with information and keep taking your space and peeks on the lanes it is not on.",
-    "enemyAgents": [
-      "Chamber",
-      "Jett"
+    "enemyWeapons": [
+      "Operator"
     ],
     "side": "attack",
     "ranks": [
@@ -10685,5 +10691,814 @@
     },
     "when": "Each practice block names whether it trains control or placement.",
     "why": "Placement is learned on the maps you play, control is learned by repetition."
+  },
+  {
+    "text": "On attack Tailwind is how you enter a site, not something to keep for later: throw Cloudburst where you will land and dash into it as a teammate's flash, dart or drone lands, because walking or swinging onto the site with the dash unused throws away the one thing that makes your entry safer than anyone else's.",
+    "agents": [
+      "Jett"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "planning the peek"
+    },
+    "when": "Attack rounds where the Jett died entering a site with Tailwind still available.",
+    "why": "Every vetted entry source teaches the dash as the entry, and a dash kept for later is why a Jett entry dies like anyone else."
+  },
+  {
+    "text": "When your initiator's drone, dog or dart reveals a defender or shows the first angle clear, enter in that same second, onto the revealed player while he is still where it saw him, with the next teammate taking the next angle behind you, because a reveal is worth most the moment it lands and a defender who knows he was seen moves.",
+    "agents": [
+      "Hush",
+      "Iso",
+      "Jett",
+      "Neon",
+      "Phoenix",
+      "Raze",
+      "Reyna",
+      "Waylay",
+      "Yoru"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "filling utility"
+    },
+    "when": "Entries that came seconds after a teammate recon had already landed, or before it landed.",
+    "why": "Entering on the information is what the entry controls, and it is the part the old trade advice never said."
+  },
+  {
+    "text": "When the defence dumps mollies, stuns or a wall on the entrance you are about to satchel through, do not fly into it: pull back, let the utility run out and hit after it is spent or take another route, because a satchel into fresh defensive utility gives the round away and they cannot throw that utility twice.",
+    "agents": [
+      "Raze"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "planning the peek"
+    },
+    "when": "Raze deaths on landing inside a molly, stun or wall the defence threw seconds earlier.",
+    "why": "The one case where an entry should wait is fresh stall utility on the entrance."
+  },
+  {
+    "text": "On defence keep Paint Shells until the attackers commit, then throw them into the entrance behind the first player through, so the group behind him is held back while you and your team kill the one who came in, because a rush only works when everyone arrives together.",
+    "agents": [
+      "Raze"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "holding against a rush"
+    },
+    "when": "Defence rounds lost to a rush with the Raze grenade unused or thrown before contact.",
+    "why": "The grenade in the doorway splits the rush, which is the whole point of holding it."
+  },
+  {
+    "text": "On defence take an early aggressive peek only when your way out is ready before you show yourself, Tailwind prepared, the slide ready, Gatecrash already placed behind you or a satchel in hand, then take one fight and leave, because the dash, the slide and the teleport come back only every two kills, so an exit spent on the first peek leaves you none for the rest of the round.",
+    "agents": [
+      "Jett",
+      "Neon",
+      "Yoru",
+      "Raze"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "giving ground"
+    },
+    "when": "Early defence deaths on a forward peek with the movement ability unavailable or unprepared.",
+    "why": "Pros do take early defence space, never without the exit, and the kit gives most duelists one free exit a round."
+  },
+  {
+    "text": "You have no dash or slide on Iso, so advice to peek and dash away does not fit you: take early peeks one step from cover with Double Tap up, since its shield blocks one hit, and fall back on foot right after the first fight instead of staying for a second.",
+    "agents": [
+      "Iso"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "giving ground"
+    },
+    "when": "Iso deaths on a second fight from the same forward spot.",
+    "why": "Generic duelist exit advice assumes a movement ability Iso does not have."
+  },
+  {
+    "text": "On Reyna, Dismiss and Devour need a Soul Orb, and an orb appears only when an enemy you damaged or killed is dead, so take your first defensive peek from a spot one step from cover that you can survive with no ability, and never go into a lane where you know three attackers are.",
+    "agents": [
+      "Reyna"
+    ],
+    "roles": [
+      "duelist"
+    ],
+    "side": "defense",
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "early aggression"
+    },
+    "when": "Reyna deaths on a first wide defensive peek before any orb existed.",
+    "why": "Low rank Reyna players peek as if the escape already existed."
+  },
+  {
+    "text": "When a Cypher Trapwire covers the line you would dash along, do not dash through it: Updraft and dash over it, ask an initiator to break it first, or land on another spot, because a trip holds you in the open with your dash already spent.",
+    "agents": [
+      "Jett"
+    ],
+    "enemyAgents": [
+      "Cypher"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "planning the peek"
+    },
+    "when": "Jett deaths tethered on the dash line into a site.",
+    "why": "A trip on the usual dash line turns the fastest entry into the most exposed one."
+  },
+  {
+    "text": "With Blade Storm out throw single knives with fire, which refresh on every kill, and keep the alt fire throw of all remaining knives for an enemy right on top of you, because that throw spends every knife with no refresh.",
+    "agents": [
+      "Jett"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "ult economy"
+    },
+    "when": "Blade Storm rounds that ended with the knives spent on one spread throw.",
+    "why": "The kit refreshes single throws on kills and not the spread throw."
+  },
+  {
+    "text": "On the pistol round an enemy holding a Ghost, a Frenzy, a Bandit or a Sheriff almost certainly bought no shield, because every bought pistol plus any shield costs more than the 800 you start with, so a Ghost inside 30 metres, a Bandit or a Sheriff kills him with one head hit and a Classic needs a second, which is why you keep tapping until he drops.",
+    "situations": [
+      "pistol"
+    ],
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "computed",
+      "topic": "reading the enemy buy",
+      "claims": [
+        {
+          "rule": "credits.start",
+          "value": 800
+        },
+        {
+          "weapon": "ghost",
+          "part": "head",
+          "armor": "none",
+          "hits": 1,
+          "band": "near"
+        },
+        {
+          "weapon": "bandit",
+          "part": "head",
+          "armor": "none",
+          "hits": 1
+        },
+        {
+          "weapon": "sheriff",
+          "part": "head",
+          "armor": "none",
+          "hits": 1
+        },
+        {
+          "weapon": "classic",
+          "part": "head",
+          "armor": "none",
+          "hits": 2,
+          "band": "near"
+        }
+      ]
+    },
+    "when": "Pistol round duels where the player stopped firing after one head hit.",
+    "why": "His gun tells you his armour, and his armour tells you how many hits he needs."
+  },
+  {
+    "text": "On an anti eco a Bandit head hit kills through Heavy Armor only inside 10 metres, but a Sheriff head hit kills through it out to 30 metres and a Marshal head hit at any range, so meet close corners from distance or clear them with utility, and never give a Sheriff or a Marshal a still head on a long line.",
+    "situations": [
+      "antieco"
+    ],
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "computed",
+      "topic": "anti eco",
+      "claims": [
+        {
+          "weapon": "bandit",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 1,
+          "band": "near"
+        },
+        {
+          "weapon": "bandit",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 2,
+          "band": "far"
+        },
+        {
+          "weapon": "sheriff",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 1,
+          "band": "near"
+        },
+        {
+          "weapon": "marshal",
+          "part": "head",
+          "armor": "heavy",
+          "hits": 1
+        }
+      ]
+    },
+    "when": "Anti eco deaths to a Bandit up close or to a Sheriff or Marshal on a long line.",
+    "why": "Each cheap gun has one range where it equals a rifle, and it is a different range for each."
+  },
+  {
+    "text": "If a Classic killed you on an anti eco, you were usually already hurt or within a few metres of him, because one Classic head hit does not kill even a player with no shield, so check your health before the next fight and clear close corners with utility instead of walking into them.",
+    "situations": [
+      "antieco"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "computed",
+      "topic": "anti eco",
+      "claims": [
+        {
+          "weapon": "classic",
+          "part": "head",
+          "armor": "none",
+          "hits": 2,
+          "band": "near"
+        }
+      ]
+    },
+    "when": "Anti eco deaths to a Classic.",
+    "why": "A Classic death is one of the most readable deaths in the game."
+  },
+  {
+    "text": "When the buy phase shows three or more enemies on Light Armor, an Outlaw held on a long angle kills each of them with one body hit for about half an Operator's price, so it can be a better buy than a rifle that round, but against Heavy Armor it needs a second hit.",
+    "situations": [
+      "fullbuy"
+    ],
+    "phase": "buy",
+    "ranks": [
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "advanced",
+    "source": {
+      "kind": "computed",
+      "topic": "reading the enemy buy",
+      "claims": [
+        {
+          "weapon": "outlaw",
+          "part": "body",
+          "armor": "light",
+          "hits": 1
+        },
+        {
+          "weapon": "outlaw",
+          "part": "body",
+          "armor": "heavy",
+          "hits": 2
+        }
+      ]
+    },
+    "when": "Buy rounds against three or more light shields where the long angle player bought a rifle.",
+    "why": "One body hit kills a light shield, so the gun plays like an Operator against most of that team."
+  },
+  {
+    "text": "When an enemy Omen uses From the Shadows near you, look for the shade at the spot he is going to arrive and shoot it, because the shade can be destroyed and that stops his arrival, and if you cannot find it, hold that spot instead of turning your back on it.",
+    "enemyAgents": [
+      "Omen"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy ultimates"
+    },
+    "when": "Deaths to an Omen just arrived from his ultimate.",
+    "why": "The kit makes the shade destructible, and a destroyed shade sends him back."
+  },
+  {
+    "text": "Against an Omen, listen for the short channel of Shrouded Step: when you hear it close to you, turn to the nearest spot he could land and aim there instead of keeping your crosshair on the angle you were holding, because the teleport puts him beside or behind you a moment later.",
+    "enemyAgents": [
+      "Omen"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Deaths to an Omen from behind or above shortly after a teleport sound.",
+    "why": "The step has a channel and its enemy audio was made clearer in 13.00."
+  },
+  {
+    "text": "When an Omen's Paranoia reaches you, you are nearsighted and deafened, so step back behind cover or toward a teammate until it wears off instead of holding the doorway half blind, because he throws it to swing you while you cannot see or hear him.",
+    "enemyAgents": [
+      "Omen"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Deaths while nearsighted by Paranoia on the same angle.",
+    "why": "Paranoia nearsights and deafens, it is not a smoke and it is not a flash you can turn from."
+  },
+  {
+    "text": "When a Reyna throws Leer at your angle, shoot it or look away from it and keep your position, because it nearsights only players looking at it and it can be destroyed, so holding your angle while staring into it hands her the duel.",
+    "enemyAgents": [
+      "Reyna"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Deaths to a Reyna swinging behind her Leer.",
+    "why": "Leer only works on a player who keeps looking at it."
+  },
+  {
+    "text": "Do not chase a Reyna who Dismisses after a kill, because for that moment she cannot be hurt and she is moving back to cover you cannot see, so hold the way back to you and make her come to you.",
+    "enemyAgents": [
+      "Reyna"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Deaths chasing a Reyna who just vanished with Dismiss.",
+    "why": "Chasing walks you into the angle she chose while she is already safe."
+  },
+  {
+    "text": "Fight a Reyna with a teammate who swings at the same moment from a second angle, never one after the other, because each enemy she kills gives her an orb to heal or Dismiss, so two duels in a row are two she can reset between.",
+    "enemyAgents": [
+      "Reyna"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "checkpoints"
+    },
+    "when": "Two deaths in a row to the same Reyna in one round.",
+    "why": "Her whole kit runs on orbs from players she killed."
+  },
+  {
+    "text": "When a Killjoy Alarmbot reaches you it makes you vulnerable, so you take extra damage, and it does not slow you: shoot it if it is right beside you, otherwise step straight back out of the entrance and come in again with a teammate, because the next step forward is where her swarm and turret are waiting.",
+    "enemyAgents": [
+      "Killjoy"
+    ],
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Entry deaths with the Alarmbot debuff on.",
+    "why": "The coach once called the Alarmbot a slow and swapped the keys, the kit says vulnerable."
+  },
+  {
+    "text": "When a Killjoy Lockdown goes down over you, shoot the device during its windup if you can see it from cover, otherwise walk out of the circle before it goes off and come back when it ends, and do not leave it through a lane the enemy is holding.",
+    "enemyAgents": [
+      "Killjoy"
+    ],
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy ultimates"
+    },
+    "when": "Deaths detained inside a Lockdown.",
+    "why": "The device is destructible and only detains after a delay, so the windup is the whole answer."
+  },
+  {
+    "text": "Shoot a Sage wall the moment it goes up, before it fortifies, and break more of it than you need to pass so no corner is left to hide behind, then check the top of what is left, because Sages often stand on their own walls.",
+    "enemyAgents": [
+      "Sage"
+    ],
+    "phase": "active",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Executes stalled behind a Sage wall or deaths to a player on top of one.",
+    "why": "The wall fortifies after a delay, so the first seconds are the cheap ones."
+  },
+  {
+    "text": "Do not run through a Sage slow to keep moving, because it slows you and plays a sound to her team as you cross it, so wait it out or go around its edge, and if half your team is caught in it on an execute, stop and regroup instead of feeding the rest through.",
+    "enemyAgents": [
+      "Sage"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Execute deaths inside a Sage slow.",
+    "why": "Crossing the slow announces you as well as slowing you."
+  },
+  {
+    "text": "When a Phoenix Curveball bends around a corner toward you, turn away until it pops, then turn straight back to that corner, because at lower ranks the Phoenix swings right behind his flash, and it comes back every two kills, so expect another from a Phoenix on a streak.",
+    "enemyAgents": [
+      "Phoenix"
+    ],
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Deaths to a Phoenix swinging off his own flash.",
+    "why": "The flash curves and pops after a delay, which gives you the turn."
+  },
+  {
+    "text": "Do not take a duel with a Phoenix standing in his own Blaze or Hot Hands fire, because it heals him while it burns you, so back off until it dies down or make him leave it first.",
+    "enemyAgents": [
+      "Phoenix"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Duels lost against a Phoenix inside his fire.",
+    "why": "Inner Fire heals him in his own fire and the fire damages everyone else."
+  },
+  {
+    "text": "When you kill a Phoenix during Run it Back he is not dead, he returns to his marker with full health, so do not walk forward or reload in the open after that kill: move to a new spot and expect him again from where he started the ultimate.",
+    "enemyAgents": [
+      "Phoenix"
+    ],
+    "phase": "active",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy ultimates"
+    },
+    "when": "Deaths to a Phoenix a few seconds after killing his ultimate copy.",
+    "why": "The plat and up note covers the team answer, this is the low band version."
+  },
+  {
+    "text": "Right after a Clove gets a kill, do not take an even duel with her alone, because Pick-me-up on the body gives her haste and overheal, so trade her with a second player at once or back off until it wears off.",
+    "enemyAgents": [
+      "Clove"
+    ],
+    "phase": "active",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Deaths to a Clove just after she took a kill.",
+    "why": "The kit turns her kill into extra health and speed for the next duel."
+  },
+  {
+    "text": "If a Chamber Trademark slows you at a choke, back out of the slow instead of walking on or swinging while slowed, because a trapped choke is usually one he or a teammate is watching, and break it from outside or go in together once it is gone.",
+    "enemyAgents": [
+      "Chamber"
+    ],
+    "phase": "active",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "enemy utility"
+    },
+    "when": "Deaths while slowed by a Trademark at an entrance.",
+    "why": "A slowed player at a watched choke is the easiest kill on the map."
+  },
+  {
+    "text": "Do not treat a lost retake as a mistake by itself, because even the best professional teams lose more retakes than they win: judge it by whether it should have been played at all and how you entered it, together or one at a time.",
+    "situations": [
+      "retake"
+    ],
+    "side": "defense",
+    "phase": "postplant",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "contest or retake"
+    },
+    "when": "Reviews that blame a lost retake on the result alone.",
+    "why": "Outcome bias: the decision and the entry are what the player controls."
+  },
+  {
+    "text": "On the way to a retake say in one line what utility you have, then go in at the same moment as the teammate nearest you, one of you on the spike behind a smoke or a wall while the other fights, and if nobody answers, follow the closest teammate in rather than entering alone.",
+    "situations": [
+      "retake"
+    ],
+    "side": "defense",
+    "phase": "postplant",
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "retake shape"
+    },
+    "when": "Low band retakes entered one player at a time.",
+    "why": "The low band retake notes were geometry, this is the version that survives a silent lobby."
+  },
+  {
+    "text": "When the spike goes down while a teammate is still alive on or beside the site, go to him now and fight beside him instead of backing off to set up a later retake, because a retake that starts with one player already inside is easier than any you can set up after he dies alone.",
+    "situations": [
+      "retake"
+    ],
+    "side": "defense",
+    "phase": "postplant",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "retake shape"
+    },
+    "when": "Post plant deaths of a defender still on site while rotators waited outside.",
+    "why": "A live teammate inside is a free extra angle that disappears in seconds."
+  },
+  {
+    "text": "When your attack keeps losing rounds with players spread one here, three there, one there, stop spreading: start four or five together, move in pairs at the very least and commit to one site with the utility you have for it, because a split nobody commits to lets the defence beat each part on its own.",
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "simplicity"
+    },
+    "when": "A run of lost attack rounds with deaths spread across the map.",
+    "why": "In both sources the close rounds were the committed ones and the blowouts the spread ones."
+  },
+  {
+    "text": "Work on one named habit at a time and keep it for a few days of games before you add another, judging each game by whether you did it, because a few games played with one thing to fix improve you far more than many games played trying to fix everything.",
+    "weight": 2,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "one habit at a time"
+    },
+    "when": "Practice and climb questions.",
+    "why": "Two independent sources give the same method in different words."
+  },
+  {
+    "text": "If you only have about twenty minutes a day, do them every day, a few minutes of Range bots from easy to hard and one or two deathmatches with one focus, because a short routine kept daily does far more than one long session a week.",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "practice routine"
+    },
+    "when": "Practice questions from players with little time.",
+    "why": "A routine the player cannot keep is worth nothing."
+  },
+  {
+    "text": "Trading cannot be practised alone, deathmatch has no teammates, so drill the solo half there, peeking one spot at a time from further off the wall so only one enemy can see you, and practise the team half in your matches with one glance at the minimap for your nearest teammate before each swing.",
+    "cause": [
+      "isolated"
+    ],
+    "ranks": [
+      "iron_bronze",
+      "silver_gold"
+    ],
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "checkpoints"
+    },
+    "when": "Practice questions from a player whose counted mistake is untraded deaths.",
+    "why": "The coach invented a deathmatch drill that needs teammates, this is the doable version."
+  },
+  {
+    "text": "From high Ascendant up, aim is rarely what separates you from the next level unless your own deaths show lost even duels, the gap is decisions: play the economy and ultimates, read the enemy's habits and call on them, plan the post plant before you reach the site, and practise that structure in Premier with a fixed group.",
+    "ranks": [
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "advanced",
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "have a plan"
+    },
+    "when": "Climb questions at Ascendant and up.",
+    "why": "Two independent high level sources agree the top gap is structure, with the caveat that a weak earlier layer comes first."
+  },
+  {
+    "text": "Do not judge your aim by your headshot rate alone, because it barely tracks how well even professionals play and it drops for reasons that are not aim, spraying through smokes, wallbanging and fights with shotguns, machine guns or snipers.",
+    "weight": 1,
+    "tier": "core",
+    "source": {
+      "kind": "stats",
+      "topic": "judging your aim"
+    },
+    "when": "Aim questions answered from the headshot rate.",
+    "why": "Across professional players the rate sits in a wide band and barely correlates with their rating."
+  },
+  {
+    "text": "On Split attack in a gun round, do not run all five through one main: fight for mid or a ramp with utility first, then slow down and choose the site, and keep the five player rush for pistol and eco rounds.",
+    "maps": [
+      "Split"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "map defaults"
+    },
+    "when": "Split attack rounds lost with five players in one main.",
+    "why": "Two vetted coaches agree, and Split is out of the ranked pool since 13.08, so this reaches unrated and swiftplay only."
+  },
+  {
+    "text": "On Split plant where your teammates can see the spike from outside the site, use the sheltered default corner only when you have no time, and then move one player off site to play the post plant from there.",
+    "maps": [
+      "Split"
+    ],
+    "side": "attack",
+    "phase": "active",
+    "ranks": [
+      "silver_gold",
+      "plat_diamond",
+      "asc_plus"
+    ],
+    "weight": 2,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "coach-consensus",
+      "topic": "post plant"
+    },
+    "when": "Split post plants lost with everyone crowded on the site.",
+    "why": "Two vetted coaches give the same open plant versus safe plant trade."
+  },
+  {
+    "text": "On Corrode do not plan an A post plant from A Link, and expect defenders to reach the back of both sites sooner than older guides say, because since 13.08 the A plant zone and the defender paths were changed for exactly that.",
+    "maps": [
+      "Corrode"
+    ],
+    "side": "attack",
+    "phase": "postplant",
+    "weight": 1,
+    "tier": "core",
+    "patchSensitive": true,
+    "source": {
+      "kind": "riot-notes",
+      "topic": "post plant"
+    },
+    "when": "Corrode A post plants played from A Link.",
+    "why": "Riot changed both on purpose, and the guides written before it say the opposite."
   }
 ]

@@ -1,5 +1,33 @@
 [
   {
+    "version": "8.7.7",
+    "date": "2026-11-07",
+    "title": "Sharper, more honest coaching",
+    "summary": "Reviews and Ask Coach now focus on what really decided your match, answer the question you asked, and check their facts harder.",
+    "items": [
+      {
+        "kind": "improved",
+        "text": "Your review now leads with the change that would help you most, like a side you kept losing or a player who kept killing you, not the same habit every time."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach answers what you asked: aim, practice, climbing or how to play into an agent, with notes picked for that question."
+      },
+      {
+        "kind": "improved",
+        "text": "Aim is judged from your own numbers, and a death in a round you lost is no longer praised just because it was traded."
+      },
+      {
+        "kind": "improved",
+        "text": "Advice at higher ranks goes deeper than advice at lower ranks, not just longer."
+      },
+      {
+        "kind": "fixed",
+        "text": "The coach no longer mixes up ability keys or makes up details the match record does not show, and it answers basic questions it used to refuse."
+      }
+    ]
+  },
+  {
     "version": "8.7.6",
     "date": "2026-11-07",
     "title": "A coach that knows the matchup",

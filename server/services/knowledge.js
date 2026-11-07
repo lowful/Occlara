@@ -184,8 +184,8 @@ const PLAYBOOK = [
   { side: 'attack', situations: ['pistol'], text: 'On attack pistol, group as five with one plan, spread out pistol duels favor the defenders.', weight: 2 },
   { side: 'defense', situations: ['pistol'], text: 'On defense pistol, play crossfire pairs close together, a solo pistol duel is a coin flip, a trade is not.', weight: 2 },
   { situations: ['forcebuy'], text: 'On cheap guns take close fights, a Spectre or shotgun loses every long range duel to a rifle.', weight: 3 },
-  { situations: ['antieco'], text: 'You won pistol so they are broke, hold range and open ground, do not push corners where a Classic wins.', weight: 3 },
-  { situations: ['antieco'], text: 'Anti eco rounds are positioning, not aim, make them cross open ground into rifles and never chase into close quarters.', weight: 2 },
+  { situations: ['antieco'], text: 'You won pistol so they are broke: hold range and open ground, and clear the corners where a Classic or a shotgun wins with utility before you walk past them.', weight: 3 },
+  { situations: ['antieco'], text: 'Anti eco rounds are positioning, not aim: on defence make them cross open ground into rifles, and on attack clear close corners with utility or from range before you walk past them instead of chasing into them.', weight: 2 },
 
   // ── streaks and mental ──────────────────────────────────────────────────
   { situations: ['deathstreak'], text: 'You have died several rounds in a row, change your timing, peek earlier or later, they have your pattern read.', weight: 3 },
@@ -261,7 +261,7 @@ const PLAYBOOK = [
   { roles: ['sentinel'], text: 'Sentinel ults win holds and retakes, use them to take back or deny space, never as a panic button.', weight: 1 },
 
   // ── agent specific (served only after the player confirms the agent) ────
-  { agents: ['Jett'], text: 'Dash is your exit ticket, take the aggressive off angle only while dash is up, play passive without it.', weight: 2 },
+  { agents: ['Jett'], side: 'defense', text: 'On defence take an aggressive off angle only with Tailwind ready, prepare it when you hear them coming rather than at round start, take one fight and dash out, and without it play the angle safely or leave early.', weight: 2 },
   { agents: ['Jett'], text: 'Your smokes are entries and exits, break one sightline for your own dash in, do not scatter them at nothing.', weight: 1 },
   { agents: ['Reyna'], text: 'Your kit only works off the opening pick, take the first duel with a trade or flash, then dismiss out.', weight: 2 },
   { agents: ['Reyna'], text: 'Devour after every safe kill, a healed Reyna snowballs, but dismiss instead when a second enemy still sees you.', weight: 1 },
@@ -372,7 +372,7 @@ const PLAYBOOK = [
   { situations: ['eco'], text: 'Play for a gun on eco, take close angles where a pistol trades evenly with a rifle, never duel a rifle across open ground.', weight: 2 },
   { situations: ['forcebuy'], text: 'A force buy needs a plan, commit everyone to one push, a scattered force is just a slower eco.', weight: 2 },
   { situations: ['forcebuy'], text: 'Force only when winning the round matters more than the next one, if losing this round still leaves you fine, save instead.', weight: 2 },
-  { situations: ['antieco'], text: 'Against an eco, hold long angles and refuse close fights, their pistols and shotguns only beat you inside their range.', weight: 3 },
+  { situations: ['antieco'], text: 'Against an eco hold long angles and refuse close fights, because their shotguns and most pistols only beat you up close, but a Sheriff or a Marshal head hit kills at range, so never give either a still head on a long line.', weight: 3 },
   { situations: ['antieco'], text: 'Do not over push an eco, stay grouped at distance, the free round is lost by walking into a shotgun corner alone.', weight: 2 },
   { situations: ['fullbuy'], text: 'On a full buy your life IS the round, a rifle traded for nothing hands them the next round too.', weight: 2 },
   { situations: ['pistol'], text: 'Pistol rounds are decided by numbers and armour, stay together and let the first contact be traded instantly.', weight: 2 },
@@ -428,10 +428,7 @@ const PLAYBOOK = [
   { maps: ['Icebox'], text: 'Icebox fights are vertical and close, clear A Nest and B Green style high angles before you look at ground level.', weight: 1 },
   { maps: ['Breeze'], text: 'Breeze punishes dry crosses, Mid Top and A Bridge are long sightlines, cross behind smoke or do not cross.', weight: 2 },
   { maps: ['Breeze'], side: 'defense', text: 'On Breeze defense hold far angles with rifles and Operators, giving close ground is fine when the retake is across open space.', weight: 1 },
-  { maps: ['Fracture'], text: 'Fracture attacks arrive from both spawns, so defenders must call which half is real before rotating.', weight: 2 },
-  { maps: ['Fracture'], side: 'attack', text: 'Split your team across both sides on Fracture, a one sided hit lets them collapse everything on you.', weight: 2 },
   { maps: ['Pearl'], text: 'Mid Plaza and Mid Doors decide Pearl, controlling mid threatens both sites and cuts every rotation.', weight: 2 },
-  { maps: ['Pearl'], text: 'Pearl is pure angles and corners, no verticality, so clear methodically and expect off angles at every link.', weight: 1 },
   { maps: ['Sunset'], text: 'Mid Courtyard and Mid Tiles are the Sunset hinge, take mid and both sites open, lose it and you are forced into chokes.', weight: 2 },
   { maps: ['Sunset'], side: 'attack', text: 'A Main and B Main on Sunset are tight, entering dry into either is how rounds end early, lead with util every time.', weight: 1 },
   { maps: ['Abyss'], text: 'On Abyss there are no walls at the edges, check your footing in every duel and never strafe blind near the drop.', weight: 2 },
@@ -672,11 +669,46 @@ function enemiesOf(list) {
   return out.slice(0, 5);
 }
 
+/*
+ * THE GUNS THAT KILLED THE PLAYER (round 3), as the game data spells them,
+ * deduplicated, eight at most: Riot's record names the killing weapon of each
+ * verified death, and only a weapon the data knows can match a note's
+ * `enemyWeapons`, so an ability name or a stray word never does.
+ */
+const WEAPON_NAMES = (() => {
+  try {
+    return Object.keys(require('../valorant-data.generated.json').weapons || {})
+      .map((k) => k.charAt(0).toUpperCase() + k.slice(1));
+  } catch { return []; }
+})();
+
+/** The killers' weapons as the game data names them, deduplicated, at most 8 known. */
+function enemyWeaponsOf(list) {
+  const out = [];
+  for (const x of Array.isArray(list) ? list.slice(0, 40) : []) {
+    const name = WEAPON_NAMES.find((w) => w.toLowerCase() === String(x || '').trim().toLowerCase());
+    if (name && !out.includes(name)) out.push(name);
+  }
+  return out.slice(0, 8);
+}
+
 /**
  * The score change the enemy team makes, or null when the note is excluded.
  * `enemies` is enemiesOf's list (empty when unknown).
  */
-function enemyFit(note, enemies) {
+function enemyFit(note, enemies, weapons) {
+  // enemyWeapons (round 3): a note about what the enemy shot the player with,
+  // the Operator holding a lane, eligible ONLY when Riot's record says a
+  // killer used one of them, and never blind: a caller that passes no weapon
+  // list (Ask Coach, a client before it) leaves the note out.
+  const guns = note && Array.isArray(note.enemyWeapons) && note.enemyWeapons.length ? note.enemyWeapons : null;
+  if (guns) {
+    const shot = new Set((Array.isArray(weapons) ? weapons : []).map((w) => String(w).toLowerCase()));
+    if (!guns.some((w) => shot.has(String(w).toLowerCase()))) return null;
+    const rest = { ...note, enemyWeapons: undefined };
+    const versus = enemyFit(rest, enemies);
+    return versus === null ? null : versus + ENEMY_FIT;
+  }
   const want = note && Array.isArray(note.enemyAgents) && note.enemyAgents.length ? note.enemyAgents : null;
   const without = note && Array.isArray(note.enemyWithout) && note.enemyWithout.length ? note.enemyWithout : null;
   const hint = note && Array.isArray(note.enemyHint) && note.enemyHint.length ? note.enemyHint : null;
@@ -766,6 +798,9 @@ function retrieve(ctx, limit = 8, opts = {}) {
   const band = validBand(ctx && ctx.rankBand);
   // The enemy team's agents (8.8), untrusted: none excludes every enemy note.
   const enemies = enemiesOf(ctx && ctx.enemyAgents);
+  // The guns that killed the player (round 3), untrusted: none excludes every
+  // note tagged enemyWeapons, and changes no other note's score or draw.
+  const guns = enemyWeaponsOf(ctx && ctx.enemyWeapons);
 
   for (const note of ALL) {
     // Exclusions: a tagged note never fires outside its tags.
@@ -783,7 +818,7 @@ function retrieve(ctx, limit = 8, opts = {}) {
     // answers one of the player's own deaths, which is the data showing it.
     const ranked = band ? rankAdjust(note, band, !!note.cause || s.flags.has('deathstreak')) : 0;
     if (ranked === null) continue;
-    const versus = enemyFit(note, enemies);
+    const versus = enemyFit(note, enemies, guns);
     if (versus === null) continue;
 
     // Score: specificity of the match, plus base weight, plus a tiny jitter so
@@ -852,4 +887,4 @@ function block(ctx, limit) {
 module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: () => ALL,
   roleOf: (agent) => ROLE_OF[String(agent || '').toLowerCase()] || null,
   ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust,
-  ENEMY_FIT, enemiesOf, enemyFit, ADVANCED_SLOTS_BY_BAND, advancedSlots, bandFirst };
+  ENEMY_FIT, enemiesOf, enemyFit, enemyWeaponsOf, WEAPON_NAMES, ADVANCED_SLOTS_BY_BAND, advancedSlots, bandFirst };

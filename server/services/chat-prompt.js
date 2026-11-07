@@ -730,6 +730,8 @@ function factsOf(input, messages, opts) {
     matchId: m && m.matchId ? m.matchId : null,
     map: m && m.map ? m.map : null,
     agent: m && m.agent ? m.agent : null,
+    // The match's mode, for the standing reader of ability-facts.js (a deathmatch is no five a side).
+    mode: m && typeof m.mode === 'string' ? m.mode : null,
     askedAgents: gates.agentsIn(asked).map((a) => a.name),
     source: m ? m.source : null,
     verified: !!(m && m.verified),
@@ -834,6 +836,10 @@ function factsOf(input, messages, opts) {
     const killers = new Map();
     for (const c of m.cards) if (c.riot && c.riot.killer) killers.set(c.riot.killer, (killers.get(c.riot.killer) || 0) + 1);
     for (const v of killers.values()) f.counted.counts.add(v);
+    // The teammates the player traded across the match, the cards' own sum:
+    // "you traded a teammate 4 times" was a count nobody stated (the round 3 audit).
+    const tradedMates = m.cards.reduce((n, c) => n + (c.riot && fin(c.riot.trades) ? c.riot.trades : 0), 0);
+    if (tradedMates > 0) { f.counted.counts.add(tradedMates); f.counted.tradedMates = tradedMates; }
 
     // The rounds, in order, with the running score before each.
     let team = 0;
@@ -914,7 +920,13 @@ function factsOf(input, messages, opts) {
     for (const x of m.facts) harvest(x);
   }
   const pl = inp.player || {};
-  for (const p of pl.patterns || []) { addNum('matches', p.matches); addNum('matches', p.of); f.counted.titles.push(lower(gates.straighten(p.title))); }
+  for (const p of pl.patterns || []) {
+    addNum('matches', p.matches); addNum('matches', p.of); f.counted.titles.push(lower(gates.straighten(p.title)));
+    // "In 5 of 6 matches", THE PLAYER's line, is a pair the reply may say back
+    // ("5 of your last 6 matches", fact-gates.js pairWords): it was no pair the
+    // count gate knew, and four honest lines of the round 3 audit opened on it.
+    if (fin(p.matches) && fin(p.of)) { f.counted.pairs.add(`${p.matches}/${p.of}`); f.counted.counts.add(p.matches); }
+  }
   for (const row of [pl.agentRow, pl.mapRow]) {
     if (!row) continue;
     addNum('matches', row.matches); addNum('*', row.won); addNum('*', row.lost); addNum('*', row.known);
@@ -984,16 +996,21 @@ WHAT YOU MUST NOT SAY
 - Only Valorant and the player's play.
 
 HOW TO ANSWER
-- Answer the question in your first sentence. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
-- About a round, a death or a play: tell it in order from the record (the side and the kind of round, the opening, the plant, the death with the numbers standing, how it ended), then the decision that decided it for the player, judged by what they could see at that moment, then what to do instead as when this happens, do that, concretely enough to do next round, and why it works in game terms: the guns and the range, the numbers standing, the clock and the spike, the kit. Rule out the larger causes before the shot: whether the fight needed taking, whether anyone could trade it, whether the player had information or utility first. Call it aim only where the coach's look called the fight fair and lost on the shot.
+- Answer the question in your first sentence, and answer the question that was asked. A question about aim, practice, an agent, the mental side, comms or the economy is answered about that, and a counted mistake comes in only where it bears on it. Never turn every answer into the same habit. If the question rests on something the facts contradict (a round called lost that was won, a death that did not happen), say so first, plainly, then answer what they meant.
+- A general question (the biggest mistake, how to improve or climb, what to practise, how to warm up) needs no single round: answer it from the counted mistakes, the patterns across matches, the player's own numbers and their rank, with the one lever that matters most at that level. Never answer it with only that you cannot tell.
+- About a round, a death or a play: tell it in order from the record (the side and the kind of round, the opening, the plant, the death with the numbers standing, how it ended), then the decision that decided it for the player, judged by what they could see at that moment, then what to do instead, written as the real situation to notice and the real move to make in it, concretely enough to do next round, and why it works in game terms: the guns and the range, the numbers standing, the clock and the spike, the kit. Rule out the larger causes before the shot: whether the fight needed taking, whether anyone could trade it, whether the player had information or utility first. When a death had both a decision and a shot that went wrong, name the decision first, then the one mechanic, in one sentence. Call a death lost on the shot only where the coach's look called the fight fair and lost on the shot.
 - A fair fight is one taken from where it should be taken, at a range the gun can fight. Whether a teammate could trade it is a separate question.
-- About an agent: the player's own numbers on it first, then how its kit answers the problem, each ability by its name and key.
+- A death a teammate traded is not a mistake by itself, so never call the trade the problem. In a round the team lost, still judge whether the fight was needed, and never praise a death as a good or sound choice.
+- About an agent: the player's own numbers on it first, then how its kit answers the problem, each ability by its name as the kit gives it, never by a key letter. Say what an ability does only as the kit says it. Name an enemy ability as what killed the player only where Riot's record gives that ability as the killing weapon.
 - Asked for a game number the VALORANT FACTS hold (hits to kill, damage, a price, a timer), give it in your first sentence in the facts' own words, with the range band and the armour they name, then stop. Add nothing about the match unless asked.
 - Name at most one ability in an answer about a round, and only when it changes the decision in that round. Do not list the kit, and do not offer the same ability in every answer.
+- Never mention an ultimate orb, a health number, who carried the spike or how many players were alive unless the facts of that round state it.
 - About improving: the largest counted mistake or pattern with its count exactly as given, then one habit that answers it, written as the moment to notice and the move to make, then one drill to build it and what the player should see in their next match if it worked. One habit only: if several things are counted, say the others can wait. A habit or a drill carries no count or timer of your own, because every number you say must be one of the facts.
+- Quote a counted line's numbers as given, the deaths nobody traded included: that count leaves out a death as the last one alive, which nobody could trade, so never count the rounds yourself into a total of your own.
+- A practice drill must be one the player can do: Deathmatch and the Range have no teammates, so a team habit is practised in a match, with what to do when nobody answers the call.
 - When something went right, say what the player did and why it worked in game terms, from the record: a trade they made, a fight they took beside a teammate, a round they saved or won on the clock. Never praise a scoreboard number, never open with praise as a cushion, and never call the player unlucky or blame a teammate.
-- Asked whether the problem is their aim, answer from the deaths: if most were about the position, the timing, the numbers or nobody able to trade, say so and name that; aim is the answer only where the coach's look called fights fair and lost on the shot.
-- If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (staying where a teammate can trade you, information before a peek, one angle at a time). Platinum to Diamond, one decision (predictability, tempo, playing the team's plan). Ascendant and up, no basics, the specific timing or utility change and what it risks.
+- Asked about their aim, answer from the deaths and the player's headshot rate against their own average. Where the coach's look called fights fair and lost on the shot, say so and give one aim habit. Where the deaths show the position, the timing, the numbers or nobody able to trade, name that first, then still give one aim habit sized to their rank. Where the coach looked at no death, say the look cannot tell whether the fights were lost on the shot. Never say aim is not the problem, or that aim can wait, unless the coach's looks called those deaths something else.
+- If the facts about the player give a rank, size the advice to it and never say it back. Below Platinum, one basic habit (stopping before the shot, crosshair height, information before a peek, one angle at a time). Platinum to Diamond, the decision before the fight (predictability, playing the team's plan, when to take space). Ascendant and up, no basics, the specific timing or utility change and what it risks. An answer for a higher rank is never the one a lower rank would get for the same facts in longer words.
 - Name the match the first time you refer to it: the map, the agent and the result.
 - Write times as seconds into the round, "8 s in", never as a clock such as 0:08, which reads as the time left.
 - Speak to the player as you. Short paragraphs of plain text: no lists, no headings, no markdown. About 250 words, up to 400 when you walk through a round. Commas and periods, never dashes.
@@ -1117,7 +1134,10 @@ function cardLine(c, m) {
     if (r && r.alive) d += `, ${r.alive.mates} against ${r.alive.enemies} standing`;
     if (r && r.firstDeath) d += ', the first death of the round';
     if (r && r.traded === true) d += ', traded by a teammate';
-    if (r && r.traded === false) d += ', not traded';
+    // The last one alive had nobody to trade them, and the counted line of
+    // deaths nobody traded leaves such a death out (insights.js diedAlone):
+    // said so here, so the cards and the count tell the same number.
+    if (r && r.traded === false) d += r.alive && r.alive.mates <= 1 ? ', not traded, as the last one alive with no teammate left to trade it' : ', not traded';
     if (r && r.afterPlant) d += ', after the plant';
     bits.push(`${d}.`);
   } else if (c.verified) {
@@ -1412,6 +1432,8 @@ function casesFor(input, messages) {
     if (/\bpost ?plant|after the plant\b/.test(q)) phases.add('postplant');
     if (/\bclutch\b/.test(q)) phases.add('clutch');
     if (/\bpistol\b/.test(q)) economies.add('pistol');
+    // An aim question is a duel lost on the shot (questionTopics, the round 3 audit).
+    if (questionTopics(input, messages).keys.has('aim')) causes.add('lost-duel');
   }
   try {
     // The seed (cases.js VARIETY): Riot's match id, else the review's own id,
@@ -1422,6 +1444,46 @@ function casesFor(input, messages) {
     return cm.pick({ agent: m && m.agent, map: m && m.map, sides, phases, economies, causes, patterns,
       enemies: enemiesOf(input), rankBand: input.rankBand, advanced: input.advanced === true, seed }, cm.MAX_CASES) || [];
   } catch { return []; }
+}
+
+/*
+ * WHAT A QUESTION IS ABOUT, IN ITS OWN WORDS (the round 3 audit, Nov 2026).
+ * pickNotes read only the counted patterns and causes and five question words
+ * (retake, post plant, eco, pistol, clutch), so an aim, practice or climbing
+ * question got the trade notes every other answer got, and the aim notes,
+ * tagged for a lost duel the coach looked at, reached no aim question on a
+ * match with no look. Each topic here has the question's words (`ask`) and the
+ * words of a note that answers it (`note`, over its text and its topic), read
+ * in English only. A general question (the biggest mistake, how to improve or
+ * climb, what to practise) also takes the band's own fundamentals.
+ */
+const QUESTION_TOPICS = [
+  { key: 'aim', ask: /\baim(?:ing)?\b|\bcrosshair|\bhead ?shots?\b|\bhs\b|\bflick|\bspray|\brecoil|\bmechanic|\bgunplay|\bmiss(?:ing)? (?:my )?shots/i,
+    note: /\bcrosshair|\bhead height|\bhead ?shots?\b|\baim\b|\bfirst (?:shot|bullet)|\bstop(?:ping)? before|\bbursts?\b|\bspray|\bone taps?\b|\bshooting error|\bcounter.?strafe/i },
+  { key: 'practice', ask: /\bpractic|\bpractis|\bdrills?\b|\baim ?trainers?\b|\bwarm(?:ing)? ?ups?\b|\btrain(?:ing)?\b|\broutine|\bdeathmatch|\bthe range\b|\bbefore my next (?:game|match)/i,
+    note: /\bdeathmatch|\bthe range\b|\bpractic|\bpractis|\bdrills?\b|\bwarm ?up|\broutine|\baim trainer/i },
+  { key: 'climb', ask: /\bclimb|\brank ?up|\branked\b|\bmy rank\b|\bimprove|\bget better|\bhard ?stuck|\bstuck\b|\bholding me back|\bnext rank|\bdemot|\bpromot|\belo\b|\bmmr\b/i,
+    note: /\bclimb|\brank\b|\bwin rate|\bconsisten|\bone habit|\bnew habits?|\bagent pool|\bsmall pool|\b(?:Iron|Bronze|Silver|Gold|Platinum|Diamond|Ascendant|Immortal)\b/i },
+  { key: 'mental', ask: /\bmental|\btilt|\bfrustrat|\bangry|\bconfiden|\bnervous|\bcalm\b|\btoxic|\blos(?:s|ing) streak|\blosing a lot|\bfocus(?:ed)? (?:in|during)/i,
+    note: /\btilt|\bmute\b|\bcalm\b|\btoxic|\bafter a lost round|\bloss limit|\bstreak/i },
+  { key: 'comms', ask: /\bcomms?\b|\bcommunicat|\bcall ?outs?\b|\bcalling\b|\btalk(?:ing)?\b|\bmic\b|\bigl\b|\bsolo ?queue|\bteam (?:won't|will not|doesn't|does not) (?:follow|talk)/i,
+    note: /\bcalls?\b|\bcomms?\b|\bannounce|\bsilence|\btell your team|\bwhen your team will not follow/i },
+  { key: 'economy', ask: /\beco\b|\beconomy|\bbuy(?:ing|s)?\b|\bsav(?:e|ing)\b|\bcredits?\b|\bforce\b|\bloss bonus|\bmoney/i,
+    note: /\bbuy|\bsave\b|\bsaving|\beco\b|\bcredits?\b|\bloss bonus|\bforce\b|\bfull buy|\bhalf buy/i },
+  { key: 'ult', ask: /\bults?\b|\bultimates?\b/i, note: /\bultimates?\b|\bults?\b|\borbs?\b/i },
+];
+const FUNDAMENTAL_TOPICS = QUESTION_TOPICS.filter((t) => ['aim', 'practice', 'climb'].includes(t.key));
+const GENERAL_ASK =/\bbiggest\b|\bmain (?:mistake|problem|issue|weakness)|\bimprove|\bclimb|\brank ?up|\bmy rank\b|\bpractic|\bpractis|\bholding me back|\bwhat should i (?:do|work on|focus|fix)|\bget better|\bwork on\b/i;
+
+/** The question's topics ({ keys, general, agents }), from the player's last message, in English only. */
+function questionTopics(input, messages) {
+  const none = { keys: new Set(), general: false, agents: [] };
+  if (!input || input.language !== 'en') return none;
+  const lastAsk = [...(Array.isArray(messages) ? messages : [])].reverse().find((x) => x && x.role !== 'assistant');
+  const q = String((lastAsk && lastAsk.content) || '');
+  if (!q.trim()) return none;
+  const keys = new Set(QUESTION_TOPICS.filter((t) => t.ask.test(q)).map((t) => t.key));
+  return { keys, general: GENERAL_ASK.test(q), agents: [...new Set(gates.agentsIn(q).map((a) => a.name))] };
 }
 
 /*
@@ -1475,6 +1537,76 @@ function pickNotes(input, messages) {
     : (note && (note.enemyAgents || note.enemyWithout) ? null : 0));
   const out = [];
   const seen = new Set(own);
+  /*
+   * THE QUESTION'S OWN NOTES FIRST (questionTopics, the round 3 audit): up to
+   * three that answer what was asked (aim, practice, climbing, the mental side,
+   * comms, the economy, ultimates, the agent it names, the player's own or the
+   * enemy's), whatever cause they are tagged for, since a cause is the
+   * situation the note was written for and the question names its own; and for
+   * a general question two of the band's own fundamentals. Every other rule a
+   * note keeps holds: Advanced coaching, the band (a note above it never), the
+   * enemy team, the player's agent, role and map. A question with none of these
+   * words is today's notes, byte for byte.
+   */
+  const qt = questionTopics(input, messages);
+  const ownRole = s.role || null;
+  const fitsPlayer = (note) => {
+    if (!note || !note.text || seen.has(note.text) || note.weapons) return false;
+    if (note.tier === 'advanced' && !advanced) return false;
+    if (fitVs(note) === null) return false;
+    // A note for an agent is the player's own agent's, asked about or not.
+    if (note.agents && !(s.agent && note.agents.some((a) => lower(a) === lower(s.agent)))) return false;
+    if (note.roles && (!ownRole || !note.roles.includes(ownRole))) return false;
+    if (note.maps && (!s.map || !note.maps.some((x) => lower(x) === s.map))) return false;
+    if (input.rankBand && typeof k.rankAdjust === 'function' && k.rankAdjust(note, input.rankBand, false) === null) return false;
+    return true;
+  };
+  const rankScore = (note) => (input.rankBand && typeof k.rankAdjust === 'function' ? k.rankAdjust(note, input.rankBand, false) || 0 : 0);
+  const asks = [];
+  if (qt.keys.size || qt.agents.length) {
+    const topicsOf = QUESTION_TOPICS.filter((t) => qt.keys.has(t.key));
+    for (const note of k.all()) {
+      const words = `${note && note.text} ${(note && note.source && note.source.topic) || ''}`;
+      let hits = topicsOf.filter((t) => t.note.test(words)).length;
+      let agentHit = 0;
+      for (const a of qt.agents) {
+        const ownAgent = s.agent && lower(a) === lower(s.agent);
+        if (ownAgent && note.agents && note.agents.some((x) => lower(x) === lower(a))) agentHit = 2;
+        else if (!ownAgent && note.enemyAgents && note.enemyAgents.some((x) => lower(x) === lower(a))) agentHit = 2;
+        else if (!ownAgent && !note.agents && new RegExp(`(?<![A-Za-z0-9])${a.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}(?![A-Za-z0-9])`).test(String(note.text || ''))) agentHit = Math.max(agentHit, 1);
+      }
+      if (!hits && !agentHit) continue;
+      if (!fitsPlayer(note)) continue;
+      asks.push({ text: note.text, topic: (note.source && note.source.topic) || note.text,
+        score: (note.weight || 1) + hits * 2 + agentHit * 3 + rankScore(note) + (fitVs(note) || 0) });
+    }
+    asks.sort((a, b) => b.score - a.score);
+    const tops = new Set();
+    for (const n of asks) {
+      if (out.length >= 3) break;
+      if (tops.has(n.topic) || seen.has(n.text)) continue;
+      tops.add(n.topic);
+      out.push(n.text);
+      seen.add(n.text);
+    }
+  }
+  if (qt.general && input.rankBand) {
+    const band = [];
+    for (const note of k.all()) {
+      if (!Array.isArray(note.ranks) || !note.ranks.includes(input.rankBand) || note.ranks.length > 2) continue;
+      if (note.agents || note.maps || note.roles || note.enemyAgents || note.enemyWithout || note.cause) continue;
+      // A fundamental of improving: what climbing, practice or aim is at the band.
+      const words = `${note.text} ${(note.source && note.source.topic) || ''}`;
+      if (!FUNDAMENTAL_TOPICS.some((t) => t.note.test(words))) continue;
+      if (!fitsPlayer(note)) continue;
+      band.push({ text: note.text, score: (note.weight || 1) + rankScore(note) });
+    }
+    band.sort((a, b) => b.score - a.score);
+    for (const n of band.slice(0, 2)) { if (!seen.has(n.text)) { out.push(n.text); seen.add(n.text); } }
+  }
+  // A question about something else keeps one note of the counted patterns,
+  // so the answer is about what was asked (the audit's "one habit everywhere").
+  const topicalMax = out.length && !qt.general ? 1 : 3;
   const topical = [];
   for (const note of k.all()) {
     const src = note && note.source;
@@ -1495,8 +1627,9 @@ function pickNotes(input, messages) {
   }
   topical.sort((a, b) => b.score - a.score);
   const topics = new Set();
+  const topicalStart = out.length;
   for (const n of topical) {
-    if (out.length >= 3) break;
+    if (out.length - topicalStart >= topicalMax || out.length >= 6) break;
     if (topics.has(n.topic)) continue;
     topics.add(n.topic);
     out.push(n.text);
@@ -1529,6 +1662,9 @@ function pickNotes(input, messages) {
     if (/\beco\b|\bsave\b|\bsaving\b/.test(q)) { ctx.phase = 'buy'; ctx.playerCredits = 1000; }
     if (/\bpistol\b/.test(q)) ctx.roundNumber = 1;
     if (/\bclutch\b/.test(q)) { ctx.teammatesAlive = 0; ctx.playerAlive = true; }
+    // An aim question is the situation of a duel lost on the shot, so the aim
+    // notes tagged for one are retrieved with no look at all (the round 3 audit).
+    if (qt.keys.has('aim') && !ctx.cause) ctx.cause = 'lost-duel';
   }
   let got = [];
   try { got = k.retrieve(ctx, 12, { advanced }) || []; } catch { got = []; }
@@ -1710,6 +1846,8 @@ const VERDICT_REASON = 'your reply answered yes or no, and the sentence that sai
  * as any is whose first sentence went or that keeps fewer than two.
  */
 const LEANS_REASON = 'a sentence of your reply leaned on the one before it, which could not be shown; give each event its own time into the round, and name the agent rather than he, she, that or it';
+// The sentences a reply must keep to be shown when its retry fails too (parseReply `fallback`).
+const FALLBACK_KEPT = 3;
 
 /**
  * Every sentence of a reply's paragraphs through the gates, in order: { p
@@ -1810,6 +1948,16 @@ function parseReply(raw, input, opts) {
   out.clipAsks = chatClips.asksOf(marked, cleanReply).filter((a) => kept[a.para] && kept[a.para].length)
     .map((a) => ({ round: a.round, para: kept.slice(0, a.para).filter(Boolean).length, of: shown, kept: kept[a.para].map((s) => s.trim()) }));
   out.retry = out.firstDropped || out.kept < 2;
+  /*
+   * THE FALLBACK (the round 3 audit, Nov 2026). Eight of sixty answers, the
+   * plainest questions among them (the biggest mistake, how to climb, what to
+   * practise), were the honest line because the first sentence of the reply
+   * and of its retry was dropped, though the retry kept 16 of 17. Every
+   * sentence kept passed every gate: a reply that keeps FALLBACK_KEPT or more
+   * is still an answer, and the route shows it when the retry fails again
+   * (coach.js chatV2), rather than nothing. Fewer is the honest line, as before.
+   */
+  out.fallback = out.kept >= FALLBACK_KEPT;
   if (out.retry && out.kept < 2 && !out.reasons.length) out.reasons.push('your reply was too short to answer the question; answer it in full');
   out.reasons = out.reasons.slice(0, 6);
   return out;
@@ -1836,5 +1984,6 @@ module.exports = {
   factsOf, cleanReply, gateReply, askedRounds, matchName, pickNotes, casesFor, enemiesOf, CASE_GROWTH, primerFacts, normEntry, echoOf, gateText, stated, standingsOf, deathStandingsOf, LEANS_REASON,
   renderPlayer, renderMatch, renderAsked, renderEarlier, renderSlices, staticPrefix, languageLine, gunsInCore,
   VALORANT_RULES, LEAGUE_RULES, RIOT_ONLY, NO_MATCH, DYNAMIC_MAX_CHARS, MATCH_MAX_CHARS, MAX_CHARS, MAX_ASKED_ROUNDS, VERDICT, VERDICT_REASON,
+  FALLBACK_KEPT, questionTopics, QUESTION_TOPICS,
   RANK_BANDS,
 };

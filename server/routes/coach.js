@@ -3759,8 +3759,10 @@ router.post('/match-review', async (req, res) => {
       trackCall(licenseKey);
       const parsed = matchReview.parse(text, input);
       if (parsed.dropped.length) {
-        console.log('[review] dropped round lines that named the wrong killer:',
-          parsed.dropped.map((d) => `R${d.n} said ${d.said}, Riot says ${d.riot}`).join('; '));
+        // The killer and trade gates, and the round 3 claim gates (their
+        // kind as said, no Riot fact beside it), by place and kind only.
+        console.log('[review] dropped what the record or the kit contradicts:',
+          parsed.dropped.map((d) => `${d.n === null ? 'summary or focus' : `R${d.n}`} said ${d.said}${d.riot ? `, Riot says ${d.riot}` : ''}`).join('; '));
       }
       // NO PLAYER NAMED (8.5.0, namesSomeoneHere): a summary or focus sentence
       // naming someone goes, and a round line naming someone goes whole. The
@@ -3788,7 +3790,10 @@ router.post('/match-review', async (req, res) => {
         summary: clean(parsed.summary) || null,
         rounds,
         focus: clean(parsed.focus),
-        study: matchReview.study(input, 3),
+        // A study note the review's own round advice contradicts is left out
+        // (round 3, match-review.js contradicted), for a client of the round
+        // 3 rules alone: one before it is listed its notes as before.
+        study: matchReview.study(input, 3, { lines: [...Object.values(rounds), clean(parsed.focus)] }),
         variant: input.variant,
       });
     }
@@ -4405,6 +4410,8 @@ function gatedReply(out) {
     sentences: Number.isInteger(o.sentences) && o.sentences >= 0 ? o.sentences : 0,
     // The player's clips the reply attached, each a round of the match's own list (chat-clips.js).
     clipAsks: Array.isArray(o.clipAsks) ? o.clipAsks.slice(0, 3) : [],
+    // Enough kept to show when the retry fails too (chat-prompt.js parseReply, the round 3 audit).
+    fallback: o.fallback === true && !!reply.trim(),
   };
 }
 
@@ -4531,9 +4538,11 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
   };
 
   let g = null;
+  let firstGated = null;
   try {
     said.first = await ask(prompt, CHAT_TOKENS, Math.min(CHAT_TIMES.firstMs, deadline - Date.now()), parts);
     g = gate(said.first);
+    firstGated = g;
     tally(g);
   } catch (e) {
     // Abandoned at its deadline: billed all the same, and no time left to ask again.
@@ -4556,7 +4565,13 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
     trackCall(licenseKey);
   }
 
-  let reply = g && !g.retry ? chatParagraphs(g.reply) : '';
+  // THE GATES' FALLBACK (chat-prompt.js parseReply `fallback`, the round 3
+  // audit): a reply the gates still ask again for, the retry's first and then
+  // the first's, is shown when it kept enough sentences, every one of which
+  // passed every gate; else the honest line, as before. A chat-prompt.js
+  // without the flag never sets it, so the route answers as it did.
+  const shown = g && !g.retry ? g : [g, firstGated].find((x) => x && x.fallback === true) || null;
+  let reply = shown ? chatParagraphs(shown.reply) : '';
   const net = chatWithoutNames(reply, names);
   if (net.dropped) { dropped.nameSet = (dropped.nameSet || 0) + net.dropped; reply = net.text; }
   reply = cutReply(reply, CHAT_MAX_CHARS);
@@ -4565,7 +4580,7 @@ async function chatV2(req, res, { licenseKey, variant, t0, turn = NO_TURN }) {
   // THE PLAYER'S CLIPS, under the paragraphs that kept their words: round
   // numbers of this match's own list alone, never on the honest line.
   const clipMod = service('chatClips');
-  const clips = !honest && g && clipMod ? clipMod.place(reply, g.clipAsks) : [];
+  const clips = !honest && shown && clipMod ? clipMod.place(reply, shown.clipAsks) : [];
 
   counts.answered++;
   if (retried) counts.retried++;

@@ -222,6 +222,65 @@ scripts/bench-chat.js            the bench that picks the model (spends money)
   round numbers ("a save in round 2 sets up a full buy in round 3").
   bench:chat's raw rate, its drop rate and the person's read are what
   measure them.
+- **The round 3 audit and what changed (Nov 2026, stream B)**. Sixty real
+  answers on six of the player's matches, read by six judges. Replayed offline
+  over the audit's own raw replies (each context rebuilt through
+  `ask-coach.js`, the gates run on `raw` and `rawRetry`): 8 of 60 honest lines
+  before, 0 after. The causes and the fixes, each pinned in test:chatgates on
+  the dropped sentence and a planted false variant:
+  - THE PLAYER's "in 5 of 6 matches" said back as "5 of your last 6 matches"
+    was no pair (`fact-gates.js pairWords`, and `chat-prompt.js factsOf` adds
+    each pattern's pair); "all 5 of your deaths" was a number tied to nothing
+    (`OF_YOUR_NOUN`, `shareOk`: a total of the facts or a counted pair);
+    "the last one standing against 2" is held to a round's clutch
+    (`CLUTCH_AGAINST_BEFORE`); "worth keeping" is no repeat; "take one more
+    shot" in advice, after an "if" too, claims no hits (`SMALL_ADVICE_AFTER`,
+    `leadInstruction`); a gun is the round named alone before it
+    (`singleRoundBefore`); "of your 21 deaths, 20 went unanswered" is the
+    counted pair the other way round (`OF_TOTAL_BEFORE`); "two head hits but
+    four body hits" reads the part named right after each number (`hitsOk`);
+    "peeked the same angle twice" of a repeek is the label (`repeekTwice`);
+    "the part to keep" is no repeat; "you traded a teammate 4 times" is the
+    cards' own sum (`factsOf tradedMates`). 4 of your last 6, 19 of your
+    deaths, against 3, three Sheriff body hits and a Sheriff in the wrong round
+    still drop. Over the audit's 60 replies the number gate's drops went from
+    35 to 10 and the count gate's from 21 to 10, the rest read as true drops.
+  - THE FALLBACK (`parseReply fallback`, `coach.js chatV2`): when the retry
+    fails the gates too, a reply that kept `FALLBACK_KEPT` (3) sentences or
+    more is shown, the retry's first and then the first's, every sentence of it
+    through every gate. Fewer is the honest line, as before.
+  - New gates, after every older one: `template` (the rules' own "when this
+    happens, do that"), `aim` ("aim is not the problem" or "can wait" stands
+    only where the coach looked: each named round looked at and none a lost
+    duel, the asked round when a one round answer names none, else two or
+    more deaths, half or more, looked at and none a lost duel), `kit`
+    (`ability-facts.js checkText`: a key, an ultimate, an effect
+    or an owner the game data contradicts, and `checkState` for a health
+    number and a standing past five a side, a standing inside it staying the
+    timeline gate's), `mode` (a Deathmatch or Range drill that needs
+    teammates, the Range read only with its capital so "within the range of a
+    teammate" is a distance, and Team Deathmatch left alone) and `ability-kill` (an enemy ability called the killer where
+    Riot's record has that agent's gun).
+  - The question's own notes (`questionTopics`, `QUESTION_TOPICS`): aim,
+    practice, climbing, the mental side, comms, the economy, ultimates and the
+    agent the question names get up to three notes that answer them first,
+    whatever cause they are tagged for, a general question two of the band's
+    own fundamentals, and then one note of the counted patterns rather than
+    three. An aim question retrieves as a lost duel and its cases too. A
+    question with none of those words, or outside English, is today's notes.
+  - The rules: answer the question asked, a general question needs no round,
+    aim from the deaths and the headshot rate (never waved away without the
+    looks), no template words, abilities by name never by key, an enemy
+    ability as the killer only where the record says, no praise of a traded
+    death in a lost round, no orb, health, spike carrier or alive count the
+    facts lack, drills the mode allows, the counted line's numbers as given,
+    and band lines that differ by more than their words.
+  - One death count: the counted line of deaths nobody traded leaves out a
+    death as the last one alive (`insights.js diedAlone`) while each card said
+    "not traded", so the model counted 14 of 16 where the line said 13 of 15.
+    The card now says such a death was the last one alive, and the rules say
+    to quote the counted line, which is the one the review page shows (both
+    read the review's saved insights).
 - **Its model, its time and its cap are the route's** (above, "Ask Coach v2,
   the route's half"): `AI_CHAT_MODEL` pinned with no weaker model behind it,
   40 s across both calls, and $0.15 a licence a rolling day. The page says

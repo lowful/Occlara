@@ -150,6 +150,20 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       ok(JSON.stringify(oldStudy.body.study) === JSON.stringify(todayStudy) && JSON.stringify(newStudy.body.study) === JSON.stringify(causeStudy)
         && JSON.stringify(todayStudy) !== JSON.stringify(causeStudy),
       'study by cause goes to a client of 8.5.0 or later, and an 8.4.4 install is listed today\'s study notes');
+      // ROUND 3 (match-review.js contradicted): the route hands study() the
+      // review's own round lines and focus, which only a client of the round 3
+      // rules (a body with `swing`) is filtered by. One before it is listed
+      // its notes as before, whatever the reply said.
+      {
+        const r3Body = { ...causeBody, swing: [] };
+        prov.next = () => ({ content: 'SUMMARY: You swung without utility.\nR2: After the plant, hold the spike from cover near a teammate.\nFOCUS: Use your smoke first.' });
+        const r3 = await call(coach, 'POST', '/match-review', { headers: { 'X-License-Key': licence(1), 'X-Occlara-Version': NEW }, body: r3Body });
+        const r3Input = { ...matchReview.normalise(r3Body), byCause: true };
+        const lines = [r3.body.rounds[2], r3.body.focus];
+        ok(r3.status === 200 && r3.body.rounds[2] && JSON.stringify(r3.body.study) === JSON.stringify(matchReview.study(r3Input, 3, { lines }))
+          && JSON.stringify(newStudy.body.study) === JSON.stringify(matchReview.study({ ...matchReview.normalise(causeBody), byCause: true }, 3, { lines })),
+        'a round 3 client\'s study list is filtered by its own review\'s advice, and one before it is listed as before');
+      }
       // THE ENEMY TEAM (8.8): Riot's killers in the review and the comp in Ask
       // Coach count only for a client of this release, by the same version gate.
       {
@@ -308,8 +322,11 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
         const retry = firstGone || kept < 2;
         // The name rule in log mode: counted, never dropped.
         const logged = /\bLOGGED\b/.test(String(raw)) ? { 'name-log': 1 } : {};
+        // The fallback (the round 3 audit): only a reply marked FALLBACK claims
+        // it, so every case above it answers as it always did.
+        const fallback = /\bFALLBACK\b/.test(String(raw)) && kept >= 3;
         return { reply: paras.join('\n\n'), retry, reasons: retry ? ['your reply said BAD, which the facts do not hold.'] : [], dropped,
-          logged, sentences: n };
+          logged, sentences: n, ...(fallback ? { fallback: true } : {}) };
       },
     };
     T.services({ chatPrompt: stand });
@@ -388,6 +405,19 @@ module.exports = async function serverCore({ ok, call, coach, PW, SERVER }) {
       const both = await ask(v2body(), { 'X-Occlara-Version': NEW });
       ok(both.sent.length === 2 && both.body.reply === T.HONEST_LINE && both.body.honest && both.body.dropped.number === 4,
         `and one that fails the gates again is the honest line, its drops counted by gate (${JSON.stringify(both.body.dropped)})`);
+      // THE FALLBACK (the round 3 audit): a retry that fails again but kept
+      // enough is shown, its dropped sentence gone; else the first's when it
+      // kept enough; fewer is the honest line, as before.
+      prov.next = (body, init, k) => ({ content: k === 1 ? 'BAD one. Good two.' : 'BAD again. Good two FALLBACK. Good three. Good four.' });
+      const kept = await ask(v2body(), { 'X-Occlara-Version': NEW });
+      prov.next = (body, init, k) => ({ content: k === 1 ? 'BAD one. Good two FALLBACK. Good three. Good four.' : 'BAD only.' });
+      const firstKept = await ask(v2body(), { 'X-Occlara-Version': NEW });
+      prov.next = () => ({ content: 'BAD one. Good two FALLBACK.' });
+      const tooFew = await ask(v2body(), { 'X-Occlara-Version': NEW });
+      ok(kept.sent.length === 2 && kept.body.reply === 'Good two FALLBACK. Good three. Good four.' && kept.body.honest === false && kept.body.retried === true
+        && firstKept.sent.length === 2 && firstKept.body.reply === 'Good two FALLBACK. Good three. Good four.' && firstKept.body.honest === false
+        && tooFew.body.reply === T.HONEST_LINE && tooFew.body.honest === true,
+      `a retry that fails the gates again but kept three sentences is the reply without the dropped one, else the first's, and fewer is the honest line (${JSON.stringify([kept.body.reply, firstKept.body.reply, tooFew.body.honest])})`);
       prov.next = () => ({ content: 'Good one. BAD two. Good three.\n\nGood four LOGGED.' });
       const fine = await ask(v2body(), { 'X-Occlara-Version': NEW });
       ok(fine.sent.length === 1 && fine.body.reply === 'Good one. Good three.\n\nGood four LOGGED.' && fine.body.retried === false
