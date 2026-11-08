@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T20:39:16.441Z",
+  "generatedAt": "2026-11-08T19:14:27.204Z",
   "patch": "13.09",
   "buildDate": "2026-10-28T06:11:26Z",
   "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-1309/",
@@ -769,6 +769,10 @@
         },
         {
           "line": "Game Updates",
+          "names": []
+        },
+        {
+          "line": "2026-10-13T13:00:00.000Z",
           "names": []
         },
         {
