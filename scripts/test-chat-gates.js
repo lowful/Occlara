@@ -2263,6 +2263,17 @@ const riotOnly = (file, row, edit) => {
     'kept: a fall back before the plant told by staying alive for it, and playing for the plant (Pearl round 6, three reviews)');
   ok(!!rc.checkPostPlant('In round 3, after the fast B entry is traded, regroup for the planted spike from cover rather than rushing another fight.', pearl6, {}),
     'CAUGHT still: regrouping for the planted spike of a death before it');
+  // Split round 10 at Plat (the blind audit of round 7): a death 34 s before
+  // the plant, traded, as Ask Coach's card carries it (chat-context.js plantSec
+  // and Riot's afterPlant), and round 11's death after the plant.
+  const split10 = rc.contextOfChat(facts('Jett', [], [], [R(10, 'attacking', 'lost', true, 41, 'Cypher', { planted: true, plantSec: 75, traded: true }),
+    R(11, 'attacking', 'lost', true, 90, 'Cypher', { planted: true, plantSec: 70.4, afterPlant: true, traded: true })]));
+  ok(!!rc.checkPostPlant('After the plant, use cover to hold the spike.', split10, { round: 10 }) && split10.rounds.get(10).afterPlant === false,
+    'CAUGHT: Split round 10, "after the plant, use cover to hold the spike" of a death 34 s before it, Riot\'s afterPlant false taken as certain beside its plant time');
+  ok(!rc.checkPostPlant('After the plant, use cover to hold the spike.', split10, { round: 11 }), 'kept: the same advice of a death Riot has after the plant');
+  const split10Old = rc.contextOfChat(facts('Jett', [], [], [R(10, 'attacking', 'lost', true, 41, 'Cypher', { planted: true, traded: true })]));
+  ok(!rc.checkPostPlant('After the plant, use cover to hold the spike.', split10Old, { round: 10 }) && split10Old.rounds.get(10).afterPlant === null,
+    'a card with no plant time: afterPlant false stays unknown and the gate judges nothing, as before');
   const defPlanted6 = rc.contextOfChat(facts('Iso', [], [], [R(4, 'defending', 'lost', true, 40, 'Omen', { planted: true, plantSec: 30, afterPlant: true })]));
   ok(!rc.checkClock('In round 4 the attackers are on the clock until they plant, and once the spike is down you are.', defPlanted6, {}),
     'kept: both phases told, the attackers on the clock until they plant');

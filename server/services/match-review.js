@@ -209,6 +209,13 @@ function normalise(body) {
     // each left out when the client sent none, so a round from a client
     // before it is normalised as before, byte for byte.
     ...(r && r.verified ? recordSent(r, b.context && b.context.map) : {}),
+    // The plant's time from Riot's record and Riot's afterPlant beside it
+    // (the blind audit of round 7, valorant-review.js requestBody), for the
+    // post plant gate alone (record-claims.js checkPostPlant). Only in a
+    // planted round Riot verified, and left out when the client sent none,
+    // so a round from a client before it is normalised as before.
+    ...(r && r.verified && r.planted && Number.isFinite(r.plantSec) && r.plantSec >= 0 && r.plantSec < 300
+      ? { plantSec: Math.round(r.plantSec * 10) / 10, ...(typeof r.afterPlant === 'boolean' ? { afterPlant: r.afterPlant } : {}) } : {}),
   })).filter((r) => r.n > 0).map(onePlace);
   const patterns = (Array.isArray(b.patterns) ? b.patterns : []).slice(0, 8).map((p) => ({
     key: clip(p && p.key, 20),

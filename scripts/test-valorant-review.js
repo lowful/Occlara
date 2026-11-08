@@ -2987,5 +2987,51 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(!/costs little/.test(matchReview.RECORD_USE.buy) && /Never say a death cost the team little or nothing\./.test(matchReview.RECORD_USE.buy), 'the economy use line no longer says a pistol or eco death costs little');
 }
 
+console.log('\nthe plant\'s time from Riot\'s record (the blind audit of round 7, Split round 10 at Plat)');
+{
+  // Split round 10: Riot has the death 34 s before the plant, traded. The
+  // review said "After the plant, use cover to hold the spike" of it, and the
+  // post plant gate could not fire: the round sent no plant time.
+  const card = (n, sec, plantMs, afterPlant) => ({
+    n, side: 'attacking', result: 'lost', died: true, verified: true, deathSec: sec, killerAgent: 'Cypher', weapon: 'Vandal',
+    traded: true, planted: true, plantSpot: 'A Site', riotPlantMs: plantMs, afterPlant, reads: [],
+  });
+  const rounds = [card(10, 41, 75000, false), card(11, 90, 70400, true)];
+  const sent = review.requestBody({ rounds, context: { map: 'Split', agent: 'Jett' }, endedBy: 'score' });
+  ok(sent.rounds[0].plantSec === 75 && sent.rounds[0].afterPlant === false && sent.rounds[1].plantSec === 70.4 && sent.rounds[1].afterPlant === true,
+    'requestBody: a planted round Riot timed sends the plant\'s second and Riot\'s afterPlant');
+  const untimed = review.requestBody({ rounds: rounds.map((r) => ({ ...r, riotPlantMs: null })), context: { map: 'Split', agent: 'Jett' }, endedBy: 'score' });
+  const unverified = review.requestBody({ rounds: rounds.map((r) => ({ ...r, verified: false })), context: { map: 'Split', agent: 'Jett' }, endedBy: 'score' });
+  ok(untimed.rounds.every((r) => !('plantSec' in r) && !('afterPlant' in r)) && unverified.rounds.every((r) => !('plantSec' in r) && !('afterPlant' in r)),
+    'requestBody: a round with no plant time from Riot, or not verified, sends neither, as before');
+  const final = { team: 5, enemy: 7, result: 'Defeat' };
+  const reply = 'SUMMARY: You lost 5 to 7.\nR10: After the plant, use cover to hold the spike.\nR11: After the plant, use cover to hold the spike.\nFOCUS: Trade your entry.';
+  const input = matchReview.normalise({ ...sent, final, context: { map: 'Split', agent: 'Jett' } });
+  ok(input.rounds[0].plantSec === 75 && input.rounds[0].afterPlant === false && input.rounds[1].afterPlant === true, 'normalise keeps the plant\'s time and Riot\'s afterPlant');
+  const p = matchReview.parse(reply, input);
+  ok(!(10 in p.rounds) && p.dropped.some((d) => d.n === 10 && d.said === 'record postplant'),
+    `CAUGHT: Split round 10, "after the plant, use cover to hold the spike" of a death 34 s before it (${JSON.stringify(p.dropped)})`);
+  ok(p.rounds[11] === 'After the plant, use cover to hold the spike.', 'kept: the same advice of a death Riot has after the plant');
+  // A client before it: no plant time, the gate as blind as before, the input as before.
+  const oldBody = { ...sent, rounds: sent.rounds.map(({ plantSec, afterPlant, ...r }) => r) };
+  const oldInput = matchReview.normalise({ ...oldBody, final, context: { map: 'Split', agent: 'Jett' } });
+  ok(oldInput.rounds.every((r) => !('plantSec' in r) && !('afterPlant' in r)), 'a client without the field is normalised with neither');
+  const oldP = matchReview.parse(reply, oldInput);
+  ok(oldP.rounds[10] === 'After the plant, use cover to hold the spike.' && oldP.rounds[11] === oldP.rounds[10] && !oldP.dropped.some((d) => /postplant/.test(d.said)),
+    'a client without the field is reviewed as before: no plant time, no post plant drop');
+  // An unverified round claiming a plant time is not kept.
+  const forged = matchReview.normalise({ ...sent, rounds: sent.rounds.map((r) => ({ ...r, verified: false })), final, context: { map: 'Split' } });
+  ok(forged.rounds.every((r) => !('plantSec' in r)), 'normalise drops a plant time on a round Riot did not verify');
+  // The rounding margin: a death at 50 s (Riot\'s 49.5 to 50.5) and a plant at
+  // 50.2 s is no certain death before the plant without Riot\'s afterPlant false.
+  const rc = require('../server/services/record-claims');
+  const edge = (afterPlant) => rc.contextOfReview({ rounds: [{ n: 4, side: 'attacking', result: 'lost', died: true, verified: true, sec: 50, planted: true, plantSec: 50.2, ...(afterPlant === undefined ? {} : { afterPlant }) }] }).rounds.get(4);
+  ok(!rc.deadBeforePlant(edge(undefined), {}) && rc.deadBeforePlant(edge(false), {}) && !rc.deadBeforePlant(edge(true), {}),
+    'deadBeforePlant: within the rounding, before only beside Riot\'s afterPlant false')
+  ok(edge(false).afterPlant === false && edge(undefined).afterPlant === null
+    && rc.contextOfReview({ rounds: [{ n: 4, died: true, verified: true, sec: 50, planted: true, afterPlant: false }] }).rounds.get(4).afterPlant === null,
+    'row: afterPlant false is certain only beside Riot\'s plant time and the death\'s second');
+}
+
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);
 process.exit(fails ? 1 : 0);

@@ -109,7 +109,12 @@ function row(x) {
     plantSite: /^[ABC]$/.test(String(x.plantSite || '')) ? x.plantSite : null,
     plantSec: fin(x.plantSec) ? x.plantSec : null,
     // True only where the record says so: a client sends false for unknown too.
-    afterPlant: x.afterPlant === true ? true : null,
+    // False is certain only beside Riot's plant time and the death's second
+    // (the blind audit of round 7, Split round 10 at Plat): Riot's afterPlant
+    // is its death's millisecond against its plant's, and false wherever it
+    // lacked either, so a row without both keeps false as unknown, as before.
+    afterPlant: x.afterPlant === true ? true
+      : x.afterPlant === false && !!x.died && fin(x.plantSec) && fin(x.sec) ? false : null,
     // The round record beyond the feed (8.8), each only where it was sent:
     // Riot's callout of the death, the team's buy, the nearest teammate then
     // and the player's casts by kit name (checkRecord).
@@ -207,7 +212,11 @@ function contextOfReview(input) {
 /** Whether the player was certainly dead before the spike went down, in a round with a plant. */
 function deadBeforePlant(r, ctx) {
   if (!r || !r.planted || !r.died || r.afterPlant) return false;
-  if (fin(r.sec) && fin(r.plantSec)) return r.sec < r.plantSec;
+  // The death's second is Riot's millisecond rounded to the whole second, the
+  // plant's to the tenth: 50 s against a plant at 50.2 s may be a death after
+  // it, so without Riot's afterPlant false beside them the death is before
+  // only with the half second the rounding can hide to spare.
+  if (fin(r.sec) && fin(r.plantSec)) return r.afterPlant === false ? r.sec < r.plantSec : r.sec + 0.5 <= r.plantSec;
   return !!(ctx && ctx.early && ctx.early.has(r.n));
 }
 /** Whether the player was certainly alive when the spike went down. */

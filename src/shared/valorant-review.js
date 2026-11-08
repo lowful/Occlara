@@ -1386,6 +1386,17 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring })
         alive: r.aliveAtDeath || null,
         // The numbers standing through the round (round 3), for the state gate only.
         ...(standingsOf(r) ? { standings: standingsOf(r) } : {}),
+        // THE PLANT'S TIME FROM RIOT'S RECORD (the blind audit of round 7):
+        // a Plat review told Split round 10 "after the plant, use cover to
+        // hold the spike" of a death Riot has 34 s before the plant. The
+        // server's post plant gate (record-claims.js checkPostPlant) knows a
+        // death came before the plant only from the death's second against
+        // the plant's, and the round sent neither the plant's time nor Riot's
+        // afterPlant. Both go only in a round Riot's record timed the plant,
+        // where afterPlant is Riot's own answer, never false for unknown; a
+        // round without it is sent as before, byte for byte.
+        ...(r.planted && typeof r.riotPlantMs === 'number' && Number.isFinite(r.riotPlantMs)
+          ? { plantSec: Math.round(r.riotPlantMs / 100) / 10, afterPlant: r.afterPlant === true } : {}),
         // The round record beyond the feed (8.8), only where it had them: the
         // team's buy, the nearest teammate at the death, the player's casts
         // by kit name, and a round Riot says the player sat out. A record

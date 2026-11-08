@@ -427,3 +427,9 @@ before this change, gets 8.7.7's prompt and study list byte for byte (`test:valo
   prompt and the list are as before. And for every client a round line giving advice for after the
   plant of a death the record has before it goes (`record-claims.js checkPostPlant`, gate `record
   postplant`: Pearl round 3's "hold the planted spike" in three reviews, Sunset 2 to 5 round 1).
+  The gate knows "before" only from the death's second against the plant's, so since the audit of
+  round 7 (Split round 10 at Plat, a death 34 s before the plant coached as a post plant hold) a
+  verified planted round Riot timed sends `plantSec` and Riot's `afterPlant` (`requestBody`), kept
+  by `normalise` on verified rounds only. `row()` takes afterPlant false as certain only beside the
+  plant time and the death's second, and without it a death within half a second of the plant is
+  never "before" (the second is rounded). A client without the field is reviewed as before.
