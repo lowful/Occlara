@@ -1398,6 +1398,11 @@ function requestBody({ rounds, context, endedBy, tips, notes, riot, recurring })
         // the screen's where Riot had none), for the server's retrieval
         // signals and record gates alone (match-review.js recordSent).
         ...(r.died && r.riotSpot ? { place: r.riotSpot } : {}),
+        // Where the player's kills fell, in a death Riot's record has no
+        // place for (round 7), so the server never sends the screen's spot
+        // as the death's place when it lies in another region than every
+        // kill (match-review.js placesKept: Sunset 2 to 5 round 6).
+        ...(r.died && !r.riotSpot && Array.isArray(r.killSpots) && r.killSpots.length ? { killPlaces: r.killSpots.slice(0, 5) } : {}),
       } : {}),
       // The coach's look at the death, so the summary and the round lines
       // agree with the cause the review counts.

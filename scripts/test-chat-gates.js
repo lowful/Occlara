@@ -2348,5 +2348,282 @@ const riotOnly = (file, row, edit) => {
   ok(gates.check(biggest, cp.factsOf(ctxOf('silver_gold'), [{ role: 'user', content: 'What was my biggest mistake?' }])).drop?.gate !== 'priority', 'and stays clear of the priority gate at Silver');
 }
 
+// ── The blind audit of round 6 (Nov 2026), stream A ────────────────────────
+// Claims over several rounds held to Riot's record, a cheap pistol or eco
+// death, the last round, and the structural pass after every gate (a lead
+// whose sentence was cut, what only refers back to a cut one, a garbled
+// sentence), each on the live round 6 sentence (caught) and a true variant
+// (kept). The rounds are the audit's own record (after4 facts.riotRecord).
+{
+  console.log('\nthe blind audit of round 6, stream A:');
+  const rc = require('../server/services/record-claims');
+  const co = require('../server/services/coherence');
+  const BS = String.fromCharCode(8);
+  for (const f of ['record-claims.js', 'coherence.js', 'chat-prompt.js', 'match-review.js']) {
+    ok(!fs.readFileSync(path.join(__dirname, '..', 'server', 'services', f), 'utf8').includes(BS), `${f} holds no backspace byte (round 6)`);
+  }
+  // [n, side, result, died, sec, killer, mate, traded, buy, afterPlant, plantSec]
+  const ctxOfRows = (agent, enemies, list, score) => rc.contextOfChat({
+    game: 'valorant', language: 'en', agent, map: null, finalScore: score, sides: { mates: new Set(), enemies: new Set(enemies) }, counted: { texts: [] },
+    rounds: new Map(list.map(([n, side, result, died, sec, killer, mate, traded, buy, afterPlant, plantSec]) => [n, {
+      n, side, result, died, sec, killer, kills: 0, feed: [], spot: null, mate, traded, buy,
+      planted: afterPlant === true || plantSec != null, afterPlant: afterPlant === true, plantSec: plantSec == null ? null : plantSec, plantSite: null }])),
+  });
+  // Corrode 3 to 13, Iso: Omen killed the player in rounds 1, 5, 7, 11, 14 and 16.
+  const corrode = ctxOfRows('Iso', ['Chamber', 'Fade', 'Omen', 'Phoenix', 'Reyna'], [
+    [1, 'attacking', 'lost', true, 26, 'Omen', 'close', true, 'pistol', true, 21.5], [2, 'attacking', 'lost', true, 32, 'Fade', 'close', false, 'eco'],
+    [3, 'attacking', 'won', false, null, null, null, null, 'full', false, 19.1], [4, 'attacking', 'won', false, null, null, null, null, 'full', false, 56.4],
+    [5, 'attacking', 'lost', true, 32, 'Omen', 'close', false, 'full'], [6, 'attacking', 'lost', true, 21, 'Phoenix', 'far', true, 'full'],
+    [7, 'attacking', 'lost', true, 84, 'Omen', 'far', false, 'half', true, 72.1], [8, 'attacking', 'lost', true, 27, 'Chamber', 'close', false, 'full'],
+    [9, 'attacking', 'lost', true, 38, 'Phoenix', 'far', false, 'half'], [10, 'attacking', 'lost', true, 27, 'Phoenix', 'far', false, 'half'],
+    [11, 'attacking', 'lost', true, 12, 'Omen', 'far', false, 'half'], [12, 'attacking', 'lost', true, 10, 'Fade', 'far', false, 'full'],
+    [13, 'defending', 'lost', true, 21, 'Reyna', 'close', false, 'pistol', true, 16.8], [14, 'defending', 'lost', true, 31, 'Omen', 'close', false, 'force', false, 67],
+    [15, 'defending', 'won', false, null, null, null, null, 'force'], [16, 'defending', 'lost', true, 53, 'Omen', null, false, 'full', true, 24.8],
+  ], [3, 13]);
+  const omenList = 'Omen killed you 6 times in this Corrode match, in rounds 1, 5, 7, 11, 14 and 16, so the first thing to fix is how you meet him rather than your aim.';
+  const rows = (...ss) => ss.map((s) => ({ s, p: 0 }));
+  const five = 'Five of those six came while you were on your own, with no teammate close enough to answer the fight, and that is exactly the situation Omen is built to win.';
+  const hitFive = rc.checkRows(rows(omenList, five), corrode);
+  ok(hitFive.length === 1 && hitFive[0].index === 1 && hitFive[0].kind === 'multi',
+    'CAUGHT: "Five of those six came while you were on your own" of Omen\'s six, Riot close in rounds 1, 5 and 14', JSON.stringify(hitFive));
+  ok(!rc.checkRows(rows(omenList, 'Two of those six came while you were on your own.'), corrode).length
+    && !rc.checkRows(rows(omenList, 'Three of those six came while you were on your own.'), corrode).length,
+  'kept: two or three of those six alone, which rounds 7, 11 and 16 allow');
+  ok(!rc.checkRows(rows('Omen killed you in rounds 1, 5, 7 and 11.', five), corrode).length, 'kept: "those six" after a list of four judges nothing');
+  ok(!rc.checkRows([{ s: omenList, p: 0, dropped: true }, { s: five, p: 0 }], corrode).length, 'kept: "those six" after a dropped sentence judges nothing');
+  const practice = 'In the Corrode match your deaths in rounds 2, 10 and 12 all came with no teammate close, and those are the rounds to picture.';
+  ok(!!rc.checkMulti(practice, corrode, {}), 'CAUGHT: "rounds 2, 10 and 12 all came with no teammate close", round 2 close');
+  ok(!rc.checkMulti('In the Corrode match your deaths in rounds 10 and 12 all came with no teammate close, and those are the rounds to picture.', corrode, {}),
+    'kept: rounds 10 and 12 with no teammate close, both far');
+  ok(!!rc.checkMulti('Every time you died a teammate was close.', corrode, {}) && !!rc.checkMulti('Most of your deaths came with no teammate close by.', corrode, {})
+    && !rc.checkMulti('Most of your deaths went unanswered.', corrode, {}) && !!rc.checkMulti('None of your deaths were traded.', corrode, {}),
+  'every death: "every time a teammate was close" and "most with no teammate close" (6 of 13 at most) caught, "most went unanswered" (11 of 13) kept, "none traded" caught');
+  // "Your deaths" qualified is some of them (the verify pass of round 7, SUBSET_AFTER).
+  ok(!rc.checkMulti('None of your deaths on defence were traded.', corrode, {}) && !rc.checkMulti('Every time you died to Fade, nobody traded you.', corrode, {})
+    && !rc.checkMulti('Most of your deaths after the plant came with no teammate close by.', corrode, {})
+    && !!rc.checkMulti('None of your deaths in this Corrode match were traded.', corrode, {}) && !!rc.checkMulti('Every time you died in this match a teammate was close.', corrode, {}),
+  'kept: "your deaths on defence", "every time you died to Fade", "most of your deaths after the plant", some of them; "in this Corrode match" is every death still, caught');
+  ok(rc.SUBSET_AFTER.test(' to Killjoy, nobody traded you') && !rc.SUBSET_AFTER.test(', nobody traded you') && rc.WHOLE_AFTER.test(' in this Sunset match were traded') && !rc.WHOLE_AFTER.test(' in round 4'),
+    'SUBSET_AFTER matches " to Killjoy" and not ", nobody", WHOLE_AFTER " in this Sunset match" and not " in round 4"');
+  ok(!!rc.checkMulti('Only one of those five was traded.', corrode, { lastSet: [1, 6, 7, 11, 12] }) === true
+    && !rc.checkMulti('Two of those five were traded.', corrode, { lastSet: [1, 6, 7, 11, 12] }),
+  'traded over a set: "only one of those five" caught (1 and 6 traded), "two of those five" kept');
+  ok(!rc.checkMulti('Chamber and Fade killed you in rounds 2, 5 and 8, often when you were alone on an angle.', corrode, {}),
+    'kept: "often" alone claims some of them, never a count (the sweep over 8.7.8)');
+  ok(!rc.checkMulti('11 of your 13 deaths went unanswered within five seconds, and you died in the first 30 seconds of the round 8 times.', corrode, {})
+    && !rc.checkMulti('You died where nobody could trade in 3 of your 5 deaths, and you have been dying unanswered in 5 of your last 6 matches.', corrode, {}),
+  'kept: a count in another clause, and "5 of your last 6 matches", are no count of this claim (the sweep over 8.7.7 and 8.7.9)');
+  // Sunset 4 to 13, Jett: Killjoy in rounds 1, 2, 13 and 14, all lost, 1 and 13 the pistols, 14 an eco.
+  const sunset = ctxOfRows('Jett', ['Killjoy', 'Tejo', 'Brimstone', 'Phoenix', 'Raze'], [
+    [1, 'defending', 'lost', true, 18, 'Killjoy', 'far', false, 'pistol'], [2, 'defending', 'lost', true, 42, 'Killjoy', null, false, 'eco', true],
+    [3, 'defending', 'lost', true, 27, 'Tejo', 'close', false, 'full', true], [4, 'defending', 'won', false, null, null, null, null, 'force'],
+    [13, 'attacking', 'lost', true, 17, 'Killjoy', 'far', false, 'pistol'], [14, 'attacking', 'lost', true, 14, 'Killjoy', 'close', false, 'eco'],
+    [15, 'attacking', 'won', true, 20, 'Phoenix', 'far', false, 'pistol'],
+  ], [4, 13]);
+  const early = 'The pattern that matters is the other one: in rounds 1, 2, 13 and 14 you died early and nobody was close enough to kill her back.';
+  ok(!!rc.checkMulti(early, sunset, {}), 'CAUGHT: "in rounds 1, 2, 13 and 14 you died early", round 2 after the plant at 42 s');
+  ok(!rc.checkMulti('In rounds 1, 13 and 14 you died early and nobody was close enough to kill her back.', sunset, {}), 'kept: rounds 1, 13 and 14 early, none of them traded');
+  const cheap = 'Those hurt less than they look, because a death on a pistol or an eco costs the team little.';
+  ok(rc.checkRows(rows('Killjoy got you four times on Sunset, in rounds 1, 2, 13 and 14.', cheap), sunset).some((h) => h.kind === 'lowcost'),
+    'CAUGHT: "a death on a pistol or an eco costs the team little" of pistol and eco rounds all lost');
+  ok(!rc.checkLowCost('Round 15 was a pistol round your team won, so that death cost the team little.', sunset, {}), 'kept: a pistol death in a round the team won');
+  ok(!rc.checkLowCost('That works because a pistol round leaves no credits for armour, and cover means a miss costs you nothing.', sunset, {}), 'kept: a miss costing nothing is no death (the sweep over 8.7.7)');
+  ok(rc.LOW_COST.test(cheap) && !rc.LOW_COST.test('That death cost the team the round.'), 'LOW_COST matches "costs the team little" and not "cost the team the round"');
+  ok(!rc.checkLowCost('Round 14 was an eco, so that death cost little.', sunset, {}), 'kept: an eco death costing little, the save round\'s own reading (test:valorantreview holds it true)');
+
+  // The review: the summary's lead goes with the sentence a gate cut, a garbled round line whole.
+  const mr = require('../server/services/match-review');
+  const rv = { summary: 'You lost 2 to 4. Look at where those deaths happened.', focus: 'Take the B Main fight with a teammate.',
+    rounds: { 3: 'Your gun is the Vandal or Phantom range game, so step back.', 4: 'Step back toward your team.' }, dropped: [] };
+  mr.structureGates(rv, { context: { language: 'en' } }, { summary: 'You lost 2 to 4. Look at where those deaths happened. In round 2 you died at A Main with nobody around.', focus: rv.focus });
+  ok(rv.summary === 'You lost 2 to 4.' && !rv.rounds[3] && rv.rounds[4] && rv.focus === 'Take the B Main fight with a teammate.',
+    'the review: the summary lead whose sentence a gate cut goes, a garbled round line goes whole, the rest stays', JSON.stringify(rv));
+  // Fracture 5 to 1: six rounds.
+  const fracture = ctxOfRows('Jett', ['Astra', 'Jett', 'Sova', 'Killjoy', 'Fade'], [
+    [2, 'defending', 'won', true, 31, 'Astra', 'far', true, 'half'], [5, 'attacking', 'lost', true, 33, 'Jett', 'close', false, 'pistol', true, 32],
+    [6, 'attacking', 'won', false, null, null, null, null, 'full'],
+  ], [5, 1]);
+  ok(!!rc.checkOrdinal('Your costliest mistake was the death in round 5, the last round of the match.', fracture), 'CAUGHT: "round 5, the last round of the match" of six rounds');
+  ok(!rc.checkOrdinal('Your costliest mistake was the death in round 6, the last round of the match.', fracture)
+    && !rc.checkOrdinal('Round 5 was the last round you lost.', fracture) && !rc.checkOrdinal('Round 5 was the first round of the second half.', fracture),
+  'kept: round 6 the last, "the last round you lost", "the first round of the second half"');
+  ok(!!rc.checkOrdinal('Round 2 was the first round of the match.', fracture), 'CAUGHT: round 2 called the first round of the match');
+
+  // The structural pass.
+  const R6 = (list) => list.map(([s, dropped]) => ({ s, dropped: !!dropped, p: 0 }));
+  const gone = (list) => co.checkStructure(R6(list)).map((o) => `${o.index}:${o.kind}`).join(',');
+  ok(gone([['Your headshot rate was 21%, against your own average of 32% over your last 10 matches.'], ['But before you put it all on the mouse, look at where those fights happened.'],
+    ['All 5 of your deaths came in the first 30 seconds of the round.', true], ['When you are taking fights that early and that alone, every shot is harder.', true]]) === '1:lead',
+  'CAUGHT: "But before you put it all on the mouse, look at where those fights happened." with what it pointed at cut (Pearl, Silver aim)');
+  ok(gone([['Look at where she caught you.'], ['In round 4 you died 17 s in at B site with no teammate close by.', true]]) === '0:lead'
+    && gone([['Look at what the record shows around it.'], ['You died before the plant in 5 of those 9 defence rounds.', true], ['Eight of your 14 deaths came early.']]) === '0:lead',
+  'CAUGHT: "Look at where she caught you." and "Look at what the record shows around it." right before a cut (Split Asc, Sunset)');
+  ok(gone([['Look at where she caught you.'], ['In round 4 you died 17 s in at B site with no teammate close by.']]) === ''
+    && gone([['Look at round 4: you died 17 s in at B site.'], ['Then you swung again.', true]]) === '',
+  'kept: the lead with its sentence kept, and a lead carrying its own round');
+  // An instruction is no lead (the verify pass of round 7): the habit stays when the sentence after it is cut.
+  ok(gone([['You died alone in round 4.'], ['Before you swing, check where your nearest teammate is.'], ['You did it 7 times.', true]]) === ''
+    && gone([['Next time, after the plant, before you take another fight, look at where your teammates are standing.'], ['You died 3 seconds later.', true]]) === ''
+    && !co.isPointer('See where the turret is first.') && !co.isPointer('Watch how she plays the first contact.')
+    && co.isPointer('Look at where she caught you.') && co.isPointer('Look at what the record shows around it.') && co.isPointer('Notice what happens next.'),
+  'kept: "check where your nearest teammate is" and "look at where your teammates are standing" before a cut, instructions and no lead');
+  ok(co.isInstruction('After the plant, check where your teammates are before taking another duel.') && !co.isInstruction('But before you put it all on the mouse, look at where those fights happened.'),
+    'INSTRUCTION matches "check where your teammates are" and not "look at where those fights happened"');
+  ok(gone([['The biggest thing holding you back is dying where nobody can trade you.'], ['Check that a teammate is close before you swing.', true], ['If nobody is, either move to where one is or let the fight come to you.']]) === '2:back'
+    && gone([['Check that a teammate is close before you swing.'], ['If nobody is, either move to where one is or let the fight come to you.']]) === '',
+  'CAUGHT: "If nobody is," with its condition cut (Fracture, Asc improve), kept with it standing');
+  ok(gone([['Your biggest mistake was dying early on defence.', true], ['That post-plant record is the team\'s, not yours alone, but it shows what your early deaths cost.']]) === '1:back'
+    && gone([['Your team won 0 of 9 retakes, its post-plant record.'], ['That post-plant record is the team\'s, not yours alone.']]) === '',
+  'CAUGHT: "That post-plant record" with the record never told (Sunset 4-13), kept where the sentence before named it');
+  ok(gone([['The biggest thing holding you back is 14 untraded deaths.'], ['You got the first kill 8 times, so you are finding fights.', true], ['The problem is what happens next.']]) === '2:back'
+    && gone([['You got the first kill in 8 rounds, so the aggression itself is not the problem.', true], ['The problem is swinging when the trade is not there yet.']]) === '1:back'
+    && gone([['You died early in round 4.', true], ['The problem is swinging when the trade is not there yet.']]) === '',
+  'CAUGHT: "The problem is what happens next." and the second half of a cut contrast, kept after a cut that was no contrast');
+  ok(co.garbleOf('Your gun is the Vandal or Phantom range game, and a Sheriff kills with one head hit inside 30 m.') === 'gun-either'
+    && co.garbleOf('Your gun was the Vandal game.') === 'gun-game' && co.garbleOf('Hold the the angle.') === 'doubled' && co.garbleOf('Take a the long way.') === 'articles',
+  'CAUGHT: "Your gun is the Vandal or Phantom range game" (Fracture, Asc aim), a doubled word, two articles');
+  ok(!co.garbleOf('Your gun is the Vandal, so tap at range.') && !co.garbleOf('Buy the Vandal or the Phantom on a full buy.') && !co.garbleOf('Your Vandal game is solid.')
+    && !co.garbleOf('Play off the A site with your team.') && !co.garbleOf('I know that that angle is hard.'),
+  'kept: the gun named once, a buy of either, "your Vandal game", "the A site", "that that"');
+  for (const [name, re, pos, neg] of [
+    ['POINT_TAIL', co.POINT_TAIL, 'But before you put it all on the mouse, look at where those fights happened.', 'But before you swing, look at the minimap.'],
+    ['BACK_IF', co.BACK_IF, 'If nobody is, move.', 'If nobody is close, move.'],
+    ['GUN_EITHER', co.GUN_EITHER, 'Your gun is the Vandal or Phantom range game', 'Your gun is the Vandal'],
+    ['MULTI_HYPO', rc.MULTI_HYPO, 'If you die alone in rounds 2 and 3', 'In rounds 2 and 3 you died alone'],
+  ]) ok(re.test(pos) && !re.test(neg), `${name} matches "${pos}" and not "${neg}"`);
+
+  // Through the reply: the garble and the last round dropped, the rest kept.
+  const fx = cp.normalise({ v: 2, game: 'valorant', rankBand: 'asc_plus', match: { kind: 'valorant', map: 'Fracture', agent: 'Jett', mode: 'Swiftplay', result: 'Victory', score: '5-1',
+    cards: [
+      { n: 2, side: 'defending', result: 'won', died: true, verified: true, riot: { sec: 31, killer: 'Astra', weapon: 'Sheriff', traded: true, alive: { mates: 5, enemies: 1 } } },
+      { n: 5, side: 'attacking', result: 'lost', died: true, verified: true, riot: { sec: 33, killer: 'Jett', weapon: 'Sheriff', traded: false, alive: { mates: 4, enemies: 3 }, plantSite: 'A', plantSec: 32 } },
+    ] } });
+  const said = 'You won 5 to 1 on Fracture with Jett.\n\nRound 2 is the one to look at. You stayed on that angle at low health. Your gun is the Vandal or Phantom range game, and a Sheriff kills with one head hit inside 30 m. After a trade, step back off the angle.';
+  const got = cp.parseReply(said, fx, { messages: [{ role: 'user', content: 'How do I get better aim?' }] });
+  ok(got.dropped.garble === 1 && !/range game/.test(got.reply) && /step back off the angle/.test(got.reply), 'through parseReply: the garbled sentence goes, the rest stays', JSON.stringify(got.dropped));
+}
+
+// ── The blind audit of round 6 (Nov 2026), stream B ────────────────────────
+// The inputs: why each costly death cost, as finished facts with where the
+// round sat in the match; the enemy asked about as Riot's rounds; the aim
+// facts and the duel's notes from Platinum. Each only with its data, and a
+// prompt without it as before.
+{
+  console.log('\nthe blind audit of round 6, stream B:');
+  const mr = require('../server/services/match-review');
+  const kn = require('../server/services/knowledge');
+  const DASHES_B = new RegExp('[' + String.fromCharCode(0x2013, 0x2014) + ']');
+  const THEM5 = ['Astra', 'Omen', 'Killjoy', 'Sova', 'Reyna'];
+  const US5 = ['Jett', 'Sage', 'Fade', 'Cypher', 'Brimstone'];
+  // As the route marks a client of 8.7.6 or later (byEnemy), unless `old` says it is one before.
+  const ctxB = (band, cards, extra = {}, old = false) => {
+    const x = cp.normalise({ v: 2, game: 'valorant', ...(band ? { rankBand: band } : {}), advanced: true,
+      match: { kind: 'valorant', map: 'Fracture', agent: 'Jett', mode: 'Swiftplay', result: 'Victory', score: '5-1',
+        comps: { us: US5.map((agent) => ({ agent })), them: THEM5.map((agent) => ({ agent })) }, cards, ...extra } });
+    if (!old) x.byEnemy = true;
+    return x;
+  };
+  const frac = [
+    { n: 2, side: 'defending', result: 'won', died: true, verified: true, riot: { sec: 31, killer: 'Astra', weapon: 'Sheriff', traded: true, alive: { mates: 5, enemies: 1 } } },
+    { n: 5, side: 'attacking', result: 'lost', died: true, verified: true, riot: { sec: 33, killer: 'Jett', weapon: 'Sheriff', traded: false, alive: { mates: 4, enemies: 3 }, plantSite: 'A', plantSec: 32 } },
+  ];
+  const ask = (q) => [{ role: 'user', content: q }];
+  const promptB = (band, cards, q, extra) => cp.buildPrompt(ctxB(band, cards, extra), ask(q), { variant: 'v2' });
+
+  // 1. THE COST REASON IN CODE: the round's place in the match, the rule, and nothing else invented.
+  const asc = promptB('asc_plus', frac, 'What was my biggest mistake?');
+  ok(/First, round 5, an attack round your team lost, you died after the plant[^.]*, round 5 of the 6 the match had, not its last\./.test(asc)
+    && asc.includes(mr.COST_RULE.trim()) && !/round 5[^.]*its last round/.test(asc),
+  'CAUGHT: Fracture round 5 "the last round of the match": the line says round 5 of the 6, not its last, and to state only its reasons');
+  const ranked = [{ n: 6, words: ['an attack round your team lost'], result: 'lost' }, { n: 1, words: ['a defence round your team won'], result: 'won' }];
+  const line6 = mr.costReasonLine(ranked, 6, { buyOf: (n) => (n === 1 ? 'pistol' : 'full') });
+  ok(/round 6, an attack round your team lost, the team on a full loadout, round 6 of the 6 the match had, its last round\./.test(line6)
+    && /round 1, a defence round your team won, the team on a pistol round, the first of the 6 rounds the match had/.test(line6),
+  'the last round is called the last only when it is, the first the first, and the team\'s economy rides along where the record has it');
+  ok(mr.costReasonLine(ranked, null) === '' && mr.costReasonLine(ranked.slice(0, 1), 6) === '' && mr.costReasonLine(ranked, 5) === '',
+    'no total, one death, or a round past the total: no reason line (the caller keeps record-claims.js costLine)');
+  ok(!/THE COSTLIEST DEATHS/.test(promptB('silver_gold', frac, 'What was my biggest mistake?')), 'and none below Platinum, as before');
+  for (const s of [mr.COST_RULE, line6]) ok(!s.includes(';') && !DASHES_B.test(s), `no semicolon or dash in "${s.slice(0, 50)}"`);
+
+  // 2. THE ENEMY ASKED ABOUT: Riot's rounds of that agent, counted in code.
+  const omen = [
+    { n: 1, side: 'attacking', result: 'lost', died: true, verified: true, pistol: true, riot: { sec: 26, killer: 'Omen', weapon: 'Classic', traded: true, alive: { mates: 3, enemies: 4 }, place: 'A Main', mate: 'close', buy: 'pistol' } },
+    { n: 3, side: 'attacking', result: 'lost', died: true, verified: true, riot: { sec: 12, killer: 'Omen', weapon: 'Vandal', traded: false, alive: { mates: 5, enemies: 5 }, mate: 'far', buy: 'full' },
+      look: { cause: 'repeek', what: 'You peeked the same angle twice.', better: 'Fall back after the first shot.' } },
+    { n: 4, side: 'attacking', result: 'won', died: true, verified: true, riot: { sec: 40, killer: 'Reyna', weapon: 'Phantom', traded: false, alive: { mates: 4, enemies: 4 }, mate: 'far' } },
+  ];
+  const enemyQ = 'Their Omen killed me the most. How do I play against Omen?';
+  const pe = promptB('iron_bronze', omen, enemyQ);
+  ok(/THE ENEMY ASKED ABOUT, from Riot's record: Omen killed you 2 times, in 2 of your 3 deaths in this match\./.test(pe)
+    && /- Round 1: attack, lost, a pistol round, Omen killed you with a Classic, at A Main, 26 s in, a teammate was close, a teammate traded it\./.test(pe)
+    && /- Round 3: attack, lost, Omen killed you with a Vandal, 12 s in, no teammate was close, nobody traded it, team economy full buy, the coach's look: Repeek\./.test(pe)
+    && /A teammate was close in 1 of the 2 and no teammate was close in 1 of the 2\. Nobody traded 1 of the 2\./.test(pe)
+    && !/- Round 4:/.test(pe.split('THE ENEMY ASKED ABOUT')[1] || ''),
+  'CAUGHT: Corrode "five of those six came while you were on your own": the rounds Omen killed the player, each from the record, and the counts made in code');
+  ok(/Name Omen's abilities only by the names in Omen's kit lines/.test(pe) && /Never say a death cost the team little or was cheap\./.test(pe), 'the rule: answer from the block, the kit names only, no cheap deaths');
+  const fe = cp.factsOf(ctxB('iron_bronze', omen), ask(enemyQ));
+  ok(fe.enemyAgent === 'Omen' && fe.counted.pairs.has('1/2'), 'the facts name the agent and the counts are numbers a reply may say back');
+  // "Six of your thirteen deaths in this Corrode match came to their Omen" was
+  // true and dropped by the count gate: the head is said as the pair it is.
+  ok(fe.counted.pairs.has('2/3') && gates.check('Two of your three deaths in this match came to their Omen.', fe).drop === null,
+    'the head\'s own pair, Omen in 2 of the 3 deaths, is a count a reply may say back');
+  ok(!/THE ENEMY ASKED ABOUT/.test(promptB('iron_bronze', omen, 'How do I play against Killjoy?'))
+    && !/THE ENEMY ASKED ABOUT/.test(promptB('iron_bronze', omen, 'How do I play Jett better?'))
+    && !/THE ENEMY ASKED ABOUT/.test(promptB('iron_bronze', omen, 'What was my biggest mistake?')),
+  'none for an agent that never killed the player, the player\'s own agent, or a question naming no agent');
+  const one = cp.enemyAskedOf(ctxB(null, omen).match, ['Reyna']);
+  ok(one && one.who === 'Reyna' && /Reyna killed you once, in 1 of your 3 deaths/.test(one.text) && !/ of the \d/.test(one.text), 'one round: no counts, its line says it all');
+  ok(gates.check('No teammate was close in 1 of the 2 rounds Omen killed you.', fe).drop === null, 'through check: a reply saying the block\'s count back is kept');
+  ok(!(pe.split('THE ENEMY ASKED ABOUT')[1] || '').split('\n\n')[0].includes(';') && !DASHES_B.test(pe.split('THE ENEMY ASKED ABOUT')[1].split('\n\n')[0]), 'the block has no semicolon or dash');
+  // The cases are chosen against the asked agent alone where the block is there.
+  const byEnemy = ctxB('iron_bronze', omen);
+  ok(!/THE ENEMY ASKED ABOUT/.test(cp.buildPrompt(ctxB('iron_bronze', omen, {}, true), ask(enemyQ), { variant: 'v2' })), 'an install before byEnemy gets no block, its prompt as before');
+  ok(JSON.stringify(cp.enemyCases(byEnemy, ask(enemyQ))) === '["Omen"]' && cp.enemyCases(byEnemy, ask('What was my biggest mistake?')).length === 5,
+    'the cases are picked against Omen alone for the Omen question, against the five otherwise');
+
+  // 3. THE AIM FACTS AND NOTES FROM PLATINUM.
+  const aimCards = [
+    { n: 2, side: 'defending', result: 'won', died: true, verified: true, riot: { sec: 31, killer: 'Astra', weapon: 'Sheriff', traded: true, alive: { mates: 5, enemies: 1 },
+      feed: [{ s: 20, by: 'me', on: 'enemy', ka: 'Jett', va: 'Sova', w: 'Vandal' }, { s: 31, by: 'enemy', on: 'me', ka: 'Astra', va: 'Jett', w: 'Sheriff' }] },
+      look: { cause: 'lost-duel', what: 'You fought Astra at close range on A Main and missed your first shots.', better: 'Hold a tighter angle.' } },
+    { n: 5, side: 'attacking', result: 'lost', died: true, verified: true, riot: { sec: 33, killer: 'Jett', weapon: 'Phantom', traded: false, alive: { mates: 4, enemies: 3 },
+      feed: [{ s: 10, by: 'me', on: 'enemy', ka: 'Jett', va: 'Omen', w: 'Vandal' }, { s: 15, by: 'me', on: 'enemy', ka: 'Jett', va: 'Reyna', w: 'Sheriff' }] } },
+  ];
+  const against = [{ label: 'Headshot %', value: 24, baseline: 35, games: 10 }];
+  const aimQ = 'How do I get better aim at my rank?';
+  const pa = promptB('asc_plus', aimCards, aimQ, { against });
+  ok(/THE AIM FACTS, from Riot's record and the coach's looks:\n- Your headshot rate this match was 24%, against your own average of 35% over your last 10 matches\./.test(pa)
+    && /- Round 2, a fair fight lost on the shot as the coach's look called it, killed by Astra with a Sheriff: You fought Astra at close range on A Main and missed your first shots\./.test(pa)
+    && /- Your kills by gun, from Riot's record: Vandal 2, Sheriff 1\./.test(pa) && /- The guns that killed you: Phantom 1, Sheriff 1\./.test(pa)
+    && /- The range the looks give: close range in round 2\./.test(pa) && /never make stopping before the shot or counter strafing the fix/.test(pa),
+  'CAUGHT: "Your gun is the Vandal or Phantom range game" and the basics at Ascendant: the aim facts in code, the guns as Riot has them, the range the look gives');
+  ok(!/THE AIM FACTS/.test(promptB('silver_gold', aimCards, aimQ, { against })) && !/THE AIM FACTS/.test(promptB('asc_plus', aimCards, 'What was my biggest mistake?', { against }))
+    && !/THE AIM FACTS/.test(promptB(undefined, aimCards, aimQ, { against })),
+  'none below Platinum, with no band, or for a question not about aim');
+  const notesA = cp.pickNotes(ctxB('asc_plus', aimCards, { against }), ask(aimQ));
+  const noteOf = (t) => kn.all().find((n) => n.text === t);
+  ok(notesA.length >= 3 && notesA.slice(0, 3).every((t) => { const n = noteOf(t); return n && Array.isArray(n.cause) && n.cause.includes('lost-duel') && !cp.isAimBasic(n); })
+    && !notesA.some((t) => /stop looking for more aim|high refresh monitor/i.test(t)) && !notesA.some((t) => cp.AIM_BASIC.test(t)),
+  'the aim question\'s own notes at Ascendant are the duel\'s, none of the basics, the monitor or "stop looking for more aim"', notesA.map((t) => t.slice(0, 60)).join(' | '));
+  const moving = aimCards.map((c) => (c.n === 2 ? { ...c, look: { ...c.look, what: 'You fired while still moving and lost the duel at close range.' } } : c));
+  const fm = cp.factsOf(ctxB('asc_plus', moving, { against }), ask(aimQ));
+  ok(fm.aimFacts && fm.aimFacts.moving === true && !/never make stopping before the shot/.test(fm.aimFacts.text), 'a look that saw a shot on the move lets the basics back in');
+  const silverNotes = cp.pickNotes(ctxB('silver_gold', aimCards, { against }), ask(aimQ));
+  ok(silverNotes.length > 0 && silverNotes.slice(0, 3).some((t) => { const n = noteOf(t); return n && cp.isAimBasic(n); }),
+    'below Platinum the aim question still gets the basics first, as before', silverNotes.map((t) => t.slice(0, 60)).join(' | '));
+  const fund = kn.all().find((n) => n.tier !== 'advanced' && !n.ranks && Array.isArray(n.cause) && n.cause.includes('lost-duel') && /Stop before/i.test((n.source && n.source.topic) || ''));
+  const bandNote = kn.all().find((n) => Array.isArray(n.ranks) && n.ranks.includes('asc_plus') && !n.ranks.includes('iron_bronze') && Array.isArray(n.cause) && n.cause.includes('lost-duel') && !cp.AIM_BASIC.test(n.text));
+  ok(fund && cp.aimNote(fund, 'asc_plus', false) === null && cp.aimNote(fund, 'asc_plus', true) !== null && bandNote && cp.aimNote(bandNote, 'asc_plus', false) === 3,
+    'aimNote: a basic note only with a shot on the move, a band note for a lost duel ranked first');
+  for (const [name, re, pos, neg] of [
+    ['AIM_BASIC', cp.AIM_BASIC, 'Come to a full stop before your first shot', 'Keep your crosshair back from the corner'],
+    ['AIM_RANGE', cp.AIM_RANGE, 'fought Astra at close range', 'fought Astra in range of the site'],
+    ['SHOT_MOVING', cp.SHOT_MOVING, 'You fired while still moving', 'You were moving to cover before the fight'],
+  ]) ok(re.test(pos) && !re.test(neg), `${name} matches "${pos}" and not "${neg}"`);
+
+  // 4. THE ECONOMY SENTENCE never says a death cost little (Sunset 4 to 13, Killjoy).
+  ok(!/costs little/.test(pe) && /Never say a death cost the team little or nothing\./.test(pe), 'the round record line no longer says a pistol or eco death costs little');
+}
+
 console.log(fails ? `\nFAIL: ${fails} check(s) failed` : '\nPASS: every gate keeps and drops what it should, the prompt is the spec\'s, and the reply keeps its paragraphs');
 process.exit(fails ? 1 : 0);

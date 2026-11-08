@@ -620,3 +620,54 @@ into the gates, `gateEconomy` passes the kind of round a card names (an eco,
 a full buy) and nothing else about money, and `record-claims.js checkRecord`
 drops a sentence the round contradicts. Detail: `riot-record.md`, "Teaching
 the coach the round record".
+
+### The blind audit of round 6, stream B: the inputs (Nov 2026)
+
+What the prompts are given, so the model has less to invent (the gates are stream A's).
+
+- **Why a death cost, in code** (`match-review.js costReasonLine`, both surfaces): THE COSTLIEST
+  DEATHS keeps costRank's reasons and adds the team's economy and where the round sat ("round 5
+  of the 6 the match had, not its last"), then `COST_RULE`: state only these reasons, a round is
+  the last, a pistol round or match point only where the line says so. Fracture's round 5 had
+  been "the last round of the match". No total known: record-claims.js `costLine` as before.
+- **Only Riot's place in a review round** (`match-review.js placesKept`, `knowledge.js
+  placesNamed`, `samePlace`, `placeRegion`): where Riot places the death, a screen read or the
+  look's words naming another callout are not sent (an area holding the callout agrees, "Mid"
+  and "Mid Plaza"); where it places only the player's kills (`killPlaces`, sent by
+  `valorant-review.js requestBody` for a verified death with no Riot place), the screen spot and
+  reads in no region of a kill go. Pearl R4 and R5, Corrode R10 and R11, Sunset 2 to 5 R6.
+- **The enemy asked about** (`chat-prompt.js enemyAskedOf`, byEnemy clients): each round that
+  agent killed the player from Riot's record (gun, place, seconds, teammate close or far, traded,
+  economy, the look), the counts in the count gate's shape ("1 of the 2"), and the rule to answer
+  from it and the kit lines. Cases are picked against that agent alone (`enemyCases`).
+- **Aim from Platinum** (`aimFactsOf`, `aimNote`): THE AIM FACTS (headshot rate against the
+  player's own average, each fair fight lost on the shot with the look's words, the guns of the
+  kills and the deaths, a range the look gives), and the question's notes are the lost duel notes,
+  band narrowed first, never the basics (stop before the shot, counter strafe, a core all band
+  note) unless a look saw a shot on the move. There is no per band headshot norm in the repo, so
+  none is stated.
+- The round record's economy sentence (both prompts) no longer says a pistol or eco death "costs
+  little", which Sunset 4 to 13's Killjoy answer repeated.
+
+Tests: `test:chatgates` and `test:valorantreview`, "the blind audit of round 6, stream B".
+
+### The blind audit of round 6, stream A: the gates (Nov 2026)
+
+- **Claims over several rounds** (`record-claims.js checkMulti`): alone, a teammate close, early,
+  traded or untraded, said of a list, "those six" of the list the sentence before named, or "your
+  deaths" of every death, with a count, all, none or most, goes where the rounds the record leaves
+  possible cannot make it true (an unknown round counts for the claim). "Your deaths" with a
+  qualifier after it ("to Killjoy", "on defence", "after the plant") is some of them and judges
+  nothing (`SUBSET_AFTER`); "in this match" is still every death (`WHOLE_AFTER`).
+- **A cheap pistol death** (`checkLowCost`) where the team lost that pistol round, and **the last
+  or first round** (`checkOrdinal`) said of a round that was not.
+- **The structural pass** (`coherence.js checkStructure`, last in `gateReply`, and
+  `match-review.js structureGates` for the summary and focus): a lead right before a cut ("look at
+  where those fights happened"), a sentence only referring back to a cut one ("If nobody is,",
+  "That post-plant record", "The problem is what happens next."), and a garble ("Your gun is the
+  Vandal or Phantom range game"). An instruction is never a lead (`isInstruction`): "check where
+  your nearest teammate is" stays, since a lead's wh clause is about what the match showed
+  (`LEAD_PAST`).
+- Replayed offline over the 286 chat raws of the four audited versions: 16 sentences newly dropped,
+  every one false or a lead to a cut, 14 of them in round 6; the six round 6 claims the judges
+  called misleading in the three chat answers and all seven chat orphans are caught.

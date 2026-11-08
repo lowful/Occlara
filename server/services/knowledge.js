@@ -695,6 +695,72 @@ function placeOf(map, s) {
   return null;
 }
 
+/*
+ * THE PLACES A TEXT NAMES ON ONE MAP (round 7, the blind audit of round 6):
+ * every callout, its common name, a site ("A site") and an area ("Mid"),
+ * longest first so "Mid Bottom" is one place and never "Mid" too, each as
+ * the lower case key with its region (the callout's site letter or area).
+ * A review round line whose death Riot's record places sends only that place
+ * (match-review.js otherPlace): Pearl round 4's "holding Mid Shops" in the
+ * screen's reads put the death in Mid Shops where Riot has B Link.
+ */
+const NAMED_CACHE = new Map();
+function namedOf(map) {
+  const key = typeof map === 'string' ? map.toLowerCase() : '';
+  if (NAMED_CACHE.has(key)) return NAMED_CACHE.get(key);
+  let geometry = {};
+  try { geometry = require('../valorant-data.generated.json').mapGeometry || {}; } catch { geometry = {}; }
+  const g = key ? geometry[key] : null;
+  const region = new Map();
+  for (const c of (g && Array.isArray(g.callouts) ? g.callouts : [])) {
+    const s = String((c && c.s) || '').toLowerCase();
+    if (!s) continue;
+    for (const n of [c && c.n, c && c.a]) if (typeof n === 'string' && n.trim()) region.set(n.trim().toLowerCase(), s);
+    region.set(/^[abc]$/.test(s) ? `${s} site` : s, s);
+  }
+  const names = [...region.keys()].sort((a, b) => b.length - a.length);
+  const re = names.length
+    ? new RegExp(`(?<![A-Za-z0-9])(?:${names.map((n) => n.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|')})(?![A-Za-z0-9])`, 'gi')
+    : null;
+  const out = { region, re };
+  NAMED_CACHE.set(key, out);
+  return out;
+}
+/** The places of the map a text names, lower case, in order, each once. */
+function placesNamed(map, text) {
+  const { re } = namedOf(map);
+  if (!re || typeof text !== 'string' || !text) return [];
+  const out = [];
+  for (const m of text.matchAll(re)) {
+    const k = m[0].toLowerCase();
+    if (!out.includes(k)) out.push(k);
+  }
+  return out;
+}
+/*
+ * Whether two places of the map are one: the same name, or an area or a
+ * site word and a callout inside it ("Mid" and "Mid Plaza"). Two callouts of
+ * one area are two places ("Mid Stairs" is not "Mid Bottom"), and so are a
+ * site and its lanes ("A Elbow" is not "A Site"), since the callout's own
+ * name is what the model repeats.
+ */
+function samePlace(map, a, b) {
+  const x = String(a || '').trim().toLowerCase();
+  const y = String(b || '').trim().toLowerCase();
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const { region } = namedOf(map);
+  // An area ("mid") is its own region and holds its callouts; a site word
+  // ("a site", region "a") is a place of its own here.
+  const area = (p) => region.get(p) === p;
+  return (area(x) && region.get(y) === region.get(x)) || (area(y) && region.get(x) === region.get(y));
+}
+/** The region of a place of the map ("a", "b", "mid", "attacker side"), or null. */
+function placeRegion(map, p) {
+  const r = namedOf(map).region.get(String(p || '').trim().toLowerCase());
+  return r === undefined ? null : r;
+}
+
 // A map's note that names a callout the player died at alone (retrieve's `places`).
 const PLACE_FIT = 3;
 const placeRe = (p) => new RegExp(`(?<![A-Za-z0-9])${String(p).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}(?![A-Za-z0-9])`, 'i');
@@ -1083,4 +1149,4 @@ module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: ()
   roleOf: (agent) => ROLE_OF[String(agent || '').toLowerCase()] || null,
   ADVANCED_SLOTS, STREAK_CORE_SLOTS, RANK_BANDS, RANK_FIT, RANK_BELOW, validBand, rankFit, rankAdjust,
   ENEMY_FIT, enemiesOf, enemyFit, enemyWeaponsOf, WEAPON_NAMES, ADVANCED_SLOTS_BY_BAND, advancedSlots, bandFirst,
-  teamOf, teamFit, recordSignals, anySignal, placeOf, RECORD_ECONOMY, RECORD_MIN, REPEAT_MIN, PLACE_FIT };
+  teamOf, teamFit, recordSignals, anySignal, placeOf, placesNamed, samePlace, placeRegion, RECORD_ECONOMY, RECORD_MIN, REPEAT_MIN, PLACE_FIT };

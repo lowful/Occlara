@@ -995,11 +995,24 @@ function factsOf(input, messages, opts) {
         try {
           const ctx = rc.contextOfChat(f);
           f.costRank = rc.costRank(ctx);
-          f.costLine = rc.costLine(ctx);
+          // Each reason a finished fact, and where the round sat in the
+          // match (round 7, match-review.js costReasonLine): Fracture's round
+          // 5 was "the last round of the match" in a match of 6.
+          const mr = reviewMod();
+          const sc = /^(\d{1,2})-(\d{1,2})$/.exec(String(m.score || ''));
+          const total = sc ? Number(sc[1]) + Number(sc[2]) : null;
+          f.costLine = (mr && typeof mr.costReasonLine === 'function' && mr.costReasonLine(f.costRank, total, { buyOf: (n) => { const r = f.rounds.get(n); return r && r.buy; } })) || rc.costLine(ctx);
           if (f.costLine) harvest(f.costLine);
         } catch { f.costRank = null; f.costLine = ''; }
       }
     }
+    // THE ENEMY ASKED ABOUT (round 7, enemyAskedOf): the rounds that agent
+    // killed the player, finished in code, its numbers harvested.
+    // For a client the route marks (byEnemy, the version gate), so an older install's prompt is as before.
+    const ea = inp.byEnemy === true ? enemyAskedOf(m, f.askedAgents) : null;
+    f.enemyAsked = ea ? ea.text : null;
+    f.enemyAgent = ea ? ea.who : null;
+    if (f.enemyAsked) harvest(f.enemyAsked);
     // How many mistakes code counted, for a reply that says how many (fact-gates.js gateCounted).
     f.counted.mistakeCount = m.lists.mistakes.length;
     f.counted.missedCount = m.lists.missed.length;
@@ -1069,6 +1082,10 @@ function factsOf(input, messages, opts) {
   const hsLine = m && m.kind === 'valorant' ? (m.against || []).find((a) => a.label === 'Headshot %') : null;
   f.aim = hsLine ? { hs: hsLine.value, baseline: hsLine.baseline, games: hsLine.games || null }
     : (m && m.kind === 'valorant' && m.scoreline && fin(m.scoreline.hs) ? { hs: m.scoreline.hs, baseline: null, games: null } : null);
+  // THE AIM FACTS (round 7, aimFactsOf): an aim question from Platinum, its numbers harvested.
+  f.aimFacts = m && m.kind === 'valorant' && HIGH_BANDS.includes(inp.rankBand) && questionTopics(inp, messages).keys.has('aim')
+    ? aimFactsOf(m, f.aim) : null;
+  if (f.aimFacts) harvest(f.aimFacts.text);
   if (inp.ask && inp.ask.switchedFrom) { score(inp.ask.switchedFrom.score); dayOf(inp.ask.switchedFrom.day); }
   f.days = [...new Set(f.days)];
   if (opts && opts.armor) f.armor = opts.armor;
@@ -1398,7 +1415,7 @@ function lookLines(c) {
 const RECORD_USE = {
   held: "Where a round line gives the team economy or the abilities used, Riot's record holds them for that round and no other, so say them only there and as the line gives them.",
   mate: 'Where a line says where the player died and whether a teammate was close, that is the evidence for a trade or a spacing point: with no teammate close the lesson is where they stood, and with one close and nobody trading it is when they took the fight.',
-  buy: 'The team economy changes what a death teaches: a death on an eco or a pistol round costs little and is no mistake the way one on a full buy is.',
+  buy: 'The team economy changes what a death teaches: a death on an eco is no mistake the way one on a full buy is, so teach the full buy deaths first, and a pistol round is a full fight for the round and the economy after it. Never say a death cost the team little or nothing.',
   casts: "A point about the player's abilities needs a round that lists the abilities used, and a round saying no ability used is the evidence for one.",
   afk: 'Never criticise a round Riot marks the player as sitting out.',
 };
@@ -1565,6 +1582,138 @@ function renderEarlier(input, trim) {
 
 // ── Slices and notes ───────────────────────────────────────────────────────
 
+/*
+ * THE ENEMY ASKED ABOUT, AS FINISHED FACTS (round 7, the blind audit of
+ * round 6). "How do I play against Omen" was the worst cell of the audit, 10
+ * misleading verdicts: the model counted the rounds Omen killed the player
+ * itself and got the teammates wrong ("five of those six came while you were
+ * on your own", Riot had a teammate close in three of five), and Killjoy's
+ * deaths on a pistol round and an eco "cost the team little". When the
+ * question names an agent who killed the player (never the player's own),
+ * code lists each of those rounds from Riot's record: the side and result,
+ * the gun, the place, the seconds, the teammate close or far, traded or not,
+ * the team's economy and the coach's look, then the counts over them, and
+ * the rule to answer from that block, that agent's kit lines (THE KITS) and
+ * the notes and cases about them. Null when no named agent killed the
+ * player, and the prompt is as before.
+ */
+const ENEMY_ROUNDS_MAX = 8;
+function enemyAskedOf(m, askedAgents) {
+  if (!m || m.kind !== 'valorant' || !Array.isArray(m.cards)) return null;
+  const own = lower(m.agent);
+  let who = null;
+  let deaths = [];
+  for (const a of askedAgents || []) {
+    if (!a || lower(a) === own) continue;
+    const ds = m.cards.filter((c) => c && c.died && c.riot && lower(c.riot.killer) === lower(a));
+    if (ds.length) { who = agentOf(a) || a; deaths = ds; break; }
+  }
+  if (!who) return null;
+  const all = m.cards.filter((c) => c && c.died).length;
+  const lines = deaths.slice(0, ENEMY_ROUNDS_MAX).map((c) => {
+    const r = c.riot;
+    const bits = [`${sideWord(c.side)}, ${c.result || 'result unknown'}${c.pistol ? ', a pistol round' : ''}`];
+    bits.push(r.weapon ? `${who} killed you with ${withArticle(r.weapon)}` : `${who} killed you, the weapon not in Riot's record`);
+    if (r.place) bits.push(`at ${r.place}`);
+    if (fin(r.sec)) bits.push(`${Math.round(r.sec)} s in`);
+    if (r.afterPlant) bits.push('after the plant');
+    const last = !!(r.alive && r.alive.mates <= 1);
+    if (last) bits.push('you were the last one alive');
+    else if (r.mate) bits.push(r.mate === 'close' ? 'a teammate was close' : 'no teammate was close');
+    else bits.push("how close a teammate was is not in Riot's record");
+    if (r.traded === true) bits.push('a teammate traded it');
+    else if (r.traded === false && !last) bits.push('nobody traded it');
+    if (r.buy && !(c.pistol && r.buy === 'pistol')) bits.push(`team economy ${CHAT_BUY[r.buy]}`);
+    // A look whose frames did not show the fight says nothing of it ("the coach's look: Unclear", Sunset 2 to 5 round 6).
+    if (c.look && c.look.cause && c.look.cause !== 'unclear' && gates.CAUSE_TITLES[c.look.cause]) bits.push(`the coach's look: ${gates.CAUSE_TITLES[c.look.cause][0]}`);
+    return `- Round ${c.n}: ${bits.join(', ')}.`;
+  });
+  const shown = deaths.slice(0, ENEMY_ROUNDS_MAX);
+  const lastOf = (c) => !!(c.riot.alive && c.riot.alive.mates <= 1);
+  const close = shown.filter((c) => !lastOf(c) && c.riot.mate === 'close').length;
+  const far = shown.filter((c) => !lastOf(c) && c.riot.mate === 'far').length;
+  const unknown = shown.filter((c) => !lastOf(c) && !c.riot.mate).length;
+  const lastN = shown.filter(lastOf).length;
+  const n = shown.length;
+  // "2 of the 6", the shape the count gate reads (match-review.js COUNT_PHRASE), so a reply may say it back.
+  const of = (k) => (k === n ? (n === 2 ? 'both' : `all ${n}`) : `${k} of the ${n}`);
+  const counts = [];
+  // Counted over two rounds or more: one round's line says it all.
+  if (n >= 2 && close + far) {
+    const said = [close ? `a teammate was close in ${of(close)}` : null, far ? `no teammate was close in ${of(far)}` : null].filter(Boolean).join(' and ');
+    counts.push(said.charAt(0).toUpperCase() + said.slice(1)
+      + `${unknown ? `, and Riot's record has no distance for ${unknown}` : ''}${lastN ? `, and in ${lastN} you were the last one alive` : ''}.`);
+  }
+  const untraded = shown.filter((c) => c.riot.traded === false && !lastOf(c)).length;
+  const traded = shown.filter((c) => c.riot.traded === true).length;
+  if (n >= 2 && untraded) counts.push(untraded === n ? 'None of them was traded.' : `Nobody traded ${of(untraded)}.`);
+  else if (n >= 2 && traded === n) counts.push(`A teammate traded ${of(n)}.`);
+  return { who, text: `THE ENEMY ASKED ABOUT, from Riot's record: ${who} killed you ${deaths.length === 1 ? 'once' : `${deaths.length} times`}, in ${deaths.length} of your ${all} deaths in this match${deaths.length > n ? `, the first ${n} listed` : ''}.\n`
+    + `${lines.join('\n')}\n${counts.join(' ')}${counts.length ? '\n' : ''}`
+    + `Answer from these rounds, ${who}'s lines in THE KITS and the notes and cases about ${who}. `
+    + `Name ${who}'s abilities only by the names in ${who}'s kit lines, and say what one does only as its line says. `
+    + 'Say a teammate was close or far, or that nobody traded, only for a round this list says it of, and count those only as this list counts them. '
+    + 'Never say a death cost the team little or was cheap.' };
+}
+
+/*
+ * THE AIM FACTS FROM PLATINUM (round 7, the blind audit of round 6). Aim at
+ * Ascendant was the weakest answer of the set (useful 2.4): one taught the
+ * basics, "stop before you shoot", to an Ascendant, and one, after the name
+ * gate dropped the sentences around it, came out as "Your gun is the Vandal
+ * or Phantom range game". An aim question from a Platinum or Ascendant
+ * player gets the facts in code: the headshot rate against their own
+ * average, each fair fight the coach's look called lost on the shot with
+ * what it saw, the guns of their kills and of their deaths, and the range
+ * where a look gives one. `moving` says whether a look saw a shot fired on
+ * the move, the one thing that lets the basic stop before the shot back in
+ * (pickNotes). Null below Platinum, for a question not about aim, or in a
+ * match with none of these, and the prompt is as before.
+ */
+const AIM_RANGE = /\b(?:close|short|mid|medium|long) range\b|\b\d{1,2} ?(?:m|metres|meters)\b/i;
+const SHOT_MOVING = /\b(?:while (?:still )?(?:moving|strafing|running|walking|sliding)|on the move|still moving|mid strafe|running and (?:firing|shooting))\b/i;
+function aimFactsOf(m, aim) {
+  if (!m || m.kind !== 'valorant' || !Array.isArray(m.cards)) return null;
+  const lines = [];
+  if (aim && fin(aim.hs) && fin(aim.baseline)) {
+    lines.push(`- Your headshot rate this match was ${aim.hs}%, against your own average of ${aim.baseline}%${aim.games ? ` over your last ${aim.games} matches` : ''}.`);
+  } else if (aim && fin(aim.hs)) lines.push(`- Your headshot rate this match was ${aim.hs}%.`);
+  const looked = m.cards.filter((c) => c && c.died && c.look && c.look.cause);
+  const fair = looked.filter((c) => c.look.cause === 'lost-duel');
+  let moving = false;
+  const ranges = [];
+  for (const c of fair.slice(0, 4)) {
+    const r = c.riot || {};
+    const what = c.look.what ? clip(c.look.what, 200).replace(/\.$/, '') : '';
+    if (SHOT_MOVING.test(`${c.look.what || ''} ${c.look.better || ''}`)) moving = true;
+    const range = AIM_RANGE.exec(what);
+    if (range) ranges.push(`${range[0]} in round ${c.n}`);
+    lines.push(`- Round ${c.n}, a fair fight lost on the shot as the coach's look called it${r.killer ? `, killed by ${r.killer}${r.weapon ? ` with ${withArticle(r.weapon)}` : ''}` : ''}${what ? `: ${what}` : ''}.`);
+  }
+  if (!fair.length) {
+    lines.push(looked.length ? `- The coach looked at ${looked.length === 1 ? 'one death and did not call it' : `${looked.length} deaths and called none of them`} a fair fight lost on the shot.`
+      : '- The coach looked at no death, so nothing here says whether a fight was lost on the shot.');
+  }
+  const tally = (list) => {
+    const n = new Map();
+    for (const w of list) if (w) n.set(w, (n.get(w) || 0) + 1);
+    return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 4).map(([w, k]) => `${w} ${k}`).join(', ');
+  };
+  const mine = tally(m.cards.flatMap((c) => ((c && c.riot && c.riot.feed) || []).filter((k) => k && k.by === 'me' && k.on === 'enemy').map((k) => gunOf(k.w))));
+  const theirs = tally(m.cards.filter((c) => c && c.died && c.riot).map((c) => gunOf(c.riot.weapon)));
+  if (mine) lines.push(`- Your kills by gun, from Riot's record: ${mine}.`);
+  if (theirs) lines.push(`- The guns that killed you: ${theirs}.`);
+  if (ranges.length) lines.push(`- The range the looks give: ${ranges.join(', ')}.`);
+  if (lines.length < 2) return null;
+  return {
+    moving,
+    text: `THE AIM FACTS, from Riot's record and the coach's looks:\n${lines.join('\n')}\n`
+      + 'Answer the aim question from these facts and the aim notes below, with one fine point of the duel sized to this rank, for these fights and these guns: '
+      + 'where the crosshair waits, how wide to hold or swing, when to burst and when to commit. Name a gun only as this block or a round line gives it'
+      + (moving ? '.' : ', and since no look saw a shot fired on the move, never make stopping before the shot or counter strafing the fix.'),
+  };
+}
+
 function renderSlices(input, facts, messages) {
   if (input.game === 'lol') return '';
   const p = primerMod();
@@ -1640,6 +1789,19 @@ function enemiesOf(input) {
 }
 
 /*
+ * The enemy agents the cases are chosen against: the agent the question asks
+ * about alone, where THE ENEMY ASKED ABOUT is in the prompt (round 7), so a
+ * case about another of the enemy's agents never takes its place, else the
+ * match's (enemiesOf).
+ */
+function enemyCases(input, messages) {
+  const all = enemiesOf(input);
+  if (!all.length) return all;
+  const f = factsOf(input, messages);
+  return f && f.enemyAgent && all.some((a) => lower(a) === lower(f.enemyAgent)) ? all.filter((a) => lower(a) === lower(f.enemyAgent)) : all;
+}
+
+/*
  * WORKED CASES (8.8, cases.js): at most two, only where the question's
  * situation matches one. The asked round when there is one (its side, the
  * plant, the clutch, its second, the pistol, the look's cause), else every
@@ -1712,7 +1874,7 @@ function casesFor(input, messages) {
     const seed = m ? String(m.matchId || m.id || [m.map, m.agent, m.score, m.at,
       ...(m.cards || []).map((c) => [c.n, c.side, c.result, c.died ? 1 : 0].join(':'))].join('|')) : null;
     return cm.pick({ agent: m && m.agent, map: m && m.map, sides, phases, economies, causes, patterns,
-      enemies: enemiesOf(input), rankBand: input.rankBand, advanced: input.advanced === true, seed }, cm.MAX_CASES) || [];
+      enemies: enemyCases(input, messages), rankBand: input.rankBand, advanced: input.advanced === true, seed }, cm.MAX_CASES) || [];
   } catch { return []; }
 }
 
@@ -1743,6 +1905,7 @@ const QUESTION_TOPICS = [
   { key: 'ult', ask: /\bults?\b|\bultimates?\b/i, note: /\bultimates?\b|\bults?\b|\borbs?\b/i },
 ];
 const FUNDAMENTAL_TOPICS = QUESTION_TOPICS.filter((t) => ['aim', 'practice', 'climb'].includes(t.key));
+const AIM_TOPIC = QUESTION_TOPICS.find((t) => t.key === 'aim');
 const GENERAL_ASK =/\bbiggest\b|\bmain (?:mistake|problem|issue|weakness)|\bimprove|\bclimb|\brank ?up|\bmy rank\b|\bpractic|\bpractis|\bholding me back|\bwhat should i (?:do|work on|focus|fix)|\bget better|\bwork on\b/i;
 
 /** The question's topics ({ keys, general, agents }), from the player's last message, in English only. */
@@ -1869,6 +2032,28 @@ function leverLine(input, messages) {
 }
 
 /*
+ * THE AIM NOTES FROM PLATINUM (round 7, the blind audit of round 6): an aim
+ * question's own notes are the notes written for a duel lost on the shot,
+ * those narrowed to the player's band first (+3), and the basics (a core
+ * note for every band or for Iron, or one teaching the stop before the shot
+ * or the counter strafe) only where a look saw a shot fired on the move.
+ * The meta notes ("stop looking for more aim", the monitor) answer no aim
+ * question at a rank whose headshot rate is under its own average. Null is
+ * left out.
+ */
+const AIM_BASIC = /\bfull stop\b|\bstop(?:ping)? before\b|\bstandstill\b|\bstanding (?:fully )?still\b|\bcounter.?strafe|\bstill moving when you fired\b|\bconfirm it with your eyes\b/i;
+function isAimBasic(note) {
+  const words = `${note && note.text} ${(note && note.source && note.source.topic) || ''}`;
+  return (note.tier !== 'advanced' && (!Array.isArray(note.ranks) || note.ranks.includes('iron_bronze'))) || AIM_BASIC.test(words);
+}
+function aimNote(note, band, moving) {
+  if (!note) return null;
+  if (isAimBasic(note) && !moving) return null;
+  if (!(Array.isArray(note.cause) && note.cause.includes('lost-duel'))) return null;
+  return Array.isArray(note.ranks) && note.ranks.includes(band) && !note.ranks.includes('iron_bronze') ? 3 : 0;
+}
+
+/*
  * EIGHT NOTES AT MOST: three by the topics the counted mistakes and the
  * patterns point to (match-review.js PATTERN_TOPICS, and CAUSE_TOPICS for a
  * cause), and five from retrieve() with the asked round as the situation,
@@ -1936,6 +2121,10 @@ function pickNotes(input, messages) {
    * words is today's notes, byte for byte.
    */
   const qt = questionTopics(input, messages);
+  // An aim question from Platinum (round 7, aimNote), and whether a look saw a shot fired on the move.
+  const highAim = qt.keys.has('aim') && HIGH_BANDS.includes(input.rankBand);
+  const aimFx = highAim ? factsOf(input, messages).aimFacts : null;
+  const aimMoving = !!(aimFx && aimFx.moving);
   const ownRole = s.role || null;
   const fitsPlayer = (note) => {
     if (!note || !note.text || seen.has(note.text) || note.weapons) return false;
@@ -1964,8 +2153,14 @@ function pickNotes(input, messages) {
       }
       if (!hits && !agentHit) continue;
       if (!fitsPlayer(note)) continue;
+      // From Platinum an aim question's own notes are the duel's (aimNote).
+      let aimBonus = 0;
+      if (highAim && !agentHit) {
+        aimBonus = aimNote(note, input.rankBand, aimMoving);
+        if (aimBonus === null) continue;
+      }
       asks.push({ text: note.text, topic: (note.source && note.source.topic) || note.text,
-        score: (note.weight || 1) + hits * 2 + agentHit * 3 + rankScore(note) + (fitVs(note) || 0) });
+        score: (note.weight || 1) + hits * 2 + agentHit * 3 + rankScore(note) + (fitVs(note) || 0) + aimBonus });
     }
     asks.sort((a, b) => b.score - a.score);
     const tops = new Set();
@@ -1985,6 +2180,10 @@ function pickNotes(input, messages) {
       // A fundamental of improving: what climbing, practice or aim is at the band.
       const words = `${note.text} ${(note.source && note.source.topic) || ''}`;
       if (!FUNDAMENTAL_TOPICS.some((t) => t.note.test(words))) continue;
+      // From Platinum an aim question takes no aim note here but the duel's
+      // (aimNote): "stop looking for more aim" at a headshot rate under the
+      // player's own average was no answer (round 7).
+      if (highAim && AIM_TOPIC.note.test(words) && aimNote(note, input.rankBand, aimMoving) === null) continue;
       if (!fitsPlayer(note)) continue;
       band.push({ text: note.text, score: (note.weight || 1) + rankScore(note) });
     }
@@ -2064,13 +2263,17 @@ function pickNotes(input, messages) {
   }
   let got = [];
   try { got = k.retrieve(ctx, 12, { advanced }) || []; } catch { got = []; }
+  // From Platinum an aim question is never filled with the basics the data
+  // does not show missing (aimNote), from the retrieval either.
+  const basicText = highAim && !aimMoving ? new Set(k.all().filter((n) => n && n.text && aimNote(n, input.rankBand, false) === null && isAimBasic(n)).map((n) => n.text)) : null;
   for (const t of got) {
     if (out.length >= 8) break;
     if (seen.has(t)) continue;
+    if (basicText && basicText.has(t)) continue;
     seen.add(t);
     out.push(t);
   }
-  return out.slice(0, 8);
+  return (basicText ? out.filter((t) => !basicText.has(t)) : out).slice(0, 8);
 }
 
 function renderConversation(messages) {
@@ -2146,6 +2349,8 @@ function buildParts(input, messages, opts) {
       sw ? `The player's question named this match, so the conversation moved to it from ${[sw.map, sw.agent].filter(Boolean).join(', ') || 'another match'}: open by naming this one.` : '',
       renderAsked(inp, rounds, matchLvl >= 1),
       renderSlices(inp, facts, msgs),
+      facts.enemyAsked || '',
+      facts.aimFacts ? facts.aimFacts.text : '',
       lever,
       kept.length ? `COACHING NOTES\n${kept.map((t) => `- ${t}`).join('\n')}` : '',
       cm ? cm.block(cs) : '',
@@ -2354,6 +2559,23 @@ function gateReply(paras, facts, nameOpts) {
       r.s = seamed;
     }
   }
+  /*
+   * THE STRUCTURAL PASS, LAST (coherence.js checkStructure, the blind audit of
+   * round 6): a lead whose sentence a gate cut ("look at where those fights
+   * happened" and nothing after it), what only refers back to a cut one ("If
+   * nobody is,"), and a garbled sentence ("Your gun is the Vandal or Phantom
+   * range game"). Dropped, never retried, as an orphan is. A coherence.js
+   * without it reads as before.
+   */
+  if (co && typeof co.checkStructure === 'function') {
+    let found = [];
+    try { found = co.checkStructure(rows.map((r) => ({ s: r.s, dropped: !!r.drop, p: r.p }))); } catch { found = []; }
+    for (const o of found) {
+      if (!rows[o.index] || rows[o.index].drop) continue;
+      rows[o.index].drop = { gate: o.kind === 'garble' ? 'garble' : 'orphan', reason: ORPHAN_REASON };
+      rows[o.index].logged = [];
+    }
+  }
   return rows;
 }
 
@@ -2466,4 +2688,6 @@ module.exports = {
   // The blind audit of 8.7.8 (Nov 2026): the lever below Platinum only.
   LEVER_BANDS, IMPROVING_RULE, IMPROVING_RULE_877, rulesFor, matchHasBuy, BUY_HEDGE, BUY_HEDGE_RECORD, SAVE_HEDGE, SAVE_HEDGE_RECORD,
   RANK_BANDS,
+  // The blind audit of round 6 (Nov 2026), stream B: the enemy asked about, the aim facts and notes.
+  enemyAskedOf, aimFactsOf, aimNote, isAimBasic, AIM_BASIC, AIM_RANGE, SHOT_MOVING, enemyCases,
 };

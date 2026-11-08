@@ -368,7 +368,147 @@ function fillerOf(sentence) {
   return `${head}${/[.!?]$/.test(head) ? '' : '.'}`;
 }
 
+/*
+ * THE STRUCTURAL PASS, AFTER EVERY GATE (the blind audit of round 6, Nov
+ * 2026). Eight answers kept a sentence that pointed at what a gate then cut:
+ * "But before you put it all on the mouse, look at where those fights
+ * happened." with the early deaths it pointed at dropped (Pearl, Silver aim),
+ * "Look at where she caught you." with the five Reyna deaths dropped (Split,
+ * Ascendant), "Look at what the record shows around it." after the retake
+ * sentence went (Sunset 4-13), and on the other side of a cut "If nobody is,
+ * either move to where one is" with its condition dropped, "That post-plant
+ * record is the team's" with the record never told, "The problem is what
+ * happens next." with what came first gone. checkOrphans reads a lead in of
+ * its list and a word that leans; this reads the shape:
+ *
+ *   lead   a kept sentence whose only content points at what follows ("look
+ *          at", "here is", "consider", "notice", a colon at its end, a short
+ *          sentence that says only that something follows), right before a
+ *          dropped one, or ending its paragraph after a drop in it;
+ *   back   a kept sentence right after a dropped one whose only content
+ *          refers back to it: an elliptical "If nobody is," / "If not,", a
+ *          "that record" or "this number" no kept sentence before it in its
+ *          paragraph named, "the problem is what happens next";
+ *   garble a sentence no gate cut that does not parse as English where a
+ *          cut or a model left it: "Your gun is the Vandal or Phantom range
+ *          game", a doubled word, two articles in a row.
+ *
+ * checkStructure(rows) reads rows { s, dropped, p } in reading order, again
+ * until nothing more goes (a lead before a lead), and returns [{ index,
+ * sentence, kind }]. A sentence that names a round, a number or an agent
+ * carries its own content, and is never a lead. English only.
+ */
+const LEAD_VERB = '(?:look(?:\\s+again)?\\s+at|take\\s+a\\s+(?:look|second\\s+look)\\s+at|consider|notice|picture|think\\s+about|remember|check|see|watch)';
+const LEAD_OBJECT = '(?:(?:where|when|how|what|which|why)\\b[^.!?:,]{0,60}|(?:the|those|these|your|its|that)\\s+(?:rounds?|deaths?|fights?|duels?|record|numbers?|pattern|places?|spots?|timing|order|moments?|kills?)\\b[^.!?:,]{0,40}|this|that|it)';
+// The whole sentence is the pointer, or its last clause is, after a comma ("But before you put it all on the mouse, look at ...").
+const POINT_WHOLE = new RegExp(`^(?:(?:but|and|so|now|first|then|still)\\s*,?\\s+)?(?:let's\\s+|let\\s+us\\s+|you\\s+can\\s+|it\\s+helps\\s+to\\s+)?${LEAD_VERB}\\s+${LEAD_OBJECT}\\s*[.!:]?$`, 'i');
+const POINT_TAIL = new RegExp(`,\\s*(?:(?:but|and|so|now|first|then)\\s+)?${LEAD_VERB}\\s+${LEAD_OBJECT}\\s*[.!:]?$`, 'i');
+// "Here is the pattern.", "This is what the record shows.", "The numbers tell the story."
+const POINT_SAYS = /^(?:(?:but|and|so)\s*,?\s+)?(?:here(?:'s|\s+is|\s+are)\s+(?:what|how|why|where|the\s+(?:part|pattern|thing|catch|problem|rounds?|deaths?|record|numbers?|picture|story|breakdown))|(?:this|that)\s+is\s+(?:what|where|how|why)\s+(?:the\s+record|riot's\s+record|the\s+numbers?|it)\s+(?:shows?|says?|tells?)|(?:the|your)\s+(?:pattern|numbers?|record|rounds?|deaths?)\s+(?:is|are|tell|tells|show|shows|say|says)\s+(?:clear|it|this|the\s+story|why|more|the\s+rest)|(?:it|this)\s+(?:shows|showed)\s+(?:up\s+)?(?:clearly|again|here|in\s+the\s+record))\s*[.!:]?$/i;
+const HAS_CONTENT = /[0-9]|\bround\s+(?:one|two|three|four|five|six|seven|eight|nine|ten)\b/i;
+// The other side of a cut: what only refers back.
+const BACK_IF = /^(?:(?:and|but|so)\s*,?\s+)?if\s+(?:not|so|nobody\s+(?:is|was|can|does|did)|no\s+one\s+(?:is|was|can|does|did)|none\s+(?:is|are|was|were)|they\s+(?:are|were|can|do|did)(?:n't|\s+not)|you\s+(?:are|were|can|do|did)(?:n't|\s+not)|it\s+(?:is|was)(?:n't|\s+not)|there\s+(?:is|was)(?:n't|\s+not)(?:\s+one)?)\s*[,.]/i;
+const BACK_THAT = /^(?:(?:and|but|so)\s*,?\s+)?(?:that|this|those|these)\s+(?:[a-z'-]+\s+){0,2}?(record|number|numbers|count|stat|stats|figure|figures|streak|run|trend|list|stretch|split|breakdown)\b/i;
+const BACK_CONTRAST = /^(?:(?:but|so)\s*,?\s+)?(?:the\s+)?(?:real\s+)?(?:problem|issue|mistake|lever|fix)\s+(?:is|was)\b/i;
+const CONTRAST_HEAD = /\b(?:(?:is|was)\s+not|isn't|wasn't)\s+(?:the|your)\s+(?:real\s+)?(?:problem|issue|mistake|lever)\b/i;
+const BACK_NEXT = /^(?:(?:and|but|so)\s*,?\s+)?(?:the\s+)?(?:problem|issue|trouble|catch|question|mistake|difference)\s+(?:is|was)\s+what\s+(?:happens|happened|comes|came|you\s+do|you\s+did)\s+(?:next|after(?:\s+that)?|then)\s*[.!]?$/i;
+/*
+ * GARBLE. "Your gun is the Vandal or Phantom range game" (Fracture, Ascendant
+ * aim, three judges): a sentence that makes the player's gun one of two, or a
+ * game, says nothing about the match and reads as broken. A word doubled
+ * ("the the", "you you") and two articles in a row ("a the", "the your") are
+ * what a cut leaves; lower case only, so "the A site" is never read as one.
+ */
+// The game data's guns, keyed in lower case; the readers below ignore case.
+const GUN_NAMES = Object.keys(DATA.weapons || {}).filter((w) => /^[a-z][a-z.]+$/i.test(w));
+const GUN_ALT = (GUN_NAMES.length ? GUN_NAMES : ['Vandal', 'Phantom', 'Sheriff', 'Ghost', 'Classic', 'Spectre', 'Operator', 'Marshal', 'Guardian', 'Bulldog', 'Odin', 'Ares', 'Judge', 'Bucky', 'Stinger', 'Shorty', 'Frenzy', 'Outlaw']).map(esc).join('|');
+const GUN_EITHER = new RegExp(`\\byour\\s+(?:gun|weapon|rifle|loadout)\\s+(?:is|was)\\s+(?:the\\s+|a\\s+|an\\s+)?(?:${GUN_ALT})\\s+or\\s+(?:the\\s+|a\\s+|an\\s+)?(?:${GUN_ALT})\\b`, 'i');
+const GUN_GAME = new RegExp(`\\b(?:gun|weapon|rifle)\\s+(?:is|was)\\s+(?:the\\s+|a\\s+)?(?:${GUN_ALT})(?:\\s+or\\s+(?:the\\s+)?(?:${GUN_ALT}))?\\s+(?:[a-z-]+\\s+)?game\\b`, 'i');
+// Never "that that" or "had had", which English allows.
+const DOUBLED = /\b(the|a|an|to|of|you|your|and|in|at|on|with|is|was|for)\s+\1\b/;
+const TWO_ARTICLES = /\b(?:the|a|an|your|their)\s+(?:the|a|an|your|their)\s+(?![A-Z])/;
+/** Why a sentence is garbled, or null. */
+function garbleOf(sentence) {
+  const s = straight(sentence);
+  if (GUN_EITHER.test(s)) return 'gun-either';
+  if (GUN_GAME.test(s)) return 'gun-game';
+  if (DOUBLED.test(s)) return 'doubled';
+  if (TWO_ARTICLES.test(s)) return 'articles';
+  return null;
+}
+/*
+ * AN INSTRUCTION IS NO LEAD (the verify pass of round 7). "Before you swing,
+ * check where your nearest teammate is." and "After the plant, look at where
+ * your teammates are standing." read as a pointer and went with a cut after
+ * them, the habit the answer was built on. A lead points at what the match
+ * showed: its wh clause is about the past or the record ("where those fights
+ * happened", "where she caught you", "what the record shows", "what happens
+ * next"); a wh clause in the present with none of those, and "the places",
+ * "your spots" or "the timing" as an object, is something to do.
+ */
+const LEAD_PAST = /\b(?:happened|caught|killed|died|went|came|fell|lost|won|was|were|did|had|got|showed|shows|says|said|tells|told|record|those|these|next)\b/i;
+const INSTRUCTION = new RegExp(`${LEAD_VERB}\\s+(?:((?:where|when|how|what|which|why)\\b[^.!?:,]{0,60})|(?:the|your)\\s+(?:places?|spots?|timing|order)\\b)`, 'i');
+function isInstruction(t) {
+  const m = INSTRUCTION.exec(t);
+  return !!m && (!m[1] || !LEAD_PAST.test(m[1]));
+}
+function isPointer(s) {
+  const t = straight(s).trim();
+  if (HAS_CONTENT.test(t) || agentsNamed(t).size) return false;
+  if (isInstruction(t) && !POINT_SAYS.test(t)) return false;
+  const words = t.split(/\s+/).length;
+  if (words <= 14 && (POINT_WHOLE.test(t) || POINT_SAYS.test(t))) return true;
+  // A clause that sets up only the pointer: "But before you put it all on the mouse, look at where those fights happened."
+  if (words <= 20 && POINT_TAIL.test(t)) return true;
+  return false;
+}
+function checkStructure(input) {
+  const rows = rowsOf(input);
+  const out = [];
+  const gone = (i) => !!(rows[i] && (rows[i].dropped || out.some((o) => o.index === i)));
+  const samePara = (i, j) => rows[i].p == null || rows[j].p == null || rows[i].p === rows[j].p;
+  for (let pass = 0; pass < 4; pass++) {
+    let found = false;
+    const add = (i, kind) => { out.push({ index: i, sentence: rows[i].s, kind }); found = true; };
+    for (let i = 0; i < rows.length; i++) {
+      if (gone(i)) continue;
+      const s = straight(rows[i].s).trim();
+      const g = garbleOf(s);
+      if (g) { add(i, 'garble'); continue; }
+      const nextGone = i + 1 < rows.length && gone(i + 1) && samePara(i, i + 1);
+      // The last kept of its paragraph, with a drop after it there.
+      let lastKept = true;
+      let dropAfter = false;
+      for (let j = i + 1; j < rows.length && samePara(i, j); j++) {
+        if (gone(j)) dropAfter = true;
+        else { lastKept = false; break; }
+      }
+      const pointer = isPointer(s) || (ENDS_COLON.test(s) && s.split(/\s+/).length <= 12 && !HAS_CONTENT.test(s));
+      if (pointer && (nextGone || (lastKept && dropAfter))) { add(i, 'lead'); continue; }
+      const prevGone = i > 0 && gone(i - 1);
+      if (!prevGone) continue;
+      if (BACK_IF.test(s) || BACK_NEXT.test(s)) { add(i, 'back'); continue; }
+      // The second half of a contrast whose first went: "The problem is
+      // swinging when the trade is not there yet." after "so the aggression
+      // itself is not the problem" was cut (Split, Ascendant, round 6).
+      if (BACK_CONTRAST.test(s) && CONTRAST_HEAD.test(straight(rows[i - 1].s))) { add(i, 'back'); continue; }
+      const that = BACK_THAT.exec(s);
+      if (that) {
+        const noun = that[1].replace(/s$/, '');
+        let named = false;
+        for (let j = i - 1; j >= 0 && samePara(i, j); j--) {
+          if (!gone(j) && new RegExp(`\\b${esc(noun)}`, 'i').test(straight(rows[j].s))) { named = true; break; }
+        }
+        if (!named) { add(i, 'back'); continue; }
+      }
+    }
+    if (!found) break;
+  }
+  return out.sort((a, b) => a.index - b.index);
+}
+
 module.exports = {
+  checkStructure, garbleOf, isPointer, isInstruction, INSTRUCTION, LEAD_PAST, POINT_WHOLE, POINT_TAIL, POINT_SAYS, BACK_IF, BACK_THAT, BACK_NEXT, GUN_EITHER, GUN_GAME, DOUBLED, TWO_ARTICLES,
   repairSeams, fillerOf, MID_YOU, DANGLING_WORD, DANGLING_MARK, FILLER_WHOLE, FILLER_CLAUSE, TRADE_WAIT_WHOLE, TRADE_WAIT_CLAUSE,
   ALL_OF_THEM, SAME_AGAIN, ELLIPSIS_END, ELLIPSIS_WHOLE, BARE_ONE, THEN_OPENER, THEN_STEP, OWN_ANCHOR, THAT_THING, ITEM, ITEM_VERB,
   checkOrphans, checkProduct, checkRoundState, sentencesOf, agentsNamed,

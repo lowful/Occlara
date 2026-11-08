@@ -2917,5 +2917,75 @@ const byN = new Map(abyss.rounds.map((r) => [r.n, r]));
   ok(!matchReview.repeats(st[0].text, ['Hold the spike from cover.']), 'and a note no line says stays');
 }
 
+// ── The blind audit of round 6 (Nov 2026), stream B: only Riot's place, the cost reason ──
+{
+  console.log('\nthe blind audit of round 6, stream B (review):');
+  const kn = require('../server/services/knowledge');
+  // The audit's own rounds, as the 8.8 client sends them: Riot's place, the screen's reads and the look's words.
+  const V = (n, o) => ({ n, side: 'attacking', result: 'lost', died: true, verified: true, sec: 10, killer: 'Sage', weapon: 'Vandal', traded: false,
+    alive: { mates: 4, enemies: 5 }, ...o });
+  const pearl = { rounds: [
+    V(4, { deathSpot: 'B Link', place: 'B Link', reads: ['holding Mid Shops alone looking toward the arch', 'holding Mid Plaza with Bucky'] }),
+    V(5, { side: 'defending', deathSpot: 'Mid Doors', place: 'Mid Doors', reads: ['holding Mid Plaza with knife out', 'player standing in Mid Plaza holding Marshal'],
+      cause: 'lost-duel', seen: 'You drew your Ghost and fought Cypher at close range in Mid Plaza, dealing 105 damage before his Classic killed you.' }),
+    V(6, { side: 'defending', deathSpot: 'Mid', place: 'Mid', reads: ['holding Mid Plaza alone at 11 HP', 'player low HP holding stairs alone'] }),
+    V(1, { deathSpot: 'B site', place: 'B site', reads: ['holding B Ramp with knife out'], cause: 'lost-duel', seen: 'On B Site, you fired at Clove from beside cover.' }),
+  ], context: { agent: 'Phoenix', map: 'Pearl' }, patterns: [] };
+  const lines = (b) => matchReview.buildPrompt(matchReview.normalise(b)).split('\n').filter((l) => /^R\d+ /.test(l));
+  const pl = lines(pearl);
+  const at = (ls, n) => ls.find((l) => l.startsWith(`R${n} `)) || '';
+  ok(/died at B Link/.test(at(pl, 4)) && !/Shops|Plaza/.test(at(pl, 4)), 'CAUGHT: Pearl round 4 "In Mid Shops" (Riot B Link): the screen\'s reads naming Mid Shops and Mid Plaza are not sent');
+  ok(/died at Mid Doors/.test(at(pl, 5)) && !/Plaza/.test(at(pl, 5)) && /a fair fight from a sound position, lost on the shot[;.]/.test(at(pl, 5)),
+    'CAUGHT: Pearl round 5 "The Mid Plaza duel" (Riot Mid Doors): the look\'s words naming Mid Plaza go, its cause stays');
+  ok(/Seen in play: "holding Mid Plaza alone at 11 HP"/.test(at(pl, 6)) && /On B Site, you fired at Clove/.test(at(pl, 1)) && !/B Ramp/.test(at(pl, 1)),
+    'kept: a read inside Riot\'s area (Mid Plaza in Mid) and the look at Riot\'s own place, a read of another callout still goes');
+  const corrode = { rounds: [
+    V(10, { deathSpot: 'Mid Bottom', place: 'Mid Bottom', reads: ['holding Mid Bottom with spike carried', 'holding Mid Stairs alone behind a smoke'],
+      cause: 'dry-peek', seen: 'You moved into the open at Mid Stairs without firing, and Phoenix killed you with a Vandal.' }),
+    V(11, { deathSpot: 'Mid Bottom', place: 'Mid Bottom', reads: ['player holding knife mid bottom at round start', 'holding Mid Stairs looking toward A'] }),
+  ], context: { agent: 'Iso', map: 'Corrode' }, patterns: [] };
+  const cl = lines(corrode);
+  ok(!/Stairs/.test(cl.join('\n')) && /"holding Mid Bottom with spike carried"/.test(at(cl, 10)) && /"player holding knife mid bottom at round start"/.test(at(cl, 11)),
+    'CAUGHT: Corrode rounds 10 and 11 "Mid Stairs" (Riot Mid Bottom): only reads at Riot\'s place are sent, in any case');
+  const sunset = { rounds: [V(6, { side: 'defending', deathSpot: 'A Site', killPlaces: ['Mid Tiles', 'Mid Tiles'], reads: ['holding A Elbow alone', 'holding A Elbow with Ghost'] }),
+    V(7, { deathSpot: 'Mid Top', killPlaces: ['Mid Tiles'], reads: ['holding Mid Top with Vandal'] })], context: { agent: 'Jett', map: 'Sunset' }, patterns: [] };
+  const sl = lines(sunset);
+  ok(/^R6 [^.]*\. died 10 seconds into the round/.test(at(sl, 6)) && !/A Site|Elbow/.test(at(sl, 6)),
+    'CAUGHT: Sunset 2 to 5 round 6 "A Elbow": no place of Riot\'s for the death, its kills at Mid Tiles, so the screen\'s A Site and A Elbow are not sent');
+  ok(/died at Mid Top/.test(at(sl, 7)) && /"holding Mid Top with Vandal"/.test(at(sl, 7)), 'kept: a screen spot in the region of the round\'s kills');
+  // A client before it (no place, no kill places) is reviewed as before, byte for byte.
+  const strip = (b) => ({ ...b, rounds: b.rounds.map(({ place, killPlaces, ...r }) => r) });
+  const old = matchReview.normalise(strip(pearl));
+  const oldText = matchReview.buildPrompt(old);
+  const oldLines = lines(strip(pearl));
+  ok(/holding Mid Shops/.test(oldText) && /in Mid Plaza/.test(oldText) && /Seen in play: "holding B Ramp with knife out"/.test(oldLines.join('\n'))
+    && /\(On B Site, you fired at Clove from beside cover\)/.test(oldLines.join('\n')), 'a client sending no place has its reads and looks as before');
+  ok(matchReview.placesKept({ died: true, deathSpot: 'X', reads: ['a'], seen: null }, 'Pearl').reads[0] === 'a', 'placesKept with nothing of Riot\'s is a no-op');
+  ok(kn.placesNamed('Pearl', 'holding Mid Shops then B Link').join() === 'mid shops,b link' && kn.samePlace('Pearl', 'Mid', 'Mid Plaza') && !kn.samePlace('Pearl', 'Mid Doors', 'Mid Plaza')
+    && !kn.samePlace('Sunset', 'A Site', 'A Elbow') && kn.placeRegion('Sunset', 'Mid Tiles') === 'mid' && kn.placesNamed('Pearl', 'the middle of nowhere').length === 0,
+  'knowledge.js placesNamed, samePlace and placeRegion on known strings');
+  // The client sends where the kills fell only in a death Riot's record has no place for.
+  const sent = review.requestBody({ rounds: [
+    { n: 6, side: 'defending', result: 'lost', died: true, verified: true, deathSpot: 'A Site', killSpots: ['Mid Tiles'], reads: [] },
+    { n: 7, side: 'defending', result: 'lost', died: true, verified: true, riotSpot: 'Mid Top', deathSpot: 'Mid Top', killSpots: ['Mid Tiles'], reads: [] },
+    { n: 8, side: 'defending', result: 'lost', died: true, verified: false, deathSpot: 'A Site', killSpots: ['Mid Tiles'], reads: [] },
+  ], context: { map: 'Sunset', agent: 'Jett' }, endedBy: 'score' });
+  ok(JSON.stringify(sent.rounds[0].killPlaces) === '["Mid Tiles"]' && !('killPlaces' in sent.rounds[1]) && !('killPlaces' in sent.rounds[2]),
+    'requestBody: killPlaces only for a verified death with no Riot place');
+  // The cost reason in the review's prompt, from Platinum on a round 4 client.
+  const fracRounds = [
+    { n: 2, side: 'defending', result: 'won', died: true, verified: true, sec: 31, killer: 'Astra', weapon: 'Sheriff', traded: true, alive: { mates: 5, enemies: 1 }, buy: 'half' },
+    { n: 5, side: 'attacking', result: 'lost', died: true, verified: true, sec: 33, killer: 'Jett', weapon: 'Sheriff', traded: false, alive: { mates: 4, enemies: 3 }, buy: 'pistol' },
+  ];
+  const fb = (band) => matchReview.normalise({ rounds: fracRounds, patterns: [], swing: [], counts: { deaths: 2 }, final: { team: 5, enemy: 1, result: 'Victory' },
+    context: { agent: 'Jett', map: 'Fracture', rankBand: band } });
+  const costLine = matchReview.costLineOf(fb('asc_plus'));
+  ok(/First, round 5, an attack round your team lost[^.]*, the team on a pistol round, round 5 of the 6 the match had, not its last\./.test(costLine) && costLine.includes(matchReview.COST_RULE.trim())
+    && matchReview.costLineOf(fb('silver_gold')) === '',
+  'CAUGHT: "the last round of the match" of round 5 in 6: the review\'s cost line says where the round sat and to state only its reasons, from Platinum only');
+  ok(!matchReview.BUY_BLAME.test(costLine) && !costLine.includes(';'), 'the cost line says no "buy" and no semicolon');
+  ok(!/costs little/.test(matchReview.RECORD_USE.buy) && /Never say a death cost the team little or nothing\./.test(matchReview.RECORD_USE.buy), 'the economy use line no longer says a pistol or eco death costs little');
+}
+
 console.log(`\n${fails ? fails + ' of ' + checks + ' failed' : 'all ' + checks + ' valorant review checks passed'}`);
 process.exit(fails ? 1 : 0);

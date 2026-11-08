@@ -303,6 +303,13 @@ function recordSent(r, map) {
   // (recordSignals), and the round line's deathSpot since 8.7.10 (onePlace).
   const place = r.died && typeof map === 'string' ? knowledge.placeOf(map, r.place) : null;
   if (place) out.place = place;
+  // Where the player's kills fell, in a death Riot's record has no place for
+  // (round 7, valorant-review.js requestBody), so the screen's spot is never
+  // the death's place when it lies in another region than every kill.
+  if (r.died && !place && typeof map === 'string' && Array.isArray(r.killPlaces)) {
+    const kp = [...new Set(r.killPlaces.slice(0, 5).map((p) => knowledge.placeOf(map, p)).filter(Boolean))];
+    if (kp.length) out.killPlaces = kp;
+  }
   if (BUY_SENT.has(r.buy)) out.buy = r.buy;
   if (r.died && (r.mate === 'close' || r.mate === 'far')) out.mate = r.mate;
   const casts = (Array.isArray(r.casts) ? r.casts : []).slice(0, 4)
@@ -1045,7 +1052,40 @@ function study(input, limit = 3, opts = {}) {
   return out.map((n) => ({ text: n.text }));
 }
 
-function roundLine(r, opts) {
+/*
+ * ONLY RIOT'S PLACE IN A ROUND IT PLACES (round 7, the blind audit of round
+ * 6). The round line said Riot's place since 8.7.10, but the screen's reads
+ * and the look's own words still named the screen's: Pearl round 4 "holding
+ * Mid Shops" (Riot B Link), round 5 the look's "in Mid Plaza" (Riot Mid
+ * Doors), Corrode rounds 10 and 11 "holding Mid Stairs" (Riot Mid Bottom),
+ * and the reviews put the death there. Where Riot places the death, a read
+ * or the look's words naming another place of the map are not sent (an area
+ * holding Riot's callout agrees, knowledge.js samePlace). Where Riot has no
+ * place for the death but places the player's kills (Sunset 2 to 5 round 6,
+ * the screen's A Site and A Elbow, the kills at Mid Tiles), the screen's
+ * spot and a read in no region of a kill are not sent either. A round
+ * without either, every client before it, is as before.
+ */
+function placesKept(r, map) {
+  const keep = { deathSpot: r.deathSpot, reads: r.reads, seen: r.seen };
+  if (!r.died || typeof map !== 'string' || !map) return keep;
+  let agrees = null;
+  if (r.place) agrees = (p) => knowledge.samePlace(map, p, r.place);
+  else if (Array.isArray(r.killPlaces) && r.killPlaces.length) {
+    const regions = new Set(r.killPlaces.map((p) => knowledge.placeRegion(map, p)).filter(Boolean));
+    if (regions.size) agrees = (p) => regions.has(knowledge.placeRegion(map, p));
+  }
+  if (!agrees) return keep;
+  const fits = (t) => knowledge.placesNamed(map, t).every(agrees);
+  return {
+    deathSpot: r.place || !r.deathSpot || fits(r.deathSpot) ? r.deathSpot : null,
+    reads: r.reads.filter(fits),
+    seen: r.seen && !fits(r.seen) ? null : r.seen,
+  };
+}
+
+function roundLine(r0, opts) {
+  const r = opts && opts.map ? { ...r0, ...placesKept(r0, opts.map) } : r0;
   const bits = [`R${r.n}`];
   bits.push([r.side === 'attacking' ? 'attack' : r.side === 'defending' ? 'defence' : 'side unread',
     r.result || 'result unread'].join(', '));
@@ -1217,7 +1257,7 @@ function promptRounds(input, withKnowledge, opts) {
   const picks = teachable(rounds);
   const r4 = round4(input);
   const assemble = (knowledgeBlock) => `You are reviewing one finished Valorant match for the player, ${who}. ${score}\n\n`
-    + `${ledgerNote}\n${(r4 ? rounds.map((r) => roundLine(r, { plant: true })) : rounds.map((r) => roundLine(r))).join('\n')}\n\n`
+    + `${ledgerNote}\n${(r4 ? rounds.map((r) => roundLine(r, { plant: true, map: context.map })) : rounds.map((r) => roundLine(r, { map: context.map }))).join('\n')}\n\n`
     + `COMPUTED PATTERNS (arithmetic over the ledger, these are true):\n`
     + (patterns.length ? patterns.map((p) => '- ' + p.text).join('\n') : '- none cleared the bar in this match')
     + block('COUNTED MISTAKES (counted from the rounds above, most serious first, these are true):', mistakesShown(input))
@@ -1504,7 +1544,7 @@ function buildPrompt(input, opts) {
  */
 const RECORD_USE = {
   mate: 'Where a round says whether a teammate stood close when the player died, that is the evidence for a trade or a spacing point: with no teammate close the lesson is where the player stood, and with one close and nobody trading it is when they took the fight. ',
-  buy: 'The team\'s economy changes what a death teaches: a death on an eco or a pistol round costs little and is no mistake the way one on a full loadout is, so never count a death on an eco against the player as one on a full loadout. ',
+  buy: 'The team\'s economy changes what a death teaches: a death on an eco is no mistake the way one on a full loadout is, so never count a death on an eco against the player as one on a full loadout, and a pistol round is a full fight for the round and the economy after it. Never say a death cost the team little or nothing. ',
   casts: 'Make a point about the player\'s abilities only for a round that lists the abilities used, and a round saying no ability used is the evidence for one. ',
   afk: 'Never criticise a round Riot marks the player as sitting out. ',
 };
@@ -1879,7 +1919,51 @@ function parse(text, input) {
     out[field] = c.text;
   }
   seamGates(out, input);
+  structureGates(out, input, said);
   return out;
+}
+
+/*
+ * THE STRUCTURAL PASS, LAST (coherence.js checkStructure, the blind audit of
+ * round 6): in the summary and the focus, a lead whose sentence a gate cut
+ * and a sentence that only refers back to a cut one go, read against what the
+ * field said before any gate; a garbled sentence goes from any field, a round
+ * line whole. English only, every client.
+ */
+function structureGates(out, input, said) {
+  if (promptName(input.context && input.context.language) !== 'English') return;
+  if (coherenceShared === undefined) coherenceShared = shared('./coherence');
+  const co = coherenceShared;
+  if (!co || typeof co.checkStructure !== 'function') return;
+  const key = (s) => s.slice(0, 24);
+  for (const field of ['summary', 'focus']) {
+    if (!out[field]) continue;
+    const kept = splitSentences(out[field]).map((s) => s.trim()).filter(Boolean);
+    const orig = splitSentences((said && said[field]) || '').map((s) => s.trim()).filter(Boolean);
+    const keptKeys = new Set(kept.map(key));
+    // The field as it was said, each sentence a gate cut marked; a kept one
+    // the gates rewrote (no sentence said starts as it does) read in its place.
+    const rows = [];
+    const used = new Set();
+    for (const s of orig) {
+      const k = key(s);
+      if (keptKeys.has(k) && !used.has(k)) { used.add(k); rows.push({ s: kept.find((x) => key(x) === k), dropped: false, p: 0 }); } else rows.push({ s, dropped: true, p: 0 });
+    }
+    for (const s of kept) if (!used.has(key(s))) rows.push({ s, dropped: false, p: 0 });
+    let found = [];
+    try { found = co.checkStructure(rows); } catch { found = []; }
+    if (!found.length) continue;
+    const gone = new Set(found.map((f) => rows[f.index].s));
+    for (const f of found) out.dropped.push({ n: null, said: `${field} ${f.kind === 'garble' ? 'garble' : 'orphan'}`, riot: null });
+    out[field] = kept.filter((s) => !gone.has(s)).join(' ').trim() || null;
+  }
+  for (const n of Object.keys(out.rounds)) {
+    const ss = splitSentences(out.rounds[n]).map((s) => s.trim()).filter(Boolean);
+    if (ss.some((s) => co.garbleOf(s))) {
+      delete out.rounds[n];
+      out.dropped.push({ n: Number(n), said: 'garble', riot: null });
+    }
+  }
 }
 
 let recordClaims;
@@ -1899,8 +1983,42 @@ function costOf(input) {
   if (!rc || typeof rc.costRank !== 'function') return null;
   try {
     const ctx = rc.contextOfReview(input);
-    return { ranked: rc.costRank(ctx), line: rc.costLine(ctx) };
+    const ranked = rc.costRank(ctx);
+    const f = input.final || {};
+    const total = Number.isInteger(f.team) && Number.isInteger(f.enemy) ? f.team + f.enemy : null;
+    const buys = new Map((input.rounds || []).filter((r) => r.buy).map((r) => [r.n, r.buy]));
+    return { ranked, line: costReasonLine(ranked, total, { buyOf: (n) => buys.get(n) }) || rc.costLine(ctx) };
   } catch { return null; }
+}
+
+/*
+ * WHY A DEATH COST, AS FINISHED FACTS (round 7, the blind audit of round 6).
+ * The costliest deaths line ranked the deaths in code but left the model to
+ * say why, and it invented: Fracture's round 5 became "the last round of the
+ * match" in a match of 6. The line is costRank's own, every reason a fact
+ * code computed (the round lost or won, the numbers the death left, before
+ * or after the plant, traded or not, the first death), and each round now
+ * says where it sat in the match ("round 5 of the 6 the match had, not its
+ * last"), with the rule to state those reasons and no other. Shared by Ask
+ * Coach (chat-prompt.js). '' with fewer than two deaths ranked, or with no
+ * total known (the caller keeps record-claims.js costLine then).
+ */
+const COST_RULE = ' Why each of these deaths cost is said here in full: state only these reasons, in these words, and never give another one. '
+  + 'A round is the last round, a pistol round, match point or a deciding round only where this line says so.';
+function costReasonLine(ranked, total, opts = {}) {
+  const limit = Number.isInteger(opts.limit) ? opts.limit : 3;
+  const buyOf = typeof opts.buyOf === 'function' ? opts.buyOf : () => null;
+  if (!Array.isArray(ranked) || ranked.length < 2 || !Number.isInteger(total) || total < 1 || total > 40) return '';
+  if (ranked.some((x) => !x || !Number.isInteger(x.n) || x.n > total || !Array.isArray(x.words))) return '';
+  const top = ranked.slice(0, limit);
+  const lostAny = ranked.some((x) => x.result === 'lost');
+  const where = (n) => (n === total ? `round ${n} of the ${total} the match had, its last round`
+    : n === 1 ? `the first of the ${total} rounds the match had` : `round ${n} of the ${total} the match had, not its last`);
+  return 'THE COSTLIEST DEATHS, ranked in code from Riot\'s record by what each cost (a lost round above a won one, then the numbers the death left, after the plant above before, not traded above traded): '
+    + top.map((x, i) => `${['First', 'Second', 'Third'][i] || 'Then'}, round ${x.n}, ${x.words.concat(RECORD_BUY[buyOf(x.n)] ? [`the team on ${RECORD_BUY[buyOf(x.n)]}`] : [], where(x.n)).join(', ')}`).join('. ')
+    + '. When you name a death or a round as the mistake, the lever or what to fix first, name the costliest first'
+    + (lostAny ? ', and never rank a death in a round your team won above one in a round it lost' : '')
+    + '.' + COST_RULE;
 }
 function costLineOf(input) {
   const c = costOf(input);
@@ -2355,9 +2473,9 @@ module.exports = { normalise, buildPrompt, parse, study, weakSide, roundLine, ro
   round3, rankRule3, RANK_WORDS3, GROUNDING, GROUNDING3, GROUNDING3_SWAPS, aimEvidence, HS_USUAL, HS_BELOW, focusLever, leverRule,
   enemyWeaponsOf, claimOf, TEMPLATE_LEAK, SPIKE_CARRY, PRAISE, AIM_DENIED, STUDY_VARIETY, spread, contradicted, CONTRADICTS,
   round4, matchCounts, matchFacts, countLines, qualifyCount, mistakesShown, allowedPairs, leverOf, leverRule4, LEVER_ORDER, HIGH_BANDS,
-  depthRule, kitBlockOf, kitAgents, swingTopics, caseSituation, leverSituation, cohere, productCut, stateWrong, fundamentalsCap,
+  depthRule, kitBlockOf, kitAgents, swingTopics, caseSituation, leverSituation, cohere, productCut, stateWrong, fundamentalsCap, structureGates,
   ROUND4_SWAPS, GROUNDING4, GROUNDING4_SWAPS, PRODUCT_TALK, CROSS_MATCH, TRADE_HABIT,
   recordSignalsOf, signalTopics, ECONOMY_TOPICS, recordUse, RECORD_USE, NO_ECONOMY, SOME_ECONOMY,
   onePlace, spotAgrees, spotPatternOf, sameSpotOf, clockWrong, CLOCK_ON,
   // The blind audit of 8.7.9, stream B: what each death cost, from Platinum.
-  costOf, costLineOf, costTopics, COST_TOPICS, COST_BONUS, repeats };
+  costOf, costLineOf, costTopics, COST_TOPICS, COST_BONUS, repeats, costReasonLine, COST_RULE, placesKept };
