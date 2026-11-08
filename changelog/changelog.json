@@ -9,6 +9,7 @@
       { "kind": "new", "text": "Each round shows your team's buy, from pistol to full buy, and your review notes when full buys keep losing or ecos keep working." },
       { "kind": "new", "text": "Every saved review shows your RR change for that match, and Stats shows your peak rank and Riot's own record highlights." },
       { "kind": "improved", "text": "The coach picks advice from where you died and how you bought, and a round where Riot marked you AFK is never counted against you." },
+      { "kind": "improved", "text": "Reviews and Ask Coach check every place, plant and teammate claim against Riot's record, so far fewer mistakes reach you, and higher ranks get advice that fits them." },
       { "kind": "fixed", "text": "Games in your library keep your rank trend and peak in one place, and older reviews look exactly as before." }
     ]
   },

@@ -22,6 +22,10 @@
         "text": "The coach picks advice from where you died and how you bought, and a round where Riot marked you AFK is never counted against you."
       },
       {
+        "kind": "improved",
+        "text": "Reviews and Ask Coach check every place, plant and teammate claim against Riot's record, so far fewer mistakes reach you, and higher ranks get advice that fits them."
+      },
+      {
         "kind": "fixed",
         "text": "Games in your library keep your rank trend and peak in one place, and older reviews look exactly as before."
       }
