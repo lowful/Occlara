@@ -13,11 +13,54 @@ function slideSeg(id) {
   if (el && typeof window.occlaraSeg === 'function' && typeof MutationObserver === 'function') window.occlaraSeg(el);
   return el;
 }
-for (const id of ['capturespeed', 'recording', 'recordingres', 'clipcap', 'advanced', 'capturequality', 'sounds', 'ailog']) slideSeg(id);
+for (const id of ['recording', 'advanced', 'capturequality', 'sounds', 'ailog']) slideSeg(id);
+
+/*
+ * A ROW OF CHOICES (8.8): three or more values are not an either/or, so they
+ * are not the segmented capsule but a row of words, the chosen one in the
+ * ink at the title's weight (settings.css .opts). Still one radio group: one
+ * tab stop on the chosen word, the arrow keys, Home and End moving the choice
+ * by clicking it, so each row's own click handler saves it as it always did.
+ * The buttons and their .active are what they were, which every test reads.
+ */
+function optsRow(id) {
+  const el = document.getElementById(id);
+  if (!el) return el;
+  el.setAttribute('role', 'radiogroup');
+  const all = () => Array.from(el.querySelectorAll('button'));
+  for (const b of all()) {
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', 'false');
+    b.setAttribute('tabindex', '-1');
+    // The chosen word is set at 600: a hidden twin at that weight holds each
+    // word's width, so choosing one never moves the others.
+    b.dataset.text = b.textContent;
+  }
+  if (all()[0]) all()[0].setAttribute('tabindex', '0');
+  el.addEventListener('keydown', (e) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1, Home: 'first', End: 'last' }[e.key];
+    if (step === undefined) return;
+    const live = all().filter((b) => !b.disabled);
+    if (!live.length) return;
+    const at = live.indexOf(e.target);
+    const next = step === 'first' ? live[0] : step === 'last' ? live[live.length - 1]
+      : live[((at < 0 ? 0 : at + step) + live.length) % live.length];
+    if (typeof e.preventDefault === 'function') e.preventDefault();
+    if (!next || next === e.target) return;
+    if (typeof next.focus === 'function') next.focus();
+    next.click();
+  });
+  return el;
+}
+for (const id of ['capturespeed', 'recordingres', 'clipcap']) optsRow(id);
 
 function markSeg(seg, value) {
+  const row = seg.classList.contains('opts');
   for (const btn of seg.querySelectorAll('button')) {
-    btn.classList.toggle('active', btn.dataset.val === value);
+    const on = btn.dataset.val === value;
+    btn.classList.toggle('active', on);
+    if (row) { btn.setAttribute('aria-checked', String(on)); btn.setAttribute('tabindex', on ? '0' : '-1'); }
   }
 }
 
@@ -170,6 +213,9 @@ function paintRecording(r) {
   const off = r.mode === 'off';
   markSeg(recSeg, off ? 'off' : 'auto');
   markSeg(recResSeg, resOf(r.res));
+  // Off, the size is kept for when it is on again, and says so by stepping
+  // back: no size reads as chosen beside an Off (8.8 critique).
+  recResSeg.classList.toggle('idle', off);
   paintRecHint();
   const line = recordingLine(r);
   // Written only when it changes: it is a live region, and the state is
@@ -218,9 +264,34 @@ function paintClips(u) {
   markSeg(clipCapSeg, String(cap));
   const n = Number(u.clips) || 0;
   clipUsage.textContent = n
-    ? `Clips kept beside your reviews: ${sizeText(u.bytes)} of ${cap} GB, ${n} clip${n === 1 ? '' : 's'} from ${u.reviews} review${u.reviews === 1 ? '' : 's'}.`
+    ? clipsSentence(n, Number(u.reviews) || 0, { size: sizeText(u.bytes), cap })
     : `No clips kept yet. They take up to ${cap} GB together.`;
   clipClear.disabled = !n;
+}
+/*
+ * The clips line is one whole sentence for each pair of counts (8.8), never
+ * "clip" and "s" glued around a number: the clips' count picks the set, the
+ * reviews' count the sentence in it (shared/intl.js plural, {n} the reviews).
+ */
+const CLIPS_LINE = {
+  one: {
+    one: 'Clips kept beside your reviews: {size} of {cap} GB, {clips} clip from {n} review.',
+    other: 'Clips kept beside your reviews: {size} of {cap} GB, {clips} clip from {n} reviews.',
+  },
+  other: {
+    one: 'Clips kept beside your reviews: {size} of {cap} GB, {clips} clips from {n} review.',
+    other: 'Clips kept beside your reviews: {size} of {cap} GB, {clips} clips from {n} reviews.',
+  },
+};
+function clipsSentence(clips, reviews, values) {
+  const I = window.occlaraIntl;
+  if (I && typeof I.plural === 'function') {
+    let cat = 'other';
+    try { cat = new Intl.PluralRules(I.lang()).select(clips); } catch { /* English rules */ cat = clips === 1 ? 'one' : 'other'; }
+    return I.plural(reviews, CLIPS_LINE[cat] || CLIPS_LINE.other, { ...values, clips });
+  }
+  const set = CLIPS_LINE[clips === 1 ? 'one' : 'other'];
+  return (reviews === 1 ? set.one : set.other).replace(/\{(\w+)\}/g, (m, k) => (k === 'n' ? String(reviews) : k === 'clips' ? String(clips) : String(values[k])));
 }
 let clipsTimer = null;
 function readClips() {
@@ -337,9 +408,9 @@ function buildGamePicker(current, includeUnavailable) {
 // So it is obvious which build is running and whether an update already landed,
 // instead of having to guess after a release.
 const UPDATE_TEXT = {
-  checking:    'checking for updates...',
+  checking:    'checking for updates…',
   current:     'up to date',
-  downloading: (v) => `downloading ${v}...`,
+  downloading: (v) => `downloading ${v}…`,
   ready:       (v) => `${v} ready, restart to apply`,
   offline:     'could not reach the update server',
   dev:         'dev build',
@@ -439,7 +510,7 @@ trkBtn.addEventListener('click', async () => {
   trkBtn.classList.add('busy');
   trkBtn.textContent = 'Connecting';
   checking = true;
-  showTrk(null, 'Checking your tracker profile...', id);
+  showTrk(null, 'Checking your tracker profile…', id);
   let res = null;
   try {
     await window.occlara.setConfig({ riotId: id });
@@ -523,14 +594,14 @@ const ENDED_MESSAGES = {
 
 function renderLicense(lic) {
   if (!lic) return;
-  document.getElementById('lic-plan').textContent = lic.licensePlan || '·';
+  document.getElementById('lic-plan').textContent = lic.licensePlan || 'Not activated';
   // Reflect a lapsed subscription immediately, even before the server re-check.
   let status = lic.licenseStatus || '';
   if (lic.licenseExpiry && new Date(lic.licenseExpiry) < new Date()) status = 'expired';
   const statusEl = document.getElementById('lic-status');
-  statusEl.textContent = status || '·';
+  statusEl.textContent = status || 'Not activated';
   statusEl.className = `badge ${status}`;
-  document.getElementById('lic-expiry').textContent = formatExpiry(lic.licenseExpiry);
+  document.getElementById('lic-expiry').textContent = (lic.licensePlan || status || lic.licenseExpiry) ? formatExpiry(lic.licenseExpiry) : 'Not activated';
 
   // Big red notice when the subscription is no longer active.
   const ended = !!status && status !== 'active';
@@ -714,7 +785,7 @@ setInterval(refreshLicense, 15000);
 function formatExpiry(value) {
   if (!value) return 'Never';
   const d = new Date(value);
-  return isNaN(d) ? value : d.toLocaleDateString();
+  return isNaN(d) ? value : (window.occlaraIntl ? window.occlaraIntl.date(d) : d.toLocaleDateString());
 }
 
 document.getElementById('purchase').addEventListener('click', () => window.occlara.openPurchase());
@@ -843,6 +914,62 @@ acct('acct-invite').addEventListener('click', () => window.occlara.openInvite())
 if (typeof window.occlara.onAccount === 'function') window.occlara.onAccount((v) => { if (!acctSigningIn) paintAccount(v); });
 window.addEventListener('focus', refreshAccount);
 refreshAccount();
+
+/*
+ * THE SECTION INDEX (8.8): the four sections named in the margin. A click
+ * brings its section's title to the top of the column (at once when the
+ * player asked for less motion); as the column scrolls, the section whose
+ * title has passed the top third is the one marked. Nothing here moves a
+ * control, and the page is sealed mid match like every other.
+ */
+function wireIndex() {
+  const index = document.getElementById('set-index');
+  const page = document.querySelector('.body');
+  if (!index || !page) return;
+  const links = Array.from(index.querySelectorAll('.set-index-link'));
+  const mark = (id) => { for (const a of links) a.setAttribute('aria-current', String(a.dataset.to === id)); };
+  const still = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  for (const a of links) {
+    a.addEventListener('click', () => {
+      const to = document.getElementById(a.dataset.to);
+      if (!to) return;
+      mark(a.dataset.to);
+      // The section clicked stays marked while the column travels to it, and
+      // after, though a short one at the foot cannot reach the top third.
+      held = a.dataset.to;
+      // The column scrolls, never the document: scrollIntoView also moved the
+      // page under the header, which then went off the top with the title.
+      const top = to.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - 16;
+      page.scrollTo({ top: Math.max(0, top), behavior: still() ? 'auto' : 'smooth' });
+    });
+  }
+  let queued = false;
+  let held = null;
+  page.addEventListener('wheel', () => { held = null; }, { passive: true });
+  page.addEventListener('keydown', () => { held = null; });
+  page.addEventListener('pointerdown', () => { held = null; });
+  const follow = () => {
+    queued = false;
+    if (held) return;
+    if (typeof page.getBoundingClientRect !== 'function') return;
+    const top = page.getBoundingClientRect().top + page.clientHeight / 3;
+    let current = links.length ? links[0].dataset.to : null;
+    for (const a of links) {
+      const sec = document.getElementById(a.dataset.to);
+      if (sec && typeof sec.getBoundingClientRect === 'function' && sec.getBoundingClientRect().top <= top) current = a.dataset.to;
+    }
+    // At the foot of the page the last section is the one being read, even
+    // when it is too short to reach the top third.
+    if (page.scrollTop + page.clientHeight >= page.scrollHeight - 2 && links.length) current = links[links.length - 1].dataset.to;
+    if (current) mark(current);
+  };
+  page.addEventListener('scroll', () => {
+    if (queued) return;
+    queued = true;
+    (window.requestAnimationFrame || setTimeout)(follow);
+  });
+}
+wireIndex();
 
 load();
 if (window.initI18n) window.initI18n();

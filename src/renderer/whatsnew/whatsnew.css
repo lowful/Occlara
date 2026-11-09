@@ -1,75 +1,87 @@
 /* palette: tokens only */
-/* What's new: the changelog as entries of the training log. Each version is
-   a ruled section (its version and day, its title, one sentence, then what
-   changed as rows with their kind in a small word); the newest is the page's
-   one hero, with no rule over it. No card, no box, no colour beyond the ink:
-   the kind is a word, never a hue. The page title is the embedded header's
-   (ui.css). */
+/* What's new (8.8, THE COACH'S NOTEBOOK): the changelog as a marked up
+   sheet. Each version is an entry in two columns: the margin holds its
+   figures (the version in the mono face, its day under it, "Your version"
+   on the running one), the column its words (the title, one sentence, then
+   what changed as rows with their kind in a small word). The newest is the
+   page's one hero. No card, no box, no rule between entries (the space
+   between them groups them), no colour beyond the ink: the kind is a word,
+   never a hue. The page title is the embedded header's (ui.css). */
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
 .sheet { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .sheet > header { display: flex; align-items: center; padding: var(--space-4); }
 .h-brand { display: flex; align-items: center; gap: var(--space-2); }
-.h-brand h2 { font-size: 15.5px; font-weight: 700; }
+.h-brand h2 { font-size: var(--fs-body); font-weight: var(--w-title); }
 
 .body {
-  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
   padding: var(--space-2) var(--space-4) var(--space-10);
 }
 
-.wn-empty { font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+/* Empty, the line sits in the column where the newest entry would. */
+.wn-empty {
+  margin: var(--space-2) 0 0 var(--margin-w);
+  font-size: var(--fs-ui); line-height: 1.5; color: var(--text-dim);
+  max-width: 60ch; text-wrap: pretty;
+}
+/* The list arrives once, every entry together, on its first paint
+   (whatsnew.js): one movement, no stagger. */
 .wn-list { display: flex; flex-direction: column; gap: var(--space-10); }
+.wn-entry.rise { animation: riseIn var(--t-slow) var(--ease-out) both; }
 
 /* ── One version ───────────────────────────────────────────────────────── */
 .wn-entry {
-  display: flex; flex-direction: column; align-items: flex-start;
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: var(--margin-w) minmax(0, 1fr);
+  column-gap: 0;
+  align-items: start;
 }
-.wn-entry.first { padding-top: var(--space-2); border-top: 0; }
-.wn-entry.rise { animation: riseIn var(--t-slow) var(--ease-expo) both; animation-delay: calc(var(--i, 0) * 40ms); }
+.wn-entry > :not(.wn-meta) { grid-column: 2; }
 
-/* The version in the mono face, its day beside it, the running one marked
-   with the small ringed capsule the Profile page marks a plan with. */
+/* The margin: the version, its day, and the running one named in words. */
 .wn-meta {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3);
-  margin: 0 0 var(--space-2);
+  grid-column: 1; grid-row: 1 / span 3;
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1);
+  margin: 0; padding-top: 3px; padding-right: var(--space-3);
 }
-.wn-ver { font: 500 13px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
-.wn-date { font-size: 12px; font-weight: 500; color: var(--text-mute); }
-.wn-mine {
-  display: inline-flex; align-items: center; height: 22px; padding: 0 var(--space-2);
-  border: 1px solid var(--line-2); border-radius: var(--r-btn);
-  font-size: 12px; font-weight: 500; color: var(--text);
-}
+.wn-entry.first .wn-meta { padding-top: 7px; }
+.wn-ver { font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 500; line-height: 1.3; font-variant-numeric: tabular-nums; color: var(--text); }
+.wn-date { font-size: var(--fs-caption); font-weight: var(--w-label); line-height: 1.3; color: var(--text-mute); }
+.wn-mine { font-size: var(--fs-caption); font-weight: var(--w-label); line-height: 1.3; color: var(--text-dim); }
 
-.wn-title { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; color: var(--text); text-wrap: balance; }
-.wn-entry.first .wn-title { font-size: 32px; line-height: 1.1; letter-spacing: var(--track-display); }
-.wn-summary { margin: var(--space-2) 0 0; font-size: 14px; line-height: 1.5; color: var(--text-dim); max-width: 72ch; text-wrap: pretty; }
-.wn-entry.first .wn-summary { font-size: 15px; }
+.wn-title { margin: 0; font-size: var(--fs-body); font-weight: var(--w-title); letter-spacing: 0; line-height: 1.3; color: var(--text); text-wrap: balance; max-width: 60ch; }
+.wn-entry.first .wn-title { font-size: var(--fs-h2); font-weight: var(--w-display); line-height: var(--lh-heading); letter-spacing: var(--track-display); }
+.wn-summary { margin: var(--space-2) 0 0; font-size: var(--fs-ui); font-weight: var(--w-body); line-height: 1.5; color: var(--text-dim); max-width: 68ch; text-wrap: pretty; }
+.wn-entry.first .wn-summary { font-size: var(--fs-body); }
 
-/* What changed: rows parted by the hairline, the kind a small word in its
-   own column so the sentences line up. */
+/* What changed: a dense list, so its rows are parted by the hairline, the
+   kind a small word in its own column so the sentences line up. */
 .wn-items {
-  list-style: none; margin: var(--space-5) 0 0; padding: 0;
+  list-style: none; margin: var(--space-4) 0 0; padding: 0;
   width: 100%;
-  border-top: 1px solid var(--line);
 }
 .wn-item {
   display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: baseline; gap: var(--space-4);
   padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
 }
-.wn-kind { font-size: 12px; font-weight: 500; color: var(--text-mute); }
-.wn-text { font-size: 14px; line-height: 1.5; color: var(--text); max-width: 72ch; text-wrap: pretty; }
+.wn-kind { font-size: var(--fs-caption); font-weight: var(--w-label); color: var(--text-mute); }
+.wn-text { font-size: var(--fs-ui); font-weight: var(--w-body); line-height: 1.5; color: var(--text); max-width: 68ch; text-wrap: pretty; }
 
+/* Narrow, the margin is too tight to hold a column beside it: the figures go
+   over the words on one line. */
 @media (max-width: 600px) {
+  .wn-entry { grid-template-columns: minmax(0, 1fr); }
+  .wn-entry > :not(.wn-meta) { grid-column: 1; }
+  .wn-meta { grid-row: auto; flex-direction: row; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin-bottom: var(--space-2); padding-top: 0; }
+  .wn-entry.first .wn-meta { padding-top: 0; }
+  .wn-empty { margin-left: 0; }
   .wn-item { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
-  .wn-entry.first .wn-title { font-size: 24px; }
 }
 
-/* Reduced motion: no entrance at all, every entry at once. */
+/* Reduced motion: no entrance at all, the list at once. */
 @media (prefers-reduced-motion: reduce) {
   .wn-entry.rise { animation: none; }
 }

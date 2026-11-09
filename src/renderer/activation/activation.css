@@ -1,99 +1,108 @@
 /* palette: tokens only */
-/* The Sign in window (8.7 redesign): one calm column in the window's own
-   frame. The frame is the window's edge (the window is transparent and
-   fitted to it), never a card inside a card; the only tactile things are the
-   capsule controls (ui.css). No float, no glow, no tinted box. */
+/* The Sign in window (8.8, the coach's notebook). The window's own frame,
+   read from the top left like a sheet: the mark, the name and one line at the
+   head, the way in at the foot. No centred card template, no float, no glow,
+   no tinted box; the frame is the window's edge (the window is transparent
+   and fitted to it, activation-window.js 424 by 524), and the only tactile
+   things are the controls, in ui.css's three ranks. */
 html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
 
-/* The titlebar is a drag strip, so the window can be moved by its top edge. */
+/* The titlebar is a drag strip over the frame's head, so the window can be
+   moved by its top edge; Quit sits in the frame's top right corner. */
 .titlebar {
-  position: fixed; top: 0; left: 0; right: 0; height: 42px;
+  position: fixed; top: 12px; left: 12px; right: 12px; height: 56px;
   display: flex; justify-content: flex-end; align-items: center;
-  padding: 0 10px; z-index: 5;
+  padding: 0 var(--space-4); z-index: 5;
   -webkit-app-region: drag;
 }
 .titlebar button { -webkit-app-region: no-drag; }
 
-/* THE WINDOW IS FITTED TO THIS FRAME (activation-window.js, 524 tall, and
-   transparent, so nothing past it is seen). Measured on the key form with a
-   two line notice over it, the tallest the column gets, it ends inside the
-   window with room to spare: the mark at 56, the subtitle on two lines of
-   13px and the notice as a line rather than a box. */
+/* THE FRAME fills the window but for a 12px gutter. Measured on the key form
+   with a two line notice over it, the tallest the foot gets, the head and the
+   foot still clear each other: the head is 36 + 16 + 24 + 8 + two lines of 14,
+   the foot the notice, the field, Activate and the way back. */
 .card {
   position: relative;
   -webkit-app-region: drag;   /* draggable anywhere that is not a control */
-  margin: 46px auto 0;   /* clears the titlebar, no more than that */
-  width: 384px;
+  margin: 12px;
+  height: calc(100% - 24px);
   border-radius: var(--r-lg);
-  padding: var(--space-8) var(--space-8) var(--space-6);
-  display: flex; flex-direction: column; align-items: center;
-  animation: rise var(--t-slow) var(--ease-expo) both;
+  border: 1px solid var(--line-2);
+  background: var(--bg);
+  padding: var(--space-8) 28px var(--space-6);
+  display: flex; flex-direction: column; align-items: stretch;
+  animation: rise var(--t-slow) var(--ease-out) both;
 }
 .card button, .card input, .card a { -webkit-app-region: no-drag; }
-@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* rise is theme.css's shared entrance (8.8), which turns to a fade with less motion. */
 
-.logo { display: flex; flex-direction: column; align-items: center; margin-bottom: var(--space-6); }
-.mark { margin-bottom: var(--space-3); }
-.logo h1 { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); line-height: 1.1; }
-/* Centred and balanced, because naming the games can take two lines at this
-   width, and a ragged left-aligned second line under a centred mark looks
-   like a layout fault. */
+/* The head: the mark on the column's left edge, the name under it, one line. */
+.logo { display: flex; flex-direction: column; align-items: flex-start; }
+.mark { display: block; margin-bottom: var(--space-4); }
+.logo h1 { font-size: var(--fs-h2); font-weight: var(--w-title); letter-spacing: var(--track-display); line-height: 1.15; }
 .sub {
-  color: var(--text-dim); font-size: 13px; line-height: 1.4; margin-top: var(--space-2);
-  text-align: center; text-wrap: balance;
+  max-width: 30ch; margin-top: var(--space-2);
+  color: var(--text-dim); font-size: var(--fs-ui); font-weight: var(--w-body); line-height: 1.5;
+  text-wrap: pretty;
 }
+
+/* The foot: everything the window asks, pushed to the frame's bottom. */
+.way-in { margin-top: auto; display: flex; flex-direction: column; align-items: stretch; }
 
 form { width: 100%; }
-.lbl { display: block; font-size: 12px; font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-2); }
-.input { text-align: center; font-weight: 500; }
-.full { width: 100%; margin-top: var(--space-4); height: 44px; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: var(--space-2); }
+.lbl { display: block; font-size: var(--fs-caption); font-weight: var(--w-label); color: var(--text-mute); margin-bottom: var(--space-2); }
+/* The key field is Geist like every input (8.8: Geist Mono is for figures,
+   and a field in it was a costume); its digits keep one width. */
+.input { font-variant-numeric: tabular-nums; }
+/* The one primary, full width and 44 tall; the secondary under it full width
+   at its own rank's height. Neither is restyled: only their width is set. */
+.full { width: 100%; height: 44px; font-size: var(--fs-body); display: flex; align-items: center; justify-content: center; gap: var(--space-2); }
+.wide { width: 100%; justify-content: center; }
 
-/* What did not go through, said in a line: the outcome's colour on the
-   words, and the line settling in from the side once. */
+/* What did not go through, said in a line beside the action: calm, the
+   outcome's colour on the words, nothing shaking. */
 .error {
   width: 100%; margin: 0 0 var(--space-4);
-  font-size: 13px; line-height: 1.45; color: var(--bad); text-align: center; text-wrap: balance;
-  animation: shake var(--t-slow) var(--ease-out);
+  font-size: var(--fs-label); line-height: 1.5; color: var(--bad); text-wrap: pretty;
+  animation: riseIn var(--t-med) var(--ease-out) both;
 }
-@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 60%{transform:translateX(4px)} 80%{transform:translateX(-2px)} }
-/* A neutral notice (logout, a plan that ended), not an error, so no shake. */
-.error.notice { color: var(--text-dim); animation: none; }
+/* A neutral notice (logout, a plan that ended), not an error. */
+.error.notice { color: var(--text-dim); }
 
 .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); border-top-color: var(--text); animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.check { display: inline-flex; animation: pop var(--t-med) var(--ease-spring); }
-@keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+.check { display: inline-flex; animation: pop var(--t-med) var(--ease-out) both; }
+@keyframes pop { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: none; } }
 
 .btn.loading .label, .btn.success .label { display: none; }
 .btn-primary.loading .spinner { border-color: rgba(0, 0, 0, 0.2); border-top-color: var(--bg); }
 .btn.success { background: var(--good); border-color: transparent; color: var(--bg); }
 
-/* The way on in words: flat, dim until the pointer or the keyboard is on it. */
-.link {
-  background: none; border: none; cursor: pointer;
-  color: var(--text-mute); font-size: 13px; font-family: var(--font);
-  margin-top: var(--space-5); padding: var(--space-1) var(--space-2); border-radius: var(--r-btn);
-  transition: color var(--t-fast) var(--ease);
-}
-.link:hover { color: var(--text); }
-.link:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+/* The text buttons sit on the column's left edge, under what they follow. */
+.btn-tertiary { align-self: flex-start; font-size: var(--fs-label); }
+#purchase { margin-top: var(--space-4); }
 
 /* ── Sign in (8.7) ──────────────────────────────────────────────────────────
-   One pane at a time under the logo: Sign in with your browser and Use a
+   One pane at a time at the foot: Sign in with your browser and Use a
    licence key; waiting on the browser, with Cancel; or the key form as it
    was. The line above them says why a sign in or a key did not go through. */
-.pane { width: 100%; display: flex; flex-direction: column; gap: var(--space-2); }
+.pane { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-3); }
 .pane[hidden] { display: none; }
-.pane .full { margin-top: 0; }
-form.pane { display: block; }
-form.pane .full { margin-top: var(--space-4); }
-form.pane .link { display: block; margin: var(--space-4) auto 0; }
+form.pane { display: flex; gap: 0; }
+form.pane .full { margin-top: var(--space-3); }
+form.pane .btn-tertiary { margin-top: var(--space-3); }
 
 .wait {
-  display: flex; align-items: center; gap: var(--space-3);
-  min-height: 44px; padding: var(--space-1) 0 var(--space-2);
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding-bottom: var(--space-2);
 }
-.wait .spinner { flex: none; }
+.wait .spinner { flex: none; margin-top: 2px; }
 .wait-text { min-width: 0; }
-.wait-title { font-size: 14px; font-weight: 600; color: var(--text); }
-.wait-sub { margin-top: 2px; font-size: 13px; line-height: 1.4; color: var(--text-dim); }
+.wait-title { font-size: var(--fs-ui); font-weight: var(--w-title); color: var(--text); }
+.wait-sub { margin-top: var(--space-1); font-size: var(--fs-label); line-height: 1.5; color: var(--text-dim); text-wrap: pretty; }
+
+/* Less motion: theme.css turns rise and riseIn to a fade; the tick, which
+   is this sheet's own, fades the same way. The spinner keeps turning. */
+@media (prefers-reduced-motion: reduce) {
+  .check { animation-name: fadeIn; }
+}

@@ -18,10 +18,24 @@ const { el, gradeTone } = window.GradeView;
 
 let game = null;
 
-function fmtWhen(at) {
-  const d = new Date(at);
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', '
-    + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+// Dates, times and counts through one helper (shared/intl.js, 8.8), in the
+// interface's language; the fallbacks are for a page loaded without it.
+const INTL = window.occlaraIntl || null;
+const fmtDay = (at) => (INTL ? INTL.date(at) : new Date(at).toLocaleDateString([], { month: 'short', day: 'numeric' }));
+const fmtTime = (at) => (INTL ? INTL.time(at) : new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+const fmtWhen = (at) => `${fmtDay(at)}, ${fmtTime(at)}`;
+/** One whole sentence for count n (intl.js plural), {n} and any {name} filled. */
+function say(n, forms, values) {
+  if (INTL) return INTL.plural(n, forms, values);
+  const msg = n === 1 && forms.one != null ? forms.one : forms.other;
+  return String(msg).replace(/\{(\w+)\}/g, (m, k) => (k === 'n' ? String(n) : values && k in values ? String(values[k]) : m));
+}
+
+/** The coach's pen (shared/marks.js), still: a list never draws one in. */
+function pen(node, kind, text, place) {
+  try {
+    if (window.occlaraPen && typeof window.occlaraPen.mark === 'function') window.occlaraPen.mark(node, kind, { text, draw: false, place });
+  } catch { /* no layout (the offline tests): no mark */ }
 }
 
 function paintTabs(games) {
@@ -37,55 +51,87 @@ function paintTabs(games) {
   }
 }
 
-/**
- * One bar per graded match, oldest on the left.
- *
- * The score sets --h on the bar, and both the fill's height and the number's
- * place read it, so a 95 stands taller than a 77. The number used to sit in
- * the same flex column as the fill, where it could not shrink and the fill
- * could: every grade from about 77 up drew the same bar, and a player climbing
- * through A and S saw a flat line. matches.css takes the number out of that
- * column.
- */
 /*
- * A RECORD IS OUTLINED, A RUN UNDERLINED (8.7), from what main counted
- * (progress.js libraryProgress): a bar whose match carries a best or a first
- * mark is `.best`, and the newest `run.count` grades, the run the newest match
- * stands in, are `.run`. A run skips no graded match and a provisional grade
- * ends one, so those are the first grades of the list, newest first. Each says
- * so on hover as well, so the outline is never the only sign.
+ * THE GRADES, WRITTEN (8.8). They were a bar chart, one bar a match, which is
+ * a picture standing in for a handful of numbers: now they are the numbers,
+ * oldest first, as a coach writes a run of scores down the sheet ("58, 61,
+ * 64, 71"), the average in the margin beside them, and the pen ticks the
+ * record. Main counts the record and the run (progress.js libraryProgress):
+ * a grade whose match carries a best or a first mark is `.best`, the newest
+ * `run.count` are `.run`, and the note under the figures says both in words,
+ * so the tick is never the only sign. Each figure says its day on hover.
  */
 const RECORD_KINDS = new Set(['best', 'first']);
 
-function paintTrend(grades, progress) {
+function paintTrend(grades, progress, average) {
   const host = $('p-trend');
+  const note = $('p-trend-note');
   host.replaceChildren();
+  note.replaceChildren();
   host.hidden = grades.length < 2;
   const marks = (progress && progress.marks) || {};
   const run = progress && progress.run && typeof progress.run.count === 'number' ? progress.run : null;
   const inRun = new Set(run ? grades.slice(0, run.count).map((g) => g.id) : []);
+  // The one record the pen ticks: the highest grade main marked as one.
+  let best = null;
+  let bestText = '';
+  const figs = [];
   for (const g of grades.slice().reverse()) {
     const record = (marks[g.id] || []).find((k) => RECORD_KINDS.has(k.kind));
-    const bar = el('div', 'p-bar' + (record ? ' best' : '') + (inRun.has(g.id) ? ' run' : ''));
-    bar.title = `${fmtWhen(g.at)}: ${g.score} (${g.letter})${g.provisional ? ', provisional' : ''}`
-      + (record ? `. ${record.text}` : '')
-      + (inRun.has(g.id) ? `. One of ${run.count} in a row at ${run.floor || 'B'} or better` : '');
-    bar.style.setProperty('--h', Math.max(4, Math.min(100, g.score)) + '%');
-    const fill = el('i', gradeTone(g) + (g.provisional ? ' prov' : ''));
-    bar.append(fill, el('span', null, g.score));
-    host.append(bar);
+    const fig = el('span', 'p-fig' + (record ? ' best' : '') + (inRun.has(g.id) ? ' run' : '') + (g.provisional ? ' prov' : ''), g.score);
+    fig.title = g.provisional ? `${fmtWhen(g.at)}, ${g.letter}, provisional` : `${fmtWhen(g.at)}, ${g.letter}`;
+    if (record && (!best || g.score > Number(best.textContent))) { best = fig; bestText = record.text; }
+    figs.push(fig);
   }
+  if (host.hidden) figs.length = 0;
+  figs.forEach((fig, i) => { if (i) host.append(document.createTextNode(', ')); host.append(fig); });
+  if (best) best.classList.add('ticked');
+  // The tick's fact in words, and the run's: one line, two facts at most.
+  const facts = [];
+  if (best && bestText) facts.push(bestText);
+  if (run && run.count >= 2 && figs.length) {
+    facts.push(say(run.count, { one: '{n} in a row at {floor} or better', other: '{n} in a row at {floor} or better' }, { floor: run.floor || 'B' }));
+  }
+  note.textContent = facts.join(', ');
+  note.hidden = !facts.length;
+  $('p-avg').hidden = average === null || average === undefined;
+  $('p-avg-num').textContent = $('p-avg').hidden ? '' : average;
+  $('p-figs').hidden = host.hidden && $('p-avg').hidden;
+  $('p-figs-label').textContent = host.hidden ? 'Your average grade' : 'Your grades, oldest first';
+  if (best) pen(best, 'tick', bestText || best.textContent, 'above');
 }
 
+/*
+ * THE FOUR CATEGORIES AS A COMPACT RULED TABLE (8.8), the review's shape: a
+ * row each, its average in the margin as the grades' average is, its name in
+ * the column, and its last match at the row's end, each figure in a column of
+ * its own so they read down. It was four big numbers side by side, the stat
+ * row four sheets drew alike.
+ */
 function paintCats(cats) {
   const host = $('p-cats');
   host.replaceChildren();
   host.hidden = !cats.length;
+  if (!cats.length) return;
+  const head = el('div', 'p-cat p-cat-head');
+  head.setAttribute('role', 'row');
+  for (const [t, cls] of [['Average', 'p-cat-num p-cat-avg'], ['Category', 'p-cat-name'], ['Last match', 'p-cat-num p-cat-last']]) {
+    const th = el('span', cls, t);
+    th.setAttribute('role', 'columnheader');
+    head.append(th);
+  }
+  host.append(head);
   for (const c of cats) {
-    const box = el('div', 'p-cat');
-    box.append(el('b', null, c.average), el('span', null, c.label));
-    box.append(el('small', null, `last match ${c.last}`));
-    host.append(box);
+    const r = el('div', 'p-cat');
+    r.setAttribute('role', 'row');
+    const avg = el('span', 'p-cat-num p-cat-avg', c.average);
+    avg.setAttribute('role', 'cell');
+    const name = el('span', 'p-cat-name', c.label);
+    name.setAttribute('role', 'rowheader');
+    const last = el('span', 'p-cat-num p-cat-last', c.last);
+    last.setAttribute('role', 'cell');
+    r.append(avg, name, last);
+    host.append(r);
   }
 }
 
@@ -111,29 +157,50 @@ function asItem(p) {
 const TREND_WORDS = { steady: 'steady', rising: 'more often lately', falling: 'less often lately' };
 
 /**
- * How often and which way, as chips beside the title: "2 of 5 recorded
- * matches" across the RECORDED matches (patterns.js), "7 times" in all, then
- * the trend word. Rising is bad news for a mistake and good news for a
+ * HOW OFTEN, IN THE MARGIN (8.8): "2 of 5 recorded matches" across the
+ * RECORDED matches (patterns.js), noted beside the entry as a coach notes a
+ * count. Beside the title, as quiet words and no chips: "7 times" in all,
+ * then the trend word. Rising is bad news for a mistake and good news for a
  * strength.
  */
-function patternChips(p, total, bad) {
-  const box = el('span', 'gv-chips p-chips');
-  box.append(window.GradeView.chip(`${p.matches} of ${total} recorded matches`));
+/** A row's one meta sentence: who in which mode, then where the grade came from. */
+function metaLine(m) {
+  const who = m.map ? m.title : null;
+  const meta = [who && m.mode ? `${who} in ${m.mode}` : who || m.mode || null,
+    m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null]
+    .filter(Boolean).join(', ');
+  return meta.charAt(0).toUpperCase() + meta.slice(1);
+}
+
+function patternCount(p, total) {
+  // The figure alone in the margin, "2 of 5", since the line under the
+  // page's title says the count is over the recorded matches; the whole
+  // sentence for a screen reader and on hover.
+  const whole = say(total, { one: '{m} of {n} recorded match', other: '{m} of {n} recorded matches' }, { m: p.matches });
+  const box = el('span', 'p-count');
+  box.title = whole;
+  const fig = el('span', 'p-count-fig', say(total, { other: '{m} of {n}' }, { m: p.matches }));
+  fig.setAttribute('aria-hidden', 'true');
+  box.append(fig, el('span', 'sr-only', whole));
+  return box;
+}
+function patternChips(p, bad) {
+  const box = el('span', 'p-chips');
   if (typeof p.total === 'number' && p.total > p.matches) {
-    box.append(window.GradeView.chip(`${p.total} ${p.total === 1 ? 'time' : 'times'}`));
+    box.append(el('span', 'p-times', say(p.total, { one: '{n} time', other: '{n} times' })));
   }
   const t = p.trend;
-  if (TREND_WORDS[t]) {
+  // "steady" on every row said nothing (8.8 critique): the word shows only
+  // when a pattern is moving.
+  if (TREND_WORDS[t] && t !== 'steady') {
     const good = t === 'steady' ? null : (t === 'falling') === bad;
-    box.append(el('span', 'gv-chip p-trendword ' + (good === null ? 'steady' : good ? 'better' : 'worse'), TREND_WORDS[t]));
+    box.append(el('span', 'p-trendword ' + (good === null ? 'steady' : good ? 'better' : 'worse'), TREND_WORDS[t]));
   }
   return box;
 }
 
 function paintPatterns(p) {
-  $('p-avg').hidden = p.average === null;
-  $('p-avg-num').textContent = p.average === null ? '' : p.average;
-  paintTrend(p.grades || [], p.progress);
+  paintTrend(p.grades || [], p.progress, p.average);
   paintCats(p.categories || []);
   const host = $('p-lists');
   host.replaceChildren();
@@ -141,15 +208,18 @@ function paintPatterns(p) {
   // match graded from Riot's record alone has a grade and nothing to repeat,
   // since Riot records what happened and never why (patterns.js).
   if (!p.enough) {
-    $('p-sub').textContent = !p.matches ? 'Play two matches and this shows what keeps happening across them.'
-      : p.recorded ? 'One match recorded. After the next one, this shows what repeats.'
+    $('p-sub').textContent = !p.matches ? 'Press Start before your next two matches, and this shows what keeps happening across them.'
+      : p.recorded ? 'One match recorded. Record the next one, and this shows what repeats.'
         : "Your matches so far are graded from Riot's record, which says what happened and not why. "
-          + 'Record two and this shows what repeats.';
+          + 'Record two, and this shows what repeats.';
     return;
   }
   $('p-sub').textContent = p.fromRiot
-    ? `Grades across your last ${p.matches} matches, patterns across the last ${p.recorded} you recorded. A pattern needs two of them to count.`
-    : `Across your last ${p.matches} matches. A pattern needs two of them to count.`;
+    ? say(p.recorded, {
+      one: 'Grades across your last {all} matches, patterns across the {n} you recorded. A pattern needs two of them to count.',
+      other: 'Grades across your last {all} matches, patterns across the last {n} you recorded. A pattern needs two of them to count.',
+    }, { all: p.matches })
+    : say(p.matches, { one: 'Across your last match. A pattern needs two to count.', other: 'Across your last {n} matches. A pattern needs two of them to count.' });
   const view = window.GradeView.insightLists({
     mistakes: p.mistakes.map(asItem),
     strengths: p.strengths.map(asItem),
@@ -165,20 +235,36 @@ function paintPatterns(p) {
     hero: true,
     empty: 'Nothing has repeated across your matches yet.',
   });
-  // Each entry's chips beside its title, in the head of the card or the
-  // closed row alike (GradeView.insightLists draws both as .gv-item).
+  // Each entry's count in the margin and its words beside its title, in the
+  // top mistake and the closed rows alike (GradeView.insightLists draws both
+  // as .gv-item).
   const lists = [['mistakes', true], ['strengths', false], ['missed', true]];
   const blocks = view.querySelectorAll('.gv-block');
   let b = 0;
+  let top = null;
   for (const [key, bad] of lists) {
     if (!p[key].length) continue;
     const nodes = blocks[b++].querySelectorAll('.gv-item');
     nodes.forEach((node, i) => {
       if (!p[key][i]) return;
-      node.querySelector('.gv-item-head').append(patternChips(p[key][i], p.recorded, bad));
+      node.querySelector('.gv-item-head').append(patternChips(p[key][i], bad));
+      const count = patternCount(p[key][i], p.recorded);
+      node.prepend(count);
+      if (node.classList.contains('gv-hero')) top = { node, count, title: p[key][i].title };
     });
   }
   host.append(view);
+  // THE TOP REPEATED MISTAKE, BRACKETED BY THE PEN (8.8): its entry gathered
+  // into one column so the bracket spans title to fix, and its count noted
+  // beside the bracket in the pen's ink. With the tick on the record above,
+  // the page's second and last mark, both still.
+  if (top) {
+    const col = el('div', 'p-col');
+    for (const n of [...top.node.childNodes]) if (n !== top.count) col.append(n);
+    top.node.append(col);
+    top.count.classList.add('pen-fig');
+    pen(col, 'bracket', top.title);
+  }
 }
 
 // ── The breakdown ───────────────────────────────────────────────────────────
@@ -186,7 +272,9 @@ function paintPatterns(p) {
 // review.js gives, that a renderer doing arithmetic is a second place for the
 // numbers to disagree. Formatting a rate as "57%" or "4 of 7" is all it does.
 
-const DOT = '  ·  ';
+// Facts in one line are a list, parted by semicolons (8.8): a middle dot
+// chain is a template's meta line, and some facts carry commas of their own.
+const DOT = '; ';
 const bstate = { dim: {}, queue: {}, sort: {}, open: null };
 let lastBreakdown = null;
 let bOpened = null;      // { id, row, holder } the row open now (toggleRow)
@@ -208,17 +296,17 @@ const COLS = {
     map: [
       col('label', 'Map', 'label'), col('matches', 'Matches', 'int'), col('record', 'Record', 'record'),
       col('winRate', 'Win %', 'rate', { unit: 'matches won' }), col('grade', 'Grade', 'grade'),
-      col('stats.attack', 'Attack', 'rate', { unit: 'attack rounds won', opt: true }),
-      col('stats.defence', 'Defence', 'rate', { unit: 'defence rounds won', opt: true }),
-      col('stats.firstDeath', 'First death', 'rate', { unit: 'rounds', opt: true }),
+      col('stats.attack', 'Attack won', 'rate', { unit: 'attack rounds won', opt: true }),
+      col('stats.defence', 'Defence won', 'rate', { unit: 'defence rounds won', opt: true }),
+      col('stats.firstDeath', 'Died first', 'rate', { unit: 'rounds', opt: true }),
       col('stats.kda', 'K/D/A', 'kda', { opt: true, min: KDA_MIN }),
     ],
     agent: [
       col('label', 'Agent', 'label'), col('matches', 'Matches', 'int'), col('record', 'Record', 'record'),
       col('winRate', 'Win %', 'rate', { unit: 'matches won' }), col('grade', 'Grade', 'grade'),
       col('stats.kda', 'K/D/A', 'kda', { opt: true, min: KDA_MIN }), col('stats.acs', 'ACS', 'avg', { opt: true }),
-      col('stats.firstKill', 'First kill', 'rate', { unit: 'rounds', opt: true }),
-      col('stats.firstDeath', 'First death', 'rate', { unit: 'rounds', opt: true }),
+      col('stats.firstKill', 'Killed first', 'rate', { unit: 'rounds', opt: true }),
+      col('stats.firstDeath', 'Died first', 'rate', { unit: 'rounds', opt: true }),
     ],
   },
   lol: {
@@ -232,7 +320,7 @@ const COLS = {
 };
 
 const get = (o, key) => key.split('.').reduce((v, k) => (v === null || v === undefined ? v : v[k]), o);
-const matchesWord = (n, lol) => `${n} ${lol ? (n === 1 ? 'game' : 'games') : (n === 1 ? 'match' : 'matches')}`;
+const matchesWord = (n, lol) => say(n, lol ? { one: '{n} game', other: '{n} games' } : { one: '{n} match', other: '{n} matches' });
 const signed = (n) => (n > 0 ? `+${n}` : String(n));
 const recordText = (r) => `${r.won}-${r.lost}${r.drawn ? `-${r.drawn}` : ''}`;
 const rateText = (r) => (r.pct !== null ? `${r.pct}% (${r.count} of ${r.n})` : `${r.count} of ${r.n}`);
@@ -379,7 +467,7 @@ function detailLines(gameId, dim, row, dims) {
     const board = [s.acs && s.acs.value !== null ? `ACS ${s.acs.value}` : null, s.adr && s.adr.value !== null ? `ADR ${s.adr.value}` : null,
       kdaLine(s.kda, sample), s.kd && s.kd.value !== null ? `K/D ${s.kd.value.toFixed(2)}` : null,
       s.hs && s.hs.value !== null ? `Headshot ${s.hs.value}%` : null].filter(Boolean);
-    if (board.length) out.push(['Scoreboard', board.join(DOT) + DOT + matchesWord(sample, false)]);
+    if (board.length) out.push(['Scoreboard', `${board.join(DOT)}, over ${matchesWord(sample, false)}`]);
   }
   if (gameId === 'lol') {
     const line = [s.kda && s.kda.value !== null ? `KDA ${s.kda.value.toFixed(2)}` : null,
@@ -396,7 +484,7 @@ function detailLines(gameId, dim, row, dims) {
     if (row.spots.callout) {
       out.push(['Where you die', `${row.spots.callout.spot}, ${row.spots.callout.deaths} of the ${row.spots.callout.placed} deaths the coach placed here`]);
     } else if (row.spots.top && row.spots.top.length) {
-      out.push(['Where you die', row.spots.top.map((t) => `${t.spot} ${t.deaths}`).join(DOT) + `${DOT}of ${row.spots.placed} placed`]);
+      out.push(['Where you die', `${row.spots.top.map((t) => `${t.spot} ${t.deaths}`).join(DOT)}, of the ${row.spots.placed} deaths the coach placed`]);
     }
   }
   // Out of the row's recorded matches: one graded from Riot's record alone
@@ -484,9 +572,8 @@ function emptyLine(b, dim) {
     return `${what} played on other rules${b.game === 'valorant' ? ' (Spike Rush and the like)' : ''}, `
       + `so ${b.left === 1 ? 'it is not' : 'none is'} broken down here.`;
   }
-  return b.game === 'valorant'
-    ? 'Nothing to break down yet. Record a match, or grade your recent matches from Riot below.'
-    : 'Nothing to break down yet.';
+  // One next action: the grading button lives on the Matches page, not here.
+  return 'Nothing to break down yet. Press Start before your next match, and it is counted here once its review is saved.';
 }
 
 /**
@@ -498,13 +585,28 @@ function emptyLine(b, dim) {
  * cut or a queue still does.
  */
 /**
- * THE CUT AND THE QUEUE ARE SEGMENTED CAPSULES (8.7, shared/seg.js): one
+ * THE CUT IS A SEGMENTED CAPSULE (8.7, shared/seg.js), an either/or; the
+ * queues are a filter of secondary rectangles (8.8). In the capsule one
  * thumb slides to the chosen button. occlaraSeg puts the thumb into the row
  * once, so a repaint takes the buttons out and leaves it, where
  * replaceChildren took the thumb with them and the capsule lost its fill.
  */
 function clearButtons(host) {
   for (const b of [...host.querySelectorAll('button')]) b.remove();
+}
+/** Arrow keys move a radiogroup's choice and its focus, Home and End to its ends. */
+function radioKeys(host) {
+  host.addEventListener('keydown', (e) => {
+    const all = [...host.querySelectorAll('[role="radio"]')];
+    const at = all.indexOf(document.activeElement);
+    if (at < 0) return;
+    const next = { ArrowRight: at + 1, ArrowDown: at + 1, ArrowLeft: at - 1, ArrowUp: at - 1, Home: 0, End: all.length - 1 }[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    const to = all[(next + all.length) % all.length];
+    to.focus();
+    to.click();
+  });
 }
 function segment(host) {
   try {
@@ -557,14 +659,29 @@ function drawBreakdown(b) {
   if (queues.length >= 2) {
     // League has no All (breakdown.js lol()): its modes are played on other maps.
     for (const q of b.allQueue === false ? queues : [{ label: 'All', matches: b.total }, ...queues]) {
-      const chip = el('button', 'b-chip', q.label);
+      // A FILTER IS A ROW OF WORDS (8.8, ui.css .opts), not a capsule: the
+      // segmented capsule is for an either/or, and a queue list is a filter.
+      // One choice of several, so a radiogroup: one tab stop, the chosen
+      // queue, and the arrow keys move the choice (queueKeys). The twin
+      // (data-text) holds the word and its count at 600.
+      const on = q.label === b.queue;
+      const chip = el('button', 'b-chip');
+      const word = el('span', null, q.label);
+      chip.dataset.text = `${q.label} ${q.matches}`;
       chip.type = 'button';
       chip.dataset.focus = `queue:${q.label}`;
-      chip.setAttribute('aria-pressed', String(q.label === b.queue));
-      chip.append(el('small', null, q.matches));
-      chip.addEventListener('click', () => { bstate.queue[b.game] = q.label; bstate.open = null; loadBreakdown(); });
+      chip.setAttribute('role', 'radio');
+      chip.setAttribute('aria-checked', String(on));
+      chip.tabIndex = on ? 0 : -1;
+      word.append(el('small', null, q.matches));
+      chip.append(word);
+      chip.addEventListener('click', () => {
+        if (q.label === b.queue) return;
+        bstate.queue[b.game] = q.label; bstate.open = null; loadBreakdown();
+      });
       qHost.append(chip);
     }
+    if (![...qHost.children].some((c) => c.tabIndex === 0) && qHost.firstElementChild) qHost.firstElementChild.tabIndex = 0;
   }
 
   const parts = subParts(b, dim);
@@ -576,7 +693,10 @@ function drawBreakdown(b) {
   const calls = Array.isArray(b.headline) ? b.headline : [];
   for (const h of calls) {
     const card = el('div', 'b-call');
-    card.append(el('span', null, h.title), el('b', null, h.label), el('small', null, h.detail));
+    // "Most played" says of what (8.8 critique): under By map it read as the
+    // map's when it names the agent.
+    const title = h.kind === 'most' && h.dim === 'agent' ? 'Most played agent' : h.kind === 'most' && h.dim === 'map' ? 'Most played map' : h.title;
+    card.append(el('span', null, title), el('b', null, h.label), el('small', null, h.detail));
     hl.append(card);
   }
   hl.hidden = !calls.length;
@@ -698,7 +818,7 @@ function paintBf() {
   const mine = connected && String(s.account || '').trim().toLowerCase() === riotId.toLowerCase();
   const busy = mine && (s.state === 'listing' || s.state === 'waiting' || s.state === 'grading');
   btn.disabled = busy;
-  btn.textContent = !connected ? 'Add your Riot ID' : busy ? 'Grading' : 'Grade my recent matches';
+  btn.textContent = !connected ? 'Add your Riot ID' : busy ? 'Grading…' : 'Grade my recent matches';
   const text = mine && s.state !== 'idle' ? (s.message || '') : '';
   $('bf-status').textContent = text;
   $('bf-status').title = text;
@@ -732,14 +852,25 @@ $('bf-go').addEventListener('click', async () => {
  *   result, "Best in 23", "First A", "3 in a row", "3 without ...". None
  *   while the match is still being checked, since its grade is not yet its own.
  */
-function row(m, gutter, marks) {
+/*
+ * THE ROW HAS A MARGIN (8.8), as a marked up match sheet does: the grade and
+ * the day down the left, in a column of their own so they read down the
+ * list, and the line beside them the place and the result. The agent, the
+ * time, the mode and where the grade came from are the quiet line under it.
+ * `tick` is the one record this list ticks with the pen, the newest, and
+ * `above` the match on the row above, whose top mistake this one may repeat.
+ */
+function row(m, gutter, marks, tick, above) {
   const item = el('div', 'm-item');
   item.setAttribute('role', 'listitem');
   const b = el('button', 'm-row');
   b.type = 'button';
+  const margin = el('div', 'm-margin');
   const main = el('div', 'm-main');
   const top = el('div', 'm-top');
-  top.append(el('span', 'm-title', m.title || 'Unknown'));
+  // The place, the line's first word; the agent where there is no map read.
+  const place = m.map || m.title || 'Unknown';
+  top.append(el('span', 'm-title', place));
   // STILL BEING CHECKED (8.4.1): its result, its top mistake and its grade
   // are the screen's until the review is whole, and Riot's record changes
   // them minutes later, so the row says it is being checked where its grade
@@ -757,22 +888,45 @@ function row(m, gutter, marks) {
     top.append(rrChip);
   }
   item.dataset.id = m.id;
+  let ticked = null;
   if (!checking && Array.isArray(marks)) {
     for (const k of marks) {
       if (!k || typeof k.text !== 'string' || !k.text) continue;
       const mark = el('span', 'm-mark' + (k.kind ? ' ' + k.kind : ''), k.text);
       mark.title = k.text;
+      // The ticked record's words are in the pen's ink (marks.css .pen-note,
+      // the one sheet that names it), inside the mark, which keeps its room.
+      if (tick && !ticked && RECORD_KINDS.has(k.kind)) {
+        ticked = mark;
+        mark.classList.add('ticked');
+        mark.replaceChildren(el('span', 'pen-note', k.text));
+      }
       top.append(mark);
     }
   }
   main.append(top);
-  main.append(el('div', 'm-meta', [fmtWhen(m.at), m.map, m.mode,
-    m.source === 'riot' ? "from Riot's record" : m.verified ? "checked against Riot's record" : null]
-    .filter(Boolean).join('  ·  ')));
+  // ONE SENTENCE OF TWO FACTS AT MOST (8.8): who in which mode, then where
+  // the grade came from. The day and the time are the margin's.
+  // SAID ONCE (8.8 critique): the line shows only where it differs from the
+  // row above's, so four rows of "Jett in Standard, checked against Riot's
+  // record" read once. The words stay in the row for a screen reader's
+  // name of it and the tests; the eye skips them.
+  const meta = metaLine(m);
+  const metaEl = el('div', 'm-meta', meta);
+  if (above && !above.work && metaLine(above) === meta) metaEl.classList.add('same');
+  main.append(metaEl);
   // The top mistake as the row's quiet second line, its label quieter still.
+  // SAID ONCE (8.8): a row whose top mistake is the one the row above it
+  // named says so in three words, rather than every row repeating it.
   if (m.topMistake && !checking) {
     const tm = el('div', 'm-top-mistake');
-    tm.append(el('span', 'm-tm-label', 'Top mistake: '), document.createTextNode(m.topMistake));
+    if (above && !above.work && above.topMistake === m.topMistake) {
+      tm.classList.add('same');
+      tm.textContent = 'Same top mistake';
+      tm.title = `Top mistake: ${m.topMistake}`;
+    } else {
+      tm.append(el('span', 'm-tm-label', 'Top mistake: '), document.createTextNode(m.topMistake));
+    }
     main.append(tm);
   }
 
@@ -785,9 +939,15 @@ function row(m, gutter, marks) {
     grade.append(el('span', 'm-letter ' + (g ? gradeTone(g) + (g.provisional ? ' prov' : '') : 'none'), g ? g.letter : '?'));
     if (g && g.provisional) grade.title = 'Provisional: some of the record was missing';
   }
-  b.append(main, grade);
+  // The day over the time, figures in the margin under the grade.
+  const day = el('time', 'm-date');
+  day.append(el('span', null, fmtDay(m.at)), el('span', 'm-time', fmtTime(m.at)));
+  if (Number.isFinite(new Date(m.at).getTime())) day.setAttribute('datetime', new Date(m.at).toISOString());
+  margin.append(grade, day);
+  b.append(margin, main);
   b.addEventListener('click', () => window.occlara.openReview(m.id));
   item.append(b);
+  if (ticked) item.penTick = ticked;
   const eye = window.LogEye.button(m.aiLog, () => window.occlara.openAiLog(m.id));
   if (eye) item.append(eye);
   else if (gutter) {
@@ -854,18 +1014,23 @@ async function load() {
   host.replaceChildren();
   const eyes = rows.some((m) => m.aiLog === 'kept' || m.aiLog === 'gone');
   const marks = (patterns && patterns.progress && patterns.progress.marks) || {};
-  const painted = rows.map((m) => row(m, eyes, marks[m.id]));
+  // The newest row carrying a record is the one the pen ticks (8.8): one
+  // tick on the list, never one a row.
+  const tickAt = rows.findIndex((m) => !m.work && (marks[m.id] || []).some((k) => k && RECORD_KINDS.has(k.kind)));
+  const painted = rows.map((m, i) => row(m, eyes, marks[m.id], i === tickAt, i ? rows[i - 1] : null));
   for (const r of painted) host.append(r);
-  // THE ROWS RISE ONCE, as this game's list first appears on screen (.rise,
-  // matches.css): 40ms apart, the stagger capped at the eighth row, and only
-  // once the page is shown (embed.js occlaraOnShown), so it is seen. A repaint
-  // after that, a review saved or improved, draws the rows as they are.
-  if (painted.length && host.dataset.risen !== game) {
-    host.dataset.risen = game;
+  for (const r of painted) if (r.penTick) pen(r.penTick, 'tick', r.penTick.textContent);
+  // THE ROWS RISE ONCE, on the page's first entry (ui.css .rise-in, the
+  // shared stagger: 0, 50, 90, 120, 140, 150ms, then 150ms), and only once
+  // the page is shown (embed.js occlaraOnShown), so it is seen. Every later
+  // paint, a visit, a review saved, a change of game, draws the rows as they
+  // are. `.rise` stays as the hook the checks count.
+  if (painted.length && !host.dataset.risen) {
+    host.dataset.risen = '1';
     const rise = () => painted.forEach((r, i) => {
       if (r.parentNode !== host) return;   // painted again meanwhile
-      r.style.setProperty('--i', String(Math.min(i, 8)));
-      r.classList.add('rise');
+      r.style.setProperty('--i', String(Math.min(i, 5)));
+      r.classList.add('rise', 'rise-in');
     });
     if (typeof window.occlaraOnShown === 'function') window.occlaraOnShown(rise); else rise();
   }
@@ -898,8 +1063,10 @@ const SECTION_TITLES = { list: 'Matches', patterns: 'Patterns' };
   const games = window.occlara.games();
   game = (state && state.gameId) || (games[0] && games[0].id) || 'valorant';
   paintTabs(games);
+  // The cut, by map or by agent, is an either/or and keeps the segmented
+  // capsule; the queues are a filter, drawn as secondary rectangles.
   segment($('b-dims'));
-  segment($('b-queues'));
+  radioKeys($('b-queues'));
   await load();
   backfill = await window.occlara.getBackfill().catch(() => null);
   paintBf();

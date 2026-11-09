@@ -29,17 +29,18 @@
 
     <main class="body">
       <form id="fb-form" class="fb-form" novalidate>
+        <!-- One title, the header's (8.8): the page opens on what to do. -->
         <section class="fb-sec fb-lead">
-          <h1 class="fb-hero">What went wrong?</h1>
-          <p class="fb-hint">Tell us in your own words. A picture of it helps us see what you saw.</p>
+          <p class="fb-lead-line">Tell us what went wrong, in your own words. A picture of it helps us see what you saw.</p>
         </section>
 
         <section class="fb-sec" aria-labelledby="fb-kind-label">
-          <span id="fb-kind-label" class="fb-label">Kind</span>
-          <div id="fb-kind" class="seg" role="group" aria-labelledby="fb-kind-label">
-            <button type="button" data-kind="broke" aria-pressed="true">Something broke</button>
-            <button type="button" data-kind="coaching" aria-pressed="false">Wrong coaching</button>
-            <button type="button" data-kind="idea" aria-pressed="false">Idea</button>
+          <span id="fb-kind-label" class="fb-label">What kind of report</span>
+          <!-- Three kinds, so a row of words, not the capsule (8.8). -->
+          <div id="fb-kind" class="opts" role="radiogroup" aria-labelledby="fb-kind-label">
+            <button type="button" role="radio" data-kind="broke" aria-checked="true">Something broke</button>
+            <button type="button" role="radio" data-kind="coaching" aria-checked="false">Wrong coaching</button>
+            <button type="button" role="radio" data-kind="idea" aria-checked="false">An idea</button>
           </div>
         </section>
 
@@ -54,7 +55,7 @@
           <span id="fb-pics-label" class="fb-label">Pictures, up to 3</span>
           <div id="fb-drop" class="fb-drop">
             <p class="fb-drop-line">Drop pictures here or paste them</p>
-            <button id="fb-pick" class="btn btn-ghost sm" type="button">Choose pictures</button>
+            <button id="fb-pick" class="btn btn-secondary sm" type="button">Choose pictures</button>
             <input id="fb-file" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
           </div>
           <ul id="fb-pics" class="fb-pics" hidden></ul>
@@ -86,7 +87,7 @@
           <p id="fb-out" class="fb-hint" hidden></p>
           <div class="fb-actions">
             <button id="fb-send" class="btn btn-primary md" type="submit" disabled>Send report</button>
-            <button id="fb-settings" class="btn btn-ghost md" type="button" hidden>Open Settings</button>
+            <button id="fb-settings" class="btn btn-secondary" type="button" hidden>Open Settings</button>
           </div>
           <p id="fb-said" class="fb-said" aria-live="polite"></p>
         </section>
@@ -98,8 +99,8 @@
         <p id="fb-done-said" class="fb-hint"></p>
         <p class="fb-label">Report <span id="fb-done-id" class="fb-id"></span></p>
         <div class="fb-actions">
-          <button id="fb-again" class="btn btn-ghost md" type="button">Send another</button>
-          <button id="fb-home" class="btn btn-link md" type="button">Back to Home</button>
+          <button id="fb-again" class="btn btn-secondary" type="button">Send another</button>
+          <button id="fb-home" class="btn btn-tertiary" type="button">Back to Home</button>
         </div>
       </section>
     </main>

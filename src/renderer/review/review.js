@@ -72,6 +72,14 @@ function paintObjectives(o) {
  * fact a single line. Its clip has the player a round's has (8.4.4), the death
  * marked where the game's clock put it (index.js clipLolDeaths), and no stills.
  */
+/** What a League game was, as one sentence (8.8): "Middle in Ranked Solo, 31:04". */
+function lolLine(g) {
+  const { role, mode, duration } = g || {};
+  const what = role && mode ? `${role} in ${mode}` : role || mode || '';
+  if (what && duration) return `${what}, ${duration}`;
+  return what || duration || '';
+}
+
 function paintLolDeaths(r) {
   const host = $('r-deaths');
   releaseClips(host);
@@ -85,7 +93,7 @@ function paintLolDeaths(r) {
     head.append(el('span', 'v-rn', `Death ${d.n}`));
     if (d.at) head.append(el('span', 'v-side', d.at));
     box.append(head);
-    const fact = d.fact ? el('p', 'v-look-what', d.fact) : null;
+    const fact = d.fact ? el('p', 'v-look-what t-voice', d.fact) : null;
     if (d.clipUrl) {
       const moment = el('div', 'v-moment');
       const side = el('div', 'v-media');
@@ -140,7 +148,6 @@ function paintSkills(r) {
 
   for (const s of r.scored) {
     const row = el('div', 'skill-row ' + s.verdict);
-    row.append(el('span', 'skill-dot'));
     const body = el('div', 'skill-body');
     body.append(el('div', 'skill-metric', s.metric));
     const delta = typeof s.delta === 'number'
@@ -188,20 +195,14 @@ function paintValorant(r, verdict) {
   $('v-grade').hidden = false;
   paintVerdictStat($('v-stat'), verdict);
   $('v-verdict').classList.toggle('graded', !!verdict);
-  const resultEl = $('v-result');
-  resultEl.textContent = g.result ? g.result.toUpperCase() : 'MATCH REVIEW';
-  resultEl.className = 'v-result' + (g.result === 'Victory' ? ' win' : g.result === 'Defeat' ? ' loss' : '');
-  const score = String(g.score || '').split('-');
-  $('v-score').textContent = score.length === 2 ? `${score[0]} : ${score[1]}` : '';
-  $('v-score').hidden = score.length !== 2;
-  const w = r.watched || {};
-  $('v-meta').textContent = [
-    g.agent, g.map, g.mode,
-    // A match graded after the fact (riot-review.js), which the coach never
-    // watched, says where its facts came from instead of a rounds count.
-    r.source === 'riot' ? "From Riot's record" : null,
-    w.rounds ? `${w.rounds} round${w.rounds === 1 ? '' : 's'} watched` : null,
-  ].filter(Boolean).join('  ·  ');
+  paintResult(g);
+  $('v-meta').textContent = playedLine(g);
+  $('v-meta').hidden = !$('v-meta').textContent;
+  // How the match was read, at the foot (8.8), where it was the third and
+  // fourth fact of a dot joined line: a match graded after the fact
+  // (riot-review.js), which the coach never watched, says where its facts
+  // came from instead of a rounds count.
+  $('v-foot').textContent = footLine(r);
 
   // What Riot's record changed, said out loud. A review whose numbers moved
   // between one look and the next reads as one that cannot decide, unless it
@@ -226,7 +227,7 @@ function paintValorant(r, verdict) {
       : r.aiUnavailable ? 'The coach could not be reached to write this part. Everything else on this page was computed from the match.'
         : '');
   const lines = summary && Array.isArray(r.summaryLines) && r.summaryLines.length ? r.summaryLines : said ? [said] : [];
-  $('v-summary').replaceChildren(...lines.map((line) => el('li', 'v-summary-line', line)));
+  $('v-summary').replaceChildren(...lines.map((line) => el('li', 'v-summary-line t-voice', line)));
   // A focus with no read above it: no empty line between the heading and it.
   $('v-summary').hidden = !lines.length;
   $('v-focus-wrap').hidden = !r.focus;
@@ -235,9 +236,12 @@ function paintValorant(r, verdict) {
   $('v-focus-was').hidden = true;
   $('v-focus-was').textContent = '';
 
+  const proof = proofOf(r);
+  proofShown = proof;
+  paintProof(r, proof);
   paintComps(r);
   paintPatterns(r);
-  paintRounds(r);
+  paintRounds(r, proof);
   paintStudy(r);
 
   const refused = Array.isArray(r.refused) ? r.refused : [];
@@ -272,6 +276,180 @@ function verdictGrade(v) {
 /** The grade's slot with no grade in it (8.7): the words over a dashed rule. */
 function notGraded(text) {
   return el('span', 'vd-none', text);
+}
+
+/*
+ * THE RESULT AND THE SCORE, at the head of the Verdict's line (8.8): the word
+ * as Riot writes it, "Victory", in natural case, where it was set in capitals
+ * and tracked; the ink for a win and --bad for a loss, the word saying which
+ * either way. The score "13 : 11" beside it.
+ */
+function paintResult(g) {
+  const resultEl = $('v-result');
+  resultEl.textContent = g.result || 'Match review';
+  resultEl.className = 'v-result' + (g.result === 'Victory' ? ' win' : g.result === 'Defeat' ? ' loss' : '');
+  const score = String(g.score || '').split('-');
+  $('v-score').textContent = score.length === 2 ? `${score[0]} : ${score[1]}` : '';
+  $('v-score').hidden = score.length !== 2;
+}
+
+/**
+ * What was played, as one sentence of at most two facts (8.8): "Jett on
+ * Abyss, Competitive". Each shape is a whole string, never words joined
+ * round a gap, and a missing part takes its words with it.
+ */
+function playedLine(g) {
+  const { agent, map, mode } = g || {};
+  if (agent && map && mode) return `${agent} on ${map}, ${mode}`;
+  if (agent && map) return `${agent} on ${map}`;
+  if (map && mode) return `${map}, ${mode}`;
+  if (agent && mode) return `${agent}, ${mode}`;
+  return agent || map || mode || '';
+}
+
+/** How the match was read, at the foot: the rounds watched, or Riot's record. */
+function footLine(r) {
+  const n = r && r.watched && Number.isInteger(r.watched.rounds) ? r.watched.rounds : 0;
+  if (r && r.source === 'riot') return "Graded from Riot's record of the match. The coach did not watch it.";
+  if (n === 1) return 'Read silently from 1 round watched. Nothing was shown on your screen while you played.';
+  if (n > 1) return `Read silently from ${n} rounds watched. Nothing was shown on your screen while you played.`;
+  return 'Read silently. Nothing was shown on your screen while you played.';
+}
+
+/*
+ * WHY (8.8, "the coach's notebook"): the two or three rounds that prove the
+ * fix. They are the rounds of the top mistake the list counted, the one
+ * served() opens the rounds of (valorant-review.js withView), so the page
+ * leads with the same rounds it opens below. A review with no focus has no
+ * fix to prove, and one graded from Riot's record alone counts facts, not
+ * mistakes: neither has a Why. Only rounds on the page, in the mistake's
+ * order, three at most. The renderer counts nothing: it picks served rows.
+ */
+let proofShown = null;
+function proofOf(r) {
+  const ins = (r && r.insights) || {};
+  if (!r || !r.focus || r.source === 'riot' || Array.isArray(ins.facts)) return null;
+  const top = Array.isArray(ins.mistakes) ? ins.mistakes[0] : null;
+  if (!top || !Array.isArray(top.rounds)) return null;
+  const byN = new Map((Array.isArray(r.rounds) ? r.rounds : []).filter((c) => c && Number.isInteger(c.n)).map((c) => [c.n, c]));
+  const rounds = [...new Set(top.rounds)].filter((n) => byN.has(n)).slice(0, 3).map((n) => byN.get(n));
+  return rounds.length ? { mistake: top, rounds } : null;
+}
+
+/** The time of the player's death in a round, "0:58" into it, from Riot's record; null where they lived. */
+function deathAt(c) {
+  if (!c || c.died === false || typeof c.deathSec !== 'number' || !Number.isFinite(c.deathSec)) return null;
+  return clockOf(c.deathSec * 1000);
+}
+
+/** What the coach said of a round, for its note under Why: its why, else what the look saw. */
+function proofSaid(c) {
+  if (c.why) return c.why;
+  const f = c.forensics;
+  if (f && f.cause !== 'unclear' && f.what) return f.what;
+  return null;
+}
+
+/*
+ * A NOTE A ROUND: its number and the time of the death in the margin, the
+ * coach's words in the voice where the coach wrote any, its facts as small
+ * type, and one text button that takes the player to the round, playing its
+ * clip where it has one. The lead line under the heading is the mistake's
+ * own title, so the notes read as its evidence.
+ */
+function paintProof(r, proof) {
+  const wrap = $('v-proof-wrap');
+  const list = $('v-proof');
+  const lead = $('v-proof-lead');
+  const pen = window.occlaraPen;
+  if (pen) pen.clear(list);
+  list.replaceChildren();
+  wrap.hidden = !proof;
+  lead.hidden = true;
+  lead.textContent = '';
+  if (!proof) return;
+  if (proof.mistake.title) {
+    lead.textContent = proof.mistake.title;
+    lead.hidden = false;
+  }
+  for (const c of proof.rounds) {
+    const li = el('li', 'v-proof-note');
+    li.dataset.round = String(c.n);
+    li.append(el('span', 'v-proof-n', `R${c.n}`));
+    const at = deathAt(c);
+    if (at) {
+      const t = el('span', 'v-proof-t', at);
+      t.title = `Died ${at} into the round`;
+      li.append(t);
+    }
+    const said = proofSaid(c);
+    if (said) li.append(el('p', 'v-proof-said t-voice', said));
+    const facts = factsOf(c, 'div');
+    if (facts) li.append(facts);
+    const clip = !!(c.forensics && c.forensics.clipUrl);
+    const go = el('button', 'btn btn-tertiary v-proof-go', clip ? `Play round ${c.n}` : `Open round ${c.n}`);
+    go.type = 'button';
+    go.addEventListener('click', () => playRound(c.n, clip));
+    li.append(go);
+    list.append(li);
+  }
+}
+
+/** To a round's row, and its clip played where it has one. */
+function playRound(n, clip) {
+  goRound(n);
+  if (!clip) return;
+  const video = document.querySelector(`#round-${n} video`);
+  if (video && typeof video.play === 'function') {
+    const p = video.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  }
+}
+
+/*
+ * THE PEN ON THE FIRST SCREEN (8.8, shared/marks.js), three marks at most:
+ * the underline under the fix, the bracket down the margin beside Why's
+ * rounds, and the tick by the best category in the grade's table. Each says
+ * a fact the text says too. Still on every paint; drawn in only from
+ * runReveal (draw true), one after the other, and even then marks.js draws
+ * only with motion allowed and coaching known off.
+ */
+const PEN_STEP_MS = 300;
+function penFocus(r, draw) {
+  const pen = window.occlaraPen;
+  if (!pen) return;
+  const focus = $('v-focus');
+  const proofList = $('v-proof');
+  // The first stroke as the letter and the number have faded in, the sound
+  // on the same timer (runReveal); marks.js holds it still under less motion.
+  const start = PEN_AT_MS;
+  let k = 0;
+  const next = () => (draw ? start + PEN_STEP_MS * k++ : 0);
+  if (r && r.focus && !$('v-focus-wrap').hidden) pen.mark(focus, 'underline', { text: r.focus, draw, delay: next(), lines: 'last' });
+  else pen.clear(focus);
+  if (r && proofShown && !$('v-proof-wrap').hidden && proofList.children.length) {
+    pen.mark(proofList, 'bracket', { text: `${r.focus || ''} ${proofShown.rounds.map((c) => c.n).join(' ')}`, draw, delay: next() });
+  } else pen.clear(proofList);
+  const best = bestCategory();
+  for (const name of document.querySelectorAll('#grade-host .gv-cat-name')) if (name !== best) pen.clear(name);
+  if (best) pen.mark(best, 'tick', { text: best.textContent, draw, delay: next() });
+}
+
+/** The best measured category's name in the grade's table, or null with fewer than two measured or a tie. */
+function bestCategory() {
+  const rows = [...document.querySelectorAll('#grade-host .gv-grade.table .gv-cat')].filter((row) => !row.classList.contains('unmeasured'));
+  let best = null;
+  let top = -1;
+  let tie = false;
+  for (const row of rows) {
+    const n = Number((row.querySelector('.gv-cat-score') || {}).textContent);
+    if (!Number.isFinite(n)) continue;
+    if (n > top) { top = n; best = row; tie = false; } else if (n === top) tie = true;
+  }
+  if (rows.length < 2 || !best || tie) return null;
+  best.classList.add('best');
+  best.title = 'Your best category in this match';
+  return best.querySelector('.gv-cat-name');
 }
 
 /*
@@ -422,7 +600,7 @@ function paintAccolades(list) {
     if (!a || typeof a.title !== 'string' || !a.title) continue;
     const li = el('li', 'gv-item good v-accolade');
     const head = el('div', 'gv-item-head');
-    head.append(el('span', 'gv-dot'), el('b', 'gv-item-title', a.title), el('span', 'gv-badge', "Riot's record"));
+    head.append(el('b', 'gv-item-title', a.title), el('span', 'gv-badge', "Riot's record"));
     li.append(head);
     if (typeof a.detail === 'string' && a.detail) li.append(el('p', 'gv-item-detail', a.detail));
     ul.append(li);
@@ -450,7 +628,7 @@ function paintProgress(r) {
     if (focusLine) {
       const was = $('v-focus-was');
       was.textContent = focusLine.text;
-      was.className = 'v-focus-was ' + (focusLine.tone || 'even');
+      was.className = 'v-focus-was pen-note ' + (focusLine.tone || 'even');
       was.hidden = false;
     }
   }).catch(() => {});
@@ -533,6 +711,7 @@ const SAID = {
   firstdeath: ['first-death'], ult: ['ult-held'], postplant: ['postplant', 'postplant-lost'], retake: ['retake'],
 };
 
+const BAD_PATTERN = new Set(['spot', 'early', 'ult']);
 function paintPatterns(r) {
   const ins = r.insights || {};
   const shown = new Set([...(ins.mistakes || []), ...(ins.strengths || []), ...(ins.missed || []), ...(ins.facts || [])]
@@ -543,8 +722,9 @@ function paintPatterns(r) {
   host.replaceChildren();
   host.hidden = !pats.length;
   for (const p of pats) {
-    const row = el('li', 'v-pattern');
-    row.append(el('span', 'v-pattern-dot ' + (p.key || '')), el('span', 'v-pattern-text', p.text));
+    // No dot before it (8.8): a pattern that cost rounds says so in its ink.
+    const row = el('li', 'v-pattern' + (BAD_PATTERN.has(p.key) ? ' bad' : ''));
+    row.append(el('span', 'v-pattern-text', p.text));
     host.append(row);
   }
 }
@@ -643,7 +823,7 @@ function openedFor(r) {
   return opened;
 }
 
-function paintRounds(r) {
+function paintRounds(r, proof) {
   const host = $('v-rounds');
   releaseClips(host);
   host.replaceChildren();
@@ -662,6 +842,14 @@ function paintRounds(r) {
     const row = roundRow(r, c, frames);
     host.append(row);
     if (kept.rounds.has(c.n)) openRow(row);
+  }
+  // THE PEN CIRCLES ONLY THE ROUNDS WHY NAMES (8.8): their numbers in the
+  // margin, still, never drawn in: the sheet is below the fold on the reveal.
+  const pen = window.occlaraPen;
+  if (!pen || !proof) return;
+  for (const c of proof.rounds) {
+    const rn = host.querySelector(`#round-${c.n} .v-rn`);
+    if (rn) pen.mark(rn, 'circle', { text: `R${c.n} ${r.focus || ''}`, draw: false });
   }
 }
 
@@ -684,6 +872,10 @@ function roundRow(r, c, frames) {
   const killerOnly = !f && !why ? killerCardEl(c.killerCard) : null;
   const row = el('article', 'v-round' + (f || why || killerOnly ? '' : ' quiet'));
   row.id = `round-${c.n}`;
+  // The time of the death in the margin beside the number (8.8), from Riot's
+  // record of the round; none where the player lived or the record is not in.
+  const at = deathAt(c);
+  if (at) row.dataset.time = at;
   const head = el('div', 'v-round-head');
   // The number is the row's anchor (8.7): a click brings the row into view
   // and flashes it, as the mistakes' round chips do. Out of the tab order.
@@ -818,7 +1010,7 @@ function factsOf(c, tag) {
     }
     return box;
   }
-  const facts = (Array.isArray(c.facts) ? c.facts : []).join('  ·  ');
+  const facts = (Array.isArray(c.facts) ? c.facts : []).join(', ');
   return facts ? el(tag, 'v-facts', facts) : null;
 }
 
@@ -830,7 +1022,7 @@ function factsOf(c, tag) {
  */
 function whyLine(why, apart) {
   const p = el('p', 'v-why-line' + (apart ? ' apart' : ''));
-  p.append(el('span', 'gv-fix-label', "Coach's read"), el('span', 'v-why', why));
+  p.append(el('span', 'gv-fix-label', "Coach's read"), el('span', 'v-why t-voice', why));
   return p;
 }
 
@@ -1073,9 +1265,9 @@ function look(c, frames, why) {
   advice.append(tag);
   const said = f.cause !== 'unclear' && !!(f.what || f.better);
   if (said) {
-    if (f.what) advice.append(el('p', 'v-look-what', f.what));
+    if (f.what) advice.append(el('p', 'v-look-what t-voice', f.what));
     if (f.better) {
-      const b = el('p', 'v-look-better');
+      const b = el('p', 'v-look-better t-voice');
       b.append(el('span', 'gv-fix-label', 'Better'), document.createTextNode(f.better));
       advice.append(b);
     }
@@ -1252,10 +1444,20 @@ function paintCommon(r, at, verdict) {
   // number, so the card keeps the categories and their evidence (8.7).
   // A Valorant review's header says the letter and the number, or that there
   // is none (8.7, notGraded), so its card is always the categories alone.
-  if (r.grade) gHost.append(window.GradeView.gradeCard(r.grade, { compact: !!verdict || r.kind === 'valorant', reveal: true }));
+  // A VALORANT REVIEW'S IS A RULED TABLE (8.8) under a heading of its own,
+  // after Why: a name, a rule, a number and one line of evidence a row.
+  const table = r.kind === 'valorant';
+  gHost.classList.toggle('block', table && !!r.grade);
+  // With no overall grade (too little measured), the rows are what was
+  // measured, not where a grade that is not there came from (8.8 critique).
+  const graded = !!r.grade && typeof r.grade.score === 'number';
+  if (r.grade && table) gHost.append(el('h3', 'v-grade-title', graded ? 'Where the grade comes from' : 'What was measured'));
+  if (r.grade) gHost.append(window.GradeView.gradeCard(r.grade, { compact: !!verdict || table, table, reveal: true }));
   if (r.insights) {
     iHost.append(window.GradeView.insightLists(r.insights, {
-      hero: true,
+      // The top mistake leads the page as Why (8.8) when it proves the fix,
+      // so here it is a closed row like the rest.
+      hero: r.kind === 'valorant' && proofShown ? 'rows' : true,
       onRound: r.kind === 'valorant' ? goRound : false,
       saidInRound: r.kind === 'valorant' ? saidInRound(r) : null,
       empty: r.kind === 'valorant' && !r.verified
@@ -1298,12 +1500,14 @@ function paintEye(r) {
  * scoreboard fills in once the match is published. Nothing is a loading
  * screen once it has been painted whole, nor a review saved before.
  */
+// A CHECKLIST (8.8): each step says what it checks under its name, so the
+// screen reads as the work being done and not as a spinner with words.
 const BUILD_STEPS = {
   saved: { label: 'Match saved', note: 'Kept in Matches' },
   riot: { label: "Waiting for Riot's record", note: 'Riot publishes a match 1 to 4 minutes after it ends' },
-  deaths: { label: 'Checking your deaths against it' },
-  look: { label: "The coach's look at your deaths" },
-  writing: { label: 'Writing your review' },
+  deaths: { label: 'Checking your deaths against it', note: 'Each death the screen read, against the kill feed and the scoreboard' },
+  look: { label: "The coach's look at your deaths", note: 'The frames before each death, for what went wrong' },
+  writing: { label: 'Writing your review', note: 'The fix for next match, and a note on the rounds that show it' },
 };
 const BUILD_TEXT = {
   riot: { title: 'Checking your match',
@@ -1363,7 +1567,7 @@ function paintBuilding(work) {
     if (state === 'done') mark.append(doneMark());
     const body = el('span', 'b-text');
     body.append(el('span', 'sr-only', `${STEP_SAID[state]}: `), el('b', null, s.label));
-    if (s.note && (state === 'now' || key === 'saved')) body.append(el('small', null, s.note));
+    if (s.note) body.append(el('small', null, s.note));
     li.append(mark, body);
     if (state === 'now') {
       const time = el('span', 'b-time');
@@ -1399,30 +1603,34 @@ function tickBuilding(work) {
 
 /*
  * THE REVEAL (8.7, docs/claude/ui.md "The reveal"): the review the loading
- * screen gives way to arrives in order, once per review in this page's
- * memory. The number counts up, the letter stamps in, the bars fill one after
- * another, the progress chips rise in, and the letter landing is heard
- * (shared/sfx.js 'reveal', or 'best' with a best in the progress). A review
- * opened later, from the library or Home, is painted as it ends.
+ * screen gives way to arrives once per review in this page's memory, and the
+ * coach's pen is its one moment (8.8). The letter and the number fade in over
+ * 200ms (no count up, no stamp), the bars are drawn at their value, and then
+ * the pen draws: the underline under the fix, the bracket by Why's rounds,
+ * the tick by the best category, one after another. The pen's first stroke
+ * is heard (shared/sfx.js 'reveal', or 'best' with a best in the progress),
+ * from the same timer that starts it. A review opened later, from the
+ * library or Home, is painted as it ends, the pen still.
  *
- * The motion is all CSS (review.css, grade-view.css): the page sets the
- * classes and the number to count to, and the count is @property --n through
- * counter(), so no figure is worked out here and the real number stays the
- * text. Nothing reads an animation event (theme.css): the sound is a timer
- * matched to the stamp's delay, and the end is a timer too.
+ * The motion is CSS (review.css, marks.css): the page sets the classes and
+ * the pen's delays. Nothing reads an animation event (theme.css): the sound
+ * is a timer, and the end is a timer too.
  *
  * NOTHING MID MATCH. It runs inside occlaraOnShown (embed.js): a sealed page
  * is never on screen, so a review made whole during the next match waits,
- * its reveal and its sound with it. And main is asked as the letter lands:
- * the sound plays only with sounds on and coaching off
- * (docs/claude/screen-silence.md). A click or a key ends it at once
+ * its reveal and its sound with it. And main is asked as the reveal starts,
+ * so the sound waits on nothing when the pen lands: it plays only with
+ * sounds on and coaching off (docs/claude/screen-silence.md), and marks.js
+ * draws only with coaching known off. A click or a key ends it at once
  * (.reveal-done).
  */
 const revealed = new Set();
-// --t-slow (theme.css): the letter's stamp waits this long, its sound with it.
-const STAMP_MS = 420;
-// Past the chips' rise (review.css, grade-view.css): over, whatever is left.
-const REVEAL_MS = 2000;
+
+// The letter and the number fade in over this long, then the pen starts,
+// and the sound with it.
+const PEN_AT_MS = 200;
+// Past the last stroke (three marks, PEN_STEP_MS apart, --t-pen each): over.
+const REVEAL_MS = 1600;
 let reveal = null;
 
 const lessMotion = () => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1431,7 +1639,7 @@ const lessMotion = () => typeof window.matchMedia === 'function' && window.match
 function startReveal(r, verdict) {
   if (!r.id || revealed.has(r.id)) return;
   revealed.add(r.id);
-  const mine = { id: r.id, verdict, started: false, cued: false, stamp: null, done: null, skip: null };
+  const mine = { id: r.id, verdict, started: false, cued: false, stamp: null, done: null, skip: null, asked: null };
   reveal = mine;
   const shown = typeof window.occlaraOnShown === 'function' ? window.occlaraOnShown : (fn) => fn();
   shown(() => runReveal(mine));
@@ -1443,14 +1651,13 @@ function runReveal(mine) {
   const root = $('vreview');
   root.classList.remove('reveal-done');
   const still = lessMotion();
-  // Counted up only to a whole number, and not when asked for less motion.
-  const score = root.querySelector('.vd-score');
-  if (score && !still && mine.verdict && Number.isInteger(mine.verdict.score)) {
-    score.style.setProperty('--to', String(mine.verdict.score));
-    score.classList.add('counting');
-  }
+  // Main asked now, so the pen's first stroke and its sound share one timer.
+  const state = window.occlara.getState ? Promise.resolve(window.occlara.getState()).catch(() => null) : Promise.resolve(null);
+  const asked = progressAsked && progressAsked.id === mine.id ? progressAsked.asked.catch(() => null) : null;
+  mine.asked = Promise.all([state, asked]);
   root.classList.add('revealing');
-  mine.stamp = setTimeout(() => cueReveal(mine), still ? 0 : STAMP_MS);
+  penFocus(current, true);
+  mine.stamp = setTimeout(() => cueReveal(mine), still ? 0 : PEN_AT_MS);
   mine.done = setTimeout(() => endReveal(mine), still ? 0 : REVEAL_MS);
   mine.skip = () => endReveal(mine);
   document.addEventListener('pointerdown', mine.skip, true);
@@ -1465,26 +1672,21 @@ function unhookReveal(mine) {
   document.removeEventListener('keydown', mine.skip, true);
 }
 
-/** Its end state, now. Ended before the letter landed, it lands now, and is heard now. */
+/** Its end state, now. Ended before the pen landed, it lands now, and is heard now. */
 function endReveal(mine) {
   if (reveal !== mine) return;
   reveal = null;
   unhookReveal(mine);
-  const root = $('vreview');
-  root.classList.add('reveal-done');
-  const score = root.querySelector('.vd-score.counting');
-  if (score) score.classList.remove('counting');
+  $('vreview').classList.add('reveal-done');
   cueReveal(mine);
 }
 
-/** The letter landing, heard: main asked now, and the progress asked with the paint. */
+/** The pen's first stroke, heard: main and the progress were asked as the reveal started. */
 function cueReveal(mine) {
   if (mine.cued || !mine.started) return;
   mine.cued = true;
   clearTimeout(mine.stamp);
-  const state = window.occlara.getState ? Promise.resolve(window.occlara.getState()).catch(() => null) : Promise.resolve(null);
-  const asked = progressAsked && progressAsked.id === mine.id ? progressAsked.asked.catch(() => null) : null;
-  Promise.all([state, asked]).then(([s, p]) => {
+  (mine.asked || Promise.resolve([null, null])).then(([s, p]) => {
     if (!s || s.sounds === false || s.isCoaching !== false) return;
     // Not over the loading screen: the review went back to being built.
     if (!current || current.id !== mine.id || current.work) return;
@@ -1554,8 +1756,11 @@ function paint(r) {
     $('review').hidden = true;
     $('vreview').hidden = false;
     paintValorant(r, verdict);
-    // The Verdict, the strip against the matches before it, then the grade.
-    paintCommon(r, { grade: $('v-prog'), lists: $('v-summary-wrap') }, verdict);
+    // The Verdict, the strip against the matches before it, the fix, Why,
+    // then the grade's table (8.8).
+    paintCommon(r, { grade: $('v-proof-wrap'), lists: $('v-summary-wrap') }, verdict);
+    // The pen, still; the reveal below draws it in.
+    penFocus(r, false);
     paintProgress(r);
     paintRiot(r);
     // Whole at last, it rises in where the loading screen was.
@@ -1580,9 +1785,7 @@ function paint(r) {
 
   const g = r.game || {};
   $('r-champ').textContent = g.champion || 'Your game';
-  // The middot the Valorant line carries, so the two agree.
-  const bits = [g.role, g.mode, g.duration].filter(Boolean);
-  $('r-meta').textContent = bits.join('  ·  ');
+  $('r-meta').textContent = lolLine(g);
 
   paintLolVerdict(verdict);
   paintScores(r.scoreline || {});
@@ -1667,7 +1870,7 @@ function paintLocked(r) {
     resetSections();
     const g = r.game || {};
     $('r-champ').textContent = g.champion || 'Your game';
-    $('r-meta').textContent = [g.role, g.mode, g.duration].filter(Boolean).join('  ·  ');
+    $('r-meta').textContent = lolLine(g);
     paintLolVerdict(null);
     paintScores(r.scoreline || {});
     for (const id of ['r-death-wrap', 'r-deaths-wrap', 'r-moments-wrap', 'r-obj-wrap', 'r-skills-wrap', 'r-next-wrap']) $(id).hidden = true;
@@ -1696,21 +1899,23 @@ function paintLockedValorant(r) {
   $('v-grade').hidden = false;
   $('v-focus-wrap').hidden = true;
   $('v-focus').textContent = '';
+  proofShown = null;
+  paintProof(r, null);
+  penFocus(null, false);
   paintVerdictStat($('v-stat'), null);
   $('v-verdict').classList.remove('graded');
-  const resultEl = $('v-result');
-  resultEl.textContent = g.result ? g.result.toUpperCase() : 'MATCH REVIEW';
-  resultEl.className = 'v-result' + (g.result === 'Victory' ? ' win' : g.result === 'Defeat' ? ' loss' : '');
-  const score = String(g.score || '').split('-');
-  $('v-score').textContent = score.length === 2 ? `${score[0]} : ${score[1]}` : '';
-  $('v-score').hidden = score.length !== 2;
-  $('v-meta').textContent = [g.agent, g.map, g.mode, r.scoreline || r.source === 'riot' ? "From Riot's record" : null].filter(Boolean).join('  ·  ');
+  paintResult(g);
+  $('v-meta').textContent = playedLine(g);
+  $('v-meta').hidden = !$('v-meta').textContent;
+  $('v-foot').textContent = r.scoreline || r.source === 'riot'
+    ? "The numbers are Riot's record of the match. Nothing was shown on your screen while you played."
+    : 'Nothing was shown on your screen while you played.';
   $('v-verified').hidden = true;
   $('v-verified').textContent = '';
   paintStats(r);
   // The comparison under each number is the player's own average, kept: it
   // is Riot's numbers against Riot's numbers, no grade in it.
-  for (const id of ['v-summary-wrap', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap']) $(id).hidden = true;
+  for (const id of ['v-summary-wrap', 'v-rounds-wrap', 'v-study-wrap', 'v-refused-wrap', 'v-proof-wrap']) $(id).hidden = true;
   $('v-rounds').replaceChildren();
 }
 
@@ -1765,12 +1970,36 @@ function closeShare(refocus) {
   if (refocus && !$('share').hidden) $('share').focus();
 }
 
-/** The buttons of one group pressed by the value picked. */
+/**
+ * The options marked by the value picked: a size is a radio of the row of
+ * words (aria-checked, the one picked the only one in the tab order), a
+ * ground a button of the capsule (aria-pressed).
+ */
 function pressOptions() {
   for (const b of $('share-sheet').querySelectorAll('.sh-opt')) {
-    const on = b.dataset.size ? b.dataset.size === share.size : (b.dataset.ground === 'paper') === share.paper;
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (b.dataset.size) {
+      const on = b.dataset.size === share.size;
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+      continue;
+    }
+    b.setAttribute('aria-pressed', (b.dataset.ground === 'paper') === share.paper ? 'true' : 'false');
   }
+}
+
+/** The arrow keys move through the sizes, as a radio group's do, and pick as they go. */
+function sizeKeys(e) {
+  const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+  if (!(e.key in keys)) return;
+  const opts = [...$('share-sheet').querySelectorAll('.sh-opt[data-size]')];
+  const at = opts.findIndex((b) => b.dataset.size === share.size);
+  const to = opts[(at + keys[e.key] + opts.length) % opts.length];
+  if (!to) return;
+  e.preventDefault();
+  share.size = to.dataset.size;
+  pressOptions();
+  to.focus();
+  drawShare();
 }
 
 /** A button's own label swapped for what happened, then back after 1.4 s. */
@@ -1799,6 +2028,8 @@ for (const b of $('share-sheet').querySelectorAll('.sh-opt')) {
     drawShare();
   });
 }
+const sizeGroup = $('share-sheet').querySelector('.sh-words');
+if (sizeGroup) sizeGroup.addEventListener('keydown', sizeKeys);
 $('share').addEventListener('click', () => (shareOpen() ? closeShare(false) : openShare()));
 $('sh-close').addEventListener('click', () => closeShare(true));
 $('sh-save').addEventListener('click', () => {

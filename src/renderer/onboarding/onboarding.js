@@ -20,9 +20,23 @@ let index = 0;
 // (.active). The buttons and their state are untouched. Guarded on
 // MutationObserver, which the offline DOM the tests run the page in does
 // not have; there the chosen button draws its own fill (onboarding.css).
-for (const id of ['advanced', 'ob-res']) {
+// The size is three choices, a row of text options since 8.8, so only the
+// Advanced coaching switch, a real either or, keeps the capsule.
+for (const id of ['advanced']) {
   const el = document.getElementById(id);
   if (el && typeof window.occlaraSeg === 'function' && typeof MutationObserver === 'function') window.occlaraSeg(el);
+}
+// THE PEN ON THE SAMPLE (8.8): the tick beside the best category and the
+// underline under the fix for the repeated mistake, the two marks a review carries, laid
+// still (draw is never asked here: only the review's reveal draws). The page
+// is hidden at load, so each mark measures nothing yet; marks.js lays it
+// again where the text is once the page shows (its ResizeObserver). Laid
+// before the first call to main, so the page is marked with no bridge too.
+if (window.occlaraPen) {
+  const best = document.getElementById('obr-best');
+  const fix = document.getElementById('obr-fix');
+  if (best) window.occlaraPen.mark(best, 'tick', { text: 'Impact', draw: false });
+  if (fix) window.occlaraPen.mark(fix, 'underline', { draw: false, lines: 'last' });
 }
 // THE RIOT ID PAGE IS ABOUT ONE RIOT ID: the one in the field. Connect
 // connects one (connectedId, '' until it does), the line under the field is
@@ -47,6 +61,9 @@ const dots = pages.map((_, i) => {
   d.type = 'button';
   d.title = `Step ${i + 1}`;
   d.addEventListener('click', () => go(i));
+  // The first step is lit from the first paint, before go(0) at the end of
+  // this file runs (8.8 critique: a shot caught it with no step lit).
+  if (i === 0) d.classList.add('active');
   dotsEl.append(d);
   return d;
 });
@@ -67,8 +84,11 @@ function go(next) {
   // ONE RED BUTTON A PAGE. On the Riot ID page Connect is the action until a
   // Riot ID connects, so until then the footer is the quiet way out rather
   // than a second red button recommending the skip; after it, Let's go is.
+  // The one that is not the action steps down to the quiet rectangle (8.8).
   nextBtn.classList.toggle('btn-primary', !last || connected);
+  nextBtn.classList.toggle('btn-secondary', last && !connected);
   connectBtn.classList.toggle('btn-primary', !connected);
+  connectBtn.classList.toggle('btn-secondary', connected);
   // The PC check runs as its page opens, once (checkPc).
   if (pages[index] && pages[index].id === 'ob-watch') checkPc();
 }
@@ -508,7 +528,8 @@ function paintBackfill(s) {
     row.setAttribute('role', 'listitem');
     const name = document.createElement('span');
     name.className = 'ob-bf-name';
-    name.textContent = [x.map, x.agent].filter(Boolean).join('  ·  ') || 'Match';
+    // One whole phrase, never two names joined by a dot (8.8).
+    name.textContent = x.agent && x.map ? `${x.agent} on ${x.map}` : x.map || x.agent || 'Match';
     const res = document.createElement('span');
     res.className = 'ob-bf-res' + (/vict/i.test(x.result || '') ? ' win' : /defeat/i.test(x.result || '') ? ' loss' : '');
     res.textContent = x.status === 'failed' ? 'Not fetched' : [x.result, x.score].filter(Boolean).join(' ');
@@ -605,3 +626,4 @@ if (window.initI18n) window.initI18n().catch(() => {});
 
 go(0);
 console.log('[onboarding] ready');
+

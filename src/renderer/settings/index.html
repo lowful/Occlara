@@ -33,6 +33,21 @@
          player relies on is gone. No group is a box: a hairline above each one
          and the dark between them do the grouping. -->
     <div class="body">
+      <!-- THE SECTION INDEX (8.8, the coach's notebook): the thirteen groups
+           sit in four sections, Recording, Coaching, Account and App, and the
+           margin names them, the one in view marked. A click scrolls to its
+           section (settings.js wireIndex). Every control and id below is as
+           it was. -->
+      <nav class="set-index" id="set-index" aria-label="Settings sections">
+        <button type="button" class="set-index-link" data-to="set-recording" aria-current="true">Recording</button>
+        <button type="button" class="set-index-link" data-to="set-coaching">Coaching</button>
+        <button type="button" class="set-index-link" data-to="set-account">Account</button>
+        <button type="button" class="set-index-link" data-to="set-app">App</button>
+      </nav>
+
+      <div class="set-col">
+      <section class="set-section" id="set-recording" aria-labelledby="set-recording-title">
+      <h2 class="set-title" id="set-recording-title">Recording</h2>
       <!-- No paragraph about what Occlara is (8.7): the Recording screen says
            it, and the first group owns this page. -->
       <section class="group first">
@@ -41,12 +56,12 @@
             <h3 data-i18n="settings.tipFrequency" id="capture-title">Capture speed</h3>
             <p class="hint">Faster reads catch more of every fight. Auto keeps up by itself.</p>
           </div>
-          <div class="seg ctl" id="capturespeed">
+          <div class="opts ctl" id="capturespeed" aria-labelledby="capture-title">
             <button data-val="auto">Auto</button>
-            <button data-val="1000">1s</button>
-            <button data-val="2000">2s</button>
-            <button data-val="3000">3s</button>
-            <button data-val="5000">5s</button>
+            <button data-val="1000">1&nbsp;s</button>
+            <button data-val="2000">2&nbsp;s</button>
+            <button data-val="3000">3&nbsp;s</button>
+            <button data-val="5000">5&nbsp;s</button>
           </div>
         </div>
         <details class="more">
@@ -69,13 +84,14 @@
           <div class="row-text">
             <h3>Record match video</h3>
             <p class="hint">Recorded on this PC, so the review can show a clip of each moment. The video never leaves this PC.</p>
+            <p class="hint">480p is the lightest, at 15 frames a second, and its death moments are less sharp.</p>
           </div>
           <div class="ctl ctl-pair">
             <div class="seg" id="recording">
               <button data-val="auto">On</button>
               <button data-val="off">Off</button>
             </div>
-            <div class="seg rec-res" id="recordingres">
+            <div class="opts rec-res" id="recordingres" aria-label="Recording size">
               <button data-val="480" title="The lightest: 15 frames a second, and the death moments are less sharp.">480p</button>
               <button data-val="720">720p</button>
               <button data-val="1080">1080p</button>
@@ -87,7 +103,7 @@
           <p class="hint" id="rec-hint"></p>
         </details>
         <p class="rec-note" id="rec-note" aria-live="polite" hidden></p>
-        <button id="rec-retry" class="btn btn-ghost sm rec-retry" type="button" hidden>Try again</button>
+        <button id="rec-retry" class="btn btn-secondary sm rec-retry" type="button" hidden>Try again</button>
         <div class="rec-clips">
           <div class="row">
             <div class="row-text">
@@ -98,56 +114,16 @@
               <p class="hint rec-cap-hint">Space the clips may take together. Past it, the oldest reviews lose their clips first and keep their frames and facts.</p>
             </div>
             <div class="ctl ctl-pair">
-              <div class="seg rec-cap" id="clipcap">
-                <button data-val="5">5 GB</button>
-                <button data-val="10">10 GB</button>
-                <button data-val="20">20 GB</button>
-                <button data-val="50">50 GB</button>
+              <div class="opts rec-cap" id="clipcap" aria-label="Space for clips">
+                <button data-val="5">5&nbsp;GB</button>
+                <button data-val="10">10&nbsp;GB</button>
+                <button data-val="20">20&nbsp;GB</button>
+                <button data-val="50">50&nbsp;GB</button>
               </div>
-              <button id="clip-clear" class="btn btn-ghost sm rec-clear" type="button" disabled>Clear clips</button>
+              <button id="clip-clear" class="btn btn-secondary sm rec-clear" type="button" disabled>Clear clips</button>
             </div>
           </div>
         </div>
-      </section>
-
-      <section class="group">
-        <div class="row">
-          <div class="row-text">
-            <h3 data-i18n="settings.riotId">Riot ID</h3>
-            <p class="hint">Name#TAG of the account you play Valorant on. A full grade needs it.</p>
-          </div>
-        </div>
-        <div class="riot-row">
-          <input id="riotid" class="input riot-input" type="text" placeholder="PlayerName#TAG"
-                 maxlength="40" autocomplete="off" spellcheck="false" />
-          <button id="trk-connect" class="btn trk-btn" data-i18n="settings.connect">Connect</button>
-        </div>
-        <details class="more">
-          <summary>What Riot's record adds</summary>
-          <p class="hint">Riot's record of each match checks every death the screen read, adds who killed you and when, and counts trades and clutches.</p>
-        </details>
-        <p id="trk-status" class="trk-status" hidden></p>
-        <!-- The grading Connect starts (backfill.js), followed as main pushes
-             it, and the library it fills once it has graded something. -->
-        <p id="bf-status" class="trk-status" aria-live="polite" hidden></p>
-        <button id="bf-open" class="btn btn-link bf-open" type="button" hidden>Open Matches</button>
-      </section>
-
-      <section class="group">
-        <div class="row">
-          <div class="row-text">
-            <h3>Advanced coaching</h3>
-            <p class="hint">Deeper coaching that fits your rank: damage breakpoints, utility timings and reads across rounds, never advice meant for a rank above yours.</p>
-          </div>
-          <div class="seg ctl" id="advanced">
-            <button data-val="on">On</button>
-            <button data-val="off">Off</button>
-          </div>
-        </div>
-        <details class="more">
-          <summary>What stays in either way</summary>
-          <p class="hint">Fundamentals always stay in, and they take over when a match shows you dying on repeat.</p>
-        </details>
       </section>
 
       <section class="group">
@@ -180,104 +156,48 @@
         </div>
       </section>
 
-      <!-- THE ACCOUNT (8.7): who is signed in, the plan, the games left and
-           the account key, every line as main hands it (account-service.js
-           view, usage.js), the key copied by main. Signed in through the
-           browser it ends on Sign out; on a licence key alone it offers the
-           browser sign in, the key working on either way. -->
-      <section class="group account" id="acct" aria-labelledby="acct-title">
-        <div class="row"><div class="row-text"><h3 id="acct-title">Account</h3></div></div>
-        <div class="kvs">
-          <div class="kv" id="acct-email-row" hidden><span>Email</span><span id="acct-email" class="acct-val"></span></div>
-          <div class="kv" id="acct-tier-row" hidden><span>Plan</span><b id="acct-tier"></b></div>
-          <div class="kv" id="acct-games-row" hidden><span>Games</span><span id="acct-games" class="acct-val"></span></div>
-          <div class="kv" id="acct-key-row" hidden>
-            <span>Account key</span>
-            <span class="acct-key-wrap">
-              <span id="acct-key" class="acct-key"></span>
-              <button id="acct-copy" class="btn btn-ghost sm" type="button">Copy</button>
-            </span>
-          </div>
-        </div>
-        <p id="acct-out" class="hint acct-out" hidden>Sign in with your browser to see your games and invite friends. Your licence key keeps working.</p>
-        <p id="acct-wait" class="acct-wait" aria-live="polite" hidden>Continue in your browser. This page updates once you have signed in.</p>
-        <p id="acct-error" class="trk-status err" hidden></p>
-        <div class="acct-actions">
-          <button id="acct-signin" class="btn btn-primary sm" type="button" hidden>Sign in with your browser</button>
-          <button id="acct-cancel" class="btn btn-ghost sm" type="button" hidden>Cancel</button>
-          <button id="acct-manage" class="btn btn-ghost sm" type="button">Manage plan</button>
-          <button id="acct-upgrade" class="btn btn-ghost sm" type="button" hidden>Upgrade</button>
-          <button id="acct-invite" class="btn btn-ghost sm" type="button">Invite friends</button>
-          <button id="acct-signout" class="btn btn-ghost sm danger" type="button" hidden>Sign out</button>
-        </div>
-        <p id="acct-said" class="sr-only" aria-live="polite"></p>
       </section>
 
-      <section class="group license" id="lic">
-        <div class="row"><div class="row-text"><h3>License</h3></div></div>
-        <div class="kvs">
-          <div class="kv"><span>Plan</span><b id="lic-plan">·</b></div>
-          <div class="kv"><span>Status</span><span id="lic-status" class="badge">·</span></div>
-          <div class="kv"><span>Expires</span><b id="lic-expiry">·</b></div>
-        </div>
-        <p id="lic-ended" class="lic-ended" hidden></p>
-      </section>
-
-      <!-- Language lives at the bottom, with the other set-once settings. It is
-           changed rarely, so it does not earn a spot above the controls players
-           actually tune between matches. -->
-      <section class="group">
+      <section class="set-section" id="set-coaching" aria-labelledby="set-coaching-title">
+      <h2 class="set-title" id="set-coaching-title">Coaching</h2>
+      <section class="group first">
         <div class="row">
           <div class="row-text">
-            <h3 data-i18n="common.language">Language</h3>
-            <p class="hint" data-i18n="common.languageHint">Coaching tips and the app appear in this language.</p>
-          </div>
-          <div class="ctl ctl-pair lang-ctl">
-            <div id="language" class="lang-select"></div>
-            <button id="lang-save" class="btn btn-ghost sm trk-btn" data-i18n="common.save" disabled>Save</button>
+            <h3 data-i18n="settings.riotId">Riot ID</h3>
+            <p class="hint">Name#TAG of the account you play Valorant on. A full grade needs it.</p>
           </div>
         </div>
-        <p class="hint" id="language-note" hidden></p>
-        <p id="lang-status" class="trk-status" hidden></p>
-      </section>
-
-      <section class="group">
-        <div class="row"><div class="row-text"><h3>Hotkeys</h3></div></div>
-        <div class="kvs">
-          <div class="kv"><span>Open your last review</span><kbd>Ctrl+Shift+E</kbd></div>
-          <div class="kv"><span>Open Matches</span><kbd>Ctrl+Shift+H</kbd></div>
-          <div class="kv"><span>Hide or show Occlara</span><kbd>Ctrl+Shift+M</kbd></div>
-          <div class="kv"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
-          <div class="kv"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
+        <div class="riot-row">
+          <input id="riotid" class="input riot-input" type="text" placeholder="PlayerName#TAG"
+                 maxlength="40" autocomplete="off" spellcheck="false" />
+          <button id="trk-connect" class="btn btn-secondary trk-btn" data-i18n="settings.connect">Connect</button>
         </div>
-      </section>
-
-      <!-- WHAT'S NEW AND THE COMMUNITY: two ruled rows, each one line and its
-           capsule. What's new is a page of the window (the changelog), the
-           Discord opens in the browser by main, exactly config.js
-           DISCORD_URL, never mid match. -->
-      <section class="group">
-        <div class="row">
-          <div class="row-text">
-            <h3>What's new in Occlara</h3>
-            <p class="hint">What changed in each version, newest first.</p>
-          </div>
-          <div class="ctl">
-            <button id="whatsnew-open" class="btn btn-ghost sm" type="button">See what's new</button>
-          </div>
-        </div>
+        <details class="more">
+          <summary>What Riot's record adds</summary>
+          <p class="hint">Riot's record of each match checks every death the screen read, adds who killed you and when, and counts trades and clutches.</p>
+        </details>
+        <p id="trk-status" class="trk-status" hidden></p>
+        <!-- The grading Connect starts (backfill.js), followed as main pushes
+             it, and the library it fills once it has graded something. -->
+        <p id="bf-status" class="trk-status" aria-live="polite" hidden></p>
+        <button id="bf-open" class="btn btn-tertiary bf-open" type="button" hidden>Open Matches</button>
       </section>
 
       <section class="group">
         <div class="row">
           <div class="row-text">
-            <h3>Community</h3>
-            <p class="hint">Talk with other players and tell us what to build next.</p>
+            <h3>Advanced coaching</h3>
+            <p class="hint">Deeper coaching that fits your rank: damage breakpoints, utility timings and reads across rounds, never advice meant for a rank above yours.</p>
           </div>
-          <div class="ctl">
-            <button id="discord-open" class="btn btn-ghost sm" type="button">Join the Discord</button>
+          <div class="seg ctl" id="advanced">
+            <button data-val="on">On</button>
+            <button data-val="off">Off</button>
           </div>
         </div>
+        <details class="more">
+          <summary>What stays in either way</summary>
+          <p class="hint">Fundamentals always stay in, and they take over when a match shows you dying on repeat.</p>
+        </details>
       </section>
 
       <!-- ADVANCED. The frame log is the raw material of every review, and the
@@ -294,13 +214,121 @@
               <button data-val="on">On</button>
               <button data-val="off">Off</button>
             </div>
-            <button id="open-ailog" class="btn btn-ghost sm trk-btn ailog-open">Open the AI log</button>
+            <button id="open-ailog" class="btn btn-secondary sm trk-btn ailog-open">Open the AI log</button>
           </div>
         </div>
         <details class="more">
           <summary>Why the review needs it</summary>
           <p class="hint">The review goes back to these to look at the moment before a death, so with this off the review has no frames to show. Sealed while a match is in progress.</p>
         </details>
+      </section>
+
+      </section>
+
+      <section class="set-section" id="set-account" aria-labelledby="set-account-title">
+      <h2 class="set-title" id="set-account-title">Account</h2>
+      <!-- THE ACCOUNT (8.7): who is signed in, the plan, the games left and
+           the account key, every line as main hands it (account-service.js
+           view, usage.js), the key copied by main. Signed in through the
+           browser it ends on Sign out; on a licence key alone it offers the
+           browser sign in, the key working on either way. -->
+      <section class="group first account" id="acct" aria-labelledby="acct-title">
+        <div class="row"><div class="row-text"><h3 id="acct-title">Your account</h3></div></div>
+        <div class="kvs">
+          <div class="kv" id="acct-email-row" hidden><span>Email</span><span id="acct-email" class="acct-val"></span></div>
+          <div class="kv" id="acct-tier-row" hidden><span>Plan</span><b id="acct-tier"></b></div>
+          <div class="kv" id="acct-games-row" hidden><span>Games</span><span id="acct-games" class="acct-val"></span></div>
+          <div class="kv" id="acct-key-row" hidden>
+            <span>Account key</span>
+            <span class="acct-key-wrap">
+              <span id="acct-key" class="acct-key"></span>
+              <button id="acct-copy" class="btn btn-tertiary acct-copy" type="button">Copy</button>
+            </span>
+          </div>
+        </div>
+        <p id="acct-out" class="hint acct-out" hidden>Sign in with your browser to see your games and invite friends. Your licence key keeps working.</p>
+        <p id="acct-wait" class="acct-wait" aria-live="polite" hidden>Continue in your browser. This page updates once you have signed in.</p>
+        <p id="acct-error" class="trk-status err" hidden></p>
+        <div class="acct-actions">
+          <button id="acct-signin" class="btn btn-primary sm" type="button" hidden>Sign in with your browser</button>
+          <button id="acct-cancel" class="btn btn-tertiary" type="button" hidden>Cancel</button>
+          <button id="acct-manage" class="btn btn-secondary sm" type="button">Manage plan</button>
+          <button id="acct-upgrade" class="btn btn-secondary sm" type="button" hidden>Upgrade</button>
+          <button id="acct-invite" class="btn btn-secondary sm" type="button">Invite friends</button>
+          <button id="acct-signout" class="btn btn-tertiary danger" type="button" hidden>Sign out</button>
+        </div>
+        <p id="acct-said" class="sr-only" aria-live="polite"></p>
+      </section>
+
+      <section class="group license" id="lic">
+        <div class="row"><div class="row-text"><h3>License</h3></div></div>
+        <div class="kvs">
+          <div class="kv"><span>Plan</span><b id="lic-plan">Not activated</b></div>
+          <div class="kv"><span>Status</span><span id="lic-status" class="badge">Not activated</span></div>
+          <div class="kv"><span>Expires</span><b id="lic-expiry">Not activated</b></div>
+        </div>
+        <p id="lic-ended" class="lic-ended" hidden></p>
+      </section>
+
+      </section>
+
+      <section class="set-section" id="set-app" aria-labelledby="set-app-title">
+      <h2 class="set-title" id="set-app-title">App</h2>
+      <!-- Language lives at the bottom, with the other set-once settings. It is
+           changed rarely, so it does not earn a spot above the controls players
+           actually tune between matches. -->
+      <section class="group first">
+        <div class="row">
+          <div class="row-text">
+            <h3 data-i18n="common.language">Language</h3>
+            <p class="hint" data-i18n="common.languageHint">Coaching tips and the app appear in this language.</p>
+          </div>
+          <div class="ctl ctl-pair lang-ctl">
+            <div id="language" class="lang-select"></div>
+            <button id="lang-save" class="btn btn-secondary sm trk-btn" data-i18n="common.save" disabled>Save</button>
+          </div>
+        </div>
+        <p class="hint" id="language-note" hidden></p>
+        <p id="lang-status" class="trk-status" hidden></p>
+      </section>
+
+      <section class="group">
+        <div class="row"><div class="row-text"><h3>Hotkeys</h3></div></div>
+        <div class="kvs">
+          <div class="kv"><span>Open your last review</span><kbd>Ctrl+Shift+E</kbd></div>
+          <div class="kv"><span>Open Matches</span><kbd>Ctrl+Shift+H</kbd></div>
+          <div class="kv"><span>Hide or show Occlara</span><kbd>Ctrl+Shift+M</kbd></div>
+          <div class="kv"><span>Pause or resume</span><kbd>Ctrl+Shift+P</kbd></div>
+          <div class="kv"><span>Open Settings</span><kbd>Ctrl+Shift+S</kbd></div>
+        </div>
+      </section>
+
+      <!-- WHAT'S NEW AND THE COMMUNITY: two ruled rows, each one line and its
+           capsule. What's new is a page of the window (the changelog), the
+           Discord opens in the browser by main, exactly config.js
+           DISCORD_URL, never mid match. -->
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3>What's new in Occlara</h3>
+            <p class="hint">What changed in each version, newest first.</p>
+          </div>
+          <div class="ctl">
+            <button id="whatsnew-open" class="btn btn-secondary sm" type="button">See what's new</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="group">
+        <div class="row">
+          <div class="row-text">
+            <h3>Community</h3>
+            <p class="hint">Talk with other players and tell us what to build next.</p>
+          </div>
+          <div class="ctl">
+            <button id="discord-open" class="btn btn-secondary sm" type="button">Join the Discord</button>
+          </div>
+        </div>
       </section>
 
       <section class="wip">
@@ -319,19 +347,22 @@
              is never translated or reworded. -->
         <p class="wip-line legal" id="legal-riot">Occlara isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p>
       </section>
+      </section>
+      </div>
     </div>
 
-    <!-- Quiet capsules: the plan and the way out, no longer a bank of full
-         width buttons under every page. -->
+    <!-- Quiet rectangles (8.8): the plan and Quit, Log out in words, no
+         longer a bank of full width buttons under every page. -->
     <footer>
       <div class="footer-actions">
-        <button id="purchase" class="btn btn-ghost sm" data-i18n="settings.manageSub">Manage subscription</button>
-        <button id="logout" class="btn btn-ghost sm danger" data-i18n="settings.logOut">Log out</button>
+        <button id="purchase" class="btn btn-secondary sm" data-i18n="settings.manageSub">Manage subscription</button>
+        <button id="logout" class="btn btn-tertiary danger" data-i18n="settings.logOut">Log out</button>
       </div>
-      <button id="quit" class="btn btn-ghost sm">Quit</button>
+      <button id="quit" class="btn btn-secondary sm">Quit</button>
     </footer>
   </div>
 
+  <script src="../shared/intl.js"></script>
   <script src="../shared/dropdown.js"></script>
   <script src="../shared/seg.js"></script>
   <script src="../shared/i18n-apply.js"></script>

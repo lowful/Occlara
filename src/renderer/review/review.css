@@ -1,12 +1,16 @@
 /* The post-game review. Reports a finished game and never comments on one in
    progress, which is the whole shape of the feature.
 
-   THE TRAINING LOG (8.7 redesign): one ruled column. Nothing on the page is a
-   card: the Verdict is the hero, set large on the dark ground, and every group
-   under it is a heading, then rows parted by the hairline (--line). Controls
-   are the only tactile objects (ui.css capsules). The reveal is the one
-   authored motion, and it runs only after the loading screen, never mid
-   match (review.js startReveal). */
+   THE COACH'S NOTEBOOK (8.8): a marked up match sheet. A Valorant review
+   has a narrow left margin (--margin-w) that holds the agent's icon, "Next
+   match", round numbers and times; the column beside it holds the
+   sentences. Nothing on the page is a card: every group is a heading, then
+   rows parted by the hairline (--line), and the rows' rules run under the
+   margin too, as a sheet's do. The coach's own words are the voice, set by
+   role in Geist (shared/ui.css .t-fix and .t-voice), and the pen marks the fix and the rounds that prove it,
+   one to three marks on a screen. The reveal is the one authored motion,
+   and it runs only after the loading screen, never mid match
+   (review.js startReveal). */
 
 /* The DOCUMENT never scrolls; .body does. Without a height here the sheet's
    calc(100% - 20px) resolved against an auto height, the sheet grew to its
@@ -27,7 +31,10 @@ header {
   border-bottom: 1px solid var(--line);
 }
 .h-brand { display: flex; align-items: center; gap: var(--space-2); flex: 1; min-width: 0; }
-.h-brand h2 { font-size: 13px; font-weight: 600; letter-spacing: -0.1px; }
+.h-brand h2 { font-size: var(--fs-label); font-weight: 600; letter-spacing: 0; }
+/* The way back sits after the title, a text button and not a peer of the
+   actions (8.8): 24px off the title, as an unrelated control is. */
+.h-brand #matches { margin-left: var(--space-6); font-size: var(--fs-label); }
 
 .body {
   flex: 1; overflow-y: auto;
@@ -44,7 +51,11 @@ header {
 /* A section heading: Geist 15/600, the ink, no capitals and no index. */
 .block h3, .v-more > summary h3 { font-size: 15px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; color: var(--text); margin: 0; }
 .hint { font-size: 13px; color: var(--text-mute); line-height: 1.5; margin: 0; }
-.empty { font-size: 14px; color: var(--text-mute); line-height: 1.55; }
+/* No review yet (8.8): the heading is the next move, one line under it. */
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding-top: var(--space-6); max-width: 60ch; }
+.empty[hidden] { display: none; }
+.empty-title { margin: 0; font-size: var(--fs-h2); font-weight: 600; line-height: 1.2; letter-spacing: var(--track-display); color: var(--text); text-wrap: balance; }
+.empty-line { margin: 0; font-size: var(--fs-ui); line-height: 1.55; color: var(--text-dim); text-wrap: pretty; }
 
 /* ── League: what was played, the scoreline, the lists ───────────────────── */
 .ident { display: flex; flex-direction: column; gap: 4px; }
@@ -87,17 +98,17 @@ header {
 
 .skill-row { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-2) 0; }
 .skill-row + .skill-row { border-top: 1px solid var(--line); }
-/* The dot carries the verdict as a POSITION and a colour, never colour alone. */
-.skill-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; margin-top: 7px; background: var(--text-mute); }
-.skill-row.pass .skill-dot { background: var(--good); }
-.skill-row.fail .skill-dot { background: var(--bad); }
+/* No dot before it (8.8): the measure's own words take the verdict's ink,
+   and the number under it says the sign. */
 .skill-body { flex: 1; min-width: 0; }
 .skill-metric { font-size: 14px; font-weight: 500; color: var(--text); }
+.skill-row.pass .skill-metric { color: var(--good); }
+.skill-row.fail .skill-metric { color: var(--bad); }
 .skill-num { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
 
 /* Work on this next: the title large, the mistake under it, one primary. */
 .next-card { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
-.next-title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+.next-title { font-size: var(--fs-heading); font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
 .l-mistake { font-size: 14px; color: var(--text-dim); line-height: 1.5; margin: 0; }
 
 /* The refusal list, "What this review cannot tell you". Deliberately quiet:
@@ -128,7 +139,8 @@ header {
 .vd-who { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .vd-icon {
   flex: 0 0 36px; width: 36px; height: 36px; overflow: hidden;
-  border-radius: var(--r-card); border: 1px solid var(--line); background: var(--bg-2);
+  border-radius: var(--r-card); background: var(--bg-2);
+  outline: 1px solid var(--image-outline); outline-offset: -1px;
 }
 .vd-icon[hidden] { display: none; }
 .vd-icon-img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -136,12 +148,11 @@ header {
 /* The letter large in its tone (GradeView.gradeTone), the number beside it,
    so the colour is never the only signal. Geist 600, figures one width. */
 .vd-grade { flex: none; display: flex; align-items: flex-end; gap: var(--space-4); }
-/* The letter at 64 and the number at 28 (8.7): the fix under them is the one
-   44px line on the page, so the grade is read first and the fix is read
-   largest. */
+/* The letter at the display size and the number at 24: the grade is read
+   first, and the fix under it is the largest sentence on the page. */
 .vd-letter {
-  font-family: var(--font); font-size: 64px; font-weight: 600; line-height: 0.8;
-  letter-spacing: -0.04em; color: var(--text);
+  font-family: var(--font); font-size: var(--fs-display); font-weight: 600; line-height: 0.8;
+  letter-spacing: var(--track-hero); color: var(--text);
 }
 /* ONE HEADER FOR EVERY STATE (8.7): a review with no grade to show, locked
    or measured too little, keeps the slot the letter takes, a dashed rule
@@ -160,7 +171,7 @@ header {
 .vd-num { display: flex; flex-direction: column; gap: 4px; padding-bottom: 4px; }
 .vd-num-line { display: flex; align-items: baseline; gap: 4px; }
 .vd-score {
-  font-family: var(--font); font-size: 28px; font-weight: 600; line-height: 0.9;
+  font-family: var(--font); font-size: var(--fs-h2); font-weight: 600; line-height: 1;
   letter-spacing: -0.02em; color: var(--text); font-variant-numeric: tabular-nums;
 }
 .vd-out, .vd-prov {
@@ -170,37 +181,14 @@ header {
 /* A provisional grade says so in form as well: a dashed rule under its number. */
 .vd-prov { font-family: var(--font); font-size: 12px; }
 .vd-grade:has(.vd-prov) .vd-num-line { border-bottom: 1px dashed var(--text-mute); padding-bottom: 4px; }
-/* THE REVEAL (8.7, review.js startReveal): once, as the loading screen gives
-   way, and only on screen. The number counts up over --t-slow twice, the
-   letter stamps in after --t-slow on the spring, the standout rises in as the
-   letter lands, then the bars fill and the progress lines rise (grade-view.css).
-   The count is CSS alone: an integer --n run from 0 to --to, which the page
-   sets, and drawn by counter() over the real number, which stays the text,
-   there for a test or a screen reader. .reveal-done, a click or a key or the
-   clock, is the end state at once. Nothing reads an animation event
-   (theme.css). Transform and opacity only, so nothing moves around them. */
-@property --n { syntax: '<integer>'; initial-value: 0; inherits: false; }
-.vd-score.counting { position: relative; color: transparent; counter-reset: n var(--n); }
-.vd-score.counting::after { content: counter(n); position: absolute; top: 0; right: 0; color: var(--text); }
-#vreview.revealing:not(.reveal-done) .vd-score.counting {
-  animation: vdCount calc(var(--t-slow) * 2) var(--ease-expo) both;
-}
-#vreview.revealing:not(.reveal-done) .vd-letter {
-  animation: vdStamp var(--t-slow) var(--ease-spring) both;
-  animation-delay: var(--t-slow);
-}
-#vreview.revealing:not(.reveal-done) .vd-stat {
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
-  animation-delay: calc(var(--t-slow) * 1.5);
-}
-@keyframes vdCount { from { --n: 0; } to { --n: var(--to); } }
-@keyframes vdStamp {
-  from { opacity: 0; transform: scale(1.35); }
-  to   { opacity: 1; transform: scale(1); }
-}
-/* Less motion: no count (review.js), and nothing waits. */
-@media (prefers-reduced-motion: reduce) {
-  #vreview.revealing:not(.reveal-done) .vd-letter, #vreview.revealing:not(.reveal-done) .vd-stat { animation-delay: 0s; transition-delay: 0s; }
+/* THE REVEAL (8.8, review.js startReveal): once, as the loading screen gives
+   way, and only on screen. The pen is its one moment: the letter and the
+   number fade in over 200ms, with no count up and no stamp, the bars are
+   drawn at their value, and then the pen draws (marks.css). .reveal-done, a
+   click or a key or the clock, is the end state at once. Opacity alone here,
+   so nothing moves round the pen. */
+#vreview.revealing:not(.reveal-done) .vd-grade {
+  animation: fadeIn 200ms var(--ease-out) both;
 }
 .vd-said { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 /* The standout (verdict.js stat), as on the share image: its value in Geist
@@ -211,13 +199,14 @@ header {
 }
 .vd-stat[hidden] { display: none; }
 .vd-stat-value {
-  font-size: 28px; font-weight: 600; line-height: 1; letter-spacing: -0.02em;
+  font-size: var(--fs-h2); font-weight: 600; line-height: 1; letter-spacing: -0.02em;
   color: var(--text); font-variant-numeric: tabular-nums;
 }
-.vd-stat-label { font-size: 15px; font-weight: 500; line-height: 1.3; color: var(--text-dim); text-wrap: pretty; }
-/* The result, as the page writes it (VICTORY, DEFEAT): a short label, the ink
-   for a win and --bad for a loss, with the word saying which either way. */
-.v-result { font-size: 12px; font-weight: 500; letter-spacing: 0.08em; color: var(--text-mute); }
+.vd-stat-label { font-size: var(--fs-body); font-weight: 500; line-height: 1.3; color: var(--text-dim); text-wrap: pretty; }
+/* The result, as Riot writes it ("Victory", "Defeat", 8.8: in natural case,
+   never in capitals): the ink for a win and --bad for a loss, with the word
+   saying which either way. */
+.v-result { font-size: var(--fs-body); font-weight: 600; line-height: 1.3; color: var(--text-dim); }
 .v-result.win  { color: var(--text); }
 .v-result.loss { color: var(--bad); }
 /* The result's corner with the RR chip before it (8.7.9, review.js paintRiot). */
@@ -258,19 +247,23 @@ header {
 .v-against-note { font-size: 12px; line-height: 1.4; color: var(--text-mute); margin: 0; text-align: right; max-width: 300px; }
 
 /* Riot's record was applied. Quiet, because it is a reassurance, not news. */
-.v-verified {
-  margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-dim);
-  display: flex; gap: 8px; align-items: baseline;
-}
-.v-verified::before {
-  content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%;
-  background: var(--good); transform: translateY(-1px);
-}
+.v-verified { margin: 0; font-size: var(--fs-label); line-height: 1.45; color: var(--text-dim); max-width: 68ch; text-wrap: pretty; }
 .v-verified[hidden] { display: none; }
 
 /* This match against the ones before it: one quiet line straight under the
    Verdict's rule (grade-view.css .gv-progs), pulled up to it. */
 .v-prog { margin-top: calc(var(--space-10) * -1 + var(--space-4)); }
+#vreview > .v-prog { margin-top: calc(var(--space-10) * -1 + var(--space-5)); }
+.v-prog[hidden] { display: none; }
+/* ONE SENTENCE, TWO FACTS AT MOST (8.8 critique): three green lines under
+   the header read as toasts. On the review the comparisons run as one line
+   in the body ink, the first two sentences said; only the word of
+   a best or a drop keeps its tone, and never alone (the words say it). */
+#vreview .v-prog .gv-progs { display: block; }
+#vreview .v-prog .gv-prog { display: inline; font-weight: var(--w-body); color: var(--text-dim); }
+#vreview .v-prog .gv-prog:nth-child(n + 3) { display: none; }
+#vreview .v-prog .gv-prog + .gv-prog::before { content: ' '; }
+#vreview .v-prog .gv-prog:first-child.good { color: var(--good); }
 
 /* The two halves of the rounds list, each headed by its side (paintRounds):
    the heading is the label every section uses, over the ruled rows. */
@@ -279,25 +272,44 @@ header {
 
 /* The coach's read in short lines (8.7), a sentence a line. */
 .v-summary { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.v-summary-line { font-size: 15px; line-height: 1.55; color: var(--text); text-wrap: pretty; max-width: 72ch; }
-/* THE FIX FOR NEXT MATCH IS THE HERO (8.7): Home's own 44px line, under the
-   Verdict's row and over the numbers, with how last match's top mistake went
-   above it. No arrow, no box: the size is the emphasis. */
-.v-focus { padding-top: var(--space-5); border-top: 1px solid var(--line); }
+.v-summary-line { color: var(--text); text-wrap: pretty; }
+/* THE FIX FOR NEXT MATCH (8.8): the one line in the voice, the largest on
+   the page, with the pen's underline. "Next match" sits in the margin beside
+   its first line, and last match's top mistake is the pen's short note at
+   its other side (progress.js focus), where it was a stray line above it.
+   No arrow, no box: the size and the pen are the emphasis. */
+.v-focus {
+  position: relative;
+  display: grid; grid-template-columns: minmax(0, max-content) minmax(160px, 220px);
+  justify-content: start; align-items: start; column-gap: var(--space-10);
+}
 .v-focus[hidden] { display: none; }
-.v-focus-label { font-size: 12px; font-weight: 500; color: var(--text-mute); margin-bottom: var(--space-2); }
+.v-focus-label {
+  position: absolute; left: calc(var(--m) * -1); top: 14px; width: calc(var(--m) - var(--space-3));
+  font-size: 12px; font-weight: var(--w-label); line-height: 1.3; color: var(--text-mute);
+  text-wrap: balance;
+}
 .v-focus-text {
-  font-size: 44px; font-weight: 600; line-height: 1.05; letter-spacing: -0.03em;
-  color: var(--text); margin: 0; text-wrap: pretty;
+  font-size: var(--fs-fix); margin: 0; max-width: 26ch;
+  /* Lines as long as the measure allows, so the pen underlines two or
+     three of them and not six: pretty, not .t-fix's balance. */
+  text-wrap: pretty;
+  /* Room under the last line for the pen's underline, clear of what follows. */
+  padding-bottom: var(--space-2);
 }
+/* The pen's underline under it (shared/marks.js) draws in on the reveal and
+   is whole the moment the reveal is: a click, a key or the clock. */
+#vreview.reveal-done .pen.drawing .pen-stroke { animation: none; stroke-dashoffset: 0; opacity: 0.92; }
+#vreview.reveal-done .pen.drawing .pen-stroke.pen-pass { opacity: 0.5; }
+/* Last match's top mistake, the pen's note in the fix's outer margin: the
+   ink and the size are marks.css's .pen-note, the words say the sign. Set
+   by the fix's first line, as a note in a sheet's margin is. */
 .v-focus-was {
-  display: flex; align-items: baseline; gap: 8px;
-  margin: 0 0 var(--space-3);
-  font-size: 13px; line-height: 1.45; color: var(--text-dim);
+  margin: 12px 0 0;
+  max-width: 28ch;
+  text-wrap: pretty;
 }
-.v-focus-was::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); transform: translateY(-1px); }
-.v-focus-was.good::before { background: var(--good); }
-.v-focus-was.bad::before { background: var(--bad); }
+.v-focus-was[hidden] { display: none; }
 
 /* Both team comps (8.5.0): one quiet line under the legend, agents only. */
 .v-comps { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
@@ -305,9 +317,9 @@ header {
 
 /* What the numbers say about the rounds, under the strip they describe. */
 .v-patterns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.v-pattern { display: flex; align-items: baseline; gap: var(--space-2); font-size: 13px; line-height: 1.5; color: var(--text-dim); }
-.v-pattern-dot { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--text-mute); transform: translateY(-2px); }
-.v-pattern-dot.spot, .v-pattern-dot.early, .v-pattern-dot.ult { background: var(--bad); }
+.v-pattern { font-size: var(--fs-label); line-height: 1.5; color: var(--text-dim); max-width: 68ch; text-wrap: pretty; }
+/* A pattern that cost rounds in the full ink, no dot before it (8.8). */
+.v-pattern.bad { color: var(--text); }
 
 /* ── Every round, once (8.3.1) ──────────────────────────────────────────────
    A row a round, hairlines between, no frame round the list. A round with
@@ -323,8 +335,12 @@ header {
 }
 .v-round:last-child { border-bottom: 1px solid var(--line); }
 .v-round.quiet { padding-top: var(--space-2); padding-bottom: var(--space-2); }
-.v-round:focus-visible { outline-offset: 4px; }
-.v-round.flash { animation: vflash calc(var(--t-slow) * 3) var(--ease); }
+/* A round is never tabbed to (tabindex -1): it takes focus only as the target
+   of a jump (flashTo), so the reader starts there. It shows that by a step
+   of ground, not a hard ring round the whole round (8.8 critique: a browser
+   box around a marked up sheet); the pen's circle on its number says which. */
+.v-round:focus-visible { outline: none; background-color: var(--bg-2); }
+.v-round.flash { animation: vflash var(--t-med) ease; }
 @keyframes vflash {
   0%   { background-color: rgba(255, 255, 255, 0.06); }
   100% { background-color: transparent; }
@@ -339,7 +355,7 @@ header {
   font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
-.v-rn:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-radius: 2px; }
+.v-rn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 /* Won or lost by its mark as well as its word: a filled square for a won
    round, a hollow one for a lost, the strip's own cells in small. */
 .v-chip { flex: none; min-width: 44px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--text-dim); }
@@ -387,14 +403,15 @@ header {
    review.js), out and back. */
 .v-shot img {
   width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
-  border-radius: var(--r-card); border: 1px solid var(--line);
-  cursor: zoom-in; background: #000;
+  border-radius: var(--r-card);
+  outline: 1px solid var(--image-outline); outline-offset: -1px;
+  cursor: zoom-in; background: var(--bg);
   transform-origin: 0 0;
-  transition: transform var(--t-med) var(--ease-expo);
+  transition: transform var(--t-med) var(--ease-out);
 }
 .v-shot.zoom { grid-column: 1 / -1; }
 .v-shot.zoom img { object-fit: contain; cursor: zoom-out; }
-.v-shot figcaption { font-size: 11px; color: var(--text-mute); }
+.v-shot figcaption { font-size: var(--fs-caption); color: var(--text-mute); }
 .v-look-what { font-size: 14px; line-height: 1.55; color: var(--text-dim); margin: 0; }
 .v-look-better { font-size: 14px; line-height: 1.55; color: var(--text); margin: 0; }
 
@@ -413,7 +430,8 @@ header {
 .v-round-body > .v-killer:first-child { border-top: 0; padding-top: var(--space-2); }
 .v-killer-face {
   width: 56px; height: 56px; flex: 0 0 56px;
-  border-radius: var(--r-card); border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  outline: 1px solid var(--image-outline); outline-offset: -1px;
   object-fit: cover; background: rgba(255, 255, 255, 0.035);
 }
 .v-killer-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
@@ -422,7 +440,7 @@ header {
 .v-killer-gun { display: flex; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--text-dim); }
 .v-killer-gun-icon { height: 16px; width: auto; max-width: 72px; object-fit: contain; opacity: 0.9; }
 .v-killer-dmg { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: 0 0 auto; text-align: right; }
-.v-killer-dmg-n { font-size: 28px; font-weight: 600; line-height: var(--lh-display); letter-spacing: var(--track-display); color: var(--text); font-variant-numeric: tabular-nums; }
+.v-killer-dmg-n { font-size: var(--fs-h2); font-weight: 600; line-height: var(--lh-display); letter-spacing: var(--track-display); color: var(--text); font-variant-numeric: tabular-nums; }
 .v-killer-hits { display: flex; gap: var(--space-3); margin-top: var(--space-1); }
 .v-killer-hit { display: flex; align-items: baseline; gap: 4px; }
 .v-killer-hit-n { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--text); }
@@ -446,12 +464,140 @@ header {
   .v-round.flash, .v-shot img { transition: none; animation: none; }
 }
 
+/* ── THE NOTEBOOK (8.8): a Valorant review as a marked up match sheet ──────
+   The column starts after the margin (--m, --margin-w); what sits in the
+   margin hangs into it from its own row: the agent's icon, "Next match", the
+   rounds' numbers and times. League's review keeps its own column. */
+#vreview { --m: var(--margin-w); padding-left: var(--m); }
+
+/* THE VERDICT ON ONE LINE: the icon in the margin, then the result and the
+   score, the letter and the number, the standout, each after a hairline. */
+#vreview .vd { gap: var(--space-3); padding: var(--space-2) 0 var(--space-6); }
+.vd-line {
+  position: relative;
+  display: flex; align-items: center; flex-wrap: wrap;
+  row-gap: var(--space-4); min-height: 56px;
+}
+.vd-line > .vd-icon {
+  position: absolute; left: calc(var(--m) * -1); top: 50%;
+  width: 44px; height: 44px; margin-top: -22px;
+}
+.vd-line > .vd-end { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.vd-result-line { display: flex; align-items: baseline; gap: var(--space-3); }
+.vd-line .v-score { font-size: var(--fs-h2); line-height: 1; }
+/* Grouped by space alone (8.8 critique): the hairlines between result,
+   grade and standout made a dashboard stat strip. */
+.vd-line > .vd-grade-host, .vd-line > .vd-stat {
+  margin-left: var(--space-10); padding-left: 0;
+  border-left: 0;
+  min-height: 56px; align-items: center;
+}
+.vd-line > .vd-grade-host { align-items: center; }
+.vd-line .vd-grade { align-items: center; }
+.vd-line .vd-letter { font-size: var(--fs-display); line-height: 0.85; letter-spacing: var(--track-hero); }
+.vd-line .vd-none { padding-bottom: 6px; }
+.vd-line > .vd-stat { flex: 1 1 200px; min-width: 0; flex-wrap: nowrap; align-items: center; }
+.vd-line .vd-stat-label { max-width: 26ch; font-weight: var(--w-body); }
+#vreview .v-meta { font-size: var(--fs-label); line-height: 1.45; color: var(--text-dim); }
+#vreview .v-meta[hidden] { display: none; }
+
+/* RIOT'S SCOREBOARD, WRITTEN (8.8): no columns of figures over labels, which
+   were tiles by another name, but one line read left to right, the figure
+   in the ink, its label dim, how it compares in its tone after it, and a
+   wide space between one and the next. */
+#vreview .v-stats-wrap {
+  flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: var(--space-2);
+  /* Grouped by space under the line about the match, no hairline above. */
+  padding-top: var(--space-2); margin-top: 0; border-top: 0;
+}
+#vreview .v-stats { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-6); }
+#vreview .v-stat { flex-direction: row; align-items: baseline; gap: 6px; padding: 0; border-left: 0; }
+#vreview .v-stat-value { font-size: var(--fs-body); font-weight: 600; line-height: 1.3; letter-spacing: 0; }
+#vreview .v-stat-label { font-size: var(--fs-label); font-weight: var(--w-body); color: var(--text-dim); }
+#vreview .v-stat-vs { font-weight: 400; }
+#vreview .v-against-note { text-align: left; max-width: 68ch; }
+
+/* WHY: the rounds that prove the fix, a note each, the number and the time
+   of the death in the margin, the coach's words in the voice when there are
+   any, the round's facts in small type, and a way to watch it. The pen's
+   bracket sits in the margin's inner edge, beside the notes. */
+.v-proof-lead { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text-dim); max-width: 68ch; text-wrap: pretty; }
+.v-proof-lead[hidden] { display: none; }
+.v-proof-list { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: flex; flex-direction: column; }
+.v-proof-note {
+  position: relative;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+.v-proof-note:last-child { border-bottom: 1px solid var(--line); }
+.v-proof-n, .v-proof-t {
+  position: absolute; left: calc(var(--m) * -1);
+  font-family: var(--font-mono); font-weight: 400; font-variant-numeric: tabular-nums; line-height: 1.5;
+}
+.v-proof-n { top: var(--space-3); font-size: var(--fs-label); font-weight: 500; color: var(--text); }
+.v-proof-t { top: calc(var(--space-3) + 20px); font-size: var(--fs-caption); color: var(--text-mute); }
+.v-proof-note .v-tags { row-gap: 2px; }
+.v-proof-note .btn-tertiary { margin-top: 2px; font-size: var(--fs-label); }
+
+/* THE COACH'S WORDS ARE THE VOICE: the read, a round's why, what the look saw
+   and the better play, each .t-voice (shared/ui.css), Geist 400 on a 1.55
+   line in the full ink. Only the words: a label beside them stays 500. */
+.v-summary-line { font-size: var(--fs-voice); line-height: var(--lh-body); max-width: 65ch; }
+.v-proof-said { margin: 0; }
+#vreview .v-why-line { font-size: var(--fs-voice); line-height: var(--lh-body); max-width: 65ch; }
+#vreview .v-look-what, #vreview .v-look-better { font-size: var(--fs-voice); line-height: var(--lh-body); color: var(--text); }
+.v-look-better .gv-fix-label, .v-why-line .gv-fix-label { font-size: var(--fs-caption); font-weight: var(--w-label); }
+
+/* The grade's table under its own heading (paintCommon), the pen's tick
+   by its best category in the margin (grade-view.css .gv-cat.best). */
+#grade-host.block { gap: var(--space-3); }
+.v-grade-title { margin: 0; }
+
+/* ROUND BY ROUND, THE SHEET: each row's rule runs under the margin as a
+   sheet's lines do; the number and the time of the death sit in the margin,
+   the result, the side and the facts in the column. --pt is the row's top
+   padding, so the margin lines up with the row's first line however the row
+   is folded. */
+#vreview .v-rounds { margin-left: calc(var(--m) * -1); }
+#vreview .v-half-side { padding-left: var(--m); }
+#vreview .v-round { --pt: var(--space-3); position: relative; padding-left: var(--m); padding-top: var(--pt); }
+#vreview .v-round.quiet, #vreview .v-round.fold:not(.open) { --pt: var(--space-2); }
+#vreview .v-rn {
+  position: absolute; left: 0; top: var(--pt);
+  min-width: 0; height: 24px; line-height: 24px;
+}
+#vreview .v-round[data-time]::before {
+  content: attr(data-time);
+  position: absolute; left: 34px; top: var(--pt);
+  height: 24px; line-height: 24px;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 400; color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+/* The facts as small type: the label's size in the quiet ink, a death's
+   words a step up, the icon carrying the tone. */
+#vreview .v-tag { font-size: 12px; color: var(--text-mute); }
+#vreview .v-tag.bad { color: var(--text-dim); }
+#vreview .v-chip { font-size: 12px; }
+
+@media (max-width: 620px) {
+  #vreview { --m: 52px; }
+  .vd-line > .vd-icon { width: 36px; height: 36px; margin-top: -18px; }
+  .vd-line > .vd-grade-host, .vd-line > .vd-stat { margin-left: var(--space-5); padding-left: var(--space-5); }
+  .vd-line > .vd-stat { flex-basis: 100%; margin-left: 0; padding-left: 0; border-left: 0; }
+  .v-focus { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-3); }
+  #vreview .v-round[data-time]::before { display: none; }
+  .vd-line .vd-letter { font-size: 48px; }
+}
+
 /* ── A review still being built (8.4.1) ─────────────────────────────────────
-   The Recording screen's shape (shell.css .sealed): the mark, a title, a line,
-   then one ruled row a step, centred in the page. Each step says its state by
-   its mark as well as its colour (a check, a dot, a ring), and the one under
-   way carries the time since the match ended, ticking once a second: that
-   clock is what says the work goes on.
+   Left aligned in the page's column (8.8), where it was centred under the
+   mark: a title, a line, then a checklist, one ruled row a step. Each step
+   says its state by its mark as well as its colour (a tick, a filled box, an
+   empty box), what it checks under its name, and the one under way carries
+   the time since the match ended, ticking once a second: that clock is what
+   says the work goes on.
 
    NOTHING ON IT MOVES FOR LONG. The mark turned and the step's dot breathed,
    and while it did the page was composited every frame, and the look at the
@@ -461,24 +607,21 @@ header {
    this screen still it took 0.7 s. So the screen rises in once, as every
    page's content does, and is still after that. */
 .building {
-  flex: 1 0 auto;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: var(--space-4);
-  padding: var(--space-8) 0;
-  text-align: center;
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
+  display: flex; flex-direction: column; align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-6) 0 0;
+  max-width: 560px;
+  animation: riseIn var(--t-slow) var(--ease-out) both;
 }
-.b-mark { width: 56px; height: 56px; margin-bottom: var(--space-1); }
-.b-title { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); color: var(--text); }
-.b-sub { max-width: 480px; margin: 0; font-size: 14px; line-height: 1.55; color: var(--text-dim); }
+.b-title { margin: 0; font-size: var(--fs-h2); font-weight: 600; line-height: 1.2; letter-spacing: var(--track-display); color: var(--text); text-wrap: balance; }
+.b-sub { margin: 0; font-size: 14px; font-weight: var(--w-body); line-height: 1.55; color: var(--text-dim); text-wrap: pretty; }
 .b-steps {
-  list-style: none; margin: var(--space-2) 0 0; padding: 0;
-  width: 100%; max-width: 480px;
+  list-style: none; margin: var(--space-5) 0 0; padding: 0;
+  width: 100%;
   display: flex; flex-direction: column;
-  text-align: left;
 }
 .b-step {
-  display: flex; align-items: center; gap: var(--space-3);
+  display: flex; align-items: flex-start; gap: var(--space-3);
   padding: var(--space-3) 0;
   border-top: 1px solid var(--line);
   font-size: 14px; line-height: 1.45; color: var(--text-mute);
@@ -486,32 +629,33 @@ header {
 .b-step:last-child { border-bottom: 1px solid var(--line); }
 .b-step.done { color: var(--text-dim); }
 .b-step.now { color: var(--text); }
-.b-state { flex: none; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; }
+/* The box of a checklist: empty for a step to come, filled with the ink for
+   the one under way, ticked in --good once done. */
+.b-state { flex: none; width: 16px; height: 20px; display: flex; align-items: center; justify-content: center; }
 .b-state svg { width: 16px; height: 16px; color: var(--good); }
-.b-step.now .b-state::before {
-  content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--text);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
-}
-.b-step.next .b-state::before {
-  content: ''; width: 8px; height: 8px; border-radius: 50%;
+.b-step.now .b-state::before, .b-step.next .b-state::before {
+  content: ''; width: 11px; height: 11px; border-radius: 3px;
   border: 1.5px solid var(--text-mute);
 }
+.b-step.now .b-state::before { border-color: var(--text); background: var(--text); }
 .b-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.b-text b { font-weight: 600; }
-.b-text small { font-size: 12px; line-height: 1.4; color: var(--text-mute); }
+.b-text b { font-weight: var(--w-label); }
+.b-step.now .b-text b { font-weight: 600; }
+.b-text small { font-size: var(--fs-label); font-weight: var(--w-body); line-height: 1.45; color: var(--text-mute); }
 .b-time {
-  flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+  flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500; line-height: 20px;
   color: var(--text-dim); font-variant-numeric: tabular-nums;
 }
-.b-foot { max-width: 480px; margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-mute); }
+.b-foot { margin: var(--space-2) 0 0; font-size: 13px; line-height: 1.5; color: var(--text-mute); text-wrap: pretty; }
+.b-foot:empty { display: none; }
 /* Whole at last, the review rises in where the loading screen was. */
-#vreview.v-arrive { animation: riseIn var(--t-slow) var(--ease-expo) both; }
+#vreview.v-arrive { animation: riseIn var(--t-slow) var(--ease-out) both; }
 @media (prefers-reduced-motion: reduce) {
   .building, #vreview.v-arrive { animation: none; }
 }
 
 /* ── Every game: the grade, the lists, the header actions ───────────────── */
-.h-actions { display: flex; align-items: center; gap: var(--space-2); }
+.h-actions { display: flex; align-items: center; gap: var(--space-3); }
 /* The eye stands as tall as the small buttons beside it. */
 .eye-host { display: flex; }
 .eye-host[hidden] { display: none; }
@@ -528,8 +672,8 @@ header {
   border-radius: var(--r-sm); cursor: pointer;
 }
 .v-shot-go img { cursor: pointer; }
-.v-shot-go:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
-.v-shot.shown img { border-color: var(--text); }
+.v-shot-go:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.v-shot.shown img { outline-color: var(--text); }
 .v-shot.shown figcaption { color: var(--text); }
 
 /* A clip the cap or Settings took: said where it was, quietly. */
@@ -571,7 +715,7 @@ header {
 }
 .v-round.open .v-fold::before { transform: translateY(1px) rotate(225deg); }
 .v-fold:hover::before { border-color: var(--text); }
-.v-fold:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 1px; }
+.v-fold:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .v-round-head .log-eye + .v-fold { margin-left: 0; }
 
 /* Study notes and the refusals, closed under the rounds until asked for. */
@@ -585,7 +729,7 @@ header {
 }
 .v-more[open] > summary::after { transform: translateY(1px) rotate(225deg); }
 .v-more > summary:hover h3 { color: var(--text-dim); }
-.v-more > summary:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 4px; border-radius: 2px; }
+.v-more > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .v-more[open] > summary { margin-bottom: var(--space-2); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -603,7 +747,7 @@ header {
   align-items: start;
   padding: var(--space-2) var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--line);
-  animation: riseIn var(--t-med) var(--ease-expo) both;
+  animation: riseIn var(--t-med) var(--ease-out) both;
 }
 html.embedded .share {
   padding-left: max(var(--space-8), calc((100% - 1040px) / 2));
@@ -612,7 +756,8 @@ html.embedded .share {
 .sh-preview { display: flex; align-items: center; justify-content: flex-start; min-height: 160px; }
 .sh-canvas {
   display: block; width: auto; height: auto; max-width: 100%; max-height: 300px;
-  border-radius: var(--r-card); border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  outline: 1px solid var(--image-outline); outline-offset: -1px;
 }
 .sh-none { margin: 0; font-size: 13px; color: var(--text-mute); }
 .sh-controls { display: flex; flex-direction: column; gap: var(--space-3); }
@@ -620,7 +765,19 @@ html.embedded .share {
 .sh-label { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
 .sh-seg { display: flex; }
 .sh-seg > .sh-opt { flex: 1 1 0; }
-.sh-acts { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); }
+/* THE SIZES, A ROW OF WORDS (8.8): three are not an either/or, so no
+   capsule. The one picked in the ink at 600, the others dim; a colour
+   change on hover and nothing that moves. */
+.sh-words { display: flex; gap: var(--space-4); }
+.sh-word {
+  position: relative; height: 32px; padding: 0; border: 0; background: transparent; cursor: pointer;
+  font-family: var(--font); font-size: var(--fs-ui); font-weight: 500; color: var(--text-dim);
+  transition: color 150ms ease;
+}
+.sh-word:hover { color: var(--text); }
+.sh-word[aria-checked="true"] { color: var(--text); font-weight: 600; }
+.sh-word:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.sh-acts { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-1); }
 .sh-acts .btn { flex: 1 1 0; white-space: nowrap; padding-left: 8px; padding-right: 8px; }
 .sh-acts .icon-btn { flex: none; }
 .btn.said { pointer-events: none; }
@@ -644,11 +801,10 @@ html.embedded .share {
 }
 #vreview > .locked { margin-top: calc(var(--space-10) * -1 + var(--space-4)); border-top: 0; padding-top: 0; }
 .locked[hidden] { display: none; }
-.lk-label { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
 .lk-title { font-size: 24px; font-weight: 600; letter-spacing: var(--track-display); line-height: 1.2; }
 .lk-body { font-size: 15px; line-height: 1.5; color: var(--text); max-width: 60ch; }
 .lk-note { font-size: 13px; line-height: 1.5; color: var(--text-mute); max-width: 60ch; }
-.lk-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.lk-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
 .lk-actions [hidden] { display: none; }
 /* With neither way on to offer, no empty row under the note. */
 .lk-actions:not(:has(> :not([hidden]))) { display: none; }

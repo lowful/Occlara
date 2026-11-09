@@ -17,6 +17,13 @@
 @font-face { font-family: 'Geist Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('../../../assets/fonts/geistmono-400.woff2') format('woff2'); }
 @font-face { font-family: 'Geist Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('../../../assets/fonts/geistmono-500.woff2') format('woff2'); }
 
+/* ONE TYPE FAMILY (8.8). Geist and Geist Mono, and nothing else: no serif and
+   no second display face, because a new face reads as random beside the
+   app's bold, tight Geist. The coach's voice is set apart by role, not by
+   font (shared/ui.css .t-fix and .t-voice): the fix line is Geist 700, the
+   coach's read Geist 400 at 16 to 17px on a 1.55 line. check:palette fails
+   any other font-family. */
+
 /* NO FAKED BOLD (8.6). A weight that is not shipped above draws at the nearest
    weight that is, never as a thickened copy of it. Chromium otherwise smears a
    bold over Geist Mono 500 wherever a rule asks the mono face for 600 or 800,
@@ -98,29 +105,43 @@ html { font-synthesis-weight: none; }
   --text-dim:  #A1A1A6;
   --text-mute: #808086;   /* was #6E6E73, which measured 3.93:1 and failed 4.5:1 */
 
-  /* Lines (8.6). --line is the hairline (what --glass-border always was),
-     --line-2 the border of a control and a keycap, --grid the column grid
-     behind Home's header, drawn as elements, never as a gradient. */
-  --line:   rgba(255, 255, 255, 0.09);
-  --line-2: rgba(255, 255, 255, 0.16);
-  --grid:   rgba(255, 255, 255, 0.045);
+  /* THE PEN (8.8): the coach's pencil, warm graphite on the cool ground, so a
+     mark reads as a hand on the page and never as the interface. It is
+     oklch(0.768 0.065 55) written as its hex: hue 55, 25 degrees from
+     --warn's 80, so a pen underline beside an amber grade reads as two inks
+     (at hue 74, to 8.8, the two read as one). 9.26:1 on --bg; the dim pen is
+     the same hue at L 0.578, 4.55:1 (test:marks measures both, holds them to
+     3:1, and the hue 15 degrees or more from --warn). Only the pen's strokes
+     (shared/marks.css) and a short margin note take it (check:palette
+     PEN_ALLOWED). It is never the signal and never an outcome. */
+  --ink-pen:     #D5A98C;
+  --ink-pen-dim: #907461;
 
-  /* Glass */
+  /* Lines (8.6). --line is the hairline (what --glass-border always was),
+     --line-2 the border of a control and a keycap. --line-input (8.8) is a
+     text field's edge alone, 3.75:1 on --bg: a field is a boundary the player
+     has to find, and --line-2's 1.5:1 fails the 3:1 a UI part needs. */
+  --line:       rgba(255, 255, 255, 0.09);
+  --line-2:     rgba(255, 255, 255, 0.16);
+  --line-input: rgba(255, 255, 255, 0.40);
+  /* ONE FOCUS RING (8.8): 2px of --focus-ring 2px out, on every focusable
+     thing (the rule below). --ink is white by the name of its job, for new
+     code where --cyan's old name would mislead. An image's edge is an outline
+     of --image-outline inset a pixel, never a border. */
+  --focus-ring:    rgba(255, 255, 255, 0.55);
+  --ink:           #FFFFFF;
+  --image-outline: rgba(255, 255, 255, 0.1);
+
+  /* Glass: a name only. Since 8.8 a window's surface is solid, never
+     translucent and never blurred (.glass below). */
   --glass-fill:   rgba(13, 14, 16, 0.92);   /* darker, less translucent: readability first */
   --glass-fill-2: rgba(20, 21, 24, 0.82);
   --glass-border: var(--line);
-  --glass-blur:   18px;
   /* --shadow is for full-bleed surfaces (overlay). Windowed surfaces use
      --shadow-win, which fits inside their transparent margin so it never
      gets hard-clipped at the window edge. */
   --shadow:       0 16px 48px rgba(0, 0, 0, 0.60);
   --shadow-win:   0 2px 10px rgba(0, 0, 0, 0.65);
-
-  /* Accent glows: a crisp hairline each, and no halo (8.6). A coloured bloom
-     is the thing that read as "gamer" rather than "clean". --glow-red is used
-     by nothing since the colour pass and is kept for its name. */
-  --glow-cyan: 0 0 0 1px rgba(var(--cyan-rgb), 0.22);
-  --glow-red:  0 0 0 1px rgba(var(--red-rgb), 0.45);
 
   /* Paper (8.6): the share image of a Verdict and nothing else. Its three
      inks measure 16.5, 7.4 and 4.9 to 1 on it. */
@@ -143,21 +164,24 @@ html { font-synthesis-weight: none; }
   /* 8.7 redesign, THE TRAINING LOG. A button is a capsule: --r-btn. A card is
      gone (a ruled row or a hairline section carries the content instead);
      --r-card stays for the few framed things left (a keycap, a clip frame).
-     Depth is the button's alone, built from OFFSET shadows and inset lit
-     edges (never a gradient, never a halo): --hi the lit top edge, --hi-ink
-     the same on a light fill, --drop the resting shadow, --drop-hover the
-     one under the pointer. */
+     Since 8.8 a filled capsule (the primary, Start, a seg thumb) has one edge
+     device, its lit top edge, and nothing casts a shadow: --hi the lit edge
+     on a dark fill, --hi-ink on a light fill, --hi-signal on the signal. The
+     drop shadow, the hover shadow and the inset press went in 8.8. */
   --r-btn: 999px;
   --hi:         inset 0 1px 0 rgba(255, 255, 255, 0.11);
   --hi-ink:     inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(0, 0, 0, 0.16);
   --hi-signal:  inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(0, 0, 0, 0.18);
-  --drop:       0 1px 2px rgba(0, 0, 0, 0.55);
-  --drop-hover: 0 6px 14px -4px rgba(0, 0, 0, 0.7);
-  /* The motion every surface shares: ease-out-quart for arrivals, and one
-     spring for a thumb or a stamp that settles. Durations stay --t-*. */
-  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+  /* The motion every surface shares (8.8, emil's curves): --ease-out for an
+     arrival, a press and the pen, strong at the start so the answer to a
+     click is immediate; --ease-in-out for something already on screen that
+     moves to a new place. Never an ease-in on UI and never an overshoot.
+     Hover and colour changes take the keyword `ease` (--ease below). These
+     two curves are the whole set: --ease-expo and --ease-spring went in 8.8,
+     and what used them moved to --ease-out. */
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --r-sm: 8px;
-  --r-md: 12px;
   --r-lg: 16px;
   /* Icon sizes, one per hierarchy level rather than a number picked per call
      site. The first pass at the tip glyphs used 12, 13 and 15px in three
@@ -190,33 +214,77 @@ html { font-synthesis-weight: none; }
   --space-6: 24px;
   --space-8: 32px;
   --space-10: 40px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  /* Expo out: a fast start that settles gently, the curve that makes panels and
-     cards feel like they have weight rather than just fading in. */
-  --ease-expo:   cubic-bezier(0.16, 1, 0.30, 1);
-  /* Slight overshoot for things that should feel springy (badges, confirmations). */
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --t-press: 80ms;   /* a keycap going down */
+  /* --ease is the CSS keyword, for a hover and a colour change and nothing
+     that travels (8.8: it was a strong ease-out curve, so every hover
+     snapped). */
+  --ease: ease;
+  --t-press: 100ms;   /* a keycap going down, and nothing else */
   --t-fast: 140ms;
   --t-med:  220ms;
-  --t-slow: 420ms;
+  --t-slow: 280ms;    /* the longest UI motion (8.8, was 420ms) */
+  /* 8.8: a control going down (scale .97, --ease-out; never a disabled one),
+     and the pen drawing its stroke once. Everything UI stays under 300ms; the
+     pen alone is longer, because it is the one authored moment and plays
+     only on the reveal or a page's first paint after a match. */
+  --t-tap: 160ms;
+  --t-pen: 450ms;
 
-  /* Surfaces stay ONE solid colour. An earlier pass put a white gradient wash
-     down the top of every panel and it read as a smudge, so the only depth cue
-     now is the shadow. Kept as a no-op token so surfaces can still reference it
-     without every one of them needing an edit. */
-  --sheen: none;
-  --edge-top: 0 0 0 0 rgba(0,0,0,0);
-  --lift: 0 12px 34px rgba(0,0,0,0.55);
+  /* The layers (8.8): the page, a thing raised a step inside it (a seg's
+     buttons over their thumb), a menu, an overlay. No other z-index. */
+  --z-base:    0;
+  --z-raised:  1;
+  --z-menu:    20;
+  --z-overlay: 40;
 
   --font: 'Geist', -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Consolas, monospace;
-  /* The app's own tracking (8.6): titles and big numbers at --track-display
-     on a line of --lh-display, small uppercase labels at --track-label. */
+  /* WEIGHT ROLES (8.8). To 8.7, 249 of 263 weight declarations were 500 or
+     600 and every line read the same. Body is 400, a label 500, a title 600,
+     display and the fix line 700. Hierarchy is weight, then size, then ink. */
+  --w-body:  400;
+  --w-label: 500;
+  --w-title: 600;
+  --w-display: 700;
+  /* THE MARGIN (8.8): a content page's narrow left column, like a marked up
+     match sheet's. It holds round numbers, times, dates, grades and the pen's
+     short notes; the sentences stay in the column beside it. */
+  --margin-w: 72px;
+  /* SIZE ROLES (8.8). Nine sizes and no others: seventeen free sizes (10.5,
+     11, 13.5 ...) made every line its own decision. 12px is the floor for
+     words; 11px lives only inside a keycap. The voice is 16px, 17 on a wide
+     window (the media rule after this block).
+       --fs-caption  a margin note, a label beside its content
+       --fs-label    a small control's words, a meta line
+       --fs-ui       a control's words, a row
+       --fs-body     body text
+       --fs-voice    the coach's sentences (.t-voice)
+       --fs-heading  a section's title
+       --fs-h2       a page's title
+       --fs-fix      the fix line
+       --fs-display  a grade or a score set alone */
+  --fs-caption: 12px;
+  --fs-label:   13px;
+  --fs-ui:      14px;
+  --fs-body:    15px;
+  --fs-voice:   16px;
+  --fs-heading: 18px;
+  --fs-h2:      24px;
+  --fs-fix:     34px;
+  --fs-display: 64px;
+  /* LINE HEIGHTS, unitless (8.8): 1.1 a display line and the fix (one 64px
+     figure alone on its line may take 1), 1.25 a heading, 1.55 body and the
+     voice. */
+  --lh-display: 1.1;
+  --lh-heading: 1.25;
+  --lh-body:    1.55;
+  /* TRACKING BY SIZE, in em (8.8): 40px and up --track-hero, 24 to 39px
+     --track-display, body and small 0. No label is tracked: labels are
+     sentence case, and --track-label went with the uppercase ones. */
+  --track-hero:    -0.03em;
   --track-display: -0.02em;
-  --lh-display: 1;
-  --track-label: 0.08em;
+  --track-body:    0;
 }
+@media (min-width: 1280px) { :root { --fs-voice: 17px; } }
 
 /* ── One palette ────────────────────────────────────────────────────────────
    There used to be a per-game block here that repointed the brand tokens to
@@ -245,9 +313,16 @@ html, body {
   font-family: var(--font);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
-  user-select: none;
   cursor: default;
+  caret-color: var(--text);
 }
+/* Text is selectable (8.8): a player can copy what the coach said. Chrome is
+   not: the controls, the segmented capsule and a keycap (ui.css), the drag
+   strip (below) and the rail (shell.css) each set user-select: none. */
+::selection { background: rgba(255, 255, 255, 0.18); color: var(--text); }
+/* A heading balances its lines; a paragraph wraps without an orphan. */
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
 
 /* Every scrollbar in the app is the dark hairline one, whatever scrolls. Each
    surface styles its own scroller, and the one it forgets falls back to the
@@ -259,43 +334,58 @@ html, body {
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); }
 
-/* Reusable glass surface (windowed: panel, settings, history, activation).
-   The sheen is a background LAYER, not a pseudo-element: backgrounds always
-   paint behind content, so it cannot cover text or swallow a click, and it
-   introduces no stacking context that could reparent absolute children. */
+/* A window's surface. The name is history: since 8.8 it is solid, never
+   translucent and never blurred, the raised ground with a hairline and the
+   window frame's own shadow, which fits inside the window's margin. */
 .glass {
   position: relative;
-  background: var(--glass-fill);
-  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-win), var(--edge-top);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-win);
 }
 
 .no-drag { -webkit-app-region: no-drag; }
-.drag    { -webkit-app-region: drag; }
+.drag    { -webkit-app-region: drag; user-select: none; }
 
 /* ── Keyboard accessibility ───────────────────────────────────────────────
-   Every focusable thing gets a visible ring, but only for keyboard users, so
-   the look is untouched for mouse users. The app previously had no focus
-   styling at all, which made it impossible to navigate without a mouse. */
+   ONE ring (8.8), for every focusable thing and for the keyboard alone: 2px
+   of --focus-ring 2px out. It follows the element's own shape and never sets
+   a radius on it, and nothing draws a second ring or a halo. */
 :focus { outline: none; }
 :focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-  border-radius: var(--r-sm);
 }
 
-/* ── Reduced motion ───────────────────────────────────────────────────────
-   Honour the OS setting. Durations collapse rather than animations being
-   removed, so anything that animates into place still ends up in the right
-   final state, it just gets there immediately. Safe here because nothing in
-   the app drives logic off animation events. */
+/* ── The shared entrances (8.8) ───────────────────────────────────────────
+   Every surface's arrival is one of these, never its own copy: a copy in a
+   page's CSS would load after this file and win over the reduced motion
+   fades below, so a page that names one of these keeps the shared drawing.
+   Small travel, from opacity 0, never from a scale under .95. */
+@keyframes riseIn  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes rowIn   { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes rise    { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes sheetIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes countIn { from { opacity: 0; transform: translateY(6px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Reduced motion (8.8): the one block ────────────────────────────────
+   Asked for less motion, nothing MOVES, and what fades or changes colour
+   still does, at its own duration: a fade is no motion, and a cut from
+   nothing to something is harder to follow than a fade. So the shared
+   entrances above become fades of the same name, a control does not press
+   or rise, and the segmented thumb jumps to its place. A spinner keeps
+   spinning (it is the news that something is loading), and the pen's
+   strokes are simply there (marks.css). A page with an entrance of its own
+   holds it still in its own reduced block.
+
+   It used to collapse every duration to 0.01ms, which also cut every fade
+   and colour change to nothing. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+  html { scroll-behavior: auto; }
+  @keyframes riseIn  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes rowIn   { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes rise    { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes sheetIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes countIn { from { opacity: 0; } to { opacity: 1; } }
 }

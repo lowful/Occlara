@@ -33,7 +33,7 @@ let adding = 0;         // pictures being read and prepared
 let sending = false;
 const LONG_SIDE = 1600;
 
-const saidOf = (r, fallback) => (r && typeof r.said === 'string' && r.said) || info.said[fallback] || 'Something went wrong. Try again.';
+const saidOf = (r, fallback) => (r && typeof r.said === 'string' && r.said) || info.said[fallback] || 'Report not sent. Check your connection and try again.';
 
 function setSaid(id, text, bad) {
   const el = $(id);
@@ -57,8 +57,16 @@ function paintSend() {
   $('fb-send').textContent = sending ? 'Sending' : 'Send report';
 }
 
+// The kind is a row of words, one radio group (8.8): the chosen one checked
+// and the one tab stop, the arrow keys moving the choice.
 function paintKind() {
-  for (const b of $('fb-kind').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.kind === kind));
+  for (const b of $('fb-kind').querySelectorAll('button')) {
+    const on = b.dataset.kind === kind;
+    b.setAttribute('aria-checked', String(on));
+    b.setAttribute('tabindex', on ? '0' : '-1');
+    b.classList.toggle('active', on);
+    if (!b.dataset.text) b.dataset.text = b.textContent;
+  }
 }
 
 function paintReview() {
@@ -204,6 +212,17 @@ $('fb-kind').addEventListener('click', (e) => {
   kind = b.dataset.kind;
   paintKind();
 });
+$('fb-kind').addEventListener('keydown', (e) => {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1, Home: 'first', End: 'last' }[e.key];
+  if (step === undefined) return;
+  const all = [...$('fb-kind').querySelectorAll('button')];
+  const at = all.findIndex((b) => b.dataset.kind === kind);
+  const next = step === 'first' ? all[0] : step === 'last' ? all[all.length - 1] : all[((at < 0 ? 0 : at + step) + all.length) % all.length];
+  if (typeof e.preventDefault === 'function') e.preventDefault();
+  if (!next) return;
+  next.click();
+  if (typeof next.focus === 'function') next.focus();
+});
 $('fb-review').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-review]');
   if (!b) return;
@@ -245,7 +264,6 @@ $('fb-home').addEventListener('click', () => { if (typeof api.go === 'function')
 $('fb-settings').addEventListener('click', () => { if (typeof api.go === 'function') api.go('settings'); });
 
 if (typeof window.occlaraSeg === 'function') {
-  window.occlaraSeg($('fb-kind'));
   window.occlaraSeg($('fb-review'));
 }
 // Back to the front, asked again: the last review may have changed.

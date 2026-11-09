@@ -41,12 +41,15 @@ const r3 = (n) => Math.round(n * 1000) / 1000;
 // every file below.
 const pathsIn = (src) => [...src.matchAll(/<path\b[^>]*\sd="([^"]+)"/g)].map((m) => m[1]);
 const svgTag = (src, cls) => (src.match(new RegExp(`<svg\\b[^>]*class="${cls}"[^>]*>`)) || [''])[0];
-const OLD_MARK = /stroke-dasharray|\bpupil\b|\bring\b|aperture/i;
+// --focus-ring (8.8) is the one focus token, not the old mark's ring: a ring
+// after a hyphen is not the mark.
+const OLD_MARK = /stroke-dasharray|\bpupil\b|(?<!-)\bring\b|aperture/i;
 ok(pathsIn('<svg><path fill="x" d="M1,2 Z"/><path d="M3,4 Z" /></svg>').join('|') === 'M1,2 Z|M3,4 Z'
   && svgTag('<svg class="mark" viewBox="0 0 120 120"><path/></svg>', 'mark') === '<svg class="mark" viewBox="0 0 120 120">',
 'the path and svg readers find what they look for');
 ok(OLD_MARK.test('<circle class="pupil" cx="32"/>') && OLD_MARK.test('stroke-dasharray="130.690 20.106"')
-  && !OLD_MARK.test('<path d="M67.444,10.281 Z" fill="currentColor"/>'),
+  && !OLD_MARK.test('<path d="M67.444,10.281 Z" fill="currentColor"/>') && !OLD_MARK.test('outline: 2px solid var(--focus-ring);')
+  && OLD_MARK.test('<circle class="ring" r="40"/>'),
 'the old mark detector finds the ring and the pupil, and passes over the crescent');
 
 // 1. The arithmetic: the two circles, and the path they make.

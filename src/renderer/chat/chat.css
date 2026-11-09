@@ -1,8 +1,9 @@
 /* palette: tokens only */
-/* Ask Coach (8.7 redesign, THE TRAINING LOG): a conversation, not a chat
-   widget. The coach's words are flowing text with no box, the player's a
-   quiet capsule on the right, the composer one capsule input with a send
-   capsule, and the suggested questions ghost capsules. */
+/* Ask Coach (8.8, THE COACH'S NOTEBOOK): a conversation, not a chat widget.
+   The coach's words are the voice, flowing text with no box, the rounds they
+   name in the margin beside them; the player's a quiet capsule on the right;
+   the composer one field and the send capsule; the suggested questions quiet
+   rectangles at the column's left edge. */
 
 html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
 
@@ -10,49 +11,42 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 
 header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 12px 16px; border-bottom: 1px solid var(--line); flex: none; }
 .h-brand { display: flex; align-items: center; gap: 9px; flex: none; }
-header h2 { font-size: 15px; font-weight: 600; }
+header h2 { font-size: var(--fs-body); font-weight: var(--w-title); }
 
-/* The match this conversation is about (8.5.0): the shared dropdown, as a
-   capsule control here. Its list is portalled to the body and placed by
-   dropdown.js. */
+/* The match this conversation is about (8.5.0): the shared dropdown, drawn
+   as the field it is (8.8), the control's rectangle, no fill and no rise.
+   Its list is portalled to the body and placed by dropdown.js. */
 .h-match { flex: 1; min-width: 0; max-width: 320px; margin-left: auto; }
 .h-match .dd-btn {
-  height: 36px; padding: 0 var(--space-3) 0 var(--space-4);
-  font-size: 13px; font-weight: 500;
-  background: rgba(255,255,255,0.055); border-color: var(--line-2); border-radius: var(--r-btn);
-  box-shadow: var(--hi), var(--drop);
-  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  height: 36px; padding: 0 var(--space-2) 0 var(--space-3);
+  font-size: var(--fs-label); font-weight: var(--w-label);
+  background: transparent; border-color: var(--line-2); border-radius: var(--r-control);
+  box-shadow: none;
+  transition: background var(--t-fast) ease, border-color var(--t-fast) ease;
 }
-.h-match .dd-btn:hover { background: rgba(255,255,255,0.095); transform: translateY(-1px); box-shadow: var(--hi), var(--drop-hover); }
-.h-match .dd-btn:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; border-color: var(--line-2); box-shadow: var(--hi), var(--drop); }
+.h-match .dd-btn:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.24); }
 
-/* The thread: messages separated by whitespace alone. */
-.body { flex: 1; overflow-y: auto; padding: var(--space-4) 16px var(--space-6); display: flex; flex-direction: column; gap: var(--space-5); }
+/* The thread: messages separated by whitespace alone. The coach's words,
+   the lines and the starters stand in the column, a margin's width in from
+   the left; the margin beside them holds the rounds an answer names. */
+.body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: var(--space-4) 16px var(--space-6); display: flex; flex-direction: column; gap: var(--space-5); }
 .body::-webkit-scrollbar { width: 8px; }
 .body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
 
-/* ── The empty thread: one line and the questions it offers ── */
-.intro { margin: auto 0; display: flex; flex-direction: column; align-items: center; gap: var(--space-4); padding: var(--space-2) 0; }
-.intro-lead { text-align: center; color: var(--text-dim); font-size: 14px; }
-.starters { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); max-width: 640px; }
-/* A ghost capsule: the question in the ink, a hairline round it, no fill
-   until the pointer is on it, and the same rise a button has. */
-.starter {
-  display: inline-flex; align-items: center; height: 36px; padding: 0 var(--space-4);
-  font-family: var(--font); font-size: 13px; font-weight: 500; line-height: 1; color: var(--text-dim);
-  background: transparent; border: 1px solid var(--line-2); border-radius: var(--r-btn);
-  cursor: pointer; white-space: nowrap;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
-}
-.starter:hover { color: var(--text); background: rgba(255,255,255,0.055); transform: translateY(-1px); box-shadow: var(--hi), var(--drop-hover); }
-.starter:active { transform: translateY(0) scale(0.985); box-shadow: none; transition-duration: var(--t-press); }
-.starter:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+/* ── The empty thread: one line and the questions it offers ──
+   At the top of the column, left aligned, like the first lines on a page:
+   what to ask, then the questions for the match on the chip, one under
+   another, each a secondary rectangle (ui.css .btn-secondary). */
+.intro { margin: var(--space-4) 0 0 var(--margin-w); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); }
+.intro-lead { margin: 0; color: var(--text); font-size: var(--fs-heading); font-weight: var(--w-title); line-height: var(--lh-heading); text-wrap: balance; }
+.starters { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); max-width: 100%; }
+.starter { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Messages ── */
 /* A reply is paragraphs (8.5.0): the server keeps its blank lines, and the
    message keeps them too. Set as text, never markup. */
-.msg { max-width: 72%; font-size: 15px; line-height: 1.6; color: var(--text); animation: msgIn var(--t-med) var(--ease-expo) both; overflow-wrap: anywhere; white-space: pre-line; }
-@keyframes msgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.msg { max-width: 72%; font-size: var(--fs-body); font-weight: var(--w-body); line-height: 1.6; color: var(--text); animation: msgIn var(--t-med) var(--ease-out) both; overflow-wrap: anywhere; white-space: pre-line; }
+@keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 /* The player's question: a quiet capsule on the right, nothing more. */
 .msg.user {
   align-self: flex-end;
@@ -60,79 +54,104 @@ header h2 { font-size: 15px; font-weight: 600; }
   background: rgba(255,255,255,0.06);
   border-radius: 20px;
 }
-/* The coach's answer: the page's own text, no box, no side. */
-.msg.coach { align-self: flex-start; max-width: 78%; padding: 0; }
-.msg.coach.error { color: var(--text-dim); }
+/* The coach's answer: THE VOICE (8.8), the coach speaking, in the column a
+   margin's width in, no box, no side, at a reading measure. */
+.msg.coach {
+  position: relative;
+  align-self: flex-start;
+  margin-left: var(--margin-w);
+  max-width: min(65ch, calc(100% - var(--margin-w)));
+  padding: 0;
+  font-size: var(--fs-voice); line-height: var(--lh-body);
+}
+/* The rounds it names (chat.js roundsOf), in the margin beside its first
+   line: the round numbers of a marked up sheet, mono, one to a line. */
+.msg.coach[data-rounds]::before {
+  content: attr(data-rounds);
+  position: absolute; left: calc(-1 * var(--margin-w)); top: 0.3em;
+  width: calc(var(--margin-w) - var(--space-4));
+  font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: 400; line-height: 1.7; color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
 
 /* A new thread about another match starts under one rule naming it. */
-.chat-divider { display: flex; align-items: center; gap: var(--space-3); color: var(--text-mute); font-size: 12px; font-weight: 500; margin: var(--space-3) 0 0; }
+.chat-divider { display: flex; align-items: center; gap: var(--space-3); color: var(--text-mute); font-size: var(--fs-caption); font-weight: var(--w-label); margin: var(--space-3) 0 0; }
 .chat-divider::before, .chat-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 .chat-divider span { flex: none; max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* What is not the coach's to say, on a line of its own: the day's questions
-   used, a match that may still be going on, a match in progress. */
-.chat-line { align-self: center; max-width: 72%; text-align: center; font-size: 13px; line-height: 1.5; color: var(--text-mute); animation: msgIn var(--t-med) var(--ease-expo) both; }
-.chat-line.cap { color: var(--text-dim); }
-/* Every game used (8.7.3): the way to the Profile page, under the line. */
-.chat-line-action { display: flex; margin: var(--space-2) auto 0; }
+/* What is not the coach's to say, on a line of its own, in the interface's
+   words at the column's edge: the day's questions used, a match that may
+   still be going on, a match in progress, and a question that failed or ran
+   out of time, kept in the box with the way to ask it again. */
+.chat-line {
+  align-self: flex-start;
+  margin: 0 0 0 var(--margin-w);
+  max-width: min(64ch, calc(100% - var(--margin-w)));
+  font-size: var(--fs-label); font-weight: var(--w-body); line-height: 1.5; color: var(--text-mute);
+  text-wrap: pretty;
+  animation: msgIn var(--t-med) var(--ease-out) both;
+}
+.chat-line.cap, .chat-line.failed, .chat-line.timeout { color: var(--text-dim); }
+/* Every game used (8.7.3): the way to the Profile page; a failed question:
+   Ask again. Under the line, at its left edge. */
+.chat-line-action { display: flex; margin: var(--space-2) 0 0; }
+.chat-line-action.btn-tertiary { margin-left: -2px; }
 
-/* The coach is writing: three dots on the left, no box. */
-.typing { align-self: flex-start; display: flex; gap: 5px; padding: var(--space-2) 0; }
-.typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); opacity: 0.4; animation: tp 1.1s ease-in-out infinite; }
-.typing i:nth-child(2) { animation-delay: 0.18s; }
-.typing i:nth-child(3) { animation-delay: 0.36s; }
-@keyframes tp { 0%,100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+/* The coach is writing: one still line where the answer will stand. */
+.typing {
+  align-self: flex-start; margin: 0 0 0 var(--margin-w);
+  font-size: var(--fs-label); font-weight: var(--w-body); line-height: 1.5; color: var(--text-mute);
+  animation: msgIn var(--t-med) var(--ease-out) both;
+}
 
 /* ── The player's clips in a reply ── */
 /* A reply with a clip is its paragraphs as their own blocks, a blank line's
    room between them as pre-line gives, and each clip under the paragraph
-   that talks about it: a ghost capsule naming the round until it is clicked,
-   then the review's own clip player (clip-player.css). */
-.msg.coach.with-clips { white-space: normal; width: 78%; }
+   that talks about it: a secondary rectangle naming the round until it is
+   clicked, then the review's own clip player (clip-player.css). */
+.msg.coach.with-clips { white-space: normal; width: min(65ch, calc(100% - var(--margin-w))); }
 .msg-para { margin: 0; white-space: pre-line; }
 .msg-para + .msg-para, .chat-clip + .msg-para { margin-top: 1.6em; }
 .chat-clip { margin-top: var(--space-3); max-width: 520px; }
-.chat-clip-open {
-  display: inline-flex; align-items: center; gap: var(--space-2); height: 34px; padding: 0 var(--space-4) 0 var(--space-3);
-  font-family: var(--font); font-size: 13px; font-weight: 500; line-height: 1; color: var(--text);
-  background: rgba(255,255,255,0.055); border: 1px solid var(--line-2); border-radius: var(--r-btn);
-  cursor: pointer; box-shadow: var(--hi), var(--drop);
-  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
-}
+/* The button is ui.css's secondary; only its play mark is set here. */
+.chat-clip-open { gap: var(--space-2); }
 .chat-clip-open svg { width: 14px; height: 14px; fill: currentColor; flex: none; }
-.chat-clip-open:hover { background: rgba(255,255,255,0.095); transform: translateY(-1px); box-shadow: var(--hi), var(--drop-hover); }
-.chat-clip-open:active { transform: translateY(0) scale(0.985); box-shadow: none; transition-duration: var(--t-press); }
-.chat-clip-open:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
-.chat-clip-cap { margin: 0 0 var(--space-2); font-size: 12px; font-weight: 500; color: var(--text-mute); }
+.chat-clip-cap { margin: 0 0 var(--space-2); font-family: var(--font); font-size: var(--fs-caption); font-weight: var(--w-label); color: var(--text-mute); }
 .chat-clip-cap.bad { color: var(--bad); }
 
-/* ── Composer: one capsule to write in, one capsule to send ── */
-.composer { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) 16px var(--space-4); border-top: 1px solid var(--line); flex: none; }
+/* ── Composer: one field to write in, the one capsule to send ── */
+.composer { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 16px var(--space-4); border-top: 1px solid var(--line); flex: none; }
 #input {
-  flex: 1; min-width: 0; height: 44px; padding: 0 var(--space-5); border-radius: var(--r-btn);
-  font-family: var(--font); font-size: 15px; color: var(--text);
-  background: rgba(0,0,0,0.32); border: 1px solid var(--line-2); outline: none;
+  flex: 1; min-width: 0; height: 44px; padding: 0 var(--space-4); border-radius: var(--r-control);
+  font-family: var(--font); font-size: var(--fs-body); color: var(--text); caret-color: var(--text);
+  background: rgba(0,0,0,0.32); border: 1px solid var(--line-input);
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
-  transition: border-color var(--t-fast) var(--ease);
+  transition: border-color var(--t-fast) ease;
 }
 #input::placeholder { color: var(--text-mute); }
-#input:focus { border-color: var(--text-mute); }
-#input:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
-/* Send: the ink capsule, lit from above, as every primary is. */
+#input:focus { border-color: var(--text-dim); }
+/* Send: the ink capsule, lit from above, as every primary is, and no shadow (8.8). */
 .send {
   flex: none; width: 44px; height: 44px; border-radius: var(--r-btn); cursor: pointer;
   display: grid; place-items: center; color: var(--bg);
   background: var(--text); border: none;
-  box-shadow: var(--hi-ink), var(--drop);
-  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  box-shadow: var(--hi-ink);
+  transition: background-color var(--t-fast) ease, transform var(--t-tap) var(--ease-out);
 }
-.send:hover:not(:disabled) { background: var(--cyan); transform: translateY(-1px); box-shadow: var(--hi-ink), var(--drop-hover); }
-.send:active:not(:disabled) { transform: translateY(0) scale(0.96); box-shadow: inset 0 1px 2px rgba(0,0,0,0.35); transition-duration: var(--t-press); }
-.send:focus-visible { outline: 2px solid rgba(var(--cyan-rgb), 0.55); outline-offset: 2px; }
+.send:hover:not(:disabled) { background: var(--cyan); }
+.send:active:not(:disabled) { transform: scale(0.97); }
 .send:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
 
+/* Narrow, the margin is too tight to hold a column beside it: the words
+   take the width, and an answer's rounds sit over it instead. */
+@media (max-width: 520px) {
+  .intro, .msg.coach, .chat-line, .typing { margin-left: 0; }
+  .msg.coach, .msg.coach.with-clips, .chat-line { max-width: 100%; width: auto; }
+  .msg.coach[data-rounds]::before { position: static; display: block; width: auto; margin-bottom: var(--space-1); white-space: normal; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .msg, .chat-line { animation: none; }
-  .typing i { animation: none; opacity: 0.7; }
-  .chat-clip-open, .chat-clip-open:hover { transition: none; transform: none; }
+  .msg, .chat-line, .typing { animation: none; }
+  .send, .send:hover:not(:disabled), .send:active:not(:disabled) { transform: none; }
 }

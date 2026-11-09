@@ -1,147 +1,150 @@
 /* palette: tokens only */
-/* The Profile page (8.8), an entry of the training log: the games left as the
-   page's one hero, then buying more games, the player's own figures and the
-   plans as ruled sections in one column. No card and no box in a box: the
-   only frames are the controls (the capsules, the field). The page title is
-   the embedded header's (ui.css). */
+/* The Profile page (8.8, the coach's notebook): the games left as the page's
+   one hero, then buying more games, the player's own figures, the plans and
+   gifts, in one column. Groups are parted by space alone (40px), never a
+   hairline; hairlines only inside a list or the plans table. No card and no
+   box in a box: the only frames are the controls. The page title is the
+   embedded header's (ui.css). */
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
 .sheet { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .sheet > header { display: flex; align-items: center; padding: var(--space-4); }
 .h-brand { display: flex; align-items: center; gap: var(--space-2); }
-.h-brand h2 { font-size: 15.5px; font-weight: 700; }
+.h-brand h2 { font-size: var(--fs-body); font-weight: 700; }
 
 .body {
   flex: 1 1 auto; min-height: 0; overflow-y: auto;
   padding: var(--space-2) var(--space-4) var(--space-10);
 }
 
-.pr-wait { font-size: 14px; color: var(--text-mute); }
+.pr-wait { font-size: var(--fs-ui); color: var(--text-mute); }
 .pr-body { display: flex; flex-direction: column; gap: var(--space-10); }
 
 /* ── The hero: the games left, the biggest thing on the page ───────────── */
-/* No rule over it, as Settings' first group has none: it is the page's
-   hero. The number in Geist 600 at the Verdict letter's size and tracking,
-   its unit on the same baseline, then three lines, each one fact. */
-.pr-hero {
-  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1);
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
-}
+/* The number in Geist 700 at the display size, its unit on the same
+   baseline, then the plan and two quiet lines, each one fact. */
+.pr-hero { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
 .pr-count { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-2); }
 .pr-number {
-  font-size: 72px; font-weight: 600; line-height: 0.95; letter-spacing: -0.04em;
+  font-size: var(--fs-display); font-weight: 700; line-height: 1; letter-spacing: var(--track-hero);
   font-variant-numeric: tabular-nums; color: var(--text);
 }
-.pr-unit { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; color: var(--text-dim); }
-.pr-plan { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
-.pr-hero:not(.has-number) .pr-plan { font-size: 24px; letter-spacing: var(--track-display); margin-bottom: var(--space-1); }
-.pr-line { font-size: 14px; line-height: 1.5; color: var(--text-dim); max-width: 64ch; }
+.pr-unit { font-size: var(--fs-heading); font-weight: 500; color: var(--text-dim); }
+.pr-plan { font-size: var(--fs-body); font-weight: 600; color: var(--text); }
+.pr-hero:not(.has-number) .pr-plan { font-size: var(--fs-h2); letter-spacing: var(--track-display); line-height: var(--lh-heading); margin-bottom: var(--space-1); text-wrap: balance; }
+.pr-line { font-size: var(--fs-ui); line-height: 1.5; color: var(--text-dim); max-width: 64ch; text-wrap: pretty; }
 .pr-hero .btn { margin-top: var(--space-3); }
 
-/* ── A section: a hairline, its heading and one line, its rows ─────────── */
-.pr-sec {
-  display: flex; flex-direction: column; gap: var(--space-5);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--line);
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
-  animation-delay: calc(var(--i, 0) * 40ms);
-}
-.pr-body > .pr-sec:nth-child(2) { --i: 1; }
-.pr-body > .pr-sec:nth-child(3) { --i: 2; }
-.pr-body > .pr-sec:nth-child(4) { --i: 3; }
+/* ── A section: its heading and one line, then its rows ────────────────── */
+.pr-sec { display: flex; flex-direction: column; gap: var(--space-4); }
 .pr-head { display: flex; flex-direction: column; gap: var(--space-1); }
 .pr-head.row { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
-.pr-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
-.pr-hint { font-size: 14px; line-height: 1.5; color: var(--text-dim); max-width: 64ch; }
+.pr-title { font-size: var(--fs-heading); font-weight: 600; line-height: var(--lh-heading); color: var(--text); text-wrap: balance; }
+.pr-hint { font-size: var(--fs-ui); line-height: 1.5; color: var(--text-dim); max-width: 64ch; text-wrap: pretty; }
 
-/* The segmented capsules before seg.js runs: the chosen one filled. */
+/* Monthly / Yearly, the page's one either/or, before seg.js runs: the chosen
+   one filled. */
 .seg:not(.seg-slide) { display: inline-flex; gap: var(--space-1); }
 .seg:not(.seg-slide) > button {
   height: 32px; padding: 0 16px; border: 1px solid var(--line-2); border-radius: var(--r-btn);
   background: transparent; color: var(--text-dim); font: 500 13px var(--font); cursor: pointer;
 }
 .seg:not(.seg-slide) > button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
-.seg > button { font-variant-numeric: tabular-nums; }
 
 /* ── Buying games ──────────────────────────────────────────────────────── */
-.pr-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-5); }
+.pr-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-6); }
+/* The quick picks: a row of text options, the chosen one in the ink at 600,
+   the rest dim (8.8: three or more choices are never a capsule). */
+.pr-picks { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+.pr-picks > button {
+  position: relative; height: 32px; padding: 0 var(--space-2);
+  border: 0; border-radius: var(--r-control); background: transparent; cursor: pointer;
+  font-family: var(--font); font-size: var(--fs-ui); font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums;
+  transition: color var(--t-fast) ease, background-color var(--t-fast) ease;
+}
+.pr-picks > button:hover { color: var(--text); background-color: rgba(255, 255, 255, 0.04); }
+.pr-picks > button[aria-pressed="true"] { color: var(--text); font-weight: 600; }
+.pr-picks > button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .pr-step { display: inline-flex; align-items: center; gap: var(--space-2); }
 .pr-games.input {
-  width: 76px; height: 38px; padding: 0 var(--space-2);
-  font: 500 15px var(--font-mono); letter-spacing: 0; text-align: center;
+  width: 76px; height: 36px; padding: 0 var(--space-2);
+  font-family: var(--font); font-size: var(--fs-body); font-weight: 500; letter-spacing: 0; text-align: center;
   font-variant-numeric: tabular-nums;
 }
 .pr-act { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
-.pr-act .btn { min-width: 220px; font-variant-numeric: tabular-nums; }
-.pr-note { font-size: 13px; line-height: 1.5; color: var(--text-mute); }
+.pr-act .btn-primary { font-variant-numeric: tabular-nums; }
+.pr-note { font-size: var(--fs-label); line-height: 1.5; color: var(--text-mute); }
 
-/* ── The player's play: three figures, no box ──────────────────────────── */
-.pr-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6) var(--space-8); margin: 0; }
-.pr-fig { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-.pr-fig-l { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
+/* ── The player's play: a ruled list, the name, the figure, its sample ─── */
+.pr-figs { display: flex; flex-direction: column; margin: 0; max-width: 760px; }
+.pr-fig {
+  display: grid; grid-template-columns: 180px minmax(120px, auto) minmax(0, 1fr); align-items: baseline; gap: var(--space-4);
+  padding: var(--space-3) 0; border-top: 1px solid var(--line); min-width: 0;
+}
+.pr-fig:first-child { border-top-color: transparent; padding-top: 0; }
+.pr-fig-l { font-size: var(--fs-label); font-weight: 500; line-height: 1.3; color: var(--text-mute); }
 .pr-fig-v {
-  margin: 0; font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: var(--track-display); color: var(--text);
+  margin: 0; font-size: var(--fs-heading); font-weight: 600; line-height: 1.2; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.pr-fig-s { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
-.pr-fig.empty .pr-fig-s { font-size: 14px; color: var(--text-dim); padding-top: var(--space-1); }
+.pr-fig-s { margin: 0; font-size: var(--fs-label); line-height: 1.5; color: var(--text-dim); }
+.pr-fig.empty .pr-fig-s { grid-column: 2 / -1; font-size: var(--fs-ui); color: var(--text-dim); }
 
-/* ── The plans: ruled rows, the list opening and closing on a hairline ─── */
-.pr-plans { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.pr-plan-row {
-  display: grid; grid-template-columns: minmax(140px, 1.1fr) minmax(150px, 1fr) minmax(150px, 1.2fr) auto;
-  align-items: center; gap: var(--space-4);
-  min-height: 60px; padding: var(--space-3) 0;
+/* ── The plans: one table, a row a plan ─────────────────────────────────── */
+.pr-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.pr-table thead th {
+  padding: 0 0 var(--space-2); text-align: left;
+  font-size: var(--fs-caption); font-weight: 500; color: var(--text-mute);
+  border-bottom: 1px solid var(--line-2);
 }
-.pr-plan-row + .pr-plan-row { border-top: 1px solid var(--line); }
-.pr-plan-name { display: inline-flex; align-items: center; gap: var(--space-3); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
-/* The current plan: a small ringed capsule, the letter mark's form. */
-.pr-mine {
-  display: inline-flex; align-items: center; height: 22px; padding: 0 var(--space-2);
-  border: 1px solid var(--line-2); border-radius: var(--r-btn);
-  font-size: 12px; font-weight: 500; color: var(--text);
-}
-.pr-price { display: inline-flex; align-items: baseline; gap: var(--space-2); }
-.pr-amount { font-size: 20px; font-weight: 600; letter-spacing: var(--track-display); font-variant-numeric: tabular-nums; color: var(--text); }
-.pr-per { font-size: 13px; color: var(--text-dim); }
-.pr-plan-games { font-size: 14px; color: var(--text-dim); }
-.pr-plan-act { display: flex; justify-content: flex-end; min-width: 96px; }
+.pr-table thead th:nth-child(1) { width: 30%; }
+.pr-table thead th:nth-child(2) { width: 26%; }
+.pr-table thead th:nth-child(4) { width: 120px; }
+.pr-plan-row > * { padding: var(--space-3) 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: baseline; }
+.pr-plan-name { font-size: var(--fs-body); font-weight: 600; color: var(--text); }
+/* The current plan, in words beside its name (no capsule). */
+.pr-mine { margin-left: var(--space-3); font-size: var(--fs-caption); font-weight: 500; color: var(--text-dim); }
+.pr-plan-row.mine > * { background-color: rgba(255, 255, 255, 0.025); }
+.pr-plan-row.mine > :first-child { padding-left: var(--space-3); border-radius: var(--r-control) 0 0 var(--r-control); }
+.pr-plan-row.mine > :last-child { border-radius: 0 var(--r-control) var(--r-control) 0; }
+.pr-amount { font-size: var(--fs-heading); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); }
+.pr-per { margin-left: var(--space-2); font-size: var(--fs-label); color: var(--text-dim); }
+.pr-plan-games { font-size: var(--fs-ui); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.pr-plan-act { text-align: right; }
+.pr-plan-row > .pr-plan-act { text-align: right; padding-right: var(--space-1); }
 
-/* ── Gifts (8.8): two offers, the redeem field, the gifts bought ───────── */
-.pr-body > .pr-sec:nth-child(5) { --i: 4; }
-.pr-gift-offers { display: inline-flex; flex-wrap: wrap; gap: var(--space-2); }
-.pr-gift {
-  display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
-  min-width: 180px; height: auto; min-height: 52px; padding: var(--space-2) var(--space-4); text-align: left;
-}
-.pr-gift-name { font-size: 14px; font-weight: 600; color: var(--text); }
-.pr-gift-price { font-size: 12.5px; font-weight: 500; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+/* ── Gifts: two text actions, the redeem field, the gifts bought ─────────── */
+.pr-gift-offers { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-6); }
+.pr-gift { display: inline-flex; align-items: baseline; gap: var(--space-2); }
+.pr-gift-name { font-size: var(--fs-ui); font-weight: 500; }
+.pr-gift-price { font-size: var(--fs-label); font-weight: 400; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .pr-redeem { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; }
-.pr-redeem-label { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); margin: 0; }
-.pr-redeem-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.pr-redeem-code.input { flex: 1 1 280px; max-width: 420px; height: 38px; font: 500 13.5px var(--font-mono); letter-spacing: 0; }
+.pr-redeem-label { font-size: var(--fs-caption); font-weight: 500; line-height: 1.3; color: var(--text-mute); margin: 0; }
+.pr-redeem-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.pr-redeem-code.input { flex: 1 1 280px; max-width: 420px; height: 36px; font-family: var(--font); font-size: var(--fs-ui); font-weight: 400; letter-spacing: 0; }
 .pr-bought-wrap { display: flex; flex-direction: column; gap: var(--space-2); }
-.pr-gift-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.pr-gift-list { list-style: none; margin: 0; padding: 0; }
 .pr-gift-row {
   display: grid; grid-template-columns: minmax(140px, 1.1fr) minmax(150px, 1fr) minmax(110px, 0.8fr) auto;
-  align-items: center; gap: var(--space-4); min-height: 52px; padding: var(--space-2) 0;
+  align-items: baseline; gap: var(--space-4); min-height: 44px; padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
 }
-.pr-gift-row + .pr-gift-row { border-top: 1px solid var(--line); }
-.pr-gift-what { font-size: 14px; font-weight: 600; color: var(--text); }
-.pr-gift-state, .pr-gift-when { font-size: 13px; color: var(--text-dim); }
+.pr-gift-what { font-size: var(--fs-ui); font-weight: 600; color: var(--text); }
+.pr-gift-state, .pr-gift-when { font-size: var(--fs-label); color: var(--text-dim); }
 .pr-gift-act { display: flex; justify-content: flex-end; min-width: 96px; }
 
-/* A narrow window: the figures stack, a plan's row wraps under its name. */
+/* A narrow window: a figure's sample goes under it, the gift rows wrap. */
 @media (max-width: 600px) {
-  .pr-figs { grid-template-columns: minmax(0, 1fr); }
-  .pr-plan-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .pr-plan-games { grid-column: 1; }
+  .pr-fig { grid-template-columns: minmax(0, 1fr) auto; }
+  .pr-fig-s { grid-column: 1 / -1; }
+  .pr-table thead th:nth-child(4) { width: 96px; }
   .pr-gift-row { grid-template-columns: minmax(0, 1fr) auto; }
   .pr-gift-state, .pr-gift-when { grid-column: 1; }
 }
 
-/* Reduced motion: no entrance at all, every state at once. */
-@media (prefers-reduced-motion: reduce) {
-  .pr-hero, .pr-sec { animation: none; }
-}
+/* ONE NOTEBOOK GRID (8.8 critique): Home, Matches and the review set their
+   text in the column after the margin (--margin-w), so this page does too,
+   under the title that stays at the page edge. Without it the text jumped
+   72px going from Home to here. */
+html.embedded .sheet > .body { padding-left: calc(max(var(--space-8), calc((100% - 1040px) / 2)) + var(--margin-w)); }

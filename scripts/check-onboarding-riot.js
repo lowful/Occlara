@@ -595,7 +595,7 @@ setTimeout(async () => {
     }
     const busyRun = await until(async () => {
       const s = await page();
-      return /^Graded/.test(s.line) && s.rows.some((r) => r.name.startsWith('Split') && GRADED.test(r.grade)) ? s : null;
+      return /^Graded/.test(s.line) && s.rows.some((r) => / on Split$|^Split$/.test(r.name) && GRADED.test(r.grade)) ? s : null;
     }, 20000);
     lines.push(`its run: line="${busyRun && busyRun.line}" rows=${JSON.stringify(busyRun && busyRun.rows)}`);
     await shot(win, 'onboarding-2-profile-not-loaded');
@@ -726,17 +726,18 @@ setTimeout(async () => {
     if (done.line !== "Graded 3 recent matches from Riot's record. 1 match could not be fetched.") {
       return report(false, `the run ended with "${done.line}"`);
     }
-    // Newest first; the match Riot says this ID did not play is not fetched;
+    // Newest first, each row its agent on its map (8.8, one phrase); the
+    // match Riot says this ID did not play is not fetched;
     // every other row carries the grade of the review the run saved.
     const saved = new ReviewStore(path.join(ud, 'reviews')).list('valorant');
     const order = ['Haven', 'Lotus', 'Bind', 'Abyss'];
-    if (done.rows.length !== 4 || !done.rows.every((r, i) => r.name.startsWith(order[i]))) {
+    if (done.rows.length !== 4 || !done.rows.every((r, i) => r.name === order[i] || r.name.endsWith(` on ${order[i]}`))) {
       return report(false, `the rows are ${done.rows.map((r) => r.name).join(', ')}, not the run's four matches newest first`);
     }
     const lotus = done.rows[1];
     if (!lotus.failed || lotus.res !== 'Not fetched' || lotus.grade) return report(false, 'a match Riot has no record of is not marked Not fetched');
     for (const r of done.rows.filter((x) => !x.failed)) {
-      const map = order.find((m) => r.name.startsWith(m));
+      const map = order.find((m) => r.name === m || r.name.endsWith(` on ${m}`));
       const meta = saved.find((m) => m.map === map && m.source === 'riot');
       const want = meta && meta.grade ? `${meta.grade.score} ${meta.grade.letter}` : null;
       if (!want || r.grade !== want) return report(false, `${map}: the row says "${r.grade}", the review the run saved says "${want}"`);

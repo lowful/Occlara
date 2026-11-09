@@ -176,8 +176,11 @@ function capNotice(state, opts) {
 }
 
 /**
- * The Invite page's progress line, e.g. "1 of 5 friends joined, 4 games
- * earned". `ref` is GET /api/referral's answer. '' for none.
+ * The Invite page's progress line, e.g. "1 of 5 friends played a first
+ * match, 4 games earned". Only a friend who has played earns games, so the
+ * count says played, not joined (8.8 critique: "1 of 5 joined, 4 earned, 1
+ * still to record" read as games earned for nobody); a friend signed up
+ * and not yet played is said apart. `ref` is GET /api/referral's answer. '' for none.
  */
 function inviteProgress(ref) {
   if (!ref || typeof ref !== 'object') return '';
@@ -185,10 +188,10 @@ function inviteProgress(ref) {
   const joined = Math.min(max, int(ref.qualified) || 0);
   const maxGames = int(ref.max_games) || MAX_EARNED;
   const earned = Math.min(maxGames, int(ref.earned) || 0);
-  const line = `${joined} of ${plural(max, 'friend')} joined, ${plural(earned, 'game')} earned`;
+  const line = `${joined} of ${plural(max, 'friend')} played a first match, ${plural(earned, 'game')} earned`;
   const waiting = Math.max(0, (int(ref.invited) || 0) - joined);
   if (joined >= max) return `${line}, the most there is`;
-  if (waiting) return `${line}, ${waiting} still to record a match`;
+  if (waiting) return `${line}, ${waiting} more signed up and yet to play`;
   return line;
 }
 

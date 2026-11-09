@@ -578,7 +578,9 @@ function load(fetchLog, opts) {
     picker.disabled = false;
     $('main').hidden = true;
     $('empty').hidden = false;
-    $('empty').textContent = 'Could not load the AI log.';
+    $('empty').textContent = 'Could not load the AI log. Close this window and open it again from the match.';
+    // The header says the same, not "Loading frames..." over the failure.
+    $('subtitle').textContent = 'Not loaded';
     console.error('[ailog] load failed', err);
   });
 }

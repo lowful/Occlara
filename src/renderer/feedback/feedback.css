@@ -1,60 +1,52 @@
 /* palette: tokens only */
-/* Report a problem, an entry of the training log: the question as the page's
-   one hero, then ruled sections (the kind, the words, the pictures, the last
-   review, what is sent) and Send. No card and no box in a box: the framed
-   things are the controls, the field and the pictures, which are images. */
+/* Report a problem (8.8): the header's title, one line saying what to do,
+   then sections parted by space alone (the kind, the words, the pictures,
+   the last review, what is sent) and Send. No card, no rule between
+   sections and no box in a box: the framed things are the controls, the
+   field and the pictures, which are images. The form arrives once, as one
+   block. */
 
 html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden; }
 
 .sheet { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .sheet > header { display: flex; align-items: center; padding: var(--space-4); }
 .h-brand { display: flex; align-items: center; gap: var(--space-2); }
-.h-brand h2 { font-size: 15.5px; font-weight: 700; }
+.h-brand h2 { font-size: var(--fs-body); font-weight: var(--w-title); }
 
 .body {
-  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
   padding: var(--space-2) var(--space-4) var(--space-10);
 }
-.fb-form { display: flex; flex-direction: column; gap: var(--space-8); max-width: 720px; }
+.fb-form { display: flex; flex-direction: column; gap: var(--space-8); max-width: 720px; animation: riseIn var(--t-slow) var(--ease-out) both; }
 
-/* A section: a hairline, its label, its lines. The lead has no rule over it. */
-.fb-sec {
-  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
-  animation: riseIn var(--t-slow) var(--ease-expo) both;
-  animation-delay: calc(var(--i, 0) * 40ms);
-}
-.fb-form > .fb-sec:nth-child(2) { --i: 1; }
-.fb-form > .fb-sec:nth-child(3) { --i: 2; }
-.fb-form > .fb-sec:nth-child(4) { --i: 3; }
-.fb-form > .fb-sec:nth-child(5) { --i: 4; }
-.fb-form > .fb-sec:nth-child(6) { --i: 5; }
-.fb-form > .fb-sec:nth-child(7) { --i: 6; }
-.fb-lead { border-top: 0; padding-top: 0; gap: var(--space-2); }
+/* A section: its label and its lines, parted from the next by space. */
+.fb-sec { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+.fb-lead { gap: var(--space-2); }
+.fb-lead-line { font-size: var(--fs-voice); font-weight: var(--w-body); line-height: var(--lh-body); color: var(--text); max-width: 60ch; text-wrap: pretty; }
 .fb-hero {
-  font-size: 32px; font-weight: 600; line-height: var(--lh-display);
-  letter-spacing: var(--track-display); color: var(--text);
+  font-size: var(--fs-h2); font-weight: var(--w-display); line-height: var(--lh-heading);
+  letter-spacing: var(--track-display); color: var(--text); text-wrap: balance;
 }
-.fb-label { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--text-mute); }
-.fb-hint { font-size: 14px; line-height: 1.5; color: var(--text-dim); max-width: 60ch; }
+.fb-label { font-size: var(--fs-caption); font-weight: var(--w-label); line-height: 1.3; color: var(--text-mute); }
+.fb-hint { font-size: var(--fs-ui); font-weight: var(--w-body); line-height: 1.5; color: var(--text-dim); max-width: 60ch; text-wrap: pretty; }
+
+/* The kind is ui.css's row of words (.opts). */
 
 /* The words: the field is a control, so it is framed like the inputs. */
 .fb-text {
   -webkit-app-region: no-drag;
   width: 100%; min-height: 150px; resize: vertical;
   padding: var(--space-3) 14px;
-  font: 400 14px/1.55 var(--font); color: var(--text);
+  font-family: var(--font); font-size: var(--fs-ui); font-weight: 400; line-height: 1.55; color: var(--text); caret-color: var(--text);
   background: transparent;
-  border: 1px solid var(--line-2); border-radius: var(--r-control);
-  outline: none;
-  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  border: 1px solid var(--line-input); border-radius: var(--r-control);
+  transition: border-color var(--t-fast) ease;
 }
-.fb-text:focus { border-color: rgba(var(--cyan-rgb), 0.5); box-shadow: var(--glow-cyan); }
+.fb-text:focus { border-color: var(--text-dim); }
 .fb-text::placeholder { color: var(--text-mute); }
 .fb-count {
   align-self: flex-end;
-  font: 500 12px var(--font-mono); color: var(--text-mute);
+  font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: 400; color: var(--text-mute);
   font-variant-numeric: tabular-nums;
 }
 .fb-count.over { color: var(--warn); }
@@ -67,38 +59,45 @@ html, body { width: 100%; height: 100%; background: var(--bg); overflow: hidden;
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
   min-height: 64px; padding: var(--space-3) var(--space-4);
   border: 1px dashed var(--line-2); border-radius: var(--r-control);
-  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  transition: border-color var(--t-fast) ease, background-color var(--t-fast) ease;
 }
-.fb-drop.over { border-style: solid; border-color: rgba(var(--cyan-rgb), 0.5); background: rgba(255, 255, 255, 0.035); }
+.fb-drop.over { border-style: solid; border-color: var(--text-dim); background: rgba(255, 255, 255, 0.035); }
 .fb-drop.full { opacity: 0.55; }
-.fb-drop-line { font-size: 14px; color: var(--text-dim); }
+.fb-drop-line { font-size: var(--fs-ui); color: var(--text-dim); }
 
 /* The pictures: framed images, each with its own Remove. */
 .fb-pics { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .fb-pics[hidden] { display: none; }
-.fb-pic { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); animation: riseIn var(--t-med) var(--ease-expo) both; }
+.fb-pic { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
 .fb-pic img {
   display: block; height: 96px; width: auto; max-width: 200px; object-fit: cover;
-  border: 1px solid var(--line-2); border-radius: var(--r-card);
+  outline: 1px solid var(--image-outline); outline-offset: -1px; border-radius: var(--r-card);
+  flex: none;
 }
-.fb-said { font-size: 13px; line-height: 1.5; color: var(--text-dim); min-height: 1.5em; }
+.fb-said { font-size: var(--fs-label); line-height: 1.5; color: var(--text-dim); min-height: 1.5em; }
 .fb-said.bad { color: var(--bad); }
 
 .fb-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); width: 100%; }
-.fb-review-line { font-size: 14px; color: var(--text); }
+.fb-review-line { font-size: var(--fs-ui); color: var(--text); }
 
-.fb-more summary { font-size: 13px; color: var(--text-mute); cursor: pointer; }
+.fb-more summary { font-size: var(--fs-label); color: var(--text-mute); cursor: pointer; }
 .fb-more summary:hover { color: var(--text-dim); }
 .fb-more[open] summary { margin-bottom: var(--space-2); }
-.fb-facts { font: 400 12px var(--font-mono); color: var(--text-mute); }
+.fb-facts { font-size: var(--fs-caption); color: var(--text-mute); }
 
 .fb-foot { gap: var(--space-2); }
-.fb-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.fb-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .fb-actions .btn-primary { min-width: 148px; }
 
-.fb-done { border-top: 0; padding-top: var(--space-6); gap: var(--space-3); max-width: 720px; }
-.fb-id { font: 500 12px var(--font-mono); color: var(--text-dim); user-select: text; }
+.fb-done { padding-top: var(--space-6); gap: var(--space-3); max-width: 720px; }
+.fb-id { font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: 400; color: var(--text-dim); user-select: text; }
 
 @media (prefers-reduced-motion: reduce) {
-  .fb-sec, .fb-pic { animation-delay: 0ms; }
+  .fb-form { animation-delay: 0ms; }
 }
+
+/* ONE NOTEBOOK GRID (8.8 critique): Home, Matches and the review set their
+   text in the column after the margin (--margin-w), so this page does too,
+   under the title that stays at the page edge. Without it the text jumped
+   72px going from Home to here. */
+html.embedded .sheet > .body { padding-left: calc(max(var(--space-8), calc((100% - 1040px) / 2)) + var(--margin-w)); }

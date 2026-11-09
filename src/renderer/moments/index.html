@@ -32,7 +32,7 @@
 
     <main class="body">
       <!-- Asking main. -->
-      <p id="mo-wait" class="mo-wait" aria-live="polite">Reading your matches</p>
+      <p id="mo-wait" class="mo-wait" aria-live="polite">Reading your matches…</p>
 
       <!-- Nothing saved yet, or nothing in the saved matches. -->
       <section id="mo-empty" class="mo-sec" hidden>
@@ -55,11 +55,13 @@
           <h3 id="mo-log-title" class="mo-title">Every moment</h3>
           <span id="mo-counts" class="mo-counts"></span>
         </div>
-        <!-- One capsule, one sliding thumb (shared/seg.js occlaraSeg). -->
-        <div id="mo-filter" class="seg mo-filter" role="group" aria-label="Show">
-          <button type="button" data-kind="all" aria-pressed="true">All</button>
-          <button type="button" data-kind="death" aria-pressed="false">Deaths</button>
-          <button type="button" data-kind="highlight" aria-pressed="false">Highlights</button>
+        <!-- A FILTER IS A ROW OF WORDS (8.8, ui.css .opts): three choices
+             are no either/or, so no segmented capsule. One choice of three, a
+             radiogroup: one tab stop, the arrow keys move the choice. -->
+        <div id="mo-filter" class="opts mo-filter" role="radiogroup" aria-label="Show">
+          <button type="button" role="radio" data-kind="all" data-text="All" aria-checked="true" tabindex="0">All</button>
+          <button type="button" role="radio" data-kind="death" data-text="Deaths" aria-checked="false" tabindex="-1">Deaths</button>
+          <button type="button" role="radio" data-kind="highlight" data-text="Highlights" aria-checked="false" tabindex="-1">Highlights</button>
         </div>
         <!-- Why no clip was kept, said once. -->
         <p id="mo-note" class="mo-note" hidden></p>
@@ -97,7 +99,7 @@
     </div>
   </div>
 
-  <script src="../shared/seg.js"></script>
+  <script src="../shared/intl.js"></script>
   <script src="../shared/grade-view.js"></script>
   <script src="../review/clip-time.js"></script>
   <script src="../review/clip-player.js"></script>

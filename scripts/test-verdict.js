@@ -567,18 +567,18 @@ const ABYSS_V = { ...av, at: AT };
       const weightOk = (f) => (f.includes(P['--font-mono']) ? /^500 /.test(f) : f.includes(P['--font']) && /^(500|600) /.test(f));
       ok(fontsUsed.length && fontsUsed.every(weightOk), `${where}: Geist 500 and 600 and Geist Mono 500 only, the token stacks`, fontsUsed.filter((f) => !weightOk(f)).join(' | '));
       const said = h.texts.map((x) => x.text);
-      const want = [`ABYSS${DOT}13-11${DOT}WIN`, 'B', '71', '/100', 'K/D/A', '31/21/4', 'ACS', '382', 'ADR', '243', `JETT${DOT}UNRATED`, 'occlara.app', '4 OCT 2026'];
+      const want = [`Abyss${DOT}13-11${DOT}Win`, 'B', '71', '/100', 'K/D/A', '31/21/4', 'ACS', '382', 'ADR', '243', `Jett${DOT}Unrated`, 'occlara.app', '4 Oct 2026'];
       ok(want.every((w) => said.includes(w)), `${where}: the right line, the letter, the score, /100, the numbers, the agent and mode, occlara.app and the date`,
         want.filter((w) => !said.includes(w)).join(', '));
       ok(!said.some((s) => /verdict/i.test(s)), `${where}: no VERDICT word any more (8.7.x)`);
-      const subAt = h.texts.find((x) => x.text === `JETT${DOT}UNRATED`);
+      const subAt = h.texts.find((x) => x.text === `Jett${DOT}Unrated`);
       ok(subAt && subAt.y === 45 && subAt.x === 32 && subAt.fill === (paper ? P['--paper-ink'] || '#0A0B0E' : P['--text']),
         `${where}: the agent and mode on the top row, in ink, on the margin when there is no icon`, subAt && `${subAt.x},${subAt.y} ${subAt.fill}`);
       const label = h.texts.filter((x) => /^500 /.test(x.font) && x.font.includes(P['--font']) && !x.font.includes(P['--font-mono'])).map((x) => x.text).join(' ');
       const value = h.texts.find((x) => x.text === ABYSS_V.stat.value);
       ok(label === ABYSS_V.stat.label && value && /^600 /.test(value.font) && !said.includes(ABYSS_V.reason),
         `${where}: the standout under the grade, its value in Geist 600 and its line in Geist 500, and no reason`, `${label} | ${value && value.font}`);
-      ok(!said.includes('HS') && !said.includes('--') && !said.includes('PROVISIONAL') && !said.some((s) => s.includes('#')),
+      ok(!said.includes('HS') && !said.includes('--') && !said.includes('Provisional') && !said.some((s) => s.includes('#')),
         `${where}: no HS (the review has none), no "--", no PROVISIONAL on a grade that is not, no '#'`);
       const ground = h.calls.find((c) => c[0] === 'fillRect');
       ok(ground && ground[1] === (paper ? P['--paper'] || '#E9EBF0' : P['--bg']) && ground[2] === 0 && ground[3] === 0,
@@ -628,7 +628,7 @@ const ABYSS_V = { ...av, at: AT };
     const val = h.texts.find((x) => x.text === '4K');
     ok(ls.length === 2 && ls[1].text.endsWith('…') && val && ls[0].y > val.y && ls[0].x === 32,
       `${size}: a long standout line goes under its value in 2 lines, the last cut with an ellipsis`, ls.map((x) => x.text).join(' / '));
-    ok(h.texts.some((x) => x.text === 'PROVISIONAL'), `${size}: PROVISIONAL when the grade is`);
+    ok(h.texts.some((x) => x.text === 'Provisional'), `${size}: PROVISIONAL when the grade is`);
     h.reset();
     VC.draw({ ...ABYSS_V, stat: { value: '2', label: 'First kills' } }, { size });
     const short = labelLines();
@@ -668,7 +668,7 @@ const ABYSS_V = { ...av, at: AT };
     VC.draw(ABYSS_V, { size, icon: img });
     const drawn = h.calls.find((c) => c[0] === 'drawImage');
     const px = size === 'discord' ? 30 : 36;
-    const subAt = h.texts.find((x) => x.text === `JETT${DOT}UNRATED`);
+    const subAt = h.texts.find((x) => x.text === `Jett${DOT}Unrated`);
     ok(drawn && drawn[1] === img && drawn[2] === 32 && drawn[3] === 41 - px / 2 && drawn[4] === px && drawn[5] === px && h.calls.some((c) => c[0] === 'clip'),
       `${size}: the icon in a ${px} tile on the top row, clipped to its corners`, drawn && drawn.slice(2).join(','));
     ok(subAt && subAt.x === 32 + px + 12, `${size}: the agent and mode beside it`, subAt && subAt.x);
@@ -679,7 +679,7 @@ const ABYSS_V = { ...av, at: AT };
   // The top row never collides: the mode goes first when the two lines meet.
   h.reset();
   VC.draw({ ...ABYSS_V, sub: `Jett${DOT}A very long mode name for a test`, right: 'Abyss · 13-11 · Win' }, { size: 'discord', icon: { naturalWidth: 256 } });
-  ok(h.texts.some((x) => x.text === 'JETT') && !h.texts.some((x) => /LONG MODE/.test(x.text)), 'a sub line that would meet the right line drops the mode');
+  ok(h.texts.some((x) => x.text === 'Jett') && !h.texts.some((x) => /long mode/.test(x.text)), 'a sub line that would meet the right line drops the mode');
   ok(VC.ICON_PATH.test('valorant/agents/KAYO.png') && VC.ICON_PATH.test('lol/champions/Kaisa.png')
     && !VC.ICON_PATH.test('../secret.png') && !VC.ICON_PATH.test('valorant/agents/../../x.png') && !VC.ICON_PATH.test('valorant/agents/Jett.png?x'),
   'only a bundled icon\'s path is asked for (the detector matches the two shapes and refuses the rest)');
@@ -695,7 +695,7 @@ const ABYSS_V = { ...av, at: AT };
   ok(!h.texts.some((x) => x.text === '' || x.text === 'null') && h.texts.some((x) => x.text === 'B'), 'with no reason, no numbers and no sub line it draws the rest and nothing empty');
   h.reset();
   VC.draw({ ...ABYSS_V, at: null });
-  ok(!h.texts.some((x) => /\d{4}$/.test(x.text) && /OCT|SEP|NOV/.test(x.text)), 'with no date it draws none');
+  ok(!h.texts.some((x) => /\d{4}$/.test(x.text) && /Oct|Sep|Nov/.test(x.text)), 'with no date it draws none');
   h.reset();
   VC.draw({ ...ABYSS_V, right: 'Abyss · Somebody#EUW', stats: [['K/D/A', '1/2/3'], ['ACS', null], ['ADR', 99]] });
   ok(!h.texts.some((x) => x.text.includes('#')) && !h.texts.some((x) => x.text === 'ACS') && h.texts.some((x) => x.text === 'ADR'),
@@ -709,14 +709,14 @@ const ABYSS_V = { ...av, at: AT };
   broken.reset();
   broken.VC.draw(ABYSS_V, { paper: false });
   ok(broken.texts.find((x) => x.text === 'B').fill === '#F5F5F7', 'the same for the ink on the dark ground');
-  const verdictLabel = broken.texts.find((x) => x.text === `JETT${DOT}UNRATED`);
-  ok(verdictLabel && verdictLabel.spacing === '0.88px' && /Geist Mono/.test(verdictLabel.font),
-    'a tracking token that is not in ems gives the app\'s 0.08em, and a missing mono stack its fallback', verdictLabel && `${verdictLabel.spacing} ${verdictLabel.font}`);
+  const verdictLabel = broken.texts.find((x) => x.text === `Jett${DOT}Unrated`);
+  ok(verdictLabel && verdictLabel.spacing === '0px' && /Geist Mono/.test(verdictLabel.font),
+    'a missing mono stack gives its fallback, and a label stays untracked whatever a token says', verdictLabel && `${verdictLabel.spacing} ${verdictLabel.font}`);
   const good = harness();
   good.VC.draw(ABYSS_V);
-  const vl = good.texts.find((x) => x.text === `JETT${DOT}UNRATED`);
-  ok(vl && vl.spacing === `${Number((11 * parseFloat(TOKENS['--track-label'] || '0.08em')).toFixed(2))}px`,
-    'labels are tracked at --track-label', vl && vl.spacing);
+  const vl = good.texts.find((x) => x.text === `Jett${DOT}Unrated`);
+  ok(vl && vl.spacing === '0px',
+    'a label is untracked and in the case it is written in (8.8: no tracked uppercase labels)', vl && vl.spacing);
 
   // The file name, the date, the faces, Save and Copy.
   const day = (at) => { const d = new Date(at); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -768,7 +768,7 @@ const ABYSS_V = { ...av, at: AT };
     ok(di && di[1].src === 'file:///C:/app/assets/valorant/agents/Jett.png', 'render() loads the icon from assets/ and draws it', di && di[1].src);
     const failing = harness({ imageFails: true });
     const fcv = await failing.VC.render(ABYSS_V, { size: 'post' });
-    ok(fcv && fcv.width === 1080 && !failing.calls.some((c) => c[0] === 'drawImage') && failing.texts.some((x) => x.text === `JETT${DOT}UNRATED` && x.x === 32),
+    ok(fcv && fcv.width === 1080 && !failing.calls.some((c) => c[0] === 'drawImage') && failing.texts.some((x) => x.text === `Jett${DOT}Unrated` && x.x === 32),
       'an icon that fails to load is left out, and the image still draws with the line on the margin');
     const none = harness();
     await none.VC.render({ ...ABYSS_V, icon: null });

@@ -6,8 +6,8 @@
  * Painted at once from the entries the app ships with (the preload's
  * bundled()), then once more if main's background refresh from the server
  * (refresh(), 4 s at most, null on any failure) brings something different.
- * The second paint has no entrance: the rows rise once, when the list first
- * appears, never on a repaint. Every word is the changelog's, set as text,
+ * The second paint has no entrance: the list rises once, as one block, when
+ * it first appears, never on a repaint. Every word is the changelog's, set as text,
  * never as markup. The version the player runs is marked "Your version".
  *
  * The seal hides this page mid match like every page, so nothing here is on
@@ -32,7 +32,6 @@ function entry(e, i, rise) {
   const sec = el('section', `wn-entry${i === 0 ? ' first' : ''}${rise ? ' rise' : ''}`);
   sec.setAttribute('aria-labelledby', `wn-t-${i}`);
   sec.dataset.version = e.version;
-  if (rise) sec.style.setProperty('--i', String(Math.min(i, 7)));
 
   const meta = el('p', 'wn-meta');
   meta.append(el('span', 'wn-ver', e.version));
@@ -66,6 +65,7 @@ function paint(entries) {
   painted = true;
   const host = $('wn-list');
   host.textContent = '';
+  // One entrance, every entry together (8.8), never one after another.
   list.forEach((e, i) => host.append(entry(e, i, rise)));
   $('wn-empty').hidden = list.length > 0;
 }
