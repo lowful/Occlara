@@ -1,16 +1,58 @@
 [
   {
+    "version": "8.8.1",
+    "date": "2026-11-08",
+    "title": "The previous look is back, and the coach checks more of what it says",
+    "summary": "The app looks the way it did before 8.8.0, and reviews and Ask Coach check six more kinds of claim against Riot's record.",
+    "items": [
+      {
+        "kind": "improved",
+        "text": "The app is back to its previous look. The notebook redesign from 8.8.0 is gone."
+      },
+      {
+        "kind": "fixed",
+        "text": "Reviews and Ask Coach now check six more kinds of claim against Riot's record: where you died, which rounds the coach looked at and how many, whether you died more than you killed, lists of rounds that do not match their count, and utility your team does not have, like a drone."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach gives better advice on holding an angle with a sniper, buying on pistol, eco and team save rounds, retakes and defusing, and reading which site the enemy will hit next."
+      },
+      {
+        "kind": "fixed",
+        "text": "With no match attached, Ask Coach no longer talks about what a record shows."
+      }
+    ]
+  },
+  {
     "version": "8.8.0",
     "date": "2026-11-08",
     "title": "A coach's notebook, and fewer wrong claims",
     "summary": "The app looks like a coach's marked up notes, and reviews check what they say about your rounds more strictly.",
     "items": [
-      { "kind": "new", "text": "Review, Home and Matches are redesigned like a coach's notebook, with the one thing to fix in bold, hand drawn pen marks on the rounds that prove it and a margin for times and grades." },
-      { "kind": "improved", "text": "Buttons now have three clear ranks, one main action per screen, and press down a little when you click them." },
-      { "kind": "improved", "text": "Counts in reviews and Ask Coach, like how many deaths nobody traded, now come from one list, so they no longer contradict each other or call a death alone when Riot shows a teammate close." },
-      { "kind": "improved", "text": "A round where Riot marked you AFK is now left out of your grade, your missed list, your patterns and your Moments, not only your repeated mistakes." },
-      { "kind": "improved", "text": "Ask Coach answers aim questions from your own numbers with drills you can really do, and the RR on your reviews keeps trying until Riot publishes the game." },
-      { "kind": "fixed", "text": "A review no longer loses its round lines when a player in your match has a name that contains a word like aim." }
+      {
+        "kind": "new",
+        "text": "Review, Home and Matches are redesigned like a coach's notebook, with the one thing to fix in bold, hand drawn pen marks on the rounds that prove it and a margin for times and grades."
+      },
+      {
+        "kind": "improved",
+        "text": "Buttons now have three clear ranks, one main action per screen, and press down a little when you click them."
+      },
+      {
+        "kind": "improved",
+        "text": "Counts in reviews and Ask Coach, like how many deaths nobody traded, now come from one list, so they no longer contradict each other or call a death alone when Riot shows a teammate close."
+      },
+      {
+        "kind": "improved",
+        "text": "A round where Riot marked you AFK is now left out of your grade, your missed list, your patterns and your Moments, not only your repeated mistakes."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach answers aim questions from your own numbers with drills you can really do, and the RR on your reviews keeps trying until Riot publishes the game."
+      },
+      {
+        "kind": "fixed",
+        "text": "A review no longer loses its round lines when a player in your match has a name that contains a word like aim."
+      }
     ]
   },
   {
@@ -19,12 +61,30 @@
     "title": "Where you died, and what you bought",
     "summary": "Linked round cards now show where each death happened, what your team bought and how close a teammate was.",
     "items": [
-      { "kind": "new", "text": "When your match is linked to Riot's record, each round you died in shows the spot, like B Main, and whether a teammate was close enough to trade you." },
-      { "kind": "new", "text": "Each linked round shows your team's buy, from pistol to full buy, and longer matches count how your team did on full buys, ecos and forced buys." },
-      { "kind": "new", "text": "Reviews of your recent ranked matches show the RR you gained or lost, and Stats adds your peak rank and your all time aces and clutches from Riot's record." },
-      { "kind": "improved", "text": "The coach picks advice from where you died and how you bought, and a round where Riot marked you AFK says so on its card and is left out of your repeated mistakes." },
-      { "kind": "improved", "text": "Reviews and Ask Coach check what they say about a round, where you died, the plant and how close a teammate was, against Riot's record, so fewer mistakes reach you, and higher ranks get advice that fits them." },
-      { "kind": "fixed", "text": "Reviews saved before this update look exactly as before." }
+      {
+        "kind": "new",
+        "text": "When your match is linked to Riot's record, each round you died in shows the spot, like B Main, and whether a teammate was close enough to trade you."
+      },
+      {
+        "kind": "new",
+        "text": "Each linked round shows your team's buy, from pistol to full buy, and longer matches count how your team did on full buys, ecos and forced buys."
+      },
+      {
+        "kind": "new",
+        "text": "Reviews of your recent ranked matches show the RR you gained or lost, and Stats adds your peak rank and your all time aces and clutches from Riot's record."
+      },
+      {
+        "kind": "improved",
+        "text": "The coach picks advice from where you died and how you bought, and a round where Riot marked you AFK says so on its card and is left out of your repeated mistakes."
+      },
+      {
+        "kind": "improved",
+        "text": "Reviews and Ask Coach check what they say about a round, where you died, the plant and how close a teammate was, against Riot's record, so fewer mistakes reach you, and higher ranks get advice that fits them."
+      },
+      {
+        "kind": "fixed",
+        "text": "Reviews saved before this update look exactly as before."
+      }
     ]
   },
   {
@@ -33,10 +93,22 @@
     "title": "A coach that reads your match, not a checklist",
     "summary": "Reviews and answers now lean on what your match and your own history show, with sharper advice at every rank.",
     "items": [
-      { "kind": "improved", "text": "Reviews pick the lesson that fits your rank and your match, and only lead with trading when it keeps costing you across your matches." },
-      { "kind": "improved", "text": "Higher ranks get advice built on their match's real numbers, like a side that kept losing or a post plant that kept failing." },
-      { "kind": "improved", "text": "Ask Coach answers practice, aim and improvement questions with your own biggest lever instead of the same habit every time." },
-      { "kind": "fixed", "text": "The coach no longer gets agent abilities wrong, quotes stats it cannot check, or leaves half sentences behind." }
+      {
+        "kind": "improved",
+        "text": "Reviews pick the lesson that fits your rank and your match, and only lead with trading when it keeps costing you across your matches."
+      },
+      {
+        "kind": "improved",
+        "text": "Higher ranks get advice built on their match's real numbers, like a side that kept losing or a post plant that kept failing."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach answers practice, aim and improvement questions with your own biggest lever instead of the same habit every time."
+      },
+      {
+        "kind": "fixed",
+        "text": "The coach no longer gets agent abilities wrong, quotes stats it cannot check, or leaves half sentences behind."
+      }
     ]
   },
   {
@@ -45,11 +117,26 @@
     "title": "Sharper, more honest coaching",
     "summary": "Reviews and Ask Coach now focus on what really decided your match, answer the question you asked, and check their facts harder.",
     "items": [
-      { "kind": "improved", "text": "Your review now leads with the change that would help you most, like a side you kept losing or a player who kept killing you, not the same habit every time." },
-      { "kind": "improved", "text": "Ask Coach answers what you asked: aim, practice, climbing or how to play into an agent, with notes picked for that question." },
-      { "kind": "improved", "text": "Aim is judged from your own numbers, and a death in a round you lost is no longer praised just because it was traded." },
-      { "kind": "improved", "text": "Advice at higher ranks goes deeper than advice at lower ranks, not just longer." },
-      { "kind": "fixed", "text": "The coach no longer mixes up ability keys or makes up details the match record does not show, and it answers basic questions it used to refuse." }
+      {
+        "kind": "improved",
+        "text": "Your review now leads with the change that would help you most, like a side you kept losing or a player who kept killing you, not the same habit every time."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach answers what you asked: aim, practice, climbing or how to play into an agent, with notes picked for that question."
+      },
+      {
+        "kind": "improved",
+        "text": "Aim is judged from your own numbers, and a death in a round you lost is no longer praised just because it was traded."
+      },
+      {
+        "kind": "improved",
+        "text": "Advice at higher ranks goes deeper than advice at lower ranks, not just longer."
+      },
+      {
+        "kind": "fixed",
+        "text": "The coach no longer mixes up ability keys or makes up details the match record does not show, and it answers basic questions it used to refuse."
+      }
     ]
   },
   {
@@ -58,10 +145,22 @@
     "title": "A coach that knows the matchup",
     "summary": "More coaching from top players, advice that knows who you played against, and worked examples for the moments that decided your match.",
     "items": [
-      { "kind": "improved", "text": "The coach learned 133 more habits from top coaches and Radiant players, with much more for Ascendant and above." },
-      { "kind": "new", "text": "Matchup advice: when the enemy had a Killjoy, a Viper or another agent that changes how you play, the coach tells you how to play into them." },
-      { "kind": "new", "text": "When a moment in your match looks like one top players handle well, the coach walks you through what to notice and what to do." },
-      { "kind": "improved", "text": "Lower ranks now get the fundamentals that matter most at their level first, while higher ranks keep the deeper advice." }
+      {
+        "kind": "improved",
+        "text": "The coach learned 133 more habits from top coaches and Radiant players, with much more for Ascendant and above."
+      },
+      {
+        "kind": "new",
+        "text": "Matchup advice: when the enemy had a Killjoy, a Viper or another agent that changes how you play, the coach tells you how to play into them."
+      },
+      {
+        "kind": "new",
+        "text": "When a moment in your match looks like one top players handle well, the coach walks you through what to notice and what to do."
+      },
+      {
+        "kind": "improved",
+        "text": "Lower ranks now get the fundamentals that matter most at their level first, while higher ranks keep the deeper advice."
+      }
     ]
   },
   {
@@ -70,9 +169,18 @@
     "title": "Report a problem, and advanced coaching for everyone",
     "summary": "Tell us when something goes wrong with a picture and a few words, and get the deepest coaching that fits your rank by default.",
     "items": [
-      { "kind": "new", "text": "A Report a problem button above the Discord icon. Describe what went wrong, add up to 3 pictures and send it straight to us." },
-      { "kind": "improved", "text": "Advanced coaching is now on for everyone. It goes deeper while fitting your rank, so you never get advice meant for a rank above yours. You can still turn it off in Settings." },
-      { "kind": "improved", "text": "Ask Coach no longer tells you your rank back, it just fits its advice to it." }
+      {
+        "kind": "new",
+        "text": "A Report a problem button above the Discord icon. Describe what went wrong, add up to 3 pictures and send it straight to us."
+      },
+      {
+        "kind": "improved",
+        "text": "Advanced coaching is now on for everyone. It goes deeper while fitting your rank, so you never get advice meant for a rank above yours. You can still turn it off in Settings."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach no longer tells you your rank back, it just fits its advice to it."
+      }
     ]
   },
   {
@@ -81,14 +189,38 @@
     "title": "Gifts, clips in Ask Coach and a smarter coach",
     "summary": "Gift Pro or Max to a friend with a link, watch your own clips inside Ask Coach, and get advice that fits your rank.",
     "items": [
-      { "kind": "new", "text": "Gift Pro or Max for a month or a year. You get a link to send, and your friend redeems it in one click." },
-      { "kind": "new", "text": "Ask Coach can show the clips it is talking about, right under its answer." },
-      { "kind": "new", "text": "Each round you died in shows who killed you, with their agent, weapon and the damage they did." },
-      { "kind": "new", "text": "A Discord button in the sidebar and a What's new page in Settings." },
-      { "kind": "improved", "text": "The coach learned from top coaches and Radiant players, and its advice now fits your rank." },
-      { "kind": "improved", "text": "Your Verdict shows your agent and your standout stat of the match, like an ace or a clutch." },
-      { "kind": "improved", "text": "Rounds are cleaner, without the row of small frames under each clip." },
-      { "kind": "fixed", "text": "Free games are now one set per player." }
+      {
+        "kind": "new",
+        "text": "Gift Pro or Max for a month or a year. You get a link to send, and your friend redeems it in one click."
+      },
+      {
+        "kind": "new",
+        "text": "Ask Coach can show the clips it is talking about, right under its answer."
+      },
+      {
+        "kind": "new",
+        "text": "Each round you died in shows who killed you, with their agent, weapon and the damage they did."
+      },
+      {
+        "kind": "new",
+        "text": "A Discord button in the sidebar and a What's new page in Settings."
+      },
+      {
+        "kind": "improved",
+        "text": "The coach learned from top coaches and Radiant players, and its advice now fits your rank."
+      },
+      {
+        "kind": "improved",
+        "text": "Your Verdict shows your agent and your standout stat of the match, like an ace or a clutch."
+      },
+      {
+        "kind": "improved",
+        "text": "Rounds are cleaner, without the row of small frames under each clip."
+      },
+      {
+        "kind": "fixed",
+        "text": "Free games are now one set per player."
+      }
     ]
   },
   {
@@ -97,11 +229,26 @@
     "title": "Ask Coach and your games",
     "summary": "Ask Coach now follows your games, with a clear way to get more when you run out.",
     "items": [
-      { "kind": "improved", "text": "When you have used all your games, Ask Coach says so in one calm line with a button that opens your Profile." },
-      { "kind": "improved", "text": "Games you buy unlock Ask Coach straight away." },
-      { "kind": "improved", "text": "Ask Coach takes one question at a time and slows down questions sent very fast." },
-      { "kind": "improved", "text": "Reviews and Ask Coach answers come from newer AI models that matched the old ones in our tests and cost less to run." },
-      { "kind": "fixed", "text": "Occlara's servers now guard every request against floods, so the coach stays up for everyone." }
+      {
+        "kind": "improved",
+        "text": "When you have used all your games, Ask Coach says so in one calm line with a button that opens your Profile."
+      },
+      {
+        "kind": "improved",
+        "text": "Games you buy unlock Ask Coach straight away."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach takes one question at a time and slows down questions sent very fast."
+      },
+      {
+        "kind": "improved",
+        "text": "Reviews and Ask Coach answers come from newer AI models that matched the old ones in our tests and cost less to run."
+      },
+      {
+        "kind": "fixed",
+        "text": "Occlara's servers now guard every request against floods, so the coach stays up for everyone."
+      }
     ]
   },
   {
@@ -110,18 +257,54 @@
     "title": "Your Profile, and buying games",
     "summary": "A new Profile page shows your games left, lets you buy more and sums up how you play.",
     "items": [
-      { "kind": "new", "text": "A Profile page in the sidebar, between Invite and Settings, with your games left as the first thing you see." },
-      { "kind": "new", "text": "Buy more games from the app at $2 a game, any number from 1 to 500. Games you buy never expire." },
-      { "kind": "new", "text": "Your play in Valorant at a glance: your most used weapon, your most played agent and your peak rank." },
-      { "kind": "new", "text": "The Free, Pro and Max plans side by side, monthly or yearly." },
-      { "kind": "improved", "text": "The coach's notes were checked and corrected, and it reads the latest patch notes again." },
-      { "kind": "fixed", "text": "A chosen option in a switch no longer turns invisible when you hover it." },
-      { "kind": "fixed", "text": "Your match library rebuilds itself if its index is ever damaged, so no review is lost." },
-      { "kind": "fixed", "text": "A revive no longer counts as a clutch." },
-      { "kind": "fixed", "text": "Spike Rush matches are read correctly, halves included." },
-      { "kind": "fixed", "text": "A round end countdown is no longer mistaken for a death." },
-      { "kind": "fixed", "text": "An update never restarts Occlara in the middle of a match." },
-      { "kind": "fixed", "text": "Round pictures in a review show again instead of a broken image." }
+      {
+        "kind": "new",
+        "text": "A Profile page in the sidebar, between Invite and Settings, with your games left as the first thing you see."
+      },
+      {
+        "kind": "new",
+        "text": "Buy more games from the app at $2 a game, any number from 1 to 500. Games you buy never expire."
+      },
+      {
+        "kind": "new",
+        "text": "Your play in Valorant at a glance: your most used weapon, your most played agent and your peak rank."
+      },
+      {
+        "kind": "new",
+        "text": "The Free, Pro and Max plans side by side, monthly or yearly."
+      },
+      {
+        "kind": "improved",
+        "text": "The coach's notes were checked and corrected, and it reads the latest patch notes again."
+      },
+      {
+        "kind": "fixed",
+        "text": "A chosen option in a switch no longer turns invisible when you hover it."
+      },
+      {
+        "kind": "fixed",
+        "text": "Your match library rebuilds itself if its index is ever damaged, so no review is lost."
+      },
+      {
+        "kind": "fixed",
+        "text": "A revive no longer counts as a clutch."
+      },
+      {
+        "kind": "fixed",
+        "text": "Spike Rush matches are read correctly, halves included."
+      },
+      {
+        "kind": "fixed",
+        "text": "A round end countdown is no longer mistaken for a death."
+      },
+      {
+        "kind": "fixed",
+        "text": "An update never restarts Occlara in the middle of a match."
+      },
+      {
+        "kind": "fixed",
+        "text": "Round pictures in a review show again instead of a broken image."
+      }
     ]
   },
   {
@@ -130,8 +313,14 @@
     "title": "Highlights for every multikill",
     "summary": "Every round with two or more kills is now a highlight, and reviews read in plainer sentences.",
     "items": [
-      { "kind": "improved", "text": "Every round where you get two or more kills is saved as a highlight, named 2K, 3K, 4K or 5K, alongside clutches and first kill streaks." },
-      { "kind": "improved", "text": "Reviews are written in short plain sentences, without semicolons." }
+      {
+        "kind": "improved",
+        "text": "Every round where you get two or more kills is saved as a highlight, named 2K, 3K, 4K or 5K, alongside clutches and first kill streaks."
+      },
+      {
+        "kind": "improved",
+        "text": "Reviews are written in short plain sentences, without semicolons."
+      }
     ]
   },
   {
@@ -140,17 +329,50 @@
     "title": "Accounts, a new look and Moments",
     "summary": "Sign in with your browser, start with 2 free games, and meet a calmer Occlara with the new Moments page.",
     "items": [
-      { "kind": "new", "text": "Accounts: sign in through your browser. A licence key still works too." },
-      { "kind": "new", "text": "Free, Pro and Max plans. Free gives you 2 games for life, Pro 25 games a month and Max 70 a month." },
-      { "kind": "new", "text": "An Invite page. Each friend who signs up with your link gets 2 extra free games, and you earn 4 games per friend, up to 20." },
-      { "kind": "new", "text": "Moments replaces Breakdown: every death and highlight from your matches in one place, with Play all for each repeated mistake." },
-      { "kind": "new", "text": "A new look across the whole app: one calm column, clean lines instead of boxes, and the fix for your next match as the biggest line." },
-      { "kind": "new", "text": "A lighter 480p recording size for modest PCs, which used about a quarter less CPU than 720p in our tests." },
-      { "kind": "improved", "text": "Reviews open with a Verdict you can share as an image, and show how you did against your last match and your average." },
-      { "kind": "improved", "text": "Milestones on Home and in Matches mark your bests and the habits you have cleared." },
-      { "kind": "improved", "text": "A match played with no games left is still saved in your library with Riot's record of it." },
-      { "kind": "improved", "text": "Invited friends get their extra games even if they confirm their email later." },
-      { "kind": "improved", "text": "League of Legends is marked coming soon while we finish it. Your League reviews are kept." }
+      {
+        "kind": "new",
+        "text": "Accounts: sign in through your browser. A licence key still works too."
+      },
+      {
+        "kind": "new",
+        "text": "Free, Pro and Max plans. Free gives you 2 games for life, Pro 25 games a month and Max 70 a month."
+      },
+      {
+        "kind": "new",
+        "text": "An Invite page. Each friend who signs up with your link gets 2 extra free games, and you earn 4 games per friend, up to 20."
+      },
+      {
+        "kind": "new",
+        "text": "Moments replaces Breakdown: every death and highlight from your matches in one place, with Play all for each repeated mistake."
+      },
+      {
+        "kind": "new",
+        "text": "A new look across the whole app: one calm column, clean lines instead of boxes, and the fix for your next match as the biggest line."
+      },
+      {
+        "kind": "new",
+        "text": "A lighter 480p recording size for modest PCs, which used about a quarter less CPU than 720p in our tests."
+      },
+      {
+        "kind": "improved",
+        "text": "Reviews open with a Verdict you can share as an image, and show how you did against your last match and your average."
+      },
+      {
+        "kind": "improved",
+        "text": "Milestones on Home and in Matches mark your bests and the habits you have cleared."
+      },
+      {
+        "kind": "improved",
+        "text": "A match played with no games left is still saved in your library with Riot's record of it."
+      },
+      {
+        "kind": "improved",
+        "text": "Invited friends get their extra games even if they confirm their email later."
+      },
+      {
+        "kind": "improved",
+        "text": "League of Legends is marked coming soon while we finish it. Your League reviews are kept."
+      }
     ]
   },
   {
@@ -159,9 +381,18 @@
     "title": "The crescent",
     "summary": "A new crescent mark and one cleaner look across the app.",
     "items": [
-      { "kind": "new", "text": "A new crescent logo, with tray icons for light and dark taskbars." },
-      { "kind": "improved", "text": "Matches, Stats, Settings and reviews share one cleaner look." },
-      { "kind": "fixed", "text": "The close button in the first run setup sits inside its card again." }
+      {
+        "kind": "new",
+        "text": "A new crescent logo, with tray icons for light and dark taskbars."
+      },
+      {
+        "kind": "improved",
+        "text": "Matches, Stats, Settings and reviews share one cleaner look."
+      },
+      {
+        "kind": "fixed",
+        "text": "The close button in the first run setup sits inside its card again."
+      }
     ]
   }
 ]

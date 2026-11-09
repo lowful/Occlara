@@ -1,5 +1,29 @@
 [
   {
+    "version": "8.8.1",
+    "date": "2026-11-08",
+    "title": "The previous look is back, and the coach checks more of what it says",
+    "summary": "The app looks the way it did before 8.8.0, and reviews and Ask Coach check six more kinds of claim against Riot's record.",
+    "items": [
+      {
+        "kind": "improved",
+        "text": "The app is back to its previous look. The notebook redesign from 8.8.0 is gone."
+      },
+      {
+        "kind": "fixed",
+        "text": "Reviews and Ask Coach now check six more kinds of claim against Riot's record: where you died, which rounds the coach looked at and how many, whether you died more than you killed, lists of rounds that do not match their count, and utility your team does not have, like a drone."
+      },
+      {
+        "kind": "improved",
+        "text": "Ask Coach gives better advice on holding an angle with a sniper, buying on pistol, eco and team save rounds, retakes and defusing, and reading which site the enemy will hit next."
+      },
+      {
+        "kind": "fixed",
+        "text": "With no match attached, Ask Coach no longer talks about what a record shows."
+      }
+    ]
+  },
+  {
     "version": "8.8.0",
     "date": "2026-11-08",
     "title": "A coach's notebook, and fewer wrong claims",
